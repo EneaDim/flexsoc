@@ -323,6 +323,7 @@ This target removes all project directories and files, effectively resetting the
 8. `make sim view` : compile, simulate and view.
 9. `make view_presyn` : view yosys presyn.
 10. `make syn sta power` : run synthesis, static timing analysis and power analysis.
+11. `make path_view PATH_VIEW_FILE=fsm_example_sta.log` : run path view utils to generate netlist svg of the paths in the STA log (helpfull when used for STA path violations).
 
 ## Next Steps
 

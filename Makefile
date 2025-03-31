@@ -84,7 +84,7 @@ cocotb:
 
 # REGRESSION
 regression:
-	@$(MKDIR) -p $(REGRESSIONDIR)\
+	@$(MKDIR) -p $(REGRESSIONDIR) ; \
 	$(PYTHON) scripts/regression.py
 
 # RUN SYNTHESIS WITH YOSYS
@@ -221,6 +221,9 @@ clean_sim:
 	$(RM) $(SIMDIR)/*.vvp
 	$(RM) $(SIMDIR)/*.vcd
 	$(RM) $(SIMDIR)/verilator
+clean_regression:
+	$(RM) $(LOGDIR)/regression/*
+	$(RM) $(SIMDIR)/regression/*
 clean_syn:
 	$(RM) $(SYNDIR)/*
 clean_signoff: 
@@ -231,7 +234,7 @@ clean_signoff:
 clean_subdir:
 	$(MAKE) -C fsm_gen clean
 	$(MAKE) -C fsm_gen setup
-clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir 
+clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_regression 
 	@$(FIND) . -type f \( -name '*~' -o -name '.*' \) -exec rm -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	@$(CLEAR)
