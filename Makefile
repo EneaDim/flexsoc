@@ -197,8 +197,8 @@ setup_syn: sv2v
 
 # SETUP STA SCRIPT
 setup_signoff:
-	$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) -libs $(LIBS) \
-	-clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
+	$(PYTHON) scripts/setup_signoff.py -top $(TOP) -tb $(TESTBENCH) -rtldir $(RTLDIR) \
+	-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
 
 # SIMULATE WITH COCOTB
 sim_cocotb:
