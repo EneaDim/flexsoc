@@ -12,7 +12,6 @@ help_fsm:
 # SETUP FOLDER STRUCTURE
 setup: 
 	@$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
-	@$(MAKE) -C fsm_gen setup
 	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(REGRESSIONDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
 	$(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) $(UTILDIR) $(DOCDIR) $(DATADIR)
 
@@ -178,7 +177,7 @@ flow: hjson doc lint sim syn sdf sta
 # FSM GENERATOR
 .PHONY: fsm_gen
 fsm_gen:
-	$(MAKE) -C fsm_gen gen
+	$(MAKE) -C fsm_gen flow
 
 fsm_plot:
 	$(MAKE) -C fsm_gen plot
