@@ -76,7 +76,7 @@ endif
 # VIEW WAVEFORMS RTL SIMULATION
 view:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TOP).vcd $(VIEWER_CONF) & 
+	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TESTBENCH).vcd $(VIEWER_CONF) & 
 
 # COCOTB
 cocotb: 
@@ -127,7 +127,7 @@ endif
 # VIEW WAVEFORMS RTL SIMULATION
 view_syn:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TOP)_syn.vcd $(VIEWER_CONF) & 
+	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TESTBENCH)_syn.vcd $(VIEWER_CONF) & 
 
 # STA analysis
 sta: setup_signoff 
