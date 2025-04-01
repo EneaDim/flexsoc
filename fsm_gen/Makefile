@@ -12,7 +12,7 @@ RESET           :=\033[0m
 # BASIC FLOW
 flow: setup gen
 setup:
-	mkdir -p outputs  
+	mkdir -p inputs outputs  
 # HELP
 help: clean
 	python scripts/help.py
