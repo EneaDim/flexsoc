@@ -12,6 +12,7 @@ help_fsm:
 # SETUP FOLDER STRUCTURE
 setup: 
 	@$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
+	@$(MAKE) -C fsm_gen setup
 	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(REGRESSIONDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
 	$(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) $(UTILDIR) $(DOCDIR) $(DATADIR)
 
