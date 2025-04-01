@@ -10,7 +10,7 @@ ORANGE          :=\033[38;5;214m
 RESET           :=\033[0m
 
 # BASIC FLOW
-flow: setup main
+flow: setup gen
 setup:
 	mkdir -p outputs  
 # HELP
