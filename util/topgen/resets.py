@@ -2,7 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 from .clocks import Clocks
 
 
@@ -36,7 +36,7 @@ class ResetItem:
 
         # This can be a source clock or a derived source
         if self.rst_type != 'ext':
-            self.clock = clocks.get_clock_by_name(raw['clock'])
+            self.clock = clocks.get_clock_by_name(raw['clk'])
         else:
             self.clock = None
 
@@ -214,40 +214,3 @@ class Resets:
                 return True
 
         return False
-
-
-class UnmanagedReset:
-    '''An unmanaged reset (input to the top-level).'''
-
-    def __init__(self, raw: Dict[str, object]):
-        if 'name' not in raw:
-            raise ValueError('Missing field "name" for unmanaged reset')
-        self.name = str(raw['name'])
-        self.signal_name = f'rst_{self.name}_i'
-        self.rst_en_signal_name = f'rst_en_{self.name}_i'
-
-    def _asdict(self) -> Dict[str, object]:
-        return {
-            'name': self.name,
-            'signal_name': self.signal_name,
-            'rst_en_signal_name': self.rst_en_signal_name
-        }
-
-
-class UnmanagedResets:
-    '''Unmanaged reset connections for the chip.'''
-
-    def __init__(self, raw: List[object]):
-        self.resets = {reset['name']: UnmanagedReset(reset) for reset in raw}
-
-    def _asdict(self) -> Dict[str, object]:
-        return self.resets
-
-    def get(self, name: str) -> object:
-        try:
-            return self.resets[name]
-        except KeyError:
-            raise ValueError(f"No reset defined with name {name}") from None
-
-    def __contains__(self, k: str) -> bool:
-        return k in self.resets

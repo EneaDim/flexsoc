@@ -1,0 +1,36 @@
+CAPI=2:
+name: "prj:ip:spi_host:0.1"
+description: "spi_host"
+filesets:
+  files_rtl:
+    depend:
+      - ips:dependecies:all
+    files:
+      - rtl/spi_host_reg_pkg.sv
+      - rtl/spi_host.sv
+      - rtl/spi_host_core.sv
+      - rtl/spi_host_reg_top.sv
+    file_type: systemVerilogSource
+
+  files_verilator_waiver:
+    files:
+      - lint/spi_host.vlt
+    file_type: vlt
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+      - tool_verilator   ? (files_verilator_waiver)
+    toplevel: spi_host
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"
+

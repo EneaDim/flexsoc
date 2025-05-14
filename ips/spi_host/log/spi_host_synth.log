@@ -1,0 +1,2298 @@
+
+ /----------------------------------------------------------------------------\
+ |  yosys -- Yosys Open SYnthesis Suite                                       |
+ |  Copyright (C) 2012 - 2024  Claire Xenia Wolf <claire@yosyshq.com>         |
+ |  Distributed under an ISC-like license, type "license" to see terms        |
+ \----------------------------------------------------------------------------/
+ Yosys 0.44+4 (git sha1 77b2ae2e3, g++ 13.2.0-23ubuntu4 -fPIC -O3)
+
+-- Executing script file `syn/synth.ys' --
+
+1. Executing Verilog-2005 frontend: rtl/spi_host.v
+Parsing Verilog input from `rtl/spi_host.v' to AST representation.
+Generating RTLIL representation for module `\prim_arbiter_ppc'.
+Generating RTLIL representation for module `\prim_cdc_rand_delay'.
+Generating RTLIL representation for module `\prim_count'.
+Generating RTLIL representation for module `\prim_fifo_async'.
+Generating RTLIL representation for module `\prim_fifo_async_simple'.
+Generating RTLIL representation for module `\prim_fifo_async_sram_adapter'.
+Generating RTLIL representation for module `\prim_fifo_sync'.
+Generating RTLIL representation for module `\prim_fifo_sync_cnt'.
+Generating RTLIL representation for module `\prim_filter'.
+Generating RTLIL representation for module `\prim_filter_ctr'.
+Generating RTLIL representation for module `\prim_flop'.
+Generating RTLIL representation for module `\prim_flop_2sync'.
+Generating RTLIL representation for module `\prim_secded_inv_39_32_dec'.
+Generating RTLIL representation for module `\prim_secded_inv_39_32_enc'.
+Generating RTLIL representation for module `\prim_secded_inv_64_57_dec'.
+Generating RTLIL representation for module `\prim_secded_inv_64_57_enc'.
+Generating RTLIL representation for module `\prim_subreg'.
+Generating RTLIL representation for module `\prim_subreg_arb'.
+Generating RTLIL representation for module `\prim_subreg_ext'.
+Generating RTLIL representation for module `\prim_sync_reqack'.
+Generating RTLIL representation for module `\sram2tlul'.
+Generating RTLIL representation for module `\tlul_adapter_host'.
+Generating RTLIL representation for module `\tlul_adapter_reg'.
+Generating RTLIL representation for module `\tlul_adapter_sram'.
+Generating RTLIL representation for module `\tlul_assert'.
+Generating RTLIL representation for module `\tlul_assert_multiple'.
+Generating RTLIL representation for module `\tlul_cmd_intg_chk'.
+Generating RTLIL representation for module `\tlul_cmd_intg_gen'.
+Generating RTLIL representation for module `\tlul_data_integ_dec'.
+Generating RTLIL representation for module `\tlul_data_integ_enc'.
+Generating RTLIL representation for module `\tlul_err'.
+Generating RTLIL representation for module `\tlul_err_resp'.
+Generating RTLIL representation for module `\tlul_fifo_async'.
+Generating RTLIL representation for module `\tlul_fifo_sync'.
+Generating RTLIL representation for module `\tlul_rsp_intg_chk'.
+Generating RTLIL representation for module `\tlul_rsp_intg_gen'.
+Generating RTLIL representation for module `\tlul_socket_1n'.
+Generating RTLIL representation for module `\tlul_socket_m1'.
+Generating RTLIL representation for module `\tlul_sram_byte'.
+Generating RTLIL representation for module `\spi_host'.
+Generating RTLIL representation for module `\spi_host_core'.
+Generating RTLIL representation for module `\spi_host_reg_top'.
+Successfully finished Verilog frontend.
+
+2. Executing SYNTH pass.
+
+2.1. Executing HIERARCHY pass (managing design hierarchy).
+
+2.1.1. Analyzing design hierarchy..
+Top module:  \spi_host
+Used module:     \spi_host_core
+Used module:         \prim_fifo_sync
+Used module:             \prim_fifo_sync_cnt
+Used module:         \prim_flop
+Used module:     \spi_host_reg_top
+Used module:         \prim_subreg
+Used module:             \prim_subreg_arb
+Used module:         \prim_subreg_ext
+Used module:         \tlul_adapter_reg
+Used module:             \tlul_err
+Used module:             \tlul_rsp_intg_gen
+Used module:                 \tlul_data_integ_enc
+Used module:                     \prim_secded_inv_39_32_enc
+Used module:                 \prim_secded_inv_64_57_enc
+Parameter \Depth = 4
+Parameter \Secure = 1'0
+
+2.1.2. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_fifo_sync_cnt'.
+Parameter \Depth = 4
+Parameter \Secure = 1'0
+Generating RTLIL representation for module `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000100\Secure=1'0'.
+Parameter \DW = 32
+Parameter \SwAccess = 3'000
+Parameter \Mubi = 1'0
+
+2.1.3. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg_arb'.
+Parameter \DW = 32
+Parameter \SwAccess = 3'000
+Parameter \Mubi = 1'0
+Generating RTLIL representation for module `$paramod$e010615bfd8b5fdf42cbf04d2ee8cb69e592ddc9\prim_subreg_arb'.
+Parameter \EnableRspIntgGen = 1'0
+Parameter \EnableDataIntgGen = 1'0
+
+2.1.4. Executing AST frontend in derive mode using pre-parsed AST for module `\tlul_rsp_intg_gen'.
+Parameter \EnableRspIntgGen = 1'0
+Parameter \EnableDataIntgGen = 1'0
+Generating RTLIL representation for module `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0'.
+Parameter \FifoDepth = 3
+
+2.1.5. Executing AST frontend in derive mode using pre-parsed AST for module `\spi_host_core'.
+Parameter \FifoDepth = 3
+Generating RTLIL representation for module `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011'.
+Parameter \DW = 8
+Parameter \SwAccess = 3'010
+Parameter \RESVAL = 8'00000000
+Parameter \Mubi = 1'0
+
+2.1.6. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg'.
+Parameter \DW = 8
+Parameter \SwAccess = 3'010
+Parameter \RESVAL = 8'00000000
+Parameter \Mubi = 1'0
+Generating RTLIL representation for module `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+
+2.1.7. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_flop'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+Generating RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Parameter \DW = 8
+
+2.1.8. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg_ext'.
+Parameter \DW = 8
+Generating RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000'.
+Parameter \DW = 1
+
+2.1.9. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg_ext'.
+Parameter \DW = 1
+Generating RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Parameter \DW = 1
+Found cached RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Parameter \DW = 1
+Found cached RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Parameter \DW = 1
+Found cached RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \RESVAL = 1'0
+Parameter \Mubi = 1'0
+
+2.1.10. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \RESVAL = 1'0
+Parameter \Mubi = 1'0
+Generating RTLIL representation for module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \RESVAL = 1'0
+Parameter \Mubi = 1'0
+Found cached RTLIL representation for module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \RESVAL = 1'0
+Parameter \Mubi = 1'0
+Found cached RTLIL representation for module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Parameter \EnableDataIntgGen = 0
+Parameter \RegAw = 4
+Parameter \RegDw = 32
+
+2.1.11. Executing AST frontend in derive mode using pre-parsed AST for module `\tlul_adapter_reg'.
+Parameter \EnableDataIntgGen = 0
+Parameter \RegAw = 4
+Parameter \RegDw = 32
+Generating RTLIL representation for module `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg'.
+Parameter \EnableRspIntgGen = 0
+Parameter \EnableDataIntgGen = 0
+
+2.1.12. Executing AST frontend in derive mode using pre-parsed AST for module `\tlul_rsp_intg_gen'.
+Parameter \EnableRspIntgGen = 0
+Parameter \EnableDataIntgGen = 0
+Generating RTLIL representation for module `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen'.
+Parameter \Width = 8
+Parameter \Pass = 1'0
+Parameter \Depth = 3
+
+2.1.13. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_fifo_sync'.
+Parameter \Width = 8
+Parameter \Pass = 1'0
+Parameter \Depth = 3
+Generating RTLIL representation for module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Parameter \Width = 8
+Parameter \Pass = 1'0
+Parameter \Depth = 3
+Found cached RTLIL representation for module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+Found cached RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+Found cached RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+
+2.1.14. Analyzing design hierarchy..
+Top module:  \spi_host
+Used module:     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011
+Used module:         \prim_fifo_sync
+Used module:             $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000100\Secure=1'0
+Used module:         \prim_flop
+Used module:     \spi_host_reg_top
+Used module:         $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg
+Used module:             \prim_subreg_arb
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001
+Used module:         $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg
+Used module:         $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg
+Used module:             \tlul_err
+Used module:             \tlul_rsp_intg_gen
+Used module:                 \tlul_data_integ_enc
+Used module:                     \prim_secded_inv_39_32_enc
+Used module:                 \prim_secded_inv_64_57_enc
+Used module:         $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen
+Parameter \Width = 8
+Parameter \Pass = 1'0
+Parameter \Depth = 3
+Found cached RTLIL representation for module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Parameter \Width = 8
+Parameter \Pass = 1'0
+Parameter \Depth = 3
+Found cached RTLIL representation for module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+Found cached RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+Found cached RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Parameter \DW = 8
+Parameter \SwAccess = 3'010
+Parameter \Mubi = 1'0
+
+2.1.15. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg_arb'.
+Parameter \DW = 8
+Parameter \SwAccess = 3'010
+Parameter \Mubi = 1'0
+Generating RTLIL representation for module `$paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \Mubi = 1'0
+
+2.1.16. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg_arb'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \Mubi = 1'0
+Generating RTLIL representation for module `$paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb'.
+Parameter \EnableRspIntgGen = 1'0
+Parameter \EnableDataIntgGen = 1'0
+Found cached RTLIL representation for module `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0'.
+
+2.1.17. Analyzing design hierarchy..
+Top module:  \spi_host
+Used module:     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011
+Used module:         $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync
+Used module:             \prim_fifo_sync_cnt
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:     \spi_host_reg_top
+Used module:         $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg
+Used module:             $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001
+Used module:         $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg
+Used module:             $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb
+Used module:         $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg
+Used module:             \tlul_err
+Used module:             $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0
+Used module:         $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen
+Parameter \Depth = 3
+Parameter \Secure = 1'0
+
+2.1.18. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_fifo_sync_cnt'.
+Parameter \Depth = 3
+Parameter \Secure = 1'0
+Generating RTLIL representation for module `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0'.
+
+2.1.19. Analyzing design hierarchy..
+Top module:  \spi_host
+Used module:     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011
+Used module:         $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync
+Used module:             $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:     \spi_host_reg_top
+Used module:         $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg
+Used module:             $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001
+Used module:         $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg
+Used module:             $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb
+Used module:         $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg
+Used module:             \tlul_err
+Used module:             $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0
+Used module:         $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen
+
+2.1.20. Analyzing design hierarchy..
+Top module:  \spi_host
+Used module:     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011
+Used module:         $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync
+Used module:             $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:     \spi_host_reg_top
+Used module:         $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg
+Used module:             $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001
+Used module:         $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg
+Used module:             $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb
+Used module:         $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg
+Used module:             \tlul_err
+Used module:             $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0
+Used module:         $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen
+Removing unused module `$paramod$e010615bfd8b5fdf42cbf04d2ee8cb69e592ddc9\prim_subreg_arb'.
+Removing unused module `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000100\Secure=1'0'.
+Removing unused module `\spi_host_core'.
+Removing unused module `\tlul_sram_byte'.
+Removing unused module `\tlul_socket_m1'.
+Removing unused module `\tlul_socket_1n'.
+Removing unused module `\tlul_rsp_intg_gen'.
+Removing unused module `\tlul_rsp_intg_chk'.
+Removing unused module `\tlul_fifo_sync'.
+Removing unused module `\tlul_fifo_async'.
+Removing unused module `\tlul_err_resp'.
+Removing unused module `\tlul_data_integ_enc'.
+Removing unused module `\tlul_data_integ_dec'.
+Removing unused module `\tlul_cmd_intg_gen'.
+Removing unused module `\tlul_cmd_intg_chk'.
+Removing unused module `\tlul_assert_multiple'.
+Removing unused module `\tlul_assert'.
+Removing unused module `\tlul_adapter_sram'.
+Removing unused module `\tlul_adapter_reg'.
+Removing unused module `\tlul_adapter_host'.
+Removing unused module `\sram2tlul'.
+Removing unused module `\prim_sync_reqack'.
+Removing unused module `\prim_subreg_ext'.
+Removing unused module `\prim_subreg_arb'.
+Removing unused module `\prim_subreg'.
+Removing unused module `\prim_secded_inv_64_57_enc'.
+Removing unused module `\prim_secded_inv_64_57_dec'.
+Removing unused module `\prim_secded_inv_39_32_enc'.
+Removing unused module `\prim_secded_inv_39_32_dec'.
+Removing unused module `\prim_flop_2sync'.
+Removing unused module `\prim_flop'.
+Removing unused module `\prim_filter_ctr'.
+Removing unused module `\prim_filter'.
+Removing unused module `\prim_fifo_sync_cnt'.
+Removing unused module `\prim_fifo_sync'.
+Removing unused module `\prim_fifo_async_sram_adapter'.
+Removing unused module `\prim_fifo_async_simple'.
+Removing unused module `\prim_fifo_async'.
+Removing unused module `\prim_count'.
+Removing unused module `\prim_cdc_rand_delay'.
+Removing unused module `\prim_arbiter_ppc'.
+Removed 41 unused modules.
+
+2.2. Executing PROC pass (convert processes to netlists).
+
+2.2.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:0$1733'.
+Found and cleaned up 1 empty switch in `\tlul_err.$proc$rtl/spi_host.v:6433$1679'.
+Found and cleaned up 1 empty switch in `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+Removing empty process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$2511'.
+Removing empty process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$2510'.
+Found and cleaned up 1 empty switch in `\spi_host_reg_top.$proc$rtl/spi_host.v:9546$2450'.
+Found and cleaned up 1 empty switch in `\spi_host_reg_top.$proc$rtl/spi_host.v:9523$2417'.
+Found and cleaned up 1 empty switch in `\spi_host_reg_top.$proc$rtl/spi_host.v:9505$2408'.
+Removing empty process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$2718'.
+Removing empty process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$2717'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2713'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2712'.
+Found and cleaned up 1 empty switch in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$2622'.
+Cleaned up 6 empty switches.
+
+2.2.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:2796$2546 in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:6433$1679 in module tlul_err.
+Marked 13 switch rules as full_case in process $proc$rtl/spi_host.v:8983$2525 in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:8940$2523 in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:8930$2521 in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Marked 3 switch rules as full_case in process $proc$rtl/spi_host.v:2139$2812 in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Marked 3 switch rules as full_case in process $proc$rtl/spi_host.v:2124$2809 in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:1910$2743 in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:1854$2724 in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:4438$2624 in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:4568$2622 in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:4378$2617 in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Marked 2 switch rules as full_case in process $proc$rtl/spi_host.v:4366$2615 in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:2796$2551 in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:2334$2549 in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Removed a total of 0 dead cases.
+
+2.2.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 11 redundant assignments.
+Promoted 78 assignments to connections.
+
+2.2.4. Executing PROC_INIT pass (extract init attributes).
+
+2.2.5. Executing PROC_ARST pass (detect async resets in processes).
+Found async reset \rst_ni in `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$2546'.
+Found async reset \rst_ni in `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+Found async reset \rst_ni in `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8930$2521'.
+Found async reset \rst_ni in `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$2812'.
+Found async reset \rst_ni in `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$2809'.
+Found async reset \rst_ni in `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$2724'.
+Found async reset \rst_ni in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$2624'.
+Found async reset \rst_ni in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$2617'.
+Found async reset \rst_ni in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$2615'.
+Found async reset \rst_ni in `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$2551'.
+Found async reset \rst_ni in `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/spi_host.v:2334$2549'.
+
+2.2.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~32 debug messages>
+
+2.2.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$2546'.
+     1/1: $0\q[7:0]
+Creating decoders for process `\tlul_err.$proc$rtl/spi_host.v:0$1734'.
+Creating decoders for process `\tlul_err.$proc$rtl/spi_host.v:0$1709'.
+Creating decoders for process `\tlul_err.$proc$rtl/spi_host.v:0$1704'.
+Creating decoders for process `\tlul_err.$proc$rtl/spi_host.v:6433$1679'.
+     1/6: $2\fulldata_chk[0:0]
+     2/6: $2\mask_chk[0:0]
+     3/6: $2\addr_sz_chk[0:0]
+     4/6: $1\fulldata_chk[0:0]
+     5/6: $1\mask_chk[0:0]
+     6/6: $1\addr_sz_chk[0:0]
+Creating decoders for process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:0$2545'.
+Creating decoders for process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+     1/79: $11\tx_fifo_rready_d[0:0]
+     2/79: $10\byte_cnt_d[2:0]
+     3/79: $7\sclk_en[0:0]
+     4/79: $9\next_state[1:0]
+     5/79: $13\current_byte_d[7:0]
+     6/79: $11\bit_cnt_d[3:0]
+     7/79: $10\bit_cnt_d[3:0]
+     8/79: $12\current_byte_d[7:0]
+     9/79: $4\rx_fifo_wvalid_d[0:0]
+    10/79: $10\tx_fifo_rready_d[0:0]
+    11/79: $9\byte_cnt_d[2:0]
+    12/79: $6\sclk_en[0:0]
+    13/79: $8\next_state[1:0]
+    14/79: $11\current_byte_d[7:0]
+    15/79: $9\tx_fifo_rready_d[0:0]
+    16/79: $9\bit_cnt_d[3:0]
+    17/79: $8\byte_cnt_d[2:0]
+    18/79: $5\sclk_en[0:0]
+    19/79: $7\next_state[1:0]
+    20/79: $8\bit_cnt_d[3:0]
+    21/79: $10\current_byte_d[7:0]
+    22/79: $7\sdio_d[0:0]
+    23/79: $7\bit_cnt_d[3:0]
+    24/79: $6\sdio_d[0:0]
+    25/79: $9\current_byte_d[7:0]
+    26/79: $8\tx_fifo_rready_d[0:0]
+    27/79: $7\byte_cnt_d[2:0]
+    28/79: $4\sclk_en[0:0]
+    29/79: $6\next_state[1:0]
+    30/79: $7\tx_fifo_rready_d[0:0]
+    31/79: $6\bit_cnt_d[3:0]
+    32/79: $6\byte_cnt_d[2:0]
+    33/79: $3\sclk_en[0:0]
+    34/79: $5\sdio_d[0:0]
+    35/79: $8\current_byte_d[7:0]
+    36/79: $5\next_state[1:0]
+    37/79: $3\rx_fifo_wvalid_d[0:0]
+    38/79: $3\sdioz_d[0:0]
+    39/79: $7\current_byte_d[7:0]
+    40/79: $6\tx_fifo_rready_d[0:0]
+    41/79: $5\bit_cnt_d[3:0]
+    42/79: $5\byte_cnt_d[2:0]
+    43/79: $4\bit_cnt_d[3:0]
+    44/79: $6\current_byte_d[7:0]
+    45/79: $4\sdio_d[0:0]
+    46/79: $3\bit_cnt_d[3:0]
+    47/79: $3\sdio_d[0:0]
+    48/79: $5\current_byte_d[7:0]
+    49/79: $5\tx_fifo_rready_d[0:0]
+    50/79: $4\byte_cnt_d[2:0]
+    51/79: $4\tx_fifo_rready_d[0:0]
+    52/79: $2\bit_cnt_d[3:0]
+    53/79: $3\byte_cnt_d[2:0]
+    54/79: $2\sdio_d[0:0]
+    55/79: $4\current_byte_d[7:0]
+    56/79: $2\rx_fifo_wvalid_d[0:0]
+    57/79: $2\sclk_en[0:0]
+    58/79: $2\sdioz_d[0:0]
+    59/79: $4\next_state[1:0]
+    60/79: $3\r_wn_d[0:0]
+    61/79: $3\current_byte_d[7:0]
+    62/79: $3\tx_fifo_rready_d[0:0]
+    63/79: $3\next_state[1:0]
+    64/79: $2\r_wn_d[0:0]
+    65/79: $2\tx_fifo_rready_d[0:0]
+    66/79: $2\current_byte_d[7:0]
+    67/79: $2\next_state[1:0]
+    68/79: $2\byte_cnt_d[2:0]
+    69/79: $1\r_wn_d[0:0]
+    70/79: $1\tx_fifo_rready_d[0:0]
+    71/79: $1\byte_cnt_d[2:0]
+    72/79: $1\current_byte_d[7:0]
+    73/79: $1\next_state[1:0]
+    74/79: $1\cs_d[0:0]
+    75/79: $1\rx_fifo_wvalid_d[0:0]
+    76/79: $1\bit_cnt_d[3:0]
+    77/79: $1\sclk_en[0:0]
+    78/79: $1\sdioz_d[0:0]
+    79/79: $1\sdio_d[0:0]
+Creating decoders for process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+     1/9: $0\r_wn_q[0:0]
+     2/9: $0\rx_fifo_wvalid_q[0:0]
+     3/9: $0\tx_fifo_rready_q[0:0]
+     4/9: $0\current_byte_q[7:0]
+     5/9: $0\bit_cnt_q[3:0]
+     6/9: $0\byte_cnt_q[2:0]
+     7/9: $0\sdioz_q[0:0]
+     8/9: $0\sdio_q[0:0]
+     9/9: $0\cs_q[0:0]
+Creating decoders for process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8930$2521'.
+     1/1: $0\current_state[1:0]
+Creating decoders for process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$2512'.
+Creating decoders for process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:7013$2509'.
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$2812'.
+     1/1: $0\rptr_wrap_cnt_q[2:0]
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$2809'.
+     1/1: $0\wptr_wrap_cnt_q[2:0]
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2805'.
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2801'.
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2797'.
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2793'.
+Creating decoders for process `\spi_host_reg_top.$proc$rtl/spi_host.v:0$2453'.
+Creating decoders for process `\spi_host_reg_top.$proc$rtl/spi_host.v:9546$2450'.
+     1/6: $1\reg_rdata_next[31:0] [31:8]
+     2/6: $1\reg_rdata_next[31:0] [1]
+     3/6: $1\reg_rdata_next[31:0] [0]
+     4/6: $1\reg_rdata_next[31:0] [2]
+     5/6: $1\reg_rdata_next[31:0] [7:4]
+     6/6: $1\reg_rdata_next[31:0] [3]
+Creating decoders for process `\spi_host_reg_top.$proc$rtl/spi_host.v:9523$2417'.
+Creating decoders for process `\spi_host_reg_top.$proc$rtl/spi_host.v:9505$2408'.
+Creating decoders for process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$2743'.
+     1/2: $1$lookahead\gen_normal_fifo.storage$2742[23:0]$2747
+     2/2: $1$bitselwrite$pos$rtl/spi_host.v:1913$2722[31:0]$2746
+Creating decoders for process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$2724'.
+     1/1: $0\gen_normal_fifo.under_rst[0:0]
+Creating decoders for process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$2719'.
+Creating decoders for process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:7013$2716'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2714'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2683'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2678'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2673'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2649'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2645'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2641'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2637'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2630'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$2624'.
+     1/2: $0\error_q[0:0]
+     2/2: $0\rdata_q[31:0]
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$2622'.
+     1/1: $1\addr_align_err[0:0]
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$2617'.
+     1/3: $0\rspop_q[2:0]
+     2/3: $0\reqsz_q[1:0]
+     3/3: $0\reqid_q[7:0]
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$2615'.
+     1/1: $0\outstanding_q[0:0]
+Creating decoders for process `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$2551'.
+     1/1: $0\q[0:0]
+Creating decoders for process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/spi_host.v:2334$2549'.
+     1/1: $0\q_o[0:0]
+
+2.2.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+No latch inferred for signal `\tlul_err.\_sv2v_0' from process `\tlul_err.$proc$rtl/spi_host.v:0$1734'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:6415$1646.$result' from process `\tlul_err.$proc$rtl/spi_host.v:0$1709'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:6415$1649.$result' from process `\tlul_err.$proc$rtl/spi_host.v:0$1709'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:6415$1649.val' from process `\tlul_err.$proc$rtl/spi_host.v:0$1709'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:6405$1645.$result' from process `\tlul_err.$proc$rtl/spi_host.v:0$1704'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:6405$1647.$result' from process `\tlul_err.$proc$rtl/spi_host.v:0$1704'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:6405$1647.val' from process `\tlul_err.$proc$rtl/spi_host.v:0$1704'.
+No latch inferred for signal `\tlul_err.\addr_sz_chk' from process `\tlul_err.$proc$rtl/spi_host.v:6433$1679'.
+No latch inferred for signal `\tlul_err.\mask_chk' from process `\tlul_err.$proc$rtl/spi_host.v:6433$1679'.
+No latch inferred for signal `\tlul_err.\fulldata_chk' from process `\tlul_err.$proc$rtl/spi_host.v:6433$1679'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\_sv2v_0' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:0$2545'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\next_state' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\current_byte_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\cs_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sdio_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sdioz_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sclk_en' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\byte_cnt_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\bit_cnt_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\tx_fifo_rready_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\rx_fifo_wvalid_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\r_wn_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+No latch inferred for signal `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.\_sv2v_0' from process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$2512'.
+No latch inferred for signal `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.\tl_o' from process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:7013$2509'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2773.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2805'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2777.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2805'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2777.inp' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2805'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2772.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2801'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2776.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2801'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2776.inp' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2801'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2770.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2797'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2775.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2797'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2775.inp' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2797'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2769.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2793'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2774.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2793'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$2774.inp' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2793'.
+No latch inferred for signal `\spi_host_reg_top.\_sv2v_0' from process `\spi_host_reg_top.$proc$rtl/spi_host.v:0$2453'.
+No latch inferred for signal `\spi_host_reg_top.\reg_rdata_next' from process `\spi_host_reg_top.$proc$rtl/spi_host.v:9546$2450'.
+No latch inferred for signal `\spi_host_reg_top.\wr_err' from process `\spi_host_reg_top.$proc$rtl/spi_host.v:9523$2417'.
+No latch inferred for signal `\spi_host_reg_top.\addr_hit' from process `\spi_host_reg_top.$proc$rtl/spi_host.v:9505$2408'.
+No latch inferred for signal `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.\_sv2v_0' from process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$2719'.
+No latch inferred for signal `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.\tl_o' from process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:7013$2716'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\_sv2v_0' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2714'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$2563.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2683'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$2587.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2683'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$2587.user' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2683'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$2587.malformed_err' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2683'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$2587.unused_user' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2683'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4561$2588.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2683'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4561$2588.val' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2683'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_false_loose$func$rtl/spi_host.v:4546$2562.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2678'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_false_loose$func$rtl/spi_host.v:4546$2585.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2678'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_false_loose$func$rtl/spi_host.v:4546$2585.val' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2678'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:4546$2561.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2673'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:4546$2583.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2673'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:4546$2583.val' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2673'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4546$2560.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2649'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4546$2568.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2649'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4546$2568.val' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2649'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_FDEB5$func$rtl/spi_host.v:4485$2559.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2645'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_FDEB5$func$rtl/spi_host.v:4485$2567.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2645'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_FDEB5$func$rtl/spi_host.v:4485$2567.inp' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2645'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_15E34$func$rtl/spi_host.v:4485$2558.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2641'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_15E34$func$rtl/spi_host.v:4485$2566.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2641'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_15E34$func$rtl/spi_host.v:4485$2566.inp' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2641'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_9783B$func$rtl/spi_host.v:4485$2556.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2637'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_9783B$func$rtl/spi_host.v:4485$2565.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2637'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_9783B$func$rtl/spi_host.v:4485$2565.inp' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2637'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_1$func$rtl/spi_host.v:4485$2554.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2630'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_1$func$rtl/spi_host.v:4485$2564.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2630'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_1$func$rtl/spi_host.v:4485$2564.inp' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2630'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\addr_align_err' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$2622'.
+
+2.2.9. Executing PROC_DFF pass (convert process syncs to FFs).
+Creating register for signal `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.\q' using process `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$2546'.
+  created $adff cell `$procdff$3779' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\current_byte_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+  created $adff cell `$procdff$3780' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\cs_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+  created $adff cell `$procdff$3781' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sdio_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+  created $adff cell `$procdff$3782' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sdioz_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+  created $adff cell `$procdff$3783' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\byte_cnt_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+  created $adff cell `$procdff$3784' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\bit_cnt_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+  created $adff cell `$procdff$3785' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\tx_fifo_rready_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+  created $adff cell `$procdff$3786' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\rx_fifo_wvalid_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+  created $adff cell `$procdff$3787' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\r_wn_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+  created $adff cell `$procdff$3788' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\current_state' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8930$2521'.
+  created $adff cell `$procdff$3789' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\rptr_wrap_cnt_q' using process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$2812'.
+  created $adff cell `$procdff$3790' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\wptr_wrap_cnt_q' using process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$2809'.
+  created $adff cell `$procdff$3791' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.\gen_normal_fifo.storage' using process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$2743'.
+  created $dff cell `$procdff$3792' with positive edge clock.
+Creating register for signal `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$bitselwrite$pos$rtl/spi_host.v:1913$2722' using process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$2743'.
+  created $dff cell `$procdff$3793' with positive edge clock.
+Creating register for signal `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$lookahead\gen_normal_fifo.storage$2742' using process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$2743'.
+  created $dff cell `$procdff$3794' with positive edge clock.
+Creating register for signal `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.\gen_normal_fifo.under_rst' using process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$2724'.
+  created $adff cell `$procdff$3795' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\rdata_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$2624'.
+  created $adff cell `$procdff$3796' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\error_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$2624'.
+  created $adff cell `$procdff$3797' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\reqid_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$2617'.
+  created $adff cell `$procdff$3798' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\reqsz_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$2617'.
+  created $adff cell `$procdff$3799' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\rspop_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$2617'.
+  created $adff cell `$procdff$3800' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\outstanding_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$2615'.
+  created $adff cell `$procdff$3801' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.\q' using process `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$2551'.
+  created $adff cell `$procdff$3802' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.\q_o' using process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/spi_host.v:2334$2549'.
+  created $adff cell `$procdff$3803' with positive edge clock and negative level reset.
+
+2.2.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+2.2.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$2546'.
+Removing empty process `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$2546'.
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:0$1734'.
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:0$1709'.
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:0$1704'.
+Found and cleaned up 2 empty switches in `\tlul_err.$proc$rtl/spi_host.v:6433$1679'.
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:6433$1679'.
+Removing empty process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:0$2545'.
+Found and cleaned up 14 empty switches in `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+Removing empty process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$2525'.
+Removing empty process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$2523'.
+Removing empty process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8930$2521'.
+Removing empty process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$2512'.
+Removing empty process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:7013$2509'.
+Found and cleaned up 3 empty switches in `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$2812'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$2812'.
+Found and cleaned up 3 empty switches in `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$2809'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$2809'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2805'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2801'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2797'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$2793'.
+Removing empty process `spi_host_reg_top.$proc$rtl/spi_host.v:0$2453'.
+Found and cleaned up 1 empty switch in `\spi_host_reg_top.$proc$rtl/spi_host.v:9546$2450'.
+Removing empty process `spi_host_reg_top.$proc$rtl/spi_host.v:9546$2450'.
+Removing empty process `spi_host_reg_top.$proc$rtl/spi_host.v:9523$2417'.
+Removing empty process `spi_host_reg_top.$proc$rtl/spi_host.v:9505$2408'.
+Found and cleaned up 1 empty switch in `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$2743'.
+Removing empty process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$2743'.
+Found and cleaned up 1 empty switch in `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$2724'.
+Removing empty process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$2724'.
+Removing empty process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$2719'.
+Removing empty process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:7013$2716'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2714'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2683'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2678'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2673'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2649'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2645'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2641'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2637'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$2630'.
+Found and cleaned up 1 empty switch in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$2624'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$2624'.
+Found and cleaned up 1 empty switch in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$2622'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$2622'.
+Found and cleaned up 1 empty switch in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$2617'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$2617'.
+Found and cleaned up 2 empty switches in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$2615'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$2615'.
+Found and cleaned up 1 empty switch in `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$2551'.
+Removing empty process `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$2551'.
+Removing empty process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/spi_host.v:2334$2549'.
+Cleaned up 32 empty switches.
+
+2.2.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Optimizing module tlul_err.
+<suppressed ~13 debug messages>
+Optimizing module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+<suppressed ~62 debug messages>
+Optimizing module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+Optimizing module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+<suppressed ~1 debug messages>
+Optimizing module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+<suppressed ~1 debug messages>
+Optimizing module spi_host_reg_top.
+<suppressed ~34 debug messages>
+Optimizing module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+<suppressed ~1 debug messages>
+Optimizing module spi_host.
+Optimizing module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Optimizing module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+Optimizing module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+<suppressed ~13 debug messages>
+Optimizing module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+
+2.3. Executing FLATTEN pass (flatten design).
+Deleting now unused module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Deleting now unused module tlul_err.
+Deleting now unused module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Deleting now unused module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+Deleting now unused module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Deleting now unused module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+Deleting now unused module spi_host_reg_top.
+Deleting now unused module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+Deleting now unused module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Deleting now unused module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+Deleting now unused module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Deleting now unused module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Deleting now unused module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+Deleting now unused module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+Deleting now unused module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+<suppressed ~23 debug messages>
+
+2.4. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~32 debug messages>
+
+2.5. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 145 unused cells and 780 unused wires.
+<suppressed ~177 debug messages>
+
+2.6. Executing CHECK pass (checking for obvious problems).
+Checking module spi_host...
+Found and reported 0 problems.
+
+2.7. Executing OPT pass (performing simple optimizations).
+
+2.7.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.7.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~330 debug messages>
+Removed a total of 110 cells.
+
+2.7.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+      Replacing known input bits on port A of cell $flatten\u_spi_host_core.\u_spi_rxfifo.$procmux$3757: \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.under_rst -> 1'0
+      Replacing known input bits on port A of cell $flatten\u_spi_host_core.\u_spi_txfifo.$procmux$3757: \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.under_rst -> 1'0
+  Analyzing evaluation results.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3067.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3075.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3077.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3080.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3082.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3091.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3093.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3096.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3098.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3107.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3109.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3112.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3114.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3123.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3125.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3128.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3130.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3139.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3141.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3144.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3146.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3155.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3157.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3160.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3162.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3171.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3173.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3176.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3178.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3186.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3189.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3191.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3199.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3202.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3204.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3212.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3215.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3217.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3225.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3228.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3230.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3238.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3241.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3243.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3251.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3254.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3256.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2856.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3264.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3267.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3269.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2859.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3277.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3279.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2862.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3287.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3289.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2864.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3297.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3299.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3307.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3309.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3317.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3319.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2872.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3327.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3329.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2875.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3337.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3339.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2878.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3347.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3349.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2880.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3357.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3359.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3368.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3370.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3372.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3381.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3383.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3385.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2888.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3394.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3396.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3398.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2891.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3407.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3409.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3411.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2894.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3420.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3422.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3424.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2896.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3433.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3435.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3437.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3446.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3448.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3450.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3458.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3460.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2904.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3468.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3470.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2907.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3478.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3480.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2910.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3488.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3490.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2912.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3498.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3500.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3507.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3514.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2920.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3521.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2923.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3528.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2926.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3535.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2928.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3542.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3549.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3556.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2936.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3563.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2939.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3572.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3574.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3583.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3585.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2942.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3594.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3596.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2944.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3605.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3607.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3615.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3623.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2952.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3631.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2955.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3639.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2957.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3647.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2965.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2968.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2970.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2978.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2981.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2983.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2991.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$2994.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$2996.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3004.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3007.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3009.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3017.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3020.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3022.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3030.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3033.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3035.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3044.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3046.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3049.
+    dead port 2/2 on $mux $flatten\u_spi_host_core.$procmux$3051.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3060.
+    dead port 2/2 on $mux $flatten\u_spi_host_reg.\u_ctrl_en.\wr_en_data_arb.$ternary$rtl/spi_host.v:3251$2763.
+    dead port 2/2 on $mux $flatten\u_spi_host_reg.\u_ctrl_rxrst.\wr_en_data_arb.$ternary$rtl/spi_host.v:3251$2763.
+    dead port 2/2 on $mux $flatten\u_spi_host_reg.\u_ctrl_txrst.\wr_en_data_arb.$ternary$rtl/spi_host.v:3251$2763.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3062.
+    dead port 1/2 on $mux $flatten\u_spi_host_core.$procmux$3065.
+    dead port 2/2 on $mux $flatten\u_spi_host_reg.\u_wdata.\wr_en_data_arb.$ternary$rtl/spi_host.v:3251$2760.
+Removed 177 multiplexer ports.
+<suppressed ~33 debug messages>
+
+2.7.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+    New ctrl vector for $pmux cell $flatten\u_spi_host_core.$procmux$3675: { $flatten\u_spi_host_core.$procmux$2865_CMP $auto$opt_reduce.cc:134:opt_pmux$3842 }
+    New ctrl vector for $pmux cell $flatten\u_spi_host_reg.$procmux$3716: $auto$opt_reduce.cc:134:opt_pmux$3844
+    New ctrl vector for $pmux cell $flatten\u_spi_host_reg.$procmux$3740: { \u_spi_host_reg.addr_hit [2] $auto$opt_reduce.cc:134:opt_pmux$3846 }
+    New ctrl vector for $pmux cell $flatten\u_spi_host_reg.$procmux$3746: { \u_spi_host_reg.addr_hit [1] \u_spi_host_reg.addr_hit [2] $auto$opt_reduce.cc:134:opt_pmux$3848 }
+  Optimizing cells in module \spi_host.
+Performed a total of 4 changes.
+
+2.7.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~66 debug messages>
+Removed a total of 22 cells.
+
+2.7.6. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.7.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 310 unused wires.
+<suppressed ~3 debug messages>
+
+2.7.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~7 debug messages>
+
+2.7.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.7.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~37 debug messages>
+
+2.7.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.7.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.7.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.7.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 7 unused wires.
+<suppressed ~1 debug messages>
+
+2.7.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.7.16. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.7.17. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~37 debug messages>
+
+2.7.18. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.7.19. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.7.20. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.7.21. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.7.22. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.7.23. Finished OPT passes. (There is nothing left to do.)
+
+2.8. Executing FSM pass (extract and optimize FSM).
+
+2.8.1. Executing FSM_DETECT pass (finding FSMs in design).
+Not marking spi_host.u_spi_host_core.current_state as FSM state register:
+    Circuit seems to be self-resetting.
+Not marking spi_host.u_spi_host_reg.u_reg_if.rspop_q as FSM state register:
+    Register is connected to module port.
+    Users of register don't seem to benefit from recoding.
+
+2.8.2. Executing FSM_EXTRACT pass (extracting FSM from design).
+
+2.8.3. Executing FSM_OPT pass (simple optimizations of FSMs).
+
+2.8.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.8.5. Executing FSM_OPT pass (simple optimizations of FSMs).
+
+2.8.6. Executing FSM_RECODE pass (re-assigning FSM state encoding).
+
+2.8.7. Executing FSM_INFO pass (dumping all available information on FSM cells).
+
+2.8.8. Executing FSM_MAP pass (mapping FSMs to basic logic).
+
+2.9. Executing OPT pass (performing simple optimizations).
+
+2.9.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.9.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.9.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~37 debug messages>
+
+2.9.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.9.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.9.6. Executing OPT_DFF pass (perform DFF optimizations).
+Adding EN signal on $flatten\u_spi_host_reg.\u_wdata.$procdff$3779 ($adff) from module spi_host (D = \tl_i [31:24], Q = \u_spi_host_reg.u_wdata.q).
+Adding EN signal on $flatten\u_spi_host_reg.\u_reg_if.$procdff$3801 ($adff) from module spi_host (D = $flatten\u_spi_host_reg.\u_reg_if.$0\outstanding_q[0:0], Q = \u_spi_host_reg.u_reg_if.outstanding_q).
+Adding EN signal on $flatten\u_spi_host_reg.\u_reg_if.$procdff$3800 ($adff) from module spi_host (D = $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4394$2619_Y, Q = \u_spi_host_reg.u_reg_if.rspop_q).
+Adding EN signal on $flatten\u_spi_host_reg.\u_reg_if.$procdff$3799 ($adff) from module spi_host (D = \tl_i [101:100], Q = \u_spi_host_reg.u_reg_if.reqsz_q).
+Adding EN signal on $flatten\u_spi_host_reg.\u_reg_if.$procdff$3798 ($adff) from module spi_host (D = \tl_i [99:92], Q = \u_spi_host_reg.u_reg_if.reqid_q).
+Adding EN signal on $flatten\u_spi_host_reg.\u_reg_if.$procdff$3797 ($adff) from module spi_host (D = $flatten\u_spi_host_reg.\u_reg_if.$logic_or$rtl/spi_host.v:4448$2626_Y, Q = \u_spi_host_reg.u_reg_if.error_q).
+Adding EN signal on $flatten\u_spi_host_reg.\u_reg_if.$procdff$3796 ($adff) from module spi_host (D = $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y, Q = \u_spi_host_reg.u_reg_if.rdata_q).
+Adding EN signal on $flatten\u_spi_host_reg.\u_ctrl_txrst.$procdff$3802 ($adff) from module spi_host (D = \tl_i [25], Q = \u_spi_host_reg.u_ctrl_txrst.q).
+Adding EN signal on $flatten\u_spi_host_reg.\u_ctrl_rxrst.$procdff$3802 ($adff) from module spi_host (D = \tl_i [26], Q = \u_spi_host_reg.u_ctrl_rxrst.q).
+Adding EN signal on $flatten\u_spi_host_reg.\u_ctrl_en.$procdff$3802 ($adff) from module spi_host (D = \tl_i [24], Q = \u_spi_host_reg.u_ctrl_en.q).
+Adding EN signal on $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$procdff$3791 ($adff) from module spi_host (D = $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$0\wptr_wrap_cnt_q[2:0], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q).
+Adding EN signal on $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$procdff$3790 ($adff) from module spi_host (D = $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$0\rptr_wrap_cnt_q[2:0], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q).
+Adding EN signal on $flatten\u_spi_host_core.\u_spi_txfifo.$procdff$3792 ($dff) from module spi_host (D = $flatten\u_spi_host_core.\u_spi_txfifo.$or$rtl/spi_host.v:0$2756_Y, Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage).
+Adding EN signal on $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$procdff$3791 ($adff) from module spi_host (D = $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$0\wptr_wrap_cnt_q[2:0], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q).
+Adding EN signal on $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$procdff$3790 ($adff) from module spi_host (D = $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$0\rptr_wrap_cnt_q[2:0], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q).
+Adding EN signal on $flatten\u_spi_host_core.\u_spi_rxfifo.$procdff$3792 ($dff) from module spi_host (D = $flatten\u_spi_host_core.\u_spi_rxfifo.$or$rtl/spi_host.v:0$2756_Y, Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage).
+Adding EN signal on $flatten\u_spi_host_core.$procdff$3789 ($adff) from module spi_host (D = \u_spi_host_core.next_state, Q = \u_spi_host_core.current_state).
+Adding EN signal on $flatten\u_spi_host_core.$procdff$3788 ($adff) from module spi_host (D = \u_spi_host_core.tx_fifo_rdata [7], Q = \u_spi_host_core.r_wn_q).
+Adding EN signal on $flatten\u_spi_host_core.$procdff$3785 ($adff) from module spi_host (D = \u_spi_host_core.bit_cnt_d, Q = \u_spi_host_core.bit_cnt_q).
+Adding EN signal on $flatten\u_spi_host_core.$procdff$3784 ($adff) from module spi_host (D = \u_spi_host_core.byte_cnt_d, Q = \u_spi_host_core.byte_cnt_q).
+Adding EN signal on $flatten\u_spi_host_core.$procdff$3782 ($adff) from module spi_host (D = \u_spi_host_core.sdio_d, Q = \u_spi_host_core.sdio_q).
+Adding EN signal on $flatten\u_spi_host_core.$procdff$3781 ($adff) from module spi_host (D = \u_spi_host_core.cs_d, Q = \u_spi_host_core.cs_q).
+Adding EN signal on $flatten\u_spi_host_core.$procdff$3780 ($adff) from module spi_host (D = \u_spi_host_core.current_byte_d, Q = \u_spi_host_core.current_byte_q).
+
+2.9.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 14 unused cells and 14 unused wires.
+<suppressed ~16 debug messages>
+
+2.9.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~10 debug messages>
+
+2.9.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.9.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~27 debug messages>
+
+2.9.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.9.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~12 debug messages>
+Removed a total of 4 cells.
+
+2.9.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.9.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 4 unused wires.
+<suppressed ~1 debug messages>
+
+2.9.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.9.16. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.9.17. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~27 debug messages>
+
+2.9.18. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.9.19. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.9.20. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.9.21. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.9.22. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.9.23. Finished OPT passes. (There is nothing left to do.)
+
+2.10. Executing WREDUCE pass (reducing word size of cells).
+Removed top 2 bits (of 3) from port B of cell spi_host.$flatten\u_spi_host_reg.\u_reg_if.$eq$rtl/spi_host.v:4343$2606 ($eq).
+Removed top 2 bits (of 3) from mux cell spi_host.$flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4394$2619 ($mux).
+Removed top 3 bits (of 4) from port Y of cell spi_host.$flatten\u_spi_host_reg.$not$rtl/spi_host.v:9527$2418 ($not).
+Removed top 3 bits (of 4) from port A of cell spi_host.$flatten\u_spi_host_reg.$not$rtl/spi_host.v:9527$2418 ($not).
+Removed top 1 bits (of 2) from port B of cell spi_host.$flatten\u_spi_host_reg.$eq$rtl/spi_host.v:9513$2410 ($eq).
+Removed top 1 bits (of 2) from port B of cell spi_host.$auto$opt_dff.cc:195:make_patterns_logic$3885 ($ne).
+Removed top 2 bits (of 3) from port B of cell spi_host.$auto$opt_dff.cc:195:make_patterns_logic$3902 ($ne).
+Removed top 2 bits (of 4) from port B of cell spi_host.$auto$opt_dff.cc:195:make_patterns_logic$3895 ($ne).
+Removed top 26 bits (of 32) from port B of cell spi_host.$flatten\u_spi_host_core.\u_spi_rxfifo.$shiftx$rtl/spi_host.v:0$2741 ($shiftx).
+Removed top 27 bits (of 33) from port A of cell spi_host.$flatten\u_spi_host_core.\u_spi_rxfifo.$neg$rtl/spi_host.v:0$2750 ($neg).
+Converting cell spi_host.$flatten\u_spi_host_core.\u_spi_rxfifo.$neg$rtl/spi_host.v:0$2750 ($neg) from signed to unsigned.
+Removed top 1 bits (of 6) from port A of cell spi_host.$flatten\u_spi_host_core.\u_spi_rxfifo.$neg$rtl/spi_host.v:0$2750 ($neg).
+Removed top 2 bits (of 3) from port B of cell spi_host.$flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2152$2814 ($add).
+Removed top 2 bits (of 3) from port B of cell spi_host.$flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2137$2811 ($add).
+Removed top 26 bits (of 32) from port B of cell spi_host.$flatten\u_spi_host_core.\u_spi_txfifo.$shiftx$rtl/spi_host.v:0$2741 ($shiftx).
+Removed top 27 bits (of 33) from port A of cell spi_host.$flatten\u_spi_host_core.\u_spi_txfifo.$neg$rtl/spi_host.v:0$2750 ($neg).
+Converting cell spi_host.$flatten\u_spi_host_core.\u_spi_txfifo.$neg$rtl/spi_host.v:0$2750 ($neg) from signed to unsigned.
+Removed top 1 bits (of 6) from port A of cell spi_host.$flatten\u_spi_host_core.\u_spi_txfifo.$neg$rtl/spi_host.v:0$2750 ($neg).
+Removed top 2 bits (of 3) from port B of cell spi_host.$flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2152$2814 ($add).
+Removed top 2 bits (of 3) from port B of cell spi_host.$flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2137$2811 ($add).
+Removed top 1 bits (of 2) from port B of cell spi_host.$flatten\u_spi_host_core.$procmux$2865_CMP0 ($eq).
+Removed top 31 bits (of 32) from port B of cell spi_host.$flatten\u_spi_host_core.$gt$rtl/spi_host.v:9037$2532 ($gt).
+Removed top 1 bits (of 3) from port B of cell spi_host.$flatten\u_spi_host_core.$eq$rtl/spi_host.v:9019$2530 ($eq).
+Removed top 31 bits (of 32) from port B of cell spi_host.$flatten\u_spi_host_core.$add$rtl/spi_host.v:9017$2528 ($add).
+Removed top 29 bits (of 32) from port Y of cell spi_host.$flatten\u_spi_host_core.$add$rtl/spi_host.v:9017$2528 ($add).
+Removed top 29 bits (of 32) from wire spi_host.$flatten\u_spi_host_core.$add$rtl/spi_host.v:9017$2528_Y.
+Removed top 3 bits (of 4) from wire spi_host.$flatten\u_spi_host_reg.$and$rtl/spi_host.v:9527$2419_Y.
+Removed top 2 bits (of 3) from wire spi_host.$flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4394$2619_Y.
+
+2.11. Executing PEEPOPT pass (run peephole optimizers).
+
+2.12. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 4 unused wires.
+<suppressed ~1 debug messages>
+
+2.13. Executing ALUMACC pass (create $alu and $macc cells).
+Extracting $alu and $macc cells in module spi_host:
+  creating $macc model for $flatten\u_spi_host_core.$add$rtl/spi_host.v:9017$2528 ($add).
+  creating $macc model for $flatten\u_spi_host_core.$add$rtl/spi_host.v:9049$2535 ($add).
+  creating $macc model for $flatten\u_spi_host_core.$sub$rtl/spi_host.v:9057$2536 ($sub).
+  creating $macc model for $flatten\u_spi_host_core.\u_spi_rxfifo.$neg$rtl/spi_host.v:0$2750 ($neg).
+  creating $macc model for $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2137$2811 ($add).
+  creating $macc model for $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2152$2814 ($add).
+  creating $macc model for $flatten\u_spi_host_core.\u_spi_txfifo.$neg$rtl/spi_host.v:0$2750 ($neg).
+  creating $macc model for $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2137$2811 ($add).
+  creating $macc model for $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2152$2814 ($add).
+  creating $alu model for $macc $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2152$2814.
+  creating $alu model for $macc $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2137$2811.
+  creating $alu model for $macc $flatten\u_spi_host_core.\u_spi_txfifo.$neg$rtl/spi_host.v:0$2750.
+  creating $alu model for $macc $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2152$2814.
+  creating $alu model for $macc $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2137$2811.
+  creating $alu model for $macc $flatten\u_spi_host_core.\u_spi_rxfifo.$neg$rtl/spi_host.v:0$2750.
+  creating $alu model for $macc $flatten\u_spi_host_core.$sub$rtl/spi_host.v:9057$2536.
+  creating $alu model for $macc $flatten\u_spi_host_core.$add$rtl/spi_host.v:9049$2535.
+  creating $alu model for $macc $flatten\u_spi_host_core.$add$rtl/spi_host.v:9017$2528.
+  creating $alu model for $flatten\u_spi_host_core.$gt$rtl/spi_host.v:9037$2532 ($gt): new $alu
+  creating $alu model for $flatten\u_spi_host_core.$lt$rtl/spi_host.v:9040$2533 ($lt): new $alu
+  creating $alu cell for $flatten\u_spi_host_core.$lt$rtl/spi_host.v:9040$2533: $auto$alumacc.cc:485:replace_alu$3935
+  creating $alu cell for $flatten\u_spi_host_core.$gt$rtl/spi_host.v:9037$2532: $auto$alumacc.cc:485:replace_alu$3940
+  creating $alu cell for $flatten\u_spi_host_core.$add$rtl/spi_host.v:9017$2528: $auto$alumacc.cc:485:replace_alu$3945
+  creating $alu cell for $flatten\u_spi_host_core.$add$rtl/spi_host.v:9049$2535: $auto$alumacc.cc:485:replace_alu$3948
+  creating $alu cell for $flatten\u_spi_host_core.$sub$rtl/spi_host.v:9057$2536: $auto$alumacc.cc:485:replace_alu$3951
+  creating $alu cell for $flatten\u_spi_host_core.\u_spi_rxfifo.$neg$rtl/spi_host.v:0$2750: $auto$alumacc.cc:485:replace_alu$3954
+  creating $alu cell for $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2137$2811: $auto$alumacc.cc:485:replace_alu$3957
+  creating $alu cell for $flatten\u_spi_host_core.\u_spi_rxfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2152$2814: $auto$alumacc.cc:485:replace_alu$3960
+  creating $alu cell for $flatten\u_spi_host_core.\u_spi_txfifo.$neg$rtl/spi_host.v:0$2750: $auto$alumacc.cc:485:replace_alu$3963
+  creating $alu cell for $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2137$2811: $auto$alumacc.cc:485:replace_alu$3966
+  creating $alu cell for $flatten\u_spi_host_core.\u_spi_txfifo.\gen_normal_fifo.u_fifo_cnt.$add$rtl/spi_host.v:2152$2814: $auto$alumacc.cc:485:replace_alu$3969
+  created 11 $alu and 0 $macc cells.
+
+2.14. Executing SHARE pass (SAT-based resource sharing).
+
+2.15. Executing OPT pass (performing simple optimizations).
+
+2.15.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~17 debug messages>
+
+2.15.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.15.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~27 debug messages>
+
+2.15.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.15.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.15.6. Executing OPT_DFF pass (perform DFF optimizations).
+Setting constant 0-bit at position 1 on $auto$ff.cc:266:slice$3853 ($adffe) from module spi_host.
+Setting constant 0-bit at position 2 on $auto$ff.cc:266:slice$3853 ($adffe) from module spi_host.
+
+2.15.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 2 unused wires.
+<suppressed ~1 debug messages>
+
+2.15.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.15.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.15.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~27 debug messages>
+
+2.15.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.15.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.15.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.15.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.15.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.15.16. Finished OPT passes. (There is nothing left to do.)
+
+2.16. Executing MEMORY pass.
+
+2.16.1. Executing OPT_MEM pass (optimize memories).
+Performed a total of 0 transformations.
+
+2.16.2. Executing OPT_MEM_PRIORITY pass (removing unnecessary memory write priority relations).
+Performed a total of 0 transformations.
+
+2.16.3. Executing OPT_MEM_FEEDBACK pass (finding memory read-to-write feedback paths).
+
+2.16.4. Executing MEMORY_BMUX2ROM pass (converting muxes to ROMs).
+
+2.16.5. Executing MEMORY_DFF pass (merging $dff cells to $memrd).
+
+2.16.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.16.7. Executing MEMORY_SHARE pass (consolidating $memrd/$memwr cells).
+
+2.16.8. Executing OPT_MEM_WIDEN pass (optimize memories where all ports are wide).
+Performed a total of 0 transformations.
+
+2.16.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.16.10. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+2.17. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.18. Executing OPT pass (performing simple optimizations).
+
+2.18.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~50 debug messages>
+
+2.18.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~9 debug messages>
+Removed a total of 3 cells.
+
+2.18.3. Executing OPT_DFF pass (perform DFF optimizations).
+Adding EN signal on $auto$ff.cc:266:slice$3909 ($adffe) from module spi_host (D = \u_spi_host_core.sdio_d, Q = \u_spi_host_core.sdio_q).
+
+2.18.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 4 unused cells and 35 unused wires.
+<suppressed ~5 debug messages>
+
+2.18.5. Rerunning OPT passes. (Removed registers in this run.)
+
+2.18.6. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~3 debug messages>
+
+2.18.7. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.18.8. Executing OPT_DFF pass (perform DFF optimizations).
+Adding EN signal on $auto$ff.cc:266:slice$3891 ($adffe) from module spi_host (D = \u_spi_host_core.bit_cnt_d, Q = \u_spi_host_core.bit_cnt_q).
+
+2.18.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 3 unused wires.
+<suppressed ~1 debug messages>
+
+2.18.10. Rerunning OPT passes. (Removed registers in this run.)
+
+2.18.11. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~1 debug messages>
+
+2.18.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~3 debug messages>
+Removed a total of 1 cells.
+
+2.18.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.18.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 2 unused wires.
+<suppressed ~1 debug messages>
+
+2.18.15. Finished fast OPT passes.
+
+2.19. Executing MEMORY_MAP pass (converting memories to logic and flip-flops).
+
+2.20. Executing OPT pass (performing simple optimizations).
+
+2.20.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.20.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.20.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~15 debug messages>
+
+2.20.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+    New input vector for $reduce_and cell $auto$opt_dff.cc:220:make_patterns_logic$3992: { $auto$opt_dff.cc:194:make_patterns_logic$3982 $auto$opt_dff.cc:194:make_patterns_logic$3894 $auto$opt_dff.cc:194:make_patterns_logic$3892 }
+    New input vector for $reduce_and cell $auto$opt_dff.cc:220:make_patterns_logic$3987: { $auto$opt_dff.cc:194:make_patterns_logic$3982 $auto$opt_dff.cc:194:make_patterns_logic$3984 $auto$opt_dff.cc:194:make_patterns_logic$3892 $auto$opt_dff.cc:194:make_patterns_logic$3912 }
+    Consolidated identical input bits for $mux cell $flatten\u_spi_host_reg.$procmux$3716:
+      Old ports: A=24'111111111111111111111111, B=24'000000000000000000000000, Y=\u_spi_host_reg.u_reg_if.rdata_i [31:8]
+      New ports: A=1'1, B=1'0, Y=\u_spi_host_reg.u_reg_if.rdata_i [8]
+      New connections: \u_spi_host_reg.u_reg_if.rdata_i [31:9] = { \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] }
+  Optimizing cells in module \spi_host.
+    Consolidated identical input bits for $mux cell $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628:
+      Old ports: A=\u_spi_host_reg.u_reg_if.rdata_i, B=32'11111111111111111111111111111111, Y=$flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y
+      New ports: A=\u_spi_host_reg.u_reg_if.rdata_i [8:0], B=9'111111111, Y=$flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8:0]
+      New connections: $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [31:9] = { $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] $flatten\u_spi_host_reg.\u_reg_if.$ternary$rtl/spi_host.v:4448$2628_Y [8] }
+  Optimizing cells in module \spi_host.
+Performed a total of 4 changes.
+
+2.20.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.20.6. Executing OPT_SHARE pass.
+    Found cells that share an operand and can be merged by moving the $pmux $flatten\u_spi_host_core.$procmux$3660 in front of them:
+        $auto$alumacc.cc:485:replace_alu$3951
+        $auto$alumacc.cc:485:replace_alu$3945
+
+2.20.7. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.20.8. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 2 unused cells and 8 unused wires.
+<suppressed ~3 debug messages>
+
+2.20.9. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~2 debug messages>
+
+2.20.10. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.20.11. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~16 debug messages>
+
+2.20.12. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+    Consolidated identical input bits for $mux cell $auto$opt_share.cc:244:merge_operators$3996:
+      Old ports: A=3'111, B=3'001, Y=$auto$rtlil.cc:2603:Mux$3997
+      New ports: A=1'1, B=1'0, Y=$auto$rtlil.cc:2603:Mux$3997 [1]
+      New connections: { $auto$rtlil.cc:2603:Mux$3997 [2] $auto$rtlil.cc:2603:Mux$3997 [0] } = { $auto$rtlil.cc:2603:Mux$3997 [1] 1'1 }
+    New ctrl vector for $pmux cell $flatten\u_spi_host_core.$procmux$3660: $flatten\u_spi_host_core.$procmux$3661_CMP
+  Optimizing cells in module \spi_host.
+Performed a total of 2 changes.
+
+2.20.13. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.20.14. Executing OPT_SHARE pass.
+
+2.20.15. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.20.16. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 1 unused wires.
+<suppressed ~1 debug messages>
+
+2.20.17. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~1 debug messages>
+
+2.20.18. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.20.19. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~15 debug messages>
+
+2.20.20. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.20.21. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.20.22. Executing OPT_SHARE pass.
+
+2.20.23. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.20.24. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.20.25. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.20.26. Finished OPT passes. (There is nothing left to do.)
+
+2.21. Executing TECHMAP pass (map to technology primitives).
+
+2.21.1. Executing Verilog-2005 frontend: /usr/local/bin/../share/yosys/techmap.v
+Parsing Verilog input from `/usr/local/bin/../share/yosys/techmap.v' to AST representation.
+Generating RTLIL representation for module `\_90_simplemap_bool_ops'.
+Generating RTLIL representation for module `\_90_simplemap_reduce_ops'.
+Generating RTLIL representation for module `\_90_simplemap_logic_ops'.
+Generating RTLIL representation for module `\_90_simplemap_compare_ops'.
+Generating RTLIL representation for module `\_90_simplemap_various'.
+Generating RTLIL representation for module `\_90_simplemap_registers'.
+Generating RTLIL representation for module `\_90_shift_ops_shr_shl_sshl_sshr'.
+Generating RTLIL representation for module `\_90_shift_shiftx'.
+Generating RTLIL representation for module `\_90_fa'.
+Generating RTLIL representation for module `\_90_lcu_brent_kung'.
+Generating RTLIL representation for module `\_90_alu'.
+Generating RTLIL representation for module `\_90_macc'.
+Generating RTLIL representation for module `\_90_alumacc'.
+Generating RTLIL representation for module `\$__div_mod_u'.
+Generating RTLIL representation for module `\$__div_mod_trunc'.
+Generating RTLIL representation for module `\_90_div'.
+Generating RTLIL representation for module `\_90_mod'.
+Generating RTLIL representation for module `\$__div_mod_floor'.
+Generating RTLIL representation for module `\_90_divfloor'.
+Generating RTLIL representation for module `\_90_modfloor'.
+Generating RTLIL representation for module `\_90_pow'.
+Generating RTLIL representation for module `\_90_pmux'.
+Generating RTLIL representation for module `\_90_demux'.
+Generating RTLIL representation for module `\_90_lut'.
+Successfully finished Verilog frontend.
+
+2.21.2. Continuing TECHMAP pass.
+Using extmapper simplemap for cells of type $ne.
+Using template $paramod$fc972a7a46956c1788f3cb5257b53c8f1df2d0cc\_90_alu for cells of type $alu.
+Using extmapper simplemap for cells of type $adffe.
+Using extmapper simplemap for cells of type $reduce_or.
+Using extmapper simplemap for cells of type $adff.
+Using extmapper simplemap for cells of type $logic_not.
+Using extmapper simplemap for cells of type $or.
+Using extmapper simplemap for cells of type $eq.
+Using extmapper simplemap for cells of type $and.
+Using extmapper simplemap for cells of type $not.
+Using extmapper simplemap for cells of type $mux.
+Using extmapper simplemap for cells of type $logic_or.
+Using extmapper simplemap for cells of type $reduce_and.
+Using template $paramod$b3b6ac92d800c6f07aa48f510f923d86a674e5a7\_90_pmux for cells of type $pmux.
+Using template $paramod$d629d85c8826a74239b9178d1930215a43b0ceb0\_90_pmux for cells of type $pmux.
+Using template $paramod$bf2533632d512eac76dd186c0da49367e29b8e98\_90_pmux for cells of type $pmux.
+Using extmapper simplemap for cells of type $reduce_bool.
+Using template $paramod$constmap:2a9e242831cf20e554fa0cebd87bd43397156fd8$paramod$1e55a851c8b7e77f4f821a4e3d4e704d5280356c\_90_shift_shiftx for cells of type $shiftx.
+Using template $paramod$3ef7d3dd227da7627a99c5e5a6a4deb817573e39\_90_alu for cells of type $alu.
+Using template $paramod$98fdd47e93ebd6ee7b239851ea6e44b4909054e6\_90_alu for cells of type $alu.
+Using template $paramod$constmap:a175e562323e1e94b7ec40b2b399497fe5aff33e$paramod$671c43be7adc3182325f396f7f1859a2775e8644\_90_shift_shiftx for cells of type $shift.
+Analyzing pattern of constant bits for this cell:
+Creating constmapped module `$paramod$constmap:29f4f6674cae3c618b6bdb5f263bd6d23fa0fec8$paramod$671c43be7adc3182325f396f7f1859a2775e8644\_90_shift_shiftx'.
+
+2.21.25. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module $paramod$constmap:29f4f6674cae3c618b6bdb5f263bd6d23fa0fec8$paramod$671c43be7adc3182325f396f7f1859a2775e8644\_90_shift_shiftx..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+    dead port 2/2 on $mux $procmux$4536.
+    dead port 2/2 on $mux $procmux$4530.
+    dead port 2/2 on $mux $procmux$4524.
+    dead port 2/2 on $mux $procmux$4518.
+    dead port 2/2 on $mux $procmux$4512.
+    dead port 2/2 on $mux $procmux$4506.
+Removed 6 multiplexer ports.
+<suppressed ~678 debug messages>
+
+2.21.26. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$constmap:29f4f6674cae3c618b6bdb5f263bd6d23fa0fec8$paramod$671c43be7adc3182325f396f7f1859a2775e8644\_90_shift_shiftx.
+<suppressed ~28 debug messages>
+Removed 0 unused cells and 11 unused wires.
+Using template $paramod$constmap:29f4f6674cae3c618b6bdb5f263bd6d23fa0fec8$paramod$671c43be7adc3182325f396f7f1859a2775e8644\_90_shift_shiftx for cells of type $shift.
+Using extmapper simplemap for cells of type $dffe.
+Using template $paramod$521ce43182eecb9f60c72393a788160d2c356bf5\_90_pmux for cells of type $pmux.
+Using template $paramod$c5c783b17ab1d780abfad8cfe6563a0a7b47a3b0\_90_pmux for cells of type $pmux.
+Using template $paramod$78e969f2586efcf3a5b0b0440bcca0db83d5cca2\_90_alu for cells of type $alu.
+Using template $paramod$d1615bf4e5e328245ffd1550e5fe105901cda77b\_90_alu for cells of type $alu.
+Using template $paramod$32a7b7b86c07519b7537abc18e96f0331f97914d\_90_alu for cells of type $alu.
+Using extmapper simplemap for cells of type $logic_and.
+Using extmapper simplemap for cells of type $xor.
+Using extmapper simplemap for cells of type $pos.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000011 for cells of type $lcu.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000100 for cells of type $lcu.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000010 for cells of type $lcu.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000100001 for cells of type $lcu.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000001 for cells of type $lcu.
+No more expansions possible.
+<suppressed ~1464 debug messages>
+
+2.22. Executing OPT pass (performing simple optimizations).
+
+2.22.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~3514 debug messages>
+
+2.22.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~1824 debug messages>
+Removed a total of 608 cells.
+
+2.22.3. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.22.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 208 unused cells and 1096 unused wires.
+<suppressed ~219 debug messages>
+
+2.22.5. Finished fast OPT passes.
+
+2.23. Executing ABC pass (technology mapping using ABC).
+
+2.23.1. Extracting gate netlist of module `\spi_host' to `<abc-temp-dir>/input.blif'..
+Replacing 16 occurrences of constant undef bits with constant zero bits
+Extracted 796 gates and 906 wires to a netlist network with 107 inputs and 114 outputs.
+
+2.23.1.1. Executing ABC.
+Running ABC command: "<yosys-exe-dir>/yosys-abc" -s -f <abc-temp-dir>/abc.script 2>&1
+ABC: ABC command line: "source <abc-temp-dir>/abc.script".
+ABC: 
+ABC: + read_blif <abc-temp-dir>/input.blif 
+ABC: + read_library <abc-temp-dir>/stdcells.genlib 
+ABC: Entered genlib library with 13 gates from file "<abc-temp-dir>/stdcells.genlib".
+ABC: + strash 
+ABC: + dretime 
+ABC: + map 
+ABC: + write_blif <abc-temp-dir>/output.blif 
+
+2.23.1.2. Re-integrating ABC results.
+ABC RESULTS:               MUX cells:       92
+ABC RESULTS:              XNOR cells:        9
+ABC RESULTS:               XOR cells:       11
+ABC RESULTS:               NOR cells:       14
+ABC RESULTS:               NOT cells:       19
+ABC RESULTS:             ORNOT cells:       37
+ABC RESULTS:               AND cells:       20
+ABC RESULTS:              NAND cells:       55
+ABC RESULTS:                OR cells:      182
+ABC RESULTS:            ANDNOT cells:      213
+ABC RESULTS:        internal signals:      685
+ABC RESULTS:           input signals:      107
+ABC RESULTS:          output signals:      114
+Removing temp directory.
+
+2.24. Executing OPT pass (performing simple optimizations).
+
+2.24.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~40 debug messages>
+
+2.24.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~27 debug messages>
+Removed a total of 9 cells.
+
+2.24.3. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.24.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 3 unused cells and 489 unused wires.
+<suppressed ~63 debug messages>
+
+2.24.5. Finished fast OPT passes.
+
+2.25. Executing HIERARCHY pass (managing design hierarchy).
+
+2.25.1. Analyzing design hierarchy..
+Top module:  \spi_host
+
+2.25.2. Analyzing design hierarchy..
+Top module:  \spi_host
+Removed 0 unused modules.
+
+2.26. Printing statistics.
+
+=== spi_host ===
+
+   Number of wires:                914
+   Number of wire bits:           2878
+   Number of public wires:         306
+   Number of public wire bits:    2270
+   Number of ports:                  9
+   Number of port bits:            182
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                786
+     $_ANDNOT_                     210
+     $_AND_                         20
+     $_DFFE_PN0P_                   64
+     $_DFFE_PN1P_                    1
+     $_DFFE_PP_                     48
+     $_DFF_PN0_                      6
+     $_DFF_PN1_                      1
+     $_MUX_                         92
+     $_NAND_                        53
+     $_NOR_                         11
+     $_NOT_                         16
+     $_ORNOT_                       36
+     $_OR_                         182
+     $_XNOR_                         9
+     $_XOR_                         11
+     $scopeinfo                     26
+
+2.27. Executing CHECK pass (checking for obvious problems).
+Checking module spi_host...
+Found and reported 0 problems.
+
+3. Generating Graphviz representation of design.
+Writing dot description to `/home/eneadim/.yosys_show.dot'.
+Dumping module spi_host to page 1.
+
+4. Executing DFFLIBMAP pass (mapping DFF cells to sequential cells from liberty file).
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtn_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_4' - skipping.
+  cell sky130_fd_sc_hd__dfxtp_1 (noninv, pins=3, area=20.02) is a direct match for cell type $_DFF_P_.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtn_1' - skipping.
+  cell sky130_fd_sc_hd__dfrtn_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_NN0_.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtn_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_4' - skipping.
+  cell sky130_fd_sc_hd__dfrtp_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_PN0_.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_4' - skipping.
+  cell sky130_fd_sc_hd__dfstp_2 (noninv, pins=4, area=26.28) is a direct match for cell type $_DFF_PN1_.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtn_1' - skipping.
+  cell sky130_fd_sc_hd__dfbbn_1 (noninv, pins=6, area=32.53) is a direct match for cell type $_DFFSR_NNN_.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbn_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtn_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_4' - skipping.
+  cell sky130_fd_sc_hd__dfbbp_1 (noninv, pins=6, area=32.53) is a direct match for cell type $_DFFSR_PNN_.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE|IQ&!DE' in pin attribute of cell 'sky130_fd_sc_hd__edfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfbbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfrtp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfsbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfstp_4' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sdfxtp_4' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxbp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_1' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_2' - skipping.
+Warning: Found unsupported expression 'D&DE&!SCE|IQ&!DE&!SCE|SCD&SCE' in pin attribute of cell 'sky130_fd_sc_hd__sedfxtp_4' - skipping.
+  final dff cell mappings:
+    unmapped dff cell: $_DFF_N_
+    \sky130_fd_sc_hd__dfxtp_1 _DFF_P_ (.CLK( C), .D( D), .Q( Q));
+    \sky130_fd_sc_hd__dfrtn_1 _DFF_NN0_ (.CLK_N( C), .D( D), .Q( Q), .RESET_B( R));
+    unmapped dff cell: $_DFF_NN1_
+    unmapped dff cell: $_DFF_NP0_
+    unmapped dff cell: $_DFF_NP1_
+    \sky130_fd_sc_hd__dfrtp_1 _DFF_PN0_ (.CLK( C), .D( D), .Q( Q), .RESET_B( R));
+    \sky130_fd_sc_hd__dfstp_2 _DFF_PN1_ (.CLK( C), .D( D), .Q( Q), .SET_B( R));
+    unmapped dff cell: $_DFF_PP0_
+    unmapped dff cell: $_DFF_PP1_
+    \sky130_fd_sc_hd__dfbbn_1 _DFFSR_NNN_ (.CLK_N( C), .D( D), .Q( Q), .Q_N(~Q), .RESET_B( R), .SET_B( S));
+    unmapped dff cell: $_DFFSR_NNP_
+    unmapped dff cell: $_DFFSR_NPN_
+    unmapped dff cell: $_DFFSR_NPP_
+    \sky130_fd_sc_hd__dfbbp_1 _DFFSR_PNN_ (.CLK( C), .D( D), .Q( Q), .Q_N(~Q), .RESET_B( R), .SET_B( S));
+    unmapped dff cell: $_DFFSR_PNP_
+    unmapped dff cell: $_DFFSR_PPN_
+    unmapped dff cell: $_DFFSR_PPP_
+
+4.1. Executing DFFLEGALIZE pass (convert FFs to types supported by the target).
+Mapping DFF cells in module `\spi_host':
+  mapped 70 $_DFF_PN0_ cells to \sky130_fd_sc_hd__dfrtp_1 cells.
+  mapped 2 $_DFF_PN1_ cells to \sky130_fd_sc_hd__dfstp_2 cells.
+  mapped 48 $_DFF_P_ cells to \sky130_fd_sc_hd__dfxtp_1 cells.
+
+5. Executing ABC pass (technology mapping using ABC).
+
+5.1. Extracting gate netlist of module `\spi_host' to `<abc-temp-dir>/input.blif'..
+Extracted 753 gates and 900 wires to a netlist network with 147 inputs and 120 outputs.
+
+5.1.1. Executing ABC.
+Running ABC command: "<yosys-exe-dir>/yosys-abc" -s -f <abc-temp-dir>/abc.script 2>&1
+ABC: ABC command line: "source <abc-temp-dir>/abc.script".
+ABC: 
+ABC: + read_blif <abc-temp-dir>/input.blif 
+ABC: + read_lib -w /home/eneadim/work/ip_dev_new/lib/sky130_fd_sc_hd__tt_025C_1v80.lib 
+ABC: Parsing finished successfully.  Parsing time =     0.05 sec
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_12" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_3" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_6" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_8" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfbbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfbbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfbbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfsbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfsbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfstp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfstp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfstp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxtp_4".
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__diode_2" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__dlclkp_1" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__dlclkp_2" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__dlclkp_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtn_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtn_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_2".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_4".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_8".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__edfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__edfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_0".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_2".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_4".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_8".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_2".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_4".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_8".
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_bleeder_1" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_12" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_3" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_6" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_8" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__lpflow_inputisolatch_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfbbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfbbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfbbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfsbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfsbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfstp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfstp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfstp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxtp_4".
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__sdlclkp_1" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__sdlclkp_2" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__sdlclkp_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_4".
+ABC: Library "sky130_fd_sc_hd__tt_025C_1v80" from "/home/eneadim/work/ip_dev_new/lib/sky130_fd_sc_hd__tt_025C_1v80.lib" has 334 cells (94 skipped: 63 seq; 13 tri-state; 18 no func; 0 dont_use).  Time =     0.07 sec
+ABC: Memory =   19.85 MB. Time =     0.07 sec
+ABC: Warning: Detected 9 multi-output gates (for example, "sky130_fd_sc_hd__fa_1").
+ABC: + strash 
+ABC: + &get -n 
+ABC: + &fraig -x 
+ABC: + &put 
+ABC: + scorr 
+ABC: Warning: The network is combinational (run "fraig" or "fraig_sweep").
+ABC: + dc2 
+ABC: + dretime 
+ABC: + retime -o -D 10000 
+ABC: + strash 
+ABC: + &get -n 
+ABC: + &dch -f 
+ABC: + &nf -D 10000 
+ABC: + &put 
+ABC: + write_blif <abc-temp-dir>/output.blif 
+
+5.1.2. Re-integrating ABC results.
+ABC RESULTS:   sky130_fd_sc_hd__a311o_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__and3_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__lpflow_inputiso1p_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__a22o_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__o31a_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__nor4_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__nor4b_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__nand4_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__clkinv_1 cells:        9
+ABC RESULTS:   sky130_fd_sc_hd__a41oi_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__nor3_1 cells:        7
+ABC RESULTS:   sky130_fd_sc_hd__and2_0 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__nand2b_1 cells:        4
+ABC RESULTS:   sky130_fd_sc_hd__xor2_1 cells:        9
+ABC RESULTS:   sky130_fd_sc_hd__o311ai_0 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__maj3_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__xnor2_1 cells:        7
+ABC RESULTS:   sky130_fd_sc_hd__o2bb2ai_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__o32a_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__a22oi_1 cells:        9
+ABC RESULTS:   sky130_fd_sc_hd__o21ai_0 cells:       45
+ABC RESULTS:   sky130_fd_sc_hd__nand2_1 cells:       76
+ABC RESULTS:   sky130_fd_sc_hd__mux2i_1 cells:       16
+ABC RESULTS:   sky130_fd_sc_hd__o221ai_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__nor2_1 cells:       39
+ABC RESULTS:   sky130_fd_sc_hd__lpflow_isobufsrc_1 cells:        9
+ABC RESULTS:   sky130_fd_sc_hd__o31ai_1 cells:        5
+ABC RESULTS:   sky130_fd_sc_hd__o21a_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__nor3b_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__a21o_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__a31oi_1 cells:       10
+ABC RESULTS:   sky130_fd_sc_hd__nand3_1 cells:       12
+ABC RESULTS:   sky130_fd_sc_hd__a21oi_1 cells:       19
+ABC RESULTS:   sky130_fd_sc_hd__o22ai_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__mux2_1 cells:       59
+ABC RESULTS:        internal signals:      633
+ABC RESULTS:           input signals:      147
+ABC RESULTS:          output signals:      120
+Removing temp directory.
+
+6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 26 unused cells and 1146 unused wires.
+<suppressed ~297 debug messages>
+
+7. Printing statistics.
+
+=== spi_host ===
+
+   Number of wires:                392
+   Number of wire bits:            664
+   Number of public wires:          35
+   Number of public wire bits:     307
+   Number of ports:                  9
+   Number of port bits:            182
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                484
+     sky130_fd_sc_hd__a21o_1         3
+     sky130_fd_sc_hd__a21oi_1       19
+     sky130_fd_sc_hd__a22o_1         1
+     sky130_fd_sc_hd__a22oi_1        9
+     sky130_fd_sc_hd__a311o_1        1
+     sky130_fd_sc_hd__a31oi_1       10
+     sky130_fd_sc_hd__a41oi_1        2
+     sky130_fd_sc_hd__and2_0         2
+     sky130_fd_sc_hd__and3_1         1
+     sky130_fd_sc_hd__clkinv_1       9
+     sky130_fd_sc_hd__dfrtp_1       70
+     sky130_fd_sc_hd__dfstp_2        2
+     sky130_fd_sc_hd__dfxtp_1       48
+     sky130_fd_sc_hd__lpflow_inputiso1p_1      2
+     sky130_fd_sc_hd__lpflow_isobufsrc_1      9
+     sky130_fd_sc_hd__maj3_1         1
+     sky130_fd_sc_hd__mux2_1        59
+     sky130_fd_sc_hd__mux2i_1       16
+     sky130_fd_sc_hd__nand2_1       76
+     sky130_fd_sc_hd__nand2b_1       4
+     sky130_fd_sc_hd__nand3_1       12
+     sky130_fd_sc_hd__nand4_1        1
+     sky130_fd_sc_hd__nor2_1        39
+     sky130_fd_sc_hd__nor3_1         7
+     sky130_fd_sc_hd__nor3b_1        3
+     sky130_fd_sc_hd__nor4_1         2
+     sky130_fd_sc_hd__nor4b_1        1
+     sky130_fd_sc_hd__o21a_1         1
+     sky130_fd_sc_hd__o21ai_0       45
+     sky130_fd_sc_hd__o221ai_1       1
+     sky130_fd_sc_hd__o22ai_1        2
+     sky130_fd_sc_hd__o2bb2ai_1      1
+     sky130_fd_sc_hd__o311ai_0       2
+     sky130_fd_sc_hd__o31a_1         1
+     sky130_fd_sc_hd__o31ai_1        5
+     sky130_fd_sc_hd__o32a_1         1
+     sky130_fd_sc_hd__xnor2_1        7
+     sky130_fd_sc_hd__xor2_1         9
+
+   Chip area for module '\spi_host': 5083.625600
+     of which used for sequential elements: 2765.152000 (54.39%)
+
+8. Executing Verilog backend.
+
+8.1. Executing BMUXMAP pass.
+
+8.2. Executing DEMUXMAP pass.
+Dumping module `\spi_host'.
+
+9. Executing JSON backend.
+
+Warnings: 26 unique messages, 234 total
+End of script. Logfile hash: abd83e2a2a, CPU: user 0.65s system 0.03s, MEM: 52.16 MB peak
+Yosys 0.44+4 (git sha1 77b2ae2e3, g++ 13.2.0-23ubuntu4 -fPIC -O3)
+Time spent: 24% 2x abc (0 sec), 16% 3x read_verilog (0 sec), ...

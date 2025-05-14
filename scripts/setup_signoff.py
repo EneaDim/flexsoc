@@ -21,8 +21,6 @@ try:
     ap = argparse.ArgumentParser()
     ap.add_argument("-top", "--top", type=str, required='True', 
     help="Define the TOP module in the design")
-    ap.add_argument("-tb", "--tb", type=str, required='True', 
-    help="Define the TB for vcd based power analysis")
     ap.add_argument("-rtldir", "--rtldir", type=str, required='True', 
     help="Define the directory of source files of the design")
     ap.add_argument("-libs", "--libs", nargs='+', type=str, required='True', 
@@ -34,7 +32,6 @@ try:
     ap.add_argument("-o", "--output", type=str, required='False', help="Output Folder")
     args = vars(ap.parse_args())
     top = args.get("top")
-    testbench = args.get("tb")
     rtldir = args.get("rtldir")
     libs = args.get("libs")
     for l in libs:
@@ -360,8 +357,8 @@ try:
         mystr += 'puts "==========================================================================="\n'
         mystr += 'puts "(VCD Power Analysis) report_power"\n'
         mystr += 'puts "============================================================================"\n'
-        mystr += 'puts "read_vcd -scope '+str(top)+'_tb/u_'+str(top)+' sim/dump_'+str(testbench)+'.vcd"\n'
-        mystr += 'read_vcd -scope '+str(top)+'_tb/u_'+str(top)+' sim/dump_'+str(testbench)+'.vcd\n'
+        mystr += 'puts "read_vcd -scope '+str(top)+'_tb/u_'+str(top)+' sim/dump_'+str(top)+'.vcd"\n'
+        mystr += 'read_vcd -scope '+str(top)+'_tb/u_'+str(top)+' sim/dump_'+str(top)+'.vcd\n'
         mystr += 'foreach corner [sta::corners] {\n'
         mystr += '    puts ""\n'
         mystr += '    puts "======================= [$corner name] Corner ==================================="\n'

@@ -317,14 +317,6 @@ py_library(
 )
 
 py_library(
-    name = "md_helpers",
-    srcs = ["md_helpers.py"],
-    deps = [
-        ":signal",
-    ],
-)
-
-py_library(
     name = "validate",
     srcs = ["validate.py"],
 )

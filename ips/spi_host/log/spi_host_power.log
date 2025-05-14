@@ -1,0 +1,129 @@
+OpenSTA 2.6.0 ed9ea90a7d Copyright (c) 2025, Parallax Software, Inc.
+License GPLv3: GNU GPL version 3 <http://gnu.org/licenses/gpl.html>
+
+This is free software, and you are free to change and redistribute it
+under certain conditions; type `show_copying' for details. 
+This program comes with ABSOLUTELY NO WARRANTY; for details type `show_warranty'.
+
+===========================================================================
+Define corners Slowest Typical Fastest
+===========================================================================
+
+define_corners Slowest Typical Fastest
+
+===========================================================================
+Read liberty files
+===========================================================================
+
+read_liberty -corner Slowest lib/sky130_fd_sc_hd__ss_100C_1v40.lib
+read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
+
+===========================================================================
+Read verilog and link top module
+===========================================================================
+
+read_verilog syn/spi_host_synth.v
+link_design spi_host
+
+===========================================================================
+Read SDC
+===========================================================================
+
+read_sdc signoff/spi_host.sdc
+
+
+===========================================================================
+(Probability Power Analysis) report_power
+============================================================================
+set_power_activity -input -activity .10
+set_power_activity -input_port rst_ni -activity 0
+
+======================= Fastest Corner ===================================
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             5.99e-04   9.61e-06   6.95e-08   6.08e-04  94.9%
+Combinational          1.61e-05   1.65e-05   1.68e-09   3.26e-05   5.1%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  6.15e-04   2.61e-05   7.12e-08   6.41e-04 100.0%
+                          95.9%       4.1%       0.0%
+
+
+======================= Slowest Corner ===================================
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             3.01e-04   4.63e-06   1.33e-06   3.07e-04  94.6%
+Combinational          8.95e-06   7.87e-06   7.83e-07   1.76e-05   5.4%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  3.10e-04   1.25e-05   2.11e-06   3.24e-04 100.0%
+                          95.5%       3.9%       0.7%
+
+
+======================= Typical Corner ===================================
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             5.17e-04   8.03e-06   6.91e-08   5.25e-04  94.8%
+Combinational          1.50e-05   1.38e-05   9.55e-10   2.88e-05   5.2%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  5.32e-04   2.19e-05   7.00e-08   5.54e-04 100.0%
+                          96.0%       4.0%       0.0%
+
+===========================================================================
+(VCD Power Analysis) report_power
+============================================================================
+read_vcd -scope spi_host_tb/u_spi_host sim/dump_spi_host.vcd
+Annotated 182 pin activities.
+
+======================= Fastest Corner ===================================
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             5.71e-04   1.76e-07   2.27e-09   5.72e-04  99.8%
+Combinational          3.83e-07   4.88e-07   1.71e-09   8.73e-07   0.2%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  5.72e-04   6.64e-07   3.98e-09   5.72e-04 100.0%
+                          99.9%       0.1%       0.0%
+
+
+======================= Slowest Corner ===================================
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             2.86e-04   8.63e-08   1.34e-06   2.88e-04  99.6%
+Combinational          2.06e-07   2.35e-07   7.92e-07   1.23e-06   0.4%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  2.86e-04   3.21e-07   2.13e-06   2.89e-04 100.0%
+                          99.2%       0.1%       0.7%
+
+
+======================= Typical Corner ===================================
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             4.93e-04   1.49e-07   1.77e-09   4.93e-04  99.8%
+Combinational          3.45e-07   4.11e-07   9.69e-10   7.57e-07   0.2%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  4.93e-04   5.60e-07   2.73e-09   4.94e-04 100.0%
+                          99.9%       0.1%       0.0%
+

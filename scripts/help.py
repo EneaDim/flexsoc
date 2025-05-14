@@ -2,13 +2,24 @@
 msg='\033[38;5;214m\n\
 \n *************************************************************\n\
 \n *************************** HELP ****************************\n\
-\n *************************************************************\n\
+\n *************************************************************\n\n\
+\n ********************** IP DEVELOPMENT ***********************\n\
 \n - CONFIG\
 \n   .Define the parameters under config.mk\n\
 \n - SETUP\
 \n   .Run "make setup" to setup the folder structure\
 \n   .Write TOP?="top_name" parameter in the config.mk\
 \n    file to properly set the TOP module\n\
+\n - HJSON\
+\n   .Run "make hjson" to initialize the configuration file \
+\n    for CSR registers and documentation under data/ folder. \
+\n   .Update it for your needs\n\
+\n - DOC\
+\n   .Run "make doc" to generate the documentation based on \
+\n    the configuration file.\n\
+\n - REG\
+\n   .Run "make reg" to generate CSR register with TLUL interface \
+\n    based on the configuration file.\n\
 \n - RTL CODING\
 \n   .Write RTL in systemverilog under rtl/ folder\n\
 \n - SV2V\
@@ -54,6 +65,30 @@ msg='\033[38;5;214m\n\
 \n - SYNTHESIS SIMULATION VIEW\
 \n   .Run "make view_syn" to view the simulation waveforms\n\
 \n - REGRESSION\
-\n   .Run "make regression" to run all testbench simulation you created\n\
+\n   .Run "make regression" to run testbenches you have put under tb/regression\n\n\
+\n ********************* SoC INTEGRATION ***********************\n\
+\n - FUSESOC\
+\n   .Run "make fsoc_init" to initialize .core file for your IP\n\
+\n - FETCH\
+\n   .Run "make fetch VENDOR=lowrisc_ip" and "make fetch VENDOR=lowrisc_ibex"\
+\n    to fetch IPs using vendor functionality\n\
+\n - XBAR\
+\n   .Run "make xbar" to define the crossbar using IBEX, RAM, UART, and your IP.\
+\n    Check variable SOC_MEMORY_MAP  in config.mk\n\
+\n   .Under the hood is running "make xbar_init" for initializing hjson description\n\
+\n    of the xbar, and "make xbar_build" t generate the xbar .sv file\n\
+\n - SoC BUILD\
+\n   .Run "make soc_build" to generate:\
+\n        --  SoC configuration file for FuseSoC.\
+\n        --  SoC wrapper in SystemVerilog.\
+\n        --  SoC top verilator wrapper in SystemVerilog.\
+\n        --  SoC top verilator wrapper in C++.\n\
+\n - SoC SIM\
+\n   .Run "make soc_sim" to run simulation target with FuseSoC\n\
+\n - SoC RUN\
+\n   .Run "make soc_run" to run  GCC compilation of sw/hello.c and\
+\n    start verilator sim.\n\
+\n - SoC VIEW\
+\n   .Run "make soc_view" to view the simulation waveforms with gtkwave.\n\
 \033[0;0m'
 print(msg)

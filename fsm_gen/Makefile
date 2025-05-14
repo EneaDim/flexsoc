@@ -10,9 +10,9 @@ ORANGE          :=\033[38;5;214m
 RESET           :=\033[0m
 
 # BASIC FLOW
-flow: setup gen
+flow: setup main
 setup:
-	mkdir -p inputs outputs  
+	mkdir -p outputs  
 # HELP
 help: clean
 	python scripts/help.py

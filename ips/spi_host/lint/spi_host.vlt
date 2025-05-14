@@ -1,0 +1,7 @@
+`verilator_config
+
+// The STATUS register is marked hrw because we need access to its
+// read-enables (e.g. reg2hw.status.txfull.re). We don't look at the
+// rest of the exposed signals, though: waive the resulting warnings.
+lint_off -rule UNUSED -file "*/rtl/spi_host_core.sv" -match "Bits of signal are not used: 'reg2hw'[*]"
+lint_off -rule UNUSEDSIGNAL -file "../src/prj_ip_spi_host_0.1/rtl/spi_host_core.sv"

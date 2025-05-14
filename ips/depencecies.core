@@ -1,0 +1,64 @@
+CAPI=2:
+name: "ips:dependecies:all"
+description: "All dependecies for FUSESOC flow"
+filesets:
+  files_rtl:
+    files:
+      - pkgs/prim_assert.sv : {is_include_file : true}
+      - pkgs/prim_assert_dummy_macros.svh : {is_include_file : true}
+      - pkgs/prim_assert_standard_macros.svh : {is_include_file : true}
+      - pkgs/prim_assert_sec_cm.svh : {is_include_file : true}
+      - pkgs/prim_flop_macros.sv : {is_include_file : true}
+      - pkgs/top_pkg.sv
+      - pkgs/prim_util_pkg.sv
+      - pkgs/prim_mubi_pkg.sv
+      - pkgs/prim_count_pkg.sv 
+      - pkgs/prim_secded_pkg.sv
+      - pkgs/prim_subreg_pkg.sv
+      - pkgs/tlul_pkg.sv
+      - prim_opentitan/prim_arbiter_ppc.sv
+      - prim_opentitan/prim_cdc_rand_delay.sv
+      - prim_opentitan/prim_count.sv
+      - prim_opentitan/prim_fifo_async.sv
+      - prim_opentitan/prim_fifo_async_simple.sv
+      - prim_opentitan/prim_fifo_async_sram_adapter.sv
+      - prim_opentitan/prim_fifo_sync.sv
+      - prim_opentitan/prim_fifo_sync_cnt.sv
+      - prim_opentitan/prim_filter.sv
+      - prim_opentitan/prim_filter_ctr.sv
+      - prim_opentitan/prim_flop.sv
+      - prim_opentitan/prim_flop_2sync.sv
+      - prim_opentitan/prim_secded_inv_39_32_dec.sv
+      - prim_opentitan/prim_secded_inv_39_32_enc.sv
+      - prim_opentitan/prim_secded_inv_64_57_dec.sv
+      - prim_opentitan/prim_secded_inv_64_57_enc.sv
+      - prim_opentitan/prim_subreg.sv
+      - prim_opentitan/prim_subreg_arb.sv
+      - prim_opentitan/prim_subreg_ext.sv
+      - prim_opentitan/prim_sync_reqack.sv
+      - tlul/sram2tlul.sv
+      - tlul/tlul_adapter_host.sv
+      - tlul/tlul_adapter_reg.sv
+      - tlul/tlul_adapter_sram.sv
+      - tlul/tlul_assert.sv
+      - tlul/tlul_assert_multiple.sv
+      - tlul/tlul_cmd_intg_chk.sv
+      - tlul/tlul_cmd_intg_gen.sv
+      - tlul/tlul_data_integ_dec.sv
+      - tlul/tlul_data_integ_enc.sv
+      - tlul/tlul_err.sv
+      - tlul/tlul_err_resp.sv
+      - tlul/tlul_fifo_async.sv
+      - tlul/tlul_fifo_sync.sv
+      - tlul/tlul_rsp_intg_chk.sv
+      - tlul/tlul_rsp_intg_gen.sv
+      - tlul/tlul_socket_1n.sv
+      - tlul/tlul_socket_m1.sv
+      - tlul/tlul_sram_byte.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - files_rtl
+

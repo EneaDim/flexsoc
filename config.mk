@@ -2,10 +2,11 @@
 PYTHON          ?=python3
 # TOP NAME
 PRJ             ?=prj
-TOP             ?=fsm_example
+TOP             ?=spi_host
 # DIRECTORIES
 RTLDIR          ?=rtl
 TBDIR           ?=tb
+LINTDIR         ?=lint
 SIMDIR          ?=sim
 SYNDIR          ?=syn
 SIGNOFFDIR      ?=signoff
@@ -13,22 +14,27 @@ MODELDIR        ?=model
 LOGDIR          ?=log
 DOCDIR          ?=doc
 DATADIR         ?=data
+VENDORDIR       :=vendor
 UTILDIR         :=util
 SCRIPTSDIR      :=scripts
 REGRESSIONDIR   :=$(TBDIR)/regression \
                   $(SIMDIR)/regression \
                   $(LOGDIR)/regression
+# VENDOR
+VENDOR          ?=lowrisc_ip
+# FUSESOC
+TARGET_FSOC     ?=lint
 # COMPILE TOOL
 SV2V            :=sv2v
 LINTER          ?=verilator
-COMPILER        ?=iverilog
+COMPILER        ?=verilator
 # LINT FLAGS
 LINT_FLAGS      := --lint-only -Wall -Wno-fatal
 LINT_FILES      ?=
 # COMPILE FLAG
-IVERILOG_FLAGS  := -g2012 -v
+IVERILOG_FLAGS  := -g2012 -v -Iips/pkgs -I$(RTLDIR)
 VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing \
-                   --Mdir $(SIMDIR)/$(COMPILER)
+                   --Mdir $(SIMDIR)/$(COMPILER) +incdir+ips/pkgs +incdir+ips/prim_opentitan +incdir+ips/tlul
 # SIMULATION
 TESTBENCH       ?= $(TOP)_tb
 TESTBENCHES     := $(wildcard $(TBDIR)/*.sv)
@@ -36,12 +42,12 @@ TESTBENCHES     := $(wildcard $(TBDIR)/*.sv)
 VIEWER          ?=gtkwave
 VIEWER_FLAGS    ?=--dark --rcvar 'fontname_signals Monospace 17' \
                   --rcvar 'fontname_waves Monospace 17' 
-VIEWER_CONF     ?=$(SIMDIR)/$(TESTBENCH).gtkw
+VIEWER_CONF     ?=$(SIMDIR)/$(TOP)_tb.gtkw
 # SYNTHESIS AND SIGN-OFF
 YOSYS           :=yosys
 STA             :=sta
 CLK_PERIOD      ?=10
-TARGET          ?=asic
+TARGET_SYN      ?=asic
 ACTIVITY        ?=10
 MODULE          ?=$(TOP)
 PATH_VIEW_FILE  ?=$(TOP)_sta.violators
@@ -53,6 +59,14 @@ LIBS            ?=lib/sky130_fd_sc_hd__ss_100C_1v40.lib \
 LIB_SYN         ?=lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 PRIM            ?=verilog/primitives.v \
                   verilog/sky130_fd_sc_hd.v
+
+# SoC MEMORY MAP
+SOC_MEMORY_MAP  ?=--device sram 0x00100000 0x00020000 \
+  					      --device uart 0x80000000 0x00001000 \
+  					      --device spi_host 0x80002000 0x00001000 \
+
+
+
 # Shell functions
 ECHO            :=echo
 MKDIR           :=mkdir

@@ -10,18 +10,21 @@ help_fsm:
 
 
 # SETUP FOLDER STRUCTURE
-setup_fsm:
-	$(MAKE) -C fsm_gen setup
-
-setup: setup_fsm
+setup: 
 	@$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
-	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(REGRESSIONDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
-	$(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) $(UTILDIR) $(DOCDIR) $(DATADIR)
+	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(REGRESSIONDIR) $(TBDIR) \
+	 $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) \
+	 $(UTILDIR) $(DOCDIR) $(DATADIR) $(LINTDIR)
 
 # HJSON TEMPLATE GENERATION
 hjson:
 	@$(ECHO) "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
 	$(PYTHON) scripts/hjson_gen.py -top $(TOP) -o $(DATADIR) 
+
+# SV REGISTER GENERATOR
+reg:
+	@$(ECHO) "\n$(ORANGE)Generating REGMAP from hjson description...$(RESET)"
+	./$(UTILDIR)/regtool.py -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
 
 # MARKDOWN GENERATOR
 .PHONY: doc
@@ -30,10 +33,14 @@ doc:
 	./$(UTILDIR)/regtool.py -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
 	./$(UTILDIR)/regtool.py --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
+# FETCH VENDOR FROM HJSON
+fetch:
+	$(UTILDIR)/vendor.py --update vendor/$(VENDOR).vendor.hjson
+
 # SV to single Verilog file
 sv2v: clean_rtl
 	@$(ECHO) "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
-	$(SV2V) -v $(RTLDIR)/*.sv > $(RTLDIR)/$(TOP).v
+	$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv > $(RTLDIR)/$(TOP).v
 
 # LINTING
 lint: sv2v
@@ -42,14 +49,14 @@ lint: sv2v
 	
 lint_sv:
 	@$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
-	$(LINTER) $(LINT_FLAGS) $(LIST_FILES) --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
+	$(LINTER) $(LINT_FLAGS) $(LINT_FILES) --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
 	> $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
 # SETUP SV TESTBENCH FILE
 setup_tb:
 	@$(ECHO) "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
 	$(PYTHON) scripts/setup_tb.py -top $(TOP) -rtldir $(RTLDIR) -simdir $(SIMDIR) \
-	-syndir $(SYNDIR) -prim $(PRIM) -clk $(CLK_PERIOD) -o $(TBDIR)
+	-syndir $(SYNDIR) -prim $(PRIM) -clk $(CLK_PERIOD) -comp $(COMPILER) -o $(TBDIR)
 
 # COMPILE THE TESTBENCH THAT INCLUDES ALL THE RTL FILES
 compile: lint
@@ -63,7 +70,6 @@ else
 endif
 
 # SIMULATE TESTBENCH
-	
 .PHONY: sim
 sim: compile 
 ifeq ($(COMPILER), iverilog)
@@ -73,13 +79,13 @@ else
 	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
 	$(COMPILER) ${VERILATOR_FLAGS} --trace $(TBDIR)/$(TESTBENCH).sv \
 	> $(LOGDIR)/$(TOP)_sim.log 2>&1
-	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)_tb >> $(LOGDIR)/$(TESTBENCH)_sim.log 2>&1
+	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
 endif
 
 # VIEW WAVEFORMS RTL SIMULATION
 view:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TESTBENCH).vcd $(VIEWER_CONF) & 
+	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TOP).vcd $(VIEWER_CONF) & 
 
 # COCOTB
 cocotb: 
@@ -87,7 +93,7 @@ cocotb:
 
 # REGRESSION
 regression:
-	@$(MKDIR) -p $(REGRESSIONDIR) ; \
+	@$(MKDIR) -p $(REGRESSIONDIR)\
 	$(PYTHON) scripts/regression.py
 
 # RUN SYNTHESIS WITH YOSYS
@@ -100,7 +106,8 @@ syn: clean_rtl setup_syn
 
 view_presyn:
 	@$(ECHO) "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
-	$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); show' $(RTLDIR)/$(TOP).v
+	$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); show' $(RTLDIR)/$(TOP).v \
+	> $(LOGDIR)/$(TOP)_presyn.log 2>&1
 
 # COMPILE POST SYNTHESIS NETLIST
 compile_syn:
@@ -124,13 +131,13 @@ else
 	@$(ECHO) "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
 	$(COMPILER) ${VERILATOR_FLAGS} -DSYN=1 --bbox-unsup --trace $(TBDIR)/$(TOP)_tb.sv \
 	> $(LOGDIR)/$(TOP)_sim_syn.log 2>&1
-	./$(SIMDIR)/$(COMPILER)/V$(TOP)_tb >> $(LOGDIR)/$(TOP)_sim_syn.log 2>&1
+	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) > $(LOGDIR)/$(TESTBENCH)_sim_syn.log 2>&1
 endif
 
 # VIEW WAVEFORMS RTL SIMULATION
 view_syn:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TESTBENCH)_syn.vcd $(VIEWER_CONF) & 
+	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TOP)_syn.vcd $(VIEWER_CONF) & 
 
 # STA analysis
 sta: setup_signoff 
@@ -166,24 +173,81 @@ save_tb:
 	@$(ECHO) "\n$(ORANGE)Save testbench file...\n$(RESET)"
 	@$(CP) $(TBDIR)/$(TOP)_tb.sv $(TBDIR)/$(TOP)_tb_ok.sv
 
-# SV REGISTER GENERATOR
-reg:
-	@$(ECHO) "\n$(ORANGE)Generating REGMAP from hjson description...$(RESET)"
-	@$(ECHO) "$(ORANGE)Compilation of REGMAP still not supported...$(RESET)"
-	@$(ECHO) "$(ORANGE)(FUSESOC flow to be added to handle dependecies)\n$(RESET)"
-	./$(UTILDIR)/regtool.py -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
+# FUSESOC
+fsoc_init:
+	@$(ECHO) "\n$(ORANGE)FuseSOC setup...\n$(RESET)"
+	$(PYTHON) scripts/setup_fsoc.py -prj $(PRJ) -top $(TOP) -rtldir $(RTLDIR) -lintdir $(LINTDIR)	-o . 
 
-# BASIC FLOW:
-flow_all: hjson doc lint sim view_presyn syn sdf sta sta_violators power sim_syn
-flow: hjson doc lint sim syn sdf sta
+fsoc:
+	@$(FUSESOC) --cores-root=. run --target $(TARGET) $(PRJ):ip:$(TOP)
+
+# XBAR
+xbar: xbar_init xbar_build
+
+xbar_init:
+	@$(ECHO) "\n$(ORANGE)XBAR hjson init, assuming ibex host ...\n$(RESET)"
+	$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --output xbar_main.hjson
+
+xbar_build:
+	@$(ECHO) "\n$(ORANGE)XBAR build ...\n$(RESET)"
+	mkdir -p top/autogen ; \
+	$(UTILDIR)/tlgen.py -t xbar_main.hjson -o top/autogen ; \
+	rm -r top/autogen/dv ; \
+	mv top/autogen/rtl/autogen/* top/autogen
+
+# SoC
+
+soc_flow: soc_build soc_sim soc_run 
+
+soc_build:
+	@$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
+	@$(MKDIR) -p top
+	@$(PYTHON) scripts/soc_gen.py -m uart $(TOP) -o top/soc.sv
+
+soc_sim:
+	@$(ECHO) "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
+	@$(FUSESOC) --cores-root=. run --target=sim --tool=verilator --setup --build enea:soc:main
+
+soc_run:
+	@$(ECHO) "\n$(ORANGE)GCC compilaiton of hello_world.c ...\n$(RESET)"
+	sw/build.sh
+	@$(ECHO) "\n$(ORANGE)Verilator run ... Press <CTRL>-C\n$(RESET)"
+	build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E sw/hello_world.elf
+
+soc_view:
+	@$(ECHO) "\n$(ORANGE)Viewing ...\n$(RESET)"
+	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(VIEWER_CONF) &
+
+full_flow:
+	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
+	$(MAKE) load_ip
+	@$(ECHO) "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
+	$(MAKE) fetch VENDOR=lowrisc_ip
+	@$(ECHO) "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
+	$(MAKE) fetch VENDOR=lowrisc_ibex
+	@$(ECHO) "\n$(ORANGE)Generate xbar ...\n$(RESET)"
+	$(MAKE) xbar
+	@$(ECHO) "\n$(ORANGE)SoC flow ...\n$(RESET)"
+	$(MAKE) soc_flow
 
 # FSM GENERATOR
+fsm_tutorial: setup fsm_example fsm_gen fsm_plot
+	@$(CP) fsm_gen/outputs/*.sv rtl
+	@$(MAKE) setup_tb flow_all view
+
+fsm_example:
+	@$(CP) fsm_gen/examples/* fsm_gen/inputs/
+
 .PHONY: fsm_gen
 fsm_gen:
 	$(MAKE) -C fsm_gen gen
 
 fsm_plot:
 	$(MAKE) -C fsm_gen plot
+
+# BASIC FLOW:
+flow_all: hjson doc sim view_presyn syn sdf sta sta_violators power
+flow: reg doc lint sim syn sdf sta power
 
 # SETUP COCOTB
 setup_cocotb:
@@ -195,27 +259,40 @@ setup_model:
 
 # SETUP SYNTHESIS WITH YOSYS 
 setup_syn: sv2v
-	$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -target $(TARGET) \
+	$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -target $(TARGET_SYN) \
 	-liberty $(LIB_SYN) -clk $(CLK_PERIOD) -o $(SYNDIR) 
 
 # SETUP STA SCRIPT
 setup_signoff:
-	$(PYTHON) scripts/setup_signoff.py -top $(TOP) -tb $(TESTBENCH) -rtldir $(RTLDIR) \
-	-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
+	$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) -libs $(LIBS) \
+	-clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
 
 # SIMULATE WITH COCOTB
 sim_cocotb:
 	$(MAKE) -C ${TBDIR}
 
-# LINT FUSESOC
-fsoc_lint:
-	@$(ECHO) "\n$(ORANGE)Lint with fusesoc...\n$(RESET)"
-	@$(FUSESOC) --cores-root=./cores/ run --target lint $(PRJ):$(TOP):$(TOP)
+# SAVE IP
+save_ip:
+	@$(MKDIR) -p ips/$(TOP) 
+	@$(CP) -r $(DATADIR)    ips/$(TOP)
+	@$(CP) -r $(DOCDIR)     ips/$(TOP)
+	@$(CP) -r $(LINTDIR)    ips/$(TOP)
+	@$(CP) -r $(RTLDIR)     ips/$(TOP)
+	@$(CP) -r $(TBDIR)      ips/$(TOP)
+	@$(CP) -r $(SIMDIR)     ips/$(TOP)
+	@$(CP) -r $(SYNDIR)     ips/$(TOP)
+	@$(CP) -r $(SIGNOFFDIR) ips/$(TOP)
+	@$(CP) -r $(LOGDIR)     ips/$(TOP)
+	@$(CP) -r $(MODELDIR)   ips/$(TOP)
+	@$(CP)    $(TOP).core   ips/$(TOP)
 
-# CLEAN ENV
-fsm_clean:
-	$(MAKE) -C fsm_gen clean
+# LOAD IP
+load_ip:
+	@$(CP) -r ips/$(TOP)/* .
 
+# CLEAN
+clean_doc:
+	$(RM) $(DOCDIR)/*
 clean_log:
 	$(RM) $(LOGDIR)/*
 clean_rtl:
@@ -224,9 +301,6 @@ clean_sim:
 	$(RM) $(SIMDIR)/*.vvp
 	$(RM) $(SIMDIR)/*.vcd
 	$(RM) $(SIMDIR)/verilator
-clean_regression:
-	$(RM) $(LOGDIR)/regression/*
-	$(RM) $(SIMDIR)/regression/*
 clean_syn:
 	$(RM) $(SYNDIR)/*
 clean_signoff: 
@@ -234,13 +308,29 @@ clean_signoff:
 	$(RM) $(SIGNOFFDIR)/*.sdc
 	$(RM) $(SIGNOFFDIR)/*.tcl
 	$(RM) $(SIGNOFFDIR)/path_view
+clean_fsm:
+	@$(ECHO) "\n$(ORANGE)Cleaning FSM ...\n$(RESET)"
+	$(MAKE) -C fsm_gen clean
+clean_fsoc:
+	@$(ECHO) "\n$(ORANGE)Cleaning FuseSoC build directory ...\n$(RESET)"
+	$(RM) build
+clean_soc:
+	@$(ECHO) "\n$(ORANGE)Cleaning SoC ...\n$(RESET)"
+	@$(RM) build trace_core_00000000.log uart0.log  sim.fst*  sw/*.elf sw/*.o sw/*.csv \
+		     tb/top_verilator.* soc.core xbar_main.hjson top
+clean_vendor:
+	$(RM) vendor/lowrisc_ip
+	$(RM) vendor/lowrisc_ibex
+	$(RM) vendor/lowrisc_ip.lock.hjson
+	$(RM) vendor/lowrisc_ibex.lock.hjson
 clean_subdir:
 	$(MAKE) -C fsm_gen clean
 	$(MAKE) -C fsm_gen setup
-clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_regression 
+clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_fsoc clean_soc
 	@$(FIND) . -type f \( -name '*~' -o -name '.*' \) -exec rm -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	@$(CLEAR)
-clean_all: clean
-	$(RM)  $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) \
-	$(SIGNOFFDIR) $(MODELDIR) $(DATADIR) $(DOCDIR) > /dev/null 2>&1
+clean_all: clean_vendor clean
+	@$(RM) $(TOP).core
+	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) \
+	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) > /dev/null 2>&1
