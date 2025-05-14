@@ -118,7 +118,7 @@ Steps performed:
 5. **Run the full SoC development flow:**  
    `make soc_flow`
 
-Then:
+Then CTRL-C and:
 
 - `make soc_view`
 
