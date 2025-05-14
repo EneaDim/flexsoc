@@ -24,7 +24,7 @@ Furthermore, a simple SoC can be assembled using components such as the Ibex cor
 
 ## Flow Overview
 
-- CSR definition
+- CSR definition and documentation
 - RTL development
 - Linting
 - Testbench based simulation
@@ -491,12 +491,13 @@ Remove all project directories and files, effectively resetting the project.
 
 ## Next Steps
 
-- Align with dvsim flow of lowRISC
-- HJSON parametric template generation
-- Support other register interface like AXI-Lite
-- Better support for cocotb dv flow
+- Align with dvsim flow of lowRISC.
+- HJSON parametric template generation.
+- Support other register interface like AXI4 and AXI-Lite.
+- Enhance synthesis trials with different targets (PPA).
+- Include OpenLane-OpenROAD flows.
 - Extend SW stack to automatically generate drivers for new IPs.
-- Better alignment to lowRISC flow to easisy export the result of this IP develpment flow.
+- Better alignment in general to lowRISC flow to easisy export the result of this IP develpment flow.
 
 ## License
 
