@@ -20,7 +20,8 @@ This repository provides a modular and open-source environment designed to **sim
 
 - Enable digital designers to **develop, document, validate and integrate IPs** with minimal setup.
 - Make **open-source EDA tools** accessible and practical for real-world hardware projects.
-- Provide a seamless **integration path into SoCs**, including those built with the lowRISC ecosystem.
+- Provide a seamless **integration path into SoCs**, including those built with the [lowRISC](https://github.com/lowRISC) ecosystem.
+- Serve as a launchpad for **future IP contributions to the lowRISC ecosystem**, following its Comportable IP principles, coding standards, and tooling flow.
 
 ## 📦 Key Features
 
