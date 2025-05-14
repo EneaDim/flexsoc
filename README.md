@@ -134,8 +134,8 @@ You should see 2 drivings.
 
 #### Project and Top Module Names
 
-- `PRJ`: The name of the project, defaulting to `fpga_board`.
-- `TOP`: The name of the top module in the design, defaulting to `top`.
+- `PRJ`: The name of the project, default is `prj`.
+- `TOP`: The name of the top module in the design, default is `spi_host`.
 
 #### Directory Structure
 
@@ -176,7 +176,7 @@ You should see 2 drivings.
 
 #### Waveform Viewer Configuration
 
-- `VIEWER`: The waveform viewer to be used, defaulting to `gtkwave`.
+- `VIEWER`: The waveform viewer to be used, default is `gtkwave`.
 - `VIEWER_FLAGS`: Flags for configuring the waveform viewer's appearance.
 - `VIEWER_CONF`: Configuration file for the waveform viewer (`.gtkw` file).
 
@@ -184,12 +184,12 @@ You should see 2 drivings.
 
 - `YOSYS`: Tool for synthesis.
 - `STA`: Static Timing Analysis tool.
-- `CLK_PERIOD`: Clock period, defaulting to 10 time units (ns).
-- `TARGET_SYN`: Target technology, defaulting to `asic`.
-- `ACTIVITY`: Activity factor for Static Power Analysis, defaulting to 10 (10%).
-- `MODULE`: The module name, defaulting to the top module.
-- `PATH_VIEW _FILE`: File for viewing path violations, defaulting to the top module's static timing analysis results.
-- `NPATHS`: Number of paths to analyze, defaulting to 20.
+- `CLK_PERIOD`: Clock period, default is to 10 time units (ns).
+- `TARGET_SYN`: Target technology, default is `asic`.
+- `ACTIVITY`: Activity factor for Static Power Analysis, default is 10 (10%).
+- `MODULE`: The module name, default is the top module.
+- `PATH_VIEW _FILE`: File for viewing path violations, default is the top module's static timing analysis results.
+- `NPATHS`: Number of paths to analyze, default is 20.
 
 #### SKY130 Libraries
 
@@ -197,7 +197,7 @@ You should see 2 drivings.
     - `sky130_fd_sc_hd__ss_100C_1v40.lib`: Fast-slow corner library at 100°C and 1.4V.
     - `sky130_fd_sc_hd__tt_025C_1v80.lib`: Typical-typical corner library at 25°C and 1.8V.
     - `sky130_fd_sc_hd__ff_n40C_1v95.lib`: Fast-fast corner library at -40°C and 1.95V.
-- `LIB_SYN`: The library file used for synthesis, defaulting to the typical-typical corner library at 25°C and 1.8V.
+- `LIB_SYN`: The library file used for synthesis, default is the typical-typical corner library at 25°C and 1.8V.
 - `PRIM`: A list of Verilog primitive files used in the design. This includes:
     - `primitives.v`: Standard Verilog primitives.
     - `sky130_fd_sc_hd.v`: SKY130 specific primitives.
