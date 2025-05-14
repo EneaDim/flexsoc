@@ -1,28 +1,11 @@
-# Digital IP Design Environment 
+🚀 **Open-Source Environment for Digital IP Development & SoC Integration** 
 
-This repository provides an environment to simplify the development and integration of digital IPs into a System-on-Chip (SoC). 
-
-It's all using open-source tools and supports various stages of digital IP development, including:
-- Configuration initialization with HJSON.
-- Documentation generation.
-- CSR generation.
-- RTL linting.
-- Functional simulation for design verification.
-- Synthesis trials.
-- Static Timing Analysis
-- Power Analyisis
-- Fetching of other IPs from github
-- XBAR generation
-- SoC integration with TLUL bus protocol.
-
-The primary objective of this project is to assist digital designers in developing their own IPs while making open-source EDA tools more accessible and easy to use.
-
-Additionally, the environment serves as a user-friendly platform for digital IP development, aligned with the IP development process defined by lowRISC. Once the initial development phase is complete, the IPs can seamlessly transition into the lowRISC integration flow for SoC inclusion.
-
-Furthermore, a simple SoC can be assembled using components such as the Ibex core, RAM primitives, a UART, and either custom-developed IPs or externally sourced ones. All components are integrated using a TileLink UL (TLUL) bus interconnect.
+This repository provides a modular and open-source environment designed to **simplify the development, verification, and integration of digital IPs into a System-on-Chip (SoC)**. It supports the **entire IP development lifecycle**, making it easy to adopt modern, collaborative hardware design practices.
 
 ## Table of Contents
-
+- [Project Overview](#project-overview)
+- [Key Features](#key-features)
+- [SoC Composition](#soc-composition)
 - [Flow Overview](#flow-overview)
 - [Folder Structure](#folder-structure)
 - [Dependencies](#dependencies)
@@ -33,22 +16,83 @@ Furthermore, a simple SoC can be assembled using components such as the Ibex cor
 - [Next Steps](#next-step)
 - [License](#license)
 
-## Flow Overview
+## 🎯 Project Objectives
 
-- CSR definition and documentation
-- RTL development
-- Linting
-- Testbenches definition
-- Simulations
-- Regression definition
-- Synthesis trials
-- Static Timing Analysis
-- Power Analysis
-- SoC integration
-- SW drivers definition
-- SoC simulation
+- Enable digital designers to **develop, document, validate and integrate IPs** with minimal setup.
+- Make **open-source EDA tools** accessible and practical for real-world hardware projects.
+- Provide a seamless **integration path into SoCs**, including those built with the lowRISC ecosystem.
 
-## Folder Structure
+## 📦 Key Features
+
+✔️ **Complete IP Development Flow**
+All based on open-source tooling:
+
+- 📁 Configuration initialization using .hjson 
+- 📄 Automatic documentation generation
+- 🧠 CSR (Control & Status Register) generation (TLUL interface)
+- 🔍 RTL linting and formatting
+- 🔬 Functional simulation (design verification)
+- 🏗️ Synthesis trials
+- ⏱️ Static Timing Analysis (STA)
+- 🔌 Power estimation and analysis
+- 🌐 IP fetching and dependency management via GitHub
+- 🔀 XBAR interconnect generation
+- 🧩 SoC integration with modular IPs (TLUL Interface)
+
+## 🛠️ SoC Composition
+
+You can assemble a minimal SoC using:
+
+- [Ibex RISC-V Core](https://github.com/lowRISC/ibex)
+- RAM primitives
+- UART module
+- TileLink-based interconnect
+- Custom or external IPs
+
+All components are integrated with automation scripts and can be expanded or replaced as needed.
+
+
+## 🔁 Flow Overview
+
+This environment supports a complete and repeatable hardware development lifecycle, from individual IP design to full SoC integration and simulation:
+
+1. 🧾 **CSR Definition & Documentation**  
+   Define Control and Status Registers using hjson, enabling auto-generation of both RTL and user-friendly documentation.
+
+2. 🛠 **RTL Development**  
+   Implement hardware modules using SystemVerilog, following lowRISC coding style and modular design principles.
+
+3. ✅ **Linting Checks**  
+   Automatically verify RTL quality and compliance using linting tools and formatting scripts.
+
+4. 🧪 **Testbench Definition**  
+   Create module-level testbenches for simulation, supporting unit-level verification with realistic stimuli.
+
+5. 🔬 **Functional Simulation**  
+   Simulate individual IPs and subsystems using open-source simulators to ensure correctness and expected behavior.
+
+6. 🔁 **Regression Suite Definition**  
+   Define and run regression tests to catch functional regressions across different development stages.
+
+7. 🏗️ **Synthesis Trials**  
+   Run synthesis experiments using tools like Yosys to estimate area, gate count, and synthesis feasibility.
+
+8. ⏱ **Static Timing Analysis (STA)**  
+   Perform STA to evaluate setup/hold timing, slack margins, and timing closure.
+
+9. ⚡ **Power Estimation & Analysis**  
+   Analyze switching activity and perform early-stage power estimation.
+
+10. 🧩 **SoC Integration**  
+    Integrate verified IPs into a System-on-Chip design using a TLUL (TileLink UL) interconnect and autogenerated crossbar.
+
+11. 🧰 **Software Driver Definition**  
+    Define corresponding software-accessible register maps and drivers for each IP to ensure firmware interaction.
+
+12. 🧪 **SoC Simulation**  
+    Simulate the complete SoC to validate hardware/software co-design and system-level behavior.
+
+## 📁 Folder Structure
 
 - `scripts`: Python scripts to setup the environment and facilitate the steps of designing digital IPs and integrate them into an SoC. 
 - `util`: lowRISC utility scripts to build documentation, regmap and use vendor functionality to fetch other repositories from github.
@@ -74,7 +118,7 @@ Furthermore, a simple SoC can be assembled using components such as the Ibex cor
 - `syn`: Synthesis flow results.
 - `signoff`: Static Timing Analysis and Power Analysis flow results.
 
-## Dependencies
+## 📦 Dependencies
 
 The commands to install the dependencies are provided in the `dependencies.sh` file. 
 
@@ -90,13 +134,13 @@ Running this script with `source depencencies.sh` will automate the installation
 
 The python dependencies can be installed running `pip install -r python-requirements.txt` on your system or on a virtual environment.
 
-## Usage
+## ⚙️ Usage
 
 1. Run `make help` to see the guide for the steps of digital IP development and SoC integration.
 2. Run `make help_doc` to see the guide for generating the documentation.
 3. Run `make help_fsm` to see the guide for generating FSMs.
 
-## Tutorial\_1 - Basic FSM
+## 🧪 Tutorial\_1 - Basic FSM
 - `make fsm_tutorial TOP=fsm_example`
 1. Runs setup
 2. Copies example input files
@@ -118,7 +162,7 @@ The python dependencies can be installed running `pip install -r python-requirem
 
 Then `make clean_all` to completely clean the environment and restart from scratch.
 
-## Tutorial\_2 - SoC flow
+## 🛠 Tutorial\_2 - SoC flow
 
 - `make full_flow`
 
@@ -143,7 +187,7 @@ Then CTRL-C and:
 View the waveforms. Inside TOP/top\_verilator, select u\_soc, and plot spi\_cs\_o, spi\_sclk\_o, spi\_sdio\_o. 
 You should see 2 drivings.
 
-## Environment Details
+## 🧬 Environment Details
 
 ### Configuration description (`config.mk`): 
 
@@ -503,7 +547,7 @@ Perform a comprehensive clean-up of all generated files and directories.
 
 Remove all project directories and files, effectively resetting the project.
 
-## Next Steps
+## 📈 Next Steps
 
 - Align with dvsim flow of lowRISC.
 - HJSON parametric template generation.
@@ -513,6 +557,6 @@ Remove all project directories and files, effectively resetting the project.
 - Extend SW stack to automatically generate drivers for new IPs.
 - Better alignment in general to lowRISC flow to easisy export the result of this IP develpment flow.
 
-## License
+## 📜 License
 
 Unless otherwise noted, everything in the repository is covered by the [Apache License](https://www.apache.org/licenses/LICENSE-2.0.html), Version 2.0.
