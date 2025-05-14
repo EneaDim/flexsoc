@@ -65,6 +65,7 @@ Furthermore, a simple SoC can be assembled using components such as the Ibex cor
 ## Dependencies
 
 The commands to install the dependencies are provided in the `dependencies.sh` file. 
+
 Running this script with `source depencencies.sh` will automate the installation process. The Open Source Tools used are:
 
 - `sv2v`: SystemVerilog file list to single Verilog file converter.
