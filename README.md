@@ -102,6 +102,8 @@ The python dependecies can be installed running `pip install -r python-requireme
 16. Report STA violations
 17. Estimate power
 
+Then `make clean_all` to completely clean the environment and restart from scratch.
+
 ## Tutorial\_2 - SoC flow
 
 - `make full_flow`
