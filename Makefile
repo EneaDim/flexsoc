@@ -332,6 +332,7 @@ clean_subdir:
 clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_fsoc clean_soc
 	@$(FIND) . -type f \( -name '*~' -o -name '.*' \) -exec rm -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
+	@$(CLEAR)
 clean_all: clean_vendor clean
 	@$(RM) $(TOP).core
 	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) \
