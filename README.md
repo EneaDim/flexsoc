@@ -2,7 +2,18 @@
 
 This repository provides an environment to simplify the development and integration of digital IPs into a System-on-Chip (SoC). 
 
-It supports various stages of digital IP development, including configuration initialization, documentation generation, CSR generation, RTL linting, functional simulation for design verification, synthesis trials, static timing analysis, and power estimation, fetching of other IPs from github, xbar generation and SoC integration, all using open-source tools.
+It's all using open-source tools and supports various stages of digital IP development, including:
+- Configuration initialization with HJSON.
+- Documentation generation.
+- CSR generation.
+- RTL linting.
+- Functional simulation for design verification.
+- Synthesis trials.
+- Static Timing Analysis
+- Power Analyisis
+- Fetching of other IPs from github
+- XBAR generation
+- SoC integration with TLUL bus protocol.
 
 The primary objective of this project is to assist digital designers in developing their own IPs while making open-source EDA tools more accessible and easy to use.
 
@@ -27,7 +38,8 @@ Furthermore, a simple SoC can be assembled using components such as the Ibex cor
 - CSR definition and documentation
 - RTL development
 - Linting
-- Testbench based simulation
+- Testbenches definition
+- Simulations
 - Regression definition
 - Synthesis trials
 - Static Timing Analysis
