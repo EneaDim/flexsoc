@@ -1,30 +1,39 @@
+# SW
+PYTHON ?=python3
+
 # MAIN PARAMETERS
-FSM   ?=fsm_example
-F_CLK ?=32
+FSM    ?=fsm_example
+F_CLK  ?=32
 
 # Shell functions
-ECHO            :=echo
+ECHO   :=echo
 
 # COLORS
-ORANGE          :=\033[38;5;214m
-RESET           :=\033[0m
+ORANGE :=\033[38;5;214m
+RESET  :=\033[0m
 
-# BASIC FLOW
-flow: setup main
-setup:
-	mkdir -p outputs  
 # HELP
 help: clean
-	python scripts/help.py
-# RUN MAIN
+	$(PYTHON) scripts/help.py
+
+# BASIC FLOW
+flow: setup gen
+
+# SETUP
+setup:
+	mkdir -p outputs  
+
+# GENERATE
 gen: clean
 	@$(ECHO) "\n$(ORANGE)Generating .sv and .gv file of FSM...\n$(RESET)"
-	python scripts/Main.py -fsm_name $(FSM) -f_clk $(F_CLK)
+	$(PYTHON) scripts/Main.py -fsm_name $(FSM) -f_clk $(F_CLK)
+
 # PLOT FSM
 .PHONY: plot
 plot:
 	@$(ECHO) "\n$(ORANGE)Plotting .gv file of FSM...\n$(RESET)"
 	xdot outputs/$(FSM).gv &
+
 # CLEAN PYTHON SCRIPTS FOLDER
 clean_py:
 	rm -rf scripts/__*

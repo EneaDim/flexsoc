@@ -136,6 +136,7 @@ class Interface(object):
     mypath = os.getcwd()
     mypath += '/outputs/'
     file_string = mypath + self.fsm_name + '.sv'
+    print(file_string)
     sv_file = open(file_string, 'w+')
     mystr = 'module '+str(self.fsm_name)+' (\n\n'
     mystr += '  input clk_i,\n'
@@ -196,7 +197,7 @@ class Interface(object):
             if self.states[h] == self.dest[i]:
               break
           mystr += '      end\n'
-          break  
+          break
         else:
           if q == 0:
             mystr += '        if ('+str(self.edges[i])+') begin\n'
@@ -219,7 +220,7 @@ class Interface(object):
         mystr += '          next_state = '+str(state)+';\n'
         mystr += '        end\n'
         mystr += '      end\n'
-      j += 1  
+      j += 1
     mystr += '      default: begin\n'
     mystr += '        next_state = '+str(self.states[0])+';\n'
     mystr += '      end\n'
@@ -249,7 +250,7 @@ class Interface(object):
             mystr += "        "+str(p)+"_d = 1'b"+str(self.out_values[h][k])+";\n"
             k += 1
           mystr += '      end\n'
-          break  
+          break
         else:
           if q == 0:
             mystr += '        if ('+str(self.edges[i])+') begin\n'
@@ -281,7 +282,7 @@ class Interface(object):
           k += 1
         mystr += '        end\n'
         mystr += '      end\n'
-      j += 1  
+      j += 1 
     mystr += '      default: begin\n'
     for i in self.out_names:
       mystr += "        "+str(i)+"_d = 1'b"+str(self.out_values[0][0])+";\n"

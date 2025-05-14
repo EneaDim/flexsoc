@@ -231,19 +231,22 @@ full_flow:
 	$(MAKE) soc_flow
 
 # FSM GENERATOR
-fsm_tutorial: setup fsm_example fsm_gen fsm_plot
+fsm_tutorial: setup fsm_example fsm_setup fsm_gen fsm_plot
 	@$(CP) fsm_gen/outputs/*.sv rtl
 	@$(MAKE) setup_tb flow_all view
 
 fsm_example:
 	@$(CP) fsm_gen/examples/* fsm_gen/inputs/
 
+fsm_setup:
+	$(MAKE) -C fsm_gen setup
+
 .PHONY: fsm_gen
 fsm_gen:
-	$(MAKE) -C fsm_gen gen
+	$(MAKE) -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(TOP) 
 
 fsm_plot:
-	$(MAKE) -C fsm_gen plot
+	$(MAKE) -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(TOP) 
 
 # BASIC FLOW:
 flow_all: hjson doc sim view_presyn syn sdf sta sta_violators power
@@ -329,7 +332,6 @@ clean_subdir:
 clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_fsoc clean_soc
 	@$(FIND) . -type f \( -name '*~' -o -name '.*' \) -exec rm -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
-	@$(CLEAR)
 clean_all: clean_vendor clean
 	@$(RM) $(TOP).core
 	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) \
