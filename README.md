@@ -32,6 +32,7 @@ Furthermore, a simple SoC can be assembled using components such as the Ibex cor
 - Power Analysis
 - SoC integration
 - SW drivers definition
+- SoC simulation
 
 ## Folder Structure
 
