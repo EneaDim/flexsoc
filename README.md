@@ -14,7 +14,7 @@ Furthermore, a simple SoC can be assembled using components such as the Ibex cor
 
 - [Flow Overview](#flow-overview)
 - [Folder Structure](#folder-structure)
-- [Dependecies](#dependecies)
+- [Dependencies](#dependencies)
 - [Usage](#usage)
 - [Tutorial\_1](#tutorial-1)
 - [Tutorial\_2](#tutorial-2)
@@ -62,9 +62,9 @@ Furthermore, a simple SoC can be assembled using components such as the Ibex cor
 - `syn`: Synthesis flow results.
 - `signoff`: Static Timing Analysis and Power Analysis flow results.
 
-## Dependecies
+## Dependencies
 
-The commands to install the dependecies are provided in the `dependencies.sh` file. Running this script will automate the installation process. The Open Source Tools used are:
+The commands to install the dependencies are provided in the `dependencies.sh` file. Running this script will automate the installation process. The Open Source Tools used are:
 
 - `sv2v`: SystemVerilog file list to single Verilog file converter.
 - `verilator`: RTL compiler and simulator. Used mainly for linting step. But it can be used also as compiler and simulator.
@@ -74,7 +74,7 @@ The commands to install the dependecies are provided in the `dependencies.sh` fi
 - `OpenSTA`: Static Timing Analysis and Power Analysis tool.
 - `RISCV GNU Toolchain`: For SoC simulation with IBEX as host
 
-The python dependecies can be installed running `pip install -r python-requirements.txt` on your system or on a virtual environment.
+The python dependencies can be installed running `pip install -r python-requirements.txt` on your system or on a virtual environment.
 
 ## Usage
 
@@ -296,7 +296,7 @@ Perform linting on the generated Verilog file and logs the output.
 - `lint_sv`
 
 Perform linting on the top SystemVerilog file of the IP, you can add depencedies files as "LINT\_FILES=submodule1.sv submodule2.sv ...".
-Suitable for little number of dependecies.
+Suitable for little number of dependencies.
 
 #### Setup testbench
 
