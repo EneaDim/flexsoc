@@ -13,10 +13,10 @@ Furthermore, a simple SoC can be assembled using components such as the Ibex cor
 - [Flow Overview](#flow-overview)
 - [Folder Structure](#folder-structure)
 - [Dependecies](#dependecies)
-- [Getting Started](#getting-started)
 - [Usage](#usage)
 - [Tutorial\_1](#tutorial-1)
 - [Tutorial\_2](#tutorial-2)
+- [Environment Details](#environment-details)
 - [Next Steps](#next-step)
 - [License](#license)
 
@@ -73,7 +73,58 @@ The commands to install the dependecies are provided in the `dependencies.sh` fi
 
 The python dependecies can be installed running `pip install -r python-requirements.txt` on your system or on a virtual environment.
 
-## Getting Started
+## Usage
+
+1. Run `make help` to see the guide for the steps of digital IP development in this environment.
+2. Run `make help_doc` to see the guide for generating the documentation.
+3. Run `make help_fsm` to see the guide for generating FSMs.
+
+## Tutorial\_1 - Basic FSM
+- `make fsm_tutorial TOP=fsm_example`
+1. Runs setup
+2. Copies example input files
+3. Generates the FSM
+4. Plots the FSM diagram
+5. Copies generated `.sv` files to `rtl/`
+6. Sets up testbench
+7. Generate HJSON configurations 
+8. Generate documentation
+9. Run lint checks
+10. Compile
+11. Simulate RTL
+12. View pre-synthesis
+13. Run synthesis
+14. Backannotate SDF
+15. Perform static timing analysis (STA)
+16. Report STA violations
+17. Estimate power
+
+## Tutorial\_2 - SoC flow
+
+- `make full_flow`
+
+Runs the complete top-level SoC integration and build process. This is the recommended end-to-end target for preparing and simulating the SoC.
+The IP used is a custom and simple SPI\_HOST.
+Steps performed:
+1. **Load custom SPI_HOST IP:**  
+   `make load_ip`
+2. **Fetch LowRISC IPs:**  
+   `make fetch VENDOR=lowrisc_ip`
+3. **Fetch Ibex core:**  
+   `make fetch VENDOR=lowrisc_ibex`
+4. **Generate XBAR interconnect:**  
+   `make xbar`
+5. **Run the full SoC development flow:**  
+   `make soc_flow`
+
+Then:
+
+- `make soc_view`
+
+View the waveforms. Inside TOP/top\_verilator, select u\_soc, and plot spi\_cs\_o, spi\_sclk\_o, spi\_sdio\_o. 
+You should see 2 drivings.
+
+## Environment Details
 
 ### Configuration description (`config.mk`): 
 
@@ -432,57 +483,6 @@ Perform a comprehensive clean-up of all generated files and directories.
 - `clean_all`
 
 Remove all project directories and files, effectively resetting the project.
-
-## Usage
-
-1. Run `make help` to see the guide for the steps of digital IP development in this environment.
-2. Run `make help_doc` to see the guide for generating the documentation.
-3. Run `make help_fsm` to see the guide for generating FSMs.
-
-## Tutorial\_1 - Basic FSM
-- `make fsm_tutorial TOP=fsm_example`
-1. Runs setup
-2. Copies example input files
-3. Generates the FSM
-4. Plots the FSM diagram
-5. Copies generated `.sv` files to `rtl/`
-6. Sets up testbench
-7. Generate HJSON input
-8. Generate documentation
-9. Run lint checks
-10. Compile
-11. Simulate RTL
-12. View pre-synthesis
-13. Run synthesis
-14. Backannotate SDF
-15. Perform static timing analysis (STA)
-16. Report STA violations
-17. Estimate power
-
-## Tutorial\_2 - SoC flow
-
-- `make full_flow`
-
-Runs the complete top-level SoC integration and build process. This is the recommended end-to-end target for preparing and simulating the SoC.
-The IP used is a custom and simple SPI\_HOST.
-Steps performed:
-1. **Load custom SPI_HOST IP:**  
-   `make load_ip`
-2. **Fetch LowRISC IPs:**  
-   `make fetch VENDOR=lowrisc_ip`
-3. **Fetch Ibex core:**  
-   `make fetch VENDOR=lowrisc_ibex`
-4. **Generate XBAR interconnect:**  
-   `make xbar`
-5. **Run the full SoC development flow:**  
-   `make soc_flow`
-
-Then:
-
-- `make soc_view`
-
-View the waveforms. Inside TOP/top\_verilator, select u\_soc, and plot spi\_cs\_o, spi\_sclk\_o, spi\_sdio\_o. 
-You should see 2 drivings.
 
 ## Next Steps
 
