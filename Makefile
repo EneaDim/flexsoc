@@ -14,7 +14,7 @@ setup:
 	@$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
 	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(REGRESSIONDIR) $(TBDIR) \
 	 $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) \
-	 $(UTILDIR) $(DOCDIR) $(DATADIR) $(LINTDIR)
+	 $(UTILDIR) $(DOCDIR) $(DATADIR) $(DRIVERDIR) $(LINTDIR)
 
 # HJSON TEMPLATE GENERATION
 hjson:
@@ -173,6 +173,10 @@ save_tb:
 	@$(ECHO) "\n$(ORANGE)Save testbench file...\n$(RESET)"
 	@$(CP) $(TBDIR)/$(TOP)_tb.sv $(TBDIR)/$(TOP)_tb_ok.sv
 
+# SW DRIVERS
+.PHONY: driver
+driver:
+	./$(UTILDIR)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
 # FUSESOC
 fsoc_init:
 	@$(ECHO) "\n$(ORANGE)FuseSOC setup...\n$(RESET)"
@@ -185,15 +189,16 @@ fsoc:
 xbar: xbar_init xbar_build
 
 xbar_init:
+	$(MKDIR) -p $(TOPDIR)
 	@$(ECHO) "\n$(ORANGE)XBAR hjson init, assuming ibex host ...\n$(RESET)"
-	$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --output xbar_main.hjson
+	$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --output $(TOPDIR)/xbar_main.hjson
 
 xbar_build:
 	@$(ECHO) "\n$(ORANGE)XBAR build ...\n$(RESET)"
-	mkdir -p top/autogen ; \
-	$(UTILDIR)/tlgen.py -t xbar_main.hjson -o top/autogen ; \
-	rm -r top/autogen/dv ; \
-	mv top/autogen/rtl/autogen/* top/autogen
+	$(MKDIR) -p $(TOPDIR)/autogen
+	$(UTILDIR)/tlgen.py -t $(TOPDIR)/xbar_main.hjson -o $(TOPDIR)/autogen
+	$(RM) -r $(TOPDIR)/autogen/dv
+	mv $(TOPDIR)/autogen/rtl/autogen/* $(TOPDIR)/autogen
 
 # SoC
 
@@ -201,8 +206,8 @@ soc_flow: soc_build soc_sim soc_run
 
 soc_build:
 	@$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
-	@$(MKDIR) -p top
-	@$(PYTHON) scripts/soc_gen.py -m uart $(TOP) -o top/soc.sv
+	@$(MKDIR) -p $(TOPDIR)
+	@$(PYTHON) scripts/soc_gen.py -m uart $(TOP) -o $(TOPDIR)/soc.sv
 
 soc_sim:
 	@$(ECHO) "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
@@ -328,7 +333,7 @@ clean_fsoc:
 clean_soc:
 	@$(ECHO) "\n$(ORANGE)Cleaning SoC ...\n$(RESET)"
 	@$(RM) build trace_core_00000000.log uart0.log  sim.fst*  sw/*.elf sw/*.o sw/*.csv \
-		     tb/top_verilator.* soc.core xbar_main.hjson top
+		     tb/top_verilator.* soc.core xbar_main.hjson $(TOPDIR)
 clean_sw:
 	$(MAKE) -C sw clean
 clean_vendor:
@@ -340,10 +345,10 @@ clean_subdir:
 	$(MAKE) -C fsm_gen clean
 	$(MAKE) -C fsm_gen setup
 clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
-	@$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec rm -f {} + > /dev/null 2>&1
+	@$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	@$(CLEAR)
 clean_all: clean_fsm_all clean_vendor clean 
 	@$(RM) $(TOP).core
 	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) \
-	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) > /dev/null 2>&1
+	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) > /dev/null 2>&1
