@@ -230,7 +230,7 @@ full_flow:
 	$(MAKE) soc_flow
 
 # FSM GENERATOR
-fsm_tutorial: setup fsm_example fsm_setup fsm_gen fsm_plot
+fsm_tutorial: setup fsm_setup fsm_example fsm_gen fsm_plot
 	@$(CP) fsm_gen/outputs/*.sv rtl
 	@$(MAKE) setup_tb flow_all view
 

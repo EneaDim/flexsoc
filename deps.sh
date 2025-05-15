@@ -44,7 +44,7 @@ install_ip_dependencies() {
     cd
     git clone https://github.com/verilator/verilator
     cd verilator
-    git pull
+    git checkout stable 
     autoconf
     ./configure
     make -j 2

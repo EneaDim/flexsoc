@@ -21,7 +21,7 @@ flow: setup gen
 
 # SETUP
 setup:
-	mkdir -p outputs  
+	mkdir -p inputs outputs  
 
 # GENERATE
 gen: clean_py
