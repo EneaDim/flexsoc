@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/open-IP-SoC-logo.png" alt="Digital IP SoC Dev Env Logo" width="200"/>
+</p>
+
 🚀 **Open-Source Environment for Digital IP Development & SoC Integration** 
 
 This repository provides a modular and open-source environment designed to **simplify the development, verification, and integration of digital IPs into a System-on-Chip (SoC)**. It supports the **entire IP development lifecycle**, making it easy to adopt modern, collaborative hardware design practices.
