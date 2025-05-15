@@ -24,7 +24,7 @@ setup:
 	mkdir -p outputs  
 
 # GENERATE
-gen: clean
+gen: clean_py
 	@$(ECHO) "\n$(ORANGE)Generating .sv and .gv file of FSM...\n$(RESET)"
 	$(PYTHON) scripts/Main.py -fsm_name $(FSM) -f_clk $(F_CLK)
 
@@ -40,4 +40,7 @@ clean_py:
 	rm -rf *~
 # CLEAN OUTPUT DIRECTORY
 clean: clean_py
-	rm -rf outputs/* plot
+	rm -rf outputs plot 
+# CLEAN ALL
+clean_all: clean
+	rm -rf inputs/*

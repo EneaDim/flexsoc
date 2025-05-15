@@ -227,7 +227,6 @@ full_flow:
 	$(MAKE) fetch VENDOR=lowrisc_ibex
 	@$(ECHO) "\n$(ORANGE)Generate xbar ...\n$(RESET)"
 	$(MAKE) xbar
-	@$(ECHO) "\n$(ORANGE)SoC flow ...\n$(RESET)"
 	$(MAKE) soc_flow
 
 # FSM GENERATOR
@@ -321,10 +320,10 @@ clean_signoff:
 	$(RM) $(SIGNOFFDIR)/*.tcl
 	$(RM) $(SIGNOFFDIR)/path_view
 clean_fsm:
-	@$(ECHO) "\n$(ORANGE)Cleaning FSM ...\n$(RESET)"
 	$(MAKE) -C fsm_gen clean
+clean_fsm_all:
+	$(MAKE) -C fsm_gen clean_all
 clean_fsoc:
-	@$(ECHO) "\n$(ORANGE)Cleaning FuseSoC build directory ...\n$(RESET)"
 	$(RM) build
 clean_soc:
 	@$(ECHO) "\n$(ORANGE)Cleaning SoC ...\n$(RESET)"
@@ -338,11 +337,11 @@ clean_vendor:
 clean_subdir:
 	$(MAKE) -C fsm_gen clean
 	$(MAKE) -C fsm_gen setup
-clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_fsoc clean_soc
-	@$(FIND) . -type f \( -name '*~' -o -name '.*' \) -exec rm -f {} + > /dev/null 2>&1
+clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_fsoc clean_soc clean_fsm
+	@$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec rm -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	@$(CLEAR)
-clean_all: clean_vendor clean
+clean_all: clean_fsm_all clean_vendor clean 
 	@$(RM) $(TOP).core
 	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) \
 	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) > /dev/null 2>&1
