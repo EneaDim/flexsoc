@@ -212,7 +212,7 @@ soc_run:
 	@$(ECHO) "\n$(ORANGE)GCC compilaiton of hello_world.c ...\n$(RESET)"
 	$(MAKE) -C sw
 	@$(ECHO) "\n$(ORANGE)Verilator run ... Press <CTRL>-C\n$(RESET)"
-	build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E sw/main.elf
+	build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E sw/build/main.elf
 
 soc_view:
 	@$(ECHO) "\n$(ORANGE)Viewing ...\n$(RESET)"
