@@ -210,9 +210,9 @@ soc_sim:
 
 soc_run:
 	@$(ECHO) "\n$(ORANGE)GCC compilaiton of hello_world.c ...\n$(RESET)"
-	$(MAKE) -c sw
+	$(MAKE) -C sw
 	@$(ECHO) "\n$(ORANGE)Verilator run ... Press <CTRL>-C\n$(RESET)"
-	build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E sw/hello_world.elf
+	build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E sw/main.elf
 
 soc_view:
 	@$(ECHO) "\n$(ORANGE)Viewing ...\n$(RESET)"
@@ -330,7 +330,7 @@ clean_soc:
 	@$(RM) build trace_core_00000000.log uart0.log  sim.fst*  sw/*.elf sw/*.o sw/*.csv \
 		     tb/top_verilator.* soc.core xbar_main.hjson top
 clean_sw:
-	$(MAKE) -c sw clean
+	$(MAKE) -C sw clean
 clean_vendor:
 	$(RM) vendor/lowrisc_ip
 	$(RM) vendor/lowrisc_ibex
@@ -339,7 +339,7 @@ clean_vendor:
 clean_subdir:
 	$(MAKE) -C fsm_gen clean
 	$(MAKE) -C fsm_gen setup
-clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_fsoc clean_soc clean_fsm
+clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
 	@$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec rm -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	@$(CLEAR)
