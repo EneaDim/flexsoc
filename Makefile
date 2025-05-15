@@ -293,6 +293,15 @@ save_ip:
 load_ip:
 	@$(CP) -r ips/$(TOP)/* .
 
+# DEPENDENCIES
+deps-ip:
+	@$(ECHO) "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
+	source ./deps.sh ip
+
+deps-soc:
+	@$(ECHO) "\n$(ORANGE)Installing dependencies for SoC integration ...\n$(RESET)"
+	source ./deps.sh soc
+
 # CLEAN
 clean_doc:
 	$(RM) $(DOCDIR)/*
