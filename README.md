@@ -44,7 +44,7 @@ All based on open-source tooling:
 - 🔀 XBAR interconnect generation
 - 🧩 SoC integration with modular IPs (TLUL Interface)
 
-## 🛠️ SoC Composition
+## 🧩 SoC Composition
 
 You can assemble a minimal SoC using:
 
@@ -70,10 +70,10 @@ This environment supports a complete and repeatable hardware development lifecyc
 3. ✅ **Linting Checks**  
    Automatically verify RTL quality and compliance using linting tools and formatting scripts.
 
-4. 🧪 **Testbench Definition**  
+4. 🔬 **Testbench Definition**  
    Create module-level testbenches for simulation, supporting unit-level verification with realistic stimuli.
 
-5. 🔬 **Functional Simulation**  
+5. 🧪 **Functional Simulation**  
    Simulate individual IPs and subsystems using open-source simulators to ensure correctness and expected behavior.
 
 6. 🔁 **Regression Suite Definition**  
@@ -125,9 +125,9 @@ This environment supports a complete and repeatable hardware development lifecyc
 
 ## 📦 Dependencies
 
-The commands to install the dependencies are provided in the `dependencies.sh` file. 
+The dependencies are splitted for IP development and SoC integration.
 
-Running this script with `source depencencies.sh` will automate the installation process. The Open Source Tools used are:
+**IP Development Tools**
 
 - `sv2v`: SystemVerilog file list to single Verilog file converter.
 - `verilator`: RTL compiler and simulator. Used mainly for linting step. But it can be used also as compiler and simulator.
@@ -136,6 +136,16 @@ Running this script with `source depencencies.sh` will automate the installation
 - `yosys`: Synthesis tool.
 - `OpenSTA`: Static Timing Analysis and Power Analysis tool.
 - `RISCV GNU Toolchain`: For SoC simulation with IBEX as host
+
+Running `make deps-ip` will automate the installation process.
+
+**SoC Integration Tools**
+
+- `riscv-toolchain`: The RISC-V compiler and toolchain required to build and run software on the IBEX core.
+
+Running `make deps-soc` will automate the installation process.
+
+- `python packages`: Python packages needed for the SoC integration and simulation process.
 
 The python dependencies can be installed running `pip install -r python-requirements.txt` on your system or on a virtual environment.
 
