@@ -216,7 +216,7 @@ soc_run:
 
 soc_view:
 	@$(ECHO) "\n$(ORANGE)Viewing ...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(VIEWER_CONF) &
+	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
 
 full_flow:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"

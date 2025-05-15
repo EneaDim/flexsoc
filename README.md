@@ -199,8 +199,8 @@ Then CTRL-C and:
 
 - `make soc_view`
 
-View the waveforms. Inside TOP/top\_verilator, select u\_soc, and plot spi\_cs\_o, spi\_sclk\_o, spi\_sdio\_o. 
-You should see 2 drivings.
+View the waveforms. You should see 2 drivings of spi\_host signals: spi\_cs\_o, spi\_sclk\_o, spi\_sdio\_o. 
+.
 
 ## 🧬 Environment Details
 
