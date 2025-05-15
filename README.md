@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/open-IP-SoC-logo.png" alt="Digital IP SoC Dev Env Logo" width="200"/>
+  <img src="assets/open-IP-SoC-logo.png" alt="Digital IP SoC Dev Env Logo" width="400"/>
 </p>
 
 🚀 **Open-Source Environment for Digital IP Development & SoC Integration** 
