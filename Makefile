@@ -210,7 +210,7 @@ soc_sim:
 
 soc_run:
 	@$(ECHO) "\n$(ORANGE)GCC compilaiton of hello_world.c ...\n$(RESET)"
-	sw/build.sh
+	$(MAKE) -c sw
 	@$(ECHO) "\n$(ORANGE)Verilator run ... Press <CTRL>-C\n$(RESET)"
 	build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E sw/hello_world.elf
 
@@ -329,6 +329,8 @@ clean_soc:
 	@$(ECHO) "\n$(ORANGE)Cleaning SoC ...\n$(RESET)"
 	@$(RM) build trace_core_00000000.log uart0.log  sim.fst*  sw/*.elf sw/*.o sw/*.csv \
 		     tb/top_verilator.* soc.core xbar_main.hjson top
+clean_sw:
+	$(MAKE) -c sw clean
 clean_vendor:
 	$(RM) vendor/lowrisc_ip
 	$(RM) vendor/lowrisc_ibex
