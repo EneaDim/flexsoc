@@ -16,8 +16,8 @@ This repository provides a modular and open-source environment designed to **sim
 - [Usage](##usage)
 - [Tutorial\_1](##tutorial-1)
 - [Tutorial\_2](##tutorial-2)
-- [Environment Details](##environment-details)
 - [Next Steps](##next-step)
+- [Environment Details](##environment-details)
 - [License](##license)
 
 ## 🎯 Project Objectives
@@ -200,7 +200,16 @@ Then CTRL-C and:
 - `make soc_view`
 
 View the waveforms. You should see 2 drivings of spi\_host signals: spi\_cs\_o, spi\_sclk\_o, spi\_sdio\_o. 
-.
+
+## 📈 Next Steps
+
+- Align with dvsim flow of lowRISC.
+- Configuration file parametric template generation (.hjson).
+- Support other register interface like AXI4 and AXI-Lite.
+- Enhance synthesis trials with different targets (PPA).
+- Include OpenLane-OpenROAD flows.
+- Extend SW stack to automatically generate drivers for new IPs.
+- Better alignment in general to lowRISC flow to easisy export the result of this IP develpment flow.
 
 ## 🧬 Environment Details
 
@@ -561,16 +570,6 @@ Perform a comprehensive clean-up of all generated files and directories.
 - `clean_all`
 
 Remove all project directories and files, effectively resetting the project.
-
-## 📈 Next Steps
-
-- Align with dvsim flow of lowRISC.
-- Configuration file parametric template generation (.hjson).
-- Support other register interface like AXI4 and AXI-Lite.
-- Enhance synthesis trials with different targets (PPA).
-- Include OpenLane-OpenROAD flows.
-- Extend SW stack to automatically generate drivers for new IPs.
-- Better alignment in general to lowRISC flow to easisy export the result of this IP develpment flow.
 
 ## 📜 License
 
