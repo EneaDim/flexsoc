@@ -37,7 +37,6 @@ try:
     liberty = args.get("liberty")
     clk_period = args.get("clk")
     output_folder = args.get("output")
-    print(topdir)
 except Exception as err:
     exc_type, exc_value, exc_traceback = sys.exc_info()
     print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
@@ -57,7 +56,7 @@ try:
             mystr += 'read_verilog '+str(topdir)+'/'+str(top)+'.v\n'
             mystr += '# basic synth\n'
             mystr += 'synth -top '+str(top)+' -flatten\n'
-            mystr += 'show -format dot\n'
+            mystr += 'show -width -format dot -prefix '+str(output_folder)+'/plots/'+str(top)+'_postsyn\n'
             mystr += '# map internal register types to the ones from the cell library\n'
             mystr += 'dfflibmap -liberty '+str(liberty)+'\n'
             mystr += '# mapping to internal cell library\n'

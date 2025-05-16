@@ -12,7 +12,7 @@ help_fsm:
 # SETUP FOLDER STRUCTURE
 setup: 
 	@$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
-	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(REGRESSIONDIR) $(TBDIR) \
+	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(TBDIR) \
 	 $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) \
 	 $(UTILDIR) $(DOCDIR) $(DATADIR) $(DRIVERDIR) $(LINTDIR)
 
@@ -99,15 +99,22 @@ regression:
 # RUN SYNTHESIS WITH YOSYS
 .PHONY: syn
 syn: clean_rtl setup_syn
+	@$(MKDIR) -p $(SYNDIR)/plots
 	@$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
 	$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth.log 
 	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth.log > $(LOGDIR)/$(TOP)_synth.warnings || true
 	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth.log > $(LOGDIR)/$(TOP)_synth.errors || true
 
-view_presyn:
+# Use it only if small design
+plot_postsyn:
+	xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot &
+
+view_presyn: sv2v
+	@$(MKDIR) -p $(SYNDIR)/plots
 	@$(ECHO) "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
-	$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); show' $(RTLDIR)/$(TOP).v \
-	> $(LOGDIR)/$(TOP)_presyn.log 2>&1
+	$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn' \
+	$(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_presyn.log 2>&1
+	xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
 
 # COMPILE POST SYNTHESIS NETLIST
 compile_syn:
@@ -166,6 +173,7 @@ path_view:
 # Write SDF
 sdf: setup_signoff
 	@$(ECHO) "\n$(ORANGE)Write sdf files...\n$(RESET)"
+	@$(MKDIR) -p $(SIGNOFFDIR)/sdf
 	$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > /dev/null 2>&1
 
 # SAVE TESTBENCH
@@ -177,6 +185,30 @@ save_tb:
 .PHONY: driver
 driver:
 	./$(UTILDIR)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
+
+# FSM FLOW
+fsm_cp_example:
+	@$(CP) fsm_gen/examples/* fsm_gen/inputs/
+
+fsm_cp:
+	@$(CP) fsm_gen/outputs/*.sv rtl
+
+fsm_setup:
+	$(MAKE) -C fsm_gen setup
+
+.PHONY: fsm_gen
+fsm_gen:
+	$(MAKE) -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(TOP) 
+
+fsm_plot:
+	$(MAKE) -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(TOP) 
+
+fsm_flow: setup fsm_setup fsm_cp_example fsm_gen fsm_plot fsm_cp
+
+# BASIC FLOW:
+ip_flow_all: hjson doc sim view_presyn syn sdf sta sta_violators power
+ip_flow: reg doc lint sim view_presyn syn sdf sta power view
+
 # FUSESOC
 fsoc_init:
 	@$(ECHO) "\n$(ORANGE)FuseSOC setup...\n$(RESET)"
@@ -223,7 +255,17 @@ soc_view:
 	@$(ECHO) "\n$(ORANGE)Viewing ...\n$(RESET)"
 	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
 
-full_flow:
+# TUTORIALS
+fsm_tutorial: setup fsm_setup fsm_cp_example fsm_gen fsm_plot fsm_cp
+	@$(MAKE) setup_tb ip_flow_all plot_postsyn view
+
+ip_tutorial:
+	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
+	$(MAKE) load_ip
+	@$(ECHO) "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
+	$(MAKE) ip_flow
+
+soc_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
 	$(MAKE) load_ip
 	@$(ECHO) "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
@@ -233,28 +275,6 @@ full_flow:
 	@$(ECHO) "\n$(ORANGE)Generate xbar ...\n$(RESET)"
 	$(MAKE) xbar
 	$(MAKE) soc_flow
-
-# FSM GENERATOR
-fsm_tutorial: setup fsm_setup fsm_example fsm_gen fsm_plot
-	@$(CP) fsm_gen/outputs/*.sv rtl
-	@$(MAKE) setup_tb flow_all view
-
-fsm_example:
-	@$(CP) fsm_gen/examples/* fsm_gen/inputs/
-
-fsm_setup:
-	$(MAKE) -C fsm_gen setup
-
-.PHONY: fsm_gen
-fsm_gen:
-	$(MAKE) -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(TOP) 
-
-fsm_plot:
-	$(MAKE) -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(TOP) 
-
-# BASIC FLOW:
-flow_all: hjson doc sim view_presyn syn sdf sta sta_violators power
-flow: reg doc lint sim syn sdf sta power
 
 # SETUP COCOTB
 setup_cocotb:

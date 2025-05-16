@@ -179,7 +179,7 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 
 ## 🛠 Tutorial\_2 - SoC flow
 
-- `make full_flow`
+- `make soc_tutorial`
 
 Runs the complete top-level SoC integration and build process. This is the recommended end-to-end target for preparing and simulating the SoC.
 The IP used is a custom and simple SPI\_HOST.
