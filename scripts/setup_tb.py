@@ -143,7 +143,7 @@ try:
         flag_reg_pkg = True  
 
     # TLUL supported only with verilator
-    if compiler == 'verilator':
+    if compiler == 'verilator' and flag_reg_pkg == True:
         # Write tb structure
         with open(path+'tlul_if.sv', 'w+') as f:
             mystr ='`timescale 1ns/1ps\n'
@@ -254,18 +254,19 @@ try:
 
 
             
-        with open(path+'include_tb.sv', 'w+') as f:
+    if compiler == 'verilator':
+        with open(path+'include_'+str(top)+'_tb.sv', 'w+') as f:
             mystr = '// Include source files \n'
             mystr += '`include "ips/pkgs/top_pkg.sv"\n'
             mystr += '`include "ips/pkgs/prim_util_pkg.sv"\n'
             mystr += '`include "ips/pkgs/prim_mubi_pkg.sv"\n'
             mystr += '`include "ips/pkgs/prim_secded_pkg.sv"\n'
-            mystr += '`include "ips/pkgs/tlul_pkg.sv"\n'
-            mystr += '`include "tb/tlul_utils.sv"\n'
-            mystr += '`include "tb/tlul_if.sv"\n'
             # May add reg_pkg
             if flag_reg_pkg:
-              mystr += '`include "'+str(rtldir)+'/'+str(top)+'_reg_pkg.sv"\n'
+                mystr += '`include "ips/pkgs/tlul_pkg.sv"\n'
+                mystr += '`include "tb/tlul_utils.sv"\n'
+                mystr += '`include "tb/tlul_if.sv"\n'
+                mystr += '`include "'+str(rtldir)+'/'+str(top)+'_reg_pkg.sv"\n'
             mystr += '`ifndef SYN\n'
             mystr += '  `include "'+str(rtldir)+'/'+str(top)+'.v"\n'
             mystr += '`else\n'
@@ -281,7 +282,7 @@ try:
         mystr += '// Include files \n'
         # TLUL supported only with verilator
         if compiler == 'verilator':
-            mystr += '`include "tb/include_tb.sv"\n\n'
+            mystr += '`include "tb/include_'+str(top)+'_tb.sv"\n\n'
         else:
             if flag_reg_pkg:
               mystr += '`include "'+str(rtldir)+'/'+str(top)+'_reg_pkg.sv"\n'
@@ -323,12 +324,13 @@ try:
                  mystr += '  '+str(output_w[outputs.index(o)])+' '+str(o)+';\n'
         mystr += '\n  integer error_count;\n\n'
         if compiler == 'verilator':
-            mystr += '  // For TLUL read task and than display\n'
-            mystr += '  //logic [top_pkg::TL_DW-1:0] read_data;\n\n'
-            mystr += '  // Class instance always done because of error related to virtual interface\n'
-            mystr += '  tlul_utils tl_utils_inst;\n'
-            mystr += '  // Interface\n'
-            mystr += '  tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));\n'
+            if flag_reg_pkg:
+                mystr += '  // For TLUL read task and than display\n'
+                mystr += '  //logic [top_pkg::TL_DW-1:0] read_data;\n\n'
+                mystr += '  // Class instance always done because of error related to virtual interface\n'
+                mystr += '  tlul_utils tl_utils_inst;\n'
+                mystr += '  // Interface\n'
+                mystr += '  tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));\n'
   
         for p, name in enumerate(parameters):
             parameters[p] = name.split('=')[0].strip()
@@ -390,18 +392,19 @@ try:
         mystr += '    // Start main test\n'
         mystr += '    $display("\\nRunning...\\n");\n'
         if compiler == 'verilator':
-            mystr += '    //// Instantiate utility\n'
-            mystr += '    //tl_utils_inst = new(tl_if); \n'
-            mystr += '    //// Wait\n'
-            mystr += '    //#(CLK_PERIOD*100);\n'
-            mystr += '    //// Write\n'
-            mystr += "    //tl_utils_inst.tlul_write(32'h0, 32'h1, 4'h0);\n"
-            mystr += "    //tl_utils_inst.tlul_write(32'h4, 32'hF, 4'h1);\n"
-            mystr += '    //#(CLK_PERIOD*100);\n'
-            mystr += '    //// Read\n'
-            mystr += "    //tl_utils_inst.tlul_read(32'h8, read_data, 4'h2);\n"
-            mystr += '    //$display("Read data: %h", read_data);\n'
-            mystr += '    //#(CLK_PERIOD*100);\n'
+            if flag_reg_pkg:
+                mystr += '    //// Instantiate utility\n'
+                mystr += '    //tl_utils_inst = new(tl_if); \n'
+                mystr += '    //// Wait\n'
+                mystr += '    //#(CLK_PERIOD*100);\n'
+                mystr += '    //// Write\n'
+                mystr += "    //tl_utils_inst.tlul_write(32'h0, 32'h1, 4'h0);\n"
+                mystr += "    //tl_utils_inst.tlul_write(32'h4, 32'hF, 4'h1);\n"
+                mystr += '    //#(CLK_PERIOD*100);\n'
+                mystr += '    //// Read\n'
+                mystr += "    //tl_utils_inst.tlul_read(32'h8, read_data, 4'h2);\n"
+                mystr += '    //$display("Read data: %h", read_data);\n'
+                mystr += '    //#(CLK_PERIOD*100);\n'
         mystr += '    // INSERT YOUR CODE\n\n\n'
         mystr += '    // Final Check\n'
         mystr += '    if (error_count == 0) begin\n'

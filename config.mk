@@ -2,7 +2,7 @@
 PYTHON          ?=python3
 # TOP NAME
 PRJ             ?=prj
-TOP             ?=spi_host
+TOP             ?=pwm_ramp
 # DIRECTORIES
 RTLDIR          ?=rtl
 TBDIR           ?=tb
@@ -35,8 +35,8 @@ LINT_FLAGS      := --lint-only -Wall -Wno-fatal
 LINT_FILES      ?=
 # COMPILE FLAG
 IVERILOG_FLAGS  := -g2012 -v -Iips/pkgs -I$(RTLDIR)
-VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing \
-                   --Mdir $(SIMDIR)/$(COMPILER) +incdir+ips/pkgs +incdir+ips/prim_opentitan +incdir+ips/tlul
+VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
+                   +incdir+model +incdir+ips/pkgs +incdir+ips/prim_opentitan +incdir+ips/tlul
 # SIMULATION
 TESTBENCH       ?= $(TOP)_tb
 TESTBENCHES     := $(wildcard $(TBDIR)/*.sv)

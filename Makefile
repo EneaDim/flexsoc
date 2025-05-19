@@ -301,17 +301,17 @@ sim_cocotb:
 # SAVE IP
 save_ip:
 	@$(MKDIR) -p ips/$(TOP) 
-	@$(CP) -r $(DATADIR)    ips/$(TOP)
-	@$(CP) -r $(DOCDIR)     ips/$(TOP)
-	@$(CP) -r $(LINTDIR)    ips/$(TOP)
-	@$(CP) -r $(RTLDIR)     ips/$(TOP)
-	@$(CP) -r $(TBDIR)      ips/$(TOP)
-	@$(CP) -r $(SIMDIR)     ips/$(TOP)
-	@$(CP) -r $(SYNDIR)     ips/$(TOP)
-	@$(CP) -r $(SIGNOFFDIR) ips/$(TOP)
-	@$(CP) -r $(LOGDIR)     ips/$(TOP)
-	@$(CP) -r $(MODELDIR)   ips/$(TOP)
-	@$(CP)    $(TOP).core   ips/$(TOP)
+	@$(CP) -r $(DATADIR)    ips/$(TOP) || true
+	@$(CP) -r $(DOCDIR)     ips/$(TOP) || true
+	@$(CP) -r $(LINTDIR)    ips/$(TOP) || true
+	@$(CP) -r $(RTLDIR)     ips/$(TOP) || true
+	@$(CP) -r $(TBDIR)      ips/$(TOP) || true
+	@$(CP) -r $(SIMDIR)     ips/$(TOP) || true
+	@$(CP) -r $(SYNDIR)     ips/$(TOP) || true
+	@$(CP) -r $(SIGNOFFDIR) ips/$(TOP) || true
+	@$(CP) -r $(LOGDIR)     ips/$(TOP) || true
+	@$(CP) -r $(MODELDIR)   ips/$(TOP) || true
+	@$(CP)    $(TOP).core   ips/$(TOP) || true
 
 # LOAD IP
 load_ip:
