@@ -135,7 +135,6 @@ The dependencies are splitted for IP development and SoC integration.
 - `gtkwave`: Waveform viewer.
 - `yosys`: Synthesis tool.
 - `OpenSTA`: Static Timing Analysis and Power Analysis tool.
-- `RISCV GNU Toolchain`: For SoC simulation with IBEX as host
 
 Running `make deps-ip` will automate the installation process.
 
