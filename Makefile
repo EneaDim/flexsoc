@@ -1,8 +1,11 @@
 include config.mk
 
 # HELP
-help: 
-	$(PYTHON) scripts/help.py
+help: help_ip help_soc
+help_ip:
+	$(PYTHON) scripts/help_ip.py
+help_soc:
+	$(PYTHON) scripts/help_soc.py
 help_doc: 
 	$(PYTHON) scripts/help_doc.py
 help_fsm:

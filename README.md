@@ -151,6 +151,8 @@ The python dependencies can be installed running `pip install -r python-requirem
 ## ⚙️ Usage
 
 1. Run `make help` to see the guide for the steps of digital IP development and SoC integration.
+1. Run `make help_ip` to see only the guide for the steps of digital IP development.
+1. Run `make help_soc` to see only the guide for the steps of SoC integration.
 2. Run `make help_doc` to see the guide for generating the documentation.
 3. Run `make help_fsm` to see the guide for generating FSMs.
 

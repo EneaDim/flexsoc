@@ -2,7 +2,7 @@
 PYTHON          ?=python3
 # TOP NAME
 PRJ             ?=prj
-TOP             ?=pwm_ramp
+TOP             ?=spi_host
 # DIRECTORIES
 RTLDIR          ?=rtl
 TBDIR           ?=tb
