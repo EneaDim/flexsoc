@@ -1,0 +1,33 @@
+digraph "spi_host" {
+label="spi_host";
+rankdir="LR";
+remincross=true;
+n1 [ shape=octagon, label="clk_i", color="black", fontcolor="black"];
+n2 [ shape=diamond, label="hw2reg", color="black", fontcolor="black"];
+n3 [ shape=diamond, label="reg2hw", color="black", fontcolor="black"];
+n4 [ shape=octagon, label="rst_ni", color="black", fontcolor="black"];
+n5 [ shape=octagon, label="spi_cs_o", color="black", fontcolor="black"];
+n6 [ shape=octagon, label="spi_sclk_o", color="black", fontcolor="black"];
+n7 [ shape=octagon, label="spi_sdio_i", color="black", fontcolor="black"];
+n8 [ shape=octagon, label="spi_sdio_o", color="black", fontcolor="black"];
+n9 [ shape=octagon, label="spi_sdioz_o", color="black", fontcolor="black"];
+n10 [ shape=octagon, label="tl_i", color="black", fontcolor="black"];
+n11 [ shape=octagon, label="tl_o", color="black", fontcolor="black"];
+c17 [ shape=record, label="{{<p1> clk_i|<p3> reg2hw|<p4> rst_ni|<p12> sdio_i}|u_spi_host_core\n$paramod&#9586;spi_host_core&#9586;FifoDepth=32'00000000000000000000000000000011|{<p13> cs_o|<p2> hw2reg|<p14> sclk_o|<p15> sdio_o|<p16> sdioz_o}}",  ];
+c18 [ shape=record, label="{{<p1> clk_i|<p2> hw2reg|<p4> rst_ni|<p10> tl_i}|u_spi_host_reg\nspi_host_reg_top|{<p3> reg2hw|<p11> tl_o}}",  ];
+n1:e -> c17:p1:w [color="black", fontcolor="black", label=""];
+n1:e -> c18:p1:w [color="black", fontcolor="black", label=""];
+n10:e -> c18:p10:w [color="black", fontcolor="black", style="setlinewidth(3)", label="<109>"];
+c18:p11:e -> n11:w [color="black", fontcolor="black", style="setlinewidth(3)", label="<66>"];
+c17:p2:e -> n2:w [color="black", fontcolor="black", style="setlinewidth(3)", label="<12>"];
+n2:e -> c18:p2:w [color="black", fontcolor="black", style="setlinewidth(3)", label="<12>"];
+c18:p3:e -> n3:w [color="black", fontcolor="black", style="setlinewidth(3)", label="<29>"];
+n3:e -> c17:p3:w [color="black", fontcolor="black", style="setlinewidth(3)", label="<29>"];
+n4:e -> c17:p4:w [color="black", fontcolor="black", label=""];
+n4:e -> c18:p4:w [color="black", fontcolor="black", label=""];
+c17:p13:e -> n5:w [color="black", fontcolor="black", label=""];
+c17:p14:e -> n6:w [color="black", fontcolor="black", label=""];
+n7:e -> c17:p12:w [color="black", fontcolor="black", label=""];
+c17:p15:e -> n8:w [color="black", fontcolor="black", label=""];
+c17:p16:e -> n9:w [color="black", fontcolor="black", label=""];
+}

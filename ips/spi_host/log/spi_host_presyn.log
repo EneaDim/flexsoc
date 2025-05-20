@@ -1,0 +1,1933 @@
+
+ /----------------------------------------------------------------------------\
+ |  yosys -- Yosys Open SYnthesis Suite                                       |
+ |  Copyright (C) 2012 - 2025  Claire Xenia Wolf <claire@yosyshq.com>         |
+ |  Distributed under an ISC-like license, type "license" to see terms        |
+ \----------------------------------------------------------------------------/
+ Yosys 0.52+102 (git sha1 b69394783, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+
+-- Parsing `rtl/spi_host.v' using frontend ` -vlog2k' --
+
+1. Executing Verilog-2005 frontend: rtl/spi_host.v
+Parsing Verilog input from `rtl/spi_host.v' to AST representation.
+Storing AST representation for module `$abstract\prim_arbiter_ppc'.
+Storing AST representation for module `$abstract\prim_cdc_rand_delay'.
+Storing AST representation for module `$abstract\prim_count'.
+Storing AST representation for module `$abstract\prim_fifo_async'.
+Storing AST representation for module `$abstract\prim_fifo_async_simple'.
+Storing AST representation for module `$abstract\prim_fifo_async_sram_adapter'.
+Storing AST representation for module `$abstract\prim_fifo_sync'.
+Storing AST representation for module `$abstract\prim_fifo_sync_cnt'.
+Storing AST representation for module `$abstract\prim_filter'.
+Storing AST representation for module `$abstract\prim_filter_ctr'.
+Storing AST representation for module `$abstract\prim_flop'.
+Storing AST representation for module `$abstract\prim_flop_2sync'.
+Storing AST representation for module `$abstract\prim_secded_inv_39_32_dec'.
+Storing AST representation for module `$abstract\prim_secded_inv_39_32_enc'.
+Storing AST representation for module `$abstract\prim_secded_inv_64_57_dec'.
+Storing AST representation for module `$abstract\prim_secded_inv_64_57_enc'.
+Storing AST representation for module `$abstract\prim_subreg'.
+Storing AST representation for module `$abstract\prim_subreg_arb'.
+Storing AST representation for module `$abstract\prim_subreg_ext'.
+Storing AST representation for module `$abstract\prim_sync_reqack'.
+Storing AST representation for module `$abstract\sram2tlul'.
+Storing AST representation for module `$abstract\tlul_adapter_host'.
+Storing AST representation for module `$abstract\tlul_adapter_reg'.
+Storing AST representation for module `$abstract\tlul_adapter_sram'.
+Storing AST representation for module `$abstract\tlul_assert'.
+Storing AST representation for module `$abstract\tlul_assert_multiple'.
+Storing AST representation for module `$abstract\tlul_cmd_intg_chk'.
+Storing AST representation for module `$abstract\tlul_cmd_intg_gen'.
+Storing AST representation for module `$abstract\tlul_data_integ_dec'.
+Storing AST representation for module `$abstract\tlul_data_integ_enc'.
+Storing AST representation for module `$abstract\tlul_err'.
+Storing AST representation for module `$abstract\tlul_err_resp'.
+Storing AST representation for module `$abstract\tlul_fifo_async'.
+Storing AST representation for module `$abstract\tlul_fifo_sync'.
+Storing AST representation for module `$abstract\tlul_rsp_intg_chk'.
+Storing AST representation for module `$abstract\tlul_rsp_intg_gen'.
+Storing AST representation for module `$abstract\tlul_socket_1n'.
+Storing AST representation for module `$abstract\tlul_socket_m1'.
+Storing AST representation for module `$abstract\tlul_sram_byte'.
+Storing AST representation for module `$abstract\spi_host'.
+Storing AST representation for module `$abstract\spi_host_core'.
+Storing AST representation for module `$abstract\spi_host_reg_top'.
+Successfully finished Verilog frontend.
+
+-- Running command `prep -top spi_host; select -module spi_host; show -width -format dot -prefix syn/plots/spi_host_presyn' --
+
+2. Executing PREP pass.
+
+2.1. Executing HIERARCHY pass (managing design hierarchy).
+
+2.2. Executing AST frontend in derive mode using pre-parsed AST for module `\spi_host'.
+Generating RTLIL representation for module `\spi_host'.
+
+2.2.1. Analyzing design hierarchy..
+Top module:  \spi_host
+Parameter \FifoDepth = 3
+
+2.2.2. Executing AST frontend in derive mode using pre-parsed AST for module `\spi_host_core'.
+Parameter \FifoDepth = 3
+Generating RTLIL representation for module `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011'.
+
+2.2.3. Executing AST frontend in derive mode using pre-parsed AST for module `\spi_host_reg_top'.
+Generating RTLIL representation for module `\spi_host_reg_top'.
+
+2.2.4. Analyzing design hierarchy..
+Top module:  \spi_host
+Used module:     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011
+Used module:     \spi_host_reg_top
+Parameter \DW = 8
+Parameter \SwAccess = 3'010
+Parameter \RESVAL = 8'00000000
+Parameter \Mubi = 1'0
+
+2.2.5. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg'.
+Parameter \DW = 8
+Parameter \SwAccess = 3'010
+Parameter \RESVAL = 8'00000000
+Parameter \Mubi = 1'0
+Generating RTLIL representation for module `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+
+2.2.6. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_flop'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+Generating RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Parameter \DW = 8
+
+2.2.7. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg_ext'.
+Parameter \DW = 8
+Generating RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000'.
+Parameter \DW = 1
+
+2.2.8. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg_ext'.
+Parameter \DW = 1
+Generating RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Parameter \DW = 1
+Found cached RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Parameter \DW = 1
+Found cached RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Parameter \DW = 1
+Found cached RTLIL representation for module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \RESVAL = 1'0
+Parameter \Mubi = 1'0
+
+2.2.9. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \RESVAL = 1'0
+Parameter \Mubi = 1'0
+Generating RTLIL representation for module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \RESVAL = 1'0
+Parameter \Mubi = 1'0
+Found cached RTLIL representation for module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \RESVAL = 1'0
+Parameter \Mubi = 1'0
+Found cached RTLIL representation for module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Parameter \EnableDataIntgGen = 0
+Parameter \RegAw = 4
+Parameter \RegDw = 32
+
+2.2.10. Executing AST frontend in derive mode using pre-parsed AST for module `\tlul_adapter_reg'.
+Parameter \EnableDataIntgGen = 0
+Parameter \RegAw = 4
+Parameter \RegDw = 32
+Generating RTLIL representation for module `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg'.
+Parameter \EnableRspIntgGen = 0
+Parameter \EnableDataIntgGen = 0
+
+2.2.11. Executing AST frontend in derive mode using pre-parsed AST for module `\tlul_rsp_intg_gen'.
+Parameter \EnableRspIntgGen = 0
+Parameter \EnableDataIntgGen = 0
+Generating RTLIL representation for module `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen'.
+Parameter \Width = 8
+Parameter \Pass = 1'0
+Parameter \Depth = 3
+
+2.2.12. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_fifo_sync'.
+Parameter \Width = 8
+Parameter \Pass = 1'0
+Parameter \Depth = 3
+Generating RTLIL representation for module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Parameter \Width = 8
+Parameter \Pass = 1'0
+Parameter \Depth = 3
+Found cached RTLIL representation for module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+Found cached RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+Found cached RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+
+2.2.13. Analyzing design hierarchy..
+Top module:  \spi_host
+Used module:     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011
+Used module:         $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:     \spi_host_reg_top
+Used module:         $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001
+Used module:         $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg
+Used module:         $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg
+Used module:         $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen
+
+2.2.14. Executing AST frontend in derive mode using pre-parsed AST for module `\tlul_err'.
+Generating RTLIL representation for module `\tlul_err'.
+Parameter \EnableRspIntgGen = 1'0
+Parameter \EnableDataIntgGen = 1'0
+
+2.2.15. Executing AST frontend in derive mode using pre-parsed AST for module `\tlul_rsp_intg_gen'.
+Parameter \EnableRspIntgGen = 1'0
+Parameter \EnableDataIntgGen = 1'0
+Generating RTLIL representation for module `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \Mubi = 1'0
+
+2.2.16. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg_arb'.
+Parameter \DW = 1
+Parameter \SwAccess = 3'000
+Parameter \Mubi = 1'0
+Generating RTLIL representation for module `$paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb'.
+Parameter \DW = 8
+Parameter \SwAccess = 3'010
+Parameter \Mubi = 1'0
+
+2.2.17. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_subreg_arb'.
+Parameter \DW = 8
+Parameter \SwAccess = 3'010
+Parameter \Mubi = 1'0
+Generating RTLIL representation for module `$paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb'.
+Parameter \Depth = 3
+Parameter \Secure = 1'0
+
+2.2.18. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_fifo_sync_cnt'.
+Parameter \Depth = 3
+Parameter \Secure = 1'0
+Generating RTLIL representation for module `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0'.
+
+2.2.19. Analyzing design hierarchy..
+Top module:  \spi_host
+Used module:     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011
+Used module:         $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync
+Used module:             $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:     \spi_host_reg_top
+Used module:         $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg
+Used module:             $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001
+Used module:         $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg
+Used module:             $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb
+Used module:         $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg
+Used module:             \tlul_err
+Used module:             $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0
+Used module:         $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen
+
+2.2.20. Analyzing design hierarchy..
+Top module:  \spi_host
+Used module:     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011
+Used module:         $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync
+Used module:             $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:     \spi_host_reg_top
+Used module:         $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg
+Used module:             $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000
+Used module:         $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001
+Used module:         $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg
+Used module:             $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb
+Used module:         $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg
+Used module:             \tlul_err
+Used module:             $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0
+Used module:         $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen
+Removing unused module `$abstract\spi_host_reg_top'.
+Removing unused module `$abstract\spi_host_core'.
+Removing unused module `$abstract\spi_host'.
+Removing unused module `$abstract\tlul_sram_byte'.
+Removing unused module `$abstract\tlul_socket_m1'.
+Removing unused module `$abstract\tlul_socket_1n'.
+Removing unused module `$abstract\tlul_rsp_intg_gen'.
+Removing unused module `$abstract\tlul_rsp_intg_chk'.
+Removing unused module `$abstract\tlul_fifo_sync'.
+Removing unused module `$abstract\tlul_fifo_async'.
+Removing unused module `$abstract\tlul_err_resp'.
+Removing unused module `$abstract\tlul_err'.
+Removing unused module `$abstract\tlul_data_integ_enc'.
+Removing unused module `$abstract\tlul_data_integ_dec'.
+Removing unused module `$abstract\tlul_cmd_intg_gen'.
+Removing unused module `$abstract\tlul_cmd_intg_chk'.
+Removing unused module `$abstract\tlul_assert_multiple'.
+Removing unused module `$abstract\tlul_assert'.
+Removing unused module `$abstract\tlul_adapter_sram'.
+Removing unused module `$abstract\tlul_adapter_reg'.
+Removing unused module `$abstract\tlul_adapter_host'.
+Removing unused module `$abstract\sram2tlul'.
+Removing unused module `$abstract\prim_sync_reqack'.
+Removing unused module `$abstract\prim_subreg_ext'.
+Removing unused module `$abstract\prim_subreg_arb'.
+Removing unused module `$abstract\prim_subreg'.
+Removing unused module `$abstract\prim_secded_inv_64_57_enc'.
+Removing unused module `$abstract\prim_secded_inv_64_57_dec'.
+Removing unused module `$abstract\prim_secded_inv_39_32_enc'.
+Removing unused module `$abstract\prim_secded_inv_39_32_dec'.
+Removing unused module `$abstract\prim_flop_2sync'.
+Removing unused module `$abstract\prim_flop'.
+Removing unused module `$abstract\prim_filter_ctr'.
+Removing unused module `$abstract\prim_filter'.
+Removing unused module `$abstract\prim_fifo_sync_cnt'.
+Removing unused module `$abstract\prim_fifo_sync'.
+Removing unused module `$abstract\prim_fifo_async_sram_adapter'.
+Removing unused module `$abstract\prim_fifo_async_simple'.
+Removing unused module `$abstract\prim_fifo_async'.
+Removing unused module `$abstract\prim_count'.
+Removing unused module `$abstract\prim_cdc_rand_delay'.
+Removing unused module `$abstract\prim_arbiter_ppc'.
+Removed 42 unused modules.
+
+2.3. Executing PROC pass (convert processes to netlists).
+
+2.3.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `\spi_host_reg_top.$proc$rtl/spi_host.v:9546$97'.
+Found and cleaned up 1 empty switch in `\spi_host_reg_top.$proc$rtl/spi_host.v:9523$64'.
+Found and cleaned up 1 empty switch in `\spi_host_reg_top.$proc$rtl/spi_host.v:9505$55'.
+Found and cleaned up 1 empty switch in `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+Removing empty process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$406'.
+Removing empty process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$405'.
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:0$401'.
+Found and cleaned up 1 empty switch in `\tlul_err.$proc$rtl/spi_host.v:6433$347'.
+Removing empty process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$273'.
+Removing empty process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$272'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$268'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$267'.
+Found and cleaned up 1 empty switch in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$177'.
+Cleaned up 6 empty switches.
+
+2.3.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:2334$104 in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:2796$101 in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Marked 13 switch rules as full_case in process $proc$rtl/spi_host.v:8983$31 in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:8940$29 in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:8930$27 in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Marked 3 switch rules as full_case in process $proc$rtl/spi_host.v:2139$462 in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Marked 3 switch rules as full_case in process $proc$rtl/spi_host.v:2124$459 in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:6433$347 in module tlul_err.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:1910$298 in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:1854$279 in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:4438$179 in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:4568$177 in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:4378$172 in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Marked 2 switch rules as full_case in process $proc$rtl/spi_host.v:4366$170 in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Marked 1 switch rules as full_case in process $proc$rtl/spi_host.v:2796$106 in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Removed a total of 0 dead cases.
+
+2.3.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 11 redundant assignments.
+Promoted 78 assignments to connections.
+
+2.3.4. Executing PROC_INIT pass (extract init attributes).
+
+2.3.5. Executing PROC_ARST pass (detect async resets in processes).
+Found async reset \rst_ni in `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/spi_host.v:2334$104'.
+Found async reset \rst_ni in `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$101'.
+Found async reset \rst_ni in `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+Found async reset \rst_ni in `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8930$27'.
+Found async reset \rst_ni in `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$462'.
+Found async reset \rst_ni in `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$459'.
+Found async reset \rst_ni in `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$279'.
+Found async reset \rst_ni in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$179'.
+Found async reset \rst_ni in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$172'.
+Found async reset \rst_ni in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$170'.
+Found async reset \rst_ni in `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$106'.
+
+2.3.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~32 debug messages>
+
+2.3.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/spi_host.v:2334$104'.
+     1/1: $0\q_o[0:0]
+Creating decoders for process `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$101'.
+     1/1: $0\q[7:0]
+Creating decoders for process `\spi_host_reg_top.$proc$rtl/spi_host.v:0$100'.
+Creating decoders for process `\spi_host_reg_top.$proc$rtl/spi_host.v:9546$97'.
+     1/6: $1\reg_rdata_next[31:0] [31:8]
+     2/6: $1\reg_rdata_next[31:0] [1]
+     3/6: $1\reg_rdata_next[31:0] [0]
+     4/6: $1\reg_rdata_next[31:0] [2]
+     5/6: $1\reg_rdata_next[31:0] [7:4]
+     6/6: $1\reg_rdata_next[31:0] [3]
+Creating decoders for process `\spi_host_reg_top.$proc$rtl/spi_host.v:9523$64'.
+Creating decoders for process `\spi_host_reg_top.$proc$rtl/spi_host.v:9505$55'.
+Creating decoders for process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:0$51'.
+Creating decoders for process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+     1/79: $11\tx_fifo_rready_d[0:0]
+     2/79: $10\byte_cnt_d[2:0]
+     3/79: $7\sclk_en[0:0]
+     4/79: $9\next_state[1:0]
+     5/79: $13\current_byte_d[7:0]
+     6/79: $11\bit_cnt_d[3:0]
+     7/79: $10\bit_cnt_d[3:0]
+     8/79: $12\current_byte_d[7:0]
+     9/79: $4\rx_fifo_wvalid_d[0:0]
+    10/79: $10\tx_fifo_rready_d[0:0]
+    11/79: $9\byte_cnt_d[2:0]
+    12/79: $6\sclk_en[0:0]
+    13/79: $8\next_state[1:0]
+    14/79: $11\current_byte_d[7:0]
+    15/79: $9\tx_fifo_rready_d[0:0]
+    16/79: $9\bit_cnt_d[3:0]
+    17/79: $8\byte_cnt_d[2:0]
+    18/79: $5\sclk_en[0:0]
+    19/79: $7\next_state[1:0]
+    20/79: $8\bit_cnt_d[3:0]
+    21/79: $10\current_byte_d[7:0]
+    22/79: $7\sdio_d[0:0]
+    23/79: $7\bit_cnt_d[3:0]
+    24/79: $6\sdio_d[0:0]
+    25/79: $9\current_byte_d[7:0]
+    26/79: $8\tx_fifo_rready_d[0:0]
+    27/79: $7\byte_cnt_d[2:0]
+    28/79: $4\sclk_en[0:0]
+    29/79: $6\next_state[1:0]
+    30/79: $7\tx_fifo_rready_d[0:0]
+    31/79: $6\bit_cnt_d[3:0]
+    32/79: $6\byte_cnt_d[2:0]
+    33/79: $3\sclk_en[0:0]
+    34/79: $5\sdio_d[0:0]
+    35/79: $8\current_byte_d[7:0]
+    36/79: $5\next_state[1:0]
+    37/79: $3\rx_fifo_wvalid_d[0:0]
+    38/79: $3\sdioz_d[0:0]
+    39/79: $7\current_byte_d[7:0]
+    40/79: $6\tx_fifo_rready_d[0:0]
+    41/79: $5\bit_cnt_d[3:0]
+    42/79: $5\byte_cnt_d[2:0]
+    43/79: $4\bit_cnt_d[3:0]
+    44/79: $6\current_byte_d[7:0]
+    45/79: $4\sdio_d[0:0]
+    46/79: $3\bit_cnt_d[3:0]
+    47/79: $3\sdio_d[0:0]
+    48/79: $5\current_byte_d[7:0]
+    49/79: $5\tx_fifo_rready_d[0:0]
+    50/79: $4\byte_cnt_d[2:0]
+    51/79: $4\tx_fifo_rready_d[0:0]
+    52/79: $2\bit_cnt_d[3:0]
+    53/79: $3\byte_cnt_d[2:0]
+    54/79: $2\sdio_d[0:0]
+    55/79: $4\current_byte_d[7:0]
+    56/79: $2\rx_fifo_wvalid_d[0:0]
+    57/79: $2\sclk_en[0:0]
+    58/79: $2\sdioz_d[0:0]
+    59/79: $4\next_state[1:0]
+    60/79: $3\r_wn_d[0:0]
+    61/79: $3\current_byte_d[7:0]
+    62/79: $3\tx_fifo_rready_d[0:0]
+    63/79: $3\next_state[1:0]
+    64/79: $2\r_wn_d[0:0]
+    65/79: $2\tx_fifo_rready_d[0:0]
+    66/79: $2\current_byte_d[7:0]
+    67/79: $2\next_state[1:0]
+    68/79: $2\byte_cnt_d[2:0]
+    69/79: $1\r_wn_d[0:0]
+    70/79: $1\tx_fifo_rready_d[0:0]
+    71/79: $1\byte_cnt_d[2:0]
+    72/79: $1\current_byte_d[7:0]
+    73/79: $1\next_state[1:0]
+    74/79: $1\cs_d[0:0]
+    75/79: $1\rx_fifo_wvalid_d[0:0]
+    76/79: $1\bit_cnt_d[3:0]
+    77/79: $1\sclk_en[0:0]
+    78/79: $1\sdioz_d[0:0]
+    79/79: $1\sdio_d[0:0]
+Creating decoders for process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+     1/9: $0\r_wn_q[0:0]
+     2/9: $0\rx_fifo_wvalid_q[0:0]
+     3/9: $0\tx_fifo_rready_q[0:0]
+     4/9: $0\current_byte_q[7:0]
+     5/9: $0\bit_cnt_q[3:0]
+     6/9: $0\byte_cnt_q[2:0]
+     7/9: $0\sdioz_q[0:0]
+     8/9: $0\sdio_q[0:0]
+     9/9: $0\cs_q[0:0]
+Creating decoders for process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8930$27'.
+     1/1: $0\current_state[1:0]
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$462'.
+     1/1: $0\rptr_wrap_cnt_q[2:0]
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$459'.
+     1/1: $0\wptr_wrap_cnt_q[2:0]
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$455'.
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$451'.
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$447'.
+Creating decoders for process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$443'.
+Creating decoders for process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$407'.
+Creating decoders for process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:7013$404'.
+Creating decoders for process `\tlul_err.$proc$rtl/spi_host.v:0$402'.
+Creating decoders for process `\tlul_err.$proc$rtl/spi_host.v:0$377'.
+Creating decoders for process `\tlul_err.$proc$rtl/spi_host.v:0$372'.
+Creating decoders for process `\tlul_err.$proc$rtl/spi_host.v:6433$347'.
+     1/6: $2\fulldata_chk[0:0]
+     2/6: $2\mask_chk[0:0]
+     3/6: $2\addr_sz_chk[0:0]
+     4/6: $1\fulldata_chk[0:0]
+     5/6: $1\mask_chk[0:0]
+     6/6: $1\addr_sz_chk[0:0]
+Creating decoders for process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$298'.
+     1/2: $1$lookahead\gen_normal_fifo.storage$297[23:0]$302
+     2/2: $1$bitselwrite$pos$rtl/spi_host.v:1913$277[31:0]$301
+Creating decoders for process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$279'.
+     1/1: $0\gen_normal_fifo.under_rst[0:0]
+Creating decoders for process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$274'.
+Creating decoders for process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:7013$271'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$269'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$238'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$233'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$228'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$204'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$200'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$196'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$192'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$185'.
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$179'.
+     1/2: $0\error_q[0:0]
+     2/2: $0\rdata_q[31:0]
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$177'.
+     1/1: $1\addr_align_err[0:0]
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$172'.
+     1/3: $0\rspop_q[2:0]
+     2/3: $0\reqsz_q[1:0]
+     3/3: $0\reqid_q[7:0]
+Creating decoders for process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$170'.
+     1/1: $0\outstanding_q[0:0]
+Creating decoders for process `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$106'.
+     1/1: $0\q[0:0]
+
+2.3.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+No latch inferred for signal `\spi_host_reg_top.\_sv2v_0' from process `\spi_host_reg_top.$proc$rtl/spi_host.v:0$100'.
+No latch inferred for signal `\spi_host_reg_top.\reg_rdata_next' from process `\spi_host_reg_top.$proc$rtl/spi_host.v:9546$97'.
+No latch inferred for signal `\spi_host_reg_top.\wr_err' from process `\spi_host_reg_top.$proc$rtl/spi_host.v:9523$64'.
+No latch inferred for signal `\spi_host_reg_top.\addr_hit' from process `\spi_host_reg_top.$proc$rtl/spi_host.v:9505$55'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\_sv2v_0' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:0$51'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\next_state' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\current_byte_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\cs_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sdio_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sdioz_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sclk_en' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\byte_cnt_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\bit_cnt_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\tx_fifo_rready_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\rx_fifo_wvalid_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\r_wn_d' from process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$423.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$455'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$427.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$455'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$427.inp' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$455'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$422.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$451'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$426.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$451'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$426.inp' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$451'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$420.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$447'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$425.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$447'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$425.inp' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$447'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$419.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$443'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$424.$result' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$443'.
+No latch inferred for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\sv2v_cast_2DA09$func$rtl/spi_host.v:2071$424.inp' from process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$443'.
+No latch inferred for signal `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.\_sv2v_0' from process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$407'.
+No latch inferred for signal `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.\tl_o' from process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:7013$404'.
+No latch inferred for signal `\tlul_err.\_sv2v_0' from process `\tlul_err.$proc$rtl/spi_host.v:0$402'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:6415$314.$result' from process `\tlul_err.$proc$rtl/spi_host.v:0$377'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:6415$317.$result' from process `\tlul_err.$proc$rtl/spi_host.v:0$377'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:6415$317.val' from process `\tlul_err.$proc$rtl/spi_host.v:0$377'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:6405$313.$result' from process `\tlul_err.$proc$rtl/spi_host.v:0$372'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:6405$315.$result' from process `\tlul_err.$proc$rtl/spi_host.v:0$372'.
+No latch inferred for signal `\tlul_err.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:6405$315.val' from process `\tlul_err.$proc$rtl/spi_host.v:0$372'.
+No latch inferred for signal `\tlul_err.\addr_sz_chk' from process `\tlul_err.$proc$rtl/spi_host.v:6433$347'.
+No latch inferred for signal `\tlul_err.\mask_chk' from process `\tlul_err.$proc$rtl/spi_host.v:6433$347'.
+No latch inferred for signal `\tlul_err.\fulldata_chk' from process `\tlul_err.$proc$rtl/spi_host.v:6433$347'.
+No latch inferred for signal `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.\_sv2v_0' from process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$274'.
+No latch inferred for signal `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.\tl_o' from process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:7013$271'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\_sv2v_0' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$269'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$118.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$238'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$142.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$238'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$142.user' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$238'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$142.malformed_err' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$238'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\tlul_pkg_tl_a_user_chk$func$rtl/spi_host.v:4566$142.unused_user' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$238'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4561$143.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$238'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4561$143.val' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$238'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_false_loose$func$rtl/spi_host.v:4546$117.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$233'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_false_loose$func$rtl/spi_host.v:4546$140.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$233'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_false_loose$func$rtl/spi_host.v:4546$140.val' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$233'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:4546$116.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$228'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:4546$138.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$228'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_true_strict$func$rtl/spi_host.v:4546$138.val' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$228'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4546$115.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$204'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4546$123.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$204'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\prim_mubi_pkg_mubi4_test_invalid$func$rtl/spi_host.v:4546$123.val' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$204'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_FDEB5$func$rtl/spi_host.v:4485$114.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$200'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_FDEB5$func$rtl/spi_host.v:4485$122.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$200'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_FDEB5$func$rtl/spi_host.v:4485$122.inp' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$200'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_15E34$func$rtl/spi_host.v:4485$113.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$196'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_15E34$func$rtl/spi_host.v:4485$121.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$196'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_15E34$func$rtl/spi_host.v:4485$121.inp' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$196'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_9783B$func$rtl/spi_host.v:4485$111.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$192'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_9783B$func$rtl/spi_host.v:4485$120.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$192'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_9783B$func$rtl/spi_host.v:4485$120.inp' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$192'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_1$func$rtl/spi_host.v:4485$109.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$185'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_1$func$rtl/spi_host.v:4485$119.$result' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$185'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\sv2v_cast_1$func$rtl/spi_host.v:4485$119.inp' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$185'.
+No latch inferred for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\addr_align_err' from process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$177'.
+
+2.3.9. Executing PROC_DFF pass (convert process syncs to FFs).
+Creating register for signal `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.\q_o' using process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/spi_host.v:2334$104'.
+  created $adff cell `$procdff$1433' with positive edge clock and positive level reset.
+Creating register for signal `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.\q' using process `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$101'.
+  created $adff cell `$procdff$1438' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\current_byte_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+  created $adff cell `$procdff$1443' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\cs_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+  created $adff cell `$procdff$1448' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sdio_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+  created $adff cell `$procdff$1453' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\sdioz_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+  created $adff cell `$procdff$1458' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\byte_cnt_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+  created $adff cell `$procdff$1463' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\bit_cnt_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+  created $adff cell `$procdff$1468' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\tx_fifo_rready_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+  created $adff cell `$procdff$1473' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\rx_fifo_wvalid_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+  created $adff cell `$procdff$1478' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\r_wn_q' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+  created $adff cell `$procdff$1483' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.\current_state' using process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8930$27'.
+  created $adff cell `$procdff$1488' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\rptr_wrap_cnt_q' using process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$462'.
+  created $adff cell `$procdff$1493' with positive edge clock and positive level reset.
+Creating register for signal `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.\wptr_wrap_cnt_q' using process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$459'.
+  created $adff cell `$procdff$1498' with positive edge clock and positive level reset.
+Creating register for signal `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.\gen_normal_fifo.storage' using process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$298'.
+  created $dff cell `$procdff$1499' with positive edge clock.
+Creating register for signal `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$bitselwrite$pos$rtl/spi_host.v:1913$277' using process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$298'.
+  created $dff cell `$procdff$1500' with positive edge clock.
+Creating register for signal `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$lookahead\gen_normal_fifo.storage$297' using process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$298'.
+  created $dff cell `$procdff$1501' with positive edge clock.
+Creating register for signal `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.\gen_normal_fifo.under_rst' using process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$279'.
+  created $adff cell `$procdff$1506' with positive edge clock and positive level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\rdata_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$179'.
+  created $adff cell `$procdff$1511' with positive edge clock and positive level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\error_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$179'.
+  created $adff cell `$procdff$1516' with positive edge clock and positive level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\reqid_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$172'.
+  created $adff cell `$procdff$1521' with positive edge clock and positive level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\reqsz_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$172'.
+  created $adff cell `$procdff$1526' with positive edge clock and positive level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\rspop_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$172'.
+  created $adff cell `$procdff$1531' with positive edge clock and positive level reset.
+Creating register for signal `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.\outstanding_q' using process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$170'.
+  created $adff cell `$procdff$1536' with positive edge clock and positive level reset.
+Creating register for signal `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.\q' using process `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$106'.
+  created $adff cell `$procdff$1541' with positive edge clock and positive level reset.
+
+2.3.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+2.3.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Removing empty process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/spi_host.v:2334$104'.
+Found and cleaned up 1 empty switch in `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$101'.
+Removing empty process `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.$proc$rtl/spi_host.v:2796$101'.
+Removing empty process `spi_host_reg_top.$proc$rtl/spi_host.v:0$100'.
+Found and cleaned up 1 empty switch in `\spi_host_reg_top.$proc$rtl/spi_host.v:9546$97'.
+Removing empty process `spi_host_reg_top.$proc$rtl/spi_host.v:9546$97'.
+Removing empty process `spi_host_reg_top.$proc$rtl/spi_host.v:9523$64'.
+Removing empty process `spi_host_reg_top.$proc$rtl/spi_host.v:9505$55'.
+Removing empty process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:0$51'.
+Found and cleaned up 14 empty switches in `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+Removing empty process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8983$31'.
+Removing empty process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8940$29'.
+Removing empty process `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$proc$rtl/spi_host.v:8930$27'.
+Found and cleaned up 3 empty switches in `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$462'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2139$462'.
+Found and cleaned up 3 empty switches in `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$459'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:2124$459'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$455'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$451'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$447'.
+Removing empty process `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$proc$rtl/spi_host.v:0$443'.
+Removing empty process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:0$407'.
+Removing empty process `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.$proc$rtl/spi_host.v:7013$404'.
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:0$402'.
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:0$377'.
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:0$372'.
+Found and cleaned up 2 empty switches in `\tlul_err.$proc$rtl/spi_host.v:6433$347'.
+Removing empty process `tlul_err.$proc$rtl/spi_host.v:6433$347'.
+Found and cleaned up 1 empty switch in `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$298'.
+Removing empty process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1910$298'.
+Found and cleaned up 1 empty switch in `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$279'.
+Removing empty process `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$proc$rtl/spi_host.v:1854$279'.
+Removing empty process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:0$274'.
+Removing empty process `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.$proc$rtl/spi_host.v:7013$271'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$269'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$238'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$233'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$228'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$204'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$200'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$196'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$192'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:0$185'.
+Found and cleaned up 1 empty switch in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$179'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4438$179'.
+Found and cleaned up 1 empty switch in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$177'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4568$177'.
+Found and cleaned up 1 empty switch in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$172'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4378$172'.
+Found and cleaned up 2 empty switches in `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$170'.
+Removing empty process `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$proc$rtl/spi_host.v:4366$170'.
+Found and cleaned up 1 empty switch in `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$106'.
+Removing empty process `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.$proc$rtl/spi_host.v:2796$106'.
+Cleaned up 32 empty switches.
+
+2.3.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+<suppressed ~2 debug messages>
+Optimizing module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+<suppressed ~2 debug messages>
+Optimizing module spi_host_reg_top.
+<suppressed ~34 debug messages>
+Optimizing module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+<suppressed ~82 debug messages>
+Optimizing module spi_host.
+Optimizing module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+<suppressed ~5 debug messages>
+Optimizing module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+<suppressed ~1 debug messages>
+Optimizing module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+<suppressed ~1 debug messages>
+Optimizing module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+Optimizing module tlul_err.
+<suppressed ~13 debug messages>
+Optimizing module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+<suppressed ~2 debug messages>
+Optimizing module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+Optimizing module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+<suppressed ~25 debug messages>
+Optimizing module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+<suppressed ~2 debug messages>
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+
+2.4. Executing FUTURE pass.
+
+2.5. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Optimizing module spi_host_reg_top.
+Optimizing module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Optimizing module spi_host.
+Optimizing module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Optimizing module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+Optimizing module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+Optimizing module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+Optimizing module tlul_err.
+Optimizing module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Optimizing module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+Optimizing module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Optimizing module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+
+2.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg..
+Finding unused cells or wires in module \spi_host_reg_top..
+Finding unused cells or wires in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011..
+Finding unused cells or wires in module \spi_host..
+Finding unused cells or wires in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0..
+Finding unused cells or wires in module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb..
+Finding unused cells or wires in module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0..
+Finding unused cells or wires in module \tlul_err..
+Finding unused cells or wires in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync..
+Finding unused cells or wires in module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen..
+Finding unused cells or wires in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg..
+Finding unused cells or wires in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001..
+Removed 81 unused cells and 645 unused wires.
+<suppressed ~101 debug messages>
+
+2.7. Executing CHECK pass (checking for obvious problems).
+Checking module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg...
+Checking module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen...
+Checking module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop...
+Checking module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb...
+Checking module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg...
+Checking module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync...
+Checking module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb...
+Checking module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg...
+Checking module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0...
+Checking module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001...
+Checking module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000...
+Checking module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011...
+Checking module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0...
+Checking module spi_host...
+Checking module spi_host_reg_top...
+Checking module tlul_err...
+Found and reported 0 problems.
+
+2.8. Executing OPT pass (performing simple optimizations).
+
+2.8.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Optimizing module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+Optimizing module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Optimizing module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Optimizing module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+Optimizing module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Optimizing module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+Optimizing module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Optimizing module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+Optimizing module spi_host.
+Optimizing module spi_host_reg_top.
+Optimizing module tlul_err.
+
+2.8.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg'.
+Finding identical cells in module `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen'.
+Finding identical cells in module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Finding identical cells in module `$paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb'.
+Finding identical cells in module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Finding identical cells in module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+<suppressed ~15 debug messages>
+Finding identical cells in module `$paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb'.
+Finding identical cells in module `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg'.
+<suppressed ~6 debug messages>
+Finding identical cells in module `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0'.
+<suppressed ~3 debug messages>
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000'.
+Finding identical cells in module `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011'.
+<suppressed ~273 debug messages>
+Finding identical cells in module `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0'.
+Finding identical cells in module `\spi_host'.
+Finding identical cells in module `\spi_host_reg_top'.
+<suppressed ~18 debug messages>
+Finding identical cells in module `\tlul_err'.
+<suppressed ~45 debug messages>
+Removed a total of 120 cells.
+
+2.8.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+      Replacing known input bits on port A of cell $procmux$1407: \gen_normal_fifo.under_rst -> 1'0
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+    dead port 2/2 on $mux $procmux$1160.
+    dead port 2/2 on $mux $procmux$1167.
+    dead port 2/2 on $mux $procmux$1174.
+    dead port 2/2 on $mux $procmux$1181.
+    dead port 2/2 on $mux $procmux$1188.
+    dead port 2/2 on $mux $procmux$1195.
+    dead port 2/2 on $mux $procmux$1202.
+    dead port 2/2 on $mux $procmux$1209.
+    dead port 2/2 on $mux $procmux$1216.
+    dead port 2/2 on $mux $procmux$1225.
+    dead port 2/2 on $mux $procmux$1227.
+    dead port 2/2 on $mux $procmux$1236.
+    dead port 2/2 on $mux $procmux$1238.
+    dead port 2/2 on $mux $procmux$1247.
+    dead port 2/2 on $mux $procmux$1249.
+    dead port 2/2 on $mux $procmux$1258.
+    dead port 2/2 on $mux $procmux$1260.
+    dead port 2/2 on $mux $procmux$1268.
+    dead port 1/2 on $mux $procmux$1000.
+    dead port 2/2 on $mux $procmux$1276.
+    dead port 2/2 on $mux $procmux$1002.
+    dead port 2/2 on $mux $procmux$1284.
+    dead port 2/2 on $mux $procmux$1292.
+    dead port 2/2 on $mux $procmux$1300.
+    dead port 1/2 on $mux $procmux$1010.
+    dead port 2/2 on $mux $procmux$1012.
+    dead port 1/2 on $mux $procmux$1021.
+    dead port 2/2 on $mux $procmux$1023.
+    dead port 2/2 on $mux $procmux$1025.
+    dead port 1/2 on $mux $procmux$1034.
+    dead port 2/2 on $mux $procmux$1036.
+    dead port 2/2 on $mux $procmux$1038.
+    dead port 1/2 on $mux $procmux$1047.
+    dead port 2/2 on $mux $procmux$1049.
+    dead port 2/2 on $mux $procmux$1051.
+    dead port 1/2 on $mux $procmux$1060.
+    dead port 1/2 on $mux $procmux$509.
+    dead port 2/2 on $mux $procmux$512.
+    dead port 1/2 on $mux $procmux$515.
+    dead port 2/2 on $mux $procmux$517.
+    dead port 2/2 on $mux $procmux$1062.
+    dead port 1/2 on $mux $procmux$525.
+    dead port 2/2 on $mux $procmux$528.
+    dead port 1/2 on $mux $procmux$531.
+    dead port 2/2 on $mux $procmux$533.
+    dead port 2/2 on $mux $procmux$1064.
+    dead port 1/2 on $mux $procmux$541.
+    dead port 2/2 on $mux $procmux$544.
+    dead port 1/2 on $mux $procmux$547.
+    dead port 2/2 on $mux $procmux$549.
+    dead port 1/2 on $mux $procmux$557.
+    dead port 2/2 on $mux $procmux$560.
+    dead port 1/2 on $mux $procmux$563.
+    dead port 2/2 on $mux $procmux$565.
+    dead port 2/2 on $mux $procmux$573.
+    dead port 2/2 on $mux $procmux$576.
+    dead port 1/2 on $mux $procmux$579.
+    dead port 2/2 on $mux $procmux$581.
+    dead port 2/2 on $mux $procmux$1073.
+    dead port 2/2 on $mux $procmux$589.
+    dead port 2/2 on $mux $procmux$592.
+    dead port 1/2 on $mux $procmux$595.
+    dead port 2/2 on $mux $procmux$597.
+    dead port 2/2 on $mux $procmux$1075.
+    dead port 2/2 on $mux $procmux$605.
+    dead port 1/2 on $mux $procmux$608.
+    dead port 2/2 on $mux $procmux$610.
+    dead port 2/2 on $mux $procmux$1077.
+    dead port 2/2 on $mux $procmux$618.
+    dead port 1/2 on $mux $procmux$621.
+    dead port 2/2 on $mux $procmux$623.
+    dead port 2/2 on $mux $procmux$631.
+    dead port 1/2 on $mux $procmux$634.
+    dead port 2/2 on $mux $procmux$636.
+    dead port 2/2 on $mux $procmux$644.
+    dead port 1/2 on $mux $procmux$647.
+    dead port 2/2 on $mux $procmux$649.
+    dead port 2/2 on $mux $procmux$1086.
+    dead port 2/2 on $mux $procmux$657.
+    dead port 1/2 on $mux $procmux$660.
+    dead port 2/2 on $mux $procmux$662.
+    dead port 2/2 on $mux $procmux$1088.
+    dead port 2/2 on $mux $procmux$670.
+    dead port 1/2 on $mux $procmux$673.
+    dead port 2/2 on $mux $procmux$675.
+    dead port 2/2 on $mux $procmux$1090.
+    dead port 2/2 on $mux $procmux$683.
+    dead port 1/2 on $mux $procmux$686.
+    dead port 2/2 on $mux $procmux$688.
+    dead port 1/2 on $mux $procmux$697.
+    dead port 1/2 on $mux $procmux$699.
+    dead port 1/2 on $mux $procmux$702.
+    dead port 2/2 on $mux $procmux$704.
+    dead port 1/2 on $mux $procmux$713.
+    dead port 1/2 on $mux $procmux$715.
+    dead port 1/2 on $mux $procmux$718.
+    dead port 2/2 on $mux $procmux$720.
+    dead port 2/2 on $mux $procmux$1099.
+    dead port 1/2 on $mux $procmux$728.
+    dead port 1/2 on $mux $procmux$730.
+    dead port 1/2 on $mux $procmux$733.
+    dead port 2/2 on $mux $procmux$735.
+    dead port 2/2 on $mux $procmux$1101.
+    dead port 1/2 on $mux $procmux$744.
+    dead port 1/2 on $mux $procmux$746.
+    dead port 1/2 on $mux $procmux$749.
+    dead port 2/2 on $mux $procmux$751.
+    dead port 2/2 on $mux $procmux$1103.
+    dead port 1/2 on $mux $procmux$760.
+    dead port 1/2 on $mux $procmux$762.
+    dead port 1/2 on $mux $procmux$765.
+    dead port 2/2 on $mux $procmux$767.
+    dead port 1/2 on $mux $procmux$776.
+    dead port 1/2 on $mux $procmux$778.
+    dead port 1/2 on $mux $procmux$781.
+    dead port 2/2 on $mux $procmux$783.
+    dead port 2/2 on $mux $procmux$792.
+    dead port 1/2 on $mux $procmux$794.
+    dead port 1/2 on $mux $procmux$797.
+    dead port 2/2 on $mux $procmux$799.
+    dead port 2/2 on $mux $procmux$1111.
+    dead port 2/2 on $mux $procmux$808.
+    dead port 1/2 on $mux $procmux$810.
+    dead port 1/2 on $mux $procmux$813.
+    dead port 2/2 on $mux $procmux$815.
+    dead port 2/2 on $mux $procmux$1113.
+    dead port 2/2 on $mux $procmux$824.
+    dead port 1/2 on $mux $procmux$826.
+    dead port 1/2 on $mux $procmux$829.
+    dead port 2/2 on $mux $procmux$831.
+    dead port 1/2 on $mux $procmux$839.
+    dead port 1/2 on $mux $procmux$842.
+    dead port 2/2 on $mux $procmux$844.
+    dead port 1/2 on $mux $procmux$852.
+    dead port 1/2 on $mux $procmux$855.
+    dead port 2/2 on $mux $procmux$857.
+    dead port 2/2 on $mux $procmux$1121.
+    dead port 1/2 on $mux $procmux$865.
+    dead port 1/2 on $mux $procmux$868.
+    dead port 2/2 on $mux $procmux$870.
+    dead port 2/2 on $mux $procmux$1123.
+    dead port 1/2 on $mux $procmux$878.
+    dead port 1/2 on $mux $procmux$881.
+    dead port 2/2 on $mux $procmux$883.
+    dead port 1/2 on $mux $procmux$891.
+    dead port 1/2 on $mux $procmux$894.
+    dead port 2/2 on $mux $procmux$896.
+    dead port 1/2 on $mux $procmux$904.
+    dead port 1/2 on $mux $procmux$907.
+    dead port 2/2 on $mux $procmux$909.
+    dead port 2/2 on $mux $procmux$1131.
+    dead port 1/2 on $mux $procmux$917.
+    dead port 1/2 on $mux $procmux$920.
+    dead port 2/2 on $mux $procmux$922.
+    dead port 2/2 on $mux $procmux$1133.
+    dead port 1/2 on $mux $procmux$930.
+    dead port 2/2 on $mux $procmux$932.
+    dead port 1/2 on $mux $procmux$940.
+    dead port 2/2 on $mux $procmux$942.
+    dead port 1/2 on $mux $procmux$950.
+    dead port 2/2 on $mux $procmux$952.
+    dead port 2/2 on $mux $procmux$1141.
+    dead port 1/2 on $mux $procmux$960.
+    dead port 2/2 on $mux $procmux$962.
+    dead port 2/2 on $mux $procmux$1143.
+    dead port 1/2 on $mux $procmux$970.
+    dead port 2/2 on $mux $procmux$972.
+    dead port 1/2 on $mux $procmux$980.
+    dead port 2/2 on $mux $procmux$982.
+    dead port 1/2 on $mux $procmux$990.
+    dead port 2/2 on $mux $procmux$992.
+    dead port 2/2 on $mux $procmux$1151.
+    dead port 2/2 on $mux $procmux$1153.
+Running muxtree optimizer on module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \spi_host_reg_top..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module \tlul_err..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+    dead port 2/2 on $mux $procmux$1374.
+    dead port 2/2 on $mux $procmux$1382.
+    dead port 2/2 on $mux $procmux$1390.
+Removed 176 multiplexer ports.
+<suppressed ~40 debug messages>
+
+2.8.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+  Optimizing cells in module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+  Optimizing cells in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+  Optimizing cells in module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+  Optimizing cells in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+  Optimizing cells in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+  Optimizing cells in module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+  Optimizing cells in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+  Optimizing cells in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+  Optimizing cells in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+  Optimizing cells in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+  Optimizing cells in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+    New ctrl vector for $pmux cell $procmux$1328: { $procmux$1003_CMP $auto$opt_reduce.cc:137:opt_pmux$1557 }
+  Optimizing cells in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+  Optimizing cells in module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+  Optimizing cells in module \spi_host.
+  Optimizing cells in module \spi_host_reg_top.
+    New ctrl vector for $pmux cell $procmux$468: $auto$opt_reduce.cc:137:opt_pmux$1559
+    New ctrl vector for $pmux cell $procmux$492: { \addr_hit [2] $auto$opt_reduce.cc:137:opt_pmux$1561 }
+    New ctrl vector for $pmux cell $procmux$498: { \addr_hit [1] \addr_hit [2] $auto$opt_reduce.cc:137:opt_pmux$1563 }
+  Optimizing cells in module \spi_host_reg_top.
+  Optimizing cells in module \tlul_err.
+    New input vector for $reduce_or cell $reduce_or$rtl/spi_host.v:6459$359: \tl_i [59:58]
+    New input vector for $reduce_or cell $reduce_or$rtl/spi_host.v:6459$356: \tl_i [57:56]
+  Optimizing cells in module \tlul_err.
+Performed a total of 6 changes.
+
+2.8.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg'.
+<suppressed ~3 debug messages>
+Finding identical cells in module `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen'.
+Finding identical cells in module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Finding identical cells in module `$paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb'.
+Finding identical cells in module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+<suppressed ~3 debug messages>
+Finding identical cells in module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Finding identical cells in module `$paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb'.
+Finding identical cells in module `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg'.
+Finding identical cells in module `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0'.
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000'.
+Finding identical cells in module `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011'.
+<suppressed ~63 debug messages>
+Finding identical cells in module `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0'.
+Finding identical cells in module `\spi_host'.
+Finding identical cells in module `\spi_host_reg_top'.
+<suppressed ~3 debug messages>
+Finding identical cells in module `\tlul_err'.
+Removed a total of 24 cells.
+
+2.8.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg..
+Finding unused cells or wires in module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg..
+Finding unused cells or wires in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync..
+Finding unused cells or wires in module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg..
+Finding unused cells or wires in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000..
+Finding unused cells or wires in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011..
+Finding unused cells or wires in module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0..
+Finding unused cells or wires in module \spi_host..
+Finding unused cells or wires in module \spi_host_reg_top..
+Finding unused cells or wires in module \tlul_err..
+Removed 0 unused cells and 323 unused wires.
+<suppressed ~8 debug messages>
+
+2.8.7. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Optimizing module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+Optimizing module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Optimizing module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Optimizing module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+Optimizing module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Optimizing module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+Optimizing module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+<suppressed ~7 debug messages>
+Optimizing module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+Optimizing module spi_host.
+Optimizing module spi_host_reg_top.
+Optimizing module tlul_err.
+
+2.8.8. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.8.9. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \spi_host_reg_top..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module \tlul_err..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~42 debug messages>
+
+2.8.10. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+  Optimizing cells in module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+  Optimizing cells in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+  Optimizing cells in module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+  Optimizing cells in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+  Optimizing cells in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+  Optimizing cells in module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+  Optimizing cells in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+  Optimizing cells in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+  Optimizing cells in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+  Optimizing cells in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+  Optimizing cells in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+  Optimizing cells in module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+  Optimizing cells in module \spi_host.
+  Optimizing cells in module \spi_host_reg_top.
+  Optimizing cells in module \tlul_err.
+Performed a total of 0 changes.
+
+2.8.11. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg'.
+Finding identical cells in module `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen'.
+Finding identical cells in module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Finding identical cells in module `$paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb'.
+Finding identical cells in module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Finding identical cells in module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Finding identical cells in module `$paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb'.
+Finding identical cells in module `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg'.
+Finding identical cells in module `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0'.
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000'.
+Finding identical cells in module `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011'.
+Finding identical cells in module `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0'.
+Finding identical cells in module `\spi_host'.
+Finding identical cells in module `\spi_host_reg_top'.
+Finding identical cells in module `\tlul_err'.
+Removed a total of 0 cells.
+
+2.8.12. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg..
+Finding unused cells or wires in module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg..
+Finding unused cells or wires in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync..
+Finding unused cells or wires in module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg..
+Finding unused cells or wires in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000..
+Finding unused cells or wires in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011..
+Finding unused cells or wires in module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0..
+Finding unused cells or wires in module \spi_host..
+Finding unused cells or wires in module \spi_host_reg_top..
+Finding unused cells or wires in module \tlul_err..
+Removed 0 unused cells and 7 unused wires.
+<suppressed ~1 debug messages>
+
+2.8.13. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Optimizing module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+Optimizing module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Optimizing module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Optimizing module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+Optimizing module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Optimizing module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+Optimizing module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Optimizing module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+Optimizing module spi_host.
+Optimizing module spi_host_reg_top.
+Optimizing module tlul_err.
+
+2.8.14. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.8.15. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \spi_host_reg_top..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module \tlul_err..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~42 debug messages>
+
+2.8.16. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+  Optimizing cells in module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+  Optimizing cells in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+  Optimizing cells in module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+  Optimizing cells in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+  Optimizing cells in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+  Optimizing cells in module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+  Optimizing cells in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+  Optimizing cells in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+  Optimizing cells in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+  Optimizing cells in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+  Optimizing cells in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+  Optimizing cells in module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+  Optimizing cells in module \spi_host.
+  Optimizing cells in module \spi_host_reg_top.
+  Optimizing cells in module \tlul_err.
+Performed a total of 0 changes.
+
+2.8.17. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg'.
+Finding identical cells in module `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen'.
+Finding identical cells in module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Finding identical cells in module `$paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb'.
+Finding identical cells in module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Finding identical cells in module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Finding identical cells in module `$paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb'.
+Finding identical cells in module `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg'.
+Finding identical cells in module `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0'.
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000'.
+Finding identical cells in module `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011'.
+Finding identical cells in module `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0'.
+Finding identical cells in module `\spi_host'.
+Finding identical cells in module `\spi_host_reg_top'.
+Finding identical cells in module `\tlul_err'.
+Removed a total of 0 cells.
+
+2.8.18. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg..
+Finding unused cells or wires in module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg..
+Finding unused cells or wires in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync..
+Finding unused cells or wires in module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg..
+Finding unused cells or wires in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000..
+Finding unused cells or wires in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011..
+Finding unused cells or wires in module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0..
+Finding unused cells or wires in module \spi_host..
+Finding unused cells or wires in module \spi_host_reg_top..
+Finding unused cells or wires in module \tlul_err..
+
+2.8.19. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Optimizing module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+Optimizing module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Optimizing module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Optimizing module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+Optimizing module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Optimizing module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+Optimizing module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Optimizing module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+Optimizing module spi_host.
+Optimizing module spi_host_reg_top.
+Optimizing module tlul_err.
+
+2.8.20. Finished OPT passes. (There is nothing left to do.)
+
+2.9. Executing WREDUCE pass (reducing word size of cells).
+Removed top 28 bits (of 32) from port B of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$mul$rtl/spi_host.v:1908$294 ($mul).
+Removed top 26 bits (of 32) from port Y of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$mul$rtl/spi_host.v:1908$294 ($mul).
+Removed top 26 bits (of 32) from port A of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$add$rtl/spi_host.v:0$295 ($add).
+Removed top 31 bits (of 32) from port B of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$add$rtl/spi_host.v:0$295 ($add).
+Removed top 25 bits (of 32) from port Y of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$add$rtl/spi_host.v:0$295 ($add).
+Removed top 24 bits (of 32) from port B of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$shiftx$rtl/spi_host.v:0$296 ($shiftx).
+Removed top 28 bits (of 32) from port B of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$mul$rtl/spi_host.v:1913$303 ($mul).
+Removed top 26 bits (of 32) from port Y of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$mul$rtl/spi_host.v:1913$303 ($mul).
+Removed top 26 bits (of 32) from port A of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$add$rtl/spi_host.v:0$304 ($add).
+Removed top 31 bits (of 32) from port B of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$add$rtl/spi_host.v:0$304 ($add).
+Removed top 25 bits (of 32) from port Y of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$add$rtl/spi_host.v:0$304 ($add).
+Removed top 25 bits (of 33) from port A of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$neg$rtl/spi_host.v:0$305 ($neg).
+Converting cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$neg$rtl/spi_host.v:0$305 ($neg) from signed to unsigned.
+Removed top 1 bits (of 8) from port A of cell $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$neg$rtl/spi_host.v:0$305 ($neg).
+Removed top 25 bits (of 32) from wire $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$add$rtl/spi_host.v:0$295_Y.
+Removed top 25 bits (of 32) from wire $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$add$rtl/spi_host.v:0$304_Y.
+Removed top 26 bits (of 32) from wire $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$mul$rtl/spi_host.v:1908$294_Y.
+Removed top 26 bits (of 32) from wire $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.$mul$rtl/spi_host.v:1913$303_Y.
+Removed top 2 bits (of 3) from port B of cell $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$eq$rtl/spi_host.v:4343$161 ($eq).
+Removed top 2 bits (of 3) from mux cell $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$ternary$rtl/spi_host.v:4394$174 ($mux).
+Removed top 2 bits (of 3) from wire $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.$ternary$rtl/spi_host.v:4394$174_Y.
+Removed top 2 bits (of 3) from port B of cell $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$add$rtl/spi_host.v:2137$461 ($add).
+Removed top 2 bits (of 3) from port B of cell $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.$add$rtl/spi_host.v:2152$464 ($add).
+Removed top 31 bits (of 32) from port B of cell $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$add$rtl/spi_host.v:9017$34 ($add).
+Removed top 29 bits (of 32) from port Y of cell $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$add$rtl/spi_host.v:9017$34 ($add).
+Removed top 1 bits (of 3) from port B of cell $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$eq$rtl/spi_host.v:9019$36 ($eq).
+Removed top 31 bits (of 32) from port B of cell $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$gt$rtl/spi_host.v:9037$38 ($gt).
+Removed top 1 bits (of 2) from port B of cell $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$procmux$1003_CMP0 ($eq).
+Removed top 29 bits (of 32) from wire $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.$add$rtl/spi_host.v:9017$34_Y.
+Removed top 1 bits (of 4) from port B of cell spi_host_reg_top.$eq$rtl/spi_host.v:9513$57 ($eq).
+Removed top 3 bits (of 4) from port Y of cell spi_host_reg_top.$not$rtl/spi_host.v:9527$65 ($not).
+Removed top 3 bits (of 4) from port A of cell spi_host_reg_top.$not$rtl/spi_host.v:9527$65 ($not).
+Removed top 3 bits (of 4) from wire spi_host_reg_top.$and$rtl/spi_host.v:9527$66_Y.
+Removed top 2 bits (of 3) from port B of cell tlul_err.$eq$rtl/spi_host.v:6389$333 ($eq).
+Removed top 3 bits (of 4) from port A of cell tlul_err.$shl$rtl/spi_host.v:6431$346 ($shl).
+Removed top 1 bits (of 4) from port A of cell tlul_err.$eq$rtl/spi_host.v:6403$376 ($eq).
+Removed top 3 bits (of 4) from port B of cell tlul_err.$eqx$rtl/spi_host.v:6413$387 ($eqx).
+Removed top 1 bits (of 2) from port B of cell tlul_err.$procmux$1372_CMP0 ($eq).
+
+2.10. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg..
+Finding unused cells or wires in module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg..
+Finding unused cells or wires in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync..
+Finding unused cells or wires in module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg..
+Finding unused cells or wires in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000..
+Finding unused cells or wires in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011..
+Finding unused cells or wires in module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0..
+Finding unused cells or wires in module \spi_host..
+Finding unused cells or wires in module \spi_host_reg_top..
+Finding unused cells or wires in module \tlul_err..
+Removed 0 unused cells and 8 unused wires.
+<suppressed ~4 debug messages>
+
+2.11. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+2.12. Executing OPT pass (performing simple optimizations).
+
+2.12.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg.
+Optimizing module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb.
+Optimizing module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg.
+Optimizing module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync.
+Optimizing module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb.
+Optimizing module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg.
+Optimizing module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001.
+Optimizing module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000.
+Optimizing module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011.
+Optimizing module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0.
+Optimizing module spi_host.
+Optimizing module spi_host_reg_top.
+Optimizing module tlul_err.
+
+2.12.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `$paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg'.
+Finding identical cells in module `$paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen'.
+Finding identical cells in module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Finding identical cells in module `$paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb'.
+Finding identical cells in module `$paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg'.
+Finding identical cells in module `$paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync'.
+Finding identical cells in module `$paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb'.
+Finding identical cells in module `$paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg'.
+Finding identical cells in module `$paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0'.
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001'.
+Finding identical cells in module `$paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000'.
+Finding identical cells in module `$paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011'.
+Finding identical cells in module `$paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0'.
+Finding identical cells in module `\spi_host'.
+Finding identical cells in module `\spi_host_reg_top'.
+Finding identical cells in module `\tlul_err'.
+Removed a total of 0 cells.
+
+2.12.3. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg..
+Finding unused cells or wires in module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg..
+Finding unused cells or wires in module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync..
+Finding unused cells or wires in module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb..
+Finding unused cells or wires in module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg..
+Finding unused cells or wires in module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001..
+Finding unused cells or wires in module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000..
+Finding unused cells or wires in module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011..
+Finding unused cells or wires in module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0..
+Finding unused cells or wires in module \spi_host..
+Finding unused cells or wires in module \spi_host_reg_top..
+Finding unused cells or wires in module \tlul_err..
+
+2.12.4. Finished fast OPT passes.
+
+2.13. Printing statistics.
+
+=== $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg ===
+
+   Number of wires:                 12
+   Number of wire bits:             54
+   Number of public wires:          12
+   Number of public wire bits:      54
+   Number of ports:                 10
+   Number of port bits:             45
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  3
+     $adff                           1
+     $mux                            1
+     $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb      1
+
+=== $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen ===
+
+   Number of wires:                  4
+   Number of wire bits:            199
+   Number of public wires:           4
+   Number of public wire bits:     199
+   Number of ports:                  2
+   Number of port bits:            132
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  0
+
+=== $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop ===
+
+   Number of wires:                  4
+   Number of wire bits:              4
+   Number of public wires:           4
+   Number of public wire bits:       4
+   Number of ports:                  4
+   Number of port bits:              4
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  1
+     $adff                           1
+
+=== $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb ===
+
+   Number of wires:                  8
+   Number of wire bits:             43
+   Number of public wires:           8
+   Number of public wire bits:      43
+   Number of ports:                  7
+   Number of port bits:             35
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  2
+     $mux                            1
+     $or                             1
+
+=== $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg ===
+
+   Number of wires:                 12
+   Number of wire bits:             12
+   Number of public wires:          12
+   Number of public wire bits:      12
+   Number of ports:                 10
+   Number of port bits:             10
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  3
+     $adff                           1
+     $mux                            1
+     $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb      1
+
+=== $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync ===
+
+   Number of wires:                 39
+   Number of wire bits:            337
+   Number of public wires:          22
+   Number of public wire bits:      76
+   Number of ports:                 12
+   Number of port bits:             27
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                 26
+     $add                            2
+     $adff                           1
+     $and                            7
+     $dff                            1
+     $mul                            2
+     $mux                            3
+     $neg                            1
+     $not                            4
+     $or                             1
+     $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0      1
+     $shift                          2
+     $shiftx                         1
+
+=== $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb ===
+
+   Number of wires:                  8
+   Number of wire bits:              8
+   Number of public wires:           8
+   Number of public wire bits:       8
+   Number of ports:                  7
+   Number of port bits:              7
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  2
+     $mux                            1
+     $or                             1
+
+=== $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg ===
+
+   Number of wires:                 62
+   Number of wire bits:            590
+   Number of public wires:          43
+   Number of public wire bits:     497
+   Number of ports:                 14
+   Number of port bits:            258
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                 34
+     $adff                           6
+     $and                            7
+     $eq                             2
+     $logic_not                      1
+     $logic_or                       2
+     $mux                           10
+     $not                            2
+     $or                             2
+     $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0      1
+     $reduce_or                      1
+
+=== $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0 ===
+
+   Number of wires:                 38
+   Number of wire bits:             73
+   Number of public wires:          23
+   Number of public wire bits:      38
+   Number of ports:                 11
+   Number of port bits:             14
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                 24
+     $add                            3
+     $adff                           2
+     $and                            2
+     $eq                             5
+     $mux                            8
+     $not                            2
+     $sub                            2
+
+=== $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001 ===
+
+   Number of wires:                  9
+   Number of wire bits:              9
+   Number of public wires:           9
+   Number of public wire bits:       9
+   Number of ports:                  9
+   Number of port bits:              9
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  0
+
+=== $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000 ===
+
+   Number of wires:                  9
+   Number of wire bits:             44
+   Number of public wires:           9
+   Number of public wire bits:      44
+   Number of ports:                  9
+   Number of port bits:             44
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  0
+
+=== $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011 ===
+
+   Number of wires:                105
+   Number of wire bits:            298
+   Number of public wires:          50
+   Number of public wire bits:     147
+   Number of ports:                  9
+   Number of port bits:             48
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                 84
+     $add                            2
+     $adff                          10
+     $and                            2
+     $eq                             3
+     $gt                             1
+     $logic_and                      2
+     $logic_not                      1
+     $lt                             1
+     $mux                           43
+     $not                            6
+     $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop      2
+     $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync      2
+     $pmux                           7
+     $reduce_or                      1
+     $sub                            1
+
+=== $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0 ===
+
+   Number of wires:                  4
+   Number of wire bits:            199
+   Number of public wires:           4
+   Number of public wire bits:     199
+   Number of ports:                  2
+   Number of port bits:            132
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  0
+
+=== spi_host ===
+
+   Number of wires:                 11
+   Number of wire bits:            223
+   Number of public wires:          11
+   Number of public wire bits:     223
+   Number of ports:                  9
+   Number of port bits:            182
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  2
+     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011      1
+     spi_host_reg_top                1
+
+=== spi_host_reg_top ===
+
+   Number of wires:                 59
+   Number of wire bits:            625
+   Number of public wires:          41
+   Number of public wire bits:     607
+   Number of ports:                  6
+   Number of port bits:            218
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                 47
+     $and                           13
+     $eq                             3
+     $logic_not                      3
+     $logic_or                       1
+     $mux                            2
+     $not                            1
+     $or                             4
+     $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg      1
+     $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen      1
+     $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop      1
+     $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg      3
+     $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg      1
+     $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001      4
+     $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000      1
+     $pmux                           5
+     $reduce_or                      3
+
+=== tlul_err ===
+
+   Number of wires:                 60
+   Number of wire bits:            191
+   Number of public wires:          19
+   Number of public wire bits:     136
+   Number of ports:                  4
+   Number of port bits:            112
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                 54
+     $and                            8
+     $eq                             5
+     $eqx                            3
+     $logic_not                      6
+     $mux                            5
+     $not                            6
+     $or                             7
+     $pmux                           3
+     $reduce_and                     3
+     $reduce_or                      6
+     $shl                            1
+     $xor                            1
+
+=== design hierarchy ===
+
+   spi_host                          1
+     $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011      1
+       $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop      2
+       $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync      2
+         $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0      1
+     spi_host_reg_top                1
+       $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg      1
+         $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb      1
+       $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen      1
+       $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop      1
+       $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg      3
+         $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb      1
+       $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg      1
+         $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0      1
+       $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001      4
+       $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000      1
+
+   Number of wires:                536
+   Number of wire bits:           3203
+   Number of public wires:         380
+   Number of public wire bits:    2349
+   Number of ports:                213
+   Number of port bits:           1275
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                265
+     $add                           12
+     $adff                          29
+     $and                           40
+     $dff                            2
+     $eq                            18
+     $gt                             1
+     $logic_and                      2
+     $logic_not                      5
+     $logic_or                       3
+     $lt                             1
+     $mul                            4
+     $mux                           85
+     $neg                            2
+     $not                           21
+     $or                            12
+     $pmux                          12
+     $reduce_or                      5
+     $shift                          4
+     $shiftx                         2
+     $sub                            5
+
+2.14. Executing CHECK pass (checking for obvious problems).
+Checking module $paramod$520a8059bacba7034ee5e2f797149cb1cca5976e\prim_subreg...
+Checking module $paramod$76c5830c7263155cb0ae8207904a503081079c34\tlul_rsp_intg_gen...
+Checking module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop...
+Checking module $paramod$c5f0f96ef7459e23bc1a2d29adbb0f6752eaa35c\prim_subreg_arb...
+Checking module $paramod$d206845795e1a26f50e26139f2ff3c96325a08c8\prim_subreg...
+Checking module $paramod$da9e68ba7ebc6e6fefb012bf5650c76b3f858c9a\prim_fifo_sync...
+Checking module $paramod$eed284343db3b1e5a53a5338e51ca57a7ff7669b\prim_subreg_arb...
+Checking module $paramod$f1c960132f793aee06fa740616e58ae481b96164\tlul_adapter_reg...
+Checking module $paramod\prim_fifo_sync_cnt\Depth=32'00000000000000000000000000000011\Secure=1'0...
+Checking module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000000001...
+Checking module $paramod\prim_subreg_ext\DW=s32'00000000000000000000000000001000...
+Checking module $paramod\spi_host_core\FifoDepth=32'00000000000000000000000000000011...
+Checking module $paramod\tlul_rsp_intg_gen\EnableRspIntgGen=1'0\EnableDataIntgGen=1'0...
+Checking module spi_host...
+Checking module spi_host_reg_top...
+Checking module tlul_err...
+Found and reported 0 problems.
+
+3. Generating Graphviz representation of design.
+Writing dot description to `syn/plots/spi_host_presyn.dot'.
+Dumping module spi_host to page 1.
+
+End of script. Logfile hash: f2bd545f92, CPU: user 0.21s system 0.01s, MEM: 49.43 MB peak
+Yosys 0.52+102 (git sha1 b69394783, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+Time spent: 25% 2x read_verilog (0 sec), 16% 7x opt_expr (0 sec), ...

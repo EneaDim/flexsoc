@@ -306,6 +306,7 @@ save_ip:
 	@$(MKDIR) -p ips/$(TOP) 
 	@$(CP) -r $(DATADIR)    ips/$(TOP) || true
 	@$(CP) -r $(DOCDIR)     ips/$(TOP) || true
+	@$(CP) -r $(DRIVERDIR)  ips/$(TOP) || true
 	@$(CP) -r $(LINTDIR)    ips/$(TOP) || true
 	@$(CP) -r $(RTLDIR)     ips/$(TOP) || true
 	@$(CP) -r $(TBDIR)      ips/$(TOP) || true
