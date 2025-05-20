@@ -1,5 +1,5 @@
 module prim_counter #(
-  parameter int               Width = 4,
+  parameter int             Width = 4,
   parameter logic [Width:0] ResetValue = '0
 ) (
   input  logic clk_i,
