@@ -316,10 +316,12 @@ save_ip:
 	@$(CP) -r $(LOGDIR)     ips/$(TOP) || true
 	@$(CP) -r $(MODELDIR)   ips/$(TOP) || true
 	@$(CP)    $(TOP).core   ips/$(TOP) || true
+	@$(ECHO) "\n$(ORANGE)$(TOP) IP saved\n$(RESET)"
 
 # LOAD IP
 load_ip:
 	@$(CP) -r ips/$(TOP)/* .
+	@$(ECHO) "\n$(ORANGE)$(TOP) IP loaded\n$(RESET)"
 
 # DEPENDENCIES
 deps-ip:
