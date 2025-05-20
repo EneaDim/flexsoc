@@ -1,0 +1,116 @@
+OpenSTA 2.6.0 ed9ea90a7d Copyright (c) 2025, Parallax Software, Inc.
+License GPLv3: GNU GPL version 3 <http://gnu.org/licenses/gpl.html>
+
+This is free software, and you are free to change and redistribute it
+under certain conditions; type `show_copying' for details. 
+This program comes with ABSOLUTELY NO WARRANTY; for details type `show_warranty'.
+
+===========================================================================
+Define corners Slowest Typical Fastest
+===========================================================================
+
+define_corners Slowest Typical Fastest
+
+===========================================================================
+Read liberty files
+===========================================================================
+
+read_liberty -corner Slowest lib/sky130_fd_sc_hd__ss_100C_1v40.lib
+read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
+
+===========================================================================
+Read verilog and link top module
+===========================================================================
+
+read_verilog syn/pwm_ramp_synth.v
+link_design pwm_ramp
+
+===========================================================================
+Read SDC
+===========================================================================
+
+read_sdc signoff/pwm_ramp.sdc
+
+===========================================================================
+(Hold) report_checks -path_delay min
+===========================================================================
+
+======================= Fastest Corner ===================================
+
+Warning: sta_violators.tcl line 48, unknown field nets.
+No paths found.
+
+worst slack hold corner Fastest: 0.2041
+
+
+======================= Slowest Corner ===================================
+
+Warning: sta_violators.tcl line 48, unknown field nets.
+No paths found.
+
+worst slack hold corner Slowest: 0.9827
+
+
+======================= Typical Corner ===================================
+
+Warning: sta_violators.tcl line 48, unknown field nets.
+No paths found.
+
+worst slack hold corner Typical: 0.3312
+
+===========================================================================
+(Setup) report_checks -path_delay max
+============================================================================
+
+======================= Fastest Corner ===================================
+Warning: sta_violators.tcl line 60, unknown field nets.
+No paths found.
+
+worst slack setup corner Fastest: 3.9479
+
+
+======================= Slowest Corner ===================================
+Warning: sta_violators.tcl line 60, unknown field nets.
+No paths found.
+
+worst slack setup corner Slowest: 1.2129
+
+
+======================= Typical Corner ===================================
+Warning: sta_violators.tcl line 60, unknown field nets.
+No paths found.
+
+worst slack setup corner Typical: 3.8864
+
+===========================================================================
+(Unconstrained) report_checks -unconstrained
+===========================================================================
+
+======================= Fastest Corner ===================================
+
+Warning: sta_violators.tcl line 70, unknown field nets.
+No paths found.
+
+
+======================= Slowest Corner ===================================
+
+Warning: sta_violators.tcl line 70, unknown field nets.
+No paths found.
+
+
+======================= Typical Corner ===================================
+
+Warning: sta_violators.tcl line 70, unknown field nets.
+No paths found.
+
+===========================================================================
+report_worst_slack -max (Setup)
+============================================================================
+worst slack 1.21
+
+===========================================================================
+report_worst_slack -min (Hold)
+============================================================================
+worst slack 0.20
+

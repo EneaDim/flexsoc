@@ -1,0 +1,652 @@
+
+ /----------------------------------------------------------------------------\
+ |  yosys -- Yosys Open SYnthesis Suite                                       |
+ |  Copyright (C) 2012 - 2024  Claire Xenia Wolf <claire@yosyshq.com>         |
+ |  Distributed under an ISC-like license, type "license" to see terms        |
+ \----------------------------------------------------------------------------/
+ Yosys 0.44+4 (git sha1 77b2ae2e3, g++ 13.2.0-23ubuntu4 -fPIC -O3)
+
+-- Parsing `rtl/pwm_ramp.v' using frontend ` -vlog2k' --
+
+1. Executing Verilog-2005 frontend: rtl/pwm_ramp.v
+Parsing Verilog input from `rtl/pwm_ramp.v' to AST representation.
+Storing AST representation for module `$abstract\prim_arbiter_ppc'.
+Storing AST representation for module `$abstract\prim_cdc_rand_delay'.
+Storing AST representation for module `$abstract\prim_count'.
+Storing AST representation for module `$abstract\prim_fifo_async'.
+Storing AST representation for module `$abstract\prim_fifo_async_simple'.
+Storing AST representation for module `$abstract\prim_fifo_async_sram_adapter'.
+Storing AST representation for module `$abstract\prim_fifo_sync'.
+Storing AST representation for module `$abstract\prim_fifo_sync_cnt'.
+Storing AST representation for module `$abstract\prim_filter'.
+Storing AST representation for module `$abstract\prim_filter_ctr'.
+Storing AST representation for module `$abstract\prim_flop'.
+Storing AST representation for module `$abstract\prim_flop_2sync'.
+Storing AST representation for module `$abstract\prim_secded_inv_39_32_dec'.
+Storing AST representation for module `$abstract\prim_secded_inv_39_32_enc'.
+Storing AST representation for module `$abstract\prim_secded_inv_64_57_dec'.
+Storing AST representation for module `$abstract\prim_secded_inv_64_57_enc'.
+Storing AST representation for module `$abstract\prim_subreg'.
+Storing AST representation for module `$abstract\prim_subreg_arb'.
+Storing AST representation for module `$abstract\prim_subreg_ext'.
+Storing AST representation for module `$abstract\prim_sync_reqack'.
+Storing AST representation for module `$abstract\sram2tlul'.
+Storing AST representation for module `$abstract\tlul_adapter_host'.
+Storing AST representation for module `$abstract\tlul_adapter_reg'.
+Storing AST representation for module `$abstract\tlul_adapter_sram'.
+Storing AST representation for module `$abstract\tlul_assert'.
+Storing AST representation for module `$abstract\tlul_assert_multiple'.
+Storing AST representation for module `$abstract\tlul_cmd_intg_chk'.
+Storing AST representation for module `$abstract\tlul_cmd_intg_gen'.
+Storing AST representation for module `$abstract\tlul_data_integ_dec'.
+Storing AST representation for module `$abstract\tlul_data_integ_enc'.
+Storing AST representation for module `$abstract\tlul_err'.
+Storing AST representation for module `$abstract\tlul_err_resp'.
+Storing AST representation for module `$abstract\tlul_fifo_async'.
+Storing AST representation for module `$abstract\tlul_fifo_sync'.
+Storing AST representation for module `$abstract\tlul_rsp_intg_chk'.
+Storing AST representation for module `$abstract\tlul_rsp_intg_gen'.
+Storing AST representation for module `$abstract\tlul_socket_1n'.
+Storing AST representation for module `$abstract\tlul_socket_m1'.
+Storing AST representation for module `$abstract\tlul_sram_byte'.
+Storing AST representation for module `$abstract\multiple_pwm_ramp'.
+Storing AST representation for module `$abstract\prim_deglitch'.
+Storing AST representation for module `$abstract\prim_edge_detect'.
+Storing AST representation for module `$abstract\prim_ff_2sync'.
+Storing AST representation for module `$abstract\pwm_ramp'.
+Successfully finished Verilog frontend.
+
+-- Running command `prep -top pwm_ramp; select -module pwm_ramp; show -width -format dot -prefix syn/plots/pwm_ramp_presyn' --
+
+2. Executing PREP pass.
+
+2.1. Executing HIERARCHY pass (managing design hierarchy).
+
+2.2. Executing AST frontend in derive mode using pre-parsed AST for module `\pwm_ramp'.
+Generating RTLIL representation for module `\pwm_ramp'.
+
+2.2.1. Analyzing design hierarchy..
+Top module:  \pwm_ramp
+
+2.2.2. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_edge_detect'.
+Generating RTLIL representation for module `\prim_edge_detect'.
+Parameter \AsyncOn = 1
+Parameter \SIZE = 3
+
+2.2.3. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_deglitch'.
+Parameter \AsyncOn = 1
+Parameter \SIZE = 3
+Generating RTLIL representation for module `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch'.
+
+2.2.4. Analyzing design hierarchy..
+Top module:  \pwm_ramp
+Used module:     \prim_edge_detect
+Used module:     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch
+Parameter \Width = 1
+Parameter \ResetValue = 0
+
+2.2.5. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_flop'.
+Parameter \Width = 1
+Parameter \ResetValue = 0
+Generating RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Parameter \Width = 1
+Parameter \ResetValue = 1'0
+
+2.2.6. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_ff_2sync'.
+Parameter \Width = 1
+Parameter \ResetValue = 1'0
+Generating RTLIL representation for module `$paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0'.
+
+2.2.7. Analyzing design hierarchy..
+Top module:  \pwm_ramp
+Used module:     \prim_edge_detect
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch
+Used module:         $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0
+Parameter \Width = 1
+Parameter \ResetValue = 1'0
+
+2.2.8. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_flop'.
+Parameter \Width = 1
+Parameter \ResetValue = 1'0
+Generating RTLIL representation for module `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0'.
+Parameter \Width = 1
+Parameter \ResetValue = 1'0
+Found cached RTLIL representation for module `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0'.
+
+2.2.9. Analyzing design hierarchy..
+Top module:  \pwm_ramp
+Used module:     \prim_edge_detect
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch
+Used module:         $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0
+Used module:             $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0
+
+2.2.10. Analyzing design hierarchy..
+Top module:  \pwm_ramp
+Used module:     \prim_edge_detect
+Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop
+Used module:     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch
+Used module:         $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0
+Used module:             $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0
+Removing unused module `$abstract\pwm_ramp'.
+Removing unused module `$abstract\prim_ff_2sync'.
+Removing unused module `$abstract\prim_edge_detect'.
+Removing unused module `$abstract\prim_deglitch'.
+Removing unused module `$abstract\multiple_pwm_ramp'.
+Removing unused module `$abstract\tlul_sram_byte'.
+Removing unused module `$abstract\tlul_socket_m1'.
+Removing unused module `$abstract\tlul_socket_1n'.
+Removing unused module `$abstract\tlul_rsp_intg_gen'.
+Removing unused module `$abstract\tlul_rsp_intg_chk'.
+Removing unused module `$abstract\tlul_fifo_sync'.
+Removing unused module `$abstract\tlul_fifo_async'.
+Removing unused module `$abstract\tlul_err_resp'.
+Removing unused module `$abstract\tlul_err'.
+Removing unused module `$abstract\tlul_data_integ_enc'.
+Removing unused module `$abstract\tlul_data_integ_dec'.
+Removing unused module `$abstract\tlul_cmd_intg_gen'.
+Removing unused module `$abstract\tlul_cmd_intg_chk'.
+Removing unused module `$abstract\tlul_assert_multiple'.
+Removing unused module `$abstract\tlul_assert'.
+Removing unused module `$abstract\tlul_adapter_sram'.
+Removing unused module `$abstract\tlul_adapter_reg'.
+Removing unused module `$abstract\tlul_adapter_host'.
+Removing unused module `$abstract\sram2tlul'.
+Removing unused module `$abstract\prim_sync_reqack'.
+Removing unused module `$abstract\prim_subreg_ext'.
+Removing unused module `$abstract\prim_subreg_arb'.
+Removing unused module `$abstract\prim_subreg'.
+Removing unused module `$abstract\prim_secded_inv_64_57_enc'.
+Removing unused module `$abstract\prim_secded_inv_64_57_dec'.
+Removing unused module `$abstract\prim_secded_inv_39_32_enc'.
+Removing unused module `$abstract\prim_secded_inv_39_32_dec'.
+Removing unused module `$abstract\prim_flop_2sync'.
+Removing unused module `$abstract\prim_flop'.
+Removing unused module `$abstract\prim_filter_ctr'.
+Removing unused module `$abstract\prim_filter'.
+Removing unused module `$abstract\prim_fifo_sync_cnt'.
+Removing unused module `$abstract\prim_fifo_sync'.
+Removing unused module `$abstract\prim_fifo_async_sram_adapter'.
+Removing unused module `$abstract\prim_fifo_async_simple'.
+Removing unused module `$abstract\prim_fifo_async'.
+Removing unused module `$abstract\prim_count'.
+Removing unused module `$abstract\prim_cdc_rand_delay'.
+Removing unused module `$abstract\prim_arbiter_ppc'.
+Removed 44 unused modules.
+
+2.3. Executing PROC pass (convert processes to netlists).
+
+2.3.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$44'.
+Cleaned up 1 empty switch.
+
+2.3.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 1 switch rules as full_case in process $proc$rtl/pwm_ramp.v:2334$48 in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Marked 2 switch rules as full_case in process $proc$rtl/pwm_ramp.v:8786$44 in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+Marked 2 switch rules as full_case in process $proc$rtl/pwm_ramp.v:8769$35 in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+Marked 3 switch rules as full_case in process $proc$rtl/pwm_ramp.v:8979$22 in module pwm_ramp.
+Marked 3 switch rules as full_case in process $proc$rtl/pwm_ramp.v:8949$19 in module pwm_ramp.
+Marked 1 switch rules as full_case in process $proc$rtl/pwm_ramp.v:2334$50 in module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
+Removed a total of 0 dead cases.
+
+2.3.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 2 redundant assignments.
+Promoted 2 assignments to connections.
+
+2.3.4. Executing PROC_INIT pass (extract init attributes).
+
+2.3.5. Executing PROC_ARST pass (detect async resets in processes).
+Found async reset \rst_ni in `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/pwm_ramp.v:2334$48'.
+Found async reset \rst_ni in `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$35'.
+Found async reset \rst_ni in `\pwm_ramp.$proc$rtl/pwm_ramp.v:8979$22'.
+Found async reset \rst_ni in `\pwm_ramp.$proc$rtl/pwm_ramp.v:8949$19'.
+Found async reset \rst_ni in `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.$proc$rtl/pwm_ramp.v:2334$50'.
+
+2.3.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~11 debug messages>
+
+2.3.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/pwm_ramp.v:2334$48'.
+     1/1: $0\q_o[0:0]
+Creating decoders for process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:0$47'.
+Creating decoders for process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$44'.
+     1/2: $2\q_o[0:0]
+     2/2: $1\q_o[0:0]
+Creating decoders for process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$35'.
+     1/1: $0\count_q[1:0]
+Creating decoders for process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8979$22'.
+     1/2: $0\counter[7:0]
+     2/2: $0\duty_cycle[7:0]
+Creating decoders for process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8949$19'.
+     1/3: $0\clear[0:0]
+     2/3: $0\adc_valid_o[0:0]
+     3/3: $0\adc_value_o[7:0]
+Creating decoders for process `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.$proc$rtl/pwm_ramp.v:2334$50'.
+     1/1: $0\q_o[0:0]
+
+2.3.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+No latch inferred for signal `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.\_sv2v_0' from process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:0$47'.
+No latch inferred for signal `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.\q_o' from process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$44'.
+
+2.3.9. Executing PROC_DFF pass (convert process syncs to FFs).
+Creating register for signal `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.\q_o' using process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/pwm_ramp.v:2334$48'.
+  created $adff cell `$procdff$99' with positive edge clock and negative level reset.
+Creating register for signal `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.\count_q' using process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$35'.
+  created $adff cell `$procdff$100' with positive edge clock and negative level reset.
+Creating register for signal `\pwm_ramp.\duty_cycle' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8979$22'.
+  created $adff cell `$procdff$101' with positive edge clock and negative level reset.
+Creating register for signal `\pwm_ramp.\counter' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8979$22'.
+  created $adff cell `$procdff$102' with positive edge clock and negative level reset.
+Creating register for signal `\pwm_ramp.\adc_value_o' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8949$19'.
+  created $adff cell `$procdff$103' with positive edge clock and negative level reset.
+Creating register for signal `\pwm_ramp.\adc_valid_o' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8949$19'.
+  created $adff cell `$procdff$104' with positive edge clock and negative level reset.
+Creating register for signal `\pwm_ramp.\clear' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8949$19'.
+  created $adff cell `$procdff$105' with positive edge clock and negative level reset.
+Creating register for signal `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.\q_o' using process `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.$proc$rtl/pwm_ramp.v:2334$50'.
+  created $adff cell `$procdff$106' with positive edge clock and negative level reset.
+
+2.3.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+2.3.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Removing empty process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.$proc$rtl/pwm_ramp.v:2334$48'.
+Removing empty process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:0$47'.
+Found and cleaned up 2 empty switches in `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$44'.
+Removing empty process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$44'.
+Found and cleaned up 3 empty switches in `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$35'.
+Removing empty process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$35'.
+Found and cleaned up 3 empty switches in `\pwm_ramp.$proc$rtl/pwm_ramp.v:8979$22'.
+Removing empty process `pwm_ramp.$proc$rtl/pwm_ramp.v:8979$22'.
+Found and cleaned up 3 empty switches in `\pwm_ramp.$proc$rtl/pwm_ramp.v:8949$19'.
+Removing empty process `pwm_ramp.$proc$rtl/pwm_ramp.v:8949$19'.
+Removing empty process `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.$proc$rtl/pwm_ramp.v:2334$50'.
+Cleaned up 11 empty switches.
+
+2.3.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+<suppressed ~1 debug messages>
+Optimizing module prim_edge_detect.
+Optimizing module pwm_ramp.
+Optimizing module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
+Optimizing module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
+
+2.4. Executing FUTURE pass.
+
+2.5. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+Optimizing module prim_edge_detect.
+Optimizing module pwm_ramp.
+Optimizing module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
+Optimizing module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
+
+2.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch..
+Finding unused cells or wires in module \prim_edge_detect..
+Finding unused cells or wires in module \pwm_ramp..
+Finding unused cells or wires in module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0..
+Finding unused cells or wires in module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0..
+Removed 6 unused cells and 41 unused wires.
+<suppressed ~12 debug messages>
+
+2.7. Executing CHECK pass (checking for obvious problems).
+Checking module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch...
+Checking module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop...
+Checking module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0...
+Checking module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0...
+Checking module prim_edge_detect...
+Checking module pwm_ramp...
+Found and reported 0 problems.
+
+2.8. Executing OPT pass (performing simple optimizations).
+
+2.8.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
+Optimizing module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
+Optimizing module prim_edge_detect.
+Optimizing module pwm_ramp.
+
+2.8.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch'.
+Finding identical cells in module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Finding identical cells in module `$paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0'.
+Finding identical cells in module `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0'.
+Finding identical cells in module `\prim_edge_detect'.
+Finding identical cells in module `\pwm_ramp'.
+Removed a total of 0 cells.
+
+2.8.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+    dead port 1/2 on $mux $procmux$55.
+Running muxtree optimizer on module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \prim_edge_detect..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \pwm_ramp..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+      Replacing known input bits on port A of cell $procmux$83: \clear -> 1'0
+  Analyzing evaluation results.
+Removed 1 multiplexer ports.
+<suppressed ~9 debug messages>
+
+2.8.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+  Optimizing cells in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+  Optimizing cells in module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
+  Optimizing cells in module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
+  Optimizing cells in module \prim_edge_detect.
+  Optimizing cells in module \pwm_ramp.
+  Optimizing cells in module \pwm_ramp.
+Performed a total of 1 changes.
+
+2.8.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch'.
+Finding identical cells in module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Finding identical cells in module `$paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0'.
+Finding identical cells in module `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0'.
+Finding identical cells in module `\prim_edge_detect'.
+Finding identical cells in module `\pwm_ramp'.
+Removed a total of 0 cells.
+
+2.8.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0..
+Finding unused cells or wires in module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0..
+Finding unused cells or wires in module \prim_edge_detect..
+Finding unused cells or wires in module \pwm_ramp..
+Removed 0 unused cells and 2 unused wires.
+<suppressed ~2 debug messages>
+
+2.8.7. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
+Optimizing module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
+Optimizing module prim_edge_detect.
+Optimizing module pwm_ramp.
+
+2.8.8. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.8.9. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Running muxtree optimizer on module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \prim_edge_detect..
+  Creating internal representation of mux trees.
+  No muxes found in this module.
+Running muxtree optimizer on module \pwm_ramp..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~9 debug messages>
+
+2.8.10. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+  Optimizing cells in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+  Optimizing cells in module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
+  Optimizing cells in module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
+  Optimizing cells in module \prim_edge_detect.
+  Optimizing cells in module \pwm_ramp.
+Performed a total of 0 changes.
+
+2.8.11. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch'.
+Finding identical cells in module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Finding identical cells in module `$paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0'.
+Finding identical cells in module `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0'.
+Finding identical cells in module `\prim_edge_detect'.
+Finding identical cells in module `\pwm_ramp'.
+Removed a total of 0 cells.
+
+2.8.12. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0..
+Finding unused cells or wires in module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0..
+Finding unused cells or wires in module \prim_edge_detect..
+Finding unused cells or wires in module \pwm_ramp..
+
+2.8.13. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
+Optimizing module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
+Optimizing module prim_edge_detect.
+Optimizing module pwm_ramp.
+
+2.8.14. Finished OPT passes. (There is nothing left to do.)
+
+2.9. Executing WREDUCE pass (reducing word size of cells).
+Removed top 31 bits (of 32) from port B of cell $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$add$rtl/pwm_ramp.v:8779$39 ($add).
+Removed top 30 bits (of 32) from port Y of cell $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$add$rtl/pwm_ramp.v:8779$39 ($add).
+Removed top 31 bits (of 32) from port B of cell $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$gt$rtl/pwm_ramp.v:8780$41 ($gt).
+Removed top 31 bits (of 32) from port B of cell $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$sub$rtl/pwm_ramp.v:8782$43 ($sub).
+Removed top 30 bits (of 32) from port Y of cell $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$sub$rtl/pwm_ramp.v:8782$43 ($sub).
+Removed top 30 bits (of 32) from wire $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$add$rtl/pwm_ramp.v:8779$39_Y.
+Removed top 30 bits (of 32) from wire $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$sub$rtl/pwm_ramp.v:8782$43_Y.
+Removed top 31 bits (of 32) from port B of cell pwm_ramp.$add$rtl/pwm_ramp.v:9004$26 ($add).
+Removed top 24 bits (of 32) from port Y of cell pwm_ramp.$add$rtl/pwm_ramp.v:9004$26 ($add).
+Removed top 24 bits (of 32) from wire pwm_ramp.$add$rtl/pwm_ramp.v:9004$26_Y.
+
+2.10. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0..
+Finding unused cells or wires in module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0..
+Finding unused cells or wires in module \prim_edge_detect..
+Finding unused cells or wires in module \pwm_ramp..
+Removed 0 unused cells and 3 unused wires.
+<suppressed ~2 debug messages>
+
+2.11. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+2.12. Executing OPT pass (performing simple optimizations).
+
+2.12.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
+Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop.
+Optimizing module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
+Optimizing module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
+Optimizing module prim_edge_detect.
+Optimizing module pwm_ramp.
+
+2.12.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch'.
+Finding identical cells in module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop'.
+Finding identical cells in module `$paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0'.
+Finding identical cells in module `$paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0'.
+Finding identical cells in module `\prim_edge_detect'.
+Finding identical cells in module `\pwm_ramp'.
+Removed a total of 0 cells.
+
+2.12.3. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch..
+Finding unused cells or wires in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop..
+Finding unused cells or wires in module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0..
+Finding unused cells or wires in module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0..
+Finding unused cells or wires in module \prim_edge_detect..
+Finding unused cells or wires in module \pwm_ramp..
+
+2.12.4. Finished fast OPT passes.
+
+2.13. Printing statistics.
+
+=== $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch ===
+
+   Number of wires:                 19
+   Number of wire bits:             55
+   Number of public wires:           8
+   Number of public wire bits:       9
+   Number of ports:                  5
+   Number of port bits:              5
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                 14
+     $add                            1
+     $adff                           1
+     $eq                             1
+     $gt                             1
+     $logic_and                      2
+     $lt                             1
+     $mux                            4
+     $not                            1
+     $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0      1
+     $sub                            1
+
+=== $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop ===
+
+   Number of wires:                  4
+   Number of wire bits:              4
+   Number of public wires:           4
+   Number of public wire bits:       4
+   Number of ports:                  4
+   Number of port bits:              4
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  1
+     $adff                           1
+
+=== $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0 ===
+
+   Number of wires:                  5
+   Number of wire bits:              5
+   Number of public wires:           5
+   Number of public wire bits:       5
+   Number of ports:                  4
+   Number of port bits:              4
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  2
+     $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0      2
+
+=== $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0 ===
+
+   Number of wires:                  4
+   Number of wire bits:              4
+   Number of public wires:           4
+   Number of public wire bits:       4
+   Number of ports:                  4
+   Number of port bits:              4
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  1
+     $adff                           1
+
+=== prim_edge_detect ===
+
+   Number of wires:                  9
+   Number of wire bits:              9
+   Number of public wires:           7
+   Number of public wire bits:       7
+   Number of ports:                  6
+   Number of port bits:              6
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                  5
+     $and                            2
+     $not                            2
+     $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop      1
+
+=== pwm_ramp ===
+
+   Number of wires:                 33
+   Number of wire bits:            138
+   Number of public wires:          16
+   Number of public wire bits:      44
+   Number of ports:                  9
+   Number of port bits:             23
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                 26
+     $add                            2
+     $adff                           5
+     $eq                             1
+     $gt                             1
+     $lt                             1
+     $mux                           13
+     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch      1
+     $sub                            1
+     prim_edge_detect                1
+
+=== design hierarchy ===
+
+   pwm_ramp                          1
+     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch      1
+       $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0      1
+         $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0      2
+     prim_edge_detect                1
+       $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop      1
+
+   Number of wires:                 78
+   Number of wire bits:            219
+   Number of public wires:          48
+   Number of public wire bits:      77
+   Number of ports:                 36
+   Number of port bits:             50
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:                 44
+     $add                            3
+     $adff                           9
+     $and                            2
+     $eq                             2
+     $gt                             2
+     $logic_and                      2
+     $lt                             2
+     $mux                           17
+     $not                            3
+     $sub                            2
+
+2.14. Executing CHECK pass (checking for obvious problems).
+Checking module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch...
+Checking module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_flop...
+Checking module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0...
+Checking module $paramod\prim_flop\Width=s32'00000000000000000000000000000001\ResetValue=1'0...
+Checking module prim_edge_detect...
+Checking module pwm_ramp...
+Found and reported 0 problems.
+
+3. Generating Graphviz representation of design.
+Writing dot description to `syn/plots/pwm_ramp_presyn.dot'.
+Dumping module pwm_ramp to page 1.
+
+End of script. Logfile hash: f4d7544ec2, CPU: user 0.04s system 0.02s, MEM: 44.53 MB peak
+Yosys 0.44+4 (git sha1 77b2ae2e3, g++ 13.2.0-23ubuntu4 -fPIC -O3)
+Time spent: 61% 2x read_verilog (0 sec), 9% 1x hierarchy (0 sec), ...
