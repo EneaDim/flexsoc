@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 /**
  * @file cache_wrapper.sv
  * @brief Parametrizable Cache using external SRAMs (prim_ram) for data and tag storage.
@@ -20,7 +18,8 @@
  * Author: BLACKBOXAI
  * Date: 2024-06
  */
-
+// TODO: Change Memory interface because the memory now is inside
+// The testbench is looping because stuck in ST_REFILL because of mem_valid_i
 module cache_wrapper #(
   parameter integer DATA_WIDTH   = 32,      // Data word width in bits
   parameter integer ADDR_WIDTH   = 16,      // Address width in bits (for CPU & SRAM addressing)
@@ -165,7 +164,8 @@ module cache_wrapper #(
   prim_ram #(
     .ADDR_WIDTH(SET_INDEX_WIDTH + $clog2(ASSOCIATIVITY)),
     .DATA_WIDTH(TAG_META_WIDTH),
-    .MEM_DEPTH(NUM_BLOCKS)
+    .MEM_DEPTH(NUM_BLOCKS),
+    .VMEM_FILE("")
   ) tag_ram (
     .clk_i(clk_i),
     .rst_ni(rst_ni),

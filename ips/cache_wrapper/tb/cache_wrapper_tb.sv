@@ -80,6 +80,60 @@ module cache_wrapper_tb;
     error_count = 0;
   end
 
+  // Task: Perform a write
+  task automatic write(input logic [15:0] addr, input logic [31:0] data);
+    begin
+      $display("[WRITE] Requesting write at time %0t: addr=0x%04h, data=0x%08h", $time, addr, data);      
+      @(posedge clk_i);
+      wait (cpu_ready_o);
+      cpu_valid_i <= 1;
+      cpu_adr_i   <= addr;
+      cpu_we_i    <= 1;
+      cpu_wdata_i <= data;
+
+      @(posedge clk_i);
+      @(posedge clk_i);
+      @(posedge clk_i);
+      @(posedge clk_i);
+      @(posedge clk_i);
+      @(posedge clk_i);
+      @(posedge clk_i);
+      @(posedge clk_i);
+      @(posedge clk_i);
+      @(posedge clk_i);
+      $finish;
+
+      // Wait until DUT is ready to accept the write
+      do @(posedge clk_i); while (!cpu_ready_o);
+      cpu_valid_i <= 0;
+      // Wait for write response
+      do @(posedge clk_i); while (!cpu_resp_valid_o);
+
+      while (!cpu_resp_valid_o) @(posedge clk_i);
+      $display("Write complete: addr = 0x%04h, data = 0x%08h", addr, data);
+    end
+  endtask
+
+  // Task: Perform a read
+  task automatic read(input logic [15:0] addr);
+    begin
+      $display("[READ ] Requesting read  at time %0t: addr=0x%04h", $time, addr);      
+      @(posedge clk_i);
+      wait (cpu_ready_o);
+      cpu_valid_i <= 1;
+      cpu_adr_i   <= addr;
+      cpu_we_i    <= 0;
+      
+      // Wait until DUT is ready to accept the write
+      do @(posedge clk_i); while (!cpu_ready_o);
+      cpu_valid_i <= 0;
+      // Wait for write response
+      do @(posedge clk_i); while (!cpu_resp_valid_o);
+
+      $display("Read complete: addr = 0x%04h, data = 0x%08h", addr, cpu_rdata_o);
+    end
+  endtask
+
   initial begin
     // Init inputs
     rst_ni = 0;
@@ -96,7 +150,16 @@ module cache_wrapper_tb;
     // Start main test
     $display("\nRunning...\n");
     // INSERT YOUR CODE
+    // Test scenario
+    write(16'h0010, 32'hDEADBEEF);
+    read(16'h0010);
 
+    write(16'h0020, 32'hCAFEBABE);
+    read(16'h0020);
+
+    read(16'h0010); // Re-read to check hit
+
+    $display("[TB DONE] Simulation complete at time %0t", $time);
 
     // Final Check
     if (error_count == 0) begin
