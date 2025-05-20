@@ -323,7 +323,15 @@ View the waveforms. You should see 2 drivings of spi\_host signals: spi\_cs\_o, 
 
 - `help`
 
-Run a Python script to display help information about the Makefile targets.
+Run a Python script to display help information about the Makefile targets related to both IP development and SoC integration.
+
+- `help_ip`
+
+Run a Python script to display help information about the Makefile targets related to IP development.
+
+- `help_soc`
+
+Run a Python script to display help information about the Makefile targets related to SoC integration.
 
 - `help_doc`
 
