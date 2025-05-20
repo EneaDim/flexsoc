@@ -1,0 +1,48 @@
+// Generated register defines for cache_wrapper
+
+#ifndef _CACHE_WRAPPER_REG_DEFS_
+#define _CACHE_WRAPPER_REG_DEFS_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+// Register width
+#define CACHE_WRAPPER_PARAM_REG_WIDTH 32
+
+// UART control register
+#define CACHE_WRAPPER_CTRL_REG_OFFSET 0x0
+#define CACHE_WRAPPER_CTRL_REG_RESVAL 0x0u
+#define CACHE_WRAPPER_CTRL_EN_BIT 0
+#define CACHE_WRAPPER_CTRL_RST_BIT 1
+#define CACHE_WRAPPER_CTRL_SETTING_MASK 0xffffu
+#define CACHE_WRAPPER_CTRL_SETTING_OFFSET 16
+#define CACHE_WRAPPER_CTRL_SETTING_FIELD \
+  ((bitfield_field32_t) { .mask = CACHE_WRAPPER_CTRL_SETTING_MASK, .index = CACHE_WRAPPER_CTRL_SETTING_OFFSET })
+
+// UART live status register
+#define CACHE_WRAPPER_STATUS_REG_OFFSET 0x4
+#define CACHE_WRAPPER_STATUS_REG_RESVAL 0x0u
+#define CACHE_WRAPPER_STATUS_FULL_BIT 0
+#define CACHE_WRAPPER_STATUS_EMPTY_BIT 1
+
+// read data
+#define CACHE_WRAPPER_RDATA_REG_OFFSET 0x8
+#define CACHE_WRAPPER_RDATA_REG_RESVAL 0x0u
+#define CACHE_WRAPPER_RDATA_RDATA_MASK 0xffu
+#define CACHE_WRAPPER_RDATA_RDATA_OFFSET 0
+#define CACHE_WRAPPER_RDATA_RDATA_FIELD \
+  ((bitfield_field32_t) { .mask = CACHE_WRAPPER_RDATA_RDATA_MASK, .index = CACHE_WRAPPER_RDATA_RDATA_OFFSET })
+
+// write data
+#define CACHE_WRAPPER_WDATA_REG_OFFSET 0xc
+#define CACHE_WRAPPER_WDATA_REG_RESVAL 0x0u
+#define CACHE_WRAPPER_WDATA_WDATA_MASK 0xffu
+#define CACHE_WRAPPER_WDATA_WDATA_OFFSET 0
+#define CACHE_WRAPPER_WDATA_WDATA_FIELD \
+  ((bitfield_field32_t) { .mask = CACHE_WRAPPER_WDATA_WDATA_MASK, .index = CACHE_WRAPPER_WDATA_WDATA_OFFSET })
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+#endif  // _CACHE_WRAPPER_REG_DEFS_
+// End generated register defines for cache_wrapper

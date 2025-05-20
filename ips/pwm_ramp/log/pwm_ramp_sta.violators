@@ -1,4 +1,4 @@
-OpenSTA 2.6.0 ed9ea90a7d Copyright (c) 2025, Parallax Software, Inc.
+OpenSTA 2.6.2 ce98bde188 Copyright (c) 2025, Parallax Software, Inc.
 License GPLv3: GNU GPL version 3 <http://gnu.org/licenses/gpl.html>
 
 This is free software, and you are free to change and redistribute it
@@ -38,7 +38,7 @@ read_sdc signoff/pwm_ramp.sdc
 
 ======================= Fastest Corner ===================================
 
-Warning: sta_violators.tcl line 48, unknown field nets.
+Warning: sta_violators.tcl line 1, unknown field nets.
 No paths found.
 
 worst slack hold corner Fastest: 0.2041
@@ -46,7 +46,7 @@ worst slack hold corner Fastest: 0.2041
 
 ======================= Slowest Corner ===================================
 
-Warning: sta_violators.tcl line 48, unknown field nets.
+Warning: sta_violators.tcl line 1, unknown field nets.
 No paths found.
 
 worst slack hold corner Slowest: 0.9827
@@ -54,7 +54,7 @@ worst slack hold corner Slowest: 0.9827
 
 ======================= Typical Corner ===================================
 
-Warning: sta_violators.tcl line 48, unknown field nets.
+Warning: sta_violators.tcl line 1, unknown field nets.
 No paths found.
 
 worst slack hold corner Typical: 0.3312
@@ -64,24 +64,69 @@ worst slack hold corner Typical: 0.3312
 ============================================================================
 
 ======================= Fastest Corner ===================================
-Warning: sta_violators.tcl line 60, unknown field nets.
+Warning: sta_violators.tcl line 1, unknown field nets.
 No paths found.
 
-worst slack setup corner Fastest: 3.9479
+worst slack setup corner Fastest: 3.9476
 
 
 ======================= Slowest Corner ===================================
-Warning: sta_violators.tcl line 60, unknown field nets.
-No paths found.
+Warning: sta_violators.tcl line 1, unknown field nets.
+Startpoint: step_i[1] (input port clocked by clk)
+Endpoint: _268_ (rising edge-triggered flip-flop clocked by clk)
+Path Group: clk
+Path Type: max
+Corner: Slowest
 
-worst slack setup corner Slowest: 1.2129
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                  0.00    0.00    0.00   clock clk (rise edge)
+                          0.00    0.00   clock network delay (ideal)
+                          3.00    3.00 v input external delay
+     2    0.01    0.00    0.00    3.00 v step_i[1] (in)
+                  0.00    0.00    3.00 v _177_/B (sky130_fd_sc_hd__xnor2_1)
+     2    0.01    0.43    0.40    3.40 ^ _177_/Y (sky130_fd_sc_hd__xnor2_1)
+                  0.43    0.00    3.40 ^ _181_/A2 (sky130_fd_sc_hd__o21ai_0)
+     2    0.01    0.31    0.46    3.85 v _181_/Y (sky130_fd_sc_hd__o21ai_0)
+                  0.31    0.00    3.85 v _186_/C (sky130_fd_sc_hd__maj3_1)
+     2    0.01    0.26    1.32    5.17 v _186_/X (sky130_fd_sc_hd__maj3_1)
+                  0.26    0.00    5.17 v _191_/C (sky130_fd_sc_hd__maj3_1)
+     3    0.01    0.29    1.33    6.50 v _191_/X (sky130_fd_sc_hd__maj3_1)
+                  0.29    0.00    6.50 v _197_/C (sky130_fd_sc_hd__maj3_1)
+     2    0.01    0.24    1.28    7.78 v _197_/X (sky130_fd_sc_hd__maj3_1)
+                  0.24    0.00    7.78 v _204_/C (sky130_fd_sc_hd__maj3_1)
+     1    0.00    0.20    1.21    8.99 v _204_/X (sky130_fd_sc_hd__maj3_1)
+                  0.20    0.00    8.99 v _210_/C (sky130_fd_sc_hd__maj3_1)
+     1    0.00    0.22    1.22   10.21 v _210_/X (sky130_fd_sc_hd__maj3_1)
+                  0.22    0.00   10.21 v _212_/A (sky130_fd_sc_hd__xnor2_1)
+     1    0.00    0.22    0.37   10.58 ^ _212_/Y (sky130_fd_sc_hd__xnor2_1)
+                  0.22    0.00   10.58 ^ _213_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.00    0.13    0.23   10.81 v _213_/Y (sky130_fd_sc_hd__o21ai_0)
+                  0.13    0.00   10.81 v _268_/D (sky130_fd_sc_hd__dfrtp_1)
+                                 10.81   data arrival time
+
+                  0.00   10.00   10.00   clock clk (rise edge)
+                          0.00   10.00   clock network delay (ideal)
+                          0.00   10.00   clock reconvergence pessimism
+                                 10.00 ^ _268_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                         -0.52    9.48   library setup time
+                                  9.48   data required time
+-----------------------------------------------------------------------------
+                                  9.48   data required time
+                                -10.81   data arrival time
+-----------------------------------------------------------------------------
+                                 -1.32   slack (VIOLATED)
+
+
+
+worst slack setup corner Slowest: -1.3211
 
 
 ======================= Typical Corner ===================================
-Warning: sta_violators.tcl line 60, unknown field nets.
+Warning: sta_violators.tcl line 1, unknown field nets.
 No paths found.
 
-worst slack setup corner Typical: 3.8864
+worst slack setup corner Typical: 3.8764
 
 ===========================================================================
 (Unconstrained) report_checks -unconstrained
@@ -89,28 +134,73 @@ worst slack setup corner Typical: 3.8864
 
 ======================= Fastest Corner ===================================
 
-Warning: sta_violators.tcl line 70, unknown field nets.
+Warning: sta_violators.tcl line 1, unknown field nets.
 No paths found.
 
 
 ======================= Slowest Corner ===================================
 
-Warning: sta_violators.tcl line 70, unknown field nets.
-No paths found.
+Warning: sta_violators.tcl line 1, unknown field nets.
+Startpoint: step_i[1] (input port clocked by clk)
+Endpoint: _268_ (rising edge-triggered flip-flop clocked by clk)
+Path Group: clk
+Path Type: max
+Corner: Slowest
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                  0.00    0.00    0.00   clock clk (rise edge)
+                          0.00    0.00   clock network delay (ideal)
+                          3.00    3.00 v input external delay
+     2    0.01    0.00    0.00    3.00 v step_i[1] (in)
+                  0.00    0.00    3.00 v _177_/B (sky130_fd_sc_hd__xnor2_1)
+     2    0.01    0.43    0.40    3.40 ^ _177_/Y (sky130_fd_sc_hd__xnor2_1)
+                  0.43    0.00    3.40 ^ _181_/A2 (sky130_fd_sc_hd__o21ai_0)
+     2    0.01    0.31    0.46    3.85 v _181_/Y (sky130_fd_sc_hd__o21ai_0)
+                  0.31    0.00    3.85 v _186_/C (sky130_fd_sc_hd__maj3_1)
+     2    0.01    0.26    1.32    5.17 v _186_/X (sky130_fd_sc_hd__maj3_1)
+                  0.26    0.00    5.17 v _191_/C (sky130_fd_sc_hd__maj3_1)
+     3    0.01    0.29    1.33    6.50 v _191_/X (sky130_fd_sc_hd__maj3_1)
+                  0.29    0.00    6.50 v _197_/C (sky130_fd_sc_hd__maj3_1)
+     2    0.01    0.24    1.28    7.78 v _197_/X (sky130_fd_sc_hd__maj3_1)
+                  0.24    0.00    7.78 v _204_/C (sky130_fd_sc_hd__maj3_1)
+     1    0.00    0.20    1.21    8.99 v _204_/X (sky130_fd_sc_hd__maj3_1)
+                  0.20    0.00    8.99 v _210_/C (sky130_fd_sc_hd__maj3_1)
+     1    0.00    0.22    1.22   10.21 v _210_/X (sky130_fd_sc_hd__maj3_1)
+                  0.22    0.00   10.21 v _212_/A (sky130_fd_sc_hd__xnor2_1)
+     1    0.00    0.22    0.37   10.58 ^ _212_/Y (sky130_fd_sc_hd__xnor2_1)
+                  0.22    0.00   10.58 ^ _213_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.00    0.13    0.23   10.81 v _213_/Y (sky130_fd_sc_hd__o21ai_0)
+                  0.13    0.00   10.81 v _268_/D (sky130_fd_sc_hd__dfrtp_1)
+                                 10.81   data arrival time
+
+                  0.00   10.00   10.00   clock clk (rise edge)
+                          0.00   10.00   clock network delay (ideal)
+                          0.00   10.00   clock reconvergence pessimism
+                                 10.00 ^ _268_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                         -0.52    9.48   library setup time
+                                  9.48   data required time
+-----------------------------------------------------------------------------
+                                  9.48   data required time
+                                -10.81   data arrival time
+-----------------------------------------------------------------------------
+                                 -1.32   slack (VIOLATED)
+
+
 
 
 ======================= Typical Corner ===================================
 
-Warning: sta_violators.tcl line 70, unknown field nets.
+Warning: sta_violators.tcl line 1, unknown field nets.
 No paths found.
 
 ===========================================================================
 report_worst_slack -max (Setup)
 ============================================================================
-worst slack 1.21
+worst slack max -1.32
 
 ===========================================================================
 report_worst_slack -min (Hold)
 ============================================================================
-worst slack 0.20
+worst slack min 0.20
 

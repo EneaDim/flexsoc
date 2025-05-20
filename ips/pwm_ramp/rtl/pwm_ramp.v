@@ -8640,6 +8640,55 @@ module tlul_sram_byte (
 	end
 	initial _sv2v_0 = 0;
 endmodule
+module controller (
+	clk_i,
+	rst_ni,
+	lvds_i,
+	pwm_dc_i,
+	adc_value_o,
+	clear_pwm_count_o
+);
+	// Trace: rtl/controller.sv:2:13
+	parameter NBITS = 8;
+	// Trace: rtl/controller.sv:4:3
+	input wire clk_i;
+	// Trace: rtl/controller.sv:5:3
+	input wire rst_ni;
+	// Trace: rtl/controller.sv:6:3
+	input wire lvds_i;
+	// Trace: rtl/controller.sv:7:3
+	input wire [NBITS - 1:0] pwm_dc_i;
+	// Trace: rtl/controller.sv:8:3
+	output reg [NBITS - 1:0] adc_value_o;
+	// Trace: rtl/controller.sv:9:3
+	output reg clear_pwm_count_o;
+	// Trace: rtl/controller.sv:12:3
+	reg lvds_q;
+	// Trace: rtl/controller.sv:14:3
+	always @(posedge clk_i or negedge rst_ni)
+		// Trace: rtl/controller.sv:15:5
+		if (!rst_ni) begin
+			// Trace: rtl/controller.sv:16:7
+			lvds_q <= 0;
+			// Trace: rtl/controller.sv:17:7
+			adc_value_o <= 0;
+			// Trace: rtl/controller.sv:18:7
+			clear_pwm_count_o <= 0;
+		end
+		else begin
+			// Trace: rtl/controller.sv:20:7
+			lvds_q <= lvds_i;
+			// Trace: rtl/controller.sv:21:7
+			clear_pwm_count_o <= 0;
+			// Trace: rtl/controller.sv:23:7
+			if (lvds_i && !lvds_q) begin
+				// Trace: rtl/controller.sv:24:9
+				adc_value_o <= pwm_dc_i;
+				// Trace: rtl/controller.sv:25:9
+				clear_pwm_count_o <= 1;
+			end
+		end
+endmodule
 module multiple_pwm_ramp (
 	clk_i,
 	rst_ni,
