@@ -11,7 +11,7 @@ module prim_ff_2sync #(
   logic [Width-1:0] d_o;
   logic [Width-1:0] intq;
 
-  prim_flop #(
+  prim_ff #(
     .Width(Width),
     .ResetValue(ResetValue)
   ) u_sync_1 (
@@ -21,7 +21,7 @@ module prim_ff_2sync #(
     .q_o(intq)
   );
 
-  prim_flop #(
+  prim_ff #(
     .Width(Width),
     .ResetValue(ResetValue)
   ) u_sync_2 (

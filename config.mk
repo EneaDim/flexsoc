@@ -31,13 +31,14 @@ SV2V            :=sv2v
 LINTER          ?=verilator
 COMPILER        ?=verilator
 # LINT FLAGS
-LINT_FLAGS      := --lint-only -Wall -Wno-fatal
-LINT_FILES      ?=
+LINT_FLAGS      := --lint-only -Wall -Wno-fatal --timing +incdir+$(RTLDIR) \
+									 +incdir+model +incdir+ips/pkgs +incdir+ips/prim \
+									 +incdir+ips/prim_opentitan +incdir+ips/tlul
 # COMPILE FLAG
 IVERILOG_FLAGS  := -g2012 -v -Iips/pkgs -I$(RTLDIR) -I$(TBDIR)
 VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
                    +incdir+$(TBDIR) +incdir+model \
-									 +incdir+ips/pkgs +incdir+ips/prim_opentitan+incdir+ips/tlul
+									 +incdir+ips/pkgs +incdir+ips/prim_opentitan +incdir+ips/tlul
 # SIMULATION
 TESTBENCH       ?= $(TOP)_tb
 TESTBENCHES     := $(wildcard $(TBDIR)/*.sv)

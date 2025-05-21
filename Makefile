@@ -52,7 +52,7 @@ lint: sv2v
 	
 lint_sv:
 	@$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
-	$(LINTER) $(LINT_FLAGS) $(LINT_FILES) --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
+	$(LINTER) $(LINT_FLAGS) --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
 	> $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
 # SETUP SV TESTBENCH FILE
@@ -209,8 +209,8 @@ fsm_plot:
 fsm_flow: setup fsm_setup fsm_cp_example fsm_gen fsm_plot fsm_cp
 
 # BASIC FLOW:
-ip_flow_all: hjson doc sim view_presyn syn sdf sta sta_violators power
-ip_flow: reg doc lint sim view_presyn syn sdf sta power view
+ip_flow_all: hjson doc sim view_presyn syn sdf sta sta_violators power view
+ip_flow: reg doc lint sim view_presyn syn sdf sta sta_violators power view
 
 # FUSESOC
 fsoc_init:
@@ -260,13 +260,13 @@ soc_view:
 
 # TUTORIALS
 fsm_tutorial: setup fsm_setup fsm_cp_example fsm_gen fsm_plot fsm_cp
-	@$(MAKE) setup_tb ip_flow_all plot_postsyn view
+	@$(MAKE) setup_tb ip_flow_all plot_postsyn
 
 ip_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
 	$(MAKE) load_ip
 	@$(ECHO) "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
-	$(MAKE) ip_flow
+	$(MAKE) sim view_presyn syn sdf sta sta_violators power view
 
 soc_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
@@ -302,7 +302,7 @@ sim_cocotb:
 	$(MAKE) -C ${TBDIR}
 
 # SAVE IP
-save_ip:
+save_ip: clean_sim clean_rtl
 	@$(MKDIR) -p ips/$(TOP) 
 	@$(CP) -r $(DATADIR)    ips/$(TOP) || true
 	@$(CP) -r $(DOCDIR)     ips/$(TOP) || true

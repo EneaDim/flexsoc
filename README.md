@@ -160,25 +160,45 @@ The python dependencies can be installed running `pip install -r python-requirem
 - `make fsm_tutorial TOP=fsm_example`
 1. Runs setup
 2. Copies example input files
-3. Generates the FSM
+3. Generates the FSM `.sv` and `.gv` files
 4. Plots the FSM diagram
-5. Copies generated .sv files to rtl/ folder
+5. Copies generated `.sv` files to rtl/ folder
 6. Sets up testbench
 7. Generate HJSON configurations 
 8. Generate documentation
-9. Run lint checks
-10. Compile
-11. Simulate RTL
-12. View pre-synthesis
-13. Run synthesis
-14. Backannotate SDF
-15. Perform static timing analysis (STA)
-16. Report STA violations
-17. Estimate power
+9. Generate unique `.v` file
+10. Run lint checks
+11. Compile
+12. Simulate RTL
+13. View pre-synthesis
+14. Run synthesis
+15. Backannotate SDF
+16. Perform static timing analysis (STA)
+17. Report STA violations
+18. Estimate power
 
 Then `make clean_all` to completely clean the environment and restart from scratch.
 
-## 🛠 Tutorial\_2 - SoC flow
+## 🧪 Tutorial\_2 - Ramp ADC 
+- `make ip_tutorial TOP=pwm_ramp`
+1. Load pwm\_ramp IP
+2. Generate HJSON configurations 
+3. Generate documentation
+4. Generate unique `.v` file
+5. Run lint checks
+6. Compile
+7. Simulate RTL with an already defined testbench
+8. Plot the simulation waveforms
+9. View pre-synthesis
+10. Run synthesis
+11. Backannotate SDF
+12. Perform static timing analysis (STA)
+13. Report STA violations
+14. Estimate power
+
+Then `make clean_all` to completely clean the environment and restart from scratch.
+
+## 🛠 Tutorial\_3 - SoC flow
 
 - `make soc_tutorial`
 
@@ -345,13 +365,13 @@ Run a Python script to display informations on how to generate systemverilog FSM
 
 - `setup`
 
-Create the necessary directory structure for the project, including directories for logs, RTL files, testbenches, simulations, synthesis, sign-off, models, utilities, documentation, and data.
+Create the necessary directory structure for the project, including directories for  configuration files, documentation, logs, RTL files, testbenches, simulations, synthesis, sign-off and models.
 
 #### HJSON Template Generation
 
 - `hjson`
 
-Generate an HJSON template file using a Python script, specifying the top module and output directory.
+Generate an HJSON template file using a Python script.
 
 #### SystemVerilog Register Generator
 
@@ -363,7 +383,7 @@ Generate a register map from the HJSON description.
 
 - `doc`
 
-Generate Markdown files from the HJSON description using a utility script.
+Generate Markdown files documentation from the HJSON description using a utility script.
 
 #### Fetch vendor repo
 
@@ -386,8 +406,8 @@ Perform linting on the generated Verilog file and logs the output.
 
 - `lint_sv`
 
-Perform linting on the top SystemVerilog file of the IP, you can add depencedies files as "LINT\_FILES=submodule1.sv submodule2.sv ...".
-Suitable for little number of dependencies.
+Perform linting on a SystemVerilog file under rtl/ directory. If the file is somewhere else you have to add RTLDIR=other\_dir. Because as default it keeps the file under the RTLDIR.
+Usage: make lint\_sv TOP=filename
 
 #### Setup testbench
 
@@ -399,13 +419,13 @@ Generate the systemverilog testbench template.
 
 - `compile`
 
-Compile the testbench that includes all the RTL files, depending on the specified compiler.
+Compile the testbench and the RTL files.
 
 #### Simulation Targets
 
 - `sim`
 
-Simulate the testbench after compilation, again depending on the specified compiler.
+Simulate the testbench after compilation.
 
 #### Viewing Waveforms
 
@@ -422,7 +442,7 @@ Run the Cocotb testbench located in the testbench directory.
 
 - `regression`
 
-Run a Python script to perform regression testing on the design.
+Run a Python script to perform regression tests.
 
 #### Synthesis Targets
 
@@ -534,19 +554,19 @@ Equivalent to running: `make soc_build soc_sim soc_run`.
 
 #### Basic Flow
 
-- `flow_all`
+- `ip_flow`
 
-Run the complete flow, including linting, simulation, synthesis, static timing analysis, and power analysis.
+Run almost the whole flow, inculding reg, doc, lint, sim, syn, sdf, sta, power and view the simulation.
 
-- `flow`
+- `ip_flow_all`
 
-Run a subset of the flow, excluding power analysis and simulation of the synthesized netlist.
+Run the complete flow adding to `ip_flow` the generation of the hjson.
 
 #### Cleaning Targets
 
-- `clean_fsm`
+- `clean_doc`
 
-Clean up files generated fsm\_gen step.
+Clean up documentation files.
 
 - `clean_log`
 
@@ -554,11 +574,11 @@ Clean up log files generated during the build process.
 
 - `clean_rtl`
 
-Remove generated RTL files.
+Remove generated `.v` RTL files.
 
 - `clean_sim`
 
-Remove simulation files, including VVP and VCD files.
+Remove simulation files, including VVP, VCD files and verilator directory.
 
 - `clean_syn`
 
@@ -567,6 +587,10 @@ Clean up synthesis output files.
 - `clean_signoff`
 
 Remove sign-off related files.
+
+- `clean_fsm`
+
+Clean up files generated fsm\_gen step.
 
 - `clean_subdir`
 

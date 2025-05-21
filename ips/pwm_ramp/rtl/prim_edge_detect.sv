@@ -9,7 +9,7 @@ module prim_edge_detect (
 
   logic serial_q;
 
-  prim_flop #(
+  prim_ff #(
     .Width(1),
     .ResetValue(0)
   ) u_sync_1 (
