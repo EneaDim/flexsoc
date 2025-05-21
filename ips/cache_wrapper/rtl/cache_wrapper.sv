@@ -15,47 +15,45 @@
  *  - CPU: valid-ready handshake.
  *  - Memory: valid-ready handshake.
  *
- * Author: BLACKBOXAI
- * Date: 2024-06
  */
 // TODO: Change Memory interface because the memory now is inside
 // The testbench is looping because stuck in ST_REFILL because of mem_valid_i
 module cache_wrapper #(
-  parameter integer DATA_WIDTH   = 32,      // Data word width in bits
-  parameter integer ADDR_WIDTH   = 16,      // Address width in bits (for CPU & SRAM addressing)
-  parameter integer CACHE_SIZE   = 1024,      // Cache size in bytes
-  parameter integer ASSOCIATIVITY  = 2         // Number of ways
+  parameter integer DATA_WIDTH   = 32,   // Data word width in bits
+  parameter integer ADDR_WIDTH   = 16,   // Address width in bits (for CPU & SRAM addressing)
+  parameter integer CACHE_SIZE   = 1024, // Cache size in bytes
+  parameter integer ASSOCIATIVITY  = 2   // Number of ways
 )(
   input  logic           clk_i,       // Clock
   input  logic           rst_ni,      // Active low reset
 
   // CPU Interface (valid-ready handshake)
-  input  logic           cpu_valid_i,   // CPU request valid
-  output logic           cpu_ready_o,   // Cache ready to accept request
-  input  logic           cpu_we_i,    // CPU write enable (1=write, 0=read)
-  input  logic [ADDR_WIDTH-1:0] cpu_adr_i,     // CPU address input
-  input  logic [DATA_WIDTH-1:0] cpu_wdata_i,   // CPU write data input
-  output logic [DATA_WIDTH-1:0] cpu_rdata_o,   // CPU read data output
-  output logic           cpu_resp_valid_o,// CPU response valid output
+  input  logic                  cpu_valid_i,      // CPU request valid
+  output logic                  cpu_ready_o,      // Cache ready to accept request
+  input  logic                  cpu_we_i,         // CPU write enable (1=write, 0=read)
+  input  logic [ADDR_WIDTH-1:0] cpu_adr_i,        // CPU address input
+  input  logic [DATA_WIDTH-1:0] cpu_wdata_i,      // CPU write data input
+  output logic [DATA_WIDTH-1:0] cpu_rdata_o,      // CPU read data output
+  output logic                  cpu_resp_valid_o, // CPU response valid output
 
   // Memory Interface (valid-ready handshake)
-  output logic           mem_valid_o,   // Memory request valid
-  input  logic           mem_ready_i,   // Memory ready (accept/response)
-  output logic           mem_we_o,    // Memory write enable (1=write, 0=read)
-  output logic [ADDR_WIDTH-1:0] mem_adr_o,     // Memory address
-  output logic [DATA_WIDTH-1:0] mem_wdata_o,   // Memory write data
-  input  logic [DATA_WIDTH-1:0] mem_rdata_i    // Memory read data input
+  output logic                  mem_valid_o, // Memory request valid
+  input  logic                  mem_ready_i, // Memory ready (accept/response)
+  output logic                  mem_we_o,    // Memory write enable (1=write, 0=read)
+  output logic [ADDR_WIDTH-1:0] mem_adr_o,   // Memory address
+  output logic [DATA_WIDTH-1:0] mem_wdata_o, // Memory write data
+  input  logic [DATA_WIDTH-1:0] mem_rdata_i  // Memory read data input
 );
 
   // ------------------------------------------------
   // Derived parameters
   // BLOCK_SIZE assumed 1 word (DATA_WIDTH/8 bytes) for simplicity
   // ------------------------------------------------
-  localparam integer WORD_BYTES      = DATA_WIDTH / 8;
-  localparam integer NUM_BLOCKS      = CACHE_SIZE / WORD_BYTES;    // Total cache blocks
-  localparam integer NUM_SETS      = NUM_BLOCKS / ASSOCIATIVITY;   // Number of sets
-  localparam integer SET_INDEX_WIDTH   = $clog2(NUM_SETS);         // Set index width
-  localparam integer TAG_WIDTH       = ADDR_WIDTH - SET_INDEX_WIDTH;  // Tag bits width
+  localparam integer WORD_BYTES       = DATA_WIDTH / 8;
+  localparam integer NUM_BLOCKS       = CACHE_SIZE / WORD_BYTES;    // Total cache blocks
+  localparam integer NUM_SETS         = NUM_BLOCKS / ASSOCIATIVITY;   // Number of sets
+  localparam integer SET_INDEX_WIDTH  = $clog2(NUM_SETS);         // Set index width
+  localparam integer TAG_WIDTH        = ADDR_WIDTH - SET_INDEX_WIDTH;  // Tag bits width
 
   // ------------------------------------------------
   // Tag metadata encoding width: valid(1) + dirty(1) + tag bits
