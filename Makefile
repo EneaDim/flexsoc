@@ -104,9 +104,9 @@ regression:
 syn: clean_rtl setup_syn
 	@$(MKDIR) -p $(SYNDIR)/plots
 	@$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
-	$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth.log 
-	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth.log > $(LOGDIR)/$(TOP)_synth.warnings || true
-	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth.log > $(LOGDIR)/$(TOP)_synth.errors || true
+	$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log 
+	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
 # Use it only if small design
 plot_postsyn:
@@ -152,9 +152,9 @@ view_syn:
 # STA analysis
 sta: setup_signoff 
 	@$(ECHO) "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
-	$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta.log 
-	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta.log > $(LOGDIR)/$(TOP)_sta.warnings || true 
-	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta.log > $(LOGDIR)/$(TOP)_sta.errors || true 
+	$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
+	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
+	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true 
 
 #Power analysis
 power: setup_signoff 
@@ -287,13 +287,18 @@ setup_cocotb:
 setup_model:
 	$(PYTHON) scripts/setup_model.py -top $(TOP) -o $(MODELDIR) 
 
+# SETUP SDC FILE
+setup_sdc:
+	$(PYTHON) scripts/setup_sdc.py -top $(TOP) -rtldir $(RTLDIR) \
+	-clk $(CLK_PERIOD) -o $(SIGNOFFDIR) 
+
 # SETUP SYNTHESIS WITH YOSYS 
-setup_syn: sv2v
-	$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -target $(TARGET_SYN) \
-	-liberty $(LIB_SYN) -clk $(CLK_PERIOD) -o $(SYNDIR) 
+setup_syn: sv2v setup_sdc
+	$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -sdcdir $(SIGNOFFDIR) \
+	-liberty $(LIB_SYN) -clk $(CLK_PERIOD) -target $(TARGET_SYN) -opt $(TARGET_OPT) -o $(SYNDIR) 
 
 # SETUP STA SCRIPT
-setup_signoff:
+setup_signoff: setup_sdc
 	$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) -libs $(LIBS) \
 	-clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
 

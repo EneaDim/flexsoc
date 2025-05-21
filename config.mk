@@ -52,6 +52,7 @@ YOSYS           :=yosys
 STA             :=sta
 CLK_PERIOD      ?=10
 TARGET_SYN      ?=asic
+TARGET_OPT      ?=none
 ACTIVITY        ?=10
 MODULE          ?=$(TOP)
 PATH_VIEW_FILE  ?=$(TOP)_sta.violators
