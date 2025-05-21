@@ -37,7 +37,7 @@ LINT_FLAGS      := --lint-only -Wall -Wno-fatal --timing +incdir+$(RTLDIR) \
 # COMPILE FLAG
 IVERILOG_FLAGS  := -g2012 -v -Iips/pkgs -I$(RTLDIR) -I$(TBDIR)
 VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
-                   +incdir+$(TBDIR) +incdir+model \
+                   +incdir+$(RTLDIR) +incdir+$(TBDIR) +incdir+model \
 									 +incdir+ips/pkgs +incdir+ips/prim_opentitan +incdir+ips/tlul
 # SIMULATION
 TESTBENCH       ?= $(TOP)_tb
