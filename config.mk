@@ -31,7 +31,7 @@ SV2V            :=sv2v
 LINTER          ?=verilator
 COMPILER        ?=verilator
 # LINT FLAGS
-LINT_FLAGS      := --lint-only -Wall -Wno-fatal --timing +incdir+$(RTLDIR) \
+LINT_FLAGS      := --lint-only -Wall -Wno-fatal --timing \
 									 +incdir+model +incdir+ips/pkgs +incdir+ips/prim \
 									 +incdir+ips/prim_opentitan +incdir+ips/tlul
 # COMPILE FLAG

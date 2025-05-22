@@ -1,0 +1,34 @@
+CAPI=2:
+name: "prj:ip:pwm_ramp:0.1"
+description: "pwm_ramp"
+filesets:
+  files_rtl:
+    depend:
+      - ips:dependecies:all
+    files:
+      - rtl/pwm_ramp_reg_pkg.sv
+      - rtl/prim_edge_detect.sv
+      - rtl/prim_ff.sv
+      - rtl/multiple_pwm_ramp.sv
+      - rtl/prim_deglitch.sv
+      - rtl/pwm_ramp_reg_top.sv
+      - rtl/prim_ff_2sync.sv
+      - rtl/pwm_ramp.sv
+    file_type: systemVerilogSource
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+    toplevel: pwm_ramp
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"
+

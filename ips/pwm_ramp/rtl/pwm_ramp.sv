@@ -24,7 +24,7 @@ module pwm_ramp #(
   logic pwm_drive_w;
 
   // LVDS
-  logic lvds, lvds_rise;
+  logic lvds, lvds_rise, lvds_fall;
 
   // Sync and filter 
   prim_deglitch #( .AsyncOn(1), .SIZE(3)) 
@@ -44,7 +44,7 @@ module pwm_ramp #(
     .en_i(enable_i),
     .serial_i(lvds),
     .r_edge_o(lvds_rise),
-    .f_edge_o
+    .f_edge_o(lvds_fall)
   );
 
   // ADC value latching and clearing
@@ -52,7 +52,7 @@ module pwm_ramp #(
     if (!rst_ni) begin
       clear       <= 1'b0;
       adc_valid_o <= 1'b0;
-      adc_value_o <= 1'b0;
+      adc_value_o <= 'd0;
     end else if (lvds_rise) begin
       clear       <= 1'b1;
       adc_valid_o <= 1'b1;
@@ -77,7 +77,7 @@ module pwm_ramp #(
         duty_cycle <= ResetValue;
     end else if (enable_i) begin
       // Increment duty cycle by step_i and wrap counter when MAX_CNT
-      if (counter == MAX_CNT) begin
+      if (counter == MAX_CNT[NBITS-1:0]) begin
         duty_cycle <= duty_cycle + step_i;
         counter <= '0;
       end else begin
