@@ -2,107 +2,227 @@
 
 module cache_wrapper_tb;
 
+  parameter int CLK_PERIOD = 10; // Clock period in ns
   parameter ADDR_WIDTH = 16;
   parameter DATA_WIDTH = 32;
 
   // Clock and reset
   logic clk;
   logic rst_n;
+  logic [DATA_WIDTH-1:0] data;
 
-  // Instantiate the interface
-  cache_wrapper_if #(
-    .ADDR_WIDTH(ADDR_WIDTH),
-    .DATA_WIDTH(DATA_WIDTH)
-  ) cache_bus (
-    .clk_i(clk),
-    .rst_ni(rst_n)
-  );
+  // CPU Interface signals
+  logic        cpu_valid_i;
+  logic        cpu_ready_o;
+  logic        cpu_we_i;
+  logic [ADDR_WIDTH-1:0] cpu_adr_i;
+  logic [DATA_WIDTH-1:0] cpu_wdata_i;
+  logic [DATA_WIDTH-1:0] cpu_rdata_o;
+  logic        cpu_resp_valid_o;
+
+  // Memory Interface signals (between cache_wrapper and main memory)
+  logic        mem_valid_o;
+  logic        mem_ready_i;
+  logic        mem_we_o;
+  logic [ADDR_WIDTH-1:0] mem_adr_o;
+  logic [DATA_WIDTH-1:0] mem_wdata_o;
+  logic [DATA_WIDTH-1:0] mem_rdata_i;
 
   // Clock generation
-  always #5 clk = ~clk;
+  initial begin
+    clk = 0;
+    forever #(CLK_PERIOD / 2) clk = ~clk;
+  end
 
-  // DUT instantiation
+  // Dump vcd file 
+  initial begin
+    `ifndef SYN
+      $dumpfile("sim/dump_cache_wrapper.vcd");
+    `else
+      $dumpfile("sim/dump_cache_wrapper_syn.vcd");
+    `endif
+    $dumpvars(0, cache_wrapper_tb);
+  end
+
+  // Instantiate DUT
   cache_wrapper #(
     .ADDR_WIDTH(ADDR_WIDTH),
     .DATA_WIDTH(DATA_WIDTH)
   ) dut (
-    .clk_i           (clk),
-    .rst_ni          (rst_n),
+    .clk_i(clk),
+    .rst_ni(rst_n),
 
     // CPU Interface
-    .cpu_valid_i     (cache_bus.cpu_valid_i),
-    .cpu_ready_o     (cache_bus.cpu_ready_o),
-    .cpu_we_i        (cache_bus.cpu_we_i),
-    .cpu_adr_i       (cache_bus.cpu_adr_i),
-    .cpu_wdata_i     (cache_bus.cpu_wdata_i),
-    .cpu_rdata_o     (cache_bus.cpu_rdata_o),
-    .cpu_resp_valid_o(cache_bus.cpu_resp_valid_o),
+    .cpu_valid_i(cpu_valid_i),
+    .cpu_ready_o(cpu_ready_o),
+    .cpu_we_i(cpu_we_i),
+    .cpu_adr_i(cpu_adr_i),
+    .cpu_wdata_i(cpu_wdata_i),
+    .cpu_rdata_o(cpu_rdata_o),
+    .cpu_resp_valid_o(cpu_resp_valid_o),
 
     // Memory Interface
-    .mem_valid_o     (cache_bus.mem_valid_o),
-    .mem_ready_i     (cache_bus.mem_ready_i),
-    .mem_we_o        (cache_bus.mem_we_o),
-    .mem_adr_o       (cache_bus.mem_adr_o),
-    .mem_wdata_o     (cache_bus.mem_wdata_o),
-    .mem_rdata_i     (cache_bus.mem_rdata_i)
+    .mem_valid_o(mem_valid_o),
+    .mem_ready_i(mem_ready_i),
+    .mem_we_o(mem_we_o),
+    .mem_adr_o(mem_adr_o),
+    .mem_wdata_o(mem_wdata_o),
+    .mem_rdata_i(mem_rdata_i)
   );
 
-  // Stimulus logic
+  // ----------------------------
+  // CPU Model - drives CPU interface signals
+  // ----------------------------
+  task cpu_write(input logic [ADDR_WIDTH-1:0] addr, input logic [DATA_WIDTH-1:0] data);
+    begin
+      @(posedge clk);
+      cpu_valid_i = 1;
+      cpu_we_i = 1;
+      cpu_adr_i = addr;
+      cpu_wdata_i = data;
+      $display("[%0t] CPU WRITE request: addr=0x%04h data=0x%08h", $time, addr, data);
+      wait (cpu_ready_o == 1);
+      @(posedge clk);
+      cpu_valid_i = 0;
+      wait (cpu_resp_valid_o == 1);
+      $display("[%0t] CPU WRITE response received", $time);
+    end
+  endtask
+
+  task cpu_read(input logic [ADDR_WIDTH-1:0] addr, output logic [DATA_WIDTH-1:0] data);
+    begin
+      @(posedge clk);
+      cpu_valid_i = 1;
+      cpu_we_i = 0;
+      cpu_adr_i = addr;
+      cpu_wdata_i = 0;
+      $display("[%0t] CPU READ request: addr=0x%04h", $time, addr);
+      wait (cpu_ready_o == 1);
+      @(posedge clk);
+      cpu_valid_i = 0;
+      wait (cpu_resp_valid_o == 1);
+      data = cpu_rdata_o;
+      $display("[%0t] CPU READ response received: data=0x%08h", $time, data);
+    end
+  endtask
+
+  // ----------------------------
+  // Main Memory Model with delay to simulate latency
+  // ----------------------------
+  typedef enum logic [1:0] {
+    IDLE,
+    WAIT_MEM
+  } mem_state_t;
+  
+  mem_state_t mem_state = IDLE;
+  logic [15:0] mem_addr_reg;
+  logic [31:0] mem_wdata_reg;
+  logic        mem_we_reg;
+  
+  int wait_cycles;
+  
+  logic mem_valid_o_d;  // delayed version for edge detection
+  
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      mem_ready_i <= 0;
+      mem_rdata_i <= 0;
+      mem_state   <= IDLE;
+      wait_cycles = 0;
+      mem_valid_o_d <= 0;
+    end else begin
+      mem_valid_o_d <= mem_valid_o;  // store last cycle's value
+  
+      case (mem_state)
+        IDLE: begin
+          mem_ready_i <= 0;
+          wait_cycles = 0;
+  
+          // Only trigger on rising edge of mem_valid_o
+          if (mem_valid_o && !mem_valid_o_d) begin
+            mem_addr_reg  <= mem_adr_o;
+            mem_wdata_reg <= mem_wdata_o;
+            mem_we_reg    <= mem_we_o;
+            mem_state     <= WAIT_MEM;
+  
+            $display("[%0t] MEM request received: %s @ 0x%04h data=0x%08h",
+                     $time, mem_we_o ? "WRITE" : "READ", mem_adr_o, mem_wdata_o);
+          end
+        end
+  
+        WAIT_MEM: begin
+          wait_cycles = wait_cycles + 1;
+  
+          if (wait_cycles == 3) begin
+            mem_ready_i <= 1;
+  
+            if (!mem_we_reg) begin
+              // Simulated read data
+              mem_rdata_i <= {16'hBEEF, mem_addr_reg};
+              $display("[%0t] MEM READ data ready: 0x%08h", $time, mem_rdata_i);
+            end else begin
+              $display("[%0t] MEM WRITE complete", $time);
+            end
+  
+          end else if (wait_cycles == 4) begin
+            mem_ready_i <= 0;
+            mem_state <= IDLE;
+          end else begin
+            mem_ready_i <= 0;
+          end
+        end
+      endcase
+    end
+  end
+
+  // ------------------------
+  // Monitor
+  // ------------------------
+  always @(posedge clk) begin
+    if (cpu_valid_i || cpu_resp_valid_o) begin
+      $display("[%0t] CPU signals: valid=%0b ready=%0b resp_valid=%0b addr=0x%04h we=%0b rdata=0x%08h",
+        $time, cpu_valid_i, cpu_ready_o, cpu_resp_valid_o, cpu_adr_i, cpu_we_i, cpu_rdata_o);
+    end
+  end
+
+  // ----------------------------
+  // Testbench stimulus
+  // ----------------------------
   initial begin
-    // Initialize
-    clk = 0;
+    // Reset
     rst_n = 0;
+    cpu_valid_i = 0;
+    cpu_we_i = 0;
+    cpu_adr_i = 0;
+    cpu_wdata_i = 0;
+
     #20;
     rst_n = 1;
-    #20;
+    $display("[%0t] Reset deasserted", $time);
 
-    // Write to address 0x10
-    drive_cpu_transaction(1'b1, 16'h0010, 32'hABCD1234);
-    wait_for_response();
+    // Perform CPU transactions to test cache hit/miss:
+    // First write to address (should cause cache miss, memory write)
+    cpu_write(16'h0010, 32'hDEADBEEF);
 
-    // Read from address 0x10
-    drive_cpu_transaction(1'b0, 16'h0010, 32'h00000000);
-    wait_for_response();
+    // Read from same address (should hit cache, no mem access)
+    $display("=== CPU READ from 0x0020 ===");
+    cpu_read(16'h0020, data);
+    $display("=== Read complete: 0x%08h ===", data);
 
+    // Read from different address (should cause cache miss, memory read)
+    cpu_read(16'h0020, data);
+
+    $display("[%0t] Test complete, finishing simulation", $time);
+    #10;
     $finish;
   end
 
-  // Task to drive CPU request
-  task drive_cpu_transaction(input bit we, input logic [ADDR_WIDTH-1:0] addr, input logic [DATA_WIDTH-1:0] data);
-    cache_bus.cpu_valid_i  = 1;
-    cache_bus.cpu_we_i     = we;
-    cache_bus.cpu_adr_i    = addr;
-    cache_bus.cpu_wdata_i  = data;
-
-    // Wait until ready
-    @(posedge clk);
-    while (!cache_bus.cpu_ready_o) @(posedge clk);
-
-    cache_bus.cpu_valid_i = 0;
-  endtask
-
-  // Task to wait for a response
-  task wait_for_response();
-    @(posedge clk);
-    while (!cache_bus.cpu_resp_valid_o) @(posedge clk);
-    $display("[%0t] Read Data: 0x%08h", $time, cache_bus.cpu_rdata_o);
-  endtask
-
-  // Memory model (simple, combinational or synchronous)
-  always_ff @(posedge clk) begin
-    if (!rst_n) begin
-      cache_bus.mem_ready_i <= 0;
-      cache_bus.mem_rdata_i <= '0;
-    end else begin
-      if (cache_bus.mem_valid_o) begin
-        cache_bus.mem_ready_i <= 1;
-        if (!cache_bus.mem_we_o) begin
-          // Read - return a dummy value based on address
-          cache_bus.mem_rdata_i <= {16'hBEEF, cache_bus.mem_adr_o[15:0]};
-        end
-      end else begin
-        cache_bus.mem_ready_i <= 0;
-      end
+  // Exit from stuck
+  initial begin
+    #1_000; // wait 100,000 cycles
+    if (!cpu_resp_valid_o) begin
+      $display("WARNING: CPU response never received, cache might be stuck.");
+      $finish;
     end
   end
 
