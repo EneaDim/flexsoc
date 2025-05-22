@@ -1,10 +1,10 @@
 
  /----------------------------------------------------------------------------\
  |  yosys -- Yosys Open SYnthesis Suite                                       |
- |  Copyright (C) 2012 - 2024  Claire Xenia Wolf <claire@yosyshq.com>         |
+ |  Copyright (C) 2012 - 2025  Claire Xenia Wolf <claire@yosyshq.com>         |
  |  Distributed under an ISC-like license, type "license" to see terms        |
  \----------------------------------------------------------------------------/
- Yosys 0.44+4 (git sha1 77b2ae2e3, g++ 13.2.0-23ubuntu4 -fPIC -O3)
+ Yosys 0.52+102 (git sha1 b69394783, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
 
 -- Parsing `rtl/cache_wrapper.v' using frontend ` -vlog2k' --
 
@@ -62,44 +62,68 @@ Successfully finished Verilog frontend.
 
 2.2. Executing AST frontend in derive mode using pre-parsed AST for module `\cache_wrapper'.
 Generating RTLIL representation for module `\cache_wrapper'.
-Warning: Replacing memory \tag_only_array with list of registers. See rtl/cache_wrapper.v:8960
-Warning: Replacing memory \dirty_array with list of registers. See rtl/cache_wrapper.v:8958
-Warning: Replacing memory \valid_array with list of registers. See rtl/cache_wrapper.v:8956
-Warning: Replacing memory \tag_meta_mem with list of registers. See rtl/cache_wrapper.v:8932
-Warning: Replacing memory \repl_ptr_r with list of registers. See rtl/cache_wrapper.v:8888
+Warning: Replacing memory \tag_meta_array with list of registers. See rtl/cache_wrapper.v:8862, rtl/cache_wrapper.v:8837
 
 2.2.1. Analyzing design hierarchy..
 Top module:  \cache_wrapper
-Parameter \ADDR_WIDTH = 8
+Parameter \ADDR_WIDTH = 7
 Parameter \DATA_WIDTH = 32
-Parameter \MEM_DEPTH = 256
+Parameter \MEM_DEPTH = 128
 
 2.2.2. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_ram'.
-Parameter \ADDR_WIDTH = 8
+Parameter \ADDR_WIDTH = 7
 Parameter \DATA_WIDTH = 32
-Parameter \MEM_DEPTH = 256
-Generating RTLIL representation for module `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram'.
-Parameter \ADDR_WIDTH = 8
+Parameter \MEM_DEPTH = 128
+Generating RTLIL representation for module `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram'.
+Parameter \ADDR_WIDTH = 7
+Parameter \DATA_WIDTH = 32
+Parameter \MEM_DEPTH = 128
+Found cached RTLIL representation for module `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram'.
+Parameter \ADDR_WIDTH = 7
 Parameter \DATA_WIDTH = 11
-Parameter \MEM_DEPTH = 256
-Parameter \VMEM_FILE = { }
+Parameter \MEM_DEPTH = 128
 
 2.2.3. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_ram'.
-Parameter \ADDR_WIDTH = 8
+Parameter \ADDR_WIDTH = 7
 Parameter \DATA_WIDTH = 11
-Parameter \MEM_DEPTH = 256
-Parameter \VMEM_FILE = { }
-Generating RTLIL representation for module `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram'.
+Parameter \MEM_DEPTH = 128
+Generating RTLIL representation for module `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram'.
+Parameter \ADDR_WIDTH = 7
+Parameter \DATA_WIDTH = 11
+Parameter \MEM_DEPTH = 128
+Found cached RTLIL representation for module `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram'.
+Reprocessing module cache_wrapper because instantiated module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram has become available.
+Generating RTLIL representation for module `\cache_wrapper'.
+Warning: Replacing memory \tag_meta_array with list of registers. See rtl/cache_wrapper.v:8862, rtl/cache_wrapper.v:8837
 
 2.2.4. Analyzing design hierarchy..
 Top module:  \cache_wrapper
-Used module:     $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram
-Used module:     $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram
+Parameter \ADDR_WIDTH = 7
+Parameter \DATA_WIDTH = 32
+Parameter \MEM_DEPTH = 128
+Found cached RTLIL representation for module `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram'.
+Parameter \ADDR_WIDTH = 7
+Parameter \DATA_WIDTH = 32
+Parameter \MEM_DEPTH = 128
+Found cached RTLIL representation for module `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram'.
+Parameter \ADDR_WIDTH = 7
+Parameter \DATA_WIDTH = 11
+Parameter \MEM_DEPTH = 128
+Found cached RTLIL representation for module `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram'.
+Parameter \ADDR_WIDTH = 7
+Parameter \DATA_WIDTH = 11
+Parameter \MEM_DEPTH = 128
+Found cached RTLIL representation for module `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram'.
 
 2.2.5. Analyzing design hierarchy..
 Top module:  \cache_wrapper
-Used module:     $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram
-Used module:     $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram
+Used module:     $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram
+Used module:     $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram
+
+2.2.6. Analyzing design hierarchy..
+Top module:  \cache_wrapper
+Used module:     $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram
+Used module:     $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram
 Removing unused module `$abstract\prim_ram'.
 Removing unused module `$abstract\cache_wrapper_reg_top'.
 Removing unused module `$abstract\cache_wrapper'.
@@ -147,837 +171,750 @@ Removed 42 unused modules.
 2.3. Executing PROC pass (convert processes to netlists).
 
 2.3.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
-Found and cleaned up 1 empty switch in `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$proc$rtl/cache_wrapper.v:0$157'.
-Removing empty process `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$proc$rtl/cache_wrapper.v:0$157'.
-Found and cleaned up 1 empty switch in `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$proc$rtl/cache_wrapper.v:0$140'.
-Removing empty process `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$proc$rtl/cache_wrapper.v:0$140'.
-Found and cleaned up 1 empty switch in `\cache_wrapper.$proc$rtl/cache_wrapper.v:8831$32'.
-Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:8831$32'.
-Found and cleaned up 1 empty switch in `\cache_wrapper.$proc$rtl/cache_wrapper.v:8785$29'.
-Cleaned up 4 empty switches.
+Found and cleaned up 3 empty switches in `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+Found and cleaned up 1 empty switch in `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$proc$rtl/cache_wrapper.v:0$498'.
+Removing empty process `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$proc$rtl/cache_wrapper.v:0$498'.
+Found and cleaned up 1 empty switch in `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$proc$rtl/cache_wrapper.v:0$515'.
+Removing empty process `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$proc$rtl/cache_wrapper.v:0$515'.
+Cleaned up 5 empty switches.
 
 2.3.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
-Marked 3 switch rules as full_case in process $proc$rtl/cache_wrapper.v:9537$142 in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
-Marked 3 switch rules as full_case in process $proc$rtl/cache_wrapper.v:9537$125 in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-Removed 6 dead cases from process $proc$rtl/cache_wrapper.v:8835$33 in module cache_wrapper.
-Marked 14 switch rules as full_case in process $proc$rtl/cache_wrapper.v:8835$33 in module cache_wrapper.
-Removed a total of 6 dead cases.
+Removed 1 dead cases from process $proc$rtl/cache_wrapper.v:0$984 in module cache_wrapper.
+Marked 1 switch rules as full_case in process $proc$rtl/cache_wrapper.v:0$984 in module cache_wrapper.
+Removed 1 dead cases from process $proc$rtl/cache_wrapper.v:8802$938 in module cache_wrapper.
+Marked 9 switch rules as full_case in process $proc$rtl/cache_wrapper.v:8802$938 in module cache_wrapper.
+Marked 2 switch rules as full_case in process $proc$rtl/cache_wrapper.v:8764$667 in module cache_wrapper.
+Marked 1 switch rules as full_case in process $proc$rtl/cache_wrapper.v:8755$665 in module cache_wrapper.
+Marked 3 switch rules as full_case in process $proc$rtl/cache_wrapper.v:9439$483 in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+Marked 3 switch rules as full_case in process $proc$rtl/cache_wrapper.v:9439$500 in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
+Removed a total of 2 dead cases.
 
 2.3.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
-Removed 0 redundant assignments.
-Promoted 26 assignments to connections.
+Removed 4 redundant assignments.
+Promoted 168 assignments to connections.
 
 2.3.4. Executing PROC_INIT pass (extract init attributes).
 
 2.3.5. Executing PROC_ARST pass (detect async resets in processes).
-Found async reset \rst_ni in `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
 
 2.3.6. Executing PROC_ROM pass (convert switches to ROMs).
 Converted 0 switches.
-<suppressed ~24 debug messages>
+<suppressed ~19 debug messages>
 
 2.3.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
-Creating decoders for process `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$proc$rtl/cache_wrapper.v:9537$142'.
-     1/10: $3$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$155
-     2/10: $3$memwr$\mem$rtl/cache_wrapper.v:9547$141_DATA[10:0]$154
-     3/10: $3$memwr$\mem$rtl/cache_wrapper.v:9547$141_ADDR[7:0]$153
-     4/10: $2$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$152
-     5/10: $2$memwr$\mem$rtl/cache_wrapper.v:9547$141_DATA[10:0]$151
-     6/10: $2$memwr$\mem$rtl/cache_wrapper.v:9547$141_ADDR[7:0]$150
-     7/10: $1$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$149
-     8/10: $1$memwr$\mem$rtl/cache_wrapper.v:9547$141_DATA[10:0]$148
-     9/10: $1$memwr$\mem$rtl/cache_wrapper.v:9547$141_ADDR[7:0]$147
-    10/10: $0\rdata_o[10:0]
-Creating decoders for process `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$proc$rtl/cache_wrapper.v:9537$125'.
-     1/10: $3$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$138
-     2/10: $3$memwr$\mem$rtl/cache_wrapper.v:9547$124_DATA[31:0]$137
-     3/10: $3$memwr$\mem$rtl/cache_wrapper.v:9547$124_ADDR[7:0]$136
-     4/10: $2$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$135
-     5/10: $2$memwr$\mem$rtl/cache_wrapper.v:9547$124_DATA[31:0]$134
-     6/10: $2$memwr$\mem$rtl/cache_wrapper.v:9547$124_ADDR[7:0]$133
-     7/10: $1$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$132
-     8/10: $1$memwr$\mem$rtl/cache_wrapper.v:9547$124_DATA[31:0]$131
-     9/10: $1$memwr$\mem$rtl/cache_wrapper.v:9547$124_ADDR[7:0]$130
+Creating decoders for process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$988'.
+Creating decoders for process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$987'.
+Creating decoders for process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$984'.
+     1/1: $1$mem2reg_rd$\data_rdata_way$rtl/cache_wrapper.v:8973$535_DATA[31:0]$986
+Creating decoders for process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+     1/44: $6\state_n[2:0]
+     2/44: $2\data_wdata_way[31:0]
+     3/44: $2\data_we_way[1:0]
+     4/44: $2$bitselwrite$pos$rtl/cache_wrapper.v:8913$519[0:0]$966
+     5/44: $2\tag_wdata_way[10:0]
+     6/44: $2\tag_we_way[1:0]
+     7/44: $2$bitselwrite$pos$rtl/cache_wrapper.v:8909$518[0:0]$965
+     8/44: $5\state_n[2:0]
+     9/44: $2$mem2reg_rd$\data_rdata_way$rtl/cache_wrapper.v:8893$534_DATA[31:0]$964
+    10/44: $2$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8891$533_DATA[10:0]$963
+    11/44: $4\state_n[2:0]
+    12/44: $3$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8877$532_DATA[10:0]$962
+    13/44: $3\state_n[2:0]
+    14/44: $2$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8877$532_DATA[10:0]$960
+    15/44: $2$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8877$532_ADDR[0:0]$959
+    16/44: $2\repl_way[0:0]
+    17/44: $3\hit_way[0:0]
+    18/44: $3\hit[0:0]
+    19/44: $2\hit_way[0:0]
+    20/44: $2\hit[0:0]
+    21/44: $2\state_n[2:0]
+    22/44: $1\state_n[2:0]
+    23/44: $1$mem2reg_rd$\data_rdata_way$rtl/cache_wrapper.v:8893$534_DATA[31:0]$954
+    24/44: $1$mem2reg_rd$\data_rdata_way$rtl/cache_wrapper.v:8893$534_ADDR[0:0]$953
+    25/44: $1$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8891$533_DATA[10:0]$952
+    26/44: $1$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8891$533_ADDR[0:0]$951
+    27/44: $1$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8877$532_DATA[10:0]$950
+    28/44: $1$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8877$532_ADDR[0:0]$949
+    29/44: $1$bitselwrite$pos$rtl/cache_wrapper.v:8913$519[0:0]$948
+    30/44: $1$bitselwrite$pos$rtl/cache_wrapper.v:8909$518[0:0]$947
+    31/44: $1\tag_meta_array[1][10:0]
+    32/44: $1\tag_meta_array[0][10:0]
+    33/44: $1\sv2v_autoblock_3.w[31:0]
+    34/44: $1\repl_way[0:0]
+    35/44: $1\hit_way[0:0]
+    36/44: $1\hit[0:0]
+    37/44: $1\data_we_way[1:0]
+    38/44: $1\data_wdata_way[31:0]
+    39/44: $1\tag_we_way[1:0]
+    40/44: $1\tag_wdata_way[10:0]
+    41/44: $1\mem_wdata_o[31:0]
+    42/44: $1\mem_adr_o[15:0]
+    43/44: $1\mem_we_o[0:0]
+    44/44: $1\mem_valid_o[0:0]
+Creating decoders for process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+     1/138: $2$memwr$\repl_ptr$rtl/cache_wrapper.v:8795$664_EN[0:0]$935
+     2/138: $2$memwr$\repl_ptr$rtl/cache_wrapper.v:8795$664_DATA[0:0]$934
+     3/138: $2$memwr$\repl_ptr$rtl/cache_wrapper.v:8795$664_ADDR[6:0]$933
+     4/138: $1\sv2v_autoblock_1.i[31:0]
+     5/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$663_EN[0:0]$927
+     6/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$662_EN[0:0]$926
+     7/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$661_EN[0:0]$925
+     8/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$660_EN[0:0]$924
+     9/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$659_EN[0:0]$923
+    10/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$658_EN[0:0]$922
+    11/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$657_EN[0:0]$921
+    12/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$656_EN[0:0]$920
+    13/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$655_EN[0:0]$919
+    14/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$654_EN[0:0]$918
+    15/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$653_EN[0:0]$917
+    16/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$652_EN[0:0]$916
+    17/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$651_EN[0:0]$915
+    18/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$650_EN[0:0]$914
+    19/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$649_EN[0:0]$913
+    20/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$648_EN[0:0]$912
+    21/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$647_EN[0:0]$911
+    22/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$646_EN[0:0]$910
+    23/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$645_EN[0:0]$909
+    24/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$644_EN[0:0]$908
+    25/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$643_EN[0:0]$907
+    26/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$642_EN[0:0]$906
+    27/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$641_EN[0:0]$905
+    28/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$640_EN[0:0]$904
+    29/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$639_EN[0:0]$903
+    30/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$638_EN[0:0]$902
+    31/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$637_EN[0:0]$901
+    32/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$636_EN[0:0]$900
+    33/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$635_EN[0:0]$899
+    34/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$634_EN[0:0]$898
+    35/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$633_EN[0:0]$897
+    36/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$632_EN[0:0]$896
+    37/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$631_EN[0:0]$895
+    38/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$630_EN[0:0]$894
+    39/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$629_EN[0:0]$893
+    40/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$628_EN[0:0]$892
+    41/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$627_EN[0:0]$891
+    42/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$626_EN[0:0]$890
+    43/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$625_EN[0:0]$889
+    44/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$624_EN[0:0]$888
+    45/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$623_EN[0:0]$887
+    46/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$622_EN[0:0]$886
+    47/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$621_EN[0:0]$885
+    48/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$620_EN[0:0]$884
+    49/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$619_EN[0:0]$883
+    50/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$618_EN[0:0]$882
+    51/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$617_EN[0:0]$881
+    52/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$616_EN[0:0]$880
+    53/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$615_EN[0:0]$879
+    54/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$614_EN[0:0]$878
+    55/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$613_EN[0:0]$877
+    56/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$612_EN[0:0]$876
+    57/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$611_EN[0:0]$875
+    58/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$610_EN[0:0]$874
+    59/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$609_EN[0:0]$873
+    60/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$608_EN[0:0]$872
+    61/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$607_EN[0:0]$871
+    62/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$606_EN[0:0]$870
+    63/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$605_EN[0:0]$869
+    64/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$604_EN[0:0]$868
+    65/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$603_EN[0:0]$867
+    66/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$602_EN[0:0]$866
+    67/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$601_EN[0:0]$865
+    68/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$600_EN[0:0]$864
+    69/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$599_EN[0:0]$863
+    70/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$598_EN[0:0]$862
+    71/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$597_EN[0:0]$861
+    72/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$596_EN[0:0]$860
+    73/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$595_EN[0:0]$859
+    74/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$594_EN[0:0]$858
+    75/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$593_EN[0:0]$857
+    76/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$592_EN[0:0]$856
+    77/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$591_EN[0:0]$855
+    78/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$590_EN[0:0]$854
+    79/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$589_EN[0:0]$853
+    80/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$588_EN[0:0]$852
+    81/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$587_EN[0:0]$851
+    82/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$586_EN[0:0]$850
+    83/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$585_EN[0:0]$849
+    84/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$584_EN[0:0]$848
+    85/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$583_EN[0:0]$847
+    86/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$582_EN[0:0]$846
+    87/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$581_EN[0:0]$845
+    88/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$580_EN[0:0]$844
+    89/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$579_EN[0:0]$843
+    90/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$578_EN[0:0]$842
+    91/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$577_EN[0:0]$841
+    92/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$576_EN[0:0]$840
+    93/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$575_EN[0:0]$839
+    94/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$574_EN[0:0]$838
+    95/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$573_EN[0:0]$837
+    96/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$572_EN[0:0]$836
+    97/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$571_EN[0:0]$835
+    98/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$570_EN[0:0]$834
+    99/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$569_EN[0:0]$833
+   100/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$568_EN[0:0]$832
+   101/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$567_EN[0:0]$831
+   102/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$566_EN[0:0]$830
+   103/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$565_EN[0:0]$829
+   104/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$564_EN[0:0]$828
+   105/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$563_EN[0:0]$827
+   106/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$562_EN[0:0]$826
+   107/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$561_EN[0:0]$825
+   108/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$560_EN[0:0]$824
+   109/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$559_EN[0:0]$823
+   110/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$558_EN[0:0]$822
+   111/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$557_EN[0:0]$821
+   112/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$556_EN[0:0]$820
+   113/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$555_EN[0:0]$819
+   114/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$554_EN[0:0]$818
+   115/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$553_EN[0:0]$817
+   116/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$552_EN[0:0]$816
+   117/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$551_EN[0:0]$815
+   118/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$550_EN[0:0]$814
+   119/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$549_EN[0:0]$813
+   120/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$548_EN[0:0]$812
+   121/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$547_EN[0:0]$811
+   122/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$546_EN[0:0]$810
+   123/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$545_EN[0:0]$809
+   124/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$544_EN[0:0]$808
+   125/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$543_EN[0:0]$807
+   126/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$542_EN[0:0]$806
+   127/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$541_EN[0:0]$805
+   128/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$540_EN[0:0]$804
+   129/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$539_EN[0:0]$803
+   130/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$538_EN[0:0]$802
+   131/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$537_EN[0:0]$801
+   132/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$536_EN[0:0]$800
+   133/138: $0\cpu_wdata_reg[31:0]
+   134/138: $0\cpu_we_reg[0:0]
+   135/138: $0\cpu_adr_reg[15:0]
+   136/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8795$664_EN[0:0]$930
+   137/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8795$664_DATA[0:0]$929
+   138/138: $1$memwr$\repl_ptr$rtl/cache_wrapper.v:8795$664_ADDR[6:0]$928
+Creating decoders for process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8755$665'.
+     1/1: $0\state_r[2:0]
+Creating decoders for process `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$proc$rtl/cache_wrapper.v:9439$483'.
+     1/10: $3$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$496
+     2/10: $3$memwr$\mem$rtl/cache_wrapper.v:9449$482_DATA[31:0]$495
+     3/10: $3$memwr$\mem$rtl/cache_wrapper.v:9449$482_ADDR[6:0]$494
+     4/10: $2$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$493
+     5/10: $2$memwr$\mem$rtl/cache_wrapper.v:9449$482_DATA[31:0]$492
+     6/10: $2$memwr$\mem$rtl/cache_wrapper.v:9449$482_ADDR[6:0]$491
+     7/10: $1$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$490
+     8/10: $1$memwr$\mem$rtl/cache_wrapper.v:9449$482_DATA[31:0]$489
+     9/10: $1$memwr$\mem$rtl/cache_wrapper.v:9449$482_ADDR[6:0]$488
     10/10: $0\rdata_o[31:0]
-Creating decoders for process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-     1/223: $3$mem2reg_wr$\repl_ptr_r$rtl/cache_wrapper.v:9042$26_ADDR[6:0]$112
-     2/223: $3$mem2reg_wr$\repl_ptr_r$rtl/cache_wrapper.v:9042$26_DATA[0:0]$113
-     3/223: $4$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8992$25_DATA[0:0]$111
-     4/223: $4$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8988$24_DATA[10:0]$110
-     5/223: $4$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8988$28_DATA[0:0]$109
-     6/223: $4$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_DATA[10:0]$108
-     7/223: $4$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8986$27_DATA[0:0]$107
-     8/223: $4$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8984$22_DATA[0:0]$106
-     9/223: $3$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8988$28_DATA[0:0]$103
-    10/223: $3$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8988$28_ADDR[6:0]$102
-    11/223: $3$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8986$27_DATA[0:0]$101
-    12/223: $3$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8986$27_ADDR[6:0]$100
-    13/223: $3$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8992$25_DATA[0:0]$99
-    14/223: $3$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8992$25_ADDR[6:0]$98
-    15/223: $3$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8988$24_DATA[10:0]$97
-    16/223: $3$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8988$24_ADDR[0:0]$96
-    17/223: $3$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_DATA[10:0]$95
-    18/223: $3$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_ADDR[0:0]$94
-    19/223: $3$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8984$22_DATA[0:0]$93
-    20/223: $3$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8984$22_ADDR[6:0]$92
-    21/223: $0\hit_mask[1:0] [1]
-    22/223: $0\hit_mask[1:0] [0]
-    23/223: $2$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8988$28_ADDR[6:0]$81
-    24/223: $2$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8986$27_DATA[0:0]$80
-    25/223: $2$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8986$27_ADDR[6:0]$79
-    26/223: $2$mem2reg_wr$\repl_ptr_r$rtl/cache_wrapper.v:9042$26_DATA[0:0]$78
-    27/223: $2$mem2reg_wr$\repl_ptr_r$rtl/cache_wrapper.v:9042$26_ADDR[6:0]$77
-    28/223: $2$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8992$25_DATA[0:0]$76
-    29/223: $2$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8992$25_ADDR[6:0]$75
-    30/223: $2$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8988$24_DATA[10:0]$74
-    31/223: $2$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8988$24_ADDR[0:0]$73
-    32/223: $2$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_DATA[10:0]$72
-    33/223: $2$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_ADDR[0:0]$71
-    34/223: $2$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8984$22_DATA[0:0]$70
-    35/223: $2$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8984$22_ADDR[6:0]$69
-    36/223: $2$mem2reg_wr$\tag_meta_mem$rtl/cache_wrapper.v:8932$21_DATA[10:0]$68
-    37/223: $2$mem2reg_wr$\tag_meta_mem$rtl/cache_wrapper.v:8932$21_ADDR[0:0]$67
-    38/223: $2\sv2v_autoblock_2.w[31:0]
-    39/223: $1$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8988$28_DATA[0:0]$66
-    40/223: $1$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8988$28_ADDR[6:0]$65
-    41/223: $1$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8986$27_DATA[0:0]$64
-    42/223: $1$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8986$27_ADDR[6:0]$63
-    43/223: $1$mem2reg_wr$\repl_ptr_r$rtl/cache_wrapper.v:9042$26_DATA[0:0]$62
-    44/223: $1$mem2reg_wr$\repl_ptr_r$rtl/cache_wrapper.v:9042$26_ADDR[6:0]$61
-    45/223: $1$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8992$25_DATA[0:0]$60
-    46/223: $1$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8992$25_ADDR[6:0]$59
-    47/223: $1$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8988$24_DATA[10:0]$58
-    48/223: $1$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8988$24_ADDR[0:0]$57
-    49/223: $1$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_DATA[10:0]$56
-    50/223: $1$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_ADDR[0:0]$55
-    51/223: $1$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8984$22_DATA[0:0]$54
-    52/223: $1$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8984$22_ADDR[6:0]$53
-    53/223: $1$mem2reg_wr$\tag_meta_mem$rtl/cache_wrapper.v:8932$21_DATA[10:0]$52
-    54/223: $1$mem2reg_wr$\tag_meta_mem$rtl/cache_wrapper.v:8932$21_ADDR[0:0]$51
-    55/223: $1\sv2v_autoblock_2.w[31:0]
-    56/223: $1\sv2v_autoblock_1.s[31:0]
-    57/223: $0\tag_only_array[1][8:0]
-    58/223: $0\tag_only_array[0][8:0]
-    59/223: $0\dirty_array[1][0:0]
-    60/223: $0\dirty_array[0][0:0]
-    61/223: $0\valid_array[1][0:0]
-    62/223: $0\valid_array[0][0:0]
-    63/223: $0\tag_meta_mem[1][10:0]
-    64/223: $0\tag_meta_mem[0][10:0]
-    65/223: $0\repl_ptr_r[127][0:0]
-    66/223: $0\repl_ptr_r[126][0:0]
-    67/223: $0\repl_ptr_r[125][0:0]
-    68/223: $0\repl_ptr_r[124][0:0]
-    69/223: $0\repl_ptr_r[123][0:0]
-    70/223: $0\repl_ptr_r[122][0:0]
-    71/223: $0\repl_ptr_r[121][0:0]
-    72/223: $0\repl_ptr_r[120][0:0]
-    73/223: $0\repl_ptr_r[119][0:0]
-    74/223: $0\repl_ptr_r[118][0:0]
-    75/223: $0\repl_ptr_r[117][0:0]
-    76/223: $0\repl_ptr_r[116][0:0]
-    77/223: $0\repl_ptr_r[115][0:0]
-    78/223: $0\repl_ptr_r[114][0:0]
-    79/223: $0\repl_ptr_r[113][0:0]
-    80/223: $0\repl_ptr_r[112][0:0]
-    81/223: $0\repl_ptr_r[111][0:0]
-    82/223: $0\repl_ptr_r[110][0:0]
-    83/223: $0\repl_ptr_r[109][0:0]
-    84/223: $0\repl_ptr_r[108][0:0]
-    85/223: $0\repl_ptr_r[107][0:0]
-    86/223: $0\repl_ptr_r[106][0:0]
-    87/223: $0\repl_ptr_r[105][0:0]
-    88/223: $0\repl_ptr_r[104][0:0]
-    89/223: $0\repl_ptr_r[103][0:0]
-    90/223: $0\repl_ptr_r[102][0:0]
-    91/223: $0\repl_ptr_r[101][0:0]
-    92/223: $0\repl_ptr_r[100][0:0]
-    93/223: $0\repl_ptr_r[99][0:0]
-    94/223: $0\repl_ptr_r[98][0:0]
-    95/223: $0\repl_ptr_r[97][0:0]
-    96/223: $0\repl_ptr_r[96][0:0]
-    97/223: $0\repl_ptr_r[95][0:0]
-    98/223: $0\repl_ptr_r[94][0:0]
-    99/223: $0\repl_ptr_r[93][0:0]
-   100/223: $0\repl_ptr_r[92][0:0]
-   101/223: $0\repl_ptr_r[91][0:0]
-   102/223: $0\repl_ptr_r[90][0:0]
-   103/223: $0\repl_ptr_r[89][0:0]
-   104/223: $0\repl_ptr_r[88][0:0]
-   105/223: $0\repl_ptr_r[87][0:0]
-   106/223: $0\repl_ptr_r[86][0:0]
-   107/223: $0\repl_ptr_r[85][0:0]
-   108/223: $0\repl_ptr_r[84][0:0]
-   109/223: $0\repl_ptr_r[83][0:0]
-   110/223: $0\repl_ptr_r[82][0:0]
-   111/223: $0\repl_ptr_r[81][0:0]
-   112/223: $0\repl_ptr_r[80][0:0]
-   113/223: $0\repl_ptr_r[79][0:0]
-   114/223: $0\repl_ptr_r[78][0:0]
-   115/223: $0\repl_ptr_r[77][0:0]
-   116/223: $0\repl_ptr_r[76][0:0]
-   117/223: $0\repl_ptr_r[75][0:0]
-   118/223: $0\repl_ptr_r[74][0:0]
-   119/223: $0\repl_ptr_r[73][0:0]
-   120/223: $0\repl_ptr_r[72][0:0]
-   121/223: $0\repl_ptr_r[71][0:0]
-   122/223: $0\repl_ptr_r[70][0:0]
-   123/223: $0\repl_ptr_r[69][0:0]
-   124/223: $0\repl_ptr_r[68][0:0]
-   125/223: $0\repl_ptr_r[67][0:0]
-   126/223: $0\repl_ptr_r[66][0:0]
-   127/223: $0\repl_ptr_r[65][0:0]
-   128/223: $0\repl_ptr_r[64][0:0]
-   129/223: $0\repl_ptr_r[63][0:0]
-   130/223: $0\repl_ptr_r[62][0:0]
-   131/223: $0\repl_ptr_r[61][0:0]
-   132/223: $0\repl_ptr_r[60][0:0]
-   133/223: $0\repl_ptr_r[59][0:0]
-   134/223: $0\repl_ptr_r[58][0:0]
-   135/223: $0\repl_ptr_r[57][0:0]
-   136/223: $0\repl_ptr_r[56][0:0]
-   137/223: $0\repl_ptr_r[55][0:0]
-   138/223: $0\repl_ptr_r[54][0:0]
-   139/223: $0\repl_ptr_r[53][0:0]
-   140/223: $0\repl_ptr_r[52][0:0]
-   141/223: $0\repl_ptr_r[51][0:0]
-   142/223: $0\repl_ptr_r[50][0:0]
-   143/223: $0\repl_ptr_r[49][0:0]
-   144/223: $0\repl_ptr_r[48][0:0]
-   145/223: $0\repl_ptr_r[47][0:0]
-   146/223: $0\repl_ptr_r[46][0:0]
-   147/223: $0\repl_ptr_r[45][0:0]
-   148/223: $0\repl_ptr_r[44][0:0]
-   149/223: $0\repl_ptr_r[43][0:0]
-   150/223: $0\repl_ptr_r[42][0:0]
-   151/223: $0\repl_ptr_r[41][0:0]
-   152/223: $0\repl_ptr_r[40][0:0]
-   153/223: $0\repl_ptr_r[39][0:0]
-   154/223: $0\repl_ptr_r[38][0:0]
-   155/223: $0\repl_ptr_r[37][0:0]
-   156/223: $0\repl_ptr_r[36][0:0]
-   157/223: $0\repl_ptr_r[35][0:0]
-   158/223: $0\repl_ptr_r[34][0:0]
-   159/223: $0\repl_ptr_r[33][0:0]
-   160/223: $0\repl_ptr_r[32][0:0]
-   161/223: $0\repl_ptr_r[31][0:0]
-   162/223: $0\repl_ptr_r[30][0:0]
-   163/223: $0\repl_ptr_r[29][0:0]
-   164/223: $0\repl_ptr_r[28][0:0]
-   165/223: $0\repl_ptr_r[27][0:0]
-   166/223: $0\repl_ptr_r[26][0:0]
-   167/223: $0\repl_ptr_r[25][0:0]
-   168/223: $0\repl_ptr_r[24][0:0]
-   169/223: $0\repl_ptr_r[23][0:0]
-   170/223: $0\repl_ptr_r[22][0:0]
-   171/223: $0\repl_ptr_r[21][0:0]
-   172/223: $0\repl_ptr_r[20][0:0]
-   173/223: $0\repl_ptr_r[19][0:0]
-   174/223: $0\repl_ptr_r[18][0:0]
-   175/223: $0\repl_ptr_r[17][0:0]
-   176/223: $0\repl_ptr_r[16][0:0]
-   177/223: $0\repl_ptr_r[15][0:0]
-   178/223: $0\repl_ptr_r[14][0:0]
-   179/223: $0\repl_ptr_r[13][0:0]
-   180/223: $0\repl_ptr_r[12][0:0]
-   181/223: $0\repl_ptr_r[11][0:0]
-   182/223: $0\repl_ptr_r[10][0:0]
-   183/223: $0\repl_ptr_r[9][0:0]
-   184/223: $0\repl_ptr_r[8][0:0]
-   185/223: $0\repl_ptr_r[7][0:0]
-   186/223: $0\repl_ptr_r[6][0:0]
-   187/223: $0\repl_ptr_r[5][0:0]
-   188/223: $0\repl_ptr_r[4][0:0]
-   189/223: $0\repl_ptr_r[3][0:0]
-   190/223: $0\repl_ptr_r[2][0:0]
-   191/223: $0\repl_ptr_r[1][0:0]
-   192/223: $0\repl_ptr_r[0][0:0]
-   193/223: $0\state_tag[8:0]
-   194/223: $0\way_counter[31:0]
-   195/223: $0\state_set_idx[6:0]
-   196/223: $0\cpu_ready_r[0:0]
-   197/223: $0\cpu_resp_valid_r[0:0]
-   198/223: $0\resp_data_r[31:0]
-   199/223: $0\wb_way[0:0]
-   200/223: $0\wb_set[6:0]
-   201/223: $0\wb_tag[8:0]
-   202/223: $0\wb_dirty[0:0]
-   203/223: $0\repl_way[31:0]
-   204/223: $0\hit_way[31:0]
-   205/223: $2$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8988$28_DATA[0:0]$82
-   206/223: $0\hit[0:0]
-   207/223: $0\cpu_wdata_reg[31:0]
-   208/223: $0\cpu_adr_reg[15:0]
-   209/223: $0\cpu_we_reg[0:0]
-   210/223: $0\state_r[2:0]
-   211/223: $0\data_wdata[31:0]
-   212/223: $0\data_addr[7:0]
-   213/223: $0\data_we[0:0]
-   214/223: $0\data_en[0:0]
-   215/223: $0\tag_wdata[10:0]
-   216/223: $0\tag_addr[7:0]
-   217/223: $0\tag_we[0:0]
-   218/223: $0\tag_en[0:0]
-   219/223: $0\mem_wdata_o[31:0]
-   220/223: $0\mem_adr_o[15:0]
-   221/223: $0\mem_we_o[0:0]
-   222/223: $0\mem_valid_o[0:0]
-   223/223: $0\cpu_rdata_o[31:0]
-Creating decoders for process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$123'.
-Creating decoders for process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8785$29'.
+Creating decoders for process `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$proc$rtl/cache_wrapper.v:9439$500'.
+     1/10: $3$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$513
+     2/10: $3$memwr$\mem$rtl/cache_wrapper.v:9449$499_DATA[10:0]$512
+     3/10: $3$memwr$\mem$rtl/cache_wrapper.v:9449$499_ADDR[6:0]$511
+     4/10: $2$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$510
+     5/10: $2$memwr$\mem$rtl/cache_wrapper.v:9449$499_DATA[10:0]$509
+     6/10: $2$memwr$\mem$rtl/cache_wrapper.v:9449$499_ADDR[6:0]$508
+     7/10: $1$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$507
+     8/10: $1$memwr$\mem$rtl/cache_wrapper.v:9449$499_DATA[10:0]$506
+     9/10: $1$memwr$\mem$rtl/cache_wrapper.v:9449$499_ADDR[6:0]$505
+    10/10: $0\rdata_o[10:0]
 
 2.3.8. Executing PROC_DLATCH pass (convert process syncs to latches).
-No latch inferred for signal `\cache_wrapper.\_sv2v_0' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$123'.
-No latch inferred for signal `\cache_wrapper.\tag_addr_comb' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8785$29'.
+No latch inferred for signal `\cache_wrapper.\_sv2v_0' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$988'.
+No latch inferred for signal `\cache_wrapper.\tag_rdata_way[0]' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$987'.
+No latch inferred for signal `\cache_wrapper.\tag_rdata_way[1]' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$987'.
+No latch inferred for signal `\cache_wrapper.\data_rdata_way[0]' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$987'.
+No latch inferred for signal `\cache_wrapper.\data_rdata_way[1]' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$987'.
+No latch inferred for signal `\cache_wrapper.$mem2reg_rd$\data_rdata_way$rtl/cache_wrapper.v:8973$535_DATA' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$984'.
+No latch inferred for signal `\cache_wrapper.\mem_valid_o' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\mem_we_o' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\mem_adr_o' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\mem_wdata_o' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\state_n' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\tag_wdata_way' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\tag_we_way' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\data_wdata_way' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\data_we_way' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\hit' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\hit_way' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\repl_way' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\sv2v_autoblock_2.w' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\tag_meta_array[0]' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.\tag_meta_array[1]' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.$bitselwrite$pos$rtl/cache_wrapper.v:8909$518' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.$bitselwrite$pos$rtl/cache_wrapper.v:8913$519' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8877$532_ADDR' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8877$532_DATA' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8891$533_ADDR' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8891$533_DATA' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.$mem2reg_rd$\data_rdata_way$rtl/cache_wrapper.v:8893$534_ADDR' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+No latch inferred for signal `\cache_wrapper.$mem2reg_rd$\data_rdata_way$rtl/cache_wrapper.v:8893$534_DATA' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+Latch inferred for signal `\cache_wrapper.\sv2v_autoblock_3.w' from process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938': $auto$proc_dlatch.cc:432:proc_dlatch$1847
 
 2.3.9. Executing PROC_DFF pass (convert process syncs to FFs).
-Creating register for signal `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.\rdata_o' using process `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$proc$rtl/cache_wrapper.v:9537$142'.
-  created $dff cell `$procdff$10700' with positive edge clock.
-Creating register for signal `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9547$141_ADDR' using process `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$proc$rtl/cache_wrapper.v:9537$142'.
-  created $dff cell `$procdff$10701' with positive edge clock.
-Creating register for signal `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9547$141_DATA' using process `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$proc$rtl/cache_wrapper.v:9537$142'.
-  created $dff cell `$procdff$10702' with positive edge clock.
-Creating register for signal `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN' using process `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$proc$rtl/cache_wrapper.v:9537$142'.
-  created $dff cell `$procdff$10703' with positive edge clock.
-Creating register for signal `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.\rdata_o' using process `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$proc$rtl/cache_wrapper.v:9537$125'.
-  created $dff cell `$procdff$10704' with positive edge clock.
-Creating register for signal `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9547$124_ADDR' using process `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$proc$rtl/cache_wrapper.v:9537$125'.
-  created $dff cell `$procdff$10705' with positive edge clock.
-Creating register for signal `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9547$124_DATA' using process `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$proc$rtl/cache_wrapper.v:9537$125'.
-  created $dff cell `$procdff$10706' with positive edge clock.
-Creating register for signal `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN' using process `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$proc$rtl/cache_wrapper.v:9537$125'.
-  created $dff cell `$procdff$10707' with positive edge clock.
-Creating register for signal `\cache_wrapper.\cpu_rdata_o' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10708' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\mem_valid_o' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10709' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\mem_we_o' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10710' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\mem_adr_o' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10711' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\mem_wdata_o' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10712' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\tag_en' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10713' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\tag_we' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10714' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\tag_addr' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10715' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\tag_wdata' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10716' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\data_en' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10717' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\data_we' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10718' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\data_addr' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10719' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\data_wdata' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10720' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\state_r' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10721' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\cpu_we_reg' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10724' with positive edge clock.
-Creating register for signal `\cache_wrapper.\cpu_adr_reg' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10727' with positive edge clock.
-Creating register for signal `\cache_wrapper.\cpu_wdata_reg' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10730' with positive edge clock.
-Creating register for signal `\cache_wrapper.\hit' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10731' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\hit_mask' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10732' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\hit_way' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10733' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_way' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10734' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\wb_dirty' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10737' with positive edge clock.
-Creating register for signal `\cache_wrapper.\wb_tag' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10740' with positive edge clock.
-Creating register for signal `\cache_wrapper.\wb_set' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10743' with positive edge clock.
-Creating register for signal `\cache_wrapper.\wb_way' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10746' with positive edge clock.
-Creating register for signal `\cache_wrapper.\resp_data_r' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10747' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\cpu_resp_valid_r' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10748' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\cpu_ready_r' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10749' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\state_set_idx' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10752' with positive edge clock.
-Creating register for signal `\cache_wrapper.\way_counter' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10753' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\state_tag' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10756' with positive edge clock.
-Creating register for signal `\cache_wrapper.\sv2v_autoblock_1.s' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10757' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\sv2v_autoblock_2.w' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10760' with positive edge clock.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[0]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10761' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[1]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10762' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[2]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10763' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[3]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10764' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[4]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10765' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[5]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10766' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[6]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10767' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[7]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10768' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[8]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10769' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[9]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10770' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[10]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10771' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[11]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10772' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[12]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10773' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[13]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10774' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[14]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10775' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[15]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10776' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[16]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10777' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[17]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10778' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[18]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10779' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[19]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10780' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[20]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10781' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[21]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10782' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[22]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10783' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[23]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10784' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[24]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10785' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[25]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10786' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[26]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10787' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[27]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10788' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[28]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10789' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[29]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10790' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[30]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10791' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[31]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10792' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[32]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10793' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[33]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10794' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[34]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10795' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[35]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10796' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[36]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10797' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[37]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10798' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[38]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10799' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[39]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10800' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[40]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10801' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[41]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10802' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[42]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10803' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[43]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10804' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[44]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10805' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[45]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10806' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[46]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10807' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[47]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10808' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[48]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10809' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[49]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10810' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[50]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10811' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[51]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10812' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[52]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10813' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[53]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10814' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[54]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10815' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[55]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10816' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[56]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10817' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[57]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10818' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[58]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10819' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[59]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10820' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[60]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10821' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[61]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10822' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[62]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10823' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[63]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10824' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[64]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10825' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[65]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10826' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[66]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10827' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[67]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10828' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[68]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10829' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[69]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10830' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[70]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10831' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[71]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10832' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[72]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10833' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[73]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10834' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[74]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10835' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[75]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10836' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[76]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10837' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[77]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10838' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[78]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10839' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[79]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10840' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[80]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10841' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[81]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10842' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[82]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10843' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[83]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10844' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[84]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10845' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[85]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10846' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[86]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10847' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[87]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10848' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[88]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10849' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[89]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10850' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[90]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10851' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[91]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10852' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[92]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10853' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[93]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10854' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[94]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10855' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[95]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10856' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[96]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10857' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[97]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10858' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[98]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10859' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[99]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10860' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[100]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10861' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[101]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10862' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[102]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10863' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[103]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10864' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[104]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10865' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[105]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10866' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[106]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10867' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[107]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10868' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[108]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10869' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[109]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10870' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[110]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10871' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[111]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10872' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[112]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10873' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[113]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10874' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[114]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10875' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[115]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10876' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[116]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10877' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[117]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10878' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[118]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10879' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[119]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10880' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[120]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10881' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[121]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10882' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[122]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10883' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[123]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10884' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[124]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10885' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[125]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10886' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[126]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10887' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\repl_ptr_r[127]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10888' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.\tag_meta_mem[0]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10891' with positive edge clock.
-Creating register for signal `\cache_wrapper.\tag_meta_mem[1]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10894' with positive edge clock.
-Creating register for signal `\cache_wrapper.\valid_array[0]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10897' with positive edge clock.
-Creating register for signal `\cache_wrapper.\valid_array[1]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10900' with positive edge clock.
-Creating register for signal `\cache_wrapper.\dirty_array[0]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10903' with positive edge clock.
-Creating register for signal `\cache_wrapper.\dirty_array[1]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10906' with positive edge clock.
-Creating register for signal `\cache_wrapper.\tag_only_array[0]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10909' with positive edge clock.
-Creating register for signal `\cache_wrapper.\tag_only_array[1]' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $dff cell `$procdff$10912' with positive edge clock.
-Creating register for signal `\cache_wrapper.$mem2reg_wr$\tag_meta_mem$rtl/cache_wrapper.v:8932$21_ADDR' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10913' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_wr$\tag_meta_mem$rtl/cache_wrapper.v:8932$21_DATA' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10914' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8984$22_ADDR' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10915' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8984$22_DATA' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10916' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_ADDR' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10917' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_DATA' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10918' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8988$24_ADDR' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10919' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8988$24_DATA' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10920' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8992$25_ADDR' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10921' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8992$25_DATA' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10922' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_wr$\repl_ptr_r$rtl/cache_wrapper.v:9042$26_ADDR' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10923' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_wr$\repl_ptr_r$rtl/cache_wrapper.v:9042$26_DATA' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10924' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8986$27_ADDR' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10925' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8986$27_DATA' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10926' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8988$28_ADDR' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10927' with positive edge clock and negative level reset.
-Creating register for signal `\cache_wrapper.$mem2reg_rd$\repl_ptr_r$rtl/cache_wrapper.v:8988$28_DATA' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-  created $adff cell `$procdff$10928' with positive edge clock and negative level reset.
+Creating register for signal `\cache_wrapper.\cpu_we_reg' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1848' with positive edge clock.
+Creating register for signal `\cache_wrapper.\cpu_adr_reg' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1849' with positive edge clock.
+Creating register for signal `\cache_wrapper.\cpu_wdata_reg' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1850' with positive edge clock.
+Creating register for signal `\cache_wrapper.\sv2v_autoblock_1.i' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1851' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$536_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1852' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$537_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1853' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$538_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1854' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$539_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1855' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$540_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1856' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$541_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1857' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$542_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1858' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$543_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1859' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$544_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1860' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$545_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1861' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$546_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1862' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$547_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1863' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$548_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1864' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$549_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1865' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$550_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1866' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$551_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1867' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$552_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1868' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$553_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1869' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$554_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1870' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$555_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1871' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$556_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1872' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$557_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1873' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$558_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1874' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$559_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1875' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$560_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1876' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$561_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1877' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$562_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1878' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$563_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1879' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$564_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1880' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$565_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1881' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$566_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1882' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$567_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1883' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$568_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1884' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$569_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1885' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$570_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1886' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$571_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1887' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$572_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1888' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$573_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1889' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$574_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1890' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$575_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1891' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$576_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1892' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$577_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1893' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$578_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1894' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$579_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1895' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$580_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1896' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$581_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1897' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$582_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1898' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$583_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1899' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$584_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1900' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$585_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1901' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$586_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1902' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$587_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1903' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$588_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1904' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$589_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1905' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$590_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1906' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$591_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1907' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$592_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1908' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$593_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1909' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$594_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1910' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$595_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1911' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$596_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1912' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$597_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1913' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$598_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1914' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$599_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1915' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$600_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1916' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$601_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1917' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$602_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1918' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$603_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1919' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$604_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1920' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$605_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1921' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$606_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1922' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$607_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1923' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$608_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1924' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$609_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1925' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$610_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1926' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$611_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1927' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$612_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1928' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$613_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1929' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$614_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1930' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$615_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1931' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$616_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1932' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$617_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1933' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$618_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1934' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$619_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1935' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$620_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1936' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$621_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1937' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$622_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1938' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$623_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1939' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$624_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1940' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$625_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1941' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$626_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1942' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$627_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1943' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$628_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1944' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$629_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1945' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$630_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1946' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$631_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1947' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$632_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1948' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$633_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1949' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$634_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1950' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$635_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1951' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$636_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1952' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$637_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1953' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$638_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1954' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$639_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1955' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$640_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1956' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$641_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1957' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$642_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1958' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$643_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1959' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$644_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1960' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$645_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1961' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$646_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1962' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$647_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1963' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$648_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1964' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$649_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1965' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$650_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1966' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$651_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1967' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$652_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1968' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$653_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1969' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$654_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1970' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$655_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1971' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$656_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1972' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$657_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1973' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$658_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1974' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$659_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1975' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$660_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1976' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$661_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1977' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$662_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1978' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8781$663_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1979' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8795$664_ADDR' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1980' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8795$664_DATA' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1981' with positive edge clock.
+Creating register for signal `\cache_wrapper.$memwr$\repl_ptr$rtl/cache_wrapper.v:8795$664_EN' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+  created $dff cell `$procdff$1982' with positive edge clock.
+Creating register for signal `\cache_wrapper.\state_r' using process `\cache_wrapper.$proc$rtl/cache_wrapper.v:8755$665'.
+  created $dff cell `$procdff$1983' with positive edge clock.
+Creating register for signal `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.\rdata_o' using process `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$proc$rtl/cache_wrapper.v:9439$483'.
+  created $dff cell `$procdff$1984' with positive edge clock.
+Creating register for signal `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9449$482_ADDR' using process `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$proc$rtl/cache_wrapper.v:9439$483'.
+  created $dff cell `$procdff$1985' with positive edge clock.
+Creating register for signal `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9449$482_DATA' using process `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$proc$rtl/cache_wrapper.v:9439$483'.
+  created $dff cell `$procdff$1986' with positive edge clock.
+Creating register for signal `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN' using process `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$proc$rtl/cache_wrapper.v:9439$483'.
+  created $dff cell `$procdff$1987' with positive edge clock.
+Creating register for signal `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.\rdata_o' using process `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$proc$rtl/cache_wrapper.v:9439$500'.
+  created $dff cell `$procdff$1988' with positive edge clock.
+Creating register for signal `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9449$499_ADDR' using process `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$proc$rtl/cache_wrapper.v:9439$500'.
+  created $dff cell `$procdff$1989' with positive edge clock.
+Creating register for signal `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9449$499_DATA' using process `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$proc$rtl/cache_wrapper.v:9439$500'.
+  created $dff cell `$procdff$1990' with positive edge clock.
+Creating register for signal `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN' using process `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$proc$rtl/cache_wrapper.v:9439$500'.
+  created $dff cell `$procdff$1991' with positive edge clock.
 
 2.3.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
 
 2.3.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
-Found and cleaned up 3 empty switches in `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$proc$rtl/cache_wrapper.v:9537$142'.
-Removing empty process `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.$proc$rtl/cache_wrapper.v:9537$142'.
-Found and cleaned up 3 empty switches in `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$proc$rtl/cache_wrapper.v:9537$125'.
-Removing empty process `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.$proc$rtl/cache_wrapper.v:9537$125'.
-Found and cleaned up 18 empty switches in `\cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:8835$33'.
-Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:0$123'.
-Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:8785$29'.
-Cleaned up 24 empty switches.
+Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:0$988'.
+Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:0$987'.
+Found and cleaned up 1 empty switch in `\cache_wrapper.$proc$rtl/cache_wrapper.v:0$984'.
+Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:0$984'.
+Found and cleaned up 9 empty switches in `\cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:8802$938'.
+Found and cleaned up 2 empty switches in `\cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:8764$667'.
+Found and cleaned up 1 empty switch in `\cache_wrapper.$proc$rtl/cache_wrapper.v:8755$665'.
+Removing empty process `cache_wrapper.$proc$rtl/cache_wrapper.v:8755$665'.
+Found and cleaned up 3 empty switches in `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$proc$rtl/cache_wrapper.v:9439$483'.
+Removing empty process `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.$proc$rtl/cache_wrapper.v:9439$483'.
+Found and cleaned up 3 empty switches in `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$proc$rtl/cache_wrapper.v:9439$500'.
+Removing empty process `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.$proc$rtl/cache_wrapper.v:9439$500'.
+Cleaned up 19 empty switches.
 
 2.3.12. Executing OPT_EXPR pass (perform const folding).
-Optimizing module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
-<suppressed ~10 debug messages>
-Optimizing module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-<suppressed ~10 debug messages>
 Optimizing module cache_wrapper.
-<suppressed ~23 debug messages>
+<suppressed ~165 debug messages>
+Optimizing module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+<suppressed ~10 debug messages>
+Optimizing module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
+<suppressed ~10 debug messages>
 
 2.4. Executing FUTURE pass.
 
 2.5. Executing OPT_EXPR pass (perform const folding).
-Optimizing module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
-Optimizing module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
 Optimizing module cache_wrapper.
+Optimizing module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+Optimizing module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
 
 2.6. Executing OPT_CLEAN pass (remove unused cells and wires).
-Finding unused cells or wires in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram..
-Finding unused cells or wires in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram..
 Finding unused cells or wires in module \cache_wrapper..
-Removed 289 unused cells and 923 unused wires.
-<suppressed ~434 debug messages>
+Finding unused cells or wires in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram..
+Finding unused cells or wires in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram..
+Removed 185 unused cells and 820 unused wires.
+<suppressed ~194 debug messages>
 
 2.7. Executing CHECK pass (checking for obvious problems).
-Checking module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram...
-Checking module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram...
+Checking module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram...
+Checking module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram...
 Checking module cache_wrapper...
 Found and reported 0 problems.
 
 2.8. Executing OPT pass (performing simple optimizations).
 
 2.8.1. Executing OPT_EXPR pass (perform const folding).
-Optimizing module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-Optimizing module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
+Optimizing module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+Optimizing module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
 Optimizing module cache_wrapper.
 
 2.8.2. Executing OPT_MERGE pass (detect identical cells).
-Finding identical cells in module `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram'.
-Finding identical cells in module `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram'.
+Finding identical cells in module `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram'.
+Finding identical cells in module `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram'.
 Finding identical cells in module `\cache_wrapper'.
-<suppressed ~1671 debug messages>
-Removed a total of 557 cells.
+<suppressed ~90 debug messages>
+Removed a total of 30 cells.
 
 2.8.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
-Running muxtree optimizer on module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram..
+Running muxtree optimizer on module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram..
   Creating internal representation of mux trees.
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
-    dead port 2/2 on $mux $procmux$225.
-    dead port 2/2 on $mux $procmux$228.
-    dead port 2/2 on $mux $procmux$234.
-    dead port 2/2 on $mux $procmux$237.
-    dead port 2/2 on $mux $procmux$243.
-    dead port 2/2 on $mux $procmux$246.
-    dead port 2/2 on $mux $procmux$252.
-    dead port 2/2 on $mux $procmux$258.
-    dead port 2/2 on $mux $procmux$264.
-Running muxtree optimizer on module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram..
+    dead port 2/2 on $mux $procmux$1715.
+    dead port 2/2 on $mux $procmux$1718.
+    dead port 2/2 on $mux $procmux$1724.
+    dead port 2/2 on $mux $procmux$1727.
+    dead port 2/2 on $mux $procmux$1733.
+    dead port 2/2 on $mux $procmux$1736.
+    dead port 2/2 on $mux $procmux$1742.
+    dead port 2/2 on $mux $procmux$1748.
+    dead port 2/2 on $mux $procmux$1754.
+Running muxtree optimizer on module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram..
   Creating internal representation of mux trees.
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
-    dead port 2/2 on $mux $procmux$162.
-    dead port 2/2 on $mux $procmux$165.
-    dead port 2/2 on $mux $procmux$171.
-    dead port 2/2 on $mux $procmux$174.
-    dead port 2/2 on $mux $procmux$180.
-    dead port 2/2 on $mux $procmux$183.
-    dead port 2/2 on $mux $procmux$189.
-    dead port 2/2 on $mux $procmux$195.
-    dead port 2/2 on $mux $procmux$201.
+    dead port 2/2 on $mux $procmux$1778.
+    dead port 2/2 on $mux $procmux$1781.
+    dead port 2/2 on $mux $procmux$1787.
+    dead port 2/2 on $mux $procmux$1790.
+    dead port 2/2 on $mux $procmux$1796.
+    dead port 2/2 on $mux $procmux$1799.
+    dead port 2/2 on $mux $procmux$1805.
+    dead port 2/2 on $mux $procmux$1811.
+    dead port 2/2 on $mux $procmux$1817.
 Running muxtree optimizer on module \cache_wrapper..
   Creating internal representation of mux trees.
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
-    dead port 1/2 on $mux $procmux$444.
-    dead port 2/2 on $mux $procmux$446.
-    dead port 1/2 on $mux $procmux$594.
-    dead port 2/2 on $mux $procmux$596.
-    dead port 1/2 on $mux $procmux$870.
-    dead port 2/2 on $mux $procmux$872.
-Removed 24 multiplexer ports.
-<suppressed ~168 debug messages>
+    dead port 2/2 on $mux $procmux$1004.
+    dead port 2/2 on $mux $procmux$1011.
+    dead port 2/2 on $mux $procmux$1025.
+    dead port 2/2 on $mux $procmux$1032.
+    dead port 2/2 on $mux $procmux$1047.
+    dead port 2/2 on $mux $procmux$1052.
+    dead port 2/2 on $mux $procmux$1057.
+    dead port 1/2 on $mux $procmux$1067.
+    dead port 2/2 on $mux $procmux$1069.
+    dead port 2/2 on $mux $procmux$1090.
+    dead port 2/2 on $mux $procmux$1126.
+    dead port 2/2 on $mux $procmux$1143.
+    dead port 2/2 on $mux $procmux$1152.
+    dead port 2/2 on $mux $procmux$1163.
+    dead port 2/2 on $mux $procmux$1289.
+    dead port 2/2 on $mux $procmux$1295.
+    dead port 2/2 on $mux $procmux$1301.
+    dead port 2/2 on $mux $procmux$997.
+Removed 36 multiplexer ports.
+<suppressed ~155 debug messages>
 
 2.8.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
-  Optimizing cells in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-    Consolidated identical input bits for $mux cell $procmux$223:
-      Old ports: A=0, B=32'11111111111111111111111111111111, Y=$procmux$223_Y
-      New ports: A=1'0, B=1'1, Y=$procmux$223_Y [0]
-      New connections: $procmux$223_Y [31:1] = { $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] $procmux$223_Y [0] }
-  Optimizing cells in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-    Consolidated identical input bits for $mux cell $procmux$249:
-      Old ports: A=0, B=$3$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$138, Y=$procmux$249_Y
-      New ports: A=1'0, B=$procmux$223_Y [0], Y=$procmux$249_Y [0]
-      New connections: $procmux$249_Y [31:1] = { $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] $procmux$249_Y [0] }
-  Optimizing cells in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-    Consolidated identical input bits for $mux cell $procmux$267:
-      Old ports: A=0, B=$2$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$135, Y=$0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128
-      New ports: A=1'0, B=$procmux$249_Y [0], Y=$0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0]
-      New connections: $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [31:1] = { $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$124_EN[31:0]$128 [0] }
-  Optimizing cells in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-  Optimizing cells in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
-    Consolidated identical input bits for $mux cell $procmux$160:
-      Old ports: A=11'00000000000, B=11'11111111111, Y=$procmux$160_Y
-      New ports: A=1'0, B=1'1, Y=$procmux$160_Y [0]
-      New connections: $procmux$160_Y [10:1] = { $procmux$160_Y [0] $procmux$160_Y [0] $procmux$160_Y [0] $procmux$160_Y [0] $procmux$160_Y [0] $procmux$160_Y [0] $procmux$160_Y [0] $procmux$160_Y [0] $procmux$160_Y [0] $procmux$160_Y [0] }
-  Optimizing cells in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
-    Consolidated identical input bits for $mux cell $procmux$186:
-      Old ports: A=11'00000000000, B=$3$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$155, Y=$procmux$186_Y
-      New ports: A=1'0, B=$procmux$160_Y [0], Y=$procmux$186_Y [0]
-      New connections: $procmux$186_Y [10:1] = { $procmux$186_Y [0] $procmux$186_Y [0] $procmux$186_Y [0] $procmux$186_Y [0] $procmux$186_Y [0] $procmux$186_Y [0] $procmux$186_Y [0] $procmux$186_Y [0] $procmux$186_Y [0] $procmux$186_Y [0] }
-  Optimizing cells in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
-    Consolidated identical input bits for $mux cell $procmux$204:
-      Old ports: A=11'00000000000, B=$2$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$152, Y=$0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145
-      New ports: A=1'0, B=$procmux$186_Y [0], Y=$0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0]
-      New connections: $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [10:1] = { $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9547$141_EN[10:0]$145 [0] }
-  Optimizing cells in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
+  Optimizing cells in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+    Consolidated identical input bits for $mux cell $procmux$1713:
+      Old ports: A=0, B=32'11111111111111111111111111111111, Y=$procmux$1713_Y
+      New ports: A=1'0, B=1'1, Y=$procmux$1713_Y [0]
+      New connections: $procmux$1713_Y [31:1] = { $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] $procmux$1713_Y [0] }
+  Optimizing cells in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+    Consolidated identical input bits for $mux cell $procmux$1739:
+      Old ports: A=0, B=$3$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$496, Y=$procmux$1739_Y
+      New ports: A=1'0, B=$procmux$1713_Y [0], Y=$procmux$1739_Y [0]
+      New connections: $procmux$1739_Y [31:1] = { $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] $procmux$1739_Y [0] }
+  Optimizing cells in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+    Consolidated identical input bits for $mux cell $procmux$1757:
+      Old ports: A=0, B=$2$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$493, Y=$0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486
+      New ports: A=1'0, B=$procmux$1739_Y [0], Y=$0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0]
+      New connections: $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [31:1] = { $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$482_EN[31:0]$486 [0] }
+  Optimizing cells in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+  Optimizing cells in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
+    Consolidated identical input bits for $mux cell $procmux$1776:
+      Old ports: A=11'00000000000, B=11'11111111111, Y=$procmux$1776_Y
+      New ports: A=1'0, B=1'1, Y=$procmux$1776_Y [0]
+      New connections: $procmux$1776_Y [10:1] = { $procmux$1776_Y [0] $procmux$1776_Y [0] $procmux$1776_Y [0] $procmux$1776_Y [0] $procmux$1776_Y [0] $procmux$1776_Y [0] $procmux$1776_Y [0] $procmux$1776_Y [0] $procmux$1776_Y [0] $procmux$1776_Y [0] }
+  Optimizing cells in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
+    Consolidated identical input bits for $mux cell $procmux$1802:
+      Old ports: A=11'00000000000, B=$3$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$513, Y=$procmux$1802_Y
+      New ports: A=1'0, B=$procmux$1776_Y [0], Y=$procmux$1802_Y [0]
+      New connections: $procmux$1802_Y [10:1] = { $procmux$1802_Y [0] $procmux$1802_Y [0] $procmux$1802_Y [0] $procmux$1802_Y [0] $procmux$1802_Y [0] $procmux$1802_Y [0] $procmux$1802_Y [0] $procmux$1802_Y [0] $procmux$1802_Y [0] $procmux$1802_Y [0] }
+  Optimizing cells in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
+    Consolidated identical input bits for $mux cell $procmux$1820:
+      Old ports: A=11'00000000000, B=$2$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$510, Y=$0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503
+      New ports: A=1'0, B=$procmux$1802_Y [0], Y=$0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0]
+      New connections: $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [10:1] = { $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] $0$memwr$\mem$rtl/cache_wrapper.v:9449$499_EN[10:0]$503 [0] }
+  Optimizing cells in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
   Optimizing cells in module \cache_wrapper.
-    New ctrl vector for $pmux cell $procmux$10693: { $auto$opt_reduce.cc:134:opt_pmux$10932 $procmux$10462_CMP }
+    New ctrl vector for $pmux cell $procmux$1282: $auto$opt_reduce.cc:137:opt_pmux$2124
   Optimizing cells in module \cache_wrapper.
 Performed a total of 7 changes.
 
 2.8.5. Executing OPT_MERGE pass (detect identical cells).
-Finding identical cells in module `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram'.
-Finding identical cells in module `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram'.
+Finding identical cells in module `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram'.
+Finding identical cells in module `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram'.
 Finding identical cells in module `\cache_wrapper'.
-<suppressed ~21 debug messages>
-Removed a total of 7 cells.
+<suppressed ~387 debug messages>
+Removed a total of 129 cells.
 
 2.8.6. Executing OPT_CLEAN pass (remove unused cells and wires).
-Finding unused cells or wires in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram..
-Finding unused cells or wires in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram..
+Finding unused cells or wires in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram..
+Finding unused cells or wires in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram..
 Finding unused cells or wires in module \cache_wrapper..
-Removed 0 unused cells and 588 unused wires.
+Removed 0 unused cells and 194 unused wires.
 <suppressed ~3 debug messages>
 
 2.8.7. Executing OPT_EXPR pass (perform const folding).
-Optimizing module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-Optimizing module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
+Optimizing module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+Optimizing module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
 Optimizing module cache_wrapper.
 
 2.8.8. Rerunning OPT passes. (Maybe there is more to do..)
 
 2.8.9. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
-Running muxtree optimizer on module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram..
+Running muxtree optimizer on module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram..
   Creating internal representation of mux trees.
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
-Running muxtree optimizer on module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram..
+Running muxtree optimizer on module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram..
   Creating internal representation of mux trees.
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
@@ -986,120 +923,178 @@ Running muxtree optimizer on module \cache_wrapper..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~170 debug messages>
+<suppressed ~27 debug messages>
 
 2.8.10. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
-  Optimizing cells in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-  Optimizing cells in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
+  Optimizing cells in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+  Optimizing cells in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
   Optimizing cells in module \cache_wrapper.
 Performed a total of 0 changes.
 
 2.8.11. Executing OPT_MERGE pass (detect identical cells).
-Finding identical cells in module `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram'.
-Finding identical cells in module `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram'.
+Finding identical cells in module `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram'.
+Finding identical cells in module `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram'.
 Finding identical cells in module `\cache_wrapper'.
 Removed a total of 0 cells.
 
 2.8.12. Executing OPT_CLEAN pass (remove unused cells and wires).
-Finding unused cells or wires in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram..
-Finding unused cells or wires in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram..
+Finding unused cells or wires in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram..
+Finding unused cells or wires in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram..
 Finding unused cells or wires in module \cache_wrapper..
 
 2.8.13. Executing OPT_EXPR pass (perform const folding).
-Optimizing module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-Optimizing module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
+Optimizing module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+Optimizing module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
 Optimizing module cache_wrapper.
 
 2.8.14. Finished OPT passes. (There is nothing left to do.)
 
 2.9. Executing WREDUCE pass (reducing word size of cells).
-Removed top 29 bits (of 32) from port B of cell cache_wrapper.$mod$rtl/cache_wrapper.v:9042$120 ($mod).
-Removed top 24 bits (of 32) from port A of cell cache_wrapper.$add$rtl/cache_wrapper.v:8928$85 ($add).
-Removed top 24 bits (of 32) from port Y of cell cache_wrapper.$add$rtl/cache_wrapper.v:8928$85 ($add).
-Removed top 24 bits (of 32) from port B of cell cache_wrapper.$add$rtl/cache_wrapper.v:8928$85 ($add).
-Removed top 30 bits (of 32) from port B of cell cache_wrapper.$eq$rtl/cache_wrapper.v:8934$86 ($eq).
-Removed top 30 bits (of 32) from port B of cell cache_wrapper.$add$rtl/cache_wrapper.v:8939$87 ($add).
-Removed top 24 bits (of 32) from port A of cell cache_wrapper.$add$rtl/cache_wrapper.v:9030$115 ($add).
-Removed top 24 bits (of 32) from port Y of cell cache_wrapper.$add$rtl/cache_wrapper.v:9030$115 ($add).
-Removed top 24 bits (of 32) from port B of cell cache_wrapper.$add$rtl/cache_wrapper.v:9030$115 ($add).
-Removed top 30 bits (of 32) from port B of cell cache_wrapper.$add$rtl/cache_wrapper.v:9042$119 ($add).
-Removed top 1 bits (of 11) from mux cell cache_wrapper.$procmux$440 ($pmux).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$536_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$537_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$538_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$539_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$540_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$541_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$542_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$543_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$544_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$545_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$546_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$547_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$548_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$549_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$550_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$551_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$552_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$553_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$554_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$555_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$556_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$557_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$558_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$559_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$560_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$561_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$562_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$563_CMP0 ($eq).
-Removed top 2 bits (of 7) from port B of cell cache_wrapper.$procmux$564_CMP0 ($eq).
-Removed top 3 bits (of 7) from port B of cell cache_wrapper.$procmux$565_CMP0 ($eq).
-Removed top 3 bits (of 7) from port B of cell cache_wrapper.$procmux$566_CMP0 ($eq).
-Removed top 3 bits (of 7) from port B of cell cache_wrapper.$procmux$567_CMP0 ($eq).
-Removed top 3 bits (of 7) from port B of cell cache_wrapper.$procmux$568_CMP0 ($eq).
-Removed top 3 bits (of 7) from port B of cell cache_wrapper.$procmux$569_CMP0 ($eq).
-Removed top 3 bits (of 7) from port B of cell cache_wrapper.$procmux$570_CMP0 ($eq).
-Removed top 3 bits (of 7) from port B of cell cache_wrapper.$procmux$571_CMP0 ($eq).
-Removed top 3 bits (of 7) from port B of cell cache_wrapper.$procmux$572_CMP0 ($eq).
-Removed top 4 bits (of 7) from port B of cell cache_wrapper.$procmux$573_CMP0 ($eq).
-Removed top 4 bits (of 7) from port B of cell cache_wrapper.$procmux$574_CMP0 ($eq).
-Removed top 4 bits (of 7) from port B of cell cache_wrapper.$procmux$575_CMP0 ($eq).
-Removed top 4 bits (of 7) from port B of cell cache_wrapper.$procmux$576_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$3807_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$3881_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$3956_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4032_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4109_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4187_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4266_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4346_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4427_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4509_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4592_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4676_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4761_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4847_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$4934_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$5022_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$5111_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$5201_CMP0 ($eq).
-Removed top 1 bits (of 7) from port B of cell cache_wrapper.$procmux$5292_CMP0 ($eq).
-Removed top 5 bits (of 7) from port B of cell cache_wrapper.$procmux$10017_CMP0 ($eq).
-Removed top 5 bits (of 7) from port B of cell cache_wrapper.$procmux$10151_CMP0 ($eq).
-Removed top 6 bits (of 7) from port B of cell cache_wrapper.$procmux$10286_CMP0 ($eq).
-Removed top 2 bits (of 3) from port B of cell cache_wrapper.$procmux$10446_CMP0 ($eq).
-Removed top 1 bits (of 3) from port B of cell cache_wrapper.$procmux$10496_CMP0 ($eq).
-Removed top 2 bits (of 3) from mux cell cache_wrapper.$procmux$10592 ($mux).
-Removed top 1 bits (of 3) from mux cell cache_wrapper.$procmux$10595 ($mux).
-Removed top 1 bits (of 11) from wire cache_wrapper.$4$mem2reg_rd$\tag_meta_mem$rtl/cache_wrapper.v:8986$23_DATA[10:0]$108.
-Removed top 24 bits (of 32) from wire cache_wrapper.$add$rtl/cache_wrapper.v:8928$85_Y.
-Removed top 24 bits (of 32) from wire cache_wrapper.$add$rtl/cache_wrapper.v:9030$115_Y.
-Removed top 2 bits (of 3) from wire cache_wrapper.$procmux$10592_Y.
-Removed top 1 bits (of 3) from wire cache_wrapper.$procmux$10595_Y.
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$1992 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$1993 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$1994 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$1995 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$1996 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$1997 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$1998 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$1999 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2000 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2001 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2002 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2003 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2004 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2005 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2006 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2007 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2008 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2009 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2010 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2011 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2012 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2013 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2014 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2015 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2016 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2017 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2018 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2019 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2020 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2021 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2022 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2023 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2024 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2025 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2026 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2027 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2028 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2029 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2030 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2031 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2032 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2033 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2034 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2035 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2036 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2037 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2038 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2039 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2040 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2041 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2042 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2043 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2044 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2045 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2046 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2047 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2048 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2049 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2050 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2051 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2052 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2053 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2054 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2055 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2056 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2057 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2058 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2059 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2060 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2061 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2062 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2063 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2064 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2065 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2066 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2067 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2068 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2069 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2070 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2071 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2072 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2073 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2074 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2075 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2076 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2077 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2078 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2079 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2080 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2081 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2082 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2083 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2084 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2085 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2086 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2087 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2088 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2089 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2090 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2091 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2092 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2093 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2094 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2095 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2096 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2097 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2098 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2099 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2100 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2101 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2102 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2103 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2104 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2105 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2106 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2107 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2108 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2109 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2110 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2111 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2112 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2113 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2114 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2115 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2116 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2117 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2118 (repl_ptr).
+Removed top 25 address bits (of 32) from memory init port cache_wrapper.$auto$proc_memwr.cc:45:proc_memwr$2119 (repl_ptr).
+Removed top 1 bits (of 2) from mux cell cache_wrapper.$procmux$1009 ($mux).
+Removed top 1 bits (of 3) from port B of cell cache_wrapper.$procmux$1048_CMP0 ($eq).
+Removed top 1 bits (of 3) from port B of cell cache_wrapper.$procmux$1070_CMP0 ($eq).
+Removed top 1 bits (of 11) from mux cell cache_wrapper.$procmux$1081 ($mux).
+Removed top 1 bits (of 2) from mux cell cache_wrapper.$procmux$1251 ($mux).
+Removed top 2 bits (of 3) from port B of cell cache_wrapper.$procmux$1171_CMP0 ($eq).
+Removed top 1 bits (of 11) from mux cell cache_wrapper.$procmux$1079 ($mux).
+Removed top 1 bits (of 11) from mux cell cache_wrapper.$procmux$1075 ($pmux).
+Removed top 1 bits (of 2) from wire cache_wrapper.$2\data_we_way[1:0].
+Removed top 1 bits (of 11) from wire cache_wrapper.$3$mem2reg_rd$\tag_meta_array$rtl/cache_wrapper.v:8877$532_DATA[10:0]$962.
+Removed top 1 bits (of 11) from wire cache_wrapper.$procmux$1075_Y.
+Removed top 1 bits (of 11) from wire cache_wrapper.$procmux$1079_Y.
+Removed top 1 bits (of 2) from wire cache_wrapper.data_we_way.
 
 2.10. Executing OPT_CLEAN pass (remove unused cells and wires).
-Finding unused cells or wires in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram..
-Finding unused cells or wires in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram..
+Finding unused cells or wires in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram..
+Finding unused cells or wires in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram..
 Finding unused cells or wires in module \cache_wrapper..
 Removed 0 unused cells and 5 unused wires.
 <suppressed ~1 debug messages>
@@ -1109,33 +1104,33 @@ Removed 0 unused cells and 5 unused wires.
 2.12. Executing OPT pass (performing simple optimizations).
 
 2.12.1. Executing OPT_EXPR pass (perform const folding).
-Optimizing module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram.
-Optimizing module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram.
+Optimizing module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram.
+Optimizing module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram.
 Optimizing module cache_wrapper.
 
 2.12.2. Executing OPT_MERGE pass (detect identical cells).
-Finding identical cells in module `$paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram'.
-Finding identical cells in module `$paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram'.
+Finding identical cells in module `$paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram'.
+Finding identical cells in module `$paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram'.
 Finding identical cells in module `\cache_wrapper'.
 Removed a total of 0 cells.
 
 2.12.3. Executing OPT_CLEAN pass (remove unused cells and wires).
-Finding unused cells or wires in module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram..
-Finding unused cells or wires in module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram..
+Finding unused cells or wires in module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram..
+Finding unused cells or wires in module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram..
 Finding unused cells or wires in module \cache_wrapper..
 
 2.12.4. Finished fast OPT passes.
 
 2.13. Printing statistics.
 
-=== $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram ===
+=== $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram ===
 
    Number of wires:                 20
-   Number of wire bits:            420
+   Number of wire bits:            416
    Number of public wires:           7
-   Number of public wire bits:      76
+   Number of public wire bits:      75
    Number of ports:                  7
-   Number of port bits:             76
+   Number of port bits:             75
    Number of memories:               0
    Number of memory bits:            0
    Number of processes:              0
@@ -1144,14 +1139,14 @@ Finding unused cells or wires in module \cache_wrapper..
      $mem_v2                         1
      $mux                           12
 
-=== $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram ===
+=== $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram ===
 
    Number of wires:                 20
-   Number of wire bits:            168
+   Number of wire bits:            164
    Number of public wires:           7
-   Number of public wire bits:      34
+   Number of public wire bits:      33
    Number of ports:                  7
-   Number of port bits:             34
+   Number of port bits:             33
    Number of memories:               0
    Number of memory bits:            0
    Number of processes:              0
@@ -1162,60 +1157,59 @@ Finding unused cells or wires in module \cache_wrapper..
 
 === cache_wrapper ===
 
-   Number of wires:                780
-   Number of wire bits:           1985
-   Number of public wires:         172
-   Number of public wire bits:     572
+   Number of wires:                 74
+   Number of wire bits:            618
+   Number of public wires:          33
+   Number of public wire bits:     406
    Number of ports:                 15
    Number of port bits:            169
    Number of memories:               0
    Number of memory bits:            0
    Number of processes:              0
-   Number of cells:                767
-     $add                            4
-     $adff                         144
-     $dff                           14
-     $eq                           135
+   Number of cells:                 61
+     $add                            1
+     $dff                            4
+     $eq                             7
      $logic_and                      3
-     $logic_not                      2
-     $mod                            1
-     $mux                          449
-     $not                            1
-     $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram      1
-     $pmux                          12
+     $logic_not                      1
+     $mem_v2                         1
+     $mux                           33
+     $not                            2
+     $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram      2
+     $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram      2
+     $pmux                           4
      $reduce_or                      1
 
 === design hierarchy ===
 
    cache_wrapper                     1
-     $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram      1
+     $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram      2
+     $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram      2
 
-   Number of wires:                800
-   Number of wire bits:           2153
-   Number of public wires:         179
-   Number of public wire bits:     606
-   Number of ports:                 22
-   Number of port bits:            203
+   Number of wires:                154
+   Number of wire bits:           1778
+   Number of public wires:          61
+   Number of public wire bits:     622
+   Number of ports:                 43
+   Number of port bits:            385
    Number of memories:               0
    Number of memory bits:            0
    Number of processes:              0
-   Number of cells:                780
-     $add                            4
-     $adff                         144
-     $dff                           15
-     $eq                           135
+   Number of cells:                113
+     $add                            1
+     $dff                            8
+     $eq                             7
      $logic_and                      3
-     $logic_not                      2
-     $mem_v2                         1
-     $mod                            1
-     $mux                          461
-     $not                            1
-     $pmux                          12
+     $logic_not                      1
+     $mem_v2                         5
+     $mux                           81
+     $not                            2
+     $pmux                           4
      $reduce_or                      1
 
 2.14. Executing CHECK pass (checking for obvious problems).
-Checking module $paramod$5dbf8ea1b2be1f0e28c03a0110b50ee31c824f63\prim_ram...
-Checking module $paramod$6463e4ccc28407d8094d7acc0c25eec018e2b5a9\prim_ram...
+Checking module $paramod$078190fc970fe7358bacbff963a0ac1479776257\prim_ram...
+Checking module $paramod$f989f65af6b61bdb6696b421990243a390d709db\prim_ram...
 Checking module cache_wrapper...
 Found and reported 0 problems.
 
@@ -1223,7 +1217,7 @@ Found and reported 0 problems.
 Writing dot description to `syn/plots/cache_wrapper_presyn.dot'.
 Dumping module cache_wrapper to page 1.
 
-Warnings: 5 unique messages, 5 total
-End of script. Logfile hash: d205057d0a, CPU: user 0.19s system 0.01s, MEM: 52.60 MB peak
-Yosys 0.44+4 (git sha1 77b2ae2e3, g++ 13.2.0-23ubuntu4 -fPIC -O3)
-Time spent: 19% 2x read_verilog (0 sec), 16% 1x hierarchy (0 sec), ...
+Warnings: 1 unique messages, 2 total
+End of script. Logfile hash: 802e96dd97, CPU: user 0.14s system 0.01s, MEM: 53.80 MB peak
+Yosys 0.52+102 (git sha1 b69394783, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+Time spent: 30% 2x read_verilog (0 sec), 27% 1x hierarchy (0 sec), ...

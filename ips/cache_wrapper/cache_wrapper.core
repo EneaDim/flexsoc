@@ -1,0 +1,30 @@
+CAPI=2:
+name: "prj:ip:cache_wrapper:0.1"
+description: "cache_wrapper"
+filesets:
+  files_rtl:
+    depend:
+      - ips:dependecies:all
+    files:
+      - rtl/cache_wrapper_reg_pkg.sv
+      - rtl/prim_ram.sv
+      - rtl/cache_wrapper_reg_top.sv
+      - rtl/cache_wrapper.sv
+    file_type: systemVerilogSource
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+    toplevel: cache_wrapper
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"
+

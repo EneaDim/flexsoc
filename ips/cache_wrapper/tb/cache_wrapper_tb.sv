@@ -7,8 +7,8 @@ module cache_wrapper_tb;
   parameter DATA_WIDTH = 32;
 
   // Clock and reset
-  logic clk;
-  logic rst_n;
+  logic clk_i;
+  logic rst_ni;
   logic [DATA_WIDTH-1:0] data;
 
   // CPU Interface signals
@@ -30,8 +30,8 @@ module cache_wrapper_tb;
 
   // Clock generation
   initial begin
-    clk = 0;
-    forever #(CLK_PERIOD / 2) clk = ~clk;
+    clk_i = 0;
+    forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
   end
 
   // Dump vcd file 
@@ -49,8 +49,8 @@ module cache_wrapper_tb;
     .ADDR_WIDTH(ADDR_WIDTH),
     .DATA_WIDTH(DATA_WIDTH)
   ) dut (
-    .clk_i(clk),
-    .rst_ni(rst_n),
+    .clk_i,
+    .rst_ni,
 
     // CPU Interface
     .cpu_valid_i,
@@ -75,14 +75,14 @@ module cache_wrapper_tb;
   // ----------------------------
   task cpu_write(input logic [ADDR_WIDTH-1:0] addr, input logic [DATA_WIDTH-1:0] data);
     begin
-      @(negedge clk);
+      @(negedge clk_i);
       cpu_valid_i = 1;
       cpu_we_i = 1;
       cpu_adr_i = addr;
       cpu_wdata_i = data;
       $display("[%0t] CPU WRITE request: addr=0x%04h data=0x%08h", $time, addr, data);
       wait (cpu_ready_o == 1);
-      @(negedge clk);
+      @(negedge clk_i);
       cpu_valid_i = 0;
       wait (cpu_resp_valid_o == 1);
       $display("[%0t] CPU WRITE response received", $time);
@@ -91,14 +91,14 @@ module cache_wrapper_tb;
 
   task cpu_read(input logic [ADDR_WIDTH-1:0] addr, output logic [DATA_WIDTH-1:0] data);
     begin
-      @(negedge clk);
+      @(negedge clk_i);
       cpu_valid_i = 1;
       cpu_we_i = 0;
       cpu_adr_i = addr;
       cpu_wdata_i = 0;
       $display("[%0t] CPU READ request: addr=0x%04h", $time, addr);
       wait (cpu_ready_o == 1);
-      @(negedge clk);
+      @(negedge clk_i);
       cpu_valid_i = 0;
       wait (cpu_resp_valid_o == 1);
       data = cpu_rdata_o;
@@ -125,8 +125,8 @@ module cache_wrapper_tb;
   
   logic mem_valid_o_d;  // delayed version for edge detection
   
-  always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
       mem_ready_i   <= 0;
       mem_rdata_i   <= 0;
       mem_state     <= IDLE;
@@ -177,7 +177,7 @@ module cache_wrapper_tb;
   // ------------------------
   // Monitor
   // ------------------------
-  always @(posedge clk) begin
+  always @(posedge clk_i) begin
     if (cpu_valid_i || cpu_resp_valid_o) begin
       $display("[%0t] CPU signals: valid=%0b ready=%0b resp_valid=%0b addr=0x%04h we=%0b rdata=0x%08h",
         $time, cpu_valid_i, cpu_ready_o, cpu_resp_valid_o, cpu_adr_i, cpu_we_i, cpu_rdata_o);
@@ -189,33 +189,37 @@ module cache_wrapper_tb;
   // ----------------------------
   initial begin
     // Reset
-    rst_n = 0;
+    rst_ni = 0;
     cpu_valid_i = 0;
     cpu_we_i = 0;
     cpu_adr_i = 0;
     cpu_wdata_i = 0;
 
     #20;
-    rst_n = 1;
+    rst_ni = 1;
     $display("[%0t] Reset deasserted", $time);
 
     // Perform CPU transactions to test cache hit/miss:
     // First write to address (should cause cache miss, memory write)
     cpu_write(16'h0010, 32'hDEADBEEF);
+    @(negedge clk_i);
 
-    @(negedge clk);
-    @(negedge clk);
+    cpu_write(16'h0020, 32'hBEEFDEAD);
+    @(negedge clk_i);
 
     // Read from same address (should hit cache, no mem access)
-    $display("=== CPU READ from 0x0020 ===");
+    cpu_read(16'h0010, data);
+    @(negedge clk_i);
+
     cpu_read(16'h0020, data);
-    $display("=== Read complete: 0x%08h ===", data);
+    @(negedge clk_i);
 
     // Read from different address (should cause cache miss, memory read)
-    cpu_read(16'h0020, data);
+    cpu_read(16'h0030, data);
+    @(negedge clk_i);
 
     $display("[%0t] Test complete, finishing simulation", $time);
-    #10;
+    #(CLK_PERIOD*10);
     $finish;
   end
 
