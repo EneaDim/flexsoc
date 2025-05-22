@@ -16,8 +16,6 @@
  *  - Memory: valid-ready handshake.
  *
  */
-// TODO: Change Memory interface because the memory now is inside
-// The testbench is looping because stuck in ST_REFILL because of mem_valid_i
 module cache_wrapper #(
   parameter integer DATA_WIDTH   = 32,   // Data word width in bits
   parameter integer ADDR_WIDTH   = 16,   // Address width in bits (for CPU & SRAM addressing)
@@ -94,13 +92,13 @@ module cache_wrapper #(
   // FSM states definition
   // ------------------------------------------------
   typedef enum logic [2:0] {
-    ST_IDLE     = 3'd0,
-    ST_TAG_READ   = 3'd1,
-    ST_TAG_COMPARE= 3'd2,
-    ST_MISS     = 3'd3,
-    ST_WRITEBACK  = 3'd4,
-    ST_REFILL   = 3'd5,
-    ST_RESPOND  = 3'd6
+    ST_IDLE        = 3'd0,
+    ST_TAG_READ    = 3'd1,
+    ST_TAG_COMPARE = 3'd2,
+    ST_MISS        = 3'd3,
+    ST_WRITEBACK   = 3'd4,
+    ST_REFILL      = 3'd5,
+    ST_RESPOND     = 3'd6
   } state_t;
 
   state_t state_r, state_next;
@@ -392,6 +390,7 @@ module cache_wrapper #(
 
         ST_RESPOND: begin
           // Send data to CPU and assert valid
+          mem_valid_o <= 1'b0;
           cpu_resp_valid_r <= 1'b1;
           cpu_rdata_o <= resp_data_r;
           cpu_ready_r <= 1'b1;

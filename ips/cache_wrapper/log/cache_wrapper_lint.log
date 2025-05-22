@@ -140,6 +140,51 @@
 %Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:8550:6: Cell pin connected by name with empty reference: 'err_o'
  8550 |     .err_o()
       |      ^~~~~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9185:4: Cell pin connected by name with empty reference: 'intg_error_o'
+ 9185 |   .intg_error_o(),
+      |    ^~~~~~~~~~~~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9244:4: Cell pin connected by name with empty reference: 'qe'
+ 9244 |   .qe(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9246:4: Cell pin connected by name with empty reference: 'ds'
+ 9246 |   .ds(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9265:4: Cell pin connected by name with empty reference: 'qe'
+ 9265 |   .qe(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9267:4: Cell pin connected by name with empty reference: 'ds'
+ 9267 |   .ds(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9286:4: Cell pin connected by name with empty reference: 'qe'
+ 9286 |   .qe(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9288:4: Cell pin connected by name with empty reference: 'ds'
+ 9288 |   .ds(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9301:4: Cell pin connected by name with empty reference: 'qe'
+ 9301 |   .qe(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9303:4: Cell pin connected by name with empty reference: 'ds'
+ 9303 |   .ds(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9316:4: Cell pin connected by name with empty reference: 'qe'
+ 9316 |   .qe(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9318:4: Cell pin connected by name with empty reference: 'ds'
+ 9318 |   .ds(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9331:4: Cell pin connected by name with empty reference: 'qe'
+ 9331 |   .qe(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9333:4: Cell pin connected by name with empty reference: 'ds'
+ 9333 |   .ds(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9368:4: Cell pin connected by name with empty reference: 'ds'
+ 9368 |   .ds(),
+      |    ^~
+%Warning-PINCONNECTEMPTY: rtl/cache_wrapper.v:9369:4: Cell pin connected by name with empty reference: 'qs'
+ 9369 |   .qs()
+      |    ^~
 %Warning-MULTITOP: rtl/cache_wrapper.v:1094:8: Multiple top level modules
                                              : ... Suggest see manual; fix the duplicates, or use --top-module to select top.
                    ... For warning description see https://verilator.org/warn/MULTITOP?v=5.036
@@ -159,21 +204,12 @@
                                              : ... Top module 'prim_filter_ctr'
  2232 | module prim_filter_ctr (
       |        ^~~~~~~~~~~~~~~
-                                             : ... Top module 'prim_subreg'
- 2735 | module prim_subreg (
-      |        ^~~~~~~~~~~
-                                             : ... Top module 'prim_subreg_ext'
- 3419 | module prim_subreg_ext (
-      |        ^~~~~~~~~~~~~~~
                                              : ... Top module 'sram2tlul'
  3820 | module sram2tlul (
       |        ^~~~~~~~~
                                              : ... Top module 'tlul_adapter_host'
  3928 | module tlul_adapter_host (
       |        ^~~~~~~~~~~~~~~~~
-                                             : ... Top module 'tlul_adapter_reg'
- 4220 | module tlul_adapter_reg (
-      |        ^~~~~~~~~~~~~~~~
                                              : ... Top module 'tlul_adapter_sram'
  4595 | module tlul_adapter_sram (
       |        ^~~~~~~~~~~~~~~~~
@@ -192,16 +228,15 @@
                                              : ... Top module 'cache_wrapper'
  8643 | module cache_wrapper (
       |        ^~~~~~~~~~~~~
+                                             : ... Top module 'cache_wrapper_reg_top'
+ 9077 | module cache_wrapper_reg_top (
+      |        ^~~~~~~~~~~~~~~~~~~~~
 %Warning-WIDTHEXPAND: rtl/cache_wrapper.v:2353:26: Operator VAR 'ResetValue' expects 5 bits on the Initial value, but Initial value's CONST '1'sh0' generates 1 bits.
                                                  : ... note: In instance 'prim_fifo_async_sram_adapter.u_sync_rptr_gray'
  2353 |  parameter [Width - 1:0] ResetValue = 1'sb0;
       |                          ^~~~~~~~~~
                       ... For warning description see https://verilator.org/warn/WIDTHEXPAND?v=5.036
                       ... Use "/* verilator lint_off WIDTHEXPAND */" and lint_on around source to disable this message.
-%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:2754:23: Operator VAR 'RESVAL' expects 32 bits on the Initial value, but Initial value's CONST '1'sh0' generates 1 bits.
-                                                 : ... note: In instance 'prim_subreg'
- 2754 |  parameter [DW - 1:0] RESVAL = 1'sb0;
-      |                       ^~~~~~
 %Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4182:63: Operator FUNCREF 'sv2v_cast_D6E3D' expects 2 bits on the Function Argument, but Function Argument's CONST '1'h1' generates 1 bits.
                                                  : ... note: In instance 'tlul_adapter_host'
  4182 |  localparam [OutstandingReqCntW - 1:0] OutstandingReqCntOne = sv2v_cast_D6E3D(1'b1);
@@ -226,6 +261,18 @@
                                                  : ... note: In instance 'tlul_socket_1n.gen_err_resp.err_resp'
  6601 |  localparam [31:0] tlul_pkg_DataWhenInstrError = 1'sb0;
       |                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9273:20: Operator VAR 'sv2v_uu_u_ctrl_setting_ext_d_0' expects 16 bits on the Initial value, but Initial value's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9273 |  localparam [15:0] sv2v_uu_u_ctrl_setting_ext_d_0 = 1'sb0;
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9324:19: Operator VAR 'sv2v_uu_u_rdata_ext_wd_0' expects 8 bits on the Initial value, but Initial value's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9324 |  localparam [7:0] sv2v_uu_u_rdata_ext_wd_0 = 1'sb0;
+      |                   ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9353:19: Operator VAR 'sv2v_uu_u_wdata_ext_d_0' expects 8 bits on the Initial value, but Initial value's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9353 |  localparam [7:0] sv2v_uu_u_wdata_ext_d_0 = 1'sb0;
+      |                   ^~~~~~~~~~~~~~~~~~~~~~~
 %Warning-WIDTHEXPAND: rtl/cache_wrapper.v:2523:12: Operator FUNCREF 'sv2v_cast_39' expects 39 bits on the Function Argument, but Function Argument's VARREF 'data_i' generates 32 bits.
                                                  : ... note: In instance 'tlul_adapter_sram.u_tlul_data_integ_enc_data.u_data_gen'
  2523 |   data_o = sv2v_cast_39(data_i);
@@ -248,13 +295,29 @@
                                                  : ... note: In instance 'tlul_socket_1n.gen_dfifo[3].fifo_d.reqfifo.gen_normal_fifo.u_fifo_cnt'
  2071 |  assign depth_o = (full_o ? sv2v_cast_2DA09(Depth) : (wptr_wrap_msb == rptr_wrap_msb ? sv2v_cast_2DA09(wptr_o) - sv2v_cast_2DA09(rptr_o) : (sv2v_cast_2DA09(Depth) - sv2v_cast_2DA09(rptr_o)) + sv2v_cast_2DA09(wptr_o)));
       |                                                                                                                                             ^~~~~~~~~~~~~~~
-%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9112:12: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
-                                                 : ... note: In instance 'cache_wrapper.data_ram'
- 9112 |    rdata_o <= 1'sb0;
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4382:12: Operator ASSIGNDLY expects 8 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4382 |    reqid_q <= 1'sb0;
       |            ^~
-%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9112:12: Operator ASSIGNDLY expects 11 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4384:12: Operator ASSIGNDLY expects 2 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4384 |    reqsz_q <= 1'sb0;
+      |            ^~
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4442:14: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4442 |      rdata_q <= 1'sb0;
+      |              ^~
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4485:153: Operator FUNCREF 'sv2v_cast_11E70' expects 14 bits on the Function Argument, but Function Argument's CONST '1'sh0' generates 1 bits.
+                                                  : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4485 |  assign tl_o_pre = {outstanding_q, rspop_q, 3'b000, sv2v_cast_FDEB5(reqsz_q), sv2v_cast_15E34(reqid_q), sv2v_cast_17D81(1'sb0), sv2v_cast_9783B(rdata), sv2v_cast_11E70(1'sb0), error, sv2v_cast_1(~(outstanding_q | (tl_i[7 + (top_pkg_TL_SZW + (top_pkg_TL_AIW + (top_pkg_TL_AW + (top_pkg_TL_DBW + 55))))] & busy_i)))};
+      |                                                                                                                                                         ^~~~~~~~~~~~~~~
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9541:12: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper.data_ram'
+ 9541 |    rdata_o <= 1'sb0;
+      |            ^~
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9541:12: Operator ASSIGNDLY expects 11 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                                  : ... note: In instance 'cache_wrapper.tag_ram'
- 9112 |    rdata_o <= 1'sb0;
+ 9541 |    rdata_o <= 1'sb0;
       |            ^~
 %Warning-WIDTHEXPAND: rtl/cache_wrapper.v:123:11: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                                 : ... note: In instance 'tlul_socket_m1.gen_arb_ppc.u_reqarb'
@@ -386,6 +449,22 @@
                                                  : ... note: In instance 'tlul_assert_multiple.gen_assert[1].tlul_assert'
  5567 |    pend_req <= 1'sb0;
       |             ^~
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9385:12: Operator ASSIGN expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9385 |   addr_hit = 1'sb0;
+      |            ^
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9426:18: Operator ASSIGN expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9426 |   reg_rdata_next = 1'sb0;
+      |                  ^
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9449:25: Operator ASSIGN expects 8 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9449 |     reg_rdata_next[7:0] = 1'sb0;
+      |                         ^
+%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:9452:20: Operator ASSIGN expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh1' generates 1 bits.
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9452 |     reg_rdata_next = 1'sb1;
+      |                    ^
 %Warning-WIDTHEXPAND: rtl/cache_wrapper.v:8789:34: Operator SHIFTL expects 32 bits on the LHS, but LHS's VARREF 'state_set_idx' generates 7 bits.
                                                  : ... note: In instance 'cache_wrapper'
  8789 |   tag_addr_comb = (state_set_idx << $clog2(ASSOCIATIVITY)) + way_counter;
@@ -536,22 +615,6 @@
                                                  : ... note: In instance 'tlul_adapter_sram'
  5366 |    assign sramreqaddrfifo_rdata = 1'sb0;
       |                                 ^
-%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4382:12: Operator ASSIGNDLY expects 8 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4382 |    reqid_q <= 1'sb0;
-      |            ^~
-%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4384:12: Operator ASSIGNDLY expects 2 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4384 |    reqsz_q <= 1'sb0;
-      |            ^~
-%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4442:14: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4442 |      rdata_q <= 1'sb0;
-      |              ^~
-%Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4485:153: Operator FUNCREF 'sv2v_cast_11E70' expects 14 bits on the Function Argument, but Function Argument's CONST '1'sh0' generates 1 bits.
-                                                  : ... note: In instance 'tlul_adapter_reg'
- 4485 |  assign tl_o_pre = {outstanding_q, rspop_q, 3'b000, sv2v_cast_FDEB5(reqsz_q), sv2v_cast_15E34(reqid_q), sv2v_cast_17D81(1'sb0), sv2v_cast_9783B(rdata), sv2v_cast_11E70(1'sb0), error, sv2v_cast_1(~(outstanding_q | (tl_i[7 + (top_pkg_TL_SZW + (top_pkg_TL_AIW + (top_pkg_TL_AW + (top_pkg_TL_DBW + 55))))] & busy_i)))};
-      |                                                                                                                                                         ^~~~~~~~~~~~~~~
 %Warning-WIDTHEXPAND: rtl/cache_wrapper.v:4069:23: Operator FUNCREF 'sv2v_cast_8' expects 8 bits on the Function Argument, but Function Argument's VARREF 'source_q' generates 1 bits.
                                                  : ... note: In instance 'tlul_adapter_host'
  4069 |    assign tl_source = sv2v_cast_8(source_q);
@@ -664,34 +727,6 @@
                                                  : ... note: In instance 'tlul_adapter_host'
  3998 |  localparam signed [31:0] tlul_pkg_H2DCmdIntgWidth = 7;
       |                           ^~~~~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:4259:27: Parameter is not used: 'prim_mubi_pkg_MuBi4Width'
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4259 |  localparam signed [31:0] prim_mubi_pkg_MuBi4Width = 4;
-      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:4262:27: Parameter is not used: 'tlul_pkg_H2DCmdIntgWidth'
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4262 |  localparam signed [31:0] tlul_pkg_H2DCmdIntgWidth = 7;
-      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:4306:27: Parameter is not used: 'IW'
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4306 |  localparam signed [31:0] IW = top_pkg_TL_AIW;
-      |                           ^~
-%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:4321:7: Signal is not used: 'instr_error'
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4321 |  wire instr_error;
-      |       ^~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:4322:7: Signal is not used: 'intg_error'
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4322 |  wire intg_error;
-      |       ^~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:4326:7: Signal is not used: 'malformed_meta_err'
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4326 |  wire malformed_meta_err;
-      |       ^~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:4328:7: Signal is not used: 'tl_err'
-                                                 : ... note: In instance 'tlul_adapter_reg'
- 4328 |  wire tl_err;
-      |       ^~~~~~
 %Warning-UNUSEDPARAM: rtl/cache_wrapper.v:4665:27: Parameter is not used: 'tlul_pkg_H2DCmdIntgWidth'
                                                  : ... note: In instance 'tlul_adapter_sram'
  4665 |  localparam signed [31:0] tlul_pkg_H2DCmdIntgWidth = 7;
@@ -780,6 +815,50 @@
                                                   : ... note: In instance 'cache_wrapper'
  8781 |  reg [(SET_INDEX_WIDTH + $clog2(ASSOCIATIVITY)) - 1:0] tag_addr_comb;
       |                                                        ^~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9104:27: Parameter is not used: 'prim_mubi_pkg_MuBi4Width'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9104 |  localparam signed [31:0] prim_mubi_pkg_MuBi4Width = 4;
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9107:27: Parameter is not used: 'tlul_pkg_H2DCmdIntgWidth'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9107 |  localparam signed [31:0] tlul_pkg_H2DCmdIntgWidth = 7;
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9130:27: Parameter is not used: 'DBW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9130 |  localparam signed [31:0] DBW = 4;
+      |                           ^~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9229:27: Parameter is not used: 'sv2v_uu_u_ctrl_en_DW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9229 |  localparam signed [31:0] sv2v_uu_u_ctrl_en_DW = 1;
+      |                           ^~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9250:27: Parameter is not used: 'sv2v_uu_u_ctrl_rst_DW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9250 |  localparam signed [31:0] sv2v_uu_u_ctrl_rst_DW = 1;
+      |                           ^~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9271:27: Parameter is not used: 'sv2v_uu_u_ctrl_setting_DW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9271 |  localparam signed [31:0] sv2v_uu_u_ctrl_setting_DW = 16;
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9292:20: Parameter is not used: 'sv2v_uu_u_status_full_DW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9292 |  localparam [31:0] sv2v_uu_u_status_full_DW = 1;
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9307:20: Parameter is not used: 'sv2v_uu_u_status_empty_DW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9307 |  localparam [31:0] sv2v_uu_u_status_empty_DW = 1;
+      |                    ^~~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9322:20: Parameter is not used: 'sv2v_uu_u_rdata_DW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9322 |  localparam [31:0] sv2v_uu_u_rdata_DW = 8;
+      |                    ^~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9351:27: Parameter is not used: 'sv2v_uu_u_wdata_DW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9351 |  localparam signed [31:0] sv2v_uu_u_wdata_DW = 8;
+      |                           ^~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:9376:27: Parameter is not used: 'cache_wrapper_reg_pkg_BlockAw'
+                                                 : ... note: In instance 'cache_wrapper_reg_top'
+ 9376 |  localparam signed [31:0] cache_wrapper_reg_pkg_BlockAw = 4;
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: rtl/cache_wrapper.v:5509:27: Parameter is not used: 'prim_mubi_pkg_MuBi4Width'
                                                  : ... note: In instance 'tlul_assert_multiple.gen_assert[1].tlul_assert'
  5509 |  localparam signed [31:0] prim_mubi_pkg_MuBi4Width = 4;
@@ -812,42 +891,6 @@
                                                   : ... note: In instance 'tlul_assert_multiple.gen_assert[1].tlul_assert'
  5545 |  wire [63:0] d_data;
       |              ^~~~~~
-%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:6350:8: Signal is not used: 'clk_i'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_err'
- 6350 |  input clk_i;
-      |        ^~~~~
-%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:6352:8: Signal is not used: 'rst_ni'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_err'
- 6352 |  input rst_ni;
-      |        ^~~~~~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6355:27: Parameter is not used: 'prim_mubi_pkg_MuBi4Width'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_err'
- 6355 |  localparam signed [31:0] prim_mubi_pkg_MuBi4Width = 4;
-      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6357:27: Parameter is not used: 'tlul_pkg_DataIntgWidth'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_err'
- 6357 |  localparam signed [31:0] tlul_pkg_DataIntgWidth = 7;
-      |                           ^~~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6358:27: Parameter is not used: 'tlul_pkg_H2DCmdIntgWidth'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_err'
- 6358 |  localparam signed [31:0] tlul_pkg_H2DCmdIntgWidth = 7;
-      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6370:27: Parameter is not used: 'IW'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_err'
- 6370 |  localparam signed [31:0] IW = top_pkg_TL_AIW;
-      |                           ^~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6372:27: Parameter is not used: 'SZW'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_err'
- 6372 |  localparam signed [31:0] SZW = top_pkg_TL_SZW;
-      |                           ^~~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6374:27: Parameter is not used: 'DW'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_err'
- 6374 |  localparam signed [31:0] DW = top_pkg_TL_DW;
-      |                           ^~
-%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6378:27: Parameter is not used: 'SubAW'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_err'
- 6378 |  localparam signed [31:0] SubAW = 2;
-      |                           ^~~~~
 %Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6512:27: Parameter is not used: 'prim_mubi_pkg_MuBi4Width'
                                                  : ... note: In instance 'tlul_socket_1n.gen_err_resp.err_resp'
  6512 |  localparam signed [31:0] prim_mubi_pkg_MuBi4Width = 4;
@@ -896,27 +939,91 @@
                                                  : ... note: In instance 'tlul_socket_1n.fifo_h'
  6745 |  localparam signed [31:0] tlul_pkg_H2DCmdIntgWidth = 7;
       |                           ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:4259:27: Parameter is not used: 'prim_mubi_pkg_MuBi4Width'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4259 |  localparam signed [31:0] prim_mubi_pkg_MuBi4Width = 4;
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:4262:27: Parameter is not used: 'tlul_pkg_H2DCmdIntgWidth'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4262 |  localparam signed [31:0] tlul_pkg_H2DCmdIntgWidth = 7;
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:4306:27: Parameter is not used: 'IW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4306 |  localparam signed [31:0] IW = top_pkg_TL_AIW;
+      |                           ^~
+%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:4321:7: Signal is not used: 'instr_error'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4321 |  wire instr_error;
+      |       ^~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:4322:7: Signal is not used: 'intg_error'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4322 |  wire intg_error;
+      |       ^~~~~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:4326:7: Signal is not used: 'malformed_meta_err'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4326 |  wire malformed_meta_err;
+      |       ^~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:4328:7: Signal is not used: 'tl_err'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if'
+ 4328 |  wire tl_err;
+      |       ^~~~~~
+%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:6350:8: Signal is not used: 'clk_i'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_err'
+ 6350 |  input clk_i;
+      |        ^~~~~
+%Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:6352:8: Signal is not used: 'rst_ni'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_err'
+ 6352 |  input rst_ni;
+      |        ^~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6355:27: Parameter is not used: 'prim_mubi_pkg_MuBi4Width'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_err'
+ 6355 |  localparam signed [31:0] prim_mubi_pkg_MuBi4Width = 4;
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6357:27: Parameter is not used: 'tlul_pkg_DataIntgWidth'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_err'
+ 6357 |  localparam signed [31:0] tlul_pkg_DataIntgWidth = 7;
+      |                           ^~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6358:27: Parameter is not used: 'tlul_pkg_H2DCmdIntgWidth'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_err'
+ 6358 |  localparam signed [31:0] tlul_pkg_H2DCmdIntgWidth = 7;
+      |                           ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6370:27: Parameter is not used: 'IW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_err'
+ 6370 |  localparam signed [31:0] IW = top_pkg_TL_AIW;
+      |                           ^~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6372:27: Parameter is not used: 'SZW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_err'
+ 6372 |  localparam signed [31:0] SZW = top_pkg_TL_SZW;
+      |                           ^~~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6374:27: Parameter is not used: 'DW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_err'
+ 6374 |  localparam signed [31:0] DW = top_pkg_TL_DW;
+      |                           ^~
+%Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6378:27: Parameter is not used: 'SubAW'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_err'
+ 6378 |  localparam signed [31:0] SubAW = 2;
+      |                           ^~~~~
 %Warning-UNUSEDSIGNAL: rtl/cache_wrapper.v:6915:6: Signal is not used: '_sv2v_0'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_rsp_gen'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_rsp_intg_gen'
  6915 |  reg _sv2v_0;
       |      ^~~~~~~
 %Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6936:27: Parameter is not used: 'tlul_pkg_D2HRspMaxWidth'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_rsp_gen'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_rsp_intg_gen'
  6936 |  localparam signed [31:0] tlul_pkg_D2HRspMaxWidth = 57;
       |                           ^~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: rtl/cache_wrapper.v:6937:27: Parameter is not used: 'tlul_pkg_DataMaxWidth'
-                                                 : ... note: In instance 'tlul_adapter_sram.u_rsp_gen'
+                                                 : ... note: In instance 'cache_wrapper_reg_top.u_reg_if.u_rsp_intg_gen'
  6937 |  localparam signed [31:0] tlul_pkg_DataMaxWidth = 32;
       |                           ^~~~~~~~~~~~~~~~~~~~~
 %Warning-SYNCASYNCNET: rtl/cache_wrapper.v:8672:13: Signal flopped as both synchronous and async: 'cache_wrapper.rst_ni'
                        rtl/cache_wrapper.v:8837:8: ... Location of async usage
  8837 |   if (!rst_ni) begin
       |        ^~~~~~
-                       rtl/cache_wrapper.v:9110:8: ... Location of sync usage
- 9110 |   if (!rst_ni)
+                       rtl/cache_wrapper.v:9539:8: ... Location of sync usage
+ 9539 |   if (!rst_ni)
       |        ^~~~~~
                        ... For warning description see https://verilator.org/warn/SYNCASYNCNET?v=5.036
                        ... Use "/* verilator lint_off SYNCASYNCNET */" and lint_on around source to disable this message.
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 0.339 MB sources in 44 modules, into 0.967 MB in 8 C++ files needing 0.000 MB
-- Verilator: Walltime 0.272 s (elab=0.065, cvt=0.138, bld=0.000); cpu 0.272 s on 1 threads; alloced 30.566 MB
+- Verilator: Built from 0.347 MB sources in 45 modules, into 0.978 MB in 8 C++ files needing 0.000 MB
+- Verilator: Walltime 0.155 s (elab=0.035, cvt=0.073, bld=0.000); cpu 0.141 s on 1 threads; alloced 45.152 MB

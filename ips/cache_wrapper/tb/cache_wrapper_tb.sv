@@ -53,21 +53,21 @@ module cache_wrapper_tb;
     .rst_ni(rst_n),
 
     // CPU Interface
-    .cpu_valid_i(cpu_valid_i),
-    .cpu_ready_o(cpu_ready_o),
-    .cpu_we_i(cpu_we_i),
-    .cpu_adr_i(cpu_adr_i),
-    .cpu_wdata_i(cpu_wdata_i),
-    .cpu_rdata_o(cpu_rdata_o),
-    .cpu_resp_valid_o(cpu_resp_valid_o),
+    .cpu_valid_i,
+    .cpu_ready_o,
+    .cpu_we_i,
+    .cpu_adr_i,
+    .cpu_wdata_i,
+    .cpu_rdata_o,
+    .cpu_resp_valid_o,
 
     // Memory Interface
-    .mem_valid_o(mem_valid_o),
-    .mem_ready_i(mem_ready_i),
-    .mem_we_o(mem_we_o),
-    .mem_adr_o(mem_adr_o),
-    .mem_wdata_o(mem_wdata_o),
-    .mem_rdata_i(mem_rdata_i)
+    .mem_valid_o,
+    .mem_ready_i,
+    .mem_we_o,
+    .mem_adr_o,
+    .mem_wdata_o,
+    .mem_rdata_i
   );
 
   // ----------------------------
@@ -75,14 +75,14 @@ module cache_wrapper_tb;
   // ----------------------------
   task cpu_write(input logic [ADDR_WIDTH-1:0] addr, input logic [DATA_WIDTH-1:0] data);
     begin
-      @(posedge clk);
+      @(negedge clk);
       cpu_valid_i = 1;
       cpu_we_i = 1;
       cpu_adr_i = addr;
       cpu_wdata_i = data;
       $display("[%0t] CPU WRITE request: addr=0x%04h data=0x%08h", $time, addr, data);
       wait (cpu_ready_o == 1);
-      @(posedge clk);
+      @(negedge clk);
       cpu_valid_i = 0;
       wait (cpu_resp_valid_o == 1);
       $display("[%0t] CPU WRITE response received", $time);
@@ -91,14 +91,14 @@ module cache_wrapper_tb;
 
   task cpu_read(input logic [ADDR_WIDTH-1:0] addr, output logic [DATA_WIDTH-1:0] data);
     begin
-      @(posedge clk);
+      @(negedge clk);
       cpu_valid_i = 1;
       cpu_we_i = 0;
       cpu_adr_i = addr;
       cpu_wdata_i = 0;
       $display("[%0t] CPU READ request: addr=0x%04h", $time, addr);
       wait (cpu_ready_o == 1);
-      @(posedge clk);
+      @(negedge clk);
       cpu_valid_i = 0;
       wait (cpu_resp_valid_o == 1);
       data = cpu_rdata_o;
@@ -121,22 +121,23 @@ module cache_wrapper_tb;
   
   int wait_cycles;
   
+  logic [31:0] memory_array [0:65535];  // 64K locations (16-bit address space)
+  
   logic mem_valid_o_d;  // delayed version for edge detection
   
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      mem_ready_i <= 0;
-      mem_rdata_i <= 0;
-      mem_state   <= IDLE;
-      wait_cycles = 0;
+      mem_ready_i   <= 0;
+      mem_rdata_i   <= 0;
+      mem_state     <= IDLE;
+      wait_cycles   <= 0;
       mem_valid_o_d <= 0;
     end else begin
       mem_valid_o_d <= mem_valid_o;  // store last cycle's value
-  
       case (mem_state)
         IDLE: begin
           mem_ready_i <= 0;
-          wait_cycles = 0;
+          wait_cycles <= 0;
   
           // Only trigger on rising edge of mem_valid_o
           if (mem_valid_o && !mem_valid_o_d) begin
@@ -144,26 +145,24 @@ module cache_wrapper_tb;
             mem_wdata_reg <= mem_wdata_o;
             mem_we_reg    <= mem_we_o;
             mem_state     <= WAIT_MEM;
-  
             $display("[%0t] MEM request received: %s @ 0x%04h data=0x%08h",
                      $time, mem_we_o ? "WRITE" : "READ", mem_adr_o, mem_wdata_o);
           end
         end
-  
         WAIT_MEM: begin
-          wait_cycles = wait_cycles + 1;
-  
+          wait_cycles <= wait_cycles + 1;
           if (wait_cycles == 3) begin
             mem_ready_i <= 1;
-  
             if (!mem_we_reg) begin
               // Simulated read data
-              mem_rdata_i <= {16'hBEEF, mem_addr_reg};
+              mem_rdata_i <= memory_array[mem_addr_reg];
               $display("[%0t] MEM READ data ready: 0x%08h", $time, mem_rdata_i);
             end else begin
-              $display("[%0t] MEM WRITE complete", $time);
+              // Perform the actual write
+              memory_array[mem_addr_reg] <= mem_wdata_reg;
+              $display("[%0t] MEM WRITE complete @ 0x%04h with data=0x%08h", 
+                       $time, mem_addr_reg, mem_wdata_reg);
             end
-  
           end else if (wait_cycles == 4) begin
             mem_ready_i <= 0;
             mem_state <= IDLE;
@@ -203,6 +202,9 @@ module cache_wrapper_tb;
     // Perform CPU transactions to test cache hit/miss:
     // First write to address (should cause cache miss, memory write)
     cpu_write(16'h0010, 32'hDEADBEEF);
+
+    @(negedge clk);
+    @(negedge clk);
 
     // Read from same address (should hit cache, no mem access)
     $display("=== CPU READ from 0x0020 ===");
