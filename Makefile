@@ -380,6 +380,6 @@ clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	@$(CLEAR)
 clean_all: clean_fsm_all clean_vendor clean 
-	@$(RM) $(TOP).core
+	@$(RM) *.core
 	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) \
 	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) > /dev/null 2>&1
