@@ -209,8 +209,8 @@ fsm_plot:
 fsm_flow: setup fsm_setup fsm_cp_example fsm_gen fsm_plot fsm_cp
 
 # BASIC FLOW:
-ip_flow_all: hjson doc sim view_presyn syn sdf sta sta_violators power view
-ip_flow: reg doc lint sim view_presyn syn sdf sta sta_violators power view
+ip_flow_all: hjson doc sim syn sdf sta sta_violators power view view_presyn 
+ip_flow: reg doc lint sim syn sdf sta sta_violators power view view_presyn 
 
 # FUSESOC
 fsoc_init:
@@ -266,7 +266,7 @@ ip_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
 	$(MAKE) load_ip
 	@$(ECHO) "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
-	$(MAKE) sim view_presyn syn sdf sta sta_violators power view
+	$(MAKE) sim syn sdf sta sta_violators power view view_presyn 
 
 soc_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
