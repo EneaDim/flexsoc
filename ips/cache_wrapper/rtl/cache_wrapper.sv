@@ -3,10 +3,10 @@
  * @brief Cache with parallel tag compare and proper writeback.
  */
 module cache_wrapper #(
-  parameter int DATA_WIDTH = 32,
-  parameter int ADDR_WIDTH = 16,
-  parameter int CACHE_SIZE = 1024,
-  parameter int ASSOCIATIVITY = 2
+  parameter int DATA_WIDTH    = 32,   // 4bytes
+  parameter int ADDR_WIDTH    = 16,   // 64kbytes Main Memory
+  parameter int CACHE_SIZE    = 1024, // 4kbytes (1k*4bytes)
+  parameter int ASSOCIATIVITY = 2     // 2 ways
 )(
   input  logic                  clk_i,
   input  logic                  rst_ni,
@@ -27,9 +27,7 @@ module cache_wrapper #(
   input  logic [DATA_WIDTH-1:0] mem_rdata_i
 );
 
-  localparam int WORD_BYTES      = DATA_WIDTH / 8;
-  localparam int NUM_BLOCKS      = CACHE_SIZE / WORD_BYTES;
-  localparam int NUM_SETS        = NUM_BLOCKS / ASSOCIATIVITY;
+  localparam int NUM_SETS        = CACHE_SIZE / ASSOCIATIVITY;
   localparam int SET_INDEX_WIDTH = $clog2(NUM_SETS);
   localparam int TAG_WIDTH       = ADDR_WIDTH - SET_INDEX_WIDTH;
   localparam int TAG_META_WIDTH  = TAG_WIDTH + 2;
@@ -58,9 +56,6 @@ module cache_wrapper #(
   logic [TAG_WIDTH-1:0]       cpu_tag;
   logic [SET_INDEX_WIDTH-1:0] cpu_index;
 
-  assign cpu_index = cpu_adr_i[SET_INDEX_WIDTH-1:0];
-  assign cpu_tag   = cpu_adr_i[ADDR_WIDTH-1 -: TAG_WIDTH];
-
   tag_meta_t tag_meta_array [ASSOCIATIVITY-1:0];
   logic [TAG_META_WIDTH-1:0] tag_rdata_way [ASSOCIATIVITY-1:0];
   logic [TAG_META_WIDTH-1:0] tag_wdata_way;
@@ -75,6 +70,10 @@ module cache_wrapper #(
 
   logic [$clog2(ASSOCIATIVITY)-1:0] repl_ptr [NUM_SETS-1:0];
   logic [$clog2(ASSOCIATIVITY)-1:0] repl_way;
+
+  // CPU index and CPU tag
+  assign cpu_index = cpu_adr_i[SET_INDEX_WIDTH-1:0];
+  assign cpu_tag   = cpu_adr_i[ADDR_WIDTH-1 : ADDR_WIDTH - TAG_WIDTH];
 
   // FSM
   always_ff @(posedge clk_i) begin
@@ -118,22 +117,22 @@ module cache_wrapper #(
     hit_way        = '0;
     repl_way       = '0;
     for (int w = 0; w < ASSOCIATIVITY; w++) begin
-      tag_meta_array[w] = '0;  // Clear to default to prevent latches
+      tag_meta_array[w] = '0;
     end
 
     case (state_r)
+      // Wait CPU requests
       ST_IDLE: begin
         if (cpu_valid_i) begin
           state_n = ST_TAG_ACCESS;
         end
       end
-
+      // Access the TAG and DATA memories
       ST_TAG_ACCESS: begin
         state_n = ST_TAG_CHECK;
       end
-
+      // Check TAG if hit or miss
       ST_TAG_CHECK: begin
-        hit = 1'b0;
         for (int w = 0; w < ASSOCIATIVITY; w++) begin
           tag_meta_array[w] = tag_rdata_way[w];
           if (tag_meta_array[w].valid && tag_meta_array[w].tag == cpu_tag) begin
@@ -152,7 +151,7 @@ module cache_wrapper #(
           end
         end
       end
-
+      // Write back dirty data to main memory
       ST_WRITEBACK: begin
         mem_valid_o = 1'b1;
         mem_we_o    = 1'b1;
@@ -162,7 +161,7 @@ module cache_wrapper #(
           state_n = ST_REFILL;
         end
       end
-
+      // Refill cache memory from main memory data
       ST_REFILL: begin
         mem_valid_o = 1'b1;
         mem_we_o    = 1'b0;
@@ -175,13 +174,13 @@ module cache_wrapper #(
           state_n               = ST_RESPOND;
         end
       end
-
+      // Respond to CPU
       ST_RESPOND: begin
         state_n = ST_IDLE;
       end
-
+      // Default
       default: begin
-        state_n = ST_IDLE; // fail-safe fallback
+        state_n = ST_IDLE;
       end
     endcase
   end

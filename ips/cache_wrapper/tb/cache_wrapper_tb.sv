@@ -2,9 +2,11 @@
 
 module cache_wrapper_tb;
 
-  parameter int CLK_PERIOD = 10; // Clock period in ns
-  parameter ADDR_WIDTH = 16;
-  parameter DATA_WIDTH = 32;
+  parameter int CLK_PERIOD    = 10; // Clock period in ns
+  parameter int ADDR_WIDTH    = 16;
+  parameter int DATA_WIDTH    = 32;
+  parameter int CACHE_SIZE    = 1024;
+  parameter int ASSOCIATIVITY = 2;
 
   // Clock and reset
   logic clk_i;
@@ -47,7 +49,9 @@ module cache_wrapper_tb;
   // Instantiate DUT
   cache_wrapper #(
     .ADDR_WIDTH(ADDR_WIDTH),
-    .DATA_WIDTH(DATA_WIDTH)
+    .DATA_WIDTH(DATA_WIDTH),
+    .CACHE_SIZE(CACHE_SIZE),
+    .ASSOCIATIVITY(ASSOCIATIVITY)
   ) dut (
     .clk_i,
     .rst_ni,
@@ -180,7 +184,7 @@ module cache_wrapper_tb;
   always @(posedge clk_i) begin
     if (cpu_valid_i || cpu_resp_valid_o) begin
       $display("[%0t] CPU signals: valid=%0b ready=%0b resp_valid=%0b addr=0x%04h we=%0b rdata=0x%08h",
-        $time, cpu_valid_i, cpu_ready_o, cpu_resp_valid_o, cpu_adr_i, cpu_we_i, cpu_rdata_o);
+      $time, cpu_valid_i, cpu_ready_o, cpu_resp_valid_o, cpu_adr_i, cpu_we_i, cpu_rdata_o);
     end
   end
 
