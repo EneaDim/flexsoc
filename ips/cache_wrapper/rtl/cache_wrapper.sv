@@ -56,8 +56,7 @@ module cache_wrapper #(
   logic [TAG_WIDTH-1:0]       cpu_tag;
   logic [SET_INDEX_WIDTH-1:0] cpu_index;
 
-  tag_meta_t tag_meta_array [ASSOCIATIVITY-1:0];
-  logic [TAG_META_WIDTH-1:0] tag_rdata_way [ASSOCIATIVITY-1:0];
+  tag_meta_t tag_rdata_way [ASSOCIATIVITY-1:0];
   logic [TAG_META_WIDTH-1:0] tag_wdata_way;
   logic [ASSOCIATIVITY-1:0]  tag_we_way;
 
@@ -87,15 +86,15 @@ module cache_wrapper #(
   // Registered inputs for stable FSM signals
   always_ff @(posedge clk_i) begin
     if (!rst_ni) begin
-      cpu_adr_reg <= '0;
-      cpu_we_reg <= 1'b0;
+      cpu_adr_regu  <= '0;
+      cpu_we_reg    <= 1'b0;
       cpu_wdata_reg <= '0;
       for (int i = 0; i < NUM_SETS; i++) begin
         repl_ptr[i] <= '0;
       end
     end else begin
-      cpu_adr_reg <= cpu_adr_i;
-      cpu_we_reg <= cpu_we_i;
+      cpu_adr_reg   <= cpu_adr_i;
+      cpu_we_reg    <= cpu_we_i;
       cpu_wdata_reg <= cpu_wdata_i;
       if (state_r == ST_REFILL && mem_ready_i) begin
         repl_ptr[cpu_index] <= repl_ptr[cpu_index] + 1'b1;
@@ -116,9 +115,6 @@ module cache_wrapper #(
     hit            = 1'b0;
     hit_way        = '0;
     repl_way       = '0;
-    for (int w = 0; w < ASSOCIATIVITY; w++) begin
-      tag_meta_array[w] = '0;
-    end
 
     case (state_r)
       // Wait CPU requests
@@ -134,8 +130,7 @@ module cache_wrapper #(
       // Check TAG if hit or miss
       ST_TAG_CHECK: begin
         for (int w = 0; w < ASSOCIATIVITY; w++) begin
-          tag_meta_array[w] = tag_rdata_way[w];
-          if (tag_meta_array[w].valid && tag_meta_array[w].tag == cpu_tag) begin
+          if (tag_rdata_way[w].valid && tag_rdata_way[w].tag == cpu_tag) begin
             hit     = 1'b1;
             hit_way = $clog2(ASSOCIATIVITY)'(w);
           end
@@ -144,7 +139,7 @@ module cache_wrapper #(
           state_n = ST_RESPOND;
         end else begin
           repl_way = repl_ptr[cpu_index];
-          if (tag_meta_array[repl_way].dirty) begin
+          if (tag_rdata_way[repl_way].dirty) begin
             state_n = ST_WRITEBACK;
           end else begin
             state_n = ST_REFILL;
@@ -155,7 +150,7 @@ module cache_wrapper #(
       ST_WRITEBACK: begin
         mem_valid_o = 1'b1;
         mem_we_o    = 1'b1;
-        mem_adr_o   = {tag_meta_array[repl_way].tag, cpu_index};
+        mem_adr_o   = {tag_rdata_way[repl_way].tag, cpu_index};
         mem_wdata_o = data_rdata_way[repl_way];
         if (mem_ready_i) begin
           state_n = ST_REFILL;
