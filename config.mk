@@ -11,6 +11,7 @@ SIMDIR          ?=sim
 SYNDIR          ?=syn
 SIGNOFFDIR      ?=signoff
 MODELDIR        ?=model
+PYDIRDIR        ?=py
 LOGDIR          ?=log
 DOCDIR          ?=doc
 DATADIR         ?=data
