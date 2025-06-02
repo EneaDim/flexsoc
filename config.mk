@@ -2,7 +2,7 @@
 PYTHON          ?=python3
 # TOP NAME
 PRJ             ?=prj
-TOP             ?=spi_host
+TOP             ?=fft_core
 # DIRECTORIES
 RTLDIR          ?=rtl
 TBDIR           ?=tb
@@ -11,7 +11,7 @@ SIMDIR          ?=sim
 SYNDIR          ?=syn
 SIGNOFFDIR      ?=signoff
 MODELDIR        ?=model
-PYDIRDIR        ?=py
+PYDIR           ?=py
 LOGDIR          ?=log
 DOCDIR          ?=doc
 DATADIR         ?=data

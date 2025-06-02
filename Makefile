@@ -17,7 +17,7 @@ setup:
 	@$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
 	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(TBDIR) \
 	 $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) \
-	 $(UTILDIR) $(DOCDIR) $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIRDIR)
+	 $(UTILDIR) $(DOCDIR) $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIR)
 
 # HJSON TEMPLATE GENERATION
 hjson:
@@ -320,7 +320,7 @@ save_ip: clean_sim clean_rtl
 	@$(CP) -r $(SIGNOFFDIR) ips/$(TOP) || true
 	@$(CP) -r $(LOGDIR)     ips/$(TOP) || true
 	@$(CP) -r $(MODELDIR)   ips/$(TOP) || true
-	@$(CP) -r $(PYDIRDIR)   ips/$(TOP) || true
+	@$(CP) -r $(PYDIR)   ips/$(TOP) || true
 	@$(CP)    $(TOP).core   ips/$(TOP) || true
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP saved\n$(RESET)"
 
@@ -382,5 +382,5 @@ clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_
 	@$(CLEAR)
 clean_all: clean_fsm_all clean_vendor clean 
 	@$(RM) *.core
-	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(PYDIRDIR) \
-	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) > /dev/null 2>&1
+	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(PYDIR) \
+	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) > /dev/null 2>&1
