@@ -75,14 +75,17 @@ module fft_fsm
       end
       COMPUTE: begin
         if (end_compute_i) begin
-          next_state = WRITE_RESULT;
+          next_state = WRITE_RESULT_1;
         end else if (end_algo_i) begin
           next_state = DONE;
         end else begin
           next_state = COMPUTE;
         end
       end
-      WRITE_RESULT: begin
+      WRITE_RESULT_1: begin
+        next_state = WRITE_RESULT_2;
+      end
+      WRITE_RESULT_2: begin
         if (end_algo_i) begin
           next_state = DONE;
         end else begin
@@ -161,11 +164,24 @@ module fft_fsm
           done_o_d = 1'b0;
         end
       end
-      WRITE_RESULT: begin
-        en_cnt_samples_o_d = 1'b0;
-        wr_mem_o_d = 1'b0;
+      WRITE_RESULT_1: begin
+        en_cnt_samples_o_d = 1'b1;
+        wr_mem_o_d = 1'b1;
         en_cnt_rd_o_d = 1'b0;
         done_o_d = 1'b0;
+      end
+      WRITE_RESULT_2: begin
+        if (end_algo_i) begin
+          en_cnt_samples_o_d = 1'b0;
+          wr_mem_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b0;
+          done_o_d = 1'b1;
+        end else begin
+          en_cnt_samples_o_d = 1'b0;
+          wr_mem_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b0;
+          done_o_d = 1'b0;
+        end
       end
       DONE: begin
         en_cnt_samples_o_d = 1'b0;

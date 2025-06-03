@@ -83,13 +83,6 @@ module fft_core
   logic [LOG2_FFT_SIZE-1:0] group_count;
   logic [LOG2_FFT_SIZE-1:0] butterfly_count;
   
-  // Twiddle address => w_idx
-  logic [LOG2_FFT_SIZE-1:0] twiddle_addr;
-  assign twiddle_addr = w_idx;
-  
-  // Complex data
-  complex_t u, v, w, t;
-  
   // Butterfly Count
   logic rst_butterfly_count;
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -110,7 +103,7 @@ module fft_core
   always_comb begin
     n_rst = n >> (LOG2_FFT_SIZE - stage_count);
   end
-  assign rst_butterfly_count = (butterfly_count == n_rst-1) && (state_w==WRITE_RESULT);
+  assign rst_butterfly_count = (butterfly_count == n_rst-1) && (state_w==WRITE_RESULT_1);
   
   // Group count
   logic rst_group_count, en_group_cnt_rd;
@@ -124,8 +117,9 @@ module fft_core
     end
   end
   
+  // Enable and reset logic
   assign en_group_cnt_rd = rst_butterfly_count;
-  assign rst_group_count = (group_count == groups-1) && (state_w==WRITE_RESULT) && rst_butterfly_count;
+  assign rst_group_count = (group_count == groups-1) && (state_w==WRITE_RESULT_1) && rst_butterfly_count;
  
   // Stage count
   logic rst_stage_count, en_stage_cnt_rd;
@@ -138,8 +132,12 @@ module fft_core
       stage_count <= stage_count +'d1;
     end
   end
+
+  // Enable and reset logic
   assign en_stage_cnt_rd = rst_group_count;
-  
+  assign rst_stage_count = end_algo_w;  
+
+
   // Address index computation
   int m, d, groups, n;
   
@@ -158,15 +156,26 @@ module fft_core
     w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));      
   end
 
-  //assign u = stage_buffer[k_idx + j_idx];
-  //assign v = stage_buffer[k_idx + j_idx + half_m];
-  //assign w = '{re: tw_re, im: tw_im}; 
-  //
-  //assign t = cmul(w, v);
-  //
-  //// Calculate bit-reversed index for current load_count
-  //logic [LOG2_FFT_SIZE-1:0] bit_rev_idx;
-  //assign bit_rev_idx = bit_reverse(load_count_reg, LOG2_FFT_SIZE);
+  // Twiddle address => w_idx
+  logic [LOG2_FFT_SIZE-1:0] twiddle_addr;
+  assign twiddle_addr = w_idx;
+  
+  // Complex data
+  complex_t u, v, w, t, u_new, v_new;
+  
+  // u, v, w
+  assign u = (state_w==READ_2) && mem_out_data;
+  assign v = (state_w==READ_1) && mem_out_data;
+  assign w = '{re: tw_re, im: tw_im}; 
+
+  // Comple MULT
+  assign t = cmul(w, v);
+
+  // Complex ADD
+  assign u_new = cadd(u, t);
+  
+  // Complex SUB
+  assign v_new = csub(u, t);
 
   // MAIN FSM
   logic en_cnt_samples, end_algo_w, done_w;
@@ -223,13 +232,23 @@ module fft_core
   logic mem_out_valid, mem_out_ready;
   logic [LOG2_FFT_SIZE-1:0] mem_address, u_idx, v_idx, w_idx;
 
+  // Reverse address from counter value
   assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
-  assign mem_in_data = {input_sample.re, input_sample.im};
-  assign mem_address = (state_w==ACTIVE_WRITE || state_w==WRITE_RESULT) ? reversed_addr : 
-                       (state_w==READ_1) ? u_idx : v_idx;
-  assign mem_in_valid = sample_pair_valid;
+
+  // Complex data
+  assign mem_in_data = (state_w==ACTIVE_WRITE) ? {input_sample.re, input_sample.im} :
+                       (state_w==WRITE_RESULT_1) ? u_new : v_new;
+
+  // Address selection based on state
+  assign mem_address = (state_w==ACTIVE_WRITE)   ? reversed_addr   : 
+                       (state_w==WRITE_RESULT_1) ? counter_samples :
+                       (state_w==WRITE_RESULT_2) ? counter_samples :
+                       // Read v_idx before to perform MUL
+                       (state_w==READ_1)         ? v_idx           : u_idx; 
+
   assign mem_out_ready = 1'b1;  // Always ready to read
 
+  // RAM instance
   prim_ram #(
     .ADDR_WIDTH(LOG2_FFT_SIZE),
     .DATA_WIDTH(COMPLEX_WIDTH),
@@ -238,7 +257,7 @@ module fft_core
     .clk_i(clk_i),
     .rst_ni(rst_ni),
     .en_i(1'b1),
-    .we_i(mem_i_valid),
+    .we_i(adc_valid_i || (state_w==WRITE_RESULT_1)),
     .addr_i(mem_address),
     .wdata_i(mem_in_data),
     .rdata_o(mem_out_data)

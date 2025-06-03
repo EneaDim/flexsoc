@@ -79,12 +79,12 @@ module fft_core_tb;
 
     // Provide 16 input samples
     repeat (FFT_SIZE) begin
-      @(posedge clk_i);
+      @(negedge clk_i);
       adc_valid_i = 1;
       adc_data_i = $urandom_range(-32768, 32767); // or any pattern
     end
 
-    @(posedge clk_i);
+    @(negedge clk_i);
     adc_valid_i = 0;
 
     #(CLK_PERIOD*1000);
