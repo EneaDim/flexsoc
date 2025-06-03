@@ -19,18 +19,19 @@ module fft_core
   input  logic                      fft_out_ready_i
 );
  
+  // Log2 FFT_SIZE usefull in different sections
   localparam int LOG2_FFT_SIZE = $clog2(FFT_SIZE);
-  localparam int STAGE_COUNT = LOG2_FFT_SIZE;
+  
+  // Complex width
   localparam int COMPLEX_WIDTH = 2 * DATA_WIDTH;
-
+  
+  // Complex data structure
   typedef struct packed {
     logic signed [DATA_WIDTH-1:0] re;
     logic signed [DATA_WIDTH-1:0] im;
   } complex_t;
 
-  // ---------------------------------------------------
   // Bit reversal function
-  // ---------------------------------------------------
   function automatic logic [31:0] bit_reverse(input logic [31:0] val, input int N);
     logic [31:0] reversed;
     reversed = '0;
@@ -43,6 +44,7 @@ module fft_core
   //
   // Complex math helpers
   // ---------------------------------------------------
+  // Multiply
   function automatic complex_t cmul(input complex_t a, input complex_t b);
     complex_t res;
     // Multiply and shift by DATA_WIDTH to keep scale
@@ -53,20 +55,19 @@ module fft_core
     assign res.im = mult_im >>> (DATA_WIDTH - 1);
     return res;
   endfunction
-
+  
+  // Add
   function automatic complex_t cadd(input complex_t a, input complex_t b);
     return '{re: a.re + b.re, im: a.im + b.im};
   endfunction
 
+  // Subtract
   function automatic complex_t csub(input complex_t a, input complex_t b);
     return '{re: a.re - b.re, im: a.im - b.im};
   endfunction
 
-  // ---------------------------------------------------
-  // Twiddle ROM interface (instantiate your twiddle_rom module here)
-  // Must be synchronous read
-  // ---------------------------------------------------
-  logic [STAGE_COUNT-1:0] twiddle_addr;
+  // Twiddle ROM interface
+  logic [LOG2_FFT_SIZE-1:0] twiddle_addr;
   logic signed [DATA_WIDTH-1:0] tw_re, tw_im;
 
   twiddle_rom #(
@@ -78,21 +79,15 @@ module fft_core
     .im(tw_im)
   );
 
-  // ---------------------------------------------------
-  // FFT internal buffers and control signals
-  // ---------------------------------------------------
-  logic [STAGE_COUNT-1:0] stage_reg;
-  logic [LOG2_FFT_SIZE-1:0] load_count_reg;
-  logic [LOG2_FFT_SIZE-1:0] output_count_reg;
-  logic compute_done_reg;
-  
   // Counters for butterflies in COMPUTE stage
-  logic [$clog2(FFT_SIZE/2)-1:0] stage_count;
-  logic [$clog2(FFT_SIZE/2)-1:0] group_count;
-  logic [$clog2(FFT_SIZE/2)-1:0] butterfly_count;
+  logic [LOG2_FFT_SIZE-1:0] stage_count;
+  logic [LOG2_FFT_SIZE-1:0] group_count;
+  logic [LOG2_FFT_SIZE-1:0] butterfly_count;
   
-  logic [STAGE_COUNT-1:0] twiddle_shift;
+  // Twiddle address => w_idx
+  logic [LOG2_FFT_SIZE-1:0] twiddle_add;
   
+  // Complex data
   complex_t u, v, w, t;
   
   // Butterfly Count
@@ -106,14 +101,17 @@ module fft_core
       butterfly_count <= butterfly_count +'d1;
     end
   end
+  
   // Enable
   assign en_butterfly_cnt_rd = en_cnt_rd;
+  
   // Reset after n_butterflyes//groups
   int n_rst;
   always_comb begin
-    n_rst = (1 << $clog2(groups));
+    n_rst = n >> (LOG2_FFT_SIZE - stage_count);
   end
   assign rst_butterfly_count = (butterfly_count == n_rst-1) && (state_w==WRITE_RESULT);
+  
   // Group count
   logic rst_group_count, en_group_cnt_rd;
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -125,8 +123,10 @@ module fft_core
       group_count <= group_count +'d1;
     end
   end
+  
   assign en_group_cnt_rd = rst_butterfly_count;
-  assign rst_group_count = (group_count == groups-1) && (state_w==WRITE_RESULT);
+  assign rst_group_count = (group_count == groups-1) && (state_w==WRITE_RESULT) && rst_butterfly_count;
+ 
   // Stage count
   logic rst_stage_count, en_stage_cnt_rd;
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -139,13 +139,14 @@ module fft_core
     end
   end
   assign en_stage_cnt_rd = rst_group_count;
+  
   // Address index computation
   int m, d, groups, n;
   
   always_comb begin
     m      = 1 << (stage_count + 1);
     d      = 1 << stage_count;
-    groups = FFT_SIZE >> (stage_count+ 2);
+    groups = FFT_SIZE >> (stage_count+1);
   end
 
   assign n = 1<<$clog2(FFT_SIZE-1); // n-butterflyes
@@ -157,7 +158,7 @@ module fft_core
     w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));      
   end
 
-  //assign twiddle_shift = STAGE_COUNT - 1 - stage_reg;
+  //assign twiddle_shift = LOG2_FFT_SIZE - 1 - stage_reg;
   //assign twiddle_addr = j_idx << twiddle_shift;
   //
   //// Fetch butterfly inputs
@@ -171,7 +172,7 @@ module fft_core
   //
   //// Calculate bit-reversed index for current load_count
   //logic [LOG2_FFT_SIZE-1:0] bit_rev_idx;
-  //assign bit_rev_idx = bit_reverse(load_count_reg, STAGE_COUNT);
+  //assign bit_rev_idx = bit_reverse(load_count_reg, LOG2_FFT_SIZE);
 
   // MAIN FSM
   logic en_cnt_samples, end_algo_w, done_w;
@@ -235,7 +236,7 @@ module fft_core
   assign mem_out_ready = 1'b1;  // Always ready to read
 
   prim_ram #(
-    .ADDR_WIDTH(STAGE_COUNT),
+    .ADDR_WIDTH(LOG2_FFT_SIZE),
     .DATA_WIDTH(COMPLEX_WIDTH),
     .MEM_DEPTH(FFT_SIZE)
   ) data_ram_inst (
@@ -247,7 +248,5 @@ module fft_core
     .wdata_i(mem_in_data),
     .rdata_o(mem_out_data)
   );
-
-  
 
 endmodule

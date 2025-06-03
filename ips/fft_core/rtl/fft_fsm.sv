@@ -83,7 +83,11 @@ module fft_fsm
         end
       end
       WRITE_RESULT: begin
-        next_state = READ_1;
+        if (end_algo_i) begin
+          next_state = DONE;
+        end else begin
+          next_state = READ_1;
+        end
       end
       DONE: begin
         next_state = IDLE;
@@ -98,19 +102,19 @@ module fft_fsm
   always_comb begin
     en_cnt_samples_o_d = 1'b0;
     wr_mem_o_d = 1'b0;
-     en_cnt_rd_o_d = 1'b0;
+    en_cnt_rd_o_d = 1'b0;
     done_o_d = 1'b0;
     unique case (current_state)
       IDLE: begin
         if (start_i) begin
           en_cnt_samples_o_d = 1'b1;
           wr_mem_o_d = 1'b1;
-           en_cnt_rd_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b0;
         end else begin
           en_cnt_samples_o_d = 1'b0;
           wr_mem_o_d = 1'b0;
-           en_cnt_rd_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b0;
         end
       end
@@ -118,61 +122,61 @@ module fft_fsm
         if (end_samples_i) begin
           en_cnt_samples_o_d = 1'b0;
           wr_mem_o_d = 1'b0;
-           en_cnt_rd_o_d = 1'b1;
+          en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b0;
         end else begin
           en_cnt_samples_o_d = 1'b1;
           wr_mem_o_d = 1'b1;
-           en_cnt_rd_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b0;
         end
       end
       READ_1: begin
         en_cnt_samples_o_d = 1'b0;
         wr_mem_o_d = 1'b0;
-         en_cnt_rd_o_d = 1'b0;
+        en_cnt_rd_o_d = 1'b0;
         done_o_d = 1'b0;
       end
       READ_2: begin
         en_cnt_samples_o_d = 1'b0;
         wr_mem_o_d = 1'b0;
-         en_cnt_rd_o_d = 1'b0;
+        en_cnt_rd_o_d = 1'b0;
         done_o_d = 1'b0;
       end
       COMPUTE: begin
         if (end_compute_i) begin
           en_cnt_samples_o_d = 1'b1;
           wr_mem_o_d = 1'b1;
-           en_cnt_rd_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b1;
           done_o_d = 1'b0;
         end else if (end_algo_i) begin
           en_cnt_samples_o_d = 1'b0;
           wr_mem_o_d = 1'b0;
-           en_cnt_rd_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b1;
         end else begin
           en_cnt_samples_o_d = 1'b0;
           wr_mem_o_d = 1'b0;
-           en_cnt_rd_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b0;
         end
       end
       WRITE_RESULT: begin
         en_cnt_samples_o_d = 1'b0;
         wr_mem_o_d = 1'b0;
-         en_cnt_rd_o_d = 1'b1;
+        en_cnt_rd_o_d = 1'b0;
         done_o_d = 1'b0;
       end
       DONE: begin
         en_cnt_samples_o_d = 1'b0;
         wr_mem_o_d = 1'b0;
-         en_cnt_rd_o_d = 1'b0;
+        en_cnt_rd_o_d = 1'b0;
         done_o_d = 1'b0;
       end
       default: begin
         en_cnt_samples_o_d = 1'b0;
         wr_mem_o_d = 1'b0;
-         en_cnt_rd_o_d = 1'b0;
+        en_cnt_rd_o_d = 1'b0;
         done_o_d = 1'b0;
       end
     endcase
