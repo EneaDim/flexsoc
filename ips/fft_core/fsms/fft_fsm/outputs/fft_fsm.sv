@@ -179,7 +179,7 @@ module fft_fsm
         if (end_compute_i) begin
           en_cnt_samples_o_d = 1'b1;
           wr_mem_o_d = 1'b1;
-          en_cnt_rd_o_d = 1'b1;
+          en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b0;
         end else begin
           en_cnt_samples_o_d = 1'b0;

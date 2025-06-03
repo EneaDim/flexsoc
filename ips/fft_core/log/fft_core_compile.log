@@ -192,12 +192,15 @@
                                         : ... Top module 'fft_core'
  8643 | module fft_core (
       |        ^~~~~~~~
+                                        : ... Top module 'twiddle_rom'
+ 9452 | module twiddle_rom (
+      |        ^~~~~~~~~~~
                                         : ... Top module 'twiddle_rom_1024'
- 9389 | module twiddle_rom_1024 (
+11534 | module twiddle_rom_1024 (
       |        ^~~~~~~~~~~~~~~~
-                                        : ... Top module 'twiddle_rom_16'
-11471 | module twiddle_rom_16 (
-      |        ^~~~~~~~~~~~~~
+                                        : ... Top module 'twiddle_rom_256'
+13682 | module twiddle_rom_256 (
+      |        ^~~~~~~~~~~~~~~
 %Warning-WIDTHEXPAND: rtl/fft_core.v:2353:26: Operator VAR 'ResetValue' expects 5 bits on the Initial value, but Initial value's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'prim_fifo_async_sram_adapter.u_sync_rptr_gray'
  2353 |  parameter [Width - 1:0] ResetValue = 1'sb0;
@@ -254,18 +257,10 @@
                                             : ... note: In instance 'tlul_socket_1n.gen_dfifo[3].fifo_d.reqfifo.gen_normal_fifo.u_fifo_cnt'
  2071 |  assign depth_o = (full_o ? sv2v_cast_2DA09(Depth) : (wptr_wrap_msb == rptr_wrap_msb ? sv2v_cast_2DA09(wptr_o) - sv2v_cast_2DA09(rptr_o) : (sv2v_cast_2DA09(Depth) - sv2v_cast_2DA09(rptr_o)) + sv2v_cast_2DA09(wptr_o)));
       |                                                                                                                                             ^~~~~~~~~~~~~~~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9369:12: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9432:12: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core.data_ram_inst'
- 9369 |    rdata_o <= 1'sb0;
+ 9432 |    rdata_o <= 1'sb0;
       |            ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:12077:14: Bit extraction of array[511:0] requires 9 bit index, not 7 bits.
-                                             : ... note: In instance 'fft_core.tw_rom'
-12077 |   re = rom_re[addr];
-      |              ^
-%Warning-WIDTHEXPAND: rtl/fft_core.v:12079:14: Bit extraction of array[511:0] requires 9 bit index, not 7 bits.
-                                             : ... note: In instance 'fft_core.tw_rom'
-12079 |   im = rom_im[addr];
-      |              ^
 %Warning-WIDTHEXPAND: rtl/fft_core.v:123:11: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                            : ... note: In instance 'tlul_socket_m1.gen_arb_ppc.u_reqarb'
   123 |      mask <= 1'sb0;
@@ -400,55 +395,55 @@
                                             : ... note: In instance 'fft_core'
  8693 |    reversed = 1'sb0;
       |             ^
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8721:20: Operator ASSIGNDLY expects 10 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8721:20: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
  8721 |    butterfly_count <= 1'sb0;
       |                    ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8724:20: Operator ASSIGNDLY expects 10 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8724:20: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
  8724 |    butterfly_count <= 1'sb0;
       |                    ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8739:31: Operator SUB expects 32 bits on the RHS, but RHS's VARREF 'stage_count' generates 10 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8739:31: Operator SUB expects 32 bits on the RHS, but RHS's VARREF 'stage_count' generates 4 bits.
                                             : ... note: In instance 'fft_core'
  8739 |   n_rst = n >> (LOG2_FFT_SIZE - stage_count);
       |                               ^
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8744:48: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'butterfly_count' generates 10 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8744:48: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'butterfly_count' generates 4 bits.
                                             : ... note: In instance 'fft_core'
  8744 |  assign rst_butterfly_count = (butterfly_count == (n_rst - 1)) && (state_w == 3'd5);
       |                                                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8753:16: Operator ASSIGNDLY expects 10 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8753:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
  8753 |    group_count <= 1'sb0;
       |                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8756:16: Operator ASSIGNDLY expects 10 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8756:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
  8756 |    group_count <= 1'sb0;
       |                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8764:41: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'group_count' generates 10 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8764:41: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'group_count' generates 4 bits.
                                             : ... note: In instance 'fft_core'
  8764 |  assign rst_group_count = ((group_count == (groups - 1)) && (state_w == 3'd5)) && rst_butterfly_count;
       |                                         ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8773:16: Operator ASSIGNDLY expects 10 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8773:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
  8773 |    stage_count <= 1'sb0;
       |                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8776:16: Operator ASSIGNDLY expects 10 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8776:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
  8776 |    stage_count <= 1'sb0;
       |                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8811:17: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'u_idx' generates 10 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8811:17: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'u_idx' generates 4 bits.
                                             : ... note: In instance 'fft_core'
  8811 |   v_idx = u_idx + d;
       |                 ^
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8811:9: Operator ASSIGN expects 10 bits on the Assign RHS, but Assign RHS's ADD generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8811:9: Operator ASSIGN expects 4 bits on the Assign RHS, but Assign RHS's ADD generates 32 bits.
                                           : ... note: In instance 'fft_core'
  8811 |   v_idx = u_idx + d;
       |         ^
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8813:60: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 10 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8813:60: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 4 bits.
                                             : ... note: In instance 'fft_core'
  8813 |   w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));
       |                                                            ^
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8827:4: Input port connection 'addr' expects 7 bits on the pin connection, but pin connection's VARREF 'twiddle_addr' generates 10 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8827:4: Input port connection 'addr' expects 3 bits on the pin connection, but pin connection's VARREF 'twiddle_addr' generates 4 bits.
                                           : ... note: In instance 'fft_core'
  8827 |   .addr(twiddle_addr),
       |    ^~~~
@@ -476,37 +471,37 @@
                                            : ... note: In instance 'fft_core'
  8870 |    res[DATA_WIDTH - 1-:DATA_WIDTH] = mult_im >>> (DATA_WIDTH - 1);
       |                                    ^
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8935:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'counter_samples' generates 10 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8935:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'counter_samples' generates 4 bits.
                                             : ... note: In instance 'fft_core'
  8935 |   .end_samples_i(counter_samples == (FFT_SIZE - 1)),
       |                                  ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8945:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 10 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8948:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 4 bits.
                                             : ... note: In instance 'fft_core'
- 8945 |  assign end_algo_w = stage_count == LOG2_FFT_SIZE;
+ 8948 |  assign end_algo_w = stage_count == LOG2_FFT_SIZE;
       |                                  ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8959:20: Operator ASSIGNDLY expects 10 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8962:20: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8959 |    counter_samples <= 1'sb0;
+ 8962 |    counter_samples <= 1'sb0;
       |                    ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8961:221: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8964:221: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                              : ... note: In instance 'fft_core'
- 8961 |    input_sample[DATA_WIDTH + (DATA_WIDTH - 1)-:((DATA_WIDTH + (DATA_WIDTH - 1)) >= (DATA_WIDTH + 0) ? ((DATA_WIDTH + (DATA_WIDTH - 1)) - (DATA_WIDTH + 0)) + 1 : ((DATA_WIDTH + 0) - (DATA_WIDTH + (DATA_WIDTH - 1))) + 1)] <= 1'sb0;
+ 8964 |    input_sample[DATA_WIDTH + (DATA_WIDTH - 1)-:((DATA_WIDTH + (DATA_WIDTH - 1)) >= (DATA_WIDTH + 0) ? ((DATA_WIDTH + (DATA_WIDTH - 1)) - (DATA_WIDTH + 0)) + 1 : ((DATA_WIDTH + 0) - (DATA_WIDTH + (DATA_WIDTH - 1))) + 1)] <= 1'sb0;
       |                                                                                                                                                                                                                             ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8963:45: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8966:45: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8963 |    input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
+ 8966 |    input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
       |                                             ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8973:46: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8976:46: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8973 |     input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
+ 8976 |     input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
       |                                              ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8994:25: Operator FUNCREF 'bit_reverse' expects 32 bits on the Function Argument, but Function Argument's VARREF 'counter_samples' generates 10 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8997:25: Operator FUNCREF 'bit_reverse' expects 32 bits on the Function Argument, but Function Argument's VARREF 'counter_samples' generates 4 bits.
                                             : ... note: In instance 'fft_core'
- 8994 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
+ 8997 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
       |                         ^~~~~~~~~~~
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8994:23: Operator ASSIGNW expects 10 bits on the Assign RHS, but Assign RHS's FUNCREF 'bit_reverse' generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8997:23: Operator ASSIGNW expects 4 bits on the Assign RHS, but Assign RHS's FUNCREF 'bit_reverse' generates 32 bits.
                                            : ... note: In instance 'fft_core'
- 8994 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
+ 8997 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
       |                       ^
 %Warning-WIDTHEXPAND: rtl/fft_core.v:7153:24: Operator ASSIGNDLY expects 9 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'tlul_socket_1n'
@@ -800,7 +795,7 @@
                                              : ... note: In instance 'fft_core'
  8786 |  reg signed [31:0] m;
       |                    ^
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8816:29: Bits of signal are not used: 'twiddle_addr'[9:7]
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8816:29: Bits of signal are not used: 'twiddle_addr'[3]
                                              : ... note: In instance 'fft_core'
  8816 |  wire [LOG2_FFT_SIZE - 1:0] twiddle_addr;
       |                             ^~~~~~~~~~~~
@@ -808,25 +803,25 @@
                                             : ... note: In instance 'fft_core'
  8925 |  wire we_mem_w;
       |       ^~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8949:6: Signal is not used: 'sample_pair_valid'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8952:6: Signal is not used: 'sample_pair_valid'
                                             : ... note: In instance 'fft_core'
- 8949 |  reg sample_pair_valid;
+ 8952 |  reg sample_pair_valid;
       |      ^~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8985:7: Signal is not driven, nor used: 'mem_in_valid'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8988:7: Signal is not driven, nor used: 'mem_in_valid'
                                             : ... note: In instance 'fft_core'
- 8985 |  wire mem_in_valid;
+ 8988 |  wire mem_in_valid;
       |       ^~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8986:7: Signal is not driven, nor used: 'mem_in_ready'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8989:7: Signal is not driven, nor used: 'mem_in_ready'
                                             : ... note: In instance 'fft_core'
- 8986 |  wire mem_in_ready;
+ 8989 |  wire mem_in_ready;
       |       ^~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8989:7: Signal is not driven, nor used: 'mem_out_valid'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8992:7: Signal is not driven, nor used: 'mem_out_valid'
                                             : ... note: In instance 'fft_core'
- 8989 |  wire mem_out_valid;
+ 8992 |  wire mem_out_valid;
       |       ^~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8990:7: Signal is not used: 'mem_out_ready'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8993:7: Signal is not used: 'mem_out_ready'
                                             : ... note: In instance 'fft_core'
- 8990 |  wire mem_out_ready;
+ 8993 |  wire mem_out_ready;
       |       ^~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: rtl/fft_core.v:5509:27: Parameter is not used: 'prim_mubi_pkg_MuBi4Width'
                                             : ... note: In instance 'tlul_assert_multiple.gen_assert[1].tlul_assert'
@@ -960,20 +955,34 @@
                        rtl/fft_core.v:8719:8: ... Location of async usage
  8719 |   if (!rst_ni)
       |        ^~~~~~
-                       rtl/fft_core.v:9367:8: ... Location of sync usage
- 9367 |   if (!rst_ni)
+                       rtl/fft_core.v:9430:8: ... Location of sync usage
+ 9430 |   if (!rst_ni)
       |        ^~~~~~
                        ... For warning description see https://verilator.org/warn/SYNCASYNCNET?v=5.036
                        ... Use "/* verilator lint_off SYNCASYNCNET */" and lint_on around source to disable this message.
 make[1]: Entering directory '/home/eneadim/github/open-IP-SoC-env/sim/verilator'
 ccache g++ -Os  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -c -o verilated.o /usr/local/share/verilator/include/verilated.cpp
 ccache g++ -Os  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -c -o verilated_threads.o /usr/local/share/verilator/include/verilated_threads.cpp
-python3 /usr/local/share/verilator/bin/verilator_includer -DVL_INCLUDE_OPT=include Vfft_core.cpp Vfft_core___024root__DepSet_h0c6ed402__0.cpp Vfft_core___024root__DepSet_hf7168f61__0.cpp Vfft_core_tlul_fifo_sync__RCz6_RDz6__DepSet_hefef5d05__0.cpp Vfft_core__main.cpp Vfft_core__ConstPool_0.cpp Vfft_core___024root__Slow.cpp Vfft_core___024root__DepSet_h0c6ed402__0__Slow.cpp Vfft_core___024root__DepSet_hf7168f61__0__Slow.cpp Vfft_core_tlul_fifo_sync__RCz6_RDz6__Slow.cpp Vfft_core_tlul_fifo_sync__RCz6_RDz6__DepSet_hefef5d05__0__Slow.cpp Vfft_core_tlul_fifo_sync__RCz6_RDz6__DepSet_hd6951862__0__Slow.cpp Vfft_core__Syms.cpp > Vfft_core__ALL.cpp
-ccache g++ -Os  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -c -o Vfft_core__ALL.o Vfft_core__ALL.cpp
+ccache g++ -Os  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -x c++-header Vfft_core__pch.h -o Vfft_core__pch.h.fast.gch
+ccache g++ -Os  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.fast -c -o Vfft_core.o Vfft_core.cpp
+ccache g++ -Os  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.fast -c -o Vfft_core___024root__DepSet_h0c6ed402__0.o Vfft_core___024root__DepSet_h0c6ed402__0.cpp
+ccache g++ -Os  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.fast -c -o Vfft_core___024root__DepSet_hf7168f61__0.o Vfft_core___024root__DepSet_hf7168f61__0.cpp
+ccache g++ -Os  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.fast -c -o Vfft_core_tlul_fifo_sync__RCz6_RDz6__DepSet_hefef5d05__0.o Vfft_core_tlul_fifo_sync__RCz6_RDz6__DepSet_hefef5d05__0.cpp
+ccache g++ -Os  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.fast -c -o Vfft_core__main.o Vfft_core__main.cpp
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -x c++-header Vfft_core__pch.h -o Vfft_core__pch.h.slow.gch
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.slow -c -o Vfft_core__ConstPool_0.o Vfft_core__ConstPool_0.cpp
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.slow -c -o Vfft_core___024root__Slow.o Vfft_core___024root__Slow.cpp
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.slow -c -o Vfft_core___024root__DepSet_h0c6ed402__0__Slow.o Vfft_core___024root__DepSet_h0c6ed402__0__Slow.cpp
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.slow -c -o Vfft_core___024root__DepSet_hf7168f61__0__Slow.o Vfft_core___024root__DepSet_hf7168f61__0__Slow.cpp
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.slow -c -o Vfft_core___024root__DepSet_hf7168f61__1__Slow.o Vfft_core___024root__DepSet_hf7168f61__1__Slow.cpp
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.slow -c -o Vfft_core_tlul_fifo_sync__RCz6_RDz6__Slow.o Vfft_core_tlul_fifo_sync__RCz6_RDz6__Slow.cpp
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.slow -c -o Vfft_core_tlul_fifo_sync__RCz6_RDz6__DepSet_hefef5d05__0__Slow.o Vfft_core_tlul_fifo_sync__RCz6_RDz6__DepSet_hefef5d05__0__Slow.cpp
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.slow -c -o Vfft_core_tlul_fifo_sync__RCz6_RDz6__DepSet_hd6951862__0__Slow.o Vfft_core_tlul_fifo_sync__RCz6_RDz6__DepSet_hd6951862__0__Slow.cpp
+ccache g++   -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -DVM_TRACE_SAIF=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -DVL_TIME_CONTEXT   -include Vfft_core__pch.h.slow -c -o Vfft_core__Syms.o Vfft_core__Syms.cpp
 echo "" > Vfft_core__ALL.verilator_deplist.tmp
 g++    verilated.o verilated_threads.o Vfft_core__ALL.a    -pthread -lpthread -latomic   -o Vfft_core
 rm Vfft_core__ALL.verilator_deplist.tmp
 make[1]: Leaving directory '/home/eneadim/github/open-IP-SoC-env/sim/verilator'
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 0.381 MB sources in 48 modules, into 1.899 MB in 13 C++ files needing 0.004 MB
-- Verilator: Walltime 0.295 s (elab=0.036, cvt=0.099, bld=0.106); cpu 0.189 s on 1 threads; alloced 49.156 MB
+- Verilator: Built from 0.409 MB sources in 49 modules, into 1.971 MB in 14 C++ files needing 0.004 MB
+- Verilator: Walltime 3.416 s (elab=0.096, cvt=0.309, bld=2.913); cpu 0.504 s on 1 threads; alloced 36.340 MB

@@ -6,7 +6,7 @@
 module fft_core_tb;
   //Parameters
   parameter int CLK_PERIOD = 10; // Clock period in ns
-  parameter FFT_SIZE = 256;
+  parameter FFT_SIZE = 16;
   parameter DATA_WIDTH = 16;
   parameter ASYNC = 0;
   // Inputs

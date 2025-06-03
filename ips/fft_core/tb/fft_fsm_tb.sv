@@ -11,13 +11,17 @@ module fft_fsm_tb;
   reg rst_ni;
   reg start_i;
   reg end_samples_i;
+  reg end_read_1;
+  reg end_read_2;
   reg end_compute_i;
+  reg end_write_1;
   reg end_algo_i;
   // Outputs
   wire en_cnt_samples_o;
   wire wr_mem_o;
   wire en_cnt_rd_o;
   wire done_o;
+  state_fsm state_o;
 
   integer error_count;
 
@@ -29,12 +33,16 @@ module fft_fsm_tb;
     .rst_ni,
     .start_i,
     .end_samples_i,
+    .end_read_1,
+    .end_read_2,
     .end_compute_i,
+    .end_write_1,
     .end_algo_i,
     .en_cnt_samples_o,
     .wr_mem_o,
     .en_cnt_rd_o,
-    .done_o
+    .done_o,
+    .state_o
   );
 
   // Clock generation
@@ -63,7 +71,10 @@ module fft_fsm_tb;
     rst_ni = 0;
     start_i = 0;
     end_samples_i = 0;
+    end_read_1 = 0;
+    end_read_2 = 0;
     end_compute_i = 0;
+    end_write_1 = 0;
     end_algo_i = 0;
     // Asynch Reset
     #(CLK_PERIOD);

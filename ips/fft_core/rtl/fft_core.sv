@@ -1,7 +1,7 @@
 module fft_core 
   import fft_fsm_pkg::*;
 #(
-  parameter int FFT_SIZE   = 1024,
+  parameter int FFT_SIZE   = 16,
   parameter int DATA_WIDTH = 16,
   parameter bit ASYNC = 0
 )(
@@ -126,7 +126,7 @@ module fft_core
   // Twiddle ROM interface
   logic signed [DATA_WIDTH-1:0] tw_re, tw_im;
 
-  twiddle_rom_256 #(
+  twiddle_rom_16 #(
     .N(FFT_SIZE),
     .WIDTH(DATA_WIDTH)
   ) tw_rom (
@@ -207,7 +207,10 @@ module fft_core
     .rst_ni,
     .start_i(adc_valid_i),
     .end_samples_i(counter_samples == FFT_SIZE-1),
+    .end_read_1(1'b1),
+    .end_read_2(1'b1),
     .end_compute_i(1'b1),
+    .end_write_1(1'b1),
     .end_algo_i(end_algo_w),
     .en_cnt_samples_o(en_cnt_samples),
     .wr_mem_o(wr_mem_w),
