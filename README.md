@@ -16,6 +16,7 @@ This repository provides a modular and open-source environment designed to **sim
 - [Usage](##usage)
 - [Tutorial\_1](##tutorial-1)
 - [Tutorial\_2](##tutorial-2)
+- [Tutorial\_3](##tutorial-3)
 - [Next Steps](##next-step)
 - [Environment Details](##environment-details)
 - [License](##license)
@@ -157,6 +158,9 @@ The python dependencies can be installed running `pip install -r python-requirem
 3. Run `make help_fsm` to see the guide for generating FSMs.
 
 ## 🧪 Tutorial\_1 - Basic FSM
+
+It generate an FSM example, and perform the whole flow.
+
 - `make fsm_tutorial TOP=fsm_example`
 1. Runs setup
 2. Copies example input files
@@ -180,6 +184,9 @@ The python dependencies can be installed running `pip install -r python-requirem
 Then `make clean_all` to completely clean the environment and restart from scratch.
 
 ## 🧪 Tutorial\_2 - Ramp ADC 
+
+It loads a custom digital IP to implement the Ramp ADC, it uses also systemverilog analog models for the system verification.
+
 - `make ip_tutorial TOP=pwm_ramp`
 1. Load pwm\_ramp IP
 2. Generate HJSON configurations 
@@ -200,7 +207,9 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 
 ## 🛠 Tutorial\_3 - SoC flow
 
-- `make soc_tutorial`
+It loads a custom spi\_host IP and integrate it in a basic SoC made of IBEX, RAM and UART.
+
+- `make soc_tutorial TOP=spi_host`
 
 Runs the complete top-level SoC integration and build process. This is the recommended end-to-end target for preparing and simulating the SoC.
 The IP used is a custom and simple SPI\_HOST.
