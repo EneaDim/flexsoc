@@ -3,6 +3,7 @@ PYTHON          ?=python3
 # TOP NAME
 PRJ             ?=prj
 TOP             ?=fft_core
+FSM             ?=fsm_example
 # DIRECTORIES
 RTLDIR          ?=rtl
 TBDIR           ?=tb
@@ -12,6 +13,7 @@ SYNDIR          ?=syn
 SIGNOFFDIR      ?=signoff
 MODELDIR        ?=model
 PYDIR           ?=py
+FSMDIR          ?=fsms
 LOGDIR          ?=log
 DOCDIR          ?=doc
 DATADIR         ?=data

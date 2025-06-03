@@ -161,7 +161,7 @@ The python dependencies can be installed running `pip install -r python-requirem
 
 It generate an FSM example, and perform the whole flow.
 
-- `make fsm_tutorial TOP=fsm_example`
+- `make fsm_tutorial`
 1. Runs setup
 2. Copies example input files
 3. Generates the FSM `.sv` and `.gv` files

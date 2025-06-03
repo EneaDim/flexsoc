@@ -15,9 +15,9 @@ help_fsm:
 # SETUP FOLDER STRUCTURE
 setup: 
 	@$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
-	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(TBDIR) \
-	 $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) \
-	 $(UTILDIR) $(DOCDIR) $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIR)
+	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
+	 $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) $(UTILDIR) $(DOCDIR) \
+	 $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIR) $(FSMDIR)
 
 # HJSON TEMPLATE GENERATION
 hjson:
@@ -190,10 +190,10 @@ driver:
 	./$(UTILDIR)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
 
 # FSM FLOW
-fsm_cp_example:
+fsm_example_load:
 	@$(CP) fsm_gen/examples/* fsm_gen/inputs/
 
-fsm_cp:
+fsm2rtl:
 	@$(CP) fsm_gen/outputs/*.sv rtl
 
 fsm_setup:
@@ -201,12 +201,12 @@ fsm_setup:
 
 .PHONY: fsm_gen
 fsm_gen:
-	$(MAKE) -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(TOP) 
+	$(MAKE) -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(FSM) 
 
 fsm_plot:
-	$(MAKE) -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(TOP) 
+	$(MAKE) -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(FSM) 
 
-fsm_flow: setup fsm_setup fsm_cp_example fsm_gen fsm_plot fsm_cp
+fsm_flow: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 
 # BASIC FLOW:
 ip_flow_all: hjson doc sim syn sdf sta sta_violators power view view_presyn 
@@ -259,7 +259,7 @@ soc_view:
 	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
 
 # TUTORIALS
-fsm_tutorial: setup fsm_setup fsm_cp_example fsm_gen fsm_plot fsm_cp
+fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 	@$(MAKE) setup_tb ip_flow_all plot_postsyn
 
 ip_tutorial:
@@ -306,6 +306,20 @@ setup_signoff: setup_sdc
 sim_cocotb:
 	$(MAKE) -C ${TBDIR}
 
+# SAVE FSM
+save_fsm:
+	@$(MKDIR) -p $(FSMDIR)/$(FSM) $(FSMDIR)/$(FSM)
+	@$(CP) -r fsm_gen/inputs $(FSMDIR)/$(FSM)/inputs || true
+	@$(CP) -r fsm_gen/outputs $(FSMDIR)/$(FSM)/outputs || true
+	@$(ECHO) "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"
+
+# LOAD FSM
+load_fsm: fsm_setup
+	@$(CP) -r $(FSMDIR)/$(FSM)/inputs/* fsm_gen/inputs
+	@$(CP) -r $(FSMDIR)/$(FSM)/outputs/* fsm_gen/outputs
+	@$(ECHO) "\n$(ORANGE)$(FSM) FSM loaded into fsm_gen\n$(RESET)"
+
+
 # SAVE IP
 save_ip: clean_sim clean_rtl
 	@$(MKDIR) -p ips/$(TOP) 
@@ -320,7 +334,8 @@ save_ip: clean_sim clean_rtl
 	@$(CP) -r $(SIGNOFFDIR) ips/$(TOP) || true
 	@$(CP) -r $(LOGDIR)     ips/$(TOP) || true
 	@$(CP) -r $(MODELDIR)   ips/$(TOP) || true
-	@$(CP) -r $(PYDIR)   ips/$(TOP) || true
+	@$(CP) -r $(PYDIR)      ips/$(TOP) || true
+	@$(CP) -r $(FSMDIR)     ips/$(TOP) || true
 	@$(CP)    $(TOP).core   ips/$(TOP) || true
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP saved\n$(RESET)"
 
@@ -380,7 +395,7 @@ clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_
 	@$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	@$(CLEAR)
-clean_all: clean_fsm_all clean_vendor clean 
+clean_all: clean_vendor clean 
 	@$(RM) *.core
-	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(PYDIR) \
+	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(FSMDIR) \
 	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) > /dev/null 2>&1
