@@ -16,15 +16,12 @@ RESET  :=\033[0m
 help: clean
 	$(PYTHON) scripts/help.py
 
-# BASIC FLOW
-flow: setup gen
-
 # SETUP
 setup:
 	mkdir -p inputs outputs  
 
 # GENERATE
-gen: clean_py
+gen: clean_py setup
 	@$(ECHO) "\n$(ORANGE)Generating .sv and .gv file of FSM...\n$(RESET)"
 	$(PYTHON) scripts/Main.py -fsm_name $(FSM) -f_clk $(F_CLK)
 

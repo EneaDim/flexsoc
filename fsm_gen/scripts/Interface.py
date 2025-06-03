@@ -33,6 +33,7 @@ class Interface(object):
       file_string = mypath + self.fsm_name + '.txt'
       f = open(file_string, 'r')
       for line in f:
+        line = line.replace("!", "~ ")
         line = line.replace("~", "~ ")
         line = line.replace("not", "~")
         line = line.replace("and", "&")
@@ -112,6 +113,7 @@ class Interface(object):
         splitted_line = splitted_line[:-1]
         my_lines.append(splitted_line)
       out_file.close()
+      my_lines[0][1:] = [str(f).strip() for f in my_lines[0][1:]]
       self.out_names = my_lines[0][1:]
       my_lines = my_lines[1:]
       for i in range(0, len(my_lines)):
@@ -138,22 +140,22 @@ class Interface(object):
     file_string = mypath + self.fsm_name + '.sv'
     print(file_string)
     sv_file = open(file_string, 'w+')
-    mystr = 'module '+str(self.fsm_name)+' (\n\n'
-    mystr += '  input clk_i,\n'
+    mystr = 'module '+str(self.fsm_name)+' (\n'
+    mystr += '  input  logic clk_i,\n'
     if not 'rst_ni' in self.signals:
-      mystr += '  input rst_ni,\n'
+      mystr += '  input  logic rst_ni,\n'
     for i in self.signals:
       if not i == '1':
-        mystr += '  input '+str(i)+',\n'
+        mystr += '  input  logic '+str(i)+',\n'
     for i in self.out_names[:-1]:
       mystr += '  output logic '+str(i)+',\n'
-    mystr += '  output logic '+str(self.out_names[-1])+'\n\n);\n\n'
+    mystr += '  output logic '+str(self.out_names[-1])+'\n);\n\n'
     for i in self.out_names:
       mystr += '  logic '+str(i)+'_d;\n'
-    mystr += '\n  typedef enum logic ['+str(math.ceil(math.log2(len(self.states)))-1)+':0] { '
+    mystr += '\n  typedef enum logic ['+str(math.ceil(math.log2(len(self.states)))-1)+':0] { \n'
     for s in self.states[:-1]:
-      mystr += str(s)+', '
-    mystr += str(self.states[-1])+' } state_fsm ;\n'
+      mystr += '    '+str(s)+',\n'
+    mystr += '    '+str(self.states[-1])+'\n  } state_fsm ;\n\n'
     mystr += '  state_fsm current_state, next_state; \n\n'
     mystr += '  // STATE LATCHING\n'
     mystr += '  always_ff @(posedge clk_i or negedge rst_ni)\n'
