@@ -21,6 +21,8 @@ module fft_fsm
   logic  en_cnt_rd_o_d;
   logic done_o_d;
 
+  state_fsm current_state, next_state; 
+
   assign state_o = current_state;
 
   // STATE LATCHING
