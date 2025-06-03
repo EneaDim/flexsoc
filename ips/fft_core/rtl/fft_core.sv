@@ -126,7 +126,7 @@ module fft_core
   // Twiddle ROM interface
   logic signed [DATA_WIDTH-1:0] tw_re, tw_im;
 
-  twiddle_rom #(
+  twiddle_rom_256 #(
     .N(FFT_SIZE),
     .WIDTH(DATA_WIDTH)
   ) tw_rom (

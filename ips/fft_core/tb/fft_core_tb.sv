@@ -6,7 +6,7 @@
 module fft_core_tb;
   //Parameters
   parameter int CLK_PERIOD = 10; // Clock period in ns
-  parameter FFT_SIZE = 8;
+  parameter FFT_SIZE = 256;
   parameter DATA_WIDTH = 16;
   parameter ASYNC = 0;
   // Inputs
@@ -21,6 +21,13 @@ module fft_core_tb;
   wire [DATA_WIDTH-1:0] fft_out_data_o;
 
   integer error_count;
+
+  // Sine wave generation
+  real    freq      = 10; // 1 ciclo su FFT_SIZE campioni
+  real    amplitude = 0.9; // valore tra 0 e 1 (per evitare overflow)
+  int     sample;
+  real    scale     = 32767.0 * amplitude;
+    
 
 
   // Device Under Test Instance
@@ -77,17 +84,27 @@ module fft_core_tb;
     // INSERT YOUR CODE
     $display("\nRunning...\n");
 
-    // Provide 16 input samples
-    repeat (FFT_SIZE) begin
+    // Random samples
+    //repeat (FFT_SIZE) begin
+    //  @(negedge clk_i);
+    //  adc_valid_i = 1;
+    //  adc_data_i = $urandom_range(-32768, 32767); // or any pattern
+    //end
+
+    // Sine wave
+    for (int k = 0; k < FFT_SIZE; k++) begin
+      real theta = 2.0 * 3.141592653589793 * freq * k / FFT_SIZE;
+      sample = $rtoi(scale * $sin(theta)); // sinusoide in Q1.15
+    
       @(negedge clk_i);
       adc_valid_i = 1;
-      adc_data_i = $urandom_range(-32768, 32767); // or any pattern
+      adc_data_i  = sample;
     end
 
     @(negedge clk_i);
     adc_valid_i = 0;
 
-    #(CLK_PERIOD*1000);
+    #(CLK_PERIOD*FFT_SIZE*100);
     //// Output ready signal
     //forever begin
     //  @(posedge clk_i);

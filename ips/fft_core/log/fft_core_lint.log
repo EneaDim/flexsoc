@@ -192,6 +192,12 @@
                                         : ... Top module 'fft_core'
  8643 | module fft_core (
       |        ^~~~~~~~
+                                        : ... Top module 'twiddle_rom_1024'
+ 9389 | module twiddle_rom_1024 (
+      |        ^~~~~~~~~~~~~~~~
+                                        : ... Top module 'twiddle_rom_16'
+11471 | module twiddle_rom_16 (
+      |        ^~~~~~~~~~~~~~
 %Warning-WIDTHEXPAND: rtl/fft_core.v:2353:26: Operator VAR 'ResetValue' expects 5 bits on the Initial value, but Initial value's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'prim_fifo_async_sram_adapter.u_sync_rptr_gray'
  2353 |  parameter [Width - 1:0] ResetValue = 1'sb0;
@@ -252,6 +258,14 @@
                                             : ... note: In instance 'fft_core.data_ram_inst'
  9369 |    rdata_o <= 1'sb0;
       |            ^~
+%Warning-WIDTHEXPAND: rtl/fft_core.v:12077:14: Bit extraction of array[511:0] requires 9 bit index, not 7 bits.
+                                             : ... note: In instance 'fft_core.tw_rom'
+12077 |   re = rom_re[addr];
+      |              ^
+%Warning-WIDTHEXPAND: rtl/fft_core.v:12079:14: Bit extraction of array[511:0] requires 9 bit index, not 7 bits.
+                                             : ... note: In instance 'fft_core.tw_rom'
+12079 |   im = rom_im[addr];
+      |              ^
 %Warning-WIDTHEXPAND: rtl/fft_core.v:123:11: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                            : ... note: In instance 'tlul_socket_m1.gen_arb_ppc.u_reqarb'
   123 |      mask <= 1'sb0;
@@ -434,7 +448,7 @@
                                             : ... note: In instance 'fft_core'
  8813 |   w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));
       |                                                            ^
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8827:4: Input port connection 'addr' expects 9 bits on the pin connection, but pin connection's VARREF 'twiddle_addr' generates 10 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8827:4: Input port connection 'addr' expects 7 bits on the pin connection, but pin connection's VARREF 'twiddle_addr' generates 10 bits.
                                           : ... note: In instance 'fft_core'
  8827 |   .addr(twiddle_addr),
       |    ^~~~
@@ -786,7 +800,7 @@
                                              : ... note: In instance 'fft_core'
  8786 |  reg signed [31:0] m;
       |                    ^
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8816:29: Bits of signal are not used: 'twiddle_addr'[9]
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8816:29: Bits of signal are not used: 'twiddle_addr'[9:7]
                                              : ... note: In instance 'fft_core'
  8816 |  wire [LOG2_FFT_SIZE - 1:0] twiddle_addr;
       |                             ^~~~~~~~~~~~
@@ -952,5 +966,5 @@
                        ... For warning description see https://verilator.org/warn/SYNCASYNCNET?v=5.036
                        ... Use "/* verilator lint_off SYNCASYNCNET */" and lint_on around source to disable this message.
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 0.373 MB sources in 46 modules, into 0.958 MB in 8 C++ files needing 0.000 MB
-- Verilator: Walltime 0.144 s (elab=0.034, cvt=0.066, bld=0.000); cpu 0.144 s on 1 threads; alloced 45.148 MB
+- Verilator: Built from 0.381 MB sources in 48 modules, into 1.021 MB in 8 C++ files needing 0.000 MB
+- Verilator: Walltime 0.147 s (elab=0.035, cvt=0.067, bld=0.000); cpu 0.147 s on 1 threads; alloced 47.148 MB
