@@ -87,7 +87,7 @@ module fft_core_tb;
     @(posedge clk_i);
     adc_valid_i = 0;
 
-    #(CLK_PERIOD*100);
+    #(CLK_PERIOD*1000);
     //// Output ready signal
     //forever begin
     //  @(posedge clk_i);

@@ -67,7 +67,6 @@ module fft_core
   endfunction
 
   // Twiddle ROM interface
-  logic [LOG2_FFT_SIZE-1:0] twiddle_addr;
   logic signed [DATA_WIDTH-1:0] tw_re, tw_im;
 
   twiddle_rom #(
@@ -85,7 +84,8 @@ module fft_core
   logic [LOG2_FFT_SIZE-1:0] butterfly_count;
   
   // Twiddle address => w_idx
-  logic [LOG2_FFT_SIZE-1:0] twiddle_add;
+  logic [LOG2_FFT_SIZE-1:0] twiddle_addr;
+  assign twiddle_addr = w_idx;
   
   // Complex data
   complex_t u, v, w, t;
@@ -158,14 +158,8 @@ module fft_core
     w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));      
   end
 
-  //assign twiddle_shift = LOG2_FFT_SIZE - 1 - stage_reg;
-  //assign twiddle_addr = j_idx << twiddle_shift;
-  //
-  //// Fetch butterfly inputs
   //assign u = stage_buffer[k_idx + j_idx];
   //assign v = stage_buffer[k_idx + j_idx + half_m];
-  //
-  //// Twiddle factors assumed output from twiddle_rom synchronously with twiddle_addr
   //assign w = '{re: tw_re, im: tw_im}; 
   //
   //assign t = cmul(w, v);
@@ -192,14 +186,14 @@ module fft_core
     .state_o(state_w)
   );
 
-  assign end_algo_w = (groups==1 && butterfly_count==FFT_SIZE-1);
+  assign end_algo_w = (stage_count==LOG2_FFT_SIZE);
 
   // ---------------------------------------------------
   // Input buffering: pack two re samples into one complex sample
   // ---------------------------------------------------
-  logic sample_pair_valid;
-  logic [LOG2_FFT_SIZE-1:0] counter_samples;
-  complex_t              input_sample;
+  logic [LOG2_FFT_SIZE-1:0] counter_samples, reversed_addr;
+  logic                     sample_pair_valid;
+  complex_t                 input_sample;
   
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -229,8 +223,9 @@ module fft_core
   logic mem_out_valid, mem_out_ready;
   logic [LOG2_FFT_SIZE-1:0] mem_address, u_idx, v_idx, w_idx;
 
+  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
   assign mem_in_data = {input_sample.re, input_sample.im};
-  assign mem_address = (state_w==ACTIVE_WRITE || state_w==WRITE_RESULT) ? counter_samples : 
+  assign mem_address = (state_w==ACTIVE_WRITE || state_w==WRITE_RESULT) ? reversed_addr : 
                        (state_w==READ_1) ? u_idx : v_idx;
   assign mem_in_valid = sample_pair_valid;
   assign mem_out_ready = 1'b1;  // Always ready to read
