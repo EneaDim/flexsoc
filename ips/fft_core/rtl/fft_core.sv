@@ -41,43 +41,6 @@ module fft_core
     return reversed;
   endfunction
 
-  //
-  // Complex math helpers
-  // ---------------------------------------------------
-  // Multiply
-  function automatic complex_t cmul(input complex_t a, input complex_t b);
-    complex_t res;
-    // Multiply and shift by DATA_WIDTH to keep scale
-    logic signed [2*DATA_WIDTH-1:0] mult_re, mult_im;
-    assign mult_re = a.re * b.re - a.im * b.im;
-    assign mult_im = a.re * b.im + a.im * b.re;
-    assign res.re = mult_re >>> (DATA_WIDTH - 1);  // adjust shift for scaling
-    assign res.im = mult_im >>> (DATA_WIDTH - 1);
-    return res;
-  endfunction
-  
-  // Add
-  function automatic complex_t cadd(input complex_t a, input complex_t b);
-    return '{re: a.re + b.re, im: a.im + b.im};
-  endfunction
-
-  // Subtract
-  function automatic complex_t csub(input complex_t a, input complex_t b);
-    return '{re: a.re - b.re, im: a.im - b.im};
-  endfunction
-
-  // Twiddle ROM interface
-  logic signed [DATA_WIDTH-1:0] tw_re, tw_im;
-
-  twiddle_rom #(
-    .N(FFT_SIZE),
-    .WIDTH(DATA_WIDTH)
-  ) tw_rom (
-    .addr(twiddle_addr),
-    .re(tw_re),
-    .im(tw_im)
-  );
-
   // Counters for butterflies in COMPUTE stage
   logic [LOG2_FFT_SIZE-1:0] stage_count;
   logic [LOG2_FFT_SIZE-1:0] group_count;
@@ -159,26 +122,84 @@ module fft_core
   // Twiddle address => w_idx
   logic [LOG2_FFT_SIZE-1:0] twiddle_addr;
   assign twiddle_addr = w_idx;
+
+  // Twiddle ROM interface
+  logic signed [DATA_WIDTH-1:0] tw_re, tw_im;
+
+  twiddle_rom #(
+    .N(FFT_SIZE),
+    .WIDTH(DATA_WIDTH)
+  ) tw_rom (
+    .addr(twiddle_addr),
+    .re(tw_re),
+    .im(tw_im)
+  );
   
   // Complex data
-  complex_t u, v, w, t, u_new, v_new;
+  complex_t u, v, w, t, u_new, v_new, u_new_q, v_new_q;
   
   // u, v, w
   assign u = (state_w==READ_2) && mem_out_data;
   assign v = (state_w==READ_1) && mem_out_data;
   assign w = '{re: tw_re, im: tw_im}; 
 
+  // Multiply
+  function automatic complex_t cmul(input complex_t a, input complex_t b);
+    complex_t res;
+    // Multiply and shift by DATA_WIDTH to keep scale
+    logic signed [2*DATA_WIDTH-1:0] mult_re, mult_im;
+    mult_re = a.re * b.re - a.im * b.im;
+    mult_im = a.re * b.im + a.im * b.re;
+    res.re = mult_re >>> (DATA_WIDTH - 1);  // adjust shift for scaling
+    res.im = mult_im >>> (DATA_WIDTH - 1);
+    return res;
+  endfunction
+  
+  // Add
+  function automatic complex_t cadd(input complex_t a, input complex_t b);
+    return '{re: a.re + b.re, im: a.im + b.im};
+  endfunction
+
+  // Subtract
+  function automatic complex_t csub(input complex_t a, input complex_t b);
+    return '{re: a.re - b.re, im: a.im - b.im};
+  endfunction
+
   // Comple MULT
+  
   assign t = cmul(w, v);
 
   // Complex ADD
+  
   assign u_new = cadd(u, t);
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      u_new_q <= 'd0;
+    end else begin
+      if (state_w==READ_1) begin
+        u_new_q <= u_new;
+      end
+    end
+  end
   
   // Complex SUB
+  
   assign v_new = csub(u, t);
+  
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      v_new_q <= 'd0;
+    end else begin
+      if (state_w==READ_2) begin
+        v_new_q <= v_new;
+      end
+    end
+  end
 
   // MAIN FSM
   logic en_cnt_samples, end_algo_w, done_w;
+  logic we_mem_w;
   state_fsm state_w;
   fft_fsm
   u_fft_fsm (
@@ -189,7 +210,7 @@ module fft_core
     .end_compute_i(1'b1),
     .end_algo_i(end_algo_w),
     .en_cnt_samples_o(en_cnt_samples),
-    .wr_mem_o,
+    .wr_mem_o(wr_mem_w),
     .en_cnt_rd_o(en_cnt_rd),
     .done_o(done_w),
     .state_o(state_w)
@@ -224,7 +245,7 @@ module fft_core
   assign adc_ready_o = !done_w;
 
   // ---------------------------------------------------
-  // FIFO interface for complex input samples
+  // Memory interface for complex input samples
   // ---------------------------------------------------
   logic [COMPLEX_WIDTH-1:0] mem_in_data;
   logic mem_in_valid, mem_in_ready;
@@ -237,7 +258,7 @@ module fft_core
 
   // Complex data
   assign mem_in_data = (state_w==ACTIVE_WRITE) ? {input_sample.re, input_sample.im} :
-                       (state_w==WRITE_RESULT_1) ? u_new : v_new;
+                       (state_w==WRITE_RESULT_1) ? u_new_q : v_new_q;
 
   // Address selection based on state
   assign mem_address = (state_w==ACTIVE_WRITE)   ? reversed_addr   : 
@@ -257,7 +278,7 @@ module fft_core
     .clk_i(clk_i),
     .rst_ni(rst_ni),
     .en_i(1'b1),
-    .we_i(adc_valid_i || (state_w==WRITE_RESULT_1)),
+    .we_i(adc_valid_i || wr_mem_w),
     .addr_i(mem_address),
     .wdata_i(mem_in_data),
     .rdata_o(mem_out_data)
