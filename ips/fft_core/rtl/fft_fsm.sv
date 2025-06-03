@@ -190,8 +190,8 @@ module fft_fsm
       end
       WRITE_RESULT_1: begin
         if (end_write_1) begin
-          en_cnt_samples_o_d = 1'b0;
-          wr_mem_o_d = 1'b0;
+          en_cnt_samples_o_d = 1'b1;
+          wr_mem_o_d = 1'b1;
           en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b0;
         end else begin
@@ -208,8 +208,8 @@ module fft_fsm
           en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b0;
         end else if (end_algo_i) begin
-          en_cnt_samples_o_d = 1'b0;
-          wr_mem_o_d = 1'b0;
+          en_cnt_samples_o_d = 1'b1;
+          wr_mem_o_d = 1'b1;
           en_cnt_rd_o_d = 1'b0;
           done_o_d = 1'b1;
         end else begin

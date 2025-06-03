@@ -6,12 +6,13 @@
 module fft_core_tb;
   //Parameters
   parameter int CLK_PERIOD = 10; // Clock period in ns
-  parameter FFT_SIZE = 16;
+  parameter FFT_SIZE = 64;
   parameter DATA_WIDTH = 16;
   parameter ASYNC = 0;
   // Inputs
   reg clk_i;
   reg rst_ni;
+  reg read_ram_i;
   reg [DATA_WIDTH-1:0] adc_data_i;
   reg adc_valid_i;
   reg fft_out_ready_i;
@@ -42,6 +43,7 @@ module fft_core_tb;
   u_fft_core (
     .clk_i,
     .rst_ni,
+    .read_ram_i,
     .adc_data_i,
     .adc_valid_i,
     .fft_out_ready_i,
@@ -74,6 +76,7 @@ module fft_core_tb;
   initial begin
     // Init inputs
     rst_ni = 0;
+    read_ram_i = 0;
     adc_data_i = 0;
     adc_valid_i = 0;
     fft_out_ready_i = 0;
@@ -105,6 +108,14 @@ module fft_core_tb;
     adc_valid_i = 0;
 
     #(CLK_PERIOD*FFT_SIZE*100);
+    read_ram_i = 1;
+
+    #(CLK_PERIOD*FFT_SIZE*100);
+    read_ram_i = 0;
+    
+    #(CLK_PERIOD*FFT_SIZE*100);
+    
+    $display("Read ram done");
     //// Output ready signal
     //forever begin
     //  @(posedge clk_i);

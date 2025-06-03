@@ -50,7 +50,7 @@ endmodule
 
 if __name__ == "__main__":
     # Example usage:
-    N = 1024      # FFT size
+    N = 64      # FFT size
     WIDTH = 16    # Bit width for fixed-point representation
 
     sv_module = generate_twiddle_rom(N, WIDTH)

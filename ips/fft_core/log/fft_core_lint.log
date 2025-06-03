@@ -192,15 +192,18 @@
                                         : ... Top module 'fft_core'
  8643 | module fft_core (
       |        ^~~~~~~~
-                                        : ... Top module 'twiddle_rom'
- 9452 | module twiddle_rom (
-      |        ^~~~~~~~~~~
                                         : ... Top module 'twiddle_rom_1024'
-11534 | module twiddle_rom_1024 (
+ 9487 | module twiddle_rom_1024 (
       |        ^~~~~~~~~~~~~~~~
+                                        : ... Top module 'twiddle_rom_16'
+11569 | module twiddle_rom_16 (
+      |        ^~~~~~~~~~~~~~
                                         : ... Top module 'twiddle_rom_256'
-13682 | module twiddle_rom_256 (
+11635 | module twiddle_rom_256 (
       |        ^~~~~~~~~~~~~~~
+                                        : ... Top module 'twiddle_rom_8'
+12343 | module twiddle_rom_8 (
+      |        ^~~~~~~~~~~~~
 %Warning-WIDTHEXPAND: rtl/fft_core.v:2353:26: Operator VAR 'ResetValue' expects 5 bits on the Initial value, but Initial value's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'prim_fifo_async_sram_adapter.u_sync_rptr_gray'
  2353 |  parameter [Width - 1:0] ResetValue = 1'sb0;
@@ -257,10 +260,212 @@
                                             : ... note: In instance 'tlul_socket_1n.gen_dfifo[3].fifo_d.reqfifo.gen_normal_fifo.u_fifo_cnt'
  2071 |  assign depth_o = (full_o ? sv2v_cast_2DA09(Depth) : (wptr_wrap_msb == rptr_wrap_msb ? sv2v_cast_2DA09(wptr_o) - sv2v_cast_2DA09(rptr_o) : (sv2v_cast_2DA09(Depth) - sv2v_cast_2DA09(rptr_o)) + sv2v_cast_2DA09(wptr_o)));
       |                                                                                                                                             ^~~~~~~~~~~~~~~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9432:12: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9467:12: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core.data_ram_inst'
- 9432 |    rdata_o <= 1'sb0;
+ 9467 |    rdata_o <= 1'sb0;
       |            ^~
+%Warning-SELRANGE: rtl/fft_core.v:12220:9: Selection index out of range: 8 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12220 |   rom_re[8] = 23170;
+      |         ^
+                   ... For warning description see https://verilator.org/warn/SELRANGE?v=5.036
+                   ... Use "/* verilator lint_off SELRANGE */" and lint_on around source to disable this message.
+%Warning-SELRANGE: rtl/fft_core.v:12222:9: Selection index out of range: 9 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12222 |   rom_re[9] = 20788;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12224:9: Selection index out of range: 10 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12224 |   rom_re[10] = 18205;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12226:9: Selection index out of range: 11 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12226 |   rom_re[11] = 15447;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12228:9: Selection index out of range: 12 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12228 |   rom_re[12] = 12540;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12230:9: Selection index out of range: 13 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12230 |   rom_re[13] = 9512;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12232:9: Selection index out of range: 14 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12232 |   rom_re[14] = 6393;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12234:9: Selection index out of range: 15 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12234 |   rom_re[15] = 3212;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12236:9: Selection index out of range: 16 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12236 |   rom_re[16] = 0;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12238:9: Selection index out of range: 17 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12238 |   rom_re[17] = -3212;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12240:9: Selection index out of range: 18 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12240 |   rom_re[18] = -6393;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12242:9: Selection index out of range: 19 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12242 |   rom_re[19] = -9512;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12244:9: Selection index out of range: 20 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12244 |   rom_re[20] = -12540;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12246:9: Selection index out of range: 21 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12246 |   rom_re[21] = -15447;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12248:9: Selection index out of range: 22 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12248 |   rom_re[22] = -18205;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12250:9: Selection index out of range: 23 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12250 |   rom_re[23] = -20788;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12252:9: Selection index out of range: 24 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12252 |   rom_re[24] = -23170;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12254:9: Selection index out of range: 25 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12254 |   rom_re[25] = -25330;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12256:9: Selection index out of range: 26 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12256 |   rom_re[26] = -27246;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12258:9: Selection index out of range: 27 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12258 |   rom_re[27] = -28899;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12260:9: Selection index out of range: 28 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12260 |   rom_re[28] = -30274;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12262:9: Selection index out of range: 29 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12262 |   rom_re[29] = -31357;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12264:9: Selection index out of range: 30 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12264 |   rom_re[30] = -32138;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12266:9: Selection index out of range: 31 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12266 |   rom_re[31] = -32610;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12284:9: Selection index out of range: 8 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12284 |   rom_im[8] = -23170;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12286:9: Selection index out of range: 9 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12286 |   rom_im[9] = -25330;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12288:9: Selection index out of range: 10 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12288 |   rom_im[10] = -27246;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12290:9: Selection index out of range: 11 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12290 |   rom_im[11] = -28899;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12292:9: Selection index out of range: 12 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12292 |   rom_im[12] = -30274;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12294:9: Selection index out of range: 13 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12294 |   rom_im[13] = -31357;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12296:9: Selection index out of range: 14 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12296 |   rom_im[14] = -32138;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12298:9: Selection index out of range: 15 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12298 |   rom_im[15] = -32610;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12300:9: Selection index out of range: 16 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12300 |   rom_im[16] = -32768;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12302:9: Selection index out of range: 17 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12302 |   rom_im[17] = -32610;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12304:9: Selection index out of range: 18 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12304 |   rom_im[18] = -32138;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12306:9: Selection index out of range: 19 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12306 |   rom_im[19] = -31357;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12308:9: Selection index out of range: 20 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12308 |   rom_im[20] = -30274;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12310:9: Selection index out of range: 21 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12310 |   rom_im[21] = -28899;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12312:9: Selection index out of range: 22 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12312 |   rom_im[22] = -27246;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12314:9: Selection index out of range: 23 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12314 |   rom_im[23] = -25330;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12316:9: Selection index out of range: 24 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12316 |   rom_im[24] = -23170;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12318:9: Selection index out of range: 25 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12318 |   rom_im[25] = -20788;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12320:9: Selection index out of range: 26 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12320 |   rom_im[26] = -18205;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12322:9: Selection index out of range: 27 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12322 |   rom_im[27] = -15447;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12324:9: Selection index out of range: 28 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12324 |   rom_im[28] = -12540;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12326:9: Selection index out of range: 29 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12326 |   rom_im[29] = -9512;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12328:9: Selection index out of range: 30 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12328 |   rom_im[30] = -6393;
+      |         ^
+%Warning-SELRANGE: rtl/fft_core.v:12330:9: Selection index out of range: 31 outside 7:0
+                                         : ... note: In instance 'fft_core.tw_rom'
+12330 |   rom_im[31] = -3212;
+      |         ^
+%Warning-WIDTHTRUNC: rtl/fft_core.v:12337:14: Bit extraction of array[7:0] requires 3 bit index, not 5 bits.
+                                            : ... note: In instance 'fft_core.tw_rom'
+12337 |   re = rom_re[addr];
+      |              ^
+%Warning-WIDTHTRUNC: rtl/fft_core.v:12339:14: Bit extraction of array[7:0] requires 3 bit index, not 5 bits.
+                                            : ... note: In instance 'fft_core.tw_rom'
+12339 |   im = rom_im[addr];
+      |              ^
 %Warning-WIDTHEXPAND: rtl/fft_core.v:123:11: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                            : ... note: In instance 'tlul_socket_m1.gen_arb_ppc.u_reqarb'
   123 |      mask <= 1'sb0;
@@ -391,117 +596,121 @@
                                             : ... note: In instance 'tlul_assert_multiple.gen_assert[1].tlul_assert'
  5567 |    pend_req <= 1'sb0;
       |             ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8693:13: Operator ASSIGN expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8698:13: Operator ASSIGN expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8693 |    reversed = 1'sb0;
+ 8698 |    reversed = 1'sb0;
       |             ^
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8721:20: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8726:20: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8721 |    butterfly_count <= 1'sb0;
+ 8726 |    butterfly_count <= 1'sb0;
       |                    ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8724:20: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8729:20: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8724 |    butterfly_count <= 1'sb0;
+ 8729 |    butterfly_count <= 1'sb0;
       |                    ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8739:31: Operator SUB expects 32 bits on the RHS, but RHS's VARREF 'stage_count' generates 4 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8744:31: Operator SUB expects 32 bits on the RHS, but RHS's VARREF 'stage_count' generates 4 bits.
                                             : ... note: In instance 'fft_core'
- 8739 |   n_rst = n >> (LOG2_FFT_SIZE - stage_count);
+ 8744 |   n_rst = n >> (LOG2_FFT_SIZE - stage_count);
       |                               ^
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8744:48: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'butterfly_count' generates 4 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8749:48: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'butterfly_count' generates 4 bits.
                                             : ... note: In instance 'fft_core'
- 8744 |  assign rst_butterfly_count = (butterfly_count == (n_rst - 1)) && (state_w == 3'd5);
+ 8749 |  assign rst_butterfly_count = (butterfly_count == (n_rst - 1)) && (state_w == 3'd5);
       |                                                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8753:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8758:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8753 |    group_count <= 1'sb0;
+ 8758 |    group_count <= 1'sb0;
       |                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8756:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8761:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8756 |    group_count <= 1'sb0;
+ 8761 |    group_count <= 1'sb0;
       |                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8764:41: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'group_count' generates 4 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8769:41: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'group_count' generates 4 bits.
                                             : ... note: In instance 'fft_core'
- 8764 |  assign rst_group_count = ((group_count == (groups - 1)) && (state_w == 3'd5)) && rst_butterfly_count;
+ 8769 |  assign rst_group_count = ((group_count == (groups - 1)) && (state_w == 3'd5)) && rst_butterfly_count;
       |                                         ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8773:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8778:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8773 |    stage_count <= 1'sb0;
+ 8778 |    stage_count <= 1'sb0;
       |                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8776:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8781:16: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8776 |    stage_count <= 1'sb0;
+ 8781 |    stage_count <= 1'sb0;
       |                ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8811:17: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'u_idx' generates 4 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8816:17: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'u_idx' generates 4 bits.
                                             : ... note: In instance 'fft_core'
- 8811 |   v_idx = u_idx + d;
+ 8816 |   v_idx = u_idx + d;
       |                 ^
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8811:9: Operator ASSIGN expects 4 bits on the Assign RHS, but Assign RHS's ADD generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8816:9: Operator ASSIGN expects 4 bits on the Assign RHS, but Assign RHS's ADD generates 32 bits.
                                           : ... note: In instance 'fft_core'
- 8811 |   v_idx = u_idx + d;
+ 8816 |   v_idx = u_idx + d;
       |         ^
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8813:60: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 4 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8818:60: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 4 bits.
                                             : ... note: In instance 'fft_core'
- 8813 |   w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));
+ 8818 |   w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));
       |                                                            ^
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8827:4: Input port connection 'addr' expects 3 bits on the pin connection, but pin connection's VARREF 'twiddle_addr' generates 4 bits.
-                                          : ... note: In instance 'fft_core'
- 8827 |   .addr(twiddle_addr),
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8832:4: Input port connection 'addr' expects 5 bits on the pin connection, but pin connection's VARREF 'twiddle_addr' generates 4 bits.
+                                           : ... note: In instance 'fft_core'
+ 8832 |   .addr(twiddle_addr),
       |    ^~~~
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8842:31: Logical operator LOGAND expects 1 bit on the RHS, but RHS's VARREF 'mem_out_data' generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8849:31: Logical operator LOGAND expects 1 bit on the RHS, but RHS's VARREF 'mem_out_data' generates 32 bits.
                                            : ... note: In instance 'fft_core'
- 8842 |  assign u = (state_w == 3'd3) && mem_out_data;
+ 8849 |  assign u = (state_w == 3'd3) && mem_out_data;
       |                               ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8842:11: Operator ASSIGNW expects 32 bits on the Assign RHS, but Assign RHS's LOGAND generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8849:11: Operator ASSIGNW expects 32 bits on the Assign RHS, but Assign RHS's LOGAND generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8842 |  assign u = (state_w == 3'd3) && mem_out_data;
+ 8849 |  assign u = (state_w == 3'd3) && mem_out_data;
       |           ^
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8844:31: Logical operator LOGAND expects 1 bit on the RHS, but RHS's VARREF 'mem_out_data' generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8851:31: Logical operator LOGAND expects 1 bit on the RHS, but RHS's VARREF 'mem_out_data' generates 32 bits.
                                            : ... note: In instance 'fft_core'
- 8844 |  assign v = (state_w == 3'd2) && mem_out_data;
+ 8851 |  assign v = (state_w == 3'd2) && mem_out_data;
       |                               ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8844:11: Operator ASSIGNW expects 32 bits on the Assign RHS, but Assign RHS's LOGAND generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8851:11: Operator ASSIGNW expects 32 bits on the Assign RHS, but Assign RHS's LOGAND generates 1 bits.
                                             : ... note: In instance 'fft_core'
- 8844 |  assign v = (state_w == 3'd2) && mem_out_data;
+ 8851 |  assign v = (state_w == 3'd2) && mem_out_data;
       |           ^
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8868:212: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8895:212: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
                                             : ... note: In instance 'fft_core'
- 8868 |    res[DATA_WIDTH + (DATA_WIDTH - 1)-:((DATA_WIDTH + (DATA_WIDTH - 1)) >= (DATA_WIDTH + 0) ? ((DATA_WIDTH + (DATA_WIDTH - 1)) - (DATA_WIDTH + 0)) + 1 : ((DATA_WIDTH + 0) - (DATA_WIDTH + (DATA_WIDTH - 1))) + 1)] = mult_re >>> (DATA_WIDTH - 1);
-      |                                                                                                                                                                                                                    ^
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8870:36: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8897:36: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
                                            : ... note: In instance 'fft_core'
- 8870 |    res[DATA_WIDTH - 1-:DATA_WIDTH] = mult_im >>> (DATA_WIDTH - 1);
+ 8897 |    res[DATA_WIDTH - 1-:DATA_WIDTH] = $signed(add[(2 * DATA_WIDTH) - 1-:2 * DATA_WIDTH]) >>> (DATA_WIDTH - 1);
       |                                    ^
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8935:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'counter_samples' generates 4 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8918:212: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
                                             : ... note: In instance 'fft_core'
- 8935 |   .end_samples_i(counter_samples == (FFT_SIZE - 1)),
-      |                                  ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8948:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 4 bits.
-                                            : ... note: In instance 'fft_core'
- 8948 |  assign end_algo_w = stage_count == LOG2_FFT_SIZE;
-      |                                  ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8962:20: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
-                                            : ... note: In instance 'fft_core'
- 8962 |    counter_samples <= 1'sb0;
-      |                    ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8964:221: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
-                                             : ... note: In instance 'fft_core'
- 8964 |    input_sample[DATA_WIDTH + (DATA_WIDTH - 1)-:((DATA_WIDTH + (DATA_WIDTH - 1)) >= (DATA_WIDTH + 0) ? ((DATA_WIDTH + (DATA_WIDTH - 1)) - (DATA_WIDTH + 0)) + 1 : ((DATA_WIDTH + 0) - (DATA_WIDTH + (DATA_WIDTH - 1))) + 1)] <= 1'sb0;
-      |                                                                                                                                                                                                                             ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8966:45: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
-                                            : ... note: In instance 'fft_core'
- 8966 |    input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
-      |                                             ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8976:46: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
-                                            : ... note: In instance 'fft_core'
- 8976 |     input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
-      |                                              ^~
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8997:25: Operator FUNCREF 'bit_reverse' expects 32 bits on the Function Argument, but Function Argument's VARREF 'counter_samples' generates 4 bits.
-                                            : ... note: In instance 'fft_core'
- 8997 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
-      |                         ^~~~~~~~~~~
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8997:23: Operator ASSIGNW expects 4 bits on the Assign RHS, but Assign RHS's FUNCREF 'bit_reverse' generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8920:36: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
                                            : ... note: In instance 'fft_core'
- 8997 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
+ 8920 |    res[DATA_WIDTH - 1-:DATA_WIDTH] = $signed(sub[(2 * DATA_WIDTH) - 1-:2 * DATA_WIDTH]) >>> (DATA_WIDTH - 1);
+      |                                    ^
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8967:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'counter_samples' generates 4 bits.
+                                            : ... note: In instance 'fft_core'
+ 8967 |   .end_samples_i(counter_samples == (FFT_SIZE - 1)),
+      |                                  ^~
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8980:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 4 bits.
+                                            : ... note: In instance 'fft_core'
+ 8980 |  assign end_algo_w = stage_count == LOG2_FFT_SIZE;
+      |                                  ^~
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8994:20: Operator ASSIGNDLY expects 4 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                            : ... note: In instance 'fft_core'
+ 8994 |    counter_samples <= 1'sb0;
+      |                    ^~
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8996:221: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                             : ... note: In instance 'fft_core'
+ 8996 |    input_sample[DATA_WIDTH + (DATA_WIDTH - 1)-:((DATA_WIDTH + (DATA_WIDTH - 1)) >= (DATA_WIDTH + 0) ? ((DATA_WIDTH + (DATA_WIDTH - 1)) - (DATA_WIDTH + 0)) + 1 : ((DATA_WIDTH + 0) - (DATA_WIDTH + (DATA_WIDTH - 1))) + 1)] <= 1'sb0;
+      |                                                                                                                                                                                                                             ^~
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8998:45: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                            : ... note: In instance 'fft_core'
+ 8998 |    input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
+      |                                             ^~
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9008:46: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+                                            : ... note: In instance 'fft_core'
+ 9008 |     input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
+      |                                              ^~
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9032:25: Operator FUNCREF 'bit_reverse' expects 32 bits on the Function Argument, but Function Argument's VARREF 'counter_samples' generates 4 bits.
+                                            : ... note: In instance 'fft_core'
+ 9032 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
+      |                         ^~~~~~~~~~~
+%Warning-WIDTHTRUNC: rtl/fft_core.v:9032:23: Operator ASSIGNW expects 4 bits on the Assign RHS, but Assign RHS's FUNCREF 'bit_reverse' generates 32 bits.
+                                           : ... note: In instance 'fft_core'
+ 9032 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
       |                       ^
 %Warning-WIDTHEXPAND: rtl/fft_core.v:7153:24: Operator ASSIGNDLY expects 9 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'tlul_socket_1n'
@@ -773,55 +982,51 @@
                                               : ... note: In instance 'tlul_socket_m1'
  7615 |  wire [(((((7 + top_pkg_TL_SZW) + top_pkg_TL_AIW) + top_pkg_TL_AW) + top_pkg_TL_DBW) + top_pkg_TL_DW) + 23:0] arb_data;
       |                                                                                                               ^~~~~~~~
-%Warning-UNDRIVEN: rtl/fft_core.v:8672:14: Signal is not driven: 'fft_out_valid_o'
+%Warning-UNDRIVEN: rtl/fft_core.v:8675:14: Signal is not driven: 'fft_out_valid_o'
                                          : ... note: In instance 'fft_core'
- 8672 |  output wire fft_out_valid_o;
+ 8675 |  output wire fft_out_valid_o;
       |              ^~~~~~~~~~~~~~~
                    ... For warning description see https://verilator.org/warn/UNDRIVEN?v=5.036
                    ... Use "/* verilator lint_off UNDRIVEN */" and lint_on around source to disable this message.
-%Warning-UNDRIVEN: rtl/fft_core.v:8674:46: Signal is not driven: 'fft_out_data_o'
+%Warning-UNDRIVEN: rtl/fft_core.v:8677:46: Signal is not driven: 'fft_out_data_o'
                                          : ... note: In instance 'fft_core'
- 8674 |  output wire signed [(2 * DATA_WIDTH) - 1:0] fft_out_data_o;
+ 8677 |  output wire signed [(2 * DATA_WIDTH) - 1:0] fft_out_data_o;
       |                                              ^~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8676:13: Signal is not used: 'fft_out_ready_i'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8679:13: Signal is not used: 'fft_out_ready_i'
                                              : ... note: In instance 'fft_core'
- 8676 |  input wire fft_out_ready_i;
+ 8679 |  input wire fft_out_ready_i;
       |             ^~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/fft_core.v:8660:18: Parameter is not used: 'ASYNC'
+%Warning-UNUSEDPARAM: rtl/fft_core.v:8661:18: Parameter is not used: 'ASYNC'
                                             : ... note: In instance 'fft_core'
- 8660 |  parameter [0:0] ASYNC = 0;
+ 8661 |  parameter [0:0] ASYNC = 0;
       |                  ^~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8786:20: Signal is not used: 'm'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8791:20: Signal is not used: 'm'
                                              : ... note: In instance 'fft_core'
- 8786 |  reg signed [31:0] m;
+ 8791 |  reg signed [31:0] m;
       |                    ^
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8816:29: Bits of signal are not used: 'twiddle_addr'[3]
-                                             : ... note: In instance 'fft_core'
- 8816 |  wire [LOG2_FFT_SIZE - 1:0] twiddle_addr;
-      |                             ^~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8925:7: Signal is not driven, nor used: 'we_mem_w'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8957:7: Signal is not driven, nor used: 'we_mem_w'
                                             : ... note: In instance 'fft_core'
- 8925 |  wire we_mem_w;
+ 8957 |  wire we_mem_w;
       |       ^~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8952:6: Signal is not used: 'sample_pair_valid'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8984:6: Signal is not used: 'sample_pair_valid'
                                             : ... note: In instance 'fft_core'
- 8952 |  reg sample_pair_valid;
+ 8984 |  reg sample_pair_valid;
       |      ^~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8988:7: Signal is not driven, nor used: 'mem_in_valid'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9023:7: Signal is not driven, nor used: 'mem_in_valid'
                                             : ... note: In instance 'fft_core'
- 8988 |  wire mem_in_valid;
+ 9023 |  wire mem_in_valid;
       |       ^~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8989:7: Signal is not driven, nor used: 'mem_in_ready'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9024:7: Signal is not driven, nor used: 'mem_in_ready'
                                             : ... note: In instance 'fft_core'
- 8989 |  wire mem_in_ready;
+ 9024 |  wire mem_in_ready;
       |       ^~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8992:7: Signal is not driven, nor used: 'mem_out_valid'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9027:7: Signal is not driven, nor used: 'mem_out_valid'
                                             : ... note: In instance 'fft_core'
- 8992 |  wire mem_out_valid;
+ 9027 |  wire mem_out_valid;
       |       ^~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8993:7: Signal is not used: 'mem_out_ready'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9028:7: Signal is not used: 'mem_out_ready'
                                             : ... note: In instance 'fft_core'
- 8993 |  wire mem_out_ready;
+ 9028 |  wire mem_out_ready;
       |       ^~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: rtl/fft_core.v:5509:27: Parameter is not used: 'prim_mubi_pkg_MuBi4Width'
                                             : ... note: In instance 'tlul_assert_multiple.gen_assert[1].tlul_assert'
@@ -939,6 +1144,10 @@
                                             : ... note: In instance 'tlul_socket_1n.fifo_h'
  6745 |  localparam signed [31:0] tlul_pkg_H2DCmdIntgWidth = 7;
       |                           ^~~~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:12192:19: Bits of signal are not used: 'addr'[4:3]
+                                              : ... note: In instance 'fft_core.tw_rom'
+12192 |  input wire [4:0] addr;
+      |                   ^~~~
 %Warning-UNUSEDSIGNAL: rtl/fft_core.v:6915:6: Signal is not used: '_sv2v_0'
                                             : ... note: In instance 'tlul_adapter_sram.u_rsp_gen'
  6915 |  reg _sv2v_0;
@@ -951,15 +1160,15 @@
                                             : ... note: In instance 'tlul_adapter_sram.u_rsp_gen'
  6937 |  localparam signed [31:0] tlul_pkg_DataMaxWidth = 32;
       |                           ^~~~~~~~~~~~~~~~~~~~~
-%Warning-SYNCASYNCNET: rtl/fft_core.v:8664:13: Signal flopped as both synchronous and async: 'fft_core.rst_ni'
-                       rtl/fft_core.v:8719:8: ... Location of async usage
- 8719 |   if (!rst_ni)
+%Warning-SYNCASYNCNET: rtl/fft_core.v:8665:13: Signal flopped as both synchronous and async: 'fft_core.rst_ni'
+                       rtl/fft_core.v:8724:8: ... Location of async usage
+ 8724 |   if (!rst_ni)
       |        ^~~~~~
-                       rtl/fft_core.v:9430:8: ... Location of sync usage
- 9430 |   if (!rst_ni)
+                       rtl/fft_core.v:9465:8: ... Location of sync usage
+ 9465 |   if (!rst_ni)
       |        ^~~~~~
                        ... For warning description see https://verilator.org/warn/SYNCASYNCNET?v=5.036
                        ... Use "/* verilator lint_off SYNCASYNCNET */" and lint_on around source to disable this message.
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 0.409 MB sources in 49 modules, into 1.094 MB in 8 C++ files needing 0.000 MB
-- Verilator: Walltime 0.447 s (elab=0.089, cvt=0.281, bld=0.000); cpu 0.447 s on 1 threads; alloced 35.926 MB
+- Verilator: Built from 0.388 MB sources in 50 modules, into 1.040 MB in 8 C++ files needing 0.000 MB
+- Verilator: Walltime 0.324 s (elab=0.079, cvt=0.171, bld=0.000); cpu 0.324 s on 1 threads; alloced 34.312 MB
