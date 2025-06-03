@@ -227,7 +227,7 @@ Steps performed:
 
 Then CTRL-C and:
 
-- `make soc_view`
+- `make soc_view TOP=spi_host`
 
 View the waveforms. You should see 2 drivings of spi\_host signals: spi\_cs\_o, spi\_sclk\_o, spi\_sdio\_o. 
 

@@ -260,7 +260,7 @@ soc_view:
 
 # TUTORIALS
 fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
-	@$(MAKE) setup_tb ip_flow_all plot_postsyn
+	@$(MAKE) setup_tb ip_flow_all plot_postsyn TOP=$(FSM)
 
 ip_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
@@ -395,7 +395,7 @@ clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_
 	@$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	@$(CLEAR)
-clean_all: clean_vendor clean 
+clean_all: clean_fsm_all clean_vendor clean 
 	@$(RM) *.core
 	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(FSMDIR) \
 	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) > /dev/null 2>&1
