@@ -86,7 +86,7 @@ module cache_wrapper #(
   // Registered inputs for stable FSM signals
   always_ff @(posedge clk_i) begin
     if (!rst_ni) begin
-      cpu_adr_regu  <= '0;
+      cpu_adr_reg  <= '0;
       cpu_we_reg    <= 1'b0;
       cpu_wdata_reg <= '0;
       for (int i = 0; i < NUM_SETS; i++) begin
