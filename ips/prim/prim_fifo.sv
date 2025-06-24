@@ -1,6 +1,6 @@
 module prim_fifo #(
   parameter DEPTH = 12,
-  parameter WIDTH = 8,      // Renamed DATA_WIDTH to WIDTH
+  parameter WIDTH = 8,
   parameter ASYNC = 1,
   parameter RD_BUFFER = 1
 )(
@@ -27,7 +27,7 @@ module prim_fifo #(
   logic [CNTR_WIDTH-1:0] wr_gray_pointer, wr_binary_pointer;
   logic [CNTR_WIDTH-1:0] wr_gray_pointer_d;
   logic [CNTR_WIDTH-1:0] wr_binary_pointer_next;
-  logic [WIDTH-1:0] fifo_stored [DEPTH-1:0];  // Using WIDTH instead of DATA_WIDTH
+  logic [WIDTH-1:0] fifo_stored [DEPTH-1:0];
   logic [CNTR_WIDTH-1:0] rd_gray_pointer_sync[1:0];
   logic [CNTR_WIDTH-1:0] wr_gray_pointer_sync[1:0];
   logic rdptr_eq_next_wrptr;
@@ -45,7 +45,7 @@ module prim_fifo #(
   
   always_ff @ (posedge wr_clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
-      fifo_stored <= '{default: {WIDTH{1'b0}}};  // Using WIDTH instead of DATA_WIDTH
+      fifo_stored <= '{default: {WIDTH{1'b0}}};
     end else if (wvalid_i & !fifo_full) begin
       fifo_stored[wr_binary_pointer] <= wdata_i;
     end
