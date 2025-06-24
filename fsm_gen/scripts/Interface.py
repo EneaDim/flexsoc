@@ -38,9 +38,9 @@ class Interface(object):
         line = line.replace("not", "~")
         line = line.replace("and", "&")
         line = line.replace("or","|")
-        line = line.replace("nand", "%") 
-        line = line.replace("nor", "*") 
-        line = line.replace("xor", "^") 
+        line = line.replace("nand", "%")
+        line = line.replace("nor", "*")
+        line = line.replace("xor", "^")
         line = line.replace("(", " ( ")
         line = line.replace(")", " ) ")
         line = line.replace("[", " [ ")
@@ -48,9 +48,9 @@ class Interface(object):
         line = line.replace("->", " -> ")
         line = line.replace(" 1 ", "1")
         line = line.replace("  1  ", "1")
-        line = line.replace("  ", " ") 
+        line = line.replace("  ", " ")
         line = line.replace("   ", " ")
-        line = line.replace("  ", " ") 
+        line = line.replace("  ", " ")
         my_line = line.strip()
         my_line = my_line.split()
         if my_line:
@@ -181,7 +181,7 @@ class Interface(object):
       mystr += "        "+str(i)+" <= "+str(i)+"_d;\n"
     mystr += '      end\n'
     mystr += '    end\n\n'
-    mystr += '  // STATE TRANSITION\n'
+    mystr += '  // STATE TRANSITION AND OUTPUT DEFINITION\n'
     mystr += '  always_comb begin\n'
     mystr += '    next_state = current_state;\n'
     mystr += '    unique case (current_state)\n'
@@ -198,55 +198,6 @@ class Interface(object):
           for h in range(0, len(self.states)):
             if self.states[h] == self.dest[i]:
               break
-          mystr += '      end\n'
-          break
-        else:
-          if q == 0:
-            mystr += '        if ('+str(self.edges[i])+') begin\n'
-            mystr += '          next_state = '+str(self.dest[i])+';\n'
-            for h in range(0, len(self.states)):
-              if self.states[h] == self.dest[i]:
-                break
-            mystr += '        end'
-          else:
-            mystr += ' else if ('+str(self.edges[i])+') begin\n'
-            mystr += '          next_state = '+str(self.dest[i])+';\n'
-            for h in range(0, len(self.states)):
-              if self.states[h] == self.dest[i]:
-                break
-            mystr += '        end'
-        q += 1
-        #print(self.source[i], self.dest[i], self.edges[i])    
-      if not self.edges[i] == '1':
-        mystr += ' else begin\n'
-        mystr += '          next_state = '+str(state)+';\n'
-        mystr += '        end\n'
-        mystr += '      end\n'
-      j += 1
-    mystr += '      default: begin\n'
-    mystr += '        next_state = '+str(self.states[0])+';\n'
-    mystr += '      end\n'
-    mystr += '    endcase\n'
-    mystr += '  end\n\n'
-    mystr += '  // OUTPUT DEFINITION\n'
-    mystr += '  always_comb begin\n'
-    j = 0
-    for i in self.out_names:
-      mystr += "    "+str(i)+"_d = 1'b"+str(self.out_values[0][j])+";\n"
-      j += 1
-    mystr += '    unique case (current_state)\n'
-    j=0
-    for state in self.states:
-      mystr += '      '+str(state)+': begin\n'
-      q = 0
-      for dest in self.next_states[j]:
-        for i in range(0, len(self.source)):
-          if self.source[i] == state and self.dest[i] == dest:
-            break
-        if self.edges[i] == '1':
-          for h in range(0, len(self.states)):
-            if self.states[h] == self.dest[i]:
-              break
           k = 0
           for p in self.out_names:
             mystr += "        "+str(p)+"_d = 1'b"+str(self.out_values[h][k])+";\n"
@@ -256,6 +207,7 @@ class Interface(object):
         else:
           if q == 0:
             mystr += '        if ('+str(self.edges[i])+') begin\n'
+            mystr += '          next_state = '+str(self.dest[i])+';\n'
             for h in range(0, len(self.states)):
               if self.states[h] == self.dest[i]:
                 break
@@ -266,6 +218,7 @@ class Interface(object):
             mystr += '        end'
           else:
             mystr += ' else if ('+str(self.edges[i])+') begin\n'
+            mystr += '          next_state = '+str(self.dest[i])+';\n'
             for h in range(0, len(self.states)):
               if self.states[h] == self.dest[i]:
                 break
@@ -278,20 +231,22 @@ class Interface(object):
         #print(self.source[i], self.dest[i], self.edges[i])    
       if not self.edges[i] == '1':
         mystr += ' else begin\n'
+        mystr += '          next_state = '+str(state)+';\n'
         k = 0
         for p in self.out_names:
           mystr += "          "+str(p)+"_d = 1'b"+str(self.out_values[j][k])+";\n"
           k += 1
         mystr += '        end\n'
         mystr += '      end\n'
-      j += 1 
+      j += 1
     mystr += '      default: begin\n'
+    mystr += '        next_state = '+str(self.states[0])+';\n'
     for i in self.out_names:
       mystr += "        "+str(i)+"_d = 1'b"+str(self.out_values[0][0])+";\n"
       j += 1
     mystr += '      end\n'
     mystr += '    endcase\n'
-    mystr += '  end\n'
+    mystr += '  end\n\n'
     mystr += 'endmodule\n'
     sv_file.write(mystr)
     sv_file.close()
