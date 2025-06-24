@@ -123,7 +123,9 @@ module fft_core
   
   // Enable and reset logic
   assign en_group_cnt_rd = rst_butterfly_count;
-  assign rst_group_count = (group_count == groups-1) && (state_w==WRITE_RESULT_1) && rst_butterfly_count;
+  assign rst_group_count = (group_count == groups-1) && 
+                           (state_w==WRITE_RESULT_1) && 
+                            rst_butterfly_count;
  
   // Stage count
   logic rst_stage_count, en_stage_cnt_rd;
@@ -263,6 +265,9 @@ module fft_core
       end
     end
   end
+
+  // Note:
+  // - Both u_mac_q and v_mac_q ready on WRITE_RESULT_1
   
   //////////////
   // MAIN FSM //
@@ -352,10 +357,15 @@ module fft_core
     .clk_i(clk_i),
     .rst_ni(rst_ni),
     .en_i(1'b1),
-    .we_i(adc_valid_i || wr_mem_w),
+    .we_i(wr_mem_w),
     .addr_i(mem_address),
     .wdata_i(mem_in_data),
     .rdata_o(mem_out_data)
   );
+
+  logic signed [15:0] res_re, res_im;
+  
+  assign res_re = mem_out_data[31:16];
+  assign res_im = mem_out_data[15:0];
 
 endmodule

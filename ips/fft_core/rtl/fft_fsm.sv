@@ -202,22 +202,10 @@ module fft_fsm
         end
       end
       WRITE_RESULT_2: begin
-        if (~end_algo_i) begin
-          en_cnt_samples_o_d = 1'b0;
-          wr_mem_o_d = 1'b0;
-          en_cnt_rd_o_d = 1'b0;
-          done_o_d = 1'b0;
-        end else if (end_algo_i) begin
-          en_cnt_samples_o_d = 1'b1;
-          wr_mem_o_d = 1'b1;
-          en_cnt_rd_o_d = 1'b0;
-          done_o_d = 1'b1;
-        end else begin
-          en_cnt_samples_o_d = 1'b0;
-          wr_mem_o_d = 1'b0;
-          en_cnt_rd_o_d = 1'b0;
-          done_o_d = 1'b0;
-        end
+        en_cnt_samples_o_d = 1'b0;
+        wr_mem_o_d = 1'b0;
+        en_cnt_rd_o_d = 1'b0;
+        done_o_d = 1'b0;
       end
       DONE: begin
         en_cnt_samples_o_d = 1'b0;

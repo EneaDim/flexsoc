@@ -24,7 +24,7 @@ module fft_core_tb;
   integer error_count;
 
   // Sine wave generation
-  real    freq      = 10; // 1 ciclo su FFT_SIZE campioni
+  real    freq      = 6.4; // 1 ciclo su FFT_SIZE campioni
   real    amplitude = 0.9; // valore tra 0 e 1 (per evitare overflow)
   int     sample;
   real    scale     = 32767.0 * amplitude;
@@ -87,13 +87,6 @@ module fft_core_tb;
     // INSERT YOUR CODE
     $display("\nRunning...\n");
 
-    // Random samples
-    //repeat (FFT_SIZE) begin
-    //  @(negedge clk_i);
-    //  adc_valid_i = 1;
-    //  adc_data_i = $urandom_range(-32768, 32767); // or any pattern
-    //end
-
     // Sine wave
     for (int k = 0; k < FFT_SIZE; k++) begin
       real theta = 2.0 * 3.141592653589793 * freq * k / FFT_SIZE;
@@ -110,7 +103,7 @@ module fft_core_tb;
     #(CLK_PERIOD*FFT_SIZE*100);
     read_ram_i = 1;
 
-    #(CLK_PERIOD*FFT_SIZE*100);
+    #(CLK_PERIOD*(FFT_SIZE-1));
     read_ram_i = 0;
     
     #(CLK_PERIOD*FFT_SIZE*100);
