@@ -12,7 +12,7 @@ module twiddle_rom_8 #(
   logic signed [WIDTH-1:0] rom_im [0:N/2-1];
 
   initial begin
-    rom_re[0] = 32768;
+    rom_re[0] = 32767;
     rom_re[1] = 23170;
     rom_re[2] = 0;
     rom_re[3] = -23170;

@@ -178,7 +178,7 @@ module fft_core
   // Twiddle ROM interface
   logic signed [DATA_WIDTH-1:0] tw_re, tw_im;
 
-  twiddle_rom_64 #(
+  twiddle_rom_8 #(
     .N(FFT_SIZE),
     .WIDTH(DATA_WIDTH)
   ) tw_rom (
@@ -272,7 +272,7 @@ module fft_core
   //////////////
   // MAIN FSM //
   //////////////
-  logic en_cnt_samples, end_algo_w, done_w, we_mem_w;
+  logic en_cnt_samples, end_algo_w, done_w, we_mem_w, read_ram_w;
   
   state_fsm state_w;
   
@@ -280,6 +280,7 @@ module fft_core
     .clk_i,
     .rst_ni,
     .start_i(adc_valid_i),
+    .read_ram_i(read_ram_i),
     .end_samples_i(counter_samples == FFT_SIZE-1),
     .end_read_1(1'b1),
     .end_read_2(1'b1),
@@ -289,6 +290,7 @@ module fft_core
     .en_cnt_samples_o(en_cnt_samples),
     .wr_mem_o(wr_mem_w),
     .en_cnt_rd_o(en_cnt_rd),
+    .read_ram_o(read_ram_w),
     .done_o(done_w),
     .state_o(state_w)
   );
@@ -314,9 +316,18 @@ module fft_core
         input_sample.re   <= adc_data_i;
         input_sample.im   <= '0;
         sample_pair_valid <= 1'b1;
-        counter_samples   <= counter_samples + 'd1;
-      end else if (read_ram_i) begin
-        counter_samples   <= counter_samples + 'd1;
+      end
+    end
+  end
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (~rst_ni) begin
+      counter_samples <= '0;
+    end else begin
+      if (en_cnt_samples || read_ram_w) begin
+        counter_samples <= counter_samples + 'd1; 
+      end else if (done_w) begin
+        counter_samples <= '0;
       end
     end
   end
@@ -340,8 +351,8 @@ module fft_core
                        (state_w==WRITE_RESULT_1) ? u_mac_q : v_mac_q;
 
   // Address selection based on state
-  assign mem_address = (state_w==ACTIVE_WRITE)   ? reversed_addr   : 
-                       (state_w==WRITE_RESULT_1 || read_ram_i) ? counter_samples :
+  assign mem_address = (state_w==ACTIVE_WRITE || read_ram_i)   ? reversed_addr   : 
+                       (state_w==WRITE_RESULT_1) ? counter_samples :
                        (state_w==WRITE_RESULT_2) ? counter_samples :
                        // Read v_idx before to perform MUL
                        (state_w==READ_1)         ? v_idx           : u_idx; 

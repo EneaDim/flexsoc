@@ -1,6 +1,7 @@
 package fft_fsm_pkg;
-  typedef enum logic [2:0] { 
-    IDLE, 
+  typedef enum logic [3:0] { 
+    IDLE,
+    READ_RAM,
     ACTIVE_WRITE,
     READ_1,
     READ_2,
