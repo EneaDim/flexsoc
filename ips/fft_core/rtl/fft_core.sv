@@ -78,6 +78,9 @@ module fft_core
     return '{re: res.re, im: res.im};
   endfunction
 
+  ///////////////////////
+  // Index Computation //
+  ///////////////////////
 
   // Counters for butterflies in COMPUTE stage
   logic [LOG2_FFT_SIZE-1:0] stage_count;
@@ -157,7 +160,16 @@ module fft_core
     w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));      
   end
 
-  // Twiddle address => w_idx
+  ///////////////////////////
+  // End Index Computation //
+  ///////////////////////////
+
+
+
+  //////////////////////////////
+  // Twiddle address => w_idx //
+  //////////////////////////////
+
   logic [LOG2_FFT_SIZE-1:0] twiddle_addr;
   assign twiddle_addr = w_idx;
 
@@ -173,57 +185,93 @@ module fft_core
     .im  (tw_im)
   );
   
+  /////////////////////////////////////////////
+  // First Stage : Fetching data from memory //
+  /////////////////////////////////////////////
+
   // Complex data
-  complex_t u, v, w, u_new, v_new, u_new_q, v_new_q;
-  complex_ext_t t, u_ext;
+  complex_t w, w_q, u_q, v_q, w_q;
+  complex_t u_mac, v_mac, u_mac_q, v_mac_q;
+  complex_ext_t t, t_q, u_ext;
   
-  // u, v, w
-  assign u = (state_w==READ_2) && mem_out_data;
-  assign v = (state_w==READ_1) && mem_out_data;
   assign w = '{re: tw_re, im: tw_im}; 
 
-  // Sign extention for 2*DATA_WIDTH add/sub
-  assign u_ext.re = {{DATA_WIDTH{u.re[DATA_WIDTH-1]}}, u.re};
-  assign u_ext.im = {{DATA_WIDTH{u.im[DATA_WIDTH-1]}}, u.im};
-
-  // Comple MULT
-  
-  assign t = cmul(w, v);
-
-  // Complex ADD
-  
-  assign u_new = cadd(u_ext, t);
-
   always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      u_new_q <= 'd0;
+    if (~rst_ni) begin
+      u_q <= '0;
+      v_q <= '0;
+      w_q <= '0;
     end else begin
       if (state_w==READ_2) begin
-        u_new_q <= u_new;
-      end
-    end
-  end
-  
-  // Complex SUB
-  
-  assign v_new = csub(u_ext, t);
-  
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      v_new_q <= 'd0;
-    end else begin
-      if (state_w==READ_1) begin
-        v_new_q <= v_new;
+        u_q <= mem_out_data;
+      end else if (state_w==READ_1) begin
+        v_q <= mem_out_data;
+        w_q <= w;
       end
     end
   end
 
-  // MAIN FSM
-  logic en_cnt_samples, end_algo_w, done_w;
-  logic we_mem_w;
+  // Note: 
+  // - u_q ready on COMPUTE
+  // - v_q ready on READ_2
+  // - w_q ready on READ_2
+
+
+  ///////////////////////////////
+  // Second Stage: Comple MULT //
+  ///////////////////////////////
+  
+  assign t = cmul(w_q, v_q);
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (~rst_ni) begin
+      t_q <= '0;
+    end else begin
+      if (state_w==READ_2) begin
+        t_q <= t;
+      end
+    end
+  end
+
+  // Note:
+  // - t_q ready on COMPUTE
+
+  //////////////////////////////////////////
+  // Prepare data parallelism for add/sub //
+  //////////////////////////////////////////
+
+  // Sign extention for 2*DATA_WIDTH add/sub
+  assign u_ext.re = {{DATA_WIDTH{u_q.re[DATA_WIDTH-1]}}, u_q.re};
+  assign u_ext.im = {{DATA_WIDTH{u_q.im[DATA_WIDTH-1]}}, u_q.im};
+
+
+  //////////////////////////////////
+  // Third Stage: Complex ADD/SUB //
+  //////////////////////////////////
+  
+  assign u_mac = cadd(u_ext, t_q);
+  assign v_mac = csub(u_ext, t_q);
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      u_mac_q <= 'd0;
+      v_mac_q <= 'd0;
+    end else begin
+      if (state_w==COMPUTE) begin
+        u_mac_q <= u_mac;
+        v_mac_q <= v_mac;
+      end
+    end
+  end
+  
+  //////////////
+  // MAIN FSM //
+  //////////////
+  logic en_cnt_samples, end_algo_w, done_w, we_mem_w;
+  
   state_fsm state_w;
-  fft_fsm
-  u_fft_fsm (
+  
+  fft_fsm u_fft_fsm (
     .clk_i,
     .rst_ni,
     .start_i(adc_valid_i),
@@ -283,8 +331,8 @@ module fft_core
   assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
 
   // Complex data
-  assign mem_in_data = (state_w==ACTIVE_WRITE) ? {input_sample.re, input_sample.im} :
-                       (state_w==WRITE_RESULT_1) ? u_new_q : v_new_q;
+  assign mem_in_data = (state_w==ACTIVE_WRITE)   ? {input_sample.re, input_sample.im} :
+                       (state_w==WRITE_RESULT_1) ? u_mac_q : v_mac_q;
 
   // Address selection based on state
   assign mem_address = (state_w==ACTIVE_WRITE)   ? reversed_addr   : 
