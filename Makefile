@@ -308,9 +308,9 @@ sim_cocotb:
 
 # SAVE FSM
 save_fsm:
-	@$(MKDIR) -p $(FSMDIR)/$(FSM) $(FSMDIR)/$(FSM)
-	@$(CP) -r fsm_gen/inputs $(FSMDIR)/$(FSM)/inputs || true
-	@$(CP) -r fsm_gen/outputs $(FSMDIR)/$(FSM)/outputs || true
+	@$(MKDIR) -p $(FSMDIR)/$(FSM)
+	@$(CP) -r fsm_gen/inputs $(FSMDIR)/$(FSM) || true
+	@$(CP) -r fsm_gen/outputs $(FSMDIR)/$(FSM) || true
 	@$(ECHO) "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"
 
 # LOAD FSM
