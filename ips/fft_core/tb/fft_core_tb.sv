@@ -114,9 +114,9 @@ module fft_core_tb;
     #(CLK_PERIOD * FFT_SIZE * 100);
     read_ram_i = 1;
     
-    @(posedge clk_i);
+    @(negedge clk_i);
     for (int i = 0; i < FFT_SIZE; i++) begin
-      @(posedge clk_i);
+      @(negedge clk_i);
       $display("read[%0d]: res_re = %0d (0x%04h), res_im = %0d (0x%04h)",
                i, u_fft_core.res_re, u_fft_core.res_re[15:0],
                   u_fft_core.res_im, u_fft_core.res_im[15:0]);
@@ -124,12 +124,6 @@ module fft_core_tb;
     
     read_ram_i = 0;
 
-    #(CLK_PERIOD*FFT_SIZE*100);
-    read_ram_i = 1;
-
-    #(CLK_PERIOD*(FFT_SIZE-1));
-    read_ram_i = 0;
-    
     #(CLK_PERIOD*FFT_SIZE*100);
     
     $display("Read ram done");

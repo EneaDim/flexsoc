@@ -5,7 +5,8 @@ package fft_fsm_pkg;
     ACTIVE_WRITE,
     READ_1,
     READ_2,
-    COMPUTE,
+    COMPUTE_MUL,
+    COMPUTE_ADD_SUB,
     WRITE_RESULT_1,
     WRITE_RESULT_2,
     DONE

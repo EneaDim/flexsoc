@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Parametri
-N = 64
+N = 8
 fs = 100e6            # Frequenza di campionamento (Hz)
-f = 10e6              # Frequenza della sinusoide (Hz)
+f = 12.5e6              # Frequenza della sinusoide (Hz)
 t = np.arange(N) / fs
 
 # --- Sinusoide floating-point ---

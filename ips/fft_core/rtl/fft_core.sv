@@ -55,15 +55,27 @@ module fft_core
     res.im = a.re * b.im + a.im * b.re;
     return res;
   endfunction
-  
+
+  // Shift + Saturation Q1.15
+  function automatic logic signed [15:0] q15_saturate(input logic signed [31:0] val);
+    logic signed [31:0] shifted;
+    shifted = val >>> 15;
+    if (shifted > 32767)
+      return 16'sd32767;
+    else if (shifted < -32768)
+      return -16'sd32768;
+    else
+      return shifted[15:0];
+  endfunction
+
   // Add
   function automatic complex_t cadd(input complex_ext_t a, input complex_ext_t b);
     complex_ext_t add;
     complex_t res;
     add.re = a.re + b.re;
     add.im = a.im + b.im;
-    res.re = add.re >>> (DATA_WIDTH-1);
-    res.im = add.im >>> (DATA_WIDTH-1);
+    res.re = q15_saturate(add.re);
+    res.im = q15_saturate(add.im);
     return '{re: res.re, im: res.im};
   endfunction
 
@@ -73,8 +85,8 @@ module fft_core
     complex_t res;
     sub.re = a.re - b.re;
     sub.im = a.im - b.im;
-    res.re = sub.re >>> (DATA_WIDTH-1);
-    res.im = sub.im >>> (DATA_WIDTH-1);
+    res.re = q15_saturate(sub.re);
+    res.im = q15_saturate(sub.im);
     return '{re: res.re, im: res.im};
   endfunction
 
@@ -204,9 +216,9 @@ module fft_core
       v_q <= '0;
       w_q <= '0;
     end else begin
-      if (state_w==READ_2) begin
+      if (state_w==COMPUTE_MUL) begin
         u_q <= mem_out_data;
-      end else if (state_w==READ_1) begin
+      end else if (state_w==READ_2) begin
         v_q <= mem_out_data;
         w_q <= w;
       end
@@ -214,10 +226,9 @@ module fft_core
   end
 
   // Note: 
-  // - u_q ready on COMPUTE
-  // - v_q ready on READ_2
-  // - w_q ready on READ_2
-
+  // - u_q ready on COMPUTE_ADD_SUB
+  // - v_q ready on COMPUTE_MUL 
+  // - w_q ready on COMPUTE_MUL 
 
   ///////////////////////////////
   // Second Stage: Comple MULT //
@@ -229,22 +240,27 @@ module fft_core
     if (~rst_ni) begin
       t_q <= '0;
     end else begin
-      if (state_w==READ_2) begin
+      if (state_w==COMPUTE_MUL) begin
         t_q <= t;
       end
     end
   end
 
   // Note:
-  // - t_q ready on COMPUTE
+  // - t_q ready on COMPUTE_ADD_SUB
 
   //////////////////////////////////////////
   // Prepare data parallelism for add/sub //
   //////////////////////////////////////////
 
   // Sign extention for 2*DATA_WIDTH add/sub
-  assign u_ext.re = {{DATA_WIDTH{u_q.re[DATA_WIDTH-1]}}, u_q.re};
-  assign u_ext.im = {{DATA_WIDTH{u_q.im[DATA_WIDTH-1]}}, u_q.im};
+  //assign u_ext.re = {{DATA_WIDTH{u_q.re[DATA_WIDTH-1]}}, u_q.re};
+  //assign u_ext.im = {{DATA_WIDTH{u_q.im[DATA_WIDTH-1]}}, u_q.im};
+  //
+  // Shift left to let it be coherent with t_q!!!!
+  //
+  assign u_ext.re = u_q.re <<< 15;
+  assign u_ext.im = u_q.im <<< 15;
 
 
   //////////////////////////////////
@@ -259,7 +275,7 @@ module fft_core
       u_mac_q <= 'd0;
       v_mac_q <= 'd0;
     end else begin
-      if (state_w==COMPUTE) begin
+      if (state_w==COMPUTE_ADD_SUB) begin
         u_mac_q <= u_mac;
         v_mac_q <= v_mac;
       end
@@ -284,6 +300,7 @@ module fft_core
     .end_samples_i(counter_samples == FFT_SIZE-1),
     .end_read_1(1'b1),
     .end_read_2(1'b1),
+    .end_compute_mul_i(1'b1),
     .end_compute_i(1'b1),
     .end_write_1(1'b1),
     .end_algo_i(end_algo_w),
@@ -296,6 +313,18 @@ module fft_core
   );
 
   assign end_algo_w = (stage_count==LOG2_FFT_SIZE);
+
+  always_ff @(posedge clk_i) begin
+    if (state_w == COMPUTE_ADD_SUB) begin
+      $display("STAGE=%0d BUTTERFLY u=%0d v=%0d w_idx=%0d", stage_count, u_idx, v_idx, w_idx);
+      $display("  u_q = %h_%h", $signed(u_q.re), $signed(u_q.im));
+      $display("  v_q = %h_%h", $signed(v_q.re), $signed(v_q.im));
+      $display("  w_q = %h_%h", $signed(w_q.re), $signed(w_q.im));
+      $display("  t_q = %h_%h", $signed(t_q.re), $signed(t_q.im));
+      $display("  u'  = %h_%h", $signed(u_mac_q.re), $signed(u_mac_q.im));
+      $display("  v'  = %h_%h", $signed(v_mac_q.re), $signed(v_mac_q.im));
+    end
+  end
 
   // ---------------------------------------------------
   // Input buffering: pack two re samples into one complex sample
@@ -351,8 +380,8 @@ module fft_core
                        (state_w==WRITE_RESULT_1) ? u_mac_q : v_mac_q;
 
   // Address selection based on state
-  assign mem_address = (state_w==ACTIVE_WRITE || read_ram_i)   ? reversed_addr   : 
-                       (state_w==WRITE_RESULT_1) ? counter_samples :
+  assign mem_address = (state_w==ACTIVE_WRITE)   ? reversed_addr   : 
+                       (state_w==WRITE_RESULT_1 || read_ram_i) ? counter_samples :
                        (state_w==WRITE_RESULT_2) ? counter_samples :
                        // Read v_idx before to perform MUL
                        (state_w==READ_1)         ? v_idx           : u_idx; 

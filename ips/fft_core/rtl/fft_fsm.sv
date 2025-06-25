@@ -8,6 +8,7 @@ module fft_fsm
   input  logic end_samples_i,
   input  logic end_read_1,
   input  logic end_read_2,
+  input  logic end_compute_mul_i,
   input  logic end_compute_i,
   input  logic end_write_1,
   input  logic end_algo_i,
@@ -138,7 +139,7 @@ module fft_fsm
       end
       READ_2: begin
         if (end_read_2) begin
-          next_state = COMPUTE;
+          next_state = COMPUTE_MUL;
           en_cnt_samples_o_d = 1'b0;
           wr_mem_o_d = 1'b0;
           en_cnt_rd_o_d = 1'b0;
@@ -153,7 +154,24 @@ module fft_fsm
           done_o_d = 1'b0;
         end
       end
-      COMPUTE: begin
+      COMPUTE_MUL: begin
+        if (end_compute_mul_i) begin
+          next_state = COMPUTE_ADD_SUB;
+          en_cnt_samples_o_d = 1'b0;
+          wr_mem_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b0;
+          read_ram_o_d = 1'b0;
+          done_o_d = 1'b0;
+        end else begin
+          next_state = COMPUTE_MUL;
+          en_cnt_samples_o_d = 1'b0;
+          wr_mem_o_d = 1'b0;
+          en_cnt_rd_o_d = 1'b0;
+          read_ram_o_d = 1'b0;
+          done_o_d = 1'b0;
+        end
+      end
+      COMPUTE_ADD_SUB: begin
         if (end_compute_i) begin
           next_state = WRITE_RESULT_1;
           en_cnt_samples_o_d = 1'b1;
@@ -162,7 +180,7 @@ module fft_fsm
           read_ram_o_d = 1'b0;
           done_o_d = 1'b0;
         end else begin
-          next_state = COMPUTE;
+          next_state = COMPUTE_ADD_SUB;
           en_cnt_samples_o_d = 1'b0;
           wr_mem_o_d = 1'b0;
           en_cnt_rd_o_d = 1'b0;
@@ -173,8 +191,8 @@ module fft_fsm
       WRITE_RESULT_1: begin
         if (end_write_1) begin
           next_state = WRITE_RESULT_2;
-          en_cnt_samples_o_d = 1'b0;
-          wr_mem_o_d = 1'b0;
+          en_cnt_samples_o_d = 1'b1;
+          wr_mem_o_d = 1'b1;
           en_cnt_rd_o_d = 1'b0;
           read_ram_o_d = 1'b0;
           done_o_d = 1'b0;

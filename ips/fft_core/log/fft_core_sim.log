@@ -282,19 +282,19 @@
  7532 | module tlul_socket_m1 (
       |        ^~~~~~~~~~~~~~
                                         : ... Top module 'twiddle_rom'
- 9516 | module twiddle_rom (
+ 9587 | module twiddle_rom (
       |        ^~~~~~~~~~~
                                         : ... Top module 'twiddle_rom_1024'
-11598 | module twiddle_rom_1024 (
+11669 | module twiddle_rom_1024 (
       |        ^~~~~~~~~~~~~~~~
                                         : ... Top module 'twiddle_rom_16'
-13680 | module twiddle_rom_16 (
+13751 | module twiddle_rom_16 (
       |        ^~~~~~~~~~~~~~
                                         : ... Top module 'twiddle_rom_256'
-13746 | module twiddle_rom_256 (
+13817 | module twiddle_rom_256 (
       |        ^~~~~~~~~~~~~~~
                                         : ... Top module 'twiddle_rom_64'
-14292 | module twiddle_rom_64 (
+14363 | module twiddle_rom_64 (
       |        ^~~~~~~~~~~~~~
                                         : ... Top module 'fft_core_tb'
     6 | module fft_core_tb;
@@ -302,7 +302,7 @@
 %Warning-TIMESCALEMOD: ips/prim/prim_ram.sv:1:8: Timescale missing on this module as other modules have it (IEEE 1800-2023 3.14.2.3)
     1 | module prim_ram #(
       |        ^~~~~~~~
-                       rtl/fft_core.v:9084:1: ... note: In file included from 'fft_core.v'
+                       rtl/fft_core.v:9122:1: ... note: In file included from 'fft_core.v'
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
                        ips/pkgs/top_pkg.sv:7:9: ... Location of module with timescale
@@ -398,185 +398,175 @@
       |             ^
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8750:212: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8811:20: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
-                     tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
-                     tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8752:36: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
-                                           : ... note: In instance 'fft_core_tb.u_fft_core'
- 8752 |    res[DATA_WIDTH - 1-:DATA_WIDTH] = $signed(add[(2 * DATA_WIDTH) - 1-:2 * DATA_WIDTH]) >>> (DATA_WIDTH - 1);
-      |                                    ^
-                     tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
-                     tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8773:212: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
-                                            : ... note: In instance 'fft_core_tb.u_fft_core'
-                     tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
-                     tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8775:36: Operator ASSIGN expects 16 bits on the Assign RHS, but Assign RHS's SHIFTRS generates 32 bits.
-                                           : ... note: In instance 'fft_core_tb.u_fft_core'
- 8775 |    res[DATA_WIDTH - 1-:DATA_WIDTH] = $signed(sub[(2 * DATA_WIDTH) - 1-:2 * DATA_WIDTH]) >>> (DATA_WIDTH - 1);
-      |                                    ^
-                     tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
-                     tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8793:20: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
-                                            : ... note: In instance 'fft_core_tb.u_fft_core'
- 8793 |    butterfly_count <= 1'sb0;
+ 8811 |    butterfly_count <= 1'sb0;
       |                    ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8796:20: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8814:20: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8796 |    butterfly_count <= 1'sb0;
+ 8814 |    butterfly_count <= 1'sb0;
       |                    ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8811:31: Operator SUB expects 32 bits on the RHS, but RHS's VARREF 'stage_count' generates 3 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8829:31: Operator SUB expects 32 bits on the RHS, but RHS's VARREF 'stage_count' generates 3 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8811 |   n_rst = n >> (LOG2_FFT_SIZE - stage_count);
+ 8829 |   n_rst = n >> (LOG2_FFT_SIZE - stage_count);
       |                               ^
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8816:48: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'butterfly_count' generates 3 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8834:48: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'butterfly_count' generates 3 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8816 |  assign rst_butterfly_count = (butterfly_count == (n_rst - 1)) && (state_w == 4'd6);
+ 8834 |  assign rst_butterfly_count = (butterfly_count == (n_rst - 1)) && (state_w == 4'd7);
       |                                                ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8825:16: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8843:16: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8825 |    group_count <= 1'sb0;
+ 8843 |    group_count <= 1'sb0;
       |                ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8828:16: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8846:16: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8828 |    group_count <= 1'sb0;
+ 8846 |    group_count <= 1'sb0;
       |                ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8836:41: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'group_count' generates 3 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8854:41: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'group_count' generates 3 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8836 |  assign rst_group_count = ((group_count == (groups - 1)) && (state_w == 4'd6)) && rst_butterfly_count;
+ 8854 |  assign rst_group_count = ((group_count == (groups - 1)) && (state_w == 4'd7)) && rst_butterfly_count;
       |                                         ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8845:16: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8863:16: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8845 |    stage_count <= 1'sb0;
+ 8863 |    stage_count <= 1'sb0;
       |                ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8848:16: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8866:16: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8848 |    stage_count <= 1'sb0;
+ 8866 |    stage_count <= 1'sb0;
       |                ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8883:17: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'u_idx' generates 3 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8901:17: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'u_idx' generates 3 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8883 |   v_idx = u_idx + d;
+ 8901 |   v_idx = u_idx + d;
       |                 ^
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8883:9: Operator ASSIGN expects 3 bits on the Assign RHS, but Assign RHS's ADD generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8901:9: Operator ASSIGN expects 3 bits on the Assign RHS, but Assign RHS's ADD generates 32 bits.
                                           : ... note: In instance 'fft_core_tb.u_fft_core'
- 8883 |   v_idx = u_idx + d;
+ 8901 |   v_idx = u_idx + d;
       |         ^
                      tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                      tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8885:60: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 3 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8903:60: Operator ADD expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 3 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8885 |   w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));
+ 8903 |   w_idx = butterfly_count << (LOG2_FFT_SIZE - (stage_count + 1));
       |                                                            ^
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHTRUNC: rtl/fft_core.v:8899:4: Input port connection 'addr' expects 2 bits on the pin connection, but pin connection's VARREF 'twiddle_addr' generates 3 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:8917:4: Input port connection 'addr' expects 2 bits on the pin connection, but pin connection's VARREF 'twiddle_addr' generates 3 bits.
                                           : ... note: In instance 'fft_core_tb.u_fft_core'
- 8899 |   .addr(twiddle_addr),
+ 8917 |   .addr(twiddle_addr),
       |    ^~~~
                      tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                      tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8925:8: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8943:8: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                            : ... note: In instance 'fft_core_tb.u_fft_core'
- 8925 |    u_q <= 1'sb0;
+ 8943 |    u_q <= 1'sb0;
       |        ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8927:8: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8945:8: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                            : ... note: In instance 'fft_core_tb.u_fft_core'
- 8927 |    v_q <= 1'sb0;
+ 8945 |    v_q <= 1'sb0;
       |        ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8929:8: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8947:8: Operator ASSIGNDLY expects 32 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                            : ... note: In instance 'fft_core_tb.u_fft_core'
- 8929 |    w_q <= 1'sb0;
+ 8947 |    w_q <= 1'sb0;
       |        ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8949:8: Operator ASSIGNDLY expects 64 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8967:8: Operator ASSIGNDLY expects 64 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                            : ... note: In instance 'fft_core_tb.u_fft_core'
- 8949 |    t_q <= 1'sb0;
+ 8967 |    t_q <= 1'sb0;
       |        ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:8995:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'counter_samples' generates 3 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8974:504: Operator SHIFTL expects 32 bits on the LHS, but LHS's SIGNED generates 16 bits.
+                                             : ... note: In instance 'fft_core_tb.u_fft_core'
+                      tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
+                      tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
+%Warning-WIDTHEXPAND: rtl/fft_core.v:8976:96: Operator SHIFTL expects 32 bits on the LHS, but LHS's SIGNED generates 16 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8995 |   .end_samples_i(counter_samples == (FFT_SIZE - 1)),
+ 8976 |  assign u_ext[(2 * DATA_WIDTH) - 1-:2 * DATA_WIDTH] = $signed(u_q[DATA_WIDTH - 1-:DATA_WIDTH]) <<< 15;
+      |                                                                                                ^~~
+                      tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
+                      tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9013:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'counter_samples' generates 3 bits.
+                                            : ... note: In instance 'fft_core_tb.u_fft_core'
+ 9013 |   .end_samples_i(counter_samples == (FFT_SIZE - 1)),
       |                                  ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9009:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 3 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9028:34: Operator EQ expects 32 bits on the LHS, but LHS's VARREF 'stage_count' generates 3 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9009 |  assign end_algo_w = stage_count == LOG2_FFT_SIZE;
+ 9028 |  assign end_algo_w = stage_count == LOG2_FFT_SIZE;
       |                                  ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9023:20: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9061:20: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9023 |    counter_samples <= 1'sb0;
+ 9061 |    counter_samples <= 1'sb0;
       |                    ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9025:221: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9063:221: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                              : ... note: In instance 'fft_core_tb.u_fft_core'
- 9025 |    input_sample[DATA_WIDTH + (DATA_WIDTH - 1)-:((DATA_WIDTH + (DATA_WIDTH - 1)) >= (DATA_WIDTH + 0) ? ((DATA_WIDTH + (DATA_WIDTH - 1)) - (DATA_WIDTH + 0)) + 1 : ((DATA_WIDTH + 0) - (DATA_WIDTH + (DATA_WIDTH - 1))) + 1)] <= 1'sb0;
+ 9063 |    input_sample[DATA_WIDTH + (DATA_WIDTH - 1)-:((DATA_WIDTH + (DATA_WIDTH - 1)) >= (DATA_WIDTH + 0) ? ((DATA_WIDTH + (DATA_WIDTH - 1)) - (DATA_WIDTH + 0)) + 1 : ((DATA_WIDTH + 0) - (DATA_WIDTH + (DATA_WIDTH - 1))) + 1)] <= 1'sb0;
       |                                                                                                                                                                                                                             ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9027:45: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9065:45: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9027 |    input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
+ 9065 |    input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
       |                                             ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9037:46: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9075:46: Operator ASSIGNDLY expects 16 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9037 |     input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
+ 9075 |     input_sample[DATA_WIDTH - 1-:DATA_WIDTH] <= 1'sb0;
       |                                              ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9047:20: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9085:20: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9047 |    counter_samples <= 1'sb0;
+ 9085 |    counter_samples <= 1'sb0;
       |                    ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9055:21: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9093:21: Operator ASSIGNDLY expects 3 bits on the Assign RHS, but Assign RHS's CONST '1'sh0' generates 1 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9055 |     counter_samples <= 1'sb0;
+ 9093 |     counter_samples <= 1'sb0;
       |                     ^~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHEXPAND: rtl/fft_core.v:9070:25: Operator FUNCREF 'bit_reverse' expects 32 bits on the Function Argument, but Function Argument's VARREF 'counter_samples' generates 3 bits.
+%Warning-WIDTHEXPAND: rtl/fft_core.v:9108:25: Operator FUNCREF 'bit_reverse' expects 32 bits on the Function Argument, but Function Argument's VARREF 'counter_samples' generates 3 bits.
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9070 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
+ 9108 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
       |                         ^~~~~~~~~~~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-WIDTHTRUNC: rtl/fft_core.v:9070:23: Operator ASSIGNW expects 3 bits on the Assign RHS, but Assign RHS's FUNCREF 'bit_reverse' generates 32 bits.
+%Warning-WIDTHTRUNC: rtl/fft_core.v:9108:23: Operator ASSIGNW expects 3 bits on the Assign RHS, but Assign RHS's FUNCREF 'bit_reverse' generates 32 bits.
                                            : ... note: In instance 'fft_core_tb.u_fft_core'
- 9070 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
+ 9108 |  assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
       |                       ^
                      tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                      tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
@@ -1620,51 +1610,51 @@
       |                  ^~~~~
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8858:20: Signal is not used: 'm'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8876:20: Signal is not used: 'm'
                                              : ... note: In instance 'fft_core_tb.u_fft_core'
- 8858 |  reg signed [31:0] m;
+ 8876 |  reg signed [31:0] m;
       |                    ^
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8888:29: Bits of signal are not used: 'twiddle_addr'[2]
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8906:29: Bits of signal are not used: 'twiddle_addr'[2]
                                              : ... note: In instance 'fft_core_tb.u_fft_core'
- 8888 |  wire [LOG2_FFT_SIZE - 1:0] twiddle_addr;
+ 8906 |  wire [LOG2_FFT_SIZE - 1:0] twiddle_addr;
       |                             ^~~~~~~~~~~~
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:8983:7: Signal is not driven, nor used: 'we_mem_w'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9001:7: Signal is not driven, nor used: 'we_mem_w'
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 8983 |  wire we_mem_w;
+ 9001 |  wire we_mem_w;
       |       ^~~~~~~~
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9013:6: Signal is not used: 'sample_pair_valid'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9051:6: Signal is not used: 'sample_pair_valid'
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9013 |  reg sample_pair_valid;
+ 9051 |  reg sample_pair_valid;
       |      ^~~~~~~~~~~~~~~~~
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9061:7: Signal is not driven, nor used: 'mem_in_valid'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9099:7: Signal is not driven, nor used: 'mem_in_valid'
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9061 |  wire mem_in_valid;
+ 9099 |  wire mem_in_valid;
       |       ^~~~~~~~~~~~
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9062:7: Signal is not driven, nor used: 'mem_in_ready'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9100:7: Signal is not driven, nor used: 'mem_in_ready'
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9062 |  wire mem_in_ready;
+ 9100 |  wire mem_in_ready;
       |       ^~~~~~~~~~~~
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9065:7: Signal is not driven, nor used: 'mem_out_valid'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9103:7: Signal is not driven, nor used: 'mem_out_valid'
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9065 |  wire mem_out_valid;
+ 9103 |  wire mem_out_valid;
       |       ^~~~~~~~~~~~~
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
-%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9066:7: Signal is not used: 'mem_out_ready'
+%Warning-UNUSEDSIGNAL: rtl/fft_core.v:9104:7: Signal is not used: 'mem_out_ready'
                                             : ... note: In instance 'fft_core_tb.u_fft_core'
- 9066 |  wire mem_out_ready;
+ 9104 |  wire mem_out_ready;
       |       ^~~~~~~~~~~~~
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
@@ -1687,8 +1677,8 @@
                       tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                       tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
 %Warning-SYNCASYNCNET: tb/fft_core_tb.sv:17:7: Signal flopped as both synchronous and async: 'fft_core_tb.rst_ni'
-                       rtl/fft_core.v:8791:8: ... Location of async usage
- 8791 |   if (!rst_ni)
+                       rtl/fft_core.v:8809:8: ... Location of async usage
+ 8809 |   if (!rst_ni)
       |        ^~~~~~
                        tb/include_fft_core_tb.sv:8:1: ... note: In file included from 'include_fft_core_tb.sv'
                        tb/fft_core_tb.sv:5:1: ... note: In file included from 'fft_core_tb.sv'
@@ -1709,5 +1699,5 @@ g++    verilated.o verilated_vcd_c.o verilated_timing.o verilated_threads.o Vfft
 rm Vfft_core_tb__ALL.verilator_deplist.tmp
 make[1]: Leaving directory '/home/eneadim/github/flexoc/sim/verilator'
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 0.532 MB sources in 56 modules, into 3.780 MB in 16 C++ files needing 0.004 MB
-- Verilator: Walltime 8.904 s (elab=0.052, cvt=0.189, bld=8.575); cpu 0.329 s on 1 threads; alloced 68.145 MB
+- Verilator: Built from 0.534 MB sources in 56 modules, into 3.794 MB in 16 C++ files needing 0.004 MB
+- Verilator: Walltime 9.001 s (elab=0.053, cvt=0.211, bld=8.638); cpu 0.360 s on 1 threads; alloced 68.145 MB
