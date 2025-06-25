@@ -167,6 +167,7 @@ module fft_core
 
   assign n = 1<<$clog2(FFT_SIZE-1); // n-butterflyes
 
+  logic [LOG2_FFT_SIZE-1:0] u_idx, v_idx, w_idx;
   // u_idx, v_idx, w_idx
   always_comb begin
     u_idx = (group_count << (stage_count + 1)) + butterfly_count;
@@ -217,9 +218,9 @@ module fft_core
       w_q <= '0;
     end else begin
       if (state_w==COMPUTE_MUL) begin
-        u_q <= mem_out_data;
+        u_q <= (mem_sel_rd) ? mem_out_data_1 : mem_out_data_0;
       end else if (state_w==READ_2) begin
-        v_q <= mem_out_data;
+        v_q <= (mem_sel_rd) ? mem_out_data_1 : mem_out_data_0;
         w_q <= w;
       end
     end
@@ -366,46 +367,103 @@ module fft_core
   // ---------------------------------------------------
   // Memory interface for complex input samples
   // ---------------------------------------------------
-  logic [COMPLEX_WIDTH-1:0] mem_in_data;
-  logic mem_in_valid, mem_in_ready;
-  logic [COMPLEX_WIDTH-1:0] mem_out_data;
-  logic mem_out_valid, mem_out_ready;
-  logic [LOG2_FFT_SIZE-1:0] mem_address, u_idx, v_idx, w_idx;
-
+  //
   // Reverse address from counter value
+  //
   assign reversed_addr = bit_reverse(counter_samples, LOG2_FFT_SIZE);
+  //
+  // Stage count LSB to select MEM to read and MEM to write
+  //
+  logic mem_sel_rd;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (~rst_ni) begin
+      mem_sel_rd <= '0;
+    end else begin
+      mem_sel_rd <= stage_count[0];
+    end
+  end
+
+  
+  // RAM 0
+  logic wr_mem_w_0;
+  logic mem_in_valid_0, mem_in_ready_0;
+  logic mem_out_valid_0, mem_out_ready_0;
+  logic [COMPLEX_WIDTH-1:0] mem_in_data_0;
+  logic [COMPLEX_WIDTH-1:0] mem_out_data_0;
+  logic [LOG2_FFT_SIZE-1:0] mem_address_0;
 
   // Complex data
-  assign mem_in_data = (state_w==ACTIVE_WRITE)   ? {input_sample.re, input_sample.im} :
-                       (state_w==WRITE_RESULT_1) ? u_mac_q : v_mac_q;
+  assign mem_in_data_0 = (state_w==ACTIVE_WRITE)   ? {input_sample.re, input_sample.im} :
+                         (state_w==WRITE_RESULT_1) ? u_mac_q : v_mac_q;
 
   // Address selection based on state
-  assign mem_address = (state_w==ACTIVE_WRITE)   ? reversed_addr   : 
-                       (state_w==WRITE_RESULT_1 || read_ram_i) ? counter_samples :
-                       (state_w==WRITE_RESULT_2) ? counter_samples :
-                       // Read v_idx before to perform MUL
-                       (state_w==READ_1)         ? v_idx           : u_idx; 
+  assign mem_address_0 = (state_w==ACTIVE_WRITE)                 ? reversed_addr   : 
+                         (state_w==WRITE_RESULT_1 || read_ram_i) ? counter_samples :
+                         (state_w==WRITE_RESULT_2)               ? counter_samples :
+                         // Read v_idx before to perform MUL
+                         (state_w==READ_1)                       ? v_idx           : u_idx; 
 
-  assign mem_out_ready = 1'b1;  // Always ready to read
+  assign mem_out_ready_0 = 1'b1;  // Always ready to read
+
+  assign wr_mem_w_0 = wr_mem_w && (mem_sel_rd || (state_w==ACTIVE_WRITE));
 
   // RAM instance
   prim_ram #(
     .ADDR_WIDTH(LOG2_FFT_SIZE),
     .DATA_WIDTH(COMPLEX_WIDTH),
     .MEM_DEPTH(FFT_SIZE)
-  ) data_ram_inst (
+  ) data_ram_inst_0 (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
     .en_i(1'b1),
-    .we_i(wr_mem_w),
-    .addr_i(mem_address),
-    .wdata_i(mem_in_data),
-    .rdata_o(mem_out_data)
+    .we_i(wr_mem_w_0),
+    .addr_i(mem_address_0),
+    .wdata_i(mem_in_data_0),
+    .rdata_o(mem_out_data_0)
+  );
+
+  // RAM 1
+  logic wr_mem_w_1;
+  logic mem_in_valid_1, mem_in_ready_1;
+  logic mem_out_valid_1, mem_out_ready_1;
+  logic [COMPLEX_WIDTH-1:0] mem_in_data_1;
+  logic [COMPLEX_WIDTH-1:0] mem_out_data_1;
+  logic [LOG2_FFT_SIZE-1:0] mem_address_1;
+
+  // Complex data
+  assign mem_in_data_1 = (state_w==ACTIVE_WRITE)   ? {input_sample.re, input_sample.im} :
+                         (state_w==WRITE_RESULT_1) ? u_mac_q : v_mac_q;
+
+  // Address selection based on state
+  assign mem_address_1 = (state_w==ACTIVE_WRITE)                 ? reversed_addr   : 
+                         (state_w==WRITE_RESULT_1 || read_ram_i) ? counter_samples :
+                         (state_w==WRITE_RESULT_2)               ? counter_samples :
+                         // Read v_idx before to perform MUL
+                         (state_w==READ_1)                       ? v_idx           : u_idx; 
+
+  assign mem_out_ready_1 = 1'b1;  // Always ready to read
+
+  // Select memory for read or write
+  assign wr_mem_w_1 = wr_mem_w && (!mem_sel_rd && !(state_w==ACTIVE_WRITE));
+
+  // RAM instance
+  prim_ram #(
+    .ADDR_WIDTH(LOG2_FFT_SIZE),
+    .DATA_WIDTH(COMPLEX_WIDTH),
+    .MEM_DEPTH(FFT_SIZE)
+  ) data_ram_inst_1 (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .en_i(1'b1),
+    .we_i(wr_mem_w_1),
+    .addr_i(mem_address_1),
+    .wdata_i(mem_in_data_1),
+    .rdata_o(mem_out_data_1)
   );
 
   logic signed [15:0] res_re, res_im;
   
-  assign res_re = mem_out_data[31:16];
-  assign res_im = mem_out_data[15:0];
+  assign res_re = (LOG2_FFT_SIZE[0]) ? mem_out_data_0[31:16] : mem_out_data_1[31:16];
+  assign res_im = (LOG2_FFT_SIZE[0]) ? mem_out_data_0[15:0]  : mem_out_data_1[15:0];
 
 endmodule
