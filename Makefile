@@ -397,5 +397,5 @@ clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_
 	@$(CLEAR)
 clean_all: clean_fsm_all clean_vendor clean 
 	@$(RM) *.core
-	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(FSMDIR) \
+	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) \
 	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) > /dev/null 2>&1

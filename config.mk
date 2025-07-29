@@ -48,7 +48,8 @@ TESTBENCHES     := $(wildcard $(TBDIR)/*.sv)
 # WAVEFORM VIEWER 
 VIEWER          ?=gtkwave
 VIEWER_FLAGS    ?=--dark --rcvar 'fontname_signals Monospace 17' \
-                  --rcvar 'fontname_waves Monospace 17' 
+                  --rcvar 'fontname_waves Monospace 17' \
+									--giga
 VIEWER_CONF     ?=$(SIMDIR)/$(TOP)_tb.gtkw
 # SYNTHESIS AND SIGN-OFF
 YOSYS           :=yosys
