@@ -40,6 +40,11 @@ doc:
 fetch:
 	$(UTILDIR)/vendor.py --update vendor/$(VENDOR).vendor.hjson
 
+# RTL base generator
+rtl_base:
+	@$(ECHO) "\n$(ORANGE)RTL stub generation...\n$(RESET)"
+	$(PYTHON) scripts/rtl_base_gen.py -i $(DATADIR)/$(TOP).hjson -o $(RTLDIR)
+
 # SV to single Verilog file
 sv2v: clean_rtl
 	@$(ECHO) "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
@@ -188,6 +193,8 @@ save_tb:
 .PHONY: driver
 driver:
 	./$(UTILDIR)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
+	$(PYTHON) scripts/driver_gen.py -i $(DATADIR)/$(TOP).hjson -b $(NEW_MODULE_ADD) -o $(DRIVERDIR) 
+	@$(CP) $(DRIVERDIR)/$(TOP).* sw
 
 # FSM FLOW
 fsm_example_load:
@@ -237,7 +244,7 @@ xbar_build:
 
 # SoC
 
-soc_flow: soc_build soc_sim soc_run 
+soc_flow: soc_build driver soc_sim soc_run 
 
 soc_build:
 	@$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
@@ -383,6 +390,7 @@ clean_soc:
 		     tb/top_verilator.* soc.core xbar_main.hjson $(TOPDIR)
 clean_sw:
 	$(MAKE) -C sw clean
+	$(RM) sw/$(TOP).*
 clean_vendor:
 	$(RM) vendor/lowrisc_ip
 	$(RM) vendor/lowrisc_ibex

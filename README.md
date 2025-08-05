@@ -36,6 +36,7 @@ All based on open-source tooling:
 - 📁 Configuration initialization using .hjson 
 - 📄 Automatic documentation generation
 - 🧠 CSR (Control & Status Register) generation (TLUL interface)
+- 🛠️ Automatic RTL stub generation (SystemVerilog) from `.hjson` register definitions
 - 🔍 RTL linting and formatting
 - 🔬 Functional simulation (design verification)
 - 🏗️ Synthesis trials
