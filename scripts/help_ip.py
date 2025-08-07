@@ -20,6 +20,8 @@ msg='\033[38;5;214m\n\
 \n - REG\
 \n   .Run "make reg" to generate CSR register with TLUL interface \
 \n    based on the configuration file.\n\
+\n - RTL SKELETON\n\
+\n   .Run "make ip_start" to generate all doc files, core, wrapper and a basic tesbench of a general IP"\n\
 \n - RTL CODING\
 \n   .Write RTL in systemverilog under rtl/ folder\n\
 \n - SV2V\

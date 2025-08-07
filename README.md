@@ -171,6 +171,7 @@ The python dependencies can be installed running `pip install -r python-requirem
 1. Run `make help_soc` to see only the guide for the steps of SoC integration.
 2. Run `make help_doc` to see the guide for generating the documentation.
 3. Run `make help_fsm` to see the guide for generating FSMs.
+3. Run `make ip_start` to build a the core and wrapper of a general IP.
 
 ---
 
@@ -416,6 +417,12 @@ Generate a register map from the HJSON description.
 - `doc`
 
 Generate Markdown files documentation from the HJSON description using a utility script.
+
+#### IP skeleton
+
+- `ip_start`
+
+Generate all previous files, the core and the wrapper of a general IP.
 
 #### Fetch vendor repo
 

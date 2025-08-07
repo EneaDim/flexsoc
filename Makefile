@@ -1,8 +1,7 @@
 include config.mk
 
 # HELP
-help: help_ip help_soc
-help_ip:
+help:
 	$(PYTHON) scripts/help_ip.py
 help_soc:
 	$(PYTHON) scripts/help_soc.py
@@ -41,9 +40,11 @@ fetch:
 	$(UTILDIR)/vendor.py --update vendor/$(VENDOR).vendor.hjson
 
 # RTL base generator
-rtl_base:
+rtl_stub:
 	@$(ECHO) "\n$(ORANGE)RTL stub generation...\n$(RESET)"
-	$(PYTHON) scripts/rtl_base_gen.py -i $(DATADIR)/$(TOP).hjson -o $(RTLDIR)
+	$(PYTHON) scripts/rtl_stub_gen.py -i $(DATADIR)/$(TOP).hjson -o $(RTLDIR)
+
+ip_start: setup hjson reg doc rtl_stub setup_tb sim view
 
 # SV to single Verilog file
 sv2v: clean_rtl
