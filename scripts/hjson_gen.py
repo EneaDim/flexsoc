@@ -19,11 +19,14 @@ import argparse
 # ARGUMENT PARSING
 try:
     ap = argparse.ArgumentParser()
-    ap.add_argument("-top", "--top", type=str, required='True', 
+    ap.add_argument("-top", "--top", type=str, required='True',
     help="Define the TOP module in the design")
+    ap.add_argument("-itf", "--itf", type=str, required='True',
+    help="Define the register interface: supported reg_iface - tlul")
     ap.add_argument("-o", "--output", type=str, required='False', help="Output Folder")
     args = vars(ap.parse_args())
     top = args.get("top")
+    itf = args.get("itf")
     output_folder = args.get("output")
 except Exception as err:
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -66,7 +69,7 @@ try:
             mystr += '    ]\n'
             mystr += '  clocking: [{clock: "clk_i", reset: "rst_ni"}],\n'
             mystr += '  bus_interfaces: [\n'
-            mystr += '    { protocol: "tlul", direction: "device" }\n'
+            mystr += '    { protocol: "'+str(itf)+'", direction: "device" }\n'
             mystr += '  ],\n'
             mystr += '  //available_input_list: [\n'
             mystr += '  //  { name: "input_i", desc: "input" }\n'

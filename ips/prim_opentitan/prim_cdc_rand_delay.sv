@@ -24,6 +24,8 @@ module prim_cdc_rand_delay #(
     input logic [DataWidth-1:0]   src_data_i,
     output logic [DataWidth-1:0]  dst_data_o
 );
+
+  logic [DataWidth-1:0] dst_internal;
 `ifdef SIMULATION
   if (Enable) begin : gen_enable
 
@@ -56,12 +58,24 @@ module prim_cdc_rand_delay #(
     always @(posedge clk_i or negedge rst_ni) begin
       data_sel <= 0;
     end
-
-    always_comb dst_data_o = (prev_data_i & data_sel) | (src_data_i & ~data_sel);
+    always_comb dst_internal = (prev_data_i & data_sel) |
+                               (src_data_i  & ~data_sel);
+    //always_comb dst_data_o = (prev_data_i & data_sel) | (src_data_i & ~data_sel);
   end else begin : gen_no_enable
-    assign dst_data_o = src_data_i;
+    always_comb dst_internal = src_data_i;
+    //assign dst_data_o = src_data_i;
   end
 `else  // SIMULATION
-    assign dst_data_o = src_data_i;
+    // Synthesis-safe registered version to avoid loops
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni)
+            dst_internal <= '0;
+        else
+            dst_internal <= src_data_i;
+    end
+    //assign dst_data_o = src_data_i;
 `endif  // SIMULATION
+
+  // Single assignment to the output
+  assign dst_data_o = dst_internal;
 endmodule

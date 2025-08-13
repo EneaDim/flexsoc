@@ -380,6 +380,9 @@ package ${lblock}${"_" + block.alias_impl if block.alias_impl else ""}_reg_pkg;
 % for param_name, width in addr_widths.values():
   parameter int ${param_name} = ${width};
 % endfor
+  parameter int AW = ${param_name};
+  parameter int DW = ${block.regwidth};
+  parameter int DBW = DW/8;                    // Byte Width
 <%
   just_default = len(block.reg_blocks) == 1 and None in block.reg_blocks
 %>\
@@ -396,5 +399,19 @@ ${hwext_resvals_for_iface(iface_name, iface_desc, for_iface, rb)}\
 ${windows_for_iface(iface_name, iface_desc, for_iface, rb)}\
 ${reg_data_for_iface(iface_name, iface_desc, for_iface, rb)}\
 % endfor
+
+  parameter type reg_req_t = struct packed {
+    logic           valid;
+    logic           write;
+    logic [AW-1:0]  addr;
+    logic [DW-1:0]  wdata;
+    logic [DBW-1:0] wstrb;
+  };
+
+  parameter type reg_rsp_t = struct packed {
+    logic [DW-1:0]  rdata;
+    logic           error;
+    logic           ready;
+  };
 
 endpackage

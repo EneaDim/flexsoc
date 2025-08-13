@@ -1,4 +1,4 @@
-# Copyright lowRISC contributors (OpenTitan project).
+# Copyright lowRISC contributors.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 """A collection of functions that aid in generating markdown."""
@@ -100,7 +100,7 @@ def sanitise_for_md_table(s: str) -> str:
     - new lines, which are converted to spaces.
     - vertical bars, which are escaped.
     '''
-    s = re.sub(r"\n+ *", " ", s)
+    s = re.sub(r"\n", " ", s)
     s = re.sub(r"\|", r"\\\|", s)
     return s
 

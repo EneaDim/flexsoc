@@ -3,11 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 '''Code representing a list of bus interfaces for a block'''
-
+from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 from reggen.inter_signal import InterSignal
 from reggen.lib import check_list, check_keys, check_str, check_optional_str
+
+class BusProtocol(Enum):
+    TLUL = "tlul"
+    REG_IFACE = "reg_iface"
+
+    @classmethod
+    def has_value(cls, v):
+        return v in cls._value2member_map_
 
 
 class BusInterfaces:
@@ -18,7 +26,8 @@ class BusInterfaces:
                  has_unnamed_device: bool,
                  named_devices: List[str],
                  device_async: Dict[Optional[str], str],
-                 device_hier_paths: Dict[Optional[str], str]):
+                 device_hier_paths: Dict[Optional[str], str],
+                 interface_list: List[Dict]):
         assert has_unnamed_device or named_devices
         assert len(named_hosts) == len(set(named_hosts))
         assert len(named_devices) == len(set(named_devices))
@@ -30,12 +39,14 @@ class BusInterfaces:
         self.named_devices = named_devices
         self.device_async = device_async
         self.device_hier_paths = device_hier_paths
+        self.interface_list = interface_list
 
     @staticmethod
     def from_raw(raw: object, where: str) -> 'BusInterfaces':
         has_unnamed_host = False
         named_hosts = []
         host_async = {}
+        interface_list = []
 
         has_unnamed_device = False
         named_devices = []
@@ -50,7 +61,7 @@ class BusInterfaces:
 
             protocol = check_str(ed['protocol'],
                                  'protocol field of ' + entry_what)
-            if protocol != 'tlul':
+            if not BusProtocol.has_value(protocol):
                 raise ValueError('Unknown protocol {!r} at {}'
                                  .format(protocol, entry_what))
 
@@ -110,13 +121,15 @@ class BusInterfaces:
                     device_hier_paths[name] = hier_path
                 else:
                     device_hier_paths[name] = 'u_reg'
+            interface_list.append({'name': name, 'protocol': BusProtocol(protocol), 'is_host': direction=='host'})
 
         if not (has_unnamed_device or named_devices):
             raise ValueError('No device interface at ' + where)
 
         return BusInterfaces(has_unnamed_host, named_hosts, host_async,
                              has_unnamed_device, named_devices,
-                             device_async, device_hier_paths)
+                             device_async, device_hier_paths,
+                             interface_list)
 
     def has_host(self) -> bool:
         return bool(self.has_unnamed_host or self.named_hosts)

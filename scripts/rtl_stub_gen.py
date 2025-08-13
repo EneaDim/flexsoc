@@ -170,7 +170,7 @@ def generate_top_module(data):
     sv_lines.append("endmodule")
     return "\n".join(sv_lines)
 
-def generate_top_wrapper(data):
+def generate_top_wrapper(data, itf):
     module_name = data["name"]
     reg_pkg = f"{module_name}_reg_pkg"
     core_inst = f"u_{module_name}_core"
@@ -184,6 +184,7 @@ def generate_top_wrapper(data):
     wrapper = f"""module {module_name}
   import {reg_pkg}::*;
 #(
+  {'' if itf=='tlul' else 'parameter int  AW = 4,\n'} \
   parameter int unsigned FifoDepth={fifo_param}
 )(
   // CLK & RSTN
@@ -191,8 +192,8 @@ def generate_top_wrapper(data):
   input           rst_ni,
 
   // Bus Interface
-  input  tlul_pkg::tl_h2d_t tl_i,
-  output tlul_pkg::tl_d2h_t tl_o,
+  {'input  tlul_pkg::tl_h2d_t tl_i' if itf=='tlul' else 'input  reg_req_t reg_req_i'},
+  {'output tlul_pkg::tl_d2h_t tl_o' if itf=='tlul' else 'output reg_rsp_t reg_rsp_o'},
 
   // IO
   input  logic port_i,
@@ -205,10 +206,11 @@ def generate_top_wrapper(data):
   {module_name}_reg_top {reg_inst} (
     .clk_i,
     .rst_ni,
-    .tl_i,
-    .tl_o,
+    .{'tl_i' if itf=='tlul' else 'reg_req_i'},
+    .{'tl_o' if itf=='tlul' else 'reg_rsp_o'},
     .reg2hw,
-    .hw2reg
+    .hw2reg,
+    .devmode_i(1'b1)
   );
 
   {module_name}_core #(
@@ -230,6 +232,7 @@ endmodule
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--hjson_file", "-i", help="Input HJSON file path")
+    parser.add_argument("-itf", "--itf", type=str, required='True', help="Define the register interface: supported reg_iface - tlul")
     parser.add_argument("--output-dir", "-o", default=".", help="Directory to write output .sv file")
     args = parser.parse_args()
 
@@ -237,7 +240,7 @@ def main():
         data = hjson.load(f)
 
     top_sv = generate_top_module(data)
-    wrapper_sv = generate_top_wrapper(data)
+    wrapper_sv = generate_top_wrapper(data, args.itf)
 
     os.makedirs(args.output_dir, exist_ok=True)
     out_file = os.path.join(args.output_dir, f"{data['name']}_core.sv")
