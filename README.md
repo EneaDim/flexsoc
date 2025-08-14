@@ -60,6 +60,7 @@ All based on open-source tooling:
 
 ---
 
+<a id="soc-composition"></a>
 ## 🧩 SoC Composition
 
 You can assemble a minimal SoC using:
@@ -74,6 +75,7 @@ All components are integrated with automation scripts and can be expanded or rep
 
 ---
 
+<a id="flow-overview"></a>
 ## 🔁 Flow Overview
 
 This environment supports a complete and repeatable hardware development lifecycle, from individual IP design to full SoC integration and simulation:
@@ -116,6 +118,7 @@ Simulate the complete SoC to validate hardware/software co-design and system-lev
 
 ---
 
+<a id="folder-structure"></a>
 ## 📁 Folder Structure
 
 - `scripts`: Python scripts to setup the environment and facilitate the steps of designing digital IPs and integrate them into an SoC. 
@@ -143,6 +146,7 @@ Simulate the complete SoC to validate hardware/software co-design and system-lev
 
 ---
 
+<a id="dependecies"></a>
 ## 📦 Dependencies
 
 The dependencies are splitted for IP development and SoC integration.
@@ -170,6 +174,7 @@ The python dependencies can be installed running `pip install -r python-requirem
 
 ---
 
+<a id="usage"></a>
 ## ⚙️ Usage
 
 1. Run `make help` to see the guide for the steps of digital IP development and SoC integration.
@@ -181,6 +186,7 @@ The python dependencies can be installed running `pip install -r python-requirem
 
 ---
 
+<a id="tutorial-1"></a>
 ## 🧪 Tutorial\_1 - Basic FSM
 
 It generate an FSM example, and perform the whole flow.
@@ -209,6 +215,7 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 
 ---
 
+<a id="tutorial-2"></a>
 ## 🧪 Tutorial\_2 - Ramp ADC 
 
 It loads a custom digital IP to implement the Ramp ADC, it uses also systemverilog analog models for the system verification.
@@ -233,6 +240,7 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 
 ---
 
+<a id="tutorial-2"></a>
 ## 🛠 Tutorial\_3 - SoC flow
 
 It loads a custom spi\_host IP and integrate it in a basic SoC made of IBEX, RAM and UART.
@@ -261,6 +269,7 @@ View the waveforms. You should see 2 drivings of spi\_host signals: spi\_cs\_o, 
 
 ---
 
+<a id="next-steps"></a>
 ## 📈 Next Steps
 
 - Align with dvsim flow of lowRISC.
@@ -271,6 +280,7 @@ View the waveforms. You should see 2 drivings of spi\_host signals: spi\_cs\_o, 
 
 ---
 
+<a id="environment-details"></a>
 ## 🧬 Environment Details
 
 #### Configuration description (`config.mk`): 
@@ -651,6 +661,7 @@ Remove all project directories and files, effectively resetting the project.
 
 ---
 
+<a id="license"></a>
 ## 📜 License
 
 Unless otherwise noted, everything in the repository is covered by the [Apache License](https://www.apache.org/licenses/LICENSE-2.0.html), Version 2.0.
