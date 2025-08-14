@@ -236,7 +236,7 @@ try:
             mystr += '    #1;\n'
             mystr += '  endtask\n\n'
             mystr += '  task automatic tlul_read(input logic [top_pkg::TL_AW-1:0]  addr,\n'
-            mystr += '                           input logic [top_pkg::TL_DW-1:0]  data,\n'
+            mystr += '                           output logic [top_pkg::TL_DW-1:0]  data,\n'
             mystr += '                           input logic [top_pkg::TL_AIW-1:0] source);\n\n'
             mystr += '    $display("[%0t] TLUL READ: Addr = 0x%08x", $time, addr);\n\n'
             mystr += "    drv_if.h2d.d_ready   = 1'b1;\n"

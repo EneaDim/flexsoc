@@ -181,7 +181,6 @@ def generate_top_wrapper(data, itf):
         if param["name"].lower() == "fifodepth":
             fifo_param = param.get("default", "3")
 
-    print(itf)
     wrapper = f"""module {module_name}
   import {reg_pkg}::*;
 #(
