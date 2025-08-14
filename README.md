@@ -9,19 +9,19 @@ This repository provides a modular and open-source environment designed to **sim
 ---
 
 ## Table of Contents
-- [Project Objectives](##project-objectives)
-- [Key Features](##key-features)
-- [SoC Composition](##soc-composition)
-- [Flow Overview](##flow-overview)
-- [Folder Structure](##folder-structure)
-- [Dependencies](##dependencies)
-- [Usage](##usage)
-- [Tutorial\_1](##tutorial-1)
-- [Tutorial\_2](##tutorial-2)
-- [Tutorial\_3](##tutorial-3)
-- [Next Steps](##next-step)
-- [Environment Details](##environment-details)
-- [License](##license)
+- [Project Objectives](#project-objectives)
+- [Key Features](#key-features)
+- [SoC Composition](#soc-composition)
+- [Flow Overview](#flow-overview)
+- [Folder Structure](#folder-structure)
+- [Dependencies](#dependencies)
+- [Usage](#usage)
+- [Tutorial\_1](#tutorial-1)
+- [Tutorial\_2](#tutorial-2)
+- [Tutorial\_3](#tutorial-3)
+- [Next Steps](#next-step)
+- [Environment Details](#environment-details)
+- [License](#license)
 
 ---
 
@@ -41,7 +41,9 @@ All based on open-source tooling:
 
 - 📁 Configuration initialization using .hjson 
 - 📄 Automatic documentation generation
-- 🧠 CSR (Control & Status Register) generation (TLUL interface)
+- 🧠 CSR (Control & Status Register) generation  via two flows:
+    - TLUL interface (lowRISC)
+    - Register Interface (PULP)
 - 🛠️ Automatic RTL stub generation (SystemVerilog) from `.hjson` register definitions
 - 🔍 RTL linting and formatting
 - 🔬 Functional simulation (design verification)
@@ -51,6 +53,8 @@ All based on open-source tooling:
 - 🌐 IP fetching and dependency management via GitHub
 - 🔀 XBAR interconnect generation
 - 🧩 SoC integration with modular IPs (TLUL Interface)
+
+> **Why dual support?** Some projects target OpenTitan/lowRISC SoCs (TL-UL, regtool), others the PULP ecosystem. This environment lets you prototype and verify IPs in **both** styles without switching repos.
 
 ---
 
