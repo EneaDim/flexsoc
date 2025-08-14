@@ -25,6 +25,7 @@ This repository provides a modular and open-source environment designed to **sim
 
 ---
 
+<a id="project-objectives"></a>
 ## 🎯 Project Objectives
 
 - Enable digital designers to **develop, document, validate and integrate IPs** with minimal setup.
@@ -34,6 +35,7 @@ This repository provides a modular and open-source environment designed to **sim
 
 ---
 
+<a id="key-features"></a>
 ## 📦 Key Features
 
 ✔️ **Complete IP Development Flow**
