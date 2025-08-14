@@ -146,7 +146,7 @@ Simulate the complete SoC to validate hardware/software co-design and system-lev
 
 ---
 
-<a id="dependecies"></a>
+<a id="dependencies"></a>
 ## 📦 Dependencies
 
 The dependencies are splitted for IP development and SoC integration.
