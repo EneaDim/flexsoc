@@ -52,7 +52,7 @@ sv2v: clean_rtl
 	$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv > $(RTLDIR)/$(TOP).v
 
 # LINTING
-lint: 
+lint: sv2v 
 	@$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
 	$(LINTER) $(LINT_FLAGS) $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
