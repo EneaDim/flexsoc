@@ -21,7 +21,7 @@ setup:
 # HJSON TEMPLATE GENERATION
 hjson:
 	@$(ECHO) "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
-	$(PYTHON) scripts/hjson_gen.py -top $(TOP) -o $(DATADIR) 
+	$(PYTHON) scripts/hjson_gen.py -top $(TOP) -itf $(REG_ITF) -o $(DATADIR) 
 
 # SV REGISTER GENERATOR
 reg:
@@ -42,9 +42,9 @@ fetch:
 # RTL base generator
 rtl_stub:
 	@$(ECHO) "\n$(ORANGE)RTL stub generation...\n$(RESET)"
-	$(PYTHON) scripts/rtl_stub_gen.py -i $(DATADIR)/$(TOP).hjson -o $(RTLDIR)
+	$(PYTHON) scripts/rtl_stub_gen.py -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
 
-ip_start: setup hjson reg doc rtl_stub setup_tb sim view
+ip_start: setup hjson reg doc rtl_stub setup_tb lint
 
 # SV to single Verilog file
 sv2v: clean_rtl
@@ -52,7 +52,7 @@ sv2v: clean_rtl
 	$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv > $(RTLDIR)/$(TOP).v
 
 # LINTING
-lint: sv2v
+lint: 
 	@$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
 	$(LINTER) $(LINT_FLAGS) $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
@@ -65,7 +65,7 @@ lint_sv:
 setup_tb:
 	@$(ECHO) "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
 	$(PYTHON) scripts/setup_tb.py -top $(TOP) -rtldir $(RTLDIR) -simdir $(SIMDIR) \
-	-syndir $(SYNDIR) -prim $(PRIM) -clk $(CLK_PERIOD) -comp $(COMPILER) -o $(TBDIR)
+	-syndir $(SYNDIR) -prim $(PRIM) -clk $(CLK_PERIOD) -comp $(COMPILER) -itf $(REG_ITF) -o $(TBDIR)
 
 # COMPILE THE TESTBENCH THAT INCLUDES ALL THE RTL FILES
 compile: lint

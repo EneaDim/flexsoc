@@ -2,7 +2,7 @@
 PYTHON          ?=python3
 # TOP NAME
 PRJ             ?=prj
-TOP             ?=my_new_ip
+TOP             ?=spi_host
 FSM             ?=fsm_example
 # DIRECTORIES
 RTLDIR          ?=rtl
@@ -29,6 +29,8 @@ REGRESSIONDIR   :=$(TBDIR)/regression \
 VENDOR          ?=lowrisc_ip
 # FUSESOC
 TARGET_FSOC     ?=lint
+# REGISTER INTERFACE
+REG_ITF         ?=reg_iface
 # COMPILE TOOL
 SV2V            :=sv2v
 LINTER          ?=verilator
