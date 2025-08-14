@@ -16,9 +16,9 @@ This repository provides a modular and open-source environment designed to **sim
 - [Folder Structure](#folder-structure)
 - [Dependencies](#dependencies)
 - [Usage](#usage)
-- [Tutorial_1](#tutorial_1)
-- [Tutorial_2](#tutorial_2)
-- [Tutorial_3](#tutorial_3)
+- [Tutorial 1](#tutorial_1)
+- [Tutorial 2](#tutorial_2)
+- [Tutorial 3](#tutorial_3)
 - [Next Steps](#next-steps)
 - [Environment Details](#environment-details)
 - [License](#license)
@@ -187,7 +187,7 @@ The python dependencies can be installed running `pip install -r python-requirem
 ---
 
 <a id="tutorial-1"></a>
-## 🧪 Tutorial\_1 - Basic FSM
+## 🧪 Tutorial 1 - Basic FSM
 
 It generate an FSM example, and perform the whole flow.
 
@@ -216,7 +216,7 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 ---
 
 <a id="tutorial-2"></a>
-## 🧪 Tutorial\_2 - Ramp ADC 
+## 🧪 Tutorial 2 - Ramp ADC 
 
 It loads a custom digital IP to implement the Ramp ADC, it uses also systemverilog analog models for the system verification.
 
@@ -240,8 +240,8 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 
 ---
 
-<a id="tutorial-2"></a>
-## 🛠 Tutorial\_3 - SoC flow
+<a id="tutorial-3"></a>
+## 🛠 Tutorial 3 - SoC flow
 
 It loads a custom spi\_host IP and integrate it in a basic SoC made of IBEX, RAM and UART.
 
