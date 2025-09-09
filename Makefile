@@ -44,7 +44,7 @@ rtl_stub:
 	@$(ECHO) "\n$(ORANGE)RTL stub generation...\n$(RESET)"
 	$(PYTHON) scripts/rtl_stub_gen.py -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
 
-ip_start: setup hjson reg doc rtl_stub setup_tb
+ip_start: setup hjson reg doc rtl_stub setup_tb lint
 
 # SV to single Verilog file
 sv2v: clean_rtl

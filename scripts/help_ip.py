@@ -4,6 +4,8 @@ msg='\033[38;5;214m\n\
 \n *************************** HELP ****************************\n\
 \n *************************************************************\n\n\
 \n ********************** IP DEVELOPMENT ***********************\n\
+\n - QUICKSTART\
+\n   .Run "make ip_start" to setup the environment, generate hjson config file, doc files, RTL core, RTL wrapper and a basic tesbench of a general IP"\n\
 \n - CONFIG\
 \n   .Define the parameters under config.mk\n\
 \n - SETUP\
@@ -21,7 +23,7 @@ msg='\033[38;5;214m\n\
 \n   .Run "make reg" to generate CSR register with TLUL interface \
 \n    based on the configuration file.\n\
 \n - RTL SKELETON\n\
-\n   .Run "make ip_start" to generate all doc files, core, wrapper and a basic tesbench of a general IP"\n\
+\n   .Run "make rtl_stub" to generate RTL core and RTL wrapper of the IP"\n\
 \n - RTL CODING\
 \n   .Write RTL in systemverilog under rtl/ folder\n\
 \n - SV2V\

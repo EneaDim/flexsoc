@@ -2,7 +2,7 @@
 PYTHON          ?=python3
 # TOP NAME
 PRJ             ?=prj
-TOP             ?=spi_host
+TOP             ?=test_ip
 FSM             ?=fsm_example
 # DIRECTORIES
 RTLDIR          ?=rtl
@@ -30,7 +30,7 @@ VENDOR          ?=lowrisc_ip
 # FUSESOC
 TARGET_FSOC     ?=lint
 # REGISTER INTERFACE
-REG_ITF         ?=tlul
+REG_ITF         ?=reg_iface
 # COMPILE TOOL
 SV2V            :=sv2v
 LINTER          ?=verilator
