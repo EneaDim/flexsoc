@@ -126,6 +126,7 @@ for src in rtl_files:
     DISCOVERED += f"VERILOG_SOURCES += $(PWD)/{os.path.relpath(src, OUT.resolve())}\n"
 
 TOPLEVEL = f"{TOP}_cocotb_wrap" if GEN_WRAP else TOP
+print(TOP)
 
 mk = dedent(f"""\
 # Auto-generated Makefile
@@ -135,6 +136,7 @@ PWD = $(shell pwd)
 
 # Sorgenti fissi del progetto (se li hai già nel repo)
 VERILOG_SOURCES := $(PWD)/../ips/pkgs/top_pkg.sv
+VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_assert.sv
 VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_subreg_pkg.sv
 VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_util_pkg.sv
 VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_count_pkg.sv
@@ -146,9 +148,6 @@ VERILOG_SOURCES += $(PWD)/../rtl/{TOP}_reg_top.sv
 VERILOG_SOURCES += $(PWD)/../rtl/{TOP}_core.sv
 VERILOG_SOURCES += $(PWD)/../rtl/{TOP}.sv
 {f"VERILOG_SOURCES += $(PWD)/../rtl/{TOP}_cocotb_wrap.sv" if GEN_WRAP else ""}
-
-# Sorgenti auto-scoperti (opzionali)
-{DISCOVERED.strip()}
 
 TOPLEVEL = {TOPLEVEL}
 MODULE = {TOP}_tb
@@ -165,7 +164,8 @@ export TB_TL_A_PREFIX ?= tl_i
 export TB_TL_D_PREFIX ?= tl_o
 export TB_TL_SCOPE ?=
 
-EXTRA_ARGS ?= {EXTRA_ARGS}
+EXTRA_ARGS ?= {EXTRA_ARGS} {EXTRA_ARGS[:-3]}ips/pkgs {EXTRA_ARGS[:-3]}ips/prim
+
 ifeq ($(SIM),verilator)
   VERILATOR_ARGS += $(EXTRA_ARGS)
 endif
