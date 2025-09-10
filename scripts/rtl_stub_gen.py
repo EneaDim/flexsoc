@@ -67,6 +67,7 @@ def generate_top_module(data):
             else:
                 for field in fields:
                     field_name = field["name"].lower()
+                    print(field_name)
                     bits = field["bits"]
 
                     if swaccess in ["rw", "wo"]:
@@ -87,23 +88,23 @@ def generate_top_module(data):
                             )
 
                     if swaccess == "ro" and hwaccess in ["hrw", "hro"]:
-                        if len(fields) == 1 and "name" not in fields[0]:
-                            field_name = reg_name
-                            bits = fields[0]["bits"]
-                            width = get_bit_width(bits)
-                            signal_defs.append(f"  logic [{width - 1}:0] {field_name};")
-                            reg2ctrl_assignments.append(
-                                f"  assign hw2reg.{reg_name}.d = {field_name};"
-                            )
-                        else:
-                            for field in fields:
-                                field_name = field.get("name", reg_name).lower()
-                                bits = field["bits"]
-                                width = get_bit_width(bits)
-                                signal_defs.append(f"  logic [{width - 1}:0] {field_name};")
-                                reg2ctrl_assignments.append(
-                                    f"  assign hw2reg.{reg_name}.{field_name}.d = {field_name};"
-                                )
+                        #if len(fields) == 1 and "name" not in fields[0]:
+                        #    field_name = reg_name
+                        #    bits = fields[0]["bits"]
+                        #    width = get_bit_width(bits)
+                        #    signal_defs.append(f"  logic [{width - 1}:0] {field_name};")
+                        #    reg2ctrl_assignments.append(
+                        #        f"  assign hw2reg.{reg_name}.d = {field_name};"
+                        #    )
+                        #else:
+                        #    for field in fields:
+                        field_name = field.get("name", reg_name).lower()
+                        bits = field["bits"]
+                        width = get_bit_width(bits)
+                        signal_defs.append(f"  logic [{width - 1}:0] {field_name};")
+                        reg2ctrl_assignments.append(
+                            f"  assign hw2reg.{reg_name}.{field_name}.d = {field_name};"
+                        )
                 continue
 
         # Handle unnamed single-field register (direct access)
