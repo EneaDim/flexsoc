@@ -30,7 +30,7 @@ VENDOR          ?=lowrisc_ip
 # FUSESOC
 TARGET_FSOC     ?=lint
 # REGISTER INTERFACE
-REG_ITF         ?=reg_iface
+REG_ITF         ?=tlul
 # COMPILE TOOL
 SV2V            :=sv2v
 LINTER          ?=verilator
