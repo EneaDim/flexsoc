@@ -289,8 +289,8 @@ soc_tutorial:
 
 # SETUP COCOTB
 setup_cocotb:
-	$(PYTHON) scripts/setup_cocotb.py --top spi_host --itf tlul --rtl-dir rtl --output tb \
-  --clk clk_i --rst rst_ni --rst-active low --period-ns 10 --sim verilator 
+	$(PYTHON) scripts/setup_cocotb.py --top $(TOP) --itf $(REG_ITF) --rtl-dir $(RTLDIR) --output $(TBDIR) \
+  --clk clk_i --rst rst_ni --rst-active low --period-ns 10 --sim $(COMPILER) 
 
 # DEFINE PYTHON MODELDIR
 setup_model:
