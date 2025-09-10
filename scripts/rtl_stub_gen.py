@@ -67,7 +67,6 @@ def generate_top_module(data):
             else:
                 for field in fields:
                     field_name = field["name"].lower()
-                    print(field_name)
                     bits = field["bits"]
 
                     if swaccess in ["rw", "wo"]:
