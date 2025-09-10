@@ -158,11 +158,10 @@ The python dependencies can be installed running `pip install -r python-requirem
     - Testbench generation.
     - Linting the design.
     - Simulation of the testbench.
-2. Run `make help` to see the guide for the steps of digital IP development and SoC integration.
-3. Run `make help_ip` to see only the guide for the steps of digital IP development.
-4. Run `make help_soc` to see only the guide for the steps of SoC integration.
-5. Run `make help_doc` to see the guide for generating the documentation.
-6. Run `make help_fsm` to see the guide for generating FSMs.
+2. Run `make help` to see the guide for the steps of digital IP development.
+3. Run `make help_soc` to see the guide for the steps of SoC integration.
+4. Run `make help_doc` to see the guide for generating the documentation.
+5. Run `make help_fsm` to see the guide for generating simple FSMs from text specification.
 
 ---
 
@@ -317,6 +316,10 @@ View the waveforms. You should see 2 drivings of spi\_host signals: spi\_cs\_o, 
 - `VENDORDIR`: Directory for vendor hjson files and patches.
 - `UTILDIR`: Directory for utility scripts.
 - `SCRIPTSDIR`: Directory for additional scripts.
+
+#### Register interface
+
+- `REG_ITF`: Register interface, can be `tlul` or `reg_iface`.
 
 #### Compile Tools
 
