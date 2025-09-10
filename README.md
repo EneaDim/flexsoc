@@ -41,16 +41,16 @@ This repository provides a modular and open-source environment designed to **sim
 ✔️ **Complete IP Development Flow**
 All based on open-source tooling:
 
-- 📁 Configuration initialization using hjson 
+- 📁 Automatic hjson configuration file generation
 - 📄 Automatic documentation generation
-- 🧠 CSR (Control & Status Register) generationvia two flows:
+- 🧠 CSR (Control & Status Register) generation via two flows:
     - TLUL interface (lowRISC)
     - Register Interface (PULP)
-- 🛠️ Automatic RTL stub generation (SystemVerilog) from hjson
+- 🛠️ Automatic RTL stub and wrapper generation from hjson
 - 🔍 RTL linting and formatting
-- 🔬 Functional simulation (design verification)
+- 🔬 Functional simulation
 - 🏗️ Synthesis trials
-- ⏱️ Static Timing Analysis (STA)
+- ⏱️ Static Timing Analysis
 - 🔌 Power estimation and analysis
 - 🌐 IP fetching and dependency management via GitHub
 - 🔀 XBAR interconnect generation
