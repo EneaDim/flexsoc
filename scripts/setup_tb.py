@@ -475,7 +475,8 @@ try:
                         mystr += '  '+str(top)+'_reg_pkg::'+str(w)+' '+str(o)+';\n'
 
         mystr += '\n  integer error_count;\n\n'
-        mystr += '  logic ['+str(top)+'_reg_pkg::DW-1:0] rdata;\n\n'
+        if flag_reg_pkg:
+            mystr += '  logic ['+str(top)+'_reg_pkg::DW-1:0] rdata;\n\n'
 
         # Interfaces (Verilator paths)
         if compiler == 'verilator':
