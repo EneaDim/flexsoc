@@ -356,6 +356,7 @@ load_ip:
 # DEPENDENCIES
 deps-ip:
 	@$(ECHO) "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
+	sed -i 's/\r$$//' deps.sh
 	bash ./deps.sh ip
 
 deps-soc:
