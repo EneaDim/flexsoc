@@ -358,6 +358,7 @@ deps-ip:
 	@$(ECHO) "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
 	sed -i 's/\r$$//' deps.sh
 	bash ./deps.sh ip
+	pip install -r requirements.txt
 
 deps-soc:
 	@$(ECHO) "\n$(ORANGE)Installing dependencies for SoC integration ...\n$(RESET)"

@@ -67,6 +67,7 @@ install_ip_dependencies() {
     echo "|**********************************************************************************|"
     cd 
     echo "| Download https://github.com/davidkebo/cudd/blob/main/cudd_versions/cudd-3.0.0.tar.gz |"
+    curl -L -o cudd-3.0.0.tar.gz https://github.com/davidkebo/cudd/raw/main/cudd_versions/cudd-3.0.0.tar.gz    
     tar xvfz cudd-3.0.0.tar.gz
     cd cudd-3.0.0
     ./configure --prefix=/usr/local/bin
@@ -77,7 +78,8 @@ install_ip_dependencies() {
     cd OpenSTA
     mkdir build
     cd build
-    cmake -DCUDD_DIR=/usr/local/bin/lib
+    cmake -DCUDD_DIR=/usr/local/bin/lib ..
+    make -j 2
     echo "|**********************************************************************************|"
     echo "|                                Installing netlistsvg                             |"
     echo "|**********************************************************************************|"
