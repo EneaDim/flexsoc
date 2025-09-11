@@ -356,11 +356,11 @@ load_ip:
 # DEPENDENCIES
 deps-ip:
 	@$(ECHO) "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
-	source ./deps.sh ip
+	bash ./deps.sh ip
 
 deps-soc:
 	@$(ECHO) "\n$(ORANGE)Installing dependencies for SoC integration ...\n$(RESET)"
-	source ./deps.sh soc
+	bash ./deps.sh soc
 
 # CLEAN
 clean_doc:
