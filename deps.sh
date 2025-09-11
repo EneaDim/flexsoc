@@ -35,6 +35,8 @@ install_ip_dependencies() {
     git clone https://github.com/zachjs/sv2v.git
     cd sv2v
     make
+    export PATH=$PATH:$PWD/bin    
+    echo "export PATH=\$PATH:$PWD/bin" >> ~/.bashrc
     echo
     echo
     echo "|**********************************************************************************|"
