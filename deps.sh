@@ -10,7 +10,7 @@ install_ip_dependencies() {
     sudo apt update
     sudo apt upgrade
     sudo apt-get install build-essential clang bison flex nodejs npm \
-    	libreadline-dev gawk tcl-dev libffi-dev git autoconf snapd cmake \
+    	libreadline-dev gawk tcl-dev libffi-dev git autoconf snapd cmake libelf-dev \
     	curl graphviz xdot pkg-config libboost-system-dev help2man swig libeigen3-dev \
     	libboost-python-dev libboost-filesystem-dev zlib1g-dev --assume-yes
     echo "|**********************************************************************************|"
@@ -46,7 +46,7 @@ install_ip_dependencies() {
     cd
     git clone https://github.com/verilator/verilator
     cd verilator
-    git checkout stable 
+    git checkout v5.036 
     autoconf
     ./configure
     make -j 2
@@ -104,9 +104,12 @@ install_soc_dependencies() {
     cd riscv-gnu-toolchain
     mkdir build
     cd build
-    ../configure --prefix=/opt/riscv --with-arch=rv32gc --with-abi=ilp32d
+    ../configure --prefix=/opt/riscv32 --with-arch=rv32gc --with-abi=ilp32d
     sudo make -j 2
     sudo make install
+    export PATH=$PATH:/opt/riscv32/bin
+    echo "export PATH=/opt/riscv32/bin" >> ~/.bashrc
+
 }
 
 case "$1" in
