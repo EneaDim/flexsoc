@@ -10,8 +10,8 @@ install_ip_dependencies() {
     sudo apt update
     sudo apt upgrade
     sudo apt-get install build-essential clang bison flex nodejs npm \
-    	libreadline-dev gawk tcl-dev libffi-dev git autoconf snapd \
-    	curl graphviz xdot pkg-config libboost-system-dev help2man \
+    	libreadline-dev gawk tcl-dev libffi-dev git autoconf snapd cmake \
+    	curl graphviz xdot pkg-config libboost-system-dev help2man swig libeigen3-dev \
     	libboost-python-dev libboost-filesystem-dev zlib1g-dev --assume-yes
     echo "|**********************************************************************************|"
     echo "|                               Installing iverilog                                |"
@@ -73,7 +73,6 @@ install_ip_dependencies() {
     make -j 2
     sudo make install
     cd
-    sudo apt install cmake swig libeigen3-dev
     git clone https://github.com/The-OpenROAD-Project/OpenSTA.git
     cd OpenSTA
     mkdir build
