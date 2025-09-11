@@ -67,6 +67,12 @@ All based on open-source tooling:
 
 The dependencies are splitted for IP development and SoC integration.
 
+Running `make deps-ip` will automate the installation process for IP development.
+
+Now you can jump to Usage and then only for SoC tutorial you need SoC dependencies.
+
+Running `make deps-soc` will automate the installation process for SoC integration.
+
 **IP Development Tools**
 
 - `sv2v`: SystemVerilog file list to single Verilog file converter.
@@ -76,17 +82,9 @@ The dependencies are splitted for IP development and SoC integration.
 - `yosys`: Synthesis tool.
 - `OpenSTA`: Static Timing Analysis and Power Analysis tool.
 
-Running `make deps-ip` will automate the installation process.
-
 **SoC Integration Tools**
 
 - `riscv-toolchain`: The RISC-V compiler and toolchain required to build and run software on the IBEX core.
-
-Running `make deps-soc` will automate the installation process.
-
-- `python packages`: Python packages needed for the SoC integration and simulation process.
-
-The python dependencies can be installed running `pip install -r python-requirements.txt` on your system or on a virtual environment.
 
 ---
 

@@ -31,12 +31,12 @@ install_ip_dependencies() {
     echo "|**********************************************************************************|"
     echo
     cd
+    sudo mkdir /tools/sv2v
     curl -sSL https://get.haskellstack.org/ | sh
     git clone https://github.com/zachjs/sv2v.git
     cd sv2v
     make
-    export PATH=$PATH:$PWD/bin    
-    echo "export PATH=\$PATH:$PWD/bin" >> ~/.bashrc
+    cp bin/sv2v /tools/sv2v
     echo
     echo
     echo "|**********************************************************************************|"
@@ -96,7 +96,7 @@ install_soc_dependencies() {
     echo "|                              RISCV GNU toolchain                                 |"
     echo "|**********************************************************************************|"
     cd 
-    sudo mkdir /opt/riscv32
+    sudo mkdir /tools/riscv32
     sudo apt-get install srecord autoconf automake autotools-dev curl python3 python3-pip python3-tomli \
     	libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool \
     	patchutils bc zlib1g-dev libexpat-dev ninja-build git cmake libglib2.0-dev libslirp-dev
@@ -104,11 +104,9 @@ install_soc_dependencies() {
     cd riscv-gnu-toolchain
     mkdir build
     cd build
-    ../configure --prefix=/opt/riscv32 --with-arch=rv32gc --with-abi=ilp32d
+    ../configure --prefix=/tools/riscv32 --with-arch=rv32gc --with-abi=ilp32d
     sudo make -j 2
     sudo make install
-    export PATH=$PATH:/opt/riscv32/bin
-    echo "export PATH=/opt/riscv32/bin" >> ~/.bashrc
 
 }
 

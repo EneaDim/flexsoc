@@ -359,6 +359,11 @@ deps-ip:
 	sed -i 's/\r$$//' deps.sh
 	bash ./deps.sh ip
 	pip install -r requirements.txt
+	export PATH=$$PATH:/tools/sv2v
+	export PATH=$$PATH:/tools/riscv32/bin
+	echo "export PATH=/tools/sv2v" >> ~/.bashrc
+	echo "export PATH=/tools/riscv32/bin" >> ~/.bashrc
+	
 
 deps-soc:
 	@$(ECHO) "\n$(ORANGE)Installing dependencies for SoC integration ...\n$(RESET)"
