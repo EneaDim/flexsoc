@@ -181,10 +181,11 @@ def generate_top_wrapper(data, itf):
         if param["name"].lower() == "fifodepth":
             fifo_param = param.get("default", "3")
 
+    aw_param = '' if itf=='tlul' else 'parameter int  AW = 4,\n'
     wrapper = f"""module {module_name}
   import {reg_pkg}::*;
 #(
-  {'' if itf=='tlul' else 'parameter int  AW = 4,\n'} \
+  {aw_param} \
   parameter int unsigned FifoDepth={fifo_param}
 )(
   // CLK & RSTN
