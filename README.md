@@ -43,13 +43,15 @@ All based on open-source tooling:
 
 - 📁 Automatic hjson configuration file generation
 - 📄 Automatic documentation generation
-- 🧠 CSR (Control & Status Register) generation via two flows:
+- 🧠 Automatic CSR generation via lowRISC regtool with two options:
     - TLUL interface (lowRISC)
     - Register Interface (PULP)
 - 🛠️ Automatic RTL stub and wrapper generation from hjson
 - 🔍 RTL linting and formatting
 - 🔬 Functional simulation
-- 🏗️ Synthesis trials
+    - SystemVerilog Testbench
+    - Cocotb
+- 🏗️ Synthesis trials (PPA)
 - ⏱️ Static Timing Analysis
 - 🔌 Power estimation and analysis
 - 🌐 IP fetching and dependency management via GitHub
