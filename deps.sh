@@ -36,6 +36,7 @@ install_ip_dependencies() {
     cd sv2v
     stack setup
     stack install
+    echo
     sudo cp $HOME/.local/bin/sv2v /usr/local/bin
     echo
     echo
