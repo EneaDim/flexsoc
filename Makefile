@@ -4,12 +4,16 @@ include config.mk
 help:
 	@echo "$(ORANGE)"
 	@echo "Available make commands to start:"
-	@echo "  make deps        Install/check dependencies for IPs"
-	@echo "  make deps-soc    Install/check dependencies for SoC"
-	@echo "  make help_ip     Show IP-related help"
-	@echo "  make help_soc    Show SoC-related help"
-	@echo "  make help_doc    Show documentation-related help"
-	@echo "  make help_fsm    Show FSM generator help"
+	@echo ""
+	@echo "  Dependencies:"
+	@echo "    make deps        Install/check dependencies for IPs"
+	@echo "    make deps-soc    Install/check dependencies for SoC"
+	@echo ""
+	@echo "  Helping Guides:"
+	@echo "    make help_ip     Show IP-related help"
+	@echo "    make help_soc    Show SoC-related help"
+	@echo "    make help_doc    Show documentation-related help"
+	@echo "    make help_fsm    Show FSM generator help"
 	@echo "$(RESET)"
 
 help_ip:

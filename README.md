@@ -65,7 +65,7 @@ All based on open-source tooling:
 <a id="dependencies"></a>
 ## 📦 Dependencies
 
-Running `make deps` will automate the installation process for IP development.
+Running `make deps` will automate the installation process for IP development. It takes around 5 to 10 minutes.
 
 Now you can jump to **Usage** and then only for SoC tutorial you need SoC dependencies.
 
