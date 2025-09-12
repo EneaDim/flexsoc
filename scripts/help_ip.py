@@ -4,10 +4,6 @@ msg='\033[38;5;214m\n\
 \n *************************** HELP ****************************\n\
 \n *************************************************************\n\n\
 \n ********************** IP DEVELOPMENT ***********************\n\
-\n - QUICKSTART\
-\n   .Run "make ip_start" to setup the environment, generate\
-\n    hjson config file, doc files, RTL core, RTL wrapper\
-\n    and a basic tesbench of a general IP"\n\
 \n - CONFIG\
 \n   .Define the parameters under config.mk\n\
 \n - SETUP\
