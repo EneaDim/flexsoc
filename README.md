@@ -65,8 +65,6 @@ All based on open-source tooling:
 <a id="dependencies"></a>
 ## 📦 Dependencies
 
-The dependencies are splitted for IP development and SoC integration.
-
 Running `make deps` will automate the installation process for IP development.
 
 Now you can jump to **Usage** and then only for SoC tutorial you need SoC dependencies.
@@ -79,14 +77,6 @@ Now you can jump to **Usage** and then only for SoC tutorial you need SoC depend
 - `gtkwave`: Waveform viewer.
 - `yosys`: Synthesis tool.
 - `OpenSTA`: Static Timing Analysis and Power Analysis tool.
-
----
-
-Running `make deps-soc` will automate the installation process for SoC integration.
-
-**SoC Integration Tools**
-
-- `riscv-toolchain`: The RISC-V compiler and toolchain required to build and run software on the IBEX core.
 
 ---
 
@@ -195,6 +185,16 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 ## 🛠 Tutorial 3 - SoC flow
 
 It loads a custom spi\_host IP and integrate it in a basic SoC made of IBEX, RAM and UART.
+
+Running `make deps-soc` will automate the installation process for SoC integration.
+
+**SoC Integration Tools**
+
+- `riscv-toolchain`: The RISC-V compiler and toolchain required to build and run software on the IBEX core.
+
+---
+
+Then to run the tutorial:
 
 - `make soc_tutorial TOP=spi_host`
 
