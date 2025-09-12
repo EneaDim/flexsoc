@@ -67,11 +67,9 @@ All based on open-source tooling:
 
 The dependencies are splitted for IP development and SoC integration.
 
-Running `make deps-ip` will automate the installation process for IP development.
+Running `make deps` will automate the installation process for IP development.
 
-Now you can jump to Usage and then only for SoC tutorial you need SoC dependencies.
-
-Running `make deps-soc` will automate the installation process for SoC integration.
+Now you can jump to **Usage** and then only for SoC tutorial you need SoC dependencies.
 
 **IP Development Tools**
 
@@ -81,6 +79,10 @@ Running `make deps-soc` will automate the installation process for SoC integrati
 - `gtkwave`: Waveform viewer.
 - `yosys`: Synthesis tool.
 - `OpenSTA`: Static Timing Analysis and Power Analysis tool.
+
+---
+
+Running `make deps-soc` will automate the installation process for SoC integration.
 
 **SoC Integration Tools**
 
