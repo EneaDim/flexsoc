@@ -83,7 +83,7 @@ Now you can jump to **Usage** and then only for SoC tutorial you need SoC depend
 <a id="usage"></a>
 ## ⚙️ Usage
 
-1. Run `make ip_start` to quickstart:
+- Run `make ip_start` to quickstart:
     - Hjson definition.
     - Register Map generation.
     - Documentation generation.
@@ -92,10 +92,7 @@ Now you can jump to **Usage** and then only for SoC tutorial you need SoC depend
     - Testbench generation.
     - Linting the design.
     - Simulation of the testbench.
-2. Run `make help` to see the guide for the steps of digital IP development.
-3. Run `make help_soc` to see the guide for the steps of SoC integration.
-4. Run `make help_doc` to see the guide for generating the documentation.
-5. Run `make help_fsm` to see the guide for generating simple FSMs from text specification.
+- Run `make help` to see the different guides of the environment.
 
 ---
 
