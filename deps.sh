@@ -83,6 +83,8 @@ install_ip_dependencies() {
     cd build
     cmake -DCUDD_DIR=/usr/local/bin/lib ..
     make -j 2
+    echo
+    sudo cp sta /usr/local/bin
     echo "|**********************************************************************************|"
     echo "|                                Installing netlistsvg                             |"
     echo "|**********************************************************************************|"
