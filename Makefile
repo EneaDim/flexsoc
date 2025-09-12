@@ -2,6 +2,17 @@ include config.mk
 
 # HELP
 help:
+	@echo "$(ORANGE)"
+	@echo "Available make commands to start:"
+	@echo "  deps-ip           Install/check dependencies for IPs"
+	@echo "  deps-soc          Install/check dependencies for SoC"
+	@echo "  help_ip           Show IP-related help"
+	@echo "  help_soc          Show SoC-related help"
+	@echo "  help_doc          Show documentation-related help"
+	@echo "  help_fsm          Show FSM generator help"
+	@echo "$(RESET)"
+
+help_ip:
 	$(PYTHON) scripts/help_ip.py
 help_soc:
 	$(PYTHON) scripts/help_soc.py

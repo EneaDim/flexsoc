@@ -9,7 +9,7 @@ install_ip_dependencies() {
     cd
     sudo apt update
     sudo apt upgrade
-    sudo apt-get install build-essential clang bison flex nodejs npm stack \
+    sudo apt-get install build-essential clang bison flex nodejs npm \
     	libreadline-dev gawk tcl-dev libffi-dev git autoconf snapd cmake libelf-dev \
     	curl graphviz xdot pkg-config libboost-system-dev help2man swig libeigen3-dev \
     	libboost-python-dev libboost-filesystem-dev zlib1g-dev --assume-yes
@@ -31,7 +31,6 @@ install_ip_dependencies() {
     echo "|**********************************************************************************|"
     echo
     cd
-    sudo mkdir /tools/sv2v
     curl -sSL https://get.haskellstack.org/ | sh
     git clone https://github.com/zachjs/sv2v.git
     cd sv2v
