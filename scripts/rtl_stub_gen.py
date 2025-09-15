@@ -55,82 +55,76 @@ def generate_top_module(data):
         hwre = reg.get("hwre", False)
         fields = reg.get("fields", [])
 
-        if len(fields) == 1 and "name" not in fields[0]:
+        # Helper function to format logic declaration
+        def logic_decl(name, width):
+            if width == 1:
+                return f"  logic {name};"
+            else:
+                return f"  logic [{width - 1}:0] {name};"
+
+        # --- Case 1: Unnamed single-field register ---
+        if len(fields) == 1:
             field_name = reg_name
             bits = fields[0]["bits"]
-        else:
-            for field in fields:
-                if "name" not in field:
-                    field_name = reg_name
-                    bits = field["bits"]
-                    break
+            width = get_bit_width(bits)
+            if reg_name == field_name:
+                combined_name = f"{reg_name}"
             else:
-                for field in fields:
-                    field_name = field["name"].lower()
-                    bits = field["bits"]
+                combined_name = f"{reg_name}_{field_name}"
+            signal_defs.append(logic_decl(combined_name, width))
 
-                    if swaccess in ["rw", "wo"]:
-                        ctrl2reg_assignments.append(
-                            f"  assign {field_name} = reg2hw.{reg_name}.{field_name}.q;"
-                        )
-                        if hwqe:
-                            valid_name = f"{field_name}_valid"
-                            signal_defs.append(f"  logic {valid_name};")
-                            ctrl2reg_assignments.append(
-                                f"  assign {valid_name} = reg2hw.{reg_name}.{field_name}.qe;"
-                            )
-                        if hwre:
-                            ready_name = f"{field_name}_ready"
-                            signal_defs.append(f"  logic {ready_name};")
-                            ctrl2reg_assignments.append(
-                                f"  assign {ready_name} = reg2hw.{reg_name}.{field_name}.re;"
-                            )
-
-                    if swaccess == "ro" and hwaccess in ["hrw", "hro"]:
-                        #if len(fields) == 1 and "name" not in fields[0]:
-                        #    field_name = reg_name
-                        #    bits = fields[0]["bits"]
-                        #    width = get_bit_width(bits)
-                        #    signal_defs.append(f"  logic [{width - 1}:0] {field_name};")
-                        #    reg2ctrl_assignments.append(
-                        #        f"  assign hw2reg.{reg_name}.d = {field_name};"
-                        #    )
-                        #else:
-                        #    for field in fields:
-                        field_name = field.get("name", reg_name).lower()
-                        bits = field["bits"]
-                        width = get_bit_width(bits)
-                        signal_defs.append(f"  logic [{width - 1}:0] {field_name};")
-                        reg2ctrl_assignments.append(
-                            f"  assign hw2reg.{reg_name}.{field_name}.d = {field_name};"
-                        )
-                continue
-
-        # Handle unnamed single-field register (direct access)
-        width = get_bit_width(bits)
-        signal_defs.append(f"  logic [{width - 1}:0] {field_name};")
-
-        if swaccess in ["rw", "wo"]:
-            ctrl2reg_assignments.append(
-                f"  assign {field_name} = reg2hw.{reg_name}.q;"
-            )
+            if swaccess in ["rw", "wo"]:
+                ctrl2reg_assignments.append(
+                    f"  assign {combined_name} = reg2hw.{reg_name}.q;"
+                )
+            if swaccess == "ro" and hwaccess in ["hrw", "hwo"]:
+                reg2ctrl_assignments.append(
+                    f"  assign hw2reg.{reg_name}.d = {combined_name};"
+                )
             if hwqe:
-                valid_name = f"{field_name}_valid"
-                signal_defs.append(f"  logic {valid_name};")
+                valid_name = f"{combined_name}_valid"
+                signal_defs.append(logic_decl(valid_name, 1))
                 ctrl2reg_assignments.append(
                     f"  assign {valid_name} = reg2hw.{reg_name}.qe;"
                 )
             if hwre:
-                ready_name = f"{field_name}_ready"
-                signal_defs.append(f"  logic {ready_name};")
+                ready_name = f"{combined_name}_ready"
+                signal_defs.append(logic_decl(ready_name, 1))
                 ctrl2reg_assignments.append(
                     f"  assign {ready_name} = reg2hw.{reg_name}.re;"
                 )
+
+
+        # --- Case 2: Named fields ---
+        else:
+            for field in fields:
+                field_name = field.get("name", reg_name).lower()
+                bits = field["bits"]
+                width = get_bit_width(bits)
+                combined_name = f"{reg_name}_{field_name}"
+                signal_defs.append(logic_decl(combined_name, width))
+
+                if swaccess in ["rw", "wo"]:
+                    ctrl2reg_assignments.append(
+                        f"  assign {combined_name} = reg2hw.{reg_name}.{field_name}.q;"
+                    )
+                    if hwqe:
+                        valid_name = f"{combined_name}_valid"
+                        signal_defs.append(logic_decl(valid_name, 1))
+                        ctrl2reg_assignments.append(
+                            f"  assign {valid_name} = reg2hw.{reg_name}.{field_name}.qe;"
+                        )
+                    if hwre:
+                        ready_name = f"{combined_name}_ready"
+                        signal_defs.append(logic_decl(ready_name, 1))
+                        ctrl2reg_assignments.append(
+                            f"  assign {ready_name} = reg2hw.{reg_name}.{field_name}.re;"
+                        )
     
-        if swaccess == "ro" and hwaccess in ["hrw", "hro"]:
-            reg2ctrl_assignments.append(
-                f"  assign hw2reg.{reg_name}.d = {field_name};"
-            )
+                if swaccess == "ro" and hwaccess in ["hrw", "hwo"]:
+                    reg2ctrl_assignments.append(
+                        f"  assign hw2reg.{reg_name}.{field_name}.d = {combined_name};"
+                    )
 
     # Assemble module
     sv_lines = [f"module {module_name}_core",
