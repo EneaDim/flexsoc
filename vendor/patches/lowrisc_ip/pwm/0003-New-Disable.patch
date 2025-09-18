@@ -1,0 +1,25 @@
+--- a/rtl/pwm_chan.sv
++++ b/rtl/pwm_chan.sv
+@@ -179,7 +179,21 @@
+   assign on_phase_exceeded  = (phase_ctr_i >= on_phase);
+   assign off_phase_exceeded = (phase_ctr_i >= off_phase);
+
+-  assign pwm_int = !pwm_en_i ? 1'b0 :
++  // Latch pwm_en_i signal
++
++  logic pwm_en_q;
++
++  always_ff @(posedge clk_i or negedge rst_ni) begin
++    if (~rst_ni) begin
++      pwm_en_q <= 1'b0;
++    end else begin
++      if (!pwm_int) begin
++        pwm_en_q <= pwm_en_i;
++      end
++    end
++  end
++
++  assign pwm_int = (!pwm_en_q) ? 1'b0 :
+                    phase_wrap ? on_phase_exceeded | ~off_phase_exceeded :
+                                 on_phase_exceeded & ~off_phase_exceeded;
+
