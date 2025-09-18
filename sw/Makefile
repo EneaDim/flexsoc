@@ -5,7 +5,7 @@ CFLAGS = -march=rv32imc -mabi=ilp32 -static -mcmodel=medany -Wall -g -fvisibilit
 LDFLAGS = -nostdlib -nostartfiles -T link.ld
 BUILD_DIR = build
 
-OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/uart.o $(BUILD_DIR)/spi_host.o $(BUILD_DIR)/boot.o
+OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/pwm.o $(BUILD_DIR)/uart.o $(BUILD_DIR)/spi_host.o $(BUILD_DIR)/boot.o
 
 all: $(BUILD_DIR)/main.elf
 
