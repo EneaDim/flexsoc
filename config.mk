@@ -2,7 +2,7 @@
 PYTHON          ?=python3
 # TOP NAME
 PRJ             ?=prj
-TOP             ?=test_ip
+TOP             ?=spi_host
 FSM             ?=fsm_example
 # DIRECTORIES
 RTLDIR          ?=rtl
@@ -72,9 +72,11 @@ PRIM            ?=verilog/primitives.v \
                   verilog/sky130_fd_sc_hd.v
 
 # SoC MEMORY MAP
-NEW_MODULE_ADD  ?= 0x80002000 
+LOWRISC_IPS     ?= uart pwm
+NEW_MODULE_ADD  ?= 0x80040000 
 SOC_MEMORY_MAP  ?=--device sram 0x00100000 0x00020000 \
   					      --device uart 0x80000000 0x00001000 \
+  					      --device pwm 0x80020000 0x00001000 \
   					      --device spi_host $(NEW_MODULE_ADD) 0x00001000 \
 
 
