@@ -56,6 +56,7 @@ try:
       if (str(top)+'_reg_pkg.sv') == f:
         flag_reg_pkg = True  
     with open(path+top+'.core', 'w+') as f:
+        print(f)
         mystr  = 'CAPI=2:\n'
         mystr += 'name: "'+str(prj)+':ip:'+str(top)+':0.1"\n'
         mystr += 'description: "'+str(top)+'"\n'
@@ -68,6 +69,7 @@ try:
         #    mystr += '      - '+str(rtldir)+'/'+str(top)+'_reg_pkg.sv\n'
         #    mystr += '      - '+str(rtldir)+'/'+str(top)+'_reg_top.sv\n'
         for i in files:
+            print(i)
             mystr += '      - '+str(rtldir)+'/'+str(i)+'\n'
         mystr += '    file_type: systemVerilogSource\n'
         mystr += '\n'

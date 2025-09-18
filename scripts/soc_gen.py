@@ -47,6 +47,7 @@ def find_sv_file(module_name, root_dir="."):
 
 def parse_ports(sv_file):
     ports = []
+    print(sv_file)
     with open(sv_file, 'r') as f:
         content = f.read()
     # Remove comments
@@ -56,13 +57,31 @@ def parse_ports(sv_file):
     content = re.sub(r"\s*\n\s*", " ", content)
 
     # Match direction, optional logic/wire, optional width, optional pkg type, and final signal name
-    pattern = re.compile(
-        r'\b(input|output)\b\s+(?:logic|wire)?\s*(?:\[[^\]]*\]\s*)?(?:(?:\w+::)?\w+\s+)?(\w+)',
-        re.MULTILINE
-    )
+    pattern = re.compile(r"""
+    \b(?P<dir>input|output)\b      # direzione
+    \s+
+    (?:                            # tipo opzionale
+        (?P<logicw>logic\s*\[[^\]]+\])  # 'logic [n:0]' se presente
+        |                           # altrimenti
+        (?P<type>logic|wire)        # 'logic' o 'wire' senza width
+    )?
+    \s*
+    (?:(?:\w+::)?\w+\s+)?           # tipo/pacchetto opzionale (pkg::type)
+    (?P<name>\w+)                   # nome finale del segnale
+""", re.MULTILINE | re.VERBOSE)
 
-    ports = pattern.findall(content)
-    
+    ports = []
+    for m in pattern.finditer(content):
+        type_or_logicw = m.group('logicw') or m.group('type')  # 'logic [n:0]' se c’è, altrimenti 'logic'/'wire', o None
+        ports.append((m.group('dir'), type_or_logicw, m.group('name')))
+    #pattern = re.compile(
+    #    r'\b(input|output)\b\s+(?:logic|wire)?\s*(?:\[[^\]]*\]\s*)?(?:(?:\w+::)?\w+\s+)?(\w+)',
+    #    re.MULTILINE
+    #)
+
+    #ports = pattern.findall(content)
+    print(ports)
+
     return ports
 
 def parse_parameters(file_path):
@@ -107,7 +126,7 @@ def generate_port_decls(all_ports):
     lines = []
     for name, direction in all_ports.items():
         if "tl_" not in name and "intr" not in name and "clk_i" not in name and "rst_ni" not in name:
-            lines.append(f"  {direction} logic {name},")
+            lines.append(f"  {direction} {name},")
     return lines
 
 def generate_module_inst(mod, ports):
@@ -115,17 +134,18 @@ def generate_module_inst(mod, ports):
     port_assignments = ["    .clk_i", "    .rst_ni"]
     port_assignments += [f"    .tl_i(tl_{mod}_h2d)"]
     port_assignments += [f"    .tl_o(tl_{mod}_d2h)"]
-    port_assignments += [f"    .{name}" for direction, name in ports if not name == 'tl_i' and not name == 'tl_o' and not name == 'clk_i' and not name == 'rst_ni' and not 'intr' in name]
-    port_assignments += [f"    .{name}()" for direction, name in ports if 'intr' in name]
+    port_assignments += [f"    .{name}" for direction, _, name in ports if not name == 'tl_i' and not name == 'tl_o' and not name == 'clk_i' and not name == 'rst_ni' and not 'intr' in name]
+    port_assignments += [f"    .{name}()" for direction, _, name in ports if 'intr' in name]
     inst_lines.append(",\n".join(port_assignments))
     inst_lines.append("  );\n")
     return "\n".join(inst_lines)
 
-def generate_soc_sv(modules, root_dir, output_file):
+def generate_soc_sv(lowrisc_modules, modules, root_dir, output_file):
     modules_ports = {}
 
+    all_modules = lowrisc_modules + modules
     # Parse user-provided modules
-    for mod in modules:
+    for mod in all_modules:
         sv_path = find_sv_file(mod, root_dir)
         if not sv_path:
             raise FileNotFoundError(f"SystemVerilog file for module '{mod}' not found.")
@@ -135,9 +155,9 @@ def generate_soc_sv(modules, root_dir, output_file):
     # Collect unique top-level ports
     all_ports = {}
     for mod_ports in modules_ports.values():
-        for direction, name in mod_ports:
+        for direction, _, name in mod_ports:
             if name not in all_ports:
-                all_ports[name] = direction
+                all_ports[name] = direction + ' ' + ('' if _ is None else _)
             else:
                 # Warn on duplicate with differing direction
                 if all_ports[name] != direction:
@@ -154,12 +174,12 @@ def generate_soc_sv(modules, root_dir, output_file):
         # Remove last comma and close header
         f.seek(f.tell() -1)
         f.write("\n);\n\n")
-       
+
         # Basic
         f.write(defaults())
 
         # Tilelink for modules
-        for mod in modules:
+        for mod in all_modules:
             f.write(f"  tlul_pkg::tl_h2d_t tl_{mod}_h2d;\n")
             f.write(f"  tlul_pkg::tl_d2h_t tl_{mod}_d2h;\n")
 
@@ -177,7 +197,7 @@ def generate_soc_sv(modules, root_dir, output_file):
         f.write(f"    // Device interfaces.\n")
         f.write(f"    .tl_sram_o     (tl_sram_h2d),\n")
         f.write(f"    .tl_sram_i     (tl_sram_d2h),\n")
-        for mod in modules:
+        for mod in all_modules:
             f.write(f"    .tl_{mod}_o     (tl_{mod}_h2d),\n")
             f.write(f"    .tl_{mod}_i     (tl_{mod}_d2h),\n")
         f.write(f"\n")
@@ -201,7 +221,10 @@ def generate_soc_sv(modules, root_dir, output_file):
         cleaned_ports = [decl.rstrip(',').strip() + ';' for decl in clean_decls]
         f.write(f"module top_verilator (input logic clk_i, rst_ni);\n")
         for decl in cleaned_ports:
-            f.write(f"  {decl}\n")
+            decl = decl.split()
+            if len(decl) == 1:
+                decl = ['logic ' + decl[0]]
+            f.write(f"  {' '.join(decl)}\n")
         f.write(f"\n")
         cleaned_ports = [ re.sub(r'^\s*(input|output)\s+(logic|wire|reg)?\s*', '', decl.strip()) for decl in port_decls ]
         f.write(f"  // Our SoC\n")
@@ -210,7 +233,8 @@ def generate_soc_sv(modules, root_dir, output_file):
         f.write(f"    .clk_i,\n")
         f.write(f"    .rst_ni,\n")
         for decl in cleaned_ports:
-            f.write(f"    .{decl}\n")
+            decl = decl.split()
+            f.write(f"    .{decl[-1]}\n")
         # Remove last comma and close header
         f.seek(f.tell() -2)
         f.write("\n);\n\n")
@@ -350,12 +374,13 @@ def generate_soc_sv(modules, root_dir, output_file):
         f.write(f'  files_rtl:\n')
         f.write(f'    depend:\n')
         f.write(f'      - lowrisc:ibex:ibex_top_tracing\n')
-        f.write(f'      - lowrisc:ip:uart\n')
+        for mod in lowrisc_modules:
+            f.write(f'      - lowrisc:ip:{mod}\n')
         f.write(f'      - lowrisc:ip:xbar_main\n')
         f.write(f'      - lowrisc:prim:onehot\n')
         f.write(f'      - lowrisc:tlul:adapter_host\n')
         f.write(f'      - lowrisc:tlul:adapter_reg\n')
-        for mod in modules[1:]:
+        for mod in modules:
             f.write(f'      - prj:ip:{mod}\n')
         f.write(f'    files:\n')
         f.write(f'      - top/soc.sv\n')
@@ -616,6 +641,10 @@ def defaults():
 def main():
     parser = argparse.ArgumentParser(description="Generate soc.sv with module instantiations.")
     parser.add_argument(
+        "--lowrisc_modules", "-lrm", nargs="+", required=True,
+        help="List of module names to include (e.g., uart spi_host)"
+    )
+    parser.add_argument(
         "--modules", "-m", nargs="+", required=True,
         help="List of module names to include (e.g., uart spi_host)"
     )
@@ -629,7 +658,7 @@ def main():
     )
 
     args = parser.parse_args()
-    generate_soc_sv(args.modules, args.root, args.output)
+    generate_soc_sv(args.lowrisc_modules, args.modules, args.root, args.output)
 
 if __name__ == "__main__":
     main()
