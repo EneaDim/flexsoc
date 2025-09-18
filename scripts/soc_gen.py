@@ -47,7 +47,6 @@ def find_sv_file(module_name, root_dir="."):
 
 def parse_ports(sv_file):
     ports = []
-    print(sv_file)
     with open(sv_file, 'r') as f:
         content = f.read()
     # Remove comments
@@ -80,7 +79,6 @@ def parse_ports(sv_file):
     #)
 
     #ports = pattern.findall(content)
-    print(ports)
 
     return ports
 
@@ -158,10 +156,10 @@ def generate_soc_sv(lowrisc_modules, modules, root_dir, output_file):
         for direction, _, name in mod_ports:
             if name not in all_ports:
                 all_ports[name] = direction + ' ' + ('' if _ is None else _)
-            else:
-                # Warn on duplicate with differing direction
-                if all_ports[name] != direction:
-                    print(f"⚠️ Warning: Port '{name}' appears with conflicting directions.")
+            #else:
+            #    # Warn on duplicate with differing direction
+            #    if all_ports[name] != direction:
+            #        print(f"⚠️ Warning: Port '{name}' appears with conflicting directions.")
     with open(output_file, 'w') as f:
         # Write module header
         f.write(TEMPLATE_HEADER)
