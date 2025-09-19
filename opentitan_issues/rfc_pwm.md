@@ -61,42 +61,7 @@ assign pwm_int = (!pwm_en_i) ? 1'b0 :
 
 ---
 
-
-## 3. Documentation Updates
-- Specify that, when phase-aligned mode is selected, the enable is **sampled only when idle** and disable requests take effect at the next idle boundary.
-- Describe available **alignment policies** (e.g., end-of-period, next natural toggle, dead-time-safe for complementary outputs).
-- Document the **mode selector** (parameter or configuration bit), its reset value (legacy), and the **kill/fault** behavior.
-
----
-
-## 4. Verification Plan
-
-### Directed Tests
-- Deassert enable at multiple phases within the high pulse; confirm no truncation in phase-aligned mode and unchanged legacy behavior when not enabled.
-- Assert enable while busy; confirm effect occurs at the next idle boundary in phase-aligned mode.
-- Exercise edge-aligned and center-aligned operation with and without phase wrapping.
-- Validate complementary outputs with dead-time: phase-aligned closure yields the intended brake/coast behavior.
-
-### Randomized Tests
-- Sweep duty (e.g., 1%, 50%, 99%) with randomized enable/disable phases and long run sequences.
-- Vary period, dead-time, and alignment modes across seeds.
-
-### Assertions (SVA/Formal)
-- **No-short-pulse:** When a disable request occurs mid-pulse under phase-aligned mode, the active pulse does not shorten relative to the programmed duty.
-- **Idle-update-only:** The registered enable changes state only while the PWM is idle.
-- **Legacy equivalence:** With legacy mode selected, internal behavior matches the current implementation.
-
----
-
-## 5. Benefits
-- Preserves **last-cycle energy**, reducing analog disturbances and avoiding unexpected ripple.
-- Provides **predictable, phase-aligned** shutdown without firmware timing tricks.
-- Supports **multi-channel coherence** and complementary outputs with dead-time.
-- Adds minimal hardware cost and maintains a **kill/fault** path for safety.
-
----
-
-## 6. Example Timing (Conceptual)
+## 3. Example Timing (Conceptual)
 - **Legacy behavior:** Disabling during the high phase immediately truncates the current pulse, creating a shorter-than-programmed last pulse.
 
 `clk:      |‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_`
@@ -115,17 +80,46 @@ assign pwm_int = (!pwm_en_i) ? 1'b0 :
 
 `pwm_int:  ____|‾‾‾‾‾‾‾‾ |_________|‾‾‾ ‾‾‾‾‾|________ (completes pulse, then idle)`
 
----
-
-## 7. Acceptance Criteria
-- No pulse narrower than the programmed width when a disable request occurs mid-pulse (phase-aligned mode).
-- The registered enable updates **only** while the PWM is idle (phase-aligned mode).
-- Functional equivalence to the baseline when legacy mode is selected or when enable/disable operations occur during idle.
-- Immediate safe state when the kill/fault path is asserted, independent of mode.
 
 ---
 
-## 8. Risks & Mitigations
+
+## 4. Documentation Updates
+- Specify that, when phase-aligned mode is selected, the enable is **sampled only when idle** and disable requests take effect at the next idle boundary.
+- Describe available **alignment policies** (e.g., end-of-period, next natural toggle, dead-time-safe for complementary outputs).
+- Document the **mode selector** (parameter or configuration bit), its reset value (legacy), and the **kill/fault** behavior.
+
+---
+
+## 5. Verification Plan
+
+### Directed Tests
+- Deassert enable at multiple phases within the high pulse; confirm no truncation in phase-aligned mode and unchanged legacy behavior when not enabled.
+- Assert enable while busy; confirm effect occurs at the next idle boundary in phase-aligned mode.
+- Exercise edge-aligned and center-aligned operation with and without phase wrapping.
+- Validate complementary outputs with dead-time: phase-aligned closure yields the intended brake/coast behavior.
+
+### Randomized Tests
+- Sweep duty (e.g., 1%, 50%, 99%) with randomized enable/disable phases and long run sequences.
+- Vary period, dead-time, and alignment modes across seeds.
+
+### Assertions (SVA/Formal)
+- **No-short-pulse:** When a disable request occurs mid-pulse under phase-aligned mode, the active pulse does not shorten relative to the programmed duty.
+- **Idle-update-only:** The registered enable changes state only while the PWM is idle.
+- **Legacy equivalence:** With legacy mode selected, internal behavior matches the current implementation.
+
+---
+
+## 6. Benefits
+- Preserves **last-cycle energy**, reducing analog disturbances and avoiding unexpected ripple.
+- Provides **predictable, phase-aligned** shutdown without firmware timing tricks.
+- Supports **multi-channel coherence** and complementary outputs with dead-time.
+- Adds minimal hardware cost and maintains a **kill/fault** path for safety.
+
+---
+
+
+## 7. Risks & Mitigations
 - **Extra latency to disable:** In phase-aligned mode, disable takes effect at the next idle boundary.  
   **Mitigation:** Keep the independent kill/fault path for emergency stop.
 - **Corner cases at 0% or 100% duty:** Natural idle may not occur promptly.  
@@ -133,7 +127,7 @@ assign pwm_int = (!pwm_en_i) ? 1'b0 :
 
 ---
 
-## 9. Open Questions
+## 8. Open Questions
 - Should phase-aligned mode be controlled per channel or globally?
 - Should be used always, with parameter setting or with configuration bit?
 - What is the default **safe level** after disable for various board topologies? (It seems to be DGND as default)
