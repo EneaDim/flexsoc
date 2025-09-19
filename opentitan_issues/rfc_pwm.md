@@ -53,7 +53,7 @@ assign pwm_int = (!pwm_en_q) ? 1'b0 :
 
 ### Baseline (Current) RTL
 ```systemverilog
-assign pwm_int = (!pwm_en_i) ? 1'b0 :
+assign pwm_int = !pwm_en_i ? 1'b0 :
                  phase_wrap ? (on_phase_exceeded | ~off_phase_exceeded) :
                                (on_phase_exceeded & ~off_phase_exceeded);
 ```
