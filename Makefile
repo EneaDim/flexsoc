@@ -265,7 +265,7 @@ soc_flow: soc_build driver soc_sim soc_run
 soc_build:
 	@$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
 	@$(MKDIR) -p $(TOPDIR)
-	@$(PYTHON) scripts/soc_gen.py -m uart $(TOP) -o $(TOPDIR)/soc.sv
+	@$(PYTHON) scripts/soc_gen.py -lrm $(LOWRISC_IPS) -m $(TOP) -o $(TOPDIR)/soc.sv
 
 soc_sim:
 	@$(ECHO) "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
