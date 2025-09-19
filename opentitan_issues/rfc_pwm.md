@@ -37,7 +37,7 @@ Optional modes may align disable to specific boundaries (e.g., end of period, ne
 logic pwm_en_q;
 
 always_ff @(posedge clk_i or negedge rst_ni) begin
-  if (~rst_ni) begin
+  if (!rst_ni) begin
     pwm_en_q <= 1'b0;
   end else begin
     if (!pwm_int) begin
