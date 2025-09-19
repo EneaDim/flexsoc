@@ -99,21 +99,21 @@ assign pwm_int = (!pwm_en_i) ? 1'b0 :
 ## 6. Example Timing (Conceptual)
 - **Legacy behavior:** Disabling during the high phase immediately truncates the current pulse, creating a shorter-than-programmed last pulse.
 
-clk:      |‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-
+`clk:      |‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_`
 
-pwm\_en\_i: -------------------------|----------------
+`pwm_en_i: _________________________|________________`
 
-pwm\_int:  ----|‾‾‾‾‾‾‾‾ |---------|‾|--------------- (truncated)
+`pwm_int:  ____|‾‾‾‾‾‾‾‾ |_________|‾|_______________ (truncated)`
 
 - **Phase-aligned behavior:** Disabling during the high phase leaves the current pulse intact; the output transitions to the safe state only at the next idle point (end of pulse or end of period), then remains safe.
 
-clk:      |‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-
+`clk:      |‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_`
 
-pwm\_en\_i: -------------------------|----------------
+`pwm_en_i: _________________________|________________`
 
-pwm\_en\_q: -----------------------------|------------ (updates later when idle)
+`pwm_en_q: _____________________________|____________ (updates later when idle)`
 
-pwm\_int:  ----|‾‾‾‾‾‾‾‾ |---------|‾‾‾ ‾‾‾‾‾|-------- (completes pulse, then idle)
+`pwm_int:  ____|‾‾‾‾‾‾‾‾ |_________|‾‾‾ ‾‾‾‾‾|________ (completes pulse, then idle)`
 
 ---
 
