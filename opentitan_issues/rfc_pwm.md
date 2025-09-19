@@ -24,7 +24,6 @@ Optional modes may align disable to specific boundaries (e.g., end of period, ne
 
 ### Proposed RTL
 
-- The modification is on **pwm_chan** module.
 - 3 approaches:
     - Can become the default
     - For backwards compatibility:
@@ -100,16 +99,21 @@ assign pwm_int = (!pwm_en_i) ? 1'b0 :
 ## 6. Example Timing (Conceptual)
 - **Legacy behavior:** Disabling during the high phase immediately truncates the current pulse, creating a shorter-than-programmed last pulse.
 
-clk:      |‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_
-pwm_en_i: _________________________|________________
-pwm_int:  ____|‾‾‾‾‾‾‾‾ |_________|‾|_______________ (truncated)
+clk:      |‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-
+
+pwm\_en\_i: -------------------------|----------------
+
+pwm\_int:  ----|‾‾‾‾‾‾‾‾ |---------|‾|--------------- (truncated)
 
 - **Phase-aligned behavior:** Disabling during the high phase leaves the current pulse intact; the output transitions to the safe state only at the next idle point (end of pulse or end of period), then remains safe.
 
-clk:      |‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_|‾|_
-pwm_en_i: _________________________|________________
-pwm_en_q: _____________________________|____________ (updates later when idle)
-pwm_int:  ____|‾‾‾‾‾‾‾‾ |_________|‾‾‾ ‾‾‾‾‾|________ (completes pulse, then idle)
+clk:      |‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-|‾|-
+
+pwm\_en\_i: -------------------------|----------------
+
+pwm\_en\_q: -----------------------------|------------ (updates later when idle)
+
+pwm\_int:  ----|‾‾‾‾‾‾‾‾ |---------|‾‾‾ ‾‾‾‾‾|-------- (completes pulse, then idle)
 
 ---
 
