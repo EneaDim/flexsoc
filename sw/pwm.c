@@ -11,6 +11,7 @@ int pwm_init(pwm_t pwm_base) {
 }
 
 int pwm_deinit(pwm_t pwm_base) {
+  //DEV_WRITE(pwm_base + 0x10, 0x1);  // Invert
   DEV_WRITE(pwm_base + 0xc, 0x0);
   return 0;
 }
