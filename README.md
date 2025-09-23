@@ -78,24 +78,6 @@ Running `make deps` will automate the installation process for IP development. I
 
 ---
 
-<a id="usage"></a>
-## ⚙️ Usage
-
-- Run `make help` to see the different guides of the environment.
-
-- Run `make ip_start` to quickstart:
-    - Hjson definition.
-    - Register Map generation.
-    - Documentation generation.
-    - RTL stub definition.
-    - RTL wrapper definition.
-    - Testbench generation.
-    - Linting the design.
-    - Simulation of the testbench.
-- After `ip_start` you can populate the `module`_core.sv file with the core funtionalities.
-
----
-
 <a id="folder-structure"></a>
 ## 📁 Folder Structure
 
@@ -175,6 +157,24 @@ It loads a custom digital IP to implement the Ramp ADC, it uses also systemveril
 14. Estimate power
 
 Then `make clean_all` to completely clean the environment and restart from scratch.
+
+---
+
+<a id="usage"></a>
+## ⚙️ Usage
+
+- Run `make help` to see the different guides of the environment.
+
+- Run `make ip_start` to quickstart:
+    - Hjson definition.
+    - Register Map generation.
+    - Documentation generation.
+    - RTL stub definition.
+    - RTL wrapper definition.
+    - Testbench generation.
+    - Linting the design.
+    - Simulation of the testbench.
+- After `ip_start` you can populate the `module`_core.sv file with the core funtionalities.
 
 ---
 
