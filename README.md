@@ -72,8 +72,8 @@ Now you can jump to **Usage** and then only for SoC tutorial you need SoC depend
 **IP Development Tools**
 
 - `sv2v`: SystemVerilog file list to single Verilog file converter.
-- `verilator`: RTL compiler and simulator. Used mainly for linting step. But it can be used also as compiler and simulator.
-- `iverilog`: Compiler and Simulator of RTL code.
+- `verilator`: RTL compiler, linter and simulator.
+- `iverilog`: RTL compiler and simulator.
 - `gtkwave`: Waveform viewer.
 - `yosys`: Synthesis tool.
 - `OpenSTA`: Static Timing Analysis and Power Analysis tool.
@@ -82,6 +82,8 @@ Now you can jump to **Usage** and then only for SoC tutorial you need SoC depend
 
 <a id="usage"></a>
 ## ⚙️ Usage
+
+- Run `make help` to see the different guides of the environment.
 
 - Run `make ip_start` to quickstart:
     - Hjson definition.
@@ -92,7 +94,7 @@ Now you can jump to **Usage** and then only for SoC tutorial you need SoC depend
     - Testbench generation.
     - Linting the design.
     - Simulation of the testbench.
-- Run `make help` to see the different guides of the environment.
+- After `ip_start` you can populate the `module`_core.sv file with the core funtionalities.
 
 ---
 
