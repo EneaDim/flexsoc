@@ -5,11 +5,10 @@ msg='\033[38;5;214m\n\
 \n *************************************************************\n\n\
 \n ********************** IP DEVELOPMENT ***********************\n\
 \n - CONFIG\
-\n   .Define the parameters under config.mk\n\
+\n   .Define the parameters under config.mk\
+\n   .To start you mainly have to set the TOP name\n\
 \n - SETUP\
-\n   .Run "make setup" to setup the folder structure\
-\n   .Write TOP?="top_name" parameter in the config.mk\
-\n    file to properly set the TOP module\n\
+\n   .Run "make setup" to setup the folder structure\n\
 \n - HJSON\
 \n   .Run "make hjson" to initialize the configuration file \
 \n    for CSR registers and documentation under data/ folder. \
@@ -20,7 +19,7 @@ msg='\033[38;5;214m\n\
 \n - REG\
 \n   .Run "make reg" to generate CSR register with TLUL interface \
 \n    based on the configuration file.\n\
-\n - RTL SKELETON\n\
+\n - RTL SKELETON\
 \n   .Run "make rtl_stub" to generate RTL core and RTL wrapper of the IP"\n\
 \n - RTL CODING\
 \n   .Write RTL in systemverilog under rtl/ folder\n\
