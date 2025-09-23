@@ -67,8 +67,6 @@ All based on open-source tooling:
 
 Running `make deps` will automate the installation process for IP development. It takes around 5 to 10 minutes.
 
-Now you can jump to **Usage** and then only for SoC tutorial you need SoC dependencies.
-
 **IP Development Tools**
 
 - `sv2v`: SystemVerilog file list to single Verilog file converter.
@@ -183,19 +181,17 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 <a id="tutorial-3"></a>
 ## 🛠 Tutorial 3 - SoC flow
 
-It loads a custom spi\_host IP and integrate it in a basic SoC made of IBEX, RAM and UART.
-
 Running `make deps-soc` will automate the installation process for SoC integration.
 
 **SoC Integration Tools**
 
 - `riscv-toolchain`: The RISC-V compiler and toolchain required to build and run software on the IBEX core.
 
----
-
 Then to run the tutorial:
 
 - `make soc_tutorial TOP=spi_host`
+
+It loads a custom spi\_host IP and integrate it in a basic SoC made of IBEX, RAM and UART.
 
 Runs the complete top-level SoC integration and build process. This is the recommended end-to-end target for preparing and simulating the SoC.
 The IP used is a custom and simple SPI\_HOST.
