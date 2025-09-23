@@ -64,7 +64,7 @@ ip_start: setup hjson reg doc rtl_stub setup_tb sim view
 # SV to single Verilog file
 sv2v: clean_rtl
 	@$(ECHO) "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
-	$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv > $(RTLDIR)/$(TOP).v
+	$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv > $(RTLDIR)/$(TOP).v
 
 # LINTING
 lint: sv2v 
