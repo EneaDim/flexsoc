@@ -31,7 +31,7 @@ msg='\033[38;5;214m\n\
 \n   .Run "make lint" perform the linting\
 \n   .Check for errors\n\
 \n - TESTBENCH SETUP\
-\n   .Run "make setup_vtb" to setup the verilog testbench\
+\n   .Run "make setup_tb" to setup the verilog testbench\
 \n    The verilog module generate by "sv2v" will be included\
 \n    in the testbench\n\
 \n - COMPILE\
