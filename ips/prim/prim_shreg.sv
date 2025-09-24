@@ -16,7 +16,7 @@ module prim_shreg #(
   always_ff @(posedge clk_i) begin
     if (~rst_ni) begin
       shift_reg <= 0;
-    end else if (enable_i) begin
+    end else if (en_i) begin
       // Shift in the current data_i
       shift_reg <= {shift_reg[LENGHT-2:0], serial_i};
     end
