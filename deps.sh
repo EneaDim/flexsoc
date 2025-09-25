@@ -92,8 +92,7 @@ install_ip_dependencies() {
     cd
     sudo npm install -g nturley/netlistsvg
     echo
-    rm -rf ~/sv2v ~/verilator ~/yosys ~/OpenSTA ~/cudd-3.0.0* \
-           ~/.stack ~/.ghcup ~/.cache ~/.npm /var/cache/apt/* \
+    rm -rf ~/cudd-3.0.0* ~/.stack ~/.ghcup ~/.cache /var/cache/apt/*
     && apt-get purge -y \
       build-essential clang bison flex autoconf cmake pkg-config \
       swig help2man \
