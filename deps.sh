@@ -9,8 +9,8 @@ install_ip_dependencies() {
     cd
     sudo apt update
     sudo apt upgrade
-    sudo apt-get install build-essential clang bison flex nodejs npm\
-    	libreadline-dev gawk tcl-dev libffi-dev git autoconf cmake libelf-dev \
+    sudo apt-get install -y --no-install-recommends build-essential clang bison flex 
+      nodejs npm libreadline-dev gawk tcl-dev libffi-dev git autoconf cmake libelf-dev \
     	curl graphviz xdot pkg-config libboost-system-dev help2man swig libeigen3-dev \
     	libboost-python-dev libboost-filesystem-dev zlib1g-dev --assume-yes
     echo "|**********************************************************************************|"
