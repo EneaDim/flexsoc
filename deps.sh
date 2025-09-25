@@ -96,7 +96,7 @@ install_ip_dependencies() {
            ~/.stack ~/.ghcup ~/.cache ~/.npm /var/cache/apt/* \
     && apt-get purge -y \
       build-essential clang bison flex autoconf cmake pkg-config \
-      swig help2man git \
+      swig help2man \
       libboost-system-dev libboost-filesystem-dev libboost-python-dev \
       libeigen3-dev tcl-dev libffi-dev libreadline-dev gawk \
       snapd \
