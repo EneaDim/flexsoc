@@ -54,46 +54,46 @@ install_ip_dependencies() {
     #sudo make install
     #sudo cp bin/* /usr/local/bin
     #echo
-    #echo "|**********************************************************************************|"
-    #echo "|            Cloning yosys and then will start the installation of yosys           |"
-    #echo "|**********************************************************************************|"
-    #echo
-    #cd
-    #git clone https://github.com/YosysHQ/yosys.git
-    #cd yosys
-    #git submodule update --init
-    #make -j 2
-    #sudo make install
-    #sudo cp bin/* /usr/local/bin
-    #cd
-    #echo
     echo "|**********************************************************************************|"
-    echo "|                              OpenSTA installation                                |"
+    echo "|            Cloning yosys and then will start the installation of yosys           |"
     echo "|**********************************************************************************|"
-    cd 
-    echo "| Download https://github.com/davidkebo/cudd/blob/main/cudd_versions/cudd-3.0.0.tar.gz |"
-    curl -L -o cudd-3.0.0.tar.gz https://github.com/davidkebo/cudd/raw/main/cudd_versions/cudd-3.0.0.tar.gz    
-    tar xvfz cudd-3.0.0.tar.gz
-    cd cudd-3.0.0
-    ./configure --prefix=/usr/local/bin
+    echo
+    cd
+    git clone https://github.com/YosysHQ/yosys.git
+    cd yosys
+    git submodule update --init
     make -j 2
     sudo make install
+    sudo cp bin/* /usr/local/bin
     cd
-    git clone https://github.com/The-OpenROAD-Project/OpenSTA.git
-    cd OpenSTA
-    mkdir build
-    cd build
-    cmake -DCUDD_DIR=/usr/local/bin/lib ..
-    make -j 2
     echo
-    sudo cp sta /usr/local/bin
-    echo "|**********************************************************************************|"
-    echo "|                                Installing netlistsvg                             |"
-    echo "|**********************************************************************************|"
-    echo
-    cd
-    sudo npm install -g nturley/netlistsvg
-    echo
+    #echo "|**********************************************************************************|"
+    #echo "|                              OpenSTA installation                                |"
+    #echo "|**********************************************************************************|"
+    #cd 
+    #echo "| Download https://github.com/davidkebo/cudd/blob/main/cudd_versions/cudd-3.0.0.tar.gz |"
+    #curl -L -o cudd-3.0.0.tar.gz https://github.com/davidkebo/cudd/raw/main/cudd_versions/cudd-3.0.0.tar.gz    
+    #tar xvfz cudd-3.0.0.tar.gz
+    #cd cudd-3.0.0
+    #./configure --prefix=/usr/local/bin
+    #make -j 2
+    #sudo make install
+    #cd
+    #git clone https://github.com/The-OpenROAD-Project/OpenSTA.git
+    #cd OpenSTA
+    #mkdir build
+    #cd build
+    #cmake -DCUDD_DIR=/usr/local/bin/lib ..
+    #make -j 2
+    #echo
+    #sudo cp sta /usr/local/bin
+    #echo "|**********************************************************************************|"
+    #echo "|                                Installing netlistsvg                             |"
+    #echo "|**********************************************************************************|"
+    #echo
+    #cd
+    #sudo npm install -g nturley/netlistsvg
+    #echo
     #rm -rf ~/sv2v ~/verilator ~/yosys ~/OpenSTA ~/cudd-3.0.0* \
     #       ~/.stack ~/.ghcup ~/.cache ~/.npm /var/cache/apt/* \
     #&& apt-get purge -y \
