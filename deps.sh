@@ -92,7 +92,7 @@ install_ip_dependencies() {
     #cd
     #sudo npm install -g nturley/netlistsvg
     #echo
-    rm -rf ~/cudd-3.0.0* ~/.stack ~/.ghcup ~/.cache /var/cache/apt/ * 
+    #rm -rf ~/cudd-3.0.0* ~/.stack ~/.ghcup ~/.cache /var/cache/apt/ * 
     
 }
 
