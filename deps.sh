@@ -92,14 +92,7 @@ install_ip_dependencies() {
     cd
     #sudo npm install -g nturley/netlistsvg
     #echo
-    rm -rf ~/cudd-3.0.0* ~/.stack ~/.ghcup ~/.cache /var/cache/apt/ * \
-    && apt-get purge -y \
-      build-essential clang bison flex autoconf cmake pkg-config \
-      swig help2man \
-      libboost-system-dev libboost-filesystem-dev libboost-python-dev \
-      libeigen3-dev tcl-dev libffi-dev libreadline-dev gawk \
-      snapd \
-    && apt-get autoremove -y --purge
+    rm -rf ~/cudd-3.0.0* ~/.stack ~/.ghcup ~/.cache /var/cache/apt/ * 
     
 }
 
