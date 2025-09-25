@@ -49,10 +49,9 @@ install_ip_dependencies() {
     cd verilator
     git checkout v5.036 
     autoconf
-    ./configure
+    ./configure --prefix=/usr
     make -j 2
     sudo make install
-    sudo cp bin/* /usr/local/bin
     echo
     echo "|**********************************************************************************|"
     echo "|            Cloning yosys and then will start the installation of yosys           |"
