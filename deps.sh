@@ -117,7 +117,7 @@ install_soc_dependencies() {
     cd riscv-gnu-toolchain
     mkdir build
     cd build
-    ../configure --prefix=/usr/local/bin --with-arch=rv32gc --with-abi=ilp32d
+    ../configure --prefix=/tools/riscv32 --with-arch=rv32gc --with-abi=ilp32d
     sudo make -j 2
     sudo make install
     echo
