@@ -123,7 +123,7 @@ install_soc_dependencies() {
     echo
     cd 
     echo
-    rm -rf ~/riscv-gnu-toolchain
+    #rm -rf ~/riscv-gnu-toolchain
     echo
 
 }
