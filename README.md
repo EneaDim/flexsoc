@@ -90,7 +90,7 @@ You can **use a prebuilt Docker image** (fastest) or install everything locally 
 
 Two images available:
 
-- **ghcr.io/eneadim/flexsoc:latest** → ~3 GB, toolchain base (senza flow SoC con Ibex).
+- **ghcr.io/eneadim/flexsoc:latest** → ~3 GB, toolchain base with IP development flow.
 
   ```bash
   # pull the prebuilt image
@@ -108,7 +108,7 @@ Two images available:
     ghcr.io/eneadim/flexsoc:latest bash
   ```
 
-- **ghcr.io/eneadim/flexsoc-full:latest** → ~4.5 GB, include il flow **SoC** con core **Ibex**.
+- **ghcr.io/eneadim/flexsoc-full:latest** → ~6 GB, with **SoC** flow and **Ibex** core.
 
   ```bash
   # pull the prebuilt image
@@ -124,7 +124,6 @@ Two images available:
     -v /mnt/wslg:/mnt/wslg \
     -v "$(pwd)":/work -w /work \
     ghcr.io/eneadim/flexsoc-full:latest bash
-  docker run --rm -it -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro -v "$(pwd)":/work -w /work ghcr.io/eneadim/flexsoc:latest bash
   ```
 
 ### 🛠️ Local Install (alternative)
