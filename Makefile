@@ -136,6 +136,13 @@ syn: clean_rtl setup_syn
 	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
 	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
+syn_sv: clean_rtl setup_syn
+	@$(MKDIR) -p $(SYNDIR)/plots
+	@$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
+	$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log 
+	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
+
 # Use it only if small design
 plot_postsyn:
 	xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot &
@@ -324,9 +331,9 @@ setup_sdc:
 	-clk $(CLK_PERIOD) -o $(SIGNOFFDIR) 
 
 # SETUP SYNTHESIS WITH YOSYS 
-setup_syn: sv2v setup_sdc
+setup_syn: setup_sdc
 	$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -sdcdir $(SIGNOFFDIR) \
-	-liberty $(LIB_SYN) -clk $(CLK_PERIOD) -target $(TARGET_SYN) -opt $(TARGET_OPT) -o $(SYNDIR) 
+	-liberty $(LIB_SYN) -clk $(CLK_PERIOD) -target $(TARGET_SYN) -opt $(TARGET_OPT) -o $(SYNDIR)  
 
 # SETUP STA SCRIPT
 setup_signoff: setup_sdc

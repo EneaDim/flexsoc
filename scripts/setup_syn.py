@@ -148,6 +148,42 @@ try:
             mystr += '# write json\n'
             mystr += 'write_json '+str(path)+str(top)+'_synth.json\n'
             f.write(mystr)
+
+        with open(path+'synth_sv.ys', 'w') as f:
+            mystr = '# read files\n'
+            mystr += 'read_slang -I ips/pkgs \\\n'
+            mystr += '           -I ips/prim \\\n'
+            mystr += '           -I ips/prim_opentitan \\\n'
+            mystr += '           -I ips/tlul \\\n'
+            mystr += '           -D ASSERT_DEFAULT_RST={!rst_ni} \\\n'
+            mystr += '           --ignore-assertions \\\n'
+            mystr += '           -f rtl/rtl_list.f \\\n'
+            mystr += '           --top '+str(top)+'\n'
+            mystr += '# basic synth\n'
+            mystr += 'synth -top '+str(top)+' -flatten\n'
+            mystr += 'show -width -format dot -prefix '+str(output_folder)+'/plots/'+str(top)+'_postsyn\n'
+            mystr += '# map internal register types to the ones from the cell library\n'
+            mystr += 'dfflibmap -liberty '+str(liberty)+'\n'
+            mystr += '# mapping to internal cell library\n'
+            mystr += 'abc -D '+str(clk_period*1000)+ ' \\'
+            if opt == 'area':
+                mystr += '\n    -liberty '+str(liberty)+' \\'
+                mystr += '\n    -constr '+str(sdcdir)+'/'+str(top)+'.sdc \\'
+                mystr += '\n    -script '+str(path)+'area.abc\n'
+            elif opt == 'delay':
+                mystr += '\n    -liberty '+str(liberty)+' \\'
+                mystr += '\n    -constr '+str(sdcdir)+'/'+str(top)+'.sdc \\'
+                mystr += '\n    -script '+str(path)+'delay.abc\n'
+            elif opt == 'none':
+                mystr += '\n-liberty '+str(liberty)+'\n'
+            mystr += 'opt_clean -purge\n'
+            mystr += 'stat -liberty '+str(liberty)+'\n'
+            mystr += '# write verilog\n'
+            mystr += 'write_verilog '+str(path)+str(top)+'_synth.v\n'
+            mystr += '# write json\n'
+            mystr += 'write_json '+str(path)+str(top)+'_synth.json\n'
+            f.write(mystr)
+    
     
     elif target == 'xilinx':
         with open(path+'synth.ys', 'w') as f:
