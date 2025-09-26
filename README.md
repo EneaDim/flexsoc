@@ -65,9 +65,51 @@ All based on open-source tooling:
 <a id="dependencies"></a>
 ## 📦 Dependencies
 
+You can **use a prebuilt Docker image** (fastest) or install everything locally with `make deps`.
+
+### ✅ Prerequisites (host)
+
+- **Docker**
+  - **Ubuntu/Debian (quick way)**:
+    ```bash
+    curl -fsSL https://get.docker.com | sh
+    sudo usermod -aG docker $USER
+    newgrp docker  # re-evaluate groups so 'docker' works without sudo
+    docker version
+    ```
+  - **macOS / Windows**: install **Docker Desktop** (then `docker version`).
+
+- **xhost** (Linux only, for GUI apps like gtkwave/xdot)
+  ```bash
+  sudo apt-get update && sudo apt-get install -y x11-xserver-utils
+  xhost +local:
+  ```
+
+### 🚀 Try via Docker (no local install)
+
+Pull the image and run an interactive shell:
+
+  ```bash
+  # pull the prebuilt image
+  docker pull ghcr.io/eneadim/flexsoc:latest
+  
+  # (optional) enable X11 GUI apps like gtkwave/xdot on Linux
+  xhost +local:
+  
+  # start the container in the current repo (mounts your workspace)
+  docker run --rm -it \
+    -e DISPLAY=$DISPLAY \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
+    -v "$(pwd)":/work -w /work \
+    ghcr.io/eneadim/flexsoc:latest bash
+  ```
+
+
+### 🛠️ Local Install (alternative)
+
 Running `make deps` will automate the installation process for IP development. It takes around 5 to 10 minutes.
 
-**IP Development Tools**
+### **IP Development Tools**
 
 - `sv2v`: SystemVerilog file list to single Verilog file converter.
 - `verilator`: RTL compiler, linter and simulator.
