@@ -73,6 +73,7 @@ You can **use a prebuilt Docker image** (fastest) or install everything locally 
   - **Ubuntu/Debian (quick way)**:
     ```bash
     curl -fsSL https://get.docker.com | sh
+    sudo groupadd docker
     sudo usermod -aG docker $USER
     newgrp docker  # re-evaluate groups so 'docker' works without sudo
     docker version
@@ -87,23 +88,44 @@ You can **use a prebuilt Docker image** (fastest) or install everything locally 
 
 ### 🚀 Try via Docker (no local install)
 
-Pull the image and run an interactive shell:
+Two images available:
+
+- **ghcr.io/eneadim/flexsoc:latest** → ~3 GB, toolchain base (senza flow SoC con Ibex).
 
   ```bash
   # pull the prebuilt image
   docker pull ghcr.io/eneadim/flexsoc:latest
   
-  # (optional) enable X11 GUI apps like gtkwave/xdot on Linux
-  xhost +local:
-  
   # start the container in the current repo (mounts your workspace)
   docker run --rm -it \
-    -e DISPLAY=$DISPLAY \
-    -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
+    -e DISPLAY=":0" \
+    -e WAYLAND_DISPLAY="wayland-0" \
+    -e XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir" \
+    -e PULSE_SERVER="/mnt/wslg/PulseServer" \
+    -e NO_AT_BRIDGE=1 \
+    -v /mnt/wslg:/mnt/wslg \
     -v "$(pwd)":/work -w /work \
     ghcr.io/eneadim/flexsoc:latest bash
   ```
 
+- **ghcr.io/eneadim/flexsoc-full:latest** → ~4.5 GB, include il flow **SoC** con core **Ibex**.
+
+  ```bash
+  # pull the prebuilt image
+  docker pull ghcr.io/eneadim/flexsoc-full:latest
+  
+  # start the container in the current repo (mounts your workspace)
+  docker run --rm -it \
+    -e DISPLAY=":0" \
+    -e WAYLAND_DISPLAY="wayland-0" \
+    -e XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir" \
+    -e PULSE_SERVER="/mnt/wslg/PulseServer" \
+    -e NO_AT_BRIDGE=1 \
+    -v /mnt/wslg:/mnt/wslg \
+    -v "$(pwd)":/work -w /work \
+    ghcr.io/eneadim/flexsoc-full:latest bash
+  docker run --rm -it -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro -v "$(pwd)":/work -w /work ghcr.io/eneadim/flexsoc:latest bash
+  ```
 
 ### 🛠️ Local Install (alternative)
 
