@@ -66,14 +66,17 @@ sv2v: clean_rtl
 	@$(ECHO) "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
 	$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv > $(RTLDIR)/$(TOP).v
 
+flist:
+	$(PYTHON) scripts/gen_filelist.py --top $(TOP)
+
 # LINTING
 lint: sv2v 
 	@$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
 	$(LINTER) $(LINT_FLAGS) $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
-lint_sv:
+lint_sv: flist
 	@$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
-	$(LINTER) $(LINT_FLAGS) --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
+	$(LINTER) $(LINT_FLAGS) -f $(RTLDIR)/rtl_list.f --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
 	> $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
 # SETUP SV TESTBENCH FILE
@@ -92,6 +95,10 @@ else
 	@$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
 	$(COMPILER) ${VERILATOR_FLAGS} $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_compile.log 2>&1
 endif
+
+compile_sv: lint_sv
+	@$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
+	$(COMPILER) ${VERILATOR_FLAGS} -f $(RTLDIR)/rtl_list.f > $(LOGDIR)/$(TOP)_compile.log 2>&1
 
 # SIMULATE TESTBENCH
 .PHONY: sim
