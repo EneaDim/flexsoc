@@ -32,6 +32,7 @@ TARGET_FSOC     ?=lint
 # REGISTER INTERFACE
 REG_ITF         ?=tlul
 # COMPILE TOOL
+VSV             ?=sv
 SV2V            :=sv2v
 LINTER          ?=verilator
 COMPILER        ?=verilator
