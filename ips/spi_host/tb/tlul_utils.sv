@@ -39,9 +39,9 @@ class tlul_utils;
     #1;
   endtask
 
-  task automatic tlul_read(input logic [top_pkg::TL_AW-1:0]  addr,
-                           input logic [top_pkg::TL_DW-1:0]  data,
-                           input logic [top_pkg::TL_AIW-1:0] source);
+  task automatic tlul_read(input  logic [top_pkg::TL_AW-1:0]  addr,
+                           output logic [top_pkg::TL_DW-1:0]  data,
+                           input  logic [top_pkg::TL_AIW-1:0] source);
 
     $display("[%0t] TLUL READ: Addr = 0x%08x", $time, addr);
 

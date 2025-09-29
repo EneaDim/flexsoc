@@ -10,7 +10,7 @@
 `include "tb/tlul_if.sv"
 `include "rtl/spi_host_reg_pkg.sv"
 `ifndef SYN
-  `include "rtl/spi_host.v"
+  `include "rtl/spi_host.sv"
 `else
   `include "verilog/primitives.v"
   `include "verilog/sky130_fd_sc_hd.v"

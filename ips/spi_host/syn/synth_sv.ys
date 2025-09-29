@@ -1,5 +1,12 @@
 # read files
-read_verilog rtl/spi_host.v
+read_slang -I ips/pkgs \
+           -I ips/prim \
+           -I ips/prim_opentitan \
+           -I ips/tlul \
+           -D SYNTHESIS \
+           --ignore-assertions \
+           -f rtl/rtl_list.f \
+           --top spi_host
 # basic synth
 synth -top spi_host -flatten
 show -width -format dot -prefix syn/plots/spi_host_postsyn
