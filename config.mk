@@ -71,6 +71,12 @@ LIBS            ?=lib/sky130_fd_sc_hd__ss_100C_1v40.lib \
 LIB_SYN         ?=lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 PRIM            ?=verilog/primitives.v \
                   verilog/sky130_fd_sc_hd.v
+# OPENROAD
+ORS             ?=~/github/openroad/flow
+ORS_LOGS        ?=logs
+ORS_REPORTS			?=reports
+ORS_RESULTS			?=results
+ORS_OBJECTS     ?=objects
 
 # SoC MEMORY MAP
 LOWRISC_IPS     ?= uart pwm

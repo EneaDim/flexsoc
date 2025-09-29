@@ -273,6 +273,13 @@ sdf: setup_signoff
 	@$(MKDIR) -p $(SIGNOFFDIR)/sdf
 	$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > /dev/null 2>&1
 
+# PnR
+pnr: setup_pnr
+	$(MAKE) --file=$(ORS)/Makefile DESIGN_CONFIG=$(SIGNOFFDIR)/config.mk
+
+pnr_gui:
+	$(MAKE) gui_final --file=$(ORS)/Makefile DESIGN_CONFIG=$(SIGNOFFDIR)/config.mk
+
 # SAVE TESTBENCH
 save_tb:
 	@$(ECHO) "\n$(ORANGE)Save testbench file...\n$(RESET)"
@@ -478,6 +485,12 @@ clean_signoff:
 	$(RM) $(SIGNOFFDIR)/*.sdc
 	$(RM) $(SIGNOFFDIR)/*.tcl
 	$(RM) $(SIGNOFFDIR)/path_view
+clean_pnr:
+	$(RM) $(ORS_LOGS)
+	$(RM) $(ORS_REPORTS)
+	$(RM) $(ORS_RESULTS)
+	$(RM) $(ORS_OBJECTS)
+
 clean_fsm:
 	$(MAKE) -C fsm_gen clean
 clean_fsm_all:
@@ -499,7 +512,7 @@ clean_vendor:
 clean_subdir:
 	$(MAKE) -C fsm_gen clean
 	$(MAKE) -C fsm_gen setup
-clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
+clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
 	@$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	@$(CLEAR)
