@@ -1,0 +1,1746 @@
+
+ /----------------------------------------------------------------------------\
+ |  yosys -- Yosys Open SYnthesis Suite                                       |
+ |  Copyright (C) 2012 - 2025  Claire Xenia Wolf <claire@yosyshq.com>         |
+ |  Distributed under an ISC-like license, type "license" to see terms        |
+ \----------------------------------------------------------------------------/
+ Yosys 0.57+125 (git sha1 5e550ddc3, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+
+-- Executing script file `syn/synth_sv.ys' --
+
+1. Executing SLANG frontend.
+Top level design units:
+    fft_core
+
+Build succeeded: 0 errors, 0 warnings
+
+1.1. Executing UNDRIVEN pass. (resolve undriven signals)
+
+1.2. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Removing empty process `fft_core.$273'.
+Removing empty process `fft_core.$269'.
+Found and cleaned up 1 empty switch in `\fft_core.$259'.
+Found and cleaned up 1 empty switch in `\fft_core.$231'.
+Removing empty process `fft_core.$212'.
+Removing empty process `fft_core.$211'.
+Found and cleaned up 1 empty switch in `\fft_core.$203'.
+Found and cleaned up 1 empty switch in `\fft_core.$198'.
+Found and cleaned up 1 empty switch in `\fft_core.$192'.
+Found and cleaned up 1 empty switch in `\fft_core.$191'.
+Found and cleaned up 1 empty switch in `\fft_core.$174'.
+Found and cleaned up 1 empty switch in `\fft_core.$151'.
+Removing empty process `fft_core.$150'.
+Found and cleaned up 1 empty switch in `\fft_core.$132'.
+Removing empty process `fft_core.$127'.
+Removing empty process `fft_core.$119'.
+Removing empty process `fft_core.$113'.
+Found and cleaned up 1 empty switch in `\fft_core.$107'.
+Found and cleaned up 1 empty switch in `\fft_core.$96'.
+Removing empty process `fft_core.$89'.
+Found and cleaned up 1 empty switch in `\fft_core.$83'.
+Found and cleaned up 1 empty switch in `\fft_core.$6'.
+Removing empty process `fft_core.$3'.
+Removing empty process `fft_core.$0'.
+Cleaned up 13 empty switches.
+
+1.3. Executing TRIBUF pass.
+
+1.4. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 4 switch rules as full_case in process $259 in module fft_core.
+Marked 2 switch rules as full_case in process $132 in module fft_core.
+Marked 4 switch rules as full_case in process $231 in module fft_core.
+Marked 2 switch rules as full_case in process $203 in module fft_core.
+Marked 2 switch rules as full_case in process $107 in module fft_core.
+Marked 2 switch rules as full_case in process $96 in module fft_core.
+Marked 2 switch rules as full_case in process $83 in module fft_core.
+Marked 22 switch rules as full_case in process $6 in module fft_core.
+Marked 7 switch rules as full_case in process $191 in module fft_core.
+Marked 7 switch rules as full_case in process $174 in module fft_core.
+Removed a total of 0 dead cases.
+
+1.5. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 94 redundant assignments.
+Promoted 0 assignments to connections.
+
+1.6. Executing PROC_INIT pass (extract init attributes).
+
+1.7. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~65 debug messages>
+
+1.8. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `\fft_core.$151'.
+     1/1: $t_q$155
+Creating decoders for process `\fft_core.$259'.
+     1/4: $data_ram_inst_1.rdata_o$266
+     2/4: $data_ram_inst_1.rdata_o$267
+     3/4: $data_ram_inst_1.rdata_o$268
+     4/4: $262
+Creating decoders for process `\fft_core.$132'.
+     1/5: $v_q$140
+     2/5: $w_q$139
+     3/5: $v_q$143
+     4/5: $u_q$142
+     5/5: $w_q$141
+Creating decoders for process `\fft_core.$231'.
+     1/4: $data_ram_inst_0.rdata_o$238
+     2/4: $data_ram_inst_0.rdata_o$239
+     3/4: $data_ram_inst_0.rdata_o$240
+     4/4: $234
+Creating decoders for process `\fft_core.$203'.
+     1/2: $counter_samples$208
+     2/2: $counter_samples$209
+Creating decoders for process `\fft_core.$198'.
+     1/2: $input_sample$202
+     2/2: $sample_pair_valid$201
+Creating decoders for process `\fft_core.$107'.
+     1/2: $stage_count$111
+     2/2: $stage_count$112
+Creating decoders for process `\fft_core.$96'.
+     1/2: $group_count$100
+     2/2: $group_count$101
+Creating decoders for process `\fft_core.$192'.
+     1/2: $v_mac_q$197
+     2/2: $u_mac_q$196
+Creating decoders for process `\fft_core.$83'.
+     1/2: $butterfly_count$87
+     2/2: $butterfly_count$88
+Creating decoders for process `\fft_core.$6'.
+     1/72: $u_fft_fsm.next_state$68
+     2/72: $u_fft_fsm.done_o_d$67
+     3/72: $u_fft_fsm.read_ram_o_d$66
+     4/72: $u_fft_fsm.en_cnt_rd_o_d$65
+     5/72: $u_fft_fsm.wr_mem_o_d$64
+     6/72: $u_fft_fsm.en_cnt_samples_o_d$63
+     7/72: $u_fft_fsm.next_state$74
+     8/72: $u_fft_fsm.done_o_d$73
+     9/72: $u_fft_fsm.read_ram_o_d$72
+    10/72: $u_fft_fsm.en_cnt_rd_o_d$71
+    11/72: $u_fft_fsm.wr_mem_o_d$70
+    12/72: $u_fft_fsm.en_cnt_samples_o_d$69
+    13/72: $u_fft_fsm.next_state$61
+    14/72: $u_fft_fsm.done_o_d$60
+    15/72: $u_fft_fsm.read_ram_o_d$59
+    16/72: $u_fft_fsm.en_cnt_rd_o_d$58
+    17/72: $u_fft_fsm.wr_mem_o_d$57
+    18/72: $u_fft_fsm.en_cnt_samples_o_d$56
+    19/72: $u_fft_fsm.next_state$55
+    20/72: $u_fft_fsm.done_o_d$54
+    21/72: $u_fft_fsm.read_ram_o_d$53
+    22/72: $u_fft_fsm.en_cnt_rd_o_d$52
+    23/72: $u_fft_fsm.wr_mem_o_d$51
+    24/72: $u_fft_fsm.en_cnt_samples_o_d$50
+    25/72: $u_fft_fsm.next_state$49
+    26/72: $u_fft_fsm.done_o_d$48
+    27/72: $u_fft_fsm.read_ram_o_d$47
+    28/72: $u_fft_fsm.en_cnt_rd_o_d$46
+    29/72: $u_fft_fsm.wr_mem_o_d$45
+    30/72: $u_fft_fsm.en_cnt_samples_o_d$44
+    31/72: $u_fft_fsm.next_state$43
+    32/72: $u_fft_fsm.done_o_d$42
+    33/72: $u_fft_fsm.read_ram_o_d$41
+    34/72: $u_fft_fsm.en_cnt_rd_o_d$40
+    35/72: $u_fft_fsm.wr_mem_o_d$39
+    36/72: $u_fft_fsm.en_cnt_samples_o_d$38
+    37/72: $u_fft_fsm.next_state$37
+    38/72: $u_fft_fsm.done_o_d$36
+    39/72: $u_fft_fsm.read_ram_o_d$35
+    40/72: $u_fft_fsm.en_cnt_rd_o_d$34
+    41/72: $u_fft_fsm.wr_mem_o_d$33
+    42/72: $u_fft_fsm.en_cnt_samples_o_d$32
+    43/72: $u_fft_fsm.next_state$31
+    44/72: $u_fft_fsm.done_o_d$30
+    45/72: $u_fft_fsm.read_ram_o_d$29
+    46/72: $u_fft_fsm.en_cnt_rd_o_d$28
+    47/72: $u_fft_fsm.wr_mem_o_d$27
+    48/72: $u_fft_fsm.en_cnt_samples_o_d$26
+    49/72: $u_fft_fsm.next_state$25
+    50/72: $u_fft_fsm.done_o_d$24
+    51/72: $u_fft_fsm.read_ram_o_d$23
+    52/72: $u_fft_fsm.en_cnt_rd_o_d$22
+    53/72: $u_fft_fsm.wr_mem_o_d$21
+    54/72: $u_fft_fsm.en_cnt_samples_o_d$20
+    55/72: $u_fft_fsm.next_state$80
+    56/72: $u_fft_fsm.done_o_d$79
+    57/72: $u_fft_fsm.read_ram_o_d$78
+    58/72: $u_fft_fsm.en_cnt_rd_o_d$77
+    59/72: $u_fft_fsm.wr_mem_o_d$76
+    60/72: $u_fft_fsm.en_cnt_samples_o_d$75
+    61/72: $u_fft_fsm.next_state$12
+    62/72: $u_fft_fsm.done_o_d$11
+    63/72: $u_fft_fsm.read_ram_o_d$10
+    64/72: $u_fft_fsm.en_cnt_rd_o_d$9
+    65/72: $u_fft_fsm.wr_mem_o_d$8
+    66/72: $u_fft_fsm.en_cnt_samples_o_d$7
+    67/72: $u_fft_fsm.next_state$18
+    68/72: $u_fft_fsm.done_o_d$17
+    69/72: $u_fft_fsm.read_ram_o_d$16
+    70/72: $u_fft_fsm.en_cnt_rd_o_d$15
+    71/72: $u_fft_fsm.wr_mem_o_d$14
+    72/72: $u_fft_fsm.en_cnt_samples_o_d$13
+Creating decoders for process `\fft_core.$191'.
+     1/8: $188
+     2/8: $q15_saturate.q15_saturate$187
+     3/8: $190
+     4/8: $q15_saturate.q15_saturate$189
+     5/8: $181
+     6/8: $q15_saturate.q15_saturate$180
+     7/8: $183
+     8/8: $q15_saturate.q15_saturate$182
+Creating decoders for process `\fft_core.$174'.
+     1/8: $171
+     2/8: $q15_saturate.q15_saturate$170
+     3/8: $173
+     4/8: $q15_saturate.q15_saturate$172
+     5/8: $164
+     6/8: $q15_saturate.q15_saturate$163
+     7/8: $166
+     8/8: $q15_saturate.q15_saturate$165
+
+1.9. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `\fft_core.$151'.
+Removing empty process `fft_core.$151'.
+Found and cleaned up 5 empty switches in `\fft_core.$259'.
+Removing empty process `fft_core.$259'.
+Found and cleaned up 3 empty switches in `\fft_core.$132'.
+Removing empty process `fft_core.$132'.
+Found and cleaned up 5 empty switches in `\fft_core.$231'.
+Removing empty process `fft_core.$231'.
+Found and cleaned up 3 empty switches in `\fft_core.$203'.
+Removing empty process `fft_core.$203'.
+Found and cleaned up 1 empty switch in `\fft_core.$198'.
+Removing empty process `fft_core.$198'.
+Found and cleaned up 3 empty switches in `\fft_core.$107'.
+Removing empty process `fft_core.$107'.
+Found and cleaned up 3 empty switches in `\fft_core.$96'.
+Removing empty process `fft_core.$96'.
+Found and cleaned up 1 empty switch in `\fft_core.$192'.
+Removing empty process `fft_core.$192'.
+Found and cleaned up 3 empty switches in `\fft_core.$83'.
+Removing empty process `fft_core.$83'.
+Found and cleaned up 23 empty switches in `\fft_core.$6'.
+Removing empty process `fft_core.$6'.
+Found and cleaned up 7 empty switches in `\fft_core.$191'.
+Removing empty process `fft_core.$191'.
+Found and cleaned up 7 empty switches in `\fft_core.$174'.
+Removing empty process `fft_core.$174'.
+Cleaned up 65 empty switches.
+
+1.10. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+<suppressed ~74 debug messages>
+
+2. Executing SYNTH pass.
+
+2.1. Executing HIERARCHY pass (managing design hierarchy).
+
+2.1.1. Analyzing design hierarchy..
+Top module:  \fft_core
+
+2.1.2. Analyzing design hierarchy..
+Top module:  \fft_core
+Removed 0 unused modules.
+
+2.2. Executing PROC pass (convert processes to netlists).
+
+2.2.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+2.2.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Removed a total of 0 dead cases.
+
+2.2.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 0 redundant assignments.
+Promoted 0 assignments to connections.
+
+2.2.4. Executing PROC_INIT pass (extract init attributes).
+
+2.2.5. Executing PROC_ARST pass (detect async resets in processes).
+
+2.2.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+
+2.2.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+
+2.2.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+
+2.2.9. Executing PROC_DFF pass (convert process syncs to FFs).
+
+2.2.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+2.2.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+2.2.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.3. Executing FLATTEN pass (flatten design).
+
+2.4. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.5. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 29 unused cells and 332 unused wires.
+<suppressed ~48 debug messages>
+
+2.6. Executing CHECK pass (checking for obvious problems).
+Checking module fft_core...
+Found and reported 0 problems.
+
+2.7. Executing OPT pass (performing simple optimizations).
+
+2.7.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.7.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+<suppressed ~405 debug messages>
+Removed a total of 135 cells.
+
+2.7.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+    dead port 1/2 on $mux $procmux$1051.
+    dead port 1/2 on $mux $procmux$114.
+    dead port 2/2 on $mux $procmux$123.
+    dead port 2/2 on $mux $procmux$126.
+    dead port 2/2 on $mux $procmux$128.
+    dead port 2/2 on $mux $procmux$133.
+    dead port 2/2 on $mux $procmux$136.
+    dead port 2/2 on $mux $procmux$138.
+    dead port 2/2 on $mux $procmux$145.
+    dead port 2/2 on $mux $procmux$147.
+    dead port 2/2 on $mux $procmux$15.
+    dead port 2/2 on $mux $procmux$154.
+    dead port 2/2 on $mux $procmux$156.
+    dead port 2/2 on $mux $procmux$163.
+    dead port 2/2 on $mux $procmux$165.
+    dead port 2/2 on $mux $procmux$172.
+    dead port 2/2 on $mux $procmux$174.
+    dead port 2/2 on $mux $procmux$182.
+    dead port 2/2 on $mux $procmux$190.
+    dead port 2/2 on $mux $procmux$198.
+    dead port 2/2 on $mux $procmux$206.
+    dead port 2/2 on $mux $procmux$214.
+    dead port 2/2 on $mux $procmux$222.
+    dead port 2/2 on $mux $procmux$230.
+    dead port 2/2 on $mux $procmux$237.
+    dead port 2/2 on $mux $procmux$244.
+    dead port 2/2 on $mux $procmux$252.
+    dead port 2/2 on $mux $procmux$259.
+    dead port 2/2 on $mux $procmux$266.
+    dead port 2/2 on $mux $procmux$275.
+    dead port 2/2 on $mux $procmux$283.
+    dead port 2/2 on $mux $procmux$291.
+    dead port 2/2 on $mux $procmux$300.
+    dead port 2/2 on $mux $procmux$309.
+    dead port 2/2 on $mux $procmux$318.
+    dead port 1/2 on $mux $procmux$32.
+    dead port 2/2 on $mux $procmux$328.
+    dead port 2/2 on $mux $procmux$337.
+    dead port 2/2 on $mux $procmux$346.
+    dead port 2/2 on $mux $procmux$355.
+    dead port 2/2 on $mux $procmux$364.
+    dead port 1/2 on $mux $procmux$37.
+    dead port 2/2 on $mux $procmux$373.
+    dead port 2/2 on $mux $procmux$384.
+    dead port 2/2 on $mux $procmux$394.
+    dead port 2/2 on $mux $procmux$404.
+    dead port 2/2 on $mux $procmux$414.
+    dead port 2/2 on $mux $procmux$424.
+    dead port 2/2 on $mux $procmux$434.
+    dead port 2/2 on $mux $procmux$446.
+    dead port 2/2 on $mux $procmux$457.
+    dead port 2/2 on $mux $procmux$468.
+    dead port 2/2 on $mux $procmux$479.
+    dead port 2/2 on $mux $procmux$490.
+    dead port 2/2 on $mux $procmux$501.
+    dead port 2/2 on $mux $procmux$514.
+    dead port 2/2 on $mux $procmux$526.
+    dead port 2/2 on $mux $procmux$538.
+    dead port 2/2 on $mux $procmux$550.
+    dead port 2/2 on $mux $procmux$56.
+    dead port 2/2 on $mux $procmux$563.
+    dead port 2/2 on $mux $procmux$576.
+    dead port 2/2 on $mux $procmux$590.
+    dead port 2/2 on $mux $procmux$603.
+    dead port 2/2 on $mux $procmux$617.
+    dead port 2/2 on $mux $procmux$62.
+    dead port 2/2 on $mux $procmux$630.
+    dead port 2/2 on $mux $procmux$643.
+    dead port 2/2 on $mux $procmux$656.
+    dead port 1/2 on $mux $procmux$79.
+    dead port 1/2 on $mux $procmux$798.
+    dead port 2/2 on $mux $procmux$800.
+    dead port 1/2 on $mux $procmux$815.
+    dead port 2/2 on $mux $procmux$817.
+    dead port 1/2 on $mux $procmux$832.
+    dead port 2/2 on $mux $procmux$834.
+    dead port 1/2 on $mux $procmux$849.
+    dead port 2/2 on $mux $procmux$851.
+    dead port 1/2 on $mux $procmux$867.
+    dead port 2/2 on $mux $procmux$869.
+    dead port 1/2 on $mux $procmux$885.
+    dead port 2/2 on $mux $procmux$887.
+    dead port 2/2 on $mux $procmux$9.
+    dead port 2/2 on $mux $procmux$903.
+    dead port 1/2 on $mux $procmux$101.
+    dead port 2/2 on $mux $procmux$919.
+    dead port 1/2 on $mux $procmux$92.
+    dead port 2/2 on $mux $procmux$935.
+    dead port 1/2 on $mux $procmux$1013.
+    dead port 2/2 on $mux $procmux$951.
+    dead port 2/2 on $mux $procmux$967.
+    dead port 2/2 on $mux $procmux$983.
+    dead port 1/2 on $mux $procmux$1032.
+    dead port 1/2 on $mux $procmux$994.
+Removed 94 multiplexer ports.
+<suppressed ~196 debug messages>
+
+2.7.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+    Consolidated identical input bits for $mux cell $235:
+      Old ports: A=0, B=32'11111111111111111111111111111111, Y=$235y
+      New ports: A=1'0, B=1'1, Y=$235y [0]
+      New connections: $235y [31:1] = { $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] $235y [0] }
+    New ctrl vector for $pmux cell $procmux$682: { $procmux$678_CMP $222y }
+    Consolidated identical input bits for $mux cell $263:
+      Old ports: A=0, B=32'11111111111111111111111111111111, Y=$263y
+      New ports: A=1'0, B=1'1, Y=$263y [0]
+      New connections: $263y [31:1] = { $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] $263y [0] }
+    New ctrl vector for $pmux cell $procmux$703: { $procmux$678_CMP $procmux$591_CMP $222y }
+    New ctrl vector for $pmux cell $procmux$724: { $procmux$678_CMP $195y $222y }
+    New ctrl vector for $pmux cell $procmux$745: { $procmux$678_CMP $215y $auto$opt_reduce.cc:137:opt_pmux$1062 }
+    New ctrl vector for $pmux cell $procmux$766: { $procmux$678_CMP $215y $auto$opt_reduce.cc:137:opt_pmux$1064 }
+    New ctrl vector for $pmux cell $procmux$682: $222y
+    New ctrl vector for $pmux cell $procmux$703: { $procmux$678_CMP $procmux$591_CMP }
+    New ctrl vector for $pmux cell $procmux$724: $195y
+  Optimizing cells in module \fft_core.
+Performed a total of 16 changes.
+
+2.7.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+<suppressed ~42 debug messages>
+Removed a total of 14 cells.
+
+2.7.6. Executing OPT_DFF pass (perform DFF optimizations).
+Changing const-value async load to async reset on $driver$w_q.re ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$w_q.im ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$v_q.re ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$v_q.im ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$v_mac_q.re ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$v_mac_q.im ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_res_re.q_o ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_res_im.q_o ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_q.re ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_q.im ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_mac_q.re ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_mac_q.im ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_fft_fsm.read_ram_o ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_fft_fsm.en_cnt_samples_o ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_fft_fsm.en_cnt_rd_o ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_fft_fsm.done_o ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$u_fft_fsm.current_state ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$t_q.re ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$t_q.im ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$stage_count ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$mem_sel_rd ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$input_sample.re ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$input_sample.im ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$group_count ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$counter_samples ($aldff) from module fft_core.
+Changing const-value async load to async reset on $driver$butterfly_count ($aldff) from module fft_core.
+
+2.7.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 0 unused cells and 245 unused wires.
+<suppressed ~1 debug messages>
+
+2.7.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.7.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.7.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~85 debug messages>
+
+2.7.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+    New ctrl vector for $pmux cell $procmux$703: $auto$opt_reduce.cc:137:opt_pmux$1066
+  Optimizing cells in module \fft_core.
+Performed a total of 1 changes.
+
+2.7.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.7.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.7.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+
+2.7.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.7.16. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.7.17. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~84 debug messages>
+
+2.7.18. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+Performed a total of 0 changes.
+
+2.7.19. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.7.20. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.7.21. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+
+2.7.22. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.7.23. Finished fast OPT passes. (There is nothing left to do.)
+
+2.8. Executing FSM pass (extract and optimize FSM).
+
+2.8.1. Executing FSM_DETECT pass (finding FSMs in design).
+Not marking fft_core.u_fft_fsm.current_state as FSM state register:
+    Circuit seems to be self-resetting.
+
+2.8.2. Executing FSM_EXTRACT pass (extracting FSM from design).
+
+2.8.3. Executing FSM_OPT pass (simple optimizations of FSMs).
+
+2.8.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+
+2.8.5. Executing FSM_OPT pass (simple optimizations of FSMs).
+
+2.8.6. Executing FSM_RECODE pass (re-assigning FSM state encoding).
+
+2.8.7. Executing FSM_INFO pass (dumping all available information on FSM cells).
+
+2.8.8. Executing FSM_MAP pass (mapping FSMs to basic logic).
+
+2.9. Executing OPT pass (performing simple optimizations).
+
+2.9.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.9.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.9.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~84 debug messages>
+
+2.9.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+Performed a total of 0 changes.
+
+2.9.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.9.6. Executing OPT_DFF pass (perform DFF optimizations).
+Adding EN signal on $driver$w_q.re ($adff) from module fft_core (D = \tw_re, Q = \w_q [31:16]).
+Adding EN signal on $driver$w_q.im ($adff) from module fft_core (D = \tw_im, Q = \w_q [15:0]).
+Adding EN signal on $driver$v_q.re ($adff) from module fft_core (D = $136y [31:16], Q = \v_q [31:16]).
+Adding EN signal on $driver$v_q.im ($adff) from module fft_core (D = $136y [15:0], Q = \v_q [15:0]).
+Adding EN signal on $driver$v_mac_q.re ($adff) from module fft_core (D = \v_mac [31:16], Q = \v_mac_q [31:16]).
+Adding EN signal on $driver$v_mac_q.im ($adff) from module fft_core (D = \v_mac [15:0], Q = \v_mac_q [15:0]).
+Adding EN signal on $driver$u_q.re ($adff) from module fft_core (D = $136y [31:16], Q = \u_q [31:16]).
+Adding EN signal on $driver$u_q.im ($adff) from module fft_core (D = $136y [15:0], Q = \u_q [15:0]).
+Adding EN signal on $driver$u_mac_q.re ($adff) from module fft_core (D = \u_mac [31:16], Q = \u_mac_q [31:16]).
+Adding EN signal on $driver$u_mac_q.im ($adff) from module fft_core (D = \u_mac [15:0], Q = \u_mac_q [15:0]).
+Adding EN signal on $driver$t_q.re ($adff) from module fft_core (D = \t [63:32], Q = \t_q [63:32]).
+Adding EN signal on $driver$t_q.im ($adff) from module fft_core (D = \t [31:0], Q = \t_q [31:0]).
+Adding EN signal on $driver$stage_count ($adff) from module fft_core (D = $procmux$96_Y, Q = \stage_count).
+Adding EN signal on $driver$input_sample.re ($adff) from module fft_core (D = \adc_data_i, Q = \input_sample [31:16]).
+Adding EN signal on $driver$input_sample.im ($adff) from module fft_core (D = 16'0000000000000000, Q = \input_sample [15:0]).
+Adding EN signal on $driver$group_count ($adff) from module fft_core (D = $group_count$101, Q = \group_count).
+Adding SRST signal on $driver$data_ram_inst_1.rdata_o ($dff) from module fft_core (D = $data_ram_inst_1.rdata_o$266, Q = \data_ram_inst_1.rdata_o, rval = 0).
+Adding EN signal on $auto$ff.cc:266:slice$1103 ($sdff) from module fft_core (D = $265, Q = \data_ram_inst_1.rdata_o).
+Adding SRST signal on $driver$data_ram_inst_0.rdata_o ($dff) from module fft_core (D = $data_ram_inst_0.rdata_o$238, Q = \data_ram_inst_0.rdata_o, rval = 0).
+Adding EN signal on $auto$ff.cc:266:slice$1105 ($sdff) from module fft_core (D = $237, Q = \data_ram_inst_0.rdata_o).
+Adding EN signal on $driver$counter_samples ($adff) from module fft_core (D = $counter_samples$209, Q = \counter_samples).
+Adding EN signal on $driver$butterfly_count ($adff) from module fft_core (D = $butterfly_count$88, Q = \butterfly_count).
+Setting constant 0-bit at position 0 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 1 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 2 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 3 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 4 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 5 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 6 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 7 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 8 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 9 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 10 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 11 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 12 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 13 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 14 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+Setting constant 0-bit at position 15 on $auto$ff.cc:266:slice$1099 ($adffe) from module fft_core.
+
+2.9.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 13 unused cells and 13 unused wires.
+<suppressed ~14 debug messages>
+
+2.9.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+<suppressed ~4 debug messages>
+
+2.9.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.9.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~64 debug messages>
+
+2.9.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+Performed a total of 0 changes.
+
+2.9.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+<suppressed ~18 debug messages>
+Removed a total of 6 cells.
+
+2.9.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.9.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 0 unused cells and 6 unused wires.
+<suppressed ~1 debug messages>
+
+2.9.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.9.16. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.9.17. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~64 debug messages>
+
+2.9.18. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+Performed a total of 0 changes.
+
+2.9.19. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.9.20. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.9.21. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+
+2.9.22. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.9.23. Finished fast OPT passes. (There is nothing left to do.)
+
+2.10. Executing WREDUCE pass (reducing word size of cells).
+Removed top 29 address bits (of 32) from memory init port fft_core.$278 (tw_rom.rom_re).
+Removed top 29 address bits (of 32) from memory init port fft_core.$279 (tw_rom.rom_im).
+Removed top 1 bits (of 4) from port B of cell fft_core.$82 ($eq).
+Removed top 28 bits (of 32) from port A of cell fft_core.$86 ($add).
+Removed top 31 bits (of 32) from port B of cell fft_core.$86 ($add).
+Removed top 28 bits (of 32) from port Y of cell fft_core.$86 ($add).
+Removed top 29 bits (of 32) from port A of cell fft_core.$90 ($sub).
+Removed top 28 bits (of 32) from port B of cell fft_core.$90 ($sub).
+Removed top 27 bits (of 32) from port Y of cell fft_core.$90 ($sub).
+Removed top 27 bits (of 32) from port A of cell fft_core.$91 ($shr).
+Removed top 31 bits (of 32) from port B of cell fft_core.$92 ($sub).
+Removed top 28 bits (of 32) from port A of cell fft_core.$93 ($eq).
+Removed top 28 bits (of 32) from port A of cell fft_core.$99 ($add).
+Removed top 31 bits (of 32) from port B of cell fft_core.$99 ($add).
+Removed top 28 bits (of 32) from port Y of cell fft_core.$99 ($add).
+Removed top 31 bits (of 32) from port B of cell fft_core.$102 ($sub).
+Removed top 28 bits (of 32) from port A of cell fft_core.$103 ($eq).
+Removed top 1 bits (of 4) from port B of cell fft_core.$104 ($eq).
+Removed top 28 bits (of 32) from port A of cell fft_core.$110 ($add).
+Removed top 31 bits (of 32) from port B of cell fft_core.$110 ($add).
+Removed top 27 bits (of 32) from port Y of cell fft_core.$110 ($add).
+Removed top 31 bits (of 32) from port A of cell fft_core.$116 ($shl).
+Removed top 27 bits (of 32) from port A of cell fft_core.$118 ($shr).
+Removed top 27 bits (of 32) from port B of cell fft_core.$118 ($shr).
+Removed top 27 bits (of 32) from port B of cell fft_core.$121 ($shl).
+Removed top 28 bits (of 32) from port A of cell fft_core.$123 ($add).
+Removed top 28 bits (of 32) from port Y of cell fft_core.$123 ($add).
+Removed top 28 bits (of 32) from port B of cell fft_core.$123 ($add).
+Removed top 29 bits (of 32) from port A of cell fft_core.$125 ($sub).
+Removed top 27 bits (of 32) from port B of cell fft_core.$125 ($sub).
+Removed top 26 bits (of 32) from port Y of cell fft_core.$125 ($sub).
+Removed top 2 bits (of 4) from port Y of cell fft_core.$126 ($shl).
+Removed top 1 bits (of 4) from port B of cell fft_core.$135 ($eq).
+Removed top 1 bits (of 4) from port B of cell fft_core.$137 ($eq).
+Converting cell fft_core.$144 ($mul) from unsigned to signed.
+Removed top 16 bits (of 32) from port A of cell fft_core.$144 ($mul).
+Removed top 16 bits (of 32) from port B of cell fft_core.$144 ($mul).
+Converting cell fft_core.$145 ($mul) from unsigned to signed.
+Removed top 16 bits (of 32) from port A of cell fft_core.$145 ($mul).
+Removed top 16 bits (of 32) from port B of cell fft_core.$145 ($mul).
+Converting cell fft_core.$147 ($mul) from unsigned to signed.
+Removed top 16 bits (of 32) from port A of cell fft_core.$147 ($mul).
+Removed top 16 bits (of 32) from port B of cell fft_core.$147 ($mul).
+Converting cell fft_core.$148 ($mul) from unsigned to signed.
+Removed top 16 bits (of 32) from port A of cell fft_core.$148 ($mul).
+Removed top 16 bits (of 32) from port B of cell fft_core.$148 ($mul).
+Removed top 1 bits (of 32) from port A of cell fft_core.$158 ($add).
+Removed top 1 bits (of 32) from port A of cell fft_core.$159 ($add).
+Removed top 15 bits (of 32) from port A of cell fft_core.$161 ($gt).
+Removed top 16 bits (of 32) from port B of cell fft_core.$161 ($gt).
+Removed top 15 bits (of 32) from port A of cell fft_core.$162 ($lt).
+Removed top 16 bits (of 32) from port B of cell fft_core.$162 ($lt).
+Removed top 15 bits (of 32) from port A of cell fft_core.$168 ($gt).
+Removed top 16 bits (of 32) from port B of cell fft_core.$168 ($gt).
+Removed top 15 bits (of 32) from port A of cell fft_core.$169 ($lt).
+Removed top 16 bits (of 32) from port B of cell fft_core.$169 ($lt).
+Removed top 1 bits (of 32) from port A of cell fft_core.$175 ($sub).
+Removed top 1 bits (of 32) from port A of cell fft_core.$176 ($sub).
+Removed top 15 bits (of 32) from port A of cell fft_core.$178 ($gt).
+Removed top 16 bits (of 32) from port B of cell fft_core.$178 ($gt).
+Removed top 15 bits (of 32) from port A of cell fft_core.$179 ($lt).
+Removed top 16 bits (of 32) from port B of cell fft_core.$179 ($lt).
+Removed top 15 bits (of 32) from port A of cell fft_core.$185 ($gt).
+Removed top 16 bits (of 32) from port B of cell fft_core.$185 ($gt).
+Removed top 15 bits (of 32) from port A of cell fft_core.$186 ($lt).
+Removed top 16 bits (of 32) from port B of cell fft_core.$186 ($lt).
+Removed top 1 bits (of 4) from port B of cell fft_core.$195 ($eq).
+Removed top 28 bits (of 32) from port A of cell fft_core.$207 ($add).
+Removed top 31 bits (of 32) from port B of cell fft_core.$207 ($add).
+Removed top 28 bits (of 32) from port Y of cell fft_core.$207 ($add).
+Removed top 2 bits (of 4) from port B of cell fft_core.$215 ($eq).
+Removed top 2 bits (of 4) from port B of cell fft_core.$223 ($eq).
+Removed top 3 bits (of 4) from mux cell fft_core.$procmux$512 ($mux).
+Removed top 3 bits (of 4) from mux cell fft_core.$procmux$588 ($mux).
+Removed top 3 bits (of 4) from port B of cell fft_core.$procmux$591_CMP0 ($eq).
+Removed top 2 bits (of 4) from mux cell fft_core.$procmux$795 ($mux).
+Removed top 2 bits (of 4) from mux cell fft_core.$procmux$901 ($mux).
+Removed top 28 bits (of 32) from port Y of cell fft_core.$116 ($shl).
+Removed top 27 bits (of 32) from wire fft_core.$110y.
+Removed top 28 bits (of 32) from wire fft_core.$207y.
+Removed top 28 bits (of 32) from wire fft_core.$86y.
+Removed top 3 bits (of 4) from wire fft_core.$procmux$512_Y.
+Removed top 3 bits (of 4) from wire fft_core.$procmux$588_Y.
+Removed top 2 bits (of 4) from wire fft_core.$procmux$795_Y.
+Removed top 2 bits (of 4) from wire fft_core.$procmux$901_Y.
+Removed top 28 bits (of 32) from wire fft_core.d.
+
+2.11. Executing PEEPOPT pass (run peephole optimizers).
+shiftadd pattern in fft_core: shift=$118, add/sub=$110, offset: 1
+
+2.12. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 0 unused cells and 9 unused wires.
+<suppressed ~1 debug messages>
+
+2.13. Executing ALUMACC pass (create $alu and $macc cells).
+Extracting $alu and $macc cells in module fft_core:
+  creating $macc model for $102 ($sub).
+  creating $macc model for $110 ($add).
+  creating $macc model for $122 ($add).
+  creating $macc model for $123 ($add).
+  creating $macc model for $125 ($sub).
+  creating $macc model for $144 ($mul).
+  creating $macc model for $145 ($mul).
+  creating $macc model for $146 ($sub).
+  creating $macc model for $147 ($mul).
+  creating $macc model for $148 ($mul).
+  creating $macc model for $149 ($add).
+  creating $macc model for $158 ($add).
+  creating $macc model for $159 ($add).
+  creating $macc model for $175 ($sub).
+  creating $macc model for $176 ($sub).
+  creating $macc model for $207 ($add).
+  creating $macc model for $86 ($add).
+  creating $macc model for $90 ($sub).
+  creating $macc model for $92 ($sub).
+  creating $macc model for $99 ($add).
+  merging $macc model for $147 into $149.
+  merging $macc model for $148 into $149.
+  merging $macc model for $144 into $146.
+  merging $macc model for $145 into $146.
+  creating $alu model for $macc $207.
+  creating $alu model for $macc $176.
+  creating $alu model for $macc $175.
+  creating $alu model for $macc $159.
+  creating $alu model for $macc $158.
+  creating $alu model for $macc $90.
+  creating $alu model for $macc $86.
+  creating $alu model for $macc $99.
+  creating $alu model for $macc $92.
+  creating $alu model for $macc $125.
+  creating $alu model for $macc $123.
+  creating $alu model for $macc $122.
+  creating $alu model for $macc $110.
+  creating $alu model for $macc $102.
+  creating $macc cell for $149: $auto$alumacc.cc:365:replace_macc$1121
+  creating $macc cell for $146: $auto$alumacc.cc:365:replace_macc$1122
+  creating $alu model for $161 ($gt): new $alu
+  creating $alu model for $162 ($lt): new $alu
+  creating $alu model for $168 ($gt): new $alu
+  creating $alu model for $169 ($lt): new $alu
+  creating $alu model for $178 ($gt): new $alu
+  creating $alu model for $179 ($lt): new $alu
+  creating $alu model for $185 ($gt): new $alu
+  creating $alu model for $186 ($lt): new $alu
+  creating $alu model for $82 ($eq): merged with $90.
+  creating $alu cell for $186: $auto$alumacc.cc:495:replace_alu$1131
+  creating $alu cell for $185: $auto$alumacc.cc:495:replace_alu$1138
+  creating $alu cell for $179: $auto$alumacc.cc:495:replace_alu$1151
+  creating $alu cell for $178: $auto$alumacc.cc:495:replace_alu$1158
+  creating $alu cell for $169: $auto$alumacc.cc:495:replace_alu$1171
+  creating $alu cell for $168: $auto$alumacc.cc:495:replace_alu$1178
+  creating $alu cell for $162: $auto$alumacc.cc:495:replace_alu$1191
+  creating $alu cell for $161: $auto$alumacc.cc:495:replace_alu$1198
+  creating $alu cell for $102: $auto$alumacc.cc:495:replace_alu$1211
+  creating $alu cell for $110: $auto$alumacc.cc:495:replace_alu$1214
+  creating $alu cell for $122: $auto$alumacc.cc:495:replace_alu$1217
+  creating $alu cell for $123: $auto$alumacc.cc:495:replace_alu$1220
+  creating $alu cell for $125: $auto$alumacc.cc:495:replace_alu$1223
+  creating $alu cell for $92: $auto$alumacc.cc:495:replace_alu$1226
+  creating $alu cell for $99: $auto$alumacc.cc:495:replace_alu$1229
+  creating $alu cell for $86: $auto$alumacc.cc:495:replace_alu$1232
+  creating $alu cell for $90, $82: $auto$alumacc.cc:495:replace_alu$1235
+  creating $alu cell for $158: $auto$alumacc.cc:495:replace_alu$1240
+  creating $alu cell for $175: $auto$alumacc.cc:495:replace_alu$1243
+  creating $alu cell for $159: $auto$alumacc.cc:495:replace_alu$1246
+  creating $alu cell for $176: $auto$alumacc.cc:495:replace_alu$1249
+  creating $alu cell for $207: $auto$alumacc.cc:495:replace_alu$1252
+  created 22 $alu and 2 $macc cells.
+
+2.14. Executing SHARE pass (SAT-based resource sharing).
+Found 4 cells in module fft_core that may be considered for resource sharing.
+  Analyzing resource sharing options for $148 ($mul):
+    Found cell that is never activated: $148
+    Cell is never active. Sharing is pointless, we simply remove it.
+  Analyzing resource sharing options for $147 ($mul):
+    Found cell that is never activated: $147
+    Cell is never active. Sharing is pointless, we simply remove it.
+  Analyzing resource sharing options for $145 ($mul):
+    Found cell that is never activated: $145
+    Cell is never active. Sharing is pointless, we simply remove it.
+  Analyzing resource sharing options for $144 ($mul):
+    Found cell that is never activated: $144
+    Cell is never active. Sharing is pointless, we simply remove it.
+Removing 4 cells in module fft_core:
+  Removing cell $144 ($mul).
+  Removing cell $145 ($mul).
+  Removing cell $147 ($mul).
+  Removing cell $148 ($mul).
+
+2.15. Executing OPT pass (performing simple optimizations).
+
+2.15.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+<suppressed ~4 debug messages>
+
+2.15.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.15.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~64 debug messages>
+
+2.15.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+Performed a total of 0 changes.
+
+2.15.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+<suppressed ~3 debug messages>
+Removed a total of 1 cells.
+
+2.15.6. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.15.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 4 unused cells and 18 unused wires.
+<suppressed ~5 debug messages>
+
+2.15.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.15.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.15.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~66 debug messages>
+
+2.15.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+Performed a total of 0 changes.
+
+2.15.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.15.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.15.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+
+2.15.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.15.16. Finished fast OPT passes. (There is nothing left to do.)
+
+2.16. Executing MEMORY pass.
+
+2.16.1. Executing OPT_MEM pass (optimize memories).
+fft_core.tw_rom.rom_im: removing const-0 lane 0
+fft_core.tw_rom.rom_im: removing const-0 lane 7
+fft_core.tw_rom.rom_im: removing const-0 lane 9
+fft_core.tw_rom.rom_im: removing const-0 lane 11
+fft_core.tw_rom.rom_im: removing const-0 lane 12
+fft_core.tw_rom.rom_im: removing const-0 lane 14
+Performed a total of 1 transformations.
+
+2.16.2. Executing OPT_MEM_PRIORITY pass (removing unnecessary memory write priority relations).
+Performed a total of 0 transformations.
+
+2.16.3. Executing OPT_MEM_FEEDBACK pass (finding memory read-to-write feedback paths).
+  Analyzing fft_core.data_ram_inst_0.mem write port 0.
+  Analyzing fft_core.data_ram_inst_1.mem write port 0.
+
+2.16.4. Executing MEMORY_BMUX2ROM pass (converting muxes to ROMs).
+
+2.16.5. Executing MEMORY_DFF pass (merging $dff cells to $memrd).
+Checking read port `\data_ram_inst_0.mem'[0] in module `\fft_core': merging output FF to cell.
+    Write port 0: don't care on collision.
+Checking read port `\data_ram_inst_1.mem'[0] in module `\fft_core': merging output FF to cell.
+    Write port 0: don't care on collision.
+Checking read port `\tw_rom.rom_im'[0] in module `\fft_core': merging output FF to cell.
+Checking read port `\tw_rom.rom_re'[0] in module `\fft_core': merging output FF to cell.
+
+2.16.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 3 unused cells and 84 unused wires.
+<suppressed ~6 debug messages>
+
+2.16.7. Executing MEMORY_SHARE pass (consolidating $memrd/$memwr cells).
+
+2.16.8. Executing OPT_MEM_WIDEN pass (optimize memories where all ports are wide).
+Performed a total of 0 transformations.
+
+2.16.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+
+2.16.10. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+2.17. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+
+2.18. Executing OPT pass (performing simple optimizations).
+
+2.18.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+<suppressed ~52 debug messages>
+
+2.18.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+<suppressed ~9 debug messages>
+Removed a total of 3 cells.
+
+2.18.3. Executing OPT_DFF pass (perform DFF optimizations).
+Setting constant 0-bit at position 0 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 1 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 2 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 3 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 4 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 5 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 6 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 7 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 8 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 9 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 10 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 11 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 12 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 13 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 14 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+Setting constant 0-bit at position 15 on $auto$ff.cc:266:slice$1072 ($adffe) from module fft_core.
+
+2.18.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 60 unused cells and 86 unused wires.
+<suppressed ~61 debug messages>
+
+2.18.5. Rerunning OPT passes. (Removed registers in this run.)
+
+2.18.6. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.18.7. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.18.8. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.18.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+
+2.18.10. Finished fast OPT passes.
+
+2.19. Executing MEMORY_MAP pass (converting memories to logic and flip-flops).
+Mapping memory \data_ram_inst_0.mem in module \fft_core:
+  created 16 $dff cells and 0 static cells of width 32.
+Extracted data FF from read port 0 of fft_core.data_ram_inst_0.mem: $\data_ram_inst_0.mem$rdreg[0]
+  read interface: 1 $dff and 15 $mux cells.
+  write interface: 16 write mux blocks.
+Mapping memory \data_ram_inst_1.mem in module \fft_core:
+  created 16 $dff cells and 0 static cells of width 32.
+Extracted data FF from read port 0 of fft_core.data_ram_inst_1.mem: $\data_ram_inst_1.mem$rdreg[0]
+  read interface: 1 $dff and 15 $mux cells.
+  write interface: 16 write mux blocks.
+Mapping memory \tw_rom.rom_im in module \fft_core:
+  created 8 $dff cells and 0 static cells of width 10.
+Extracted data FF from read port 0 of fft_core.tw_rom.rom_im: $\tw_rom.rom_im$rdreg[0]
+  read interface: 1 $dff and 7 $mux cells.
+  write interface: 0 write mux blocks.
+Mapping memory \tw_rom.rom_re in module \fft_core:
+  created 8 $dff cells and 0 static cells of width 16.
+Extracted data FF from read port 0 of fft_core.tw_rom.rom_re: $\tw_rom.rom_re$rdreg[0]
+  read interface: 1 $dff and 7 $mux cells.
+  write interface: 0 write mux blocks.
+
+2.20. Executing OPT pass (performing simple optimizations).
+
+2.20.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+<suppressed ~24 debug messages>
+
+2.20.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.20.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~206 debug messages>
+
+2.20.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+    Consolidated identical input bits for $mux cell $memory\tw_rom.rom_im$rdmux[0][2][0]$1838:
+      Old ports: A=10'0000000000, B=10'1111111111, Y=$memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833
+      New ports: A=1'0, B=1'1, Y=$memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0]
+      New connections: $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [9:1] = { $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] }
+    Consolidated identical input bits for $mux cell $memory\tw_rom.rom_re$rdmux[0][2][1]$1862:
+      Old ports: A=16'0000000000000000, B=16'1010010101111110, Y=$memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855
+      New ports: A=1'0, B=1'1, Y=$memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1]
+      New connections: { $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [15:2] $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [0] } = { $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] 1'0 $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] 2'00 $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] 1'0 $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] 1'0 $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] 1'0 }
+    Consolidated identical input bits for $mux cell $memory\tw_rom.rom_re$rdmux[0][2][0]$1859:
+      Old ports: A=16'0111111111111111, B=16'0101101010000010, Y=$memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854
+      New ports: A=1'1, B=1'0, Y=$memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0]
+      New connections: $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [15:1] = { 2'01 $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] 2'11 $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] 1'1 $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] 1'1 $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] 1'1 }
+    Consolidated identical input bits for $mux cell $procmux$180:
+      Old ports: A=4'0011, B=4'1001, Y=$procmux$180_Y
+      New ports: A=2'01, B=2'10, Y={ $procmux$180_Y [3] $procmux$180_Y [1] }
+      New connections: { $procmux$180_Y [2] $procmux$180_Y [0] } = 2'01
+    Consolidated identical input bits for $mux cell $procmux$795:
+      Old ports: A=2'00, B=2'10, Y=$auto$wreduce.cc:514:run$1118 [1:0]
+      New ports: A=1'0, B=1'1, Y=$auto$wreduce.cc:514:run$1118 [1]
+      New connections: $auto$wreduce.cc:514:run$1118 [0] = 1'0
+    Consolidated identical input bits for $mux cell $memory\tw_rom.rom_im$rdmux[0][2][1]$1841:
+      Old ports: A=10'1000000000, B=10'1111111111, Y=$memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834
+      New ports: A=1'0, B=1'1, Y=$memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0]
+      New connections: $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [9:1] = { 1'1 $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0] }
+  Optimizing cells in module \fft_core.
+    Consolidated identical input bits for $mux cell $memory\tw_rom.rom_im$rdmux[0][1][0]$1832:
+      Old ports: A=$memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833, B=$memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834, Y=$memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830
+      New ports: A={ $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [0] }, B={ 1'1 $memory\tw_rom.rom_im$rdmux[0][1][0]$b$1834 [0] }, Y={ $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [9] $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [0] }
+      New connections: $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [8:1] = { $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [0] $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [0] $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [0] $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [0] $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [0] $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [0] $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [0] $memory\tw_rom.rom_im$rdmux[0][0][0]$a$1830 [0] }
+    Consolidated identical input bits for $mux cell $memory\tw_rom.rom_re$rdmux[0][1][0]$1853:
+      Old ports: A=$memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854, B=$memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855, Y=$memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851
+      New ports: A={ 2'01 $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] 1'1 $memory\tw_rom.rom_re$rdmux[0][1][0]$a$1854 [0] }, B={ $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] 1'0 $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] $memory\tw_rom.rom_re$rdmux[0][1][0]$b$1855 [1] 1'0 }, Y={ $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [15] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [7] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [2:0] }
+      New connections: { $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [14:8] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [6:3] } = { $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [7] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [2] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [7] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [7] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [2] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [7] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [2] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [2] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [2] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [2] $memory\tw_rom.rom_re$rdmux[0][0][0]$a$1851 [2] }
+  Optimizing cells in module \fft_core.
+Performed a total of 8 changes.
+
+2.20.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+<suppressed ~6 debug messages>
+Removed a total of 2 cells.
+
+2.20.6. Executing OPT_SHARE pass.
+
+2.20.7. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.20.8. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 3 unused cells and 99 unused wires.
+<suppressed ~4 debug messages>
+
+2.20.9. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+<suppressed ~3 debug messages>
+
+2.20.10. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.20.11. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~201 debug messages>
+
+2.20.12. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+    Consolidated identical input bits for $mux cell $memory\tw_rom.rom_im$rdmux[0][1][0]$1832:
+      Old ports: A={ $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [9] $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [9] }, B={ 1'1 $memory\tw_rom.rom_im$rdmux[0][1][0]$a$1833 [9] }, Y=$\tw_rom.rom_im$rdreg[0]$d [9:8]
+      New ports: A=\tw_rom.addr [0], B=1'1, Y=$\tw_rom.rom_im$rdreg[0]$d [9]
+      New connections: $\tw_rom.rom_im$rdreg[0]$d [8] = \tw_rom.addr [0]
+  Optimizing cells in module \fft_core.
+Performed a total of 1 changes.
+
+2.20.13. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.20.14. Executing OPT_SHARE pass.
+
+2.20.15. Executing OPT_DFF pass (perform DFF optimizations).
+Adding EN signal on $memory\data_ram_inst_1.mem[9]$1705 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[9]).
+Adding EN signal on $memory\data_ram_inst_1.mem[8]$1703 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[8]).
+Adding EN signal on $memory\data_ram_inst_1.mem[7]$1701 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[7]).
+Adding EN signal on $memory\data_ram_inst_1.mem[6]$1699 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[6]).
+Adding EN signal on $memory\data_ram_inst_1.mem[5]$1697 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[5]).
+Adding EN signal on $memory\data_ram_inst_1.mem[4]$1695 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[4]).
+Adding EN signal on $memory\data_ram_inst_1.mem[3]$1693 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[3]).
+Adding EN signal on $memory\data_ram_inst_1.mem[2]$1691 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[2]).
+Adding EN signal on $memory\data_ram_inst_1.mem[1]$1689 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[1]).
+Adding EN signal on $memory\data_ram_inst_1.mem[15]$1717 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[15]).
+Adding EN signal on $memory\data_ram_inst_1.mem[14]$1715 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[14]).
+Adding EN signal on $memory\data_ram_inst_1.mem[13]$1713 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[13]).
+Adding EN signal on $memory\data_ram_inst_1.mem[12]$1711 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[12]).
+Adding EN signal on $memory\data_ram_inst_1.mem[11]$1709 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[11]).
+Adding EN signal on $memory\data_ram_inst_1.mem[10]$1707 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[10]).
+Adding EN signal on $memory\data_ram_inst_1.mem[0]$1687 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_1.mem[0]).
+Adding EN signal on $memory\data_ram_inst_0.mem[9]$1499 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[9]).
+Adding EN signal on $memory\data_ram_inst_0.mem[8]$1497 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[8]).
+Adding EN signal on $memory\data_ram_inst_0.mem[7]$1495 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[7]).
+Adding EN signal on $memory\data_ram_inst_0.mem[6]$1493 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[6]).
+Adding EN signal on $memory\data_ram_inst_0.mem[5]$1491 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[5]).
+Adding EN signal on $memory\data_ram_inst_0.mem[4]$1489 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[4]).
+Adding EN signal on $memory\data_ram_inst_0.mem[3]$1487 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[3]).
+Adding EN signal on $memory\data_ram_inst_0.mem[2]$1485 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[2]).
+Adding EN signal on $memory\data_ram_inst_0.mem[1]$1483 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[1]).
+Adding EN signal on $memory\data_ram_inst_0.mem[15]$1511 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[15]).
+Adding EN signal on $memory\data_ram_inst_0.mem[14]$1509 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[14]).
+Adding EN signal on $memory\data_ram_inst_0.mem[13]$1507 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[13]).
+Adding EN signal on $memory\data_ram_inst_0.mem[12]$1505 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[12]).
+Adding EN signal on $memory\data_ram_inst_0.mem[11]$1503 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[11]).
+Adding EN signal on $memory\data_ram_inst_0.mem[10]$1501 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[10]).
+Adding EN signal on $memory\data_ram_inst_0.mem[0]$1481 ($dff) from module fft_core (D = \data_ram_inst_0.wdata_i, Q = \data_ram_inst_0.mem[0]).
+
+2.20.16. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 32 unused cells and 34 unused wires.
+<suppressed ~33 debug messages>
+
+2.20.17. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+<suppressed ~1 debug messages>
+
+2.20.18. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.20.19. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \fft_core..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~71 debug messages>
+
+2.20.20. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \fft_core.
+Performed a total of 0 changes.
+
+2.20.21. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+Removed a total of 0 cells.
+
+2.20.22. Executing OPT_SHARE pass.
+
+2.20.23. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.20.24. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+
+2.20.25. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+
+2.20.26. Finished fast OPT passes. (There is nothing left to do.)
+
+2.21. Executing TECHMAP pass (map to technology primitives).
+
+2.21.1. Executing Verilog-2005 frontend: /usr/local/bin/../share/yosys/techmap.v
+Parsing Verilog input from `/usr/local/bin/../share/yosys/techmap.v' to AST representation.
+Generating RTLIL representation for module `\_90_simplemap_bool_ops'.
+Generating RTLIL representation for module `\_90_simplemap_reduce_ops'.
+Generating RTLIL representation for module `\_90_simplemap_logic_ops'.
+Generating RTLIL representation for module `\_90_simplemap_compare_ops'.
+Generating RTLIL representation for module `\_90_simplemap_various'.
+Generating RTLIL representation for module `\_90_simplemap_registers'.
+Generating RTLIL representation for module `\_90_shift_ops_shr_shl_sshl_sshr'.
+Generating RTLIL representation for module `\_90_shift_shiftx'.
+Generating RTLIL representation for module `\_90_fa'.
+Generating RTLIL representation for module `\_90_lcu_brent_kung'.
+Generating RTLIL representation for module `\_90_alu'.
+Generating RTLIL representation for module `\_90_macc'.
+Generating RTLIL representation for module `\_90_alumacc'.
+Generating RTLIL representation for module `\$__div_mod_u'.
+Generating RTLIL representation for module `\$__div_mod_trunc'.
+Generating RTLIL representation for module `\_90_div'.
+Generating RTLIL representation for module `\_90_mod'.
+Generating RTLIL representation for module `\$__div_mod_floor'.
+Generating RTLIL representation for module `\_90_divfloor'.
+Generating RTLIL representation for module `\_90_modfloor'.
+Generating RTLIL representation for module `\_90_pow'.
+Generating RTLIL representation for module `\_90_pmux'.
+Generating RTLIL representation for module `\_90_demux'.
+Generating RTLIL representation for module `\_90_lut'.
+Successfully finished Verilog frontend.
+
+2.21.2. Continuing TECHMAP pass.
+Using extmapper simplemap for cells of type $and.
+Using extmapper simplemap for cells of type $adff.
+Using extmapper simplemap for cells of type $eq.
+Using template $paramod$230414e68c147be2fdbace59b0da7e0ad938f7eb\_90_alu for cells of type $alu.
+Using template $paramod$90579471a6bf6bd40b5ef9b7e45de3774567ccf7\_90_alu for cells of type $alu.
+Using template $paramod$constmap:78ac68047929260c82f83be3c5d601fb9d2c6103$paramod$08ad5ada8bc7d33136057101b409deb368f05a3a\_90_shift_ops_shr_shl_sshl_sshr for cells of type $shr.
+Using template $paramod$32a7b7b86c07519b7537abc18e96f0331f97914d\_90_alu for cells of type $alu.
+Using extmapper simplemap for cells of type $reduce_bool.
+Using extmapper simplemap for cells of type $logic_and.
+Using extmapper simplemap for cells of type $adffe.
+Using template $paramod$943564b9366bbc392bf4bbc801aa0a2d7742a4e0\_90_alu for cells of type $alu.
+Using template $paramod$constmap:89d7bad749542a4c322cbb86f845a389e95ea099$paramod$02c2b1a13834c738938e714d08710622eb74b206\_90_shift_ops_shr_shl_sshl_sshr for cells of type $shl.
+Using template $paramod$740b056ede97228d3eae64ea2fdc81f0a33e0fe7\_90_alu for cells of type $alu.
+Using template $paramod$constmap:45dd65093308c650ef50140a2b54536f69ddaea7$paramod$92dd53f398275e5f4133e972a42d0da339195878\_90_shift_ops_shr_shl_sshl_sshr for cells of type $shl.
+Using template $paramod$constmap:f733c0a390dd85a0ce8a9c34762c9692e442e85e$paramod$5f7a7cae6521b083f13d703b86099da06f902e51\_90_shift_ops_shr_shl_sshl_sshr for cells of type $shr.
+Using template $paramod$43d013b1b23071cac2a91c4089ed845ba35c00c2\_90_alu for cells of type $alu.
+Using extmapper simplemap for cells of type $not.
+Using template $paramod$c04af8dbf0e5d1d69bbccb2c7bd8a93fc9ef54dc\_90_alu for cells of type $alu.
+Using template $paramod$constmap:bfe0ca88906696483df18622cab6ef08d7dcb3b1$paramod$2890fd275abdfa621e1782f5e92f5b93d9859c18\_90_shift_ops_shr_shl_sshl_sshr for cells of type $shl.
+Using extmapper simplemap for cells of type $xor.
+Using extmapper simplemap for cells of type $dffe.
+Using extmapper maccmap for cells of type $macc_v2.
+  add \w_q [31:16] * \v_q [31:16] (16x16 bits, signed)
+  sub { \w_q [15] 1'0 \w_q [13] 2'00 \w_q [10] 1'0 \w_q [8] 1'0 \w_q [6:1] 1'0 } * \v_q [15:0] (16x16 bits, signed)
+Using template $paramod$49a503ada62e7e4a1362ba19830e94cdcedc6a46\_90_alu for cells of type $alu.
+Using template $paramod$cff66329c78f14c05756fa469890bd1a4784ffc2\_90_alu for cells of type $alu.
+Using template $paramod$c262a9eba992bd375aee69244ae82bb2c8f55fe5\_90_alu for cells of type $alu.
+Using extmapper simplemap for cells of type $reduce_and.
+Using extmapper simplemap for cells of type $logic_or.
+Using extmapper simplemap for cells of type $logic_not.
+  add \w_q [31:16] * \v_q [15:0] (16x16 bits, signed)
+  add { \w_q [15] 1'0 \w_q [13] 2'00 \w_q [10] 1'0 \w_q [8] 1'0 \w_q [6:1] 1'0 } * \v_q [31:16] (16x16 bits, signed)
+Using extmapper simplemap for cells of type $or.
+Using extmapper simplemap for cells of type $sdffe.
+Using template $paramod$4d45682f6d5f8751d24fc75184ef72226da353f7\_90_pmux for cells of type $pmux.
+Using template $paramod$d629d85c8826a74239b9178d1930215a43b0ceb0\_90_pmux for cells of type $pmux.
+Using extmapper simplemap for cells of type $pos.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000101 for cells of type $lcu.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000010001 for cells of type $lcu.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000100 for cells of type $lcu.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000110 for cells of type $lcu.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000100000 for cells of type $lcu.
+Using template $paramod\_90_fa\WIDTH=32'00000000000000000000000000100000 for cells of type $fa.
+Using template $paramod$fbc7873bff55778c0b3173955b7e4bce1d9d6834\_90_alu for cells of type $alu.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000010 for cells of type $lcu.
+Using template $paramod\_90_fa\WIDTH=32'00000000000000000000000000011111 for cells of type $fa.
+No more expansions possible.
+<suppressed ~4835 debug messages>
+
+2.22. Executing OPT pass (performing simple optimizations).
+
+2.22.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+<suppressed ~6419 debug messages>
+
+2.22.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+<suppressed ~11337 debug messages>
+Removed a total of 3779 cells.
+
+2.22.3. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.22.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 369 unused cells and 2314 unused wires.
+<suppressed ~370 debug messages>
+
+2.22.5. Finished fast OPT passes.
+
+2.23. Executing ABC pass (technology mapping using ABC).
+
+2.23.1. Extracting gate netlist of module `\fft_core' to `<abc-temp-dir>/input.blif'..
+
+2.23.1.1. Executed ABC.
+Extracted 7765 gates and 9098 wires to a netlist network with 1331 inputs and 330 outputs.
+Running ABC script: <abc-temp-dir>/abc.script
+ABC: UC Berkeley, ABC 1.01 (compiled Sep 17 2025 10:27:03)
+ABC: abc 01> set abcout /dev/stdout
+ABC: abc 01> empty
+ABC: abc 01> source <abc-temp-dir>/abc.script
+ABC: + read_blif <abc-temp-dir>/input.blif 
+ABC: + read_library /tmp/yosys-abc-vIerhi/stdcells.genlib 
+ABC: + strash 
+ABC: + dretime 
+ABC: + map 
+ABC: + write_blif <abc-temp-dir>/output.blif 
+ABC: abc 04> echo "ABC_DONE"
+
+2.23.1.2. Re-integrating ABC results.
+ABC RESULTS:               AND cells:      353
+ABC RESULTS:            ANDNOT cells:     2148
+ABC RESULTS:               MUX cells:     1071
+ABC RESULTS:              NAND cells:      117
+ABC RESULTS:               NOR cells:      467
+ABC RESULTS:               NOT cells:      226
+ABC RESULTS:                OR cells:      947
+ABC RESULTS:             ORNOT cells:      107
+ABC RESULTS:              XNOR cells:      590
+ABC RESULTS:               XOR cells:     1615
+ABC RESULTS:        internal signals:     7437
+ABC RESULTS:           input signals:     1331
+ABC RESULTS:          output signals:      330
+Removing temp directory.
+Removing global temp directory.
+
+2.24. Executing OPT pass (performing simple optimizations).
+
+2.24.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module fft_core.
+<suppressed ~170 debug messages>
+
+2.24.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\fft_core'.
+<suppressed ~69 debug messages>
+Removed a total of 23 cells.
+
+2.24.3. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.24.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 3 unused cells and 2758 unused wires.
+<suppressed ~19 debug messages>
+
+2.24.5. Finished fast OPT passes.
+
+2.25. Executing HIERARCHY pass (managing design hierarchy).
+Attribute `top' found on module `fft_core'. Setting top module to fft_core.
+
+2.25.1. Analyzing design hierarchy..
+Top module:  \fft_core
+
+2.25.2. Analyzing design hierarchy..
+Top module:  \fft_core
+Removed 0 unused modules.
+
+2.26. Printing statistics.
+
+=== fft_core ===
+
+        +----------Local Count, excluding submodules.
+        | 
+     7473 wires
+     9621 wire bits
+      128 public wires
+     2159 public wire bits
+        9 ports
+       55 port bits
+     8975 cells
+     2146   $_ANDNOT_
+      346   $_AND_
+      231   $_DFFE_PN0P_
+     1024   $_DFFE_PP_
+       41   $_DFF_PN0_
+     1071   $_MUX_
+      116   $_NAND_
+      465   $_NOR_
+      223   $_NOT_
+      103   $_ORNOT_
+      943   $_OR_
+       64   $_SDFFE_PN0N_
+      588   $_XNOR_
+     1614   $_XOR_
+
+2.27. Executing CHECK pass (checking for obvious problems).
+Checking module fft_core...
+Found and reported 0 problems.
+
+3. Generating Graphviz representation of design.
+Writing dot description to `syn/plots/fft_core_postsyn.dot'.
+Dumping module fft_core to page 1.
+
+4. Executing DFFLIBMAP pass (mapping DFF cells to sequential cells from liberty file).
+  cell sky130_fd_sc_hd__dfxtp_1 (noninv, pins=3, area=20.02) is a direct match for cell type $_DFF_P_.
+  cell sky130_fd_sc_hd__dfrtn_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_NN0_.
+  cell sky130_fd_sc_hd__dfrtp_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_PN0_.
+  cell sky130_fd_sc_hd__dfstp_2 (noninv, pins=4, area=26.28) is a direct match for cell type $_DFF_PN1_.
+  cell sky130_fd_sc_hd__edfxtp_1 (noninv, pins=4, area=30.03) is a direct match for cell type $_DFFE_PP_.
+  cell sky130_fd_sc_hd__dfbbn_1 (noninv, pins=6, area=32.53) is a direct match for cell type $_DFFSR_NNN_.
+  cell sky130_fd_sc_hd__dfbbp_1 (noninv, pins=6, area=32.53) is a direct match for cell type $_DFFSR_PNN_.
+  final dff cell mappings:
+    unmapped dff cell: $_DFF_N_
+    \sky130_fd_sc_hd__dfxtp_1 _DFF_P_ (.CLK( C), .D( D), .Q( Q));
+    \sky130_fd_sc_hd__dfrtn_1 _DFF_NN0_ (.CLK_N( C), .D( D), .Q( Q), .RESET_B( R));
+    unmapped dff cell: $_DFF_NN1_
+    unmapped dff cell: $_DFF_NP0_
+    unmapped dff cell: $_DFF_NP1_
+    \sky130_fd_sc_hd__dfrtp_1 _DFF_PN0_ (.CLK( C), .D( D), .Q( Q), .RESET_B( R));
+    \sky130_fd_sc_hd__dfstp_2 _DFF_PN1_ (.CLK( C), .D( D), .Q( Q), .SET_B( R));
+    unmapped dff cell: $_DFF_PP0_
+    unmapped dff cell: $_DFF_PP1_
+    unmapped dff cell: $_DFFE_NN_
+    unmapped dff cell: $_DFFE_NP_
+    unmapped dff cell: $_DFFE_PN_
+    \sky130_fd_sc_hd__edfxtp_1 _DFFE_PP_ (.CLK( C), .D( D), .DE( E), .Q( Q));
+    \sky130_fd_sc_hd__dfbbn_1 _DFFSR_NNN_ (.CLK_N( C), .D( D), .Q( Q), .Q_N(~Q), .RESET_B( R), .SET_B( S));
+    unmapped dff cell: $_DFFSR_NNP_
+    unmapped dff cell: $_DFFSR_NPN_
+    unmapped dff cell: $_DFFSR_NPP_
+    \sky130_fd_sc_hd__dfbbp_1 _DFFSR_PNN_ (.CLK( C), .D( D), .Q( Q), .Q_N(~Q), .RESET_B( R), .SET_B( S));
+    unmapped dff cell: $_DFFSR_PNP_
+    unmapped dff cell: $_DFFSR_PPN_
+    unmapped dff cell: $_DFFSR_PPP_
+
+4.1. Executing DFFLEGALIZE pass (convert FFs to types supported by the target).
+<suppressed ~24 debug messages>
+Mapping DFF cells in module `\fft_core':
+  mapped 1024 $_DFFE_PP_ cells to \sky130_fd_sc_hd__edfxtp_1 cells.
+  mapped 272 $_DFF_PN0_ cells to \sky130_fd_sc_hd__dfrtp_1 cells.
+  mapped 64 $_DFF_P_ cells to \sky130_fd_sc_hd__dfxtp_1 cells.
+
+5. Executing ABC pass (technology mapping using ABC).
+
+5.1. Extracting gate netlist of module `\fft_core' to `<abc-temp-dir>/input.blif'..
+
+5.1.1. Executed ABC.
+Extracted 7974 gates and 9322 wires to a netlist network with 1347 inputs and 369 outputs.
+Running ABC script: <abc-temp-dir>/abc.script
+ABC: UC Berkeley, ABC 1.01 (compiled Sep 17 2025 10:27:03)
+ABC: abc 01> set abcout /dev/stdout
+ABC: abc 01> empty
+ABC: abc 01> source <abc-temp-dir>/abc.script
+ABC: + read_blif <abc-temp-dir>/input.blif 
+ABC: + read_lib -w /home/eneadim/github/flexsoc/lib/sky130_fd_sc_hd__tt_025C_1v80.lib 
+ABC: Parsing finished successfully.  Parsing time =     0.05 sec
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_12" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_3" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_6" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_8" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfbbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfbbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfbbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfsbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfsbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfstp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfstp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfstp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxtp_4".
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__diode_2" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__dlclkp_1" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__dlclkp_2" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__dlclkp_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtn_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtn_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_2".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_4".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_8".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__edfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__edfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped three-stat+ strash 
+ABC: + &get -n 
+ABC: + &fraig -x 
+ABC: + &put 
+ABC: + scorr 
+ABC: + dc2 
+ABC: + dretime 
+ABC: + retime -o -D 10000 
+ABC: + strash 
+ABC: + &get -n 
+ABC: + &dch -f 
+ABC: + &nf -D 10000 
+ABC: + &put 
+ABC: + write_blif <abc-temp-dir>/output.blif 
+ABC: e cell "sky130_fd_sc_hd__einvn_0".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_2".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_4".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_8".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_2".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_4".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_8".
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_bleeder_1" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_12" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_3" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_6" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_8" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__lpflow_inputisolatch_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfbbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfbbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfbbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfsbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfsbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfstp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfstp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfstp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxtp_4".
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__sdlclkp_1" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__sdlclkp_2" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__sdlclkp_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_4".
+ABC: Library "sky130_fd_sc_hd__tt_025C_1v80" from "/home/eneadim/github/flexsoc/lib/sky130_fd_sc_hd__tt_025C_1v80.lib" has 334 cells (94 skipped: 63 seq; 13 tri-state; 18 no func; 0 dont_use; 0 with 2 outputs; 0 with 3+ outputs).  Time =     0.08 sec
+ABC: Memory =   19.85 MB. Time =     0.08 sec
+ABC: Warning: Detected 9 multi-output cells (for example, "sky130_fd_sc_hd__fa_1").
+ABC: Warning: The network is combinational (run "fraig" or "fraig_sweep").
+ABC: abc 07> echo "ABC_DONE"
+
+5.1.2. Re-integrating ABC results.
+ABC RESULTS:   sky130_fd_sc_hd__a2111oi_0 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__a211o_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__a211oi_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__a21bo_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__a21boi_0 cells:       15
+ABC RESULTS:   sky130_fd_sc_hd__a21o_1 cells:       51
+ABC RESULTS:   sky130_fd_sc_hd__a21oi_1 cells:      781
+ABC RESULTS:   sky130_fd_sc_hd__a222oi_1 cells:      256
+ABC RESULTS:   sky130_fd_sc_hd__a22o_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__a22oi_1 cells:       17
+ABC RESULTS:   sky130_fd_sc_hd__a311o_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__a311oi_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__a31o_1 cells:        6
+ABC RESULTS:   sky130_fd_sc_hd__a31oi_1 cells:       37
+ABC RESULTS:   sky130_fd_sc_hd__a32o_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__a32oi_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__and2_0 cells:       71
+ABC RESULTS:   sky130_fd_sc_hd__and3_1 cells:       49
+ABC RESULTS:   sky130_fd_sc_hd__and4_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__buf_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__clkinv_1 cells:      168
+ABC RESULTS:   sky130_fd_sc_hd__lpflow_inputiso1p_1 cells:       49
+ABC RESULTS:   sky130_fd_sc_hd__lpflow_isobufsrc_1 cells:      156
+ABC RESULTS:   sky130_fd_sc_hd__maj3_1 cells:      315
+ABC RESULTS:   sky130_fd_sc_hd__mux2_1 cells:       24
+ABC RESULTS:   sky130_fd_sc_hd__mux2i_1 cells:       54
+ABC RESULTS:   sky130_fd_sc_hd__nand2_1 cells:      937
+ABC RESULTS:   sky130_fd_sc_hd__nand2b_1 cells:      106
+ABC RESULTS:   sky130_fd_sc_hd__nand3_1 cells:      143
+ABC RESULTS:   sky130_fd_sc_hd__nand3b_1 cells:        6
+ABC RESULTS:   sky130_fd_sc_hd__nand4_1 cells:       11
+ABC RESULTS:   sky130_fd_sc_hd__nand4b_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__nor2_1 cells:      539
+ABC RESULTS:   sky130_fd_sc_hd__nor2b_1 cells:       39
+ABC RESULTS:   sky130_fd_sc_hd__nor3_1 cells:      100
+ABC RESULTS:   sky130_fd_sc_hd__nor3b_1 cells:        5
+ABC RESULTS:   sky130_fd_sc_hd__nor4_1 cells:       75
+ABC RESULTS:   sky130_fd_sc_hd__nor4bb_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__o211ai_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__o21a_1 cells:       28
+ABC RESULTS:   sky130_fd_sc_hd__o21ai_0 cells:      430
+ABC RESULTS:   sky130_fd_sc_hd__o21ba_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__o21bai_1 cells:       15
+ABC RESULTS:   sky130_fd_sc_hd__o22a_1 cells:        6
+ABC RESULTS:   sky130_fd_sc_hd__o22ai_1 cells:       18
+ABC RESULTS:   sky130_fd_sc_hd__o311ai_0 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__o31a_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__o31ai_1 cells:        8
+ABC RESULTS:   sky130_fd_sc_hd__o32a_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__o32ai_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__or3_1 cells:       21
+ABC RESULTS:   sky130_fd_sc_hd__or3b_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__or4_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__xnor2_1 cells:     1009
+ABC RESULTS:   sky130_fd_sc_hd__xnor3_1 cells:       48
+ABC RESULTS:   sky130_fd_sc_hd__xor2_1 cells:      569
+ABC RESULTS:   sky130_fd_sc_hd__xor3_1 cells:       29
+ABC RESULTS:        internal signals:     7606
+ABC RESULTS:           input signals:     1347
+ABC RESULTS:          output signals:      369
+Removing temp directory.
+Removing global temp directory.
+
+6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \fft_core..
+Removed 0 unused cells and 9154 unused wires.
+<suppressed ~62 debug messages>
+
+7. Printing statistics.
+
+=== fft_core ===
+
+        +----------Local Count, excluding submodules.
+        |        +-Local Area, excluding submodules.
+        |        | 
+     6254        - wires
+     7715        - wire bits
+       67        - public wires
+     1528        - public wire bits
+        9        - ports
+       55        - port bits
+     7589 7.99E+04 cells
+        2   17.517   sky130_fd_sc_hd__a2111oi_0
+        3   26.275   sky130_fd_sc_hd__a211o_1
+        3   22.522   sky130_fd_sc_hd__a211oi_1
+        2   20.019   sky130_fd_sc_hd__a21bo_1
+       15  112.608   sky130_fd_sc_hd__a21boi_0
+       51  382.867   sky130_fd_sc_hd__a21o_1
+      781 3.91E+03   sky130_fd_sc_hd__a21oi_1
+      256 2.56E+03   sky130_fd_sc_hd__a222oi_1
+        3   26.275   sky130_fd_sc_hd__a22o_1
+       17  127.622   sky130_fd_sc_hd__a22oi_1
+        1    10.01   sky130_fd_sc_hd__a311o_1
+        2   17.517   sky130_fd_sc_hd__a311oi_1
+        6    52.55   sky130_fd_sc_hd__a31o_1
+       37  231.472   sky130_fd_sc_hd__a31oi_1
+        2   20.019   sky130_fd_sc_hd__a32o_1
+        1    8.758   sky130_fd_sc_hd__a32oi_1
+       71  444.176   sky130_fd_sc_hd__and2_0
+       49  306.544   sky130_fd_sc_hd__and3_1
+        2   17.517   sky130_fd_sc_hd__and4_1
+        2    7.507   sky130_fd_sc_hd__buf_1
+      168  630.605   sky130_fd_sc_hd__clkinv_1
+      272 6.81E+03   sky130_fd_sc_hd__dfrtp_1
+       64 1.28E+03   sky130_fd_sc_hd__dfxtp_1
+     1024 3.07E+04   sky130_fd_sc_hd__edfxtp_1
+       49  306.544   sky130_fd_sc_hd__lpflow_inputiso1p_1
+      156  975.936   sky130_fd_sc_hd__lpflow_isobufsrc_1
+      315 3.15E+03   sky130_fd_sc_hd__maj3_1
+       24  270.259   sky130_fd_sc_hd__mux2_1
+       54  540.518   sky130_fd_sc_hd__mux2i_1
+      937 3.52E+03   sky130_fd_sc_hd__nand2_1
+      106  663.136   sky130_fd_sc_hd__nand2b_1
+      143  715.686   sky130_fd_sc_hd__nand3_1
+        6   45.043   sky130_fd_sc_hd__nand3b_1
+       11   68.816   sky130_fd_sc_hd__nand4_1
+        1    8.758   sky130_fd_sc_hd__nand4b_1
+      539  2023.19   sky130_fd_sc_hd__nor2_1
+       39  243.984   sky130_fd_sc_hd__nor2b_1
+      100   500.48   sky130_fd_sc_hd__nor3_1
+        5   37.536   sky130_fd_sc_hd__nor3b_1
+       75    469.2   sky130_fd_sc_hd__nor4_1
+        1    10.01   sky130_fd_sc_hd__nor4bb_1
+        3   22.522   sky130_fd_sc_hd__o211ai_1
+       28  210.202   sky130_fd_sc_hd__o21a_1
+      430 2.15E+03   sky130_fd_sc_hd__o21ai_0
+        3   30.029   sky130_fd_sc_hd__o21ba_1
+       15  112.608   sky130_fd_sc_hd__o21bai_1
+        6    52.55   sky130_fd_sc_hd__o22a_1
+       18  112.608   sky130_fd_sc_hd__o22ai_1
+        1    8.758   sky130_fd_sc_hd__o311ai_0
+        1    8.758   sky130_fd_sc_hd__o31a_1
+        8   60.058   sky130_fd_sc_hd__o31ai_1
+        1    10.01   sky130_fd_sc_hd__o32a_1
+        2   17.517   sky130_fd_sc_hd__o32ai_1
+       21  131.376   sky130_fd_sc_hd__or3_1
+        1    8.758   sky130_fd_sc_hd__or3b_1
+        1    7.507   sky130_fd_sc_hd__or4_1
+     1009 8.84E+03   sky130_fd_sc_hd__xnor2_1
+       48 1.08E+03   sky130_fd_sc_hd__xnor3_1
+      569  4983.53   sky130_fd_sc_hd__xor2_1
+       29  689.411   sky130_fd_sc_hd__xor3_1
+
+   Chip area for module '\fft_core': 79876.608000
+     of which used for sequential elements: 38837.248000 (48.62%)
+
+8. Executing Verilog backend.
+
+8.1. Executing BMUXMAP pass.
+
+8.2. Executing DEMUXMAP pass.
+Dumping module `\fft_core'.
+
+9. Executing JSON backend.
+
+End of script. Logfile hash: 91bb9d89fe, CPU: user 1.33s system 0.07s, MEM: 88.43 MB peak
+Yosys 0.57+125 (git sha1 5e550ddc3, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+Time spent: 53% 2x abc (1 sec), 9% 44x opt_expr (0 sec), ...

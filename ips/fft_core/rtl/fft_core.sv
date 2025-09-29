@@ -90,17 +90,80 @@ module fft_core
     return '{re: res.re, im: res.im};
   endfunction
 
-  ///////////////////////
-  // Index Computation //
-  ///////////////////////
-
+  // Logic signals
+  logic [LOG2_FFT_SIZE-1:0] counter_samples, reversed_addr;
+  logic                     sample_pair_valid;
+  complex_t                 input_sample;
+  
   // Counters for butterflies in COMPUTE stage
   logic [LOG2_FFT_SIZE-1:0] stage_count;
   logic [LOG2_FFT_SIZE-1:0] group_count;
   logic [LOG2_FFT_SIZE-1:0] butterfly_count;
   
   // Butterfly Count
-  logic rst_butterfly_count;
+  logic rst_butterfly_count, en_butterfly_cnt_rd;
+  logic en_cnt_rd;
+
+  // Address index computation
+  logic [31:0] m, d, groups;
+  
+  // Reset after n_butterflyes//groups
+  int n_rst, n;
+
+  // Group count
+  logic rst_group_count, en_group_cnt_rd;
+
+  // Mem sel
+  logic mem_sel_rd;
+
+  // RAM 0
+  logic wr_mem_w_0;
+  logic mem_in_valid_0, mem_in_ready_0;
+  logic mem_out_valid_0, mem_out_ready_0;
+  logic [COMPLEX_WIDTH-1:0] mem_in_data_0;
+  logic [COMPLEX_WIDTH-1:0] mem_out_data_0;
+  logic [LOG2_FFT_SIZE-1:0] mem_address_0;
+  // RAM 1
+  logic wr_mem_w_1;
+  logic mem_in_valid_1, mem_in_ready_1;
+  logic mem_out_valid_1, mem_out_ready_1;
+  logic [COMPLEX_WIDTH-1:0] mem_in_data_1;
+  logic [COMPLEX_WIDTH-1:0] mem_out_data_1;
+  logic [LOG2_FFT_SIZE-1:0] mem_address_1;
+
+  //////////////
+  // MAIN FSM //
+  //////////////
+  logic en_cnt_samples, end_algo_w, done_w, we_mem_w, read_ram_w;
+  
+  state_fsm state_w;
+  
+  fft_fsm u_fft_fsm (
+    .clk_i,
+    .rst_ni,
+    .start_i(adc_valid_i),
+    .read_ram_i(read_ram_i),
+    .end_samples_i(counter_samples == FFT_SIZE-1),
+    .end_read_1(1'b1),
+    .end_read_2(1'b1),
+    .end_compute_mul_i(1'b1),
+    .end_compute_i(1'b1),
+    .end_write_1(1'b1),
+    .end_algo_i(end_algo_w),
+    .en_cnt_samples_o(en_cnt_samples),
+    .wr_mem_o(wr_mem_w),
+    .en_cnt_rd_o(en_cnt_rd),
+    .read_ram_o(read_ram_w),
+    .done_o(done_w),
+    .state_o(state_w)
+  );
+
+  assign end_algo_w = (stage_count==LOG2_FFT_SIZE);
+
+  ///////////////////////
+  // Index Computation //
+  ///////////////////////
+
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if(!rst_ni) begin
       butterfly_count <= '0;
@@ -114,15 +177,12 @@ module fft_core
   // Enable
   assign en_butterfly_cnt_rd = en_cnt_rd;
   
-  // Reset after n_butterflyes//groups
-  int n_rst;
   always_comb begin
     n_rst = n >> (LOG2_FFT_SIZE - stage_count);
   end
   assign rst_butterfly_count = (butterfly_count == n_rst-1) && (state_w==WRITE_RESULT_1);
   
   // Group count
-  logic rst_group_count, en_group_cnt_rd;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if(!rst_ni) begin
       group_count <= '0;
@@ -156,9 +216,6 @@ module fft_core
   assign rst_stage_count = end_algo_w;  
 
 
-  // Address index computation
-  int m, d, groups, n;
-  
   always_comb begin
     m      = 1 << (stage_count + 1);
     d      = 1 << stage_count;
@@ -205,7 +262,7 @@ module fft_core
   /////////////////////////////////////////////
 
   // Complex data
-  complex_t w, w_q, u_q, v_q, w_q;
+  complex_t w, w_q, u_q, v_q;
   complex_t u_mac, v_mac, u_mac_q, v_mac_q;
   complex_ext_t t, t_q, u_ext;
   
@@ -286,54 +343,21 @@ module fft_core
   // Note:
   // - Both u_mac_q and v_mac_q ready on WRITE_RESULT_1
   
-  //////////////
-  // MAIN FSM //
-  //////////////
-  logic en_cnt_samples, end_algo_w, done_w, we_mem_w, read_ram_w;
-  
-  state_fsm state_w;
-  
-  fft_fsm u_fft_fsm (
-    .clk_i,
-    .rst_ni,
-    .start_i(adc_valid_i),
-    .read_ram_i(read_ram_i),
-    .end_samples_i(counter_samples == FFT_SIZE-1),
-    .end_read_1(1'b1),
-    .end_read_2(1'b1),
-    .end_compute_mul_i(1'b1),
-    .end_compute_i(1'b1),
-    .end_write_1(1'b1),
-    .end_algo_i(end_algo_w),
-    .en_cnt_samples_o(en_cnt_samples),
-    .wr_mem_o(wr_mem_w),
-    .en_cnt_rd_o(en_cnt_rd),
-    .read_ram_o(read_ram_w),
-    .done_o(done_w),
-    .state_o(state_w)
-  );
-
-  assign end_algo_w = (stage_count==LOG2_FFT_SIZE);
-
-  always_ff @(posedge clk_i) begin
-    if (state_w == COMPUTE_ADD_SUB) begin
-      $display("STAGE=%0d BUTTERFLY u=%0d v=%0d w_idx=%0d", stage_count, u_idx, v_idx, w_idx);
-      $display("  u_q = %h_%h", $signed(u_q.re), $signed(u_q.im));
-      $display("  v_q = %h_%h", $signed(v_q.re), $signed(v_q.im));
-      $display("  w_q = %h_%h", $signed(w_q.re), $signed(w_q.im));
-      $display("  t_q = %h_%h", $signed(t_q.re), $signed(t_q.im));
-      $display("  u'  = %h_%h", $signed(u_mac_q.re), $signed(u_mac_q.im));
-      $display("  v'  = %h_%h", $signed(v_mac_q.re), $signed(v_mac_q.im));
-    end
-  end
+  //always_ff @(posedge clk_i) begin
+  //  if (state_w == COMPUTE_ADD_SUB) begin
+  //    $display("STAGE=%0d BUTTERFLY u=%0d v=%0d w_idx=%0d", stage_count, u_idx, v_idx, w_idx);
+  //    $display("  u_q = %h_%h", $signed(u_q.re), $signed(u_q.im));
+  //    $display("  v_q = %h_%h", $signed(v_q.re), $signed(v_q.im));
+  //    $display("  w_q = %h_%h", $signed(w_q.re), $signed(w_q.im));
+  //    $display("  t_q = %h_%h", $signed(t_q.re), $signed(t_q.im));
+  //    $display("  u'  = %h_%h", $signed(u_mac_q.re), $signed(u_mac_q.im));
+  //    $display("  v'  = %h_%h", $signed(v_mac_q.re), $signed(v_mac_q.im));
+  //  end
+  //end
 
   // ---------------------------------------------------
   // Input buffering: pack two re samples into one complex sample
   // ---------------------------------------------------
-  logic [LOG2_FFT_SIZE-1:0] counter_samples, reversed_addr;
-  logic                     sample_pair_valid;
-  complex_t                 input_sample;
-  
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       sample_pair_valid <= 1'b0;
@@ -374,7 +398,6 @@ module fft_core
   //
   // Stage count LSB to select MEM to read and MEM to write
   //
-  logic mem_sel_rd;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
       mem_sel_rd <= '0;
@@ -384,14 +407,6 @@ module fft_core
   end
 
   
-  // RAM 0
-  logic wr_mem_w_0;
-  logic mem_in_valid_0, mem_in_ready_0;
-  logic mem_out_valid_0, mem_out_ready_0;
-  logic [COMPLEX_WIDTH-1:0] mem_in_data_0;
-  logic [COMPLEX_WIDTH-1:0] mem_out_data_0;
-  logic [LOG2_FFT_SIZE-1:0] mem_address_0;
-
   // Complex data
   assign mem_in_data_0 = (state_w==ACTIVE_WRITE)   ? {input_sample.re, input_sample.im} :
                          (state_w==WRITE_RESULT_1) ? u_mac_q : v_mac_q;
@@ -422,13 +437,6 @@ module fft_core
     .rdata_o(mem_out_data_0)
   );
 
-  // RAM 1
-  logic wr_mem_w_1;
-  logic mem_in_valid_1, mem_in_ready_1;
-  logic mem_out_valid_1, mem_out_ready_1;
-  logic [COMPLEX_WIDTH-1:0] mem_in_data_1;
-  logic [COMPLEX_WIDTH-1:0] mem_out_data_1;
-  logic [LOG2_FFT_SIZE-1:0] mem_address_1;
 
   // Complex data
   assign mem_in_data_1 = (state_w==ACTIVE_WRITE)   ? {input_sample.re, input_sample.im} :
@@ -461,9 +469,24 @@ module fft_core
     .rdata_o(mem_out_data_1)
   );
 
-  logic signed [15:0] res_re, res_im;
+  logic signed [15:0] res_re, res_im, res_re_w, res_im_w;
   
-  assign res_re = (LOG2_FFT_SIZE[0]) ? mem_out_data_0[31:16] : mem_out_data_1[31:16];
-  assign res_im = (LOG2_FFT_SIZE[0]) ? mem_out_data_0[15:0]  : mem_out_data_1[15:0];
+  assign res_re_w = (LOG2_FFT_SIZE[0]) ? mem_out_data_0[31:16] : mem_out_data_1[31:16];
+  assign res_im_w = (LOG2_FFT_SIZE[0]) ? mem_out_data_0[15:0]  : mem_out_data_1[15:0];
+
+  prim_ff #(.Width(16),.ResetValue(0)
+  ) u_res_re (.clk_i, .rst_ni,
+    .d_i(res_re_w),
+    .q_o(res_re)
+  );
+
+  prim_ff #(.Width(16),.ResetValue(0)
+  ) u_res_im (.clk_i, .rst_ni,
+    .d_i(res_im_w),
+    .q_o(res_im)
+  );
+
+  assign fft_out_data_o = {res_re, res_im};
+  assign fft_out_valid_o = wr_mem_w_0 || wr_mem_w_1;
 
 endmodule

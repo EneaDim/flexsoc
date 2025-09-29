@@ -8,6 +8,9 @@ package cache_wrapper_reg_pkg;
 
   // Address widths within the block
   parameter int BlockAw = 4;
+  parameter int AW = BlockAw;
+  parameter int DW = 32;
+  parameter int DBW = DW/8;                    // Byte Width
 
   ////////////////////////////
   // Typedefs for registers //
@@ -97,6 +100,20 @@ package cache_wrapper_reg_pkg;
     4'b 0001, // index[1] CACHE_WRAPPER_STATUS
     4'b 0001, // index[2] CACHE_WRAPPER_RDATA
     4'b 0001  // index[3] CACHE_WRAPPER_WDATA
+  };
+
+  parameter type reg_req_t = struct packed {
+    logic           valid;
+    logic           write;
+    logic [AW-1:0]  addr;
+    logic [DW-1:0]  wdata;
+    logic [DBW-1:0] wstrb;
+  };
+
+  parameter type reg_rsp_t = struct packed {
+    logic [DW-1:0]  rdata;
+    logic           error;
+    logic           ready;
   };
 
 endpackage

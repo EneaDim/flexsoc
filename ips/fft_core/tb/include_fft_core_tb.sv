@@ -4,7 +4,7 @@
 `include "ips/pkgs/prim_mubi_pkg.sv"
 `include "ips/pkgs/prim_secded_pkg.sv"
 `ifndef SYN
-  `include "rtl/fft_core.v"
+  `include "rtl/fft_core.sv"
 `else
   `include "verilog/primitives.v"
   `include "verilog/sky130_fd_sc_hd.v"
