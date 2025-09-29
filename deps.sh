@@ -9,9 +9,9 @@ install_ip_dependencies() {
     cd
     sudo apt update
     sudo apt upgrade
-    sudo apt-get install -y build-essential clang bison flex nodejs npm \
-      libreadline-dev gawk tcl-dev libffi-dev git autoconf cmake libelf-dev \
-    	curl graphviz xdot pkg-config libboost-system-dev help2man autoconf swig \
+    sudo apt-get install -y build-essential clang flex bison libfl-dev nodejs npm \
+      libreadline-dev gawk tcl-dev libffi-dev git cmake libelf-dev autoconf swig \
+      curl graphviz xdot pkg-config libboost-system-dev ninja-build pkg-config help2man \
       libeigen3-dev libboost-python-dev libboost-filesystem-dev zlib1g-dev --assume-yes
     echo "|**********************************************************************************|"
     echo "|                               Installing iverilog                                |"
