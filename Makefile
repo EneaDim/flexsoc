@@ -165,14 +165,14 @@ regression:
 .PHONY: syn syn_v syn_sv
 syn: $(if $(filter v,$(VSV)),syn_v,syn_sv)
 
-syn_v: clean_rtl setup_syn
+syn_v: setup_syn
 	@$(MKDIR) -p $(SYNDIR)/plots
 	@$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
 	$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log 
 	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
 	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
-syn_sv: clean_rtl setup_syn
+syn_sv: setup_syn
 	@$(MKDIR) -p $(SYNDIR)/plots
 	@$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
 	$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log 
