@@ -110,7 +110,8 @@ def main():
         ips / "tlul" / "tlul_socket_m1.sv",
         ips / "tlul" / "tlul_sram_byte.sv",
     ]
-    # Build candidates
+
+    # Candidati "dinamici" legati al top
     dynamic_candidates = [
         rtl / f"{top}_reg_pkg.sv",
         rtl / f"{top}_reg_top.sv",
@@ -118,16 +119,31 @@ def main():
         rtl / f"{top}.sv",
     ]
 
-    # Keep only existing files
+    # Tieni solo quelli esistenti
     dynamic = [p for p in dynamic_candidates if p.is_file()]
+    dyn_resolved = {p.resolve() for p in dynamic}
 
-    # (Optional) warn about removed items
+    # Raccogli tutti i file sotto rtl (ricorsivo)
+    all_rtl = []
+    for pattern in ("*.sv", "*.v"):
+        all_rtl.extend(rtl.rglob(pattern))
+
+    # Escludi quelli già in dynamic
+    rtl_rest = [p for p in all_rtl if p.resolve() not in dyn_resolved]
+
+    # === Priorità ai package *_pkg.sv ===
+    rtl_rest = sorted(
+        rtl_rest,
+        key=lambda p: (not p.name.endswith("_pkg.sv"), p.as_posix())
+    )
+
+    # (Opzionale) warning per i dynamic mancanti
     if not args.no_check:
         for p in (p for p in dynamic_candidates if not p.is_file()):
             print(f"Warning: {p.as_posix()} does not exist (removed from list).")
 
-    paths = fixed + dynamic
-
+    # Ordine finale: fixed + rtl_rest (pkg prima) + dynamic
+    paths = fixed + rtl_rest + dynamic
 
     # Optionally check that files exist and warn (but still write the list).
     if not args.no_check:
