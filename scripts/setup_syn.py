@@ -155,7 +155,7 @@ try:
             mystr += '           -I ips/prim \\\n'
             mystr += '           -I ips/prim_opentitan \\\n'
             mystr += '           -I ips/tlul \\\n'
-            mystr += '           -D ASSERT_DEFAULT_RST={!rst_ni} \\\n'
+            mystr += '           -D SYNTHESIS \\\n'
             mystr += '           --ignore-assertions \\\n'
             mystr += '           -f rtl/rtl_list.f \\\n'
             mystr += '           --top '+str(top)+'\n'

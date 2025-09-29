@@ -37,6 +37,8 @@ try:
                     help="Tell the compiler used Verilator/Iverilog")
     ap.add_argument("-itf",   "--itf",   type=str, required=True,
                     help="Define the register interface: supported reg_iface - tlul")
+    ap.add_argument("-vsv",   "--vsv",   type=str, required=True,
+                    help="Define the top file type: -verilog or -systemverilog")
     ap.add_argument("-o",     "--output",type=str, required=False,
                     help="Output Folder (base path for generated files)")
     args = vars(ap.parse_args())
@@ -49,6 +51,7 @@ try:
     clk_period   = args.get("clk")
     compiler     = args.get("comp")
     itf          = args.get("itf")
+    vsv          = args.get("vsv")
     output_folder= args.get("output")
     parameters_flag = False
 except Exception as err:
@@ -235,9 +238,9 @@ try:
             mystr += '    end\n'
             mystr += '    #1;\n'
             mystr += '  endtask\n\n'
-            mystr += '  task automatic tlul_read(input logic [top_pkg::TL_AW-1:0]  addr,\n'
+            mystr += '  task automatic tlul_read(input  logic [top_pkg::TL_AW-1:0]  addr,\n'
             mystr += '                           output logic [top_pkg::TL_DW-1:0]  data,\n'
-            mystr += '                           input logic [top_pkg::TL_AIW-1:0] source);\n\n'
+            mystr += '                           input  logic [top_pkg::TL_AIW-1:0] source);\n\n'
             mystr += '    $display("[%0t] TLUL READ: Addr = 0x%08x", $time, addr);\n\n'
             mystr += "    drv_if.h2d.d_ready   = 1'b1;\n"
             mystr += "    drv_if.h2d.a_valid   = 1'b1;\n"
@@ -406,7 +409,10 @@ try:
                 mystr += '`include "tb/reg_utils.sv"\n'
                 mystr += '`include "tb/reg_if.sv"\n'
             mystr += '`ifndef SYN\n'
-            mystr += '  `include "'+str(rtldir)+'/'+str(top)+'.v"\n'
+            if vsv == 'sv':
+                mystr += '  `include "'+str(rtldir)+'/'+str(top)+'.sv"\n'
+            else:
+                mystr += '  `include "'+str(rtldir)+'/'+str(top)+'.v"\n'
             mystr += '`else\n'
             for p in prim:
                 mystr += '  `include "'+str(p)+'"\n'

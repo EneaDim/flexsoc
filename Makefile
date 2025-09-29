@@ -59,6 +59,7 @@ rtl_stub:
 	@$(ECHO) "\n$(ORANGE)RTL stub generation...\n$(RESET)"
 	$(PYTHON) scripts/rtl_stub_gen.py -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
 
+# Basic IP start flow
 ip_start: setup hjson reg doc rtl_stub setup_tb sim view
 
 # SV to single Verilog file
@@ -66,11 +67,18 @@ sv2v: clean_rtl
 	@$(ECHO) "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
 	$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv > $(RTLDIR)/$(TOP).v
 
+# File list generation
 flist:
 	$(PYTHON) scripts/gen_filelist.py --top $(TOP)
 
-# LINTING
-lint: sv2v 
+###########
+# LINTING #
+###########
+
+.PHONY: lint lint_v lint_sv
+lint: $(if $(filter v,$(VSV)),lint_v,lint_sv)
+
+lint_v: sv2v 
 	@$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
 	$(LINTER) $(LINT_FLAGS) $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
@@ -82,11 +90,18 @@ lint_sv: flist
 # SETUP SV TESTBENCH FILE
 setup_tb:
 	@$(ECHO) "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
-	$(PYTHON) scripts/setup_tb.py -top $(TOP) -rtldir $(RTLDIR) -simdir $(SIMDIR) \
-	-syndir $(SYNDIR) -prim $(PRIM) -clk $(CLK_PERIOD) -comp $(COMPILER) -itf $(REG_ITF) -o $(TBDIR)
+	$(PYTHON) scripts/setup_tb.py -top $(TOP) -rtldir $(RTLDIR) \
+	-simdir $(SIMDIR) -syndir $(SYNDIR) -prim $(PRIM) -clk $(CLK_PERIOD) \
+	-comp $(COMPILER) -itf $(REG_ITF) -vsv $(VSV) -o $(TBDIR)
 
-# COMPILE THE TESTBENCH THAT INCLUDES ALL THE RTL FILES
-compile: lint
+#########################################################
+# COMPILE THE TESTBENCH THAT INCLUDES ALL THE RTL FILES #
+#########################################################
+
+.PHONY: compile compile_v compile_sv
+compile: $(if $(filter v,$(VSV)),compile_v,compile_sv)
+
+compile_v: lint_v
 ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
 	$(COMPILER) $(IVERILOG_FLAGS) -o $(SIMDIR)/$(TESTBENCH).vvp $(TBDIR)/$(TESTBENCH).sv \
@@ -100,9 +115,14 @@ compile_sv: lint_sv
 	@$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
 	$(COMPILER) ${VERILATOR_FLAGS} -f $(RTLDIR)/rtl_list.f > $(LOGDIR)/$(TOP)_compile.log 2>&1
 
-# SIMULATE TESTBENCH
-.PHONY: sim
-sim: compile 
+######################
+# SIMULATE TESTBENCH #
+######################
+
+.PHONY: sim sim_v sim_sv
+sim: $(if $(filter v,$(VSV)),sim_v,sim_sv)
+
+sim_v: compile_v
 ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
 	vvp $(SIMDIR)/$(TESTBENCH).vvp > $(LOGDIR)/$(TESTBENCH)_sim.log
@@ -110,6 +130,17 @@ else
 	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
 	$(COMPILER) ${VERILATOR_FLAGS} --trace $(TBDIR)/$(TESTBENCH).sv \
 	> $(LOGDIR)/$(TOP)_sim.log 2>&1
+	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
+endif
+
+sim_sv: compile_sv
+ifeq ($(COMPILER), iverilog)
+	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
+	vvp $(SIMDIR)/$(TESTBENCH).vvp > $(LOGDIR)/$(TESTBENCH)_sim.log
+else
+	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
+	$(COMPILER) ${VERILATOR_FLAGS} -f $(RTLDIR)/rtl_list.f --top-module $(TOP)_tb \
+	--trace $(TBDIR)/$(TESTBENCH).sv > $(LOGDIR)/$(TOP)_sim.log 2>&1
 	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
 endif
 
@@ -127,9 +158,14 @@ regression:
 	@$(MKDIR) -p $(REGRESSIONDIR)\
 	$(PYTHON) scripts/regression.py
 
-# RUN SYNTHESIS WITH YOSYS
-.PHONY: syn
-syn: clean_rtl setup_syn
+############################
+# RUN SYNTHESIS WITH YOSYS #
+############################
+
+.PHONY: syn syn_v syn_sv
+syn: $(if $(filter v,$(VSV)),syn_v,syn_sv)
+
+syn_v: clean_rtl setup_syn
 	@$(MKDIR) -p $(SYNDIR)/plots
 	@$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
 	$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log 
@@ -147,12 +183,29 @@ syn_sv: clean_rtl setup_syn
 plot_postsyn:
 	xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot &
 
-view_presyn: sv2v
+.PHONY: view_prewsyn view_presyn_v view_presyn_sv
+view_presyn: $(if $(filter v,$(VSV)),view_presyn_v,view_presyn_sv)
+
+view_presyn_v: sv2v
 	@$(MKDIR) -p $(SYNDIR)/plots
 	@$(ECHO) "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
-	$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn' \
+	$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); \
+	show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn' \
 	$(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_presyn.log 2>&1
 	xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
+
+view_presyn_sv:
+	@$(MKDIR) -p $(SYNDIR)/plots
+	@$(ECHO) "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
+	$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
+  read_slang -I ips/pkgs -I ips/prim \
+             -I ips/prim_opentitan -I ips/tlul \
+             -D SYNTHESIS --ignore-assertions \
+             -f rtl/rtl_list.f --top $(TOP) ; \
+  prep -top $(TOP); select -clear; select -module $(MODULE) ; \
+  show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" > $(LOGDIR)/$(TOP)_presyn.log 2>&1
+	xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
+
 
 # COMPILE POST SYNTHESIS NETLIST
 compile_syn:
@@ -184,14 +237,20 @@ view_syn:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
 	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TOP)_syn.vcd $(VIEWER_CONF) & 
 
-# STA analysis
+##########################
+# Static Timing Analysis #
+##########################
+
 sta: setup_signoff 
 	@$(ECHO) "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
 	$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
 	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
 	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true 
 
-#Power analysis
+##################
+# Power analysis #
+##################
+
 power: setup_signoff 
 	@$(ECHO) "\n$(ORANGE)Power Analysis, static and with .vcd...\n$(RESET)"
 	$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl > $(LOGDIR)/$(TOP)_power.log 
@@ -246,8 +305,8 @@ fsm_plot:
 fsm_flow: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 
 # BASIC FLOW:
-ip_flow_all: hjson doc sim syn sdf sta sta_violators power view view_presyn 
-ip_flow: reg doc lint sim syn sdf sta sta_violators power view view_presyn 
+ip_flow_all: hjson doc sim syn sdf sta sta_violators power view
+ip_flow: reg doc lint sim syn sdf sta sta_violators power view
 
 # FUSESOC
 fsoc_init:
@@ -303,7 +362,7 @@ ip_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
 	$(MAKE) load_ip
 	@$(ECHO) "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
-	$(MAKE) sim syn sdf sta sta_violators power view view_presyn 
+	$(MAKE) sim syn sdf sta sta_violators power view 
 
 soc_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
