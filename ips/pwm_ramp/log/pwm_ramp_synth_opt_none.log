@@ -4,59 +4,84 @@
  |  Copyright (C) 2012 - 2025  Claire Xenia Wolf <claire@yosyshq.com>         |
  |  Distributed under an ISC-like license, type "license" to see terms        |
  \----------------------------------------------------------------------------/
- Yosys 0.52+102 (git sha1 b69394783, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+ Yosys 0.57+125 (git sha1 5e550ddc3, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
 
--- Executing script file `syn/synth.ys' --
+-- Executing script file `syn/synth_sv.ys' --
 
-1. Executing Verilog-2005 frontend: rtl/pwm_ramp.v
-Parsing Verilog input from `rtl/pwm_ramp.v' to AST representation.
-Generating RTLIL representation for module `\prim_arbiter_ppc'.
-Generating RTLIL representation for module `\prim_cdc_rand_delay'.
-Generating RTLIL representation for module `\prim_count'.
-Generating RTLIL representation for module `\prim_fifo_async'.
-Generating RTLIL representation for module `\prim_fifo_async_simple'.
-Generating RTLIL representation for module `\prim_fifo_async_sram_adapter'.
-Generating RTLIL representation for module `\prim_fifo_sync'.
-Generating RTLIL representation for module `\prim_fifo_sync_cnt'.
-Generating RTLIL representation for module `\prim_filter'.
-Generating RTLIL representation for module `\prim_filter_ctr'.
-Generating RTLIL representation for module `\prim_flop'.
-Generating RTLIL representation for module `\prim_flop_2sync'.
-Generating RTLIL representation for module `\prim_secded_inv_39_32_dec'.
-Generating RTLIL representation for module `\prim_secded_inv_39_32_enc'.
-Generating RTLIL representation for module `\prim_secded_inv_64_57_dec'.
-Generating RTLIL representation for module `\prim_secded_inv_64_57_enc'.
-Generating RTLIL representation for module `\prim_subreg'.
-Generating RTLIL representation for module `\prim_subreg_arb'.
-Generating RTLIL representation for module `\prim_subreg_ext'.
-Generating RTLIL representation for module `\prim_sync_reqack'.
-Generating RTLIL representation for module `\sram2tlul'.
-Generating RTLIL representation for module `\tlul_adapter_host'.
-Generating RTLIL representation for module `\tlul_adapter_reg'.
-Generating RTLIL representation for module `\tlul_adapter_sram'.
-Generating RTLIL representation for module `\tlul_assert'.
-Generating RTLIL representation for module `\tlul_assert_multiple'.
-Generating RTLIL representation for module `\tlul_cmd_intg_chk'.
-Generating RTLIL representation for module `\tlul_cmd_intg_gen'.
-Generating RTLIL representation for module `\tlul_data_integ_dec'.
-Generating RTLIL representation for module `\tlul_data_integ_enc'.
-Generating RTLIL representation for module `\tlul_err'.
-Generating RTLIL representation for module `\tlul_err_resp'.
-Generating RTLIL representation for module `\tlul_fifo_async'.
-Generating RTLIL representation for module `\tlul_fifo_sync'.
-Generating RTLIL representation for module `\tlul_rsp_intg_chk'.
-Generating RTLIL representation for module `\tlul_rsp_intg_gen'.
-Generating RTLIL representation for module `\tlul_socket_1n'.
-Generating RTLIL representation for module `\tlul_socket_m1'.
-Generating RTLIL representation for module `\tlul_sram_byte'.
-Generating RTLIL representation for module `\multiple_pwm_ramp'.
-Generating RTLIL representation for module `\prim_deglitch'.
-Generating RTLIL representation for module `\prim_edge_detect'.
-Generating RTLIL representation for module `\prim_ff'.
-Generating RTLIL representation for module `\prim_ff_2sync'.
-Generating RTLIL representation for module `\pwm_ramp'.
-Generating RTLIL representation for module `\pwm_ramp_reg_top'.
-Successfully finished Verilog frontend.
+1. Executing SLANG frontend.
+Top level design units:
+    pwm_ramp
+
+Build succeeded: 0 errors, 0 warnings
+
+1.1. Executing UNDRIVEN pass. (resolve undriven signals)
+
+1.2. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `\pwm_ramp.$41'.
+Found and cleaned up 1 empty switch in `\pwm_ramp.$31'.
+Removing empty process `pwm_ramp.$24'.
+Found and cleaned up 1 empty switch in `\pwm_ramp.$19'.
+Found and cleaned up 1 empty switch in `\pwm_ramp.$6'.
+Removing empty process `pwm_ramp.$3'.
+Removing empty process `pwm_ramp.$0'.
+Cleaned up 4 empty switches.
+
+1.3. Executing TRIBUF pass.
+
+1.4. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 2 switch rules as full_case in process $19 in module pwm_ramp.
+Marked 3 switch rules as full_case in process $6 in module pwm_ramp.
+Marked 4 switch rules as full_case in process $31 in module pwm_ramp.
+Marked 4 switch rules as full_case in process $41 in module pwm_ramp.
+Removed a total of 0 dead cases.
+
+1.5. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 8 redundant assignments.
+Promoted 0 assignments to connections.
+
+1.6. Executing PROC_INIT pass (extract init attributes).
+
+1.7. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~18 debug messages>
+
+1.8. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `\pwm_ramp.$19'.
+     1/2: $u_prim_deglitch.q_o$22
+     2/2: $u_prim_deglitch.q_o$23
+Creating decoders for process `\pwm_ramp.$6'.
+     1/3: $u_prim_deglitch.count_q$16
+     2/3: $u_prim_deglitch.count_q$17
+     3/3: $u_prim_deglitch.count_q$18
+Creating decoders for process `\pwm_ramp.$31'.
+     1/6: $clear$37
+     2/6: $adc_valid_o$36
+     3/6: $clear$40
+     4/6: $adc_valid_o$39
+     5/6: $adc_value_o$35
+     6/6: $adc_value_o$38
+Creating decoders for process `\pwm_ramp.$41'.
+     1/6: $counter$48
+     2/6: $duty_cycle$47
+     3/6: $counter$50
+     4/6: $duty_cycle$49
+     5/6: $counter$52
+     6/6: $duty_cycle$51
+
+1.9. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 3 empty switches in `\pwm_ramp.$19'.
+Removing empty process `pwm_ramp.$19'.
+Found and cleaned up 5 empty switches in `\pwm_ramp.$6'.
+Removing empty process `pwm_ramp.$6'.
+Found and cleaned up 5 empty switches in `\pwm_ramp.$31'.
+Removing empty process `pwm_ramp.$31'.
+Found and cleaned up 5 empty switches in `\pwm_ramp.$41'.
+Removing empty process `pwm_ramp.$41'.
+Cleaned up 18 empty switches.
+
+1.10. Executing OPT_EXPR pass (perform const folding).
+Optimizing module pwm_ramp.
+<suppressed ~7 debug messages>
 
 2. Executing SYNTH pass.
 
@@ -64,245 +89,53 @@ Successfully finished Verilog frontend.
 
 2.1.1. Analyzing design hierarchy..
 Top module:  \pwm_ramp
-Used module:     \prim_edge_detect
-Used module:         \prim_ff
-Used module:     \prim_deglitch
-Parameter \AsyncOn = 1
-Parameter \SIZE = 3
 
-2.1.2. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_deglitch'.
-Parameter \AsyncOn = 1
-Parameter \SIZE = 3
-Generating RTLIL representation for module `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch'.
-Parameter \Width = 1
-Parameter \ResetValue = 0
-
-2.1.3. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_ff'.
-Parameter \Width = 1
-Parameter \ResetValue = 0
-Generating RTLIL representation for module `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff'.
-
-2.1.4. Analyzing design hierarchy..
+2.1.2. Analyzing design hierarchy..
 Top module:  \pwm_ramp
-Used module:     \prim_edge_detect
-Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff
-Used module:     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch
-Used module:         \prim_ff_2sync
-Used module:             \prim_ff
-Parameter \Width = 16
-Parameter \ResetValue = 16'0000000000000000
-
-2.1.5. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_ff'.
-Parameter \Width = 16
-Parameter \ResetValue = 16'0000000000000000
-Generating RTLIL representation for module `$paramod$74194999f28329a2fbf4a2b06e0e6812b0b6fb3c\prim_ff'.
-Parameter \Width = 16
-Parameter \ResetValue = 16'0000000000000000
-Found cached RTLIL representation for module `$paramod$74194999f28329a2fbf4a2b06e0e6812b0b6fb3c\prim_ff'.
-Parameter \Width = 1
-Parameter \ResetValue = 1'0
-
-2.1.6. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_ff_2sync'.
-Parameter \Width = 1
-Parameter \ResetValue = 1'0
-Generating RTLIL representation for module `$paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0'.
-
-2.1.7. Analyzing design hierarchy..
-Top module:  \pwm_ramp
-Used module:     \prim_edge_detect
-Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff
-Used module:     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch
-Used module:         $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0
-Used module:             \prim_ff
-Parameter \Width = 1
-Parameter \ResetValue = 1'0
-
-2.1.8. Executing AST frontend in derive mode using pre-parsed AST for module `\prim_ff'.
-Parameter \Width = 1
-Parameter \ResetValue = 1'0
-Generating RTLIL representation for module `$paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0'.
-Parameter \Width = 1
-Parameter \ResetValue = 1'0
-Found cached RTLIL representation for module `$paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0'.
-
-2.1.9. Analyzing design hierarchy..
-Top module:  \pwm_ramp
-Used module:     \prim_edge_detect
-Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff
-Used module:     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch
-Used module:         $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0
-Used module:             $paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0
-
-2.1.10. Analyzing design hierarchy..
-Top module:  \pwm_ramp
-Used module:     \prim_edge_detect
-Used module:         $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff
-Used module:     $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch
-Used module:         $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0
-Used module:             $paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0
-Removing unused module `$paramod$74194999f28329a2fbf4a2b06e0e6812b0b6fb3c\prim_ff'.
-Removing unused module `\pwm_ramp_reg_top'.
-Removing unused module `\prim_ff_2sync'.
-Removing unused module `\prim_ff'.
-Removing unused module `\prim_deglitch'.
-Removing unused module `\multiple_pwm_ramp'.
-Removing unused module `\tlul_sram_byte'.
-Removing unused module `\tlul_socket_m1'.
-Removing unused module `\tlul_socket_1n'.
-Removing unused module `\tlul_rsp_intg_gen'.
-Removing unused module `\tlul_rsp_intg_chk'.
-Removing unused module `\tlul_fifo_sync'.
-Removing unused module `\tlul_fifo_async'.
-Removing unused module `\tlul_err_resp'.
-Removing unused module `\tlul_err'.
-Removing unused module `\tlul_data_integ_enc'.
-Removing unused module `\tlul_data_integ_dec'.
-Removing unused module `\tlul_cmd_intg_gen'.
-Removing unused module `\tlul_cmd_intg_chk'.
-Removing unused module `\tlul_assert_multiple'.
-Removing unused module `\tlul_assert'.
-Removing unused module `\tlul_adapter_sram'.
-Removing unused module `\tlul_adapter_reg'.
-Removing unused module `\tlul_adapter_host'.
-Removing unused module `\sram2tlul'.
-Removing unused module `\prim_sync_reqack'.
-Removing unused module `\prim_subreg_ext'.
-Removing unused module `\prim_subreg_arb'.
-Removing unused module `\prim_subreg'.
-Removing unused module `\prim_secded_inv_64_57_enc'.
-Removing unused module `\prim_secded_inv_64_57_dec'.
-Removing unused module `\prim_secded_inv_39_32_enc'.
-Removing unused module `\prim_secded_inv_39_32_dec'.
-Removing unused module `\prim_flop_2sync'.
-Removing unused module `\prim_flop'.
-Removing unused module `\prim_filter_ctr'.
-Removing unused module `\prim_filter'.
-Removing unused module `\prim_fifo_sync_cnt'.
-Removing unused module `\prim_fifo_sync'.
-Removing unused module `\prim_fifo_async_sram_adapter'.
-Removing unused module `\prim_fifo_async_simple'.
-Removing unused module `\prim_fifo_async'.
-Removing unused module `\prim_count'.
-Removing unused module `\prim_cdc_rand_delay'.
-Removing unused module `\prim_arbiter_ppc'.
-Removed 45 unused modules.
+Removed 0 unused modules.
 
 2.2. Executing PROC pass (convert processes to netlists).
 
 2.2.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
-Found and cleaned up 1 empty switch in `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$2461'.
-Cleaned up 1 empty switch.
+Cleaned up 0 empty switches.
 
 2.2.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
-Marked 2 switch rules as full_case in process $proc$rtl/pwm_ramp.v:8786$2461 in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
-Marked 2 switch rules as full_case in process $proc$rtl/pwm_ramp.v:8769$2452 in module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
-Marked 3 switch rules as full_case in process $proc$rtl/pwm_ramp.v:9007$2394 in module pwm_ramp.
-Marked 3 switch rules as full_case in process $proc$rtl/pwm_ramp.v:8977$2391 in module pwm_ramp.
-Marked 1 switch rules as full_case in process $proc$rtl/pwm_ramp.v:8857$2469 in module $paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
-Marked 1 switch rules as full_case in process $proc$rtl/pwm_ramp.v:8857$2465 in module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff.
 Removed a total of 0 dead cases.
 
 2.2.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
-Removed 2 redundant assignments.
-Promoted 2 assignments to connections.
+Removed 0 redundant assignments.
+Promoted 0 assignments to connections.
 
 2.2.4. Executing PROC_INIT pass (extract init attributes).
 
 2.2.5. Executing PROC_ARST pass (detect async resets in processes).
-Found async reset \rst_ni in `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$2452'.
-Found async reset \rst_ni in `\pwm_ramp.$proc$rtl/pwm_ramp.v:9007$2394'.
-Found async reset \rst_ni in `\pwm_ramp.$proc$rtl/pwm_ramp.v:8977$2391'.
-Found async reset \rst_ni in `$paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0.$proc$rtl/pwm_ramp.v:8857$2469'.
-Found async reset \rst_ni in `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff.$proc$rtl/pwm_ramp.v:8857$2465'.
 
 2.2.6. Executing PROC_ROM pass (convert switches to ROMs).
 Converted 0 switches.
-<suppressed ~11 debug messages>
 
 2.2.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
-Creating decoders for process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:0$2464'.
-Creating decoders for process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$2461'.
-     1/2: $2\q_o[0:0]
-     2/2: $1\q_o[0:0]
-Creating decoders for process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$2452'.
-     1/1: $0\count_q[1:0]
-Creating decoders for process `\pwm_ramp.$proc$rtl/pwm_ramp.v:9007$2394'.
-     1/2: $0\counter[7:0]
-     2/2: $0\duty_cycle[7:0]
-Creating decoders for process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8977$2391'.
-     1/3: $0\clear[0:0]
-     2/3: $0\adc_valid_o[0:0]
-     3/3: $0\adc_value_o[7:0]
-Creating decoders for process `$paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0.$proc$rtl/pwm_ramp.v:8857$2469'.
-     1/1: $0\q_o[0:0]
-Creating decoders for process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff.$proc$rtl/pwm_ramp.v:8857$2465'.
-     1/1: $0\q_o[0:0]
 
 2.2.8. Executing PROC_DLATCH pass (convert process syncs to latches).
-No latch inferred for signal `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.\_sv2v_0' from process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:0$2464'.
-No latch inferred for signal `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.\q_o' from process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$2461'.
 
 2.2.9. Executing PROC_DFF pass (convert process syncs to FFs).
-Creating register for signal `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.\count_q' using process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$2452'.
-  created $adff cell `$procdff$2522' with positive edge clock and positive level reset.
-Creating register for signal `\pwm_ramp.\duty_cycle' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:9007$2394'.
-  created $adff cell `$procdff$2527' with positive edge clock and positive level reset.
-Creating register for signal `\pwm_ramp.\counter' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:9007$2394'.
-  created $adff cell `$procdff$2532' with positive edge clock and positive level reset.
-Creating register for signal `\pwm_ramp.\adc_value_o' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8977$2391'.
-  created $adff cell `$procdff$2537' with positive edge clock and positive level reset.
-Creating register for signal `\pwm_ramp.\adc_valid_o' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8977$2391'.
-  created $adff cell `$procdff$2542' with positive edge clock and positive level reset.
-Creating register for signal `\pwm_ramp.\clear' using process `\pwm_ramp.$proc$rtl/pwm_ramp.v:8977$2391'.
-  created $adff cell `$procdff$2547' with positive edge clock and positive level reset.
-Creating register for signal `$paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0.\q_o' using process `$paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0.$proc$rtl/pwm_ramp.v:8857$2469'.
-  created $adff cell `$procdff$2552' with positive edge clock and positive level reset.
-Creating register for signal `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff.\q_o' using process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff.$proc$rtl/pwm_ramp.v:8857$2465'.
-  created $adff cell `$procdff$2557' with positive edge clock and positive level reset.
 
 2.2.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
 
 2.2.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
-Removing empty process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:0$2464'.
-Found and cleaned up 2 empty switches in `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$2461'.
-Removing empty process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8786$2461'.
-Found and cleaned up 3 empty switches in `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$2452'.
-Removing empty process `$paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.$proc$rtl/pwm_ramp.v:8769$2452'.
-Found and cleaned up 3 empty switches in `\pwm_ramp.$proc$rtl/pwm_ramp.v:9007$2394'.
-Removing empty process `pwm_ramp.$proc$rtl/pwm_ramp.v:9007$2394'.
-Found and cleaned up 3 empty switches in `\pwm_ramp.$proc$rtl/pwm_ramp.v:8977$2391'.
-Removing empty process `pwm_ramp.$proc$rtl/pwm_ramp.v:8977$2391'.
-Removing empty process `$paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0.$proc$rtl/pwm_ramp.v:8857$2469'.
-Removing empty process `$paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff.$proc$rtl/pwm_ramp.v:8857$2465'.
-Cleaned up 11 empty switches.
+Cleaned up 0 empty switches.
 
 2.2.12. Executing OPT_EXPR pass (perform const folding).
-Optimizing module prim_edge_detect.
-Optimizing module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
-<suppressed ~3 debug messages>
-Optimizing module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
 Optimizing module pwm_ramp.
-<suppressed ~10 debug messages>
-Optimizing module $paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
-<suppressed ~2 debug messages>
-Optimizing module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff.
-<suppressed ~2 debug messages>
 
 2.3. Executing FLATTEN pass (flatten design).
-Deleting now unused module prim_edge_detect.
-Deleting now unused module $paramod$aeaf1c3d579a17de3e74cd3b236690c4c61e1531\prim_deglitch.
-Deleting now unused module $paramod\prim_ff_2sync\Width=s32'00000000000000000000000000000001\ResetValue=s1'0.
-Deleting now unused module $paramod\prim_ff\Width=s32'00000000000000000000000000000001\ResetValue=1'0.
-Deleting now unused module $paramod$af0644159552e0b2a6e6070761e0431b29c2a69f\prim_ff.
-<suppressed ~6 debug messages>
 
 2.4. Executing OPT_EXPR pass (perform const folding).
 Optimizing module pwm_ramp.
 
 2.5. Executing OPT_CLEAN pass (remove unused cells and wires).
 Finding unused cells or wires in module \pwm_ramp..
-Removed 18 unused cells and 62 unused wires.
-<suppressed ~20 debug messages>
+Removed 9 unused cells and 66 unused wires.
+<suppressed ~11 debug messages>
 
 2.6. Executing CHECK pass (checking for obvious problems).
 Checking module pwm_ramp...
@@ -321,11 +154,23 @@ Removed a total of 0 cells.
 Running muxtree optimizer on module \pwm_ramp..
   Creating internal representation of mux trees.
   Evaluating internal representation of mux trees.
-      Replacing known input bits on port A of cell $procmux$2502: \clear -> 1'0
+      Replacing known input bits on port A of cell $procmux$25: \clear -> 1'0
   Analyzing evaluation results.
-    dead port 1/2 on $mux $flatten\u_prim_deglitch.$procmux$2474.
-Removed 1 multiplexer ports.
-<suppressed ~9 debug messages>
+    dead port 1/2 on $mux $procmux$12.
+    dead port 2/2 on $mux $procmux$14.
+    dead port 2/2 on $mux $procmux$20.
+    dead port 1/2 on $mux $procmux$28.
+    dead port 1/2 on $mux $procmux$3.
+    dead port 1/2 on $mux $procmux$33.
+    dead port 2/2 on $mux $procmux$49.
+    dead port 2/2 on $mux $procmux$58.
+    dead port 1/2 on $mux $procmux$61.
+    dead port 2/2 on $mux $procmux$66.
+    dead port 1/2 on $mux $procmux$69.
+    dead port 1/2 on $mux $procmux$75.
+    dead port 1/2 on $mux $procmux$81.
+Removed 13 multiplexer ports.
+<suppressed ~40 debug messages>
 
 2.7.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
@@ -337,10 +182,19 @@ Finding identical cells in module `\pwm_ramp'.
 Removed a total of 0 cells.
 
 2.7.6. Executing OPT_DFF pass (perform DFF optimizations).
+Changing const-value async load to async reset on $driver$u_prim_edge_detect.u_sync_1.q_o ($aldff) from module pwm_ramp.
+Changing const-value async load to async reset on $driver$u_prim_deglitch.gen_async.prim_flop_2sync.u_sync_2.q_o ($aldff) from module pwm_ramp.
+Changing const-value async load to async reset on $driver$u_prim_deglitch.gen_async.prim_flop_2sync.u_sync_1.q_o ($aldff) from module pwm_ramp.
+Changing const-value async load to async reset on $driver$u_prim_deglitch.count_q ($aldff) from module pwm_ramp.
+Changing const-value async load to async reset on $driver$duty_cycle ($aldff) from module pwm_ramp.
+Changing const-value async load to async reset on $driver$counter ($aldff) from module pwm_ramp.
+Changing const-value async load to async reset on $driver$clear ($aldff) from module pwm_ramp.
+Changing const-value async load to async reset on $driver$adc_value_o ($aldff) from module pwm_ramp.
+Changing const-value async load to async reset on $driver$adc_valid_o ($aldff) from module pwm_ramp.
 
 2.7.7. Executing OPT_CLEAN pass (remove unused cells and wires).
 Finding unused cells or wires in module \pwm_ramp..
-Removed 0 unused cells and 4 unused wires.
+Removed 0 unused cells and 16 unused wires.
 <suppressed ~3 debug messages>
 
 2.7.8. Executing OPT_EXPR pass (perform const folding).
@@ -354,7 +208,7 @@ Running muxtree optimizer on module \pwm_ramp..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~9 debug messages>
+<suppressed ~26 debug messages>
 
 2.7.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
@@ -372,7 +226,7 @@ Finding unused cells or wires in module \pwm_ramp..
 2.7.15. Executing OPT_EXPR pass (perform const folding).
 Optimizing module pwm_ramp.
 
-2.7.16. Finished OPT passes. (There is nothing left to do.)
+2.7.16. Finished fast OPT passes. (There is nothing left to do.)
 
 2.8. Executing FSM pass (extract and optimize FSM).
 
@@ -408,7 +262,7 @@ Running muxtree optimizer on module \pwm_ramp..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~9 debug messages>
+<suppressed ~26 debug messages>
 
 2.9.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
@@ -419,11 +273,11 @@ Finding identical cells in module `\pwm_ramp'.
 Removed a total of 0 cells.
 
 2.9.6. Executing OPT_DFF pass (perform DFF optimizations).
-Adding EN signal on $procdff$2542 ($adff) from module pwm_ramp (D = $0\adc_valid_o[0:0], Q = \adc_valid_o).
-Adding EN signal on $procdff$2537 ($adff) from module pwm_ramp (D = $procmux$2514_Y, Q = \adc_value_o).
-Adding EN signal on $procdff$2532 ($adff) from module pwm_ramp (D = $0\counter[7:0], Q = \counter).
-Adding EN signal on $procdff$2527 ($adff) from module pwm_ramp (D = $0\duty_cycle[7:0], Q = \duty_cycle).
-Adding EN signal on $flatten\u_prim_deglitch.$procdff$2522 ($adff) from module pwm_ramp (D = $flatten\u_prim_deglitch.$procmux$2482_Y, Q = \u_prim_deglitch.count_q).
+Adding EN signal on $driver$u_prim_deglitch.count_q ($adff) from module pwm_ramp (D = $procmux$18_Y, Q = \u_prim_deglitch.count_q).
+Adding EN signal on $driver$duty_cycle ($adff) from module pwm_ramp (D = $duty_cycle$51, Q = \duty_cycle).
+Adding EN signal on $driver$counter ($adff) from module pwm_ramp (D = $counter$52, Q = \counter).
+Adding EN signal on $driver$adc_value_o ($adff) from module pwm_ramp (D = $adc_value_o$35, Q = \adc_value_o).
+Adding EN signal on $driver$adc_valid_o ($adff) from module pwm_ramp (D = $adc_valid_o$39, Q = \adc_valid_o).
 
 2.9.7. Executing OPT_CLEAN pass (remove unused cells and wires).
 Finding unused cells or wires in module \pwm_ramp..
@@ -432,7 +286,7 @@ Removed 2 unused cells and 2 unused wires.
 
 2.9.8. Executing OPT_EXPR pass (perform const folding).
 Optimizing module pwm_ramp.
-<suppressed ~4 debug messages>
+<suppressed ~5 debug messages>
 
 2.9.9. Rerunning OPT passes. (Maybe there is more to do..)
 
@@ -442,7 +296,7 @@ Running muxtree optimizer on module \pwm_ramp..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~9 debug messages>
+<suppressed ~24 debug messages>
 
 2.9.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
@@ -471,7 +325,7 @@ Running muxtree optimizer on module \pwm_ramp..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~9 debug messages>
+<suppressed ~24 debug messages>
 
 2.9.18. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
@@ -489,19 +343,22 @@ Finding unused cells or wires in module \pwm_ramp..
 2.9.22. Executing OPT_EXPR pass (perform const folding).
 Optimizing module pwm_ramp.
 
-2.9.23. Finished OPT passes. (There is nothing left to do.)
+2.9.23. Finished fast OPT passes. (There is nothing left to do.)
 
 2.10. Executing WREDUCE pass (reducing word size of cells).
-Removed top 31 bits (of 32) from port B of cell pwm_ramp.$flatten\u_prim_deglitch.$add$rtl/pwm_ramp.v:8779$2456 ($add).
-Removed top 30 bits (of 32) from port Y of cell pwm_ramp.$flatten\u_prim_deglitch.$add$rtl/pwm_ramp.v:8779$2456 ($add).
-Removed top 31 bits (of 32) from port B of cell pwm_ramp.$flatten\u_prim_deglitch.$gt$rtl/pwm_ramp.v:8780$2458 ($gt).
-Removed top 31 bits (of 32) from port B of cell pwm_ramp.$flatten\u_prim_deglitch.$sub$rtl/pwm_ramp.v:8782$2460 ($sub).
-Removed top 30 bits (of 32) from port Y of cell pwm_ramp.$flatten\u_prim_deglitch.$sub$rtl/pwm_ramp.v:8782$2460 ($sub).
-Removed top 2 bits (of 3) from port B of cell pwm_ramp.$auto$opt_dff.cc:195:make_patterns_logic$2575 ($ne).
-Removed top 31 bits (of 32) from port B of cell pwm_ramp.$add$rtl/pwm_ramp.v:9032$2398 ($add).
-Removed top 24 bits (of 32) from port Y of cell pwm_ramp.$add$rtl/pwm_ramp.v:9032$2398 ($add).
-Removed top 24 bits (of 32) from wire pwm_ramp.$add$rtl/pwm_ramp.v:9032$2398_Y.
-Removed top 30 bits (of 32) from wire pwm_ramp.$flatten\u_prim_deglitch.$add$rtl/pwm_ramp.v:8779$2456_Y.
+Removed top 30 bits (of 32) from port A of cell pwm_ramp.$11 ($add).
+Removed top 31 bits (of 32) from port B of cell pwm_ramp.$11 ($add).
+Removed top 30 bits (of 32) from port Y of cell pwm_ramp.$11 ($add).
+Removed top 30 bits (of 32) from port A of cell pwm_ramp.$13 ($gt).
+Removed top 31 bits (of 32) from port B of cell pwm_ramp.$13 ($gt).
+Removed top 30 bits (of 32) from port A of cell pwm_ramp.$15 ($sub).
+Removed top 31 bits (of 32) from port B of cell pwm_ramp.$15 ($sub).
+Removed top 30 bits (of 32) from port Y of cell pwm_ramp.$15 ($sub).
+Removed top 24 bits (of 32) from port A of cell pwm_ramp.$46 ($add).
+Removed top 31 bits (of 32) from port B of cell pwm_ramp.$46 ($add).
+Removed top 24 bits (of 32) from port Y of cell pwm_ramp.$46 ($add).
+Removed top 30 bits (of 32) from wire pwm_ramp.$11y.
+Removed top 24 bits (of 32) from wire pwm_ramp.$46y.
 
 2.11. Executing PEEPOPT pass (run peephole optimizers).
 
@@ -512,29 +369,29 @@ Removed 0 unused cells and 2 unused wires.
 
 2.13. Executing ALUMACC pass (create $alu and $macc cells).
 Extracting $alu and $macc cells in module pwm_ramp:
-  creating $macc model for $add$rtl/pwm_ramp.v:9026$2397 ($add).
-  creating $macc model for $add$rtl/pwm_ramp.v:9032$2398 ($add).
-  creating $macc model for $flatten\u_prim_deglitch.$add$rtl/pwm_ramp.v:8779$2456 ($add).
-  creating $macc model for $flatten\u_prim_deglitch.$sub$rtl/pwm_ramp.v:8782$2460 ($sub).
-  creating $macc model for $sub$rtl/pwm_ramp.v:8995$2393 ($sub).
-  creating $alu model for $macc $sub$rtl/pwm_ramp.v:8995$2393.
-  creating $alu model for $macc $flatten\u_prim_deglitch.$sub$rtl/pwm_ramp.v:8782$2460.
-  creating $alu model for $macc $flatten\u_prim_deglitch.$add$rtl/pwm_ramp.v:8779$2456.
-  creating $alu model for $macc $add$rtl/pwm_ramp.v:9032$2398.
-  creating $alu model for $macc $add$rtl/pwm_ramp.v:9026$2397.
-  creating $alu model for $flatten\u_prim_deglitch.$gt$rtl/pwm_ramp.v:8780$2458 ($gt): new $alu
-  creating $alu model for $flatten\u_prim_deglitch.$lt$rtl/pwm_ramp.v:8777$2454 ($lt): new $alu
-  creating $alu model for $gt$rtl/pwm_ramp.v:9036$2399 ($gt): new $alu
-  creating $alu model for $lt$rtl/pwm_ramp.v:9036$2400 ($lt): merged with $gt$rtl/pwm_ramp.v:9036$2399.
-  creating $alu model for $flatten\u_prim_deglitch.$eq$rtl/pwm_ramp.v:8792$2462 ($eq): merged with $flatten\u_prim_deglitch.$lt$rtl/pwm_ramp.v:8777$2454.
-  creating $alu cell for $gt$rtl/pwm_ramp.v:9036$2399, $lt$rtl/pwm_ramp.v:9036$2400: $auto$alumacc.cc:495:replace_alu$2588
-  creating $alu cell for $flatten\u_prim_deglitch.$lt$rtl/pwm_ramp.v:8777$2454, $flatten\u_prim_deglitch.$eq$rtl/pwm_ramp.v:8792$2462: $auto$alumacc.cc:495:replace_alu$2599
-  creating $alu cell for $flatten\u_prim_deglitch.$gt$rtl/pwm_ramp.v:8780$2458: $auto$alumacc.cc:495:replace_alu$2606
-  creating $alu cell for $add$rtl/pwm_ramp.v:9026$2397: $auto$alumacc.cc:495:replace_alu$2617
-  creating $alu cell for $add$rtl/pwm_ramp.v:9032$2398: $auto$alumacc.cc:495:replace_alu$2620
-  creating $alu cell for $flatten\u_prim_deglitch.$add$rtl/pwm_ramp.v:8779$2456: $auto$alumacc.cc:495:replace_alu$2623
-  creating $alu cell for $flatten\u_prim_deglitch.$sub$rtl/pwm_ramp.v:8782$2460: $auto$alumacc.cc:495:replace_alu$2626
-  creating $alu cell for $sub$rtl/pwm_ramp.v:8995$2393: $auto$alumacc.cc:495:replace_alu$2629
+  creating $macc model for $11 ($add).
+  creating $macc model for $15 ($sub).
+  creating $macc model for $34 ($sub).
+  creating $macc model for $45 ($add).
+  creating $macc model for $46 ($add).
+  creating $alu model for $macc $46.
+  creating $alu model for $macc $45.
+  creating $alu model for $macc $34.
+  creating $alu model for $macc $15.
+  creating $alu model for $macc $11.
+  creating $alu model for $13 ($gt): new $alu
+  creating $alu model for $53 ($gt): new $alu
+  creating $alu model for $54 ($lt): merged with $53.
+  creating $alu model for $9 ($lt): new $alu
+  creating $alu model for $20 ($eq): merged with $9.
+  creating $alu cell for $9, $20: $auto$alumacc.cc:495:replace_alu$115
+  creating $alu cell for $53, $54: $auto$alumacc.cc:495:replace_alu$122
+  creating $alu cell for $13: $auto$alumacc.cc:495:replace_alu$133
+  creating $alu cell for $11: $auto$alumacc.cc:495:replace_alu$144
+  creating $alu cell for $15: $auto$alumacc.cc:495:replace_alu$147
+  creating $alu cell for $34: $auto$alumacc.cc:495:replace_alu$150
+  creating $alu cell for $45: $auto$alumacc.cc:495:replace_alu$153
+  creating $alu cell for $46: $auto$alumacc.cc:495:replace_alu$156
   created 8 $alu and 0 $macc cells.
 
 2.14. Executing SHARE pass (SAT-based resource sharing).
@@ -555,7 +412,7 @@ Running muxtree optimizer on module \pwm_ramp..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~9 debug messages>
+<suppressed ~24 debug messages>
 
 2.15.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
@@ -583,7 +440,7 @@ Running muxtree optimizer on module \pwm_ramp..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~9 debug messages>
+<suppressed ~24 debug messages>
 
 2.15.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
@@ -601,7 +458,7 @@ Finding unused cells or wires in module \pwm_ramp..
 2.15.15. Executing OPT_EXPR pass (perform const folding).
 Optimizing module pwm_ramp.
 
-2.15.16. Finished OPT passes. (There is nothing left to do.)
+2.15.16. Finished fast OPT passes. (There is nothing left to do.)
 
 2.16. Executing MEMORY pass.
 
@@ -647,7 +504,7 @@ Removed a total of 0 cells.
 
 2.18.4. Executing OPT_CLEAN pass (remove unused cells and wires).
 Finding unused cells or wires in module \pwm_ramp..
-Removed 0 unused cells and 12 unused wires.
+Removed 0 unused cells and 19 unused wires.
 <suppressed ~1 debug messages>
 
 2.18.5. Finished fast OPT passes.
@@ -669,7 +526,7 @@ Running muxtree optimizer on module \pwm_ramp..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~5 debug messages>
+<suppressed ~11 debug messages>
 
 2.20.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
@@ -680,9 +537,9 @@ Finding identical cells in module `\pwm_ramp'.
 Removed a total of 0 cells.
 
 2.20.6. Executing OPT_SHARE pass.
-    Found cells that share an operand and can be merged by moving the $mux $flatten\u_prim_deglitch.$procmux$2482 in front of them:
-        $auto$alumacc.cc:495:replace_alu$2623
-        $auto$alumacc.cc:495:replace_alu$2626
+    Found cells that share an operand and can be merged by moving the $mux $procmux$18 in front of them:
+        $auto$alumacc.cc:495:replace_alu$144
+        $auto$alumacc.cc:495:replace_alu$147
 
 2.20.7. Executing OPT_DFF pass (perform DFF optimizations).
 
@@ -703,14 +560,14 @@ Running muxtree optimizer on module \pwm_ramp..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~5 debug messages>
+<suppressed ~11 debug messages>
 
 2.20.12. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
-    Consolidated identical input bits for $mux cell $auto$opt_share.cc:244:merge_operators$2655:
-      Old ports: A=2'11, B=2'01, Y=$auto$rtlil.cc:3053:Mux$2656
-      New ports: A=1'1, B=1'0, Y=$auto$rtlil.cc:3053:Mux$2656 [1]
-      New connections: $auto$rtlil.cc:3053:Mux$2656 [0] = 1'1
+    Consolidated identical input bits for $mux cell $auto$opt_share.cc:244:merge_operators$182:
+      Old ports: A=2'11, B=2'01, Y=$auto$rtlil.cc:3232:Mux$183
+      New ports: A=1'1, B=1'0, Y=$auto$rtlil.cc:3232:Mux$183 [1]
+      New connections: $auto$rtlil.cc:3232:Mux$183 [0] = 1'1
   Optimizing cells in module \pwm_ramp.
 Performed a total of 1 changes.
 
@@ -739,7 +596,7 @@ Running muxtree optimizer on module \pwm_ramp..
   Evaluating internal representation of mux trees.
   Analyzing evaluation results.
 Removed 0 multiplexer ports.
-<suppressed ~4 debug messages>
+<suppressed ~9 debug messages>
 
 2.20.20. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
   Optimizing cells in module \pwm_ramp.
@@ -759,7 +616,7 @@ Finding unused cells or wires in module \pwm_ramp..
 2.20.25. Executing OPT_EXPR pass (perform const folding).
 Optimizing module pwm_ramp.
 
-2.20.26. Finished OPT passes. (There is nothing left to do.)
+2.20.26. Finished fast OPT passes. (There is nothing left to do.)
 
 2.21. Executing TECHMAP pass (map to technology primitives).
 
@@ -793,23 +650,22 @@ Successfully finished Verilog frontend.
 
 2.21.2. Continuing TECHMAP pass.
 Using extmapper simplemap for cells of type $not.
-Using extmapper simplemap for cells of type $mux.
 Using extmapper simplemap for cells of type $adffe.
-Using extmapper simplemap for cells of type $reduce_bool.
 Using extmapper simplemap for cells of type $adff.
-Using extmapper simplemap for cells of type $or.
-Using extmapper simplemap for cells of type $reduce_and.
 Using extmapper simplemap for cells of type $logic_and.
+Using template $paramod$7e708ae28ab761f11d0fb59d3ffc72f6a4baf5d9\_90_alu for cells of type $alu.
 Using template $paramod$a1bc51c02ce12ac21eb18988e83292af48ed7d72\_90_alu for cells of type $alu.
 Using extmapper simplemap for cells of type $and.
-Using extmapper simplemap for cells of type $ne.
 Using extmapper simplemap for cells of type $eq.
 Using template $paramod$c3cd1564c35d873179656addd6052d7ea8b6d991\_90_alu for cells of type $alu.
-Using template $paramod$7e708ae28ab761f11d0fb59d3ffc72f6a4baf5d9\_90_alu for cells of type $alu.
-Using extmapper simplemap for cells of type $pos.
-Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000001000 for cells of type $lcu.
+Using extmapper simplemap for cells of type $mux.
+Using extmapper simplemap for cells of type $reduce_bool.
+Using extmapper simplemap for cells of type $reduce_and.
+Using extmapper simplemap for cells of type $or.
 Using extmapper simplemap for cells of type $xor.
 Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000010 for cells of type $lcu.
+Using extmapper simplemap for cells of type $pos.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000001000 for cells of type $lcu.
 No more expansions possible.
 <suppressed ~533 debug messages>
 
@@ -817,7 +673,7 @@ No more expansions possible.
 
 2.22.1. Executing OPT_EXPR pass (perform const folding).
 Optimizing module pwm_ramp.
-<suppressed ~106 debug messages>
+<suppressed ~103 debug messages>
 
 2.22.2. Executing OPT_MERGE pass (detect identical cells).
 Finding identical cells in module `\pwm_ramp'.
@@ -828,7 +684,7 @@ Removed a total of 26 cells.
 
 2.22.4. Executing OPT_CLEAN pass (remove unused cells and wires).
 Finding unused cells or wires in module \pwm_ramp..
-Removed 40 unused cells and 190 unused wires.
+Removed 40 unused cells and 182 unused wires.
 <suppressed ~41 debug messages>
 
 2.22.5. Finished fast OPT passes.
@@ -836,22 +692,25 @@ Removed 40 unused cells and 190 unused wires.
 2.23. Executing ABC pass (technology mapping using ABC).
 
 2.23.1. Extracting gate netlist of module `\pwm_ramp' to `<abc-temp-dir>/input.blif'..
-Extracted 175 gates and 207 wires to a netlist network with 31 inputs and 33 outputs.
 
-2.23.1.1. Executing ABC.
-Running ABC command: "<yosys-exe-dir>/yosys-abc" -s -f <abc-temp-dir>/abc.script 2>&1
-ABC: ABC command line: "source <abc-temp-dir>/abc.script".
-ABC: 
+2.23.1.1. Executed ABC.
+Extracted 173 gates and 205 wires to a netlist network with 31 inputs and 33 outputs.
+Running ABC script: <abc-temp-dir>/abc.script
+ABC: UC Berkeley, ABC 1.01 (compiled Sep 17 2025 10:27:03)
+ABC: abc 01> set abcout /dev/stdout
+ABC: abc 01> empty
+ABC: abc 01> source <abc-temp-dir>/abc.script
 ABC: + read_blif <abc-temp-dir>/input.blif 
-ABC: + read_library <abc-temp-dir>/stdcells.genlib 
+ABC: + read_library /tmp/yosys-abc-Ff0DbY/stdcells.genlib 
 ABC: + strash 
 ABC: + dretime 
 ABC: + map 
 ABC: + write_blif <abc-temp-dir>/output.blif 
+ABC: abc 04> echo "ABC_DONE"
 
 2.23.1.2. Re-integrating ABC results.
 ABC RESULTS:               AND cells:        5
-ABC RESULTS:            ANDNOT cells:       56
+ABC RESULTS:            ANDNOT cells:       55
 ABC RESULTS:               MUX cells:        2
 ABC RESULTS:              NAND cells:       12
 ABC RESULTS:               NOR cells:        6
@@ -860,10 +719,11 @@ ABC RESULTS:                OR cells:       10
 ABC RESULTS:             ORNOT cells:        9
 ABC RESULTS:              XNOR cells:       10
 ABC RESULTS:               XOR cells:       30
-ABC RESULTS:        internal signals:      143
+ABC RESULTS:        internal signals:      141
 ABC RESULTS:           input signals:       31
 ABC RESULTS:          output signals:       33
 Removing temp directory.
+Removing global temp directory.
 
 2.24. Executing OPT pass (performing simple optimizations).
 
@@ -878,7 +738,7 @@ Removed a total of 0 cells.
 
 2.24.4. Executing OPT_CLEAN pass (remove unused cells and wires).
 Finding unused cells or wires in module \pwm_ramp..
-Removed 0 unused cells and 125 unused wires.
+Removed 0 unused cells and 109 unused wires.
 <suppressed ~1 debug messages>
 
 2.24.5. Finished fast OPT passes.
@@ -897,29 +757,27 @@ Removed 0 unused modules.
 
 === pwm_ramp ===
 
-   Number of wires:                173
-   Number of wire bits:            218
-   Number of public wires:          46
-   Number of public wire bits:      75
-   Number of ports:                  9
-   Number of port bits:             23
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                181
-     $_ANDNOT_                      56
-     $_AND_                          5
-     $_DFFE_PN0P_                   27
-     $_DFF_PN0_                      4
-     $_MUX_                          2
-     $_NAND_                        12
-     $_NOR_                          6
-     $_NOT_                          4
-     $_ORNOT_                        9
-     $_OR_                          10
-     $_XNOR_                        10
-     $_XOR_                         30
-     $scopeinfo                      6
+        +----------Local Count, excluding submodules.
+        | 
+      185 wires
+      216 wire bits
+       45 public wires
+       74 public wire bits
+        9 ports
+       23 port bits
+      174 cells
+       55   $_ANDNOT_
+        5   $_AND_
+       27   $_DFFE_PN0P_
+        4   $_DFF_PN0_
+        2   $_MUX_
+       12   $_NAND_
+        6   $_NOR_
+        4   $_NOT_
+        9   $_ORNOT_
+       10   $_OR_
+       10   $_XNOR_
+       30   $_XOR_
 
 2.27. Executing CHECK pass (checking for obvious problems).
 Checking module pwm_ramp...
@@ -969,15 +827,17 @@ Mapping DFF cells in module `\pwm_ramp':
 5. Executing ABC pass (technology mapping using ABC).
 
 5.1. Extracting gate netlist of module `\pwm_ramp' to `<abc-temp-dir>/input.blif'..
-Extracted 171 gates and 211 wires to a netlist network with 40 inputs and 30 outputs.
 
-5.1.1. Executing ABC.
-Running ABC command: "<yosys-exe-dir>/yosys-abc" -s -f <abc-temp-dir>/abc.script 2>&1
-ABC: ABC command line: "source <abc-temp-dir>/abc.script".
-ABC: 
+5.1.1. Executed ABC.
+Extracted 170 gates and 210 wires to a netlist network with 40 inputs and 30 outputs.
+Running ABC script: <abc-temp-dir>/abc.script
+ABC: UC Berkeley, ABC 1.01 (compiled Sep 17 2025 10:27:03)
+ABC: abc 01> set abcout /dev/stdout
+ABC: abc 01> empty
+ABC: abc 01> source <abc-temp-dir>/abc.script
 ABC: + read_blif <abc-temp-dir>/input.blif 
-ABC: + read_lib -w /home/eneadim/github/open-IP-SoC-env/lib/sky130_fd_sc_hd__tt_025C_1v80.lib 
-ABC: Parsing finished successfully.  Parsing time =     0.09 sec
+ABC: + read_lib -w /home/eneadim/github/flexsoc/lib/sky130_fd_sc_hd__tt_025C_1v80.lib 
+ABC: Parsing finished successfully.  Parsing time =     0.07 sec
 ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_12" without logic function.
 ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_3" without logic function.
 ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_4" without logic function.
@@ -1029,7 +889,21 @@ ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_4"
 ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_8".
 ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__edfxbp_1".
 ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__edfxtp_1".
-ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_0".
+ABC: Scl_LibertyReadGenlib() skipped three-stat+ strash 
+ABC: + &get -n 
+ABC: + &fraig -x 
+ABC: + &put 
+ABC: + scorr 
+ABC: + dc2 
+ABC: + dretime 
+ABC: + retime -o -D 10000 
+ABC: + strash 
+ABC: + &get -n 
+ABC: + &dch -f 
+ABC: + &nf -D 10000 
+ABC: + &put 
+ABC: + write_blif <abc-temp-dir>/output.blif 
+ABC: e cell "sky130_fd_sc_hd__einvn_0".
 ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_1".
 ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_2".
 ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_4".
@@ -1072,110 +946,98 @@ ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxbp_2
 ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_1".
 ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_2".
 ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_4".
-ABC: Library "sky130_fd_sc_hd__tt_025C_1v80" from "/home/eneadim/github/open-IP-SoC-env/lib/sky130_fd_sc_hd__tt_025C_1v80.lib" has 334 cells (94 skipped: 63 seq; 13 tri-state; 18 no func; 0 dont_use).  Time =     0.13 sec
-ABC: Memory =   19.85 MB. Time =     0.13 sec
-ABC: Warning: Detected 9 multi-output gates (for example, "sky130_fd_sc_hd__fa_1").
-ABC: + strash 
-ABC: + &get -n 
-ABC: + &fraig -x 
-ABC: + &put 
-ABC: + scorr 
+ABC: Library "sky130_fd_sc_hd__tt_025C_1v80" from "/home/eneadim/github/flexsoc/lib/sky130_fd_sc_hd__tt_025C_1v80.lib" has 334 cells (94 skipped: 63 seq; 13 tri-state; 18 no func; 0 dont_use; 0 with 2 outputs; 0 with 3+ outputs).  Time =     0.09 sec
+ABC: Memory =   19.85 MB. Time =     0.09 sec
+ABC: Warning: Detected 9 multi-output cells (for example, "sky130_fd_sc_hd__fa_1").
 ABC: Warning: The network is combinational (run "fraig" or "fraig_sweep").
-ABC: + dc2 
-ABC: + dretime 
-ABC: + retime -o -D 10000 
-ABC: + strash 
-ABC: + &get -n 
-ABC: + &dch -f 
-ABC: + &nf -D 10000 
-ABC: + &put 
-ABC: + write_blif <abc-temp-dir>/output.blif 
+ABC: abc 07> echo "ABC_DONE"
 
 5.1.2. Re-integrating ABC results.
 ABC RESULTS:   sky130_fd_sc_hd__a211o_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__a211oi_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__a21o_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__a21oi_1 cells:        5
-ABC RESULTS:   sky130_fd_sc_hd__a221oi_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__a22o_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__a211oi_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__a21oi_1 cells:        6
+ABC RESULTS:   sky130_fd_sc_hd__a22o_1 cells:        2
 ABC RESULTS:   sky130_fd_sc_hd__a22oi_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__and2_0 cells:        6
-ABC RESULTS:   sky130_fd_sc_hd__and3_1 cells:        3
-ABC RESULTS:   sky130_fd_sc_hd__clkinv_1 cells:        9
+ABC RESULTS:   sky130_fd_sc_hd__a31oi_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__and2_0 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__and3_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__clkinv_1 cells:       12
 ABC RESULTS:   sky130_fd_sc_hd__lpflow_inputiso1p_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__lpflow_isobufsrc_1 cells:        4
-ABC RESULTS:   sky130_fd_sc_hd__maj3_1 cells:        4
-ABC RESULTS:   sky130_fd_sc_hd__mux2i_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__nand2_1 cells:       23
+ABC RESULTS:   sky130_fd_sc_hd__lpflow_isobufsrc_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__maj3_1 cells:        6
+ABC RESULTS:   sky130_fd_sc_hd__nand2_1 cells:       17
 ABC RESULTS:   sky130_fd_sc_hd__nand2b_1 cells:        2
-ABC RESULTS:   sky130_fd_sc_hd__nand3_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__nor2_1 cells:       18
-ABC RESULTS:   sky130_fd_sc_hd__nor3_1 cells:        7
-ABC RESULTS:   sky130_fd_sc_hd__nor3b_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__nand3_1 cells:        4
+ABC RESULTS:   sky130_fd_sc_hd__nand4_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__nor2_1 cells:        9
+ABC RESULTS:   sky130_fd_sc_hd__nor3_1 cells:        4
+ABC RESULTS:   sky130_fd_sc_hd__o2111ai_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__o211ai_1 cells:        1
 ABC RESULTS:   sky130_fd_sc_hd__o21a_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__o21ai_0 cells:       19
-ABC RESULTS:   sky130_fd_sc_hd__o221a_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__o22ai_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__o21ai_0 cells:       23
+ABC RESULTS:   sky130_fd_sc_hd__o21bai_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__o22ai_1 cells:        3
 ABC RESULTS:   sky130_fd_sc_hd__o2bb2ai_1 cells:        1
-ABC RESULTS:   sky130_fd_sc_hd__o31ai_1 cells:        2
-ABC RESULTS:   sky130_fd_sc_hd__xnor2_1 cells:       18
-ABC RESULTS:   sky130_fd_sc_hd__xor2_1 cells:        1
-ABC RESULTS:        internal signals:      141
+ABC RESULTS:   sky130_fd_sc_hd__o311ai_0 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__xnor2_1 cells:       17
+ABC RESULTS:   sky130_fd_sc_hd__xor2_1 cells:        5
+ABC RESULTS:        internal signals:      140
 ABC RESULTS:           input signals:       40
 ABC RESULTS:          output signals:       30
 Removing temp directory.
+Removing global temp directory.
 
 6. Executing OPT_CLEAN pass (remove unused cells and wires).
 Finding unused cells or wires in module \pwm_ramp..
-Removed 6 unused cells and 225 unused wires.
-<suppressed ~35 debug messages>
+Removed 0 unused cells and 237 unused wires.
+<suppressed ~28 debug messages>
 
 7. Printing statistics.
 
 === pwm_ramp ===
 
-   Number of wires:                152
-   Number of wire bits:            181
-   Number of public wires:          18
-   Number of public wire bits:      47
-   Number of ports:                  9
-   Number of port bits:             23
-   Number of memories:               0
-   Number of memory bits:            0
-   Number of processes:              0
-   Number of cells:                168
-     sky130_fd_sc_hd__a211o_1        1
-     sky130_fd_sc_hd__a211oi_1       1
-     sky130_fd_sc_hd__a21o_1         1
-     sky130_fd_sc_hd__a21oi_1        5
-     sky130_fd_sc_hd__a221oi_1       1
-     sky130_fd_sc_hd__a22o_1         3
-     sky130_fd_sc_hd__a22oi_1        1
-     sky130_fd_sc_hd__and2_0         6
-     sky130_fd_sc_hd__and3_1         3
-     sky130_fd_sc_hd__clkinv_1       9
-     sky130_fd_sc_hd__dfrtp_1       31
-     sky130_fd_sc_hd__lpflow_inputiso1p_1      1
-     sky130_fd_sc_hd__lpflow_isobufsrc_1      4
-     sky130_fd_sc_hd__maj3_1         4
-     sky130_fd_sc_hd__mux2i_1        1
-     sky130_fd_sc_hd__nand2_1       23
-     sky130_fd_sc_hd__nand2b_1       2
-     sky130_fd_sc_hd__nand3_1        1
-     sky130_fd_sc_hd__nor2_1        18
-     sky130_fd_sc_hd__nor3_1         7
-     sky130_fd_sc_hd__nor3b_1        1
-     sky130_fd_sc_hd__o21a_1         1
-     sky130_fd_sc_hd__o21ai_0       19
-     sky130_fd_sc_hd__o221a_1        1
-     sky130_fd_sc_hd__o22ai_1        1
-     sky130_fd_sc_hd__o2bb2ai_1      1
-     sky130_fd_sc_hd__o31ai_1        2
-     sky130_fd_sc_hd__xnor2_1       18
-     sky130_fd_sc_hd__xor2_1         1
+        +----------Local Count, excluding submodules.
+        |        +-Local Area, excluding submodules.
+        |        | 
+      146        - wires
+      175        - wire bits
+       18        - public wires
+       47        - public wire bits
+        9        - ports
+       23        - port bits
+      162  1553.99 cells
+        1    8.758   sky130_fd_sc_hd__a211o_1
+        2   15.014   sky130_fd_sc_hd__a211oi_1
+        6   30.029   sky130_fd_sc_hd__a21oi_1
+        2   17.517   sky130_fd_sc_hd__a22o_1
+        1    7.507   sky130_fd_sc_hd__a22oi_1
+        1    6.256   sky130_fd_sc_hd__a31oi_1
+        3   18.768   sky130_fd_sc_hd__and2_0
+        2   12.512   sky130_fd_sc_hd__and3_1
+       12   45.043   sky130_fd_sc_hd__clkinv_1
+       31  775.744   sky130_fd_sc_hd__dfrtp_1
+        1    6.256   sky130_fd_sc_hd__lpflow_inputiso1p_1
+        3   18.768   sky130_fd_sc_hd__lpflow_isobufsrc_1
+        6   60.058   sky130_fd_sc_hd__maj3_1
+       17   63.811   sky130_fd_sc_hd__nand2_1
+        2   12.512   sky130_fd_sc_hd__nand2b_1
+        4   20.019   sky130_fd_sc_hd__nand3_1
+        1    6.256   sky130_fd_sc_hd__nand4_1
+        9   33.782   sky130_fd_sc_hd__nor2_1
+        4   20.019   sky130_fd_sc_hd__nor3_1
+        1    8.758   sky130_fd_sc_hd__o2111ai_1
+        1    7.507   sky130_fd_sc_hd__o211ai_1
+        1    7.507   sky130_fd_sc_hd__o21a_1
+       23   115.11   sky130_fd_sc_hd__o21ai_0
+        1    7.507   sky130_fd_sc_hd__o21bai_1
+        3   18.768   sky130_fd_sc_hd__o22ai_1
+        1    8.758   sky130_fd_sc_hd__o2bb2ai_1
+        1    8.758   sky130_fd_sc_hd__o311ai_0
+       17  148.893   sky130_fd_sc_hd__xnor2_1
+        5   43.792   sky130_fd_sc_hd__xor2_1
 
-   Chip area for module '\pwm_ramp': 1562.748800
-     of which used for sequential elements: 775.744000 (49.64%)
+   Chip area for module '\pwm_ramp': 1553.990400
+     of which used for sequential elements: 775.744000 (49.92%)
 
 8. Executing Verilog backend.
 
@@ -1186,6 +1048,6 @@ Dumping module `\pwm_ramp'.
 
 9. Executing JSON backend.
 
-End of script. Logfile hash: 6f66cbd099, CPU: user 0.56s system 0.02s, MEM: 52.89 MB peak
-Yosys 0.52+102 (git sha1 b69394783, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
-Time spent: 36% 3x read_verilog (0 sec), 34% 2x abc (0 sec), ...
+End of script. Logfile hash: 97864cbbf8, CPU: user 0.19s system 0.03s, MEM: 61.60 MB peak
+Yosys 0.57+125 (git sha1 5e550ddc3, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+Time spent: 52% 2x abc (0 sec), 13% 1x dfflibmap (0 sec), ...
