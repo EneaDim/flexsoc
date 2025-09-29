@@ -51,12 +51,22 @@ def main():
         ips / "pkgs" / "prim_assert.sv",
         ips / "pkgs" / "prim_count_pkg.sv",
         ips / "pkgs" / "prim_flop_macros.sv",
+        ips / "prim" / "prim_bin2gray.sv",
+        ips / "prim" / "prim_cdc_2phase.sv",
+        ips / "prim" / "prim_clk_div.sv",
+        ips / "prim" / "prim_clk_gate.sv",
+        ips / "prim" / "prim_counter.sv",
+        ips / "prim" / "prim_deglitch.sv",
+        ips / "prim" / "prim_edge_detect.sv",
+        ips / "prim" / "prim_ff.sv",
+        ips / "prim" / "prim_ff_2sync.sv",
         ips / "prim" / "prim_fifo.sv",
         ips / "prim" / "prim_gray2bin.sv",
         ips / "prim" / "prim_lifo.sv",
         ips / "prim" / "prim_lzc.sv",
         ips / "prim" / "prim_ram.sv",
         ips / "prim" / "prim_reg.sv",
+        ips / "prim" / "prim_reg_pkg.sv",
         ips / "prim" / "prim_rom.sv",
         ips / "prim" / "prim_rrarbiter.sv",
         ips / "prim" / "prim_shreg.sv",
@@ -100,15 +110,24 @@ def main():
         ips / "tlul" / "tlul_socket_m1.sv",
         ips / "tlul" / "tlul_sram_byte.sv",
     ]
-
-    dynamic = [
+    # Build candidates
+    dynamic_candidates = [
         rtl / f"{top}_reg_pkg.sv",
         rtl / f"{top}_reg_top.sv",
         rtl / f"{top}_core.sv",
         rtl / f"{top}.sv",
     ]
 
+    # Keep only existing files
+    dynamic = [p for p in dynamic_candidates if p.is_file()]
+
+    # (Optional) warn about removed items
+    if not args.no_check:
+        for p in (p for p in dynamic_candidates if not p.is_file()):
+            print(f"Warning: {p.as_posix()} does not exist (removed from list).")
+
     paths = fixed + dynamic
+
 
     # Optionally check that files exist and warn (but still write the list).
     if not args.no_check:
