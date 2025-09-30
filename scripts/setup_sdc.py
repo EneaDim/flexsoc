@@ -12,109 +12,50 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import os
+
 import argparse
+from pathlib import Path
 
-# ARGUMENT PARSING
-try:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-top", "--top", type=str, required='True', 
-    help="Define the TOP module in the design")
-    ap.add_argument("-rtldir", "--rtldir", type=str, required='True', 
-    help="Define the directory of source files of the design")
-    ap.add_argument("-clk", "--clk", type=int, required='True', 
-    help="Define the clock period in ns")
-    ap.add_argument("-o", "--output", type=str, required='False', help="Output Folder")
-    args = vars(ap.parse_args())
-    top = args.get("top")
-    rtldir = args.get("rtldir")
-    clk_period = args.get("clk")
-    output_folder = args.get("output")
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit()
+TEMPLATE = """current_design {top}
 
-# WRITE SDC
-try:
-    # Define the output folder
-    if output_folder:
-        path = './' + output_folder + '/'
-    else:
-        path = './'
-    # Find inputs and outputs to generate SDC
-    with open('./'+rtldir+'/'+top+'.sv', 'r') as f:
-        content = f.readlines()
+set clk_name {clk_name}
+set clk_port_name {clk_port_name}
+set clk_period {clk_period}
+set clk_io_pct {clk_io_pct}
 
-    clk = []
-    rst = []
-    inputs = []
-    outputs = []
-    content1 = ''.join(''.join(content).split(');')[0]).split('\n')
-    for line in content1:
-        flag = False
-        comment_flag = False
-        if ('//') in line:
-          if not 'input' and not 'output' in line:
-            comment_flag = True
-          else:
-            line = ''.join(line.split('//')[:-1])
-        if comment_flag:
-            continue
-        if 'input ' in line:
-            inp  = ''.join(line.split('input')).strip()
-            inp2 = inp.split()
-            if 'clk_' in inp2[-1]:
-              clk.append(inp2[-1][:-1])
-            if 'rst_' in inp2[-1]:
-              rst.append(inp2[-1][:-1])
-            for i in inp2:
-              if ',' in i:
-                inputs.append(i[:-1])
-                flag = True
-            if not(flag):
-                inputs.append(inp2[-1])
-        if 'output ' in line:
-            out  = ''.join(line.split('output')).strip()
-            out2 = out.split()
-            for i in out2:
-              if ',' in i:
-                outputs.append(i[:-1])
-                flag = True
-            if not(flag):
-                outputs.append(out2[-1])
-    # Write SDC file
-    with open(path+top+'.sdc', 'w') as f:
-        mystr = ''
-        for c in clk:
-          mystr += 'create_clock -name '+str(c[:-2])+' -period '+str(clk_period)+' {'+str(c)+'}\n'
-        if len(clk) == 2:
-          # Assume Write CLK before, then Read CLK
-          for i in inputs:
-            if not 'clk_' in i:
-              if 'w' in i:
-                  mystr += 'set_input_delay   3 -clock '+str(clk[0][:-2])+' {'+str(i)+'}\n'
-              if 'r' and not('w') in i:
-                  mystr += 'set_input_delay   3 -clock '+str(clk[1][:-2])+' {'+str(i)+'}\n'
-          for i in outputs:
-            if not 'clk_' in i:
-              if 'w' in i:
-                  mystr += 'set_output_delay  3 -clock '+str(clk[0][:-2])+' {'+str(i)+'}\n'
-              if 'r' and not('w') in i:
-                  mystr += 'set_output_delay  3 -clock '+str(clk[1][:-2])+' {'+str(i)+'}\n'
-        else:
-          for i in inputs:
-            if not 'clk_' in i:
-              mystr += 'set_input_delay  3 -clock '+str(clk[0][:-2])+' {'+str(i)+'}\n'
-          for i in outputs:
-            mystr += 'set_output_delay 3 -clock '+str(clk[0][:-2])+' {'+str(i)+'}\n'
-        f.write(mystr)
-        
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit()
+set clk_port [get_ports $clk_port_name]
+
+create_clock -name $clk_name -period $clk_period $clk_port
+
+set non_clock_inputs [all_inputs -no_clocks]
+
+set_input_delay [expr $clk_period * $clk_io_pct] -clock $clk_name $non_clock_inputs
+set_output_delay [expr $clk_period * $clk_io_pct] -clock $clk_name [all_outputs]
+"""
+
+def main():
+    ap = argparse.ArgumentParser(description="Generate an SDC snippet and write it to a file.")
+    ap.add_argument("top", help="Top module / current_design name (e.g., ibex_core)")
+    ap.add_argument("clk_period", type=float, help="Clock period in ns (e.g., 10.0)")
+    ap.add_argument("-o", "--out", help="Output file path (default: <top>.sdc)")
+    ap.add_argument("--clk-name", default="core_clock", help="Clock name (default: core_clock)")
+    ap.add_argument("--clk-port-name", default="clk_i", help="Clock port name (default: clk_i)")
+    ap.add_argument("--clk-io-pct", type=float, default=0.2, help="I/O delay as fraction of period (default: 0.2)")
+    args = ap.parse_args()
+
+    sdc_text = TEMPLATE.format(
+        top=args.top,
+        clk_name=args.clk_name,
+        clk_port_name=args.clk_port_name,
+        clk_period=f"{args.clk_period:g}",
+        clk_io_pct=f"{args.clk_io_pct:g}",
+    )
+
+    out_path = Path(args.out) if args.out else Path(f"{args.top}.sdc")
+    out_path.write_text(sdc_text, encoding="utf-8")
+    print(f"Wrote SDC to: {out_path.resolve()}")
+
+if __name__ == "__main__":
+    main()
+
 

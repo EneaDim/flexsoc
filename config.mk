@@ -11,6 +11,7 @@ LINTDIR         ?=lint
 SIMDIR          ?=sim
 SYNDIR          ?=syn
 SIGNOFFDIR      ?=signoff
+ORSDIR					?=ors
 MODELDIR        ?=model
 PYDIR           ?=py
 FSMDIR          ?=fsms
@@ -77,6 +78,7 @@ ORS_LOGS        ?=logs
 ORS_REPORTS			?=reports
 ORS_RESULTS			?=results
 ORS_OBJECTS     ?=objects
+ORS_TECH        ?=sky130hd
 
 # SoC MEMORY MAP
 LOWRISC_IPS     ?= uart pwm

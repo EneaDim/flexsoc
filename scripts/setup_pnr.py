@@ -12,7 +12,7 @@ def main():
     p.add_argument("--platform", default="sky130hd", help="Target platform (default: sky130hd)")
     p.add_argument("--filelist", default="rtl/rtl_list.f",
                    help="Path to the .f file (default: rtl/rtl_list.f, relative to DESIGN_HOME at build time)")
-    p.add_argument("--outfile", default="signoff/config.mk", help="Output file name (default: config.mk)")
+    p.add_argument("--outdir", default="ors", help="Output directory name (default: ors)")
     args = p.parse_args()
 
     # Write a Makefile that extracts sources & includes from the .f at build time.
@@ -33,7 +33,7 @@ def main():
 
     # HDL frontend and constraints
     export SYNTH_HDL_FRONTEND = slang
-    export SDC_FILE           = signoff/{args.top}.sdc
+    export SDC_FILE           = {args.outdir}/{args.top}.sdc
 
     # Floorplan / timing targets
     export CORE_UTILIZATION      ?= 50
@@ -41,7 +41,7 @@ def main():
     export TNS_END_PERCENT         = 100
     """
 
-    out = Path(args.outfile)
+    out = Path(args.outdir + '/config.mk')
     out.write_text(dedent(mk), encoding="utf-8")
     print(f"Wrote {out.resolve()}")
 

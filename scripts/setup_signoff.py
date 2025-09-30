@@ -23,6 +23,8 @@ try:
     help="Define the TOP module in the design")
     ap.add_argument("-rtldir", "--rtldir", type=str, required='True', 
     help="Define the directory of source files of the design")
+    ap.add_argument("-sdcdir", "--sdcdir", type=str, required='True', 
+    help="Define the directory of sdc file of the design")
     ap.add_argument("-libs", "--libs", nargs='+', type=str, required='True', 
     help="Link liberty files of the technology used")
     ap.add_argument("-clk", "--clk", type=int, required='True', 
@@ -33,6 +35,7 @@ try:
     args = vars(ap.parse_args())
     top = args.get("top")
     rtldir = args.get("rtldir")
+    sdcdir = args.get("sdcdir")
     libs = args.get("libs")
     for l in libs:
       if '_tt_' in l:
@@ -85,8 +88,8 @@ def init_opensta():
   mystr += 'puts "Read SDC"\n'
   mystr += 'puts "==========================================================================="\n'
   mystr += 'puts ""\n'
-  mystr += 'puts "read_sdc '+str(output_folder)+'/'+str(top)+'.sdc"\n'
-  mystr += 'read_sdc '+str(output_folder)+'/'+str(top)+'.sdc\n'
+  mystr += 'puts "read_sdc '+str(sdcdir)+'/'+str(top)+'.sdc"\n'
+  mystr += 'read_sdc '+str(sdcdir)+'/'+str(top)+'.sdc\n'
   mystr += 'puts ""\n'
   return mystr
 

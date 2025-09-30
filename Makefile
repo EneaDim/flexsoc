@@ -31,7 +31,7 @@ setup:
 	@$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
 	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
 	 $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) $(UTILDIR) $(DOCDIR) \
-	 $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIR) $(FSMDIR)
+	 $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIR) $(FSMDIR) $(ORSDIR)
 
 # HJSON TEMPLATE GENERATION
 hjson:
@@ -275,10 +275,10 @@ sdf: setup_signoff
 
 # PnR
 pnr: setup_pnr
-	$(MAKE) --file=$(ORS)/Makefile DESIGN_CONFIG=$(SIGNOFFDIR)/config.mk
+	$(MAKE) --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk
 
 pnr_gui:
-	$(MAKE) gui_final --file=$(ORS)/Makefile DESIGN_CONFIG=$(SIGNOFFDIR)/config.mk
+	$(MAKE) gui_final --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk
 
 # SAVE TESTBENCH
 save_tb:
@@ -384,8 +384,9 @@ soc_tutorial:
 
 # SETUP COCOTB
 setup_cocotb:
-	$(PYTHON) scripts/setup_cocotb.py --top $(TOP) --itf $(REG_ITF) --rtl-dir $(RTLDIR) --output $(TBDIR) \
-  --clk clk_i --rst rst_ni --rst-active low --period-ns 10 --sim $(COMPILER) 
+	$(PYTHON) scripts/setup_cocotb.py --top $(TOP) --itf $(REG_ITF) \
+	--rtl-dir $(RTLDIR) --output $(TBDIR) --clk clk_i --rst rst_ni \
+	--rst-active low --period-ns 10 --sim $(COMPILER) 
 
 # DEFINE PYTHON MODELDIR
 setup_model:
@@ -393,8 +394,7 @@ setup_model:
 
 # SETUP SDC FILE
 setup_sdc:
-	$(PYTHON) scripts/setup_sdc.py -top $(TOP) -rtldir $(RTLDIR) \
-	-clk $(CLK_PERIOD) -o $(SIGNOFFDIR) 
+	$(PYTHON) scripts/setup_sdc.py $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc 
 
 # SETUP SYNTHESIS WITH YOSYS 
 setup_syn: setup_sdc
@@ -403,13 +403,13 @@ setup_syn: setup_sdc
 
 # SETUP STA SCRIPT
 setup_signoff: setup_sdc
-	$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) -libs $(LIBS) \
-	-clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
+	$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) -sdcdir $(ORSDIR) \
+	-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
 
 # SETUP P&R
 setup_pnr:
-	$(PYTHON) scripts/setup_pnr.py $(TOP)
-
+	$(PYTHON) scripts/setup_pnr.py $(TOP) --platform $(ORS_TECH) \
+	--filelist $(RTLDIR)/rtl_list.f --outdir $(ORSDIR)
 # SIMULATE WITH COCOTB
 sim_cocotb:
 	$(MAKE) -C ${TBDIR}
@@ -440,6 +440,7 @@ save_ip: clean_sim clean_rtl
 	@$(CP) -r $(SIMDIR)     ips/$(TOP) || true
 	@$(CP) -r $(SYNDIR)     ips/$(TOP) || true
 	@$(CP) -r $(SIGNOFFDIR) ips/$(TOP) || true
+	@$(CP) -r $(ORSDIR)     ips/$(TOP) || true
 	@$(CP) -r $(LOGDIR)     ips/$(TOP) || true
 	@$(CP) -r $(MODELDIR)   ips/$(TOP) || true
 	@$(CP) -r $(PYDIR)      ips/$(TOP) || true
@@ -486,6 +487,7 @@ clean_signoff:
 	$(RM) $(SIGNOFFDIR)/*.tcl
 	$(RM) $(SIGNOFFDIR)/path_view
 clean_pnr:
+	$(RM) $(ORSDIR)/*
 	$(RM) $(ORS_LOGS)
 	$(RM) $(ORS_REPORTS)
 	$(RM) $(ORS_RESULTS)
@@ -518,5 +520,5 @@ clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_sub
 	@$(CLEAR)
 clean_all: clean_fsm_all clean_vendor clean 
 	@$(RM) *.core
-	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) \
+	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(ORSDIR) \
 	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) > /dev/null 2>&1
