@@ -53,6 +53,7 @@ All based on open-source tooling:
     - Cocotb
 - 🏗️ Synthesis trials (PPA)
 - ⏱️ Static Timing Analysis
+- 🧱 Physical implementation from RTL to GDS (OpenROAD-based)
 - 🔌 Power estimation and analysis
 - 🌐 IP fetching and dependency management via GitHub
 - 🔀 XBAR interconnect generation
@@ -138,6 +139,7 @@ Running `make deps` will automate the installation process for IP development. I
 - `gtkwave`: Waveform viewer.
 - `yosys`: Synthesis tool.
 - `OpenSTA`: Static Timing Analysis and Power Analysis tool.
+- `OpenROAD`: Backend implementation with OpenROAD flow scripts.
 
 ---
 
@@ -260,7 +262,7 @@ Runs the complete top-level SoC integration and build process. This is the recom
 The IP used is a custom and simple SPI\_HOST.
 Steps performed:
 1. **Load custom SPI_HOST IP:**
- `make load_ip`
+ `make ip_load`
 2. **Fetch LowRISC IPs:**
  `make fetch VENDOR=lowrisc_ip`
 3. **Fetch Ibex core:**
@@ -616,11 +618,11 @@ Save the current testbench file for future reference.
 
 #### IP management
 
-- `save_ip`
+- `ip_save`
 
 Save all files related to the ip developed under ips/ folder.
 
-- `load_ip`
+- `ip_load`
 
 Load back in the environment the ip under ips/ folder.
 

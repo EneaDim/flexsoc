@@ -312,8 +312,8 @@ fsm_plot:
 fsm_flow: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 
 # BASIC FLOW:
-ip_flow_all: hjson doc sim syn sdf sta sta_violators power view
 ip_flow: reg doc lint sim syn sdf sta sta_violators power view
+ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui
 
 # FUSESOC
 fsoc_init:
@@ -367,13 +367,13 @@ fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 
 ip_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
-	$(MAKE) load_ip
+	$(MAKE) ip_load
 	@$(ECHO) "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
 	$(MAKE) sim syn sdf sta sta_violators power view 
 
 soc_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
-	$(MAKE) load_ip
+	$(MAKE) ip_load
 	@$(ECHO) "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
 	$(MAKE) fetch VENDOR=lowrisc_ip
 	@$(ECHO) "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
@@ -429,7 +429,7 @@ load_fsm: fsm_setup
 
 
 # SAVE IP
-save_ip: clean_sim clean_rtl
+ip_save: clean_sim clean_rtl
 	@$(MKDIR) -p ips/$(TOP) 
 	@$(CP) -r $(DATADIR)    ips/$(TOP) || true
 	@$(CP) -r $(DOCDIR)     ips/$(TOP) || true
@@ -449,7 +449,7 @@ save_ip: clean_sim clean_rtl
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP saved\n$(RESET)"
 
 # LOAD IP
-load_ip:
+ip_load:
 	@$(CP) -r ips/$(TOP)/* .
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP loaded\n$(RESET)"
 
