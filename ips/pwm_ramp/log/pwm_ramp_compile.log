@@ -284,12 +284,12 @@
                                                : ... Top module 'tlul_socket_m1'
    25 | module tlul_socket_m1 #(
       |        ^~~~~~~~~~~~~~
+                                               : ... Top module 'multiple_pwm_ramp'
+    1 | module multiple_pwm_ramp #(
+      |        ^~~~~~~~~~~~~~~~~
                                                : ... Top module 'pwm_ramp_reg_top'
    10 | module pwm_ramp_reg_top
       |        ^~~~~~~~~~~~~~~~
-                                               : ... Top module 'pwm_ramp'
-    1 | module pwm_ramp #(
-      |        ^~~~~~~~
 %Warning-GENUNNAMED: ips/prim/prim_gray2bin.sv:7:5: Unnamed generate block 'genblk1' (IEEE 1800-2023 27.6)
                                                   : ... Suggest assign a label with 'begin : gen_<label_name>'
     7 |     for (genvar i = 0; i < N; i++)
@@ -458,162 +458,194 @@
                                                        : ... note: In instance 'tlul_socket_m1'
    86 |   tlul_pkg::tl_h2d_t arb_data;
       |                      ^~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/pwm_ramp.sv:27:26: Signal is not used: 'lvds_fall'
-                                            : ... note: In instance 'pwm_ramp'
-   27 |   logic lvds, lvds_rise, lvds_fall;
-      |                          ^~~~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/multiple_pwm_ramp.sv:7:28: Signal is not used: 'step_i'
+                                                    : ... note: In instance 'multiple_pwm_ramp'
+    7 |   input  logic [NBITS-1:0] step_i,
+      |                            ^~~~~~
+%Warning-UNDRIVEN: rtl/multiple_pwm_ramp.sv:12:28: Signal is not driven: 'adc_value_o'
+                                                 : ... note: In instance 'multiple_pwm_ramp'
+   12 |   output logic [NBITS-1:0] adc_value_o,
+      |                            ^~~~~~~~~~~
+%Warning-UNDRIVEN: rtl/multiple_pwm_ramp.sv:13:28: Signal is not driven: 'adc_valid_o'
+                                                 : ... note: In instance 'multiple_pwm_ramp'
+   13 |   output logic             adc_valid_o
+      |                            ^~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/multiple_pwm_ramp.sv:17:18: Parameter is not used: 'MAX_CNT'
+                                                    : ... note: In instance 'multiple_pwm_ramp'
+   17 |   localparam int MAX_CNT = (2**NBITS) - 1;
+      |                  ^~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/multiple_pwm_ramp.sv:21:21: Signal is not used: 'adc_value_0'
+                                                     : ... note: In instance 'multiple_pwm_ramp'
+   21 |   logic [NBITS-1:0] adc_value_0, adc_value_1;
+      |                     ^~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/multiple_pwm_ramp.sv:21:34: Signal is not used: 'adc_value_1'
+                                                     : ... note: In instance 'multiple_pwm_ramp'
+   21 |   logic [NBITS-1:0] adc_value_0, adc_value_1;
+      |                                  ^~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/multiple_pwm_ramp.sv:22:9: Signal is not used: 'adc_valid_0'
+                                                    : ... note: In instance 'multiple_pwm_ramp'
+   22 |   logic adc_valid_0, adc_valid_1;
+      |         ^~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/multiple_pwm_ramp.sv:22:22: Signal is not used: 'adc_valid_1'
+                                                     : ... note: In instance 'multiple_pwm_ramp'
+   22 |   logic adc_valid_0, adc_valid_1;
+      |                      ^~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: rtl/multiple_pwm_ramp.sv:25:9: Signal is not driven, nor used: 'lvds'
+                                                    : ... note: In instance 'multiple_pwm_ramp'
+   25 |   logic lvds, lvds_rise;
+      |         ^~~~
+%Warning-UNUSEDSIGNAL: rtl/multiple_pwm_ramp.sv:25:15: Signal is not driven, nor used: 'lvds_rise'
+                                                     : ... note: In instance 'multiple_pwm_ramp'
+   25 |   logic lvds, lvds_rise;
+      |               ^~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/top_pkg.sv:13:16: Parameter is not used: 'TL_AUW'
-                                               : ... note: In instance 'pwm_ramp'
+                                               : ... note: In instance 'pwm_ramp_reg_top'
    13 | localparam int TL_AUW=21;    
       |                ^~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/top_pkg.sv:14:16: Parameter is not used: 'TL_DUW'
-                                               : ... note: In instance 'pwm_ramp'
+                                               : ... note: In instance 'pwm_ramp_reg_top'
    14 | localparam int TL_DUW=14;    
       |                ^~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/top_pkg.sv:21:16: Parameter is not used: 'SecVolatileRawUnlockEn'
-                                               : ... note: In instance 'pwm_ramp'
+                                               : ... note: In instance 'pwm_ramp_reg_top'
    21 | localparam int SecVolatileRawUnlockEn = 0;
       |                ^~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:81:25: Parameter is not used: 'Secded2216ZeroEcc'
-                                                       : ... note: In instance 'pwm_ramp'
+                                                       : ... note: In instance 'pwm_ramp_reg_top'
    81 |   parameter logic [5:0] Secded2216ZeroEcc = 6'h0;
       |                         ^~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:82:26: Parameter is not used: 'Secded2216ZeroWord'
-                                                       : ... note: In instance 'pwm_ramp'
+                                                       : ... note: In instance 'pwm_ramp_reg_top'
    82 |   parameter logic [21:0] Secded2216ZeroWord = 22'h0;
       |                          ^~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:90:25: Parameter is not used: 'Secded2822ZeroEcc'
-                                                       : ... note: In instance 'pwm_ramp'
+                                                       : ... note: In instance 'pwm_ramp_reg_top'
    90 |   parameter logic [5:0] Secded2822ZeroEcc = 6'h0;
       |                         ^~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:91:26: Parameter is not used: 'Secded2822ZeroWord'
-                                                       : ... note: In instance 'pwm_ramp'
+                                                       : ... note: In instance 'pwm_ramp_reg_top'
    91 |   parameter logic [27:0] Secded2822ZeroWord = 28'h0;
       |                          ^~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:99:25: Parameter is not used: 'Secded3932ZeroEcc'
-                                                       : ... note: In instance 'pwm_ramp'
+                                                       : ... note: In instance 'pwm_ramp_reg_top'
    99 |   parameter logic [6:0] Secded3932ZeroEcc = 7'h0;
       |                         ^~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:100:26: Parameter is not used: 'Secded3932ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   100 |   parameter logic [38:0] Secded3932ZeroWord = 39'h0;
       |                          ^~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:108:25: Parameter is not used: 'Secded6457ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   108 |   parameter logic [6:0] Secded6457ZeroEcc = 7'h0;
       |                         ^~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:109:26: Parameter is not used: 'Secded6457ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   109 |   parameter logic [63:0] Secded6457ZeroWord = 64'h0;
       |                          ^~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:117:25: Parameter is not used: 'Secded7264ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   117 |   parameter logic [7:0] Secded7264ZeroEcc = 8'h0;
       |                         ^~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:118:26: Parameter is not used: 'Secded7264ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   118 |   parameter logic [71:0] Secded7264ZeroWord = 72'h0;
       |                          ^~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:126:25: Parameter is not used: 'SecdedHamming2216ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   126 |   parameter logic [5:0] SecdedHamming2216ZeroEcc = 6'h0;
       |                         ^~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:127:26: Parameter is not used: 'SecdedHamming2216ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   127 |   parameter logic [21:0] SecdedHamming2216ZeroWord = 22'h0;
       |                          ^~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:135:25: Parameter is not used: 'SecdedHamming3932ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   135 |   parameter logic [6:0] SecdedHamming3932ZeroEcc = 7'h0;
       |                         ^~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:136:26: Parameter is not used: 'SecdedHamming3932ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   136 |   parameter logic [38:0] SecdedHamming3932ZeroWord = 39'h0;
       |                          ^~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:144:25: Parameter is not used: 'SecdedHamming7264ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   144 |   parameter logic [7:0] SecdedHamming7264ZeroEcc = 8'h0;
       |                         ^~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:145:26: Parameter is not used: 'SecdedHamming7264ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   145 |   parameter logic [71:0] SecdedHamming7264ZeroWord = 72'h0;
       |                          ^~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:153:25: Parameter is not used: 'SecdedHamming7668ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   153 |   parameter logic [7:0] SecdedHamming7668ZeroEcc = 8'h0;
       |                         ^~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:154:26: Parameter is not used: 'SecdedHamming7668ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   154 |   parameter logic [75:0] SecdedHamming7668ZeroWord = 76'h0;
       |                          ^~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:162:25: Parameter is not used: 'SecdedInv2216ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   162 |   parameter logic [5:0] SecdedInv2216ZeroEcc = 6'h2A;
       |                         ^~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:163:26: Parameter is not used: 'SecdedInv2216ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   163 |   parameter logic [21:0] SecdedInv2216ZeroWord = 22'h2A0000;
       |                          ^~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:171:25: Parameter is not used: 'SecdedInv2822ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   171 |   parameter logic [5:0] SecdedInv2822ZeroEcc = 6'h2A;
       |                         ^~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:172:26: Parameter is not used: 'SecdedInv2822ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   172 |   parameter logic [27:0] SecdedInv2822ZeroWord = 28'hA800000;
       |                          ^~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:189:25: Parameter is not used: 'SecdedInv6457ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   189 |   parameter logic [6:0] SecdedInv6457ZeroEcc = 7'h2A;
       |                         ^~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:190:26: Parameter is not used: 'SecdedInv6457ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   190 |   parameter logic [63:0] SecdedInv6457ZeroWord = 64'h5400000000000000;
       |                          ^~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:198:25: Parameter is not used: 'SecdedInv7264ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   198 |   parameter logic [7:0] SecdedInv7264ZeroEcc = 8'hAA;
       |                         ^~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:199:26: Parameter is not used: 'SecdedInv7264ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   199 |   parameter logic [71:0] SecdedInv7264ZeroWord = 72'hAA0000000000000000;
       |                          ^~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:207:25: Parameter is not used: 'SecdedInvHamming2216ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   207 |   parameter logic [5:0] SecdedInvHamming2216ZeroEcc = 6'h2A;
       |                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:208:26: Parameter is not used: 'SecdedInvHamming2216ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   208 |   parameter logic [21:0] SecdedInvHamming2216ZeroWord = 22'h2A0000;
       |                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:216:25: Parameter is not used: 'SecdedInvHamming3932ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   216 |   parameter logic [6:0] SecdedInvHamming3932ZeroEcc = 7'h2A;
       |                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:217:26: Parameter is not used: 'SecdedInvHamming3932ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   217 |   parameter logic [38:0] SecdedInvHamming3932ZeroWord = 39'h2A00000000;
       |                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:225:25: Parameter is not used: 'SecdedInvHamming7264ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   225 |   parameter logic [7:0] SecdedInvHamming7264ZeroEcc = 8'hAA;
       |                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:226:26: Parameter is not used: 'SecdedInvHamming7264ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   226 |   parameter logic [71:0] SecdedInvHamming7264ZeroWord = 72'hAA0000000000000000;
       |                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:234:25: Parameter is not used: 'SecdedInvHamming7668ZeroEcc'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   234 |   parameter logic [7:0] SecdedInvHamming7668ZeroEcc = 8'hAA;
       |                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/prim_secded_pkg.sv:235:26: Parameter is not used: 'SecdedInvHamming7668ZeroWord'
-                                                        : ... note: In instance 'pwm_ramp'
+                                                        : ... note: In instance 'pwm_ramp_reg_top'
   235 |   parameter logic [75:0] SecdedInvHamming7668ZeroWord = 76'hAA00000000000000000;
       |                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: ips/prim/prim_edge_detect.sv:4:16: Signal is not used: 'en_i'
-                                                        : ... note: In instance 'pwm_ramp.u_prim_edge_detect'
-    4 |   input  logic en_i,
-      |                ^~~~
 %Warning-UNUSEDPARAM: ips/tlul/tlul_assert.sv:11:13: Parameter is not used: 'EndpointType'
                                                    : ... note: In instance 'tlul_assert_multiple.gen_assert[1].tlul_assert'
    11 |   parameter EndpointType = "Device"  
@@ -658,6 +690,10 @@
                                                       : ... note: In instance 'tlul_adapter_sram.u_sram_byte'
    25 |   input rst_ni,
       |         ^~~~~~
+%Warning-UNUSEDSIGNAL: rtl/pwm_ramp.sv:27:26: Signal is not used: 'lvds_fall'
+                                            : ... note: In instance 'multiple_pwm_ramp.u_pwm_ramp_0'
+   27 |   logic lvds, lvds_rise, lvds_fall;
+      |                          ^~~~~~~~~
 %Warning-UNUSEDSIGNAL: ips/tlul/tlul_adapter_reg.sv:65:51: Signal is not used: 'instr_error'
                                                          : ... note: In instance 'pwm_ramp_reg_top.u_reg_if'
    65 |   logic             error_q, error, err_internal, instr_error, intg_error;
@@ -674,6 +710,10 @@
                                                         : ... note: In instance 'pwm_ramp_reg_top.u_reg_if'
    69 |   logic tl_err;              
       |         ^~~~~~
+%Warning-UNUSEDSIGNAL: ips/prim/prim_edge_detect.sv:4:16: Signal is not used: 'en_i'
+                                                        : ... note: In instance 'multiple_pwm_ramp.u_pwm_ramp_1.u_prim_edge_detect'
+    4 |   input  logic en_i,
+      |                ^~~~
 %Warning-UNUSEDSIGNAL: ips/tlul/tlul_err.sv:9:9: Signal is not used: 'clk_i'
                                                : ... note: In instance 'pwm_ramp_reg_top.u_reg_if.u_err'
     9 |   input clk_i,
@@ -695,27 +735,27 @@
    18 |   localparam int SZW = $bits(tl_i.a_size);
       |                  ^~~
 %Warning-UNUSEDSIGNAL: ips/prim/prim_ff_2sync.sv:11:21: Signal is not driven, nor used: 'd_o'
-                                                      : ... note: In instance 'pwm_ramp.u_prim_deglitch.gen_async.prim_flop_2sync'
+                                                      : ... note: In instance 'multiple_pwm_ramp.u_pwm_ramp_1.u_prim_deglitch.gen_async.prim_flop_2sync'
    11 |   logic [Width-1:0] d_o;
       |                     ^~~
 %Warning-UNUSEDPARAM: ips/pkgs/tlul_pkg.sv:29:17: Parameter is not used: 'H2DCmdFullWidth'
-                                                : ... note: In instance 'tlul_socket_1n.gen_dfifo[3].fifo_d.reqfifo.gen_normal_fifo.u_fifo_cnt'
+                                                : ... note: In instance 'multiple_pwm_ramp.u_pwm_ramp_1.u_prim_deglitch.gen_async.prim_flop_2sync'
    29 |   parameter int H2DCmdFullWidth = H2DCmdMaxWidth + H2DCmdIntgWidth;
       |                 ^~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/tlul_pkg.sv:32:17: Parameter is not used: 'D2HRspFullWidth'
-                                                : ... note: In instance 'tlul_socket_1n.gen_dfifo[3].fifo_d.reqfifo.gen_normal_fifo.u_fifo_cnt'
+                                                : ... note: In instance 'multiple_pwm_ramp.u_pwm_ramp_1.u_prim_deglitch.gen_async.prim_flop_2sync'
    32 |   parameter int D2HRspFullWidth = D2HRspMaxWidth + D2HRspIntgWidth;
       |                 ^~~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/tlul_pkg.sv:35:17: Parameter is not used: 'DataFullWidth'
-                                                : ... note: In instance 'tlul_socket_1n.gen_dfifo[3].fifo_d.reqfifo.gen_normal_fifo.u_fifo_cnt'
+                                                : ... note: In instance 'multiple_pwm_ramp.u_pwm_ramp_1.u_prim_deglitch.gen_async.prim_flop_2sync'
    35 |   parameter int DataFullWidth   = DataMaxWidth + DataIntgWidth;
       |                 ^~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/tlul_pkg.sv:87:23: Parameter is not used: 'TL_H2D_DEFAULT'
-                                                : ... note: In instance 'tlul_socket_1n.gen_dfifo[3].fifo_d.reqfifo.gen_normal_fifo.u_fifo_cnt'
+                                                : ... note: In instance 'multiple_pwm_ramp.u_pwm_ramp_1.u_prim_deglitch.gen_async.prim_flop_2sync'
    87 |   localparam tl_h2d_t TL_H2D_DEFAULT = '{
       |                       ^~~~~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/tlul_pkg.sv:131:23: Parameter is not used: 'TL_D2H_DEFAULT'
-                                                 : ... note: In instance 'tlul_socket_1n.gen_dfifo[3].fifo_d.reqfifo.gen_normal_fifo.u_fifo_cnt'
+                                                 : ... note: In instance 'multiple_pwm_ramp.u_pwm_ramp_1.u_prim_deglitch.gen_async.prim_flop_2sync'
   131 |   localparam tl_d2h_t TL_D2H_DEFAULT = '{
       |                       ^~~~~~~~~~~~~~
 make[1]: Entering directory '/home/eneadim/github/flexsoc/sim/verilator'
@@ -728,5 +768,5 @@ g++    verilated.o verilated_threads.o Vtop_pkg__ALL.a    -pthread -lpthread -la
 rm Vtop_pkg__ALL.verilator_deplist.tmp
 make[1]: Leaving directory '/home/eneadim/github/flexsoc/sim/verilator'
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 15.023 MB sources in 74 modules, into 1.620 MB in 13 C++ files needing 0.002 MB
-- Verilator: Walltime 0.481 s (elab=0.028, cvt=0.123, bld=0.268); cpu 0.214 s on 1 threads; alloced 46.148 MB
+- Verilator: Built from 15.392 MB sources in 75 modules, into 1.630 MB in 13 C++ files needing 0.002 MB
+- Verilator: Walltime 0.303 s (elab=0.022, cvt=0.099, bld=0.129); cpu 0.175 s on 1 threads; alloced 47.148 MB

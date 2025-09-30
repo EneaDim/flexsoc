@@ -30,8 +30,8 @@ puts "==========================================================================
 puts "Read SDC"
 puts "==========================================================================="
 puts ""
-puts "read_sdc signoff/pwm_ramp.sdc"
-read_sdc signoff/pwm_ramp.sdc
+puts "read_sdc ors/pwm_ramp.sdc"
+read_sdc ors/pwm_ramp.sdc
 puts ""
 puts "==========================================================================="
 puts "(Hold) report_checks -path_delay min"

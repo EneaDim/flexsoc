@@ -660,6 +660,12 @@
                        ips/pkgs/top_pkg.sv:7:9: ... Location of module with timescale
     7 | package top_pkg;
       |         ^~~~~~~
+%Warning-TIMESCALEMOD: rtl/multiple_pwm_ramp.sv:1:8: Timescale missing on this module as other modules have it (IEEE 1800-2023 3.14.2.3)
+    1 | module multiple_pwm_ramp #(
+      |        ^~~~~~~~~~~~~~~~~
+                       ips/pkgs/top_pkg.sv:7:9: ... Location of module with timescale
+    7 | package top_pkg;
+      |         ^~~~~~~
 %Warning-TIMESCALEMOD: rtl/pwm_ramp_reg_pkg.sv:7:9: Timescale missing on this module as other modules have it (IEEE 1800-2023 3.14.2.3)
     7 | package pwm_ramp_reg_pkg;
       |         ^~~~~~~~~~~~~~~~
@@ -1110,6 +1116,34 @@
       |                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
                       tb/include_pwm_ramp_tb.sv:6:1: ... note: In file included from 'include_pwm_ramp_tb.sv'
                       tb/pwm_ramp_tb.sv:5:1: ... note: In file included from 'pwm_ramp_tb.sv'
+%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:80:33: Parameter is not used: 'PWM_RAMP_CTRL_OFFSET'
+                                                   : ... note: In instance 'pwm_ramp_tb.u_rc_filter'
+   80 |   parameter logic [BlockAw-1:0] PWM_RAMP_CTRL_OFFSET = 4'h 0;
+      |                                 ^~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:81:33: Parameter is not used: 'PWM_RAMP_STATUS_OFFSET'
+                                                   : ... note: In instance 'pwm_ramp_tb.u_rc_filter'
+   81 |   parameter logic [BlockAw-1:0] PWM_RAMP_STATUS_OFFSET = 4'h 4;
+      |                                 ^~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:82:33: Parameter is not used: 'PWM_RAMP_RDATA_OFFSET'
+                                                   : ... note: In instance 'pwm_ramp_tb.u_rc_filter'
+   82 |   parameter logic [BlockAw-1:0] PWM_RAMP_RDATA_OFFSET = 4'h 8;
+      |                                 ^~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:83:33: Parameter is not used: 'PWM_RAMP_WDATA_OFFSET'
+                                                   : ... note: In instance 'pwm_ramp_tb.u_rc_filter'
+   83 |   parameter logic [BlockAw-1:0] PWM_RAMP_WDATA_OFFSET = 4'h c;
+      |                                 ^~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:86:25: Parameter is not used: 'PWM_RAMP_STATUS_RESVAL'
+                                                   : ... note: In instance 'pwm_ramp_tb.u_rc_filter'
+   86 |   parameter logic [1:0] PWM_RAMP_STATUS_RESVAL = 2'h 0;
+      |                         ^~~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:87:25: Parameter is not used: 'PWM_RAMP_RDATA_RESVAL'
+                                                   : ... note: In instance 'pwm_ramp_tb.u_rc_filter'
+   87 |   parameter logic [7:0] PWM_RAMP_RDATA_RESVAL = 8'h 0;
+      |                         ^~~~~~~~~~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:98:25: Parameter is not used: 'PWM_RAMP_PERMIT'
+                                                   : ... note: In instance 'pwm_ramp_tb.u_rc_filter'
+   98 |   parameter logic [3:0] PWM_RAMP_PERMIT [4] = '{
+      |                         ^~~~~~~~~~~~~~~
 %Warning-UNUSEDSIGNAL: rtl/pwm_ramp.sv:27:26: Signal is not used: 'lvds_fall'
                                             : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp'
    27 |   logic lvds, lvds_rise, lvds_fall;
@@ -1118,34 +1152,6 @@
                                                         : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp.u_prim_edge_detect'
     4 |   input  logic en_i,
       |                ^~~~
-%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:80:33: Parameter is not used: 'PWM_RAMP_CTRL_OFFSET'
-                                                   : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp.u_prim_edge_detect'
-   80 |   parameter logic [BlockAw-1:0] PWM_RAMP_CTRL_OFFSET = 4'h 0;
-      |                                 ^~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:81:33: Parameter is not used: 'PWM_RAMP_STATUS_OFFSET'
-                                                   : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp.u_prim_edge_detect'
-   81 |   parameter logic [BlockAw-1:0] PWM_RAMP_STATUS_OFFSET = 4'h 4;
-      |                                 ^~~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:82:33: Parameter is not used: 'PWM_RAMP_RDATA_OFFSET'
-                                                   : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp.u_prim_edge_detect'
-   82 |   parameter logic [BlockAw-1:0] PWM_RAMP_RDATA_OFFSET = 4'h 8;
-      |                                 ^~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:83:33: Parameter is not used: 'PWM_RAMP_WDATA_OFFSET'
-                                                   : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp.u_prim_edge_detect'
-   83 |   parameter logic [BlockAw-1:0] PWM_RAMP_WDATA_OFFSET = 4'h c;
-      |                                 ^~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:86:25: Parameter is not used: 'PWM_RAMP_STATUS_RESVAL'
-                                                   : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp.u_prim_edge_detect'
-   86 |   parameter logic [1:0] PWM_RAMP_STATUS_RESVAL = 2'h 0;
-      |                         ^~~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:87:25: Parameter is not used: 'PWM_RAMP_RDATA_RESVAL'
-                                                   : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp.u_prim_edge_detect'
-   87 |   parameter logic [7:0] PWM_RAMP_RDATA_RESVAL = 8'h 0;
-      |                         ^~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: rtl/pwm_ramp_reg_pkg.sv:98:25: Parameter is not used: 'PWM_RAMP_PERMIT'
-                                                   : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp.u_prim_edge_detect'
-   98 |   parameter logic [3:0] PWM_RAMP_PERMIT [4] = '{
-      |                         ^~~~~~~~~~~~~~~
 %Warning-UNUSEDSIGNAL: ips/prim/prim_ff_2sync.sv:11:21: Signal is not driven, nor used: 'd_o'
                                                       : ... note: In instance 'pwm_ramp_tb.u_pwm_ramp.u_prim_deglitch.gen_async.prim_flop_2sync'
    11 |   logic [Width-1:0] d_o;
@@ -1194,5 +1200,5 @@ g++    verilated.o verilated_vcd_c.o verilated_timing.o verilated_threads.o Vpwm
 rm Vpwm_ramp_tb__ALL.verilator_deplist.tmp
 make[1]: Leaving directory '/home/eneadim/github/flexsoc/sim/verilator'
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 15.517 MB sources in 81 modules, into 0.107 MB in 13 C++ files needing 0.000 MB
-- Verilator: Walltime 0.280 s (elab=0.019, cvt=0.024, bld=0.182); cpu 0.097 s on 1 threads; alloced 43.148 MB
+- Verilator: Built from 15.888 MB sources in 82 modules, into 0.107 MB in 13 C++ files needing 0.000 MB
+- Verilator: Walltime 0.229 s (elab=0.019, cvt=0.023, bld=0.135); cpu 0.094 s on 1 threads; alloced 43.152 MB

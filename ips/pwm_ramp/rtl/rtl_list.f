@@ -66,6 +66,7 @@ ips/tlul/tlul_rsp_intg_gen.sv
 ips/tlul/tlul_socket_1n.sv
 ips/tlul/tlul_socket_m1.sv
 ips/tlul/tlul_sram_byte.sv
+rtl/multiple_pwm_ramp.sv
 rtl/pwm_ramp_reg_pkg.sv
 rtl/pwm_ramp_reg_top.sv
 rtl/pwm_ramp.sv

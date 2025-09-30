@@ -30,8 +30,8 @@ puts "==========================================================================
 puts "Read SDC"
 puts "==========================================================================="
 puts ""
-puts "read_sdc signoff/spi_host.sdc"
-read_sdc signoff/spi_host.sdc
+puts "read_sdc ors/spi_host.sdc"
+read_sdc ors/spi_host.sdc
 puts ""
 puts ""
 puts "==========================================================================="

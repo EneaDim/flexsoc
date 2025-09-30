@@ -30,8 +30,8 @@ puts "==========================================================================
 puts "Read SDC"
 puts "==========================================================================="
 puts ""
-puts "read_sdc signoff/cache_wrapper.sdc"
-read_sdc signoff/cache_wrapper.sdc
+puts "read_sdc ors/cache_wrapper.sdc"
+read_sdc ors/cache_wrapper.sdc
 puts ""
 puts ""
 puts "==========================================================================="

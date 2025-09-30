@@ -30,8 +30,8 @@ puts "==========================================================================
 puts "Read SDC"
 puts "==========================================================================="
 puts ""
-puts "read_sdc signoff/fft_core.sdc"
-read_sdc signoff/fft_core.sdc
+puts "read_sdc ors/fft_core.sdc"
+read_sdc ors/fft_core.sdc
 puts ""
 puts ""
 puts "==========================================================================="
