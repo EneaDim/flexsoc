@@ -105,7 +105,6 @@ Two images available:
     -e PULSE_SERVER="/mnt/wslg/PulseServer" \
     -e NO_AT_BRIDGE=1 \
     -v /mnt/wslg:/mnt/wslg \
-    -v "$(pwd)":/work -w /work \
     ghcr.io/eneadim/flexsoc:latest bash
   ```
 
@@ -123,7 +122,6 @@ Two images available:
     -e PULSE_SERVER="/mnt/wslg/PulseServer" \
     -e NO_AT_BRIDGE=1 \
     -v /mnt/wslg:/mnt/wslg \
-    -v "$(pwd)":/work -w /work \
     ghcr.io/eneadim/flexsoc-full:latest bash
   ```
 

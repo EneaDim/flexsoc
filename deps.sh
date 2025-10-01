@@ -10,9 +10,10 @@ install_ip_dependencies() {
     sudo apt update
     sudo apt upgrade
     sudo apt-get install -y build-essential clang flex bison libfl-dev nodejs npm \
-      libreadline-dev gawk tcl-dev libffi-dev git cmake libelf-dev autoconf swig \
+      libreadline-dev gawk tcl-dev libffi-dev git cmake libelf-dev autoconf swig wget \
       curl graphviz xdot pkg-config libboost-system-dev ninja-build pkg-config help2man \
-      libeigen3-dev libboost-python-dev libboost-filesystem-dev zlib1g-dev --assume-yes
+      libeigen3-dev libboost-python-dev libboost-filesystem-dev zlib1g-dev automake \
+      libtool m4 pkg-config gcc g++ perl unzip --assume-yes
     echo "|**********************************************************************************|"
     echo "|                               Installing iverilog                                |"
     echo "|**********************************************************************************|"
@@ -66,6 +67,18 @@ install_ip_dependencies() {
     sudo cp yosys* /usr/local/bin
     cd
     echo
+    echo "|**********************************************************************************|"
+    echo "|                             OpenROAD flow scripts                                |"
+    echo "|**********************************************************************************|"
+    echo
+    cd
+    git clone --recursive https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts openroad
+    cd openroad
+    ./etc/DependencyInstaller.sh -common
+    sudo ./setup.sh
+    ./build_openroad.sh --local --install-path=/usr/local
+    echo
+    cd
     echo "|**********************************************************************************|"
     echo "|                              OpenSTA installation                                |"
     echo "|**********************************************************************************|"

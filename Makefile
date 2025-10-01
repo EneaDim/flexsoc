@@ -363,7 +363,7 @@ soc_view:
 
 # TUTORIALS
 fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
-	@$(MAKE) setup_tb ip_flow_all plot_postsyn TOP=$(FSM)
+	@$(MAKE) hjson setup_tb ip_flow plot_postsyn TOP=$(FSM)
 
 ip_tutorial:
 	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
