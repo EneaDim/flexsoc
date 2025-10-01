@@ -76,7 +76,7 @@ install_ip_dependencies() {
     cd openroad
     ./etc/DependencyInstaller.sh -common
     sudo ./setup.sh
-    ./build_openroad.sh --local --install-path=/usr/local
+    ./build_openroad.sh --local --install-path /usr/local
     echo
     cd
     echo "|**********************************************************************************|"

@@ -99,12 +99,9 @@ Two images available:
   
   # start the container in the current repo (mounts your workspace)
   docker run --rm -it \
-    -e DISPLAY=":0" \
-    -e WAYLAND_DISPLAY="wayland-0" \
-    -e XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir" \
-    -e PULSE_SERVER="/mnt/wslg/PulseServer" \
-    -e NO_AT_BRIDGE=1 \
-    -v /mnt/wslg:/mnt/wslg \
+    -e DISPLAY=$DISPLAY \
+    -e GDK_BACKEND=x11 -e QT_X11_NO_MITSHM=1 -e NO_AT_BRIDGE=1 \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
     ghcr.io/eneadim/flexsoc:latest bash
   ```
 
@@ -116,12 +113,9 @@ Two images available:
   
   # start the container in the current repo (mounts your workspace)
   docker run --rm -it \
-    -e DISPLAY=":0" \
-    -e WAYLAND_DISPLAY="wayland-0" \
-    -e XDG_RUNTIME_DIR="/mnt/wslg/runtime-dir" \
-    -e PULSE_SERVER="/mnt/wslg/PulseServer" \
-    -e NO_AT_BRIDGE=1 \
-    -v /mnt/wslg:/mnt/wslg \
+    -e DISPLAY=$DISPLAY \
+    -e GDK_BACKEND=x11 -e QT_X11_NO_MITSHM=1 -e NO_AT_BRIDGE=1 \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
     ghcr.io/eneadim/flexsoc-full:latest bash
   ```
 
