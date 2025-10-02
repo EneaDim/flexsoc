@@ -274,11 +274,11 @@ sdf: setup_signoff
 	$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > /dev/null 2>&1
 
 # PnR
-pnr: setup_pnr
+pnr: 
 	$(MAKE) --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk
 
 pnr_gui:
-	$(MAKE) gui_final --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk
+	$(MAKE) gui_final --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk &
 
 # SAVE TESTBENCH
 save_tb:
