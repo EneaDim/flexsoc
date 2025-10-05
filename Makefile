@@ -399,7 +399,7 @@ setup_sdc:
 
 # SETUP SYNTHESIS WITH YOSYS 
 setup_syn: setup_sdc
-	$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -sdcdir $(SIGNOFFDIR) \
+	$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
 	-liberty $(LIB_SYN) -clk $(CLK_PERIOD) -target $(TARGET_SYN) -opt $(TARGET_OPT) -o $(SYNDIR)  
 
 # SETUP STA SCRIPT
@@ -485,15 +485,12 @@ clean_syn:
 clean_signoff: 
 	$(RM) $(SIGNOFFDIR)/sdf/*
 	$(RM) $(SIGNOFFDIR)/*.sdc
-	$(RM) $(SIGNOFFDIR)/*.tcl
-	$(RM) $(SIGNOFFDIR)/path_view
 clean_pnr:
 	$(RM) $(ORSDIR)/*
 	$(RM) $(ORS_LOGS)
 	$(RM) $(ORS_REPORTS)
 	$(RM) $(ORS_RESULTS)
 	$(RM) $(ORS_OBJECTS)
-
 clean_fsm:
 	$(MAKE) -C fsm_gen clean
 clean_fsm_all:
