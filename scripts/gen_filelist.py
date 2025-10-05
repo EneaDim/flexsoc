@@ -157,7 +157,10 @@ def main():
             print(f"Warning: {p.as_posix()} does not exist (removed from list).")
 
     # Ordine finale: fixed + rtl_rest (pkg prima) + dynamic
-    paths = fixed + rtl_rest + dynamic
+    if len(dynamic) > 1:
+        paths = fixed + rtl_rest + dynamic
+    else:
+        paths = dynamic
 
     # Optionally check that files exist and warn (but still write the list).
     if not args.no_check:
