@@ -96,6 +96,10 @@ def main():
         ips / "prim_opentitan" / "prim_filter_ctr.sv",
         ips / "prim_opentitan" / "prim_flop.sv",
         ips / "prim_opentitan" / "prim_flop_2sync.sv",
+        ips / "prim_opentitan" / "prim_intr_hw.sv",
+        ips / "prim_opentitan" / "prim_reg_cdc.sv",
+        ips / "prim_opentitan" / "prim_reg_cdc_arb.sv",
+        ips / "prim_opentitan" / "prim_pulse_sync.sv",
         ips / "prim_opentitan" / "prim_secded_inv_39_32_dec.sv",
         ips / "prim_opentitan" / "prim_secded_inv_39_32_enc.sv",
         ips / "prim_opentitan" / "prim_secded_inv_64_57_dec.sv",
@@ -160,7 +164,10 @@ def main():
     if len(dynamic) > 1:
         paths = fixed + rtl_rest + dynamic
     else:
-        paths = dynamic
+        if top == 'top' or top == 'soc': 
+            paths = fixed + rtl_rest + dynamic
+        else:
+            paths = rtl_rest + dynamic
 
     # Optionally check that files exist and warn (but still write the list).
     if not args.no_check:
