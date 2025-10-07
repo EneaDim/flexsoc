@@ -140,7 +140,7 @@ def generate_module_inst(mod, ports):
     inst_lines.append("  );\n")
     return "\n".join(inst_lines)
 
-def generate_soc_sv(lowrisc_modules, modules, root_dir, output_file):
+def generate_soc_sv(host, lowrisc_modules, modules, root_dir, output_file):
     modules_ports = {}
 
     all_modules = lowrisc_modules + modules
@@ -169,6 +169,11 @@ def generate_soc_sv(lowrisc_modules, modules, root_dir, output_file):
         # Write module header
         f.write(TEMPLATE_HEADER)
 
+        if host == 'uart':
+            f.write('\n  input  logic cio_rx_i,\n')
+            f.write('  output logic cio_tx_o,\n')
+            f.write('  output logic cio_tx_en_o,\n')
+
         # Append unique ports
         port_decls = generate_port_decls(all_ports)
         for decl in port_decls:
@@ -179,7 +184,7 @@ def generate_soc_sv(lowrisc_modules, modules, root_dir, output_file):
         f.write("\n);\n\n")
 
         # Basic
-        f.write(defaults())
+        f.write(defaults(host))
 
         # Tilelink for modules
         for mod in all_modules:
@@ -194,13 +199,21 @@ def generate_soc_sv(lowrisc_modules, modules, root_dir, output_file):
         f.write(f"    .clk_i,\n")
         f.write(f"    .rst_ni,\n")
         f.write(f"\n")
-        f.write(f"    // Host interfaces.\n")
-        f.write(f"    .tl_ibex_lsu_i (tl_ibex_lsu_h2d),\n")
-        f.write(f"    .tl_ibex_lsu_o (tl_ibex_lsu_d2h),\n")
-        f.write(f"\n")
-        f.write(f"    // Device interfaces.\n")
-        f.write(f"    .tl_sram_o     (tl_sram_h2d),\n")
-        f.write(f"    .tl_sram_i     (tl_sram_d2h),\n")
+        if host == 'ibex':
+            f.write(f"    // Host interfaces.\n")
+            f.write(f"    .tl_ibex_i (tl_ibex_h2d),\n")
+            f.write(f"    .tl_ibex_o (tl_ibex_d2h),\n")
+            f.write(f"\n")
+            f.write(f"    // Device interfaces.\n")
+            f.write(f"    .tl_sram_o     (tl_sram_h2d),\n")
+            f.write(f"    .tl_sram_i     (tl_sram_d2h),\n")
+        elif host == 'uart':
+            f.write(f"    // Host interfaces.\n")
+            f.write(f"    .tl_uart_host_i (tl_uart_host_h2d),\n")
+            f.write(f"    .tl_uart_host_o (tl_uart_host_d2h),\n")
+            f.write(f"\n    // Device interfaces.\n")
+            f.write(f"    .tl_uart_o (tl_uart_h2d),\n")
+            f.write(f"    .tl_uart_i (tl_uart_d2h),\n")
         for mod in all_modules:
             f.write(f"    .tl_{mod}_o     (tl_{mod}_h2d),\n")
             f.write(f"    .tl_{mod}_i     (tl_{mod}_d2h),\n")
@@ -443,8 +456,8 @@ def generate_soc_sv(lowrisc_modules, modules, root_dir, output_file):
         f.write(f'      - PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric\n')
 
 
-def defaults():
-    return """
+def defaults(host):
+    out = f"""
   // Local parameters.
   localparam int unsigned MemSize       = 128 * 1024; // 128 KiB
   localparam int unsigned DataWidth     = 32;
@@ -453,15 +466,18 @@ def defaults():
   
 
   // Read/write signals.
-  logic                     ibex_req;
-  logic                     ibex_gnt;
-  logic                     ibex_we;
-  logic [(DataWidth/8)-1:0] ibex_be;
-  logic [DataWidth-1:0]     ibex_addr;
-  logic [DataWidth-1:0]     ibex_wdata;
-  logic                     ibex_rvalid;
-  logic [DataWidth-1:0]     ibex_rdata;
-  logic                     ibex_err;
+  logic                     {host}_req;
+  logic                     {host}_gnt;
+  logic                     {host}_we;
+  logic [(DataWidth/8)-1:0] {host}_be;
+  logic [DataWidth-1:0]     {host}_addr;
+  logic [DataWidth-1:0]     {host}_wdata;
+  logic                     {host}_rvalid;
+  logic [DataWidth-1:0]     {host}_rdata;
+  logic                     {host}_err;
+  """
+    if host == 'ibex':
+        out += """
   logic                     sram_data_req;
   logic                     sram_data_we;
   logic [SramAddrWidth-1:0] sram_data_addr;
@@ -473,6 +489,12 @@ def defaults():
   logic [DataWidth-1:0]     sram_instr_addr;
   logic                     sram_instr_rvalid;
   logic [DataWidth-1:0]     sram_instr_rdata;
+
+  // TileLink signals.
+  tlul_pkg::tl_h2d_t tl_ibex_h2d;
+  tlul_pkg::tl_d2h_t tl_ibex_d2h;
+  tlul_pkg::tl_h2d_t tl_sram_h2d;
+  tlul_pkg::tl_d2h_t tl_sram_d2h;
 
   // Instantiate our Ibex CPU.
   ibex_top_tracing #(
@@ -572,32 +594,76 @@ def defaults():
       sram_instr_rvalid <= sram_instr_req;
     end
   end
+"""
+    elif host == 'uart':
+        out += """
 
+  // TileLink signals.
+  tlul_pkg::tl_h2d_t tl_uart_host_h2d;
+  tlul_pkg::tl_d2h_t tl_uart_host_d2h;
+  tlul_pkg::tl_h2d_t tl_uart_h2d;
+  tlul_pkg::tl_d2h_t tl_uart_d2h;
+
+  // UART host
+  uart u_uart (
+    .clk_i, .rst_ni,
+
+    .tl_i(tl_uart_h2d),
+    .tl_o(tl_uart_d2h),
+
+    .req_i   (uart_req),
+    .gnt_o   (uart_gnt),
+    .addr_i  (uart_addr),
+    .we_i    (uart_we),
+    .wdata_i (uart_wdata),
+    .be_i    (uart_be),
+    .valid_o (uart_rvalid),
+    .rdata_o (uart_rdata),
+    .err_o   (uart_err),
+    .intg_err_o(),
+
+    .cio_rx_i, .cio_tx_o, .cio_tx_en_o,
+
+    .intr_tx_watermark_o(),
+    .intr_tx_empty_o(),
+    .intr_rx_watermark_o(),
+    .intr_tx_done_o(),
+    .intr_rx_overflow_o(),
+    .intr_rx_frame_err_o(),
+    .intr_rx_break_err_o(),
+    .intr_rx_timeout_o(),
+    .intr_rx_parity_err_o()
+  );
+
+"""
+    out +=f"""
 
   // TileLink host adapter to connect Ibex to bus.
-  tlul_adapter_host ibex_lsu_host_adapter (
+  tlul_adapter_host ibex_host_adapter (
     .clk_i,
     .rst_ni,
 
-    .req_i        (ibex_req),
-    .gnt_o        (ibex_gnt),
-    .addr_i       (ibex_addr),
-    .we_i         (ibex_we),
-    .wdata_i      (ibex_wdata),
+    .req_i        ({host}_req),
+    .gnt_o        ({host}_gnt),
+    .addr_i       ({host}_addr),
+    .we_i         ({host}_we),
+    .wdata_i      ({host}_wdata),
     .wdata_intg_i ('0),
-    .be_i         (ibex_be),
+    .be_i         ({host}_be),
     .instr_type_i (prim_mubi_pkg::MuBi4False),
 
-    .valid_o      (ibex_rvalid),
-    .rdata_o      (ibex_rdata),
+    .valid_o      ({host}_rvalid),
+    .rdata_o      ({host}_rdata),
     .rdata_intg_o (),
-    .err_o        (ibex_err),
+    .err_o        ({host}_err),
     .intg_err_o   (),
 
-    .tl_o         (tl_ibex_lsu_h2d),
-    .tl_i         (tl_ibex_lsu_d2h)
+"""
+    if host == 'ibex':
+        out += f"""
+    .tl_o         (tl_{host}_h2d),
+    .tl_i         (tl_{host}_d2h)
   );
-
   // TileLink device adapter to connect SRAM to bus.
   tlul_adapter_sram #(
     .SramAw           ( SramAddrWidth - AddrOffset ),
@@ -633,17 +699,23 @@ def defaults():
     .wr_collision_i             (1'b0),
     .write_pending_i            (1'b0)
   );
-  
 
-  // TileLink signals.
-  tlul_pkg::tl_h2d_t tl_ibex_lsu_h2d;
-  tlul_pkg::tl_d2h_t tl_ibex_lsu_d2h;
-  tlul_pkg::tl_h2d_t tl_sram_h2d;
-  tlul_pkg::tl_d2h_t tl_sram_d2h;
 """
+    elif host == 'uart':
+        out += f"""
+    .tl_o         (tl_{host}_host_h2d),
+    .tl_i         (tl_{host}_host_d2h)
+  );
+
+"""
+    return out
 
 def main():
     parser = argparse.ArgumentParser(description="Generate soc.sv with module instantiations.")
+    parser.add_argument(
+        "--host", "-host", required=True, type=str,
+        help="Host selection: ibex - uart"
+    )
     parser.add_argument(
         "--lowrisc_modules", "-lrm", nargs="+", required=True,
         help="List of module names to include (e.g., uart spi_host)"
@@ -662,7 +734,7 @@ def main():
     )
 
     args = parser.parse_args()
-    generate_soc_sv(args.lowrisc_modules, args.modules, args.root, args.output)
+    generate_soc_sv(args.host, args.lowrisc_modules, args.modules, args.root, args.output)
 
 if __name__ == "__main__":
     main()

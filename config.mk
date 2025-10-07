@@ -81,14 +81,20 @@ ORS_OBJECTS     ?=objects
 ORS_TECH        ?=sky130hd
 
 # SoC MEMORY MAP
+#HOST            ?= uart
+#LOWRISC_IPS     ?= pwm
+#NEW_MODULE_ADD  ?= 0x80040000 
+#SOC_MEMORY_MAP  ?=--device uart 0x80000000 0x00001000 \
+#									--device pwm 0x80020000 0x00001000 \
+#  					      --device spi_host $(NEW_MODULE_ADD) 0x00001000 \
+
+HOST            ?= ibex
 LOWRISC_IPS     ?= uart pwm
 NEW_MODULE_ADD  ?= 0x80040000 
-SOC_MEMORY_MAP  ?=--device sram 0x00100000 0x00020000 \
-  					      --device uart 0x80000000 0x00001000 \
-  					      --device pwm 0x80020000 0x00001000 \
+SOC_MEMORY_MAP  ?=--device sram 0x00010000 0x00001000 \
+									--device uart 0x80000000 0x00001000 \
+									--device pwm 0x80020000 0x00001000 \
   					      --device spi_host $(NEW_MODULE_ADD) 0x00001000 \
-
-
 
 # Shell functions
 ECHO            :=echo

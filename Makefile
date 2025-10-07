@@ -330,7 +330,7 @@ xbar: xbar_init xbar_build
 xbar_init:
 	$(MKDIR) -p $(TOPDIR)
 	@$(ECHO) "\n$(ORANGE)XBAR hjson init, assuming ibex host ...\n$(RESET)"
-	$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --output $(TOPDIR)/xbar_main.hjson
+	$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --host $(HOST) --output $(TOPDIR)/xbar_main.hjson
 
 xbar_build:
 	@$(ECHO) "\n$(ORANGE)XBAR build ...\n$(RESET)"
@@ -346,7 +346,7 @@ soc_flow: soc_build driver soc_sim soc_run
 soc_build:
 	@$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
 	@$(MKDIR) -p $(TOPDIR)
-	@$(PYTHON) scripts/soc_gen.py -lrm $(LOWRISC_IPS) -m $(TOP) -o $(TOPDIR)/soc.sv
+	@$(PYTHON) scripts/soc_gen.py -host $(HOST) -lrm $(LOWRISC_IPS) -m $(TOP) -o $(TOPDIR)/soc.sv
 
 soc_sim:
 	@$(ECHO) "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
@@ -361,6 +361,16 @@ soc_run:
 soc_view:
 	@$(ECHO) "\n$(ORANGE)Viewing ...\n$(RESET)"
 	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
+
+# SoC Processor-Less
+soc_pless: ip_load fetch xbar soc_build
+	@$(CP) top/autogen/xbar_main.sv rtl/ 
+	@$(CP) top/autogen/tl_main_pkg.sv rtl/
+	@$(CP) top/soc.sv rtl/
+	@$(CP) ips/soc/rtl/uart* rtl/
+	@$(CP) vendor/lowrisc_ip/ip/pwm/rtl/* rtl/
+	@$(CP) ips/soc/tb/* tb/
+	$(MAKE) sim view TOP=soc
 
 # TUTORIALS
 fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl

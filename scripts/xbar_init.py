@@ -32,6 +32,12 @@ def parse_args():
     )
 
     parser.add_argument(
+        '--host',
+        type=str,
+        help='Output JSON file (optional). If not set, prints to stdout.'
+    )
+
+    parser.add_argument(
         '--output',
         type=str,
         help='Output JSON file (optional). If not set, prints to stdout.'
@@ -39,7 +45,8 @@ def parse_args():
 
     return parser.parse_args()
 
-def build_xbar_config(devices):
+def build_xbar_config(host, devices):
+    host = 'uart_host' if host == 'uart' else 'ibex'
     xbar_config = {
         "name": "main",
         "type": "xbar",
@@ -53,7 +60,7 @@ def build_xbar_config(devices):
         },
         "nodes": [
             {
-                "name": "ibex_lsu",
+                "name": host,
                 "type": "host",
                 "clock": "clk_i",
                 "reset": "rst_ni",
@@ -62,7 +69,7 @@ def build_xbar_config(devices):
             }
         ],
         "connections": {
-            "ibex_lsu": []
+            host: []
         }
     }
 
@@ -79,13 +86,16 @@ def build_xbar_config(devices):
             }]
         }
         xbar_config["nodes"].append(device_node)
-        xbar_config["connections"]["ibex_lsu"].append(name)
+        if host == 'uart_host':
+            xbar_config["connections"]["uart_host"].append(name)
+        elif host == 'ibex':
+            xbar_config["connections"]["ibex"].append(name)
 
     return xbar_config
 
 def main():
     args = parse_args()
-    config = build_xbar_config(args.device)
+    config = build_xbar_config(args.host, args.device)
 
     if args.output:
         with open(args.output, 'w') as f:
