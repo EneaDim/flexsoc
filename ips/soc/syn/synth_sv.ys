@@ -1,0 +1,23 @@
+# read files
+read_slang -I ips/pkgs \
+           -I ips/prim \
+           -I ips/prim_opentitan \
+           -I ips/tlul \
+           -D SYNTHESIS \
+           --ignore-assertions \
+           -f rtl/rtl_list.f \
+           --top soc
+# basic synth
+synth -top soc -flatten
+show -width -format dot -prefix syn/plots/soc_postsyn
+# map internal register types to the ones from the cell library
+dfflibmap -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+# mapping to internal cell library
+abc -D 10000 \
+-liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+opt_clean -purge
+stat -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+# write verilog
+write_verilog ./syn/soc_synth.v
+# write json
+write_json ./syn/soc_synth.json
