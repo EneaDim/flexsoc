@@ -40,7 +40,9 @@ DEFAULT_MODULES = [
     "prim_ram_2p"
 ]
 
-def find_sv_file(module_name, root_dir="."):
+def find_sv_file(module_name, root_dir=".", from_vendor=False):
+    if from_vendor:
+        root_dir = 'vendor'
     for path in Path(root_dir).rglob(f"{module_name}.sv"):
         return path
     return None
@@ -144,7 +146,10 @@ def generate_soc_sv(lowrisc_modules, modules, root_dir, output_file):
     all_modules = lowrisc_modules + modules
     # Parse user-provided modules
     for mod in all_modules:
-        sv_path = find_sv_file(mod, root_dir)
+        from_vendor = False
+        if mod in lowrisc_modules:
+            from_vendor = True
+        sv_path = find_sv_file(mod, root_dir, from_vendor)
         if not sv_path:
             raise FileNotFoundError(f"SystemVerilog file for module '{mod}' not found.")
         ports = parse_ports(sv_path)
@@ -180,6 +185,7 @@ def generate_soc_sv(lowrisc_modules, modules, root_dir, output_file):
         for mod in all_modules:
             f.write(f"  tlul_pkg::tl_h2d_t tl_{mod}_h2d;\n")
             f.write(f"  tlul_pkg::tl_d2h_t tl_{mod}_d2h;\n")
+
 
         f.write(f"\n")
         f.write(f"  // Our main data bus.\n")
