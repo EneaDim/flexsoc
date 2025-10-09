@@ -103,10 +103,12 @@ ifeq ($(HOST),ibex)
   $(eval $(call add_device,spi_host, $(NEW_MODULE_ADD), 0x00001000))
 
 else ifeq ($(HOST),uart)
-  LOWRISC_IPS += pwm
+  LOWRISC_IPS += pwm gpio rv_timer
   $(eval $(call add_device,uart,     0x80000000, 0x00001000))
   $(eval $(call add_device,pwm,      0x80020000, 0x00001000))
   $(eval $(call add_device,spi_host, $(NEW_MODULE_ADD), 0x00001000))
+  $(eval $(call add_device,gpio,     0x80060000, 0x00001000))
+  $(eval $(call add_device,rv_timer, 0x80080000, 0x00001000))
 
 else
   $(error Unknown HOST '$(HOST)'. Supported: ibex, uart)

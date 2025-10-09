@@ -365,11 +365,13 @@ soc_view:
 	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
 
 # SoC Processor-Less
-soc_pless: ip_load fetch xbar soc_build copy-soc copy-vendor 
+soc_pless: ip_load fetch xbar soc_build copy-uart-host copy-soc copy-vendor 
 	@$(MAKE) sim syn sta power view TOP=soc
 
-copy-soc:
+copy-uart-host:
 	@$(CP) ips/soc/$(RTLDIR)/uart* $(RTLDIR)/
+
+copy-soc:
 	@$(CP) ips/soc/$(TBDIR)/* $(TBDIR)/
 	@$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
 	@$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
