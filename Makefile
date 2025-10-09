@@ -363,14 +363,18 @@ soc_view:
 	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
 
 # SoC Processor-Less
-soc_pless: ip_load fetch xbar soc_build
-	@$(CP) top/autogen/xbar_main.sv rtl/ 
-	@$(CP) top/autogen/tl_main_pkg.sv rtl/
-	@$(CP) top/soc.sv rtl/
-	@$(CP) ips/soc/rtl/uart* rtl/
-	@$(CP) vendor/lowrisc_ip/ip/pwm/rtl/* rtl/
-	@$(CP) ips/soc/tb/* tb/
-	$(MAKE) sim view TOP=soc
+soc_pless: ip_load fetch xbar soc_build copy-soc copy-vendor 
+	@$(MAKE) sim syn sta power view TOP=soc
+
+copy-soc:
+	@$(CP) ips/soc/$(RTLDIR)/uart* $(RTLDIR)/
+	@$(CP) ips/soc/$(TBDIR)/* $(TBDIR)/
+	@$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
+	@$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
+	@$(CP) top/soc.sv $(RTLDIR)/
+
+copy-vendor:
+	@$(foreach x,$(LOWRISC_IPS),cp vendor/lowrisc_ip/ip/$(x)/rtl/* $(RTLDIR);)
 
 # TUTORIALS
 fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
