@@ -639,7 +639,7 @@ def defaults(host):
     out +=f"""
 
   // TileLink host adapter to connect Ibex to bus.
-  tlul_adapter_host ibex_host_adapter (
+  tlul_adapter_host {host}_host_adapter (
     .clk_i,
     .rst_ni,
 
