@@ -88,6 +88,30 @@ BASE_$(1) := $(2)
 SIZE_$(1) := $(3)
 endef
 
+HOST            ?= uart
+
+# Needed for the .c driver definition
+NEW_MODULE_ADD  ?= 0x80040000
+
+LOWRISC_IPS :=
+
+ifeq ($(HOST),ibex)
+  LOWRISC_IPS += uart pwm
+  $(eval $(call add_device,sram,     0x00100000, 0x00100000))
+  $(eval $(call add_device,uart,     0x80000000, 0x00001000))
+  $(eval $(call add_device,pwm,      0x80020000, 0x00001000))
+  $(eval $(call add_device,spi_host, $(NEW_MODULE_ADD), 0x00001000))
+
+else ifeq ($(HOST),uart)
+  LOWRISC_IPS += pwm
+  $(eval $(call add_device,uart,     0x80000000, 0x00001000))
+  $(eval $(call add_device,pwm,      0x80020000, 0x00001000))
+  $(eval $(call add_device,spi_host, $(NEW_MODULE_ADD), 0x00001000))
+
+else
+  $(error Unknown HOST '$(HOST)'. Supported: ibex, uart)
+endif
+
 #HOST            ?= uart
 #LOWRISC_IPS     ?= pwm
 ## Declare devices
@@ -95,25 +119,20 @@ endef
 #$(eval $(call add_device,pwm,      0x80020000, 0x00001000))
 #$(eval $(call add_device,spi_host, 0x80040000, 0x00001000))
 
-HOST            ?= ibex
-LOWRISC_IPS     ?= uart pwm
-
-# NEW_MODULE_ADD is needed for the .c driver creation
-NEW_MODULE_ADD  ?= 0x80040000 
-
-# Declare devices
-$(eval $(call add_device,sram,     0x00100000, 0x00100000))
-$(eval $(call add_device,uart,     0x80000000, 0x00001000))
-$(eval $(call add_device,pwm,      0x80020000, 0x00001000))
-$(eval $(call add_device,spi_host, 0x80040000, 0x00001000))
-
-# Compose flags
+#HOST            ?= ibex
+#LOWRISC_IPS     ?= uart pwm
+#
+## NEW_MODULE_ADD is needed for the .c driver creation
+#NEW_MODULE_ADD  ?= 0x80040000 
+#
+## Declare devices
+#$(eval $(call add_device,sram,     0x00100000, 0x00100000))
+#$(eval $(call add_device,uart,     0x80000000, 0x00001000))
+#$(eval $(call add_device,pwm,      0x80020000, 0x00001000))
+#$(eval $(call add_device,spi_host, 0x80040000, 0x00001000))
+#
+## Compose flags
 SOC_MEMORY_MAP := $(foreach d,$(DEVLIST),--device $(d) $(BASE_$(d)) $(SIZE_$(d)))
-
-#SOC_MEMORY_MAP  ?=--device sram 0x00010000 0x00001000 \
-#									--device uart 0x80000000 0x00001000 \
-#									--device pwm 0x80020000 0x00001000 \
-#  					      --device spi_host $(NEW_MODULE_ADD) 0x00001000 \
 
 # Shell functions
 ECHO            :=echo

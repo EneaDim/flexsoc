@@ -396,8 +396,8 @@ soc_tutorial:
 	@$(ECHO) "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
 	$(MAKE) fetch VENDOR=lowrisc_ibex
 	@$(ECHO) "\n$(ORANGE)Generate xbar ...\n$(RESET)"
-	$(MAKE) xbar
-	$(MAKE) soc_flow
+	$(MAKE) xbar HOST=ibex
+	$(MAKE) soc_flow HOST=ibex
 
 # SETUP COCOTB
 setup_cocotb:
