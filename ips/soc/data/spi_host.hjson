@@ -1,0 +1,144 @@
+{
+  name:               "spi_host",
+  human_name:         "spi_host",
+  one_line_desc:      "",
+  one_paragraph_desc: '''
+  '''
+  // Unique comportable IP identifier defined under KNOWN_CIP_IDS in the regtool.
+  cip_id:             "1",
+  design_spec:        "",
+  dv_doc:             "",
+  hw_checklist:       "",
+  sw_checklist:       "",
+  revisions: [
+  {
+    version:            "1.0.0",
+    life_stage:         "",
+    design_stage:       "",
+    verification_stage: "",
+    commit_id:          "",
+    notes:              ""
+  }
+    ]
+  clocking: [{clock: "clk_i", reset: "rst_ni"}],
+  bus_interfaces: [
+    { protocol: "tlul", direction: "device" }
+  ],
+  //available_input_list: [
+  //  { name: "input_i", desc: "input" }
+  //],
+  //available_output_list: [
+  //  { name: "output_o", desc: "output" }
+  //],
+  //interrupt_list: [
+  //  { name: "main_interrupt",
+  //    desc: "main_interrupt"}
+  //],
+  //alert_list: [
+  //  { name: "fatal_fault",
+  //    desc: '''
+  //    This fatal alert is triggered when ...
+  //    '''
+  //  }
+  //],
+  //features: [
+  //  { name: "feature1",
+  //    desc: '''
+  //      Feature 1.
+  //    '''
+  //  },
+  //]
+  //inter_signal_list: [
+  //  { struct: "logic"
+  //    type:   "uni"
+  //    name:   "trigger"
+  //    desc: '''
+  //      Trigger request
+  //    '''
+  //    act:    "req"
+  //  }
+  //]
+  //countermeasures: [
+  //  { name: "BUS.INTEGRITY",
+  //    desc: "End-to-end bus integrity scheme."
+  //  }
+  //]
+  //param_list: [
+  //  { name:    "FifoDepth",
+  //    desc:    "Number of bytes in the FIFO.",
+  //    type:    "int",
+  //    default: "64",
+  //    local:   "true",
+  //  }
+  //]
+  regwidth: "32",
+  registers: [
+    { name: "CTRL",
+      desc: "UART control register",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "0",
+          name: "EN",
+          desc: "enable"
+        }
+        { bits: "1",
+          name: "TXRST",
+          desc: "TX FIFO reset"
+        }
+        { bits: "2",
+          name: "RXRST",
+          desc: "RX FIFO reset"
+        }
+      ]
+    },
+    { name:     "STATUS"
+      desc:     "UART live status register"
+      swaccess: "ro"
+      hwaccess: "hrw"
+      hwext:    "true"
+      hwre:     "true"
+      fields: [
+        { bits: "0"
+          name: "TXFULL"
+          desc: "TX Buffer is full"
+        }
+        { bits: "1"
+          name: "TXEMPTY"
+          desc: "TX Buffer is empty"
+        }
+        { bits: "2"
+          name: "RXFULL"
+          desc: "RX Buffer is full"
+        }
+        { bits: "3"
+          name: "RXEMPTY"
+          desc: "RX Buffer is empty"
+        }
+      ]
+    }
+    { name: "RDATA",
+      desc: "read data",
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext: "true",
+      hwre: "true",
+      fields: [
+        { bits: "7:0" }
+      ]
+      tags: [// read wdata when fifo is empty, dut may return unknown data
+             "excl:CsrAllTests:CsrExclCheck"]
+    }
+    { name: "WDATA",
+      desc: "write data",
+      swaccess: "wo",
+      hwaccess: "hro",
+      hwqe: "true",
+      fields: [
+        { bits: "7:0" }
+      ]
+      tags: [// don't write to wdata - it affects several other csrs
+             "excl:CsrNonInitTests:CsrExclWrite"]
+    }
+  ]
+}

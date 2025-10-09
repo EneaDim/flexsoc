@@ -13,6 +13,9 @@ package uart_reg_pkg;
 
   // Address widths within the block
   parameter int BlockAw = 6;
+  parameter int AW = BlockAw;
+  parameter int DW = 32;
+  parameter int DBW = DW/8;                    // Byte Width
 
   ////////////////////////////
   // Typedefs for registers //
@@ -408,6 +411,20 @@ package uart_reg_pkg;
     4'b 0001, // index[10] UART_OVRD
     4'b 0011, // index[11] UART_VAL
     4'b 1111  // index[12] UART_TIMEOUT_CTRL
+  };
+
+  parameter type reg_req_t = struct packed {
+    logic           valid;
+    logic           write;
+    logic [AW-1:0]  addr;
+    logic [DW-1:0]  wdata;
+    logic [DBW-1:0] wstrb;
+  };
+
+  parameter type reg_rsp_t = struct packed {
+    logic [DW-1:0]  rdata;
+    logic           error;
+    logic           ready;
   };
 
 endpackage
