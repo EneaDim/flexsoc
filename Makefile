@@ -339,7 +339,9 @@ xbar_build:
 	$(RM) -r $(TOPDIR)/autogen/dv
 	mv $(TOPDIR)/autogen/rtl/autogen/* $(TOPDIR)/autogen
 
-# SoC
+#######
+# SoC #
+#######
 
 soc_flow: soc_build driver soc_sim soc_run 
 

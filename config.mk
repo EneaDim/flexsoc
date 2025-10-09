@@ -102,7 +102,7 @@ LOWRISC_IPS     ?= uart pwm
 NEW_MODULE_ADD  ?= 0x80040000 
 
 # Declare devices
-$(eval $(call add_device,sram,     0x00010000, 0x00001000))
+$(eval $(call add_device,sram,     0x00100000, 0x00100000))
 $(eval $(call add_device,uart,     0x80000000, 0x00001000))
 $(eval $(call add_device,pwm,      0x80020000, 0x00001000))
 $(eval $(call add_device,spi_host, 0x80040000, 0x00001000))
