@@ -13,7 +13,7 @@ from pathlib import Path
 
 from reggen import (
     gen_cfg_md, gen_cheader, gen_dv, gen_fpv, gen_md, gen_html, gen_json, gen_rtl,
-    gen_rust, gen_sec_cm_testplan, gen_selfdoc, gen_tock, version,
+    gen_rust, gen_sec_cm_testplan, gen_selfdoc, systemrdl_exporter, gen_tock, version,
 )
 from reggen.ip_block import IpBlock
 
@@ -89,6 +89,9 @@ def main():
     parser.add_argument('-s',
                         action='store_true',
                         help='Output as UVM Register class')
+    parser.add_argument('--systemrdl',
+                        action='store_true',
+                        help='Output a SystemRDL description')
     parser.add_argument('-f',
                         action='store_true',
                         help='Output as FPV CSR rw assertion module')
@@ -150,13 +153,14 @@ def main():
     if args.version:
         version.show_and_exit(__file__, ["Hjson", "Mako"])
 
+    log_format = "%(filename)s:%(lineno)d: %(levelname)s: %(message)s"
     verbose = args.verbose
     if verbose:
-        log.basicConfig(format="%(levelname)s: %(message)s", level=log.DEBUG)
+        log.basicConfig(format=log_format, level=log.DEBUG)
     elif args.quiet:
-        log.basicConfig(format="%(levelname)s: %(message)s", level=log.ERROR)
+        log.basicConfig(format=log_format, level=log.ERROR)
     else:
-        log.basicConfig(format="%(levelname)s: %(message)s")
+        log.basicConfig(format=log_format)
 
     # Entries are triples of the form (arg, (fmt, dirspec)).
     #
@@ -171,6 +175,7 @@ def main():
                      ('sec_cm_testplan', ('sec_cm_testplan', 'data')),
                      ('rust', ('rs', None)), ('tock', ('trs', None)),
                      ('interfaces', ('interfaces', None)),
+                     ('systemrdl', ('systemrdl', None)),
                      ('doc_html_old', ('doc_html_old', None))]
     fmt = None
     dirspec = None
@@ -290,10 +295,7 @@ def main():
         if found_lunder:
             src_lic = found_lunder
         if found_spdx:
-            if src_lic is None:
-                src_lic = '\n' + found_spdx
-            else:
-                src_lic += '\n' + found_spdx
+            src_lic += '\n' + found_spdx
 
         with outfile:
             if fmt == 'registers':
@@ -313,6 +315,8 @@ def main():
             elif fmt == 'trs':
                 return gen_tock.gen_tock(obj, outfile, infile.name, src_lic,
                                          src_copy, version_stamp)
+            elif fmt == 'systemrdl':
+                return systemrdl_exporter.SystemrdlExporter(obj).export(outfile)
             else:
                 return gen_json.gen_json(obj, outfile, fmt)
 

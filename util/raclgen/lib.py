@@ -51,6 +51,7 @@ range_required = {
 # Default configuration to render the RACL package for systems that don't use RACL but need the
 # type definitions
 DEFAULT_RACL_CONFIG = {
+    'error_response': False,
     'role_bit_lsb': 0,
     'role_bit_msb': 0,
     'ctn_uid_bit_lsb': 0,
@@ -73,17 +74,6 @@ def _read_hjson(filename: str) -> Dict[str, object]:
         raise SystemExit(sys.exc_info()[1])
     except OSError:
         raise SystemExit(sys.exc_info()[1])
-
-
-def format_parameter_name_prefix(
-        module_name: str, racl_group: str = None, if_name: str = None) -> str:
-    group_suffix = f"_{racl_group.upper()}" if racl_group and racl_group != "Null" else ""
-    if_suffix = f"_{if_name.upper()}" if if_name else ""
-    return f"RACL_POLICY_SEL_{module_name.upper()}{group_suffix}{if_suffix}"
-
-
-def format_parameter_range_value(range: Dict) -> str:
-    return f"'{{base:'h{range['base']:x},mask:'h{range['mask']:x},policy:{range['policy']}}}"
 
 
 def parse_racl_config(config_path: str) -> Dict[str, object]:
@@ -211,15 +201,17 @@ def parse_racl_mapping(
         raise SystemExit('RACL Mapping is missing the field: windows')
 
     # translate star mappings:
-    if list(mapping.get('registers', {}).keys()) == ["*"]:
+    if "*" in mapping.get('registers', {}):
         policy_name = mapping['registers'].pop("*")
         for reg in reg_block.flat_regs:
-            mapping['registers'][reg.name] = policy_name
+            if reg.name not in mapping['registers']:
+                mapping['registers'][reg.name] = policy_name
 
-    if list(mapping.get('windows', {}).keys()) == ["*"]:
+    if "*" in mapping.get('windows', {}):
         policy_name = mapping['windows'].pop("*")
         for window in reg_block.windows:
-            mapping['windows'][window.name] = policy_name
+            if window.name not in mapping['windows']:
+                mapping['windows'][window.name] = policy_name
 
     # Assign all registers to a given policy
     for reg in reg_block.flat_regs:
@@ -240,24 +232,23 @@ def parse_racl_mapping(
         try:
             base = int(range['base'], 0)
             size = int(range['size'], 0)
-            mask = size - 1
-            if size <= 0 or size.bit_count() != 1 or base & mask:
-                raise ValueError
-        except ValueError:
-            raise SystemExit(f'Invalid RACL range mapping ({range}) in {mapping_path}')
+            if size <= 0 or base < 0:
+                raise ValueError("Base must not be negative and size must be > 0.")
+            limit = base + size - 1
+        except ValueError as error:
+            raise SystemExit(f'Invalid RACL range mapping ({range}) in {mapping_path}: {error}')
 
         # ensure disjunct ranges:
         for range_mapping in parsed_range_mapping:
-            start = range_mapping['base']
-            end = range_mapping['base'] + range_mapping['size'] - 1
-            if max(base, start) <= min(base + size - 1, end):
+            other_base = range_mapping['base']
+            other_limit = range_mapping['limit']
+            if max(base, other_base) <= min(limit, other_limit):
                 raise SystemExit(f'Overlapping RACL range ({range}) in {mapping_path}')
 
         parsed_range_mapping.append(
             {
                 'base': base,
-                'size': size,
-                'mask': mask,
+                'limit': limit,
                 'policy': policy_name_to_idx(range['policy'])
             }
         )
@@ -292,13 +283,12 @@ def gen_md(block: IpBlock,
            module: Dict[str, object],
            output: TextIO = sys.stdout):
 
-    if_name = racl_mapping['if_name']
-    if not if_name or if_name == '':
-        if_name = 'null'
+    if_name = racl_mapping.get('if_name') or 'null'
 
-    assert block.reg_blocks
-    if len(block.reg_blocks) == 1:
-        assert not if_name or if_name == '' or if_name == 'null'
+    # Look up the requested interface. If there is none (so if_name is 'null'),
+    # this requires there to be exactly one register block.
+    if if_name == 'null':
+        assert len(block.reg_blocks) == 1
         rb = next(iter(block.reg_blocks.values()))
     else:
         rb = block.reg_blocks[if_name]
@@ -346,7 +336,7 @@ def gen_md(block: IpBlock,
     for entry in rb.entries:
         if isinstance(entry, MultiRegister):
             length = bytew
-            for reg in entry.regs:
+            for reg in entry.cregs:
                 policy_sel = racl_mapping['register_mapping'][reg.name]
                 add_row(reg.name, policy_sel, reg.offset, base_addr, length)
         elif isinstance(entry, Window):

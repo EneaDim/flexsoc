@@ -1,6 +1,45 @@
 // Copyright lowRISC contributors (OpenTitan project).
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
+<%
+import textwrap
+import topgen.lib as lib
+
+pwrmgr = lib.find_module(top['module'], 'pwrmgr')
+if pwrmgr is not None:
+    has_pwrmgr = addr_space in pwrmgr['base_addrs'][None]
+else:
+    has_pwrmgr = False
+
+pinmux = lib.find_module(top['module'], 'pinmux')
+if pinmux is not None:
+    has_pinmux = addr_space in pinmux['base_addrs'][None]
+else:
+    has_pinmux = False
+
+alert_handler = lib.find_module(top['module'], 'alert_handler')
+if alert_handler is not None:
+    has_alert_handler = addr_space in alert_handler['base_addrs'][None]
+else:
+    has_alert_handler = False
+
+clkmgr = lib.find_module(top['module'], 'clkmgr')
+if clkmgr is not None:
+    has_clkmgr = addr_space in clkmgr['base_addrs'][None]
+else:
+    has_clkmgr = False
+
+rstmgr = lib.find_module(top['module'], 'rstmgr')
+if rstmgr is not None:
+    has_rstmgr = addr_space in rstmgr['base_addrs'][None]
+else:
+    has_rstmgr = False
+
+
+plics = lib.find_modules(top['module'], 'rv_plic')
+has_plic = any(addr_space in plic['base_addrs'][None] for plic in plics)
+plics = [x["name"] for x in plics]
+%>\
 ${helper.file_header.render()}
 // This file was generated automatically.
 // Please do not modify content of this file directly.
@@ -16,12 +55,15 @@ ${helper.file_header.render()}
 //! - Device Memory Information (for Peripherals and Memory)
 //! - PLIC Interrupt ID Names and Source Mappings
 //! - Alert ID Names and Source Mappings
+% if has_pinmux:
 //! - Pinmux Pin/Select Names
+% endif
+% if has_pwrmgr:
 //! - Power Manager Wakeups
+% endif
 
 use core::convert::TryFrom;
-
-% for (inst_name, if_name), region in helper.devices():
+% for (inst_name, if_name), region in helper.devices(addr_space):
 <%
     if_desc = inst_name if if_name is None else '{} device on {}'.format(if_name, inst_name)
     hex_base_addr = "0x{:X}".format(region.base_addr)
@@ -31,6 +73,7 @@ use core::convert::TryFrom;
     size_bytes_name = region.size_bytes_name(short=True).as_rust_const()
 
 %>\
+
 /// Peripheral base address for ${if_desc} in top ${top["name"]}.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
@@ -44,9 +87,8 @@ pub const ${base_addr_name}: usize = ${hex_base_addr};
 /// address between #${base_addr_name} and
 /// `${base_addr_name} + ${size_bytes_name}`.
 pub const ${size_bytes_name}: usize = ${hex_size_bytes};
-
 % endfor
-% for name, region in helper.memories():
+% for name, region in helper.memories(addr_space):
 <%
     hex_base_addr = "0x{:X}".format(region.base_addr)
     hex_size_bytes = "0x{:X}".format(region.size_bytes)
@@ -55,30 +97,48 @@ pub const ${size_bytes_name}: usize = ${hex_size_bytes};
     size_bytes_name = region.size_bytes_name(short=True).as_rust_const()
 
 %>\
+
 /// Memory base address for ${name} in top ${top["name"]}.
 pub const ${base_addr_name}: usize = ${hex_base_addr};
 
 /// Memory size for ${name} in top ${top["name"]}.
 pub const ${size_bytes_name}: usize = ${hex_size_bytes};
-
 % endfor
+% if has_plic:
+
 /// PLIC Interrupt Source Peripheral.
 ///
 /// Enumeration used to determine which peripheral asserted the corresponding
 /// interrupt.
-${helper.plic_sources.render(gen_cast=True)}
+%   for plic in plics:
+${helper.plic_sources[plic].render(gen_cast=True)}
+%  endfor
 
 /// PLIC Interrupt Source.
 ///
 /// Enumeration of all PLIC interrupt sources. The interrupt sources belonging to
 /// the same peripheral are guaranteed to be consecutive.
-${helper.plic_interrupts.render(gen_cast=True)}
+%   for plic in plics:
+${helper.plic_interrupts[plic].render(gen_cast=True)}
+%   endfor
 
 /// PLIC Interrupt Target.
 ///
 /// Enumeration used to determine which set of IE, CC, threshold registers to
 /// access for a given interrupt target.
-${helper.plic_targets.render()}
+%   for plic in plics:
+${helper.plic_targets[plic].render()}
+%   endfor
+
+/// PLIC Interrupt Source to Peripheral Map
+///
+/// This array is a mapping from `${helper.plic_interrupts[plic].short_name.as_rust_type()}` to
+/// `${helper.plic_sources[plic].short_name.as_rust_type()}`.
+%   for plic in plics:
+${helper.plic_mapping[plic].render_definition()}
+%   endfor
+%endif
+% if has_alert_handler:
 
 /// Alert Handler Source Peripheral.
 ///
@@ -92,17 +152,13 @@ ${helper.alert_sources.render()}
 /// the same peripheral are guaranteed to be consecutive.
 ${helper.alert_alerts.render(gen_cast=True)}
 
-/// PLIC Interrupt Source to Peripheral Map
-///
-/// This array is a mapping from `${helper.plic_interrupts.short_name.as_rust_type()}` to
-/// `${helper.plic_sources.short_name.as_rust_type()}`.
-${helper.plic_mapping.render_definition()}
-
 /// Alert Handler Alert Source to Peripheral Map
 ///
 /// This array is a mapping from `${helper.alert_alerts.short_name.as_rust_type()}` to
 /// `${helper.alert_sources.short_name.as_rust_type()}`.
 ${helper.alert_mapping.render_definition()}
+% endif
+% if has_pinmux:
 
 // PERIPH_INSEL ranges from 0 to NUM_MIO_PADS + 2 -1}
 //  0 and 1 are tied to value 0 and 1
@@ -131,15 +187,23 @@ ${helper.direct_pads.render(gen_cast=True)}
 
 /// Muxed Pad Selects
 ${helper.muxed_pads.render(gen_cast=True)}
+% endif
+% if has_pwrmgr:
 
 /// Power Manager Wakeup Signals
 ${helper.pwrmgr_wakeups.render()}
+% endif
+% if has_rstmgr:
 
 /// Reset Manager Software Controlled Resets
 ${helper.rstmgr_sw_rsts.render()}
+% endif
+% if has_pwrmgr:
 
 /// Power Manager Reset Request Signals
 ${helper.pwrmgr_reset_requests.render()}
+% endif
+% if has_clkmgr:
 
 /// Clock Manager Software-Controlled ("Gated") Clocks.
 ///
@@ -151,11 +215,14 @@ ${helper.clkmgr_gateable_clocks.render()}
 /// The Software has partial control over these clocks. It can ask them to stop,
 /// but the clock manager is in control of whether the clock actually is stopped.
 ${helper.clkmgr_hintable_clocks.render()}
+% endif
+% for (subspace_name, description, subspace_range) in helper.subranges[addr_space]:
 
-/// MMIO Region
+/// ${subspace_name.upper()} Region
 ///
-/// MMIO region excludes any memory that is separate from the module
-/// configuration space, i.e. ROM, main SRAM, and flash are excluded but
-/// retention SRAM, spi_device memory, or usbdev memory are included.
-pub const ${helper.mmio.base_addr_name(short=True).as_rust_const()}: usize = ${"0x{:X}".format(helper.mmio.base_addr)};
-pub const ${helper.mmio.size_bytes_name(short=True).as_rust_const()}: usize = ${"0x{:X}".format(helper.mmio.size_bytes)};
+% for l in textwrap.wrap(description, 76, break_long_words=False):
+/// ${l}
+% endfor
+pub const ${subspace_range.base_addr_name().as_rust_const()}: usize = ${"0x{:X}".format(subspace_range.base_addr)};
+pub const ${subspace_range.size_bytes_name().as_rust_const()}: usize = ${"0x{:X}".format(subspace_range.size_bytes)};
+% endfor

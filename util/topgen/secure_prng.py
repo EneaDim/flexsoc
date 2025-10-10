@@ -15,12 +15,14 @@ internal state).
 
 import logging as log
 import sys
-from Crypto.Cipher import AES
 from math import ceil as _ceil
 from math import log as _log
+from typing import Any
+
+from Crypto.Cipher import AES
 
 
-class secure_prng():
+class SecurePrng:
 
     blocklen = 128
     keylen = 128
@@ -60,7 +62,7 @@ class secure_prng():
 
         CTR_DRBG_Update process
         Described in NIST SP 800-90A, page 51
-        For convenience, input provided_data is devided in two 128 bit chunks.
+        For convenience, input provided_data is divided in two 128 bit chunks.
         """
         cipher = AES.new(self.Key.to_bytes(16, 'big'), AES.MODE_ECB)
 
@@ -89,16 +91,17 @@ class secure_prng():
         error out.
         """
 
-        # Checks if the PRNG was instantitated before first use.
+        # Checks if the PRNG was Instantiated before first use.
         if not self.reseed_counter:
             log.error("Seed must be provided before requesting output. " +
-                      "Use secure_prng.reseed()")
+                      "Use SecurePrng.reseed()")
             sys.exit(1)
 
         # Checks that the requested number of bits is allowed.
         if requested_number_of_bits > self.REQ_MAX:
-            log.error("Maximal number of bits per request is %d, but %d was "
-                      "requested", self.REQ_MAX, requested_number_of_bits)
+            log.error(
+                "Maximal number of bits per request is %d, but %d was "
+                "requested", self.REQ_MAX, requested_number_of_bits)
             sys.exit(1)
 
         # Step 1
@@ -179,9 +182,10 @@ class secure_prng():
         if seed.bit_length() < 250:
             # Warn, but don't fail, because the DV logic always passes in 32-bit
             # seeds and this can naturally happen about 1% of the time.
-            log.warn('PRNG seed is only {seed.bit_length()} bits long, which is '
-                     'unlikely for a sample from a 256-bit distribution. Please '
-                     'double-check the logic.')
+            log.warning(
+                f'PRNG seed is only {seed.bit_length()} bits long, which is '
+                'unlikely for a sample from a 256-bit distribution. Please '
+                'double-check the logic.')
         # Check if the seed is longer than 256 bits. Trim the excess bits and
         # issue a warning if it is.
         if seed.bit_length() > 256:
@@ -296,19 +300,38 @@ class secure_prng():
             'V_First': V1,
             'ReturnedBits': test_word,
             'Key_Second': K2,
-            'V_Second': V2}
+            'V_Second': V2
+        }
         return test_point
 
 
-# ----------------------------------------------------------------------
-# Create one instance, and export its methods as module-level functions.
-# The functions share state across all uses.
+class SecurePrngFactory:
+    """
+    A factory class for creating and managing named pseudo-random number generators (PRNGs).
 
-_inst = secure_prng()
-reseed = _inst.reseed
-fetchbyte = _inst.fetchbyte
-getrandbits = _inst.getrandbits
-randbelow = _inst.randbelow
-shuffle = _inst.shuffle
-choice = _inst.choice
-test_point_gen = _inst.test_point_gen
+    This factory allows you to instantiate multiple PRNGs with different seeds
+    and retrieve them later by name.
+    """
+    _rngs: dict[str, SecurePrng] = {}
+
+    @classmethod
+    def create(cls, name: str, seed: Any) -> None:
+        """
+        Creates and registers a new pseudo-random number generator.
+
+        If a generator with the same name already exists, it will be
+        overwritten with the new one.
+        """
+        rng_instance = SecurePrng()
+        rng_instance.reseed(seed)
+        cls._rngs[name] = rng_instance
+
+    @classmethod
+    def get(cls, name: str) -> SecurePrng:
+        """
+        Retrieves a previously created pseudo-random number generator by its name.
+        """
+        if name not in cls._rngs:
+            raise KeyError(f"Error: PRNG with name '{name}' not found. "
+                           "Please create it first using SecurePrngFactory.create().")
+        return cls._rngs[name]

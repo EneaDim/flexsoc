@@ -9,7 +9,7 @@ from typing import Dict, Optional, Tuple
 
 from mako import exceptions  # type: ignore
 from mako.template import Template  # type: ignore
-from pkg_resources import resource_filename
+import importlib.resources
 
 from reggen.ip_block import IpBlock
 from reggen.lib import check_int
@@ -48,13 +48,15 @@ def get_addr_widths(block: IpBlock) -> Dict[Optional[str], Tuple[str, int]]:
     if len(block.reg_blocks) == 1 and None in block.reg_blocks:
         return {None: ('BlockAw', block.reg_blocks[None].get_addr_width())}
 
-    return {name: (_get_awparam_name(name), rb.get_addr_width())
-            for name, rb in block.reg_blocks.items()}
+    return {
+        name: (_get_awparam_name(name), rb.get_addr_width())
+        for name, rb in block.reg_blocks.items()
+    }
 
 
 def get_type_name_pfx(block: IpBlock, iface_name: Optional[str]) -> str:
-    return block.name.lower() + ('' if iface_name is None
-                                 else '_{}'.format(iface_name.lower()))
+    return block.name.lower() + ('' if iface_name is None else
+                                 f'_{iface_name.lower()}')
 
 
 def get_r0(reg: RegBase) -> Register:
@@ -63,11 +65,10 @@ def get_r0(reg: RegBase) -> Register:
         return reg
     else:
         assert isinstance(reg, MultiRegister)
-        return reg.reg
+        return reg.pregs[0]
 
 
-def get_iface_tx_type(block: IpBlock,
-                      iface_name: Optional[str],
+def get_iface_tx_type(block: IpBlock, iface_name: Optional[str],
                       hw2reg: bool) -> str:
     x2x = 'hw2reg' if hw2reg else 'reg2hw'
     pfx = get_type_name_pfx(block, iface_name)
@@ -81,22 +82,19 @@ def get_reg_tx_type(block: IpBlock, reg: RegBase, hw2reg: bool) -> str:
         type_suff = 'reg_t'
     else:
         assert isinstance(reg, MultiRegister)
-        r0 = reg.reg
+        r0 = reg.pregs[0]
         type_suff = 'mreg_t'
 
     x2x = 'hw2reg' if hw2reg else 'reg2hw'
-    return '_'.join([block.name.lower(),
-                     x2x,
-                     r0.name.lower(),
-                     type_suff])
+    return '_'.join([block.name.lower(), x2x, r0.name.lower(), type_suff])
 
 
 def gen_rtl(block: IpBlock, outdir: str) -> int:
     # Read Register templates
     reg_top_tpl = Template(
-        filename=resource_filename('reggen', 'reg_top.sv.tpl'))
+        filename=str(importlib.resources.files('reggen') / 'reg_top.sv.tpl'))
     reg_pkg_tpl = Template(
-        filename=resource_filename('reggen', 'reg_pkg.sv.tpl'))
+        filename=str(importlib.resources.files('reggen') / 'reg_pkg.sv.tpl'))
 
     # In case the generated package contains alias definitions, we add
     # the alias implementation identifier to the package name so that it
@@ -107,12 +105,12 @@ def gen_rtl(block: IpBlock, outdir: str) -> int:
     #
     # This defines the various types used to interface between the *_reg_top
     # module(s) and the block itself.
-    reg_pkg_path = os.path.join(outdir, block.name.lower() + alias_impl +
-                                "_reg_pkg.sv")
+    reg_pkg_path = os.path.join(
+        outdir,
+        block.name.lower() + alias_impl + "_reg_pkg.sv")
     with open(reg_pkg_path, 'w', encoding='UTF-8') as fout:
         try:
-            fout.write(reg_pkg_tpl.render(block=block,
-                                          alias_impl=alias_impl))
+            fout.write(reg_pkg_tpl.render(block=block, alias_impl=alias_impl))
         except:  # noqa F722 for template Exception handling
             log.error(exceptions.text_error_template().render())
             return 1
@@ -132,11 +130,12 @@ def gen_rtl(block: IpBlock, outdir: str) -> int:
         reg_top_path = os.path.join(outdir, mod_name + '.sv')
         with open(reg_top_path, 'w', encoding='UTF-8') as fout:
             try:
-                fout.write(reg_top_tpl.render(block=block,
-                                              mod_base=mod_base,
-                                              mod_name=mod_name,
-                                              if_name=if_name,
-                                              rb=rb))
+                fout.write(
+                    reg_top_tpl.render(block=block,
+                                       mod_base=mod_base,
+                                       mod_name=mod_name,
+                                       if_name=if_name,
+                                       rb=rb))
             except:  # noqa F722 for template Exception handling
                 log.error(exceptions.text_error_template().render())
                 return 1

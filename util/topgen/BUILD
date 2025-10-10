@@ -7,6 +7,11 @@ load("@ot_python_deps//:requirements.bzl", "requirement")
 
 package(default_visibility = ["//visibility:public"])
 
+filegroup(
+    name = "doc_files",
+    srcs = glob(["**/*.md"]),
+)
+
 py_library(
     name = "topgen",
     srcs = [
@@ -17,6 +22,7 @@ py_library(
     ],
     deps = [
         ":merge",
+        ":typing",
         requirement("tabulate"),
         requirement("pycryptodome"),
     ],
@@ -27,6 +33,14 @@ py_library(
     srcs = ["c_test.py"],
     deps = [
         ":lib",
+    ],
+)
+
+py_library(
+    name = "typing",
+    srcs = ["typing.py"],
+    deps = [
+        "//util/reggen:ip_block",
     ],
 )
 
@@ -55,8 +69,10 @@ py_library(
         "rust.py",
     ],
     deps = [
+        "//util:version_file",
         "//util/reggen:inter_signal",
         "//util/reggen:ip_block",
+        "//util/reggen:md_helpers",
         "//util/reggen:validate",
         requirement("hjson"),
         requirement("mako"),

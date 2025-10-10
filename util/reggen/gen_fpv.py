@@ -12,7 +12,7 @@ import os.path
 import yaml
 from mako import exceptions  # type: ignore
 from mako.template import Template  # type: ignore
-from pkg_resources import resource_filename
+import importlib.resources
 
 from reggen.ip_block import IpBlock
 
@@ -20,7 +20,7 @@ from reggen.ip_block import IpBlock
 def gen_fpv(block: IpBlock, outdir: str) -> int:
     # Read Register templates
     fpv_csr_tpl = Template(
-        filename=resource_filename('reggen', 'fpv_csr.sv.tpl'))
+        filename=str(importlib.resources.files('reggen') / "fpv_csr.sv.tpl"))
 
     device_hier_paths = block.bus_interfaces.device_hier_paths
 
@@ -45,11 +45,12 @@ def gen_fpv(block: IpBlock, outdir: str) -> int:
         reg_top_path = os.path.join(outdir, filename)
         with open(reg_top_path, 'w', encoding='UTF-8') as fout:
             try:
-                fout.write(fpv_csr_tpl.render(block=block,
-                                              reg_block_path=reg_block_path,
-                                              mod_base=mod_base,
-                                              if_name=if_name,
-                                              rb=rb))
+                fout.write(
+                    fpv_csr_tpl.render(block=block,
+                                       reg_block_path=reg_block_path,
+                                       mod_base=mod_base,
+                                       if_name=if_name,
+                                       rb=rb))
             except:  # noqa F722 for template Exception handling
                 log.error(exceptions.text_error_template().render())
                 return 1

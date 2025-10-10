@@ -32,7 +32,7 @@ def indent(s: str, amount: int = 4) -> str:
     """Indents a multi-line string considering the depth of bracketing.
 
     This function assumes the input string is un-indented.  It will not
-    unindent an inapprorpiately indented string.
+    unindent an inappropriately indented string.
     """
     result = []
     indent = 0
@@ -246,7 +246,7 @@ def gen_const_register(regout: TextIO, fieldout: TextIO, reg: Register,
     a = access(reg)
     access_type.add(a)
     highest_address.add(reg.offset + block.regwidth // 8)
-    genout(regout, format_comment(first_line(reg.desc)))
+    regout.write(format_comment(first_line(reg.desc)))
     genout(regout, "(0x{:04x} => {} {}: {}<u32, {}::Register>),\n", reg.offset,
            REG_VISIBILITY, reg.name.lower(), a, rname)
 
@@ -255,7 +255,7 @@ def gen_const_window(regout: TextIO, win: Window, block: IpBlock,
                      rnames: Set[str], existing_defines: Set[str],
                      access_type: Set[str], highest_address: Set[int]) -> None:
     possibly_gen_filler(regout, highest_address, win.offset)
-    genout(regout, format_comment('Memory area: ' + first_line(win.desc)))
+    regout.write(format_comment('Memory area: ' + first_line(win.desc)))
     a = access(win)
     access_type.add(a)
     highest_address.add(win.offset + win.items * block.regwidth // 8)
@@ -274,7 +274,7 @@ def gen_rust_module_param(outstr: TextIO, param: LocalParam, module_name: str,
         return
 
     if param.desc is not None:
-        genout(outstr, format_comment(first_line(param.desc)))
+        outstr.write(format_comment(first_line(param.desc)))
     # Heuristic: if the name already has underscores, it's already snake_case,
     # otherwise, assume StudlyCaps and convert it to snake_case.
     param_name = param.name if '_' in param.name else to_snake_case(param.name)
@@ -289,10 +289,10 @@ def gen_const_module_params(outstr: TextIO, module_data: IpBlock,
     for param in module_data.params.get_localparams():
         gen_rust_module_param(outstr, param, module_name, existing_defines)
 
-    genout(outstr, format_comment(first_line("Register width")))
+    outstr.write(format_comment(first_line("Register width")))
     define_name = to_upper_snake_case(module_name + '_PARAM_REG_WIDTH')
     gen_const(outstr, define_name, '', register_width, existing_defines)
-    genout(outstr, '\n')
+    outstr.write('\n')
 
 
 def gen_const_multireg(regout: TextIO, fieldout: TextIO,
@@ -300,12 +300,12 @@ def gen_const_multireg(regout: TextIO, fieldout: TextIO,
                        rnames: Set[str], existing_defines: Set[str],
                        access_type: Set[str],
                        highest_address: Set[int]) -> None:
-    reg = multireg.regs[0]
+    reg = multireg.cregs[0]
     possibly_gen_filler(regout, highest_address, reg.offset)
     rname = reg.name.upper()
     if rname.endswith("_0"):
         rname = rname[:-2]
-    rlen = len(multireg.regs)
+    rlen = len(multireg.cregs)
     genout(regout, format_comment(first_line(reg.desc)))
     a = access(reg)
     access_type.add(a)
@@ -401,7 +401,8 @@ def gen_tock(block: IpBlock, outfile: TextIO, src_file: Optional[str],
     if version.scm_version() is not None:
         genout(outfile, '// Built for {}\n', version.scm_version())
     if version.scm_revision() is not None:
-        genout(outfile, '// https://github.com/lowRISC/opentitan/tree/{}\n', version.scm_revision())
+        genout(outfile, '// https://github.com/lowRISC/opentitan/tree/{}\n',
+               version.scm_revision())
     if version.scm_status() is not None:
         genout(outfile, '// Tree status: {}\n', version.scm_status())
 

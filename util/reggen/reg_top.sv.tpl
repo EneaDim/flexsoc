@@ -81,8 +81,8 @@
 
   for r in rb.all_regs:
     if isinstance(r, MultiRegister):
-      r0 = r.reg
-      srs = r.regs
+      r0 = r.pregs[0]
+      srs = r.cregs
     else:
       r0 = r
       srs = [r]
@@ -116,7 +116,7 @@
           else:
             fsig_name = '{}.{}'.format(fsig_pfx, fld_name)
 
-        finst_names[field] = (fsig_name, finst_name)
+        finst_names[(sr, field)] = (fsig_name, finst_name)
 
 %>
 
@@ -498,7 +498,7 @@ ${field_sig_decl(f, sig_name, r.hwext, r.shadowed, r.async_clk)}\
   % for r in regs_flat:
     % if r.async_clk:
 <%
-  base_name = r.async_clk.clock_base_name
+  base_name = r.async_clk[1].clock_base_name
   r_name = r.name.lower()
   comb_name = f"{base_name}_{r_name}"
   src_we_expr = f"{r_name}_we" if r.needs_we() else "'0"
@@ -583,8 +583,8 @@ ${field_sig_decl(f, sig_name, r.hwext, r.shadowed, r.async_clk)}\
   ) u_${r_name}_cdc (
     .clk_src_i    (${reg_clk_expr}),
     .rst_src_ni   (${reg_rst_expr}),
-    .clk_dst_i    (${r.async_clk.clock}),
-    .rst_dst_ni   (${r.async_clk.reset}),
+    .clk_dst_i    (${r.async_clk[1].clock}),
+    .rst_dst_ni   (${r.async_clk[1].reset}),
     .src_regwen_i (${src_regwen_expr}),
     .src_we_i     (${src_we_expr}),
     .src_re_i     (${src_re_expr}),
@@ -621,8 +621,8 @@ ${field_sig_decl(f, sig_name, r.hwext, r.shadowed, r.async_clk)}\
                      f'  // R[{sr_name}]: V({sr.hwext})')
         else:
           reg_hdr = (f'  // R[{sr_name}]: V({sr.hwext})')
-        clk_expr = sr.async_clk.clock if sr.async_clk else reg_clk_expr
-        rst_expr = sr.async_clk.reset if sr.async_clk else reg_rst_expr
+        clk_expr = sr.async_clk[1].clock if sr.async_clk else reg_clk_expr
+        rst_expr = sr.async_clk[1].reset if sr.async_clk else reg_rst_expr
 %>\
 ${reg_hdr}
       % if sr.needs_qe():
@@ -668,7 +668,7 @@ ${reg_hdr}
 <%
   # We usually use the REG_we signal, but use REG_re for RC fields
   # (which get updated on a read, not a write)
-  clk_base_name = f"{sr.async_clk.clock_base_name}_" if sr.async_clk else ""
+  clk_base_name = f"{sr.async_clk[1].clock_base_name}_" if sr.async_clk else ""
   we_suffix = 're' if field.swaccess.swrd() == SwRdAccess.RC else 'we'
   we_signal = f'{clk_base_name}{sr_name}_{we_suffix}'
 
@@ -704,7 +704,7 @@ ${reg_hdr}
       % for fidx, field in enumerate(sr.fields):
 <%
           fld_name = field.name.lower()
-          fsig_name, finst_name = finst_names[field]
+          fsig_name, finst_name = finst_names[(sr, field)]
 %>\
         % if len(sr.fields) > 1:
   //   F[${fld_name}]: ${field.bits.msb}:${field.bits.lsb}
@@ -827,7 +827,7 @@ ${rdata_gen(f, r.name.lower() + "_" + f.name.lower())}\
 
       for sr in srs:
         for field in sr.fields:
-          _, pfx = finst_names[field]
+          _, pfx = finst_names[(sr, field)]
           shadowed_field_pfxs.append(pfx)
 %>\
   assign shadowed_storage_err_o = |{
@@ -1028,10 +1028,10 @@ ${bits.msb}\
 <%def name="finst_gen(reg, field, finst_name, fsig_name, fidx)">\
 <%
 
-    clk_base_name = f"{reg.async_clk.clock_base_name}_" if reg.async_clk else ""
+    clk_base_name = f"{reg.async_clk[1].clock_base_name}_" if reg.async_clk else ""
     reg_name = reg.name.lower()
-    clk_expr = reg.async_clk.clock if reg.async_clk else reg_clk_expr
-    rst_expr = reg.async_clk.reset if reg.async_clk else reg_rst_expr
+    clk_expr = reg.async_clk[1].clock if reg.async_clk else reg_clk_expr
+    rst_expr = reg.async_clk[1].reset if reg.async_clk else reg_rst_expr
     re_expr = f'{clk_base_name}{reg_name}_re' if field.swaccess.allows_read() or reg.shadowed else "1'b0"
 
     # software inputs to field instance, write enable, read enable, write data

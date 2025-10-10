@@ -59,6 +59,12 @@ py_library(
 )
 
 py_library(
+    name = "feature",
+    srcs = ["feature.py"],
+    deps = [":lib"],
+)
+
+py_library(
     name = "enum_entry",
     srcs = ["enum_entry.py"],
     deps = [":lib"],
@@ -106,6 +112,7 @@ py_library(
         ":bus_interfaces",
         ":clocking",
         ":countermeasure",
+        ":feature",
         ":inter_signal",
         ":interrupt",
         ":lib",
@@ -317,6 +324,38 @@ py_library(
 )
 
 py_library(
+    name = "exporter",
+    srcs = ["exporter.py"],
+    deps = [
+        ":ip_block",
+    ],
+)
+
+py_library(
+    name = "systemrdl_exporter",
+    srcs = ["systemrdl_exporter.py"],
+    deps = [
+        ":access",
+        ":exporter",
+        ":field",
+        ":ip_block",
+        ":multi_register",
+        ":reg_block",
+        ":register",
+        ":window",
+        requirement("peakrdl_systemrdl"),
+    ],
+)
+
+py_library(
+    name = "md_helpers",
+    srcs = ["md_helpers.py"],
+    deps = [
+        ":signal",
+    ],
+)
+
+py_library(
     name = "validate",
     srcs = ["validate.py"],
 )
@@ -329,4 +368,12 @@ py_library(
 filegroup(
     name = "tpl_files",
     srcs = glob(["**/*.tpl"]),
+)
+
+filegroup(
+    name = "doc_files",
+    srcs = glob([
+        "**/*.md",
+        "**/*.svg",
+    ]),
 )

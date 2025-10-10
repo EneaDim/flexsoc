@@ -6,9 +6,8 @@ Generates the documentation for the register tool
 
 """
 from reggen.access import SWACCESS_PERMITTED, HWACCESS_PERMITTED
-from reggen import (validate,
-                    ip_block, enum_entry, field,
-                    register, multi_register, window)
+from reggen import (validate, ip_block, enum_entry, field, register,
+                    multi_register, window)
 
 from typing import Any, Optional, TextIO
 
@@ -129,7 +128,7 @@ In all of these the swaccess parameter is inherited from the register
 level, and will be added so this key is always available to the
 backend. The RXS and ENRXS will default to zero reset value (unless
 something different is provided for the register) and will have the
-key added, but TXILVL expicitly sets its reset value as 2.
+key added, but TXILVL explicitly sets its reset value as 2.
 
 The missing bits 17 and 18 will be treated as reserved by the tool, as
 will any bits between 21 and the maximum in the register.
@@ -212,8 +211,8 @@ def doc_tbl_head(outfile: TextIO, use: bool) -> None:
         genout(outfile, "--- | -----------\n")
 
 
-def doc_tbl_line(outfile: TextIO, key: str,
-                 use: Optional[str], desc: Any) -> None:
+def doc_tbl_line(outfile: TextIO, key: str, use: Optional[str],
+                 desc: Any) -> None:
     if use is not None:
         desc_key, desc_txt = desc
         val_type = (validate.val_types[desc_key][0]
