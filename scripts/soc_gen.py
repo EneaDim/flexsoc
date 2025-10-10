@@ -59,28 +59,32 @@ def parse_ports(sv_file):
 
     # Match direction, optional logic/wire, optional width, optional pkg type, and final signal name
     pattern = re.compile(r"""
-    \b(?P<dir>input|output)\b      # direzione
-    \s+
-    (?:                            # tipo opzionale
-        (?P<logicw>logic\s*\[[^\]]+\])  # 'logic [n:0]' se presente
-        |                           # altrimenti
-        (?P<type>logic|wire)        # 'logic' o 'wire' senza width
-    )?
-    \s*
-    (?:(?:\w+::)?\w+\s+)?           # tipo/pacchetto opzionale (pkg::type)
-    (?P<name>\w+)                   # nome finale del segnale
-""", re.MULTILINE | re.VERBOSE)
-
+        \b(?P<dir>input|output)\b         # direzione
+        \s+
+        (?:                               # specifica tipo/larghezza opzionale
+            (?:(?P<type>logic|wire)\s*)?  # tipo opzionale (logic|wire)
+            (?P<width>\[[^\]]+\])?        # width opzionale, es. [3:0]
+          | (?P<usertype>(?:\w+::)?\w+)   # oppure un tipo user-defined (pkg::type)
+        )?
+        \s+
+        (?P<name>\w+)                     # nome del segnale
+    """, re.VERBOSE | re.MULTILINE)
+    
     ports = []
     for m in pattern.finditer(content):
-        type_or_logicw = m.group('logicw') or m.group('type')  # 'logic [n:0]' se c’è, altrimenti 'logic'/'wire', o None
-        ports.append((m.group('dir'), type_or_logicw, m.group('name')))
-    #pattern = re.compile(
-    #    r'\b(input|output)\b\s+(?:logic|wire)?\s*(?:\[[^\]]*\]\s*)?(?:(?:\w+::)?\w+\s+)?(\w+)',
-    #    re.MULTILINE
-    #)
-
-    #ports = pattern.findall(content)
+        dir_ = m.group('dir')
+        name = m.group('name')
+        t    = m.group('type')       # "logic" | "wire" | None
+        w    = m.group('width')      # "[3:0]" | None
+        ut   = m.group('usertype')   # "pkg::type" | "type" | None
+    
+        if ut:
+            dtype = ut                                   # es. tlul_pkg::tl_h2d_t
+        else:
+            base = t or ('logic' if w else None)          # se c'è solo [3:0] => wire implicito
+            dtype = (f"{base} {w}".strip() if base and w else base)
+    
+        ports.append((dir_, dtype, name))
 
     return ports
 
@@ -717,7 +721,7 @@ def main():
         help="Host selection: ibex - uart"
     )
     parser.add_argument(
-        "--lowrisc_modules", "-lrm", nargs="+", required=True,
+        "--lowrisc_modules", "-lrm", nargs="*", default=None,
         help="List of module names to include (e.g., uart spi_host)"
     )
     parser.add_argument(
