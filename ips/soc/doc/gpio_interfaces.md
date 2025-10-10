@@ -3,6 +3,7 @@ Referring to the [Comportable guideline for peripheral device functionality](htt
 - Other Clocks: *none*
 - Bus Device Interfaces (TL-UL): **`tl`**
 - Bus Host Interfaces (TL-UL): *none*
+- Security Alerts: *none*
 
 ## Peripheral Pins for Chip IO
 
@@ -21,12 +22,6 @@ Referring to the [Comportable guideline for peripheral device functionality](htt
 | Interrupt Name   | Type   | Description                                                 |
 |:-----------------|:-------|:------------------------------------------------------------|
 | gpio[3:0]        | Event  | raised if any of GPIO pin detects configured interrupt mode |
-
-## Security Alerts
-
-| Alert Name   | Description                                                                       |
-|:-------------|:----------------------------------------------------------------------------------|
-| fatal_fault  | This fatal alert is triggered when a fatal TL-UL bus integrity fault is detected. |
 
 ## Security Countermeasures
 

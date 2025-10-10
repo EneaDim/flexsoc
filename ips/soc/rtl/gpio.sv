@@ -9,7 +9,6 @@
 module gpio
   import gpio_reg_pkg::*;
 #(
-  parameter logic [NumAlerts-1:0] AlertAsyncOn = {NumAlerts{1'b1}},
   // This parameter instantiates 2-stage synchronizers on all GPIO inputs.
   parameter bit GpioAsyncOn = 1
 ) (
@@ -22,10 +21,6 @@ module gpio
 
   // Interrupts
   output logic [3:0] intr_gpio_o,
-
-  // Alerts
-  input  prim_alert_pkg::alert_rx_t [NumAlerts-1:0] alert_rx_i,
-  output prim_alert_pkg::alert_tx_t [NumAlerts-1:0] alert_tx_o,
 
   // GPIOs
   input        [3:0] cio_gpio_i,
@@ -144,39 +139,15 @@ module gpio
                                event_intr_actlow |
                                event_intr_acthigh;
 
-  // Alerts
-  logic [NumAlerts-1:0] alert_test, alerts;
-  assign alert_test = {
-    reg2hw.alert_test.q &
-    reg2hw.alert_test.qe
-  };
-
-  for (genvar i = 0; i < NumAlerts; i++) begin : gen_alert_tx
-    prim_alert_sender #(
-      .AsyncOn(AlertAsyncOn[i]),
-      .IsFatal(1'b1)
-    ) u_prim_alert_sender (
-      .clk_i,
-      .rst_ni,
-      .alert_test_i  ( alert_test[i] ),
-      .alert_req_i   ( alerts[0]     ),
-      .alert_ack_o   (               ),
-      .alert_state_o (               ),
-      .alert_rx_i    ( alert_rx_i[i] ),
-      .alert_tx_o    ( alert_tx_o[i] )
-    );
-  end
-
   // Register module
   gpio_reg_top u_reg (
     .clk_i,
     .rst_ni,
-
     .tl_i,
     .tl_o,
-
     .reg2hw,
-    .hw2reg
+    .hw2reg,
+    .devmode_i(1'b1)
 
   );
 
@@ -184,7 +155,6 @@ module gpio
   `ASSERT_KNOWN(IntrGpioKnown, intr_gpio_o)
   `ASSERT_KNOWN(CioGpioEnOKnown, cio_gpio_en_o)
   `ASSERT_KNOWN(CioGpioOKnown, cio_gpio_o)
-  `ASSERT_KNOWN(AlertsKnown_A, alert_tx_o)
 
   // Alert assertions for reg_we onehot check
   `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])

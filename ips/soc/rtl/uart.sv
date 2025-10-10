@@ -52,7 +52,8 @@ module uart import uart_reg_pkg::*; (
     .tl_i,
     .tl_o,
     .reg2hw,
-    .hw2reg
+    .hw2reg,
+    .devmode_i(1'b1)
   );
 
     // uart_core con porte streaming

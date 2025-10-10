@@ -16,8 +16,8 @@ module pwm
   input                       tlul_pkg::tl_h2d_t tl_i,
   output                      tlul_pkg::tl_d2h_t tl_o,
 
-  output logic [5:0] cio_pwm_o,
-  output logic [5:0] cio_pwm_en_o
+  output logic [3:0] cio_pwm_o,
+  output logic [3:0] cio_pwm_en_o
 );
 
   pwm_reg_pkg::pwm_reg2hw_t reg2hw;
@@ -25,17 +25,16 @@ module pwm
   pwm_reg_top u_reg (
     .clk_i,
     .rst_ni,
-    .clk_core_i(clk_i),
-    .rst_core_ni(rst_ni),
-    .tl_i       (tl_i),
-    .tl_o       (tl_o),
-    .reg2hw     (reg2hw)
+    .tl_i,
+    .tl_o,
+    .reg2hw,
+    .devmode_i(1'b1)
   );
 
-  assign cio_pwm_en_o = {6{1'b1}};
+  assign cio_pwm_en_o = {4{1'b1}};
 
   pwm_core #(
-    .NOutputs(6),
+    .NOutputs(4),
     .PhaseCntDw(PhaseCntDw),
     .BeatCntDw(BeatCntDw)
   ) u_pwm_core (

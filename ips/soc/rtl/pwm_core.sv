@@ -123,8 +123,4 @@ module pwm_core #(
 
   end : gen_chan_insts
 
-  // unused register configuration
-  logic unused_reg;
-  assign unused_reg = ^reg2hw.alert_test;
-
 endmodule : pwm_core

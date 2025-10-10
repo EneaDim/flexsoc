@@ -9,19 +9,16 @@ package rv_timer_reg_pkg;
   // Param list
   parameter int N_HARTS = 1;
   parameter int N_TIMERS = 1;
-  parameter int NumAlerts = 1;
 
   // Address widths within the block
   parameter int BlockAw = 9;
+  parameter int AW = BlockAw;
+  parameter int DW = 32;
+  parameter int DBW = DW/8;                    // Byte Width
 
   ////////////////////////////
   // Typedefs for registers //
   ////////////////////////////
-
-  typedef struct packed {
-    logic        q;
-    logic        qe;
-  } rv_timer_reg2hw_alert_test_reg_t;
 
   typedef struct packed {
     logic        q;
@@ -84,7 +81,6 @@ package rv_timer_reg_pkg;
 
   // Register -> HW type
   typedef struct packed {
-    rv_timer_reg2hw_alert_test_reg_t alert_test; // [156:155]
     rv_timer_reg2hw_ctrl_mreg_t [0:0] ctrl; // [154:154]
     rv_timer_reg2hw_intr_enable0_mreg_t [0:0] intr_enable0; // [153:153]
     rv_timer_reg2hw_intr_state0_mreg_t [0:0] intr_state0; // [152:152]
@@ -104,8 +100,7 @@ package rv_timer_reg_pkg;
   } rv_timer_hw2reg_t;
 
   // Register offsets
-  parameter logic [BlockAw-1:0] RV_TIMER_ALERT_TEST_OFFSET = 9'h 0;
-  parameter logic [BlockAw-1:0] RV_TIMER_CTRL_OFFSET = 9'h 4;
+  parameter logic [BlockAw-1:0] RV_TIMER_CTRL_OFFSET = 9'h 0;
   parameter logic [BlockAw-1:0] RV_TIMER_INTR_ENABLE0_OFFSET = 9'h 100;
   parameter logic [BlockAw-1:0] RV_TIMER_INTR_STATE0_OFFSET = 9'h 104;
   parameter logic [BlockAw-1:0] RV_TIMER_INTR_TEST0_OFFSET = 9'h 108;
@@ -116,13 +111,10 @@ package rv_timer_reg_pkg;
   parameter logic [BlockAw-1:0] RV_TIMER_COMPARE_UPPER0_0_OFFSET = 9'h 11c;
 
   // Reset values for hwext registers and their fields
-  parameter logic [0:0] RV_TIMER_ALERT_TEST_RESVAL = 1'h 0;
-  parameter logic [0:0] RV_TIMER_ALERT_TEST_FATAL_FAULT_RESVAL = 1'h 0;
   parameter logic [0:0] RV_TIMER_INTR_TEST0_RESVAL = 1'h 0;
 
   // Register index
   typedef enum int {
-    RV_TIMER_ALERT_TEST,
     RV_TIMER_CTRL,
     RV_TIMER_INTR_ENABLE0,
     RV_TIMER_INTR_STATE0,
@@ -135,17 +127,30 @@ package rv_timer_reg_pkg;
   } rv_timer_id_e;
 
   // Register width information to check illegal writes
-  parameter logic [3:0] RV_TIMER_PERMIT [10] = '{
-    4'b 0001, // index[0] RV_TIMER_ALERT_TEST
-    4'b 0001, // index[1] RV_TIMER_CTRL
-    4'b 0001, // index[2] RV_TIMER_INTR_ENABLE0
-    4'b 0001, // index[3] RV_TIMER_INTR_STATE0
-    4'b 0001, // index[4] RV_TIMER_INTR_TEST0
-    4'b 0111, // index[5] RV_TIMER_CFG0
-    4'b 1111, // index[6] RV_TIMER_TIMER_V_LOWER0
-    4'b 1111, // index[7] RV_TIMER_TIMER_V_UPPER0
-    4'b 1111, // index[8] RV_TIMER_COMPARE_LOWER0_0
-    4'b 1111  // index[9] RV_TIMER_COMPARE_UPPER0_0
+  parameter logic [3:0] RV_TIMER_PERMIT [9] = '{
+    4'b 0001, // index[0] RV_TIMER_CTRL
+    4'b 0001, // index[1] RV_TIMER_INTR_ENABLE0
+    4'b 0001, // index[2] RV_TIMER_INTR_STATE0
+    4'b 0001, // index[3] RV_TIMER_INTR_TEST0
+    4'b 0111, // index[4] RV_TIMER_CFG0
+    4'b 1111, // index[5] RV_TIMER_TIMER_V_LOWER0
+    4'b 1111, // index[6] RV_TIMER_TIMER_V_UPPER0
+    4'b 1111, // index[7] RV_TIMER_COMPARE_LOWER0_0
+    4'b 1111  // index[8] RV_TIMER_COMPARE_UPPER0_0
+  };
+
+  parameter type reg_req_t = struct packed {
+    logic           valid;
+    logic           write;
+    logic [AW-1:0]  addr;
+    logic [DW-1:0]  wdata;
+    logic [DBW-1:0] wstrb;
+  };
+
+  parameter type reg_rsp_t = struct packed {
+    logic [DW-1:0]  rdata;
+    logic           error;
+    logic           ready;
   };
 
 endpackage
