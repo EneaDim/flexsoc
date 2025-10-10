@@ -12,6 +12,8 @@ module pwm_reg_top
 (
   input logic clk_i,
   input logic rst_ni,
+  input logic clk_core_i,
+  input logic rst_core_ni,
   // From TLUL
   input  tlul_pkg::tl_h2d_t tl_i,
   output tlul_pkg::tl_d2h_t tl_o,

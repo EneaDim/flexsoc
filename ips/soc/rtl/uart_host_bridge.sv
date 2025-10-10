@@ -32,7 +32,7 @@ module uart_host_bridge (
   typedef enum logic [2:0] {RXF_IDLE, RXF_HDR, RXF_ADDR, RXF_WDATA, RXF_LAUNCH, RXF_WAIT_GNT} rxf_e;
   rxf_e rxf_st_q, rxf_st_d;
 
-  logic [2:0]  idx_q, idx_d;
+  logic [1:0]  idx_q, idx_d;
   logic [31:0] sh_q,  sh_d;
   logic [7:0]  op_q, bebyte_q, op_d, bebyte_d;
 
@@ -77,6 +77,8 @@ module uart_host_bridge (
     rxf_st_d = rxf_st_q;
     idx_d    = idx_q;
     sh_d     = sh_q;
+    op_d     = '0;
+    bebyte_d = 8'hF;
 
     addr_d   = addr_q;
     wdata_d  = wdata_q;
@@ -86,8 +88,9 @@ module uart_host_bridge (
 
     unique case (rxf_st_q)
       RXF_IDLE: begin
+        idx_d    = '0;
+        sh_d     = '0;
         if (rx_valid_i && rx_data_i==8'hA5) begin // SOF
-          idx_d    = '0;
           rxf_st_d = RXF_HDR;
         end
       end
@@ -95,22 +98,22 @@ module uart_host_bridge (
       RXF_HDR: begin
         if (rx_valid_i) begin
           case (idx_q)
-            3'd0: /* VER=0x01 */;
-            3'd1: op_d     = rx_data_i;      // 0=READ,1=WRITE
-            3'd2: /* RSV  */ ;
-            3'd3: bebyte_d = rx_data_i;      // BE
+            2'd0: /* VER=0x01 */;
+            2'd1: op_d     = rx_data_i;      // 0=READ,1=WRITE
+            2'd2: /* RSV  */ ;
+            2'd3: bebyte_d = rx_data_i;      // BE
           endcase
-          if (idx_q==3'd3) begin
+          if (idx_q==2'd3) begin
             idx_d    = '0;
             rxf_st_d = RXF_ADDR;
-          end else idx_d = idx_q + 3'd1;
+          end else idx_d = idx_q + 2'd1;
         end
       end
 
       RXF_ADDR: begin
         if (rx_valid_i) begin
           sh_d = {rx_data_i, sh_q[31:8]};
-          if (idx_q==3'd3) begin
+          if (idx_q==2'd3) begin
             addr_d = {rx_data_i, sh_q[31:8]};
             if (op_q==8'd1) begin
               idx_d    = '0;
@@ -121,19 +124,19 @@ module uart_host_bridge (
               wdata_d  = '0;
               rxf_st_d = RXF_LAUNCH;
             end
-          end else idx_d = idx_q + 3'd1;
+          end else idx_d = idx_q + 2'd1;
         end
       end
 
       RXF_WDATA: begin
         if (rx_valid_i) begin
           sh_d = {rx_data_i, sh_q[31:8]};
-          if (idx_q==3'd3) begin
+          if (idx_q==2'd3) begin
             wdata_d  = {rx_data_i, sh_q[31:8]};
             be_d     = bebyte_q[3:0];
             we_d     = 1'b1;
             rxf_st_d = RXF_LAUNCH;
-          end else idx_d = idx_q + 3'd1;
+          end else idx_d = idx_q + 2'd1;
         end
       end
 

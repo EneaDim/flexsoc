@@ -23,8 +23,10 @@ module pwm
   pwm_reg_pkg::pwm_reg2hw_t reg2hw;
 
   pwm_reg_top u_reg (
-    .clk_i,
-    .rst_ni,
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .clk_core_i(clk_i),
+    .rst_core_ni(rst_ni),
     .tl_i,
     .tl_o,
     .reg2hw,
