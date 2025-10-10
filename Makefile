@@ -289,8 +289,7 @@ save_tb:
 .PHONY: driver
 driver:
 	./$(UTILDIR)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
-	$(PYTHON) scripts/driver_gen.py -i $(DATADIR)/$(TOP).hjson -b $(NEW_MODULE_ADD) -o $(DRIVERDIR) 
-	@$(CP) $(DRIVERDIR)/$(TOP).* sw
+	$(PYTHON) scripts/driver_gen.py -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR) 
 
 # FSM FLOW
 fsm_example_load:
@@ -348,7 +347,7 @@ soc_flow: soc_build driver soc_sim soc_run
 soc_build:
 	@$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
 	@$(MKDIR) -p $(TOPDIR)
-	@$(PYTHON) scripts/soc_gen.py -host $(HOST) -lrm $(LOWRISC_IPS) -m $(TOP) -o $(TOPDIR)/soc.sv
+	@$(PYTHON) scripts/soc_gen.py -host $(HOST) -lrm $(LOWRISC_IPS) -m $(IPS) -o $(TOPDIR)/soc.sv
 
 soc_sim:
 	@$(ECHO) "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
@@ -365,7 +364,11 @@ soc_view:
 	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
 
 # SoC Processor-Less
-soc_pless: ip_load fetch xbar copy-uart-host copy-soc
+soc_pless: ip_load xbar 
+	@$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
+	@$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
+	@$(MAKE) soc_build IPS="pwm gpio rv_timer spi_host"
+	@$(CP) top/soc.sv $(RTLDIR)/
 	@$(MAKE) sim syn sta power view TOP=soc
 
 copy-uart-host:
