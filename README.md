@@ -152,14 +152,15 @@ Running `make deps` will automate the installation process for IP development. I
 - `data`: `.hjson` file describing the IPs. This file is also used to generate documentation and register map.
 - `doc`: IP documentation.
 - `model`: SystemVerilog models of other IPs of the system (ADC, DAC, Memory, ...).
-- `log`: Log of the output of each step.
+- `py`: Python scripsìts folder to support the modelling of the system IPs.
 - `rtl`: RTL files describing the IP submodules.
 - `lint`: lint waivers.
 - `tb`: Testbenches created to perform design verification of the IP.
-- `tb/regression`: Testbenches defined to be part of the regression.
 - `sim`: `.vcd`, `.gtkw` and verilator files used to simulate and view the waveforms of the simulations.
 - `syn`: Synthesis flow results.
-- `signoff`: Static Timing Analysis and Power Analysis flow results.
+- `signoff`: TCL scripts for Static Timing Analysis and Power Analysis.
+- `ors`: OpenROAD flow input files.
+- `log`: Log of the output of each step.
 
 ---
 
