@@ -89,9 +89,7 @@ You can **use a prebuilt Docker image** (fastest) or install everything locally 
 
 ### 🚀 Try via Docker (no local install)
 
-Two images available:
-
-- **ghcr.io/eneadim/flexsoc:latest** → ~3 GB, toolchain base with IP development flow.
+- **ghcr.io/eneadim/flexsoc:latest** → ~7 GB, toolchain base with IP development flow.
 
   ```bash
   # pull the prebuilt image
@@ -103,20 +101,6 @@ Two images available:
     -e GDK_BACKEND=x11 -e QT_X11_NO_MITSHM=1 -e NO_AT_BRIDGE=1 \
     -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
     ghcr.io/eneadim/flexsoc:latest bash
-  ```
-
-- **ghcr.io/eneadim/flexsoc-full:latest** → ~6 GB, with **SoC** flow and **Ibex** core.
-
-  ```bash
-  # pull the prebuilt image
-  docker pull ghcr.io/eneadim/flexsoc-full:latest
-  
-  # start the container in the current repo (mounts your workspace)
-  docker run --rm -it \
-    -e DISPLAY=$DISPLAY \
-    -e GDK_BACKEND=x11 -e QT_X11_NO_MITSHM=1 -e NO_AT_BRIDGE=1 \
-    -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
-    ghcr.io/eneadim/flexsoc-full:latest bash
   ```
 
 ### 🛠️ Local Install (alternative)
