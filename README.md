@@ -14,6 +14,7 @@ This repository provides a modular and open-source environment designed to **sim
 - [Dependencies](#dependencies)
 - [Usage](#usage)
 - [Folder Structure](#folder-structure)
+- [Tutorial 0](#tutorial-1)
 - [Tutorial 1](#tutorial-1)
 - [Tutorial 2](#tutorial-2)
 - [Tutorial 3](#tutorial-3)
@@ -156,6 +157,33 @@ Running `make deps` will automate the installation process for IP development. I
 - `signoff`: TCL scripts for Static Timing Analysis and Power Analysis.
 - `ors`: OpenROAD flow input files.
 - `log`: Log of the output of each step.
+
+---
+
+<a id="tutorial-0"></a>
+## 🧪 Tutorial 0 - Whole flow
+
+It generate an example IP, and perform the whole flow.
+
+- `make full_tutorial`
+1. Runs setup
+2. Generate HJSON configurations 
+3. Generate CSR registers
+4. Generate documentation
+5. Generate RTL core of the IP
+6. Generate RTL wrapper with core and CSRs.
+7. Generate a simple testbench.
+8. Run lint checks.
+9. Compile.
+10. Simulate RTL.
+11. Run synthesis trial.
+12. Static Timing Analysis (STA)
+13. Report STA violations
+14. Estimate power
+15. Run PnR flow with OpenROAD
+16. Show final GDS.
+
+Then `make clean_all` to completely clean the environment and restart from scratch.
 
 ---
 

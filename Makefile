@@ -385,6 +385,10 @@ copy-vendor:
 	@$(foreach x,$(LOWRISC_IPS),cp vendor/lowrisc_ip/ip/$(x)/rtl/* $(RTLDIR);)
 
 # TUTORIALS
+
+full_tutorial:
+	@$(MAKE) ip_start ip_flow pnr pnr_gui TOP=test
+
 fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 	@$(MAKE) setup_tb ip_flow_noreg plot_postsyn TOP=$(FSM)
 
