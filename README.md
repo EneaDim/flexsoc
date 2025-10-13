@@ -79,13 +79,6 @@ You can **use a prebuilt Docker image** (fastest) or install everything locally 
     newgrp docker  # re-evaluate groups so 'docker' works without sudo
     docker version
     ```
-  - **macOS / Windows**: install **Docker Desktop** (then `docker version`).
-
-- **xhost** (Linux only, for GUI apps like gtkwave/xdot)
-  ```bash
-  sudo apt-get update && sudo apt-get install -y x11-xserver-utils
-  xhost +local:
-  ```
 
 ### 🚀 Try via Docker (no local install)
 
@@ -116,6 +109,24 @@ Running `make deps` will automate the installation process for IP development. I
 - `yosys`: Synthesis tool.
 - `OpenSTA`: Static Timing Analysis and Power Analysis tool.
 - `OpenROAD`: Backend implementation with OpenROAD flow scripts.
+
+---
+
+<a id="usage"></a>
+## ⚙️ Usage
+
+- Run `make help` to see the different guides of the environment.
+
+- Run `make ip_start` to quickstart:
+    - Hjson definition.
+    - Register Map generation.
+    - Documentation generation.
+    - RTL stub definition.
+    - RTL wrapper definition.
+    - Testbench generation.
+    - Linting the design.
+    - Simulation of the testbench.
+- After `ip_start` you can populate the `module`_core.sv file with the core funtionalities.
 
 ---
 
@@ -199,24 +210,6 @@ It loads a custom digital IP to implement the Ramp ADC, it uses also systemveril
 14. Estimate power
 
 Then `make clean_all` to completely clean the environment and restart from scratch.
-
----
-
-<a id="usage"></a>
-## ⚙️ Usage
-
-- Run `make help` to see the different guides of the environment.
-
-- Run `make ip_start` to quickstart:
-    - Hjson definition.
-    - Register Map generation.
-    - Documentation generation.
-    - RTL stub definition.
-    - RTL wrapper definition.
-    - Testbench generation.
-    - Linting the design.
-    - Simulation of the testbench.
-- After `ip_start` you can populate the `module`_core.sv file with the core funtionalities.
 
 ---
 
