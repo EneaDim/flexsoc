@@ -14,10 +14,11 @@ This repository provides a modular and open-source environment designed to **sim
 - [Dependencies](#dependencies)
 - [Usage](#usage)
 - [Folder Structure](#folder-structure)
-- [Tutorial 0](#tutorial-1)
+- [Tutorial 0](#tutorial-0)
 - [Tutorial 1](#tutorial-1)
 - [Tutorial 2](#tutorial-2)
 - [Tutorial 3](#tutorial-3)
+- [Tutorial 4](#tutorial-4)
 - [Flow Overview](#flow-overview)
 - [SoC Composition](#soc-composition)
 - [Next Steps](#next-steps)
@@ -242,7 +243,29 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 ---
 
 <a id="tutorial-3"></a>
-## 🛠 Tutorial 3 - SoC flow
+## 🧪 Tutorial 3 - Processor-Less System On Chip
+
+It loads a custom Processor-Less SoC, it uses the UART to configure all other peripherals. Up to now it has: UART, PWM, GPIOs and TIMERs.
+
+- `make soc_pless TOP=soc`
+1. Load soc from ips folder.
+2. Generate xbar
+3. Generate SoC with all IPs under rtl folder
+4. Copy all the results under rtl
+5. Run lint checks
+6. Compile
+7. Simulate RTL with a custom testbench
+8. Run synthesis trial
+9. Static Timing Analysis (STA)
+10. Report STA violations
+11. Estimate power
+
+Then `make clean_all` to completely clean the environment and restart from scratch.
+
+---
+
+<a id="tutorial-4"></a>
+## 🛠 Tutorial 4 - SoC flow with IBEX core
 
 Running `make deps-soc` will automate the installation process for SoC integration.
 
