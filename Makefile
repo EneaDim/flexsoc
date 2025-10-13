@@ -474,7 +474,6 @@ ip_save: clean_sim clean_rtl
 # LOAD IP
 ip_load:
 	@$(CP) -r ips/$(TOP)/* .
-	@$(ECHO) "\n$(ORANGE)$(TOP) IP loaded\n$(RESET)"
 
 # DEPENDENCIES
 deps:
