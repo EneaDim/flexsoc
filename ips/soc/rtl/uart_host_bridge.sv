@@ -77,8 +77,8 @@ module uart_host_bridge (
     rxf_st_d = rxf_st_q;
     idx_d    = idx_q;
     sh_d     = sh_q;
-    op_d     = '0;
-    bebyte_d = 8'hF;
+    op_d     = op_q;
+    bebyte_d = bebyte_q;
 
     addr_d   = addr_q;
     wdata_d  = wdata_q;
