@@ -388,7 +388,6 @@ fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 	@$(MAKE) setup_tb ip_flow_noreg plot_postsyn TOP=$(FSM)
 
 ip_tutorial:
-	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
 	$(MAKE) ip_load
 	@$(ECHO) "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
 	$(MAKE) sim syn sdf sta sta_violators power view 
@@ -430,8 +429,8 @@ setup_signoff: setup_sdc
 
 # SETUP P&R
 setup_pnr:
-	$(PYTHON) scripts/setup_pnr.py $(TOP) --platform $(ORS_TECH) \
-	--filelist $(RTLDIR)/rtl_list.f --outdir $(ORSDIR)
+	$(PYTHON) scripts/setup_pnr.py $(TOP) --syn_strategy $(TARGET_OPT) --clk_period $(CLK_PERIOD) \
+	--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --outdir $(ORSDIR)
 # SIMULATE WITH COCOTB
 sim_cocotb:
 	$(MAKE) -C ${TBDIR}
@@ -472,6 +471,7 @@ ip_save: clean_sim clean_rtl
 
 # LOAD IP
 ip_load:
+	@$(ECHO) "\n$(ORANGE)$(TOP) IP loaded\n$(RESET)"
 	@$(CP) -r ips/$(TOP)/* .
 
 # DEPENDENCIES
