@@ -178,7 +178,7 @@ syn_sv: setup_syn
 plot_postsyn:
 	xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot &
 
-.PHONY: view_prewsyn view_presyn_v view_presyn_sv
+.PHONY: view_presyn view_presyn_v view_presyn_sv
 view_presyn: $(if $(filter v,$(VSV)),view_presyn_v,view_presyn_sv)
 
 view_presyn_v: sv2v
