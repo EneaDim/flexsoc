@@ -98,9 +98,9 @@ try:
             mystr += 'read_verilog '+str(topdir)+'/'+str(top)+'.v\n'
             mystr += '# basic synth\n'
             if opt == 'area':
-                mystr += 'synth -top '+str(top)+'\n'
+                mystr += 'synth -top '+str(top)+' -noabc\n'
             else:
-                mystr += 'synth -top '+str(top)+' -flatten\n'
+                mystr += 'synth -top '+str(top)+' -flatten -noabc\n'
             mystr += 'show -width -format dot -prefix '+str(output_folder)+'/plots/'+str(top)+'_postsyn\n'
             mystr += '# map internal register types to the ones from the cell library\n'
             mystr += 'dfflibmap -liberty '+str(liberty)+'\n'
@@ -135,7 +135,10 @@ try:
             mystr += '           -f rtl/rtl_list.f \\\n'
             mystr += '           --top '+str(top)+'\n'
             mystr += '# basic synth\n'
-            mystr += 'synth -top '+str(top)+' -flatten\n'
+            if opt == 'area':
+                mystr += 'synth -top '+str(top)+' -noabc\n'
+            else:
+                mystr += 'synth -top '+str(top)+' -flatten -noabc\n'
             mystr += 'show -width -format dot -prefix '+str(output_folder)+'/plots/'+str(top)+'_postsyn\n'
             mystr += '# map internal register types to the ones from the cell library\n'
             mystr += 'dfflibmap -liberty '+str(liberty)+'\n'
