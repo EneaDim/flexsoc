@@ -14,7 +14,9 @@ show -width -format dot -prefix syn/plots/soc_postsyn
 dfflibmap -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 # mapping to internal cell library
 abc -D 10000 \
--liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+    -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib \
+    -constr ors/soc.sdc \
+    -script ./syn/delay.abc
 opt_clean -purge
 stat -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 # write verilog

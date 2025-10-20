@@ -119,7 +119,7 @@ module soc_tb;
   localparam logic [31:0] PWM_EN_OFF      = 32'h0000_0008;  // enable pwm block
   localparam logic [31:0] PWM_CFG_OFF     = 32'h0000_0004;  // duty del canale 0
   localparam logic [31:0] PWM_PHASE_OFF   = 32'h0000_0010;  // duty del canale 0
-  localparam logic [31:0] PWM_DUTY0_OFF   = 32'h0000_0020;  // duty del canale 0
+  localparam logic [31:0] PWM_DUTY0_OFF   = 32'h0000_0014;  // duty del canale 0
   localparam logic [31:0] SPI_CFG_OFF     = 32'h0000_0000;  // enable bit nello SPI host
   
   // Valori di esempio (ADATTA i bit-field alla tua mappa CTRL!)
