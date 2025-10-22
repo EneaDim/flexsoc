@@ -146,7 +146,7 @@ view:
 
 # COCOTB
 cocotb: 
-	$(MAKE) -C $(TBDIR)
+	$(MAKE) -C $(TBDIR)/cocotb
 
 # REGRESSION
 regression:
@@ -405,8 +405,9 @@ soc_tutorial:
 
 # SETUP COCOTB
 setup_cocotb:
-	$(PYTHON) scripts/setup_cocotb.py --top $(TOP) --itf $(REG_ITF) \
-	--rtl-dir $(RTLDIR) --output $(TBDIR) --clk clk_i --rst rst_ni \
+	@$(MKDIR) -p $(TBDIR)/cocotb
+	@$(PYTHON) scripts/setup_cocotb.py --top $(TOP) --itf $(REG_ITF) \
+	--rtl-dir $(RTLDIR) --output $(TBDIR)/cocotb --clk clk_i --rst rst_ni \
 	--rst-active low --period-ns 10 --sim $(COMPILER) 
 
 # DEFINE PYTHON MODELDIR
@@ -431,9 +432,6 @@ setup_signoff: setup_sdc
 setup_pnr:
 	$(PYTHON) scripts/setup_pnr.py $(TOP) --syn_strategy $(TARGET_OPT) --clk_period $(CLK_PERIOD) \
 	--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --outdir $(ORSDIR)
-# SIMULATE WITH COCOTB
-sim_cocotb:
-	$(MAKE) -C ${TBDIR}
 
 # SAVE FSM
 save_fsm:

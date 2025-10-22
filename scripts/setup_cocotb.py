@@ -25,6 +25,7 @@ parser.add_argument("--top","-top", required=True, help="Top module name (withou
 parser.add_argument("--itf","-itf", required=True, choices=["reg_iface","tlul"],
                     help="Register interface: reg_iface or tlul")
 parser.add_argument("--output","-o", default="tb", help="Output folder (default: tb)")
+parser.add_argument("--vsv", default="sv", help="Verilog or SystemVerilog flow (default: sv)")
 parser.add_argument("--rtl-dir", default="rtl", help="RTL directory to scan (recursive)")
 parser.add_argument("--sim", choices=["verilator","icarus","questa","vcs","xcelium"],
                     default="verilator", help="Simulator (default: verilator)")
@@ -43,10 +44,12 @@ parser.add_argument("--tlul-wrap", choices=["auto","on","off"], default="auto",
 args = parser.parse_args()
 
 TOP=args.top; ITF=args.itf; OUT=Path(args.output); RTL_DIR=Path(args.rtl_dir)
+COCOTB_DIR=Path('tb/cocotb')
 SIM=args.sim; CLK=args.clk; RST=args.rst; RST_ACTIVE=args.rst_active
 PERIOD=args.period_ns; NBIT=args.nbit; N_OP=args.n_op
 INC_DIRS=[Path(p) for p in args.include_dirs]; EXTRA_SRC=[Path(p) for p in args.extra_src]
-TL_WRAP=args.tlul_wrap
+#TL_WRAP=args.tlul_wrap
+TL_WRAP='on'
 
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT/"drivers").mkdir(parents=True, exist_ok=True)
@@ -77,40 +80,156 @@ def read_top_path():
         if f.stem == TOP: return f
     return None
 
-TOP_PATH = read_top_path()
+def parse_top_ports(rtldir: str | os.PathLike, top: str):
+    """
+    Parse the port/param header of <rtldir>/<top>.sv and return a dict:
+      {
+        "clk": [<names>],
+        "rst": [<names>],
+        "inputs":  [{"name": ..., "width": <str|int>} ...],
+        "outputs": [{"name": ..., "width": <str|int>} ...],
+        "parameters":   {"NAME": "VALUE", ...},
+        "localparams":  {"NAME": "VALUE", ...}
+      }
 
-def parse_top_ports(top_path: Path):
-    txt = top_path.read_text()
-    # ruba il blocco module (...) ;
-    m = re.search(rf"module\s+{re.escape(TOP)}\s*\((.*?)\);\s", txt, flags=re.S|re.M)
-    if not m:
-        return []
-    ports_blob = m.group(1)
-    # rimuovi commenti singola linea
-    ports_blob = re.sub(r"//.*?$", "", ports_blob, flags=re.M)
-    # separa su virgole tenendo gli a capo
-    chunks = [c.strip() for c in ports_blob.split(",") if c.strip()]
-    ports=[]
-    for c in chunks:
-        # linee tipo: input  tlul_pkg::tl_h2d_t tl_i
-        #             output logic [31:0] foo
-        m2 = re.match(r"(input|output|inout)\s+(.+?)\s+([A-Za-z_][A-Za-z0-9_$]*)\s*$", c)
-        if not m2: continue
-        direction, decl, name = m2.groups()
-        ports.append({"dir":direction, "decl":decl.strip(), "name":name})
-    return ports
+    Notes:
+    - Width is the token right after the type (e.g. "[31:0]") or 1 if scalar.
+    - Comments (//...) on lines with ports/params are stripped; pure comment lines are skipped.
+    - Multi-name declarations like "input logic [3:0] a, b" are split into two entries with same width.
+    """
+    top_path = Path(rtldir)
+    with open(top_path, "r") as f:
+        content = f.readlines()
+
+    clk, rst = [], []
+    inputs, input_w = [], []
+    outputs, output_w = [], []
+    parameters, param_values = [], []
+    localparams, localparam_values = [], []
+
+    # Grab everything up to the first ');' after the module header
+    header_text = ''.join(''.join(content).split(');')[0]).split('\n')
+
+    for line in header_text:
+        # Strip trailing // comments only if line actually contains tokens we care about
+        if '//' in line:
+            if any(tok in line for tok in ('input', 'output', 'parameter', 'localparam')):
+                line = line.split('//', 1)[0]
+            else:
+                continue  # pure comment line
+
+        line = line.strip()
+        if not line:
+            continue
+
+        # Parameters
+        if 'parameter' in line and 'localparam' not in line:
+            lhs_rhs = line.split('=', 1)
+            if len(lhs_rhs) == 2:
+                lhs, rhs = lhs_rhs
+                par = lhs.split()
+                value = rhs.split()[0].rstrip(',')  # drop trailing comma if present
+                parameters.append(par[-1])
+                param_values.append(value)
+            continue
+
+        # Localparams
+        if 'localparam' in line:
+            lhs_rhs = line.split('=', 1)
+            if len(lhs_rhs) == 2:
+                lhs, rhs = lhs_rhs
+                par = lhs.split()
+                value = rhs.split()[0].rstrip(',')
+                localparams.append(par[-1])
+                localparam_values.append(value)
+            continue
+
+        # Inputs
+        if line.startswith('input '):
+            body = line[len('input '):].strip()
+            toks = body.split()
+            if not toks:
+                continue
+            # drop leading 'logic'
+            if toks[0] == 'logic':
+                toks = toks[1:]
+                if not toks:
+                    continue
+
+            # Optional width in first token (e.g., [31:0])
+            width_tok = None
+            if toks and toks[0].startswith('['):
+                width_tok = toks[0]
+                toks = toks[1:]
+
+            # Remainder are names, possibly comma-terminated
+            names = [t.rstrip(',') for t in toks if t.rstrip(',')]
+            if not names:
+                continue
+
+            # Heuristics for clock/reset tagging
+            for nm in names:
+                if 'clk_' in nm:
+                    clk.append(nm)
+                if 'rst_' in nm:
+                    rst.append(nm)
+
+            w = width_tok if width_tok is not None else 1
+            for nm in names:
+                inputs.append(nm)
+                input_w.append(w)
+            continue
+
+        # Outputs
+        if line.startswith('output '):
+            body = line[len('output '):].strip()
+            toks = body.split()
+            if not toks:
+                continue
+            if toks[0] == 'logic':
+                toks = toks[1:]
+                if not toks:
+                    continue
+
+            width_tok = None
+            if toks and toks[0].startswith('['):
+                width_tok = toks[0]
+                toks = toks[1:]
+
+            names = [t.rstrip(',') for t in toks if t.rstrip(',')]
+            if not names:
+                continue
+
+            w = width_tok if width_tok is not None else 1
+            for nm in names:
+                outputs.append(nm)
+                output_w.append(w)
+            continue
+
+    # Build the structured result
+    params_dict = {k: v for k, v in zip(parameters, param_values)}
+    localparams_dict = {k: v for k, v in zip(localparams, localparam_values)}
+
+    inputs_struct = [{"name": n, "width": input_w[i]} for i, n in enumerate(inputs)]
+    outputs_struct = [{"name": n, "width": output_w[i]} for i, n in enumerate(outputs)]
+
+    return {
+        "clk": clk,
+        "rst": rst,
+        "inputs": inputs_struct,
+        "outputs": outputs_struct,
+        "parameters": params_dict,
+        "localparams": localparams_dict,
+    }
+
+TOP_PATH = read_top_path()
 
 ports = []
 if TOP_PATH and ITF=="tlul":
     try:
-        ports = parse_top_ports(TOP_PATH)
+        ports = parse_top_ports(TOP_PATH, TOP)
     except Exception:
         ports = []
-
-# Heuristica: esistono porte tl_i / tl_o (struct)?
-has_tl_struct = any(p["name"]=="tl_i" for p in ports) and any(p["name"]=="tl_o" for p in ports)
-# Decide se generare il wrapper
-GEN_WRAP = (ITF=="tlul") and (TL_WRAP in ("on","auto") and has_tl_struct)
 
 # --------- Genera Makefile ----------
 inc_flags=[]
@@ -125,32 +244,144 @@ DISCOVERED=""
 for src in rtl_files:
     DISCOVERED += f"VERILOG_SOURCES += $(PWD)/{os.path.relpath(src, OUT.resolve())}\n"
 
-TOPLEVEL = f"{TOP}_cocotb_wrap" if GEN_WRAP else TOP
-print(TOP)
+# Gather all .sv files directly under rtl (non-recursive; change to rglob if you need recursion)
+sv_files = sorted([f.name for f in RTL_DIR.glob("*.sv")])
+
+# Group 1: *_reg_pkg.sv plus tl_main_pkg.sv (if present)
+reg_pkg = sorted([f for f in sv_files if f.endswith("_reg_pkg.sv")])
+
+# Group 2: everything else (exclude group 1)
+others = sorted([f for f in sv_files if f not in reg_pkg])
+others = others[::-1]
+
+lines = []
+# First block
+for f in reg_pkg:
+    lines.append(f"$(ROOT)/{RTL_DIR}/{f} \\")
+
+# Second block
+for f in others:
+    lines.append(f"  $(ROOT)/{RTL_DIR}/{f} \\")
+
+text = "\n".join(lines)
+
 
 mk = dedent(f"""\
 # Auto-generated Makefile
-SIM ?= {SIM}
-TOPLEVEL_LANG = verilog
-PWD = $(shell pwd)
+# --- Simulator & language ---
+SIM               ?= {SIM}
+TOPLEVEL_LANG     ?= verilog
 
-# Sorgenti fissi del progetto (se li hai già nel repo)
-VERILOG_SOURCES := $(PWD)/../ips/pkgs/top_pkg.sv
-VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_assert.sv
-VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_subreg_pkg.sv
-VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_util_pkg.sv
-VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_count_pkg.sv
-VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_mubi_pkg.sv
-VERILOG_SOURCES += $(PWD)/../ips/pkgs/prim_secded_pkg.sv
-VERILOG_SOURCES += $(PWD)/../ips/pkgs/tlul_pkg.sv
-VERILOG_SOURCES += $(PWD)/../rtl/{TOP}_reg_pkg.sv
-VERILOG_SOURCES += $(PWD)/../rtl/{TOP}_reg_top.sv
-VERILOG_SOURCES += $(PWD)/../rtl/{TOP}_core.sv
-VERILOG_SOURCES += $(PWD)/../rtl/{TOP}.sv
-{f"VERILOG_SOURCES += $(PWD)/../rtl/{TOP}_cocotb_wrap.sv" if GEN_WRAP else ""}
+# --- Paths ---
+PWD               := $(shell pwd)
+ROOT              := $(abspath ../..)
+SRC_DIR           := $(PWD)/../../rtl
 
-TOPLEVEL = {TOPLEVEL}
+# --- Top testbench & Python test module ---
+TOPLEVEL = {TOP}_tb
 MODULE = {TOP}_tb
+
+# --- Where to build ---
+SIM_BUILD         ?= sim_build/rtl
+
+# =============================================================================
+# RTL SOURCES
+# =============================================================================
+ifneq ($(GATES),yes)
+
+VERILOG_SOURCES := \\
+  $(ROOT)/ips/pkgs/top_pkg.sv \\
+  $(ROOT)/ips/prim/prim_reg_pkg.sv \\
+  $(ROOT)/ips/pkgs/prim_mubi_pkg.sv \\
+  $(ROOT)/ips/pkgs/prim_secded_pkg.sv \\
+  $(ROOT)/ips/pkgs/prim_subreg_pkg.sv \\
+  $(ROOT)/ips/pkgs/prim_util_pkg.sv \\
+  $(ROOT)/ips/pkgs/tlul_pkg.sv \\
+  $(ROOT)/ips/pkgs/prim_assert.sv \\
+  $(ROOT)/ips/pkgs/prim_count_pkg.sv \\
+  $(ROOT)/ips/pkgs/prim_flop_macros.sv \\
+  $(ROOT)/ips/pkgs/prim_alert_pkg.sv \\
+  $(ROOT)/ips/prim/prim_bin2gray.sv \\
+  $(ROOT)/ips/prim/prim_cdc_2phase.sv \\
+  $(ROOT)/ips/prim/prim_clk_div.sv \\
+  $(ROOT)/ips/prim/prim_clk_gate.sv \\
+  $(ROOT)/ips/prim/prim_counter.sv \\
+  $(ROOT)/ips/prim/prim_deglitch.sv \\
+  $(ROOT)/ips/prim/prim_edge_detect.sv \\
+  $(ROOT)/ips/prim/prim_ff.sv \\
+  $(ROOT)/ips/prim/prim_ff_2sync.sv \\
+  $(ROOT)/ips/prim/prim_fifo.sv \\
+  $(ROOT)/ips/prim/prim_gray2bin.sv \\
+  $(ROOT)/ips/prim/prim_lifo.sv \\
+  $(ROOT)/ips/prim/prim_lzc.sv \\
+  $(ROOT)/ips/prim/prim_ram.sv \\
+  $(ROOT)/ips/prim/prim_reg.sv \\
+  $(ROOT)/ips/prim/prim_rom.sv \\
+  $(ROOT)/ips/prim/prim_rrarbiter.sv \\
+  $(ROOT)/ips/prim/prim_shreg.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_arbiter_ppc.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_buf.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_cdc_rand_delay.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_count.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_diff_decode.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_fifo_async.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_fifo_async_simple.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_fifo_async_sram_adapter.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_fifo_sync.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_fifo_sync_cnt.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_filter.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_filter_ctr.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_flop.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_flop_2sync.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_intr_hw.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_onehot_check.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_pulse_sync.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_reg_cdc.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_reg_cdc_arb.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_reg_we_check.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_sec_anchor_buf.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_sec_anchor_flop.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_subreg.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_subreg_arb.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_subreg_ext.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_sync_reqack.sv \\
+  $(ROOT)/ips/prim_opentitan/prim_alert_sender.sv \\
+  $(ROOT)/ips/tlul/sram2tlul.sv \\
+  $(ROOT)/ips/tlul/tlul_adapter_host.sv \\
+  $(ROOT)/ips/tlul/tlul_adapter_reg.sv \\
+  $(ROOT)/ips/tlul/tlul_adapter_sram.sv \\
+  $(ROOT)/ips/tlul/tlul_assert.sv \\
+  $(ROOT)/ips/tlul/tlul_assert_multiple.sv \\
+  $(ROOT)/ips/tlul/tlul_cmd_intg_chk.sv \\
+  $(ROOT)/ips/tlul/tlul_cmd_intg_gen.sv \\
+  $(ROOT)/ips/tlul/tlul_data_integ_dec.sv \\
+  $(ROOT)/ips/tlul/tlul_data_integ_enc.sv \\
+  $(ROOT)/ips/tlul/tlul_err.sv \\
+  $(ROOT)/ips/tlul/tlul_err_resp.sv \\
+  $(ROOT)/ips/tlul/tlul_fifo_async.sv \\
+  $(ROOT)/ips/tlul/tlul_fifo_sync.sv \\
+  $(ROOT)/ips/tlul/tlul_rsp_intg_chk.sv \\
+  $(ROOT)/ips/tlul/tlul_rsp_intg_gen.sv \\
+  $(ROOT)/ips/tlul/tlul_socket_1n.sv \\
+  $(ROOT)/ips/tlul/tlul_socket_m1.sv \\
+  $(ROOT)/ips/tlul/tlul_sram_byte.sv \\
+  {text}
+  $(ROOT)/tb/cocotb/{TOP}_tb.sv
+
+else
+# =============================================================================
+# GATE-LEVEL SOURCES
+# =============================================================================
+SIM_BUILD               = sim_build/gl
+COMPILE_ARGS           += -DGL_TEST -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DUNIT_DELAY=#1
+VERILOG_SOURCES        += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/primitives.v
+VERILOG_SOURCES        += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/sky130_fd_sc_hd.v
+VERILOG_SOURCES        += $(PWD)/gate_level_netlist.v
+endif
 
 # Parametri testbench
 export ITF ?= {ITF}
@@ -173,8 +404,37 @@ ifeq ($(SIM),icarus)
   IVERILOG_ARGS  += $(EXTRA_ARGS)
 endif
 
+# =============================================================================
+# Common compile flags / includes
+# =============================================================================
+COMPILE_ARGS     += -Wno-WIDTHEXPAND --timing --sv \\
+                    -I$(SRC_DIR) -I$(ROOT)/rtl -I$(ROOT)/ips/pkgs \\
+                    -I$(ROOT)/ips/prim -I$(ROOT)/ips/prim_opentitan -I$(ROOT)/ips/tlul
+
+# Verilator flags (Makefile.sim usa VERILATOR_ARGS)
+VERILATOR_ARGS   += --sv --timing -Wno-WIDTHEXPAND
+# Tracing: VCD di default per la CI (tb.vcd in test/)
+VERILATOR_ARGS   += --trace-fst --trace-structs
+TRACE_FILE       ?= tb.fst
+export VERILATOR_TRACE TRACE_FILE
+
+# Cocotb: path del report JUnit (usato dalla CI)
+COCOTB_RESULTS_FILE ?= $(abspath results.xml)
+export COCOTB_RESULTS_FILE
+
+ifeq ($(SIM),verilator)
+  VERILATOR_ARGS += $(EXTRA_ARGS)
+endif
+ifeq ($(SIM),icarus)
+  IVERILOG_ARGS  += $(EXTRA_ARGS)
+endif
+
+# =============================================================================
+# Include le regole Cocotb
+# =============================================================================
 include $(shell cocotb-config --makefiles)/Makefile.sim
 """)
+
 (OUT/"Makefile").write_text(mk)
 
 # --------- utils.py ----------
@@ -324,10 +584,10 @@ class TLULDriver:
         a_prefix = a_prefix if a_prefix is not None else os.getenv("TB_TL_A_PREFIX", "tl_i")
         d_prefix = d_prefix if d_prefix is not None else os.getenv("TB_TL_D_PREFIX", "tl_o")
 
-        a_map = {"a_valid":"a_valid","a_ready":"a_ready","a_opcode":"a_opcode","a_param":"a_param",
+        a_map = {"a_valid":"a_valid","a_opcode":"a_opcode","a_param":"a_param",
                  "a_size":"a_size","a_source":"a_source","a_address":"a_address","a_mask":"a_mask",
                  "a_data":"a_data","d_ready":"d_ready"}
-        d_map = {"d_valid":"d_valid","d_opcode":"d_opcode","d_data":"d_data","d_error":"d_error"}
+        d_map = {"a_ready":"a_ready","d_valid":"d_valid","d_opcode":"d_opcode","d_data":"d_data","d_error":"d_error"}
 
         # (A) FLAT
         a_handles = _find_many_flat(root, a_prefix, a_map)
@@ -341,8 +601,7 @@ class TLULDriver:
             if tli is not None and tlo is not None:
                 need_a = ["a_valid","a_opcode","a_param","a_size","a_source","a_address","a_mask","a_data","d_ready"]
                 need_d = ["a_ready","d_valid","d_opcode","d_data","d_error"]
-                if all(_get_attr(tli, n) is not None for n in need_a) and \
-                   all(_get_attr(tlo, n) is not None for n in need_d):
+                if all(_get_attr(tli, n) is not None for n in need_a) and                    all(_get_attr(tlo, n) is not None for n in need_d):
                     struct_mode = True
                     a_handles = { n:_get_attr(tli,n) for n in need_a }
                     d_handles = { n:_get_attr(tlo,n) for n in ["a_ready","d_valid","d_opcode","d_data","d_error"] }
@@ -380,7 +639,7 @@ class TLULDriver:
             self.d_data    = d_handles["d_data"]
             self.d_error   = d_handles["d_error"]
         else:
-            self.a_valid   = a_handles["a_valid"];  self.a_ready = a_handles["a_ready"]
+            self.a_valid   = a_handles["a_valid"];  self.a_ready = d_handles["a_ready"]
             self.a_opcode  = a_handles["a_opcode"]; self.a_param = a_handles["a_param"]
             self.a_size    = a_handles["a_size"];   self.a_source= a_handles["a_source"]
             self.a_address = a_handles["a_address"];self.a_mask  = a_handles["a_mask"]
@@ -401,24 +660,47 @@ class TLULDriver:
         return await self._do_tx(addr, 0, 0x0, TL_A_GET)
 
     async def _do_tx(self, addr:int, data:int, mask:int, opcode:int) -> int:
-        self.a_address.value = addr; self.a_data.value = data; self.a_mask.value = mask
-        self.a_param.value = 0; self.a_size.value = 2; self.a_source.value = 0
-        self.a_opcode.value = opcode; self.a_valid.value = 1
-        while not int(self.a_ready.value):
+        # Programma A
+        self.a_address.value = addr
+        self.a_data.value    = data
+        self.a_mask.value    = mask
+        self.a_param.value   = 0
+        self.a_size.value    = 2
+        self.a_source.value  = 0
+        self.a_opcode.value  = opcode
+    
+        # Avvia la richiesta
+        self.a_valid.value = 1
+    
+        # Attendi POSedge con a_ready=1 (handshake) — con timeout
+        for i in range(10000):
             await RisingEdge(self.clk)
+            if int(self.a_ready.value):
+                break
+        else:
+            raise RuntimeError("[TLULDriver] Timeout aspettando a_ready (nessun handshake)")
+    
+        # Handshake avvenuto al fronte appena passato
         self.a_valid.value = 0
-        data_out=0
-        while True:
+    
+        # Attendi risposta D — con timeout
+        data_out = 0
+        for i in range(10000):
             await RisingEdge(self.clk)
             if int(self.d_valid.value):
-                if opcode==TL_A_GET and int(self.d_opcode.value)==TL_D_ACCESS_ACK_DATA:
+                # Decodifica risposta
+                if opcode == TL_A_GET and int(self.d_opcode.value) == TL_D_ACCESS_ACK_DATA:
                     data_out = int(self.d_data.value)
-                elif opcode==TL_A_PUT_FULL and int(self.d_opcode.value) in (TL_D_ACCESS_ACK, TL_D_ACCESS_ACK_DATA):
+                elif opcode == TL_A_PUT_FULL and int(self.d_opcode.value) in (TL_D_ACCESS_ACK, TL_D_ACCESS_ACK_DATA):
                     pass
                 if int(self.d_error.value):
-                    raise RuntimeError("[TLULDriver] D error")
+                    raise RuntimeError("[TLULDriver] D error (d_error=1)")
                 break
+        else:
+            raise RuntimeError("[TLULDriver] Timeout aspettando d_valid (nessuna risposta)")
+    
         return data_out
+
 """))
 
 # --------- test template ----------
@@ -455,105 +737,227 @@ async def reset(dut, cycles:int=2):
         await RisingEdge(clk)
     rst.value = inactive
     await RisingEdge(clk)
+    for _ in range(2):
+        await RisingEdge(clk)
 
 @cocotb.test()
-async def tb_{TOP}(dut):
+async def {TOP}_smoke_test(dut):
     clk = getattr(dut, TB_CLK)
     cocotb.start_soon(Clock(clk, CLK_PERIOD_NS, units="ns").start())
     await reset(dut)
 
+    bus = BusDriver(dut, clk_name=TB_CLK, rst_name=TB_RST)
+    
     if ITF == "reg_iface":
-        bus = BusDriver(dut, clk_name=TB_CLK, rst_name=TB_RST)
         await bus.reset_idle()
         await bus.write32(0x0, 0x1, 0xF)
         rd = await bus.read32(0x0)
         dut._log.info(f"REG_IFACE read @0x0 = 0x{{rd:08x}}")
     else:
-        # TL-UL: nessuno scope/prefisso richiesto se il wrapper è generato; altrimenti autodetect
-        bus = BusDriver(dut, clk_name=TB_CLK, rst_name=TB_RST)
         await bus._idle()
-        await bus.write32(0x0, 0x1, 0xF)
-        rd = await bus.read32(0x0)
-        dut._log.info(f"TLUL read @0x0 = 0x{{rd:08x}}")
 
-    for i in range(N_OP):
-        a,b = utils.rand_bin_values(NBIT)
-        _ = a ^ b
+        # Log di stato utili
+        try:
+            aready = int(dut.tl_o_a_ready.value)
+            dvalid = int(dut.tl_o_d_valid.value)
+            derr   = int(dut.tl_o_d_error.value)
+            dut._log.info(f"pre-TX: a_ready={{aready}} d_valid={{dvalid}} d_error={{derr}}")
+        except Exception:
+            # se non sei in wrapper flat, questi potrebbero non esistere: ignora
+            pass
+
+        # write + read base
+        addr  = 0x0
+        wdata = 0x1
+        await bus.write32(addr, wdata, 0xF)
+        dut._log.info(f"TLUL WRITE32 @0x{{addr:08x}} = 0x{{wdata:08x}} OK")
+
+        rd = await bus.read32(addr)
+        dut._log.info(f"TLUL READ32  @0x{{addr:08x}} -> 0x{{rd:08x}}")
+
+        # Se il registro 0x0 è R/W, controlla il dato
+        # (commenta l'assert se 0x0 non è R/W nel tuo block)
+        assert rd == wdata, (
+            f"Mismatch: letto 0x{{rd:08x}}, atteso 0x{{wdata:08x}}. "
+            "Se 0x0 non è R/W, rimuovi questa assert."
+        )
+
+    # 4) Qualche ciclo extra
+    for _ in range(5):
         await RisingEdge(clk)
+
 """))
 
 # --------- wrapper SV (se richiesto) ----------
-if GEN_WRAP:
-    # Ricrea porte (tutte tranne tl_i/tl_o) identiche al DUT
-    other_ports = [p for p in ports if p["name"] not in ("tl_i","tl_o")]
-    # Costruisci elenco porte wrapper
-    def port_decl(p):
-        # manteniamo la dichiarazione così com'è
-        return f'  {p["dir"]} {p["decl"]} {p["name"]}'
-    other_port_lines = "\n".join(port_decl(p)+"," for p in other_ports)  # virgole, ultime le TL
+# Ricrea porte (tutte tranne tl_i/tl_o) identiche al DUT
 
-    wrap = dedent(f"""\
-    // Auto-generated TL-UL wrapper for {TOP}
-    `timescale 1ns/1ps
-    module {TOP}_cocotb_wrap
-    (
-      input  logic        {CLK},
-      input  logic        {RST},
-    {other_port_lines}
-      // TL-UL host->device (A + d_ready)
-      input  logic        tl_i_a_valid,
-      input  logic [2:0]  tl_i_a_opcode,
-      input  logic [2:0]  tl_i_a_param,
-      input  logic [2:0]  tl_i_a_size,
-      input  logic [0:0]  tl_i_a_source,
-      input  logic [31:0] tl_i_a_address,
-      input  logic [3:0]  tl_i_a_mask,
-      input  logic [31:0] tl_i_a_data,
-      input  logic        tl_i_d_ready,
-      // TL-UL device->host (a_ready + D)
-      output logic        tl_o_a_ready,
-      output logic        tl_o_d_valid,
-      output logic [2:0]  tl_o_d_opcode,
-      output logic [31:0] tl_o_d_data,
-      output logic        tl_o_d_error
-    );
-      import tlul_pkg::*;
-      tl_h2d_t tl_i_s;
-      tl_d2h_t tl_o_s;
+# escludi clock/reset/TL-UL
+def make_other_port_lines(info: dict, include_dir: bool = False) -> str:
+    """
+    Converte le porte del dict 'info' in dichiarazioni SystemVerilog.
+    - Se include_dir=True: 'input logic foo;' / 'output logic bar;'
+    - Se include_dir=False: 'logic foo;' / 'logic [..] bar;'
+    """
+    # escludi clk/rst e TL-UL
+    ctrl = set(info.get("clk", [])) | set(info.get("rst", [])) | {"tl_i", "tl_o"}
 
-      // Flatten -> struct
-      assign tl_i_s.a_valid   = tl_i_a_valid;
-      assign tl_i_s.a_opcode  = tl_i_a_opcode;
-      assign tl_i_s.a_param   = tl_i_a_param;
-      assign tl_i_s.a_size    = tl_i_a_size;
-      assign tl_i_s.a_source  = tl_i_a_source;
-      assign tl_i_s.a_address = tl_i_a_address;
-      assign tl_i_s.a_mask    = tl_i_a_mask;
-      assign tl_i_s.a_data    = tl_i_a_data;
-      assign tl_i_s.d_ready   = tl_i_d_ready;
+    def width_to_decl(w):
+        return "logic" if (w == 1 or str(w) == "1") else f"logic {w}"
 
-      // Struct -> flatten
-      assign tl_o_a_ready = tl_o_s.a_ready;
-      assign tl_o_d_valid = tl_o_s.d_valid;
-      assign tl_o_d_opcode= tl_o_s.d_opcode;
-      assign tl_o_d_data  = tl_o_s.d_data;
-      assign tl_o_d_error = tl_o_s.d_error;
+    flat = []
 
-      // DUT con .*, più override esplicito delle TL
-      {TOP} u_dut (
-        .{CLK}({CLK}),
-        .{RST}({RST}),
-    """)
-    # connessioni pass-through per tutte le altre porte (tranne tl_i/tl_o)
-    for p in other_ports:
-        wrap += f"    .{p['name']}({p['name']}),\n"
-    wrap += dedent("""\
-        .tl_i(tl_i_s),
-        .tl_o(tl_o_s)
-      );
-    endmodule
-    """)
-    (RTL_DIR/f"{TOP}_cocotb_wrap.sv").write_text(wrap)
+    # Inputs
+    for e in info.get("inputs", []):
+        n = e.get("name", "")
+        if not n or n in ctrl or n.startswith(("clk", "rst")) or "::" in n:
+            continue
+        wdecl = width_to_decl(e.get("width", 1))
+        flat.append({
+            "dir": "input",
+            "decl": wdecl,
+            "name": n,
+        })
+
+    # Outputs
+    for e in info.get("outputs", []):
+        n = e.get("name", "")
+        if not n or n in ctrl or n.startswith(("clk", "rst")) or "::" in n:
+            continue
+        wdecl = width_to_decl(e.get("width", 1))
+        flat.append({
+            "dir": "output",
+            "decl": wdecl,
+            "name": n,
+        })
+
+    def line(p):
+        if include_dir:
+            return f'  {p["dir"]} {p["decl"]} {p["name"]};'
+        else:
+            return f'  {p["decl"]} {p["name"]};'
+
+    return "\n".join(line(p) for p in flat)
+
+other_port_lines = make_other_port_lines(ports, include_dir=False)
+# ====== build "other_ports" (lista) e "other_port_lines" (stringa) ======
+def collect_other_ports(info: dict):
+    """Ritorna la lista filtrata di porte non-ctrl e non-TL come dict {name, decl}."""
+    ctrl = set(info.get("clk", [])) | set(info.get("rst", [])) | {"tl_i", "tl_o"}
+
+    def width_to_decl(w):
+        return "logic" if (w == 1 or str(w) == "1") else f"logic {w}"
+
+    flat = []
+    for e in info.get("inputs", []):
+        n = e.get("name", "")
+        if not n or n in ctrl or n.startswith(("clk", "rst")) or "::" in n:
+            continue
+        flat.append({"name": n, "decl": width_to_decl(e.get("width", 1))})
+
+    for e in info.get("outputs", []):
+        n = e.get("name", "")
+        if not n or n in ctrl or n.startswith(("clk", "rst")) or "::" in n:
+            continue
+        flat.append({"name": n, "decl": width_to_decl(e.get("width", 1))})
+
+    return flat
+
+other_ports = collect_other_ports(ports)  # <- ports è il tuo dict ricco
+other_port_lines = "\n".join(f"  {p['decl']} {p['name']};" for p in other_ports)
+
+
+wrap = dedent(f"""\
+// Auto-generated TL-UL wrapper for {TOP}
+`timescale 1ns/1ps
+module {TOP}_tb;
+  // Clock & Reset sono pilotati da cocotb (via porte)
+  logic                 {CLK};
+  logic                 {RST};
+{other_port_lines}
+
+  // === PORTE TL-UL FLAT lato A (host->device) ===
+  logic                       tl_i_a_valid;
+  tlul_pkg::tl_a_op_e         tl_i_a_opcode;
+  logic [2:0]                 tl_i_a_param;
+  logic [top_pkg::TL_SZW-1:0] tl_i_a_size;
+  logic [top_pkg::TL_AIW-1:0] tl_i_a_source;
+  logic [top_pkg::TL_AW-1:0]  tl_i_a_address;
+  logic [top_pkg::TL_DBW-1:0] tl_i_a_mask;
+  logic [top_pkg::TL_DW-1:0]  tl_i_a_data;
+  logic                       tl_i_d_ready;
+
+  // === PORTE TL-UL FLAT lato D (device->host) ===
+  logic                       tl_o_d_valid;
+  tlul_pkg::tl_d_op_e         tl_o_d_opcode;
+  // d_param, d_size, d_source, d_sink non servono al driver attuale
+  logic [top_pkg::TL_DW-1:0]  tl_o_d_data;
+  logic                       tl_o_d_error;
+  logic                       tl_o_a_ready;
+
+  // ==== Pack/unpack verso i struct del DUT ====
+  tlul_pkg::tl_h2d_t tl_i;
+  tlul_pkg::tl_d2h_t tl_o;
+
+  // Pack H2D
+  assign tl_i.a_valid   = tl_i_a_valid;
+  assign tl_i.a_opcode  = tl_i_a_opcode;
+  assign tl_i.a_param   = tl_i_a_param;
+  assign tl_i.a_size    = tl_i_a_size;
+  assign tl_i.a_source  = tl_i_a_source;
+  assign tl_i.a_address = tl_i_a_address;
+  assign tl_i.a_mask    = tl_i_a_mask;
+  assign tl_i.a_data    = tl_i_a_data;
+  assign tl_i.d_ready   = tl_i_d_ready;
+  // default/unused user
+  //assign tl_i.a_user    = tlul_pkg::TL_A_USER_DEFAULT;
+  // === ECC / integrità TL-UL senza riferirsi a tl_i per evitare anelli ===
+  logic [tlul_pkg::H2DCmdIntgWidth-1:0] cmd_intg_calc;
+  logic [tlul_pkg::DataIntgWidth-1:0]   data_intg_calc;
+  
+  always_comb begin
+    // Costruisco un "mini" tl_h2d_t SOLO con i campi usati da extract_h2d_cmd_intg()
+    tlul_pkg::tl_h2d_t t = '0;
+    t.a_address             = tl_i_a_address;
+    t.a_opcode              = tl_i_a_opcode;
+    t.a_mask                = tl_i_a_mask;
+    t.a_user.instr_type     = prim_mubi_pkg::MuBi4False;
+    // Nota: non tocchiamo t.a_user.cmd_intg qui
+  
+    cmd_intg_calc  = tlul_pkg::get_cmd_intg(t);
+    data_intg_calc = tlul_pkg::get_data_intg(tl_i_a_data); // prende solo i dati
+  end
+  
+  assign tl_i.a_user.instr_type = prim_mubi_pkg::MuBi4False;
+  assign tl_i.a_user.cmd_intg   = cmd_intg_calc;
+  assign tl_i.a_user.data_intg  = data_intg_calc;
+  
+  // Unpack D2H
+  assign tl_o_d_valid = tl_o.d_valid;
+  assign tl_o_d_opcode= tl_o.d_opcode;
+  assign tl_o_d_data  = tl_o.d_data;
+  assign tl_o_d_error = tl_o.d_error;
+  assign tl_o_a_ready = tl_o.a_ready;
+
+  // IO default
+  initial begin
+    port_i = 1'b0;
+  end
+
+  // -------- DUT con porte pass-through --------
+  {TOP} u_dut (
+    .{CLK}({CLK}),
+    .{RST}({RST}),
+""")
+other_ports = collect_other_ports(ports)
+for p in other_ports:
+    wrap += f'    .{p["name"]}({p["name"]}),\n'
+wrap += dedent("""\
+    .tl_i(tl_i),
+    .tl_o(tl_o)
+  );
+endmodule
+""")
+(COCOTB_DIR/f"{TOP}_tb.sv").write_text(wrap)
 
 print(f"Generated in: {OUT.resolve()}")
 print("- Makefile")
@@ -561,6 +965,4 @@ print(f"- {TOP}_tb.py")
 print("- utils.py")
 print("- drivers/driver_reg_iface.py")
 print("- drivers/driver_tlul.py")
-if GEN_WRAP:
-    print(f"- Wrapper: {RTL_DIR}/{TOP}_cocotb_wrap.sv (TOPLEVEL={TOP}_cocotb_wrap)")
-
+print(f"- Wrapper: {RTL_DIR}/{TOP}_tb.sv (TOPLEVEL={TOP}_cocotb_wrap)")
