@@ -40,6 +40,24 @@
 %Warning-PINCONNECTEMPTY: ips/prim_opentitan/prim_fifo_sync_cnt.sv:105:8: Cell pin connected by name with empty reference: 'cnt_after_commit_o'
   105 |       .cnt_after_commit_o(),
       |        ^~~~~~~~~~~~~~~~~~
+%Warning-PINCONNECTEMPTY: ips/prim_opentitan/prim_alert_sender.sv:91:6: Cell pin connected by name with empty reference: 'level_o'
+   91 |     .level_o  (             ),
+      |      ^~~~~~~
+%Warning-PINCONNECTEMPTY: ips/prim_opentitan/prim_alert_sender.sv:92:6: Cell pin connected by name with empty reference: 'rise_o'
+   92 |     .rise_o   (             ),
+      |      ^~~~~~
+%Warning-PINCONNECTEMPTY: ips/prim_opentitan/prim_alert_sender.sv:93:6: Cell pin connected by name with empty reference: 'fall_o'
+   93 |     .fall_o   (             ),
+      |      ^~~~~~
+%Warning-PINCONNECTEMPTY: ips/prim_opentitan/prim_alert_sender.sv:118:6: Cell pin connected by name with empty reference: 'rise_o'
+  118 |     .rise_o   (            ),
+      |      ^~~~~~
+%Warning-PINCONNECTEMPTY: ips/prim_opentitan/prim_alert_sender.sv:119:6: Cell pin connected by name with empty reference: 'fall_o'
+  119 |     .fall_o   (            ),
+      |      ^~~~~~
+%Warning-PINCONNECTEMPTY: ips/prim_opentitan/prim_alert_sender.sv:120:6: Cell pin connected by name with empty reference: 'event_o'
+  120 |     .event_o  (            ),
+      |      ^~~~~~~
 %Warning-PINCONNECTEMPTY: ips/tlul/tlul_adapter_sram.sv:563:6: Cell pin connected by name with empty reference: 'full_o'
   563 |     .full_o  (),
       |      ^~~~~~
@@ -460,6 +478,10 @@
                                                  : ... note: In instance 'spi_host.u_spi_host_core'
    45 |   logic [FifoDepthW-1:0] rx_fifo_depth, tx_fifo_depth;
       |                                         ^~~~~~~~~~~~~
+%Warning-UNUSEDPARAM: ips/pkgs/prim_alert_pkg.sv:19:24: Parameter is not used: 'ALERT_TX_DEFAULT'
+                                                      : ... note: In instance 'spi_host.u_spi_host_core'
+%Warning-UNUSEDPARAM: ips/pkgs/prim_alert_pkg.sv:22:24: Parameter is not used: 'ALERT_RX_DEFAULT'
+                                                      : ... note: In instance 'spi_host.u_spi_host_core'
 %Warning-UNUSEDPARAM: rtl/spi_host_reg_pkg.sv:100:25: Parameter is not used: 'SPI_HOST_STATUS_RESVAL'
                                                     : ... note: In instance 'spi_host.u_spi_host_core'
   100 |   parameter logic [3:0] SPI_HOST_STATUS_RESVAL = 4'h 0;
@@ -537,5 +559,5 @@
   131 |   localparam tl_d2h_t TL_D2H_DEFAULT = '{
       |                       ^~~~~~~~~~~~~~
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 15.806 MB sources in 75 modules, into 0.112 MB in 5 C++ files needing 0.000 MB
-- Verilator: Walltime 0.076 s (elab=0.012, cvt=0.019, bld=0.000); cpu 0.076 s on 1 threads; alloced 37.148 MB
+- Verilator: Built from 20.281 MB sources in 87 modules, into 0.112 MB in 5 C++ files needing 0.000 MB
+- Verilator: Walltime 0.084 s (elab=0.015, cvt=0.020, bld=0.000); cpu 0.084 s on 1 threads; alloced 38.156 MB
