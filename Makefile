@@ -502,6 +502,8 @@ clean_sim:
 	$(RM) $(SIMDIR)/*.vvp
 	$(RM) $(SIMDIR)/*.vcd
 	$(RM) $(SIMDIR)/verilator
+clean_cocotb:
+	$(MAKE) -C $(TBDIR)/cocotb clean
 clean_syn:
 	$(RM) $(SYNDIR)/*
 clean_signoff: 
