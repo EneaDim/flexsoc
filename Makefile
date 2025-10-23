@@ -123,8 +123,8 @@ ifeq ($(COMPILER), iverilog)
 	vvp $(SIMDIR)/$(TESTBENCH).vvp > $(LOGDIR)/$(TESTBENCH)_sim.log
 else
 	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
-	$(COMPILER) ${VERILATOR_FLAGS} --trace $(TBDIR)/$(TESTBENCH).sv \
-	> $(LOGDIR)/$(TOP)_sim.log 2>&1
+	$(COMPILER) ${VERILATOR_FLAGS} --trace --trace-structs \
+	$(TBDIR)/$(TESTBENCH).sv > $(LOGDIR)/$(TOP)_sim.log 2>&1
 	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
 endif
 
@@ -135,7 +135,7 @@ ifeq ($(COMPILER), iverilog)
 else
 	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
 	$(COMPILER) ${VERILATOR_FLAGS} -f $(RTLDIR)/rtl_list.f --top-module $(TOP)_tb \
-	--trace $(TBDIR)/$(TESTBENCH).sv > $(LOGDIR)/$(TOP)_sim.log 2>&1
+	--trace --trace-structs $(TBDIR)/$(TESTBENCH).sv > $(LOGDIR)/$(TOP)_sim.log 2>&1
 	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
 endif
 
@@ -143,6 +143,10 @@ endif
 view:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
 	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TOP).vcd $(VIEWER_CONF) & 
+
+view_cocotb:
+	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
+	$(VIEWER) $(VIEWER_FLAGS) $(TBDIR)/cocotb/$(TOP)_tb.vcd $(VIEWER_CONF) & 
 
 # COCOTB
 cocotb: 

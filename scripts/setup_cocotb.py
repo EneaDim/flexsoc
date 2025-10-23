@@ -247,21 +247,21 @@ for src in rtl_files:
 # Gather all .sv files directly under rtl (non-recursive; change to rglob if you need recursion)
 sv_files = sorted([f.name for f in RTL_DIR.glob("*.sv")])
 
-# Group 1: *_reg_pkg.sv plus tl_main_pkg.sv (if present)
-reg_pkg = sorted([f for f in sv_files if f.endswith("_reg_pkg.sv")])
+# Group 1: *_pkg.sv plus tl_main_pkg.sv (if present)
+pkg = sorted([f for f in sv_files if f.endswith("_pkg.sv")])
 
 # Group 2: everything else (exclude group 1)
-others = sorted([f for f in sv_files if f not in reg_pkg])
+others = sorted([f for f in sv_files if f not in pkg])
 others = others[::-1]
 
 lines = []
 # First block
-for f in reg_pkg:
+for f in pkg:
     lines.append(f"$(ROOT)/{RTL_DIR}/{f} \\")
 
 # Second block
 for f in others:
-    lines.append(f"  $(ROOT)/{RTL_DIR}/{f} \\")
+    lines.append(f"$(ROOT)/{RTL_DIR}/{f} \\")
 
 text = "\n".join(lines)
 
@@ -395,39 +395,17 @@ export TB_TL_A_PREFIX ?= tl_i
 export TB_TL_D_PREFIX ?= tl_o
 export TB_TL_SCOPE ?=
 
-EXTRA_ARGS ?= {EXTRA_ARGS} {EXTRA_ARGS[:-3]}ips/pkgs {EXTRA_ARGS[:-3]}ips/prim
-
-ifeq ($(SIM),verilator)
-  VERILATOR_ARGS += $(EXTRA_ARGS)
-endif
-ifeq ($(SIM),icarus)
-  IVERILOG_ARGS  += $(EXTRA_ARGS)
-endif
-
 # =============================================================================
 # Common compile flags / includes
 # =============================================================================
-COMPILE_ARGS     += -Wno-WIDTHEXPAND --timing --sv \\
-                    -I$(SRC_DIR) -I$(ROOT)/rtl -I$(ROOT)/ips/pkgs \\
-                    -I$(ROOT)/ips/prim -I$(ROOT)/ips/prim_opentitan -I$(ROOT)/ips/tlul
-
-# Verilator flags (Makefile.sim usa VERILATOR_ARGS)
-VERILATOR_ARGS   += --sv --timing -Wno-WIDTHEXPAND
-# Tracing: VCD di default per la CI (tb.vcd in test/)
-VERILATOR_ARGS   += --trace-fst --trace-structs
-TRACE_FILE       ?= tb.fst
-export VERILATOR_TRACE TRACE_FILE
+COMPILE_ARGS 	+= -Wno-WIDTHEXPAND
+COMPILE_ARGS    += --sv --timing 
+COMPILE_ARGS    += --trace --trace-fst --trace-structs 
+COMPILE_ARGS    += -I$(SRC_DIR) -I$(ROOT)/rtl -I$(ROOT)/ips/pkgs \
+			       -I$(ROOT)/ips/prim -I$(ROOT)/ips/prim_opentitan -I$(ROOT)/ips/tlul
 
 # Cocotb: path del report JUnit (usato dalla CI)
-COCOTB_RESULTS_FILE ?= $(abspath results.xml)
-export COCOTB_RESULTS_FILE
-
-ifeq ($(SIM),verilator)
-  VERILATOR_ARGS += $(EXTRA_ARGS)
-endif
-ifeq ($(SIM),icarus)
-  IVERILOG_ARGS  += $(EXTRA_ARGS)
-endif
+export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
 
 # =============================================================================
 # Include le regole Cocotb
@@ -743,7 +721,7 @@ async def reset(dut, cycles:int=2):
 @cocotb.test()
 async def {TOP}_smoke_test(dut):
     clk = getattr(dut, TB_CLK)
-    cocotb.start_soon(Clock(clk, CLK_PERIOD_NS, units="ns").start())
+    cocotb.start_soon(Clock(clk, CLK_PERIOD_NS, unit="ns").start())
     await reset(dut)
 
     bus = BusDriver(dut, clk_name=TB_CLK, rst_name=TB_RST)
@@ -938,9 +916,11 @@ module {TOP}_tb;
   assign tl_o_d_error = tl_o.d_error;
   assign tl_o_a_ready = tl_o.a_ready;
 
-  // IO default
+  // Dump Waves
   initial begin
-    port_i = 1'b0;
+    $dumpfile("{TOP}_tb.vcd");
+    $dumpvars(0, {TOP}_tb);
+    #1;
   end
 
   // -------- DUT con porte pass-through --------
