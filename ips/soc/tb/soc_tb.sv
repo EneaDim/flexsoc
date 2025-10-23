@@ -10,18 +10,19 @@ module soc_tb;
   reg clk_i;
   reg rst_ni;
   reg cio_rx_i;
+  reg [3:0] cio_gpio_i;
   reg spi_sdio_i;
   // Outputs
   wire cio_tx_o;
   wire cio_tx_en_o;
-  wire [5:0] cio_pwm_o;
-  wire [5:0] cio_pwm_en_o;
+  wire [1:0] cio_pwm_o;
+  wire [1:0] cio_pwm_en_o;
+  wire [3:0] cio_gpio_o;
+  wire [3:0] cio_gpio_en_o;
   wire spi_cs_o;
   wire spi_sclk_o;
   wire spi_sdioz_o;
   wire spi_sdio_o;
-  logic [31:0] ctrl_val;
-   
 
   integer error_count;
 
@@ -32,11 +33,14 @@ module soc_tb;
     .clk_i,
     .rst_ni,
     .cio_rx_i,
+    .cio_gpio_i,
     .spi_sdio_i,
     .cio_tx_o,
     .cio_tx_en_o,
     .cio_pwm_o,
     .cio_pwm_en_o,
+    .cio_gpio_o,
+    .cio_gpio_en_o,
     .spi_cs_o,
     .spi_sclk_o,
     .spi_sdioz_o,
@@ -113,14 +117,22 @@ module soc_tb;
   localparam logic [31:0] UART_BASE   = 32'h8000_0000; // <-- metti i tuoi
   localparam logic [31:0] PWM_BASE    = 32'h8002_0000;
   localparam logic [31:0] SPI_BASE    = 32'h8004_0000;
+  localparam logic [31:0] GPIO_BASE   = 32'h8006_0000;
+  localparam logic [31:0] TIMER_BASE  = 32'h8008_0000;
   
   // Offsets (ADATTA ai tuoi registri reali)
   localparam logic [31:0] UART_CTRL_OFF   = 32'h0000_0010;  // CTRL: abilita tx/rx, nco ecc.
+  //////////////////////////////////////////////////////////////////////////////////////////
   localparam logic [31:0] PWM_EN_OFF      = 32'h0000_0008;  // enable pwm block
   localparam logic [31:0] PWM_CFG_OFF     = 32'h0000_0004;  // duty del canale 0
   localparam logic [31:0] PWM_PHASE_OFF   = 32'h0000_0010;  // duty del canale 0
   localparam logic [31:0] PWM_DUTY0_OFF   = 32'h0000_0014;  // duty del canale 0
+  //////////////////////////////////////////////////////////////////////////////////////////
   localparam logic [31:0] SPI_CFG_OFF     = 32'h0000_0000;  // enable bit nello SPI host
+  //////////////////////////////////////////////////////////////////////////////////////////
+  localparam logic [31:0] GPIO_INT_EN     = 32'h0000_0004;  // enable bit nello SPI host
+  localparam logic [31:0] GPIO_INT_RISE   = 32'h0000_0028;  // enable bit nello SPI host
+  //////////////////////////////////////////////////////////////////////////////////////////
   
   // Valori di esempio (ADATTA i bit-field alla tua mappa CTRL!)
   function automatic logic [31:0] uart_ctrl_val(
@@ -141,6 +153,7 @@ module soc_tb;
     // Init inputs
     rst_ni = 0;
     cio_rx_i = 1'b1;
+    cio_gpio_i = '0;
     spi_sdio_i = 0;
     // Asynch Reset
     #(CLK_PERIOD);
@@ -151,21 +164,25 @@ module soc_tb;
     //    Se la tua UART al reset ha RX già abilitata, questo step serve soprattutto ad accendere il TX.
     //assign ctrl_val = uart_ctrl_val(/*tx*/1, /*rx*/1, /*parity_en*/0, /*parity_odd*/0, /*nco*/16'd0);
     uart_write32(UART_BASE + UART_CTRL_OFF, 32'h0000_0001);
+    #(CLK_PERIOD*2000);
   
     // 2) Imposta duty cycle PWM (esempio 50%) e abilita PWM
     uart_write32(PWM_BASE + PWM_CFG_OFF,   32'hB8000010);
     uart_write32(PWM_BASE + PWM_PHASE_OFF, 32'h0000_7FFF);
-  
-    // (opzionale) fai una READ di conferma
-    //uart_read32(PWM_BASE + PWM_DUTY0_OFF);
-    //uart_read32(SPI_BASE + SPI_CFG_OFF);
-  
-    #(CLK_PERIOD*2000);
     uart_write32(PWM_BASE + PWM_EN_OFF,   32'h1);       // enable
+    #(CLK_PERIOD*2000);
+
+    // Enable interrupt in GPIO
+    uart_write32(GPIO_BASE + GPIO_INT_EN,   32'h1);       // enable
+    uart_write32(GPIO_BASE + GPIO_INT_RISE,   32'h1);       // enable
+    #(CLK_PERIOD*2000);
+
+    // Raise GPIO pin
+    cio_gpio_i = 'h1;
+    #(CLK_PERIOD*2000);
   
     // fine
     #(CLK_PERIOD*80000);
     $finish;
   end
-
 endmodule
