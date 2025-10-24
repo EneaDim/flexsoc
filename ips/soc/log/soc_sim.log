@@ -986,26 +986,6 @@
       |         ^~~~~~~~~~~~~~~
                        tb/include_soc_tb.sv:6:1: ... note: In file included from 'include_soc_tb.sv'
                        tb/soc_tb.sv:5:1: ... note: In file included from 'soc_tb.sv'
-%Warning-PINMISSING: tb/soc_tb.sv:31:3: Cell has missing pin: 'cio_gpio_i'
-   31 |   u_soc (
-      |   ^~~~~
-                     rtl/soc.sv:14:21: ... Location of port declaration
-   14 |   input logic [3:0] cio_gpio_i,
-      |                     ^~~~~~~~~~
-                     ... For warning description see https://verilator.org/warn/PINMISSING?v=5.036
-                     ... Use "/* verilator lint_off PINMISSING */" and lint_on around source to disable this message.
-%Warning-PINMISSING: tb/soc_tb.sv:31:3: Cell has missing pin: 'cio_gpio_o'
-   31 |   u_soc (
-      |   ^~~~~
-                     rtl/soc.sv:15:22: ... Location of port declaration
-   15 |   output logic [3:0] cio_gpio_o,
-      |                      ^~~~~~~~~~
-%Warning-PINMISSING: tb/soc_tb.sv:31:3: Cell has missing pin: 'cio_gpio_en_o'
-   31 |   u_soc (
-      |   ^~~~~
-                     rtl/soc.sv:16:22: ... Location of port declaration
-   16 |   output logic [3:0] cio_gpio_en_o,
-      |                      ^~~~~~~~~~~~~
 %Warning-TIMESCALEMOD: ips/pkgs/top_pkg.sv:7:9: Timescale missing on this module as other modules have it (IEEE 1800-2023 3.14.2.3)
     7 | package top_pkg;
       |         ^~~~~~~
@@ -1778,71 +1758,69 @@
                                              : ... note: In instance 'soc_tb.u_soc.u_uart.u_uart_core'
   341 |     if (uart_fifo_rxilvl > (RxFifoDepthW-1)) begin
       |                          ^
-%Warning-WIDTHTRUNC: tb/soc_tb.sv:38:6: Output port connection 'cio_pwm_o' expects 2 bits on the pin connection, but pin connection's VARREF 'cio_pwm_o' generates 6 bits.
-                                      : ... note: In instance 'soc_tb'
-   38 |     .cio_pwm_o,
-      |      ^~~~~~~~~
-                     ... For warning description see https://verilator.org/warn/WIDTHTRUNC?v=5.036
-                     ... Use "/* verilator lint_off WIDTHTRUNC */" and lint_on around source to disable this message.
-%Warning-WIDTHTRUNC: tb/soc_tb.sv:39:6: Output port connection 'cio_pwm_en_o' expects 2 bits on the pin connection, but pin connection's VARREF 'cio_pwm_en_o' generates 6 bits.
-                                      : ... note: In instance 'soc_tb'
-   39 |     .cio_pwm_en_o,
-      |      ^~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:15:8: Signal is not used: 'cio_tx_o'
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:16:8: Signal is not used: 'cio_tx_o'
                                         : ... note: In instance 'soc_tb'
-   15 |   wire cio_tx_o;
+   16 |   wire cio_tx_o;
       |        ^~~~~~~~
                        ... For warning description see https://verilator.org/warn/UNUSEDSIGNAL?v=5.036
                        ... Use "/* verilator lint_off UNUSEDSIGNAL */" and lint_on around source to disable this message.
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:16:8: Signal is not used: 'cio_tx_en_o'
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:17:8: Signal is not used: 'cio_tx_en_o'
                                         : ... note: In instance 'soc_tb'
-   16 |   wire cio_tx_en_o;
+   17 |   wire cio_tx_en_o;
       |        ^~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:17:14: Signal is not used: 'cio_pwm_o'
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:18:14: Signal is not used: 'cio_pwm_o'
                                          : ... note: In instance 'soc_tb'
-   17 |   wire [5:0] cio_pwm_o;
+   18 |   wire [1:0] cio_pwm_o;
       |              ^~~~~~~~~
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:18:14: Signal is not used: 'cio_pwm_en_o'
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:19:14: Signal is not used: 'cio_pwm_en_o'
                                          : ... note: In instance 'soc_tb'
-   18 |   wire [5:0] cio_pwm_en_o;
+   19 |   wire [1:0] cio_pwm_en_o;
       |              ^~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:19:8: Signal is not used: 'spi_cs_o'
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:20:14: Signal is not used: 'cio_gpio_o'
+                                         : ... note: In instance 'soc_tb'
+   20 |   wire [3:0] cio_gpio_o;
+      |              ^~~~~~~~~~
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:21:14: Signal is not used: 'cio_gpio_en_o'
+                                         : ... note: In instance 'soc_tb'
+   21 |   wire [3:0] cio_gpio_en_o;
+      |              ^~~~~~~~~~~~~
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:22:8: Signal is not used: 'spi_cs_o'
                                         : ... note: In instance 'soc_tb'
-   19 |   wire spi_cs_o;
+   22 |   wire spi_cs_o;
       |        ^~~~~~~~
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:20:8: Signal is not used: 'spi_sclk_o'
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:23:8: Signal is not used: 'spi_sclk_o'
                                         : ... note: In instance 'soc_tb'
-   20 |   wire spi_sclk_o;
+   23 |   wire spi_sclk_o;
       |        ^~~~~~~~~~
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:21:8: Signal is not used: 'spi_sdioz_o'
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:24:8: Signal is not used: 'spi_sdioz_o'
                                         : ... note: In instance 'soc_tb'
-   21 |   wire spi_sdioz_o;
+   24 |   wire spi_sdioz_o;
       |        ^~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:22:8: Signal is not used: 'spi_sdio_o'
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:25:8: Signal is not used: 'spi_sdio_o'
                                         : ... note: In instance 'soc_tb'
-   22 |   wire spi_sdio_o;
+   25 |   wire spi_sdio_o;
       |        ^~~~~~~~~~
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:23:16: Signal is not driven, nor used: 'ctrl_val'
+%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:27:11: Signal is not used: 'error_count'
                                          : ... note: In instance 'soc_tb'
-   23 |   logic [31:0] ctrl_val;
-      |                ^~~~~~~~
-%Warning-UNUSEDSIGNAL: tb/soc_tb.sv:26:11: Signal is not used: 'error_count'
-                                         : ... note: In instance 'soc_tb'
-   26 |   integer error_count;
+   27 |   integer error_count;
       |           ^~~~~~~~~~~
-%Warning-UNUSEDPARAM: tb/soc_tb.sv:115:27: Parameter is not used: 'SPI_BASE'
+%Warning-UNUSEDPARAM: tb/soc_tb.sv:119:27: Parameter is not used: 'SPI_BASE'
                                          : ... note: In instance 'soc_tb'
-  115 |   localparam logic [31:0] SPI_BASE    = 32'h8004_0000;
+  119 |   localparam logic [31:0] SPI_BASE    = 32'h8004_0000;
       |                           ^~~~~~~~
                       ... For warning description see https://verilator.org/warn/UNUSEDPARAM?v=5.036
                       ... Use "/* verilator lint_off UNUSEDPARAM */" and lint_on around source to disable this message.
-%Warning-UNUSEDPARAM: tb/soc_tb.sv:122:27: Parameter is not used: 'PWM_DUTY0_OFF'
+%Warning-UNUSEDPARAM: tb/soc_tb.sv:121:27: Parameter is not used: 'TIMER_BASE'
                                          : ... note: In instance 'soc_tb'
-  122 |   localparam logic [31:0] PWM_DUTY0_OFF   = 32'h0000_0014;   
+  121 |   localparam logic [31:0] TIMER_BASE  = 32'h8008_0000;
+      |                           ^~~~~~~~~~
+%Warning-UNUSEDPARAM: tb/soc_tb.sv:129:27: Parameter is not used: 'PWM_DUTY0_OFF'
+                                         : ... note: In instance 'soc_tb'
+  129 |   localparam logic [31:0] PWM_DUTY0_OFF   = 32'h0000_0014;   
       |                           ^~~~~~~~~~~~~
-%Warning-UNUSEDPARAM: tb/soc_tb.sv:123:27: Parameter is not used: 'SPI_CFG_OFF'
+%Warning-UNUSEDPARAM: tb/soc_tb.sv:131:27: Parameter is not used: 'SPI_CFG_OFF'
                                          : ... note: In instance 'soc_tb'
-  123 |   localparam logic [31:0] SPI_CFG_OFF     = 32'h0000_0000;   
+  131 |   localparam logic [31:0] SPI_CFG_OFF     = 32'h0000_0000;   
       |                           ^~~~~~~~~~~
 %Warning-UNUSEDPARAM: ips/pkgs/top_pkg.sv:13:16: Parameter is not used: 'TL_AUW'
                                                : ... note: In instance 'soc_tb'
@@ -2531,5 +2509,5 @@ g++    verilated.o verilated_vcd_c.o verilated_timing.o verilated_threads.o Vsoc
 rm Vsoc_tb__ALL.verilator_deplist.tmp
 make[1]: Leaving directory '/home/eneadim/github/flexsoc/sim/verilator'
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 32.269 MB sources in 114 modules, into 2.994 MB in 23 C++ files needing 0.001 MB
-- Verilator: Walltime 15.417 s (elab=0.053, cvt=0.232, bld=15.011); cpu 0.406 s on 1 threads; alloced 66.156 MB
+- Verilator: Built from 32.270 MB sources in 114 modules, into 3.920 MB in 23 C++ files needing 0.001 MB
+- Verilator: Walltime 8.640 s (elab=0.046, cvt=0.291, bld=8.187); cpu 0.453 s on 1 threads; alloced 74.152 MB

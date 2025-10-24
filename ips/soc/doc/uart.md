@@ -111,7 +111,7 @@ Alert Test Register
 ## CTRL
 UART control register
 - Offset: `0x10`
-- Reset default: `0x0`
+- Reset default: `0x4b80000`
 - Reset mask: `0xffff03f7`
 
 ### Fields
@@ -122,7 +122,7 @@ UART control register
 
 |  Bits  |  Type  |  Reset  | Name                            |
 |:------:|:------:|:-------:|:--------------------------------|
-| 31:16  |   rw   |   0x0   | [NCO](#ctrl--nco)               |
+| 31:16  |   rw   |  0x4b8  | [NCO](#ctrl--nco)               |
 | 15:10  |        |         | Reserved                        |
 |  9:8   |   rw   |   0x0   | [RXBLVL](#ctrl--rxblvl)         |
 |   7    |   rw   |   0x0   | [PARITY_ODD](#ctrl--parity_odd) |
@@ -135,7 +135,7 @@ UART control register
 |   0    |   rw   |   0x0   | [TX](#ctrl--tx)                 |
 
 ### CTRL . NCO
-BAUD clock rate control.
+BAUD clock rate control. Reset value for 115200 baud at 100MHz
 
 ### CTRL . RXBLVL
 Trigger level for RX break detection. Sets the number of character
