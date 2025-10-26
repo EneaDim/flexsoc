@@ -123,8 +123,8 @@ module soc_tb;
   // Offsets (ADATTA ai tuoi registri reali)
   localparam logic [31:0] UART_CTRL_OFF   = 32'h0000_0010;  // CTRL: abilita tx/rx, nco ecc.
   //////////////////////////////////////////////////////////////////////////////////////////
-  localparam logic [31:0] PWM_EN_OFF      = 32'h0000_0008;  // enable pwm block
   localparam logic [31:0] PWM_CFG_OFF     = 32'h0000_0004;  // duty del canale 0
+  localparam logic [31:0] PWM_EN_OFF      = 32'h0000_0008;  // enable pwm block
   localparam logic [31:0] PWM_PHASE_OFF   = 32'h0000_0010;  // duty del canale 0
   localparam logic [31:0] PWM_DUTY0_OFF   = 32'h0000_0014;  // duty del canale 0
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -163,7 +163,7 @@ module soc_tb;
     // 1) Abilita TX (e RX) della UART + set NCO coerente al tuo bit-banging (qui irrilevante per RX; serve per TX)
     //    Se la tua UART al reset ha RX già abilitata, questo step serve soprattutto ad accendere il TX.
     //assign ctrl_val = uart_ctrl_val(/*tx*/1, /*rx*/1, /*parity_en*/0, /*parity_odd*/0, /*nco*/16'd0);
-    uart_write32(UART_BASE + UART_CTRL_OFF, 32'h0000_0001);
+    uart_write32(UART_BASE + UART_CTRL_OFF, 32'h04B8_0001); // For 100MHz fclk
     #(CLK_PERIOD*2000);
   
     // 2) Imposta duty cycle PWM (esempio 50%) e abilita PWM

@@ -1,6 +1,6 @@
 Referring to the [Comportable guideline for peripheral device functionality](https://opentitan.org/book/doc/contributing/hw/comportability), the module **`pwm`** has the following hardware interfaces defined
 - Primary Clock: **`clk_i`**
-- Other Clocks: **`clk_core_i`**
+- Other Clocks: *none*
 - Bus Device Interfaces (TL-UL): **`tl`**
 - Bus Host Interfaces (TL-UL): *none*
 - Interrupts: *none*

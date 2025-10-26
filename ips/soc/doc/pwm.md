@@ -8,16 +8,10 @@
 | pwm.[`INVERT`](#invert)             | 0xc      |        4 | Invert the PWM output for each channel          |
 | pwm.[`PWM_PARAM_0`](#pwm_param)     | 0x10     |        4 | Basic PWM Channel Parameters                    |
 | pwm.[`PWM_PARAM_1`](#pwm_param)     | 0x14     |        4 | Basic PWM Channel Parameters                    |
-| pwm.[`PWM_PARAM_2`](#pwm_param)     | 0x18     |        4 | Basic PWM Channel Parameters                    |
-| pwm.[`PWM_PARAM_3`](#pwm_param)     | 0x1c     |        4 | Basic PWM Channel Parameters                    |
-| pwm.[`DUTY_CYCLE_0`](#duty_cycle)   | 0x20     |        4 | Controls the duty_cycle of each channel.        |
-| pwm.[`DUTY_CYCLE_1`](#duty_cycle)   | 0x24     |        4 | Controls the duty_cycle of each channel.        |
-| pwm.[`DUTY_CYCLE_2`](#duty_cycle)   | 0x28     |        4 | Controls the duty_cycle of each channel.        |
-| pwm.[`DUTY_CYCLE_3`](#duty_cycle)   | 0x2c     |        4 | Controls the duty_cycle of each channel.        |
-| pwm.[`BLINK_PARAM_0`](#blink_param) | 0x30     |        4 | Hardware controlled blink/heartbeat parameters. |
-| pwm.[`BLINK_PARAM_1`](#blink_param) | 0x34     |        4 | Hardware controlled blink/heartbeat parameters. |
-| pwm.[`BLINK_PARAM_2`](#blink_param) | 0x38     |        4 | Hardware controlled blink/heartbeat parameters. |
-| pwm.[`BLINK_PARAM_3`](#blink_param) | 0x3c     |        4 | Hardware controlled blink/heartbeat parameters. |
+| pwm.[`DUTY_CYCLE_0`](#duty_cycle)   | 0x18     |        4 | Controls the duty_cycle of each channel.        |
+| pwm.[`DUTY_CYCLE_1`](#duty_cycle)   | 0x1c     |        4 | Controls the duty_cycle of each channel.        |
+| pwm.[`BLINK_PARAM_0`](#blink_param) | 0x20     |        4 | Hardware controlled blink/heartbeat parameters. |
+| pwm.[`BLINK_PARAM_1`](#blink_param) | 0x24     |        4 | Hardware controlled blink/heartbeat parameters. |
 
 ## REGWEN
 Register write enable for all control registers
@@ -78,20 +72,18 @@ Sets the period of each PWM beat to be (CLK_DIV+1)
 Enable PWM operation for each channel
 - Offset: `0x8`
 - Reset default: `0x0`
-- Reset mask: `0xf`
+- Reset mask: `0x3`
 - Register enable: [`REGWEN`](#regwen)
 
 ### Fields
 
 ```wavejson
-{"reg": [{"name": "EN_0", "bits": 1, "attr": ["rw"], "rotate": -90}, {"name": "EN_1", "bits": 1, "attr": ["rw"], "rotate": -90}, {"name": "EN_2", "bits": 1, "attr": ["rw"], "rotate": -90}, {"name": "EN_3", "bits": 1, "attr": ["rw"], "rotate": -90}, {"bits": 28}], "config": {"lanes": 1, "fontsize": 10, "vspace": 80}}
+{"reg": [{"name": "EN_0", "bits": 1, "attr": ["rw"], "rotate": -90}, {"name": "EN_1", "bits": 1, "attr": ["rw"], "rotate": -90}, {"bits": 30}], "config": {"lanes": 1, "fontsize": 10, "vspace": 80}}
 ```
 
 |  Bits  |  Type  |  Reset  | Name   | Description                                                            |
 |:------:|:------:|:-------:|:-------|:-----------------------------------------------------------------------|
-|  31:4  |        |         |        | Reserved                                                               |
-|   3    |   rw   |   0x0   | EN_3   | Write 1 to this bit to enable PWM pulses on the corresponding channel. |
-|   2    |   rw   |   0x0   | EN_2   | Write 1 to this bit to enable PWM pulses on the corresponding channel. |
+|  31:2  |        |         |        | Reserved                                                               |
 |   1    |   rw   |   0x0   | EN_1   | Write 1 to this bit to enable PWM pulses on the corresponding channel. |
 |   0    |   rw   |   0x0   | EN_0   | Write 1 to this bit to enable PWM pulses on the corresponding channel. |
 
@@ -99,20 +91,18 @@ Enable PWM operation for each channel
 Invert the PWM output for each channel
 - Offset: `0xc`
 - Reset default: `0x0`
-- Reset mask: `0xf`
+- Reset mask: `0x3`
 - Register enable: [`REGWEN`](#regwen)
 
 ### Fields
 
 ```wavejson
-{"reg": [{"name": "INVERT_0", "bits": 1, "attr": ["rw"], "rotate": -90}, {"name": "INVERT_1", "bits": 1, "attr": ["rw"], "rotate": -90}, {"name": "INVERT_2", "bits": 1, "attr": ["rw"], "rotate": -90}, {"name": "INVERT_3", "bits": 1, "attr": ["rw"], "rotate": -90}, {"bits": 28}], "config": {"lanes": 1, "fontsize": 10, "vspace": 100}}
+{"reg": [{"name": "INVERT_0", "bits": 1, "attr": ["rw"], "rotate": -90}, {"name": "INVERT_1", "bits": 1, "attr": ["rw"], "rotate": -90}, {"bits": 30}], "config": {"lanes": 1, "fontsize": 10, "vspace": 100}}
 ```
 
 |  Bits  |  Type  |  Reset  | Name     | Description                                                                                                |
 |:------:|:------:|:-------:|:---------|:-----------------------------------------------------------------------------------------------------------|
-|  31:4  |        |         |          | Reserved                                                                                                   |
-|   3    |   rw   |   0x0   | INVERT_3 | Write 1 to this bit to invert the output for each channel, so that the corresponding output is active-low. |
-|   2    |   rw   |   0x0   | INVERT_2 | Write 1 to this bit to invert the output for each channel, so that the corresponding output is active-low. |
+|  31:2  |        |         |          | Reserved                                                                                                   |
 |   1    |   rw   |   0x0   | INVERT_1 | Write 1 to this bit to invert the output for each channel, so that the corresponding output is active-low. |
 |   0    |   rw   |   0x0   | INVERT_0 | Write 1 to this bit to invert the output for each channel, so that the corresponding output is active-low. |
 
@@ -128,8 +118,6 @@ Basic PWM Channel Parameters
 |:------------|:---------|
 | PWM_PARAM_0 | 0x10     |
 | PWM_PARAM_1 | 0x14     |
-| PWM_PARAM_2 | 0x18     |
-| PWM_PARAM_3 | 0x1c     |
 
 
 ### Fields
@@ -176,10 +164,8 @@ Controls the duty_cycle of each channel.
 
 | Name         | Offset   |
 |:-------------|:---------|
-| DUTY_CYCLE_0 | 0x20     |
-| DUTY_CYCLE_1 | 0x24     |
-| DUTY_CYCLE_2 | 0x28     |
-| DUTY_CYCLE_3 | 0x2c     |
+| DUTY_CYCLE_0 | 0x18     |
+| DUTY_CYCLE_1 | 0x1c     |
 
 
 ### Fields
@@ -217,10 +203,8 @@ Hardware controlled blink/heartbeat parameters.
 
 | Name          | Offset   |
 |:--------------|:---------|
-| BLINK_PARAM_0 | 0x30     |
-| BLINK_PARAM_1 | 0x34     |
-| BLINK_PARAM_2 | 0x38     |
-| BLINK_PARAM_3 | 0x3c     |
+| BLINK_PARAM_0 | 0x20     |
+| BLINK_PARAM_1 | 0x24     |
 
 
 ### Fields
