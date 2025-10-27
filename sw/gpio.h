@@ -1,0 +1,180 @@
+/**
+ * @file
+ * @brief Generated register defines for gpio
+ */
+
+// Copyright information found in source file:
+// Copyright lowRISC contributors (OpenTitan project).
+
+// Licensing information found in source file:
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef _GPIO_REG_DEFS_
+#define _GPIO_REG_DEFS_
+
+
+#include <stdint.h>
+
+#define GPIO_BASE 0x80060000
+
+typedef void* gpio_t;
+int gpio_init(gpio_t gpio);
+int gpio_in(gpio_t gpio);
+void gpio_out(gpio_t gpio, char c);
+int gpio_putchar(int c);
+int gpio_puts(const char* str);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+// Register width
+#define GPIO_PARAM_REG_WIDTH 32
+
+// Common Interrupt Offsets
+#define GPIO_INTR_COMMON_GPIO_MASK 0x3
+#define GPIO_INTR_COMMON_GPIO_OFFSET 0
+#define GPIO_INTR_COMMON_GPIO_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_INTR_COMMON_GPIO_MASK, .index = GPIO_INTR_COMMON_GPIO_OFFSET })
+
+// Interrupt State Register
+#define GPIO_INTR_STATE_REG_OFFSET 0x0
+#define GPIO_INTR_STATE_REG_RESVAL 0x0u
+#define GPIO_INTR_STATE_GPIO_MASK 0xfu
+#define GPIO_INTR_STATE_GPIO_OFFSET 0
+#define GPIO_INTR_STATE_GPIO_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_INTR_STATE_GPIO_MASK, .index = GPIO_INTR_STATE_GPIO_OFFSET })
+
+// Interrupt Enable Register
+#define GPIO_INTR_ENABLE_REG_OFFSET 0x4
+#define GPIO_INTR_ENABLE_REG_RESVAL 0x0u
+#define GPIO_INTR_ENABLE_GPIO_MASK 0xfu
+#define GPIO_INTR_ENABLE_GPIO_OFFSET 0
+#define GPIO_INTR_ENABLE_GPIO_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_INTR_ENABLE_GPIO_MASK, .index = GPIO_INTR_ENABLE_GPIO_OFFSET })
+
+// Interrupt Test Register
+#define GPIO_INTR_TEST_REG_OFFSET 0x8
+#define GPIO_INTR_TEST_REG_RESVAL 0x0u
+#define GPIO_INTR_TEST_GPIO_MASK 0xfu
+#define GPIO_INTR_TEST_GPIO_OFFSET 0
+#define GPIO_INTR_TEST_GPIO_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_INTR_TEST_GPIO_MASK, .index = GPIO_INTR_TEST_GPIO_OFFSET })
+
+// GPIO Input data read value
+#define GPIO_DATA_IN_REG_OFFSET 0xc
+#define GPIO_DATA_IN_REG_RESVAL 0x0u
+#define GPIO_DATA_IN_DATA_IN_MASK 0xfu
+#define GPIO_DATA_IN_DATA_IN_OFFSET 0
+#define GPIO_DATA_IN_DATA_IN_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_DATA_IN_DATA_IN_MASK, .index = GPIO_DATA_IN_DATA_IN_OFFSET })
+
+// GPIO direct output data write value
+#define GPIO_DIRECT_OUT_REG_OFFSET 0x10
+#define GPIO_DIRECT_OUT_REG_RESVAL 0x0u
+#define GPIO_DIRECT_OUT_DIRECT_OUT_MASK 0xfu
+#define GPIO_DIRECT_OUT_DIRECT_OUT_OFFSET 0
+#define GPIO_DIRECT_OUT_DIRECT_OUT_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_DIRECT_OUT_DIRECT_OUT_MASK, .index = GPIO_DIRECT_OUT_DIRECT_OUT_OFFSET })
+
+// GPIO write data lower with mask.
+#define GPIO_MASKED_OUT_LOWER_REG_OFFSET 0x14
+#define GPIO_MASKED_OUT_LOWER_REG_RESVAL 0x0u
+#define GPIO_MASKED_OUT_LOWER_DATA_MASK 0x3u
+#define GPIO_MASKED_OUT_LOWER_DATA_OFFSET 0
+#define GPIO_MASKED_OUT_LOWER_DATA_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_MASKED_OUT_LOWER_DATA_MASK, .index = GPIO_MASKED_OUT_LOWER_DATA_OFFSET })
+#define GPIO_MASKED_OUT_LOWER_MASK_MASK 0x3u
+#define GPIO_MASKED_OUT_LOWER_MASK_OFFSET 2
+#define GPIO_MASKED_OUT_LOWER_MASK_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_MASKED_OUT_LOWER_MASK_MASK, .index = GPIO_MASKED_OUT_LOWER_MASK_OFFSET })
+
+// GPIO write data upper with mask.
+#define GPIO_MASKED_OUT_UPPER_REG_OFFSET 0x18
+#define GPIO_MASKED_OUT_UPPER_REG_RESVAL 0x0u
+#define GPIO_MASKED_OUT_UPPER_DATA_MASK 0x3u
+#define GPIO_MASKED_OUT_UPPER_DATA_OFFSET 0
+#define GPIO_MASKED_OUT_UPPER_DATA_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_MASKED_OUT_UPPER_DATA_MASK, .index = GPIO_MASKED_OUT_UPPER_DATA_OFFSET })
+#define GPIO_MASKED_OUT_UPPER_MASK_MASK 0x3u
+#define GPIO_MASKED_OUT_UPPER_MASK_OFFSET 2
+#define GPIO_MASKED_OUT_UPPER_MASK_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_MASKED_OUT_UPPER_MASK_MASK, .index = GPIO_MASKED_OUT_UPPER_MASK_OFFSET })
+
+// GPIO Output Enable.
+#define GPIO_DIRECT_OE_REG_OFFSET 0x1c
+#define GPIO_DIRECT_OE_REG_RESVAL 0x0u
+#define GPIO_DIRECT_OE_DIRECT_OE_MASK 0xfu
+#define GPIO_DIRECT_OE_DIRECT_OE_OFFSET 0
+#define GPIO_DIRECT_OE_DIRECT_OE_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_DIRECT_OE_DIRECT_OE_MASK, .index = GPIO_DIRECT_OE_DIRECT_OE_OFFSET })
+
+// GPIO write Output Enable lower with mask.
+#define GPIO_MASKED_OE_LOWER_REG_OFFSET 0x20
+#define GPIO_MASKED_OE_LOWER_REG_RESVAL 0x0u
+#define GPIO_MASKED_OE_LOWER_DATA_MASK 0x3u
+#define GPIO_MASKED_OE_LOWER_DATA_OFFSET 0
+#define GPIO_MASKED_OE_LOWER_DATA_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_MASKED_OE_LOWER_DATA_MASK, .index = GPIO_MASKED_OE_LOWER_DATA_OFFSET })
+#define GPIO_MASKED_OE_LOWER_MASK_MASK 0x3u
+#define GPIO_MASKED_OE_LOWER_MASK_OFFSET 2
+#define GPIO_MASKED_OE_LOWER_MASK_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_MASKED_OE_LOWER_MASK_MASK, .index = GPIO_MASKED_OE_LOWER_MASK_OFFSET })
+
+// GPIO write Output Enable upper with mask.
+#define GPIO_MASKED_OE_UPPER_REG_OFFSET 0x24
+#define GPIO_MASKED_OE_UPPER_REG_RESVAL 0x0u
+#define GPIO_MASKED_OE_UPPER_DATA_MASK 0x3u
+#define GPIO_MASKED_OE_UPPER_DATA_OFFSET 0
+#define GPIO_MASKED_OE_UPPER_DATA_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_MASKED_OE_UPPER_DATA_MASK, .index = GPIO_MASKED_OE_UPPER_DATA_OFFSET })
+#define GPIO_MASKED_OE_UPPER_MASK_MASK 0x3u
+#define GPIO_MASKED_OE_UPPER_MASK_OFFSET 2
+#define GPIO_MASKED_OE_UPPER_MASK_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_MASKED_OE_UPPER_MASK_MASK, .index = GPIO_MASKED_OE_UPPER_MASK_OFFSET })
+
+// GPIO interrupt enable for GPIO, rising edge.
+#define GPIO_INTR_CTRL_EN_RISING_REG_OFFSET 0x28
+#define GPIO_INTR_CTRL_EN_RISING_REG_RESVAL 0x0u
+#define GPIO_INTR_CTRL_EN_RISING_INTR_CTRL_EN_RISING_MASK 0xfu
+#define GPIO_INTR_CTRL_EN_RISING_INTR_CTRL_EN_RISING_OFFSET 0
+#define GPIO_INTR_CTRL_EN_RISING_INTR_CTRL_EN_RISING_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_INTR_CTRL_EN_RISING_INTR_CTRL_EN_RISING_MASK, .index = GPIO_INTR_CTRL_EN_RISING_INTR_CTRL_EN_RISING_OFFSET })
+
+// GPIO interrupt enable for GPIO, falling edge.
+#define GPIO_INTR_CTRL_EN_FALLING_REG_OFFSET 0x2c
+#define GPIO_INTR_CTRL_EN_FALLING_REG_RESVAL 0x0u
+#define GPIO_INTR_CTRL_EN_FALLING_INTR_CTRL_EN_FALLING_MASK 0xfu
+#define GPIO_INTR_CTRL_EN_FALLING_INTR_CTRL_EN_FALLING_OFFSET 0
+#define GPIO_INTR_CTRL_EN_FALLING_INTR_CTRL_EN_FALLING_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_INTR_CTRL_EN_FALLING_INTR_CTRL_EN_FALLING_MASK, .index = GPIO_INTR_CTRL_EN_FALLING_INTR_CTRL_EN_FALLING_OFFSET })
+
+// GPIO interrupt enable for GPIO, level high.
+#define GPIO_INTR_CTRL_EN_LVLHIGH_REG_OFFSET 0x30
+#define GPIO_INTR_CTRL_EN_LVLHIGH_REG_RESVAL 0x0u
+#define GPIO_INTR_CTRL_EN_LVLHIGH_INTR_CTRL_EN_LVLHIGH_MASK 0xfu
+#define GPIO_INTR_CTRL_EN_LVLHIGH_INTR_CTRL_EN_LVLHIGH_OFFSET 0
+#define GPIO_INTR_CTRL_EN_LVLHIGH_INTR_CTRL_EN_LVLHIGH_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_INTR_CTRL_EN_LVLHIGH_INTR_CTRL_EN_LVLHIGH_MASK, .index = GPIO_INTR_CTRL_EN_LVLHIGH_INTR_CTRL_EN_LVLHIGH_OFFSET })
+
+// GPIO interrupt enable for GPIO, level low.
+#define GPIO_INTR_CTRL_EN_LVLLOW_REG_OFFSET 0x34
+#define GPIO_INTR_CTRL_EN_LVLLOW_REG_RESVAL 0x0u
+#define GPIO_INTR_CTRL_EN_LVLLOW_INTR_CTRL_EN_LVLLOW_MASK 0xfu
+#define GPIO_INTR_CTRL_EN_LVLLOW_INTR_CTRL_EN_LVLLOW_OFFSET 0
+#define GPIO_INTR_CTRL_EN_LVLLOW_INTR_CTRL_EN_LVLLOW_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_INTR_CTRL_EN_LVLLOW_INTR_CTRL_EN_LVLLOW_MASK, .index = GPIO_INTR_CTRL_EN_LVLLOW_INTR_CTRL_EN_LVLLOW_OFFSET })
+
+// filter enable for GPIO input bits.
+#define GPIO_CTRL_EN_INPUT_FILTER_REG_OFFSET 0x38
+#define GPIO_CTRL_EN_INPUT_FILTER_REG_RESVAL 0x0u
+#define GPIO_CTRL_EN_INPUT_FILTER_CTRL_EN_INPUT_FILTER_MASK 0xfu
+#define GPIO_CTRL_EN_INPUT_FILTER_CTRL_EN_INPUT_FILTER_OFFSET 0
+#define GPIO_CTRL_EN_INPUT_FILTER_CTRL_EN_INPUT_FILTER_FIELD \
+  ((bitfield_field32_t) { .mask = GPIO_CTRL_EN_INPUT_FILTER_CTRL_EN_INPUT_FILTER_MASK, .index = GPIO_CTRL_EN_INPUT_FILTER_CTRL_EN_INPUT_FILTER_OFFSET })
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+#endif  // _GPIO_REG_DEFS_
+// End generated register defines for gpio
