@@ -210,8 +210,8 @@ view_presyn_sv:
 compile_syn:
 ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(COMPILER) -g2012 -v -DSYN -o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
-	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
+	$(COMPILER) -g2012 -v -DSYN -DFUNCTIONAL -DSIM -o $(SIMDIR)/$(TOP)_syn_tb.vvp \
+	$(PRIM) $(TBDIR)/$(TOP)_tb.sv > $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 else
 	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
 	$(COMPILER) -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \

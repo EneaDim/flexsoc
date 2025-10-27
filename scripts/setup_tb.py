@@ -392,23 +392,22 @@ try:
     # =========================
     if compiler == 'verilator':
         with open(os.path.join(tb_path, 'include_' + str(top) + '_tb.sv'), 'w+') as f:
-            mystr  = '// Include source files \n'
-            mystr += '`include "ips/pkgs/top_pkg.sv"\n'
-            mystr += '`include "ips/pkgs/prim_util_pkg.sv"\n'
-            mystr += '`include "ips/pkgs/prim_mubi_pkg.sv"\n'
-            mystr += '`include "ips/pkgs/prim_secded_pkg.sv"\n'
+            mystr = '`ifndef SYN\n'
+            mystr += '  `include "ips/pkgs/top_pkg.sv"\n'
+            mystr += '  `include "ips/pkgs/prim_util_pkg.sv"\n'
+            mystr += '  `include "ips/pkgs/prim_mubi_pkg.sv"\n'
+            mystr += '  `include "ips/pkgs/prim_secded_pkg.sv"\n'
             # May add reg_pkg
             if flag_reg_pkg:
-                mystr += '`include "'+str(rtldir)+'/'+str(top)+'_reg_pkg.sv"\n'
+                mystr += '  `include "'+str(rtldir)+'/'+str(top)+'_reg_pkg.sv"\n'
             # TLUL / reg_iface extras
             if flag_reg_pkg and itf == 'tlul':
-                mystr += '`include "ips/pkgs/tlul_pkg.sv"\n'
-                mystr += '`include "tb/tlul_utils.sv"\n'
-                mystr += '`include "tb/tlul_if.sv"\n'
+                mystr += '  `include "ips/pkgs/tlul_pkg.sv"\n'
+                mystr += '  `include "tb/tlul_utils.sv"\n'
+                mystr += '  `include "tb/tlul_if.sv"\n'
             if flag_reg_pkg and itf == 'reg_iface':
                 mystr += '`include "tb/reg_utils.sv"\n'
                 mystr += '`include "tb/reg_if.sv"\n'
-            mystr += '`ifndef SYN\n'
             if vsv == 'sv':
                 mystr += '  `include "'+str(rtldir)+'/'+str(top)+'.sv"\n'
             else:

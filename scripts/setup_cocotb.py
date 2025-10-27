@@ -261,7 +261,7 @@ for f in pkg:
 
 # Second block
 for f in others:
-    lines.append(f"$(ROOT)/{RTL_DIR}/{f} \\")
+    lines.append(f"  $(ROOT)/{RTL_DIR}/{f} \\")
 
 text = "\n".join(lines)
 
@@ -280,6 +280,17 @@ SRC_DIR           := $(PWD)/../../rtl
 # --- Top testbench & Python test module ---
 TOPLEVEL = {TOP}_tb
 MODULE = {TOP}_tb
+
+# Forza Icarus quando il goal è di pulizia (non tocca il workflow)
+ifneq ($(filter clean veryclean distclean,$(MAKECMDGOALS)),)
+  SIM := icarus
+endif
+
+ifeq ($(GATES),yes)
+  SIM := icarus
+else
+  SIM ?= verilator
+endif
 
 # --- Where to build ---
 SIM_BUILD         ?= sim_build/rtl
@@ -370,42 +381,33 @@ VERILOG_SOURCES := \\
   $(ROOT)/ips/tlul/tlul_socket_m1.sv \\
   $(ROOT)/ips/tlul/tlul_sram_byte.sv \\
   {text}
-  $(ROOT)/tb/cocotb/{TOP}_tb.sv
+
+COMPILE_ARGS 	+= -Wno-WIDTHEXPAND
+COMPILE_ARGS 	+= -Wno-UNOPTFLAT
+COMPILE_ARGS    += --sv --timing
+COMPILE_ARGS    += --trace --trace-fst --trace-structs
 
 else
 # =============================================================================
 # GATE-LEVEL SOURCES
 # =============================================================================
-SIM_BUILD               = sim_build/gl
-COMPILE_ARGS           += -DGL_TEST -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DUNIT_DELAY=#1
-VERILOG_SOURCES        += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/primitives.v
-VERILOG_SOURCES        += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/sky130_fd_sc_hd.v
-VERILOG_SOURCES        += $(PWD)/gate_level_netlist.v
+SIM_BUILD              ?= sim_build/gl
+COMPILE_ARGS           += -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DUNIT_DELAY=#1
+VERILOG_SOURCES        += ../../verilog/primitives.v
+VERILOG_SOURCES        += ../../verilog/sky130_fd_sc_hd.v
+VERILOG_SOURCES        += ../../syn/{TOP}_synth.v
 endif
-
-# Parametri testbench
-export ITF ?= {ITF}
-export NBIT ?= {NBIT}
-export N_OP ?= {N_OP}
-export CLK_PERIOD_NS ?= {PERIOD}
-export TB_CLK ?= {CLK}
-export TB_RST ?= {RST}
-export TB_RST_ACTIVE ?= {RST_ACTIVE}
-export TB_TL_A_PREFIX ?= tl_i
-export TB_TL_D_PREFIX ?= tl_o
-export TB_TL_SCOPE ?=
 
 # =============================================================================
 # Common compile flags / includes
 # =============================================================================
-COMPILE_ARGS 	+= -Wno-WIDTHEXPAND
-COMPILE_ARGS    += --sv --timing 
-COMPILE_ARGS    += --trace --trace-fst --trace-structs 
-COMPILE_ARGS    += -I$(SRC_DIR) -I$(ROOT)/rtl -I$(ROOT)/ips/pkgs \
+COMPILE_ARGS += -I$(SRC_DIR) -I$(ROOT)/rtl -I$(ROOT)/ips/pkgs \\
 			       -I$(ROOT)/ips/prim -I$(ROOT)/ips/prim_opentitan -I$(ROOT)/ips/tlul
 
 # Cocotb: path del report JUnit (usato dalla CI)
 export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
+
+VERILOG_SOURCES += $(ROOT)/tb/cocotb/{TOP}_tb.sv
 
 # =============================================================================
 # Include le regole Cocotb
