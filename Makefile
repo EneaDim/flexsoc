@@ -210,11 +210,12 @@ view_presyn_sv:
 compile_syn:
 ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(COMPILER) $(IVERILOG_FLAGS) -DSYN -o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
+	$(COMPILER) -g2012 -v -DSYN -o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
 	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 else
 	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(COMPILER) ${VERILATOR_FLAGS} -DSYN=1 --bbox-unsup $(PRIM) $(SYNDIR)/$(TOP)_synth.v  \
+	$(COMPILER) -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
+	-DSYN=1 --bbox-unsup $(PRIM) $(SYNDIR)/$(TOP)_synth.v  \
 	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 endif
 
@@ -503,6 +504,7 @@ clean_sim:
 	$(RM) $(SIMDIR)/*.vcd
 	$(RM) $(SIMDIR)/verilator
 clean_cocotb:
+	$(RM) $(TBDIR)/cocotb/*.vcd 
 	$(MAKE) -C $(TBDIR)/cocotb clean
 clean_syn:
 	$(RM) $(SYNDIR)/*

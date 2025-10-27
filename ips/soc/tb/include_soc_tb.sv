@@ -1,9 +1,9 @@
 // Include source files 
-`include "ips/pkgs/top_pkg.sv"
-`include "ips/pkgs/prim_util_pkg.sv"
-`include "ips/pkgs/prim_mubi_pkg.sv"
-`include "ips/pkgs/prim_secded_pkg.sv"
 `ifndef SYN
+  `include "ips/pkgs/top_pkg.sv"
+  `include "ips/pkgs/prim_util_pkg.sv"
+  `include "ips/pkgs/prim_mubi_pkg.sv"
+  `include "ips/pkgs/prim_secded_pkg.sv"
   `include "rtl/soc.sv"
 `else
   `include "verilog/primitives.v"

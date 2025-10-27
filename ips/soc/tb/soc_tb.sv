@@ -5,7 +5,7 @@
 
 module soc_tb;
   //Parameters
-  parameter int CLK_PERIOD = 10; // Clock period in ns
+  parameter int CLK_PERIOD = 20; // Clock period in ns
   // Inputs
   reg clk_i;
   reg rst_ni;
@@ -67,15 +67,15 @@ module soc_tb;
     begin
       // Start bit
       cio_rx_i = 1'b0; 
-      #(CLK_PERIOD * 868); // Wait for half a bit period
+      #8680; // Wait for half a bit period
       // Send each bit of the pattern
       for (int i = 0; i < 8; i++) begin
         cio_rx_i = b[i]; // Send each bit of the pattern
-        #(CLK_PERIOD * 868); // Wait for half a bit period
+        #8680; // Wait for half a bit period
       end
       // Stop bit
       cio_rx_i = 1'b1; 
-      #(CLK_PERIOD * 8680); // Wait for half a bit period
+      #86800; // Wait for half a bit period
     end
   endtask
   
@@ -134,14 +134,6 @@ module soc_tb;
   localparam logic [31:0] GPIO_INT_RISE   = 32'h0000_0028;  // enable bit nello SPI host
   //////////////////////////////////////////////////////////////////////////////////////////
   
-  // Valori di esempio (ADATTA i bit-field alla tua mappa CTRL!)
-  function automatic logic [31:0] uart_ctrl_val(
-    input bit tx_en, input bit rx_en, input bit parity_en, input bit parity_odd, input logic [15:0] nco
-  );
-    // Esempio packing (PLACEHOLDER!): [31:16] NCO, [3] parity_odd, [2] parity_en, [1] rx, [0] tx
-    return {nco, 12'h0, parity_odd, parity_en, rx_en, tx_en};
-  endfunction
-  
   initial begin
     error_count = 0;
   end
@@ -163,7 +155,7 @@ module soc_tb;
     // 1) Abilita TX (e RX) della UART + set NCO coerente al tuo bit-banging (qui irrilevante per RX; serve per TX)
     //    Se la tua UART al reset ha RX già abilitata, questo step serve soprattutto ad accendere il TX.
     //assign ctrl_val = uart_ctrl_val(/*tx*/1, /*rx*/1, /*parity_en*/0, /*parity_odd*/0, /*nco*/16'd0);
-    uart_write32(UART_BASE + UART_CTRL_OFF, 32'h04B8_0001); // For 100MHz fclk
+    uart_write32(UART_BASE + UART_CTRL_OFF, 32'h0970_0001); // For 100MHz fclk
     #(CLK_PERIOD*2000);
   
     // 2) Imposta duty cycle PWM (esempio 50%) e abilita PWM

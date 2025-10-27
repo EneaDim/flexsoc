@@ -12,14 +12,23 @@ SRC_DIR           := $(PWD)/../../rtl
 TOPLEVEL = soc_tb
 MODULE = soc_tb
 
-# --- Where to build ---
-SIM_BUILD         ?= sim_build/rtl
+# Forza Icarus quando il goal è di pulizia (non tocca il workflow)
+ifneq ($(filter clean veryclean distclean,$(MAKECMDGOALS)),)
+  SIM := icarus
+endif
+
+ifeq ($(GATES),yes)
+  SIM := icarus
+else
+  SIM ?= verilator
+endif
 
 # =============================================================================
 # RTL SOURCES
 # =============================================================================
 ifneq ($(GATES),yes)
 
+SIM_BUILD         ?= sim_build/rtl
 VERILOG_SOURCES := \
   $(ROOT)/ips/pkgs/top_pkg.sv \
   $(ROOT)/ips/prim/prim_reg_pkg.sv \
@@ -127,23 +136,27 @@ VERILOG_SOURCES := \
   $(ROOT)/rtl/gpio_reg_top.sv \
   $(ROOT)/rtl/gpio.sv \
   $(ROOT)/tb/cocotb/soc_tb.sv
+COMPILE_ARGS += --sv --timing
+COMPILE_ARGS += --trace --trace-fst --trace-structs
+COMPILE_ARGS += -Wno-WIDTHEXPAND
 
 else
 # =============================================================================
 # GATE-LEVEL SOURCES
 # =============================================================================
 SIM_BUILD               = sim_build/gl
-COMPILE_ARGS           += -DGL_TEST -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DUNIT_DELAY=#1
-VERILOG_SOURCES        += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/primitives.v
-VERILOG_SOURCES        += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/sky130_fd_sc_hd.v
-VERILOG_SOURCES        += $(PWD)/gate_level_netlist.v
+COMPILE_ARGS           += -DFUNCTIONAL -DSIM -DUNIT_DELAY=#1
+VERILOG_SOURCES        += ../../verilog/primitives.v
+VERILOG_SOURCES        += ../../verilog/sky130_fd_sc_hd.v
+VERILOG_SOURCES        += ../../syn/soc_synth.v
+VERILOG_SOURCES        += soc_tb.v
 endif
 
 # Parametri testbench
 export ITF ?= tlul
 export NBIT ?= 32
 export N_OP ?= 10
-export CLK_PERIOD_NS ?= 10.0
+export CLK_PERIOD_NS ?= 20.0
 export TB_CLK ?= clk_i
 export TB_RST ?= rst_ni
 export TB_RST_ACTIVE ?= low
@@ -154,9 +167,6 @@ export TB_TL_SCOPE ?=
 # =============================================================================
 # Common compile flags / includes
 # =============================================================================
-COMPILE_ARGS 		+= -Wno-WIDTHEXPAND
-COMPILE_ARGS    += --sv --timing 
-COMPILE_ARGS    += --trace --trace-fst --trace-structs 
 COMPILE_ARGS    += -I$(SRC_DIR) -I$(ROOT)/rtl -I$(ROOT)/ips/pkgs \
 									 -I$(ROOT)/ips/prim -I$(ROOT)/ips/prim_opentitan -I$(ROOT)/ips/tlul
 

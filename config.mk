@@ -58,7 +58,7 @@ VIEWER_CONF     ?=$(SIMDIR)/$(TOP)_tb.gtkw
 # SYNTHESIS AND SIGN-OFF
 YOSYS           :=yosys
 STA             :=sta
-CLK_PERIOD      ?=10
+CLK_PERIOD      ?=20
 TARGET_SYN      ?=asic
 TARGET_OPT      ?=none
 ACTIVITY        ?=10
