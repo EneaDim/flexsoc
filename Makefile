@@ -316,9 +316,9 @@ fsm_plot:
 fsm_flow: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 
 # BASIC FLOW:
-ip_flow: reg doc lint sim syn sdf sta sta_violators power view
-ip_flow_noreg: lint sim syn sdf sta sta_violators power view
-ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui
+ip_flow: reg doc lint sim syn sta sta_violators power view
+ip_flow_noreg: lint sim syn sta sta_violators power view
+ip_flow_all: ip_start syn sta sta_violators power view pnr pnr_gui
 
 # FUSESOC
 fsoc_init:
