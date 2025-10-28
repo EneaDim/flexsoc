@@ -52,10 +52,12 @@ module soc_tb;
     $dumpvars(0, soc_tb);
   end
 
-  initial begin
-    string sdf = "signoff/sdf/soc_ss.sdf";
-    $sdf_annotate(sdf, soc_tb.u_soc, , , "MAXIMUM");
-  end
+  `ifndef VERILATOR
+    initial begin
+      string sdf = "signoff/sdf/soc_ss.sdf";
+      $sdf_annotate(sdf, soc_tb.u_soc, , , "MAXIMUM");
+    end
+  `endif
   
   // Convenienza: invia un byte UART (usa send_pattern)
   task automatic uart_send_byte(input logic [7:0] b);

@@ -19,10 +19,12 @@ module soc_tb;
     #1;
   end
 
-  initial begin
-    string sdf = "../../signoff/sdf/soc_ss.sdf";
-    $sdf_annotate(sdf, soc_tb.u_soc, , , "MAXIMUM");
-  end
+  `ifndef VERILATOR
+    initial begin
+      string sdf = "../../signoff/sdf/soc_ss.sdf";
+      $sdf_annotate(sdf, soc_tb.u_soc, , , "MAXIMUM");
+    end
+  `endif
   
 
   // -------- DUT con porte pass-through --------
