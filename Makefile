@@ -55,7 +55,7 @@ rtl_stub:
 	$(PYTHON) scripts/rtl_stub_gen.py -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
 
 # Basic IP start flow
-ip_start: setup hjson reg doc rtl_stub setup_tb sim view
+ip_start: setup hjson reg doc rtl_stub setup_tb sim
 
 # SV to single Verilog file
 sv2v: clean_rtl
@@ -218,40 +218,29 @@ view_presyn_sv:
 	xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
 
 
-# COMPILE POST SYNTHESIS NETLIST
+###################################################
+###          COMPILE & SIMULATE SYNTHESIS       ###
+###################################################
+
 compile_syn:
-ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(COMPILER) -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
+	iverilog -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
 	-o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
 	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
-else
-	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(COMPILER) -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
-	-DSYN=1 --bbox-unsup $(PRIM) $(SYNDIR)/$(TOP)_synth.v  \
-	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
-endif
 
 # SIMULATE POST SYNTHESIS NETLIST
 sim_syn: compile_syn
-ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
 	vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
-else
-	@$(ECHO) "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
-	$(COMPILER) ${VERILATOR_FLAGS} -DSYN=1 --bbox-unsup --trace $(TBDIR)/$(TOP)_tb.sv \
-	> $(LOGDIR)/$(TOP)_sim_syn.log 2>&1
-	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) > $(LOGDIR)/$(TESTBENCH)_sim_syn.log 2>&1
-endif
 
 # VIEW WAVEFORMS RTL SIMULATION
 view_syn:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
 	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TOP)_syn.vcd $(VIEWER_CONF) & 
 
-##########################
-# Static Timing Analysis #
-##########################
+##################################################
+###              Static Timing Analysis        ###
+##################################################
 
 sta: setup_signoff 
 	@$(ECHO) "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
@@ -259,9 +248,9 @@ sta: setup_signoff
 	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
 	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true 
 
-##################
-# Power analysis #
-##################
+##################################################
+###                  Power Analysis            ###
+##################################################
 
 power: setup_signoff 
 	@$(ECHO) "\n$(ORANGE)Power Analysis, static and with .vcd...\n$(RESET)"
@@ -285,7 +274,11 @@ sdf: setup_signoff
 	@$(MKDIR) -p $(SIGNOFFDIR)/sdf
 	$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > /dev/null 2>&1
 
-# PnR
+
+#################################################
+###        Place & Route with OpenROAD        ###
+#################################################
+
 pnr: setup_pnr 
 	$(MAKE) --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk
 
@@ -350,16 +343,15 @@ xbar_build:
 	$(RM) -r $(TOPDIR)/autogen/dv
 	mv $(TOPDIR)/autogen/rtl/autogen/* $(TOPDIR)/autogen
 
-#######
-# SoC #
-#######
+###############################
+###            SoC          ###
+###############################
 
 soc_flow: soc_build driver soc_sim soc_run 
 
 soc_build:
 	@$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
 	@$(MKDIR) -p $(TOPDIR)
-	@$(ECHO) $(IPS)
 	@$(PYTHON) scripts/soc_gen.py -host $(HOST) -lrm $(LOWRISC_IPS) -m $(IPS) -o $(TOPDIR)/soc.sv
 
 soc_sim:
@@ -544,7 +536,6 @@ clean_soc:
 		     tb/top_verilator.* soc.core xbar_main.hjson $(TOPDIR)
 clean_sw:
 	$(MAKE) -C sw clean
-	$(RM) sw/$(TOP).*
 clean_vendor:
 	$(RM) vendor/lowrisc_ip
 	$(RM) vendor/lowrisc_ibex

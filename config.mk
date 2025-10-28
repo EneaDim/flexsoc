@@ -93,7 +93,7 @@ HOST            ?= uart
 # Needed for the .c driver definition
 MOD_ADD  ?= 0x80040000
 
-IPS             :=
+IPS             := spi_host
 LOWRISC_IPS     ?=
 
 ifeq ($(HOST),ibex)
