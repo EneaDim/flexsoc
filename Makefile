@@ -178,6 +178,17 @@ syn_sv: setup_syn
 	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
 	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
+yosys-vgen:
+	@$(ECHO) "\n$(ORANGE)Verilog generation with Yosys...\n$(RESET)"
+	$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p " \
+	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
+	           -f rtl/rtl_list.f \
+	           --top $(TOP); \
+	opt -keepdc; \
+	bwmuxmap; \
+	opt_clean; \
+	write_verilog -norename -noattr rtl/$(TOP).v" > /dev/null 2>&1
+
 # Use it only if small design
 plot_postsyn:
 	xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot &
@@ -347,6 +358,7 @@ soc_flow: soc_build driver soc_sim soc_run
 soc_build:
 	@$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
 	@$(MKDIR) -p $(TOPDIR)
+	@$(ECHO) $(IPS)
 	@$(PYTHON) scripts/soc_gen.py -host $(HOST) -lrm $(LOWRISC_IPS) -m $(IPS) -o $(TOPDIR)/soc.sv
 
 soc_sim:
@@ -367,7 +379,7 @@ soc_view:
 soc_pless: ip_load xbar 
 	@$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
 	@$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
-	@$(MAKE) soc_build IPS="pwm gpio rv_timer spi_host"
+	@$(MAKE) soc_build IPS="pwm gpio rv_timer"
 	@$(CP) top/soc.sv $(RTLDIR)/
 	@$(MAKE) sim syn sta power view TOP=soc
 
@@ -505,6 +517,8 @@ clean_sim:
 	$(RM) $(SIMDIR)/verilator
 clean_cocotb:
 	$(RM) $(TBDIR)/cocotb/*.vcd 
+	$(RM) $(TBDIR)/cocotb/sim_build
+	$(RM) $(TBDIR)/cocotb/__py*
 	$(MAKE) -C $(TBDIR)/cocotb clean
 clean_syn:
 	$(RM) $(SYNDIR)/*
