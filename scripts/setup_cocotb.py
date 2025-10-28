@@ -925,6 +925,12 @@ module {TOP}_tb;
     #1;
   end
 
+  // SDF backannotation
+  initial begin
+    string sdf = "../../signoff/sdf/{TOP}_ss.sdf";
+    $sdf_annotate(sdf, {TOP}_tb.u_{TOP}, , , "MAXIMUM");
+  end
+  
   // -------- DUT con porte pass-through --------
   {TOP} u_{TOP} (
     .{CLK}({CLK}),
