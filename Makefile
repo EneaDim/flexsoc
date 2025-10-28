@@ -163,6 +163,7 @@ regression:
 
 .PHONY: syn syn_v syn_sv
 syn: $(if $(filter v,$(VSV)),syn_v,syn_sv)
+	$(MAKE) sdf
 
 syn_v: setup_syn
 	@$(MKDIR) -p $(SYNDIR)/plots
@@ -218,7 +219,7 @@ view_presyn_sv:
 
 
 # COMPILE POST SYNTHESIS NETLIST
-compile_syn: sdf
+compile_syn:
 ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
 	$(COMPILER) -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
