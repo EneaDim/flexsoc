@@ -218,7 +218,7 @@ view_presyn_sv:
 
 
 # COMPILE POST SYNTHESIS NETLIST
-compile_syn:
+compile_syn: sdf
 ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
 	$(COMPILER) -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
