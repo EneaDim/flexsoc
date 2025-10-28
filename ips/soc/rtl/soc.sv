@@ -11,14 +11,9 @@ module soc #(
 
   output logic [1:0] cio_pwm_o,
   output logic [1:0] cio_pwm_en_o,
-  input logic [3:0] cio_gpio_i,
+  input  logic [3:0] cio_gpio_i,
   output logic [3:0] cio_gpio_o,
-  output logic [3:0] cio_gpio_en_o,
-  output logic spi_cs_o,
-  output logic spi_sclk_o,
-  output logic spi_sdioz_o,
-  input logic spi_sdio_i,
-  output logic spi_sdio_o
+  output logic [3:0] cio_gpio_en_o
 );
 
 
@@ -111,8 +106,6 @@ module soc #(
   tlul_pkg::tl_d2h_t tl_gpio_d2h;
   tlul_pkg::tl_h2d_t tl_rv_timer_h2d;
   tlul_pkg::tl_d2h_t tl_rv_timer_d2h;
-  tlul_pkg::tl_h2d_t tl_spi_host_h2d;
-  tlul_pkg::tl_d2h_t tl_spi_host_d2h;
 
   // Our main data bus.
   xbar_main xbar (
@@ -133,9 +126,6 @@ module soc #(
     .tl_gpio_i     (tl_gpio_d2h),
     .tl_rv_timer_o     (tl_rv_timer_h2d),
     .tl_rv_timer_i     (tl_rv_timer_d2h),
-    .tl_spi_host_o     (tl_spi_host_h2d),
-    .tl_spi_host_i     (tl_spi_host_d2h),
-
     .scanmode_i (prim_mubi_pkg::MuBi4False)
   );
 
@@ -166,18 +156,6 @@ module soc #(
     .tl_i(tl_rv_timer_h2d),
     .tl_o(tl_rv_timer_d2h),
     .intr_timer_expired_hart0_timer0_o()
-  );
-  // Instantiate spi_host
-  spi_host u_spi_host (
-    .clk_i,
-    .rst_ni,
-    .tl_i(tl_spi_host_h2d),
-    .tl_o(tl_spi_host_d2h),
-    .spi_cs_o,
-    .spi_sclk_o,
-    .spi_sdioz_o,
-    .spi_sdio_i,
-    .spi_sdio_o
   );
 
 endmodule

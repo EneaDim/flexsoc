@@ -81,7 +81,6 @@ ips/tlul/tlul_sram_byte.sv
 rtl/gpio_reg_pkg.sv
 rtl/pwm_reg_pkg.sv
 rtl/rv_timer_reg_pkg.sv
-rtl/spi_host_reg_pkg.sv
 rtl/tl_main_pkg.sv
 rtl/uart_reg_pkg.sv
 rtl/gpio.sv
@@ -92,9 +91,6 @@ rtl/pwm_core.sv
 rtl/pwm_reg_top.sv
 rtl/rv_timer.sv
 rtl/rv_timer_reg_top.sv
-rtl/spi_host.sv
-rtl/spi_host_core.sv
-rtl/spi_host_reg_top.sv
 rtl/timer_core.sv
 rtl/uart.sv
 rtl/uart_core.sv

@@ -10,7 +10,6 @@
 //   -> s1n_6
 //     -> uart
 //     -> pwm
-//     -> spi_host
 //     -> gpio
 //     -> rv_timer
 
@@ -27,8 +26,6 @@ module xbar_main (
   input  tlul_pkg::tl_d2h_t tl_uart_i,
   output tlul_pkg::tl_h2d_t tl_pwm_o,
   input  tlul_pkg::tl_d2h_t tl_pwm_i,
-  output tlul_pkg::tl_h2d_t tl_spi_host_o,
-  input  tlul_pkg::tl_d2h_t tl_spi_host_i,
   output tlul_pkg::tl_h2d_t tl_gpio_o,
   input  tlul_pkg::tl_d2h_t tl_gpio_i,
   output tlul_pkg::tl_h2d_t tl_rv_timer_o,
@@ -49,8 +46,8 @@ module xbar_main (
   tl_d2h_t tl_s1n_6_us_d2h ;
 
 
-  tl_h2d_t tl_s1n_6_ds_h2d [5];
-  tl_d2h_t tl_s1n_6_ds_d2h [5];
+  tl_h2d_t tl_s1n_6_ds_h2d [4];
+  tl_d2h_t tl_s1n_6_ds_d2h [4];
 
   // Create steering signal
   logic [2:0] dev_sel_s1n_6;
@@ -63,14 +60,11 @@ module xbar_main (
   assign tl_pwm_o = tl_s1n_6_ds_h2d[1];
   assign tl_s1n_6_ds_d2h[1] = tl_pwm_i;
 
-  assign tl_spi_host_o = tl_s1n_6_ds_h2d[2];
-  assign tl_s1n_6_ds_d2h[2] = tl_spi_host_i;
+  assign tl_gpio_o = tl_s1n_6_ds_h2d[2];
+  assign tl_s1n_6_ds_d2h[2] = tl_gpio_i;
 
-  assign tl_gpio_o = tl_s1n_6_ds_h2d[3];
-  assign tl_s1n_6_ds_d2h[3] = tl_gpio_i;
-
-  assign tl_rv_timer_o = tl_s1n_6_ds_h2d[4];
-  assign tl_s1n_6_ds_d2h[4] = tl_rv_timer_i;
+  assign tl_rv_timer_o = tl_s1n_6_ds_h2d[3];
+  assign tl_s1n_6_ds_d2h[3] = tl_rv_timer_i;
 
   assign tl_s1n_6_us_h2d = tl_uart_host_i;
   assign tl_uart_host_o = tl_s1n_6_us_d2h;
@@ -87,16 +81,12 @@ module xbar_main (
       dev_sel_s1n_6 = 3'd1;
 
     end else if ((tl_s1n_6_us_h2d.a_address &
-                  ~(ADDR_MASK_SPI_HOST)) == ADDR_SPACE_SPI_HOST) begin
+                  ~(ADDR_MASK_GPIO)) == ADDR_SPACE_GPIO) begin
       dev_sel_s1n_6 = 3'd2;
 
     end else if ((tl_s1n_6_us_h2d.a_address &
-                  ~(ADDR_MASK_GPIO)) == ADDR_SPACE_GPIO) begin
-      dev_sel_s1n_6 = 3'd3;
-
-    end else if ((tl_s1n_6_us_h2d.a_address &
                   ~(ADDR_MASK_RV_TIMER)) == ADDR_SPACE_RV_TIMER) begin
-      dev_sel_s1n_6 = 3'd4;
+      dev_sel_s1n_6 = 3'd3;
 end
   end
 
@@ -107,7 +97,7 @@ end
     .HRspDepth (4'h0),
     .DReqDepth (20'h0),
     .DRspDepth (20'h0),
-    .N         (5)
+    .N         (4)
   ) u_s1n_6 (
     .clk_i        (clk_i),
     .rst_ni       (rst_ni),

@@ -112,7 +112,6 @@ VERILOG_SOURCES := \
   $(ROOT)/rtl/gpio_reg_pkg.sv \
   $(ROOT)/rtl/pwm_reg_pkg.sv \
   $(ROOT)/rtl/rv_timer_reg_pkg.sv \
-  $(ROOT)/rtl/spi_host_reg_pkg.sv \
   $(ROOT)/rtl/uart_reg_pkg.sv \
   $(ROOT)/rtl/tl_main_pkg.sv \
   $(ROOT)/rtl/xbar_main.sv \
@@ -123,9 +122,6 @@ VERILOG_SOURCES := \
   $(ROOT)/rtl/uart_core.sv \
   $(ROOT)/rtl/uart.sv \
   $(ROOT)/rtl/timer_core.sv \
-  $(ROOT)/rtl/spi_host_reg_top.sv \
-  $(ROOT)/rtl/spi_host_core.sv \
-  $(ROOT)/rtl/spi_host.sv \
   $(ROOT)/rtl/soc.sv \
   $(ROOT)/rtl/rv_timer_reg_top.sv \
   $(ROOT)/rtl/rv_timer.sv \
@@ -139,6 +135,7 @@ VERILOG_SOURCES := \
 COMPILE_ARGS += --sv --timing
 COMPILE_ARGS += --trace --trace-fst --trace-structs
 COMPILE_ARGS += -Wno-WIDTHEXPAND
+COMPILE_ARGS += -Wno-WIDTHTRUNC
 
 else
 # =============================================================================

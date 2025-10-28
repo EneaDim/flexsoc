@@ -54,7 +54,6 @@ async def test_uart_program_soc(dut):
     # ---- init IOs (nessuna lettura: valori definiti subito) ----
     dut.rst_ni.value    = 0
     dut.cio_gpio_i.value = 0
-    dut.spi_sdio_i.value = 0
     dut.cio_rx_i.value = Immediate(1)
 
     dut.clk_i.value    = Immediate(0)
