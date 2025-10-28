@@ -221,8 +221,9 @@ view_presyn_sv:
 compile_syn:
 ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(COMPILER) -g2012 -v -DSYN -DFUNCTIONAL -DSIM -o $(SIMDIR)/$(TOP)_syn_tb.vvp \
-	$(PRIM) $(TBDIR)/$(TOP)_tb.sv > $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
+	$(COMPILER) -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
+	-o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
+	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 else
 	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
 	$(COMPILER) -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
@@ -234,8 +235,7 @@ endif
 sim_syn: compile_syn
 ifeq ($(COMPILER), iverilog)
 	@$(ECHO) "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
-	vvp $(SIMDIR)/$(TOP)_syn_tb.vvp > $(LOGDIR)/$(TOP)_syn_sim.log \
-	> $(LOGDIR)/$(TOP)_sim_syn.log
+	vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
 else
 	@$(ECHO) "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
 	$(COMPILER) ${VERILATOR_FLAGS} -DSYN=1 --bbox-unsup --trace $(TBDIR)/$(TOP)_tb.sv \

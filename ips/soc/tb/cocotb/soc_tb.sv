@@ -19,8 +19,14 @@ module soc_tb;
     #1;
   end
 
+  initial begin
+    string sdf = "../../signoff/sdf/soc_ss.sdf";
+    $sdf_annotate(sdf, soc_tb.u_soc, , , "MAXIMUM");
+  end
+  
+
   // -------- DUT con porte pass-through --------
-  soc u_dut (
+  soc u_soc (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
     .cio_rx_i(cio_rx_i),

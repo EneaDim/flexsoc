@@ -142,24 +142,14 @@ else
 # GATE-LEVEL SOURCES
 # =============================================================================
 SIM_BUILD               = sim_build/gl
-COMPILE_ARGS           += -DFUNCTIONAL -DSIM -DUNIT_DELAY=#1
+COMPILE_ARGS           += -DSIM -DUNIT_DELAY=#1
+COMPILE_ARGS           += -gspecify
 VERILOG_SOURCES        += ../../verilog/primitives.v
 VERILOG_SOURCES        += ../../verilog/sky130_fd_sc_hd.v
 VERILOG_SOURCES        += ../../syn/soc_synth.v
-VERILOG_SOURCES        += soc_tb.v
-endif
+VERILOG_SOURCES        += soc_tb.sv
 
-# Parametri testbench
-export ITF ?= tlul
-export NBIT ?= 32
-export N_OP ?= 10
-export CLK_PERIOD_NS ?= 20.0
-export TB_CLK ?= clk_i
-export TB_RST ?= rst_ni
-export TB_RST_ACTIVE ?= low
-export TB_TL_A_PREFIX ?= tl_i
-export TB_TL_D_PREFIX ?= tl_o
-export TB_TL_SCOPE ?=
+endif
 
 # =============================================================================
 # Common compile flags / includes

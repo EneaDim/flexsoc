@@ -926,7 +926,7 @@ module {TOP}_tb;
   end
 
   // -------- DUT con porte pass-through --------
-  {TOP} u_dut (
+  {TOP} u_{TOP} (
     .{CLK}({CLK}),
     .{RST}({RST}),
 """)
