@@ -560,11 +560,14 @@ try:
         mystr += '  end\n\n'
 
         # SDF
-        mystr += '  // Dump vcd file \n'
-        mystr += '  initial begin\n'
-        mystr += '    string sdf = "signoff/sdf/'+str(top)+'_ss.sdf"\n'
-        mystr += '    $sdf_annotate(sdf, '+str(top)+'_tb.u_'+str(top)+', , , "MAXIMUM");\n'
-        mystr += '  end\n\n'
+  
+        mystr += '  // SDF backannotation \n'
+        mystr += '  `ifndef VERILATOR\n'
+        mystr += '    initial begin\n'
+        mystr += '      string sdf = "signoff/sdf/'+str(top)+'_ss.sdf";\n'
+        mystr += '      $sdf_annotate(sdf, '+str(top)+'_tb.u_'+str(top)+', , , "MAXIMUM");\n'
+        mystr += '    end\n\n'
+        mystr += '  `endif\n'
 
         # Error count
         mystr += '  initial begin\n'

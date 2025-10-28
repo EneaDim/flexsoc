@@ -926,10 +926,12 @@ module {TOP}_tb;
   end
 
   // SDF backannotation
-  initial begin
-    string sdf = "../../signoff/sdf/{TOP}_ss.sdf";
-    $sdf_annotate(sdf, {TOP}_tb.u_{TOP}, , , "MAXIMUM");
-  end
+  `ifndef VERILATOR
+    initial begin
+      string sdf = "../../signoff/sdf/{TOP}_ss.sdf";
+      $sdf_annotate(sdf, {TOP}_tb.u_{TOP}, , , "MAXIMUM");
+    end
+  `endif
   
   // -------- DUT con porte pass-through --------
   {TOP} u_{TOP} (
