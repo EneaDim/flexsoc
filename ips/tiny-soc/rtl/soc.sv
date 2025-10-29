@@ -58,7 +58,6 @@ module soc #(
     .valid_i (uart_rvalid),
     .rdata_i (uart_rdata),
     .err_i   (uart_err),
-    .intg_err_i(),
     .cio_rx_i,
     .cio_tx_o,
     .cio_tx_en_o

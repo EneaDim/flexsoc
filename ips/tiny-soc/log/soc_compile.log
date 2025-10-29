@@ -436,17 +436,17 @@
 %Warning-PINCONNECTEMPTY: rtl/rv_timer_reg_top.sv:416:6: Cell pin connected by name with empty reference: 'ds'
   416 |     .ds     (),
       |      ^~
-%Warning-PINCONNECTEMPTY: rtl/uart_core.sv:120:6: Cell pin connected by name with empty reference: 'full_o'
-  120 |     .full_o  (),
+%Warning-PINCONNECTEMPTY: rtl/uart_core.sv:132:6: Cell pin connected by name with empty reference: 'full_o'
+  132 |     .full_o  (),
       |      ^~~~~~
-%Warning-PINCONNECTEMPTY: rtl/uart_core.sv:124:6: Cell pin connected by name with empty reference: 'err_o'
-  124 |     .err_o   ()
+%Warning-PINCONNECTEMPTY: rtl/uart_core.sv:136:6: Cell pin connected by name with empty reference: 'err_o'
+  136 |     .err_o   ()
       |      ^~~~~
-%Warning-PINCONNECTEMPTY: rtl/uart_core.sv:224:6: Cell pin connected by name with empty reference: 'full_o'
-  224 |     .full_o  (),
+%Warning-PINCONNECTEMPTY: rtl/uart_core.sv:236:6: Cell pin connected by name with empty reference: 'full_o'
+  236 |     .full_o  (),
       |      ^~~~~~
-%Warning-PINCONNECTEMPTY: rtl/uart_core.sv:228:6: Cell pin connected by name with empty reference: 'err_o'
-  228 |     .err_o   ()
+%Warning-PINCONNECTEMPTY: rtl/uart_core.sv:240:6: Cell pin connected by name with empty reference: 'err_o'
+  240 |     .err_o   ()
       |      ^~~~~
 %Warning-PINCONNECTEMPTY: rtl/uart_reg_top.sv:73:6: Cell pin connected by name with empty reference: 'intg_error_o'
    73 |     .intg_error_o(),
@@ -583,20 +583,17 @@
 %Warning-PINCONNECTEMPTY: rtl/uart_reg_top.sv:592:6: Cell pin connected by name with empty reference: 'ds'
   592 |     .ds     (),
       |      ^~
-%Warning-PINCONNECTEMPTY: rtl/soc.sv:61:6: Cell pin connected by name with empty reference: 'intg_err_i'
-   61 |     .intg_err_i(),
-      |      ^~~~~~~~~~
-%Warning-PINCONNECTEMPTY: rtl/soc.sv:85:6: Cell pin connected by name with empty reference: 'rdata_intg_o'
-   85 |     .rdata_intg_o (),
+%Warning-PINCONNECTEMPTY: rtl/soc.sv:84:6: Cell pin connected by name with empty reference: 'rdata_intg_o'
+   84 |     .rdata_intg_o (),
       |      ^~~~~~~~~~~~
-%Warning-PINCONNECTEMPTY: rtl/soc.sv:87:6: Cell pin connected by name with empty reference: 'intg_err_o'
-   87 |     .intg_err_o   (),
+%Warning-PINCONNECTEMPTY: rtl/soc.sv:86:6: Cell pin connected by name with empty reference: 'intg_err_o'
+   86 |     .intg_err_o   (),
       |      ^~~~~~~~~~
-%Warning-PINCONNECTEMPTY: rtl/soc.sv:141:6: Cell pin connected by name with empty reference: 'intr_gpio_o'
-  141 |     .intr_gpio_o()
+%Warning-PINCONNECTEMPTY: rtl/soc.sv:140:6: Cell pin connected by name with empty reference: 'intr_gpio_o'
+  140 |     .intr_gpio_o()
       |      ^~~~~~~~~~~
-%Warning-PINCONNECTEMPTY: rtl/soc.sv:149:6: Cell pin connected by name with empty reference: 'intr_timer_expired_hart0_timer0_o'
-  149 |     .intr_timer_expired_hart0_timer0_o()
+%Warning-PINCONNECTEMPTY: rtl/soc.sv:148:6: Cell pin connected by name with empty reference: 'intr_timer_expired_hart0_timer0_o'
+  148 |     .intr_timer_expired_hart0_timer0_o()
       |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %Warning-MULTITOP: ips/prim/prim_clk_div.sv:5:8: Multiple top level modules
                                                : ... Suggest see manual; fix the duplicates, or use --top-module to select top.
@@ -1126,18 +1123,6 @@
                                                     : ... note: In instance 'tlul_assert_multiple.gen_assert[1].tlul_assert'
    18 |   input tlul_pkg::tl_d2h_t d2h
       |                            ^~~
-%Warning-UNUSEDSIGNAL: rtl/uart.sv:55:15: Signal is not driven, nor used: 'tx_valid_i'
-                                        : ... note: In instance 'soc.u_uart'
-   55 |   logic       tx_valid_i;
-      |               ^~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart.sv:56:15: Signal is not driven, nor used: 'tx_data_i'
-                                        : ... note: In instance 'soc.u_uart'
-   56 |   logic [7:0] tx_data_i;
-      |               ^~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart.sv:57:15: Signal is not driven, nor used: 'tx_ready_o'
-                                        : ... note: In instance 'soc.u_uart'
-   57 |   logic       tx_ready_o;
-      |               ^~~~~~~~~~
 %Warning-UNUSEDSIGNAL: ips/prim/prim_lzc.sv:38:46: Bits of signal are not driven, nor used: 'sel_nodes'[15]
                                                  : ... note: In instance 'rrarbiter.genblk2.i_upper_ff1'
    38 |   logic [2**NUM_LEVELS-1:0]                  sel_nodes;
@@ -1198,106 +1183,94 @@
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
    14 |   input  uart_reg_pkg::uart_reg2hw_t reg2hw,
       |                                      ^~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:36:19: Signal is not driven, nor used: 'rx_val_q'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:40:19: Signal is not driven, nor used: 'rx_val_q'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   36 |   logic   [15:0]  rx_val_q;
+   40 |   logic   [15:0]  rx_val_q;
       |                   ^~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:38:34: Signal is not used: 'rx_tick_baud'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:42:34: Signal is not used: 'rx_tick_baud'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   38 |   logic           tick_baud_x16, rx_tick_baud;
+   42 |   logic           tick_baud_x16, rx_tick_baud;
       |                                  ^~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:42:30: Signal is not driven, nor used: 'rx_fifo_depth_prev_q'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:46:30: Signal is not driven, nor used: 'rx_fifo_depth_prev_q'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   42 |   logic   [RxFifoDepthW-1:0] rx_fifo_depth_prev_q;
+   46 |   logic   [RxFifoDepthW-1:0] rx_fifo_depth_prev_q;
       |                              ^~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:44:19: Signal is not driven, nor used: 'rx_timeout_count_d'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:48:19: Signal is not driven, nor used: 'rx_timeout_count_d'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   44 |   logic   [23:0]  rx_timeout_count_d, rx_timeout_count_q, uart_rxto_val;
+   48 |   logic   [23:0]  rx_timeout_count_d, rx_timeout_count_q, uart_rxto_val;
       |                   ^~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:44:39: Signal is not driven, nor used: 'rx_timeout_count_q'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:48:39: Signal is not driven, nor used: 'rx_timeout_count_q'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   44 |   logic   [23:0]  rx_timeout_count_d, rx_timeout_count_q, uart_rxto_val;
+   48 |   logic   [23:0]  rx_timeout_count_d, rx_timeout_count_q, uart_rxto_val;
       |                                       ^~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:44:59: Signal is not driven, nor used: 'uart_rxto_val'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:48:59: Signal is not driven, nor used: 'uart_rxto_val'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   44 |   logic   [23:0]  rx_timeout_count_d, rx_timeout_count_q, uart_rxto_val;
+   48 |   logic   [23:0]  rx_timeout_count_d, rx_timeout_count_q, uart_rxto_val;
       |                                                           ^~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:45:19: Signal is not driven, nor used: 'rx_fifo_depth_changed'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:49:19: Signal is not driven, nor used: 'rx_fifo_depth_changed'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   45 |   logic           rx_fifo_depth_changed, uart_rxto_en;
+   49 |   logic           rx_fifo_depth_changed, uart_rxto_en;
       |                   ^~~~~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:45:42: Signal is not driven, nor used: 'uart_rxto_en'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:49:42: Signal is not driven, nor used: 'uart_rxto_en'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   45 |   logic           rx_fifo_depth_changed, uart_rxto_en;
+   49 |   logic           rx_fifo_depth_changed, uart_rxto_en;
       |                                          ^~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:59:19: Signal is not driven, nor used: 'break_err'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:63:19: Signal is not driven, nor used: 'break_err'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   59 |   logic           break_err;
+   63 |   logic           break_err;
       |                   ^~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:60:19: Signal is not driven, nor used: 'allzero_cnt_d'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:64:19: Signal is not driven, nor used: 'allzero_cnt_d'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   60 |   logic   [4:0]   allzero_cnt_d, allzero_cnt_q;
+   64 |   logic   [4:0]   allzero_cnt_d, allzero_cnt_q;
       |                   ^~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:60:34: Signal is not driven, nor used: 'allzero_cnt_q'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:64:34: Signal is not driven, nor used: 'allzero_cnt_q'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   60 |   logic   [4:0]   allzero_cnt_d, allzero_cnt_q;
+   64 |   logic   [4:0]   allzero_cnt_d, allzero_cnt_q;
       |                                  ^~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:61:19: Signal is not driven, nor used: 'allzero_err'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:65:19: Signal is not driven, nor used: 'allzero_err'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   61 |   logic           allzero_err, not_allzero_char;
+   65 |   logic           allzero_err, not_allzero_char;
       |                   ^~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:61:32: Signal is not driven, nor used: 'not_allzero_char'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:65:32: Signal is not driven, nor used: 'not_allzero_char'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   61 |   logic           allzero_err, not_allzero_char;
+   65 |   logic           allzero_err, not_allzero_char;
       |                                ^~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:62:19: Signal is not driven, nor used: 'event_tx_watermark'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:66:19: Signal is not driven, nor used: 'event_tx_watermark'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   62 |   logic           event_tx_watermark, event_tx_empty, event_rx_watermark, event_tx_done;
+   66 |   logic           event_tx_watermark, event_tx_empty, event_rx_watermark, event_tx_done;
       |                   ^~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:62:39: Signal is not driven, nor used: 'event_tx_empty'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:66:39: Signal is not driven, nor used: 'event_tx_empty'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   62 |   logic           event_tx_watermark, event_tx_empty, event_rx_watermark, event_tx_done;
+   66 |   logic           event_tx_watermark, event_tx_empty, event_rx_watermark, event_tx_done;
       |                                       ^~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:62:55: Signal is not driven, nor used: 'event_rx_watermark'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:66:55: Signal is not driven, nor used: 'event_rx_watermark'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   62 |   logic           event_tx_watermark, event_tx_empty, event_rx_watermark, event_tx_done;
+   66 |   logic           event_tx_watermark, event_tx_empty, event_rx_watermark, event_tx_done;
       |                                                       ^~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:62:75: Signal is not driven, nor used: 'event_tx_done'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:66:75: Signal is not driven, nor used: 'event_tx_done'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   62 |   logic           event_tx_watermark, event_tx_empty, event_rx_watermark, event_tx_done;
+   66 |   logic           event_tx_watermark, event_tx_empty, event_rx_watermark, event_tx_done;
       |                                                                           ^~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:63:19: Signal is not driven, nor used: 'event_rx_overflow'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:67:19: Signal is not driven, nor used: 'event_rx_overflow'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   63 |   logic           event_rx_overflow, event_rx_frame_err, event_rx_break_err, event_rx_timeout;
+   67 |   logic           event_rx_overflow, event_rx_frame_err, event_rx_break_err, event_rx_timeout;
       |                   ^~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:63:58: Signal is not driven, nor used: 'event_rx_break_err'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:67:58: Signal is not driven, nor used: 'event_rx_break_err'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   63 |   logic           event_rx_overflow, event_rx_frame_err, event_rx_break_err, event_rx_timeout;
+   67 |   logic           event_rx_overflow, event_rx_frame_err, event_rx_break_err, event_rx_timeout;
       |                                                          ^~~~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:63:78: Signal is not driven, nor used: 'event_rx_timeout'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:67:78: Signal is not driven, nor used: 'event_rx_timeout'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   63 |   logic           event_rx_overflow, event_rx_frame_err, event_rx_break_err, event_rx_timeout;
+   67 |   logic           event_rx_overflow, event_rx_frame_err, event_rx_break_err, event_rx_timeout;
       |                                                                              ^~~~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:65:19: Signal is not driven, nor used: 'tx_uart_idle_q'
+%Warning-UNUSEDSIGNAL: rtl/uart_core.sv:69:19: Signal is not driven, nor used: 'tx_uart_idle_q'
                                              : ... note: In instance 'soc.u_uart.u_uart_core'
-   65 |   logic           tx_uart_idle_q;
+   69 |   logic           tx_uart_idle_q;
       |                   ^~~~~~~~~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_host_bridge.sv:23:23: Signal is not used: 'valid_i'
-                                                    : ... note: In instance 'soc.u_uart.u_bridge'
-   23 |   input  logic        valid_i,
-      |                       ^~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_host_bridge.sv:24:23: Signal is not used: 'rdata_i'
-                                                    : ... note: In instance 'soc.u_uart.u_bridge'
-   24 |   input  logic [31:0] rdata_i,
-      |                       ^~~~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_host_bridge.sv:25:23: Signal is not used: 'err_i'
-                                                    : ... note: In instance 'soc.u_uart.u_bridge'
-   25 |   input  logic        err_i,
-      |                       ^~~~~
-%Warning-UNUSEDSIGNAL: rtl/uart_host_bridge.sv:26:23: Signal is not used: 'intg_err_i'
-                                                    : ... note: In instance 'soc.u_uart.u_bridge'
-   26 |   input  logic        intg_err_i
-      |                       ^~~~~~~~~~
+%Warning-UNUSEDPARAM: rtl/uart_host_bridge.sv:34:19: Parameter is not used: 'OP_RD'
+                                                   : ... note: In instance 'soc.u_uart.u_bridge'
+   34 |   localparam byte OP_RD     = 8'd0;
+      |                   ^~~~~
 %Warning-UNUSEDSIGNAL: ips/tlul/tlul_socket_1n.sv:175:22: Bits of signal are not used: 'tl_t_p'[0]
                                                         : ... note: In instance 'soc.xbar.u_s1n_6'
   175 |   tlul_pkg::tl_d2h_t tl_t_p ;
@@ -1455,5 +1428,5 @@ g++    verilated.o verilated_threads.o Vtop_pkg__ALL.a    -pthread -lpthread -la
 rm Vtop_pkg__ALL.verilator_deplist.tmp
 make[1]: Leaving directory '/home/eneadim/github/flexsoc/sim/verilator'
 - V e r i l a t i o n   R e p o r t: Verilator 5.036 2025-04-27 rev v5.036-48-g0dc93c1d5
-- Verilator: Built from 28.960 MB sources in 105 modules, into 2.011 MB in 11 C++ files needing 0.002 MB
-- Verilator: Walltime 1.266 s (elab=0.084, cvt=0.327, bld=0.765); cpu 0.501 s on 1 threads; alloced 41.945 MB
+- Verilator: Built from 28.978 MB sources in 105 modules, into 2.026 MB in 11 C++ files needing 0.002 MB
+- Verilator: Walltime 1.168 s (elab=0.043, cvt=0.165, bld=0.886); cpu 0.283 s on 1 threads; alloced 57.152 MB

@@ -24,7 +24,6 @@ module uart import uart_reg_pkg::*; (
   input  logic        valid_i,
   input  logic [31:0] rdata_i,
   input  logic        err_i,
-  input  logic        intg_err_i,
 
   // Generic IO
   input           cio_rx_i,
@@ -45,16 +44,13 @@ module uart import uart_reg_pkg::*; (
     .devmode_i(1'b1)
   );
 
-    // uart_core con porte streaming
-  logic core_tx;
+  logic       rx_valid;
+  logic [7:0] rx_data;
+  logic       rx_pop;
 
-  logic       rx_valid_o;
-  logic [7:0] rx_data_o;
-  logic       rx_pop_i;
-
-  logic       tx_valid_i;
-  logic [7:0] tx_data_i;
-  logic       tx_ready_o;
+  logic       tx_valid;
+  logic [7:0] tx_data;
+  logic       tx_ready;
 
   uart_core u_uart_core (
     .clk_i,
@@ -62,22 +58,28 @@ module uart import uart_reg_pkg::*; (
     .reg2hw,
     .hw2reg,
     .rx (cio_rx_i),
-    .tx (core_tx),
-    .rx_valid_o (rx_valid_o),
-    .rx_data_o  (rx_data_o),
-    .rx_pop_i   (rx_pop_i)
+    .tx (cio_tx_o),
+    .rx_valid_o (rx_valid),
+    .rx_data_o  (rx_data),
+    .rx_pop_i   (rx_pop),
+    .tx_valid_i (tx_valid),
+    .tx_data_i  (tx_data),
+    .tx_ready_o (tx_ready)
   );
 
-  assign cio_tx_o    = core_tx;
   assign cio_tx_en_o = 1'b1;
 
   // Bridge UART↔host
   uart_host_bridge u_bridge (
     .clk_i, .rst_ni,
 
-    .rx_valid_i (rx_valid_o),
-    .rx_data_i  (rx_data_o),
-    .rx_pop_o   (rx_pop_i),
+    .rx_valid_i (rx_valid),
+    .rx_data_i  (rx_data),
+    .rx_pop_o   (rx_pop),
+
+    .tx_valid_o (tx_valid),
+    .tx_data_o  (tx_data),
+    .tx_ready_i (tx_ready),
 
     // → tlul_adapter_host nel top
     .req_o,
@@ -90,8 +92,7 @@ module uart import uart_reg_pkg::*; (
     // ← risposta dall'adapter
     .valid_i,
     .rdata_i,
-    .err_i,
-    .intg_err_i
+    .err_i
   );
 
 endmodule

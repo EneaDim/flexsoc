@@ -116,15 +116,18 @@ module soc_tb;
   localparam logic [31:0] TIMER_BASE  = 32'h8006_0000;
   
   // Offsets (ADATTA ai tuoi registri reali)
-  localparam logic [31:0] UART_CTRL_OFF   = 32'h0000_0010;  // CTRL: abilita tx/rx, nco ecc.
+  localparam logic [31:0] UART_CTRL_OFF   = 32'h0000_0000;  // CTRL: abilita tx/rx, nco ecc.
   //////////////////////////////////////////////////////////////////////////////////////////
-  localparam logic [31:0] PWM_CFG_OFF     = 32'h0000_0004;  // duty del canale 0
-  localparam logic [31:0] PWM_EN_OFF      = 32'h0000_0008;  // enable pwm block
-  localparam logic [31:0] PWM_PHASE_OFF   = 32'h0000_0010;  // duty del canale 0
-  localparam logic [31:0] PWM_DUTY0_OFF   = 32'h0000_0014;  // duty del canale 0
+  localparam logic [31:0] PWM_REGWEN_OFF    = 32'h0000_0000;  // Register write enable
+  localparam logic [31:0] PWM_CFG_OFF       = 32'h0000_0004;  // Config register
+  localparam logic [31:0] PWM_EN_OFF        = 32'h0000_0008;  // Enable per canale
+  localparam logic [31:0] PWM_INVERT_OFF    = 32'h0000_000C;  // Invert per canale
+  localparam logic [31:0] PWM_PARAM_OFF     = 32'h0000_0010;  // Blink/heartbeat parametri
+  localparam logic [31:0] PWM_DUTY_OFF      = 32'h0000_0014;  // Duty cycle A/B
+  localparam logic [31:0] PWM_BLINK_OFF     = 32'h0000_0018;  // Blink timing parametri
   //////////////////////////////////////////////////////////////////////////////////////////
-  localparam logic [31:0] GPIO_INT_EN     = 32'h0000_0004;  // enable bit nello SPI host
-  localparam logic [31:0] GPIO_INT_RISE   = 32'h0000_0028;  // enable bit nello SPI host
+  localparam logic [31:0] GPIO_INT_EN     = 32'h0000_0004;
+  localparam logic [31:0] GPIO_INT_RISE   = 32'h0000_0028;
   //////////////////////////////////////////////////////////////////////////////////////////
   
   initial begin
@@ -144,21 +147,19 @@ module soc_tb;
     rst_ni = 1;
     #(CLK_PERIOD*20);
   
-    // 1) Abilita TX (e RX) della UART + set NCO coerente al tuo bit-banging (qui irrilevante per RX; serve per TX)
-    //    Se la tua UART al reset ha RX già abilitata, questo step serve soprattutto ad accendere il TX.
-    //assign ctrl_val = uart_ctrl_val(/*tx*/1, /*rx*/1, /*parity_en*/0, /*parity_odd*/0, /*nco*/16'd0);
+    // 1) Abilita TX + set NCO coerente al tuo bit-banging
     uart_write32(UART_BASE + UART_CTRL_OFF, 32'h0970_0001); // For 100MHz fclk
     #(CLK_PERIOD*2000);
   
     // 2) Imposta duty cycle PWM (esempio 50%) e abilita PWM
     uart_write32(PWM_BASE + PWM_CFG_OFF,   32'hB8000010);
-    uart_write32(PWM_BASE + PWM_PHASE_OFF, 32'h0000_7FFF);
-    uart_write32(PWM_BASE + PWM_EN_OFF,   32'h1);
+    uart_write32(PWM_BASE + PWM_PARAM_OFF, 32'h0000_7FFF);
+    uart_write32(PWM_BASE + PWM_EN_OFF,    32'h1);
     #(CLK_PERIOD*2000);
 
     // Enable interrupt in GPIO
     uart_write32(GPIO_BASE + GPIO_INT_EN,   32'h1);
-    uart_write32(GPIO_BASE + GPIO_INT_RISE,   32'h1);
+    uart_write32(GPIO_BASE + GPIO_INT_RISE, 32'h1);
     #(CLK_PERIOD*2000);
 
     // Raise GPIO pin
@@ -167,9 +168,44 @@ module soc_tb;
 
     // Read UART CTRL
     uart_read32(UART_BASE + UART_CTRL_OFF);
+
+    //////////////////////////////////////////////////////////////
+    //                                                          // 
+    //                         PWM RAMP                         //
+    //                                                          // 
+    //////////////////////////////////////////////////////////////
+
+    // Abilita scritture ai registri
+    //uart_write32(PWM_BASE + PWM_REGWEN_OFF, 32'h0000_0001);
+
+    //// Configura PWM:
+    //// CNTR_EN=1 (bit 31)
+    //// DC_RESN=7 (bits 30:27=0x7)
+    //// CLK_DIV=0xC2 (194) → ~1 kHz
+    //uart_write32(PWM_BASE + PWM_CFG_OFF, 32'hB0000003);
+
+    //// Non invertire l’uscita
+    //uart_write32(PWM_BASE + PWM_INVERT_OFF, 32'h0000_0000);
+
+    //// Abilita blink + heartbeat (bit31=BLINK_EN=1, bit30=HTBT_EN=1)
+    //// PHASE_DELAY=0
+    //uart_write32(PWM_BASE + PWM_PARAM_OFF, 32'hC0000000);
+
+    //// Duty cycle iniziale A=0x0000 (0%) e target B=0xFFFF (100%)
+    //uart_write32(PWM_BASE + PWM_DUTY_OFF, 32'h0000FFFF);
+
+    //// Abilita canale 0
+    //uart_write32(PWM_BASE + PWM_EN_OFF, 32'h0000_0001);
+    //
+    //// BLINK_PARAM:
+    //// X=3  → incremento ogni (X+1)=4 periodi PWM
+    //// Y=255→ step di (Y+1)=256 unità (~1 LSB effettivo con DC_RESN=7)
+    //uart_write32(PWM_BASE + PWM_BLINK_OFF, 32'h01FF0000);
   
+    //
     // fine
-    #(CLK_PERIOD*80000);
+    //
+    #(CLK_PERIOD*120000);
     $finish;
   end
 endmodule

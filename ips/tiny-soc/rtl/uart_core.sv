@@ -15,12 +15,16 @@ module uart_core (
   output uart_reg_pkg::uart_hw2reg_t hw2reg,
 
   // pin fisici
-  input                  rx,
+  input  logic           rx,
   output logic           tx,
 
   output logic           rx_valid_o,
   output logic [7:0]     rx_data_o,
-  input  logic           rx_pop_i
+  input  logic           rx_pop_i,
+
+  input  logic           tx_valid_i,
+  input  logic [7:0]     tx_data_i,
+  output logic           tx_ready_o
 );
 
   import uart_reg_pkg::*;
@@ -64,6 +68,10 @@ module uart_core (
   logic           event_rx_parity_err;
   logic           tx_uart_idle_q;
 
+  logic           rx_fifo_pop;
+  logic   [7:0]   tx_fifo_wdata;
+  logic           tx_fifo_wvalid;
+
   assign tx_enable        = reg2hw.ctrl.tx.q;
   //assign rx_enable        = reg2hw.ctrl.rx.q;
   assign rx_enable        = 1'b1;
@@ -103,7 +111,11 @@ module uart_core (
   // TX Logic //
   //////////////
 
-  assign tx_fifo_rready = tx_uart_idle & tx_fifo_rvalid & tx_enable;
+  assign tx_fifo_rready  = tx_uart_idle & tx_fifo_rvalid & tx_enable;
+
+  assign tx_fifo_wdata   = reg2hw.wdata.q  | tx_data_i;
+  assign tx_fifo_wvalid  = reg2hw.wdata.qe | tx_valid_i;
+  assign tx_ready_o      = tx_fifo_wready;
 
   prim_fifo_sync #(
     .Width   (8),
@@ -113,9 +125,9 @@ module uart_core (
     .clk_i,
     .rst_ni,
     .clr_i   (uart_fifo_txrst),
-    .wvalid_i(reg2hw.wdata.qe),
+    .wvalid_i(tx_fifo_wvalid),
     .wready_o(tx_fifo_wready),
-    .wdata_i (reg2hw.wdata.q),
+    .wdata_i (tx_fifo_wdata),
     .depth_o (tx_fifo_depth),
     .full_o  (),
     .rvalid_o(tx_fifo_rvalid),
@@ -207,7 +219,7 @@ module uart_core (
   // Pop se:
   //  - la CPU legge RDATA (reg2hw.rdata.re == 1)
   //  - OPPURE lo chiede lo stream (rx_pop_i == 1)
-  wire rx_fifo_pop = reg2hw.rdata.re | rx_pop_i;
+  assign rx_fifo_pop = reg2hw.rdata.re | rx_pop_i;
 
   prim_fifo_sync #(
     .Width   (8),
