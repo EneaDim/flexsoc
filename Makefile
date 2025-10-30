@@ -163,7 +163,6 @@ regression:
 
 .PHONY: syn syn_v syn_sv
 syn: $(if $(filter v,$(VSV)),syn_v,syn_sv)
-	$(MAKE) sdf
 
 syn_v: setup_syn
 	@$(MKDIR) -p $(SYNDIR)/plots
@@ -316,9 +315,9 @@ fsm_plot:
 fsm_flow: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 
 # BASIC FLOW:
-ip_flow: reg doc lint sim syn sta sta_violators power view
-ip_flow_noreg: lint sim syn sta sta_violators power view
-ip_flow_all: ip_start syn sta sta_violators power view pnr pnr_gui
+ip_flow: reg doc lint sim syn sdf sta sta_violators power view
+ip_flow_noreg: lint sim syn sdf sta sta_violators power view
+ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui
 
 # FUSESOC
 fsoc_init:
@@ -374,7 +373,7 @@ soc_pless: ip_load xbar
 	@$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
 	@$(MAKE) soc_build IPS="pwm gpio rv_timer"
 	@$(CP) top/soc.sv $(RTLDIR)/
-	@$(MAKE) sim syn sta power view TOP=soc
+	@$(MAKE) sim syn sdf sta power view TOP=soc
 
 copy-uart-host:
 	@$(CP) ips/soc/$(RTLDIR)/uart* $(RTLDIR)/
