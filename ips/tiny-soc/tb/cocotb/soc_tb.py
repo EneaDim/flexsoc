@@ -44,7 +44,6 @@ async def uart_read32(dut, addr: int):
     await uart_send_byte(dut, 0xA5)
     await uart_send_byte(dut, 0x00)
     await uart_send_byte(dut, 0x0F)
-    await uart_send_byte(dut, 0x00)
     await uart_send_word32(dut, addr)
 
 @cocotb.test()
@@ -72,11 +71,11 @@ async def test_uart_program_soc(dut):
 
     # ---- indirizzi di esempio (adatta ai tuoi reali) ----
     UART_BASE     = 0x8000_0000
+    UART_CTRL_OFF = 0x0000_0000
     PWM_BASE      = 0x8002_0000
     PWM_EN_OFF    = 0x0000_0008
     PWM_CFG_OFF   = 0x0000_0004
     PWM_PHASE_OFF = 0x0000_0010
-    UART_CTRL_OFF = 0x0000_0010
 
     # 1) abilita UART TX/RX (placeholder)
     await uart_write32(dut, UART_BASE + UART_CTRL_OFF, 0x0970_0001, be=0xF)
@@ -87,6 +86,11 @@ async def test_uart_program_soc(dut):
     await uart_write32(dut, PWM_BASE + PWM_EN_OFF,    0x0000_0001, be=0xF)
 
     # attesa per propagazione
+    await ClockCycles(dut.clk_i, 1000)
+
+    print(UART_BASE+UART_CTRL_OFF)
+    await uart_read32(dut, UART_BASE + UART_CTRL_OFF)
+
     await ClockCycles(dut.clk_i, 1000)
 
     # lascia RX in idle alto
