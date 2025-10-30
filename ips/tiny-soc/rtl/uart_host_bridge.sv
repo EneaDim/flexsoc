@@ -83,10 +83,8 @@ module uart_host_bridge (
       be_q      <= 4'hF;
       we_q      <= 1'b0;
       req_q     <= 1'b0;
-
       rdata_q   <= '0;
       any_err_q <= 1'b0;
-
       tx_st_q   <= TX_IDLE;
       tx_idx_q  <= '0;
     end else begin
@@ -100,10 +98,8 @@ module uart_host_bridge (
       be_q      <= be_d;
       we_q      <= we_d;
       req_q     <= req_d;
-
       rdata_q   <= rdata_d;
       any_err_q <= any_err_d;
-
       tx_st_q   <= tx_st_d;
       tx_idx_q  <= tx_idx_d;
     end
@@ -117,17 +113,13 @@ module uart_host_bridge (
     sh_d      = sh_q;
     op_d      = op_q;
     bebyte_d  = bebyte_q;
-
     addr_d    = addr_q;
     wdata_d   = wdata_q;
     be_d      = be_q;
     we_d      = we_q;
     req_d     = req_q;
-
     rdata_d   = rdata_q;
     any_err_d = any_err_q;
-
-    // TX defaults
     tx_st_d   = tx_st_q;
     tx_idx_d  = tx_idx_q;
     tx_valid_o= 1'b0;
@@ -146,12 +138,12 @@ module uart_host_bridge (
       RXF_HDR: begin
         if (rx_valid_i) begin
           case (idx_q)
-            2'd0: /* VER=0x01 (eventuale check) */;
+            2'd0: /* A5 or 5A */;
             2'd1: op_d     = rx_data_i;
-            2'd2: /* RSV   */;
-            2'd3: bebyte_d = rx_data_i;
+            2'd2: bebyte_d = rx_data_i;
+            2'd3: /**/;
           endcase
-          if (idx_q==2'd3) begin
+          if (idx_q==2'd2) begin
             idx_d    = '0;
             rxf_st_d = RXF_ADDR;
           end else idx_d = idx_q + 2'd1;

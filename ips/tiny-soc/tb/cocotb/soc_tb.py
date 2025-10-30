@@ -35,7 +35,6 @@ async def uart_write32(dut, addr: int, data: int, be: int):
     # A5 | 01 | 01(WRITE) | {0000,BE} | ADDR(4B LSB-first) | DATA(4B LSB-first)
     await uart_send_byte(dut, 0xA5)
     await uart_send_byte(dut, 0x01)
-    await uart_send_byte(dut, 0x01)
     await uart_send_byte(dut, ((be & 0xF) | 0x00) & 0xFF)
     await uart_send_word32(dut, addr)
     await uart_send_word32(dut, data)
@@ -43,7 +42,6 @@ async def uart_write32(dut, addr: int, data: int, be: int):
 async def uart_read32(dut, addr: int):
     # A5 | 01 | 00(READ) | 0x0F | 00 | ADDR(4B LSB-first)
     await uart_send_byte(dut, 0xA5)
-    await uart_send_byte(dut, 0x01)
     await uart_send_byte(dut, 0x00)
     await uart_send_byte(dut, 0x0F)
     await uart_send_byte(dut, 0x00)

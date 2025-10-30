@@ -99,9 +99,6 @@ module pwm_reg_top
   logic pwm_en_we;
   logic [0:0] pwm_en_qs;
   logic pwm_en_busy;
-  logic invert_we;
-  logic [0:0] invert_qs;
-  logic invert_busy;
   logic pwm_param_we;
   logic [31:0] pwm_param_qs;
   logic pwm_param_busy;
@@ -195,45 +192,6 @@ module pwm_reg_top
   );
   assign unused__pwm_en_wdata =
       ^_pwm_en_wdata;
-
-  logic  _invert_qs_int;
-  logic [0:0] _invert_qs;
-  logic [0:0] _invert_wdata;
-  logic _invert_we;
-  logic unused__invert_wdata;
-  logic _invert_regwen;
-
-  always_comb begin
-    _invert_qs = 1'h0;
-    _invert_qs = _invert_qs_int;
-  end
-
-  prim_reg_cdc #(
-    .DataWidth(1),
-    .ResetVal(1'h0),
-    .BitMask(1'h1),
-    .DstWrReq(0)
-  ) u_invert_cdc (
-    .clk_src_i    (clk_i),
-    .rst_src_ni   (rst_ni),
-    .clk_dst_i    (clk_i),
-    .rst_dst_ni   (rst_ni),
-    .src_regwen_i (regwen_qs),
-    .src_we_i     (invert_we),
-    .src_re_i     ('0),
-    .src_wd_i     (reg_wdata[0:0]),
-    .src_busy_o   (invert_busy),
-    .src_qs_o     (invert_qs), // for software read back
-    .dst_update_i ('0),
-    .dst_ds_i     ('0),
-    .dst_qs_i     (_invert_qs),
-    .dst_we_o     (_invert_we),
-    .dst_re_o     (),
-    .dst_regwen_o (_invert_regwen),
-    .dst_wd_o     (_invert_wdata)
-  );
-  assign unused__invert_wdata =
-      ^_invert_wdata;
 
   logic [15:0]  _pwm_param_phase_delay_0_qs_int;
   logic  _pwm_param_htbt_en_0_qs_int;
@@ -533,50 +491,6 @@ module pwm_reg_top
   assign reg2hw.pwm_en[0].qe = pwm_en_qe;
 
 
-  // Subregister 0 of Multireg invert
-  // R[invert]: V(False)
-  logic invert_qe;
-  logic [0:0] invert_flds_we;
-  prim_flop #(
-    .Width(1),
-    .ResetValue(0)
-  ) u_invert0_qe (
-    .clk_i(clk_i),
-    .rst_ni(rst_ni),
-    .d_i(&invert_flds_we),
-    .q_o(invert_qe)
-  );
-  // Create REGWEN-gated WE signal
-  logic _invert_gated_we;
-  assign _invert_gated_we = _invert_we & _invert_regwen;
-  prim_subreg #(
-    .DW      (1),
-    .SwAccess(prim_subreg_pkg::SwAccessRW),
-    .RESVAL  (1'h0),
-    .Mubi    (1'b0)
-  ) u_invert (
-    .clk_i   (clk_i),
-    .rst_ni  (rst_ni),
-
-    // from register interface
-    .we     (_invert_gated_we),
-    .wd     (_invert_wdata[0]),
-
-    // from internal hardware
-    .de     (1'b0),
-    .d      ('0),
-
-    // to internal hardware
-    .qe     (invert_flds_we[0]),
-    .q      (reg2hw.invert[0].q),
-    .ds     (),
-
-    // to register interface (read)
-    .qs     (_invert_qs_int)
-  );
-  assign reg2hw.invert[0].qe = invert_qe;
-
-
   // Subregister 0 of Multireg pwm_param
   // R[pwm_param]: V(False)
   logic pwm_param_qe;
@@ -825,16 +739,15 @@ module pwm_reg_top
 
 
 
-  logic [6:0] addr_hit;
+  logic [5:0] addr_hit;
   always_comb begin
     addr_hit = '0;
     addr_hit[0] = (reg_addr == PWM_REGWEN_OFFSET);
     addr_hit[1] = (reg_addr == PWM_CFG_OFFSET);
     addr_hit[2] = (reg_addr == PWM_PWM_EN_OFFSET);
-    addr_hit[3] = (reg_addr == PWM_INVERT_OFFSET);
-    addr_hit[4] = (reg_addr == PWM_PWM_PARAM_OFFSET);
-    addr_hit[5] = (reg_addr == PWM_DUTY_CYCLE_OFFSET);
-    addr_hit[6] = (reg_addr == PWM_BLINK_PARAM_OFFSET);
+    addr_hit[3] = (reg_addr == PWM_PWM_PARAM_OFFSET);
+    addr_hit[4] = (reg_addr == PWM_DUTY_CYCLE_OFFSET);
+    addr_hit[5] = (reg_addr == PWM_BLINK_PARAM_OFFSET);
   end
 
   assign addrmiss = (reg_re || reg_we) ? ~|addr_hit : 1'b0 ;
@@ -847,8 +760,7 @@ module pwm_reg_top
                (addr_hit[2] & (|(PWM_PERMIT[2] & ~reg_be))) |
                (addr_hit[3] & (|(PWM_PERMIT[3] & ~reg_be))) |
                (addr_hit[4] & (|(PWM_PERMIT[4] & ~reg_be))) |
-               (addr_hit[5] & (|(PWM_PERMIT[5] & ~reg_be))) |
-               (addr_hit[6] & (|(PWM_PERMIT[6] & ~reg_be)))));
+               (addr_hit[5] & (|(PWM_PERMIT[5] & ~reg_be)))));
   end
 
   // Generate write-enables
@@ -861,16 +773,14 @@ module pwm_reg_top
 
   assign pwm_en_we = addr_hit[2] & reg_we & !reg_error;
 
-  assign invert_we = addr_hit[3] & reg_we & !reg_error;
-
-  assign pwm_param_we = addr_hit[4] & reg_we & !reg_error;
+  assign pwm_param_we = addr_hit[3] & reg_we & !reg_error;
 
 
 
-  assign duty_cycle_we = addr_hit[5] & reg_we & !reg_error;
+  assign duty_cycle_we = addr_hit[4] & reg_we & !reg_error;
 
 
-  assign blink_param_we = addr_hit[6] & reg_we & !reg_error;
+  assign blink_param_we = addr_hit[5] & reg_we & !reg_error;
 
 
 
@@ -889,15 +799,12 @@ module pwm_reg_top
         reg_rdata_next = DW'(pwm_en_qs);
       end
       addr_hit[3]: begin
-        reg_rdata_next = DW'(invert_qs);
-      end
-      addr_hit[4]: begin
         reg_rdata_next = DW'(pwm_param_qs);
       end
-      addr_hit[5]: begin
+      addr_hit[4]: begin
         reg_rdata_next = DW'(duty_cycle_qs);
       end
-      addr_hit[6]: begin
+      addr_hit[5]: begin
         reg_rdata_next = DW'(blink_param_qs);
       end
       default: begin
@@ -923,15 +830,12 @@ module pwm_reg_top
         reg_busy_sel = pwm_en_busy;
       end
       addr_hit[3]: begin
-        reg_busy_sel = invert_busy;
-      end
-      addr_hit[4]: begin
         reg_busy_sel = pwm_param_busy;
       end
-      addr_hit[5]: begin
+      addr_hit[4]: begin
         reg_busy_sel = duty_cycle_busy;
       end
-      addr_hit[6]: begin
+      addr_hit[5]: begin
         reg_busy_sel = blink_param_busy;
       end
       default: begin

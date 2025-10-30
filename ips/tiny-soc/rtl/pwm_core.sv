@@ -29,7 +29,7 @@ module pwm_core #(
     // Though it may be a bit overkill, we reset the internal blink counters whenever any channel
     // specific parameters change.
 
-    assign clr_blink_cntr[ii] = reg2hw.pwm_en[ii].qe | reg2hw.invert[ii].qe |
+    assign clr_blink_cntr[ii] = reg2hw.pwm_en[ii].qe |
                                 reg2hw.pwm_param[ii].phase_delay.qe |
                                 reg2hw.pwm_param[ii].htbt_en.qe |
                                 reg2hw.pwm_param[ii].blink_en.qe |
@@ -106,7 +106,6 @@ module pwm_core #(
       .clk_i            (clk_core_i),
       .rst_ni           (rst_core_ni),
       .pwm_en_i         (reg2hw.pwm_en[ii].q),
-      .invert_i         (reg2hw.invert[ii].q),
       .phase_delay_i    (reg2hw.pwm_param[ii].phase_delay.q),
       .blink_en_i       (reg2hw.pwm_param[ii].blink_en.q),
       .htbt_en_i        (reg2hw.pwm_param[ii].htbt_en.q),

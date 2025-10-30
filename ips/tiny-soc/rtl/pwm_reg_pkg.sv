@@ -40,11 +40,6 @@ package pwm_reg_pkg;
   } pwm_reg2hw_pwm_en_mreg_t;
 
   typedef struct packed {
-    logic        q;
-    logic        qe;
-  } pwm_reg2hw_invert_mreg_t;
-
-  typedef struct packed {
     struct packed {
       logic        q;
       logic        qe;
@@ -83,9 +78,8 @@ package pwm_reg_pkg;
 
   // Register -> HW type
   typedef struct packed {
-    pwm_reg2hw_cfg_reg_t cfg; // [127:93]
-    pwm_reg2hw_pwm_en_mreg_t [0:0] pwm_en; // [92:91]
-    pwm_reg2hw_invert_mreg_t [0:0] invert; // [90:89]
+    pwm_reg2hw_cfg_reg_t cfg; // [125:91]
+    pwm_reg2hw_pwm_en_mreg_t [0:0] pwm_en; // [90:89]
     pwm_reg2hw_pwm_param_mreg_t [0:0] pwm_param; // [88:68]
     pwm_reg2hw_duty_cycle_mreg_t [0:0] duty_cycle; // [67:34]
     pwm_reg2hw_blink_param_mreg_t [0:0] blink_param; // [33:0]
@@ -95,31 +89,28 @@ package pwm_reg_pkg;
   parameter logic [BlockAw-1:0] PWM_REGWEN_OFFSET = 5'h 0;
   parameter logic [BlockAw-1:0] PWM_CFG_OFFSET = 5'h 4;
   parameter logic [BlockAw-1:0] PWM_PWM_EN_OFFSET = 5'h 8;
-  parameter logic [BlockAw-1:0] PWM_INVERT_OFFSET = 5'h c;
-  parameter logic [BlockAw-1:0] PWM_PWM_PARAM_OFFSET = 5'h 10;
-  parameter logic [BlockAw-1:0] PWM_DUTY_CYCLE_OFFSET = 5'h 14;
-  parameter logic [BlockAw-1:0] PWM_BLINK_PARAM_OFFSET = 5'h 18;
+  parameter logic [BlockAw-1:0] PWM_PWM_PARAM_OFFSET = 5'h c;
+  parameter logic [BlockAw-1:0] PWM_DUTY_CYCLE_OFFSET = 5'h 10;
+  parameter logic [BlockAw-1:0] PWM_BLINK_PARAM_OFFSET = 5'h 14;
 
   // Register index
   typedef enum int {
     PWM_REGWEN,
     PWM_CFG,
     PWM_PWM_EN,
-    PWM_INVERT,
     PWM_PWM_PARAM,
     PWM_DUTY_CYCLE,
     PWM_BLINK_PARAM
   } pwm_id_e;
 
   // Register width information to check illegal writes
-  parameter logic [3:0] PWM_PERMIT [7] = '{
+  parameter logic [3:0] PWM_PERMIT [6] = '{
     4'b 0001, // index[0] PWM_REGWEN
     4'b 1111, // index[1] PWM_CFG
     4'b 0001, // index[2] PWM_PWM_EN
-    4'b 0001, // index[3] PWM_INVERT
-    4'b 1111, // index[4] PWM_PWM_PARAM
-    4'b 1111, // index[5] PWM_DUTY_CYCLE
-    4'b 1111  // index[6] PWM_BLINK_PARAM
+    4'b 1111, // index[3] PWM_PWM_PARAM
+    4'b 1111, // index[4] PWM_DUTY_CYCLE
+    4'b 1111  // index[5] PWM_BLINK_PARAM
   };
 
   parameter type reg_req_t = struct packed {

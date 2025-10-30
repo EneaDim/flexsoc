@@ -81,7 +81,7 @@ module uart_core (
 
   assign uart_fifo_rxrst  = reg2hw.fifo_ctrl.rxrst.q & reg2hw.fifo_ctrl.rxrst.qe;
   assign uart_fifo_txrst  = reg2hw.fifo_ctrl.txrst.q & reg2hw.fifo_ctrl.txrst.qe;
-  assign hw2reg.rdata.d = uart_rdata;
+  assign hw2reg.rdata.d   = uart_rdata;
 
   assign hw2reg.status.rxempty.d     = ~rx_fifo_rvalid;
   assign hw2reg.status.rxidle.d      = rx_uart_idle;
@@ -101,7 +101,6 @@ module uart_core (
       nco_sum_q <= '0;
     end else if (tx_enable || rx_enable) begin
       nco_sum_q <= {1'b0,nco_sum_q[NcoWidth-1:0]} + {1'b0,reg2hw.ctrl.nco.q[NcoWidth-1:0]};
-      //nco_sum_q <= {1'b0,nco_sum_q[NcoWidth-1:0]} + {1'b0, 16'h04B8};
     end
   end
 
@@ -215,10 +214,6 @@ module uart_core (
 
   assign rx_fifo_wvalid = rx_valid & ~event_rx_frame_err & ~event_rx_parity_err;
 
-  // *** LETTURA FIFO RX: doppio lettore (CSR o streaming) ***
-  // Pop se:
-  //  - la CPU legge RDATA (reg2hw.rdata.re == 1)
-  //  - OPPURE lo chiede lo stream (rx_pop_i == 1)
   assign rx_fifo_pop = reg2hw.rdata.re | rx_pop_i;
 
   prim_fifo_sync #(
@@ -235,7 +230,7 @@ module uart_core (
     .depth_o (rx_fifo_depth),
     .full_o  (),
     .rvalid_o(rx_fifo_rvalid),
-    .rready_i(rx_fifo_pop),           // << cambiato
+    .rready_i(rx_fifo_pop),
     .rdata_o (uart_rdata),
     .err_o   ()
   );

@@ -9,7 +9,6 @@ module pwm_chan #(
   input        rst_ni,
 
   input        pwm_en_i,
-  input        invert_i,
   input        blink_en_i,
   input        htbt_en_i,
   input [15:0] phase_delay_i,
@@ -30,7 +29,6 @@ module pwm_chan #(
   logic [15:0] on_phase;
   logic [15:0] off_phase;
   logic        phase_wrap;
-  logic        pwm_int;
 
   // Standard blink mode
   logic [CntDw-1:0] blink_ctr_q;
@@ -181,23 +179,21 @@ module pwm_chan #(
 
   // Latch pwm_en_i signal
 
-  logic pwm_en_q;
+  logic pwm_en_q, pwm_d;
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
       pwm_en_q <= 1'b0;
     end else begin
-      if (!pwm_int) begin
+      if (!pwm_d) begin
         pwm_en_q <= pwm_en_i;
       end
     end
   end
 
-  assign pwm_int = (!pwm_en_q) ? 1'b0 :
+  assign pwm_d = (!pwm_en_q) ? 1'b0 :
                    phase_wrap ? on_phase_exceeded | ~off_phase_exceeded :
                                 on_phase_exceeded & ~off_phase_exceeded;
-  logic pwm_d;
-  assign pwm_d = invert_i ? ~pwm_int : pwm_int;
 
   // Register the output to prevent glitches.
   logic pwm_q;

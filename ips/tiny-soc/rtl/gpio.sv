@@ -61,48 +61,23 @@ module gpio
   assign cio_gpio_o                     = cio_gpio_q;
   assign cio_gpio_en_o                  = cio_gpio_en_q;
 
-  assign hw2reg.direct_out.d            = cio_gpio_q;
-  assign hw2reg.masked_out_upper.data.d = cio_gpio_q[1];
-  assign hw2reg.masked_out_upper.mask.d = 1'h 0;
-  assign hw2reg.masked_out_lower.data.d = cio_gpio_q[0];
-  assign hw2reg.masked_out_lower.mask.d = 1'h 0;
-
+  assign hw2reg.direct.gpio_o.d         = cio_gpio_q;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       cio_gpio_q  <= '0;
-    end else if (reg2hw.direct_out.qe) begin
-      cio_gpio_q <= reg2hw.direct_out.q;
-    end else if (reg2hw.masked_out_upper.data.qe) begin
-      cio_gpio_q[1] <=
-        ( reg2hw.masked_out_upper.mask.q & reg2hw.masked_out_upper.data.q) |
-        (~reg2hw.masked_out_upper.mask.q & cio_gpio_q[1]);
-    end else if (reg2hw.masked_out_lower.data.qe) begin
-      cio_gpio_q[0] <=
-        ( reg2hw.masked_out_lower.mask.q & reg2hw.masked_out_lower.data.q) |
-        (~reg2hw.masked_out_lower.mask.q & cio_gpio_q[0]);
+    end else if (reg2hw.direct.gpio_o.qe) begin
+      cio_gpio_q <= reg2hw.direct.gpio_o.q;
     end
   end
 
   // GPIO OE
-  assign hw2reg.direct_oe.d = cio_gpio_en_q;
-  assign hw2reg.masked_oe_upper.data.d = cio_gpio_en_q[1];
-  assign hw2reg.masked_oe_upper.mask.d = 1'h 0;
-  assign hw2reg.masked_oe_lower.data.d = cio_gpio_en_q[0];
-  assign hw2reg.masked_oe_lower.mask.d = 1'h 0;
+  assign hw2reg.direct.gpio_oe.d = cio_gpio_en_q;
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       cio_gpio_en_q  <= '0;
-    end else if (reg2hw.direct_oe.qe) begin
-      cio_gpio_en_q <= reg2hw.direct_oe.q;
-    end else if (reg2hw.masked_oe_upper.data.qe) begin
-      cio_gpio_en_q[1] <=
-        ( reg2hw.masked_oe_upper.mask.q & reg2hw.masked_oe_upper.data.q) |
-        (~reg2hw.masked_oe_upper.mask.q & cio_gpio_en_q[1]);
-    end else if (reg2hw.masked_oe_lower.data.qe) begin
-      cio_gpio_en_q[0] <=
-        ( reg2hw.masked_oe_lower.mask.q & reg2hw.masked_oe_lower.data.q) |
-        (~reg2hw.masked_oe_lower.mask.q & cio_gpio_en_q[0]);
+    end else if (reg2hw.direct.gpio_oe.qe) begin
+      cio_gpio_en_q <= reg2hw.direct.gpio_oe.q;
     end
   end
 
@@ -129,10 +104,10 @@ module gpio
   );
 
   // detect four possible individual interrupts
-  assign event_intr_rise    = (~data_in_q &  data_in_d) & reg2hw.intr_ctrl_en_rising.q;
-  assign event_intr_fall    = ( data_in_q & ~data_in_d) & reg2hw.intr_ctrl_en_falling.q;
-  assign event_intr_acthigh =                data_in_d  & reg2hw.intr_ctrl_en_lvlhigh.q;
-  assign event_intr_actlow  =               ~data_in_d  & reg2hw.intr_ctrl_en_lvllow.q;
+  assign event_intr_rise    = (~data_in_q &  data_in_d) & reg2hw.intr_ctrl.en_rising.q;
+  assign event_intr_fall    = ( data_in_q & ~data_in_d) & reg2hw.intr_ctrl.en_falling.q;
+  assign event_intr_acthigh =                data_in_d  & reg2hw.intr_ctrl.en_lvlhigh.q;
+  assign event_intr_actlow  =               ~data_in_d  & reg2hw.intr_ctrl.en_lvllow.q;
 
   assign event_intr_combined = event_intr_rise   |
                                event_intr_fall   |

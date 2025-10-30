@@ -14,17 +14,16 @@ module soc_tb;
   // Outputs
   wire cio_tx_o;
   wire cio_tx_en_o;
-  wire [1:0] cio_pwm_o;
-  wire [1:0] cio_pwm_en_o;
-  wire [3:0] cio_gpio_o;
-  wire [3:0] cio_gpio_en_o;
+  wire cio_pwm_o;
+  wire cio_pwm_en_o;
+  wire [1:0] cio_gpio_o;
+  wire [1:0] cio_gpio_en_o;
 
   integer error_count;
 
 
   // Device Under Test Instance
-  soc
-  u_soc (
+  soc u_soc (
     .clk_i,
     .rst_ni,
     .cio_rx_i,
@@ -89,7 +88,6 @@ module soc_tb;
     begin
       uart_send_byte(8'hA5);      // SOF
       uart_send_byte(8'h01);      // OP=WRITE
-      uart_send_byte(8'h01);      // VER
       uart_send_byte({4'h0,be});  // BE
       uart_send_word32(addr);     // ADDR (LSB-first)
       uart_send_word32(data);     // DATA (LSB-first)
@@ -99,11 +97,10 @@ module soc_tb;
   // READ: A5 | 01 | 00 | {0000,1111} | 00 | ADDR(4)
   task automatic uart_read32(input logic [31:0] addr);
     begin
-      uart_send_byte(8'hA5);     // SOF
-      uart_send_byte(8'h00);     // OP=READ
-      uart_send_byte(8'h01);     // VER
-      uart_send_byte({4'h0,4'hF});  // BE
-      uart_send_word32(addr);    // ADDR (LSB-first)
+      uart_send_byte(8'hA5);       // SOF
+      uart_send_byte(8'h00);       // OP=READ
+      uart_send_byte({4'h0,4'hF}); // BE
+      uart_send_word32(addr);      // ADDR (LSB-first)
     end
   endtask
   
@@ -157,16 +154,16 @@ module soc_tb;
     uart_write32(PWM_BASE + PWM_EN_OFF,    32'h1);
     #(CLK_PERIOD*2000);
 
-    // Enable interrupt in GPIO
+    // 3) Enable interrupt in GPIO
     uart_write32(GPIO_BASE + GPIO_INT_EN,   32'h1);
     uart_write32(GPIO_BASE + GPIO_INT_RISE, 32'h1);
     #(CLK_PERIOD*2000);
 
-    // Raise GPIO pin
+    // 4) Raise GPIO pin
     cio_gpio_i = 'h1;
     #(CLK_PERIOD*2000);
 
-    // Read UART CTRL
+    // 5) Read UART CTRL
     uart_read32(UART_BASE + UART_CTRL_OFF);
 
     //////////////////////////////////////////////////////////////
