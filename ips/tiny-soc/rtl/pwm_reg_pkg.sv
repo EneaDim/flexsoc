@@ -10,7 +10,7 @@ package pwm_reg_pkg;
   parameter int NOutputs = 1;
 
   // Address widths within the block
-  parameter int BlockAw = 5;
+  parameter int BlockAw = 4;
   parameter int AW = BlockAw;
   parameter int DW = 32;
   parameter int DBW = DW/8;                    // Byte Width
@@ -41,76 +41,39 @@ package pwm_reg_pkg;
 
   typedef struct packed {
     struct packed {
-      logic        q;
+      logic [15:0] q;
       logic        qe;
-    } blink_en;
-    struct packed {
-      logic        q;
-      logic        qe;
-    } htbt_en;
+    } duty_cycle;
     struct packed {
       logic [15:0] q;
       logic        qe;
     } phase_delay;
   } pwm_reg2hw_pwm_param_mreg_t;
 
-  typedef struct packed {
-    struct packed {
-      logic [15:0] q;
-      logic        qe;
-    } b;
-    struct packed {
-      logic [15:0] q;
-      logic        qe;
-    } a;
-  } pwm_reg2hw_duty_cycle_mreg_t;
-
-  typedef struct packed {
-    struct packed {
-      logic [15:0] q;
-      logic        qe;
-    } y;
-    struct packed {
-      logic [15:0] q;
-      logic        qe;
-    } x;
-  } pwm_reg2hw_blink_param_mreg_t;
-
   // Register -> HW type
   typedef struct packed {
-    pwm_reg2hw_cfg_reg_t cfg; // [125:91]
-    pwm_reg2hw_pwm_en_mreg_t [0:0] pwm_en; // [90:89]
-    pwm_reg2hw_pwm_param_mreg_t [0:0] pwm_param; // [88:68]
-    pwm_reg2hw_duty_cycle_mreg_t [0:0] duty_cycle; // [67:34]
-    pwm_reg2hw_blink_param_mreg_t [0:0] blink_param; // [33:0]
+    pwm_reg2hw_cfg_reg_t cfg; // [70:36]
+    pwm_reg2hw_pwm_en_mreg_t [0:0] pwm_en; // [35:34]
+    pwm_reg2hw_pwm_param_mreg_t [0:0] pwm_param; // [33:0]
   } pwm_reg2hw_t;
 
   // Register offsets
-  parameter logic [BlockAw-1:0] PWM_REGWEN_OFFSET = 5'h 0;
-  parameter logic [BlockAw-1:0] PWM_CFG_OFFSET = 5'h 4;
-  parameter logic [BlockAw-1:0] PWM_PWM_EN_OFFSET = 5'h 8;
-  parameter logic [BlockAw-1:0] PWM_PWM_PARAM_OFFSET = 5'h c;
-  parameter logic [BlockAw-1:0] PWM_DUTY_CYCLE_OFFSET = 5'h 10;
-  parameter logic [BlockAw-1:0] PWM_BLINK_PARAM_OFFSET = 5'h 14;
+  parameter logic [BlockAw-1:0] PWM_CFG_OFFSET = 4'h 0;
+  parameter logic [BlockAw-1:0] PWM_PWM_EN_OFFSET = 4'h 4;
+  parameter logic [BlockAw-1:0] PWM_PWM_PARAM_OFFSET = 4'h 8;
 
   // Register index
   typedef enum int {
-    PWM_REGWEN,
     PWM_CFG,
     PWM_PWM_EN,
-    PWM_PWM_PARAM,
-    PWM_DUTY_CYCLE,
-    PWM_BLINK_PARAM
+    PWM_PWM_PARAM
   } pwm_id_e;
 
   // Register width information to check illegal writes
-  parameter logic [3:0] PWM_PERMIT [6] = '{
-    4'b 0001, // index[0] PWM_REGWEN
-    4'b 1111, // index[1] PWM_CFG
-    4'b 0001, // index[2] PWM_PWM_EN
-    4'b 1111, // index[3] PWM_PWM_PARAM
-    4'b 1111, // index[4] PWM_DUTY_CYCLE
-    4'b 1111  // index[5] PWM_BLINK_PARAM
+  parameter logic [3:0] PWM_PERMIT [3] = '{
+    4'b 1111, // index[0] PWM_CFG
+    4'b 0001, // index[1] PWM_PWM_EN
+    4'b 1111  // index[2] PWM_PWM_PARAM
   };
 
   parameter type reg_req_t = struct packed {

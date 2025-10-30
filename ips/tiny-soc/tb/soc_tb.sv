@@ -115,13 +115,9 @@ module soc_tb;
   // Offsets (ADATTA ai tuoi registri reali)
   localparam logic [31:0] UART_CTRL_OFF   = 32'h0000_0000;  // CTRL: abilita tx/rx, nco ecc.
   //////////////////////////////////////////////////////////////////////////////////////////
-  localparam logic [31:0] PWM_REGWEN_OFF    = 32'h0000_0000;  // Register write enable
-  localparam logic [31:0] PWM_CFG_OFF       = 32'h0000_0004;  // Config register
-  localparam logic [31:0] PWM_EN_OFF        = 32'h0000_0008;  // Enable per canale
-  localparam logic [31:0] PWM_INVERT_OFF    = 32'h0000_000C;  // Invert per canale
-  localparam logic [31:0] PWM_PARAM_OFF     = 32'h0000_0010;  // Blink/heartbeat parametri
-  localparam logic [31:0] PWM_DUTY_OFF      = 32'h0000_0014;  // Duty cycle A/B
-  localparam logic [31:0] PWM_BLINK_OFF     = 32'h0000_0018;  // Blink timing parametri
+  localparam logic [31:0] PWM_CFG_OFF       = 32'h0000_0000;  // Config register
+  localparam logic [31:0] PWM_EN_OFF        = 32'h0000_0004;  // Enable per canale
+  localparam logic [31:0] PWM_PARAM_OFF     = 32'h0000_0008;  // Blink/heartbeat parametri
   //////////////////////////////////////////////////////////////////////////////////////////
   localparam logic [31:0] GPIO_INT_EN     = 32'h0000_0004;
   localparam logic [31:0] GPIO_INT_RISE   = 32'h0000_0028;
@@ -149,9 +145,9 @@ module soc_tb;
     #(CLK_PERIOD*2000);
   
     // 2) Imposta duty cycle PWM (esempio 50%) e abilita PWM
-    uart_write32(PWM_BASE + PWM_CFG_OFF,   32'hB8000010);
-    uart_write32(PWM_BASE + PWM_PARAM_OFF, 32'h0000_7FFF);
+    uart_write32(PWM_BASE + PWM_PARAM_OFF, 32'h7FFF_7FFF);
     uart_write32(PWM_BASE + PWM_EN_OFF,    32'h1);
+    uart_write32(PWM_BASE + PWM_CFG_OFF,   32'hB8000010);
     #(CLK_PERIOD*2000);
 
     // 3) Enable interrupt in GPIO
