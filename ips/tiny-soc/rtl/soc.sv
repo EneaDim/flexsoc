@@ -34,6 +34,8 @@ module soc #(
   logic                     uart_rvalid;
   logic [DataWidth-1:0]     uart_rdata;
   logic                     uart_err;
+
+  logic       [1:0]         gpio_intr;
   
 
   // TileLink signals.
@@ -137,12 +139,13 @@ module soc #(
     .cio_gpio_i,
     .cio_gpio_o,
     .cio_gpio_en_o,
-    .intr_gpio_o()
+    .intr_gpio_o(gpio_intr)
   );
   // Instantiate rv_timer
   rv_timer u_rv_timer (
     .clk_i,
     .rst_ni,
+    .gpio_intr_i(gpio_intr),
     .tl_i(tl_rv_timer_h2d),
     .tl_o(tl_rv_timer_d2h),
     .intr_timer_expired_hart0_timer0_o()

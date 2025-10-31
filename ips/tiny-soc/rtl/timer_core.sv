@@ -15,9 +15,9 @@ module timer_core #(
   input [ 7:0] step,
 
   output logic        tick,
-  output logic [63:0] mtime_d,
-  input        [63:0] mtime,
-  input        [63:0] mtimecmp [N],
+  output logic [31:0] mtime_d,
+  input        [31:0] mtime,
+  input        [31:0] mtimecmp [N],
 
   output logic [N-1:0] intr
 );
@@ -38,7 +38,7 @@ module timer_core #(
 
   assign tick = active & (tick_count >= prescaler);
 
-  assign mtime_d = mtime + 64'(step);
+  assign mtime_d = mtime + 32'(step);
 
   // interrupt is generated if mtime is greater than or equal to mtimecmp
   for (genvar t = 0 ; t < N ; t++) begin : gen_intr

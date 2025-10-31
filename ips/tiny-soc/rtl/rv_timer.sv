@@ -11,6 +11,8 @@ module rv_timer import rv_timer_reg_pkg::*;
   input clk_i,
   input rst_ni,
 
+  input  [1:0] gpio_intr_i,
+
   input  tlul_pkg::tl_h2d_t tl_i,
   output tlul_pkg::tl_d2h_t tl_o,
 
@@ -27,9 +29,9 @@ module rv_timer import rv_timer_reg_pkg::*;
 
   logic [N_HARTS-1:0] tick;
 
-  logic [63:0] mtime_d  [N_HARTS];
-  logic [63:0] mtime    [N_HARTS];
-  logic [63:0] mtimecmp [N_HARTS][N_TIMERS]; // Only [harts][0] is connected to mtimecmp CSRs
+  logic [31:0] mtime_d  [N_HARTS];
+  logic [31:0] mtime    [N_HARTS];
+  logic [31:0] mtimecmp [N_HARTS][N_TIMERS]; // Only [harts][0] is connected to mtimecmp CSRs
   logic        mtimecmp_update [N_HARTS][N_TIMERS];
 
   logic [N_HARTS*N_TIMERS-1:0] intr_timer_set;
@@ -42,23 +44,25 @@ module rv_timer import rv_timer_reg_pkg::*;
 
   logic [N_HARTS*N_TIMERS-1:0] intr_out;
 
+  logic input_capture_active_d[N_HARTS];
+  logic input_capture_active_q[N_HARTS];
+  logic sel_gpio_intr_0, sel_gpio_intr_1;
+
   /////////////////////////////////////////////////
   // Connecting register interface to the signal //
   /////////////////////////////////////////////////
 
   // Once reggen supports nested multireg, the following can be automated. For the moment, it must
   // be connected manually.
-  assign active[0]  = reg2hw.ctrl[0].q;
+  assign active[0]  = reg2hw.ctrl[0].active.q || input_capture_active_q[0];
   assign prescaler = '{reg2hw.cfg0.prescale.q};
   assign step      = '{reg2hw.cfg0.step.q};
 
-  assign hw2reg.timer_v_upper0.de = tick[0];
-  assign hw2reg.timer_v_lower0.de = tick[0];
-  assign hw2reg.timer_v_upper0.d = mtime_d[0][63:32];
-  assign hw2reg.timer_v_lower0.d = mtime_d[0][31: 0];
-  assign mtime[0] = {reg2hw.timer_v_upper0.q, reg2hw.timer_v_lower0.q};
-  assign mtimecmp = '{'{{reg2hw.compare_upper0_0.q,reg2hw.compare_lower0_0.q}}};
-  assign mtimecmp_update[0][0] = reg2hw.compare_upper0_0.qe | reg2hw.compare_lower0_0.qe;
+  assign hw2reg.timer_v0.de = tick[0];
+  assign hw2reg.timer_v0.d = mtime_d[0][31:0];
+  assign mtime[0] = reg2hw.timer_v0.q;
+  assign mtimecmp[0][0] = reg2hw.compare_v0.q;
+  assign mtimecmp_update[0][0] = reg2hw.compare_v0.qe;
 
   assign intr_timer_expired_hart0_timer0_o = intr_out[0];
   assign intr_timer_en            = reg2hw.intr_enable0[0].q;
@@ -117,6 +121,27 @@ module rv_timer import rv_timer_reg_pkg::*;
     .hw2reg,
     .devmode_i(1'b1)
   );
+
+  ////////////////////////////////////////////
+  // Input Capture mode from GPIO interrupt //
+  ////////////////////////////////////////////
+
+  // GPIO trigger selection
+  assign sel_gpio_intr_0  = !reg2hw.ctrl[0].gpio_intr_1.q &&  reg2hw.ctrl[0].gpio_intr_0.q;
+  assign sel_gpio_intr_1  =  reg2hw.ctrl[0].gpio_intr_1.q && !reg2hw.ctrl[0].gpio_intr_0.q;
+
+
+  assign input_capture_active_d[0] = sel_gpio_intr_0 && (input_capture_active_q[0] ^ gpio_intr_i[0]) ||
+                                     sel_gpio_intr_1 && (input_capture_active_q[0] ^ gpio_intr_i[1]);
+
+  // Flop input_capture_active_d to perfor the XOR -> like T-FF
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (~rst_ni) begin
+      input_capture_active_q[0] <= '0;
+    end else begin
+      input_capture_active_q[0] <= input_capture_active_d[0];
+    end
+  end
 
   ////////////////
   // Assertions //

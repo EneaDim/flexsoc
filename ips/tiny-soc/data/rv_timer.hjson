@@ -8,7 +8,7 @@
   one_line_desc:      "Memory-mapped timer unit implementing RISC-V mtime and mtimecmp registers",
   one_paragraph_desc: '''
   RISC-V Timer provides TileLink Uncached Light (TL-UL) memory-mapped registers `mtime` and `mtimecmp` which can be used as the machine-mode timer registers as defined in the RISC-V privileged spec v1.12.
-  Additional parameters can be used to add optional features, such as prescaler, step increment size, threshold-triggered interrupts, additional 64-bit timers, and support for multiple independent harts.
+  Additional parameters can be used to add optional features, such as prescaler, step increment size, threshold-triggered interrupts, additional 32-bit timers, and support for multiple independent harts.
   '''
   // Unique comportable IP identifier defined under KNOWN_CIP_IDS in the regtool.
   cip_id:             "25",
@@ -87,12 +87,12 @@
     },
     { name: "RV_TIMER.COUNTER",
       desc: '''
-            The timer has a 64-bit counter that wraps.
+            The timer has a 32-bit counter that wraps.
             '''
     },
     { name: "RV_TIMER.COMPARE",
       desc: '''
-            The timer has a 64-bit compare register that triggers an interrupt when it matches the counter.
+            The timer has a 32-bit compare register that triggers an interrupt when it matches the counter.
             '''
     },
   ],
@@ -112,14 +112,14 @@
         swaccess: "rw",
         hwaccess: "hro",
         fields: [
-          { bits: "0", name: "active",
-            desc: "If 1, timer operates",
+          { bits: "0", name: "active", desc: "If 1, timer operates",
             tags: [// prevent timer from being enabled
                    "excl:CsrNonInitTests:CsrExclWrite"] }
+          { bits: "1", name: "gpio_intr_0", desc: "Enable timer from GPIO INTR 0"},
+          { bits: "2", name: "gpio_intr_1", desc: "Enable timer from GPIO INTR 1"},
         ],
       }
     },
-    { skipto: "0x100" },
     { multireg: {
         name: "INTR_ENABLE0",
         desc: "Interrupt Enable",
@@ -171,38 +171,21 @@
         { bits: "23:16", name: "step", resval: "0x1", desc: "Incremental value for each tick" },
       ],
     },
-    { name: "TIMER_V_LOWER0",
-      desc: "Timer value Lower",
+    { name: "TIMER_V0",
+      desc: "Timer value",
       swaccess: "rw",
       hwaccess: "hrw",
       fields: [
         { bits: "31:0", name: "v", desc: "Timer value [31:0]" },
       ],
     },
-    { name: "TIMER_V_UPPER0",
-      desc: "Timer value Upper",
-      swaccess: "rw",
-      hwaccess: "hrw",
-      fields: [
-        { bits: "31:0", name: "v", desc: "Timer value [63:32]" },
-      ],
-    },
-    { name: "COMPARE_LOWER0_0",
-      desc: "Timer value Lower",
+    { name: "COMPARE_V0",
+      desc: "Timer value to compare",
       swaccess: "rw",
       hwaccess: "hro",
       hwqe: "true",
       fields: [
         { bits: "31:0", name: "v", resval: "0xffffffff", desc: "Timer compare value [31:0]" },
-      ],
-    },
-    { name: "COMPARE_UPPER0_0",
-      desc: "Timer value Upper",
-      swaccess: "rw",
-      hwaccess: "hro",
-      hwqe: "true",
-      fields: [
-        { bits: "31:0", name: "v", resval: "0xffffffff", desc: "Timer compare value [63:32]" },
       ],
     },
   ],

@@ -63,15 +63,15 @@ module soc_tb;
     begin
       // Start bit
       cio_rx_i = 1'b0; 
-      #8680; // Wait for half a bit period
+      #1085; // Wait for half a bit period
       // Send each bit of the pattern
       for (int i = 0; i < 8; i++) begin
         cio_rx_i = b[i]; // Send each bit of the pattern
-        #8680; // Wait for half a bit period
+        #1085; // Wait for half a bit period
       end
       // Stop bit
       cio_rx_i = 1'b1; 
-      #86800; // Wait for half a bit period
+      #1085; // Wait for half a bit period
     end
   endtask
   
@@ -113,14 +113,16 @@ module soc_tb;
   localparam logic [31:0] TIMER_BASE  = 32'h8006_0000;
   
   // Offsets (ADATTA ai tuoi registri reali)
-  localparam logic [31:0] UART_CTRL_OFF   = 32'h0000_0000;  // CTRL: abilita tx/rx, nco ecc.
+  localparam logic [31:0] UART_CTRL_OFF = 32'h0000_0000;  // CTRL: abilita tx/rx, nco ecc.
   //////////////////////////////////////////////////////////////////////////////////////////
-  localparam logic [31:0] PWM_CFG_OFF       = 32'h0000_0000;  // Config register
-  localparam logic [31:0] PWM_EN_OFF        = 32'h0000_0004;  // Enable per canale
-  localparam logic [31:0] PWM_PARAM_OFF     = 32'h0000_0008;  // Blink/heartbeat parametri
+  localparam logic [31:0] PWM_CFG_OFF   = 32'h0000_0000;  // Config register
+  localparam logic [31:0] PWM_EN_OFF    = 32'h0000_0004;  // Enable per canale
+  localparam logic [31:0] PWM_PARAM_OFF = 32'h0000_0008;  // Blink/heartbeat parametri
   //////////////////////////////////////////////////////////////////////////////////////////
-  localparam logic [31:0] GPIO_INT_EN     = 32'h0000_0004;
-  localparam logic [31:0] GPIO_INT_RISE   = 32'h0000_0028;
+  localparam logic [31:0] GPIO_INT_CTRL = 32'h0000_0008;
+  //////////////////////////////////////////////////////////////////////////////////////////
+  localparam logic [31:0] TIMER_CTRL    = 32'h0000_0000;
+  localparam logic [31:0] TIMER_VALUE   = 32'h0000_0014;
   //////////////////////////////////////////////////////////////////////////////////////////
   
   initial begin
@@ -141,7 +143,9 @@ module soc_tb;
     #(CLK_PERIOD*20);
   
     // 1) Abilita TX + set NCO coerente al tuo bit-banging
-    uart_write32(UART_BASE + UART_CTRL_OFF, 32'h0970_0001); // For 100MHz fclk
+    uart_write32(UART_BASE + UART_CTRL_OFF, 32'h4B7F_0001); // For 100MHz fclk
+    #(CLK_PERIOD*2000);
+    uart_read32(UART_BASE + UART_CTRL_OFF);
     #(CLK_PERIOD*2000);
   
     // 2) Imposta duty cycle PWM (esempio 50%) e abilita PWM
@@ -151,16 +155,48 @@ module soc_tb;
     #(CLK_PERIOD*2000);
 
     // 3) Enable interrupt in GPIO
-    uart_write32(GPIO_BASE + GPIO_INT_EN,   32'h1);
-    uart_write32(GPIO_BASE + GPIO_INT_RISE, 32'h1);
+    uart_write32(GPIO_BASE + GPIO_INT_CTRL, 32'h5);
+    // Enable INPUT CAPTURE TIMER
+    uart_write32(TIMER_BASE + TIMER_CTRL, 32'h2);
     #(CLK_PERIOD*2000);
-
-    // 4) Raise GPIO pin
     cio_gpio_i = 'h1;
     #(CLK_PERIOD*2000);
+    cio_gpio_i = 'h0;
+    #(CLK_PERIOD*2000);
+    uart_read32(TIMER_BASE + TIMER_VALUE);
+    #(CLK_PERIOD*2000);
+    uart_write32(TIMER_BASE + TIMER_VALUE, 32'h0);
+    #(CLK_PERIOD*2000);
 
-    // 5) Read UART CTRL
-    uart_read32(UART_BASE + UART_CTRL_OFF);
+
+
+    /////////////////////////////////
+    uart_write32(GPIO_BASE + GPIO_INT_CTRL, 32'h1);
+    // Enable INPUT CAPTURE TIMER
+    uart_write32(TIMER_BASE + TIMER_CTRL, 32'h2);
+    #(CLK_PERIOD*2000);
+    cio_gpio_i = 'h1;
+    #(CLK_PERIOD*2000);
+    cio_gpio_i = 'h0;
+    #(CLK_PERIOD*2000);
+    cio_gpio_i = 'h1;
+    #(CLK_PERIOD*2000);
+    cio_gpio_i = 'h0;
+    #(CLK_PERIOD*2000);
+    uart_read32(TIMER_BASE + TIMER_VALUE);
+    #(CLK_PERIOD*2000);
+    uart_write32(TIMER_BASE + TIMER_VALUE, 32'h0);
+    #(CLK_PERIOD*2000);
+
+    // 4) RV_TIMER
+    uart_write32(TIMER_BASE + TIMER_CTRL, 32'h1);
+    #(CLK_PERIOD*2000);
+    uart_write32(TIMER_BASE + TIMER_CTRL, 32'h0);
+    #(CLK_PERIOD*2000);
+    uart_read32(TIMER_BASE + TIMER_VALUE);
+    #(CLK_PERIOD*2000);
+    uart_write32(TIMER_BASE + TIMER_VALUE, 32'h0);
+    #(CLK_PERIOD*2000);
 
     //////////////////////////////////////////////////////////////
     //                                                          // 

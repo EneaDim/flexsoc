@@ -6,7 +6,7 @@ from cocotb.triggers import ClockCycles, FallingEdge, Timer
 from cocotb.handle import Immediate
 
 # ----- UART helpers -----
-baud = 115_200
+baud = 921_600
 bit_time_ps = int(round(1e12 / baud))  # ~8_680_555 ps @115200
 
 # shadow del pin RX (1 bit). Evita read-modify-write su 'Z'/'X'.
@@ -71,14 +71,17 @@ async def test_uart_program_soc(dut):
 
     # ---- indirizzi di esempio (adatta ai tuoi reali) ----
     UART_BASE     = 0x8000_0000
-    UART_CTRL_OFF = 0x0000_0000
     PWM_BASE      = 0x8002_0000
+    GPIO_BASE     = 0x8004_0000
+    TIMER_BASE    = 0x8006_0000
+
+    UART_CTRL_OFF = 0x0000_0000
     PWM_CFG_OFF   = 0x0000_0000
     PWM_EN_OFF    = 0x0000_0004
     PWM_PHASE_OFF = 0x0000_0008
 
     # 1) abilita UART TX/RX (placeholder)
-    await uart_write32(dut, UART_BASE + UART_CTRL_OFF, 0x0970_0001, be=0xF)
+    await uart_write32(dut, UART_BASE + UART_CTRL_OFF, 0x4B7F_0001, be=0xF)
 
     # 2) configura PWM (placeholder valori)
     await uart_write32(dut, PWM_BASE + PWM_PHASE_OFF, 0x7FFF_7FFF, be=0xF)

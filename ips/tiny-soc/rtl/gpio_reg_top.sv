@@ -23,7 +23,7 @@ module gpio_reg_top
   input logic devmode_i // If 1, explicit error return for unmapped register access
 );
 
-  localparam int AW = 5;
+  localparam int AW = 4;
   localparam int DW = 32;
   localparam int DBW = DW/8;                    // Byte Width
 
@@ -91,14 +91,6 @@ module gpio_reg_top
   // Define SW related signals
   // Format: <reg>_<field>_{wd|we|qs}
   //        or <reg>_{wd|we|qs} if field == 1 or 0
-  logic intr_state_we;
-  logic [1:0] intr_state_qs;
-  logic [1:0] intr_state_wd;
-  logic intr_enable_we;
-  logic [1:0] intr_enable_qs;
-  logic [1:0] intr_enable_wd;
-  logic intr_test_we;
-  logic [1:0] intr_test_wd;
   logic [1:0] data_in_qs;
   logic direct_re;
   logic direct_we;
@@ -122,82 +114,6 @@ module gpio_reg_top
   logic [3:0] ctrl_en_input_filter_wd;
 
   // Register instances
-  // R[intr_state]: V(False)
-  prim_subreg #(
-    .DW      (2),
-    .SwAccess(prim_subreg_pkg::SwAccessW1C),
-    .RESVAL  (2'h0),
-    .Mubi    (1'b0)
-  ) u_intr_state (
-    .clk_i   (clk_i),
-    .rst_ni  (rst_ni),
-
-    // from register interface
-    .we     (intr_state_we),
-    .wd     (intr_state_wd),
-
-    // from internal hardware
-    .de     (hw2reg.intr_state.de),
-    .d      (hw2reg.intr_state.d),
-
-    // to internal hardware
-    .qe     (),
-    .q      (reg2hw.intr_state.q),
-    .ds     (),
-
-    // to register interface (read)
-    .qs     (intr_state_qs)
-  );
-
-
-  // R[intr_enable]: V(False)
-  prim_subreg #(
-    .DW      (2),
-    .SwAccess(prim_subreg_pkg::SwAccessRW),
-    .RESVAL  (2'h0),
-    .Mubi    (1'b0)
-  ) u_intr_enable (
-    .clk_i   (clk_i),
-    .rst_ni  (rst_ni),
-
-    // from register interface
-    .we     (intr_enable_we),
-    .wd     (intr_enable_wd),
-
-    // from internal hardware
-    .de     (1'b0),
-    .d      ('0),
-
-    // to internal hardware
-    .qe     (),
-    .q      (reg2hw.intr_enable.q),
-    .ds     (),
-
-    // to register interface (read)
-    .qs     (intr_enable_qs)
-  );
-
-
-  // R[intr_test]: V(True)
-  logic intr_test_qe;
-  logic [0:0] intr_test_flds_we;
-  assign intr_test_qe = &intr_test_flds_we;
-  prim_subreg_ext #(
-    .DW    (2)
-  ) u_intr_test (
-    .re     (1'b0),
-    .we     (intr_test_we),
-    .wd     (intr_test_wd),
-    .d      ('0),
-    .qre    (),
-    .qe     (intr_test_flds_we[0]),
-    .q      (reg2hw.intr_test.q),
-    .ds     (),
-    .qs     ()
-  );
-  assign reg2hw.intr_test.qe = intr_test_qe;
-
-
   // R[data_in]: V(False)
   prim_subreg #(
     .DW      (2),
@@ -429,16 +345,13 @@ module gpio_reg_top
 
 
 
-  logic [6:0] addr_hit;
+  logic [3:0] addr_hit;
   always_comb begin
     addr_hit = '0;
-    addr_hit[0] = (reg_addr == GPIO_INTR_STATE_OFFSET);
-    addr_hit[1] = (reg_addr == GPIO_INTR_ENABLE_OFFSET);
-    addr_hit[2] = (reg_addr == GPIO_INTR_TEST_OFFSET);
-    addr_hit[3] = (reg_addr == GPIO_DATA_IN_OFFSET);
-    addr_hit[4] = (reg_addr == GPIO_DIRECT_OFFSET);
-    addr_hit[5] = (reg_addr == GPIO_INTR_CTRL_OFFSET);
-    addr_hit[6] = (reg_addr == GPIO_CTRL_EN_INPUT_FILTER_OFFSET);
+    addr_hit[0] = (reg_addr == GPIO_DATA_IN_OFFSET);
+    addr_hit[1] = (reg_addr == GPIO_DIRECT_OFFSET);
+    addr_hit[2] = (reg_addr == GPIO_INTR_CTRL_OFFSET);
+    addr_hit[3] = (reg_addr == GPIO_CTRL_EN_INPUT_FILTER_OFFSET);
   end
 
   assign addrmiss = (reg_re || reg_we) ? ~|addr_hit : 1'b0 ;
@@ -449,29 +362,17 @@ module gpio_reg_top
               ((addr_hit[0] & (|(GPIO_PERMIT[0] & ~reg_be))) |
                (addr_hit[1] & (|(GPIO_PERMIT[1] & ~reg_be))) |
                (addr_hit[2] & (|(GPIO_PERMIT[2] & ~reg_be))) |
-               (addr_hit[3] & (|(GPIO_PERMIT[3] & ~reg_be))) |
-               (addr_hit[4] & (|(GPIO_PERMIT[4] & ~reg_be))) |
-               (addr_hit[5] & (|(GPIO_PERMIT[5] & ~reg_be))) |
-               (addr_hit[6] & (|(GPIO_PERMIT[6] & ~reg_be)))));
+               (addr_hit[3] & (|(GPIO_PERMIT[3] & ~reg_be)))));
   end
 
   // Generate write-enables
-  assign intr_state_we = addr_hit[0] & reg_we & !reg_error;
-
-  assign intr_state_wd = reg_wdata[1:0];
-  assign intr_enable_we = addr_hit[1] & reg_we & !reg_error;
-
-  assign intr_enable_wd = reg_wdata[1:0];
-  assign intr_test_we = addr_hit[2] & reg_we & !reg_error;
-
-  assign intr_test_wd = reg_wdata[1:0];
-  assign direct_re = addr_hit[4] & reg_re & !reg_error;
-  assign direct_we = addr_hit[4] & reg_we & !reg_error;
+  assign direct_re = addr_hit[1] & reg_re & !reg_error;
+  assign direct_we = addr_hit[1] & reg_we & !reg_error;
 
   assign direct_gpio_o_wd = reg_wdata[1:0];
 
   assign direct_gpio_oe_wd = reg_wdata[3:2];
-  assign intr_ctrl_we = addr_hit[5] & reg_we & !reg_error;
+  assign intr_ctrl_we = addr_hit[2] & reg_we & !reg_error;
 
   assign intr_ctrl_en_rising_wd = reg_wdata[1:0];
 
@@ -482,7 +383,7 @@ module gpio_reg_top
   assign intr_ctrl_en_lvllow_wd = reg_wdata[7:6];
 
   assign intr_ctrl_en_input_filter_wd = reg_wdata[9:8];
-  assign ctrl_en_input_filter_we = addr_hit[6] & reg_we & !reg_error;
+  assign ctrl_en_input_filter_we = addr_hit[3] & reg_we & !reg_error;
 
   assign ctrl_en_input_filter_wd = reg_wdata[3:0];
 
@@ -491,27 +392,15 @@ module gpio_reg_top
     reg_rdata_next = '0;
     unique case (1'b1)
       addr_hit[0]: begin
-        reg_rdata_next[1:0] = intr_state_qs;
-      end
-
-      addr_hit[1]: begin
-        reg_rdata_next[1:0] = intr_enable_qs;
-      end
-
-      addr_hit[2]: begin
-        reg_rdata_next[1:0] = '0;
-      end
-
-      addr_hit[3]: begin
         reg_rdata_next[1:0] = data_in_qs;
       end
 
-      addr_hit[4]: begin
+      addr_hit[1]: begin
         reg_rdata_next[1:0] = direct_gpio_o_qs;
         reg_rdata_next[3:2] = direct_gpio_oe_qs;
       end
 
-      addr_hit[5]: begin
+      addr_hit[2]: begin
         reg_rdata_next[1:0] = intr_ctrl_en_rising_qs;
         reg_rdata_next[3:2] = intr_ctrl_en_falling_qs;
         reg_rdata_next[5:4] = intr_ctrl_en_lvlhigh_qs;
@@ -519,7 +408,7 @@ module gpio_reg_top
         reg_rdata_next[9:8] = intr_ctrl_en_input_filter_qs;
       end
 
-      addr_hit[6]: begin
+      addr_hit[3]: begin
         reg_rdata_next[3:0] = ctrl_en_input_filter_qs;
       end
 

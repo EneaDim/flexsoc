@@ -87,21 +87,6 @@ module gpio
   end
 
   logic [1:0] event_intr_rise, event_intr_fall, event_intr_actlow, event_intr_acthigh;
-  logic [1:0] event_intr_combined;
-
-  // instantiate interrupt hardware primitive
-  prim_intr_hw #(.Width(2)) intr_hw (
-    .clk_i,
-    .rst_ni,
-    .event_intr_i           (event_intr_combined),
-    .reg2hw_intr_enable_q_i (reg2hw.intr_enable.q),
-    .reg2hw_intr_test_q_i   (reg2hw.intr_test.q),
-    .reg2hw_intr_test_qe_i  (reg2hw.intr_test.qe),
-    .reg2hw_intr_state_q_i  (reg2hw.intr_state.q),
-    .hw2reg_intr_state_de_o (hw2reg.intr_state.de),
-    .hw2reg_intr_state_d_o  (hw2reg.intr_state.d),
-    .intr_o                 (intr_gpio_o)
-  );
 
   // detect four possible individual interrupts
   assign event_intr_rise    = (~data_in_q &  data_in_d) & reg2hw.intr_ctrl.en_rising.q;
@@ -109,7 +94,7 @@ module gpio
   assign event_intr_acthigh =                data_in_d  & reg2hw.intr_ctrl.en_lvlhigh.q;
   assign event_intr_actlow  =               ~data_in_d  & reg2hw.intr_ctrl.en_lvllow.q;
 
-  assign event_intr_combined = event_intr_rise   |
+  assign intr_gpio_o        =  event_intr_rise   |
                                event_intr_fall   |
                                event_intr_actlow |
                                event_intr_acthigh;
