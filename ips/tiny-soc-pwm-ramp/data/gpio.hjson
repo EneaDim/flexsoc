@@ -1,0 +1,177 @@
+// Copyright lowRISC contributors (OpenTitan project).
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+{
+  name:               "gpio",
+  human_name:         "General-Purpose I/O Controller",
+  one_line_desc:      "General-purpose I/O pin control interface for software",
+  one_paragraph_desc: '''
+  General-Purpose Input/Output (GPIO) Controller allows software to communicate through general-purpose I/O pins in a flexible manner.
+  It supports up to 32 GPIO ports and each of these ports can be written as peripheral outputs in two modes: either with direct access to each GPIO value using direct write, allowing software to control all GPIO ports simultaneously, or with masked writes to half of the bits at a time, allowing software to affect the output value of a subset of the bits without requiring a read-modify-write.
+  In the input direction, software can read the contents of any of the GPIO peripheral inputs, and it can request the detection of an interrupt event for any of the 32 bits in a configurable manner for detecting rising edge, falling edge, or active low/high input.
+  A noise filter is available through configuration for any of the inputs.
+  '''
+  // Unique comportable IP identifier defined under KNOWN_CIP_IDS in the regtool.
+  cip_id:             "9",
+  design_spec:        "../doc",
+  dv_doc:             "../doc/dv",
+  hw_checklist:       "../doc/checklist",
+  sw_checklist:       "/sw/device/lib/dif/dif_gpio",
+  revisions: [
+    {
+      version:            "1.0.0",
+      life_stage:         "L2",
+      design_stage:       "D3",
+      verification_stage: "V3",
+      commit_id:          "c1be7eb2b7265cd5ba6ceb026c28acf8e371151a",
+      notes:              "",
+    }
+    {
+      version:            "1.1.0",
+      life_stage:         "L1",
+      design_stage:       "D3",
+      verification_stage: "V2S",
+      dif_stage:          "S2",
+      notes:              ""
+    }
+  ]
+  clocking: [{clock: "clk_i", reset: "rst_ni"}],
+  bus_interfaces: [
+    { protocol: "tlul", direction: "device" }
+  ],
+  available_inout_list: [
+    { name: "gpio",
+      width: 2,
+      desc: "GPIO inout to/from PAD"
+    }
+  ],
+  param_list: [
+    { name:    "GpioAsyncOn",
+      type:    "bit",
+      default: "1'b1",
+      desc:    '''
+      Instantiates 2-flop synchronizers on all GPIO inputs if set to 1.
+      '''
+      local:   "false",
+      expose:  "true"
+    },
+  ]
+  countermeasures: [
+    { name: "BUS.INTEGRITY",
+      desc: "End-to-end bus integrity scheme."
+    }
+  ]
+  features: [
+    {
+      name: "GPIO.IN.INTR_CTRL"
+      desc: '''Input interrupts can be triggered identified by detecting either level or edge.
+      There are four detection modes available: rising edge, falling edge, high-level, and low-level.
+      '''
+    }
+    {
+      name: "GPIO.IN.FILTER"
+      desc: '''GPIO module provides noise filter control.
+      It can be enabled with programing GPIO.CTRL_EN_INPUT_FILTER.
+      Once it enables, input value must be stable for 16cycles before transitioning
+      '''
+    }
+  ]
+  regwidth: "32",
+  registers: [
+    { name: "DATA_IN",
+      desc: "GPIO Input data read value",
+      swaccess: "ro",
+      hwaccess: "hwo",
+      tags: [// data_in is ro register, so exclude its readback check
+             "excl:CsrNonInitTests:CsrExclWriteCheck"],
+      fields: [
+        { bits: "1:0",
+          resval: "x"
+        }
+      ],
+    },
+    { name: "DIRECT",
+      desc: "GPIO direct output data write value and Output Enable",
+      swaccess: "rw",
+      hwaccess: "hrw",
+      hwext: "true",
+      hwqe: "true",
+      fields: [
+        { bits: "1:0",
+          name: "GPIO_O",
+          desc: '''GPIO output value'''
+        },
+        { bits: "3:2", 
+          name: "GPIO_OE",
+          desc: '''GPIO output enable''' 
+        }
+      ],
+    }
+    { name: "INTR_CTRL",
+      desc: '''Combined GPIO interrupt control enables.
+               If !!INTR_ENABLE[i] is true, setting:
+                 - !!EN_RISING[i]   enables rising-edge interrupt detection on GPIO[i].
+                 - !!EN_FALLING[i]  enables falling-edge interrupt detection on GPIO[i].
+                 - !!EN_LVLHIGH[i]  enables level-high interrupt detection on GPIO[i].
+                 - !!EN_LVLLOW[i]   enables level-low interrupt detection on GPIO[i].
+               If !!EN_INPUT_FILTER[i] is true, input bit [i] must be stable for 16 cycles before transitioning.
+            ''',
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0",
+          name: "EN_RISING",
+          desc: '''GPIO interrupt enable for GPIO, rising edge.
+
+                If true, a value of 1 on !!INTR_CTRL_EN_RISING[i]
+                enables rising-edge interrupt detection on GPIO[i].
+                ''',
+        },
+        { bits: "3:2",
+          name: "EN_FALLING",
+          desc: '''GPIO interrupt enable for GPIO, falling edge.
+
+                If true, a value of 1 on !!INTR_CTRL_EN_FALLING[i]
+                enables falling-edge interrupt detection on GPIO[i].
+                ''',
+        },
+        { bits: "5:4",
+          name: "EN_LVLHIGH",
+          desc: '''GPIO interrupt enable for GPIO, level high.
+
+                If true, a value of 1 on !!INTR_CTRL_EN_LVLHIGH[i]
+                enables level high interrupt detection on GPIO[i].
+                ''',
+        },
+        { bits: "7:6",
+          name: "EN_LVLLOW",
+          desc: '''GPIO interrupt enable for GPIO, level low.
+
+                If true, a value of 1 on !!INTR_CTRL_EN_LVLLOW[i]
+                enables level low interrupt detection on GPIO[i].
+                ''',
+            },
+        { bits: "9:8",
+          name: "EN_INPUT_FILTER",
+          desc: '''filter enable for GPIO input bits.
+
+                If true, a value of input bit [i]
+                must be stable for 16 cycles before transitioning.
+                ''',
+        }
+      ],
+    },
+    { name: "CTRL_EN_INPUT_FILTER",
+      desc: '''filter enable for GPIO input bits.
+
+                If true, a value of input bit [i]
+            must be stable for 16 cycles before transitioning.
+            ''',
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "3:0" }
+      ],
+    },
+  ],
+}

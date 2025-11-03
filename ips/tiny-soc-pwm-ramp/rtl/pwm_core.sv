@@ -1,0 +1,127 @@
+// Copyright lowRISC contributors (OpenTitan project).
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Description: PWM Core Module
+
+module pwm_core 
+  import pwm_reg_pkg::*;
+#(
+  parameter int NOutputs = 6,
+  parameter int PhaseCntDw = 16,
+  parameter int BeatCntDw = 27
+) (
+  input                           clk_core_i,
+  input                           rst_core_ni,
+
+  input                           lvds_i,
+
+  output pwm_reg_pkg::pwm_hw2reg_t hw2reg,
+  input  pwm_reg_pkg::pwm_reg2hw_t reg2hw,
+
+  output logic                    pwm_ramp_o,
+  output logic [NOutputs-1:0]     pwm_o
+);
+
+  // Reset internal counters whenever parameters change.
+
+  logic                clr_phase_cntr;
+  logic [NOutputs-1:0] clr_blink_cntr;
+
+  assign clr_phase_cntr = reg2hw.cfg.clk_div.qe | reg2hw.cfg.dc_resn.qe | reg2hw.cfg.cntr_en.qe;
+
+  //
+  // Beat and phase counters (in core clock domain)
+  //
+
+  logic                  cntr_en;
+  logic [BeatCntDw-1:0]  clk_div;
+  logic [3:0]            dc_resn;
+  logic [3:0]            lshift;
+
+  logic [BeatCntDw-1:0]  beat_ctr_q;
+  logic [BeatCntDw-1:0]  beat_ctr_d;
+  logic                  beat_ctr_en;
+  logic                  beat_end;
+
+  logic [PhaseCntDw-1:0] phase_ctr_q;
+  logic [PhaseCntDw-1:0] phase_ctr_d;
+  logic [PhaseCntDw-1:0] phase_ctr_incr;
+  logic [PhaseCntDw-1:0] phase_ctr_next;
+  logic                  phase_ctr_overflow;
+  logic                  phase_ctr_en;
+  logic                  cycle_end;
+
+  assign cntr_en = reg2hw.cfg.cntr_en.q;
+  assign dc_resn = reg2hw.cfg.dc_resn.q;
+  assign clk_div = reg2hw.cfg.clk_div.q;
+
+  assign beat_ctr_d = (clr_phase_cntr) ? '0 :
+                      (beat_ctr_q == clk_div) ? '0 : (beat_ctr_q + 1'b1);
+  assign beat_ctr_en = clr_phase_cntr | cntr_en;
+  assign beat_end = (beat_ctr_q == clk_div);
+
+  always_ff @(posedge clk_core_i or negedge rst_core_ni) begin
+    if (!rst_core_ni) begin
+      beat_ctr_q <= '0;
+    end else begin
+      beat_ctr_q <= beat_ctr_en ? beat_ctr_d : beat_ctr_q;
+    end
+  end
+
+  // Only update phase_ctr at the end of each beat
+  // Exception: allow reset to zero whenever not enabled
+  assign lshift = 4'd15 - dc_resn;
+  assign phase_ctr_en = beat_end & (clr_phase_cntr | cntr_en);
+  assign phase_ctr_incr =  (PhaseCntDw)'('h1) << lshift;
+  assign {phase_ctr_overflow, phase_ctr_next} = phase_ctr_q + phase_ctr_incr;
+  assign phase_ctr_d = clr_phase_cntr ? '0 : phase_ctr_next;
+  assign cycle_end = beat_end & phase_ctr_overflow;
+
+  always_ff @(posedge clk_core_i or negedge rst_core_ni) begin
+    if (!rst_core_ni) begin
+      phase_ctr_q <= '0;
+    end else begin
+      phase_ctr_q <= phase_ctr_en ? phase_ctr_d : phase_ctr_q;
+    end
+  end
+
+  for (genvar ii = 0; ii < NOutputs; ii++) begin : gen_chan_insts
+
+    //
+    // PWM Channel Instantiation
+    //
+
+    pwm_chan #(.CntDw(PhaseCntDw)) u_chan (
+      .clk_i            (clk_core_i),
+      .rst_ni           (rst_core_ni),
+      .pwm_en_i         (reg2hw.pwm_en[ii].q),
+      .phase_delay_i    (reg2hw.pwm_param[ii].phase_delay.q),
+      .duty_cycle_a_i   (reg2hw.pwm_param[ii].duty_cycle.q),
+      .phase_ctr_i      (phase_ctr_q),
+      .cycle_end_i      (cycle_end),
+      .dc_resn_i        (dc_resn),
+      .pwm_o            (pwm_o[ii])
+    );
+
+  end : gen_chan_insts
+  
+
+  // PWM ramp
+  logic [5:0] adc_val;
+
+  assign hw2reg.adc_value.d = {2'b00, adc_val};
+
+  pwm_ramp #(.NBITS(6), .ResetValue('0)) u_pwm_ramp (
+    .clk_i        (clk_core_i),
+    .rst_ni       (rst_core_ni),
+    .enable_i     (reg2hw.ramp.pwm_ramp_en.q),
+    .step_i       (reg2hw.ramp.pwm_ramp_step.q),
+    .lvds_i,
+    .pwm_o        (pwm_ramp_o),
+    .adc_value_o  (adc_val),
+    .adc_valid_o  (hw2reg.adc_value.de)  
+  );
+
+
+endmodule : pwm_core
