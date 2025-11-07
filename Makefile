@@ -142,7 +142,7 @@ endif
 # VIEW WAVEFORMS RTL SIMULATION
 view:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TOP).vcd $(VIEWER_CONF) & 
+	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP).vcd $(VIEWER_CONF) & 
 
 view_cocotb:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
@@ -235,7 +235,7 @@ sim_syn: compile_syn
 # VIEW WAVEFORMS RTL SIMULATION
 view_syn:
 	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/dump_$(TOP)_syn.vcd $(VIEWER_CONF) & 
+	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_syn.vcd $(VIEWER_CONF) & 
 
 ##################################################
 ###              Static Timing Analysis        ###

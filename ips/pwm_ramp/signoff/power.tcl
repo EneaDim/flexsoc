@@ -50,8 +50,8 @@ foreach corner [sta::corners] {
 puts "==========================================================================="
 puts "(VCD Power Analysis) report_power"
 puts "============================================================================"
-puts "read_vcd -scope pwm_ramp_tb/u_pwm_ramp sim/dump_pwm_ramp.vcd"
-read_vcd -scope pwm_ramp_tb/u_pwm_ramp sim/dump_pwm_ramp.vcd
+puts "read_vcd -scope pwm_ramp_tb/u_pwm_ramp sim/pwm_ramp.vcd"
+read_vcd -scope pwm_ramp_tb/u_pwm_ramp sim/pwm_ramp.vcd
 foreach corner [sta::corners] {
     puts ""
     puts "======================= [$corner name] Corner ==================================="

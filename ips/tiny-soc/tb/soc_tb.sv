@@ -44,9 +44,9 @@ module soc_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/dump_soc.vcd");
+      $dumpfile("sim/soc.vcd");
     `else
-      $dumpfile("sim/dump_soc_syn.vcd");
+      $dumpfile("sim/soc_syn.vcd");
     `endif
     $dumpvars(0, soc_tb);
   end

@@ -24,7 +24,7 @@ module soc(clk_i, rst_ni, cio_rx_i, cio_tx_o, cio_tx_en_o, cio_pwm_o, cio_pwm_en
   (* src = "rtl/soc.sv:13.22" *)
   output [1:0] cio_pwm_en_o;
   wire [1:0] cio_pwm_en_o;
-  (* src = "rtl/soc.sv:14.22" *)
+  (* src = "rtl/soc.sv:14.21" *)
   input [3:0] cio_gpio_i;
   wire [3:0] cio_gpio_i;
   (* src = "rtl/soc.sv:15.22" *)
@@ -6817,16 +6817,16 @@ module soc(clk_i, rst_ni, cio_rx_i, cio_tx_o, cio_tx_en_o, cio_pwm_o, cio_pwm_en
   (* force_downto = 32'd1 *)
   (* src = "rtl/uart_core.sv:170.20-170.91|/usr/local/bin/../share/yosys/techmap.v:270.26-270.27" *)
   wire [16:0] _06775_;
-  (* src = "rtl/soc.sv:107.22" *)
-  (* unused_bits = "0 49 58" *)
-  wire [65:0] tl_gpio_d2h;
-  (* src = "rtl/soc.sv:106.22" *)
-  (* unused_bits = "24 25 26 27 56 57 58 59 69 70 71 92 105 107 108" *)
-  wire [108:0] tl_gpio_h2d;
   (* src = "rtl/soc.sv:105.22" *)
   (* unused_bits = "0 49 58" *)
+  wire [65:0] tl_gpio_d2h;
+  (* src = "rtl/soc.sv:104.22" *)
+  (* unused_bits = "24 25 26 27 56 57 58 59 69 70 71 92 105 107 108" *)
+  wire [108:0] tl_gpio_h2d;
+  (* src = "rtl/soc.sv:103.22" *)
+  (* unused_bits = "0 49 58" *)
   wire [65:0] tl_pwm_d2h;
-  (* src = "rtl/soc.sv:109.22" *)
+  (* src = "rtl/soc.sv:107.22" *)
   (* unused_bits = "0 49 58" *)
   wire [65:0] tl_rv_timer_d2h;
   (* src = "rtl/soc.sv:43.22" *)

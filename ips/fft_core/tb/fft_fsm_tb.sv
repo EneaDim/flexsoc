@@ -54,9 +54,9 @@ module fft_fsm_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/dump_fft_fsm.vcd");
+      $dumpfile("sim/fft_fsm.vcd");
     `else
-      $dumpfile("sim/dump_fft_fsm_syn.vcd");
+      $dumpfile("sim/fft_fsm_syn.vcd");
     `endif
     $dumpvars(0, fft_fsm_tb);
   end

@@ -64,9 +64,9 @@ module fft_core_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/dump_fft_core.vcd");
+      $dumpfile("sim/fft_core.vcd");
     `else
-      $dumpfile("sim/dump_fft_core_syn.vcd");
+      $dumpfile("sim/fft_core_syn.vcd");
     `endif
     $dumpvars(0, fft_core_tb);
   end

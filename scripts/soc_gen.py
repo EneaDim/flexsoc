@@ -551,7 +551,7 @@ def defaults(host):
     .scramble_req_o       ( ),
 
     .debug_req_i         ('0),
-    .crash_dump_o        ( ),
+    .crash_o        ( ),
     .double_fault_seen_o ( ),
 
     .fetch_enable_i         ('1),

@@ -102,9 +102,9 @@ module multiple_pwm_ramp_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/dump_multiple_pwm_ramp.vcd");
+      $dumpfile("sim/multiple_pwm_ramp.vcd");
     `else
-      $dumpfile("sim/dump_multiple_pwm_ramp_syn.vcd");
+      $dumpfile("sim/multiple_pwm_ramp_syn.vcd");
     `endif
     $dumpvars(0, multiple_pwm_ramp_tb);
   end
