@@ -379,19 +379,23 @@ def select_used_ips_in_order(ips_paths: list[Path], rtl_root: Path) -> list[Path
 
 def _parse_instantiated_modules_from_sv(path: Path) -> list[str]:
     """
-    Heuristic SV instantiation parser:
-    - looks for lines like: <modname> [#(...)] <instname> (...);
-    - ignores common keywords and declarations.
-    Returns a list of candidate module names (strings).
+    Heuristic, multiline-aware SV instantiation parser.
+    Detects patterns like:
+        prim_deglitch #(.Width(1)) u_sync (
+        prim_ff_2sync u_ff[1:0] (
+    across newlines and with optional parameterization.
+    It ignores declarations like "module <name>" and other non-instantiation keywords.
+    Returns a list of candidate *module* names instantiated in this file.
     """
+    import re as _re
     try:
         text = Path(path).read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return []
 
-    # Remove /* */ block comments first
-    out, in_block, i = [], False, 0
-    while i < len(text):
+    # Strip /* ... */ comments (including multiline)
+    out, i, n, in_block = [], 0, len(text), False
+    while i < n:
         if not in_block and text.startswith("/*", i):
             in_block, i = True, i+2
             continue
@@ -403,39 +407,31 @@ def _parse_instantiated_modules_from_sv(path: Path) -> list[str]:
         i += 1
     text = "".join(out)
 
-    # Strip // comments line-wise
-    lines = [ln.split("//",1)[0] for ln in text.splitlines()]
+    # Strip // comments
+    text = "\n".join(ln.split("//", 1)[0] for ln in text.splitlines())
 
-    # Tokens to skip as "module-like" words that are not instantiations
-    skip_leading = {
-        "module","endmodule","package","endpackage","interface","endinterface",
-        "class","endclass","program","endprogram","clocking","endclocking",
-        "function","endfunction","task","endtask","generate","endgenerate",
-        "bind","import","export","typedef","struct","union","enum",
-        "logic","wire","reg","assign","if","else","for","foreach","while",
-        "case","endcase","assert","cover","property","endproperty","sequence","endsequence",
-        "parameter","localparam"
-    }
-
-    # A fairly strict regex for instantiations:
-    # start of line -> word (module), optional whitespace and optional #(...),
-    # whitespace, instance name, optional array dims, then '('
-    inst_re = re.compile(
-        r'^\s*(?P<mod>[A-Za-z_]\w*)\s*'          # module name
-        r'(?:#\s*\(|#\s*[^;]*\))?\s+'            # optional parameterization
-        r'(?P<inst>[A-Za-z_]\w*)\s*'             # instance name
-        r'(?:\[[^\]]+\]\s*)?'                    # optional array dims
-        r'\(',                                   # port list start
+    # Multiline regex: capture <modname> [#(...)] <instname> [(...]
+    rx = _re.compile(
+        r"(?<!\bmodule\s)(?<!\binterface\s)(?<!\bpackage\s)(?<!\btypedef\s)"
+        r"\b(?P<mod>[A-Za-z_]\w*)\s*"
+        r"(?:#\s*\([^;]*?\))?\s+"
+        r"(?P<inst>[A-Za-z_]\w*)\s*"
+        r"(?:\[[^\]]+\]\s*)?"
+        r"\(",
+        _re.M | _re.S,
     )
 
+    blacklist = {
+        "if","for","case","assign","always","always_ff","always_comb","always_latch",
+        "function","task","typedef","struct","union","enum","logic","wire","reg","genvar",
+        "begin","end","unique","priority","virtual","static","automatic","import","export",
+        "assert","cover","property","sequence","bind","generate"
+    }
+
     mods: list[str] = []
-    for ln in lines:
-        m = inst_re.match(ln)
-        if not m:
-            continue
+    for m in rx.finditer(text):
         mod = m.group("mod")
-        # Filter out non-instantiation starters
-        if mod in skip_leading:
+        if mod in blacklist:
             continue
         mods.append(mod)
     return mods
