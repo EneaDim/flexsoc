@@ -491,6 +491,108 @@ def _render_tb(top: str,
     return "\n".join(lines) + "\n"
 
 
+def _render_simple_tb(top: str,
+                      clk_period_ns: int,
+                      simdir: str,
+                      syndir: str,
+                      compiler: str,
+                      sig: dict) -> str:
+    """Minimal TB: only clock(s) and reset(s). No TLUL/Reg IF."""
+    params = sig["parameters"]
+    lparams = sig["localparams"]
+    ports_in = sig["ports_in"]
+    ports_out = sig["ports_out"]
+    clks = sig["clks"]
+    rsts = sig["rsts"]
+
+    lines = []
+    lines.append("`timescale 1ns/1ps")
+    if compiler == "verilator":
+        lines.append(f'`include "tb/include_{top}_tb.sv"')
+    else:
+        lines.append("`ifndef SYN")
+        lines.append(f'  `include "rtl/{top}.v"')
+        lines.append("`else")
+        lines.append(f'  `include "{syndir}/{top}_synth.v"')
+        lines.append("`endif")
+    lines.append("")
+    lines.append(f"module {top}_tb;")
+    lines.append(f"  parameter int CLK_PERIOD = {clk_period_ns}; // ns")
+
+    for name, val in params:
+        lines.append(f"  parameter {name} = {val};")
+    for name, val in lparams:
+        lines.append(f"  localparam {name} = {val};")
+
+    # Declare inputs as regs (bit-vectors ok; unknown types fall back to logic)
+    lines.append("\n  // Inputs")
+    for name, w in ports_in:
+        if w == 1 or w == "1":
+            lines.append(f"  reg {name};")
+        elif isinstance(w, str) and w.startswith('['):
+            lines.append(f"  reg {w} {name};")
+        else:
+            lines.append(f"  logic {name};")
+
+    # Declare outputs as wires
+    lines.append("\n  // Outputs")
+    for name, w in ports_out:
+        if w == 1 or w == "1":
+            lines.append(f"  wire {name};")
+        elif isinstance(w, str) and w.startswith('['):
+            lines.append(f"  wire {w} {name};")
+        else:
+            lines.append(f"  logic {name};")
+
+    # DUT
+    lines.append("\n  // DUT")
+    lines.append(f"  {top} u_{top} (")
+    pin_lines = []
+    for name, _ in ports_in:
+        pin_lines.append(f"    .{name}({name})")
+    for name, _ in ports_out:
+        pin_lines.append(f"    .{name}({name})")
+    for i, pl in enumerate(pin_lines):
+        lines.append(pl + ("," if i != len(pin_lines)-1 else ""))
+    lines.append("  );\n")
+
+    # Clocks
+    for c in clks:
+        lines.append("  initial begin")
+        lines.append(f"    {c} = 1'b0;")
+        lines.append(f"    forever #(CLK_PERIOD/2) {c} = ~{c};")
+        lines.append("  end\n")
+
+    # VCD
+    lines.append("  initial begin")
+    lines.append("    `ifndef SYN")
+    lines.append(f'      $dumpfile("{simdir}/{top}.vcd");')
+    lines.append("    `else")
+    lines.append(f'      $dumpfile("{simdir}/{top}_syn.vcd");')
+    lines.append("    `endif")
+    lines.append(f"    $dumpvars(0, {top}_tb);")
+    lines.append("  end\n")
+
+    # Simple reset pulse(s)
+    lines.append("  initial begin")
+    # Init inputs to 0
+    for nm, _ in ports_in:
+        if nm not in clks and nm not in rsts:
+            lines.append(f"    {nm} = '0;")
+    if rsts:
+        for r in rsts:
+            lines.append(f"    {r} = 1'b0;")
+        lines.append("    #(CLK_PERIOD*2);")
+        for r in rsts:
+            lines.append(f"    {r} = 1'b1;")
+    else:
+        lines.append("    #(CLK_PERIOD*2);")
+    lines.append("    #(CLK_PERIOD*10);")
+    lines.append("    $finish;")
+    lines.append("  end")
+    lines.append("endmodule")
+    return "\n".join(lines) + "\n"
+
 # -------------------------
 # CLI
 # -------------------------
@@ -542,7 +644,15 @@ def main(argv=None) -> int:
 
     # Parse RTL signature once (common.py)
     sig = parse_sv_signature(rtldir, top)
+    sig_for_simple = sig
+
     reg_pkg = has_reg_pkg(rtldir, top)
+    reg_top_exists = (Path(rtldir) / f"{top}_reg_top.sv").exists()
+    simple_mode = not (reg_pkg and reg_top_exists)
+    reg_top_exists = (Path(rtldir) / f"{top}_reg_top.sv").exists()
+    simple_mode = not (reg_pkg and reg_top_exists)
+    # Detect if DUT exposes TL-UL ports; if so, we may include tlul_pkg for types even in simple mode
+    sig_for_simple = None
 
     # Prepare output dir
     ensure_dir(outdir)
@@ -551,16 +661,45 @@ def main(argv=None) -> int:
     if comp == "verilator":
         include_txt = _sv_header_include_for_verilator(top, rtldir, syndir, prims, reg_pkg, itf, vsv)
         safe_write_file(outdir / f"include_{top}_tb.sv", include_txt, overwrite=force)
+    # In simple mode, add tlul_pkg include if DUT exposes tl_i/tl_o types
+    if simple_mode and sig_for_simple is not None:
+        has_tlul = any(n == "tl_i" for n,_ in sig_for_simple["ports_in"]) or any(n == "tl_o" for n,_ in sig_for_simple["ports_out"])
+        if has_tlul:
+            lines = include_txt.splitlines()
+            try:
+                idx = lines.index("`ifndef SYN")
+            except ValueError:
+                idx = 0
+            # Insert after the standard pkg includes block
+            # Find insertion point after prim_secded_pkg include if present
+            ins = None
+            for i, L in enumerate(lines):
+                if "ips/pkgs/prim_secded_pkg.sv" in L:
+                    ins = i + 1
+            if ins is None:
+                ins = idx + 1
+            lines.insert(ins, '  `include "ips/pkgs/tlul_pkg.sv"')
+            include_txt = "\n".join(lines) + ("\n" if not include_txt.endswith("\n") else "")
+            safe_write_file(outdir / f"include_{top}_tb.sv", include_txt, overwrite=force)
 
-        if reg_pkg and itf == "tlul":
+        if (not simple_mode) and reg_pkg and itf == "tlul":
             safe_write_file(outdir / "tlul_if.sv",    _emit_tlul_if(),    overwrite=force)
             safe_write_file(outdir / "tlul_utils.sv", _emit_tlul_utils(), overwrite=force)
-        if reg_pkg and itf == "reg_iface":
+        if (not simple_mode) and reg_pkg and itf == "reg_iface":
+            safe_write_file(outdir / "reg_if.sv",     _emit_reg_if(top),     overwrite=force)
+            safe_write_file(outdir / "reg_utils.sv",  _emit_reg_utils(top),  overwrite=force)    # Emit bus helper files when full TB is enabled
+    if (not simple_mode) and reg_pkg:
+        if itf == "tlul":
+            safe_write_file(outdir / "tlul_if.sv",    _emit_tlul_if(),    overwrite=force)
+            safe_write_file(outdir / "tlul_utils.sv", _emit_tlul_utils(), overwrite=force)
+        elif itf == "reg_iface":
             safe_write_file(outdir / "reg_if.sv",     _emit_reg_if(top),     overwrite=force)
             safe_write_file(outdir / "reg_utils.sv",  _emit_reg_utils(top),  overwrite=force)
 
+
+
     # Emit the testbench
-    tb_txt = _render_tb(top, clk_ns, simdir, syndir, itf, comp, vsv, sig)
+    tb_txt = _render_simple_tb(top, clk_ns, simdir, syndir, comp, sig) if simple_mode else _render_tb(top, clk_ns, simdir, syndir, itf, comp, vsv, sig)
     safe_write_file(outdir / f"{top}_tb.sv", tb_txt, overwrite=force)
 
     #print(colorize(f"Generated: {outdir}/include_{top}_tb.sv"))
