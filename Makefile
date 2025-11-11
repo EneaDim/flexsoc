@@ -1,91 +1,100 @@
+# Include configuration
 include config.mk
+
+# Quiet by default; VERBOSE=1 to see commands
+ifeq ($(VERBOSE),1)
+  Q :=
+else
+  Q := @
+endif
 
 # HELP
 help:
-	@echo "$(ORANGE)"
-	@echo "Available make commands to start:"
-	@echo ""
-	@echo "    make help_ip     Show IP-related help"
-	@echo "    make help_soc    Show SoC-related help"
-	@echo "    make help_doc    Show documentation-related help"
-	@echo "    make help_fsm    Show FSM generator help"
-	@echo "$(RESET)"
+	$(Q)echo "$(Q)$(ORANGE)"
+	$(Q)echo "Available make commands to start:"
+	$(Q)echo ""
+	$(Q)echo "    make help_ip     Show IP-related help"
+	$(Q)echo "    make help_soc    Show SoC-related help"
+	$(Q)echo "    make help_doc    Show documentation-related help"
+	$(Q)echo "    make help_fsm    Show FSM generator help"
+	$(Q)echo "$(Q)$(RESET)"
 
 help_ip:
-	$(PYTHON) scripts/help_ip.py
+	$(Q)$(PYTHON) scripts/help_ip.py
 help_soc:
-	$(PYTHON) scripts/help_soc.py
+	$(Q)$(PYTHON) scripts/help_soc.py
 help_doc: 
-	$(PYTHON) scripts/help_doc.py
+	$(Q)$(PYTHON) scripts/help_doc.py
 help_fsm:
-	$(MAKE) -C fsm_gen help
+	$(Q)$(MAKE) -C fsm_gen help
 
 
 # SETUP FOLDER STRUCTURE
 setup: 
-	@$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
-	@$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
+	$(Q)$(ECHO) "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
 	 $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) $(UTILDIR) $(DOCDIR) \
 	 $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIR) $(FSMDIR) $(ORSDIR)
 
 # HJSON TEMPLATE GENERATION
 hjson:
-	@$(ECHO) "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
-	$(PYTHON) scripts/hjson_gen.py -top $(TOP) -itf $(REG_ITF) -o $(DATADIR) 
+	$(Q)$(ECHO) "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
+	$(Q)$(PYTHON) scripts/hjson_gen.py -top $(TOP) -itf $(REG_ITF) -o $(DATADIR) 
 
 # SV REGISTER GENERATOR
 reg:
-	@$(ECHO) "\n$(ORANGE)Generating REGMAP from hjson description...$(RESET)"
-	./$(UTILDIR)/regtool.py -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
+	$(Q)$(ECHO) "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
+	$(Q)./$(UTILDIR)/regtool.py -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
 
 # MARKDOWN GENERATOR
 .PHONY: doc
 doc:
-	@$(ECHO) "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
-	./$(UTILDIR)/regtool.py -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
-	./$(UTILDIR)/regtool.py --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
+	$(Q)$(ECHO) "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
+	$(Q)./$(UTILDIR)/regtool.py -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
+	$(Q)./$(UTILDIR)/regtool.py --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
 # FETCH VENDOR FROM HJSON
 fetch:
-	$(UTILDIR)/vendor.py --update vendor/$(VENDOR).vendor.hjson
+	$(Q)$(UTILDIR)/vendor.py --update vendor/$(VENDOR).vendor.hjson
 
 # RTL base generator
 rtl_stub:
-	@$(ECHO) "\n$(ORANGE)RTL stub generation...\n$(RESET)"
-	$(PYTHON) scripts/rtl_stub_gen.py -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
+	$(Q)$(ECHO) "\n$(ORANGE)RTL stub generation...\n$(RESET)"
+	$(Q)$(PYTHON) scripts/rtl_stub_gen.py -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
 
 # Basic IP start flow
 ip_start: setup hjson reg doc rtl_stub setup_tb sim
 
 # SV to single Verilog file
 sv2v: clean_rtl
-	@$(ECHO) "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
-	$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv > $(RTLDIR)/$(TOP).v
+	$(Q)$(ECHO) "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
+	$(Q)$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv \
+	> $(RTLDIR)/$(TOP).v
 
 # File list generation
 flist:
-	$(PYTHON) scripts/gen_filelist.py --top $(TOP)
+	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP)
 
 ###########
 # LINTING #
 ###########
 
 .PHONY: lint lint_v lint_sv
-lint: $(if $(filter v,$(VSV)),lint_v,lint_sv)
+lint: $(if $(filter v,$(Q)$(VSV)),lint_v,lint_sv)
 
 lint_v: sv2v 
-	@$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
-	$(LINTER) $(LINT_FLAGS) $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_lint.log 2>&1 
+	$(Q)$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
+	$(Q)$(LINTER) $(LINT_FLAGS) $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
 lint_sv: flist
-	@$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
-	$(LINTER) $(LINT_FLAGS) -f $(RTLDIR)/rtl_list.f --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
+	$(Q)$(ECHO) "\n$(ORANGE)Linting...\n$(RESET)"
+	$(Q)$(LINTER) $(LINT_FLAGS) -f $(RTLDIR)/rtl_list.f --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
 	> $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
 # SETUP SV TESTBENCH FILE
 setup_tb:
-	@$(ECHO) "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
-	$(PYTHON) scripts/setup_tb.py -top $(TOP) -rtldir $(RTLDIR) \
+	$(Q)$(ECHO) "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
+	$(Q)$(PYTHON) scripts/setup_tb.py -top $(TOP) -rtldir $(RTLDIR) \
 	-simdir $(SIMDIR) -syndir $(SYNDIR) -prim $(PRIM) -clk $(CLK_PERIOD) \
 	-comp $(COMPILER) -itf $(REG_ITF) -vsv $(VSV) -o $(TBDIR)
 
@@ -94,21 +103,21 @@ setup_tb:
 #########################################################
 
 .PHONY: compile compile_v compile_sv
-compile: $(if $(filter v,$(VSV)),compile_v,compile_sv)
+compile: $(if $(filter v,$(Q)$(VSV)),compile_v,compile_sv)
 
 compile_v: lint_v
-ifeq ($(COMPILER), iverilog)
-	@$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
-	$(COMPILER) $(IVERILOG_FLAGS) -o $(SIMDIR)/$(TESTBENCH).vvp $(TBDIR)/$(TESTBENCH).sv \
+ifeq ($(Q)$(COMPILER), iverilog)
+	$(Q)$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
+	$(Q)$(COMPILER) $(IVERILOG_FLAGS) -o $(SIMDIR)/$(TESTBENCH).vvp $(TBDIR)/$(TESTBENCH).sv \
 	> $(LOGDIR)/$(TOP)_compile.log 2>&1
 else
-	@$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
-	$(COMPILER) ${VERILATOR_FLAGS} $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_compile.log 2>&1
+	$(Q)$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
+	$(Q)$(COMPILER) ${VERILATOR_FLAGS} $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_compile.log 2>&1
 endif
 
 compile_sv: lint_sv
-	@$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
-	$(COMPILER) ${VERILATOR_FLAGS} -f $(RTLDIR)/rtl_list.f > $(LOGDIR)/$(TOP)_compile.log 2>&1
+	$(Q)$(ECHO) "\n$(ORANGE)Compiling...\n$(RESET)"
+	$(Q)$(COMPILER) ${VERILATOR_FLAGS} -f $(RTLDIR)/rtl_list.f > $(LOGDIR)/$(TOP)_compile.log 2>&1
 
 ######################
 # SIMULATE TESTBENCH #
@@ -118,44 +127,44 @@ compile_sv: lint_sv
 sim: $(if $(filter v,$(VSV)),sim_v,sim_sv)
 
 sim_v: compile_v
-ifeq ($(COMPILER), iverilog)
-	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
-	vvp $(SIMDIR)/$(TESTBENCH).vvp > $(LOGDIR)/$(TESTBENCH)_sim.log
+ifeq ($(Q)$(COMPILER), iverilog)
+	$(Q)$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
+	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp > $(LOGDIR)/$(TESTBENCH)_sim.log
 else
-	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
-	$(COMPILER) ${VERILATOR_FLAGS} --trace --trace-structs \
-	$(TBDIR)/$(TESTBENCH).sv > $(LOGDIR)/$(TOP)_sim.log 2>&1
-	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
+	$(Q)$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
+	$(Q)$(COMPILER) ${VERILATOR_FLAGS} --trace --trace-structs
+	$(Q)$(TBDIR)/$(TESTBENCH).sv > $(LOGDIR)/$(TOP)_sim.log 2>&1
+	$(Q)./$(SIMDIR)/$(COMPILER)/V$(Q)$(TESTBENCH)
 endif
 
 sim_sv: compile_sv
-ifeq ($(COMPILER), iverilog)
-	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
-	vvp $(SIMDIR)/$(TESTBENCH).vvp > $(LOGDIR)/$(TESTBENCH)_sim.log
+ifeq ($(Q)$(COMPILER), iverilog)
+	$(Q)$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
+	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp > $(LOGDIR)/$(TESTBENCH)_sim.log
 else
-	@$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
-	$(COMPILER) ${VERILATOR_FLAGS} -f $(RTLDIR)/rtl_list.f --top-module $(TOP)_tb \
+	$(Q)$(ECHO) "\n$(ORANGE)Simulating...\n$(RESET)"
+	$(Q)$(COMPILER) ${VERILATOR_FLAGS} -f $(RTLDIR)/rtl_list.f --top-module $(TOP)_tb \
 	--trace --trace-structs $(TBDIR)/$(TESTBENCH).sv > $(LOGDIR)/$(TOP)_sim.log 2>&1
-	./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
+	$(Q)./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
 endif
 
 # VIEW WAVEFORMS RTL SIMULATION
 view:
-	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP).vcd $(VIEWER_CONF) & 
+	$(Q)$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP).vcd $(VIEWER_CONF) & 
 
 view_cocotb:
-	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) $(TBDIR)/cocotb/$(TOP)_tb.vcd $(VIEWER_CONF) & 
+	$(Q)$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(TBDIR)/cocotb/$(TOP)_tb.vcd $(VIEWER_CONF) & 
 
 # COCOTB
 cocotb: 
-	$(MAKE) -C $(TBDIR)/cocotb
+	$(Q)$(MAKE) -C $(TBDIR)/cocotb
 
 # REGRESSION
 regression:
-	@$(MKDIR) -p $(REGRESSIONDIR)\
-	$(PYTHON) scripts/regression.py
+	$(Q)$(MKDIR) -p $(REGRESSIONDIR)
+	$(Q)$(PYTHON) scripts/regression.py
 
 ############################
 # RUN SYNTHESIS WITH YOSYS #
@@ -165,22 +174,27 @@ regression:
 syn: $(if $(filter v,$(VSV)),syn_v,syn_sv)
 
 syn_v: setup_syn
-	@$(MKDIR) -p $(SYNDIR)/plots
-	@$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
-	$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log 
-	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
-	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots
+	$(Q)$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log 
+	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log \
+	> $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log \
+	> $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
 syn_sv: setup_syn
-	@$(MKDIR) -p $(SYNDIR)/plots
-	@$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
-	$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log 
-	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
-	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots
+	$(Q)$(ECHO) "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys \
+	> $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log 
+	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log \
+	> $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log \
+	> $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
 yosys-vgen:
-	@$(ECHO) "\n$(ORANGE)Verilog generation with Yosys...\n$(RESET)"
-	$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p " \
+	$(Q)$(ECHO) "\n$(ORANGE)Verilog generation with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p " \
 	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
 	           -f rtl/rtl_list.f \
 	           --top $(TOP); \
@@ -191,30 +205,31 @@ yosys-vgen:
 
 # Use it only if small design
 plot_postsyn:
-	xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot &
+	$(Q)xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot &
 
 .PHONY: view_presyn view_presyn_v view_presyn_sv
 view_presyn: $(if $(filter v,$(VSV)),view_presyn_v,view_presyn_sv)
 
 view_presyn_v: sv2v
-	@$(MKDIR) -p $(SYNDIR)/plots
-	@$(ECHO) "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
-	$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); \
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots
+	$(Q)$(ECHO) "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); \
 	show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn' \
 	$(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_presyn.log 2>&1
-	xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
+	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
 
 view_presyn_sv:
-	@$(MKDIR) -p $(SYNDIR)/plots
-	@$(ECHO) "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
-	$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots
+	$(Q)$(ECHO) "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
   read_slang -I ips/pkgs -I ips/prim \
              -I ips/prim_opentitan -I ips/tlul \
              -D SYNTHESIS --ignore-assertions \
              -f rtl/rtl_list.f --top $(TOP) ; \
   prep -top $(TOP); select -clear; select -module $(MODULE) ; \
-  show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" > $(LOGDIR)/$(TOP)_presyn.log 2>&1
-	xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
+  show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" \
+	> $(LOGDIR)/$(TOP)_presyn.log 2>&1
+	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
 
 
 ###################################################
@@ -222,56 +237,56 @@ view_presyn_sv:
 ###################################################
 
 compile_syn:
-	@$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
+	$(Q)$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
 	iverilog -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
 	-o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
 	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 
 # SIMULATE POST SYNTHESIS NETLIST
 sim_syn: compile_syn
-	@$(ECHO) "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
+	$(Q)$(ECHO) "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
 	vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
 
 # VIEW WAVEFORMS RTL SIMULATION
 view_syn:
-	@$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_syn.vcd $(VIEWER_CONF) & 
+	$(Q)$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_syn.vcd $(VIEWER_CONF) & 
 
 ##################################################
 ###              Static Timing Analysis        ###
 ##################################################
 
 sta: setup_signoff 
-	@$(ECHO) "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
-	$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
-	@$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
-	@$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true 
+	$(Q)$(ECHO) "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).log 
+	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).warnings || true 
+	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).errors || true 
 
 ##################################################
 ###                  Power Analysis            ###
 ##################################################
 
 power: setup_signoff 
-	@$(ECHO) "\n$(ORANGE)Power Analysis, static and with .vcd...\n$(RESET)"
-	$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl > $(LOGDIR)/$(TOP)_power.log 
+	$(Q)$(ECHO) "\n$(ORANGE)Power Analysis, static and with .vcd...\n$(RESET)"
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl > $(LOGDIR)/$(TOP)_power.log 
 
 # STA only violators
 sta_violators: setup_signoff 
-	@$(ECHO) "\n$(ORANGE)Static Timing Analysis only timing violators...\n$(RESET)"
-	$(STA) -exit -no_init $(SIGNOFFDIR)/sta_violators.tcl > $(LOGDIR)/$(TOP)_sta.violators
+	$(Q)$(ECHO) "\n$(ORANGE)Static Timing Analysis only timing violators...\n$(RESET)"
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta_violators.tcl > $(LOGDIR)/$(TOP)_sta.violators
 
 # Path view of STA timing reports
 path_view:
-	@$(ECHO) "\n$(ORANGE)Path view generation of STA report...\n$(RESET)"
-	@$(MKDIR) -p $(SIGNOFFDIR)/path_view ; \
-	$(PYTHON) $(UTILDIR)/interactiveReport.py -i $(LOGDIR)/$(PATH_VIEW_FILE) \
+	$(Q)$(ECHO) "\n$(ORANGE)Path view generation of STA report...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/path_view ;
+	$(Q)$(PYTHON) $(UTILDIR)/interactiveReport.py -i $(LOGDIR)/$(PATH_VIEW_FILE) \
 	-s $(UTILDIR)/default.svg -t opensta -n $(NPATHS)
 	
 # Write SDF
 sdf: setup_signoff
-	@$(ECHO) "\n$(ORANGE)Write sdf files...\n$(RESET)"
-	@$(MKDIR) -p $(SIGNOFFDIR)/sdf
-	$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > /dev/null 2>&1
+	$(Q)$(ECHO) "\n$(ORANGE)Write sdf files...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > /dev/null 2>&1
 
 
 #################################################
@@ -279,38 +294,38 @@ sdf: setup_signoff
 #################################################
 
 pnr: setup_pnr 
-	$(MAKE) --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk
+	$(Q)$(MAKE) --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk
 
 pnr_gui:
-	$(MAKE) gui_final --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk &
+	$(Q)$(MAKE) gui_final --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk &
 
 # SAVE TESTBENCH
 save_tb:
-	@$(ECHO) "\n$(ORANGE)Save testbench file...\n$(RESET)"
-	@$(CP) $(TBDIR)/$(TOP)_tb.sv $(TBDIR)/$(TOP)_tb_ok.sv
+	$(Q)$(ECHO) "\n$(ORANGE)Save testbench file...\n$(RESET)"
+	$(Q)$(CP) $(TBDIR)/$(TOP)_tb.sv $(TBDIR)/$(TOP)_tb_ok.sv
 
 # SW DRIVERS
 .PHONY: driver
 driver:
 	./$(UTILDIR)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
-	$(PYTHON) scripts/driver_gen.py -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR) 
+	$(Q)$(PYTHON) scripts/driver_gen.py -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR) 
 
 # FSM FLOW
 fsm_example_load:
-	@$(CP) fsm_gen/examples/* fsm_gen/inputs/
+	$(Q)$(CP) fsm_gen/examples/* fsm_gen/inputs/
 
 fsm2rtl:
-	@$(CP) fsm_gen/outputs/*.sv rtl
+	$(Q)$(CP) fsm_gen/outputs/*.sv rtl
 
 fsm_setup:
-	$(MAKE) -C fsm_gen setup
+	$(Q)$(MAKE) -C fsm_gen setup
 
 .PHONY: fsm_gen
 fsm_gen:
-	$(MAKE) -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(FSM) 
+	$(Q)$(MAKE) -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(FSM) 
 
 fsm_plot:
-	$(MAKE) -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(FSM) 
+	$(Q)$(MAKE) -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(FSM) 
 
 fsm_flow: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
 
@@ -321,25 +336,25 @@ ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui
 
 # FUSESOC
 fsoc_init:
-	@$(ECHO) "\n$(ORANGE)FuseSOC setup...\n$(RESET)"
-	$(PYTHON) scripts/setup_fsoc.py -prj $(PRJ) -top $(TOP) -rtldir $(RTLDIR) -lintdir $(LINTDIR)	-o . 
+	$(Q)$(ECHO) "\n$(ORANGE)FuseSOC setup...\n$(RESET)"
+	$(Q)$(PYTHON) scripts/setup_fsoc.py -prj $(PRJ) -top $(TOP) -rtldir $(RTLDIR) -lintdir $(LINTDIR)	-o . 
 
 fsoc:
-	@$(FUSESOC) --cores-root=. run --target $(TARGET) $(PRJ):ip:$(TOP)
+	$(Q)$(FUSESOC) --cores-root=. run --target $(TARGET) $(PRJ):ip:$(TOP)
 
 # XBAR
 xbar: xbar_init xbar_build
 
 xbar_init:
-	$(MKDIR) -p $(TOPDIR)
-	@$(ECHO) "\n$(ORANGE)XBAR hjson init, assuming ibex host ...\n$(RESET)"
-	$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --host $(HOST) --output $(TOPDIR)/xbar_main.hjson
+	$(Q)$(MKDIR) -p $(TOPDIR)
+	$(Q)$(ECHO) "\n$(ORANGE)XBAR hjson init, assuming ibex host ...\n$(RESET)"
+	$(Q)$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --host $(HOST) --output $(TOPDIR)/xbar_main.hjson
 
 xbar_build:
-	@$(ECHO) "\n$(ORANGE)XBAR build ...\n$(RESET)"
-	$(MKDIR) -p $(TOPDIR)/autogen
-	$(UTILDIR)/tlgen.py -t $(TOPDIR)/xbar_main.hjson -o $(TOPDIR)/autogen
-	$(RM) -r $(TOPDIR)/autogen/dv
+	$(Q)$(ECHO) "\n$(ORANGE)XBAR build ...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(TOPDIR)/autogen
+	$(Q)$(UTILDIR)/tlgen.py -t $(TOPDIR)/xbar_main.hjson -o $(TOPDIR)/autogen
+	$(Q)$(RM) -r $(TOPDIR)/autogen/dv
 	mv $(TOPDIR)/autogen/rtl/autogen/* $(TOPDIR)/autogen
 
 ###############################
@@ -349,148 +364,148 @@ xbar_build:
 soc_flow: soc_build driver soc_sim soc_run 
 
 soc_build:
-	@$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
-	@$(MKDIR) -p $(TOPDIR)
-	@$(PYTHON) scripts/soc_gen.py -host $(HOST) -lrm $(LOWRISC_IPS) -m $(IPS) -o $(TOPDIR)/soc.sv
+	$(Q)$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(TOPDIR)
+	$(Q)$(PYTHON) scripts/soc_gen.py -host $(HOST) -lrm $(LOWRISC_IPS) -m $(IPS) -o $(TOPDIR)/soc.sv
 
 soc_sim:
-	@$(ECHO) "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
-	@$(FUSESOC) --cores-root=. run --target=sim --tool=verilator --setup --build enea:soc:main
+	$(Q)$(ECHO) "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
+	$(Q)$(FUSESOC) --cores-root=. run --target=sim --tool=verilator --setup --build enea:soc:main
 
 soc_run:
-	@$(ECHO) "\n$(ORANGE)GCC compilaiton of hello_world.c ...\n$(RESET)"
-	$(MAKE) -C sw
-	@$(ECHO) "\n$(ORANGE)Verilator run ... Press <CTRL>-C\n$(RESET)"
+	$(Q)$(ECHO) "\n$(ORANGE)GCC compilaiton of hello_world.c ...\n$(RESET)"
+	$(Q)$(MAKE) -C sw
+	$(Q)$(ECHO) "\n$(ORANGE)Verilator run ... Press <CTRL>-C\n$(RESET)"
 	build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E sw/build/main.elf
 
 soc_view:
-	@$(ECHO) "\n$(ORANGE)Viewing ...\n$(RESET)"
-	$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
+	$(Q)$(ECHO) "\n$(ORANGE)Viewing ...\n$(RESET)"
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(Q)$(TOP)_tb.gtkw&
 
 # SoC Processor-Less
 soc_pless: ip_load xbar 
-	@$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
-	@$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
-	@$(MAKE) soc_build IPS="pwm gpio rv_timer"
-	@$(CP) top/soc.sv $(RTLDIR)/
-	@$(MAKE) sim syn sdf sta power view TOP=soc
+	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
+	$(Q)$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
+	$(Q)$(MAKE) soc_build IPS="pwm gpio rv_timer"
+	$(Q)$(CP) top/soc.sv $(RTLDIR)/
+	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc
 
 copy-uart-host:
-	@$(CP) ips/soc/$(RTLDIR)/uart* $(RTLDIR)/
+	$(Q)$(CP) ips/soc/$(RTLDIR)/uart* $(RTLDIR)/
 
 copy-soc:
-	@$(CP) ips/soc/$(RTLDIR)/* $(RTLDIR)/
-	@$(CP) ips/soc/$(TBDIR)/* $(TBDIR)/
-	@$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
-	@$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
-	#@$(CP) top/soc.sv $(RTLDIR)/
+	$(Q)$(CP) ips/soc/$(RTLDIR)/* $(RTLDIR)/
+	$(Q)$(CP) ips/soc/$(TBDIR)/* $(TBDIR)/
+	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
+	$(Q)$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
+	#$(Q)$(CP) top/soc.sv $(RTLDIR)/
 
 copy-vendor:
-	@$(foreach x,$(LOWRISC_IPS),cp vendor/lowrisc_ip/ip/$(x)/rtl/* $(RTLDIR);)
+	$(Q)$(foreach x,$(Q)$(LOWRISC_IPS),cp vendor/lowrisc_ip/ip/$(x)/rtl/* $(RTLDIR);)
 
 # TUTORIALS
 
 full_tutorial:
-	@$(MAKE) ip_start ip_flow pnr pnr_gui TOP=test
+	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui TOP=test
 
 fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
-	@$(MAKE) setup_tb ip_flow_noreg plot_postsyn TOP=$(FSM)
+	$(Q)$(MAKE) setup_tb ip_flow_noreg plot_postsyn TOP=$(FSM)
 
 ip_tutorial:
-	$(MAKE) ip_load
-	@$(ECHO) "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
-	$(MAKE) sim syn sdf sta sta_violators power view 
+	$(Q)$(MAKE) ip_load
+	$(Q)$(ECHO) "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
+	$(Q)$(MAKE) sim syn sdf sta sta_violators power view 
 
 soc_tutorial:
-	@$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
-	$(MAKE) ip_load
-	@$(ECHO) "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
-	$(MAKE) fetch VENDOR=lowrisc_ip
-	@$(ECHO) "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
-	$(MAKE) fetch VENDOR=lowrisc_ibex
-	@$(ECHO) "\n$(ORANGE)Generate xbar ...\n$(RESET)"
-	$(MAKE) xbar HOST=ibex
-	$(MAKE) soc_flow HOST=ibex
+	$(Q)$(ECHO) "\n$(ORANGE)$(Q)$(TOP) IP load ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load
+	$(Q)$(ECHO) "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
+	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
+	$(Q)$(ECHO) "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
+	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
+	$(Q)$(ECHO) "\n$(ORANGE)Generate xbar ...\n$(RESET)"
+	$(Q)$(MAKE) xbar HOST=ibex
+	$(Q)$(MAKE) soc_flow HOST=ibex
 
 # SETUP COCOTB
 setup_cocotb:
-	@$(MKDIR) -p $(TBDIR)/cocotb
-	@$(PYTHON) scripts/setup_cocotb.py --top $(TOP) --itf $(REG_ITF) \
+	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
+	$(Q)$(PYTHON) scripts/setup_cocotb.py --top $(TOP) --itf $(REG_ITF) \
 	--rtl-dir $(RTLDIR) --output $(TBDIR)/cocotb --clk clk_i --rst rst_ni \
 	--rst-active low --period-ns 10 --sim $(COMPILER) 
 
 # DEFINE PYTHON MODELDIR
 setup_model:
-	$(PYTHON) scripts/setup_model.py -top $(TOP) -o $(MODELDIR) 
+	$(Q)$(PYTHON) scripts/setup_model.py -top $(TOP) -o $(MODELDIR) 
 
 # SETUP SDC FILE
 setup_sdc:
-	$(PYTHON) scripts/setup_sdc.py $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc 
+	$(Q)$(PYTHON) scripts/setup_sdc.py $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc 
 
 # SETUP SYNTHESIS WITH YOSYS 
 setup_syn: setup_sdc
-	$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
+	$(Q)$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
 	-liberty $(LIB_SYN) -clk $(CLK_PERIOD) -target $(TARGET_SYN) -opt $(TARGET_OPT) -o $(SYNDIR)  
 
 # SETUP STA SCRIPT
 setup_signoff: setup_sdc
-	$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) -sdcdir $(ORSDIR) \
+	$(Q)$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) -sdcdir $(ORSDIR) \
 	-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
 
 # SETUP P&R
 setup_pnr:
-	$(PYTHON) scripts/setup_pnr.py $(TOP) --syn_strategy $(TARGET_OPT) --clk_period $(CLK_PERIOD) \
+	$(Q)$(PYTHON) scripts/setup_pnr.py $(TOP) --syn_strategy $(TARGET_OPT) --clk_period $(CLK_PERIOD) \
 	--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --outdir $(ORSDIR)
 
 # SAVE FSM
 save_fsm:
-	@$(MKDIR) -p $(FSMDIR)/$(FSM)
-	@$(CP) -r fsm_gen/inputs $(FSMDIR)/$(FSM) || true
-	@$(CP) -r fsm_gen/outputs $(FSMDIR)/$(FSM) || true
-	@$(ECHO) "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"
+	$(Q)$(MKDIR) -p $(FSMDIR)/$(FSM)
+	$(Q)$(CP) -r fsm_gen/inputs $(FSMDIR)/$(FSM) || true
+	$(Q)$(CP) -r fsm_gen/outputs $(FSMDIR)/$(FSM) || true
+	$(Q)$(ECHO) "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"
 
 # LOAD FSM
 load_fsm: fsm_setup
-	@$(CP) -r $(FSMDIR)/$(FSM)/inputs/* fsm_gen/inputs
-	@$(CP) -r $(FSMDIR)/$(FSM)/outputs/* fsm_gen/outputs
-	@$(ECHO) "\n$(ORANGE)$(FSM) FSM loaded into fsm_gen\n$(RESET)"
+	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/inputs/* fsm_gen/inputs
+	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/outputs/* fsm_gen/outputs
+	$(Q)$(ECHO) "\n$(ORANGE)$(FSM) FSM loaded into fsm_gen\n$(RESET)"
 
 
 # SAVE IP
 ip_save: clean_sim clean_rtl
-	@$(MKDIR) -p ips/$(TOP) 
-	@$(CP) -r $(DATADIR)    ips/$(TOP) || true
-	@$(CP) -r $(DOCDIR)     ips/$(TOP) || true
-	@$(CP) -r $(DRIVERDIR)  ips/$(TOP) || true
-	@$(CP) -r $(LINTDIR)    ips/$(TOP) || true
-	@$(CP) -r $(RTLDIR)     ips/$(TOP) || true
-	@$(CP) -r $(TBDIR)      ips/$(TOP) || true
-	@$(CP) -r $(SIMDIR)     ips/$(TOP) || true
-	@$(CP) -r $(SYNDIR)     ips/$(TOP) || true
-	@$(CP) -r $(SIGNOFFDIR) ips/$(TOP) || true
-	@$(CP) -r $(ORSDIR)     ips/$(TOP) || true
-	@$(CP) -r $(LOGDIR)     ips/$(TOP) || true
-	@$(CP) -r $(MODELDIR)   ips/$(TOP) || true
-	@$(CP) -r $(PYDIR)      ips/$(TOP) || true
-	@$(CP) -r $(FSMDIR)     ips/$(TOP) || true
-	@$(CP)    $(TOP).core   ips/$(TOP) || true
-	@$(ECHO) "\n$(ORANGE)$(TOP) IP saved\n$(RESET)"
+	$(Q)$(MKDIR) -p ips/$(TOP) 
+	$(Q)$(CP) -r $(DATADIR)    ips/$(TOP) || true
+	$(Q)$(CP) -r $(DOCDIR)     ips/$(TOP) || true
+	$(Q)$(CP) -r $(DRIVERDIR)  ips/$(TOP) || true
+	$(Q)$(CP) -r $(LINTDIR)    ips/$(TOP) || true
+	$(Q)$(CP) -r $(RTLDIR)     ips/$(TOP) || true
+	$(Q)$(CP) -r $(TBDIR)      ips/$(TOP) || true
+	$(Q)$(CP) -r $(SIMDIR)     ips/$(TOP) || true
+	$(Q)$(CP) -r $(SYNDIR)     ips/$(TOP) || true
+	$(Q)$(CP) -r $(SIGNOFFDIR) ips/$(TOP) || true
+	$(Q)$(CP) -r $(ORSDIR)     ips/$(TOP) || true
+	$(Q)$(CP) -r $(LOGDIR)     ips/$(TOP) || true
+	$(Q)$(CP) -r $(MODELDIR)   ips/$(TOP) || true
+	$(Q)$(CP) -r $(PYDIR)      ips/$(TOP) || true
+	$(Q)$(CP) -r $(FSMDIR)     ips/$(TOP) || true
+	$(Q)$(CP)    $(TOP).core   ips/$(TOP) || true
+	$(Q)$(ECHO) "\n$(ORANGE)$(Q)$(TOP) IP saved\n$(RESET)"
 
 # LOAD IP
 ip_load:
-	@$(ECHO) "\n$(ORANGE)$(TOP) IP loaded\n$(RESET)"
-	@$(CP) -r ips/$(TOP)/* .
+	$(Q)$(ECHO) "\n$(ORANGE)$(TOP) IP loaded\n$(RESET)"
+	$(Q)$(CP) -r ips/$(TOP)/* .
 
 # DEPENDENCIES
 deps:
-	@$(ECHO) "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
+	$(Q)$(ECHO) "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
 	sudo apt install -y make python3 python3-pip
 	sed -i 's/\r$$//' deps.sh
 	bash ./deps.sh ip
 	pip install -r requirements.txt
 	
 deps-soc:
-	@$(ECHO) "\n$(ORANGE)Installing dependencies for SoC integration ...\n$(RESET)"
+	$(Q)$(ECHO) "\n$(ORANGE)Installing dependencies for SoC integration ...\n$(RESET)"
 	bash ./deps.sh soc
 	echo
 	export PATH=$$PATH:/tools/riscv32/bin
@@ -498,56 +513,56 @@ deps-soc:
 
 # CLEAN
 clean_doc:
-	$(RM) $(DOCDIR)/*
+	$(Q)$(RM) $(DOCDIR)/*
 clean_log:
-	$(RM) $(LOGDIR)/*
+	$(Q)$(RM) $(LOGDIR)/*
 clean_rtl:
-	$(RM) $(RTLDIR)/*.v
+	$(Q)$(RM) $(RTLDIR)/*.v
 clean_sim:
-	$(RM) $(SIMDIR)/*.vvp
-	$(RM) $(SIMDIR)/*.vcd
-	$(RM) $(SIMDIR)/verilator
+	$(Q)$(RM) $(SIMDIR)/*.vvp
+	$(Q)$(RM) $(SIMDIR)/*.vcd
+	$(Q)$(RM) $(SIMDIR)/verilator
 clean_cocotb:
-	$(RM) $(TBDIR)/cocotb/*.vcd 
-	$(RM) $(TBDIR)/cocotb/sim_build
-	$(RM) $(TBDIR)/cocotb/__py*
-	$(MAKE) -C $(TBDIR)/cocotb clean
+	$(Q)$(RM) $(TBDIR)/cocotb/*.vcd 
+	$(Q)$(RM) $(TBDIR)/cocotb/sim_build
+	$(Q)$(RM) $(TBDIR)/cocotb/__py*
+	$(Q)$(MAKE) -C $(TBDIR)/cocotb clean
 clean_syn:
-	$(RM) $(SYNDIR)/*
+	$(Q)$(RM) $(SYNDIR)/*
 clean_signoff: 
-	$(RM) $(SIGNOFFDIR)/sdf/*
-	$(RM) $(SIGNOFFDIR)/*.sdc
+	$(Q)$(RM) $(SIGNOFFDIR)/sdf/*
+	$(Q)$(RM) $(SIGNOFFDIR)/*.sdc
 clean_pnr:
-	$(RM) $(ORSDIR)/*
-	$(RM) $(ORS_LOGS)
-	$(RM) $(ORS_REPORTS)
-	$(RM) $(ORS_RESULTS)
-	$(RM) $(ORS_OBJECTS)
+	$(Q)$(RM) $(ORSDIR)/*
+	$(Q)$(RM) $(ORS_LOGS)
+	$(Q)$(RM) $(ORS_REPORTS)
+	$(Q)$(RM) $(ORS_RESULTS)
+	$(Q)$(RM) $(ORS_OBJECTS)
 clean_fsm:
-	$(MAKE) -C fsm_gen clean
+	$(Q)$(MAKE) -C fsm_gen clean
 clean_fsm_all:
-	$(MAKE) -C fsm_gen clean_all
+	$(Q)$(MAKE) -C fsm_gen clean_all
 clean_fsoc:
-	$(RM) build
+	$(Q)$(RM) build
 clean_soc:
-	@$(ECHO) "\n$(ORANGE)Cleaning SoC ...\n$(RESET)"
-	@$(RM) build trace_core_00000000.log uart0.log  sim.fst*  sw/*.elf sw/*.o sw/*.csv \
+	$(Q)$(ECHO) "\n$(ORANGE)Cleaning SoC ...\n$(RESET)"
+	$(Q)$(RM) build trace_core_00000000.log uart0.log  sim.fst*  sw/*.elf sw/*.o sw/*.csv \
 		     tb/top_verilator.* soc.core xbar_main.hjson $(TOPDIR)
 clean_sw:
-	$(MAKE) -C sw clean
+	$(Q)$(MAKE) -C sw clean
 clean_vendor:
-	$(RM) vendor/lowrisc_ip
-	$(RM) vendor/lowrisc_ibex
-	$(RM) vendor/lowrisc_ip.lock.hjson
-	$(RM) vendor/lowrisc_ibex.lock.hjson
+	$(Q)$(RM) vendor/lowrisc_ip
+	$(Q)$(RM) vendor/lowrisc_ibex
+	$(Q)$(RM) vendor/lowrisc_ip.lock.hjson
+	$(Q)$(RM) vendor/lowrisc_ibex.lock.hjson
 clean_subdir:
-	$(MAKE) -C fsm_gen clean
-	$(MAKE) -C fsm_gen setup
+	$(Q)$(MAKE) -C fsm_gen clean
+	$(Q)$(MAKE) -C fsm_gen setup
 clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
-	@$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
-	@$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
-	@$(CLEAR)
+	$(Q)$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
+	$(Q)$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
+	$(Q)$(CLEAR)
 clean_all: clean_fsm_all clean_vendor clean 
-	@$(RM) *.core
-	@$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(ORSDIR) \
+	$(Q)$(RM) *.core
+	$(Q)$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(ORSDIR) \
 	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) > /dev/null 2>&1

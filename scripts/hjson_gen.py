@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2025 Enea Dimroci
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,180 +12,288 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+r"""
+\file hjson_gen.py
+\brief Generate a starter .hjson file for a new IP.
+\details
+  Creates <TOP>.hjson with sensible defaults and commented sections to guide edits.
 
-import sys
-import os
+  ## CLI (legacy-compatible)
+    - -top / -t / --top    : TOP module name (required)
+    - -itf / -i / --itf    : bus interface (e.g., "tlul") (required)
+    - -o / --output        : output folder (default: current directory)
+    - -f / --force         : overwrite existing <TOP>.hjson if present
+
+  Behavior:
+    - Creates the output folder if it does not exist.
+    - Refuses to overwrite unless --force is provided.
+    - Exits with code 0 on success, >0 on error.
+"""
+
+from __future__ import annotations
+
 import argparse
+import os
+import sys
 
-# ARGUMENT PARSING
+# Shared helpers
 try:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-top", "--top", type=str, required='True',
-    help="Define the TOP module in the design")
-    ap.add_argument("-itf", "--itf", type=str, required='True',
-    help="Define the register interface: supported reg_iface - tlul")
-    ap.add_argument("-o", "--output", type=str, required='False', help="Output Folder")
-    args = vars(ap.parse_args())
-    top = args.get("top")
-    itf = args.get("itf")
-    output_folder = args.get("output")
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit()
+    from common import colorize, ensure_dir, safe_write_file
+except Exception:  # pragma: no cover
+    def colorize(s: str) -> str: return s
+    def ensure_dir(path: str) -> None:
+        os.makedirs(path, exist_ok=True)
+    def safe_write_file(path: str, content: str, *, overwrite: bool = False) -> None:
+        if (not overwrite) and os.path.exists(path):
+            raise FileExistsError(path)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
 
-try:
-    # Define the output folder
-    if output_folder:
-        path = './' + output_folder + '/'
-    else:
-        path = './'
 
-    # Check if file already exists
-    filename = path+top+'.hjson'
-    if not os.path.exists(filename):
-        with open(path+top+'.hjson', 'w+') as f:
-            mystr = '{\n'
-            mystr += '  name:               "'+str(top)+'",\n'
-            mystr += '  human_name:         "'+str(top)+'",\n'
-            mystr += '  one_line_desc:      "",\n'
-            mystr += "  one_paragraph_desc: '''\n"
-            mystr += "  '''\n"
-            mystr += '  // Unique comportable IP identifier defined under KNOWN_CIP_IDS in the regtool.\n'
-            mystr += '  cip_id:             "1",\n'
-            mystr += '  design_spec:        "",\n'
-            mystr += '  dv_doc:             "",\n'
-            mystr += '  hw_checklist:       "",\n'
-            mystr += '  sw_checklist:       "",\n'
-            mystr += '  revisions: [\n'
-            mystr += '  {\n'
-            mystr += '    version:            "1.0.0",\n'
-            mystr += '    life_stage:         "",\n'
-            mystr += '    design_stage:       "",\n'
-            mystr += '    verification_stage: "",\n'
-            mystr += '    commit_id:          "",\n'
-            mystr += '    notes:              ""\n'
-            mystr += '  }\n'
-            mystr += '    ]\n'
-            mystr += '  clocking: [{clock: "clk_i", reset: "rst_ni"}],\n'
-            mystr += '  bus_interfaces: [\n'
-            mystr += '    { protocol: "'+str(itf)+'", direction: "device" }\n'
-            mystr += '  ],\n'
-            mystr += '  //available_input_list: [\n'
-            mystr += '  //  { name: "input_i", desc: "input" }\n'
-            mystr += '  //],\n'
-            mystr += '  //available_output_list: [\n'
-            mystr += '  //  { name: "output_o", desc: "output" }\n'
-            mystr += '  //],\n'
-            mystr += '  //interrupt_list: [\n'
-            mystr += '  //  { name: "main_interrupt",\n'
-            mystr += '  //    desc: "main_interrupt"}\n'
-            mystr += '  //],\n'
-            mystr += '  //alert_list: [\n'
-            mystr += '  //  { name: "fatal_fault",\n'
-            mystr += "  //    desc: '''\n"
-            mystr += '  //    This fatal alert is triggered when ...\n'
-            mystr += "  //    '''\n"
-            mystr += '  //  }\n'
-            mystr += '  //],\n'
-            mystr += '  //features: [\n'
-            mystr += '  //  { name: "feature1",\n'
-            mystr += "  //    desc: '''\n"
-            mystr += '  //      Feature 1.\n'
-            mystr += "  //    '''\n"
-            mystr += '  //  },\n'
-            mystr += '  //]\n'
-            mystr += '  //inter_signal_list: [\n'
-            mystr += '  //  { struct: "logic"\n'
-            mystr += '  //    type:   "uni"\n'
-            mystr += '  //    name:   "trigger"\n'
-            mystr += "  //    desc: '''\n"
-            mystr += '  //      Trigger request\n'
-            mystr += "  //    '''\n"
-            mystr += '  //    act:    "req"\n'
-            mystr += '  //  }\n'
-            mystr += '  //]\n'
-            mystr += '  //countermeasures: [\n'
-            mystr += '  //  { name: "BUS.INTEGRITY",\n'
-            mystr += '  //    desc: "End-to-end bus integrity scheme."\n'
-            mystr += '  //  }\n'
-            mystr += '  //]\n'
-            mystr += '  //param_list: [\n'
-            mystr += '  //  { name:    "FifoDepth",\n'
-            mystr += '  //    desc:    "Number of bytes in the FIFO.",\n'
-            mystr += '  //    type:    "int",\n'
-            mystr += '  //    default: "64",\n'
-            mystr += '  //    local:   "true",\n'
-            mystr += '  //  }\n'
-            mystr += '  //]\n'
-            mystr += '  regwidth: "32",\n'
-            mystr += '  registers: [\n'
-            mystr += '    { name: "CTRL",\n'
-            mystr += '      desc: "Control register",\n'
-            mystr += '      swaccess: "rw",\n'
-            mystr += '      hwaccess: "hro",\n'
-            mystr += '      fields: [\n'
-            mystr += '        { bits: "0",\n'
-            mystr += '          name: "EN",\n'
-            mystr += '          desc: "enable"\n'
-            mystr += '        }\n'
-            mystr += '        { bits: "1",\n'
-            mystr += '          name: "RST",\n'
-            mystr += '          desc: "reset"\n'
-            mystr += '        }\n'
-            mystr += '        { bits: "31:16",\n'
-            mystr += '          name: "SETTING",\n'
-            mystr += '          desc: "Basic setting 16 bits."\n'
-            mystr += '        }\n'
-            mystr += '      ]\n'
-            mystr += '    },\n'
-            mystr += '    { name:     "STATUS"\n'
-            mystr += '      desc:     "Status register"\n'
-            mystr += '      swaccess: "ro"\n'
-            mystr += '      hwaccess: "hrw"\n'
-            mystr += '      hwext:    "true"\n'
-            mystr += '      hwre:     "true"\n'
-            mystr += '      fields: [\n'
-            mystr += '        { bits: "0"\n'
-            mystr += '          name: "FULL"\n'
-            mystr += '          desc: "Buffer is full"\n'
-            mystr += '        }\n'
-            mystr += '        { bits: "1"\n'
-            mystr += '          name: "EMPTY"\n'
-            mystr += '          desc: "Buffer is empty"\n'
-            mystr += '        }\n'
-            mystr += '      ]\n'
-            mystr += '    }\n'
-            mystr += '    { name: "RDATA",\n'
-            mystr += '      desc: "read data",\n'
-            mystr += '      swaccess: "ro",\n'
-            mystr += '      hwaccess: "hrw",\n'
-            mystr += '      hwext: "true",\n'
-            mystr += '      hwre: "true",\n'
-            mystr += '      fields: [\n'
-            mystr += '        { bits: "7:0" }\n'
-            mystr += '      ]\n'
-            mystr += '      tags: [// read wdata when fifo is empty, dut may return unknown data\n'
-            mystr += '             "excl:CsrAllTests:CsrExclCheck"]\n'
-            mystr += '    }\n'
-            mystr += '    { name: "WDATA",\n'
-            mystr += '      desc: "write data",\n'
-            mystr += '      swaccess: "wo",\n'
-            mystr += '      hwaccess: "hro",\n'
-            mystr += '      hwqe: "true",\n'
-            mystr += '      fields: [\n'
-            mystr += '        { bits: "7:0" }\n'
-            mystr += '      ]\n'
-            mystr += "      tags: [// don't write to wdata - it affects several other csrs\n"
-            mystr += '             "excl:CsrNonInitTests:CsrExclWrite"]\n'
-            mystr += '    }\n'
-            mystr += '  ]\n'
-            mystr += '}\n'
-            f.write(mystr)
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit()
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    r"""
+    \brief Parse command-line arguments (supports legacy flags).
+    \details
+      Attributes:
+        - top: TOP module name (required)
+        - itf: bus interface (required, e.g., "tlul")
+        - output: destination directory (default ".")
+        - force: bool to allow overwriting existing file
+    """
+    parser = argparse.ArgumentParser(
+        prog="hjson_gen",
+        description="Generate a starter <TOP>.hjson template for an IP.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("-t", "-top", "--top", dest="top", required=True,
+                        help="Define the TOP module in the design (e.g., my_ip).")
+    parser.add_argument("-i", "-itf", "--itf", dest="itf", required=True,
+                        help='Define the register interface (e.g., "tlul").')
+    parser.add_argument("-o", "--output", dest="output", default=".",
+                        help="Output folder (created if missing).")
+    parser.add_argument("-f", "--force", dest="force", action="store_true",
+                        help="Overwrite <TOP>.hjson if it already exists.")
+    return parser.parse_args(argv)
 
+
+def render_hjson(top: str, itf: str) -> str:
+    r"""
+    \brief Build the HJSON document content.
+    \details Raw triple double-quoted string safely contains ''' blocks.
+            Double braces emit literal { } with .format().
+    """
+    return r"""{{ 
+  name:               "{top}",
+  human_name:         "{top}",
+  one_line_desc:      "",
+  one_paragraph_desc: '''
+  '''
+
+  // Unique comportable IP identifier defined under KNOWN_CIP_IDS in the regtool.
+  cip_id:             "1",
+  design_spec:        "",
+  dv_doc:             "",
+  hw_checklist:       "",
+  sw_checklist:       "",
+
+  revisions: [
+    {{
+      version:            "1.0.0",
+      life_stage:         "",
+      design_stage:       "",
+      verification_stage: "",
+      commit_id:          "",
+      notes:              ""
+    }}
+  ]
+
+  clocking: [{{ clock: "clk_i", reset: "rst_ni" }}]
+
+  bus_interfaces: [
+    {{ protocol: "{itf}", direction: "device" }}
+  ]
+
+  // available_input_list: [
+  //   {{ name: "input_i",  desc: "input"  }}
+  // ]
+  // available_output_list: [
+  //   {{ name: "output_o", desc: "output" }}
+  // ]
+
+  // interrupt_list: [
+  //   {{ name: "main_interrupt", desc: "main interrupt" }}
+  // ]
+
+  // alert_list: [
+  //   {{
+  //     name: "fatal_fault",
+  //     desc: '''
+  //       This fatal alert is triggered when ...
+  //     '''
+  //   }}
+  // ]
+
+  // features: [
+  //   {{
+  //     name: "feature1",
+  //     desc: '''
+  //       Feature 1.
+  //     '''
+  //   }}
+  // ]
+
+  // inter_signal_list: [
+  //   {{
+  //     struct: "logic",
+  //     type:   "uni",
+  //     name:   "trigger",
+  //     desc: '''
+  //       Trigger request
+  //     ''',
+  //     act:    "req"
+  //   }}
+  // ]
+
+  // countermeasures: [
+  //   {{ name: "BUS.INTEGRITY", desc: "End-to-end bus integrity scheme." }}
+  // ]
+
+  // param_list: [
+  //   {{
+  //     name:    "FifoDepth",
+  //     desc:    "Number of bytes in the FIFO.",
+  //     type:    "int",
+  //     default: "64",
+  //     local:   "true"
+  //   }}
+  // ]
+
+  regwidth: "32"
+
+  registers: [
+    {{
+      name: "CTRL",
+      desc: "Control register",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        {{
+          bits: "0",
+          name: "EN",
+          desc: "enable"
+        }},
+        {{
+          bits: "1",
+          name: "RST",
+          desc: "reset"
+        }},
+        {{
+          bits: "31:16",
+          name: "SETTING",
+          desc: "Basic setting (16 bits)."
+        }}
+      ]
+    }},
+
+    {{
+      name:     "STATUS",
+      desc:     "Status register",
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext:    "true",
+      hwre:     "true",
+      fields: [
+        {{
+          bits: "0",
+          name: "FULL",
+          desc: "Buffer is full"
+        }},
+        {{
+          bits: "1",
+          name: "EMPTY",
+          desc: "Buffer is empty"
+        }}
+      ]
+    }},
+
+    {{
+      name: "RDATA",
+      desc: "read data",
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext: "true",
+      hwre:  "true",
+      fields: [
+        {{ bits: "7:0" }}
+      ],
+      tags: [
+        // read wdata when fifo is empty, dut may return unknown data
+        "excl:CsrAllTests:CsrExclCheck"
+      ]
+    }},
+
+    {{
+      name: "WDATA",
+      desc: "write data",
+      swaccess: "wo",
+      hwaccess: "hro",
+      hwqe: "true",
+      fields: [
+        {{ bits: "7:0" }}
+      ],
+      tags: [
+        // do not write to wdata - it affects several other CSRs
+        "excl:CsrNonInitTests:CsrExclWrite"
+      ]
+    }}
+  ]
+}}
+""".format(top=top, itf=itf)
+
+
+def main(argv: list[str] | None = None) -> int:
+    r"""
+    \brief Entry point.
+    \details Flow: parse args → validate → ensure dir → write (honor --force).
+    \returns 0 on success; 2 on bad args; 1 on error; 130 on Ctrl-C.
+    """
+    try:
+        args = parse_args(argv)
+
+        top = (args.top or "").strip()
+        itf = (args.itf or "").strip()
+        outdir = (args.output or ".").strip() or "."
+        force = bool(args.force)
+
+        if not top:
+            print(colorize("Error: --top must be a non-empty string."), file=sys.stderr)
+            return 2
+        if not itf:
+            print(colorize("Error: --itf must be a non-empty string."), file=sys.stderr)
+            return 2
+
+        ensure_dir(outdir)
+
+        outfile = os.path.join(outdir, f"{top}.hjson")
+        try:
+            safe_write_file(outfile, render_hjson(top, itf), overwrite=force)
+        except FileExistsError:
+            print(colorize(f"Refusing to overwrite existing file: {outfile} (use --force)"),
+                  file=sys.stderr)
+            return 1
+
+        #print(colorize(f"Generated: {outfile}"))
+        return 0
+
+    except KeyboardInterrupt:
+        print(colorize("Aborted by user."), file=sys.stderr)
+        return 130
+    except Exception as err:
+        tb = sys.exc_info()[2]
+        line = tb.tb_lineno if tb and tb.tb_frame else "?"
+        print(colorize(f"Error at line {line}: {err!s}"), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
