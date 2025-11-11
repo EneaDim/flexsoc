@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2025 Enea Dimroci
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,622 +12,707 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#!/usr/bin/env python3
-import sys
-import os
+r"""
+\file setup_tb.py
+\brief Generate a SystemVerilog testbench and helper files for the given TOP.
+\details
+  This script inspects `<rtldir>/<top>.sv` to:
+    - extract parameters, localparams, and port names (incl. clk_/rst_ tags),
+    - optionally generate simple TL-UL or generic reg_iface drivers (for Verilator),
+    - emit a compact include file for Verilator runs,
+    - write `<output>/<top)_tb.sv` with clock gen, VCD dump, SDF annotate hook, and a tiny stimulus.
+
+  ## CLI (legacy & long flags accepted)
+    - -top / --top
+    - -rtldir / --rtldir / --rtl-dir
+    - -simdir / --simdir / --sim-dir
+    - -syndir / --syndir / --syn-dir
+    - -prim / --prim (nargs=+)
+    - -clk / --clk (ns)
+    - -comp / --comp / --compiler  (iverilog|verilator)
+    - -itf / --itf / --bus         (tlul|reg_iface)
+    - -vsv / --vsv                 ('sv' for SystemVerilog or 'v' for plain Verilog)  [default: 'sv']
+    - -o / --output                (output directory for TB)                           [default: tb]
+    - -f / --force                 (overwrite existing generated files)
+
+  Files emitted (paths relative to --output):
+    - include_<top>_tb.sv
+    - tlul_if.sv, tlul_utils.sv           (if --itf tlul && --comp verilator)
+    - reg_if.sv, reg_utils.sv             (if --itf reg_iface && --comp verilator)
+    - <top>_tb.sv
+
+  The script is intentionally conservative and does not rely on regex-heavy parsing:
+  it only reads the module signature up to the first ');'.
+"""
+
+from __future__ import annotations
+
 import argparse
+import sys
+from pathlib import Path
+from typing import List, Tuple
 
-# =========================
-# ARGUMENT PARSING
-# =========================
-try:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-top",   "--top",   type=str, required=True,
-                    help="Define the TOP module in the design")
-    ap.add_argument("-rtldir","--rtldir",type=str, required=True,
-                    help="Define the directory of source files of the design")
-    ap.add_argument("-simdir","--simdir",type=str, required=True,
-                    help="Define the simulation directory where to put the .vcd file")
-    ap.add_argument("-syndir","--syndir",type=str, required=True,
-                    help="Define the synthesis directory for the synthesis simulation")
-    ap.add_argument("-prim",  "--prim",  nargs='+', type=str, required=True,
-                    help="Define the primitive to be included for the synthesis simulation")
-    ap.add_argument("-clk",   "--clk",   type=int, required=True,
-                    help="Define the clock period in ns")
-    ap.add_argument("-comp",  "--comp",  type=str, required=True,
-                    help="Tell the compiler used Verilator/Iverilog")
-    ap.add_argument("-itf",   "--itf",   type=str, required=True,
-                    help="Define the register interface: supported reg_iface - tlul")
-    ap.add_argument("-vsv",   "--vsv",   type=str, required=True,
-                    help="Define the top file type: -verilog or -systemverilog")
-    ap.add_argument("-o",     "--output",type=str, required=False,
-                    help="Output Folder (base path for generated files)")
-    args = vars(ap.parse_args())
+from common import (
+    colorize, ensure_dir, safe_write_file,
+    parse_sv_signature, has_reg_pkg
+)
 
-    top          = args.get("top")
-    rtldir       = args.get("rtldir")
-    simdir       = args.get("simdir")
-    syndir       = args.get("syndir")
-    prim         = args.get("prim")
-    clk_period   = args.get("clk")
-    compiler     = args.get("comp")
-    itf          = args.get("itf")
-    vsv          = args.get("vsv")
-    output_folder= args.get("output")
-    parameters_flag = False
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit(1)
+# -------------------------
+# Render helpers (SV text)
+# -------------------------
 
-try:
-    # =========================
-    # PATHS
-    # =========================
-    # Base output path
-    if output_folder:
-        base_path = os.path.join('./', output_folder)
+def _sv_header_include_for_verilator(top: str, rtldir: str, syndir: str,
+                                     prims: List[str], flag_reg_pkg: bool,
+                                     itf: str, vsv: str) -> str:
+    inc: List[str] = []
+    inc.append("`ifndef SYN")
+    inc.append('  `include "ips/pkgs/top_pkg.sv"')
+    inc.append('  `include "ips/pkgs/prim_util_pkg.sv"')
+    inc.append('  `include "ips/pkgs/prim_mubi_pkg.sv"')
+    inc.append('  `include "ips/pkgs/prim_secded_pkg.sv"')
+    if flag_reg_pkg:
+        inc.append(f'  `include "{rtldir}/{top}_reg_pkg.sv"')
+    if flag_reg_pkg and itf == "tlul":
+        inc.append('  `include "ips/pkgs/tlul_pkg.sv"')
+        inc.append('  `include "tb/tlul_utils.sv"')
+        inc.append('  `include "tb/tlul_if.sv"')
+    if flag_reg_pkg and itf == "reg_iface":
+        inc.append('  `include "tb/reg_utils.sv"')
+        inc.append('  `include "tb/reg_if.sv"')
+    # DUT source
+    if vsv == "sv":
+        inc.append(f'  `include "{rtldir}/{top}.sv"')
     else:
-        base_path = './'
+        inc.append(f'  `include "{rtldir}/{top}.v"')
+    inc.append("`else")
+    for p in prims:
+        inc.append(f'  `include "{p}"')
+    inc.append(f'  `include "{syndir}/{top}_synth.v"')
+    inc.append("`endif")
+    return "\n".join(inc) + "\n"
 
-    os.makedirs(base_path, exist_ok=True)
-    tb_path = base_path
-    os.makedirs(tb_path, exist_ok=True)
 
-    # =========================
-    # PARSE TOP SV FOR PORTS/PARAMS
-    # =========================
-    with open(os.path.join('./', rtldir, top + '.sv'), 'r') as f:
-        content = f.readlines()
+def _emit_tlul_if() -> str:
+    return """`timescale 1ns/1ps
 
-    clk         = []
-    rst         = []
-    inputs      = []
-    input_w     = []
-    outputs     = []
-    output_w    = []
-    parameters  = []
-    param_values= []
-    localparams = []
-    localparam_values = []
+interface tlul_if (
+  input  logic clk_i,
+  input  logic rst_ni
+);
 
-    hdr = ''.join(''.join(content).split(');')[0]).split('\n')
-    parameters_flag   = False
-    localparams_flag  = False
+  import tlul_pkg::*;
 
-    for line in hdr:
-        flag = False
-        comment_flag = False
-        if ('//') in line:
-            # Strip trailing comments on lines with ports/params
-            if not ('input' in line or 'output' in line or 'parameter' in line or 'localparam' in line):
-                comment_flag = True
-            else:
-                line = ''.join(line.split('//')[:-1])
-        if comment_flag:
-            continue
+  // Host to Device
+  tl_h2d_t h2d /*verilator public*/;
 
-        if 'parameter' in line and 'localparam' not in line:
-            parameters_flag = True
-            par   = line.split('=')[0].split()
-            value = line.split('=')[1].split()[0]
-            if ',' in value:
-                value = value[:-1]
-            parameters.append(par[-1])
-            param_values.append(value)
+  // Device to Host
+  tl_d2h_t d2h /*verilator public*/;
 
-        if 'localparam' in line:
-            localparams_flag = True
-            par   = line.split('=')[0].split()
-            value = line.split('=')[1].split()[0]
-            if ',' in value:
-                value = value[:-1]
-            localparams.append(par[-1])
-            localparam_values.append(value)
+  // Modport for driver (testbench)
+  modport drv (
+    output h2d,
+    input  d2h
+  );
 
-        if 'input ' in line:
-            inp  = ''.join(line.split('input')).strip()
-            inp2 = inp.split()
-            if len(inp2) == 0:
-                continue
-            if inp2[0] == 'logic':
-                inp2 = inp2[1:]
-            if len(inp2) == 0:
-                continue
-            # clock / reset tagging
-            if 'clk_' in inp2[-1]:
-                clk.append(inp2[-1][:-1] if inp2[-1].endswith(',') else inp2[-1])
-            if 'rst_' in inp2[-1]:
-                rst.append(inp2[-1][:-1] if inp2[-1].endswith(',') else inp2[-1])
-            if len(inp2) > 1:
-                input_w.append(inp2[0])
-            else:
-                input_w.append(1)
-            for tok in inp2:
-                if tok.endswith(','):
-                    inputs.append(tok[:-1])
-                    flag = True
-            if not flag:
-                inputs.append(inp2[-1])
+  // Modport for DUT
+  modport dut (
+    input  h2d,
+    output d2h
+  );
 
-        if 'output ' in line:
-            out  = ''.join(line.split('output')).strip()
-            out2 = out.split()
-            if len(out2) == 0:
-                continue
-            if out2[0] == 'logic':
-                out2 = out2[1:]
-            if len(out2) == 0:
-                continue
-            if len(out2) > 1:
-                output_w.append(out2[0])
-            else:
-                output_w.append(1)
-            for tok in out2:
-                if tok.endswith(','):
-                    outputs.append(tok[:-1])
-                    flag = True
-            if not flag:
-                outputs.append(out2[-1])
+endinterface
+"""
 
-    # =========================
-    # CHECK IF *_reg_pkg.sv EXISTS
-    # =========================
-    flag_reg_pkg = False
-    for fname in os.listdir(rtldir):
-        if (str(top) + '_reg_pkg.sv') == fname:
-            flag_reg_pkg = True
-            break
 
-    # =========================
-    # GENERATE INTERFACE FILES
-    # =========================
-    # TLUL path (unchanged)
-    if compiler == 'verilator' and flag_reg_pkg and itf == 'tlul':
-        with open(os.path.join(tb_path, 'tlul_if.sv'), 'w+') as f:
-            mystr  = '`timescale 1ns/1ps\n\n'
-            mystr += 'interface tlul_if (\n'
-            mystr += '  input  logic clk_i,\n'
-            mystr += '  input  logic rst_ni\n'
-            mystr += ');\n\n'
-            mystr += '  import tlul_pkg::*;\n\n'
-            mystr += '  // Host to Device\n'
-            mystr += '  tl_h2d_t h2d /*verilator public*/;\n\n'
-            mystr += '  // Device to Host\n'
-            mystr += '  tl_d2h_t d2h /*verilator public*/;\n\n'
-            mystr += '  // Modport for driver (testbench)\n'
-            mystr += '  modport drv (\n'
-            mystr += '    output h2d,\n'
-            mystr += '    input  d2h\n'
-            mystr += '  );\n\n'
-            mystr += '  // Modport for DUT\n'
-            mystr += '  modport dut (\n'
-            mystr += '    input  h2d,\n'
-            mystr += '    output d2h\n'
-            mystr += '  );\n\n'
-            mystr += 'endinterface\n'
-            f.write(mystr)
+def _emit_tlul_utils() -> str:
+    return """class tlul_utils;
 
-        with open(os.path.join(tb_path, 'tlul_utils.sv'), 'w+') as f:
-            mystr  = 'class tlul_utils;\n\n'
-            mystr += '  virtual tlul_if drv_if;\n\n'
-            mystr += '  function new(virtual tlul_if drv_if);\n'
-            mystr += '    this.drv_if = drv_if;\n'
-            mystr += '  endfunction\n\n'
-            mystr += '  task automatic tlul_write(input logic [top_pkg::TL_AW-1:0]  addr,\n'
-            mystr += '                            input logic [top_pkg::TL_DW-1:0]  data,\n'
-            mystr += '                            input logic [top_pkg::TL_AIW-1:0] source);\n\n'
-            mystr += '    $display("[%0t] TLUL WRITE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);\n\n'
-            mystr += "    drv_if.h2d.d_ready   = 1'b1;\n"
-            mystr += "    drv_if.h2d.a_valid   = 1'b1;\n"
-            mystr += "    drv_if.h2d.a_opcode  = tlul_pkg::PutFullData;\n"
-            mystr += "    drv_if.h2d.a_param   = 3'b000;\n"
-            mystr += "    drv_if.h2d.a_size    = 2;\n"
-            mystr += "    drv_if.h2d.a_source  = source;\n"
-            mystr += "    drv_if.h2d.a_address = addr;\n"
-            mystr += "    drv_if.h2d.a_mask    = 4'b1111;\n"
-            mystr += "    drv_if.h2d.a_data    = data;\n"
-            mystr += "    drv_if.h2d.a_user    = '0;\n\n"
-            mystr += '    do @(posedge drv_if.clk_i); while (!drv_if.d2h.a_ready);\n'
-            mystr += '    drv_if.h2d.a_valid = 0;\n\n'
-            mystr += '    do @(posedge drv_if.clk_i); while (!drv_if.d2h.d_valid);\n\n'
-            mystr += '    if (drv_if.d2h.d_error) begin\n'
-            mystr += '      $display("[%0t] TLUL WRITE ERROR: Addr = 0x%08x, d_error = 1", $time, addr);\n'
-            mystr += '    end else begin\n'
-            mystr += '      $display("[%0t] TLUL WRITE DONE: Addr = 0x%08x", $time, addr);\n'
-            mystr += '    end\n'
-            mystr += '    #1;\n'
-            mystr += '  endtask\n\n'
-            mystr += '  task automatic tlul_read(input  logic [top_pkg::TL_AW-1:0]  addr,\n'
-            mystr += '                           output logic [top_pkg::TL_DW-1:0]  data,\n'
-            mystr += '                           input  logic [top_pkg::TL_AIW-1:0] source);\n\n'
-            mystr += '    $display("[%0t] TLUL READ: Addr = 0x%08x", $time, addr);\n\n'
-            mystr += "    drv_if.h2d.d_ready   = 1'b1;\n"
-            mystr += "    drv_if.h2d.a_valid   = 1'b1;\n"
-            mystr += "    drv_if.h2d.a_opcode  = tlul_pkg::Get;\n"
-            mystr += "    drv_if.h2d.a_param   = 3'b000;\n"
-            mystr += "    drv_if.h2d.a_size    = 2;\n"
-            mystr += "    drv_if.h2d.a_source  = source;\n"
-            mystr += "    drv_if.h2d.a_address = addr;\n"
-            mystr += "    drv_if.h2d.a_mask    = 4'b1111;\n"
-            mystr += "    drv_if.h2d.a_data    = '0;\n"
-            mystr += "    drv_if.h2d.a_user    = '0;\n\n"
-            mystr += '    do @(posedge drv_if.clk_i); while (!drv_if.d2h.a_ready);\n'
-            mystr += '    drv_if.h2d.a_valid = 0;\n\n'
-            mystr += '    do @(posedge drv_if.clk_i); while (!drv_if.d2h.d_valid);\n'
-            mystr += '    data = drv_if.d2h.d_data;\n\n'
-            mystr += '    if (drv_if.d2h.d_error) begin\n'
-            mystr += '      $display("[%0t] TLUL READ ERROR: Addr = 0x%08x, d_error = 1", $time, addr);\n'
-            mystr += '    end else begin\n'
-            mystr += '      $display("[%0t] TLUL READ DONE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);\n'
-            mystr += '    end\n'
-            mystr += '    #1;\n'
-            mystr += '  endtask\n\n'
-            mystr += 'endclass\n'
-            f.write(mystr)
+  virtual tlul_if drv_if;
 
-    # New: generic reg_iface (your structs)
-    if compiler == 'verilator' and flag_reg_pkg and itf == 'reg_iface':
-        with open(os.path.join(tb_path, 'reg_if.sv'), 'w+') as f:
-            mystr  = '`timescale 1ns/1ps\n\n'
-            mystr += 'interface reg_if (\n'
-            mystr += '  input  logic clk_i,\n'
-            mystr += '  input  logic rst_ni\n'
-            mystr += ');\n'
-            mystr += '  import '+str(top)+'_reg_pkg::*;\n'
-            mystr += '\n'
-            mystr += '  // Verso il DUT (richiesta registrata)\n'
-            mystr += '  reg_req_t req /*verilator public*/;\n'
-            mystr += '  // Dal DUT (risposta)\n'
-            mystr += '  reg_rsp_t rsp /*verilator public*/;\n'
-            mystr += '\n'
-            mystr += '  // Staging dal TB per evitare cicli combinazionali\n'
-            mystr += '  reg_req_t req_q;\n'
-            mystr += '\n'
-            mystr += '  // Registra la richiesta da req_q verso req, vista dal DUT\n'
-            mystr += '  always_ff @(posedge clk_i or negedge rst_ni) begin\n'
-            mystr += '    if (!rst_ni) req <= \'0;\n'
-            mystr += '    else         req <= req_q;\n'
-            mystr += '  end\n'
-            mystr += '\n'
-            mystr += '  // Modport per driver (usa req_q e clock)\n'
-            mystr += '  modport drv (\n'
-            mystr += '    input  clk_i,\n'
-            mystr += '    output req_q,\n'
-            mystr += '    input  rsp\n'
-            mystr += '  );\n'
-            mystr += '\n'
-            mystr += '  // Modport per DUT (vede req registrato)\n'
-            mystr += '  modport dut (\n'
-            mystr += '    input  clk_i,\n'
-            mystr += '    input  rst_ni,\n'
-            mystr += '    input  req,\n'
-            mystr += '    output rsp\n'
-            mystr += '  );\n'
-            mystr += '\n'
-            mystr += 'endinterface\n'
-            f.write(mystr)
+  function new(virtual tlul_if drv_if);
+    this.drv_if = drv_if;
+  endfunction
 
-        with open(os.path.join(tb_path, 'reg_utils.sv'), 'w+') as f:
-            mystr  = 'class reg_utils;\n\n'
-            mystr += '  // Usa il modport del driver per avere direzioni chiare e l\'accesso al clock\n'
-            mystr += '  virtual reg_if.drv drv_if;\n'
-            mystr += '\n'
-            mystr += '  function new(virtual reg_if.drv drv_if);\n'
-            mystr += '    this.drv_if = drv_if;\n'
-            mystr += '  endfunction\n'
-            mystr += '\n'
-            mystr += '  // Helper: un ciclo di clock\n'
-            mystr += '  task automatic cycle();\n'
-            mystr += '    @(posedge drv_if.clk_i);\n'
-            mystr += '  endtask\n'
-            mystr += '\n'
-            mystr += '  task automatic write(\n'
-            mystr += '      input  logic ['+str(top)+'_reg_pkg::AW-1:0]  addr,\n'
-            mystr += '      input  logic ['+str(top)+'_reg_pkg::DW-1:0]  data,\n'
-            mystr += '      input  logic ['+str(top)+'_reg_pkg::DBW-1:0] strb = {'+str(top)+'_reg_pkg::DBW{1\'b1}});\n'
-            mystr += '    $display("[%0t] REG WRITE: Addr = 0x%0h Data = 0x%0h WSTRB = 0x%0h", $time, addr, data, strb);\n'
-            mystr += '\n'
-            mystr += '    // Pilota la richiesta su registri di staging (req_q) con assegnazioni non bloccanti\n'
-            mystr += '    drv_if.req_q.valid <= 1\'b1;\n'
-            mystr += '    drv_if.req_q.write <= 1\'b1;\n'
-            mystr += '    drv_if.req_q.addr  <= addr;\n'
-            mystr += '    drv_if.req_q.wdata <= data;\n'
-            mystr += '    drv_if.req_q.wstrb <= strb;\n'
-            mystr += '\n'
-            mystr += '    // Presenta la richiesta al DUT al prossimo fronte di clock (req <= req_q nell\'interfaccia)\n'
-            mystr += '    cycle();\n'
-            mystr += '\n'
-            mystr += '    // Attende il ready (campionato sui fronti di clock)\n'
-            mystr += '    while (!drv_if.rsp.ready) cycle();\n'
-            mystr += '\n'
-            mystr += '    // Deassert di valid dopo handshake\n'
-            mystr += '    drv_if.req_q.valid <= 1\'b0;\n'
-            mystr += '    cycle();\n'
-            mystr += '\n'
-            mystr += '    if (drv_if.rsp.error) begin\n'
-            mystr += '      $display("[%0t] REG WRITE ERROR: Addr = 0x%0h", $time, addr);\n'
-            mystr += '    end else begin\n'
-            mystr += '      $display("[%0t] REG WRITE DONE: Addr = 0x%0h", $time, addr);\n'
-            mystr += '    end\n'
-            mystr += '    #1;\n'
-            mystr += '  endtask\n'
-            mystr += '\n'
-            mystr += '  task automatic read(\n'
-            mystr += '      input  logic ['+str(top)+'_reg_pkg::AW-1:0]  addr,\n'
-            mystr += '      output logic ['+str(top)+'_reg_pkg::DW-1:0]  data);\n'
-            mystr += '    $display("[%0t] REG READ: Addr = 0x%0h", $time, addr);\n'
-            mystr += '\n'
-            mystr += '    drv_if.req_q.valid <= 1\'b1;\n'
-            mystr += '    drv_if.req_q.write <= 1\'b0;\n'
-            mystr += '    drv_if.req_q.addr  <= addr;\n'
-            mystr += '    drv_if.req_q.wdata <= \'0;\n'
-            mystr += '    drv_if.req_q.wstrb <= \'0;\n'
-            mystr += '\n'
-            mystr += '    cycle(); // presenta al DUT\n'
-            mystr += '\n'
-            mystr += '    // Attende ready\n'
-            mystr += '    while (!drv_if.rsp.ready) cycle();\n'
-            mystr += '\n'
-            mystr += '    // Raccoglie i dati (se validi nello stesso ciclo del ready saranno già visibili)\n'
-            mystr += '    data = drv_if.rsp.rdata;\n'
-            mystr += '\n'
-            mystr += '    // Deassert di valid dopo handshake\n'
-            mystr += '    drv_if.req_q.valid <= 1\'b0;\n'
-            mystr += '    cycle();\n'
-            mystr += '\n'
-            mystr += '    if (drv_if.rsp.error) begin\n'
-            mystr += '      $display("[%0t] REG READ ERROR: Addr = 0x%0h", $time, addr);\n'
-            mystr += '    end else begin\n'
-            mystr += '      $display("[%0t] REG READ DONE: Addr = 0x%0h Data = 0x%0h", $time, addr, data);\n'
-            mystr += '    end\n'
-            mystr += '    #1;\n'
-            mystr += '  endtask\n'
-            mystr += '\n'
-            mystr += 'endclass\n'
-            f.write(mystr)
+  task automatic tlul_write(input logic [top_pkg::TL_AW-1:0]  addr,
+                            input logic [top_pkg::TL_DW-1:0]  data,
+                            input logic [top_pkg::TL_AIW-1:0] source);
 
-    # =========================
-    # INCLUDE FILE (for Verilator)
-    # =========================
-    if compiler == 'verilator':
-        with open(os.path.join(tb_path, 'include_' + str(top) + '_tb.sv'), 'w+') as f:
-            mystr = '`ifndef SYN\n'
-            mystr += '  `include "ips/pkgs/top_pkg.sv"\n'
-            mystr += '  `include "ips/pkgs/prim_util_pkg.sv"\n'
-            mystr += '  `include "ips/pkgs/prim_mubi_pkg.sv"\n'
-            mystr += '  `include "ips/pkgs/prim_secded_pkg.sv"\n'
-            # May add reg_pkg
-            if flag_reg_pkg:
-                mystr += '  `include "'+str(rtldir)+'/'+str(top)+'_reg_pkg.sv"\n'
-            # TLUL / reg_iface extras
-            if flag_reg_pkg and itf == 'tlul':
-                mystr += '  `include "ips/pkgs/tlul_pkg.sv"\n'
-                mystr += '  `include "tb/tlul_utils.sv"\n'
-                mystr += '  `include "tb/tlul_if.sv"\n'
-            if flag_reg_pkg and itf == 'reg_iface':
-                mystr += '`include "tb/reg_utils.sv"\n'
-                mystr += '`include "tb/reg_if.sv"\n'
-            if vsv == 'sv':
-                mystr += '  `include "'+str(rtldir)+'/'+str(top)+'.sv"\n'
-            else:
-                mystr += '  `include "'+str(rtldir)+'/'+str(top)+'.v"\n'
-            mystr += '`else\n'
-            for p in prim:
-                mystr += '  `include "'+str(p)+'"\n'
-            mystr += '  `include "'+str(syndir)+'/'+str(top)+'_synth.v"\n'
-            mystr += '`endif\n'
-            f.write(mystr)
+    $display("[%0t] TLUL WRITE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
 
-    # =========================
-    # TESTBENCH
-    # =========================
-    with open(os.path.join(base_path, top + '_tb.sv'), 'w+') as f:
-        mystr  = '// Timescale \n'
-        mystr += '`timescale 1ns/1ps \n'
-        mystr += '// Include files \n'
-        if compiler == 'verilator':
-            mystr += '`include "tb/include_'+str(top)+'_tb.sv"\n\n'
+    drv_if.h2d.d_ready   = 1'b1;
+    drv_if.h2d.a_valid   = 1'b1;
+    drv_if.h2d.a_opcode  = tlul_pkg::PutFullData;
+    drv_if.h2d.a_param   = 3'b000;
+    drv_if.h2d.a_size    = 2;
+    drv_if.h2d.a_source  = source;
+    drv_if.h2d.a_address = addr;
+    drv_if.h2d.a_mask    = 4'b1111;
+    drv_if.h2d.a_data    = data;
+    drv_if.h2d.a_user    = '0;
+
+    do @(posedge drv_if.clk_i); while (!drv_if.d2h.a_ready);
+    drv_if.h2d.a_valid = 0;
+
+    do @(posedge drv_if.clk_i); while (!drv_if.d2h.d_valid);
+
+    if (drv_if.d2h.d_error) begin
+      $display("[%0t] TLUL WRITE ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
+    end else begin
+      $display("[%0t] TLUL WRITE DONE: Addr = 0x%08x", $time, addr);
+    end
+    #1;
+  endtask
+
+  task automatic tlul_read(input  logic [top_pkg::TL_AW-1:0]  addr,
+                           output logic [top_pkg::TL_DW-1:0]  data,
+                           input  logic [top_pkg::TL_AIW-1:0] source);
+
+    $display("[%0t] TLUL READ: Addr = 0x%08x", $time, addr);
+
+    drv_if.h2d.d_ready   = 1'b1;
+    drv_if.h2d.a_valid   = 1'b1;
+    drv_if.h2d.a_opcode  = tlul_pkg::Get;
+    drv_if.h2d.a_param   = 3'b000;
+    drv_if.h2d.a_size    = 2;
+    drv_if.h2d.a_source  = source;
+    drv_if.h2d.a_address = addr;
+    drv_if.h2d.a_mask    = 4'b1111;
+    drv_if.h2d.a_data    = '0;
+    drv_if.h2d.a_user    = '0;
+
+    do @(posedge drv_if.clk_i); while (!drv_if.d2h.a_ready);
+    drv_if.h2d.a_valid = 0;
+
+    do @(posedge drv_if.clk_i); while (!drv_if.d2h.d_valid);
+    data = drv_if.d2h.d_data;
+
+    if (drv_if.d2h.d_error) begin
+      $display("[%0t] TLUL READ ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
+    end else begin
+      $display("[%0t] TLUL READ DONE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
+    end
+    #1;
+  endtask
+
+endclass
+"""
+
+
+def _emit_reg_if(top: str) -> str:
+    return f"""`timescale 1ns/1ps
+
+interface reg_if (
+  input  logic clk_i,
+  input  logic rst_ni
+);
+  import {top}_reg_pkg::*;
+
+  // Toward DUT (registered request)
+  reg_req_t req /*verilator public*/;
+  // From DUT (response)
+  reg_rsp_t rsp /*verilator public*/;
+
+  // Staging avoids combinational loops from TB into DUT
+  reg_req_t req_q;
+
+  // Register the staged request (visible to DUT as 'req')
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) req <= '0;
+    else         req <= req_q;
+  end
+
+  // Driver modport (TB)
+  modport drv (
+    input  clk_i,
+    output req_q,
+    input  rsp
+  );
+
+  // DUT modport (sees registered request)
+  modport dut (
+    input  clk_i,
+    input  rst_ni,
+    input  req,
+    output rsp
+  );
+
+endinterface
+"""
+
+
+def _emit_reg_utils(top: str) -> str:
+    return f"""class reg_utils;
+
+  // Use the driver modport for clean directions & clock access
+  virtual reg_if.drv drv_if;
+
+  function new(virtual reg_if.drv drv_if);
+    this.drv_if = drv_if;
+  endfunction
+
+  task automatic cycle();
+    @(posedge drv_if.clk_i);
+  endtask
+
+  task automatic write(
+      input  logic [{top}_reg_pkg::AW-1:0]  addr,
+      input  logic [{top}_reg_pkg::DW-1:0]  data,
+      input  logic [{top}_reg_pkg::DBW-1:0] strb = {{{top}_reg_pkg::DBW{{1'b1}}}});
+    $display("[%0t] REG WRITE: Addr = 0x%0h Data = 0x%0h WSTRB = 0x%0h", $time, addr, data, strb);
+
+    drv_if.req_q.valid <= 1'b1;
+    drv_if.req_q.write <= 1'b1;
+    drv_if.req_q.addr  <= addr;
+    drv_if.req_q.wdata <= data;
+    drv_if.req_q.wstrb <= strb;
+
+    cycle();
+
+    while (!drv_if.rsp.ready) cycle();
+
+    drv_if.req_q.valid <= 1'b0;
+    cycle();
+
+    if (drv_if.rsp.error) begin
+      $display("[%0t] REG WRITE ERROR: Addr = 0x%0h", $time, addr);
+    end else begin
+      $display("[%0t] REG WRITE DONE: Addr = 0x%0h", $time, addr);
+    end
+    #1;
+  endtask
+
+  task automatic read(
+      input  logic [{top}_reg_pkg::AW-1:0]  addr,
+      output logic [{top}_reg_pkg::DW-1:0]  data);
+    $display("[%0t] REG READ: Addr = 0x%0h", $time, addr);
+
+    drv_if.req_q.valid <= 1'b1;
+    drv_if.req_q.write <= 1'b0;
+    drv_if.req_q.addr  <= addr;
+    drv_if.req_q.wdata <= '0;
+    drv_if.req_q.wstrb <= '0;
+
+    cycle();
+
+    while (!drv_if.rsp.ready) cycle();
+
+    data = drv_if.rsp.rdata;
+
+    drv_if.req_q.valid <= 1'b0;
+    cycle();
+
+    if (drv_if.rsp.error) begin
+      $display("[%0t] REG READ ERROR: Addr = 0x%0h", $time, addr);
+    end else begin
+      $display("[%0t] REG READ DONE: Addr = 0x%0h Data = 0x%0h", $time, addr, data);
+    end
+    #1;
+  endtask
+
+endclass
+"""
+
+
+def _render_tb(top: str,
+               clk_period_ns: int,
+               simdir: str,
+               syndir: str,
+               itf: str,
+               compiler: str,
+               vsv: str,
+               sig: dict) -> str:
+    """Compose the <top>_tb.sv body using parsed signature info."""
+    params: List[Tuple[str, str]] = sig["parameters"]
+    lparams: List[Tuple[str, str]] = sig["localparams"]
+    ports_in: List[Tuple[str, str]] = sig["ports_in"]
+    ports_out: List[Tuple[str, str]] = sig["ports_out"]
+    clks: List[str] = sig["clks"]
+    rsts: List[str] = sig["rsts"]
+
+    lines: List[str] = []
+    lines.append("// Timescale")
+    lines.append("`timescale 1ns/1ps")
+    lines.append("// Includes")
+    if compiler == "verilator":
+        lines.append(f'`include "tb/include_{top}_tb.sv"')
+    else:
+        # Fallback includes for non-Verilator
+        lines.append("`ifndef SYN")
+        lines.append(f'  `include "rtl/{top}.v"')
+        lines.append("`else")
+        lines.append(f'  `include "{syndir}/{top}_synth.v"')
+        lines.append("`endif")
+    lines.append("")
+    lines.append(f"module {top}_tb;")
+    lines.append("  // Parameters")
+    lines.append(f"  parameter int CLK_PERIOD = {clk_period_ns}; // ns")
+    for name, val in params:
+        lines.append(f"  parameter {name} = {val};")
+    for name, val in lparams:
+        lines.append(f"  localparam {name} = {val};")
+
+    # Inputs
+    lines.append("\n  // Inputs")
+    for name, w in ports_in:
+        if w == 1 or w == "1":
+            lines.append(f"  reg {name};")
+        elif isinstance(w, str) and w.startswith("["):
+            lines.append(f"  reg {w} {name};")
         else:
-            if flag_reg_pkg:
-                mystr += '`include "'+str(rtldir)+'/'+str(top)+'_reg_pkg.sv"\n'
-            mystr += '`ifndef SYN\n'
-            mystr += '  `include "'+str(rtldir)+'/'+str(top)+'.v"\n'
-            mystr += '`else\n'
-            for p in prim:
-                mystr += '  `include "'+str(p)+'"\n'
-            mystr += '  `include "'+str(syndir)+'/'+str(top)+'_synth.v"\n'
-            mystr += '`endif\n'
-
-        mystr += 'module '+str(top)+'_tb;\n'
-        mystr += '  //Parameters\n'
-        mystr += '  parameter int CLK_PERIOD = '+str(clk_period)+'; // Clock period in ns\n'
-        if parameters_flag:
-            for p, v in zip(parameters, param_values):
-                mystr += '  parameter '+str(p)+' = '+str(v)+';\n'
-        if localparams_flag:
-            for p, v in zip(localparams, localparam_values):
-                mystr += '  localparam '+str(p)+' = '+str(v)+';\n'
-
-        # Inputs
-        mystr += '  // Inputs\n'
-        for i in inputs:
-            w = input_w[inputs.index(i)]
-            if w == 1:
-                mystr += '  reg '+str(i)+';\n'
+            # typedef or package type
+            if itf == "tlul":
+                lines.append(f"  {w} {name};")
             else:
-                if '[' in str(w):
-                    mystr += '  reg '+str(w)+' '+str(i)+';\n'
-                else:
-                    if itf=='tlul':
-                        mystr += '  '+str(w)+' '+str(i)+';\n'
-                    else:
-                        mystr += '  '+str(top)+'_reg_pkg::'+str(w)+' '+str(i)+';\n'
+                lines.append(f"  {top}_reg_pkg::{w} {name};")
 
-        # Outputs
-        mystr += '  // Outputs\n'
-        for o in outputs:
-            w = output_w[outputs.index(o)]
-            if w == 1:
-                mystr += '  wire '+str(o)+';\n'
-            else:
-                if '[' in str(w):
-                    mystr += '  wire '+str(w)+' '+str(o)+';\n'
-                else:
-                    if itf=='tlul':
-                        mystr += '  '+str(w)+' '+str(o)+';\n'
-                    else:
-                        mystr += '  '+str(top)+'_reg_pkg::'+str(w)+' '+str(o)+';\n'
-
-        mystr += '\n  integer error_count;\n\n'
-        if flag_reg_pkg:
-            mystr += '  logic ['+str(top)+'_reg_pkg::DW-1:0] rdata;\n\n'
-
-        # Interfaces (Verilator paths)
-        if compiler == 'verilator':
-            if flag_reg_pkg and itf == 'tlul':
-                mystr += '  tlul_utils tl_utils_inst;\n'
-                mystr += '  tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));\n'
-            if flag_reg_pkg and itf == 'reg_iface':
-                mystr += '  reg_utils reg_utils_inst;\n'
-                mystr += '  reg_if regif(.clk_i(clk_i), .rst_ni(rst_ni));\n'
-
-        # Normalize lists (strip widths and commas)
-        for p, name in enumerate(parameters):
-            parameters[p] = name.split('=')[0].strip()
-        for i, el in enumerate(inputs):
-            inputs[i] = inputs[i].split()[-1]
-        for i, el in enumerate(outputs):
-            outputs[i] = outputs[i].split()[-1]
-
-        # DUT instance
-        mystr += '\n  // Device Under Test Instance\n'
-        mystr += '  '+str(top)+'\n'
-        if parameters_flag:
-            mystr += '  `ifndef SYN\n    #(\n'
-            if len(parameters) > 1:
-                for p in parameters[:-1]:
-                    mystr += '      .'+str(p)+'('+str(p)+'),\n'
-                mystr += '      .'+str(parameters[-1])+'('+str(parameters[-1])+')\n    ) '
-            else:
-                mystr += '      .'+str(parameters[-1])+'('+str(parameters[-1])+')\n    ) '
-            mystr += '\n  `endif\n'
-        mystr += '  u_'+str(top)+' (\n'
-
-        # Inputs wiring (special cases for TLUL/reg_iface)
-        for i_name in inputs:
-            if itf == 'tlul' and i_name.strip() == 'tl_i':
-                mystr += '    .'+i_name+'(tl_if.h2d),\n'
-            elif itf == 'reg_iface' and i_name.strip() == 'reg_req_i':
-                mystr += '    .'+i_name+'(regif.req),\n'
-            else:
-                mystr += '    .'+i_name+',\n'
-
-        # Outputs wiring
-        for o_name in outputs[:-1]:
-            if itf == 'tlul' and o_name.strip() == 'tl_o':
-                mystr += '    .'+o_name+'(tl_if.d2h),\n'
-            elif itf == 'reg_iface' and o_name.strip() == 'reg_rsp_o':
-                mystr += '    .'+o_name+'(regif.rsp),\n'
-            else:
-                mystr += '    .'+o_name+',\n'
-        # last output
-        last_o = outputs[-1]
-        if itf == 'tlul' and last_o.strip() == 'tl_o':
-            mystr += '    .'+last_o+'(tl_if.d2h)\n'
-        elif itf == 'reg_iface' and last_o.strip() == 'reg_rsp_o':
-            mystr += '    .'+last_o+'(regif.rsp)\n'
+    # Outputs
+    lines.append("\n  // Outputs")
+    for name, w in ports_out:
+        if w == 1 or w == "1":
+            lines.append(f"  wire {name};")
+        elif isinstance(w, str) and w.startswith("["):
+            lines.append(f"  wire {w} {name};")
         else:
-            mystr += '    .'+last_o+'\n'
-        mystr += '  );\n\n'
+            if itf == "tlul":
+                lines.append(f"  {w} {name};")
+            else:
+                lines.append(f"  {top}_reg_pkg::{w} {name};")
 
-        # Clock generators (for every clk_* input found)
-        for c in clk:
-            mystr += '  initial begin\n'
-            mystr += '    '+str(c)+' = 0;\n'
-            mystr += '    forever #(CLK_PERIOD / 2) '+str(c)+' = ~'+str(c)+';\n'
-            mystr += '  end\n\n'
+    lines.append("\n  integer error_count;")
+    # Optional rdata reg for quick examples
+    lines.append(f"  logic [{top}_reg_pkg::DW-1:0] rdata;")
 
-        # VCD dump
-        mystr += '  // Dump vcd file \n'
-        mystr += '  initial begin\n'
-        mystr += '    `ifndef SYN\n'
-        mystr += '      $dumpfile("'+str(simdir)+'/'+str(top)+'.vcd");\n'
-        mystr += '    `else\n'
-        mystr += '      $dumpfile("'+str(simdir)+'/'+str(top)+'_syn.vcd");\n'
-        mystr += '    `endif\n'
-        mystr += '    $dumpvars(0, '+str(top)+'_tb);\n'
-        mystr += '  end\n\n'
+    # Interfaces (Verilator only)
+    if compiler == "verilator":
+        if itf == "tlul":
+            lines.append("  tlul_utils tl_utils_inst;")
+            lines.append("  tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));")
+        if itf == "reg_iface":
+            lines.append("  reg_utils reg_utils_inst;")
+            lines.append("  reg_if regif(.clk_i(clk_i), .rst_ni(rst_ni));")
 
-        # SDF
-  
-        mystr += '  // SDF backannotation \n'
-        mystr += '  `ifndef VERILATOR\n'
-        mystr += '    initial begin\n'
-        mystr += '      string sdf = "signoff/sdf/'+str(top)+'_ss.sdf";\n'
-        mystr += '      $sdf_annotate(sdf, '+str(top)+'_tb.u_'+str(top)+', , , "MAXIMUM");\n'
-        mystr += '    end\n\n'
-        mystr += '  `endif\n'
-
-        # Error count
-        mystr += '  initial begin\n'
-        mystr += '    error_count = 0;\n'
-        mystr += '  end\n\n'
-
-        # Basic stimulus
-        mystr += '  initial begin\n'
-        mystr += '    // Init inputs\n'
-        # first input typically clk; keep resets low by default
-        for i_name in inputs[1:]:
-            mystr += '    '+str(i_name)+' = \'0;\n'
-        mystr += '    // Asynch Reset\n'
-        mystr += '    #(CLK_PERIOD);\n'
-        # try to set first rst_* high if present
-        if len(rst) > 0:
-            mystr += '    '+rst[0]+' = 1;\n'
+    # DUT instance
+    lines.append("\n  // DUT")
+    lines.append(f"  {top} u_{top} (")
+    # Map inputs: tl_i/reg_req_i special cases
+    in_map = []
+    for name, _w in ports_in:
+        if itf == "tlul" and name == "tl_i":
+            in_map.append(f"    .{name}(tl_if.h2d)")
+        elif itf == "reg_iface" and name == "reg_req_i":
+            in_map.append(f"    .{name}(regif.req)")
         else:
-            # fallback: toggle the second input as reset if it looks like rst_ni
-            if len(inputs) > 1 and 'rst' in inputs[1]:
-                mystr += '    '+inputs[1]+' = 1;\n'
-        mystr += '    #(CLK_PERIOD);\n'
-        mystr += '    // Start main test\n'
-        mystr += '    $display("\\nRunning...\\n");\n'
+            in_map.append(f"    .{name}({name})")
+    out_map = []
+    for name, _w in ports_out:
+        if itf == "tlul" and name == "tl_o":
+            out_map.append(f"    .{name}(tl_if.d2h)")
+        elif itf == "reg_iface" and name == "reg_rsp_o":
+            out_map.append(f"    .{name}(regif.rsp)")
+        else:
+            out_map.append(f"    .{name}({name})")
+    # join with commas and proper trailing
+    all_map = in_map + out_map
+    for i, s in enumerate(all_map):
+        suffix = "," if i != len(all_map) - 1 else ""
+        lines.append(s + suffix)
+    lines.append("  );\n")
 
-        if compiler == 'verilator':
-            if flag_reg_pkg and itf == 'tlul':
-                mystr += '    // Usage example\n'
-                mystr += '    tl_utils_inst = new(tl_if);\n'
-                mystr += '    #(CLK_PERIOD*10);\n'
-                mystr += '    tl_utils_inst.tlul_write(32\'h0, 32\'h1, 4\'h0);\n'
-                mystr += '    #(CLK_PERIOD*10);\n'
-                mystr += '    tl_utils_inst.tlul_read(32\'h0, rdata, 4\'h0);\n'
-                mystr += '    $display("Read data: %h", rdata);\n'
-                mystr += '    #(CLK_PERIOD*10);\n'
-            if flag_reg_pkg and itf == 'reg_iface':
-                mystr += '    // Usage example\n'
-                mystr += '    reg_utils_inst = new(regif);\n'
-                mystr += '    #(CLK_PERIOD*10);\n'
-                mystr += '    reg_utils_inst.write(\'h0, 32\'h1);\n'
-                mystr += '    #(CLK_PERIOD*10);\n'
-                mystr += '    reg_utils_inst.read (\'h0, rdata);\n'
-                mystr += '    $display("Read data: 0x%08x", rdata);\n'
-                mystr += '    #(CLK_PERIOD*10);\n'
+    # Clock gens
+    for c in clks:
+        lines.append("  initial begin")
+        lines.append(f"    {c} = 0;")
+        lines.append("    forever #(CLK_PERIOD / 2) " + f"{c} = ~{c};")
+        lines.append("  end\n")
 
-        mystr += '    // INSERT YOUR CODE\n\n'
-        mystr += '    // Final Check\n'
-        mystr += '    if (error_count == 0) begin\n'
-        mystr += '      $display("Coverage: 100%%");\n'
-        mystr += '    end\n'
-        mystr += '    $display("\\nEnd.\\n");\n'
-        mystr += '    $finish;\n'
-        mystr += '  end\n'
-        mystr += 'endmodule\n'
-        f.write(mystr)
+    # VCD
+    lines.append("  // Dump VCD")
+    lines.append("  initial begin")
+    lines.append("    `ifndef SYN")
+    lines.append(f'      $dumpfile("{simdir}/{top}.vcd");')
+    lines.append("    `else")
+    lines.append(f'      $dumpfile("{simdir}/{top}_syn.vcd");')
+    lines.append("    `endif")
+    lines.append(f"    $dumpvars(0, {top}_tb);")
+    lines.append("  end\n")
 
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit(1)
+    # SDF annotate (disabled for Verilator)
+    lines.append("  // SDF backannotation")
+    lines.append("  `ifndef VERILATOR")
+    lines.append("    initial begin")
+    lines.append(f'      string sdf = "signoff/sdf/{top}_ss.sdf";')
+    lines.append(f"      $sdf_annotate(sdf, {top}_tb.u_{top}, , , \"MAXIMUM\");")
+    lines.append("    end")
+    lines.append("  `endif\n")
 
+    # Stimulus
+    lines.append("  initial begin")
+    lines.append("    error_count = 0;")
+    if ports_in:
+        # init inputs (skip the first, often a clock)
+        for nm, _ in ports_in[1:]:
+            lines.append(f"    {nm} = '0;")
+    # simple reset: first rst_ if present, else try second input heuristically
+    if rsts:
+        lines.append("    #(CLK_PERIOD);")
+        lines.append(f"    {rsts[0]} = 1'b1;")
+    else:
+        if len(ports_in) > 1 and "rst" in ports_in[1][0]:
+            lines.append("    #(CLK_PERIOD);")
+            lines.append(f"    {ports_in[1][0]} = 1'b1;")
+
+    lines.append("    #(CLK_PERIOD);")
+    lines.append('    $display("\\nRunning...\\n");')
+
+    if compiler == "verilator":
+        if itf == "tlul":
+            lines.append("    tl_utils_inst = new(tl_if);")
+            lines.append("    #(CLK_PERIOD*10);")
+            lines.append("    tl_utils_inst.tlul_write(32'h0, 32'h1, 4'h0);")
+            lines.append("    #(CLK_PERIOD*10);")
+            lines.append("    tl_utils_inst.tlul_read (32'h0, rdata, 4'h0);")
+            lines.append('    $display("Read data: %h", rdata);')
+            lines.append("    #(CLK_PERIOD*10);")
+        if itf == "reg_iface":
+            lines.append("    reg_utils_inst = new(regif);")
+            lines.append("    #(CLK_PERIOD*10);")
+            lines.append("    reg_utils_inst.write('h0, 32'h1);")
+            lines.append("    #(CLK_PERIOD*10);")
+            lines.append("    reg_utils_inst.read ('h0, rdata);")
+            lines.append('    $display("Read data: 0x%08x", rdata);')
+            lines.append("    #(CLK_PERIOD*10);")
+
+    lines.append("    // INSERT YOUR STIMULUS HERE")
+    lines.append("    if (error_count == 0) $display(\"Coverage: 100%%\");")
+    lines.append('    $display("\\nEnd.\\n");')
+    lines.append("    $finish;")
+    lines.append("  end")
+    lines.append(f"endmodule")
+    return "\n".join(lines) + "\n"
+
+
+def _render_simple_tb(top: str,
+                      clk_period_ns: int,
+                      simdir: str,
+                      syndir: str,
+                      compiler: str,
+                      sig: dict) -> str:
+    """Minimal TB: only clock(s) and reset(s). No TLUL/Reg IF."""
+    params = sig["parameters"]
+    lparams = sig["localparams"]
+    ports_in = sig["ports_in"]
+    ports_out = sig["ports_out"]
+    clks = sig["clks"]
+    rsts = sig["rsts"]
+
+    lines = []
+    lines.append("`timescale 1ns/1ps")
+    if compiler == "verilator":
+        lines.append(f'`include "tb/include_{top}_tb.sv"')
+    else:
+        lines.append("`ifndef SYN")
+        lines.append(f'  `include "rtl/{top}.v"')
+        lines.append("`else")
+        lines.append(f'  `include "{syndir}/{top}_synth.v"')
+        lines.append("`endif")
+    lines.append("")
+    lines.append(f"module {top}_tb;")
+    lines.append(f"  parameter int CLK_PERIOD = {clk_period_ns}; // ns")
+
+    for name, val in params:
+        lines.append(f"  parameter {name} = {val};")
+    for name, val in lparams:
+        lines.append(f"  localparam {name} = {val};")
+
+    # Declare inputs as regs (bit-vectors ok; unknown types fall back to logic)
+    lines.append("\n  // Inputs")
+    for name, w in ports_in:
+        if w == 1 or w == "1":
+            lines.append(f"  reg {name};")
+        elif isinstance(w, str) and w.startswith('['):
+            lines.append(f"  reg {w} {name};")
+        else:
+            lines.append(f"  logic {name};")
+
+    # Declare outputs as wires
+    lines.append("\n  // Outputs")
+    for name, w in ports_out:
+        if w == 1 or w == "1":
+            lines.append(f"  wire {name};")
+        elif isinstance(w, str) and w.startswith('['):
+            lines.append(f"  wire {w} {name};")
+        else:
+            lines.append(f"  logic {name};")
+
+    # DUT
+    lines.append("\n  // DUT")
+    lines.append(f"  {top} u_{top} (")
+    pin_lines = []
+    for name, _ in ports_in:
+        pin_lines.append(f"    .{name}({name})")
+    for name, _ in ports_out:
+        pin_lines.append(f"    .{name}({name})")
+    for i, pl in enumerate(pin_lines):
+        lines.append(pl + ("," if i != len(pin_lines)-1 else ""))
+    lines.append("  );\n")
+
+    # Clocks
+    for c in clks:
+        lines.append("  initial begin")
+        lines.append(f"    {c} = 1'b0;")
+        lines.append(f"    forever #(CLK_PERIOD/2) {c} = ~{c};")
+        lines.append("  end\n")
+
+    # VCD
+    lines.append("  initial begin")
+    lines.append("    `ifndef SYN")
+    lines.append(f'      $dumpfile("{simdir}/{top}.vcd");')
+    lines.append("    `else")
+    lines.append(f'      $dumpfile("{simdir}/{top}_syn.vcd");')
+    lines.append("    `endif")
+    lines.append(f"    $dumpvars(0, {top}_tb);")
+    lines.append("  end\n")
+
+    # Simple reset pulse(s)
+    lines.append("  initial begin")
+    # Init inputs to 0
+    for nm, _ in ports_in:
+        if nm not in clks and nm not in rsts:
+            lines.append(f"    {nm} = '0;")
+    if rsts:
+        for r in rsts:
+            lines.append(f"    {r} = 1'b0;")
+        lines.append("    #(CLK_PERIOD*2);")
+        for r in rsts:
+            lines.append(f"    {r} = 1'b1;")
+    else:
+        lines.append("    #(CLK_PERIOD*2);")
+    lines.append("    #(CLK_PERIOD*10);")
+    lines.append("    $finish;")
+    lines.append("  end")
+    lines.append("endmodule")
+    return "\n".join(lines) + "\n"
+
+# -------------------------
+# CLI
+# -------------------------
+
+def parse_args(argv=None):
+    p = argparse.ArgumentParser(
+        prog="setup_tb",
+        description="Generate a SystemVerilog testbench and helper files.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    p.add_argument("-top", "--top", required=True, 
+                   help="TOP module name")
+    p.add_argument("-rtldir","--rtldir","--rtl-dir", dest="rtldir", required=True, 
+                   help="RTL directory containing <top>.sv")
+    p.add_argument("-simdir","--simdir","--sim-dir", dest="simdir", required=True, 
+                   help="Simulation output dir for VCD")
+    p.add_argument("-syndir","--syndir","--syn-dir", dest="syndir", required=True, 
+                   help="Synthesis dir for post-syn sim")
+    p.add_argument("-prim","--prim", nargs="+", required=True, 
+                   help="Primitive files used for post-syn include")
+    p.add_argument("-clk","--clk", type=int, required=True, 
+                   help="Clock period (ns)")
+    p.add_argument("-comp","--comp","--compiler", dest="comp", required=True, choices=["iverilog","verilator"], 
+                   help="Simulator/compiler")
+    p.add_argument("-itf","--itf","--bus", dest="itf", required=True, choices=["tlul","reg_iface"], 
+                   help="Register interface wiring")
+    p.add_argument("-vsv","--vsv", default="sv", choices=["sv","v"], 
+                   help="DUT source extension used by Verilator include")
+    p.add_argument("-o","--output", default="tb", 
+                   help="Output directory for generated files")
+    p.add_argument("-f","--force", action="store_true", 
+                   help="Overwrite existing files")
+    return p.parse_args(argv)
+
+
+def main(argv=None) -> int:
+    args = parse_args(argv)
+    top      = args.top
+    rtldir   = args.rtldir
+    simdir   = args.simdir
+    syndir   = args.syndir
+    prims    = args.prim
+    clk_ns   = args.clk
+    comp     = args.comp
+    itf      = args.itf
+    vsv      = args.vsv
+    outdir   = Path(args.output)
+    force    = bool(args.force)
+
+    # Parse RTL signature once (common.py)
+    sig = parse_sv_signature(rtldir, top)
+    sig_for_simple = sig
+
+    reg_pkg = has_reg_pkg(rtldir, top)
+    reg_top_exists = (Path(rtldir) / f"{top}_reg_top.sv").exists()
+    simple_mode = not (reg_pkg and reg_top_exists)
+    reg_top_exists = (Path(rtldir) / f"{top}_reg_top.sv").exists()
+    simple_mode = not (reg_pkg and reg_top_exists)
+    # Detect if DUT exposes TL-UL ports; if so, we may include tlul_pkg for types even in simple mode
+    sig_for_simple = None
+
+    # Prepare output dir
+    ensure_dir(outdir)
+
+    # If using Verilator, produce include and (optionally) bus helpers
+    if comp == "verilator":
+        include_txt = _sv_header_include_for_verilator(top, rtldir, syndir, prims, reg_pkg, itf, vsv)
+        safe_write_file(outdir / f"include_{top}_tb.sv", include_txt, overwrite=force)
+    # In simple mode, add tlul_pkg include if DUT exposes tl_i/tl_o types
+    if simple_mode and sig_for_simple is not None:
+        has_tlul = any(n == "tl_i" for n,_ in sig_for_simple["ports_in"]) or any(n == "tl_o" for n,_ in sig_for_simple["ports_out"])
+        if has_tlul:
+            lines = include_txt.splitlines()
+            try:
+                idx = lines.index("`ifndef SYN")
+            except ValueError:
+                idx = 0
+            # Insert after the standard pkg includes block
+            # Find insertion point after prim_secded_pkg include if present
+            ins = None
+            for i, L in enumerate(lines):
+                if "ips/pkgs/prim_secded_pkg.sv" in L:
+                    ins = i + 1
+            if ins is None:
+                ins = idx + 1
+            lines.insert(ins, '  `include "ips/pkgs/tlul_pkg.sv"')
+            include_txt = "\n".join(lines) + ("\n" if not include_txt.endswith("\n") else "")
+            safe_write_file(outdir / f"include_{top}_tb.sv", include_txt, overwrite=force)
+
+        if (not simple_mode) and reg_pkg and itf == "tlul":
+            safe_write_file(outdir / "tlul_if.sv",    _emit_tlul_if(),    overwrite=force)
+            safe_write_file(outdir / "tlul_utils.sv", _emit_tlul_utils(), overwrite=force)
+        if (not simple_mode) and reg_pkg and itf == "reg_iface":
+            safe_write_file(outdir / "reg_if.sv",     _emit_reg_if(top),     overwrite=force)
+            safe_write_file(outdir / "reg_utils.sv",  _emit_reg_utils(top),  overwrite=force)    # Emit bus helper files when full TB is enabled
+    if (not simple_mode) and reg_pkg:
+        if itf == "tlul":
+            safe_write_file(outdir / "tlul_if.sv",    _emit_tlul_if(),    overwrite=force)
+            safe_write_file(outdir / "tlul_utils.sv", _emit_tlul_utils(), overwrite=force)
+        elif itf == "reg_iface":
+            safe_write_file(outdir / "reg_if.sv",     _emit_reg_if(top),     overwrite=force)
+            safe_write_file(outdir / "reg_utils.sv",  _emit_reg_utils(top),  overwrite=force)
+
+
+
+    # Emit the testbench
+    tb_txt = _render_simple_tb(top, clk_ns, simdir, syndir, comp, sig) if simple_mode else _render_tb(top, clk_ns, simdir, syndir, itf, comp, vsv, sig)
+    safe_write_file(outdir / f"{top}_tb.sv", tb_txt, overwrite=force)
+
+    #print(colorize(f"Generated: {outdir}/include_{top}_tb.sv"))
+    #if comp == "verilator" and reg_pkg:
+    #    if itf == "tlul":
+    #        print(colorize(f"Generated: {outdir}/tlul_if.sv"))
+    #        print(colorize(f"Generated: {outdir}/tlul_utils.sv"))
+    #    if itf == "reg_iface":
+    #        print(colorize(f"Generated: {outdir}/reg_if.sv"))
+    #        print(colorize(f"Generated: {outdir}/reg_utils.sv"))
+    #print(colorize(f"Generated: {outdir}/{top}_tb.sv"))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

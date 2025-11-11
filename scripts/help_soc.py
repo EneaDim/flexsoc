@@ -1,31 +1,57 @@
-# Simply print HELP message
-msg='\033[38;5;214m\n\
-\n *************************************************************\n\
-\n *************************** HELP ****************************\n\
-\n *************************************************************\n\n\
-\n ********************* SoC INTEGRATION ***********************\n\
-\n - FUSESOC\
-\n   .Run "make fsoc_init" to initialize .core file for your IP\n\
-\n - FETCH\
-\n   .Run "make fetch VENDOR=lowrisc_ip" and "make fetch VENDOR=lowrisc_ibex"\
-\n    to fetch IPs using vendor functionality\n\
-\n - XBAR\
-\n   .Run "make xbar" to define the crossbar using IBEX, RAM, UART, and your IP.\
-\n    Check variable SOC_MEMORY_MAP  in config.mk\n\
-\n   .Under the hood is running "make xbar_init" for initializing hjson description\n\
-\n    of the xbar, and "make xbar_build" t generate the xbar .sv file\n\
-\n - SoC BUILD\
-\n   .Run "make soc_build" to generate:\
-\n        --  SoC configuration file for FuseSoC.\
-\n        --  SoC wrapper in SystemVerilog.\
-\n        --  SoC top verilator wrapper in SystemVerilog.\
-\n        --  SoC top verilator wrapper in C++.\n\
-\n - SoC SIM\
-\n   .Run "make soc_sim" to run simulation target with FuseSoC\n\
-\n - SoC RUN\
-\n   .Run "make soc_run" to run  GCC compilation of sw/hello.c and\
-\n    start verilator sim.\n\
-\n - SoC VIEW\
-\n   .Run "make soc_view" to view the simulation waveforms with gtkwave.\n\
-\033[0;0m'
-print(msg)
+#!/usr/bin/env python3
+r"""
+\file help_soc.py
+\brief Print the project's HELP banner.
+\details
+  Minimal script that prints a help message for SoC integration:
+    - FuseSoC init and IP fetching,
+    - crossbar generation,
+    - SoC build/sim/run/view targets.
+
+  Coloring is automatic when stdout is a TTY. Set NO_COLOR to disable.
+"""
+
+import sys
+from common import colorize  # shared color helper
+
+HELP = """
+*************************************************************
+
+****************            HELP             ****************
+
+*************************************************************
+
+##################     SoC INTEGRATION     ##################
+
+- FUSESOC
+  • Run "make fsoc_init" to initialize the .core file for your IP.
+
+- FETCH
+  • Run "make fetch VENDOR=lowrisc_ip" and
+    "make fetch VENDOR=lowrisc_ibex" to fetch IPs via the vendor mechanism.
+
+- XBAR
+  • Run "make xbar" to define the crossbar using IBEX, RAM, UART, and your IP.
+    Check the SOC_MEMORY_MAP variable in config.mk.
+  • Under the hood it runs "make xbar_init" to initialize the HJSON description
+    of the crossbar, and "make xbar_build" to generate the xbar .sv file.
+
+- SoC BUILD
+  • Run "make soc_build" to generate:
+      -- SoC configuration file for FuseSoC.
+      -- SoC wrapper in SystemVerilog.
+      -- SoC top Verilator wrapper in SystemVerilog.
+      -- SoC top Verilator wrapper in C++.
+
+- SoC SIM
+  • Run "make soc_sim" to run the simulation target with FuseSoC.
+
+- SoC RUN
+  • Run "make soc_run" to compile sw/hello.c with GCC and start Verilator.
+
+- SoC VIEW
+  • Run "make soc_view" to view the simulation waveforms with GTKWave.
+"""
+
+if __name__ == "__main__":
+    sys.stdout.write(colorize(HELP))
