@@ -258,9 +258,9 @@ view_syn:
 
 sta: setup_signoff 
 	$(Q)$(ECHO) "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).log 
-	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).warnings || true 
-	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(Q)$(TARGET_OPT).errors || true 
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
+	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
+	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true 
 
 ##################################################
 ###                  Power Analysis            ###
@@ -417,7 +417,7 @@ ip_tutorial:
 	$(Q)$(MAKE) sim syn sdf sta sta_violators power view 
 
 soc_tutorial:
-	$(Q)$(ECHO) "\n$(ORANGE)$(Q)$(TOP) IP load ...\n$(RESET)"
+	$(Q)$(ECHO) "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
 	$(Q)$(MAKE) ip_load
 	$(Q)$(ECHO) "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
@@ -489,7 +489,7 @@ ip_save: clean_sim clean_rtl
 	$(Q)$(CP) -r $(PYDIR)      ips/$(TOP) || true
 	$(Q)$(CP) -r $(FSMDIR)     ips/$(TOP) || true
 	$(Q)$(CP)    $(TOP).core   ips/$(TOP) || true
-	$(Q)$(ECHO) "\n$(ORANGE)$(Q)$(TOP) IP saved\n$(RESET)"
+	$(Q)$(ECHO) "\n$(ORANGE)$(TOP) IP saved\n$(RESET)"
 
 # LOAD IP
 ip_load:
