@@ -58,7 +58,6 @@ def main():
     )
 
     out_path = Path(args.out) if args.out else Path(f"{args.top}.sdc")
-    print(out_path)
     out_path.write_text(sdc_text, encoding="utf-8")
     print(f"Wrote SDC to: {out_path.resolve()}")
 
