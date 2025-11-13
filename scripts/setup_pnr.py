@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2025 Enea Dimroci
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
 import argparse
 from pathlib import Path
 from textwrap import dedent
@@ -22,13 +22,18 @@ def main():
         description="Generate config.mk from rtl/rtl_list.f. "
                     "Only argument is the top module name."
     )
-    p.add_argument("top", help="Top module name (used for DESIGN_NAME and DESIGN_NICKNAME)")
-    p.add_argument("--syn_strategy", default="area", help="Synthesis strategy : area / delay")
-    p.add_argument("--clk_period", type=int, default="50", help="Clock period in ns")
-    p.add_argument("--platform", default="sky130hd", help="Target platform (default: sky130hd)")
+    p.add_argument("top",
+                   help="Top module name (used for DESIGN_NAME and DESIGN_NICKNAME)")
+    p.add_argument("--syn_strategy", default="area",
+                   help="Synthesis strategy : area / delay")
+    p.add_argument("--clk_period", type=int, default="50",
+                   help="Clock period in ns")
+    p.add_argument("--platform", default="sky130hd",
+                   help="Target platform (default: sky130hd)")
     p.add_argument("--filelist", default="rtl/rtl_list.f",
                    help="Path to the .f file (default: rtl/rtl_list.f, relative to DESIGN_HOME at build time)")
-    p.add_argument("--outdir", default="ors", help="Output directory name (default: ors)")
+    p.add_argument("--outdir", default="ors",
+                   help="Output directory name (default: ors)")
     args = p.parse_args()
 
     # Write a Makefile that extracts sources & includes from the .f at build time.
@@ -194,5 +199,5 @@ def main():
     print(f"Wrote {out.resolve()}")
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
 

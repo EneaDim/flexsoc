@@ -59,7 +59,7 @@ def main():
 
     out_path = Path(args.out) if args.out else Path(f"{args.top}.sdc")
     out_path.write_text(sdc_text, encoding="utf-8")
-    print(f"Wrote SDC to: {out_path.resolve()}")
+    #print(f"Wrote SDC to: {out_path.resolve()}")
 
 if __name__ == "__main__":
     raise SystemExit(main())

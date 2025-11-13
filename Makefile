@@ -1,13 +1,6 @@
 # Include configuration
 include config.mk
 
-# Quiet by default; VERBOSE=1 to see commands
-ifeq ($(VERBOSE),1)
-  Q :=
-else
-  Q := @
-endif
-
 # HELP
 help:
 	$(Q)echo "$(Q)$(ORANGE)"
@@ -238,14 +231,14 @@ view_presyn_sv:
 
 compile_syn:
 	$(Q)$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	iverilog -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
+	$(Q)iverilog -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
 	-o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
 	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 
 # SIMULATE POST SYNTHESIS NETLIST
 sim_syn: compile_syn
 	$(Q)$(ECHO) "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
-	vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
+	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
 
 # VIEW WAVEFORMS RTL SIMULATION
 view_syn:
@@ -256,7 +249,7 @@ view_syn:
 ###              Static Timing Analysis        ###
 ##################################################
 
-sta: setup_signoff 
+sta:
 	$(Q)$(ECHO) "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
 	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
 	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 

@@ -154,3 +154,11 @@ GREEN           := \033[92m
 YELLOW          := \033[93m
 BLUE            := \033[94m
 RESET           := \033[0m
+
+# Quiet by default; VERBOSE=1 to see commands
+ifeq ($(VERBOSE),1)
+  Q :=
+else
+  Q := @
+endif
+
