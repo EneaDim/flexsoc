@@ -88,7 +88,7 @@ VIEWER_CONF     ?= $(SIMDIR)/$(TOP)_tb.gtkw
 # =========================
 CLK_PERIOD      ?= 20
 TARGET_SYN      ?= asic
-TARGET_OPT      ?= none
+TARGET_OPT      ?= area
 ACTIVITY        ?= 10
 MODULE          ?= $(TOP)
 PATH_VIEW_FILE  ?= $(TOP)_sta.violators

@@ -44,4 +44,4 @@ def main() -> None:
                 print(f"Warning: {p.as_posix()} does not exist.")
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

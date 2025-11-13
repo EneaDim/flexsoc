@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright 2025 Enea Dimroci
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,12 +36,17 @@ set_output_delay [expr $clk_period * $clk_io_pct] -clock $clk_name [all_outputs]
 
 def main():
     ap = argparse.ArgumentParser(description="Generate an SDC snippet and write it to a file.")
-    ap.add_argument("top", help="Top module / current_design name (e.g., ibex_core)")
-    ap.add_argument("clk_period", type=float, help="Clock period in ns (e.g., 10.0)")
+    ap.add_argument("top",
+                    help="Top module / current_design name (e.g., ibex_core)")
+    ap.add_argument("clk_period", type=float,
+                    help="Clock period in ns (e.g., 10.0)")
     ap.add_argument("-o", "--out", help="Output file path (default: <top>.sdc)")
-    ap.add_argument("--clk-name", default="core_clock", help="Clock name (default: core_clock)")
-    ap.add_argument("--clk-port-name", default="clk_i", help="Clock port name (default: clk_i)")
-    ap.add_argument("--clk-io-pct", type=float, default=0.2, help="I/O delay as fraction of period (default: 0.2)")
+    ap.add_argument("--clk-name", default="core_clock",
+                    help="Clock name (default: core_clock)")
+    ap.add_argument("--clk-port-name", default="clk_i",
+                    help="Clock port name (default: clk_i)")
+    ap.add_argument("--clk-io-pct", type=float, default=0.2,
+                    help="I/O delay as fraction of period (default: 0.2)")
     args = ap.parse_args()
 
     sdc_text = TEMPLATE.format(
@@ -52,10 +58,11 @@ def main():
     )
 
     out_path = Path(args.out) if args.out else Path(f"{args.top}.sdc")
+    print(out_path)
     out_path.write_text(sdc_text, encoding="utf-8")
     print(f"Wrote SDC to: {out_path.resolve()}")
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
 
 
