@@ -1,316 +1,605 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+@file Interface.py
+@brief Core logic for parsing FSM descriptions and generating SystemVerilog and
+       Graphviz outputs.
+
+This module exposes the Interface class, which:
+  - reads FSM descriptions from:
+      * <fsm_name>.txt (graph/transition description)
+      * <fsm_name>.csv (state/output encoding)
+  - generates:
+      * <fsm_name>.sv   : SystemVerilog FSM module
+      * <fsm_name>.gv   : Graphviz DOT file
+      * <fsm_name>_tb.sv (optional): SystemVerilog testbench
+"""
+
 # Copyright 2025 Enea Dimroci
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
-import re
+from __future__ import annotations
+
 import math
-import stat
+import re
+from pathlib import Path
+from typing import List
 
-class Interface(object):
 
-  def __init__(self, name):
-    self.name = name
-    self.overall_elements = []
+class Interface:
+    """!
+    @class Interface
+    @brief High-level FSM interface.
 
-  def read_inputs(self, fsm_name):
-    try:
-      self.fsm_name = fsm_name
-      mypath = os.getcwd()
-      mypath += '/inputs/'
-      my_lines = []
-      file_string = mypath + self.fsm_name + '.txt'
-      f = open(file_string, 'r')
-      for line in f:
-        line = line.replace("!", "~ ")
-        line = line.replace("~", "~ ")
-        line = line.replace("not", "~")
-        line = line.replace("and", "&")
-        line = line.replace("or","|")
-        line = line.replace("nand", "%")
-        line = line.replace("nor", "*")
-        line = line.replace("xor", "^")
-        line = line.replace("(", " ( ")
-        line = line.replace(")", " ) ")
-        line = line.replace("[", " [ ")
-        line = line.replace("]", " ] ")
-        line = line.replace("->", " -> ")
-        line = line.replace(" 1 ", "1")
-        line = line.replace("  1  ", "1")
-        line = line.replace("  ", " ")
-        line = line.replace("   ", " ")
-        line = line.replace("  ", " ")
-        my_line = line.strip()
-        my_line = my_line.split()
-        if my_line:
-          my_lines.append(' '.join(my_line))
-      f.close()
-      # FILTER OUT THE GV FILE
-      for i in range(0, len(my_lines)):
-        my_lines[i] = my_lines[i].strip()
-        my_lines[i] = my_lines[i].split()
-      flag = False
-      self.source = []
-      self.dest = []
-      self.edges = []
-      logic_comb = []
-      # Iterate over file rows
-      for elements in my_lines:
-        if elements[0] == '#':
-          continue
-        if elements[0] == '/' and elements[1] == '/':
-          continue
-        if len(elements) > 3 :
-          self.source.append(elements[0])
-          self.dest.append(elements[2])
-          elements = ' '.join(elements)
-          for char in elements:
-            if (char == '"'):
-              if (flag == True):
-                break
-              flag = True
-            if flag:
-              logic_comb.append(char)
-          logic_comb = ''.join(logic_comb).split('"')
-          self.edges.append(logic_comb[1])
-          logic_comb = []
-          flag = False
-      if len(self.edges) != len(self.source) or len(self.edges) != len(self.dest) or len(self.source) != len(self.dest):
-        assert('Error, some problem in GV file\n ')
+    This class encapsulates:
+      - parsing of FSM description files,
+      - internal representation (states, transitions, outputs),
+      - generation of SystemVerilog and Graphviz files.
 
-      for e in range(0, len(self.edges)):
-        self.edges[e].split()
-      self.signals = []
-      not_sigs = ['(', '((', '(((', ')))', '))', ')', 'not', 'and', 'or', 'xor', '|', '&', '~', '%', '^', '*', '']
-      for edge in self.edges:
-        for el in edge.split(' '):
-          if el in not_sigs:
-            pass
-          else:
-            if not el in self.signals:
-              self.signals.append(el)
-      for e in range(0, len(self.edges)):
-        self.edges[e] = self.edges[e].replace("~ ", "~")
-      file_string = mypath + self.fsm_name + '.csv'
-      out_file = open(file_string, 'r+')
-      self.states = []
-      self.out_values = []
-      my_lines = []
-      self.out_values = []
-      for line in out_file:
-        splitted_line = re.split(',|;|\n', line)
-        splitted_line = splitted_line[:-1]
-        my_lines.append(splitted_line)
-      out_file.close()
-      my_lines[0][1:] = [str(f).strip() for f in my_lines[0][1:]]
-      self.out_names = my_lines[0][1:]
-      my_lines = my_lines[1:]
-      for i in range(0, len(my_lines)):
-        self.states.append(my_lines[i][0])
-        self.out_values.append(my_lines[i][1:])
-      out_file.close()
-      # DEFINE NEXT_STATES DATA STRUCTURE
-      self.next_states = []
-      for i in range(0, len(self.states)):
-        dest_states = []
-        for j in range(0, len(self.source)):
-          if self.states[i] == self.source[j]:
-            dest_states.append(self.dest[j])
-        self.next_states.append(dest_states)
-    except Exception as err:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-        print(err)
-        sys.exit()
+    Typical usage:
+    @code{.py}
+    interface = Interface("My FSM Interface")
+    interface.read_inputs("fsm_example")
+    interface.write_sv()
+    interface.write_gv()
+    # interface.write_tb(100)  # Example: 100 MHz clock
+    @endcode
+    """
 
-  def write_sv(self):
-    mypath = os.getcwd()
-    mypath += '/outputs/'
-    file_string = mypath + self.fsm_name + '.sv'
-    print(file_string)
-    sv_file = open(file_string, 'w+')
-    mystr = 'module '+str(self.fsm_name)+' (\n'
-    mystr += '  input  logic clk_i,\n'
-    if not 'rst_ni' in self.signals:
-      mystr += '  input  logic rst_ni,\n'
-    for i in self.signals:
-      if not i == '1':
-        mystr += '  input  logic '+str(i)+',\n'
-    for i in self.out_names[:-1]:
-      mystr += '  output logic '+str(i)+',\n'
-    mystr += '  output logic '+str(self.out_names[-1])+'\n);\n\n'
-    for i in self.out_names:
-      mystr += '  logic '+str(i)+'_d;\n'
-    mystr += '\n  typedef enum logic ['+str(math.ceil(math.log2(len(self.states)))-1)+':0] { \n'
-    for s in self.states[:-1]:
-      mystr += '    '+str(s)+',\n'
-    mystr += '    '+str(self.states[-1])+'\n  } state_fsm ;\n\n'
-    mystr += '  state_fsm current_state, next_state; \n\n'
-    mystr += '  // STATE LATCHING\n'
-    mystr += '  always_ff @(posedge clk_i or negedge rst_ni)\n'
-    mystr += '    begin: state_latching\n'
-    mystr += '      if (~rst_ni) begin\n'
-    mystr += '        current_state <= '+str(self.states[0])+';\n'
-    mystr += '      end'
-    mystr += ' else begin\n'
-    mystr += '        current_state <= next_state;\n'
-    mystr += '      end\n'
-    mystr += '    end\n\n'
-    mystr += '  // OUTPUT LATCHING\n'
-    mystr += '  always_ff @(posedge clk_i or negedge rst_ni)\n'
-    mystr += '    begin: output_latching\n'
-    mystr += '      if (~rst_ni) begin\n'
-    j = 0
-    for i in self.out_names:
-      mystr += "        "+str(i)+" <= 1'b"+str(self.out_values[0][j])+";\n"
-      j += 1
-    mystr += '      end'
-    mystr += ' else begin\n'
-    for i in self.out_names:
-      mystr += "        "+str(i)+" <= "+str(i)+"_d;\n"
-    mystr += '      end\n'
-    mystr += '    end\n\n'
-    mystr += '  // STATE TRANSITION AND OUTPUT DEFINITION\n'
-    mystr += '  always_comb begin\n'
-    mystr += '    next_state = current_state;\n'
-    mystr += '    unique case (current_state)\n'
-    j=0
-    for state in self.states:
-      mystr += '      '+str(state)+': begin\n'
-      q = 0
-      for dest in self.next_states[j]:
-        for i in range(0, len(self.source)):
-          if self.source[i] == state and self.dest[i] == dest:
-            break
-        if self.edges[i] == '1':
-          mystr += '        next_state = '+str(self.dest[i])+';\n'
-          for h in range(0, len(self.states)):
-            if self.states[h] == self.dest[i]:
-              break
-          k = 0
-          for p in self.out_names:
-            mystr += "        "+str(p)+"_d = 1'b"+str(self.out_values[h][k])+";\n"
-            k += 1
-          mystr += '      end\n'
-          break
-        else:
-          if q == 0:
-            mystr += '        if ('+str(self.edges[i])+') begin\n'
-            mystr += '          next_state = '+str(self.dest[i])+';\n'
-            for h in range(0, len(self.states)):
-              if self.states[h] == self.dest[i]:
-                break
-            k = 0
-            for p in self.out_names:
-              mystr += "          "+str(p)+"_d = 1'b"+str(self.out_values[h][k])+";\n"
-              k += 1
-            mystr += '        end'
-          else:
-            mystr += ' else if ('+str(self.edges[i])+') begin\n'
-            mystr += '          next_state = '+str(self.dest[i])+';\n'
-            for h in range(0, len(self.states)):
-              if self.states[h] == self.dest[i]:
-                break
-            k = 0
-            for p in self.out_names:
-              mystr += "          "+str(p)+"_d = 1'b"+str(self.out_values[h][k])+";\n"
-              k += 1
-            mystr += '        end'
-        q += 1
-        #print(self.source[i], self.dest[i], self.edges[i])    
-      if not self.edges[i] == '1':
-        mystr += ' else begin\n'
-        mystr += '          next_state = '+str(state)+';\n'
-        k = 0
-        for p in self.out_names:
-          mystr += "          "+str(p)+"_d = 1'b"+str(self.out_values[j][k])+";\n"
-          k += 1
-        mystr += '        end\n'
-        mystr += '      end\n'
-      j += 1
-    mystr += '      default: begin\n'
-    mystr += '        next_state = '+str(self.states[0])+';\n'
-    for i in self.out_names:
-      mystr += "        "+str(i)+"_d = 1'b"+str(self.out_values[0][0])+";\n"
-      j += 1
-    mystr += '      end\n'
-    mystr += '    endcase\n'
-    mystr += '  end\n\n'
-    mystr += 'endmodule\n'
-    sv_file.write(mystr)
-    sv_file.close()
+    # --------------------------------------------------------------------- #
+    # Construction
+    # --------------------------------------------------------------------- #
 
-  def write_tb(self, f_CLK):
-    self.f_CLK = f_CLK
-    mypath = os.getcwd()
-    mypath += '/outputs/'
-    my_lines = []
-    file_string = mypath + self.fsm_name + '_tb.sv'
-    sv_file = open(file_string, 'w+')
-    mystr = 'module '+str(self.fsm_name)+'_tb;\n\n'
-    mystr += 'reg clk_i;\n'
-    for i in self.signals:
-      if not i == '1':
-        mystr += 'reg '+str(i)+';\n'
-    for i in self.out_names:
-      mystr += 'wire '+str(i)+';\n'
-    mystr += '\n'+str(self.fsm_name)+' '+str(self.fsm_name)+'_u (\n'
-    mystr += '.clk_i(clk_i),\n'
-    for i in self.signals:
-      if not i == '1':
-        mystr += '.'+str(i)+'('+str(i)+'),\n'
-    for i in self.out_names[:-1]:
-      mystr += '.'+str(i)+'('+str(i)+'),\n'
-    mystr += '.'+str(self.out_names[-1])+'('+str(self.out_names[-1])+')\n'
-    mystr += ');\n\n'
-    mystr += 'always begin \n'
-    mystr += '  #'+str((1/self.f_CLK*1000)/2)+' clk_i = ~clk_i;\n'
-    mystr += 'end\n\n'
-    mystr += 'initial\n\nbegin\n\n'
-    mystr += 'clk_i = 0;\n'
-    for i in self.signals:
-      if not i == '1':
-        mystr += str(i)+' = 0;\n'
-    mystr += '\n#100;\n'
-    mystr += 'rst_ni = 1;\n'
-    mystr += '\n#100;\n'
-    mystr += '#50 $finish;\n\n'
-    mystr += 'end\n\n'
-    mystr += 'endmodule\n\n'
-    sv_file.write(mystr)
-    sv_file.close()
+    def __init__(self, name: str) -> None:
+        """!
+        @brief Construct a new Interface.
 
-  def write_gv(self):
-    # READ PROCEDURE
-    mypath = os.getcwd()
-    mypath += '/inputs/'
-    my_lines = []
-    file_string = mypath + self.fsm_name + '.txt'
-    f_r = open(file_string, 'r')
-    for line in f_r:
-      line = line.replace(":", "[ label =")
-      line = line.replace(";", " ] ;")
-      my_lines.append(line)
-    f_r.close()  
-    # WRITE PROCEDURE
-    mypath = os.getcwd()
-    mypath += '/outputs/'
-    file_string = mypath + self.fsm_name + '.gv'
-    f_w = open(file_string, 'w+')
-    mystr = 'digraph ' + self.fsm_name + ' {\n'
-    for line in my_lines:
-      mystr += line
-    mystr += '}\n'
-    f_w.write(mystr)
-    f_w.close()  
+        @param name Human-readable name/label for this interface instance.
+        """
+        self.name: str = name
+
+        # Public-ish attributes filled after read_inputs().
+        self.fsm_name: str | None = None
+        self.signals: List[str] = []
+        self.states: List[str] = []
+        self.out_names: List[str] = []
+        self.out_values: List[list[str]] = []
+        self.source: List[str] = []
+        self.dest: List[str] = []
+        self.edges: List[str] = []
+        self.next_states: List[List[str]] = []
+
+        # Derived paths (based on repository layout)
+        # scripts/Interface.py -> root_dir = scripts/..
+        root_dir = Path(__file__).resolve().parents[1]
+        self.inputs_dir: Path = root_dir / "inputs"
+        self.outputs_dir: Path = root_dir / "outputs"
+
+    # --------------------------------------------------------------------- #
+    # Public API
+    # --------------------------------------------------------------------- #
+
+    def read_inputs(self, fsm_name: str) -> None:
+        """!
+        @brief Read and parse FSM input files.
+
+        This method reads:
+          - `<fsm_name>.txt` from the `inputs/` directory as the transition
+            description.
+          - `<fsm_name>.csv` from the `inputs/` directory as the state/output
+            table.
+
+        It populates the internal data structures:
+          - states
+          - output names/values
+          - signals (input conditions)
+          - transition edges and next-state mapping.
+
+        @param fsm_name Base name of the FSM (without extension).
+        """
+        self.fsm_name = fsm_name
+
+        txt_path = self.inputs_dir / f"{fsm_name}.txt"
+        csv_path = self.inputs_dir / f"{fsm_name}.csv"
+
+        if not txt_path.is_file():
+            raise FileNotFoundError(
+                f"FSM transition file not found: {txt_path}"
+            )
+
+        if not csv_path.is_file():
+            raise FileNotFoundError(
+                f"FSM CSV file not found: {csv_path}"
+            )
+
+        # 1) Parse the TEXT file containing transitions/conditions.
+        self._parse_txt_file(txt_path)
+
+        # 2) Parse the CSV file containing states and output encodings.
+        self._parse_csv_file(csv_path)
+
+        # 3) Connect states to their possible next states based on the source/
+        #    destination lists extracted from the TXT file.
+        self._build_next_states()
+
+    def write_sv(self) -> None:
+        """!
+        @brief Generate a SystemVerilog FSM module.
+
+        The module is written to `outputs/<fsm_name>.sv`.
+
+        The generated module includes:
+          - input declarations for `clk_i`, `rst_ni` (if not already present),
+            and all input signals derived from the transition expressions.
+          - output declarations and registered outputs.
+          - enumerated state type (`typedef enum logic [...] state_fsm`).
+          - synchronous state and output registers.
+          - combinational next-state and next-output logic.
+        """
+        if self.fsm_name is None:
+            raise RuntimeError("read_inputs() must be called before write_sv().")
+
+        self.outputs_dir.mkdir(parents=True, exist_ok=True)
+        sv_path = self.outputs_dir / f"{self.fsm_name}.sv"
+
+        # Determine the number of bits required to encode the states.
+        num_states = max(1, len(self.states))
+        state_width = max(1, math.ceil(math.log2(num_states)))
+        msb_index = state_width - 1
+
+        lines: List[str] = []
+
+        # ------------------------------------------------------------------ #
+        # Module header
+        # ------------------------------------------------------------------ #
+        lines.append(f"module {self.fsm_name} (")
+        lines.append("  input  logic clk_i,")
+
+        # Add reset only if not already a user signal
+        if "rst_ni" not in self.signals:
+            lines.append("  input  logic rst_ni,")
+
+        # Input signals (skip constant '1')
+        for sig in self.signals:
+            if sig != "1":
+                lines.append(f"  input  logic {sig},")
+
+        # Output ports
+        for out_name in self.out_names[:-1]:
+            lines.append(f"  output logic {out_name},")
+        lines.append(f"  output logic {self.out_names[-1]}")
+        lines.append(");")
+        lines.append("")
+
+        # ------------------------------------------------------------------ #
+        # Internal signals and state type
+        # ------------------------------------------------------------------ #
+
+        # Registered version of each output
+        for out_name in self.out_names:
+            lines.append(f"  logic {out_name}_d;")
+        lines.append("")
+
+        # Enumerated type for states
+        lines.append(
+            f"  typedef enum logic [{msb_index}:0] {{"
+        )
+        for state in self.states[:-1]:
+            lines.append(f"    {state},")
+        lines.append(f"    {self.states[-1]}")
+        lines.append("  } state_fsm;")
+        lines.append("")
+        lines.append("  state_fsm current_state, next_state;")
+        lines.append("")
+
+        # ------------------------------------------------------------------ #
+        # State latching
+        # ------------------------------------------------------------------ #
+        lines.append("  // STATE LATCHING")
+        lines.append("  always_ff @(posedge clk_i or negedge rst_ni)")
+        lines.append("    begin: state_latching")
+        lines.append("      if (~rst_ni) begin")
+        lines.append(f"        current_state <= {self.states[0]};")
+        lines.append("      end else begin")
+        lines.append("        current_state <= next_state;")
+        lines.append("      end")
+        lines.append("    end")
+        lines.append("")
+
+        # ------------------------------------------------------------------ #
+        # Output latching
+        # ------------------------------------------------------------------ #
+        lines.append("  // OUTPUT LATCHING")
+        lines.append("  always_ff @(posedge clk_i or negedge rst_ni)")
+        lines.append("    begin: output_latching")
+        lines.append("      if (~rst_ni) begin")
+        # On reset, use the outputs of the first state
+        for idx, out_name in enumerate(self.out_names):
+            reset_val = self.out_values[0][idx]
+            lines.append(f"        {out_name} <= 1'b{reset_val};")
+        lines.append("      end else begin")
+        for out_name in self.out_names:
+            lines.append(f"        {out_name} <= {out_name}_d;")
+        lines.append("      end")
+        lines.append("    end")
+        lines.append("")
+
+        # ------------------------------------------------------------------ #
+        # Next-state and output logic
+        # ------------------------------------------------------------------ #
+        lines.append("  // STATE TRANSITION AND OUTPUT DEFINITION")
+        lines.append("  always_comb begin")
+        lines.append("    next_state = current_state;")
+        lines.append("    unique case (current_state)")
+
+        # One case-item per state
+        for state_index, state in enumerate(self.states):
+            lines.append(f"      {state}: begin")
+
+            # For this state, examine all transitions
+            default_line_start = len(lines)
+            first_condition = True
+
+            # Next-state list for this state
+            for dest_state in self.next_states[state_index]:
+                # Find the edge condition for (state -> dest_state)
+                for i in range(len(self.source)):
+                    if self.source[i] == state and self.dest[i] == dest_state:
+                        break
+                condition = self.edges[i]
+
+                # Unconditional transition
+                if condition == "1":
+                    lines.append(f"        next_state = {self.dest[i]};")
+
+                    # Find index of destination state to pick output values
+                    dest_index = self.states.index(self.dest[i])
+                    for out_idx, out_name in enumerate(self.out_names):
+                        val = self.out_values[dest_index][out_idx]
+                        lines.append(f"        {out_name}_d = 1'b{val};")
+                    lines.append("      end")
+                    break
+
+                # Conditional transitions chain: if / else if
+                if first_condition:
+                    lines.append(f"        if ({condition}) begin")
+                    lines.append(f"          next_state = {self.dest[i]};")
+                else:
+                    lines.append(f"        else if ({condition}) begin")
+                    lines.append(f"          next_state = {self.dest[i]};")
+
+                dest_index = self.states.index(self.dest[i])
+                for out_idx, out_name in enumerate(self.out_names):
+                    val = self.out_values[dest_index][out_idx]
+                    lines.append(f"          {out_name}_d = 1'b{val};")
+                lines.append("        end")
+                first_condition = False
+
+            # If none of the conditions matched, remain in the same state
+            # and keep its outputs.
+            if self.next_states[state_index]:
+                # Only add the default branch if there was at least one edge.
+                if self.edges[i] != "1":
+                    lines.append("        else begin")
+                    lines.append(f"          next_state = {state};")
+                    for out_idx, out_name in enumerate(self.out_names):
+                        val = self.out_values[state_index][out_idx]
+                        lines.append(f"          {out_name}_d = 1'b{val};")
+                    lines.append("        end")
+                    lines.append("      end")
+            else:
+                # No outgoing transitions: self-loop
+                lines.append(f"        next_state = {state};")
+                for out_idx, out_name in enumerate(self.out_names):
+                    val = self.out_values[state_index][out_idx]
+                    lines.append(f"        {out_name}_d = 1'b{val};")
+                lines.append("      end")
+
+        # Default case: go to reset state and apply its outputs.
+        lines.append("      default: begin")
+        lines.append(f"        next_state = {self.states[0]};")
+        for out_idx, out_name in enumerate(self.out_names):
+            val = self.out_values[0][out_idx]
+            lines.append(f"        {out_name}_d = 1'b{val};")
+        lines.append("      end")
+        lines.append("    endcase")
+        lines.append("  end")
+        lines.append("")
+        lines.append("endmodule")
+
+        sv_path.write_text("\n".join(lines))
+
+    def write_tb(self, f_CLK: int) -> None:
+        """!
+        @brief Generate a simple SystemVerilog testbench for the FSM.
+
+        The testbench is written to `outputs/<fsm_name>_tb.sv`.
+
+        @param f_CLK Clock frequency in MHz (used to compute the clock period).
+        """
+        if self.fsm_name is None:
+            raise RuntimeError("read_inputs() must be called before write_tb().")
+
+        self.outputs_dir.mkdir(parents=True, exist_ok=True)
+        tb_path = self.outputs_dir / f"{self.fsm_name}_tb.sv"
+
+        # Clock period (ns) for a given frequency in MHz:
+        #   T(ns) = 1000 / f_CLK
+        # We generate a clock with half-period delays (#T/2).
+        if f_CLK <= 0:
+            raise ValueError("f_CLK must be a positive integer (MHz).")
+
+        period_ns = 1000.0 / float(f_CLK)
+        half_period_ns = period_ns / 2.0
+
+        lines: List[str] = []
+
+        lines.append(f"module {self.fsm_name}_tb;")
+        lines.append("")
+        lines.append("  reg clk_i;")
+
+        # Input stimuli (skip constant '1')
+        for sig in self.signals:
+            if sig != "1":
+                lines.append(f"  reg {sig};")
+
+        # Outputs
+        for out_name in self.out_names:
+            lines.append(f"  wire {out_name};")
+
+        lines.append("")
+        lines.append(f"  {self.fsm_name} {self.fsm_name}_u (")
+        lines.append("    .clk_i(clk_i),")
+        for sig in self.signals:
+            if sig != "1":
+                lines.append(f"    .{sig}({sig}),")
+        for out_name in self.out_names[:-1]:
+            lines.append(f"    .{out_name}({out_name}),")
+        lines.append(f"    .{self.out_names[-1]}({self.out_names[-1]})")
+        lines.append("  );")
+        lines.append("")
+
+        # Clock generation
+        lines.append("  // Clock generation")
+        lines.append("  always begin")
+        lines.append(f"    #{half_period_ns} clk_i = ~clk_i;")
+        lines.append("  end")
+        lines.append("")
+
+        # Simple reset + stop sequence
+        lines.append("  initial begin")
+        lines.append("    clk_i = 1'b0;")
+        for sig in self.signals:
+            if sig != "1":
+                lines.append(f"    {sig} = 1'b0;")
+        lines.append("")
+        lines.append("    // Apply reset and basic stimulus here as needed.")
+        lines.append("    #100;")
+        lines.append("    rst_ni = 1'b1;")
+        lines.append("    #100;")
+        lines.append("    #50 $finish;")
+        lines.append("  end")
+        lines.append("")
+        lines.append("endmodule")
+
+        tb_path.write_text("\n".join(lines))
+
+    def write_gv(self) -> None:
+        """!
+        @brief Generate a Graphviz DOT file from the FSM text description.
+
+        The DOT file is written to `outputs/<fsm_name>.gv`.
+
+        The method performs a light transformation on the original TXT file,
+        converting transitions of the form:
+
+        @code
+        STATE_A : condition ; STATE_B
+        @endcode
+
+        into Graphviz edges with labels:
+
+        @code
+        STATE_A -> STATE_B [ label = "condition" ];
+        @endcode
+        """
+        if self.fsm_name is None:
+            raise RuntimeError("read_inputs() must be called before write_gv().")
+
+        txt_path = self.inputs_dir / f"{self.fsm_name}.txt"
+        if not txt_path.is_file():
+            raise FileNotFoundError(
+                f"FSM transition file not found: {txt_path}"
+            )
+
+        self.outputs_dir.mkdir(parents=True, exist_ok=True)
+        gv_path = self.outputs_dir / f"{self.fsm_name}.gv"
+
+        lines: List[str] = []
+
+        # Transform each line to Graphviz syntax
+        with txt_path.open("r", encoding="utf-8") as f_r:
+            for line in f_r:
+                line = line.replace(":", "[ label =")
+                line = line.replace(";", " ] ;")
+                lines.append(line)
+
+        gv_lines: List[str] = []
+        gv_lines.append(f"digraph {self.fsm_name} {{")
+        gv_lines.extend(lines)
+        gv_lines.append("}")
+
+        gv_path.write_text("".join(gv_lines))
+
+    # --------------------------------------------------------------------- #
+    # Private helpers
+    # --------------------------------------------------------------------- #
+
+    def _parse_txt_file(self, txt_path: Path) -> None:
+        """!
+        @brief Internal helper to parse the FSM TXT file.
+
+        This method:
+          - normalizes logical operators and symbols,
+          - extracts source states, destination states and edge conditions,
+          - builds the list of input signals used in the conditions.
+        """
+        raw_lines: List[str] = []
+
+        # Read & normalize text lines
+        with txt_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                # Normalize logical operators and symbols
+                line = line.replace("!", "~ ")
+                line = line.replace("~", "~ ")
+                line = line.replace("not", "~")
+                line = line.replace("and", "&")
+                line = line.replace("or", "|")
+                line = line.replace("nand", "%")
+                line = line.replace("nor", "*")
+                line = line.replace("xor", "^")
+                line = line.replace("(", " ( ")
+                line = line.replace(")", " ) ")
+                line = line.replace("[", " [ ")
+                line = line.replace("]", " ] ")
+                line = line.replace("->", " -> ")
+                line = line.replace(" 1 ", "1")
+                line = line.replace("  1  ", "1")
+                # Collapse multiple spaces
+                line = line.replace("  ", " ")
+                line = line.replace("   ", " ")
+                line = line.replace("  ", " ")
+
+                # Split, then re-join with single spaces
+                tokens = line.strip().split()
+                if tokens:
+                    raw_lines.append(" ".join(tokens))
+
+        # Tokenize again line-by-line
+        token_lines = [l.strip().split() for l in raw_lines]
+
+        self.source = []
+        self.dest = []
+        self.edges = []
+
+        # Temporary list for collecting characters inside quotes
+        logic_chars: List[str] = []
+        inside_quotes = False
+
+        # Iterate over rows to extract source, destination and condition
+        for elements in token_lines:
+            # Skip comments
+            if not elements:
+                continue
+            if elements[0] == "#" or (elements[0] == "/" and len(elements) > 1 and elements[1] == "/"):
+                continue
+
+            if len(elements) > 3:
+                # Example of expected format:
+                #   STATE_A -> STATE_B "condition"
+                self.source.append(elements[0])
+                self.dest.append(elements[2])
+
+                line = " ".join(elements)
+                logic_chars.clear()
+                inside_quotes = False
+
+                for ch in line:
+                    if ch == '"':
+                        if inside_quotes:
+                            # Closing quote
+                            break
+                        inside_quotes = True
+                        continue
+                    if inside_quotes:
+                        logic_chars.append(ch)
+
+                logic_expr = "".join(logic_chars)
+                self.edges.append(logic_expr)
+
+        if not (len(self.edges) == len(self.source) == len(self.dest)):
+            raise ValueError(
+                "Inconsistent transition information: "
+                "source, dest and edges lengths differ."
+            )
+
+        # Extract unique input signals from the edge expressions
+        self.signals = []
+        forbidden_tokens = {
+            "(", "((", "(((", ")))", "))", ")", "not", "and", "or",
+            "xor", "|", "&", "~", "%", "^", "*", ""
+        }
+
+        for edge in self.edges:
+            for token in edge.split():
+                if token not in forbidden_tokens and token not in self.signals:
+                    self.signals.append(token)
+
+        # Clean up spaces after negation
+        for idx, e in enumerate(self.edges):
+            self.edges[idx] = e.replace("~ ", "~")
+
+    def _parse_csv_file(self, csv_path: Path) -> None:
+        """!
+        @brief Internal helper to parse the FSM CSV file.
+
+        This method:
+          - extracts state names,
+          - extracts output signal names,
+          - extracts output values for each state.
+        """
+        self.states = []
+        self.out_values = []
+
+        raw_lines: List[list[str]] = []
+
+        with csv_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                # Split on comma, semicolon or newline
+                parts = re.split(r",|;|\n", line)
+                parts = parts[:-1]  # remove trailing empty element after split
+                if parts:
+                    raw_lines.append(parts)
+
+        if not raw_lines:
+            raise ValueError(f"CSV file appears to be empty: {csv_path}")
+
+        # First row contains output names (columns after the first)
+        header = [c.strip() for c in raw_lines[0][1:]]
+        self.out_names = header
+
+        # Remaining rows: [state_name, out0, out1, ...]
+        for row in raw_lines[1:]:
+            if not row:
+                continue
+            state_name = row[0].strip()
+            outputs = [v.strip() for v in row[1:]]
+            self.states.append(state_name)
+            self.out_values.append(outputs)
+
+    def _build_next_states(self) -> None:
+        """!
+        @brief Internal helper to build next-states for each state.
+
+        For each state in `self.states`, this method collects all destination
+        states reachable from it, based on `self.source` and `self.dest`.
+        """
+        self.next_states = []
+        for state in self.states:
+            dest_states: List[str] = []
+            for src, dst in zip(self.source, self.dest):
+                if state == src:
+                    dest_states.append(dst)
+            self.next_states.append(dest_states)
+
