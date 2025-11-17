@@ -144,15 +144,19 @@ def generate_module_inst(mod, ports):
     inst_lines.append("  );\n")
     return "\n".join(inst_lines)
 
-def generate_soc_sv(host, lowrisc_modules, modules, root_dir, output_file):
+def generate_soc_sv(host, device, root_dir, output_file):
     modules_ports = {}
-
-    all_modules = lowrisc_modules + modules
+    all_modules = []
+    for m in device:
+        all_modules.append(m[0])
+    all_modules = all_modules[1:]
+    #all_modules = lowrisc_modules + modules
     # Parse user-provided modules
     for mod in all_modules:
         from_vendor = False
-        if mod in lowrisc_modules:
-            from_vendor = True
+    # TODO: Split modules into local and from vendor
+    #    if mod in lowrisc_modules:
+    #        from_vendor = True
         sv_path = find_sv_file(mod, root_dir, from_vendor)
         if not sv_path:
             raise FileNotFoundError(f"SystemVerilog file for module '{mod}' not found.")
@@ -395,13 +399,13 @@ def generate_soc_sv(host, lowrisc_modules, modules, root_dir, output_file):
         f.write(f'  files_rtl:\n')
         f.write(f'    depend:\n')
         f.write(f'      - lowrisc:ibex:ibex_top_tracing\n')
-        for mod in lowrisc_modules:
-            f.write(f'      - lowrisc:ip:{mod}\n')
+        #for mod in lowrisc_modules:
+        #    f.write(f'      - lowrisc:ip:{mod}\n')
         f.write(f'      - lowrisc:ip:xbar_main\n')
         f.write(f'      - lowrisc:prim:onehot\n')
         f.write(f'      - lowrisc:tlul:adapter_host\n')
         f.write(f'      - lowrisc:tlul:adapter_reg\n')
-        for mod in modules:
+        for mod in all_modules:
             f.write(f'      - prj:ip:{mod}\n')
         f.write(f'    files:\n')
         f.write(f'      - top/soc.sv\n')
@@ -720,13 +724,14 @@ def main():
         help="Host selection: ibex - uart"
     )
     parser.add_argument(
-        "--lowrisc_modules", "-lrm", nargs="*", default=None,
-        help="List of module names to include (e.g., uart spi_host)"
+        "--device", "-device",
+        action='append',
+        nargs=3,
+        metavar=('NAME', 'BASE_ADDR', 'SIZE_BYTE'),
+        help='Add a device with NAME, BASE_ADDR, and SIZE_BYTE (all in hex format, e.g., 0x80000000)',
+        required=True
     )
-    parser.add_argument(
-        "--modules", "-m", nargs="+", required=True,
-        help="List of module names to include (e.g., uart spi_host)"
-    )
+
     parser.add_argument(
         "--root", "-r", default=".",
         help="Root directory to search for Verilog files"
@@ -737,7 +742,7 @@ def main():
     )
 
     args = parser.parse_args()
-    generate_soc_sv(args.host, args.lowrisc_modules, args.modules, args.root, args.output)
+    generate_soc_sv(args.host, args.device, args.root, args.output)
 
 if __name__ == "__main__":
     main()

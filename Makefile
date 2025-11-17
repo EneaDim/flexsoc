@@ -32,7 +32,7 @@ setup:
 # HJSON TEMPLATE GENERATION
 hjson:
 	$(Q)$(ECHO) "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
-	$(Q)$(PYTHON) scripts/hjson_gen.py -top $(TOP) -itf $(REG_ITF) -o $(DATADIR) 
+	$(Q)$(PYTHON) scripts/hjson_gen.py $(OVERWRITE) -top $(TOP) -itf $(REG_ITF) -o $(DATADIR) 
 
 # SV REGISTER GENERATOR
 reg:
@@ -53,7 +53,7 @@ fetch:
 # RTL base generator
 rtl_stub:
 	$(Q)$(ECHO) "\n$(ORANGE)RTL stub generation...\n$(RESET)"
-	$(Q)$(PYTHON) scripts/rtl_stub_gen.py -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
+	$(Q)$(PYTHON) scripts/rtl_stub_gen.py $(OVERWRITE) -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
 
 # Basic IP start flow
 ip_start: setup hjson reg doc rtl_stub setup_tb sim
@@ -87,7 +87,7 @@ lint_sv: flist
 # SETUP SV TESTBENCH FILE
 setup_tb:
 	$(Q)$(ECHO) "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
-	$(Q)$(PYTHON) scripts/setup_tb.py -top $(TOP) -rtldir $(RTLDIR) \
+	$(Q)$(PYTHON) scripts/setup_tb.py $(OVERWRITE) -top $(TOP) -rtldir $(RTLDIR) \
 	-simdir $(SIMDIR) -syndir $(SYNDIR) -prim $(PRIM) -clk $(CLK_PERIOD) \
 	-comp $(COMPILER) -itf $(REG_ITF) -vsv $(VSV) -o $(TBDIR)
 
@@ -231,14 +231,14 @@ view_presyn_sv:
 
 compile_syn:
 	$(Q)$(ECHO) "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(Q)iverilog -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
+	iverilog -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
 	-o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
 	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 
 # SIMULATE POST SYNTHESIS NETLIST
 sim_syn: compile_syn
 	$(Q)$(ECHO) "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
-	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
+	vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
 
 # VIEW WAVEFORMS RTL SIMULATION
 view_syn:
@@ -249,7 +249,7 @@ view_syn:
 ###              Static Timing Analysis        ###
 ##################################################
 
-sta:
+sta: setup_signoff 
 	$(Q)$(ECHO) "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
 	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
 	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
@@ -354,12 +354,18 @@ xbar_build:
 ###            SoC          ###
 ###############################
 
+soc-uart-host: xbar soc_build
+	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
+	$(Q)$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
+	$(Q)$(CP) top/soc.sv $(RTLDIR)/
+	
+
 soc_flow: soc_build driver soc_sim soc_run 
 
 soc_build:
 	$(Q)$(ECHO) "\n$(ORANGE)SoC files building ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(TOPDIR)
-	$(Q)$(PYTHON) scripts/soc_gen.py -host $(HOST) -lrm $(LOWRISC_IPS) -m $(IPS) -o $(TOPDIR)/soc.sv
+	$(Q)$(PYTHON) scripts/soc_gen.py -host $(HOST) $(SOC_MEMORY_MAP) -o $(TOPDIR)/soc.sv
 
 soc_sim:
 	$(Q)$(ECHO) "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"

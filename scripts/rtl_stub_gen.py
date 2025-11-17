@@ -249,15 +249,15 @@ def render_wrapper(hj: Hjson, itf: str) -> str:
     if itf.lower() == "tlul":
         bus_decl_in  = "input  tlul_pkg::tl_h2d_t tl_i"
         bus_decl_out = "output tlul_pkg::tl_d2h_t tl_o"
-        bus_conn_in  = " .tl_i (tl_i),"
-        bus_conn_out = " .tl_o (tl_o),"
+        bus_conn_in  = ".tl_i(tl_i),"
+        bus_conn_out = ".tl_o(tl_o),"
         aw_param = ""  # TL-UL device uses TLUL structs; no AW here
     else:
         # Generic reg_if style (placeholder)
         bus_decl_in  = "input  reg_req_t reg_req_i"
         bus_decl_out = "output reg_rsp_t reg_rsp_o"
-        bus_conn_in  = " .reg_req_i (reg_req_i),"
-        bus_conn_out = " .reg_rsp_o (reg_rsp_o),"
+        bus_conn_in  = ".reg_req_i(reg_req_i),"
+        bus_conn_out = ".reg_rsp_o(reg_rsp_o),"
         aw_param = "  parameter int AW = 4,\n"
 
     lines: List[str] = []
@@ -289,10 +289,10 @@ def render_wrapper(hj: Hjson, itf: str) -> str:
     lines.append("")
     lines.append(f"  // Register block")
     lines.append(f"  {module}_reg_top u_{module}_reg (")
-    lines.append(f"    .clk_i (clk_i),")
+    lines.append(f"    .clk_i(clk_i),")
     lines.append(f"    .rst_ni(rst_ni),")
-    lines.append(f"{bus_conn_in}")
-    lines.append(f"{bus_conn_out}")
+    lines.append(f"    {bus_conn_in}")
+    lines.append(f"    {bus_conn_out}")
     lines.append(f"    .reg2hw(reg2hw),")
     lines.append(f"    .hw2reg(hw2reg),")
     lines.append(f"    .devmode_i(1'b1)")
@@ -302,7 +302,7 @@ def render_wrapper(hj: Hjson, itf: str) -> str:
     lines.append(f"  {module}_core #(")
     lines.append(f"    .FifoDepth(FifoDepth)")
     lines.append(f"  ) u_{module}_core (")
-    lines.append(f"    .clk_i (clk_i),")
+    lines.append(f"    .clk_i(clk_i),")
     lines.append(f"    .rst_ni(rst_ni),")
     lines.append(f"    .reg2hw(reg2hw),")
     lines.append(f"    .hw2reg(hw2reg),")

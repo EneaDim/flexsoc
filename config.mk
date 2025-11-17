@@ -123,7 +123,7 @@ endef
 # Needed for the .c driver definition
 MOD_ADD         ?= 0x80040000
 
-IPS             := spi_host
+IPS             :=
 LOWRISC_IPS     ?=
 
 ifeq ($(HOST),ibex)
@@ -138,7 +138,6 @@ else ifeq ($(HOST),uart)
   $(eval $(call add_device,pwm,      0x80020000, 0x00001000))
   $(eval $(call add_device,gpio,     0x80040000, 0x00001000))
   $(eval $(call add_device,rv_timer, 0x80060000, 0x00001000))
-  # $(eval $(call add_device,spi_host, $(MOD_ADD), 0x00001000))
 else
   $(error Unknown HOST '$(HOST)'. Supported: ibex, uart)
 endif
@@ -162,3 +161,9 @@ else
   Q := @
 endif
 
+# Overwrite
+ifeq ($(FORCE),1)
+  OVERWRITE :=--force
+else
+  OVERWRITE :=
+endif
