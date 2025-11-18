@@ -3,14 +3,14 @@ include config.mk
 
 # HELP
 help:
-	$(Q)echo "$(Q)$(ORANGE)"
+	$(Q)echo "$(ORANGE)"
 	$(Q)echo "Available make commands to start:"
 	$(Q)echo ""
 	$(Q)echo "    make help_ip     Show IP-related help"
 	$(Q)echo "    make help_soc    Show SoC-related help"
 	$(Q)echo "    make help_doc    Show documentation-related help"
 	$(Q)echo "    make help_fsm    Show FSM generator help"
-	$(Q)echo "$(Q)$(RESET)"
+	$(Q)echo "$(RESET)"
 
 help_ip:
 	$(Q)$(PYTHON) scripts/help_ip.py
