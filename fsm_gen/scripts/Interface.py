@@ -31,8 +31,10 @@ from __future__ import annotations
 
 import math
 import re
+import itertools
 from pathlib import Path
 from typing import List
+    
 
 
 class Interface:
@@ -600,4 +602,87 @@ class Interface:
                 if state == src:
                     dest_states.append(dst)
             self.next_states.append(dest_states)
+
+    ########
+    # ATPG #
+    ########
+    def extract_signals(self, expr: str):
+        """
+        Find all unique signal names in the boolean expression.
+        Signal names are assumed to be identifiers: [a-zA-Z_][a-zA-Z0-9_]*
+        """
+        # All word-like tokens
+        tokens = re.findall(r'\b[a-zA-Z_]\w*\b', expr)
+        # If you had keywords, you could filter them out here
+        # (e.g. if you later allow 'and', 'or', etc. in input)
+        return sorted(set(tokens))
+    
+    def to_python_expr(self, expr: str):
+        """
+        Convert HDL-style boolean expr to a safe Python expression using booleans.
+        Supported ops:
+            &  -> and
+            |  -> or
+            ^  -> !=  (xor for booleans)
+            !, ~ -> not
+        """
+        py = expr
+    
+        # NOT first, to avoid messing replacements that introduce !
+        py = re.sub(r'~', ' not ', py)
+        py = re.sub(r'!', ' not ', py)
+    
+        # Binary operators
+        py = py.replace('&', ' and ')
+        py = py.replace('|', ' or ')
+        # XOR: boolean xor is same as != for True/False
+        py = py.replace('^', ' != ')
+    
+        return py
+    
+    def truth_table(self, expr: str):
+        """
+        Build a truth table for the boolean expression.
+        Returns:
+            signals: list of signal names
+            rows: list of (values_dict, result)
+        """
+        signals = self.extract_signals(expr)
+        py_expr = self.to_python_expr(expr)
+    
+        rows = []
+        for combo in itertools.product([False, True], repeat=len(signals)):
+            env = dict(zip(signals, combo))
+            # Eval in restricted environment
+            result = eval(py_expr, {"__builtins__": None}, env)
+            rows.append((env, bool(result)))
+        return signals, rows
+    
+    
+    def print_truth_table(self, expr: str):
+        signals, rows = self.truth_table(expr)
+        # Header
+        header = " | ".join(signals) + " || OUT"
+        print(header)
+        print("-" * len(header))
+        for env, res in rows:
+            vals = " | ".join("1" if env[s] else "0" for s in signals)
+            out  = "1" if res else "0"
+            print(f"{vals} || {out}")
+    
+    def check_data(self) -> None:
+        """TODO: Docstring for check_data.
+        :returns: TODO
+
+        """
+        print(self.states)
+        print(self.next_states)
+        print(self.source)
+        print(self.dest)
+        print(self.edges)
+        print(self.signals)
+        for edge in self.edges:
+            print("Expression:", edge)
+            self.print_truth_table(edge)
+
 

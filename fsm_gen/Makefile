@@ -14,30 +14,30 @@ RESET  :=\033[0m
 
 # HELP
 help: clean
-	$(PYTHON) scripts/help.py
+	@$(PYTHON) scripts/help.py
 
 # SETUP
 setup:
-	mkdir -p inputs outputs  
+	@mkdir -p inputs outputs  
 
 # GENERATE
 gen: clean_py setup
 	@$(ECHO) "\n$(ORANGE)Generating .sv and .gv file of FSM...\n$(RESET)"
-	$(PYTHON) scripts/Main.py -fsm_name $(FSM) -f_clk $(F_CLK)
+	@$(PYTHON) scripts/Main.py -fsm_name $(FSM) -f_clk $(F_CLK)
 
 # PLOT FSM
 .PHONY: plot
 plot:
 	@$(ECHO) "\n$(ORANGE)Plotting .gv file of FSM...\n$(RESET)"
-	xdot outputs/$(FSM).gv &
+	@xdot outputs/$(FSM).gv &
 
 # CLEAN PYTHON SCRIPTS FOLDER
 clean_py:
-	rm -rf scripts/__*
-	rm -rf *~
+	@rm -rf scripts/__*
+	@rm -rf *~
 # CLEAN OUTPUT DIRECTORY
 clean: clean_py
-	rm -rf outputs plot 
+	@rm -rf outputs plot 
 # CLEAN ALL
 clean_all: clean
-	rm -rf inputs/*
+	@rm -rf inputs/*

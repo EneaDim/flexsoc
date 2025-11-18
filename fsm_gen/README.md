@@ -32,7 +32,7 @@ It is intended as a lightweight tool for **digital design** and **education**, w
 Describe states, next states, and Boolean conditions:
 
 ```
-STATE_A -> STATE_B "cond_expr"
+STATE_A -> STATE_B : "cond_expr" ;
 ```
 
 ### State/Output Table (`<fsm_name>.csv`)
