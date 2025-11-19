@@ -191,10 +191,10 @@ class Interface:
             lines.append(f"  logic {out_name}_d;")
         lines.append("")
 
+
         # Enumerated type for states
-        lines.append(
-            f"  typedef enum logic [{msb_index}:0] {{"
-        )
+        lines.append(f"  typedef enum logic [{msb_index}:0] ")
+        lines.append("{")
         for state in self.states[:-1]:
             lines.append(f"    {state},")
         lines.append(f"    {self.states[-1]}")
@@ -436,7 +436,8 @@ class Interface:
                 lines.append(line)
 
         gv_lines: List[str] = []
-        gv_lines.append(f"digraph {self.fsm_name} {{")
+        gv_lines.append(f"digraph {self.fsm_name} ")
+        gv_lines.append("{")
         gv_lines.extend(lines)
         gv_lines.append("}")
 
@@ -656,6 +657,9 @@ class Interface:
             # Eval in restricted environment
             result = eval(py_expr, {"__builtins__": None}, env)
             rows.append((env, bool(result)))
+        print(signals)
+        print(rows)
+
         return signals, rows
     
     
@@ -671,7 +675,7 @@ class Interface:
             print(f"{vals} || {out}")
     
     def check_data(self) -> None:
-        """TODO: Docstring for check_data.
+        """TODO: Just a check.
         :returns: TODO
 
         """
@@ -684,5 +688,18 @@ class Interface:
         for edge in self.edges:
             print("Expression:", edge)
             self.print_truth_table(edge)
+
+    def states_walkthrough(self) -> None:
+        """High level implementation
+        :returns: TODO
+
+        """
+        all_arcs_taken = False
+        actual_state = self.states[0]
+        while all_arcs_taken == False:
+            idx_next = states.index(actual_state)
+            actual_state = choose_edge()
+            self.set_inputs()
+            self.append_on_tb()
 
 
