@@ -144,7 +144,7 @@ endif
 # VIEW WAVEFORMS RTL SIMULATION
 view:
 	$(Q)$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP).vcd $(VIEWER_CONF) & 
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_tb.vcd $(VIEWER_CONF) & 
 
 view_cocotb:
 	$(Q)$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
@@ -575,4 +575,4 @@ clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_sub
 clean_all: clean_fsm_all clean_vendor clean 
 	$(Q)$(RM) *.core
 	$(Q)$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(ORSDIR) \
-	       $(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) > /dev/null 2>&1
+	$(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) $(FSMDIR) > /dev/null 2>&1
