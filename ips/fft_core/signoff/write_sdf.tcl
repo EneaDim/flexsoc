@@ -5,6 +5,7 @@ puts "==========================================================================
 puts ""
 puts "define_corners Slowest Typical Fastest"
 define_corners Slowest Typical Fastest
+
 puts ""
 puts "==========================================================================="
 puts "Read liberty files"
@@ -16,6 +17,7 @@ puts "read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
 read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 puts "read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib"
 read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
+
 puts ""
 puts "==========================================================================="
 puts "Read verilog and link top module"
@@ -25,6 +27,7 @@ puts "read_verilog syn/fft_core_synth.v"
 puts "link_design fft_core"
 read_verilog syn/fft_core_synth.v
 link_design fft_core
+
 puts ""
 puts "==========================================================================="
 puts "Read SDC"
@@ -33,14 +36,14 @@ puts ""
 puts "read_sdc ors/fft_core.sdc"
 read_sdc ors/fft_core.sdc
 puts ""
+
 puts "==========================================================================="
 puts "Write SDF files for each corner"
 puts "==========================================================================="
 puts ""
 puts "write_sdf -corner Typical -divider . -include_typ signoff/sdf/fft_core_tt.sdf"
-puts "write_sdf -corner Slowest -divider . -include_typ signoff/sdf/fft_core_ss.sdf"
-puts "write_sdf -corner Fastest -divider . -include_typ signoff/sdf/fft_core_ff.sdf"
-puts ""
 write_sdf -corner Typical -divider . -include_typ signoff/sdf/fft_core_tt.sdf
+puts "write_sdf -corner Slowest -divider . -include_typ signoff/sdf/fft_core_ss.sdf"
 write_sdf -corner Slowest -divider . -include_typ signoff/sdf/fft_core_ss.sdf
+puts "write_sdf -corner Fastest -divider . -include_typ signoff/sdf/fft_core_ff.sdf"
 write_sdf -corner Fastest -divider . -include_typ signoff/sdf/fft_core_ff.sdf

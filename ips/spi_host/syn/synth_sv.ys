@@ -1,4 +1,4 @@
-# read files
+# read files (SystemVerilog via slang)
 read_slang -I ips/pkgs \
            -I ips/prim \
            -I ips/prim_opentitan \
@@ -8,16 +8,18 @@ read_slang -I ips/pkgs \
            -f rtl/rtl_list.f \
            --top spi_host
 # basic synth
-synth -top spi_host -flatten -noabc
+synth -top spi_host -noabc
 show -width -format dot -prefix syn/plots/spi_host_postsyn
 # map internal register types to the ones from the cell library
 dfflibmap -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 # mapping to internal cell library
-abc -D 10000 \
--liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+abc -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script syn/area.abc \
+    -constr ors/spi_host.sdc \
+
+
 opt_clean -purge
 stat -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 # write verilog
-write_verilog ./syn/spi_host_synth.v
+write_verilog syn/spi_host_synth.v
 # write json
-write_json ./syn/spi_host_synth.json
+write_json syn/spi_host_synth.json

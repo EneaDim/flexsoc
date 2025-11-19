@@ -54,9 +54,9 @@ module spi_host_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/spi_host.vcd");
+      $dumpfile("sim/spi_host_tb.vcd");
     `else
-      $dumpfile("sim/spi_host_syn.vcd");
+      $dumpfile("sim/spi_host_syn_tb.vcd");
     `endif
     $dumpvars(0, spi_host_tb);
   end

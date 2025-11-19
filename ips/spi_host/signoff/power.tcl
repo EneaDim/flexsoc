@@ -5,6 +5,7 @@ puts "==========================================================================
 puts ""
 puts "define_corners Slowest Typical Fastest"
 define_corners Slowest Typical Fastest
+
 puts ""
 puts "==========================================================================="
 puts "Read liberty files"
@@ -16,6 +17,7 @@ puts "read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
 read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 puts "read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib"
 read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
+
 puts ""
 puts "==========================================================================="
 puts "Read verilog and link top module"
@@ -25,6 +27,7 @@ puts "read_verilog syn/spi_host_synth.v"
 puts "link_design spi_host"
 read_verilog syn/spi_host_synth.v
 link_design spi_host
+
 puts ""
 puts "==========================================================================="
 puts "Read SDC"
@@ -33,6 +36,7 @@ puts ""
 puts "read_sdc ors/spi_host.sdc"
 read_sdc ors/spi_host.sdc
 puts ""
+
 puts ""
 puts "==========================================================================="
 puts "(Probability Power Analysis) report_power"
@@ -47,11 +51,12 @@ foreach corner [sta::corners] {
     report_power -corner [$corner name]
     puts ""
 }
+
 puts "==========================================================================="
 puts "(VCD Power Analysis) report_power"
 puts "============================================================================"
-puts "read_vcd -scope spi_host_tb/u_spi_host sim/spi_host.vcd"
-read_vcd -scope spi_host_tb/u_spi_host sim/spi_host.vcd
+puts "read_vcd -scope spi_host_tb/u_spi_host sim/spi_host_tb.vcd"
+read_vcd -scope spi_host_tb/u_spi_host sim/spi_host_tb.vcd
 foreach corner [sta::corners] {
     puts ""
     puts "======================= [$corner name] Corner ==================================="

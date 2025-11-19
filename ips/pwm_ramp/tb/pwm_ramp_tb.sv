@@ -79,9 +79,9 @@ module pwm_ramp_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/pwm_ramp.vcd");
+      $dumpfile("sim/pwm_ramp_tb.vcd");
     `else
-      $dumpfile("sim/pwm_ramp_syn.vcd");
+      $dumpfile("sim/pwm_ramp_syn_tb.vcd");
     `endif
     $dumpvars(0, pwm_ramp_tb);
   end

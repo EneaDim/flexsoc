@@ -1,0 +1,1583 @@
+
+ /----------------------------------------------------------------------------\
+ |  yosys -- Yosys Open SYnthesis Suite                                       |
+ |  Copyright (C) 2012 - 2025  Claire Xenia Wolf <claire@yosyshq.com>         |
+ |  Distributed under an ISC-like license, type "license" to see terms        |
+ \----------------------------------------------------------------------------/
+ Yosys 0.58 (git sha1 157aabb58, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+
+-- Executing script file `syn/synth_sv.ys' --
+
+1. Executing SLANG frontend.
+Top level design units:
+    spi_host
+
+Build succeeded: 0 errors, 0 warnings
+
+1.1. Executing UNDRIVEN pass. (resolve undriven signals)
+
+1.2. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `\spi_host.$333'.
+Removing empty process `spi_host.$330'.
+Removing empty process `spi_host.$327'.
+Found and cleaned up 1 empty switch in `\spi_host.$317'.
+Found and cleaned up 1 empty switch in `\spi_host.$301'.
+Found and cleaned up 1 empty switch in `\spi_host.$294'.
+Found and cleaned up 1 empty switch in `\spi_host.$268'.
+Found and cleaned up 1 empty switch in `\spi_host.$258'.
+Found and cleaned up 1 empty switch in `\spi_host.$242'.
+Found and cleaned up 1 empty switch in `\spi_host.$235'.
+Found and cleaned up 1 empty switch in `\spi_host.$209'.
+Removing empty process `spi_host.$204'.
+Removing empty process `spi_host.$199'.
+Found and cleaned up 1 empty switch in `\spi_host.$191'.
+Removing empty process `spi_host.$158'.
+Removing empty process `spi_host.$149'.
+Found and cleaned up 1 empty switch in `\spi_host.$144'.
+Removing empty process `spi_host.$137'.
+Found and cleaned up 1 empty switch in `\spi_host.$132'.
+Found and cleaned up 1 empty switch in `\spi_host.$124'.
+Found and cleaned up 1 empty switch in `\spi_host.$116'.
+Found and cleaned up 1 empty switch in `\spi_host.$80'.
+Removing empty process `spi_host.$69'.
+Removing empty process `spi_host.$62'.
+Found and cleaned up 1 empty switch in `\spi_host.$55'.
+Removing empty process `spi_host.$54'.
+Removing empty process `spi_host.$46'.
+Removing empty process `spi_host.$44'.
+Removing empty process `spi_host.$42'.
+Found and cleaned up 1 empty switch in `\spi_host.$25'.
+Found and cleaned up 1 empty switch in `\spi_host.$18'.
+Found and cleaned up 1 empty switch in `\spi_host.$13'.
+Cleaned up 19 empty switches.
+
+1.3. Executing TRIBUF pass.
+
+1.4. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 4 switch rules as full_case in process $301 in module spi_host.
+Marked 4 switch rules as full_case in process $294 in module spi_host.
+Marked 2 switch rules as full_case in process $80 in module spi_host.
+Marked 4 switch rules as full_case in process $242 in module spi_host.
+Marked 1 switch rules as full_case in process $55 in module spi_host.
+Marked 4 switch rules as full_case in process $235 in module spi_host.
+Marked 21 switch rules as full_case in process $333 in module spi_host.
+Marked 2 switch rules as full_case in process $13 in module spi_host.
+Removed a total of 0 dead cases.
+
+1.5. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 35 redundant assignments.
+Promoted 0 assignments to connections.
+
+1.6. Executing PROC_INIT pass (extract init attributes).
+
+1.7. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~65 debug messages>
+
+1.8. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `\spi_host.$191'.
+     1/4: $u_spi_host_reg.reg_rdata_next$192 [31:8]
+     2/4: $u_spi_host_reg.reg_rdata_next$192 [2:0]
+     3/4: $u_spi_host_reg.reg_rdata_next$192 [7:4]
+     4/4: $u_spi_host_reg.reg_rdata_next$192 [3]
+Creating decoders for process `\spi_host.$301'.
+     1/3: $u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q$305
+     2/3: $u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q$306
+     3/3: $u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q$307
+Creating decoders for process `\spi_host.$294'.
+     1/3: $u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q$298
+     2/3: $u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q$299
+     3/3: $u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q$300
+Creating decoders for process `\spi_host.$144'.
+     1/1: $u_spi_host_reg.u_wdata.q$147
+Creating decoders for process `\spi_host.$268'.
+     1/1: $u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.under_rst$272
+Creating decoders for process `\spi_host.$132'.
+     1/1: $u_spi_host_reg.u_ctrl_rxrst.q$135
+Creating decoders for process `\spi_host.$124'.
+     1/1: $u_spi_host_reg.u_ctrl_txrst.q$127
+Creating decoders for process `\spi_host.$116'.
+     1/1: $u_spi_host_reg.u_ctrl_en.q$119
+Creating decoders for process `\spi_host.$80'.
+     1/6: $u_spi_host_reg.u_reg_if.u_err.fulldata_chk$106
+     2/6: $u_spi_host_reg.u_reg_if.u_err.mask_chk$105
+     3/6: $u_spi_host_reg.u_reg_if.u_err.addr_sz_chk$104
+     4/6: $u_spi_host_reg.u_reg_if.u_err.fulldata_chk$103
+     5/6: $u_spi_host_reg.u_reg_if.u_err.mask_chk$102
+     6/6: $u_spi_host_reg.u_reg_if.u_err.addr_sz_chk$101
+Creating decoders for process `\spi_host.$258'.
+     1/1: $u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage$266
+Creating decoders for process `\spi_host.$242'.
+     1/3: $u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q$246
+     2/3: $u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q$247
+     3/3: $u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q$248
+Creating decoders for process `\spi_host.$55'.
+     1/1: $u_spi_host_reg.u_reg_if.addr_align_err$57
+Creating decoders for process `\spi_host.$235'.
+     1/3: $u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q$239
+     2/3: $u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q$240
+     3/3: $u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q$241
+Creating decoders for process `\spi_host.$209'.
+     1/1: $u_spi_host_core.u_spi_txfifo.gen_normal_fifo.under_rst$213
+Creating decoders for process `\spi_host.$333'.
+     1/79: $u_spi_host_core.tx_fifo_rready_d$395
+     2/79: $u_spi_host_core.byte_cnt_d$394
+     3/79: $u_spi_host_core.sclk_en$393
+     4/79: $u_spi_host_core.next_state$392
+     5/79: $u_spi_host_core.bit_cnt_d$400
+     6/79: $u_spi_host_core.current_byte_d$397
+     7/79: $u_spi_host_core.bit_cnt_d$390
+     8/79: $u_spi_host_core.current_byte_d$389
+     9/79: $u_spi_host_core.rx_fifo_wvalid_d$402
+    10/79: $u_spi_host_core.tx_fifo_rready_d$401
+    11/79: $u_spi_host_core.byte_cnt_d$399
+    12/79: $u_spi_host_core.sclk_en$398
+    13/79: $u_spi_host_core.next_state$396
+    14/79: $u_spi_host_core.tx_fifo_rready_d$410
+    15/79: $u_spi_host_core.bit_cnt_d$409
+    16/79: $u_spi_host_core.byte_cnt_d$408
+    17/79: $u_spi_host_core.sclk_en$407
+    18/79: $u_spi_host_core.current_byte_d$404
+    19/79: $u_spi_host_core.next_state$403
+    20/79: $u_spi_host_core.bit_cnt_d$378
+    21/79: $u_spi_host_core.tx_fifo_rready_d$379
+    22/79: $u_spi_host_core.byte_cnt_d$377
+    23/79: $u_spi_host_core.sclk_en$376
+    24/79: $u_spi_host_core.current_byte_d$375
+    25/79: $u_spi_host_core.next_state$374
+    26/79: $u_spi_host_core.bit_cnt_d$385
+    27/79: $u_spi_host_core.current_byte_d$381
+    28/79: $u_spi_host_core.bit_cnt_d$372
+    29/79: $u_spi_host_core.sdio_d$371
+    30/79: $u_spi_host_core.current_byte_d$370
+    31/79: $u_spi_host_core.tx_fifo_rready_d$386
+    32/79: $u_spi_host_core.byte_cnt_d$384
+    33/79: $u_spi_host_core.sclk_en$383
+    34/79: $u_spi_host_core.sdio_d$382
+    35/79: $u_spi_host_core.next_state$380
+    36/79: $u_spi_host_core.rx_fifo_wvalid_d$411
+    37/79: $u_spi_host_core.sdioz_d$406
+    38/79: $u_spi_host_core.sdio_d$405
+    39/79: $u_spi_host_core.tx_fifo_rready_d$419
+    40/79: $u_spi_host_core.bit_cnt_d$418
+    41/79: $u_spi_host_core.byte_cnt_d$417
+    42/79: $u_spi_host_core.sdio_d$414
+    43/79: $u_spi_host_core.current_byte_d$413
+    44/79: $u_spi_host_core.tx_fifo_rready_d$360
+    45/79: $u_spi_host_core.bit_cnt_d$359
+    46/79: $u_spi_host_core.byte_cnt_d$358
+    47/79: $u_spi_host_core.current_byte_d$357
+    48/79: $u_spi_host_core.bit_cnt_d$364
+    49/79: $u_spi_host_core.current_byte_d$361
+    50/79: $u_spi_host_core.bit_cnt_d$355
+    51/79: $u_spi_host_core.sdio_d$354
+    52/79: $u_spi_host_core.current_byte_d$353
+    53/79: $u_spi_host_core.tx_fifo_rready_d$365
+    54/79: $u_spi_host_core.byte_cnt_d$363
+    55/79: $u_spi_host_core.sdio_d$362
+    56/79: $u_spi_host_core.rx_fifo_wvalid_d$420
+    57/79: $u_spi_host_core.sclk_en$416
+    58/79: $u_spi_host_core.sdioz_d$415
+    59/79: $u_spi_host_core.next_state$412
+    60/79: $u_spi_host_core.next_state$421
+    61/79: $u_spi_host_core.r_wn_d$342
+    62/79: $u_spi_host_core.tx_fifo_rready_d$341
+    63/79: $u_spi_host_core.current_byte_d$340
+    64/79: $u_spi_host_core.next_state$339
+    65/79: $u_spi_host_core.r_wn_d$347
+    66/79: $u_spi_host_core.tx_fifo_rready_d$346
+    67/79: $u_spi_host_core.byte_cnt_d$345
+    68/79: $u_spi_host_core.current_byte_d$344
+    69/79: $u_spi_host_core.next_state$343
+    70/79: $u_spi_host_core.r_wn_d$431
+    71/79: $u_spi_host_core.rx_fifo_wvalid_d$430
+    72/79: $u_spi_host_core.tx_fifo_rready_d$429
+    73/79: $u_spi_host_core.bit_cnt_d$428
+    74/79: $u_spi_host_core.byte_cnt_d$427
+    75/79: $u_spi_host_core.sclk_en$426
+    76/79: $u_spi_host_core.sdioz_d$425
+    77/79: $u_spi_host_core.sdio_d$424
+    78/79: $u_spi_host_core.cs_d$423
+    79/79: $u_spi_host_core.current_byte_d$422
+Creating decoders for process `\spi_host.$317'.
+     1/1: $u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage$325
+Creating decoders for process `\spi_host.$25'.
+     1/2: $u_spi_host_reg.u_reg_if.error_q$33
+     2/2: $u_spi_host_reg.u_reg_if.rdata_q$32
+Creating decoders for process `\spi_host.$18'.
+     1/3: $u_spi_host_reg.u_reg_if.rspop_q$24
+     2/3: $u_spi_host_reg.u_reg_if.reqsz_q$23
+     3/3: $u_spi_host_reg.u_reg_if.reqid_q$22
+Creating decoders for process `\spi_host.$13'.
+     1/2: $u_spi_host_reg.u_reg_if.outstanding_q$16
+     2/2: $u_spi_host_reg.u_reg_if.outstanding_q$17
+
+1.9. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `\spi_host.$191'.
+Removing empty process `spi_host.$191'.
+Found and cleaned up 5 empty switches in `\spi_host.$301'.
+Removing empty process `spi_host.$301'.
+Found and cleaned up 5 empty switches in `\spi_host.$294'.
+Removing empty process `spi_host.$294'.
+Found and cleaned up 1 empty switch in `\spi_host.$144'.
+Removing empty process `spi_host.$144'.
+Found and cleaned up 1 empty switch in `\spi_host.$268'.
+Removing empty process `spi_host.$268'.
+Found and cleaned up 1 empty switch in `\spi_host.$132'.
+Removing empty process `spi_host.$132'.
+Found and cleaned up 1 empty switch in `\spi_host.$124'.
+Removing empty process `spi_host.$124'.
+Found and cleaned up 1 empty switch in `\spi_host.$116'.
+Removing empty process `spi_host.$116'.
+Found and cleaned up 3 empty switches in `\spi_host.$80'.
+Removing empty process `spi_host.$80'.
+Found and cleaned up 1 empty switch in `\spi_host.$258'.
+Removing empty process `spi_host.$258'.
+Found and cleaned up 5 empty switches in `\spi_host.$242'.
+Removing empty process `spi_host.$242'.
+Found and cleaned up 1 empty switch in `\spi_host.$55'.
+Removing empty process `spi_host.$55'.
+Found and cleaned up 5 empty switches in `\spi_host.$235'.
+Removing empty process `spi_host.$235'.
+Found and cleaned up 1 empty switch in `\spi_host.$209'.
+Removing empty process `spi_host.$209'.
+Found and cleaned up 27 empty switches in `\spi_host.$333'.
+Removing empty process `spi_host.$333'.
+Found and cleaned up 1 empty switch in `\spi_host.$317'.
+Removing empty process `spi_host.$317'.
+Found and cleaned up 1 empty switch in `\spi_host.$25'.
+Removing empty process `spi_host.$25'.
+Found and cleaned up 1 empty switch in `\spi_host.$18'.
+Removing empty process `spi_host.$18'.
+Found and cleaned up 3 empty switches in `\spi_host.$13'.
+Removing empty process `spi_host.$13'.
+Cleaned up 65 empty switches.
+
+1.10. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~129 debug messages>
+
+2. Executing SYNTH pass.
+
+2.1. Executing HIERARCHY pass (managing design hierarchy).
+
+2.1.1. Analyzing design hierarchy..
+Top module:  \spi_host
+
+2.1.2. Analyzing design hierarchy..
+Top module:  \spi_host
+Removed 0 unused modules.
+
+2.2. Executing PROC pass (convert processes to netlists).
+
+2.2.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+2.2.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Removed a total of 0 dead cases.
+
+2.2.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 0 redundant assignments.
+Promoted 0 assignments to connections.
+
+2.2.4. Executing PROC_INIT pass (extract init attributes).
+
+2.2.5. Executing PROC_ARST pass (detect async resets in processes).
+
+2.2.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+
+2.2.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+
+2.2.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+
+2.2.9. Executing PROC_DFF pass (convert process syncs to FFs).
+
+2.2.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+2.2.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+2.2.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.3. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 117 unused cells and 604 unused wires.
+<suppressed ~139 debug messages>
+
+2.5. Executing CHECK pass (checking for obvious problems).
+Checking module spi_host...
+Found and reported 0 problems.
+
+2.6. Executing OPT pass (performing simple optimizations).
+
+2.6.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.6.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~324 debug messages>
+Removed a total of 108 cells.
+
+2.6.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+      Replacing known input bits on port A of cell $procmux$152: \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.under_rst -> 1'0
+      Replacing known input bits on port A of cell $procmux$65: \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.under_rst -> 1'0
+  Analyzing evaluation results.
+    dead port 2/2 on $mux $115.
+    dead port 1/2 on $mux $procmux$1070.
+    dead port 1/2 on $mux $procmux$114.
+    dead port 1/2 on $mux $procmux$117.
+    dead port 1/2 on $mux $procmux$124.
+    dead port 1/2 on $mux $procmux$136.
+    dead port 1/2 on $mux $procmux$139.
+    dead port 1/2 on $mux $procmux$146.
+    dead port 1/2 on $mux $procmux$160.
+    dead port 2/2 on $mux $procmux$163.
+    dead port 1/2 on $mux $procmux$166.
+    dead port 2/2 on $mux $procmux$168.
+    dead port 1/2 on $mux $procmux$176.
+    dead port 2/2 on $mux $procmux$179.
+    dead port 1/2 on $mux $procmux$182.
+    dead port 2/2 on $mux $procmux$184.
+    dead port 1/2 on $mux $procmux$192.
+    dead port 2/2 on $mux $procmux$195.
+    dead port 1/2 on $mux $procmux$198.
+    dead port 2/2 on $mux $procmux$200.
+    dead port 1/2 on $mux $procmux$208.
+    dead port 2/2 on $mux $procmux$211.
+    dead port 1/2 on $mux $procmux$214.
+    dead port 2/2 on $mux $procmux$216.
+    dead port 2/2 on $mux $procmux$226.
+    dead port 1/2 on $mux $procmux$229.
+    dead port 2/2 on $mux $procmux$231.
+    dead port 2/2 on $mux $procmux$241.
+    dead port 1/2 on $mux $procmux$244.
+    dead port 2/2 on $mux $procmux$246.
+    dead port 2/2 on $mux $procmux$254.
+    dead port 2/2 on $mux $procmux$257.
+    dead port 1/2 on $mux $procmux$260.
+    dead port 2/2 on $mux $procmux$262.
+    dead port 2/2 on $mux $procmux$270.
+    dead port 2/2 on $mux $procmux$273.
+    dead port 1/2 on $mux $procmux$276.
+    dead port 2/2 on $mux $procmux$278.
+    dead port 1/2 on $mux $procmux$28.
+    dead port 2/2 on $mux $procmux$287.
+    dead port 1/2 on $mux $procmux$290.
+    dead port 2/2 on $mux $procmux$292.
+    dead port 2/2 on $mux $procmux$301.
+    dead port 1/2 on $mux $procmux$304.
+    dead port 2/2 on $mux $procmux$306.
+    dead port 1/2 on $mux $procmux$31.
+    dead port 2/2 on $mux $procmux$315.
+    dead port 1/2 on $mux $procmux$318.
+    dead port 2/2 on $mux $procmux$320.
+    dead port 2/2 on $mux $procmux$329.
+    dead port 1/2 on $mux $procmux$332.
+    dead port 2/2 on $mux $procmux$334.
+    dead port 2/2 on $mux $procmux$343.
+    dead port 1/2 on $mux $procmux$346.
+    dead port 2/2 on $mux $procmux$348.
+    dead port 1/2 on $mux $procmux$358.
+    dead port 2/2 on $mux $procmux$360.
+    dead port 1/2 on $mux $procmux$370.
+    dead port 2/2 on $mux $procmux$372.
+    dead port 1/2 on $mux $procmux$38.
+    dead port 1/2 on $mux $procmux$382.
+    dead port 2/2 on $mux $procmux$384.
+    dead port 2/2 on $mux $123.
+    dead port 1/2 on $mux $procmux$394.
+    dead port 2/2 on $mux $procmux$396.
+    dead port 1/2 on $mux $procmux$406.
+    dead port 2/2 on $mux $procmux$408.
+    dead port 1/2 on $mux $procmux$418.
+    dead port 2/2 on $mux $procmux$420.
+    dead port 1/2 on $mux $procmux$428.
+    dead port 1/2 on $mux $procmux$430.
+    dead port 1/2 on $mux $procmux$433.
+    dead port 2/2 on $mux $procmux$435.
+    dead port 1/2 on $mux $procmux$444.
+    dead port 1/2 on $mux $procmux$446.
+    dead port 1/2 on $mux $procmux$449.
+    dead port 2/2 on $mux $procmux$451.
+    dead port 1/2 on $mux $procmux$460.
+    dead port 1/2 on $mux $procmux$462.
+    dead port 1/2 on $mux $procmux$465.
+    dead port 2/2 on $mux $procmux$467.
+    dead port 1/2 on $mux $procmux$47.
+    dead port 1/2 on $mux $procmux$476.
+    dead port 1/2 on $mux $procmux$478.
+    dead port 1/2 on $mux $procmux$481.
+    dead port 2/2 on $mux $procmux$483.
+    dead port 1/2 on $mux $procmux$492.
+    dead port 1/2 on $mux $procmux$494.
+    dead port 1/2 on $mux $procmux$497.
+    dead port 2/2 on $mux $procmux$499.
+    dead port 1/2 on $mux $procmux$50.
+    dead port 1/2 on $mux $procmux$508.
+    dead port 1/2 on $mux $procmux$510.
+    dead port 1/2 on $mux $procmux$513.
+    dead port 2/2 on $mux $procmux$515.
+    dead port 1/2 on $mux $procmux$525.
+    dead port 1/2 on $mux $procmux$528.
+    dead port 2/2 on $mux $procmux$530.
+    dead port 1/2 on $mux $procmux$540.
+    dead port 1/2 on $mux $procmux$543.
+    dead port 2/2 on $mux $procmux$545.
+    dead port 2/2 on $mux $procmux$553.
+    dead port 1/2 on $mux $procmux$555.
+    dead port 1/2 on $mux $procmux$558.
+    dead port 2/2 on $mux $procmux$560.
+    dead port 2/2 on $mux $procmux$568.
+    dead port 1/2 on $mux $procmux$57.
+    dead port 1/2 on $mux $procmux$570.
+    dead port 1/2 on $mux $procmux$573.
+    dead port 2/2 on $mux $procmux$575.
+    dead port 2/2 on $mux $131.
+    dead port 2/2 on $mux $procmux$583.
+    dead port 1/2 on $mux $procmux$585.
+    dead port 1/2 on $mux $procmux$588.
+    dead port 2/2 on $mux $procmux$590.
+    dead port 1/2 on $mux $procmux$599.
+    dead port 1/2 on $mux $procmux$602.
+    dead port 2/2 on $mux $procmux$604.
+    dead port 1/2 on $mux $procmux$613.
+    dead port 1/2 on $mux $procmux$616.
+    dead port 2/2 on $mux $procmux$618.
+    dead port 2/2 on $mux $143.
+    dead port 1/2 on $mux $procmux$627.
+    dead port 1/2 on $mux $procmux$630.
+    dead port 2/2 on $mux $procmux$632.
+    dead port 1/2 on $mux $procmux$641.
+    dead port 1/2 on $mux $procmux$644.
+    dead port 2/2 on $mux $procmux$646.
+    dead port 1/2 on $mux $procmux$655.
+    dead port 1/2 on $mux $procmux$658.
+    dead port 2/2 on $mux $procmux$660.
+    dead port 1/2 on $mux $procmux$669.
+    dead port 2/2 on $mux $procmux$671.
+    dead port 1/2 on $mux $procmux$680.
+    dead port 2/2 on $mux $procmux$682.
+    dead port 1/2 on $mux $procmux$691.
+    dead port 2/2 on $mux $procmux$693.
+    dead port 2/2 on $mux $procmux$702.
+    dead port 2/2 on $mux $procmux$711.
+    dead port 2/2 on $mux $procmux$720.
+    dead port 2/2 on $mux $procmux$729.
+    dead port 2/2 on $mux $procmux$738.
+    dead port 1/2 on $mux $procmux$746.
+    dead port 2/2 on $mux $procmux$748.
+    dead port 2/2 on $mux $procmux$750.
+    dead port 1/2 on $mux $procmux$758.
+    dead port 2/2 on $mux $procmux$760.
+    dead port 2/2 on $mux $procmux$762.
+    dead port 1/2 on $mux $procmux$770.
+    dead port 2/2 on $mux $procmux$772.
+    dead port 2/2 on $mux $procmux$774.
+    dead port 1/2 on $mux $procmux$782.
+    dead port 2/2 on $mux $procmux$784.
+    dead port 2/2 on $mux $procmux$786.
+    dead port 2/2 on $mux $procmux$796.
+    dead port 2/2 on $mux $procmux$798.
+    dead port 2/2 on $mux $procmux$808.
+    dead port 2/2 on $mux $procmux$810.
+    dead port 2/2 on $mux $procmux$818.
+    dead port 2/2 on $mux $procmux$820.
+    dead port 2/2 on $mux $procmux$822.
+    dead port 2/2 on $mux $procmux$830.
+    dead port 2/2 on $mux $procmux$832.
+    dead port 2/2 on $mux $procmux$834.
+    dead port 2/2 on $mux $procmux$842.
+    dead port 2/2 on $mux $procmux$844.
+    dead port 2/2 on $mux $procmux$846.
+    dead port 2/2 on $mux $procmux$855.
+    dead port 2/2 on $mux $procmux$857.
+    dead port 2/2 on $mux $procmux$866.
+    dead port 2/2 on $mux $procmux$868.
+    dead port 2/2 on $mux $procmux$877.
+    dead port 2/2 on $mux $procmux$879.
+    dead port 2/2 on $mux $procmux$887.
+    dead port 2/2 on $mux $procmux$895.
+    dead port 2/2 on $mux $procmux$903.
+    dead port 2/2 on $mux $procmux$911.
+    dead port 2/2 on $mux $procmux$925.
+    dead port 2/2 on $mux $procmux$927.
+    dead port 2/2 on $mux $procmux$934.
+    dead port 2/2 on $mux $procmux$936.
+    dead port 2/2 on $mux $procmux$943.
+    dead port 2/2 on $mux $procmux$945.
+    dead port 2/2 on $mux $procmux$952.
+    dead port 2/2 on $mux $procmux$954.
+    dead port 2/2 on $mux $procmux$962.
+    dead port 2/2 on $mux $procmux$970.
+    dead port 2/2 on $mux $procmux$978.
+    dead port 2/2 on $mux $procmux$986.
+    dead port 2/2 on $mux $procmux$994.
+Removed 190 multiplexer ports.
+<suppressed ~358 debug messages>
+
+2.6.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+    New ctrl vector for $pmux cell $procmux$1042: { $procmux$1006_CMP $auto$opt_reduce.cc:137:opt_pmux$1081 }
+    New ctrl vector for $pmux cell $procmux$14: { \u_spi_host_reg.addr_hit [2] $auto$opt_reduce.cc:137:opt_pmux$1083 }
+    New ctrl vector for $pmux cell $procmux$2: $auto$opt_reduce.cc:137:opt_pmux$1085
+    New ctrl vector for $pmux cell $procmux$20: { \u_spi_host_reg.addr_hit [1] \u_spi_host_reg.addr_hit [2] $auto$opt_reduce.cc:137:opt_pmux$1087 }
+  Optimizing cells in module \spi_host.
+Performed a total of 4 changes.
+
+2.6.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~66 debug messages>
+Removed a total of 22 cells.
+
+2.6.6. Executing OPT_DFF pass (perform DFF optimizations).
+Changing const-value async load to async reset on $driver$u_spi_host_core.u_sclk_driver.q_o ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.u_clk_div2.q_o ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.tx_fifo_rready_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.sdioz_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.sdio_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.rx_fifo_wvalid_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.r_wn_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.current_state ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.current_byte_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.cs_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.byte_cnt_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.bit_cnt_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.under_rst ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.u_spi_txfifo.gen_normal_fifo.under_rst ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_wdata0_qe.q_o ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_wdata.q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_reg_if.rspop_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_reg_if.reqsz_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_reg_if.reqid_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_reg_if.rdata_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_reg_if.outstanding_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_reg_if.error_q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_ctrl_txrst.q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_ctrl_rxrst.q ($aldff) from module spi_host.
+Changing const-value async load to async reset on $driver$u_spi_host_reg.u_ctrl_en.q ($aldff) from module spi_host.
+
+2.6.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 324 unused wires.
+<suppressed ~9 debug messages>
+
+2.6.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~7 debug messages>
+
+2.6.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.6.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~160 debug messages>
+
+2.6.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.6.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.6.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.6.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 7 unused wires.
+<suppressed ~1 debug messages>
+
+2.6.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.6.16. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.6.17. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~160 debug messages>
+
+2.6.18. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.6.19. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.6.20. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.6.21. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.6.22. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.6.23. Finished fast OPT passes. (There is nothing left to do.)
+
+2.7. Executing FSM pass (extract and optimize FSM).
+
+2.7.1. Executing FSM_DETECT pass (finding FSMs in design).
+Not marking spi_host.u_spi_host_core.current_state as FSM state register:
+    Circuit seems to be self-resetting.
+Not marking spi_host.u_spi_host_reg.u_reg_if.rspop_q as FSM state register:
+    Register is connected to module port.
+    Users of register don't seem to benefit from recoding.
+
+2.7.2. Executing FSM_EXTRACT pass (extracting FSM from design).
+
+2.7.3. Executing FSM_OPT pass (simple optimizations of FSMs).
+
+2.7.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.7.5. Executing FSM_OPT pass (simple optimizations of FSMs).
+
+2.7.6. Executing FSM_RECODE pass (re-assigning FSM state encoding).
+
+2.7.7. Executing FSM_INFO pass (dumping all available information on FSM cells).
+
+2.7.8. Executing FSM_MAP pass (mapping FSMs to basic logic).
+
+2.8. Executing OPT pass (performing simple optimizations).
+
+2.8.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.8.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.8.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~160 debug messages>
+
+2.8.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.8.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.8.6. Executing OPT_DFF pass (perform DFF optimizations).
+Adding EN signal on $driver$u_spi_host_reg.u_wdata.q ($adff) from module spi_host (D = \tl_i [31:24], Q = \u_spi_host_reg.u_wdata.q).
+Adding EN signal on $driver$u_spi_host_reg.u_reg_if.rspop_q ($adff) from module spi_host (D = $21y, Q = \u_spi_host_reg.u_reg_if.rspop_q).
+Adding EN signal on $driver$u_spi_host_reg.u_reg_if.reqsz_q ($adff) from module spi_host (D = \tl_i [101:100], Q = \u_spi_host_reg.u_reg_if.reqsz_q).
+Adding EN signal on $driver$u_spi_host_reg.u_reg_if.reqid_q ($adff) from module spi_host (D = \tl_i [99:92], Q = \u_spi_host_reg.u_reg_if.reqid_q).
+Adding EN signal on $driver$u_spi_host_reg.u_reg_if.rdata_q ($adff) from module spi_host (D = $30y, Q = \u_spi_host_reg.u_reg_if.rdata_q).
+Adding EN signal on $driver$u_spi_host_reg.u_reg_if.outstanding_q ($adff) from module spi_host (D = $procmux$1074_Y, Q = \u_spi_host_reg.u_reg_if.outstanding_q).
+Adding EN signal on $driver$u_spi_host_reg.u_reg_if.error_q ($adff) from module spi_host (D = $28y, Q = \u_spi_host_reg.u_reg_if.error_q).
+Adding EN signal on $driver$u_spi_host_reg.u_ctrl_txrst.q ($adff) from module spi_host (D = \tl_i [25], Q = \u_spi_host_reg.u_ctrl_txrst.q).
+Adding EN signal on $driver$u_spi_host_reg.u_ctrl_rxrst.q ($adff) from module spi_host (D = \tl_i [26], Q = \u_spi_host_reg.u_ctrl_rxrst.q).
+Adding EN signal on $driver$u_spi_host_reg.u_ctrl_en.q ($adff) from module spi_host (D = \tl_i [24], Q = \u_spi_host_reg.u_ctrl_en.q).
+Adding EN signal on $driver$u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q ($adff) from module spi_host (D = $procmux$150_Y, Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q).
+Adding EN signal on $driver$u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q ($adff) from module spi_host (D = $procmux$128_Y, Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q).
+Adding EN signal on $driver$u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage[2] ($dff) from module spi_host (D = $265y [23:16], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [23:16]).
+Adding EN signal on $driver$u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage[1] ($dff) from module spi_host (D = $265y [15:8], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [15:8]).
+Adding EN signal on $driver$u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage[0] ($dff) from module spi_host (D = $265y [7:0], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [7:0]).
+Adding EN signal on $driver$u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q ($adff) from module spi_host (D = $procmux$61_Y, Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q).
+Adding EN signal on $driver$u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q ($adff) from module spi_host (D = $procmux$42_Y, Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q).
+Adding EN signal on $driver$u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage[2] ($dff) from module spi_host (D = $324y [23:16], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [23:16]).
+Adding EN signal on $driver$u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage[1] ($dff) from module spi_host (D = $324y [15:8], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [15:8]).
+Adding EN signal on $driver$u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage[0] ($dff) from module spi_host (D = $324y [7:0], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [7:0]).
+Adding EN signal on $driver$u_spi_host_core.sdio_q ($adff) from module spi_host (D = \u_spi_host_core.sdio_d, Q = \u_spi_host_core.sdio_q).
+Adding EN signal on $driver$u_spi_host_core.r_wn_q ($adff) from module spi_host (D = \u_spi_host_core.tx_fifo_rdata [7], Q = \u_spi_host_core.r_wn_q).
+Adding EN signal on $driver$u_spi_host_core.current_state ($adff) from module spi_host (D = \u_spi_host_core.next_state, Q = \u_spi_host_core.current_state).
+Adding EN signal on $driver$u_spi_host_core.current_byte_q ($adff) from module spi_host (D = \u_spi_host_core.current_byte_d, Q = \u_spi_host_core.current_byte_q).
+Adding EN signal on $driver$u_spi_host_core.cs_q ($adff) from module spi_host (D = \u_spi_host_core.cs_d, Q = \u_spi_host_core.cs_q).
+Adding EN signal on $driver$u_spi_host_core.byte_cnt_q ($adff) from module spi_host (D = \u_spi_host_core.byte_cnt_d, Q = \u_spi_host_core.byte_cnt_q).
+Adding EN signal on $driver$u_spi_host_core.bit_cnt_q ($adff) from module spi_host (D = \u_spi_host_core.bit_cnt_d, Q = \u_spi_host_core.bit_cnt_q).
+
+2.8.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 14 unused cells and 14 unused wires.
+<suppressed ~16 debug messages>
+
+2.8.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~10 debug messages>
+
+2.8.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.8.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~126 debug messages>
+
+2.8.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.8.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~15 debug messages>
+Removed a total of 5 cells.
+
+2.8.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.8.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 5 unused wires.
+<suppressed ~1 debug messages>
+
+2.8.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.8.16. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.8.17. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~126 debug messages>
+
+2.8.18. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.8.19. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.8.20. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.8.21. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.8.22. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.8.23. Finished fast OPT passes. (There is nothing left to do.)
+
+2.9. Executing WREDUCE pass (reducing word size of cells).
+Removed top 2 bits (of 3) from port B of cell spi_host.$4 ($eq).
+Removed top 2 bits (of 3) from mux cell spi_host.$21 ($mux).
+Removed top 2 bits (of 3) from FF cell spi_host.$auto$ff.cc:266:slice$1089 ($adffe).
+Removed top 1 bits (of 2) from port B of cell spi_host.$151 ($eq).
+Removed top 3 bits (of 4) from port Y of cell spi_host.$159 ($not).
+Removed top 3 bits (of 4) from port A of cell spi_host.$159 ($not).
+Removed top 2 bits (of 3) from port B of cell spi_host.$238 ($add).
+Removed top 2 bits (of 3) from port B of cell spi_host.$245 ($add).
+Converting cell spi_host.$255 ($lt) from signed to unsigned.
+Removed top 1 bits (of 3) from port A of cell spi_host.$255 ($lt).
+Removed top 1 bits (of 4) from port B of cell spi_host.$255 ($lt).
+Converting cell spi_host.$259 ($lt) from signed to unsigned.
+Removed top 1 bits (of 3) from port A of cell spi_host.$259 ($lt).
+Removed top 1 bits (of 4) from port B of cell spi_host.$259 ($lt).
+Converting cell spi_host.$260 ($ge) from signed to unsigned.
+Removed top 1 bits (of 3) from port A of cell spi_host.$260 ($ge).
+Removed top 2 bits (of 3) from port B of cell spi_host.$297 ($add).
+Removed top 2 bits (of 3) from port B of cell spi_host.$304 ($add).
+Converting cell spi_host.$314 ($lt) from signed to unsigned.
+Removed top 1 bits (of 3) from port A of cell spi_host.$314 ($lt).
+Removed top 1 bits (of 4) from port B of cell spi_host.$314 ($lt).
+Converting cell spi_host.$318 ($lt) from signed to unsigned.
+Removed top 1 bits (of 3) from port A of cell spi_host.$318 ($lt).
+Removed top 1 bits (of 4) from port B of cell spi_host.$318 ($lt).
+Converting cell spi_host.$319 ($ge) from signed to unsigned.
+Removed top 1 bits (of 3) from port A of cell spi_host.$319 ($ge).
+Removed top 29 bits (of 32) from port A of cell spi_host.$336 ($add).
+Removed top 31 bits (of 32) from port B of cell spi_host.$336 ($add).
+Removed top 29 bits (of 32) from port Y of cell spi_host.$336 ($add).
+Removed top 1 bits (of 3) from port B of cell spi_host.$338 ($eq).
+Removed top 29 bits (of 32) from port A of cell spi_host.$349 ($gt).
+Removed top 31 bits (of 32) from port B of cell spi_host.$349 ($gt).
+Removed top 3 bits (of 4) from port B of cell spi_host.$352 ($add).
+Removed top 2 bits (of 3) from port B of cell spi_host.$356 ($sub).
+Removed top 1 bits (of 2) from port B of cell spi_host.$procmux$1006_CMP0 ($eq).
+Removed top 3 bits (of 4) from wire spi_host.$159y.
+Removed top 2 bits (of 3) from wire spi_host.$21y.
+Removed top 29 bits (of 32) from wire spi_host.$336y.
+
+2.10. Executing PEEPOPT pass (run peephole optimizers).
+
+2.11. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 3 unused wires.
+<suppressed ~1 debug messages>
+
+2.12. Executing ALUMACC pass (create $alu and $macc cells).
+Extracting $alu and $macc cells in module spi_host:
+  creating $macc model for $238 ($add).
+  creating $macc model for $245 ($add).
+  creating $macc model for $297 ($add).
+  creating $macc model for $304 ($add).
+  creating $macc model for $336 ($add).
+  creating $macc model for $352 ($add).
+  creating $macc model for $356 ($sub).
+  creating $alu model for $macc $356.
+  creating $alu model for $macc $352.
+  creating $alu model for $macc $336.
+  creating $alu model for $macc $304.
+  creating $alu model for $macc $297.
+  creating $alu model for $macc $245.
+  creating $alu model for $macc $238.
+  creating $alu model for $255 ($lt): new $alu
+  creating $alu model for $259 ($lt): new $alu
+  creating $alu model for $260 ($ge): new $alu
+  creating $alu model for $314 ($lt): new $alu
+  creating $alu model for $318 ($lt): new $alu
+  creating $alu model for $319 ($ge): new $alu
+  creating $alu model for $349 ($gt): merged with $356.
+  creating $alu model for $350 ($lt): new $alu
+  creating $alu cell for $350: $auto$alumacc.cc:495:replace_alu$1183
+  creating $alu cell for $319: $auto$alumacc.cc:495:replace_alu$1188
+  creating $alu cell for $318: $auto$alumacc.cc:495:replace_alu$1201
+  creating $alu cell for $314: $auto$alumacc.cc:495:replace_alu$1206
+  creating $alu cell for $260: $auto$alumacc.cc:495:replace_alu$1211
+  creating $alu cell for $259: $auto$alumacc.cc:495:replace_alu$1224
+  creating $alu cell for $255: $auto$alumacc.cc:495:replace_alu$1229
+  creating $alu cell for $238: $auto$alumacc.cc:495:replace_alu$1234
+  creating $alu cell for $245: $auto$alumacc.cc:495:replace_alu$1237
+  creating $alu cell for $297: $auto$alumacc.cc:495:replace_alu$1240
+  creating $alu cell for $304: $auto$alumacc.cc:495:replace_alu$1243
+  creating $alu cell for $336: $auto$alumacc.cc:495:replace_alu$1246
+  creating $alu cell for $352: $auto$alumacc.cc:495:replace_alu$1249
+  creating $alu cell for $356, $349: $auto$alumacc.cc:495:replace_alu$1252
+  created 14 $alu and 0 $macc cells.
+
+2.13. Executing SHARE pass (SAT-based resource sharing).
+
+2.14. Executing OPT pass (performing simple optimizations).
+
+2.14.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~31 debug messages>
+
+2.14.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.14.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~126 debug messages>
+
+2.14.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.14.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.14.6. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.14.7. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 10 unused cells and 32 unused wires.
+<suppressed ~13 debug messages>
+
+2.14.8. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.14.9. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.14.10. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~126 debug messages>
+
+2.14.11. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.14.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.14.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.14.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.14.15. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.14.16. Finished fast OPT passes. (There is nothing left to do.)
+
+2.15. Executing MEMORY pass.
+
+2.15.1. Executing OPT_MEM pass (optimize memories).
+Performed a total of 0 transformations.
+
+2.15.2. Executing OPT_MEM_PRIORITY pass (removing unnecessary memory write priority relations).
+Performed a total of 0 transformations.
+
+2.15.3. Executing OPT_MEM_FEEDBACK pass (finding memory read-to-write feedback paths).
+
+2.15.4. Executing MEMORY_BMUX2ROM pass (converting muxes to ROMs).
+
+2.15.5. Executing MEMORY_DFF pass (merging $dff cells to $memrd).
+
+2.15.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.15.7. Executing MEMORY_SHARE pass (consolidating $memrd/$memwr cells).
+
+2.15.8. Executing OPT_MEM_WIDEN pass (optimize memories where all ports are wide).
+Performed a total of 0 transformations.
+
+2.15.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.15.10. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+2.16. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.17. Executing OPT pass (performing simple optimizations).
+
+2.17.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~55 debug messages>
+
+2.17.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~27 debug messages>
+Removed a total of 7 cells.
+
+2.17.3. Executing OPT_DFF pass (perform DFF optimizations).
+Adding EN signal on $auto$ff.cc:266:slice$1118 ($adffe) from module spi_host (D = \u_spi_host_core.sdio_d, Q = \u_spi_host_core.sdio_q).
+
+2.17.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 11 unused cells and 54 unused wires.
+<suppressed ~12 debug messages>
+
+2.17.5. Rerunning OPT passes. (Removed registers in this run.)
+
+2.17.6. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~3 debug messages>
+
+2.17.7. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.17.8. Executing OPT_DFF pass (perform DFF optimizations).
+Adding EN signal on $auto$ff.cc:266:slice$1166 ($adffe) from module spi_host (D = \u_spi_host_core.bit_cnt_d, Q = \u_spi_host_core.bit_cnt_q).
+
+2.17.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 3 unused wires.
+<suppressed ~1 debug messages>
+
+2.17.10. Rerunning OPT passes. (Removed registers in this run.)
+
+2.17.11. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~1 debug messages>
+
+2.17.12. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.17.13. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.17.14. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 1 unused wires.
+<suppressed ~1 debug messages>
+
+2.17.15. Finished fast OPT passes.
+
+2.18. Executing MEMORY_MAP pass (converting memories to logic and flip-flops).
+
+2.19. Executing OPT pass (performing simple optimizations).
+
+2.19.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.19.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.19.3. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~55 debug messages>
+
+2.19.4. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+    New input vector for $reduce_and cell $auto$opt_dff.cc:273:make_patterns_logic$1300: { $auto$opt_dff.cc:247:make_patterns_logic$1167 $auto$opt_dff.cc:247:make_patterns_logic$1297 $auto$opt_dff.cc:247:make_patterns_logic$1121 }
+    New input vector for $reduce_and cell $auto$opt_dff.cc:273:make_patterns_logic$1295: { $auto$opt_dff.cc:247:make_patterns_logic$1121 $auto$opt_dff.cc:247:make_patterns_logic$1119 $auto$opt_dff.cc:247:make_patterns_logic$1290 $auto$opt_dff.cc:247:make_patterns_logic$1292 }
+    Consolidated identical input bits for $mux cell $262:
+      Old ports: A=8'11111111, B=8'00000000, Y=$262y
+      New ports: A=1'1, B=1'0, Y=$262y [0]
+      New connections: $262y [7:1] = { $262y [0] $262y [0] $262y [0] $262y [0] $262y [0] $262y [0] $262y [0] }
+    Consolidated identical input bits for $mux cell $procmux$2:
+      Old ports: A=24'111111111111111111111111, B=24'000000000000000000000000, Y=\u_spi_host_reg.u_reg_if.rdata_i [31:8]
+      New ports: A=1'1, B=1'0, Y=\u_spi_host_reg.u_reg_if.rdata_i [8]
+      New connections: \u_spi_host_reg.u_reg_if.rdata_i [31:9] = { \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] \u_spi_host_reg.u_reg_if.rdata_i [8] }
+  Optimizing cells in module \spi_host.
+    Consolidated identical input bits for $demux cell $264:
+      Old ports: A=$262y, Y=$264y
+      New ports: A=$262y [0], Y={ $264y [24] $264y [16] $264y [8] $264y [0] }
+      New connections: { $264y [31] $264y [23] $264y [15] $264y [7] $264y [30] $264y [22] $264y [14] $264y [6] $264y [29] $264y [21] $264y [13] $264y [5] $264y [28] $264y [20] $264y [12] $264y [4] $264y [27] $264y [19] $264y [11] $264y [3] $264y [26] $264y [18] $264y [10] $264y [2] $264y [25] $264y [17] $264y [9] $264y [1] } = { $264y [24] $264y [16] $264y [8] $264y [0] $264y [24] $264y [16] $264y [8] $264y [0] $264y [24] $264y [16] $264y [8] $264y [0] $264y [24] $264y [16] $264y [8] $264y [0] $264y [24] $264y [16] $264y [8] $264y [0] $264y [24] $264y [16] $264y [8] $264y [0] $264y [24] $264y [16] $264y [8] $264y [0] }
+    Consolidated identical input bits for $mux cell $30:
+      Old ports: A=\u_spi_host_reg.u_reg_if.rdata_i, B=32'11111111111111111111111111111111, Y=$30y
+      New ports: A=\u_spi_host_reg.u_reg_if.rdata_i [8:0], B=9'111111111, Y=$30y [8:0]
+      New connections: $30y [31:9] = { $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] $30y [8] }
+    Consolidated identical input bits for $demux cell $323:
+      Old ports: A=$262y, Y=$323y
+      New ports: A=$262y [0], Y={ $323y [24] $323y [16] $323y [8] $323y [0] }
+      New connections: { $323y [31] $323y [23] $323y [15] $323y [7] $323y [30] $323y [22] $323y [14] $323y [6] $323y [29] $323y [21] $323y [13] $323y [5] $323y [28] $323y [20] $323y [12] $323y [4] $323y [27] $323y [19] $323y [11] $323y [3] $323y [26] $323y [18] $323y [10] $323y [2] $323y [25] $323y [17] $323y [9] $323y [1] } = { $323y [24] $323y [16] $323y [8] $323y [0] $323y [24] $323y [16] $323y [8] $323y [0] $323y [24] $323y [16] $323y [8] $323y [0] $323y [24] $323y [16] $323y [8] $323y [0] $323y [24] $323y [16] $323y [8] $323y [0] $323y [24] $323y [16] $323y [8] $323y [0] $323y [24] $323y [16] $323y [8] $323y [0] }
+  Optimizing cells in module \spi_host.
+Performed a total of 7 changes.
+
+2.19.5. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.19.6. Executing OPT_SHARE pass.
+
+2.19.7. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.19.8. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 2 unused cells and 2 unused wires.
+<suppressed ~3 debug messages>
+
+2.19.9. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~2 debug messages>
+
+2.19.10. Rerunning OPT passes. (Maybe there is more to do..)
+
+2.19.11. Executing OPT_MUXTREE pass (detect dead branches in mux trees).
+Running muxtree optimizer on module \spi_host..
+  Creating internal representation of mux trees.
+  Evaluating internal representation of mux trees.
+  Analyzing evaluation results.
+Removed 0 multiplexer ports.
+<suppressed ~52 debug messages>
+
+2.19.12. Executing OPT_REDUCE pass (consolidate $*mux and $reduce_* inputs).
+  Optimizing cells in module \spi_host.
+Performed a total of 0 changes.
+
+2.19.13. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+Removed a total of 0 cells.
+
+2.19.14. Executing OPT_SHARE pass.
+
+2.19.15. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.19.16. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+
+2.19.17. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.19.18. Finished fast OPT passes. (There is nothing left to do.)
+
+2.20. Executing TECHMAP pass (map to technology primitives).
+
+2.20.1. Executing Verilog-2005 frontend: /usr/local/bin/../share/yosys/techmap.v
+Parsing Verilog input from `/usr/local/bin/../share/yosys/techmap.v' to AST representation.
+verilog frontend filename /usr/local/bin/../share/yosys/techmap.v
+Generating RTLIL representation for module `\_90_simplemap_bool_ops'.
+Generating RTLIL representation for module `\_90_simplemap_reduce_ops'.
+Generating RTLIL representation for module `\_90_simplemap_logic_ops'.
+Generating RTLIL representation for module `\_90_simplemap_compare_ops'.
+Generating RTLIL representation for module `\_90_simplemap_various'.
+Generating RTLIL representation for module `\_90_simplemap_registers'.
+Generating RTLIL representation for module `\_90_shift_ops_shr_shl_sshl_sshr'.
+Generating RTLIL representation for module `\_90_shift_shiftx'.
+Generating RTLIL representation for module `\_90_fa'.
+Generating RTLIL representation for module `\_90_lcu_brent_kung'.
+Generating RTLIL representation for module `\_90_alu'.
+Generating RTLIL representation for module `\_90_macc'.
+Generating RTLIL representation for module `\_90_alumacc'.
+Generating RTLIL representation for module `\$__div_mod_u'.
+Generating RTLIL representation for module `\$__div_mod_trunc'.
+Generating RTLIL representation for module `\_90_div'.
+Generating RTLIL representation for module `\_90_mod'.
+Generating RTLIL representation for module `\$__div_mod_floor'.
+Generating RTLIL representation for module `\_90_divfloor'.
+Generating RTLIL representation for module `\_90_modfloor'.
+Generating RTLIL representation for module `\_90_pow'.
+Generating RTLIL representation for module `\_90_pmux'.
+Generating RTLIL representation for module `\_90_demux'.
+Generating RTLIL representation for module `\_90_lut'.
+Generating RTLIL representation for module `\$connect'.
+Generating RTLIL representation for module `\$input_port'.
+Successfully finished Verilog frontend.
+
+2.20.2. Continuing TECHMAP pass.
+Using extmapper simplemap for cells of type $reduce_and.
+Using extmapper simplemap for cells of type $reduce_bool.
+Using extmapper simplemap for cells of type $and.
+Using extmapper simplemap for cells of type $logic_not.
+Using extmapper simplemap for cells of type $eq.
+Using extmapper simplemap for cells of type $or.
+Using extmapper simplemap for cells of type $not.
+Using extmapper simplemap for cells of type $adffe.
+Using extmapper simplemap for cells of type $logic_or.
+Using extmapper simplemap for cells of type $mux.
+Using extmapper simplemap for cells of type $reduce_or.
+Using extmapper simplemap for cells of type $adff.
+Using extmapper simplemap for cells of type $ne.
+Using template $paramod$3ef7d3dd227da7627a99c5e5a6a4deb817573e39\_90_alu for cells of type $alu.
+Using extmapper simplemap for cells of type $dffe.
+Using extmapper simplemap for cells of type $bmux.
+Using template $paramod$c5c783b17ab1d780abfad8cfe6563a0a7b47a3b0\_90_demux for cells of type $demux.
+Using extmapper simplemap for cells of type $bwmux.
+Using template $paramod$adbaf76fa5a3091a329503792521395f8ff4d1a4\_90_alu for cells of type $alu.
+Using extmapper simplemap for cells of type $logic_and.
+Using template $paramod$32a7b7b86c07519b7537abc18e96f0331f97914d\_90_alu for cells of type $alu.
+Using template $paramod$b8c0a997bce700f23568a5ada79cc6781d1f5ca0\_90_alu for cells of type $alu.
+Using template $paramod$d31bf4d7d72e59528d18fbd4f322e9d608532043\_90_pmux for cells of type $pmux.
+Using template $paramod$bf2533632d512eac76dd186c0da49367e29b8e98\_90_pmux for cells of type $pmux.
+Using template $paramod$d629d85c8826a74239b9178d1930215a43b0ceb0\_90_pmux for cells of type $pmux.
+Using template $paramod$521ce43182eecb9f60c72393a788160d2c356bf5\_90_pmux for cells of type $pmux.
+Using template $paramod$c5c783b17ab1d780abfad8cfe6563a0a7b47a3b0\_90_pmux for cells of type $pmux.
+Using template $paramod$fc972a7a46956c1788f3cb5257b53c8f1df2d0cc\_90_alu for cells of type $alu.
+Using template $paramod$32e7c4d6f92ff4337599ece53082d2e88a82a9f2\_90_pmux for cells of type $pmux.
+Using template $paramod\_90_fa\WIDTH=32'00000000000000000000000000000011 for cells of type $fa.
+Using extmapper simplemap for cells of type $pos.
+Using template $paramod\_90_fa\WIDTH=32'00000000000000000000000000000001 for cells of type $fa.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000001 for cells of type $lcu.
+Using extmapper simplemap for cells of type $xor.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000011 for cells of type $lcu.
+Using template $paramod\_90_fa\WIDTH=32'00000000000000000000000000000100 for cells of type $fa.
+Using template $paramod\_90_lcu_brent_kung\WIDTH=32'00000000000000000000000000000100 for cells of type $lcu.
+Using template $paramod$5d1d2614b24accd0f9d06c4779fd9ef771faf494\_90_demux for cells of type $demux.
+No more expansions possible.
+<suppressed ~1086 debug messages>
+
+2.21. Executing OPT pass (performing simple optimizations).
+
+2.21.1. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+<suppressed ~841 debug messages>
+
+2.21.2. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~228 debug messages>
+Removed a total of 76 cells.
+
+2.21.3. Executing OPT_DFF pass (perform DFF optimizations).
+Adding EN signal on $auto$ff.cc:266:slice$1916 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [7], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [7]).
+Adding EN signal on $auto$ff.cc:266:slice$1924 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [7], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [15]).
+Adding EN signal on $auto$ff.cc:266:slice$1845 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [7], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [23]).
+Adding EN signal on $auto$ff.cc:266:slice$1741 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [7], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [7]).
+Adding EN signal on $auto$ff.cc:266:slice$1749 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [7], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [15]).
+Adding EN signal on $auto$ff.cc:266:slice$1649 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [7], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [23]).
+Adding EN signal on $auto$ff.cc:266:slice$1642 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [0], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [16]).
+Adding EN signal on $auto$ff.cc:266:slice$1643 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [1], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [17]).
+Adding EN signal on $auto$ff.cc:266:slice$1644 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [2], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [18]).
+Adding EN signal on $auto$ff.cc:266:slice$1645 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [3], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [19]).
+Adding EN signal on $auto$ff.cc:266:slice$1646 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [4], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [20]).
+Adding EN signal on $auto$ff.cc:266:slice$1647 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [5], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [21]).
+Adding EN signal on $auto$ff.cc:266:slice$1648 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [6], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [22]).
+Adding EN signal on $auto$ff.cc:266:slice$1734 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [0], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [0]).
+Adding EN signal on $auto$ff.cc:266:slice$1735 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [1], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [1]).
+Adding EN signal on $auto$ff.cc:266:slice$1736 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [2], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [2]).
+Adding EN signal on $auto$ff.cc:266:slice$1737 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [3], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [3]).
+Adding EN signal on $auto$ff.cc:266:slice$1738 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [4], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [4]).
+Adding EN signal on $auto$ff.cc:266:slice$1739 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [5], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [5]).
+Adding EN signal on $auto$ff.cc:266:slice$1740 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [6], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [6]).
+Adding EN signal on $auto$ff.cc:266:slice$1742 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [0], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [8]).
+Adding EN signal on $auto$ff.cc:266:slice$1743 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [1], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [9]).
+Adding EN signal on $auto$ff.cc:266:slice$1744 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [2], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [10]).
+Adding EN signal on $auto$ff.cc:266:slice$1745 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [3], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [11]).
+Adding EN signal on $auto$ff.cc:266:slice$1746 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [4], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [12]).
+Adding EN signal on $auto$ff.cc:266:slice$1747 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [5], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [13]).
+Adding EN signal on $auto$ff.cc:266:slice$1748 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_reg.u_wdata.q [6], Q = \u_spi_host_core.u_spi_txfifo.gen_normal_fifo.storage [14]).
+Adding EN signal on $auto$ff.cc:266:slice$1838 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [0], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [16]).
+Adding EN signal on $auto$ff.cc:266:slice$1839 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [1], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [17]).
+Adding EN signal on $auto$ff.cc:266:slice$1840 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [2], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [18]).
+Adding EN signal on $auto$ff.cc:266:slice$1841 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [3], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [19]).
+Adding EN signal on $auto$ff.cc:266:slice$1842 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [4], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [20]).
+Adding EN signal on $auto$ff.cc:266:slice$1843 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [5], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [21]).
+Adding EN signal on $auto$ff.cc:266:slice$1844 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [6], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [22]).
+Adding EN signal on $auto$ff.cc:266:slice$1909 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [0], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [0]).
+Adding EN signal on $auto$ff.cc:266:slice$1910 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [1], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [1]).
+Adding EN signal on $auto$ff.cc:266:slice$1911 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [2], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [2]).
+Adding EN signal on $auto$ff.cc:266:slice$1912 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [3], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [3]).
+Adding EN signal on $auto$ff.cc:266:slice$1913 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [4], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [4]).
+Adding EN signal on $auto$ff.cc:266:slice$1914 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [5], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [5]).
+Adding EN signal on $auto$ff.cc:266:slice$1915 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [6], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [6]).
+Adding EN signal on $auto$ff.cc:266:slice$1917 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [0], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [8]).
+Adding EN signal on $auto$ff.cc:266:slice$1918 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [1], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [9]).
+Adding EN signal on $auto$ff.cc:266:slice$1919 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [2], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [10]).
+Adding EN signal on $auto$ff.cc:266:slice$1920 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [3], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [11]).
+Adding EN signal on $auto$ff.cc:266:slice$1921 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [4], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [12]).
+Adding EN signal on $auto$ff.cc:266:slice$1922 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [5], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [13]).
+Adding EN signal on $auto$ff.cc:266:slice$1923 ($_DFFE_PP_) from module spi_host (D = \u_spi_host_core.current_byte_q [6], Q = \u_spi_host_core.u_spi_rxfifo.gen_normal_fifo.storage [14]).
+
+2.21.4. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 61 unused cells and 729 unused wires.
+<suppressed ~72 debug messages>
+
+2.21.5. Rerunning OPT passes. (Removed registers in this run.)
+
+2.21.6. Executing OPT_EXPR pass (perform const folding).
+Optimizing module spi_host.
+
+2.21.7. Executing OPT_MERGE pass (detect identical cells).
+Finding identical cells in module `\spi_host'.
+<suppressed ~126 debug messages>
+Removed a total of 42 cells.
+
+2.21.8. Executing OPT_DFF pass (perform DFF optimizations).
+
+2.21.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 42 unused wires.
+<suppressed ~1 debug messages>
+
+2.21.10. Finished fast OPT passes.
+
+2.22. Executing HIERARCHY pass (managing design hierarchy).
+Attribute `top' found on module `spi_host'. Setting top module to spi_host.
+
+2.22.1. Analyzing design hierarchy..
+Top module:  \spi_host
+
+2.22.2. Analyzing design hierarchy..
+Top module:  \spi_host
+Removed 0 unused modules.
+
+2.23. Printing statistics.
+
+=== spi_host ===
+
+        +----------Local Count, excluding submodules.
+        | 
+      528 wires
+     2595 wire bits
+      336 public wires
+     2189 public wire bits
+        9 ports
+      182 port bits
+      554 cells
+      103   $_AND_
+       64   $_DFFE_PN0P_
+        1   $_DFFE_PN1P_
+       48   $_DFFE_PP_
+        6   $_DFF_PN0_
+        1   $_DFF_PN1_
+      170   $_MUX_
+       53   $_NOT_
+       85   $_OR_
+       23   $_XOR_
+
+2.24. Executing CHECK pass (checking for obvious problems).
+Checking module spi_host...
+Found and reported 0 problems.
+
+3. Generating Graphviz representation of design.
+Writing dot description to `syn/plots/spi_host_postsyn.dot'.
+Dumping module spi_host to page 1.
+
+4. Executing DFFLIBMAP pass (mapping DFF cells to sequential cells from liberty file).
+  cell sky130_fd_sc_hd__dfxtp_1 (noninv, pins=3, area=20.02) is a direct match for cell type $_DFF_P_.
+  cell sky130_fd_sc_hd__dfrtn_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_NN0_.
+  cell sky130_fd_sc_hd__dfrtp_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_PN0_.
+  cell sky130_fd_sc_hd__dfstp_2 (noninv, pins=4, area=26.28) is a direct match for cell type $_DFF_PN1_.
+  cell sky130_fd_sc_hd__edfxtp_1 (noninv, pins=4, area=30.03) is a direct match for cell type $_DFFE_PP_.
+  cell sky130_fd_sc_hd__dfbbn_1 (noninv, pins=6, area=32.53) is a direct match for cell type $_DFFSR_NNN_.
+  cell sky130_fd_sc_hd__dfbbp_1 (noninv, pins=6, area=32.53) is a direct match for cell type $_DFFSR_PNN_.
+  final dff cell mappings:
+    unmapped dff cell: $_DFF_N_
+    \sky130_fd_sc_hd__dfxtp_1 _DFF_P_ (.CLK( C), .D( D), .Q( Q));
+    \sky130_fd_sc_hd__dfrtn_1 _DFF_NN0_ (.CLK_N( C), .D( D), .Q( Q), .RESET_B( R));
+    unmapped dff cell: $_DFF_NN1_
+    unmapped dff cell: $_DFF_NP0_
+    unmapped dff cell: $_DFF_NP1_
+    \sky130_fd_sc_hd__dfrtp_1 _DFF_PN0_ (.CLK( C), .D( D), .Q( Q), .RESET_B( R));
+    \sky130_fd_sc_hd__dfstp_2 _DFF_PN1_ (.CLK( C), .D( D), .Q( Q), .SET_B( R));
+    unmapped dff cell: $_DFF_PP0_
+    unmapped dff cell: $_DFF_PP1_
+    unmapped dff cell: $_DFFE_NN_
+    unmapped dff cell: $_DFFE_NP_
+    unmapped dff cell: $_DFFE_PN_
+    \sky130_fd_sc_hd__edfxtp_1 _DFFE_PP_ (.CLK( C), .D( D), .DE( E), .Q( Q));
+    \sky130_fd_sc_hd__dfbbn_1 _DFFSR_NNN_ (.CLK_N( C), .D( D), .Q( Q), .Q_N(~Q), .RESET_B( R), .SET_B( S));
+    unmapped dff cell: $_DFFSR_NNP_
+    unmapped dff cell: $_DFFSR_NPN_
+    unmapped dff cell: $_DFFSR_NPP_
+    \sky130_fd_sc_hd__dfbbp_1 _DFFSR_PNN_ (.CLK( C), .D( D), .Q( Q), .Q_N(~Q), .RESET_B( R), .SET_B( S));
+    unmapped dff cell: $_DFFSR_PNP_
+    unmapped dff cell: $_DFFSR_PPN_
+    unmapped dff cell: $_DFFSR_PPP_
+
+4.1. Executing DFFLEGALIZE pass (convert FFs to types supported by the target).
+<suppressed ~24 debug messages>
+Mapping DFF cells in module `\spi_host':
+  mapped 48 $_DFFE_PP_ cells to \sky130_fd_sc_hd__edfxtp_1 cells.
+  mapped 70 $_DFF_PN0_ cells to \sky130_fd_sc_hd__dfrtp_1 cells.
+  mapped 2 $_DFF_PN1_ cells to \sky130_fd_sc_hd__dfstp_2 cells.
+
+5. Executing ABC pass (technology mapping using ABC).
+
+5.1. Extracting gate netlist of module `\spi_host' to `<abc-temp-dir>/input.blif'..
+Replacing 16 occurrences of constant undef bits with constant zero bits
+
+5.1.1. Executed ABC.
+Extracted 499 gates and 649 wires to a netlist network with 147 inputs and 78 outputs.
+Running ABC script: <abc-temp-dir>/abc.script
+ABC: UC Berkeley, ABC 1.01 (compiled Nov 12 2025 10:08:15)
+ABC: abc 01> empty
+ABC: abc 01> source <abc-temp-dir>/abc.script
+ABC: + read_blif <abc-temp-dir>/input.blif 
+ABC: + read_lib -w /home/eneadim/github/flexsoc/lib/sky130_fd_sc_hd__tt_025C_1v80.lib 
+ABC: Parsing finished successfully.  Parsing time =     0.06 sec
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_12" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_3" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_6" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__decap_8" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfbbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfbbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfbbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfrtp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfsbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfsbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfstp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfstp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfstp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dfxtp_4".
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__diode_2" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__dlclkp_1" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__dlclkp_2" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__dlclkp_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtn_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlrtp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtn_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__dlxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_2".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_4".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__ebufn_8".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__edfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__edfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_0".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_2".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_4".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvn_8".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_1".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_2".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_4".
+ABC: Scl_LibertyReadGenlib() skipped three-state cell "sky130_fd_sc_hd__einvp_8".
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_bleeder_1" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_12" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_3" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_6" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__lpflow_decapkapwr_8" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__lpflow_inputisolatch_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfbbn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfbbn_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfbbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtn_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfrtp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfsbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfsbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfstp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfstp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfstp_4".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sdfxtp_4".
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__sdlclkp_1" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__sdlclkp_2" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped cell "sky130_fd_sc_hd__sdlclkp_4" without logic function.
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxbp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxbp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_1".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_2".
+ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_4".
+ABC: Library "sky130_fd_sc_hd__tt_025C_1v80" from "/home/eneadim/github/flexsoc/lib/sky130_fd_sc_hd__tt_025C_1v80.lib" has 334 cells (94 skipped: 63 seq; 13 tri-state; 18 no func; 0 dont_use; 0 with 2 outputs; 0 with 3+ outputs).  Time =     0.08 sec
+ABC: Memory =   19.85 MB. Time =     0.08 sec
+ABC: Warning: Detected 9 multi-output cells (for example, "sky130_fd_sc_hd__fa_1").
+ABC: + read_constr -v /home/eneadim/github/flexsoc/ors/spi_host.sdc 
+ABC: Unrecognized token "current_design".
+ABC: Unrecognized token "set".
+ABC: Unrecognized token "set".
+ABC: Unrecognized token "set".
+ABC: Unrecognized token "set".
+ABC: Unrecognized token "set".
+ABC: Unrecognized token "create_clock".
+ABC: Unrecognized token "set".
+ABC: Unrecognized token "set_input_delay".
+ABC: Unrecognized token "set_output_delay".
+ABC: + source /home/eneadim/github/flexsoc/syn/area.abc 
+ABC: WireLoad = "none"  Gates =    384 ( 14.6 %)   Cap =  3.9 ff (  2.5 %)   Area =     1744.17 ( 84.1 %)   Delay =  1658.54 ps  (  9.1 %)               
+ABC: Path  0 --      42 : 0   12 pi                        A =   0.00  Df =   0.0   -0.0 ps  S =   0.0 ps  Cin =  0.0 ff  Cout =  30.4 ff  Cmax =   0.0 ff  G =    0  
+ABC: Path  1 --     259 : 1   10 sky130_fd_sc_hd__clkinv_1 A =   3.75  Df = 122.2  -33.6 ps  S = 145.6 ps  Cin =  3.1 ff  Cout =  20.1 ff  Cmax = 190.4 ff  G =  618  
+ABC: Path  2 --     260 : 2    1 sky130_fd_sc_hd__nor2_1   A =   3.75  Df = 228.1  -94.9 ps  S =  75.3 ps  Cin =  2.4 ff  Cout =   1.8 ff  Cmax =  86.1 ff  G =   72  
+ABC: Path  3 --     262 : 3    2 sky130_fd_sc_hd__o21ai_0  A =   5.00  Df = 310.8  -19.6 ps  S = 168.6 ps  Cin =  1.7 ff  Cout =   4.0 ff  Cmax =  50.4 ff  G =  221  
+ABC: Path  4 --     277 : 2    3 sky130_fd_sc_hd__nor2_1   A =   3.75  Df = 462.9  -86.2 ps  S = 140.0 ps  Cin =  2.4 ff  Cout =   6.5 ff  Cmax =  86.1 ff  G =  258  
+ABC: Path  5 --     278 : 2    4 sky130_fd_sc_hd__nor2_1   A =   3.75  Df = 551.2   -1.7 ps  S = 198.5 ps  Cin =  2.4 ff  Cout =   9.9 ff  Cmax =  86.1 ff  G =  398  
+ABC: Path  6 --     279 : 1    2 sky130_fd_sc_hd__clkinv_1 A =   3.75  Df = 656.2  -49.6 ps  S =  71.3 ps  Cin =  3.1 ff  Cout =   4.9 ff  Cmax = 190.4 ff  G =  151  
+ABC: Path  7 --     447 : 2   10 sky130_fd_sc_hd__nor2_1   A =   3.75  Df =1022.6 -315.9 ps  S = 453.6 ps  Cin =  2.4 ff  Cout =  25.3 ff  Cmax =  86.1 ff  G = 1029  
+ABC: Path  8 --     448 : 2    8 sky130_fd_sc_hd__nor2_1   A =   3.75  Df =1220.3 -191.0 ps  S = 373.6 ps  Cin =  2.4 ff  Cout =  20.4 ff  Cmax =  86.1 ff  G =  822  
+ABC: Path  9 --     449 : 1    2 sky130_fd_sc_hd__clkinv_1 A =   3.75  Df =1306.3 -145.9 ps  S =  97.1 ps  Cin =  3.1 ff  Cout =   4.3 ff  Cmax = 190.4 ff  G =  132  
+ABC: Path 10 --     535 : 4    1 sky130_fd_sc_hd__o22ai_1  A =   6.26  Df =1362.7  -25.6 ps  S = 120.8 ps  Cin =  2.4 ff  Cout =   2.4 ff  Cmax =  73.3 ff  G =   98  
+ABC: Path 11 --     536 : 5    1 sky130_fd_sc_hd__a221oi_1 A =   8.76  Df =1589.3 -166.3 ps  S = 219.4 ps  Cin =  2.3 ff  Cout =   2.5 ff  Cmax =  54.9 ff  G =  102  
+ABC: Path 12 --     537 : 4    1 sky130_fd_sc_hd__o22ai_1  A =   6.26  Df =1658.5  -54.9 ps  S =  75.6 ps  Cin =  2.4 ff  Cout =   0.0 ff  Cmax =  73.3 ff  G =    0  
+ABC: Start-point = pi41 (\u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q [0]).  End-point = po45 ($auto$rtlil.cc:3381:MuxGate$3586).
+ABC: netlist                       : i/o =  147/   78  lat =    0  nd =   384  edge =    900  area =1742.99  delay =1290.24  lev = 13
+ABC: + write_blif <abc-temp-dir>/output.blif 
+
+5.1.2. Re-integrating ABC results.
+ABC RESULTS:   sky130_fd_sc_hd__a2111oi_0 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__a211oi_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__a21oi_1 cells:       31
+ABC RESULTS:   sky130_fd_sc_hd__a221o_1 cells:        4
+ABC RESULTS:   sky130_fd_sc_hd__a221oi_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__a22o_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__a22oi_1 cells:       13
+ABC RESULTS:   sky130_fd_sc_hd__a31oi_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__clkinv_1 cells:       56
+ABC RESULTS:   sky130_fd_sc_hd__nand2_1 cells:      101
+ABC RESULTS:   sky130_fd_sc_hd__nand3_1 cells:       14
+ABC RESULTS:   sky130_fd_sc_hd__nand4_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__nor2_1 cells:       80
+ABC RESULTS:   sky130_fd_sc_hd__nor3_1 cells:        4
+ABC RESULTS:   sky130_fd_sc_hd__nor3b_1 cells:        1
+ABC RESULTS:   sky130_fd_sc_hd__nor4_1 cells:        2
+ABC RESULTS:   sky130_fd_sc_hd__o211ai_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__o21ai_0 cells:       49
+ABC RESULTS:   sky130_fd_sc_hd__o22ai_1 cells:        8
+ABC RESULTS:   sky130_fd_sc_hd__or2_2 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__xnor2_1 cells:        3
+ABC RESULTS:   sky130_fd_sc_hd__xor2_1 cells:        1
+ABC RESULTS:        internal signals:      424
+ABC RESULTS:           input signals:      147
+ABC RESULTS:          output signals:       78
+Removing temp directory.
+Removing global temp directory.
+
+6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \spi_host..
+Removed 0 unused cells and 712 unused wires.
+<suppressed ~302 debug messages>
+
+7. Printing statistics.
+
+=== spi_host ===
+
+        +----------Local Count, excluding submodules.
+        |        +-Local Area, excluding submodules.
+        |        | 
+      412        - wires
+      684        - wire bits
+       35        - public wires
+      307        - public wire bits
+        9        - ports
+      182        - port bits
+      504 4.99E+03 cells
+        1    8.758   sky130_fd_sc_hd__a2111oi_0
+        1    7.507   sky130_fd_sc_hd__a211oi_1
+       31  155.149   sky130_fd_sc_hd__a21oi_1
+        4   40.038   sky130_fd_sc_hd__a221o_1
+        2   17.517   sky130_fd_sc_hd__a221oi_1
+        1    8.758   sky130_fd_sc_hd__a22o_1
+       13   97.594   sky130_fd_sc_hd__a22oi_1
+        3   18.768   sky130_fd_sc_hd__a31oi_1
+       56  210.202   sky130_fd_sc_hd__clkinv_1
+       70  1751.68   sky130_fd_sc_hd__dfrtp_1
+        2    52.55   sky130_fd_sc_hd__dfstp_2
+       48 1.44E+03   sky130_fd_sc_hd__edfxtp_1
+      101  379.114   sky130_fd_sc_hd__nand2_1
+       14   70.067   sky130_fd_sc_hd__nand3_1
+        3   18.768   sky130_fd_sc_hd__nand4_1
+       80  300.288   sky130_fd_sc_hd__nor2_1
+        4   20.019   sky130_fd_sc_hd__nor3_1
+        1    7.507   sky130_fd_sc_hd__nor3b_1
+        2   12.512   sky130_fd_sc_hd__nor4_1
+        3   22.522   sky130_fd_sc_hd__o211ai_1
+       49  245.235   sky130_fd_sc_hd__o21ai_0
+        8   50.048   sky130_fd_sc_hd__o22ai_1
+        3   18.768   sky130_fd_sc_hd__or2_2
+        3   26.275   sky130_fd_sc_hd__xnor2_1
+        1    8.758   sky130_fd_sc_hd__xor2_1
+
+   Chip area for module '\spi_host': 4989.785600
+     of which used for sequential elements: 3245.612800 (65.05%)
+
+8. Executing Verilog backend.
+
+8.1. Executing BMUXMAP pass.
+
+8.2. Executing DEMUXMAP pass.
+Dumping module `\spi_host'.
+
+9. Executing JSON backend.
+
+End of script. Logfile hash: 8f9d91b580, CPU: user 0.35s system 0.03s, MEM: 64.20 MB peak
+Yosys 0.58 (git sha1 157aabb58, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
+Time spent: 37% 1x abc (0 sec), 11% 25x opt_clean (0 sec), ...

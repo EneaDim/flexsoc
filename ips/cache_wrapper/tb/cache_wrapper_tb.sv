@@ -39,9 +39,9 @@ module cache_wrapper_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/cache_wrapper.vcd");
+      $dumpfile("sim/cache_wrapper_tb.vcd");
     `else
-      $dumpfile("sim/cache_wrapper_syn.vcd");
+      $dumpfile("sim/cache_wrapper_syn_tb.vcd");
     `endif
     $dumpvars(0, cache_wrapper_tb);
   end
