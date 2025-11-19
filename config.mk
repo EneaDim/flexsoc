@@ -46,9 +46,8 @@ VENDORDIR       := vendor
 TOPDIR          := top
 UTILDIR         := util
 SCRIPTSDIR      ?= scripts
-REGRESSIONDIR   := $(TBDIR)/regression \
-                   $(SIMDIR)/regression \
-                   $(LOGDIR)/regression
+REGRESSIONDIR   := $(TBDIR)/regression
+OUTNAME         ?= ok
 
 # =========================
 # Vendor / SoC settings

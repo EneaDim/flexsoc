@@ -292,10 +292,21 @@ pnr: setup_pnr
 pnr_gui:
 	$(Q)$(MAKE) gui_final --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk &
 
-# SAVE TESTBENCH
-save_tb:
+######################
+# TESTBENCH HANDLING #
+######################
+
+tb_save:
+	$(Q)$(MKDIR) -p $(REGRESSIONDIR) $(REGRESSIONDIR)/$(TBDIR) $(REGRESSIONDIR)/$(SIMDIR)
 	$(Q)$(ECHO) "\n$(ORANGE)Save testbench file...\n$(RESET)"
-	$(Q)$(CP) $(TBDIR)/$(TOP)_tb.sv $(TBDIR)/$(TOP)_tb_ok.sv
+	$(Q)$(CP) $(TBDIR)/$(TOP)_tb.sv $(REGRESSIONDIR)/$(TBDIR)/$(TOP)_$(OUTNAME)_tb.sv
+	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.vcd $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd
+	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.gtkw $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw
+
+tb_view:
+	$(Q)$(ECHO) "\n$(ORANGE)Viewing...\n$(RESET)"
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd \
+	$(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw & 
 
 # SW DRIVERS
 .PHONY: driver

@@ -645,7 +645,7 @@ def build_power_tcl(cfg: STAConfig) -> str:
     - VCD-based power analysis using a VCD waveform from simulation.
 
     The script assumes:
-    - The VCD is located at @c sim/<top>.vcd
+    - The VCD is located at @c sim/<top>_tb.vcd
     - The scope is @c <top>_tb/u_<top>
 
     Adjust those paths/scope if your environment is different.
@@ -679,7 +679,7 @@ def build_power_tcl(cfg: STAConfig) -> str:
 
     # VCD-based power analysis
     vcd_scope = f"{cfg.top}_tb/u_{cfg.top}"
-    vcd_file = f"sim/{cfg.top}.vcd"
+    vcd_file = f"sim/{cfg.top}_tb.vcd"
 
     lines += [
         'puts "==========================================================================="',
