@@ -468,14 +468,14 @@ setup_pnr:
 	--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --outdir $(ORSDIR)
 
 # SAVE FSM
-save_fsm:
-	$(Q)$(MKDIR) -p $(FSMDIR)/$(FSM)
-	$(Q)$(CP) -r fsm_gen/inputs $(FSMDIR)/$(FSM) || true
-	$(Q)$(CP) -r fsm_gen/outputs $(FSMDIR)/$(FSM) || true
-	$(Q)$(ECHO) "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"
+fsm_save:
+	$(Q)$(MKDIR) -p $(FSMDIR)/$(FSM)/inputs $(FSMDIR)/$(FSM)/outputs
+	$(Q)$(CP) -r fsm_gen/inputs/$(FSM)* $(FSMDIR)/$(FSM)/inputs || true
+	$(Q)$(CP) -r fsm_gen/outputs/$(FSM)* $(FSMDIR)/$(FSM)/outputs || true
+	$(Q)$(ECHO) "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"	
 
 # LOAD FSM
-load_fsm: fsm_setup
+fsm_load: fsm_setup
 	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/inputs/* fsm_gen/inputs
 	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/outputs/* fsm_gen/outputs
 	$(Q)$(ECHO) "\n$(ORANGE)$(FSM) FSM loaded into fsm_gen\n$(RESET)"
