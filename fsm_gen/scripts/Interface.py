@@ -437,7 +437,7 @@ class Interface:
 
         gv_lines: List[str] = []
         gv_lines.append(f"digraph {self.fsm_name} ")
-        gv_lines.append("{")
+        gv_lines.append("{\n")
         gv_lines.extend(lines)
         gv_lines.append("}")
 
