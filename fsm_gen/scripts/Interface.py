@@ -30,6 +30,7 @@ This module exposes the Interface class, which:
 from __future__ import annotations
 
 import math
+import random
 import re
 import itertools
 from pathlib import Path
@@ -152,6 +153,8 @@ class Interface:
 
         self.outputs_dir.mkdir(parents=True, exist_ok=True)
         sv_path = self.outputs_dir / f"{self.fsm_name}.sv"
+        sv_path_pkg = self.outputs_dir / f"{self.fsm_name}_pkg.sv"
+        gtkw_path = self.outputs_dir / f"{self.fsm_name}.gtkw"
 
         # Determine the number of bits required to encode the states.
         num_states = max(1, len(self.states))
@@ -161,9 +164,49 @@ class Interface:
         lines: List[str] = []
 
         # ------------------------------------------------------------------ #
+        #  Package
+        # ------------------------------------------------------------------ #
+        lines.append(f"package {self.fsm_name}_pkg;")
+        lines.append("")
+        lines.append(f"typedef enum logic [{msb_index}:0] {{")
+        i = 0
+        dim = math.ceil(math.log2(len(self.states)))
+        for state in self.states[:-1]:
+            dim_format = '0'+str(dim)+'b'
+            myformat = format(i, dim_format)
+            lines.append(f"  {state} = {dim}'b{myformat},")
+            i += 1
+        myformat = format(i, dim_format)
+        lines.append(f"  {self.states[-1]} = {dim}'b{myformat}")
+        lines.append("} state_fsm;")
+        lines.append("")
+        lines.append(f"endpackage;")
+        lines.append("")
+
+        sv_path_pkg.write_text("\n".join(lines))
+
+        lines: List[str] = []
+
+        # ------------------------------------------------------------------ #
+        #  State name on waveform
+        # ------------------------------------------------------------------ #
+        i = 0
+        dim = math.ceil(math.log2(len(self.states)))
+        for state in self.states:
+            dim_format = '0'+str(dim)+'b'
+            myformat = format(i, dim_format)
+            lines.append(f"{myformat} {state}")
+            i += 1
+        lines.append("")
+
+        gtkw_path.write_text("\n".join(lines))
+
+        lines: List[str] = []
+
+        # ------------------------------------------------------------------ #
         # Module header
         # ------------------------------------------------------------------ #
-        lines.append(f"module {self.fsm_name} (")
+        lines.append(f"module {self.fsm_name} import {self.fsm_name}_pkg::*; (")
         lines.append("  input  logic clk_i,")
 
         # Add reset only if not already a user signal
@@ -176,9 +219,9 @@ class Interface:
                 lines.append(f"  input  logic {sig},")
 
         # Output ports
-        for out_name in self.out_names[:-1]:
+        for out_name in self.out_names:
             lines.append(f"  output logic {out_name},")
-        lines.append(f"  output logic {self.out_names[-1]}")
+        lines.append(f"  output state_fsm state_o")
         lines.append(");")
         lines.append("")
 
@@ -193,14 +236,9 @@ class Interface:
 
 
         # Enumerated type for states
-        lines.append(f"  typedef enum logic [{msb_index}:0] ")
-        lines.append("{")
-        for state in self.states[:-1]:
-            lines.append(f"    {state},")
-        lines.append(f"    {self.states[-1]}")
-        lines.append("  } state_fsm;")
-        lines.append("")
         lines.append("  state_fsm current_state, next_state;")
+        lines.append("")
+        lines.append("  assign state_o = current_state;")
         lines.append("")
 
         # ------------------------------------------------------------------ #
@@ -317,6 +355,7 @@ class Interface:
         lines.append("  end")
         lines.append("")
         lines.append("endmodule")
+        lines.append("")
 
         sv_path.write_text("\n".join(lines))
 
@@ -345,9 +384,15 @@ class Interface:
 
         lines: List[str] = []
 
+        lines.append("// Timescale")
+        lines.append("`timescale 1ns/1ps")
+        lines.append("")
         lines.append(f"module {self.fsm_name}_tb;")
         lines.append("")
+        lines.append(f"  parameter real CLK_PERIOD = {period_ns};")
+        lines.append("")
         lines.append("  reg clk_i;")
+        lines.append("  reg rst_ni;")
 
         # Input stimuli (skip constant '1')
         for sig in self.signals:
@@ -360,38 +405,55 @@ class Interface:
 
         lines.append("")
         lines.append(f"  {self.fsm_name} {self.fsm_name}_u (")
-        lines.append("    .clk_i(clk_i),")
+        lines.append("    .clk_i,")
+        lines.append("    .rst_ni,")
         for sig in self.signals:
             if sig != "1":
-                lines.append(f"    .{sig}({sig}),")
+                lines.append(f"    .{sig},")
         for out_name in self.out_names[:-1]:
-            lines.append(f"    .{out_name}({out_name}),")
-        lines.append(f"    .{self.out_names[-1]}({self.out_names[-1]})")
+            lines.append(f"    .{out_name},")
+        lines.append(f"    .{self.out_names[-1]}")
         lines.append("  );")
         lines.append("")
 
+        # Dump VCD
+        lines.append("  // Dump VCD")
+        lines.append("  initial begin")
+        lines.append("    `ifndef SYN")
+        lines.append(f'      $dumpfile("sim/{self.fsm_name}_tb.vcd");')
+        lines.append("    `else")
+        lines.append(f'      $dumpfile("sim/{self.fsm_name}_syn_tb.vcd");')
+        lines.append("    `endif")
+        lines.append(f"    $dumpvars(0, {self.fsm_name}_tb);")
+        lines.append("  end\n")
+
         # Clock generation
         lines.append("  // Clock generation")
-        lines.append("  always begin")
-        lines.append(f"    #{half_period_ns} clk_i = ~clk_i;")
+        lines.append("  initial begin")
+        lines.append(f"    forever #(CLK_PERIOD/2) clk_i = ~clk_i;")
         lines.append("  end")
         lines.append("")
 
         # Simple reset + stop sequence
         lines.append("  initial begin")
         lines.append("    clk_i = 1'b0;")
+        lines.append("    rst_ni = 1'b0;")
         for sig in self.signals:
             if sig != "1":
                 lines.append(f"    {sig} = 1'b0;")
         lines.append("")
         lines.append("    // Apply reset and basic stimulus here as needed.")
-        lines.append("    #100;")
+        lines.append("    #(CLK_PERIOD*8);")
         lines.append("    rst_ni = 1'b1;")
-        lines.append("    #100;")
-        lines.append("    #50 $finish;")
+        lines.append("    #(CLK_PERIOD*1.5);")
+        for line in self.functb:
+            lines.append(line)
+        lines.append("    #(CLK_PERIOD) $finish;")
+        lines.append("")
         lines.append("  end")
         lines.append("")
         lines.append("endmodule")
+        lines.append("")
 
         tb_path.write_text("\n".join(lines))
 
@@ -641,28 +703,6 @@ class Interface:
     
         return py
     
-    def truth_table(self, expr: str):
-        """
-        Build a truth table for the boolean expression.
-        Returns:
-            signals: list of signal names
-            rows: list of (values_dict, result)
-        """
-        signals = self.extract_signals(expr)
-        py_expr = self.to_python_expr(expr)
-    
-        rows = []
-        for combo in itertools.product([False, True], repeat=len(signals)):
-            env = dict(zip(signals, combo))
-            # Eval in restricted environment
-            result = eval(py_expr, {"__builtins__": None}, env)
-            rows.append((env, bool(result)))
-        print(signals)
-        print(rows)
-
-        return signals, rows
-    
-    
     def print_truth_table(self, expr: str):
         signals, rows = self.truth_table(expr)
         # Header
@@ -674,32 +714,92 @@ class Interface:
             out  = "1" if res else "0"
             print(f"{vals} || {out}")
     
+    def truth_table(self, expr: str, ):
+        """
+        Build a truth table for the boolean expression.
+        Returns:
+            signals: list of signal names
+            rows: list of (values_dict, result)
+        """
+        #print(expr)
+        signals = self.extract_signals(expr)
+        py_expr = self.to_python_expr(expr)
+    
+        rows = []
+        for combo in itertools.product([False, True], repeat=len(signals)):
+            env = dict(zip(signals, combo))
+            # Eval in restricted environment
+            result = eval(py_expr, {"__builtins__": None}, env)
+            rows.append((env, bool(result)))
+        for env, res in rows:
+            vals = " | ".join("1" if env[s] else "0" for s in signals)
+            if res:
+                break
+
+        vals = vals.split(' | ')
+        return signals, vals
+    
+    
     def check_data(self) -> None:
         """TODO: Just a check.
         :returns: TODO
 
         """
-        print(self.states)
-        print(self.next_states)
-        print(self.source)
-        print(self.dest)
-        print(self.edges)
-        print(self.signals)
-        for edge in self.edges:
-            print("Expression:", edge)
-            self.print_truth_table(edge)
+        #print(self.states)
+        #print(self.next_states)
+        #print(self.source)
+        #print(self.dest)
+        #print(self.edges)
+        #print(self.signals)
+        #for edge in self.edges:
+        #    print("Expression:", edge)
+        #    self.print_truth_table(edge)
+
+    def choose_edge(self, actual_state, start_index) -> str:
+        end_index = random.randint(0, len(self.next_states[start_index])-1)
+        end = self.next_states[start_index][end_index]
+        i = 0
+        flag = False
+        while True:
+            if self.source[i] == actual_state and self.dest[i] == end:
+                break
+            i += 1
+        #print(self.source[i], self.dest[i], i)
+        self.arcs[i] = 1
+        return self.dest[i], i
+
+    def set_inputs(self, idx) -> dict:
+        signals, vals = self.truth_table(self.edges[idx])
+        mydict = dict(zip(signals, vals))
+        #print(mydict)
+        return mydict
+
+    def append_func_tb(self, sig_dict, idx) -> None:
+        mystr = f'    // {self.source[idx]} -> {self.dest[idx]} : "{self.edges[idx]}"\n'
+        for k, v in sig_dict.items():
+            mystr += f"    {k} = 1'b{v};\n"
+        mystr += '    #(CLK_PERIOD);\n'
+        self.functb.append(mystr)
 
     def states_walkthrough(self) -> None:
         """High level implementation
         :returns: TODO
 
         """
-        all_arcs_taken = False
+        self.functb = []
+        self.all_arcs_taken = False
+        self.arcs = [0]*len(self.edges)
         actual_state = self.states[0]
-        while all_arcs_taken == False:
-            idx_next = states.index(actual_state)
-            actual_state = choose_edge()
-            self.set_inputs()
-            self.append_on_tb()
+        j = 0
+        while self.all_arcs_taken == False:
+            #print('\nStart While')
+            idx_next = self.states.index(actual_state)
+            actual_state, idx = self.choose_edge(actual_state, idx_next)
+            input_setting = self.set_inputs(idx)
+            self.append_func_tb(input_setting, idx)
+            j += 1
+            if self.arcs == [1]*len(self.arcs):
+                self.all_arcs_taken= True
+                print(f'Numer of iterations: {j}')
 
 

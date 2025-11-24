@@ -95,9 +95,9 @@ def main(argv: list[str] | None = None) -> int:
         # Generate outputs
         interface.write_sv()
         interface.write_gv()
-        #interface.check_data()
+        interface.states_walkthrough()
         # Uncomment to generate a simple testbench:
-        # interface.write_tb(f_clk)
+        interface.write_tb(f_clk)
 
         return 0
 
