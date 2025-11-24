@@ -13,7 +13,7 @@ install_ip_dependencies() {
       libreadline-dev gawk tcl-dev libffi-dev git cmake libelf-dev autoconf swig wget \
       curl graphviz xdot pkg-config libboost-system-dev ninja-build pkg-config help2man \
       libeigen3-dev libboost-python-dev libboost-filesystem-dev zlib1g-dev automake \
-      libtool m4 pkg-config gcc g++ perl unzip --assume-yes
+      libtool m4 pkg-config gcc g++ perl unzip universal-ctags --assume-yes
     echo "|**********************************************************************************|"
     echo "|                               Installing iverilog                                |"
     echo "|**********************************************************************************|"
@@ -54,51 +54,17 @@ install_ip_dependencies() {
     make -j 2
     sudo make install
     echo
-    echo "|**********************************************************************************|"
-    echo "|            Cloning yosys and then will start the installation of yosys           |"
-    echo "|**********************************************************************************|"
-    echo
     cd
-    git clone https://github.com/YosysHQ/yosys.git
-    cd yosys
-    git submodule update --init
-    make -j 2
-    sudo make install
-    sudo cp yosys* /usr/local/bin
-    cd
-    echo
     echo "|**********************************************************************************|"
-    echo "|                             OpenROAD flow scripts                                |"
+    echo "|               OpenROAD flow scripts - Yosys - OpenSTA                            |"
     echo "|**********************************************************************************|"
     echo
     cd
     git clone --recursive https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts openroad
     cd openroad
-    ./etc/DependencyInstaller.sh -common
     sudo ./setup.sh
-    ./build_openroad.sh --local --install-path /usr/local
+    sudo ./build_openroad.sh --local --threads 2 --install-path /usr/local
     echo
-    cd
-    echo "|**********************************************************************************|"
-    echo "|                              OpenSTA installation                                |"
-    echo "|**********************************************************************************|"
-    cd 
-    echo "| Download https://github.com/davidkebo/cudd/blob/main/cudd_versions/cudd-3.0.0.tar.gz |"
-    curl -L -o cudd-3.0.0.tar.gz https://github.com/davidkebo/cudd/raw/main/cudd_versions/cudd-3.0.0.tar.gz    
-    tar xvfz cudd-3.0.0.tar.gz
-    cd cudd-3.0.0
-    ./configure --prefix=/usr/local/bin
-    make -j 2
-    sudo make install
-    cd
-    git clone https://github.com/The-OpenROAD-Project/OpenSTA.git
-    cd OpenSTA
-    mkdir build
-    cd build
-    cmake -DCUDD_DIR=/usr/local/bin/lib ..
-    make -j 2
-    echo
-    sudo cp sta /usr/local/bin
     echo "|**********************************************************************************|"
     echo "|                                Installing netlistsvg                             |"
     echo "|**********************************************************************************|"
@@ -106,7 +72,7 @@ install_ip_dependencies() {
     cd
     sudo npm install -g nturley/netlistsvg
     echo
-    rm -rf ~/sv2v ~/verilator ~/yosys ~/OpenSTA ~/cudd-3.0.0* ~/.stack
+    rm -rf ~/sv2v ~/verilator ~/cudd-3.0.0* ~/.stack
     echo
     #&& apt-get purge -y \
     #  build-essential clang bison flex autoconf cmake pkg-config \
