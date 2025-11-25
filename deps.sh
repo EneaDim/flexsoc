@@ -65,6 +65,16 @@ install_ip_dependencies() {
     sudo ./setup.sh
     sudo ./build_openroad.sh --local --threads 2 --install-path /usr/local
     echo
+    cd
+    echo
+    echo "|**********************************************************************************|"
+    echo "|                                 Yosys-Slang                                      |"
+    echo "|**********************************************************************************|"
+    echo
+    git clone --recursive https://github.com/povik/yosys-slang
+    make -j2
+    sudo make install
+    cd
     echo "|**********************************************************************************|"
     echo "|                                Installing netlistsvg                             |"
     echo "|**********************************************************************************|"

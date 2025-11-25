@@ -319,7 +319,10 @@ fsm_example_load:
 	$(Q)$(CP) fsm_gen/examples/* fsm_gen/inputs/
 
 fsm2rtl:
-	$(Q)$(CP) fsm_gen/outputs/*.sv rtl
+	$(Q)$(CP) fsm_gen/outputs/$(FSM).sv $(RTLDIR)
+	$(Q)$(CP) fsm_gen/outputs/$(FSM)_pkg.sv $(RTLDIR)
+	$(Q)$(CP) fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
+	$(Q)$(CP) fsm_gen/outputs/$(FSM).gtkw $(SIMDIR)
 
 fsm_setup:
 	$(Q)$(MAKE) -C fsm_gen setup
@@ -419,7 +422,7 @@ full_tutorial:
 	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui TOP=test
 
 fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
-	$(Q)$(MAKE) setup_tb ip_flow_noreg plot_postsyn TOP=$(FSM)
+	$(Q)$(MAKE) ip_flow_noreg plot_postsyn TOP=$(FSM)
 
 ip_tutorial:
 	$(Q)$(MAKE) ip_load
