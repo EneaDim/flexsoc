@@ -387,32 +387,35 @@ class Interface:
         lines.append("// Timescale")
         lines.append("`timescale 1ns/1ps")
         lines.append("")
+        lines.append(f"import {self.fsm_name}_pkg::*;")
+        lines.append("")
         lines.append(f"module {self.fsm_name}_tb;")
         lines.append("")
         lines.append(f"  parameter real CLK_PERIOD = {period_ns};")
         lines.append("")
-        lines.append("  reg clk_i;")
-        lines.append("  reg rst_ni;")
+        lines.append("  logic clk_i;")
+        lines.append("  logic rst_ni;")
 
         # Input stimuli (skip constant '1')
         for sig in self.signals:
             if sig != "1":
-                lines.append(f"  reg {sig};")
+                lines.append(f"  logic {sig};")
 
         # Outputs
         for out_name in self.out_names:
-            lines.append(f"  wire {out_name};")
+            lines.append(f"  logic {out_name};")
 
+        lines.append("  state_fsm state_o;")
         lines.append("")
-        lines.append(f"  {self.fsm_name} {self.fsm_name}_u (")
+        lines.append(f"  {self.fsm_name} u_{self.fsm_name} (")
         lines.append("    .clk_i,")
         lines.append("    .rst_ni,")
         for sig in self.signals:
             if sig != "1":
                 lines.append(f"    .{sig},")
-        for out_name in self.out_names[:-1]:
+        for out_name in self.out_names:
             lines.append(f"    .{out_name},")
-        lines.append(f"    .{self.out_names[-1]}")
+        lines.append(f"    .state_o")
         lines.append("  );")
         lines.append("")
 
@@ -808,6 +811,8 @@ class Interface:
         for k, v in sig_dict.items():
             mystr += f"    {k} = 1'b{v};\n"
         mystr += '    #(CLK_PERIOD);\n'
+        mystr += f'    assert (u_{self.fsm_name}.state_o == {self.dest[idx]})\n'
+        mystr += f'      else $fatal(1, "{self.source[idx]} -> {self.dest[idx]} failed: state_o=%0d", u_{self.fsm_name}.state_o);\n'
         self.functb.append(mystr)
 
     def states_walkthrough(self) -> None:
