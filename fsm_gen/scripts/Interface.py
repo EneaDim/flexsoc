@@ -445,7 +445,7 @@ class Interface:
         lines.append("    // Apply reset and basic stimulus here as needed.")
         lines.append("    #(CLK_PERIOD*8);")
         lines.append("    rst_ni = 1'b1;")
-        lines.append("    #(CLK_PERIOD*1.5);")
+        lines.append("    #(CLK_PERIOD*1.5);\n")
         for line in self.functb:
             lines.append(line)
         lines.append("    #(CLK_PERIOD) $finish;")
@@ -714,7 +714,7 @@ class Interface:
             out  = "1" if res else "0"
             print(f"{vals} || {out}")
     
-    def truth_table(self, expr: str, ):
+    def truth_table(self, expr: str, flag: bool):
         """
         Build a truth table for the boolean expression.
         Returns:
@@ -733,8 +733,12 @@ class Interface:
             rows.append((env, bool(result)))
         for env, res in rows:
             vals = " | ".join("1" if env[s] else "0" for s in signals)
-            if res:
-                break
+            if flag:
+                if res:
+                    break
+            else:
+                if not res:
+                    break
 
         vals = vals.split(' | ')
         return signals, vals
@@ -756,23 +760,48 @@ class Interface:
         #    self.print_truth_table(edge)
 
     def choose_edge(self, actual_state, start_index) -> str:
+        # Trigger
         end_index = random.randint(0, len(self.next_states[start_index])-1)
         end = self.next_states[start_index][end_index]
         i = 0
-        flag = False
         while True:
             if self.source[i] == actual_state and self.dest[i] == end:
                 break
             i += 1
-        #print(self.source[i], self.dest[i], i)
+        # No trigger
+        indexs = []
+        for dest in self.next_states[start_index]:
+            if not dest == end:
+                j = 0 
+                while True:
+                    if self.source[j] == actual_state and self.dest[j] == dest:
+                        indexs.append(j)
+                        break
+                    j += 1
+        #print(self.source[i], self.dest[i], i, indexs)
         self.arcs[i] = 1
-        return self.dest[i], i
+        return self.dest[i], i, indexs
 
-    def set_inputs(self, idx) -> dict:
-        signals, vals = self.truth_table(self.edges[idx])
-        mydict = dict(zip(signals, vals))
-        #print(mydict)
-        return mydict
+    def set_inputs(self, idx, idxs) -> dict:
+        signals, vals = self.truth_table(self.edges[idx], True)
+        mydict_trigger = dict(zip(signals, vals))
+        mydict_notrigger_list = []
+        if not idxs == []:
+            for i in idxs:
+                signals, vals = self.truth_table(self.edges[i], False)
+                mydict_notrigger = dict(zip(signals, vals))
+                mydict_notrigger_list.append(mydict_notrigger)
+        return mydict_trigger, mydict_notrigger_list
+
+    def merge_input_setting(self, input_setting_trig, input_setting_notrig):
+        not_in_target = [
+            {k: v for k, v in d.items() if k not in input_setting_trig}
+            for d in input_setting_notrig
+        ]
+        merged = input_setting_trig.copy()
+        for d in not_in_target:
+            merged.update(d)
+        return merged
 
     def append_func_tb(self, sig_dict, idx) -> None:
         mystr = f'    // {self.source[idx]} -> {self.dest[idx]} : "{self.edges[idx]}"\n'
@@ -794,8 +823,9 @@ class Interface:
         while self.all_arcs_taken == False:
             #print('\nStart While')
             idx_next = self.states.index(actual_state)
-            actual_state, idx = self.choose_edge(actual_state, idx_next)
-            input_setting = self.set_inputs(idx)
+            actual_state, idx, idxs = self.choose_edge(actual_state, idx_next)
+            input_setting_trig, input_setting_notrig = self.set_inputs(idx, idxs)
+            input_setting = self.merge_input_setting(input_setting_trig, input_setting_notrig)
             self.append_func_tb(input_setting, idx)
             j += 1
             if self.arcs == [1]*len(self.arcs):
