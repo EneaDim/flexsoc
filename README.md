@@ -6,9 +6,7 @@
 
 This repository provides a modular and open-source environment designed to **simplify the development, verification, and integration of digital IPs into a System-on-Chip (SoC)**. It supports the **entire IP development lifecycle**, making it easy to adopt modern, collaborative hardware design practices.
 
----
-
-## 🧩 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/EneaDim/flexsoc)
+## [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/EneaDim/flexsoc)
 
 ---
 
