@@ -8,6 +8,10 @@ This repository provides a modular and open-source environment designed to **sim
 
 ---
 
+## 🧩 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/EneaDim/flexsoc)
+
+---
+
 ## Table of Contents
 - [Project Objectives](#project-objectives)
 - [Key Features](#key-features)
