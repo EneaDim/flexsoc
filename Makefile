@@ -321,8 +321,8 @@ fsm_example_load:
 fsm2rtl:
 	$(Q)$(CP) fsm_gen/outputs/$(FSM).sv $(RTLDIR)
 	$(Q)$(CP) fsm_gen/outputs/$(FSM)_pkg.sv $(RTLDIR)
-	$(Q)$(CP) fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
 	$(Q)$(CP) fsm_gen/outputs/$(FSM).gtkw $(SIMDIR)
+	$(Q)$(CP) fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
 
 fsm_setup:
 	$(Q)$(MAKE) -C fsm_gen setup
