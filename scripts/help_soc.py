@@ -30,6 +30,9 @@ HELP = """
   • Run "make fetch VENDOR=lowrisc_ip" and
     "make fetch VENDOR=lowrisc_ibex" to fetch IPs via the vendor mechanism.
 
+- CONFIG 
+  • Check the memory mapping configuration for each IP in config.mk .
+
 - XBAR
   • Run "make xbar" to define the crossbar using IBEX, RAM, UART, and your IP.
     Check the SOC_MEMORY_MAP variable in config.mk.
