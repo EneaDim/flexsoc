@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Dict, Set
 from collections import defaultdict
+from collections import deque
 import math
 import re
 import itertools
 import random
-
+import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 @dataclass
 class Transition:
@@ -51,7 +53,7 @@ class Interface:
         self.transitions_from: Dict[str, List[Transition]] = defaultdict(list)
 
         # Mappa stato -> insieme di stati raggiungibili (next states)
-        self.next_states: Dict[str, Set[str]] = defaultdict(set)
+        self.graph: Dict[str, Set[str]] = defaultdict(set)
 
         # Righe di test custom per la testbench (se le usi altrove)
         self.functb: List[str] = []
@@ -111,7 +113,7 @@ class Interface:
         self.output_names.clear()
         self.outputs_by_state.clear()
         self.transitions_from.clear()
-        self.next_states.clear()
+        self.graph.clear()
         # self.functb la lascio com'è, di solito la compili altrove
 
         # 1) Transizioni + segnali
@@ -120,8 +122,8 @@ class Interface:
         # 2) Stati + uscite
         self._parse_csv_file(csv_path)
 
-        # 3) Adjacency (next_states)
-        self._build_next_states()
+        # 3) Adjacency (graph)
+        self._build_graph()
 
     # ------------------------------------------------------------------ #
     # Private helpers: parsing TXT/CSV
@@ -194,7 +196,6 @@ class Interface:
                 m = line_re.match(stripped)
                 if not m:
                     raise ValueError(f"Invalid transition line in {txt_path}: {line!r}")
-
                 src = m.group("src")
                 dst = m.group("dst")
                 raw_cond = m.group("cond")
@@ -253,14 +254,14 @@ class Interface:
                 name: val for name, val in zip(self.output_names, out_vals)
             }
 
-    def _build_next_states(self) -> None:
+    def _build_graph(self) -> None:
         """!
         @brief Build next-states adjacency from transitions_from.
         """
-        self.next_states.clear()
+        self.graph.clear()
         for src, t_list in self.transitions_from.items():
             for t in t_list:
-                self.next_states[src].add(t.dst)
+                self.graph[src].add(t.dst)
 
     # ------------------------------------------------------------------ #
     # SystemVerilog generation
@@ -290,7 +291,8 @@ class Interface:
 
         lines.append(f"package {self.fsm_name}_pkg;")
         lines.append("")
-        lines.append(f"typedef enum logic [{msb_index}:0] {{")
+        lines.append(f"typedef enum logic [{msb_index}:0] ")
+        lines.append("{")
 
         # Codifica esplicita (0,1,2,..) in binario
         for i, state in enumerate(self.states):
@@ -753,6 +755,7 @@ class Interface:
         # Marca l'arco come preso
         self.arcs[chosen_idx] = 1
 
+        #print(actual_state, chosen_t.dst, chosen_idx, other_indices)
         return chosen_t.dst, chosen_idx, other_indices
 
     def set_inputs(self, idx: int, idxs: list[int]) -> tuple[dict, list[dict]]:
@@ -806,6 +809,158 @@ class Interface:
         mystr += f'      else $fatal(1, "{t.src} -> {t.dst} failed: state_o=%0d", u_{self.fsm_name}.state_o);\n'
         self.functb.append(mystr)
 
+    def eulerian_tour(self, adj, start):
+        local = {u: list(vs) for u, vs in adj.items()}  # copia mutabile
+        stack = [start]
+        circuit = []
+
+        while stack:
+            v = stack[-1]
+            if local[v]:
+                u = local[v].pop()   # consuma un arco v->u
+                stack.append(u)
+            else:
+                circuit.append(stack.pop())
+
+        circuit.reverse()
+        return circuit    # lista di stati
+
+    def reconstruct_path(self, src, dst, parent):
+        """Ricostruisce il cammino minimo src→dst usando il dizionario parent della BFS da src."""
+        if src == dst:
+            return [src]
+        if parent[dst] is None:
+            raise ValueError(f"Nessun path da {src} a {dst}")
+    
+        path = [dst]
+        v = dst
+        while v != src:
+            v = parent[v]
+            if v is None:
+                raise ValueError(f"Nessun path da {src} a {dst}")
+            path.append(v)
+    
+        path.reverse()
+        return path
+    
+    def bfs(self, src):
+        dist   = {v: float("inf") for v in self.states}
+        parent = {v: None           for v in self.states}
+        dist[src] = 0
+        q = deque([src])
+        while q:
+            #print(q)
+            u = q.popleft()
+            for v in self.graph[u]:
+                if dist[v] == float("inf"):   # non ancora visitato
+                    dist[v] = dist[u] + 1
+                    parent[v] = u
+                    q.append(v)
+        return dist, parent
+    
+    def chineese_postman(self):
+        """TODO: Docstring for chineese_postman.
+        :returns: TODO
+
+        """
+        #print(self.graph)
+        # outdeg
+        outdeg = {v: len(self.graph.get(v, ())) for v in self.states}
+        # indeg
+        indeg = defaultdict(int)
+        for u, targets in self.graph.items():   # per ogni stato sorgente u
+            for v in targets:              # per ogni stato di arrivo v
+                indeg[v] += 1              # c'è un arco u -> v, quindi indeg(v)++
+        # Balance
+        b = {v: indeg[v] - outdeg[v] for v in self.states}
+        #for v in self.states:
+        #    print(f"{v:10s} indeg={indeg[v]}  outdeg={outdeg[v]}  b={b[v]}")        
+        # Understand the path to computr bfs
+        P = [v for v in self.states if b[v] > 0]
+        N = [v for v in self.states if b[v] < 0]
+        #print(P)
+        #print(N)
+        # matrice dei costi: distanza minimo cammino da p a n
+        cost = {}
+        parents = {}
+         
+        for p in P:
+            dist, parent = self.bfs(p)   # BFS da p
+            parents[p] = parent
+            for n in N:
+                cost[(p, n)] = dist[n]   # potrebbe essere inf se non raggiungibile
+        positives = {}
+        for s in P:
+            positives[s] = b[s]
+        negatives = {}
+        for s in N:
+            negatives[s] = b[s]
+        # 3) Esplodi i nodi positivi in "unità"
+        pos_units = []  # es: [("IDLE",0), ("IDLE",1), ("IDLE",2), ("WAIT_CMD",0)]
+        for p, cap in positives.items():
+            for _ in range(cap):
+                pos_units.append(p)
+        neg_units = []
+        for n, cap in negatives.items():
+            for _ in range(-cap):
+                neg_units.append(n)
+        
+        # Controllo: dobbiamo avere tante unità quanti negativi
+        assert len(pos_units) == len(negatives)
+        
+        # 4) Costruiamo la matrice dei costi (righe = pos_units, colonne = negatives)
+        cost_matrix = np.zeros((len(pos_units), len(negatives)), dtype=int)
+        
+        for i, p in enumerate(pos_units):
+            for j, n in enumerate(negatives):
+                cost_matrix[i, j] = cost[(p, n)]
+        
+        # 5) Risolviamo il problema di assegnamento (Hungarian)
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        
+       # 6) Costruisci la lista di assegnamenti (p -> n)
+        assignments = []
+        for i, j in zip(row_ind, col_ind):
+            p = pos_units[i]      # nome del nodo positivo
+            n = neg_units[j]      # nome del nodo negativo
+            assignments.append((p, n))
+        #print(assignments)
+        
+        # Debug
+        print("Assegnamenti minimi:")
+        total_cost = 0
+        for p, n in assignments:
+            c = cost[(p, n)]
+            total_cost += c
+            print(f"{p} -> {n}, costo {c}") 
+       # 1. inizializza il multigrafo con 1 per ogni arco originale
+        edges_mult = defaultdict(int)
+        
+        for u in self.states:
+            for v in self.graph[u]:
+                edges_mult[(u, v)] += 1
+        
+        # 2. per ogni assegnamento p->n, ricostruisci path e duplica archi
+        for p, n in assignments:
+            parent = parents[p]
+            path = self.reconstruct_path(p, n, parent)
+            # duplica tutti gli archi del path
+            for u, v in zip(path, path[1:]):
+                edges_mult[(u, v)] += 1 
+        multi_adj = defaultdict(list)
+
+        for (u, v), k in edges_mult.items():
+            multi_adj[u].extend([v] * k)
+        
+        # assicurati che ogni stato esista come chiave, anche se senza uscite
+        for s in self.states:
+            multi_adj.setdefault(s, [])
+
+        self.tour = self.eulerian_tour(multi_adj, start="RESET")  # o lo stato iniziale che vuoi
+        print("Chinese Postman tour:")
+        print(" -> ".join(self.tour))
+        
+
     def states_walkthrough(self) -> None:
         """
         Genera una sequenza di stimoli che prova a percorrere tutti gli archi
@@ -821,6 +976,7 @@ class Interface:
         # Stato iniziale: il primo in self.states (stato di reset)
         actual_state = self.states[0]
         iterations = 0
+        #self.chineese_postman()
 
         while not self.all_arcs_taken:
             idx_state = self.states.index(actual_state)  # se ti serve per debug
