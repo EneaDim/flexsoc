@@ -46,10 +46,6 @@ doc:
 	$(Q)./$(UTILDIR)/regtool.py -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
 	$(Q)./$(UTILDIR)/regtool.py --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
-# FETCH VENDOR FROM HJSON
-fetch:
-	$(Q)$(UTILDIR)/vendor.py --update vendor/$(VENDOR).vendor.hjson
-
 # RTL base generator
 rtl_stub:
 	$(Q)$(ECHO) "\n$(ORANGE)RTL stub generation...\n$(RESET)"
@@ -58,15 +54,18 @@ rtl_stub:
 # Basic IP start flow
 ip_start: setup hjson reg doc rtl_stub setup_tb sim
 
+# File list generation
+flist:
+	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP)
+
 # SV to single Verilog file
 sv2v: clean_rtl
 	$(Q)$(ECHO) "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
 	$(Q)$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv \
 	> $(RTLDIR)/$(TOP).v
-
-# File list generation
-flist:
-	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP)
+# FETCH VENDOR FROM HJSON
+fetch:
+	$(Q)$(UTILDIR)/vendor.py --update vendor/$(VENDOR).vendor.hjson
 
 ###########
 # LINTING #
@@ -251,9 +250,12 @@ view_syn:
 
 sta: setup_signoff 
 	$(Q)$(ECHO) "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
-	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
-	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true 
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl \
+	> $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
+	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log \
+	> $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
+	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log \
+	> $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true 
 
 ##################################################
 ###                  Power Analysis            ###
