@@ -57,8 +57,8 @@ All based on open-source tooling:
     - Cocotb
 - 🏗️ Synthesis trials (PPA)
 - ⏱️ Static Timing Analysis
-- 🧱 Physical implementation from RTL to GDS (OpenROAD-based)
 - 🔌 Power estimation and analysis
+- 🧱 Physical implementation from RTL to GDS (OpenROAD-based)
 - 🌐 IP fetching and dependency management via GitHub
 - 🔀 XBAR interconnect generation
 - 🧩 SoC integration with modular IPs (TLUL Interface)
