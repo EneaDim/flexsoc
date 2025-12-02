@@ -937,11 +937,7 @@ class Interface:
         for (u, v), k in edges_mult.items():
             multi_adj[u].extend([v] * k)
         
-        # assicurati che ogni stato esista come chiave, anche se senza uscite
-        for s in self.states:
-            multi_adj.setdefault(s, [])
-
-        self.tour = self.eulerian_tour(multi_adj, start=start_state)  # o lo stato iniziale che vuoi
+        self.tour = self.eulerian_tour(multi_adj, start=start_state)
         print("\033[93mChinese Postman tour:")
         print(" -> ".join(self.tour))
         print(f"Number of iterations: {len(self.tour)}\033[0m")
