@@ -19,7 +19,7 @@ help_soc:
 help_doc: 
 	$(Q)$(PYTHON) scripts/help_doc.py
 help_fsm:
-	$(Q)$(MAKE) -C fsm_gen help
+	$(Q)$(MAKE) --no-print-dir -C fsm_gen help
 
 
 # SETUP FOLDER STRUCTURE
@@ -151,7 +151,7 @@ view_cocotb:
 
 # COCOTB
 cocotb: 
-	$(Q)$(MAKE) -C $(TBDIR)/cocotb
+	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb
 
 # REGRESSION
 regression:
@@ -197,7 +197,7 @@ yosys-vgen:
 
 # Use it only if small design
 plot_postsyn:
-	$(Q)xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot &
+	$(Q)xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot 2>/dev/null &
 
 .PHONY: view_presyn view_presyn_v view_presyn_sv
 view_presyn: $(if $(filter v,$(VSV)),view_presyn_v,view_presyn_sv)
@@ -208,7 +208,7 @@ view_presyn_v: sv2v
 	$(Q)$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); \
 	show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn' \
 	$(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_presyn.log 2>&1
-	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
+	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot 2>/dev/null &
 
 view_presyn_sv:
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots
@@ -221,7 +221,7 @@ view_presyn_sv:
   prep -top $(TOP); select -clear; select -module $(MODULE) ; \
   show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" \
 	> $(LOGDIR)/$(TOP)_presyn.log 2>&1
-	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot &
+	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot 2>/dev/null &
 
 
 ###################################################
@@ -327,14 +327,14 @@ fsm2rtl:
 	$(Q)$(CP) fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
 
 fsm_setup:
-	$(Q)$(MAKE) -C fsm_gen setup
+	$(Q)$(MAKE) --no-print-dir -C fsm_gen setup
 
 .PHONY: fsm_gen
 fsm_gen:
-	$(Q)$(MAKE) -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(FSM) 
+	$(Q)$(MAKE) --no-print-dir -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(FSM) 
 
 fsm_plot:
-	$(Q)$(MAKE) -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(FSM) 
+	$(Q)$(MAKE) --no-print-dir -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(FSM) 
 
 fsm_flow: fsm_setup fsm_gen fsm_plot
 
@@ -389,7 +389,7 @@ soc_sim:
 
 soc_run:
 	@echo "\n$(ORANGE)GCC compilaiton of hello_world.c ...\n$(RESET)"
-	$(Q)$(MAKE) -C sw
+	$(Q)$(MAKE) --no-print-dir -C sw
 	@echo "\n$(ORANGE)Verilator run ... Press <CTRL>-C\n$(RESET)"
 	build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E sw/build/main.elf
 
@@ -541,7 +541,7 @@ clean_cocotb:
 	$(Q)$(RM) $(TBDIR)/cocotb/*.vcd 
 	$(Q)$(RM) $(TBDIR)/cocotb/sim_build
 	$(Q)$(RM) $(TBDIR)/cocotb/__py*
-	$(Q)$(MAKE) -C $(TBDIR)/cocotb clean
+	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb clean
 clean_syn:
 	$(Q)$(RM) $(SYNDIR)/*
 clean_signoff: 
@@ -554,9 +554,9 @@ clean_pnr:
 	$(Q)$(RM) $(ORS_RESULTS)
 	$(Q)$(RM) $(ORS_OBJECTS)
 clean_fsm:
-	$(Q)$(MAKE) -C fsm_gen clean
+	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean
 clean_fsm_all:
-	$(Q)$(MAKE) -C fsm_gen clean_all
+	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean_all
 clean_fsoc:
 	$(Q)$(RM) build
 clean_soc:
@@ -564,15 +564,15 @@ clean_soc:
 	$(Q)$(RM) build trace_core_00000000.log uart0.log  sim.fst*  sw/*.elf sw/*.o sw/*.csv \
 		     tb/top_verilator.* soc.core xbar_main.hjson $(TOPDIR)
 clean_sw:
-	$(Q)$(MAKE) -C sw clean
+	$(Q)$(MAKE) --no-print-dir -C sw clean
 clean_vendor:
 	$(Q)$(RM) vendor/lowrisc_ip
 	$(Q)$(RM) vendor/lowrisc_ibex
 	$(Q)$(RM) vendor/lowrisc_ip.lock.hjson
 	$(Q)$(RM) vendor/lowrisc_ibex.lock.hjson
 clean_subdir:
-	$(Q)$(MAKE) -C fsm_gen clean
-	$(Q)$(MAKE) -C fsm_gen setup
+	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean
+	$(Q)$(MAKE) --no-print-dir -C fsm_gen setup
 clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
 	$(Q)$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	$(Q)$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1

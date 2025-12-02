@@ -29,7 +29,7 @@ gen: clean_py setup
 .PHONY: plot
 plot:
 	@$(ECHO) "\n$(ORANGE)Plotting .gv file of FSM...\n$(RESET)"
-	@xdot outputs/$(FSM).gv &
+	@xdot outputs/$(FSM).gv 2>/dev/null &
 
 # CLEAN PYTHON SCRIPTS FOLDER
 clean_py:
