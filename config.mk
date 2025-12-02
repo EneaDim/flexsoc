@@ -117,31 +117,25 @@ define add_device
 DEVLIST += $(1)
 BASE_$(1) := $(2)
 SIZE_$(1) := $(3)
+FROM_LR_$(1) := $(4)
 endef
 
-# Needed for the .c driver definition
-MOD_ADD         ?= 0x80040000
-
-IPS             :=
-LOWRISC_IPS     ?=
-
 ifeq ($(HOST),ibex)
-  LOWRISC_IPS += uart pwm
-  $(eval $(call add_device,sram,     0x00100000, 0x00100000))
-  $(eval $(call add_device,uart,     0x80000000, 0x00001000))
-  $(eval $(call add_device,pwm,      0x80020000, 0x00001000))
-  $(eval $(call add_device,spi_host, $(MOD_ADD), 0x00001000))
+  $(eval $(call add_device,sram,     0x00100000, 0x00100000, True))
+  $(eval $(call add_device,uart,     0x80000000, 0x00001000, False))
+  $(eval $(call add_device,pwm,      0x80020000, 0x00001000, False))
+  $(eval $(call add_device,gpio,     0x80040000, 0x00001000, False))
+  $(eval $(call add_device,rv_timer, 0x80060000, 0x00001000, False))
 else ifeq ($(HOST),uart)
-  LOWRISC_IPS +=
-  $(eval $(call add_device,uart,     0x80000000, 0x00001000))
-  $(eval $(call add_device,pwm,      0x80020000, 0x00001000))
-  $(eval $(call add_device,gpio,     0x80040000, 0x00001000))
-  $(eval $(call add_device,rv_timer, 0x80060000, 0x00001000))
+  $(eval $(call add_device,uart,     0x80000000, 0x00001000, False))
+  $(eval $(call add_device,pwm,      0x80020000, 0x00001000, False))
+  $(eval $(call add_device,gpio,     0x80040000, 0x00001000, False))
+  $(eval $(call add_device,rv_timer, 0x80060000, 0x00001000, False))
 else
   $(error Unknown HOST '$(HOST)'. Supported: ibex, uart)
 endif
 
-SOC_MEMORY_MAP := $(foreach d,$(DEVLIST),--device $(d) $(BASE_$(d)) $(SIZE_$(d)))
+SOC_MEMORY_MAP := $(foreach d,$(DEVLIST),--device $(d) $(BASE_$(d)) $(SIZE_$(d)) $(FROM_LR_$(d)))
 
 # =========================
 # Colors

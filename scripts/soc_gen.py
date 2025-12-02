@@ -146,17 +146,23 @@ def generate_module_inst(mod, ports):
 
 def generate_soc_sv(host, device, root_dir, output_file):
     modules_ports = {}
+    modules = []
+    lowrisc_modules = []
     all_modules = []
     for m in device:
-        all_modules.append(m[0])
-    all_modules = all_modules[1:]
-    #all_modules = lowrisc_modules + modules
+        if m[-1] == 'True':
+            lowrisc_modules.append(m[0])
+        else:
+            modules.append(m[0])
+    all_modules = lowrisc_modules[1:] + modules # no sram
     # Parse user-provided modules
     for mod in all_modules:
+        if mod == 'uart':
+            continue
         from_vendor = False
     # TODO: Split modules into local and from vendor
-    #    if mod in lowrisc_modules:
-    #        from_vendor = True
+        if mod in lowrisc_modules:
+            from_vendor = True
         sv_path = find_sv_file(mod, root_dir, from_vendor)
         if not sv_path:
             raise FileNotFoundError(f"SystemVerilog file for module '{mod}' not found.")
@@ -196,6 +202,8 @@ def generate_soc_sv(host, device, root_dir, output_file):
 
         # Tilelink for modules
         for mod in all_modules:
+            if mod == 'uart':
+                continue
             f.write(f"  tlul_pkg::tl_h2d_t tl_{mod}_h2d;\n")
             f.write(f"  tlul_pkg::tl_d2h_t tl_{mod}_d2h;\n")
 
@@ -223,6 +231,8 @@ def generate_soc_sv(host, device, root_dir, output_file):
             f.write(f"    .tl_uart_o (tl_uart_h2d),\n")
             f.write(f"    .tl_uart_i (tl_uart_d2h),\n")
         for mod in all_modules:
+            if mod == 'uart':
+                continue
             f.write(f"    .tl_{mod}_o     (tl_{mod}_h2d),\n")
             f.write(f"    .tl_{mod}_i     (tl_{mod}_d2h),\n")
         f.write(f"\n")
@@ -399,13 +409,13 @@ def generate_soc_sv(host, device, root_dir, output_file):
         f.write(f'  files_rtl:\n')
         f.write(f'    depend:\n')
         f.write(f'      - lowrisc:ibex:ibex_top_tracing\n')
-        #for mod in lowrisc_modules:
-        #    f.write(f'      - lowrisc:ip:{mod}\n')
+        for mod in lowrisc_modules[1:]:
+            f.write(f'      - lowrisc:ip:{mod}\n')
         f.write(f'      - lowrisc:ip:xbar_main\n')
         f.write(f'      - lowrisc:prim:onehot\n')
         f.write(f'      - lowrisc:tlul:adapter_host\n')
         f.write(f'      - lowrisc:tlul:adapter_reg\n')
-        for mod in all_modules:
+        for mod in modules:
             f.write(f'      - prj:ip:{mod}\n')
         f.write(f'    files:\n')
         f.write(f'      - top/soc.sv\n')
@@ -629,17 +639,9 @@ def defaults(host):
     .rdata_i (uart_rdata),
     .err_i   (uart_err),
 
-    .cio_rx_i, .cio_tx_o, .cio_tx_en_o,
-
-    .intr_tx_watermark_o(),
-    .intr_tx_empty_o(),
-    .intr_rx_watermark_o(),
-    .intr_tx_done_o(),
-    .intr_rx_overflow_o(),
-    .intr_rx_frame_err_o(),
-    .intr_rx_break_err_o(),
-    .intr_rx_timeout_o(),
-    .intr_rx_parity_err_o()
+    .cio_rx_i,
+    .cio_tx_o,
+    .cio_tx_en_o
   );
 
 """
@@ -726,8 +728,8 @@ def main():
     parser.add_argument(
         "--device", "-device",
         action='append',
-        nargs=3,
-        metavar=('NAME', 'BASE_ADDR', 'SIZE_BYTE'),
+        nargs=4,
+        metavar=('NAME', 'BASE_ADDR', 'SIZE_BYTE', 'FROM_LR'),
         help='Add a device with NAME, BASE_ADDR, and SIZE_BYTE (all in hex format, e.g., 0x80000000)',
         required=True
     )

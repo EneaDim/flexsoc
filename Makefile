@@ -360,14 +360,16 @@ xbar: xbar_init xbar_build
 xbar_init:
 	$(Q)$(MKDIR) -p $(TOPDIR)
 	@echo "\n$(ORANGE)XBAR hjson init, assuming ibex host ...\n$(RESET)"
-	$(Q)$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --host $(HOST) --output $(TOPDIR)/xbar_main.hjson
+	$(Q)$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --host $(HOST) \
+	--output $(TOPDIR)/xbar_main.hjson
 
 xbar_build:
 	@echo "\n$(ORANGE)XBAR build ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(TOPDIR)/autogen
-	$(Q)$(UTILDIR)/tlgen.py -t $(TOPDIR)/xbar_main.hjson -o $(TOPDIR)/autogen
+	$(Q)$(UTILDIR)/tlgen.py -t $(TOPDIR)/xbar_main.hjson \
+	-o $(TOPDIR)/autogen 2>/dev/null 
 	$(Q)$(RM) -r $(TOPDIR)/autogen/dv
-	mv $(TOPDIR)/autogen/rtl/autogen/* $(TOPDIR)/autogen
+	@mv $(TOPDIR)/autogen/rtl/autogen/* $(TOPDIR)/autogen
 
 ###############################
 ###            SoC          ###
@@ -406,7 +408,7 @@ soc_view:
 soc_pless: ip_load xbar 
 	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
 	$(Q)$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
-	$(Q)$(MAKE) soc_build IPS="pwm gpio rv_timer"
+	$(Q)$(MAKE) soc_build
 	$(Q)$(CP) top/soc.sv $(RTLDIR)/
 	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc
 
@@ -437,8 +439,7 @@ ip_tutorial:
 	$(Q)$(MAKE) sim syn sdf sta sta_violators power view 
 
 soc_tutorial:
-	@echo "\n$(ORANGE)$(TOP) IP load ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load
+	$(Q)$(MAKE) setup
 	@echo "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
 	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
@@ -513,7 +514,7 @@ ip_save: clean_sim clean_rtl
 
 # LOAD IP
 ip_load:
-	@echo "\n$(ORANGE)$(TOP) IP loaded\n$(RESET)"
+	@echo "\n$(ORANGE)$(TOP) Loaded\n$(RESET)"
 	$(Q)$(CP) -r ips/$(TOP)/* .
 
 # DEPENDENCIES

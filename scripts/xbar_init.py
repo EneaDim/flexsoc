@@ -25,8 +25,8 @@ def parse_args():
     parser.add_argument(
         '--device',
         action='append',
-        nargs=3,
-        metavar=('NAME', 'BASE_ADDR', 'SIZE_BYTE'),
+        nargs=4,
+        metavar=('NAME', 'BASE_ADDR', 'SIZE_BYTE', 'FROM_LR'),
         help='Add a device with NAME, BASE_ADDR, and SIZE_BYTE (all in hex format, e.g., 0x80000000)',
         required=True
     )
@@ -73,7 +73,7 @@ def build_xbar_config(host, devices):
         }
     }
 
-    for name, base_addr, size_byte in devices:
+    for name, base_addr, size_byte, from_lr in devices:
         device_node = {
             "name": name,
             "type": "device",

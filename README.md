@@ -249,7 +249,7 @@ Then `make clean_all` to completely clean the environment and restart from scrat
 
 It loads a custom Processor-Less SoC, it uses the UART to configure all other peripherals. Up to now it has: UART, PWM, GPIOs and TIMERs.
 
-- `make soc_pless TOP=soc`
+- `make soc_pless TOP=tiny-soc`
 1. Load soc from ips folder.
 2. Generate xbar
 3. Generate SoC with all IPs under rtl folder
