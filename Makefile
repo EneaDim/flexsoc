@@ -373,13 +373,15 @@ xbar_build:
 ###            SoC          ###
 ###############################
 
-soc-uart-host: xbar soc_build
+soc_flow: xbar soc_build
+	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
 	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
 	$(Q)$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
 	$(Q)$(CP) top/soc.sv $(RTLDIR)/
+	$(Q)$(CP) ips/soc/rtl/uart*.sv $(RTLDIR)/
 	
 
-soc_flow: soc_build driver soc_sim soc_run 
+soc_flow_ibex: soc_build soc_sim soc_run 
 
 soc_build:
 	@echo "\n$(ORANGE)SoC files building ...\n$(RESET)"

@@ -683,18 +683,18 @@ def main(argv=None) -> int:
             safe_write_file(outdir / f"include_{top}_tb.sv", include_txt, overwrite=force)
 
         if (not simple_mode) and reg_pkg and itf == "tlul":
-            safe_write_file(outdir / "tlul_if.sv",    _emit_tlul_if(),    overwrite=force)
-            safe_write_file(outdir / "tlul_utils.sv", _emit_tlul_utils(), overwrite=force)
+            safe_write_file(outdir / "tlul_if.sv",    _emit_tlul_if(),    overwrite=True)
+            safe_write_file(outdir / "tlul_utils.sv", _emit_tlul_utils(), overwrite=True)
         if (not simple_mode) and reg_pkg and itf == "reg_iface":
-            safe_write_file(outdir / "reg_if.sv",     _emit_reg_if(top),     overwrite=force)
-            safe_write_file(outdir / "reg_utils.sv",  _emit_reg_utils(top),  overwrite=force)    # Emit bus helper files when full TB is enabled
+            safe_write_file(outdir / "reg_if.sv",     _emit_reg_if(top),     overwrite=True)
+            safe_write_file(outdir / "reg_utils.sv",  _emit_reg_utils(top),  overwrite=True)    # Emit bus helper files when full TB is enabled
     if (not simple_mode) and reg_pkg:
         if itf == "tlul":
-            safe_write_file(outdir / "tlul_if.sv",    _emit_tlul_if(),    overwrite=force)
-            safe_write_file(outdir / "tlul_utils.sv", _emit_tlul_utils(), overwrite=force)
+            safe_write_file(outdir / "tlul_if.sv",    _emit_tlul_if(),    overwrite=True)
+            safe_write_file(outdir / "tlul_utils.sv", _emit_tlul_utils(), overwrite=True)
         elif itf == "reg_iface":
-            safe_write_file(outdir / "reg_if.sv",     _emit_reg_if(top),     overwrite=force)
-            safe_write_file(outdir / "reg_utils.sv",  _emit_reg_utils(top),  overwrite=force)
+            safe_write_file(outdir / "reg_if.sv",     _emit_reg_if(top),     overwrite=True)
+            safe_write_file(outdir / "reg_utils.sv",  _emit_reg_utils(top),  overwrite=True)
 
 
 
