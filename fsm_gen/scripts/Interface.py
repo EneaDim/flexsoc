@@ -14,16 +14,13 @@ from scipy.optimize import linear_sum_assignment
 
 @dataclass
 class Transition:
-    """Transizione di FSM: stato sorgente, destinazione, condizione logica."""
+    """Transition of FSM: source, destination and condition."""
     src: str
     dst: str
-    cond: str   # es: "cmd_valid_i & ~flush_req_i" o "1" per incondizionata
+    cond: str
 
 
 class Interface:
-    # ------------------------------------------------------------------ #
-    # Costruttore
-    # ------------------------------------------------------------------ #
     def __init__(self, name: str) -> None:
         """!
         @brief Construct a new Interface.
@@ -31,33 +28,21 @@ class Interface:
         @param name Human-readable name/label for this interface instance.
         """
         self.name: str = name
-
-        # Nome base della FSM (nome file)
         self.fsm_name: str | None = None
-
-        # --- Nuove strutture dati principali ---
-
-        # Ingress (input) signals usati nelle condizioni delle transizioni
+        # Signals used in each transition
         self._signals: Set[str] = set()
-
-        # Ordine degli stati (così come nel CSV)
-        self.state_order: List[str] = []
-
-        # Nomi dei segnali di uscita (dal CSV)
+        # States
+        self.states: List[str] = []
+        # Output names
         self.output_names: List[str] = []
-
-        # Mappa stato -> {out_name: out_value}
+        # Output values in each state
         self.outputs_by_state: Dict[str, Dict[str, str]] = {}
-
-        # Mappa sorgente -> lista di transizioni da quello stato
+        # Dict of transitions: src, sdt, cond
         self.transitions_from: Dict[str, List[Transition]] = defaultdict(list)
-
-        # Mappa stato -> insieme di stati raggiungibili (next states)
+        # Map src -> next_states 
         self.graph: Dict[str, Set[str]] = defaultdict(set)
-
-        # Righe di test custom per la testbench (se le usi altrove)
+        # TB lines generated
         self.functb: List[str] = []
-
         # Derived paths (based on repository layout)
         root_dir = Path(__file__).resolve().parents[1]
         self.inputs_dir: Path = root_dir / "inputs"
@@ -71,11 +56,6 @@ class Interface:
     def signals(self) -> List[str]:
         """Segnali di ingresso ordinati (solo lettura)."""
         return sorted(self._signals)
-
-    @property
-    def states(self) -> List[str]:
-        """Lista di stati nell'ordine definito dal CSV."""
-        return list(self.state_order)
 
     @property
     def transitions(self) -> List[Transition]:
@@ -109,7 +89,7 @@ class Interface:
 
         # Pulisci strutture dati
         self._signals.clear()
-        self.state_order.clear()
+        self.states.clear()
         self.output_names.clear()
         self.outputs_by_state.clear()
         self.transitions_from.clear()
@@ -249,7 +229,7 @@ class Interface:
                     f"{len(self.output_names)}"
                 )
 
-            self.state_order.append(state_name)
+            self.states.append(state_name)
             self.outputs_by_state[state_name] = {
                 name: val for name, val in zip(self.output_names, out_vals)
             }
@@ -729,6 +709,7 @@ class Interface:
               ma destinazione diversa (usate per "no trigger").
         """
         t_list = self.transitions_from.get(actual_state, [])
+        print
         if not t_list:
             raise RuntimeError(f"No outgoing transitions from state '{actual_state}'")
 
@@ -810,20 +791,19 @@ class Interface:
         self.functb.append(mystr)
 
     def eulerian_tour(self, adj, start):
-        local = {u: list(vs) for u, vs in adj.items()}  # copia mutabile
-        stack = [start]
-        circuit = []
-
+        local = {u: list(vs) for u, vs in adj.items()} # Mutable copy
+        stack = [start] # current path
+        circuit = []    # result path
         while stack:
-            v = stack[-1]
-            if local[v]:
-                u = local[v].pop()   # consuma un arco v->u
-                stack.append(u)
-            else:
-                circuit.append(stack.pop())
+            v = stack[-1]                   # actual node
+            if local[v]:                    # if arcs not consumed
+                u = local[v].pop()          # take one arc that goes to node u
+                stack.append(u)             # arrival node
+            else:                           # if no more arcs from v node
+                circuit.append(stack.pop()) # append the path saved in stack
 
         circuit.reverse()
-        return circuit    # lista di stati
+        return circuit
 
     def reconstruct_path(self, src, dst, parent):
         """Ricostruisce il cammino minimo src→dst usando il dizionario parent della BFS da src."""
@@ -849,13 +829,12 @@ class Interface:
         dist[src] = 0
         q = deque([src])
         while q:
-            #print(q)
             u = q.popleft()
             for v in self.graph[u]:
-                if dist[v] == float("inf"):   # non ancora visitato
+                if dist[v] == float("inf"):
                     dist[v] = dist[u] + 1
                     parent[v] = u
-                    q.append(v)
+                    q.append(v) # push right
         return dist, parent
     
     def chineese_postman(self):
@@ -868,22 +847,17 @@ class Interface:
         outdeg = {v: len(self.graph.get(v, ())) for v in self.states}
         # indeg
         indeg = defaultdict(int)
-        for u, targets in self.graph.items():   # per ogni stato sorgente u
-            for v in targets:              # per ogni stato di arrivo v
-                indeg[v] += 1              # c'è un arco u -> v, quindi indeg(v)++
+        for u, targets in self.graph.items():
+            for v in targets:
+                indeg[v] += 1
         # Balance
         b = {v: indeg[v] - outdeg[v] for v in self.states}
-        #for v in self.states:
-        #    print(f"{v:10s} indeg={indeg[v]}  outdeg={outdeg[v]}  b={b[v]}")        
         # Understand the path to computr bfs
         P = [v for v in self.states if b[v] > 0]
         N = [v for v in self.states if b[v] < 0]
-        #print(P)
-        #print(N)
-        # matrice dei costi: distanza minimo cammino da p a n
+        # cost definition for each transition
         cost = {}
         parents = {}
-         
         for p in P:
             dist, parent = self.bfs(p)   # BFS da p
             parents[p] = parent
@@ -895,8 +869,9 @@ class Interface:
         negatives = {}
         for s in N:
             negatives[s] = b[s]
-        # 3) Esplodi i nodi positivi in "unità"
-        pos_units = []  # es: [("IDLE",0), ("IDLE",1), ("IDLE",2), ("WAIT_CMD",0)]
+        # define src and dest for those new paths
+        # es: ['IDLE', 'IDLE', 'IDLE', 'WAIT_CMD'] ['EXECUTE', 'WRITEBACK', 'FLUSH', 'ERROR']:W
+        pos_units = []
         for p, cap in positives.items():
             for _ in range(cap):
                 pos_units.append(p)
@@ -904,51 +879,37 @@ class Interface:
         for n, cap in negatives.items():
             for _ in range(-cap):
                 neg_units.append(n)
-        
-        # Controllo: dobbiamo avere tante unità quanti negativi
+        # check len src == len dst
         assert len(pos_units) == len(negatives)
         
-        # 4) Costruiamo la matrice dei costi (righe = pos_units, colonne = negatives)
+        # cost matrix definition
         cost_matrix = np.zeros((len(pos_units), len(negatives)), dtype=int)
-        
         for i, p in enumerate(pos_units):
             for j, n in enumerate(negatives):
                 cost_matrix[i, j] = cost[(p, n)]
         
-        # 5) Risolviamo il problema di assegnamento (Hungarian)
+        # Hungarian algorith for min path calculation
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
         
-       # 6) Costruisci la lista di assegnamenti (p -> n)
+        # Define assegnments (p -> n)
         assignments = []
         for i, j in zip(row_ind, col_ind):
             p = pos_units[i]      # nome del nodo positivo
             n = neg_units[j]      # nome del nodo negativo
             assignments.append((p, n))
-        #print(assignments)
-        
-        # Debug
-        print("Assegnamenti minimi:")
-        total_cost = 0
-        for p, n in assignments:
-            c = cost[(p, n)]
-            total_cost += c
-            print(f"{p} -> {n}, costo {c}") 
-       # 1. inizializza il multigrafo con 1 per ogni arco originale
+        # Define the edges from starting FSM
         edges_mult = defaultdict(int)
-        
         for u in self.states:
             for v in self.graph[u]:
                 edges_mult[(u, v)] += 1
-        
-        # 2. per ogni assegnamento p->n, ricostruisci path e duplica archi
+        # Recostruct the whole path and add duplicated edges
         for p, n in assignments:
             parent = parents[p]
             path = self.reconstruct_path(p, n, parent)
-            # duplica tutti gli archi del path
             for u, v in zip(path, path[1:]):
                 edges_mult[(u, v)] += 1 
+        # Re-elaborate datastruct to have key: start state -> v: list of next states
         multi_adj = defaultdict(list)
-
         for (u, v), k in edges_mult.items():
             multi_adj[u].extend([v] * k)
         
@@ -976,7 +937,7 @@ class Interface:
         # Stato iniziale: il primo in self.states (stato di reset)
         actual_state = self.states[0]
         iterations = 0
-        #self.chineese_postman()
+        self.chineese_postman()
 
         while not self.all_arcs_taken:
             idx_state = self.states.index(actual_state)  # se ti serve per debug
