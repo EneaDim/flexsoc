@@ -16,7 +16,7 @@ CP              := cp
 RM              := rm -rf
 FIND            := find
 CLEAR           := clear
-
+MAKEFLAGS       += --no-print-dir
 # =========================
 # Project identifiers
 # =========================

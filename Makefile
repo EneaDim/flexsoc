@@ -289,10 +289,13 @@ sdf: setup_signoff
 #################################################
 
 pnr: setup_pnr 
-	$(Q)$(MAKE) --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk
+	@echo "\n$(ORANGE)Doing Place&Route...\n$(RESET)"
+	$(Q)$(MAKE) --file=$(ORS)/Makefile --no-print-dir \
+	DESIGN_CONFIG=$(ORSDIR)/config.mk > $(LOGDIR)/$(TOP)_pnr.log 2>/dev/null 
 
 pnr_gui:
-	$(Q)$(MAKE) gui_final --file=$(ORS)/Makefile DESIGN_CONFIG=$(ORSDIR)/config.mk &
+	$(Q)$(MAKE) gui_final --file=$(ORS)/Makefile --no-print-dir \
+	DESIGN_CONFIG=$(ORSDIR)/config.mk 2>/dev/null &
 
 ######################
 # TESTBENCH HANDLING #
@@ -424,7 +427,7 @@ full_tutorial:
 	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui TOP=test
 
 fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
-	$(Q)$(MAKE) ip_flow_noreg plot_postsyn TOP=$(FSM)
+	$(Q)$(MAKE) ip_flow_noreg TOP=$(FSM)
 
 ip_tutorial:
 	$(Q)$(MAKE) ip_load

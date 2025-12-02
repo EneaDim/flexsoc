@@ -196,7 +196,7 @@ def main():
     """
     out = Path(args.outdir + '/config.mk')
     out.write_text(dedent(mk), encoding="utf-8")
-    print(f"Wrote {out.resolve()}")
+    #print(f"Wrote {out.resolve()}")
 
 if __name__ == "__main__":
     raise SystemExit(main())
