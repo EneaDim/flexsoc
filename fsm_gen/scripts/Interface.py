@@ -904,7 +904,7 @@ class Interface:
             for _ in range(-cap):
                 neg_units.append(n)
         # check len src == len dst
-        assert len(pos_units) == len(negatives)
+        assert len(pos_units) == len(neg_units)
         
         # cost matrix definition
         cost_matrix = np.zeros((len(pos_units), len(negatives)), dtype=int)
