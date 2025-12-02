@@ -862,12 +862,11 @@ class Interface:
                     q.append(v) # push right
         return dist, parent
     
-    def chineese_postman(self):
+    def chineese_postman(self, start_state):
         """TODO: Docstring for chineese_postman.
         :returns: TODO
 
         """
-        #print(self.graph)
         # outdeg
         outdeg = {v: len(self.graph.get(v, ())) for v in self.states}
         # indeg
@@ -919,8 +918,8 @@ class Interface:
         # Define assegnments (p -> n)
         assignments = []
         for i, j in zip(row_ind, col_ind):
-            p = pos_units[i]      # nome del nodo positivo
-            n = neg_units[j]      # nome del nodo negativo
+            p = pos_units[i]
+            n = neg_units[j]
             assignments.append((p, n))
         # Define the edges from starting FSM
         edges_mult = defaultdict(int)
@@ -942,43 +941,38 @@ class Interface:
         for s in self.states:
             multi_adj.setdefault(s, [])
 
-        self.tour = self.eulerian_tour(multi_adj, start="RESET")  # o lo stato iniziale che vuoi
-        print("Chinese Postman tour:")
+        self.tour = self.eulerian_tour(multi_adj, start=start_state)  # o lo stato iniziale che vuoi
+        print("\033[93mChinese Postman tour:")
         print(" -> ".join(self.tour))
+        print(f"Number of iterations: {len(self.tour)}\033[0m")
         
+    def get_indexes(self, actual_state, next_state):
+        idxs = []
+        for i, t in enumerate(self.transitions):
+            if t.src == actual_state and t.dst == next_state:
+                idx = i
+            else:
+                if t.src == actual_state:
+                    idxs.append(i)
+        return idx, idxs
 
     def states_walkthrough(self) -> None:
         """
         Genera una sequenza di stimoli che prova a percorrere tutti gli archi
         (transizioni) della FSM almeno una volta.
         """
-        self.functb = []
-        self.all_arcs_taken = False
-
-        # Un bit per ogni transizione globale
-        num_arcs = len(self.transitions)
-        self.arcs = [0] * num_arcs
 
         # Stato iniziale: il primo in self.states (stato di reset)
         actual_state = self.states[0]
-        iterations = 0
-        self.chineese_postman()
-
-        while not self.all_arcs_taken:
-            idx_state = self.states.index(actual_state)  # se ti serve per debug
-            # Scegli un arco in uscita dallo stato corrente
-            next_state, idx, idxs = self.choose_edge(actual_state)
-            # Calcola configurazioni di input per trigger/no-trigger
+        # Apply algorithm
+        self.chineese_postman(actual_state)
+        # Go through the whole tour
+        for i in range(0, len(self.tour)-1):
+            actual_state = self.tour[i]
+            next_state = self.tour[i+1]
+            idx, idxs = self.get_indexes(actual_state, next_state)
             input_setting_trig, input_setting_notrig = self.set_inputs(idx, idxs)
             input_setting = self.merge_input_setting(input_setting_trig, input_setting_notrig)
             # Appendi al testbench
             self.append_func_tb(input_setting, idx)
-
-            # Aggiorna stato corrente
-            actual_state = next_state
-            iterations += 1
-
-            if self.arcs == [1] * num_arcs:
-                self.all_arcs_taken = True
-                print(f"Number of iterations: {iterations}")
 
