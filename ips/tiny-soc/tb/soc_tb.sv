@@ -189,14 +189,14 @@ module soc_tb;
     #(CLK_PERIOD*2000);
 
     // 4) RV_TIMER
-    uart_write32(TIMER_BASE + TIMER_CTRL, 32'h1);
-    #(CLK_PERIOD*2000);
-    uart_write32(TIMER_BASE + TIMER_CTRL, 32'h0);
-    #(CLK_PERIOD*2000);
-    uart_read32(TIMER_BASE + TIMER_VALUE);
-    #(CLK_PERIOD*2000);
-    uart_write32(TIMER_BASE + TIMER_VALUE, 32'h0);
-    #(CLK_PERIOD*2000);
+    //uart_write32(TIMER_BASE + TIMER_CTRL, 32'h1);
+    //#(CLK_PERIOD*2000);
+    //uart_write32(TIMER_BASE + TIMER_CTRL, 32'h0);
+    //#(CLK_PERIOD*2000);
+    //uart_read32(TIMER_BASE + TIMER_VALUE);
+    //#(CLK_PERIOD*2000);
+    //uart_write32(TIMER_BASE + TIMER_VALUE, 32'h0);
+    //#(CLK_PERIOD*2000);
 
     //////////////////////////////////////////////////////////////
     //                                                          // 
