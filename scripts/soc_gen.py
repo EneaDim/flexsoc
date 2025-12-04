@@ -157,7 +157,7 @@ def generate_soc_sv(host, device, root_dir, output_file):
     all_modules = lowrisc_modules[1:] + modules # no sram
     # Parse user-provided modules
     for mod in all_modules:
-        if mod == 'uart':
+        if mod == 'uart' and host == 'uart':
             continue
         from_vendor = False
     # TODO: Split modules into local and from vendor
@@ -202,7 +202,7 @@ def generate_soc_sv(host, device, root_dir, output_file):
 
         # Tilelink for modules
         for mod in all_modules:
-            if mod == 'uart':
+            if mod == 'uart' and host == 'uart':
                 continue
             f.write(f"  tlul_pkg::tl_h2d_t tl_{mod}_h2d;\n")
             f.write(f"  tlul_pkg::tl_d2h_t tl_{mod}_d2h;\n")
@@ -231,7 +231,7 @@ def generate_soc_sv(host, device, root_dir, output_file):
             f.write(f"    .tl_uart_o (tl_uart_h2d),\n")
             f.write(f"    .tl_uart_i (tl_uart_d2h),\n")
         for mod in all_modules:
-            if mod == 'uart':
+            if mod == 'uart' and host == 'uart':
                 continue
             f.write(f"    .tl_{mod}_o     (tl_{mod}_h2d),\n")
             f.write(f"    .tl_{mod}_i     (tl_{mod}_d2h),\n")
@@ -565,7 +565,7 @@ def defaults(host):
     .scramble_req_o       ( ),
 
     .debug_req_i         ('0),
-    .crash_o        ( ),
+    .crash_dump_o        ( ),
     .double_fault_seen_o ( ),
 
     .fetch_enable_i         ('1),

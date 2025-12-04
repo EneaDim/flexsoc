@@ -355,9 +355,9 @@ def _render_tb(top: str,
     lines.append("\n  // Inputs")
     for name, w in ports_in:
         if w == 1 or w == "1":
-            lines.append(f"  reg {name};")
+            lines.append(f"  logic {name};")
         elif isinstance(w, str) and w.startswith("["):
-            lines.append(f"  reg {w} {name};")
+            lines.append(f"  logic {w} {name};")
         else:
             # typedef or package type
             if itf == "tlul":
@@ -369,9 +369,9 @@ def _render_tb(top: str,
     lines.append("\n  // Outputs")
     for name, w in ports_out:
         if w == 1 or w == "1":
-            lines.append(f"  wire {name};")
+            lines.append(f"  logic {name};")
         elif isinstance(w, str) and w.startswith("["):
-            lines.append(f"  wire {w} {name};")
+            lines.append(f"  logic {w} {name};")
         else:
             if itf == "tlul":
                 lines.append(f"  {w} {name};")
@@ -493,6 +493,7 @@ def _render_tb(top: str,
 
 def _render_simple_tb(top: str,
                       clk_period_ns: int,
+                      device: list,
                       simdir: str,
                       syndir: str,
                       compiler: str,
@@ -528,9 +529,9 @@ def _render_simple_tb(top: str,
     lines.append("\n  // Inputs")
     for name, w in ports_in:
         if w == 1 or w == "1":
-            lines.append(f"  reg {name};")
+            lines.append(f"  logic {name};")
         elif isinstance(w, str) and w.startswith('['):
-            lines.append(f"  reg {w} {name};")
+            lines.append(f"  logic {w} {name};")
         else:
             lines.append(f"  logic {name};")
 
@@ -538,9 +539,9 @@ def _render_simple_tb(top: str,
     lines.append("\n  // Outputs")
     for name, w in ports_out:
         if w == 1 or w == "1":
-            lines.append(f"  wire {name};")
+            lines.append(f"  logic {name};")
         elif isinstance(w, str) and w.startswith('['):
-            lines.append(f"  wire {w} {name};")
+            lines.append(f"  logic {w} {name};")
         else:
             lines.append(f"  logic {name};")
 
@@ -572,6 +573,64 @@ def _render_simple_tb(top: str,
     lines.append("    `endif")
     lines.append(f"    $dumpvars(0, {top}_tb);")
     lines.append("  end\n")
+    # UART HOST TASK
+    if top == 'soc':
+        lines.append("  // UART HOST TASKS")
+        lines.append("  task automatic uart_send_byte(input logic [7:0] b);")
+        lines.append("    begin")
+        lines.append("      // Start bit")
+        lines.append("      cio_rx_i = 1'b0; ")
+        lines.append("      #1085; // Wait for half a bit period")
+        lines.append("      // Send each bit of the pattern")
+        lines.append("      for (int i = 0; i < 8; i++) begin")
+        lines.append("        cio_rx_i = b[i]; // Send each bit of the pattern")
+        lines.append("        #1085; // Wait for half a bit period")
+        lines.append("      end")
+        lines.append("      // Stop bit")
+        lines.append("      cio_rx_i = 1'b1; ")
+        lines.append("      #1085; // Wait for half a bit period")
+        lines.append("    end")
+        lines.append("  endtask")
+        lines.append("  ")
+        lines.append("  // Frame helper: manda un 32b LSB-first")
+        lines.append("  task automatic uart_send_word32(input logic [31:0] w);")
+        lines.append("    uart_send_byte(w[7:0]);")
+        lines.append("    uart_send_byte(w[15:8]);")
+        lines.append("    uart_send_byte(w[23:16]);")
+        lines.append("    uart_send_byte(w[31:24]);")
+        lines.append("  endtask")
+        lines.append("  ")
+        lines.append("  // WRITE: A5 | 01 | 01 | {0000,BE} | 00 | ADDR(4) | DATA(4)")
+        lines.append("  task automatic uart_write32(input logic [31:0] addr, input logic [31:0] data, input logic [3:0] be = 4'hF);")
+        lines.append("    begin")
+        lines.append("      uart_send_byte(8'hA5);      // SOF")
+        lines.append("      uart_send_byte(8'h01);      // OP=WRITE")
+        lines.append("      uart_send_byte({4'h0,be});  // BE")
+        lines.append("      uart_send_word32(addr);     // ADDR (LSB-first)")
+        lines.append("      uart_send_word32(data);     // DATA (LSB-first)")
+        lines.append("    end")
+        lines.append("  endtask")
+        lines.append("  ")
+        lines.append("  // READ: A5 | 01 | 00 | {0000,1111} | 00 | ADDR(4)")
+        lines.append("  task automatic uart_read32(input logic [31:0] addr);")
+        lines.append("    begin")
+        lines.append("      uart_send_byte(8'hA5);       // SOF")
+        lines.append("      uart_send_byte(8'h00);       // OP=READ")
+        lines.append("      uart_send_byte({4'h0,4'hF}); // BE")
+        lines.append("      uart_send_word32(addr);      // ADDR (LSB-first)")
+        lines.append("    end")
+        lines.append("  endtask")
+        lines.append("  ")
+        lines.append("  // =========")
+        lines.append("  // Addresses")
+        lines.append("  // =========")
+        for d in device:
+            lines.append(f"  localparam logic [31:0] {d[0].upper()}_BASE   = 32'h{d[1][2:]};")
+        lines.append("")
+        lines.append("  // Offsets")
+        for d in device:
+            lines.append(f"  localparam logic [31:0] {d[0].upper()}_CTRL_OFF = 32'h00000000;")
+            lines.append("  /////////////////////////////////////////////////////////////////")
 
     # Simple reset pulse(s)
     lines.append("  initial begin")
@@ -587,6 +646,11 @@ def _render_simple_tb(top: str,
             lines.append(f"    {r} = 1'b1;")
     else:
         lines.append("    #(CLK_PERIOD*2);")
+    if top == 'soc':
+        lines.append("    uart_write32(UART_BASE + UART_CTRL_OFF, 32'h4B7F_0001); // For 100MHz fclk")
+        lines.append("    #(CLK_PERIOD*2000);")
+        lines.append("    uart_read32(UART_BASE + UART_CTRL_OFF);")
+        lines.append("    #(CLK_PERIOD*2000);    ")
     lines.append("    #(CLK_PERIOD*10);")
     lines.append("    $finish;")
     lines.append("  end")
@@ -609,6 +673,10 @@ def parse_args(argv=None):
                    help="RTL directory containing <top>.sv")
     p.add_argument("-simdir","--simdir","--sim-dir", dest="simdir", required=True, 
                    help="Simulation output dir for VCD")
+    p.add_argument("-device", "--device", action='append', nargs=4, required=True,
+                   metavar=('NAME', 'BASE_ADDR', 'SIZE_BYTE', 'FROM_LR'),
+                   help='Add a device with NAME, BASE_ADDR, and SIZE_BYTE (all in hex format, e.g., 0x80000000)')
+
     p.add_argument("-syndir","--syndir","--syn-dir", dest="syndir", required=True, 
                    help="Synthesis dir for post-syn sim")
     p.add_argument("-prim","--prim", nargs="+", required=True, 
@@ -633,6 +701,7 @@ def main(argv=None) -> int:
     top      = args.top
     rtldir   = args.rtldir
     simdir   = args.simdir
+    device   = args.device
     syndir   = args.syndir
     prims    = args.prim
     clk_ns   = args.clk
@@ -699,7 +768,7 @@ def main(argv=None) -> int:
 
 
     # Emit the testbench
-    tb_txt = _render_simple_tb(top, clk_ns, simdir, syndir, comp, sig) if simple_mode else _render_tb(top, clk_ns, simdir, syndir, itf, comp, vsv, sig)
+    tb_txt = _render_simple_tb(top, clk_ns, device, simdir, syndir, comp, sig) if simple_mode else _render_tb(top, clk_ns, simdir, syndir, itf, comp, vsv, sig)
     safe_write_file(outdir / f"{top}_tb.sv", tb_txt, overwrite=force)
 
     #print(colorize(f"Generated: {outdir}/include_{top}_tb.sv"))
