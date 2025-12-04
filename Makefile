@@ -84,11 +84,11 @@ lint_sv: flist
 	> $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
 # SETUP SV TESTBENCH FILE
-setup_tb:
+setup_tb: flist
 	@echo "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
 	$(Q)$(PYTHON) scripts/setup_tb.py $(OVERWRITE) -top $(TOP) -rtldir $(RTLDIR) \
-	-simdir $(SIMDIR) -syndir $(SYNDIR) -prim $(PRIM) -clk $(CLK_PERIOD) \
-	-comp $(COMPILER) -itf $(REG_ITF) -vsv $(VSV) -o $(TBDIR)
+	$(SOC_MEMORY_MAP) -simdir $(SIMDIR) -syndir $(SYNDIR) -prim $(PRIM) \
+	-clk $(CLK_PERIOD) -comp $(COMPILER) -itf $(REG_ITF) -vsv $(VSV) -o $(TBDIR)
 
 #########################################################
 # COMPILE THE TESTBENCH THAT INCLUDES ALL THE RTL FILES #
@@ -359,7 +359,7 @@ xbar: xbar_init xbar_build
 
 xbar_init:
 	$(Q)$(MKDIR) -p $(TOPDIR)
-	@echo "\n$(ORANGE)XBAR hjson init, assuming ibex host ...\n$(RESET)"
+	@echo "\n$(ORANGE)XBAR init ...\n$(RESET)"
 	$(Q)$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --host $(HOST) \
 	--output $(TOPDIR)/xbar_main.hjson
 
@@ -367,28 +367,31 @@ xbar_build:
 	@echo "\n$(ORANGE)XBAR build ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(TOPDIR)/autogen
 	$(Q)$(UTILDIR)/tlgen.py -t $(TOPDIR)/xbar_main.hjson \
-	-o $(TOPDIR)/autogen 2>/dev/null 
+	-o $(TOPDIR)/autogen 2>/dev/null
 	$(Q)$(RM) -r $(TOPDIR)/autogen/dv
 	@mv $(TOPDIR)/autogen/rtl/autogen/* $(TOPDIR)/autogen
+	@cp $(TOPDIR)/autogen/*.sv $(RTLDIR)/
 
 ###############################
 ###            SoC          ###
 ###############################
 
-soc_flow: xbar soc_build
+soc_flow: xbar soc
 	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
 	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
 	$(Q)$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
 	$(Q)$(CP) top/soc.sv $(RTLDIR)/
-	$(Q)$(CP) ips/soc/rtl/uart*.sv $(RTLDIR)/
+	$(Q)$(CP) ips/tiny-soc/rtl/uart*.sv $(RTLDIR)/
 	
 
-soc_flow_ibex: soc_build soc_sim soc_run 
+soc_flow_ibex: soc soc_sim soc_run 
 
-soc_build:
+soc:
 	@echo "\n$(ORANGE)SoC files building ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(TOPDIR)
 	$(Q)$(PYTHON) scripts/soc_gen.py -host $(HOST) $(SOC_MEMORY_MAP) -o $(TOPDIR)/soc.sv
+	$(Q)$(CP) top/soc.sv $(RTLDIR)/
+	$(Q)$(CP) ips/tiny-soc/rtl/uart*.sv $(RTLDIR)/
 
 soc_sim:
 	@echo "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
@@ -405,11 +408,8 @@ soc_view:
 	$(Q)$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(Q)$(TOP)_tb.gtkw&
 
 # SoC Processor-Less
-soc_pless: ip_load xbar 
-	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
-	$(Q)$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
-	$(Q)$(MAKE) soc_build
-	$(Q)$(CP) top/soc.sv $(RTLDIR)/
+soc_pless:
+	$(Q)$(MAKE) ip_load TOP=tiny-soc
 	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc
 
 copy-uart-host:
@@ -439,14 +439,14 @@ ip_tutorial:
 	$(Q)$(MAKE) sim syn sdf sta sta_violators power view 
 
 soc_tutorial:
-	$(Q)$(MAKE) setup
+	$(Q)$(MAKE) ip_load TOP=spi_host 
 	@echo "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
 	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
 	@echo "\n$(ORANGE)Generate xbar ...\n$(RESET)"
 	$(Q)$(MAKE) xbar HOST=ibex
-	$(Q)$(MAKE) soc_flow HOST=ibex
+	$(Q)$(MAKE) soc_flow_ibex HOST=ibex
 
 # SETUP COCOTB
 setup_cocotb:
