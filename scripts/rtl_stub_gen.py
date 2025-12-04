@@ -93,15 +93,6 @@ def _sanitize_id(s: str) -> str:
         out.insert(0, "_")
     return "".join(out)
 
-
-def _fifo_depth_or_default(hj: Hjson, default: str = "3") -> str:
-    r""" \brief Find param named 'FifoDepth' (case-insensitive) and return its default value as string. """
-    for p in hj.get("param_list", []) or []:
-        if str(p.get("name", "")).lower() == "fifodepth":
-            return str(p.get("default", default))
-    return default
-
-
 # === code generation ==========================================================
 
 def render_core(hj: Hjson) -> str:
@@ -116,7 +107,6 @@ def render_core(hj: Hjson) -> str:
     reg_pkg = f"{module}_reg_pkg"
     reg2hw_struct = f"{module}_reg2hw_t"
     hw2reg_struct = f"{module}_hw2reg_t"
-    fifo_param = _fifo_depth_or_default(hj)
 
     signal_defs: List[str] = []
     ctrl2reg_assign: List[str] = []
@@ -184,9 +174,7 @@ def render_core(hj: Hjson) -> str:
     lines.append(f"// -----------------------------------------------------------------------------")
     lines.append(f"module {module}_core")
     lines.append(f"  import {reg_pkg}::*;")
-    lines.append(f"#(")
-    lines.append(f"  parameter int unsigned FifoDepth = {fifo_param}")
-    lines.append(f")(")
+    lines.append(f"(")
     lines.append(f"  input        clk_i,")
     lines.append(f"  input        rst_ni,")
     lines.append(f"  input  {reg2hw_struct} reg2hw,")
@@ -240,7 +228,6 @@ def render_wrapper(hj: Hjson, itf: str) -> str:
     """
     module = _sanitize_id(str(hj["name"]))
     reg_pkg = f"{module}_reg_pkg"
-    fifo_param = _fifo_depth_or_default(hj)
 
     if itf.lower() not in ("tlul", "reg"):
         raise ValueError(f"Unsupported --itf '{itf}'. Supported: tlul, reg")
@@ -266,11 +253,7 @@ def render_wrapper(hj: Hjson, itf: str) -> str:
     lines.append(f"// -----------------------------------------------------------------------------")
     lines.append(f"module {module}")
     lines.append(f"  import {reg_pkg}::*;")
-    lines.append(f"#(")
-    if aw_param:
-        lines.append(aw_param.rstrip())
-    lines.append(f"  parameter int unsigned FifoDepth = {fifo_param}")
-    lines.append(f")(")
+    lines.append(f"(")
     lines.append(f"  // Clocks & Reset")
     lines.append(f"  input  clk_i,")
     lines.append(f"  input  rst_ni,")
@@ -299,9 +282,7 @@ def render_wrapper(hj: Hjson, itf: str) -> str:
     lines.append(f"  );")
     lines.append("")
     lines.append(f"  // Core")
-    lines.append(f"  {module}_core #(")
-    lines.append(f"    .FifoDepth(FifoDepth)")
-    lines.append(f"  ) u_{module}_core (")
+    lines.append(f"  {module}_core u_{module}_core (")
     lines.append(f"    .clk_i(clk_i),")
     lines.append(f"    .rst_ni(rst_ni),")
     lines.append(f"    .reg2hw(reg2hw),")
