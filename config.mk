@@ -21,7 +21,7 @@ MAKEFLAGS       += --no-print-dir
 # Project identifiers
 # =========================
 PRJ             ?= prj
-TOP             ?= spi_host
+TOP             ?= test
 FSM             ?= fsm_example
 HOST            ?= uart
 
@@ -122,15 +122,17 @@ endef
 
 ifeq ($(HOST),ibex)
   $(eval $(call add_device,sram,     0x00100000, 0x00100000, True))
-  $(eval $(call add_device,uart,     0x80000000, 0x00001000, False))
-  $(eval $(call add_device,pwm,      0x80020000, 0x00001000, False))
-  $(eval $(call add_device,gpio,     0x80040000, 0x00001000, False))
-  $(eval $(call add_device,rv_timer, 0x80060000, 0x00001000, False))
+  $(eval $(call add_device,uart,     0x80000000, 0x00001000, True))
+  $(eval $(call add_device,pwm,      0x80020000, 0x00001000, True))
+  $(eval $(call add_device,spi_host, 0x80040000, 0x00001000, False))
 else ifeq ($(HOST),uart)
   $(eval $(call add_device,uart,     0x80000000, 0x00001000, False))
   $(eval $(call add_device,pwm,      0x80020000, 0x00001000, False))
   $(eval $(call add_device,gpio,     0x80040000, 0x00001000, False))
   $(eval $(call add_device,rv_timer, 0x80060000, 0x00001000, False))
+  #$(eval $(call add_device,uart,     0x80000000, 0x00001000, False))
+  #$(eval $(call add_device,test,     0x80020000, 0x00001000, False))
+  #$(eval $(call add_device,test2,    0x80040000, 0x00001000, False))
 else
   $(error Unknown HOST '$(HOST)'. Supported: ibex, uart)
 endif
