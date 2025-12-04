@@ -337,13 +337,9 @@ def parse_args():
                     help="Clock period in ns (used for ABC -D)")
     ap.add_argument("-sdcdir", "--sdcdir", type=Path, default=None,
                     help="Directory containing <top>.sdc (optional)")
-    ap.add_argument(
-        "-opt",
-        "--opt",
-        choices=["area", "delay", "none"],
-        default="delay",
-        help="Optimization target (ASIC only): area/delay/none",
-    )
+    ap.add_argument("-opt", "--opt", choices=["area", "delay", "none"], default="delay",
+                    help="Optimization target (ASIC only): area/delay/none",
+                    )
     ap.add_argument("-o", "--output", type=Path, default=Path("syn"),
                     help="Output folder (default: syn)")
     ap.add_argument("--filelist", type=Path, default=Path("rtl/rtl_list.f"),
