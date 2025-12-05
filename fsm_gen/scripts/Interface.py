@@ -887,34 +887,26 @@ class Interface:
             parents[p] = parent
             for n in N:
                 cost[(p, n)] = dist[n]   # potrebbe essere inf se non raggiungibile
-        positives = {}
-        for s in P:
-            positives[s] = b[s]
-        negatives = {}
-        for s in N:
-            negatives[s] = b[s]
-        # define src and dest for those new paths
         # es: ['IDLE', 'IDLE', 'IDLE', 'WAIT_CMD'] ['EXECUTE', 'WRITEBACK', 'FLUSH', 'ERROR']:W
         pos_units = []
-        for p, cap in positives.items():
-            for _ in range(cap):
-                pos_units.append(p)
+        for s in P:
+            for _ in range(0, abs(b[s])):
+                pos_units.append(s)
         neg_units = []
-        for n, cap in negatives.items():
-            for _ in range(-cap):
-                neg_units.append(n)
+        for s in N:
+            for _ in range(0, abs(b[s])):
+                neg_units.append(s)
         # check len src == len dst
         assert len(pos_units) == len(neg_units)
         
         # cost matrix definition
-        cost_matrix = np.zeros((len(pos_units), len(negatives)), dtype=int)
+        cost_matrix = np.zeros((len(pos_units), len(neg_units)), dtype=int)
         for i, p in enumerate(pos_units):
-            for j, n in enumerate(negatives):
+            for j, n in enumerate(neg_units):
                 cost_matrix[i, j] = cost[(p, n)]
         
         # Hungarian algorith for min path calculation
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
-        
         # Define assegnments (p -> n)
         assignments = []
         for i, j in zip(row_ind, col_ind):
