@@ -30,7 +30,7 @@ setup:
 	 $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIR) $(FSMDIR) $(ORSDIR)
 
 # HJSON TEMPLATE GENERATION
-hjson:
+hjson: setup
 	@echo "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
 	$(Q)$(PYTHON) scripts/hjson_gen.py $(OVERWRITE) -top $(TOP) -itf $(REG_ITF) -o $(DATADIR) 
 
@@ -230,19 +230,19 @@ view_presyn_sv:
 
 compile_syn:
 	@echo "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	iverilog -g2012 -v -gspecify -s $(TOP)_tb -DSYN -DSIM \
+	$(Q)iverilog -g2012 -v -gspecify -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DSYN \
 	-o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
 	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 
 # SIMULATE POST SYNTHESIS NETLIST
 sim_syn: compile_syn
 	@echo "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
-	vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
+	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
 
 # VIEW WAVEFORMS RTL SIMULATION
 view_syn:
 	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_syn.vcd $(VIEWER_CONF) & 
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_syn_tb.vcd $(VIEWER_CONF) & 
 
 ##################################################
 ###              Static Timing Analysis        ###
