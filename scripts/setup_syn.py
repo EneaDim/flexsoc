@@ -225,19 +225,21 @@ def yosys_synth_asic_slang(
         f"\n           -f {filelist.as_posix()} \\"
         f"\n           --top {top}"
     )
+    body.append("")
     body.append("# basic synth")
     if opt == "area":
-        body.append(f"synth -top {top} -noabc")
-    elif opt == "delay":
         body.append(f"synth -top {top} -flatten -noabc")
+    elif opt == "delay":
+        body.append(f"synth -top {top} -noabc")
     else:  # none
         body.append(f"synth -top {top}")
 
-    body.append(f"show -width -format dot -prefix {pjoin(outdir, 'plots', top + '_postsyn')}")
+    body.append("")
     body.append("# map internal register types to the ones from the cell library")
     body.append(f"dfflibmap -liberty {liberty.as_posix()}")
 
     # Write abc.constr file
+    body.append("")
     if flag_area_delay:
         with open(pjoin(outdir, 'abc.constr'),'w') as f:
             mystr = '# ABC constraint file (edit BUF_X1/load for your tech)\\n'
@@ -276,9 +278,13 @@ def yosys_synth_asic_slang(
         )
 
 
-    body.append("\n")
+    body.append("")
+    body.append("# Clean")
     body.append("opt_clean -purge")
+    body.append("")
+    body.append("# Basic stats of std cells and area")
     body.append(f"stat -liberty {liberty.as_posix()}")
+    body.append("")
     body.append("# write verilog")
     body.append(f"write_verilog {pjoin(outdir, top + '_synth.v')}")
     body.append("# write json")
