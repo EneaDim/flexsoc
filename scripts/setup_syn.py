@@ -125,7 +125,7 @@ def yosys_synth_asic_verilog(
     if opt == "area":
         body.append(f"synth -top {top} -noabc")
     elif opt == "delay":
-        body.append(f"synth -top {top} -flatten -noabc")
+        body.append(f"synth -top {top} -noabc")
     else:  # none
         # still do a normal synth, ABC will use default script
         body.append(f"synth -top {top}")
@@ -228,7 +228,7 @@ def yosys_synth_asic_slang(
     body.append("")
     body.append("# basic synth")
     if opt == "area":
-        body.append(f"synth -top {top} -flatten -noabc")
+        body.append(f"synth -top {top} -noabc")
     elif opt == "delay":
         body.append(f"synth -top {top} -noabc")
     else:  # none
