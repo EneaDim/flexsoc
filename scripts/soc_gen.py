@@ -467,6 +467,7 @@ def generate_soc_sv(host, device, root_dir, output_file):
         f.write(f'          - "-Wno-WIDTHEXPAND"\n')
         f.write(f'          - "-Wno-WIDTHTRUNC"\n')
         f.write(f'          - "-Wno-MODDUP"\n')
+        f.write(f'          - "-Wno-UNOPTFLAT"\n')
         f.write(f'          # RAM primitives wider than 64bit (required for ECC) fail to build in\n')
         f.write(f'          # Verilator without increasing the unroll count (see Verilator#1266)\n')
         f.write(f'          - "--unroll-count 72"\n')
