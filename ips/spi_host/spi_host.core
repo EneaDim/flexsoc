@@ -12,16 +12,10 @@ filesets:
       - rtl/spi_host_reg_top.sv
     file_type: systemVerilogSource
 
-  files_verilator_waiver:
-    files:
-      - lint/spi_host.vlt
-    file_type: vlt
-
 targets:
   default: &default_target
     filesets:
       - files_rtl
-      - tool_verilator   ? (files_verilator_waiver)
     toplevel: spi_host
 
   lint:
