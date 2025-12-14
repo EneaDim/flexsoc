@@ -384,7 +384,13 @@ soc_flow: xbar soc
 	$(Q)$(CP) ips/tiny-soc/rtl/uart*.sv $(RTLDIR)/
 	
 
-soc_flow_ibex: soc soc_sim soc_run 
+soc_ibex:
+	@echo "\n$(ORANGE)SoC files building with IBEX...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(TOPDIR)
+	$(Q)$(MAKE) xbar HOST=ibex
+	$(Q)$(PYTHON) scripts/soc_gen.py -host ibex $(SOC_MEMORY_MAP) -o $(TOPDIR)/soc.sv
+	$(Q)$(CP) top/soc.sv $(RTLDIR)/
+	$(Q)$(FUSESOC) --cores-root=. run --target=sim --tool=verilator --setup --build enea:soc:main
 
 soc:
 	@echo "\n$(ORANGE)SoC files building ...\n$(RESET)"
@@ -438,15 +444,11 @@ ip_tutorial:
 	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
 	$(Q)$(MAKE) sim syn sdf sta sta_violators power view 
 
-soc_tutorial:
-	$(Q)$(MAKE) ip_load TOP=spi_host 
+soc_ibex_fetch:
 	@echo "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
 	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
-	@echo "\n$(ORANGE)Generate xbar ...\n$(RESET)"
-	$(Q)$(MAKE) xbar HOST=ibex
-	$(Q)$(MAKE) soc_flow_ibex HOST=ibex
 
 # SETUP COCOTB
 setup_cocotb:
