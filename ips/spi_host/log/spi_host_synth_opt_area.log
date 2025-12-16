@@ -1308,11 +1308,7 @@ Removed 0 unused modules.
 Checking module spi_host...
 Found and reported 0 problems.
 
-3. Generating Graphviz representation of design.
-Writing dot description to `syn/plots/spi_host_postsyn.dot'.
-Dumping module spi_host to page 1.
-
-4. Executing DFFLIBMAP pass (mapping DFF cells to sequential cells from liberty file).
+3. Executing DFFLIBMAP pass (mapping DFF cells to sequential cells from liberty file).
   cell sky130_fd_sc_hd__dfxtp_1 (noninv, pins=3, area=20.02) is a direct match for cell type $_DFF_P_.
   cell sky130_fd_sc_hd__dfrtn_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_NN0_.
   cell sky130_fd_sc_hd__dfrtp_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_PN0_.
@@ -1344,22 +1340,22 @@ Dumping module spi_host to page 1.
     unmapped dff cell: $_DFFSR_PPN_
     unmapped dff cell: $_DFFSR_PPP_
 
-4.1. Executing DFFLEGALIZE pass (convert FFs to types supported by the target).
+3.1. Executing DFFLEGALIZE pass (convert FFs to types supported by the target).
 <suppressed ~24 debug messages>
 Mapping DFF cells in module `\spi_host':
   mapped 48 $_DFFE_PP_ cells to \sky130_fd_sc_hd__edfxtp_1 cells.
   mapped 70 $_DFF_PN0_ cells to \sky130_fd_sc_hd__dfrtp_1 cells.
   mapped 2 $_DFF_PN1_ cells to \sky130_fd_sc_hd__dfstp_2 cells.
 
-5. Executing ABC pass (technology mapping using ABC).
+4. Executing ABC pass (technology mapping using ABC).
 
-5.1. Extracting gate netlist of module `\spi_host' to `<abc-temp-dir>/input.blif'..
+4.1. Extracting gate netlist of module `\spi_host' to `<abc-temp-dir>/input.blif'..
 Replacing 16 occurrences of constant undef bits with constant zero bits
 
-5.1.1. Executed ABC.
+4.1.1. Executed ABC.
 Extracted 499 gates and 649 wires to a netlist network with 147 inputs and 78 outputs.
 Running ABC script: <abc-temp-dir>/abc.script
-ABC: UC Berkeley, ABC 1.01 (compiled Nov 12 2025 10:08:15)
+ABC: UC Berkeley, ABC 1.01 (compiled Nov 21 2025 00:25:22)
 ABC: abc 01> empty
 ABC: abc 01> source <abc-temp-dir>/abc.script
 ABC: + read_blif <abc-temp-dir>/input.blif 
@@ -1459,8 +1455,8 @@ ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxbp_2
 ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_1".
 ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_2".
 ABC: Scl_LibertyReadGenlib() skipped sequential cell "sky130_fd_sc_hd__sedfxtp_4".
-ABC: Library "sky130_fd_sc_hd__tt_025C_1v80" from "/home/eneadim/github/flexsoc/lib/sky130_fd_sc_hd__tt_025C_1v80.lib" has 334 cells (94 skipped: 63 seq; 13 tri-state; 18 no func; 0 dont_use; 0 with 2 outputs; 0 with 3+ outputs).  Time =     0.08 sec
-ABC: Memory =   19.85 MB. Time =     0.08 sec
+ABC: Library "sky130_fd_sc_hd__tt_025C_1v80" from "/home/eneadim/github/flexsoc/lib/sky130_fd_sc_hd__tt_025C_1v80.lib" has 334 cells (94 skipped: 63 seq; 13 tri-state; 18 no func; 0 dont_use; 0 with 2 outputs; 0 with 3+ outputs).  Time =     0.09 sec
+ABC: Memory =   19.85 MB. Time =     0.09 sec
 ABC: Warning: Detected 9 multi-output cells (for example, "sky130_fd_sc_hd__fa_1").
 ABC: + read_constr -v /home/eneadim/github/flexsoc/ors/spi_host.sdc 
 ABC: Unrecognized token "current_design".
@@ -1492,7 +1488,7 @@ ABC: Start-point = pi41 (\u_spi_host_core.u_spi_txfifo.gen_normal_fifo.u_fifo_cn
 ABC: netlist                       : i/o =  147/   78  lat =    0  nd =   384  edge =    900  area =1742.99  delay =1290.24  lev = 13
 ABC: + write_blif <abc-temp-dir>/output.blif 
 
-5.1.2. Re-integrating ABC results.
+4.1.2. Re-integrating ABC results.
 ABC RESULTS:   sky130_fd_sc_hd__a2111oi_0 cells:        1
 ABC RESULTS:   sky130_fd_sc_hd__a211oi_1 cells:        1
 ABC RESULTS:   sky130_fd_sc_hd__a21oi_1 cells:       31
@@ -1521,12 +1517,12 @@ ABC RESULTS:          output signals:       78
 Removing temp directory.
 Removing global temp directory.
 
-6. Executing OPT_CLEAN pass (remove unused cells and wires).
+5. Executing OPT_CLEAN pass (remove unused cells and wires).
 Finding unused cells or wires in module \spi_host..
 Removed 0 unused cells and 712 unused wires.
 <suppressed ~302 debug messages>
 
-7. Printing statistics.
+6. Printing statistics.
 
 === spi_host ===
 
@@ -1569,15 +1565,15 @@ Removed 0 unused cells and 712 unused wires.
    Chip area for module '\spi_host': 4989.785600
      of which used for sequential elements: 3245.612800 (65.05%)
 
-8. Executing Verilog backend.
+7. Executing Verilog backend.
 
-8.1. Executing BMUXMAP pass.
+7.1. Executing BMUXMAP pass.
 
-8.2. Executing DEMUXMAP pass.
+7.2. Executing DEMUXMAP pass.
 Dumping module `\spi_host'.
 
-9. Executing JSON backend.
+8. Executing JSON backend.
 
-End of script. Logfile hash: 8f9d91b580, CPU: user 0.35s system 0.03s, MEM: 64.20 MB peak
+End of script. Logfile hash: f3c5c9336c, CPU: user 0.39s system 0.05s, MEM: 63.28 MB peak
 Yosys 0.58 (git sha1 157aabb58, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
-Time spent: 37% 1x abc (0 sec), 11% 25x opt_clean (0 sec), ...
+Time spent: 35% 1x abc (0 sec), 14% 2x read_slang (0 sec), ...

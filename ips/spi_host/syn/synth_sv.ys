@@ -7,18 +7,23 @@ read_slang -I ips/pkgs \
            --ignore-assertions \
            -f rtl/rtl_list.f \
            --top spi_host
+
 # basic synth
 synth -top spi_host -noabc
-show -width -format dot -prefix syn/plots/spi_host_postsyn
+
 # map internal register types to the ones from the cell library
 dfflibmap -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+
 # mapping to internal cell library
 abc -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script syn/area.abc \
     -constr ors/spi_host.sdc \
 
-
+# Clean
 opt_clean -purge
+
+# Basic stats of std cells and area
 stat -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+
 # write verilog
 write_verilog syn/spi_host_synth.v
 # write json

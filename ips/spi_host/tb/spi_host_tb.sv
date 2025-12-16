@@ -83,10 +83,12 @@ module spi_host_tb;
     #(CLK_PERIOD*100);
     // Write
     tl_utils_inst.tlul_write(32'h0, 32'h1, 4'h0);
-    tl_utils_inst.tlul_write(32'h4, 32'hF, 4'h1);
+    tl_utils_inst.tlul_write(32'hC, 32'h5, 4'h1);
+    tl_utils_inst.tlul_write(32'hC, 32'hA, 4'h1);
+    tl_utils_inst.tlul_write(32'hC, 32'h5, 4'h1);
     #(CLK_PERIOD*100);
     // Read
-    tl_utils_inst.tlul_read(32'h4, read_data, 4'h1);
+    tl_utils_inst.tlul_read(32'h0, read_data, 4'h1);
     $display("Read data: %h", read_data);
     #(CLK_PERIOD*100);
     // INSERT YOUR CODE
