@@ -277,23 +277,21 @@ Running `make deps-soc` will automate the installation process for SoC integrati
 
 Then to run the tutorial:
 
-- `make soc_tutorial TOP=spi_host`
-
-It loads a custom spi\_host IP and integrate it in a basic SoC made of IBEX, RAM and UART.
+- `make soc_ibex_tutorial`
 
 Runs the complete top-level SoC integration and build process. This is the recommended end-to-end target for preparing and simulating the SoC.
 The IP used is a custom and simple SPI\_HOST.
 Steps performed:
-1. **Load custom SPI_HOST IP:**
- `make ip_load`
-2. **Fetch LowRISC IPs:**
+1. **Fetch LowRISC IPs:**
  `make fetch VENDOR=lowrisc_ip`
-3. **Fetch Ibex core:**
+2. **Fetch Ibex core:**
  `make fetch VENDOR=lowrisc_ibex`
-4. **Generate XBAR interconnect:**
+3. **Generate XBAR interconnect:**
  `make xbar`
+4. **Generate SoC:**
+ `make soc`
 5. **Run the full SoC development flow:**
- `make soc_flow`
+ `make soc_sim soc_run`
 
 Then CTRL-C and:
 
