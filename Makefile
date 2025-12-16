@@ -358,47 +358,40 @@ fsoc:
 xbar: xbar_init xbar_build
 
 xbar_init:
-	$(Q)$(MKDIR) -p $(TOPDIR)
 	@echo "\n$(ORANGE)XBAR init ...\n$(RESET)"
 	$(Q)$(PYTHON) scripts/xbar_init.py $(SOC_MEMORY_MAP) --host $(HOST) \
-	--output $(TOPDIR)/xbar_main.hjson
+	--output $(DATADIR)/xbar_main.hjson
 
 xbar_build:
 	@echo "\n$(ORANGE)XBAR build ...\n$(RESET)"
-	$(Q)$(MKDIR) -p $(TOPDIR)/autogen
-	$(Q)$(UTILDIR)/tlgen.py -t $(TOPDIR)/xbar_main.hjson \
-	-o $(TOPDIR)/autogen 2>/dev/null
-	$(Q)$(RM) -r $(TOPDIR)/autogen/dv
-	@mv $(TOPDIR)/autogen/rtl/autogen/* $(TOPDIR)/autogen
-	@cp $(TOPDIR)/autogen/*.sv $(RTLDIR)/
+	$(Q)$(UTILDIR)/tlgen.py -t $(DATADIR)/xbar_main.hjson \
+	-o $(DATADIR)/autogen 2>/dev/null
+	$(Q)$(CP) -r $(DATADIR)/autogen/rtl/autogen/* $(RTLDIR)
+	$(Q)$(RM) -r $(RTLDIR)/autogen
 
 ###############################
 ###            SoC          ###
 ###############################
 
-soc_flow: xbar soc
-	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
-	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
-	$(Q)$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
-	$(Q)$(CP) top/soc.sv $(RTLDIR)/
-	$(Q)$(CP) ips/tiny-soc/rtl/uart*.sv $(RTLDIR)/
-	
+soc_ibex_fetch:
+	@echo "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
+	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
+	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
+	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
 
-soc_ibex:
+soc_ibex: setup
 	@echo "\n$(ORANGE)SoC files building with IBEX...\n$(RESET)"
-	$(Q)$(MKDIR) -p $(TOPDIR)
 	$(Q)$(MAKE) xbar HOST=ibex
-	$(Q)$(PYTHON) scripts/soc_gen.py -host ibex $(SOC_MEMORY_MAP) -o $(TOPDIR)/soc.sv
-	$(Q)$(CP) top/soc.sv $(RTLDIR)/
+	$(Q)$(MAKE) soc HOST=ibex
 	$(Q)$(FUSESOC) --cores-root=. run --target=sim --tool=verilator --setup --build enea:soc:main
+	$(Q)$(MAKE) soc_run
 
 soc:
 	@echo "\n$(ORANGE)SoC files building ...\n$(RESET)"
-	$(Q)$(MKDIR) -p $(TOPDIR)
-	$(Q)$(PYTHON) scripts/soc_gen.py -host $(HOST) $(SOC_MEMORY_MAP) -o $(TOPDIR)/soc.sv
-	$(Q)$(CP) top/soc.sv $(RTLDIR)/
-	$(Q)$(CP) ips/tiny-soc/rtl/uart*.sv $(RTLDIR)/
+	$(Q)$(PYTHON) scripts/soc_gen.py -host $(HOST) $(SOC_MEMORY_MAP) -o $(RTLDIR)/soc.sv
 
+soc_flow: xbar soc
+	
 soc_sim:
 	@echo "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
 	$(Q)$(FUSESOC) --cores-root=. run --target=sim --tool=verilator --setup --build enea:soc:main
@@ -411,14 +404,9 @@ soc_run:
 
 soc_view:
 	@echo "\n$(ORANGE)Viewing ...\n$(RESET)"
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(Q)$(TOP)_tb.gtkw&
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
 
-# SoC Processor-Less
-soc_pless:
-	$(Q)$(MAKE) ip_load TOP=tiny-soc
-	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc
-
-copy-uart-host:
+load-uart-host:
 	$(Q)$(CP) ips/soc/$(RTLDIR)/uart* $(RTLDIR)/
 
 copy-soc:
@@ -431,7 +419,9 @@ copy-soc:
 copy-vendor:
 	$(Q)$(foreach x,$(Q)$(LOWRISC_IPS),cp vendor/lowrisc_ip/ip/$(x)/rtl/* $(RTLDIR);)
 
-# TUTORIALS
+#############
+# TUTORIALS #
+#############
 
 full_tutorial:
 	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui TOP=test
@@ -444,11 +434,13 @@ ip_tutorial:
 	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
 	$(Q)$(MAKE) sim syn sdf sta sta_violators power view 
 
-soc_ibex_fetch:
-	@echo "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
-	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
-	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
-	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
+# SoC Processor-Less
+soc_pless:
+	$(Q)$(MAKE) ip_load TOP=tiny-soc
+	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc
+
+# SoC with IBEX
+soc_ibex_tutorial: soc_ibex_fetch soc_ibex
 
 # SETUP COCOTB
 setup_cocotb:
