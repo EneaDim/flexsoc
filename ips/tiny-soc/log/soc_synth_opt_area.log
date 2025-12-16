@@ -2835,11 +2835,7 @@ Removed 0 unused modules.
 Checking module soc...
 Found and reported 0 problems.
 
-3. Generating Graphviz representation of design.
-Writing dot description to `syn/plots/soc_postsyn.dot'.
-Dumping module soc to page 1.
-
-4. Executing DFFLIBMAP pass (mapping DFF cells to sequential cells from liberty file).
+3. Executing DFFLIBMAP pass (mapping DFF cells to sequential cells from liberty file).
   cell sky130_fd_sc_hd__dfxtp_1 (noninv, pins=3, area=20.02) is a direct match for cell type $_DFF_P_.
   cell sky130_fd_sc_hd__dfrtn_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_NN0_.
   cell sky130_fd_sc_hd__dfrtp_1 (noninv, pins=4, area=25.02) is a direct match for cell type $_DFF_PN0_.
@@ -2871,7 +2867,7 @@ Dumping module soc to page 1.
     unmapped dff cell: $_DFFSR_PPN_
     unmapped dff cell: $_DFFSR_PPP_
 
-4.1. Executing DFFLEGALIZE pass (convert FFs to types supported by the target).
+3.1. Executing DFFLEGALIZE pass (convert FFs to types supported by the target).
 <suppressed ~24 debug messages>
 Mapping DFF cells in module `\soc':
   mapped 192 $_DFFE_PP_ cells to \sky130_fd_sc_hd__edfxtp_1 cells.
@@ -2879,14 +2875,14 @@ Mapping DFF cells in module `\soc':
   mapped 110 $_DFF_PN1_ cells to \sky130_fd_sc_hd__dfstp_2 cells.
   mapped 2 $_DFF_P_ cells to \sky130_fd_sc_hd__dfxtp_1 cells.
 
-5. Executing ABC pass (technology mapping using ABC).
+4. Executing ABC pass (technology mapping using ABC).
 
-5.1. Extracting gate netlist of module `\soc' to `<abc-temp-dir>/input.blif'..
+4.1. Extracting gate netlist of module `\soc' to `<abc-temp-dir>/input.blif'..
 
-5.1.1. Executed ABC.
+4.1.1. Executed ABC.
 Extracted 4401 gates and 5313 wires to a netlist network with 910 inputs and 737 outputs.
 Running ABC script: <abc-temp-dir>/abc.script
-ABC: UC Berkeley, ABC 1.01 (compiled Nov 12 2025 10:08:15)
+ABC: UC Berkeley, ABC 1.01 (compiled Nov 21 2025 00:25:22)
 ABC: abc 01> empty
 ABC: abc 01> source <abc-temp-dir>/abc.script
 ABC: + read_blif <abc-temp-dir>/input.blif 
@@ -3014,7 +3010,7 @@ ABC: Start-point = pi284 (\xbar.u_s1n_6.dev_select_outstanding [0]).  End-point 
 ABC: netlist                       : i/o =  910/  737  lat =    0  nd =  3649  edge =   9007  area =17616.23  delay =3807.07  lev = 39
 ABC: + write_blif <abc-temp-dir>/output.blif 
 
-5.1.2. Re-integrating ABC results.
+4.1.2. Re-integrating ABC results.
 ABC RESULTS:   sky130_fd_sc_hd__a2111oi_0 cells:        7
 ABC RESULTS:   sky130_fd_sc_hd__a211o_1 cells:        1
 ABC RESULTS:   sky130_fd_sc_hd__a211oi_1 cells:       18
@@ -3068,12 +3064,12 @@ ABC RESULTS:          output signals:      737
 Removing temp directory.
 Removing global temp directory.
 
-6. Executing OPT_CLEAN pass (remove unused cells and wires).
+5. Executing OPT_CLEAN pass (remove unused cells and wires).
 Finding unused cells or wires in module \soc..
 Removed 0 unused cells and 4678 unused wires.
 <suppressed ~1946 debug messages>
 
-7. Printing statistics.
+6. Printing statistics.
 
 === soc ===
 
@@ -3142,15 +3138,15 @@ Removed 0 unused cells and 4678 unused wires.
    Chip area for module '\soc': 41712.505600
      of which used for sequential elements: 24085.600000 (57.74%)
 
-8. Executing Verilog backend.
+7. Executing Verilog backend.
 
-8.1. Executing BMUXMAP pass.
+7.1. Executing BMUXMAP pass.
 
-8.2. Executing DEMUXMAP pass.
+7.2. Executing DEMUXMAP pass.
 Dumping module `\soc'.
 
-9. Executing JSON backend.
+8. Executing JSON backend.
 
-End of script. Logfile hash: 6ed8c99033, CPU: user 1.72s system 0.06s, MEM: 79.84 MB peak
+End of script. Logfile hash: 305334aa53, CPU: user 1.74s system 0.14s, MEM: 84.51 MB peak
 Yosys 0.58 (git sha1 157aabb58, g++ 13.3.0-6ubuntu2~24.04 -fPIC -O3)
-Time spent: 51% 1x abc (1 sec), 14% 33x opt_clean (0 sec), ...
+Time spent: 48% 1x abc (1 sec), 16% 33x opt_clean (0 sec), ...
