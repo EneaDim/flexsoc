@@ -1,0 +1,19 @@
+# read files
+read_verilog rtl/gpio.v
+# basic synth
+synth -top gpio -noabc
+show -width -format dot -prefix syn/plots/gpio_postsyn
+# map internal register types to the ones from the cell library
+dfflibmap -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+# mapping to internal cell library
+# mapping to internal cell library
+abc -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script syn/area.abc \
+    -constr ors/gpio.sdc \
+
+
+opt_clean -purge
+stat -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+# write verilog
+write_verilog syn/gpio_synth.v
+# write json
+write_json syn/gpio_synth.json

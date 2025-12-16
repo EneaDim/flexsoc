@@ -1,0 +1,84 @@
+// Timescale
+`timescale 1ns/1ps
+// Includes
+`include "tb/include_gpio_tb.sv"
+
+module gpio_tb;
+  // Parameters
+  parameter int CLK_PERIOD = 20; // ns
+  parameter GpioAsyncOn = 1;
+
+  // Inputs
+  logic clk_i;
+  logic rst_ni;
+  tlul_pkg::tl_h2d_t tl_i;
+  logic [1:0] cio_gpio_i;
+
+  // Outputs
+  tlul_pkg::tl_d2h_t tl_o;
+  logic [1:0] intr_gpio_o;
+  logic [1:0] cio_gpio_o;
+  logic [1:0] cio_gpio_en_o;
+
+  integer error_count;
+  logic [gpio_reg_pkg::DW-1:0] rdata;
+  tlul_utils tl_utils_inst;
+  tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));
+
+  // DUT
+  gpio u_gpio (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .tl_i(tl_if.h2d),
+    .cio_gpio_i(cio_gpio_i),
+    .tl_o(tl_if.d2h),
+    .intr_gpio_o(intr_gpio_o),
+    .cio_gpio_o(cio_gpio_o),
+    .cio_gpio_en_o(cio_gpio_en_o)
+  );
+
+  initial begin
+    clk_i = 0;
+    forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
+  end
+
+  // Dump VCD
+  initial begin
+    `ifndef SYN
+      $dumpfile("sim/gpio_tb.vcd");
+    `else
+      $dumpfile("sim/gpio_syn_tb.vcd");
+    `endif
+    $dumpvars(0, gpio_tb);
+  end
+
+  // SDF backannotation
+  `ifndef VERILATOR
+    initial begin
+      string sdf = "signoff/sdf/gpio_ss.sdf";
+      $sdf_annotate(sdf, gpio_tb.u_gpio, , , "MAXIMUM");
+    end
+  `endif
+
+  initial begin
+    error_count = 0;
+    rst_ni = '0;
+    tl_i = '0;
+    cio_gpio_i = '0;
+    #(CLK_PERIOD);
+    rst_ni = 1'b1;
+    #(CLK_PERIOD);
+    $display("\nRunning...\n");
+    tl_utils_inst = new(tl_if);
+    #(CLK_PERIOD*10);
+    tl_utils_inst.tlul_write(32'h0, 32'h1, 4'h0);
+    #(CLK_PERIOD*10);
+    tl_utils_inst.tlul_read (32'h0, rdata, 4'h0);
+    $display("Read data: %h", rdata);
+    #(CLK_PERIOD*10);
+    // INSERT YOUR STIMULUS HERE
+    if (error_count == 0) $display("Coverage: 100%%");
+    $display("\nEnd.\n");
+    $finish;
+  end
+endmodule

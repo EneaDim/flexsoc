@@ -1,0 +1,32 @@
+CAPI=2:
+name: "prj:ip:pwm:0.1"
+description: "pwm"
+filesets:
+  files_rtl:
+    depend:
+      - ips:dependecies:all
+    files:
+      - rtl/pwm_reg_pkg.sv
+      - rtl/pwm_reg_top.sv
+      - rtl/pwm_chan.sv
+      - rtl/pwm_core.sv
+      - rtl/pwm.sv
+    file_type: systemVerilogSource
+
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+    toplevel: pwm
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"
+
