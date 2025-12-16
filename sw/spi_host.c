@@ -18,9 +18,8 @@ void spi_host_out(spi_host_t spi_host, char c) {
   DEV_WRITE(spi_host + SPI_HOST_WDATA_REG_OFFSET, c);
 }
 
-int spi_host_putchar(int c) {
+void spi_host_putchar(char c) {
   spi_host_out((spi_host_t) SPI_HOST_BASE, c);
-  return c;
 }
 
 int spi_host_puts(const char* str) {

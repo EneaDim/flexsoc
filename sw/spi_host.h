@@ -9,13 +9,13 @@
 
 #include <stdint.h>
 
-#define SPI_HOST_BASE 0x80040000
+#define SPI_HOST_BASE 0x80080000
 
 typedef void* spi_host_t;
 int spi_host_init(spi_host_t spi_host);
 int spi_host_in(spi_host_t spi_host);
 void spi_host_out(spi_host_t spi_host, char c);
-int spi_host_putchar(int c);
+void spi_host_putchar(char c);
 int spi_host_puts(const char* str);
 
 #ifdef __cplusplus
