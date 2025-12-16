@@ -46,44 +46,47 @@ def find_sv_file(module_name, root_dir=".", from_vendor=False):
     for path in Path(root_dir).rglob(f"{module_name}.sv"):
         return path
     return None
+import re
 
 def parse_ports(sv_file):
-    ports = []
-    with open(sv_file, 'r') as f:
+    with open(sv_file, "r", encoding="utf-8") as f:
         content = f.read()
+
     # Remove comments
     content = re.sub(r"//.*?$|/\*.*?\*/", "", content, flags=re.DOTALL | re.MULTILINE)
 
-    # Flatten multi-line declarations
-    content = re.sub(r"\s*\n\s*", " ", content)
+    # Flatten whitespace (keep it simple)
+    content = re.sub(r"\s+", " ", content)
 
-    # Match direction, optional logic/wire, optional width, optional pkg type, and final signal name
-    pattern = re.compile(r"""
-        \b(?P<dir>input|output)\b         # direzione
-        \s+
-        (?:                               # specifica tipo/larghezza opzionale
-            (?:(?P<type>logic|wire)\s*)?  # tipo opzionale (logic|wire)
-            (?P<width>\[[^\]]+\])?        # width opzionale, es. [3:0]
-          | (?P<usertype>(?:\w+::)?\w+)   # oppure un tipo user-defined (pkg::type)
-        )?
-        \s+
-        (?P<name>\w+)                     # nome del segnale
-    """, re.VERBOSE | re.MULTILINE)
-    
+    # Grab the module header port list: module ... ( ... );
+    m = re.search(r"\bmodule\b.*?\((?P<plist>.*?)\)\s*;", content)
+    if not m:
+        return []
+
+    plist = m.group("plist")
+
+    # Split into port declarations (safe enough for typical headers)
+    port_decls = [p.strip() for p in plist.split(",") if p.strip()]
+
     ports = []
-    for m in pattern.finditer(content):
-        dir_ = m.group('dir')
-        name = m.group('name')
-        t    = m.group('type')       # "logic" | "wire" | None
-        w    = m.group('width')      # "[3:0]" | None
-        ut   = m.group('usertype')   # "pkg::type" | "type" | None
-    
-        if ut:
-            dtype = ut                                   # es. tlul_pkg::tl_h2d_t
-        else:
-            base = t or ('logic' if w else None)          # se c'è solo [3:0] => wire implicito
-            dtype = (f"{base} {w}".strip() if base and w else base)
-    
+    for decl in port_decls:
+        # Must start with input/output
+        dm = re.match(r"^\s*(input|output)\b\s+(.*)$", decl)
+        if not dm:
+            continue
+
+        dir_ = dm.group(1)
+        rest = dm.group(2).strip()
+
+        # Name = last identifier at end of decl (before comma already removed by split)
+        nm = re.search(r"([A-Za-z_]\w*)\s*$", rest)
+        if not nm:
+            continue
+        name = nm.group(1)
+
+        # dtype = everything before the name (trim)
+        dtype = rest[: nm.start(1)].strip() or None
+
         ports.append((dir_, dtype, name))
 
     return ports
@@ -257,8 +260,8 @@ def generate_soc_sv(host, device, root_dir, output_file):
         f.write(f"module top_verilator (input logic clk_i, rst_ni);\n")
         for decl in cleaned_ports:
             decl = decl.split()
-            if len(decl) == 1:
-                decl = ['logic ' + decl[0]]
+            if not decl[0] == 'logic':
+                decl = ['logic ' + ''.join(decl)]
             f.write(f"  {' '.join(decl)}\n")
         f.write(f"\n")
         cleaned_ports = [ re.sub(r'^\s*(input|output)\s+(logic|wire|reg)?\s*', '', decl.strip()) for decl in port_decls ]
@@ -411,14 +414,15 @@ def generate_soc_sv(host, device, root_dir, output_file):
         f.write(f'      - lowrisc:ibex:ibex_top_tracing\n')
         for mod in lowrisc_modules[1:]:
             f.write(f'      - lowrisc:ip:{mod}\n')
-        f.write(f'      - lowrisc:ip:xbar_main\n')
         f.write(f'      - lowrisc:prim:onehot\n')
         f.write(f'      - lowrisc:tlul:adapter_host\n')
         f.write(f'      - lowrisc:tlul:adapter_reg\n')
         for mod in modules:
             f.write(f'      - prj:ip:{mod}\n')
         f.write(f'    files:\n')
-        f.write(f'      - top/soc.sv\n')
+        f.write(f'      - rtl/tl_main_pkg.sv\n')
+        f.write(f'      - rtl/xbar_main.sv\n')
+        f.write(f'      - rtl/soc.sv\n')
         f.write(f'    file_type: systemVerilogSource\n')
         f.write(f'\n')
         f.write(f'  files_verilator:\n')
