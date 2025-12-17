@@ -43,8 +43,11 @@ DEFAULT_MODULES = [
 def find_sv_file(module_name, root_dir=".", from_vendor=False):
     if from_vendor:
         root_dir = 'vendor'
+    else:
+        root_dir = 'ips/'+ module_name
     for path in Path(root_dir).rglob(f"{module_name}.sv"):
         return path
+    print(path)
     return None
 import re
 
@@ -162,9 +165,9 @@ def generate_soc_sv(host, device, root_dir, output_file):
     for mod in all_modules:
         if mod == 'uart' and host == 'uart':
             continue
-        from_vendor = False
-    # TODO: Split modules into local and from vendor
-        if mod in lowrisc_modules:
+        if mod in modules:
+            from_vendor = False
+        else:
             from_vendor = True
         sv_path = find_sv_file(mod, root_dir, from_vendor)
         if not sv_path:
