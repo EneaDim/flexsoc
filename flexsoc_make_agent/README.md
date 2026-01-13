@@ -1,65 +1,65 @@
 # FlexSoC Make Agent
 
-Questo progetto fornisce un **agente locale** che permette di controllare un grande Makefile (FlexSoC) usando **linguaggio naturale**, senza addestrare modelli e senza GPU.
+This project provides a **local agent** that allows you to control a large Makefile-based hardware flow (FlexSoC) using **natural language**, without model training and without a GPU.
 
-L’agente:
+The agent:
 
-* interpreta una richiesta in linguaggio naturale
-* seleziona il target `make` corretto (via embedding + regole)
-* valida il comando (sicurezza)
-* esegue `make` **realmente**
-* mostra output live a terminale
-* salva automaticamente **log strutturati**
-* opzionalmente espone tutto via **Streamlit (browser)**
+* interprets a natural language request
+* selects the correct `make` target (via embeddings + rules)
+* validates the command (safety)
+* executes `make` **for real**
+* streams live output to the terminal
+* automatically saves **structured logs**
+* optionally exposes everything via **Streamlit (browser UI)**
 
 ---
 
-## Architettura ad alto livello
+## High-level architecture
 
 ```
 User (CLI / Browser)
         │
         ▼
 serve_embed.py
-  ├─ override espliciti ("lancia view")
+  ├─ explicit overrides ("lancia view", "make view")
   ├─ embedding router (Ollama)
   ▼
 runner.py
   ├─ validate (catalog.json)
-  ├─ make execution
+  ├─ real make execution
   ├─ tee output (stdout + log)
   ▼
 FlexSoC Makefile + toolchain
 ```
 
-Componenti chiave:
+Key components:
 
-* **Ollama** → embedding (nomic-embed-text)
-* **targets.json** → descrizione semantica dei target
-* **targets_embeddings.json** → routing veloce
-* **catalog.json** → allowlist di sicurezza
-* **runner.py** → esecuzione reale + logging
-* **serve_embed.py** → cervello dell’agente
-* **webapp.py** → interfaccia browser
-
----
-
-## Perché embedding e non fine‑tuning
-
-* Nessuna GPU richiesta
-* Debuggabile e deterministico
-* Routing interpretabile (score + top‑k)
-* Facile miglioramento incrementale
-
-L’LLM **non decide cosa eseguire**: lo fa il router.
+* **Ollama** → embeddings (`nomic-embed-text`)
+* **targets.json** → semantic description of Make targets
+* **targets_embeddings.json** → fast routing database
+* **catalog.json** → security allowlist
+* **runner.py** → real execution + live logging
+* **serve_embed.py** → agent brain
+* **webapp.py** → browser UI
 
 ---
 
-## Flusso completo di esecuzione
+## Why embeddings instead of fine-tuning
 
-### 1. Richiesta utente
+* No GPU required
+* Fully debuggable and deterministic
+* Interpretable routing (scores + top-k)
+* Incremental, low-risk improvements
 
-Esempi validi:
+The LLM **does not decide what to execute**. The router does.
+
+---
+
+## Full execution flow
+
+### 1. User request
+
+Valid examples:
 
 * `avvia il quickstart dell'IP`
 * `fai lint`
@@ -67,65 +67,66 @@ Esempi validi:
 
 ---
 
-### 2. Override espliciti (deterministici)
+### 2. Explicit overrides (deterministic)
 
-In `serve_embed.py`:
+Implemented in `serve_embed.py`:
 
-* Se l’utente scrive:
+If the user writes:
 
-  * `make <target>`
-  * `lancia <target>`
-  * `esegui <target>`
+* `make <target>`
+* `lancia <target>`
+* `esegui <target>`
+* `run <target>`
 
-👉 **vince sempre** quel target
+👉 that target **always wins** over embedding routing.
 
-Gestione speciale:
+Special handling:
 
 * `view` vs `path_view`
-* presenza di parole chiave come `path`, `timing`
+* presence of keywords like `path`, `timing`
 
-Questo elimina ambiguità critiche.
+This removes critical ambiguities.
 
 ---
 
-### 3. Routing a embedding
+### 3. Embedding-based routing
 
-Se non c’è override:
+If no explicit override is found:
 
-1. embedding della query (Ollama)
-2. cosine similarity con `targets_embeddings.json`
-3. selezione best target
-4. tie‑break rules (es. help_ip, ip_start)
+1. embed the user query (Ollama)
+2. cosine similarity against `targets_embeddings.json`
+3. select best target
+4. apply tie-break rules (`help_ip`, `ip_start`, …)
 
-Debug disponibile via:
+Debug tool:
 
 ```bash
-python3 flexsoc_make_agent/embed_router.py "query"
+python3 flexsoc_make_agent/embed_router.py "your query"
 ```
 
 ---
 
-### 4. Validazione (sicurezza)
+### 4. Validation (safety layer)
 
-Prima di eseguire:
+Before execution:
 
-* target ∈ catalog.json
-* variabili matchano regex
-* make flags consentiti
+* target must be allowed by `catalog.json`
+* variables must match regex constraints
+* only whitelisted make flags are allowed
 
-Se fallisce → **nessun comando eseguito**.
+If validation fails → **nothing is executed**.
 
 ---
 
-### 5. Esecuzione reale (`runner.py`)
+### 5. Real execution (`runner.py`)
 
-Modalità **TEE**:
+**TEE mode**:
 
-* output live su terminale
-* stesso output salvato in log
-* GUI tools (es. gtkwave) partono realmente
+* live output streamed to terminal
+* same output written to a log file
+* GUI tools (e.g. `gtkwave`) are launched for real
 
-Esempio:
+Example:
 
 ```bash
 python3 serve_embed.py "lancia view"
@@ -133,49 +134,49 @@ python3 serve_embed.py "lancia view"
 
 ---
 
-### 6. Logging automatico
+### 6. Automatic logging
 
-Per ogni run:
+Each run produces:
 
 ```
 flexsoc_make_agent/logs/
-  ├─ <timestamp>.tee.log      ← output completo
-  ├─ <timestamp>.route.json   ← decisione router
-  ├─ <timestamp>.cmd.json     ← comando make
+  ├─ <timestamp>.tee.log      ← full execution output
+  ├─ <timestamp>.route.json   ← router decision
+  ├─ <timestamp>.cmd.json     ← validated make command
   ├─ <timestamp>.run.out
   └─ <timestamp>.run.err
 ```
 
-Questo rende ogni run **riproducibile e auditabile**.
+Every run is **reproducible and auditable**.
 
 ---
 
-## Uso via Streamlit (browser)
+## Browser usage (Streamlit)
 
-Avvio:
+Start UI:
 
 ```bash
 streamlit run flexsoc_make_agent/webapp.py
 ```
 
-Funzionalità:
+Features:
 
-* textbox linguaggio naturale
-* toggle dry‑run / real execution
-* viewer log
-* file browser (rtl/, tb/, sim/, log/, doc/…)
+* natural language input box
+* dry-run / real execution toggle
+* log viewer
+* repository file browser (`rtl/`, `tb/`, `sim/`, `log/`, `doc/`, …)
 
-⚠️ Da usare **solo localmente** (esegue comandi reali).
+⚠️ Intended for **local use only** (executes real commands).
 
 ---
 
-## Debug: problemi comuni
+## Debugging guide
 
-### ❌ Target sbagliato
+### ❌ Wrong target selected
 
-* controlla `embed_router.py`
-* aggiungi sinonimi in `targets.json`
-* rigenera embedding
+* inspect `embed_router.py`
+* add synonyms/examples to `targets.json`
+* rebuild embeddings
 
 ```bash
 python3 tools/build_embeddings_ollama.py nomic-embed-text
@@ -183,59 +184,59 @@ python3 tools/build_embeddings_ollama.py nomic-embed-text
 
 ---
 
-### ❌ Output non visibile
+### ❌ No live output / GUI not shown
 
-* assicurati che runner usi `--tee`
-* verifica che `DISPLAY` sia settato (GUI)
-
----
-
-### ❌ Parsing JSON in webapp
-
-* stdout deve contenere **solo JSON**
-* messaggi informativi vanno su stderr
+* ensure runner is using `--tee`
+* verify `DISPLAY` is set (GUI environment)
 
 ---
 
-## Miglioramento incrementale del sistema
+### ❌ JSON parsing issues in webapp
 
-### Migliorare il routing
-
-* aggiungere esempi testuali in `targets.json`
-* aumentare `topk`
-* ridurre `soft_gap`
-
-### Migliorare UX
-
-* dropdown di disambiguazione
-* suggerimenti automatici
-* preview artefatti (VCD, markdown)
-
-### Estensioni future
-
-* secondo agente per RTL generation
-* chaining di comandi (workflow)
-* policy di sicurezza per target "rischiosi"
+* stdout must contain **only JSON**
+* informational messages must go to stderr
 
 ---
 
-## Filosofia del progetto
+## Improving the system incrementally
 
-* **Determinismo > magia**
-* **Ispezionabile > end‑to‑end LLM**
-* **Makefile come API**
+### Improve routing quality
 
-Questo sistema è pensato per **hardware designer**, non per demo LLM.
+* enrich `targets.json` descriptions
+* increase `topk`
+* reduce `soft_gap`
+
+### Improve UX
+
+* disambiguation dropdowns
+* auto-suggestions
+* artifact previews (VCD, markdown, logs)
+
+### Future extensions
+
+* second agent for RTL generation
+* multi-step workflows (command chaining)
+* stricter safety policies for risky targets
+
+---
+
+## Project philosophy
+
+* **Determinism over magic**
+* **Inspectability over end-to-end LLMs**
+* **Makefile as a stable API**
+
+This system is designed for **hardware engineers**, not LLM demos.
 
 ---
 
 ## TL;DR
 
-* nessun training
-* nessuna GPU
-* linguaggio naturale → make
-* output reale + log
-* browser opzionale
+* no training
+* no GPU
+* natural language → make
+* real execution + logs
+* optional browser UI
 
-👉 Un agente che puoi **fidarti di usare su un repo reale**.
+👉 An agent you can **trust on a real hardware repository**.
 
