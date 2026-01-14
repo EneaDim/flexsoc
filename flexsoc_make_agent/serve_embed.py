@@ -19,6 +19,17 @@ LOGDIR.mkdir(exist_ok=True)
 OLLAMA_EMBED_URL = "http://localhost:11434/api/embeddings"
 
 # ---------------- Embedding utils ----------------
+def guess_lang(user_text: str) -> str:
+    """
+    Very small heuristic: enough for IT/EN routing.
+    """
+    lt = user_text.lower()
+    it_markers = [" come ", " perché", " per favore", " esegui", " lancia", " avvia", " mostra", " visualizza", " installa", " pulisci", " dipendenze", " cartelle"]
+    en_markers = [" how ", " please", " run ", " start ", " show ", " install ", " dependencies", " clean ", " folder", " setup "]
+    it_score = sum(1 for m in it_markers if m in lt)
+    en_score = sum(1 for m in en_markers if m in lt)
+    return "it" if it_score >= en_score else "en"
+
 def embed(model: str, text: str):
     payload = json.dumps({"model": model, "prompt": text}).encode("utf-8")
     req = urllib.request.Request(
@@ -35,6 +46,17 @@ def cosine(a, b):
     if na == 0 or nb == 0:
         return 0.0
     return dot(a, b) / (na * nb)
+
+def contains_waveform(q: str) -> bool:
+    ql = q.lower()
+    return any(k in ql for k in ["waveform", "waveforms", "wave", "gtkwave", "vcd", "fst", "trace", "segnali"])
+
+def is_question(user_text: str) -> bool:
+    lt = user_text.lower().strip()
+    if "?" in user_text:
+        return True
+    starters = ("come ", "how ", "cosa ", "what ", "dove ", "where ", "perché", "why ", "quando ", "when ")
+    return lt.startswith(starters) or " come " in lt or " how " in lt
 
 # ---------------- Tie-break rules ----------------
 def contains_ip_help(q: str) -> bool:
@@ -77,10 +99,14 @@ def explicit_target_override(user_text: str, allowed_targets: set[str]) -> str |
     return None
 
 # ---------------- Router ----------------
-def choose_target(db, qvec, topk, min_score, soft_gap, user_text):
+def choose_target(db, qvec, topk, min_score, soft_gap, user_text, lang):
     scored = []
     for it in db:
-        s = cosine(qvec, it["embedding"])
+        emb = it.get("embedding_it") if lang == "it" else it.get("embedding_en")
+        if emb is None:
+            # fallback for mixed/legacy db
+            emb = it.get("embedding")
+        s = cosine(qvec, emb)
         scored.append((s, it["target"], it.get("risk", "low")))
     scored.sort(reverse=True, key=lambda x: x[0])
 
@@ -90,17 +116,22 @@ def choose_target(db, qvec, topk, min_score, soft_gap, user_text):
 
     top_targets = {t: s for s, t, _ in top}
 
-    # If "ip"+"help", prefer help_ip if close enough
+    # If user asks about waveforms generically, prefer "view" over more specific viewers
+    if contains_waveform(user_text):
+        prefer = ["view", "tb_view", "view_cocotb", "view_presyn", "view_syn", "view_signoff", "view_pnr"]
+        for t in prefer:
+            if t in top_targets and (best[0] - top_targets[t] <= soft_gap):
+                chosen = t
+                break
+
     if contains_ip_help(user_text) and "help_ip" in top_targets:
         if best[0] - top_targets["help_ip"] <= soft_gap:
             chosen = "help_ip"
 
-    # If "quickstart" (even without ip), prefer ip_start if close enough
     if contains_quickstart(user_text) and "ip_start" in top_targets:
         if best[0] - top_targets["ip_start"] <= soft_gap:
             chosen = "ip_start"
 
-    # If specifically ip quickstart, still prefer ip_start (same rule above, but ok)
     if contains_ip_quickstart(user_text) and "ip_start" in top_targets:
         if best[0] - top_targets["ip_start"] <= soft_gap:
             chosen = "ip_start"
@@ -115,7 +146,16 @@ def runner_validate(payload_text: str, catalog_path: Path, workdir: Path):
     )
     return res.returncode, res.stdout, res.stderr
 
-def runner_run(repo_root: Path, payload_text: str, catalog_path: Path, dry_run: bool, timeout_s: int, workdir: Path, tee_log: Path):
+def runner_run(
+    repo_root: Path,
+    payload_text: str,
+    catalog_path: Path,
+    dry_run: bool,
+    timeout_s: int,
+    workdir: Path,
+    tee_log: Path,
+    raw: bool,
+):
     cmd = [
         sys.executable, str(RUNNER), "run",
         "--json", payload_text,
@@ -127,7 +167,16 @@ def runner_run(repo_root: Path, payload_text: str, catalog_path: Path, dry_run: 
     ]
     if dry_run:
         cmd.append("--dry-run")
-    # IMPORTANT: do NOT capture output in tee mode; runner itself prints JSON at end.
+
+    if raw:
+        # Raw terminal mode:
+        # - do NOT capture output (let FlexSoC flow print directly here)
+        # - suppress runner JSON wrapper
+        cmd.append("--quiet-json")
+        res = subprocess.run(cmd, text=True, cwd=str(workdir))
+        return res.returncode, "", ""
+
+    # Default (webapp / machine-readable): capture JSON output from runner
     res = subprocess.run(cmd, text=True, cwd=str(workdir), capture_output=True)
     return res.returncode, res.stdout, res.stderr
 
@@ -153,6 +202,11 @@ def main():
     ap.add_argument("--soft-gap", type=float, default=0.03)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--timeout-s", type=int, default=3600)
+
+    # NEW:
+    ap.add_argument("--raw", action="store_true", help="Terminal raw mode: no JSON, no 'Logs saved' prints")
+    ap.add_argument("--quiet", action="store_true", help="Suppress 'Logs saved' print in non-raw mode")
+
     ap.add_argument("request", nargs="+")
     args = ap.parse_args()
 
@@ -165,6 +219,9 @@ def main():
     db = json.loads(db_path.read_text(encoding="utf-8"))
     allowed_targets = {it["target"] for it in db}
 
+    forced = None
+    lang = None
+
     # 1) explicit override wins
     forced = explicit_target_override(user_text, allowed_targets)
     if forced is not None:
@@ -173,8 +230,9 @@ def main():
         top = [(1.0, forced, next((it.get("risk","low") for it in db if it["target"]==forced), "low"))]
     else:
         # 2) embedding router
+        lang = guess_lang(user_text)
         qvec = embed(args.embed_model, user_text)
-        chosen, best_score, top = choose_target(db, qvec, args.topk, args.min_score, args.soft_gap, user_text)
+        chosen, best_score, top = choose_target(db, qvec, args.topk, args.min_score, args.soft_gap, user_text, lang)
 
     cmd = {"action": "make", "target": chosen, "vars": {}, "make_flags": [], "cwd": "."}
     cmd_json = json.dumps(cmd, ensure_ascii=False)
@@ -188,23 +246,42 @@ def main():
         "best_score": round(float(best_score), 4),
         "topk": [{"score": round(float(s),4), "target": t, "risk": r} for s, t, r in top],
         "override": forced is not None,
+        "lang": lang if forced is None else None,
+        "tee_log": str(tee_log),
     }
 
     if vcode != 0:
         base = save_logs(stem, user_text, route_obj, cmd_json, vout, verr, "", "")
         # stdout: machine readable error
-        sys.stdout.write(json.dumps({"ok": False, "error": "validation_failed", "details": verr.strip()}, ensure_ascii=False) + "\n")
-        sys.stderr.write(f"Logs saved: {base}.*\n")
+        if not args.raw:
+            sys.stdout.write(json.dumps({"ok": False, "error": "validation_failed", "details": verr.strip()}, ensure_ascii=False) + "\n")
+            if not args.quiet:
+                sys.stderr.write(f"Logs saved: {base}.*\n")
+        # raw mode: keep terminal clean; validation errors already in logs
         raise SystemExit(2)
 
-    rcode, rout, rerr = runner_run(repo_root, cmd_json, catalog_path, dry_run=args.dry_run, timeout_s=args.timeout_s, workdir=workdir, tee_log=tee_log)
+    rcode, rout, rerr = runner_run(
+        repo_root, cmd_json, catalog_path,
+        dry_run=args.dry_run, timeout_s=args.timeout_s,
+        workdir=workdir, tee_log=tee_log,
+        raw=args.raw,
+    )
+
     base = save_logs(stem, user_text, route_obj, cmd_json, vout, verr, rout, rerr)
 
-    # IMPORTANT for webapp: stdout should be JSON only
+    if args.raw:
+        # Raw mode: show only FlexSoC flow output (already printed by runner).
+        # Still log everything to flexsoc_make_agent/logs/<stem>.tee.log and metadata files.
+        raise SystemExit(0 if rcode == 0 else 1)
+
+    # Default mode (webapp): stdout should be JSON only (runner output)
     sys.stdout.write(rout if rout.endswith("\n") else rout + "\n")
     if rerr.strip():
         sys.stderr.write(rerr if rerr.endswith("\n") else rerr + "\n")
-    sys.stderr.write(f"Logs saved: {base}.*\n")
+    if not args.quiet:
+        sys.stderr.write(f"Logs saved: {base}.*\n")
+
+    raise SystemExit(0 if rcode == 0 else 1)
 
 if __name__ == "__main__":
     main()
