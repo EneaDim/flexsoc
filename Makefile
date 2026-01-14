@@ -1,6 +1,11 @@
 # Include configuration
 include config.mk
 
+# LLM Agent
+.PHONY: agent
+agent:
+	@python3 flexsoc_make_agent/agent_repl.py --repo-root . --catalog flexsoc_make_agent/catalog.json
+
 # HELP
 help:
 	@echo "$(ORANGE)"
@@ -557,6 +562,8 @@ clean_fsm:
 	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean
 clean_fsm_all:
 	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean_all
+clean_agent:
+	$(Q)$(RM) flexsoc_make_agent/logs
 clean_fsoc:
 	$(Q)$(RM) build
 clean_soc:
