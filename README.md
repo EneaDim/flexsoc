@@ -2,68 +2,170 @@
 <img src="assets/open-IP-SoC-logo.png" alt="Digital IP SoC Dev Env Logo" width="300"/>
 </p>
 
-## 🚀 **Open-Source Environment for Digital IP Development & SoC Integration** 
+## 🚀 **Open-Source Environment for Digital IP Development & SoC Integration**
 
 This repository provides a modular and open-source environment designed to **simplify the development, verification, and integration of digital IPs into a System-on-Chip (SoC)**. It supports the **entire IP development lifecycle**, making it easy to adopt modern, collaborative hardware design practices.
+
+In addition to a traditional Makefile-based flow, the repository now includes an **LLM-powered Natural Language Agent** that allows users to **interact with the hardware flow using plain English (or Italian)**, both from the terminal and from a web UI.
 
 ## [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/EneaDim/flexsoc)
 
 ---
 
 ## Table of Contents
-- [Project Objectives](#project-objectives)
-- [Key Features](#key-features)
-- [Dependencies](#dependencies)
-- [Usage](#usage)
-- [Folder Structure](#folder-structure)
-- [Tutorial 0](#tutorial-0)
-- [Tutorial 1](#tutorial-1)
-- [Tutorial 2](#tutorial-2)
-- [Tutorial 3](#tutorial-3)
-- [Tutorial 4](#tutorial-4)
-- [Flow Overview](#flow-overview)
-- [SoC Composition](#soc-composition)
-- [Next Steps](#next-steps)
-- [Environment Details](#environment-details)
-- [License](#license)
+
+* [Project Objectives](#project-objectives)
+* [Key Features](#key-features)
+* [Natural Language Make Agent](#natural-language-make-agent)
+* [How the Agent Works](#how-the-agent-works)
+* [Command Routing & start Aliases](#command-routing--start-aliases)
+* [Dependencies](#dependencies)
+* [Usage](#usage)
+* [Folder Structure](#folder-structure)
+* [Tutorial 0](#tutorial-0)
+* [Tutorial 1](#tutorial-1)
+* [Tutorial 2](#tutorial-2)
+* [Tutorial 3](#tutorial-3)
+* [Tutorial 4](#tutorial-4)
+* [Flow Overview](#flow-overview)
+* [SoC Composition](#soc-composition)
+* [Next Steps](#next-steps)
+* [Environment Details](#environment-details)
+* [License](#license)
 
 ---
 
 <a id="project-objectives"></a>
+
 ## 🎯 Project Objectives
 
-- Enable digital designers to **develop, document, validate and integrate IPs** with minimal setup and focus on the core features.
-- Make **open-source EDA tools** accessible and practical for real-world hardware projects.
-- Provide a seamless **integration path into SoCs**, including those built with the [lowRISC](https://github.com/lowRISC) ecosystem.
-- Serve as a launchpad for **future IP contributions to the lowRISC ecosystem**, following its Comportable IP principles, coding standards, and tooling flow.
+* Enable digital designers to **develop, document, validate and integrate IPs** with minimal setup and focus on the core features.
+* Make **open-source EDA tools** accessible and practical for real-world hardware projects.
+* Provide a seamless **integration path into SoCs**, including those built with the [lowRISC](https://github.com/lowRISC) ecosystem.
+* Serve as a launchpad for **future IP contributions to the lowRISC ecosystem**, following its Comportable IP principles, coding standards, and tooling flow.
+* Experiment with **AI-assisted hardware development workflows**, without replacing deterministic Makefile-based flows.
 
 ---
 
 <a id="key-features"></a>
+
 ## 📦 Key Features
 
 ✔️ **Complete IP Development Flow**
 All based on open-source tooling:
 
-- 📁 Automatic hjson configuration file generation
-- 📄 Automatic documentation generation
-- 🧠 Automatic CSR generation via lowRISC regtool with two options:
-    - TLUL interface (lowRISC)
-    - Register Interface (PULP)
-- 🛠️ Automatic RTL stub and wrapper generation from hjson
-- 🔍 RTL linting and formatting
-- 🔬 Functional simulation
-    - SystemVerilog Testbench
-    - Cocotb
-- 🏗️ Synthesis trials (PPA)
-- ⏱️ Static Timing Analysis
-- 🔌 Power estimation and analysis
-- 🧱 Physical implementation from RTL to GDS (OpenROAD-based)
-- 🌐 IP fetching and dependency management via GitHub
-- 🔀 XBAR interconnect generation
-- 🧩 SoC integration with modular IPs (TLUL Interface)
+* 📁 Automatic hjson configuration file generation
+* 📄 Automatic documentation generation
+* 🧠 Automatic CSR generation via lowRISC regtool with two options:
 
-> **Why dual support?** Some projects target OpenTitan/lowRISC SoCs (TL-UL, regtool), others the PULP ecosystem. This environment lets you prototype and verify IPs in **both** styles without switching repos.
+  * TLUL interface (lowRISC)
+  * Register Interface (PULP)
+* 🛠️ Automatic RTL stub and wrapper generation from hjson
+* 🔍 RTL linting and formatting
+* 🔬 Functional simulation
+
+  * SystemVerilog Testbench
+  * Cocotb
+* 🏗️ Synthesis trials (PPA)
+* ⏱️ Static Timing Analysis
+* 🔌 Power estimation and analysis
+* 🧱 Physical implementation from RTL to GDS (OpenROAD-based)
+* 🌐 IP fetching and dependency management via GitHub
+* 🔀 XBAR interconnect generation
+* 🧩 SoC integration with modular IPs (TLUL Interface)
+
+> **Why dual support?** Some projects target OpenTitan/lowRISC SoCs (TL-UL, regtool), others the PULP ecosystem. This environment lets you prototype and verify IPs in **both** styles without switching repositories.
+
+---
+
+<a id="natural-language-make-agent"></a>
+
+## 🤖 Natural Language Make Agent
+
+The repository includes an optional **Natural Language Make Agent** (`flexsoc_make_agent`) that allows you to run Makefile targets using natural language commands.
+
+Examples:
+
+```text
+start
+lint
+run view
+syn
+```
+
+Under the hood, the agent **never replaces Make**: it simply maps natural language requests to **explicit, validated `make <target>` commands**.
+
+The agent can be used in three ways:
+
+1. **Terminal REPL** (`make agent`)
+2. **Direct CLI invocation** (`serve_embed.py`)
+3. **Web UI (Streamlit)** for interactive exploration
+
+---
+
+<a id="how-the-agent-works"></a>
+
+## 🧠 How the Agent Works
+
+The agent follows a deterministic, auditable pipeline:
+
+1. **User input** (natural language)
+2. **Language detection** (English / Italian)
+3. **Target routing** using embeddings (Ollama) + heuristics
+4. **Safety validation** against an allowlist (`catalog.json`)
+5. **Execution** of `make <target>`
+6. **Full logging** of commands and tool output
+
+Key properties:
+
+* ❌ No shell injection
+* ❌ No arbitrary command execution
+* ✅ Only predefined Makefile targets are allowed
+* ✅ Full reproducibility: every run is logged
+
+---
+
+<a id="command-routing--start-aliases"></a>
+
+## 🎯 Command Routing & start Aliases
+
+Short commands like `start` can be **ambiguous** in a complex hardware flow. To make the agent predictable and user-friendly, the routing logic is reinforced at the **target definition level** (`targets.json`).
+
+### Example: `start → make ip_start`
+
+The `ip_start` target explicitly includes:
+
+* Keywords such as:
+
+  * `start`, `bootstrap`, `initialize ip`, `starter flow`
+* Natural language queries such as:
+
+  * `avvia il start dell'IP`
+  * `initialize a new IP (template + regmap + tb)`
+
+This ensures that even minimal commands like:
+
+```text
+start
+```
+
+are reliably mapped to:
+
+```bash
+make ip_start
+```
+
+### Negative routing
+
+To avoid confusion, unrelated targets (e.g. synthesis or netlist viewers) explicitly declare **negative keywords** such as `start`, ensuring they are not selected for initialization-style requests.
+
+This approach keeps the system:
+
+* Deterministic
+* Transparent
+* Easy to extend (by editing `targets.json`, no retraining required)
+
+> **Design philosophy**: the LLM assists *intent recognition*, but **Make remains the single source of truth**.
 
 ---
 
@@ -121,7 +223,7 @@ Running `make deps` will automate the installation process for IP development. I
 
 - Run `make help` to see the different guides of the environment.
 
-- Run `make ip_start` to quickstart:
+- Run `make ip_start` to start:
     - Hjson definition.
     - Register Map generation.
     - Documentation generation.
