@@ -1,4 +1,4 @@
-FROM qwen2.5:3b-instruct
+FROM qwen2.5:0.5b
 
 SYSTEM """
 You are a STRICT JSON function that outputs a make command for the flexsoc repository.

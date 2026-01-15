@@ -1,363 +1,360 @@
-# FlexSoC Make Agent — Complete Workflow Summary
+# FlexSoC Make Agent — Execution Guide
 
-This document is a **compact but complete guide** to understand, use, debug, and extend the FlexSoC Make Agent.
+This document explains **what each script does** and **how to run every step**, from intent definition to interactive usage (CLI, REPL, Web UI).
 
-The goal is to control a **real hardware Makefile flow** using **natural language**, in a way that is:
-
-* deterministic
-* safe
-* debuggable
-* GPU-free
-* suitable for real repositories
+The goal is to make the flow **explicit, reproducible, deterministic, and debuggable**.
 
 ---
 
-## 1. Goal
+## 0. High-level Architecture
 
-Translate natural language requests into **real `make` executions** on the FlexSoC repository, with:
+FlexSoC Make Agent is built around a **strict separation of concerns**:
 
-* explicit safety validation
-* live terminal output
-* persistent logs
-* optional browser UI
+* **Intent definition** (what the user *means*)
+* **Routing** (which Make target matches that intent)
+* **Authorization** (what is allowed to run)
+* **Execution** (running `make` safely)
 
----
+There are **two independent routing backends**:
 
-## 2. Technology stack
+1. **Embedding Router (deterministic, default)**
 
-* **Ollama**
+   * Uses text embeddings + deterministic rules
+   * No conversational reasoning
+   * Stable and reproducible
 
-  * `nomic-embed-text` for embeddings
-* **Python**
-* **Make** (FlexSoC Makefile)
-* **Streamlit** (optional UI)
+2. **LLM JSON Router (generative, optional)**
 
----
+   * Uses an Ollama chat model defined in `Modelfile.make`
+   * The LLM directly emits a JSON command
+   * More flexible, less deterministic
 
-## 3. High-level architecture
-
-```
-User (CLI / Browser)
-        │
-        ▼
-serve_embed.py
-  ├─ explicit overrides (verbs + target)
-  ├─ embedding router
-  ├─ safety validation
-  ▼
-runner.py
-  ├─ real make execution
-  ├─ tee (stdout → terminal + log)
-  ▼
-FlexSoC Makefile + tools
-```
+`agent_repl.py` and `webapp.py` are **frontends only**. They never execute Make directly.
 
 ---
 
-## 4. One-time setup
+## 1. targets.json — Intent Definition
+
+**File:** `flexsoc_make_agent/data/targets.json`
+
+This file defines the **entire intent space** of the agent.
+
+Each entry corresponds to **one Makefile target** and describes how natural language should map to it.
+
+### Fields
+
+* `target` — exact Makefile target name
+* `risk` — informational risk level (`low`, `medium`, `high`)
+* `depends_on` — prerequisite targets (informational)
+* `embedding_text`
+
+  * `title` — short, precise description
+  * `summary` — what this target uniquely does
+  * `queries` — example user utterances
+  * `keywords` — strong anchor terms
+  * `negative` — sibling targets that must NOT be confused
+
+⚠️ **Important:** Similar targets (e.g. `setup`, `setup_tb`, `setup_model`) must be semantically distinguishable **by meaning**, not just by name.
+
+### When to edit
+
+* Adding a new Makefile target
+* Improving routing accuracy
+* Fixing collisions between similar targets
+
+---
+
+## 2. Build Embeddings Database
+
+### Script
+
+**`router.py build`**
+
+### Purpose
+
+Generates `targets_embeddings.json` from `targets.json` using a fixed Ollama embedding model.
+
+Each target is embedded **twice**:
+
+* English (`embedding_en`)
+* Italian (`embedding_it`)
+
+The embedding text is built from:
+
+* target name + risk
+* title and summary
+* example queries
+* keywords
+* negative anchors
+
+### Run
 
 ```bash
-cd ~/github/flexsoc
-python3 -m venv .venv
-source .venv/bin/activate
-pip install streamlit
-
-ollama pull nomic-embed-text
+python3 flexsoc_make_agent/router.py build \
+  --targets flexsoc_make_agent/data/targets.json \
+  --out flexsoc_make_agent/data/targets_embeddings.json \
+  --embed-model nomic-embed-text
 ```
+
+### Rules
+
+* The embedding model **must stay fixed**
+* If you change `targets.json`, you **must rebuild embeddings**
 
 ---
 
-## 5. Targets definition (semantic layer)
+## 3. Build Catalog — Safety Allowlist
 
-**File:**
+### Script
 
-```
-flexsoc_make_agent/data/targets.json
-```
+**`build_catalog.py`**
 
-Each entry defines:
+### Purpose
 
-* `target` → make target name
-* `text` → natural language description + synonyms
-* `risk` → informational (low / medium / high)
+Generates `catalog.json`, the **hard execution allowlist**.
 
-👉 This file is the **main lever** to improve routing quality.
+The catalog defines:
 
----
-
-## 6. Embedding generation (one time or after edits)
-
-```bash
-python3 flexsoc_make_agent/tools/build_embeddings_ollama.py nomic-embed-text
-```
-
-Produces:
-
-```
-flexsoc_make_agent/data/targets_embeddings.json
-```
-
----
-
-## 7. Security catalog
-
-**File:**
-
-```
-flexsoc_make_agent/catalog.json
-```
-
-Defines:
-
-* allowed `make` targets
-* allowed variables + regex
+* allowed Make targets
+* allowed variables
 * allowed make flags
 
-If validation fails → **nothing is executed**.
+Anything not present here **cannot be executed**, regardless of routing.
 
----
-
-## 8. Routing and override logic
-
-### 8.1 Explicit overrides (highest priority)
-
-If the user writes any of:
-
-```
-make <target>
-lancia <target>
-esegui <target>
-run <target>
-avvia <target>
-```
-
-👉 That target is executed **deterministically**, without embeddings.
-
-Special handling:
-
-* `view` vs `path_view`
-* presence of words like `path`, `timing`, `critical`
-
----
-
-### 8.2 Embedding-based routing
-
-If no explicit override exists:
-
-1. embed the user query
-2. cosine similarity vs `targets_embeddings.json`
-3. pick best target
-4. apply tie-break rules (e.g. `help_ip`, `ip_start`)
-
-Debug routing:
+### Run
 
 ```bash
-python3 flexsoc_make_agent/embed_router.py "your query"
+python3 flexsoc_make_agent/build_catalog.py \
+  --targets flexsoc_make_agent/data/targets.json \
+  --out flexsoc_make_agent/catalog.json
 ```
 
 ---
 
-## 9. Executing commands (CLI)
+## 4. Router — Debug & Inspection
 
-### Dry-run
+### Script
+
+**`router.py route`**
+
+### Purpose
+
+Inspects how user text is routed **without executing anything**.
+
+It shows:
+
+* chosen target
+* similarity score
+* top-k alternatives
+* deterministic override reason (explicit / clean / help)
+
+### Run
 
 ```bash
-python3 flexsoc_make_agent/serve_embed.py \
+python3 flexsoc_make_agent/router.py route "help me"
+```
+
+This is the primary tool for:
+
+* tuning embeddings
+* validating `targets.json`
+* diagnosing routing bugs
+
+---
+
+## 5. Runner — Make Execution Engine
+
+### Script
+
+**`runner.py`**
+
+### Purpose
+
+The **only component allowed to run Make**.
+
+Responsibilities:
+
+* Validate commands against `catalog.json`
+* Enforce allowlists
+* Execute `make <target>`
+* Handle timeouts, logging, dry-run, tee
+
+### Internal invocation example
+
+```bash
+python3 runner.py run --json '{"action":"make","target":"lint"}'
+```
+
+You normally do **not** call this directly.
+
+---
+
+## 6. End-to-End Execution — Embedding Backend
+
+### Script
+
+**`router.py serve`**
+
+### Purpose
+
+Implements the full deterministic agent pipeline:
+
+```
+user text → embeddings → routing rules → catalog → runner → make
+```
+
+### Run
+
+```bash
+python3 flexsoc_make_agent/router.py serve \
+  --catalog flexsoc_make_agent/catalog.json
+```
+
+### Raw terminal mode
+
+```bash
+python3 flexsoc_make_agent/serve_ollama.py --raw "quickstart"
+```
+
+Raw mode streams Make output directly.
+
+---
+
+## 7. Modelfile.make — LLM Definition
+
+### File
+
+**`Modelfile.make`**
+
+### Purpose
+
+Defines a constrained Ollama chat model that:
+
+* Outputs JSON only
+* Does not hallucinate targets
+* Respects execution boundaries
+
+### Build
+
+```bash
+ollama create flexsoc-make -f flexsoc_make_agent/Modelfile.make
+```
+
+---
+
+## 8. serve_ollama.py — LLM JSON Router
+
+### Script
+
+**`serve_ollama.py`**
+
+### Purpose
+
+Uses an LLM to **directly generate the execution JSON**:
+
+```
+user text → LLM → JSON → runner → make
+```
+
+### Run
+
+```bash
+python3 flexsoc_make_agent/serve_ollama.py \
+  --model flexsoc-make \
   --repo-root . \
-  --catalog flexsoc_make_agent/catalog.json \
-  --dry-run \
-  "lancia view"
+  "fai lint"
 ```
 
-### Real execution
+### Notes
+
+* No embeddings involved
+* Less deterministic
+* Useful for explanation or complex reasoning
+
+---
+
+## 9. agent_repl.py — Interactive CLI
+
+### Script
+
+**`agent_repl.py`**
+
+### Purpose
+
+Interactive terminal interface.
+
+### Run
 
 ```bash
-python3 flexsoc_make_agent/serve_embed.py \
-  --repo-root . \
-  --catalog flexsoc_make_agent/catalog.json \
-  "lancia view"
+make agent
 ```
 
-✔ live terminal output
-✔ GUI tools (e.g. `gtkwave`) are launched
+or
+
+```bash
+python3 flexsoc_make_agent/agent_repl.py
+```
+
+### Behavior
+
+* Reads user input
+* Routes via embedding or LLM backend
+* Streams Make output live
+
+Exit with:
+
+```text
+/exit
+```
 
 ---
 
-## 10. Logging model
+## 10. webapp.py — Browser UI
 
-Each execution produces:
+### Script
 
-```
-flexsoc_make_agent/logs/
-  ├─ <ts>.tee.log      # full live output
-  ├─ <ts>.route.json  # routing decision
-  ├─ <ts>.cmd.json    # validated make command
-  ├─ <ts>.run.out
-  └─ <ts>.run.err
-```
+**`webapp.py`**
 
-All runs are **reproducible and auditable**.
+### Purpose
 
----
+Streamlit-based UI to:
 
-## 11. Browser UI (Streamlit)
+* send natural language commands
+* execute flows
+* inspect logs and outputs
+
+### Run
 
 ```bash
 streamlit run flexsoc_make_agent/webapp.py
 ```
 
-Features:
+---
 
-* natural language command box
-* dry-run / real execution toggle
-* log viewer
-* repository file browser (`rtl/`, `tb/`, `sim/`, `log/`, `doc/`, ...)
+## 11. Logs & Debugging
 
-⚠️ Intended for local use only.
+All executions are logged under:
+
+```
+flexsoc_make_agent/logs/
+```
+
+Files include:
+
+* `.tee.log` — full tool output
+* `.route.json` — routing decision
+* `.cmd.json` — executed command
 
 ---
 
-## 12. Mapping phrases to specific commands (important)
+## Mental Model
 
-This system intentionally **does NOT rely on guessing**.
-
-To map phrases or keywords to specific commands, you have **three clean options**.
+> **targets.json defines intent → embeddings select intent → catalog authorizes intent → runner executes intent**
 
 ---
 
-### 12.1 Mapping via `targets.json` (recommended)
+## Design Principle
 
-Example: map the concept of *place & route* to both `pnr` and `pnr_gui`.
-
-```json
-{
-  "target": "pnr",
-  "text": "place and route | pnr | physical design | backend flow"
-}
-```
-
-```json
-{
-  "target": "pnr_gui",
-  "text": "place and route gui | pnr gui | openroad gui | interactive pnr"
-}
-```
-
-Then regenerate embeddings:
-
-```bash
-python3 tools/build_embeddings_ollama.py nomic-embed-text
-```
-
-Natural phrases like:
-
-* `run pnr`
-* `start place and route`
-* `open pnr gui`
-
-will route correctly.
-
----
-
-### 12.2 Explicit multi-command mapping (advanced)
-
-If you want **one phrase to trigger multiple make commands**, e.g.:
-
-> "run full pnr"
-
-→
-
-```
-make pnr
-make pnr_gui
-```
-
-Do **not** overload a single target.
-
-Instead:
-
-1. create a **virtual target** in `targets.json`
-2. expand it inside `serve_embed.py`
-
-Example virtual target:
-
-```json
-{
-  "target": "pnr_flow",
-  "text": "full pnr | place and route flow | backend flow"
-}
-```
-
-Then, in `serve_embed.py`, expand:
-
-```python
-if chosen == "pnr_flow":
-    sequence = ["pnr", "pnr_gui"]
-```
-
-This keeps execution explicit and debuggable.
-
----
-
-### 12.3 Hard override rules (last resort)
-
-For extremely critical mappings:
-
-```python
-if "pnr" in user_text.lower():
-    chosen = "pnr"
-```
-
-⚠️ Use sparingly — this bypasses semantic routing.
-
----
-
-## 13. Debugging checklist
-
-### Wrong target selected
-
-* inspect `embed_router.py`
-* improve `targets.json`
-* regenerate embeddings
-
-### GUI not launching
-
-* verify `$DISPLAY`
-* ensure runner uses tee mode
-
-### Web UI parsing issues
-
-* stdout must contain only JSON
-* informational text → stderr
-
----
-
-## 14. Improvement strategy
-
-* prefer **data (targets.json)** over code changes
-* keep overrides explicit
-* avoid magic heuristics
-* add new functionality via virtual targets
-
----
-
-## 15. Philosophy
-
-* **Determinism over magic**
-* **Inspectability over end-to-end LLMs**
-* **Makefile as a stable API**
-
-This agent is meant for **real hardware work**, not demos.
-
----
-
-## TL;DR
-
-* natural language → make
-* real execution
-* live output + logs
-* no training, no GPU
-* optional browser UI
-
-👉 A Makefile agent you can actually trust.
+> **Make remains the source of truth.**
+> **AI only decides *which* Make target to run — never *how*.**
 
