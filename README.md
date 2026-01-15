@@ -2,6 +2,15 @@
 <img src="assets/open-IP-SoC-logo.png" alt="Digital IP SoC Dev Env Logo" width="300"/>
 </p>
 
+<a id="setup"></a>
+
+
+
+
+
+
+
+
 ## 🚀 **Open-Source Environment for Digital IP Development & SoC Integration**
 
 This repository provides a modular and open-source environment designed to **simplify the development, verification, and integration of digital IPs into a System-on-Chip (SoC)**. It supports the **entire IP development lifecycle**, making it easy to adopt modern, collaborative hardware design practices.
@@ -173,6 +182,8 @@ This approach keeps the system:
 ## 📦 Dependencies
 
 You can **use a prebuilt Docker image** (fastest) or install everything locally with `make deps`.
+The FlexSoC environment is typically used **inside a Docker container**, ensuring toolchain reproducibility.
+The Natural Language Make Agent relies on **Ollama** for both LLM inference and text embeddings.
 
 ### ✅ Prerequisites (host)
 
@@ -200,21 +211,61 @@ You can **use a prebuilt Docker image** (fastest) or install everything locally 
     -e GDK_BACKEND=x11 -e QT_X11_NO_MITSHM=1 -e NO_AT_BRIDGE=1 \
     -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
     ghcr.io/eneadim/flexsoc:latest bash
+  # Then you go under flexsoc
+  cd /opt/flexsoc
   ```
 
-### 🛠️ Local Install (alternative)
+### 🤖 Ollama Installation (Host or Container)
 
-Running `make deps` will automate the installation process for IP development. It takes around 5 to 10 minutes.
+If Ollama is **not already available inside your container**, install it on the host or inside the container:
 
-### **IP Development Tools**
+```bash
+apt install curl zstd
+curl -fsSL https://ollama.com/install.sh | sh
+```
 
-- `sv2v`: SystemVerilog file list to single Verilog file converter.
-- `verilator`: RTL compiler, linter and simulator.
-- `iverilog`: RTL compiler and simulator.
-- `gtkwave`: Waveform viewer.
-- `yosys`: Synthesis tool.
-- `OpenSTA`: Static Timing Analysis and Power Analysis tool.
-- `OpenROAD`: Backend implementation with OpenROAD flow scripts.
+Verify installation:
+
+```bash
+ollama --version
+```
+
+Start the Ollama service (if not already running):
+
+```bash
+nohup ollama serve > /tmp/ollama.log 2>&1 &
+```
+
+### 📦 Pull Required Models
+
+The Make Agent uses **two models**:
+
+1. **Chat / reasoning model** (for intent understanding)
+2. **Embedding model** (for semantic routing)
+
+Pull them once:
+
+```bash
+# LLM (example)
+ollama pull qwen2.5:3b
+
+# Embedding model
+ollama pull nomic-embed-text
+```
+
+> You can replace `qwen2.5:7b` with any Ollama-supported chat model.
+> The embedding model **must remain stable** once embeddings are generated.
+
+### 🧪 Test
+
+```bash
+make agent
+agent> run the starter
+agent> synthesis
+agent> ...
+```
+
+You should see both models listed.
 
 ---
 

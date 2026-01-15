@@ -15,10 +15,9 @@ FlexSoC Agent REPL
 - Show help with: /help
 
 Examples:
-  avvia il quickstart dell'IP
-  lancia view
-  fai lint
-  ip_start
+  start
+  syn
+  run sta 
 """
 
 def main():
