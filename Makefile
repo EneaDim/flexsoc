@@ -584,7 +584,7 @@ clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_sub
 	$(Q)$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	$(Q)$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	$(Q)$(CLEAR)
-clean_all: clean_fsm_all clean_vendor clean 
+clean_all: clean_fsm_all clean_vendor clean_agent clean 
 	$(Q)$(RM) *.core
 	$(Q)$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(ORSDIR) \
 	$(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) $(FSMDIR) > /dev/null 2>&1

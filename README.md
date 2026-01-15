@@ -8,7 +8,7 @@
 
 This repository provides a modular and open-source environment designed to **simplify the development, verification, and integration of digital IPs into a System-on-Chip (SoC)**. It supports the **entire IP development lifecycle**, making it easy to adopt modern, collaborative hardware design practices.
 
-In addition to a traditional Makefile-based flow, the repository now includes an **LLM-powered Natural Language Agent** that allows users to **interact with the hardware flow using plain English (or Italian)**, both from the terminal and from a web UI.
+In addition to the traditional Makefile-based flow, the repository includes a retrieval-style, embedding-based agent that enables natural-language interaction (English or Italian) with the hardware flow via the terminal or a web UI.
 
 ## [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/EneaDim/flexsoc)
 
@@ -29,8 +29,6 @@ In addition to a traditional Makefile-based flow, the repository now includes an
 * [Flow Overview](#flow-overview)
 * [SoC Composition](#soc-composition)
 * [Natural Language Make Agent](#natural-language-make-agent)
-* [How the Agent Works](#how-the-agent-works)
-* [Command Routing & start Aliases](#command-routing--start-aliases)
 * [Next Steps](#next-steps)
 * [Environment Details](#environment-details)
 * [License](#license)
@@ -45,7 +43,7 @@ In addition to a traditional Makefile-based flow, the repository now includes an
 * Make **open-source EDA tools** accessible and practical for real-world hardware projects.
 * Provide a seamless **integration path into SoCs**, including those built with the [lowRISC](https://github.com/lowRISC) ecosystem.
 * Serve as a launchpad for **future IP contributions to the lowRISC ecosystem**, following its Comportable IP principles, coding standards, and tooling flow.
-* Experiment with **AI-assisted hardware development workflows**, without replacing deterministic Makefile-based flows.
+* Experiment with natural-language–driven hardware workflows, fully backed by deterministic Makefile execution.
 
 ---
 
@@ -118,9 +116,21 @@ The Natural Language Make Agent relies on **Ollama** for both LLM inference and 
   git pull
   ```
 
-### 🤖 Ollama Installation (Host or Container)
+### 🤖 Ollama Installation (Embedding-only Mode)
 
-If Ollama is **not already available inside your container**, install it on the host or inside the container:
+FlexSoC Make Agent currently uses **Ollama only for text embeddings**.
+
+There is **no chat / reasoning model in the execution path**:
+
+* Ollama is used **only** to convert user text into vectors
+* Routing is deterministic (rules first, embeddings second)
+* Make execution is always explicit and validated
+
+If Ollama is **not already available** on your system (host or container), install it as follows.
+
+---
+
+### 📦 Install Ollama
 
 ```bash
 apt install curl zstd
@@ -139,36 +149,55 @@ Start the Ollama service (if not already running):
 nohup ollama serve > /tmp/ollama.log 2>&1 &
 ```
 
-### 📦 Pull Required Models
+---
 
-The Make Agent uses **two models**:
+### 🧠 Required Model (Embeddings Only)
 
-1. **Chat / reasoning model** (for intent understanding)
-2. **Embedding model** (for semantic routing)
+At this stage, the agent requires **one model only**:
 
-Pull them once:
+* **Embedding model** — used for semantic intent routing
+
+Pull it once:
 
 ```bash
-# LLM (example)
-ollama pull qwen2.5:3b
-
-# Embedding model
 ollama pull nomic-embed-text
 ```
 
-> You can replace `qwen2.5:7b` with any Ollama-supported chat model.
-> The embedding model **must remain stable** once embeddings are generated.
+⚠️ No chat / LLM model is required to run Make targets.
 
-### 🧪 Test
+The embedding model:
+
+* does **not** generate commands
+* does **not** reason about execution
+* only helps classify *which existing Make target* best matches the user intent
+
+---
+
+### 🧪 Quick Test
+
+Start the interactive agent:
 
 ```bash
 make agent
-agent> run the starter
-agent> synthesis
-agent> ...
 ```
 
-You should see both models listed.
+Example commands:
+
+```text
+help me
+start
+lint
+run view
+pulisci la simulazione
+```
+
+Each command is deterministically resolved to **one explicit `make <target>`**, validated, executed, and fully logged.
+
+---
+
+> **Note**
+>
+> LLM-based JSON routing (chat models) may be added later for explanation or advanced workflows, but **execution will remain embedding-driven and deterministic by default**.
 
 ---
 
@@ -422,90 +451,67 @@ All components are integrated with automation scripts and can be expanded or rep
 
 ## 🤖 Natural Language Make Agent
 
-The repository includes an optional **Natural Language Make Agent** (`flexsoc_make_agent`) that allows you to run Makefile targets using natural language commands.
+FlexSoC includes an optional **Natural Language Make Agent** (`flexsoc_make_agent`) that provides a **single, deterministic interface** for running existing Makefile targets using natural language.
 
-Examples:
+The agent does **not** replace Make and does **not** generate commands. Instead, it performs one well-defined task:
 
-```text
-start
-lint
-run view
-syn
-```
+> **map a natural-language request to exactly one explicit, validated `make <target>` invocation**.
 
-Under the hood, the agent **never replaces Make**: it simply maps natural language requests to **explicit, validated `make <target>` commands**.
+At the current stage, the agent uses **embeddings only** (no LLM reasoning in the loop) and follows a **fully auditable, rule-first pipeline**.
 
-The agent can be used in three ways:
+### What happens when you type a command
 
-1. **Terminal REPL** (`make agent`)
-2. **Direct CLI invocation** (`serve_embed.py`)
-3. **Web UI (Streamlit)** for interactive exploration
+For any user input (short or verbose, English or Italian), the agent executes a **single merged flow**:
 
----
+1. **Deterministic intent rules (highest priority)**
+   Explicit target mentions (`make lint`, `run view`, `lancia syn`) and hard intents (`help`, `clean`, `view`) are resolved first. This guarantees predictable behavior such as:
 
-<a id="how-the-agent-works"></a>
+   * `help me` → `help` (not `help_fsm`)
+   * `doc` → `doc` (never `clean_doc`)
+   * `pulisci la simulazione` → `clean_sim`
 
-## 🧠 How the Agent Works
+2. **Embedding-based intent classification (fallback)**
+   If no deterministic rule applies, the user text is embedded (Ollama) and compared against the semantic definitions in `targets.json`. The best-matching target is selected using similarity scores and soft tie-breaking rules.
 
-The agent follows a deterministic, auditable pipeline:
+3. **Safety validation and execution**
+   The resolved target is validated against `catalog.json`. If allowed, the agent executes **exactly one** real command:
 
-1. **User input** (natural language)
-2. **Language detection** (English / Italian)
-3. **Target routing** using embeddings (Ollama) + heuristics
-4. **Safety validation** against an allowlist (`catalog.json`)
-5. **Execution** of `make <target>`
-6. **Full logging** of commands and tool output
+   ```bash
+   make <target>
+   ```
 
-Key properties:
+   All executions are logged and streamed live.
 
-* ❌ No shell injection
-* ❌ No arbitrary command execution
-* ✅ Only predefined Makefile targets are allowed
-* ✅ Full reproducibility: every run is logged
+### How you can use the agent
 
----
+The same unified flow is exposed through multiple frontends:
 
-<a id="command-routing--start-aliases"></a>
+* **Interactive REPL**
 
-## 🎯 Command Routing & start Aliases
+  ```bash
+  make agent
+  ```
 
-Short commands like `start` can be **ambiguous** in a complex hardware flow. To make the agent predictable and user-friendly, the routing logic is reinforced at the **target definition level** (`targets.json`).
+* **Direct CLI invocation**
 
-### Example: `start → make ip_start`
+  ```bash
+  python3 flexsoc_make_agent/router.py serve "fai lint"
+  ```
 
-The `ip_start` target explicitly includes:
+* **Browser UI (Streamlit)** for local exploration
 
-* Keywords such as:
+Regardless of the frontend, the internal behavior is identical.
 
-  * `start`, `bootstrap`, `initialize ip`, `starter flow`
-* Natural language queries such as:
+### Design guarantees
 
-  * `avvia il start dell'IP`
-  * `initialize a new IP (template + regmap + tb)`
+* ❌ No arbitrary shell execution
+* ❌ No probabilistic command generation
+* ✅ Only predefined Make targets can run
+* ✅ Deterministic routing before similarity
+* ✅ Full reproducibility: every decision and execution is logged
 
-This ensures that even minimal commands like:
-
-```text
-start
-```
-
-are reliably mapped to:
-
-```bash
-make ip_start
-```
-
-### Negative routing
-
-To avoid confusion, unrelated targets (e.g. synthesis or netlist viewers) explicitly declare **negative keywords** such as `start`, ensuring they are not selected for initialization-style requests.
-
-This approach keeps the system:
-
-* Deterministic
-* Transparent
-* Easy to extend (by editing `targets.json`, no retraining required)
-
-> **Design philosophy**: the LLM assists *intent recognition*, but **Make remains the single source of truth**.
+> **Design principle**: natural language is treated as *intent*, not as code.
+> The agent decides *which* Make target to run — **Make decides everything else**.
 
 ---
 
