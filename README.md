@@ -113,7 +113,6 @@ The Natural Language Make Agent relies on **Ollama** for both LLM inference and 
     ghcr.io/eneadim/flexsoc:latest bash
   # Then you go under flexsoc
   cd /opt/flexsoc
-  git pull
   ```
 
 ### 🤖 Ollama Installation (Embedding-only Mode)
@@ -133,7 +132,6 @@ If Ollama is **not already available** on your system (host or container), insta
 ### 📦 Install Ollama
 
 ```bash
-apt install curl zstd
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
