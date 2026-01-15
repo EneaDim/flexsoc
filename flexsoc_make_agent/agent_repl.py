@@ -22,20 +22,11 @@ FlexSoC Embedding Agent
 - Exit with: /exit  (also: /quit, :q, quit, exit)
 
 Examples:
+  help me
   start
-  lint
   run view
   syn
-  help me
-  pulisci la simulazione
 
-Shell-lite examples:
-  ll
-  ll rtl/
-  g "TODO" rtl/
-  cat flow.md
-  head flexsoc_make_agent/flow.md 80
-  gvim flexsoc_make_agent/router.py
 """.strip()
 
 # Block obvious shell injection. (We do NOT use shell=True anyway, but keep it strict.)
