@@ -4,13 +4,6 @@
 
 <a id="setup"></a>
 
-
-
-
-
-
-
-
 ## 🚀 **Open-Source Environment for Digital IP Development & SoC Integration**
 
 This repository provides a modular and open-source environment designed to **simplify the development, verification, and integration of digital IPs into a System-on-Chip (SoC)**. It supports the **entire IP development lifecycle**, making it easy to adopt modern, collaborative hardware design practices.
@@ -25,9 +18,6 @@ In addition to a traditional Makefile-based flow, the repository now includes an
 
 * [Project Objectives](#project-objectives)
 * [Key Features](#key-features)
-* [Natural Language Make Agent](#natural-language-make-agent)
-* [How the Agent Works](#how-the-agent-works)
-* [Command Routing & start Aliases](#command-routing--start-aliases)
 * [Dependencies](#dependencies)
 * [Usage](#usage)
 * [Folder Structure](#folder-structure)
@@ -38,6 +28,9 @@ In addition to a traditional Makefile-based flow, the repository now includes an
 * [Tutorial 4](#tutorial-4)
 * [Flow Overview](#flow-overview)
 * [SoC Composition](#soc-composition)
+* [Natural Language Make Agent](#natural-language-make-agent)
+* [How the Agent Works](#how-the-agent-works)
+* [Command Routing & start Aliases](#command-routing--start-aliases)
 * [Next Steps](#next-steps)
 * [Environment Details](#environment-details)
 * [License](#license)
@@ -87,97 +80,6 @@ All based on open-source tooling:
 
 ---
 
-<a id="natural-language-make-agent"></a>
-
-## 🤖 Natural Language Make Agent
-
-The repository includes an optional **Natural Language Make Agent** (`flexsoc_make_agent`) that allows you to run Makefile targets using natural language commands.
-
-Examples:
-
-```text
-start
-lint
-run view
-syn
-```
-
-Under the hood, the agent **never replaces Make**: it simply maps natural language requests to **explicit, validated `make <target>` commands**.
-
-The agent can be used in three ways:
-
-1. **Terminal REPL** (`make agent`)
-2. **Direct CLI invocation** (`serve_embed.py`)
-3. **Web UI (Streamlit)** for interactive exploration
-
----
-
-<a id="how-the-agent-works"></a>
-
-## 🧠 How the Agent Works
-
-The agent follows a deterministic, auditable pipeline:
-
-1. **User input** (natural language)
-2. **Language detection** (English / Italian)
-3. **Target routing** using embeddings (Ollama) + heuristics
-4. **Safety validation** against an allowlist (`catalog.json`)
-5. **Execution** of `make <target>`
-6. **Full logging** of commands and tool output
-
-Key properties:
-
-* ❌ No shell injection
-* ❌ No arbitrary command execution
-* ✅ Only predefined Makefile targets are allowed
-* ✅ Full reproducibility: every run is logged
-
----
-
-<a id="command-routing--start-aliases"></a>
-
-## 🎯 Command Routing & start Aliases
-
-Short commands like `start` can be **ambiguous** in a complex hardware flow. To make the agent predictable and user-friendly, the routing logic is reinforced at the **target definition level** (`targets.json`).
-
-### Example: `start → make ip_start`
-
-The `ip_start` target explicitly includes:
-
-* Keywords such as:
-
-  * `start`, `bootstrap`, `initialize ip`, `starter flow`
-* Natural language queries such as:
-
-  * `avvia il start dell'IP`
-  * `initialize a new IP (template + regmap + tb)`
-
-This ensures that even minimal commands like:
-
-```text
-start
-```
-
-are reliably mapped to:
-
-```bash
-make ip_start
-```
-
-### Negative routing
-
-To avoid confusion, unrelated targets (e.g. synthesis or netlist viewers) explicitly declare **negative keywords** such as `start`, ensuring they are not selected for initialization-style requests.
-
-This approach keeps the system:
-
-* Deterministic
-* Transparent
-* Easy to extend (by editing `targets.json`, no retraining required)
-
-> **Design philosophy**: the LLM assists *intent recognition*, but **Make remains the single source of truth**.
-
----
-
 <a id="dependencies"></a>
 ## 📦 Dependencies
 
@@ -213,6 +115,7 @@ The Natural Language Make Agent relies on **Ollama** for both LLM inference and 
     ghcr.io/eneadim/flexsoc:latest bash
   # Then you go under flexsoc
   cd /opt/flexsoc
+  git pull
   ```
 
 ### 🤖 Ollama Installation (Host or Container)
@@ -512,6 +415,97 @@ You can assemble a minimal SoC using:
 - Custom or external IPs
 
 All components are integrated with automation scripts and can be expanded or replaced as needed.
+
+---
+
+<a id="natural-language-make-agent"></a>
+
+## 🤖 Natural Language Make Agent
+
+The repository includes an optional **Natural Language Make Agent** (`flexsoc_make_agent`) that allows you to run Makefile targets using natural language commands.
+
+Examples:
+
+```text
+start
+lint
+run view
+syn
+```
+
+Under the hood, the agent **never replaces Make**: it simply maps natural language requests to **explicit, validated `make <target>` commands**.
+
+The agent can be used in three ways:
+
+1. **Terminal REPL** (`make agent`)
+2. **Direct CLI invocation** (`serve_embed.py`)
+3. **Web UI (Streamlit)** for interactive exploration
+
+---
+
+<a id="how-the-agent-works"></a>
+
+## 🧠 How the Agent Works
+
+The agent follows a deterministic, auditable pipeline:
+
+1. **User input** (natural language)
+2. **Language detection** (English / Italian)
+3. **Target routing** using embeddings (Ollama) + heuristics
+4. **Safety validation** against an allowlist (`catalog.json`)
+5. **Execution** of `make <target>`
+6. **Full logging** of commands and tool output
+
+Key properties:
+
+* ❌ No shell injection
+* ❌ No arbitrary command execution
+* ✅ Only predefined Makefile targets are allowed
+* ✅ Full reproducibility: every run is logged
+
+---
+
+<a id="command-routing--start-aliases"></a>
+
+## 🎯 Command Routing & start Aliases
+
+Short commands like `start` can be **ambiguous** in a complex hardware flow. To make the agent predictable and user-friendly, the routing logic is reinforced at the **target definition level** (`targets.json`).
+
+### Example: `start → make ip_start`
+
+The `ip_start` target explicitly includes:
+
+* Keywords such as:
+
+  * `start`, `bootstrap`, `initialize ip`, `starter flow`
+* Natural language queries such as:
+
+  * `avvia il start dell'IP`
+  * `initialize a new IP (template + regmap + tb)`
+
+This ensures that even minimal commands like:
+
+```text
+start
+```
+
+are reliably mapped to:
+
+```bash
+make ip_start
+```
+
+### Negative routing
+
+To avoid confusion, unrelated targets (e.g. synthesis or netlist viewers) explicitly declare **negative keywords** such as `start`, ensuring they are not selected for initialization-style requests.
+
+This approach keeps the system:
+
+* Deterministic
+* Transparent
+* Easy to extend (by editing `targets.json`, no retraining required)
+
+> **Design philosophy**: the LLM assists *intent recognition*, but **Make remains the single source of truth**.
 
 ---
 
