@@ -11,7 +11,6 @@ import urllib.request
 from pathlib import Path
 
 EXIT_WORDS = {"/exit", "/quit", ":q", "quit", "exit"}
-HELP_WORDS = {"/help", "help", "?"}
 
 BANNER = r"""
 FlexSoC Agent REPL (embedding-only)
@@ -261,9 +260,6 @@ def main() -> None:
         low = line.lower().strip()
         if low in EXIT_WORDS:
             break
-        if low in HELP_WORDS:
-            print(BANNER)
-            continue
 
         # 1) Route
         try:
