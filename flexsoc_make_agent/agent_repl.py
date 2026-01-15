@@ -20,12 +20,10 @@ FlexSoC Agent REPL (embedding-only)
 - Show help with: /help
 
 Examples:
+  help me
   start
-  lint
   run view
   syn
-  help me
-  pulisci la simulazione
 """.strip()
 
 
