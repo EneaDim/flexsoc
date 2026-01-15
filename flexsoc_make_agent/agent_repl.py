@@ -13,11 +13,9 @@ from pathlib import Path
 EXIT_WORDS = {"/exit", "/quit", ":q", "quit", "exit"}
 
 BANNER = r"""
-FlexSoC Agent REPL (embedding-only)
-- Run: make agent
+FlexSoC Embedding Agent
 - Type a natural language command and press Enter to execute.
 - Exit with: /exit  (also: /quit, :q, quit, exit)
-- Show help with: /help
 
 Examples:
   help me
