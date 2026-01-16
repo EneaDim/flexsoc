@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import os
 import argparse
 import json
 import socket
 import subprocess
 import sys
 import time
+import datetime
+import re
 import urllib.request
 import shlex
 from pathlib import Path
@@ -66,6 +69,88 @@ def wait_health(base_url: str, timeout_s: float = 6.0) -> bool:
             time.sleep(0.1)
     return False
 
+def snapshot_log_dir(repo_root: Path) -> dict[str, float]:
+    log_dir = repo_root / "log"
+    snap: dict[str, float] = {}
+    if not log_dir.exists():
+        return snap
+    for p in log_dir.rglob("*"):
+        if p.is_file():
+            try:
+                rel = str(p.relative_to(repo_root))  # es: "log/test_lint.log"
+                snap[rel] = p.stat().st_mtime
+            except OSError:
+                pass
+    return snap
+
+def diff_log_snapshot(before: dict[str, float], after: dict[str, float]) -> list[str]:
+    """
+    Return list of files that are new or modified (mtime increased).
+    """
+    changed: list[str] = []
+    for path, mtime_after in after.items():
+        mtime_before = before.get(path)
+        if mtime_before is None or mtime_after > mtime_before + 1e-6:
+            changed.append(path)
+    changed.sort(key=lambda p: after.get(p, 0.0), reverse=True)  # newest first
+    return changed
+
+def ensure_dir(p: Path) -> None:
+    p.mkdir(parents=True, exist_ok=True)
+
+def make_run_id(target: str) -> str:
+    # Zulu-ish, filesystem safe
+    ts = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%SZ")
+    return f"{ts}_{target}"
+
+def write_run_record(runs_dir: Path, record: dict) -> Path:
+    ensure_dir(runs_dir)
+    out = runs_dir / f"{record['id']}.json"
+    out.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
+    return out
+
+def list_run_records(runs_dir: Path) -> list[Path]:
+    if not runs_dir.exists():
+        return []
+    files = sorted(runs_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return files
+
+def load_json_file(p: Path) -> dict:
+    return json.loads(p.read_text(encoding="utf-8"))
+
+def get_last_run_record(runs_dir: Path, prefer_failed: bool = False) -> dict | None:
+    for p in list_run_records(runs_dir):
+        try:
+            rec = load_json_file(p)
+            if prefer_failed and rec.get("exit_code", 0) == 0:
+                continue
+            return rec
+        except Exception:
+            continue
+    return None
+
+def pick_logs_for_analysis(rec: dict, repo_root: Path, max_files: int = 3) -> list[Path]:
+    paths = [Path(p) for p in (rec.get("flow_logs") or [])]
+    # keep only existing files under repo
+    good: list[Path] = []
+    for p in paths:
+        pp = (repo_root / p) if not p.is_absolute() else p
+        if pp.exists() and pp.is_file():
+            good.append(pp)
+
+    def rank(p: Path) -> tuple[int, float]:
+        s = p.name
+        pri = 2
+        if s.endswith(".errors"):
+            pri = 0
+        elif s.endswith(".log"):
+            pri = 1
+        elif s.endswith(".warnings"):
+            pri = 3
+        return (pri, -(p.stat().st_mtime if p.exists() else 0.0))
+
+    good.sort(key=rank)
+    return good[:max_files]
 
 # ---------------- Router server management ----------------
 def ensure_router_server(
@@ -511,11 +596,16 @@ def main() -> None:
         print(f"ERROR: runner.py not found: {runner_py}", file=sys.stderr)
         raise SystemExit(2)
 
-    # readline optional
-    try:
-        import readline  # noqa: F401
-    except Exception:
-        pass
+    # Ensure repo root is on sys.path so `import flexsoc_make_agent` works reliably
+    repo_root_str = str(repo_root.resolve())
+    if repo_root_str not in sys.path:
+        sys.path.insert(0, repo_root_str)
+        
+        # readline optional
+        try:
+            import readline  # noqa: F401
+        except Exception:
+            pass
 
     python = sys.executable
     base_url = f"http://{args.host}:{args.port}"
@@ -569,6 +659,175 @@ def main() -> None:
         if try_shell_lite(line, repo_root=repo_root, state=state):
             continue
 
+        # --- Refiner commands (start with ':') ---
+        if line.startswith(":"):
+            cmdline = line.strip().lower()
+
+            if cmdline not in (":why", ":sum"):
+                print("Unknown command. Available: :why, :sum", file=sys.stderr)
+                continue
+
+            runs_dir = repo_root / "flexsoc_make_agent" / "runs"
+            prefer_failed = (cmdline == ":why")
+
+            rec = get_last_run_record(runs_dir, prefer_failed=prefer_failed) \
+                or get_last_run_record(runs_dir, prefer_failed=False)
+            if not rec:
+                print("No runs found.", file=sys.stderr)
+                continue
+
+            # Pick flow logs from the run record (preferred)
+            logs = pick_logs_for_analysis(rec, repo_root, max_files=3)
+
+            # Fallback: if the run record is missing flow_logs, pick newest files in log/
+            if not logs:
+                log_dir = repo_root / "log"
+                if log_dir.exists():
+                    candidates = [
+                        p for p in log_dir.iterdir()
+                        if p.is_file() and p.name.endswith((".errors", ".warnings", ".log"))
+                    ]
+                    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                    logs = candidates[:3]
+
+            if not logs:
+                print("No flow logs found to analyze.", file=sys.stderr)
+                print(f"(debug) last run id: {rec.get('id')}", file=sys.stderr)
+                print(f"(debug) flow_logs in record: {rec.get('flow_logs')}", file=sys.stderr)
+                continue
+
+            # Use a concise, explicit question so the model produces the right shape of answer.
+            if cmdline == ":why":
+                question = (
+                    "Explain why the last run failed.\n"
+                    "Summarize the main error(s) and provide evidence from the logs.\n"
+                    "If you see warnings that likely contributed, summarize them too.\n"
+                    "Return JSON only."
+                )
+            else:  # :sum
+                question = (
+                    "Return JSON only with keys: summary, error_summary, warning_summary.\n"
+                    "error_summary MUST summarize errors if present (otherwise say 'none').\n"
+                    "warning_summary MUST summarize warnings if present (otherwise say 'none').\n"
+                    "Group warnings by type (e.g. Verilator %Warning-XYZ) and include 1-2 examples per type.\n"
+                )
+            try:
+                from flexsoc_make_agent import refiner
+                import importlib
+                importlib.reload(refiner)  # pick up edits to refiner.py without restarting the REPL
+
+                # Debug: show which files we analyze
+                print("[refiner] files:", ", ".join(p.as_posix() for p in logs), file=sys.stderr)
+
+                # Deterministic counts (strict): avoid matching signal names containing "err"
+                ERR_PAT = re.compile(r"(^%Error-|(^|\s)Error(\s|:)|FATAL|Traceback|Exception|Assertion|Segmentation fault)", re.IGNORECASE)
+                WARN_PAT = re.compile(r"(^%Warning-|(^|\s)Warning(\s|:))", re.IGNORECASE)
+
+                err_count = 0
+                warn_count = 0
+                for fp in logs:
+                    try:
+                        txt = fp.read_text(encoding="utf-8", errors="replace")
+                        lines = txt.splitlines()
+                        err_count += sum(1 for ln in lines if ERR_PAT.search(ln))
+                        warn_count += sum(1 for ln in lines if WARN_PAT.search(ln))
+                    except Exception:
+                        pass
+
+                print(f"[refiner] matches(strict): errors={err_count} warnings={warn_count}", file=sys.stderr)
+
+                # Run refiner (fast-ish defaults; windows cover warnings/errors anywhere in file)
+                use_llm = (cmdline == ":why")
+                report = refiner.analyze(
+                    rec,
+                    logs,
+                    user_question=question,
+                    model="qwen2.5:0.5b",
+                    head_lines=80,
+                    tail_lines=120,
+                    err_win=20,
+                    max_windows=6,
+                    max_bytes_per_file=400_000,
+                    timeout_s=120,
+                    use_llm=use_llm,
+                )
+            except Exception as e:
+                print(f"ERROR: refiner failed: {e}", file=sys.stderr)
+                continue
+
+            # ----- Render (single pass, no duplicates) -----
+            summary = (report.get("summary") or "").strip()
+            if summary:
+                print(summary)
+
+            err_sum = report.get("error_summary") or []
+            warn_sum = report.get("warning_summary") or []
+
+            # action items (optional)
+            for a in (report.get("action_items") or [])[:8]:
+                if not isinstance(a, dict):
+                    continue
+                t = a.get("type")
+                if t == "try_target":
+                    print(f"-> suggested target: {a.get('target')} ({a.get('why')})")
+                elif t == "set_var":
+                    print(f"-> suggested var: {a.get('var')}={a.get('value')} ({a.get('why')})")
+                elif t == "check":
+                    print(f"-> check: {a.get('text')}")
+            
+            if isinstance(err_sum, list):
+                print("\nErrors:")
+                for it in err_sum[:10]:
+                    if isinstance(it, dict):
+                        t = it.get("type") or "unknown"
+                        c = it.get("count")
+                        ex = it.get("examples") or []
+                        line_out = f"- {t}"
+                        if c is not None:
+                            line_out += f" (count={c})"
+                        print(line_out)
+                        for s in ex[:2]:
+                            print(f"  * {s}")
+                    elif isinstance(it, str):
+                        print(f"- {it}")
+
+            if isinstance(warn_sum, list):
+                print("\nWarnings:")
+                for it in warn_sum[:10]:
+                    if isinstance(it, dict):
+                        t = it.get("type") or "unknown"
+                        c = it.get("count")
+                        ex = it.get("examples") or []
+                        line_out = f"- {t}"
+                        if c is not None:
+                            line_out += f" (count={c})"
+                        print(line_out)
+                        for s in ex[:2]:
+                            print(f"  * {s}")
+                    elif isinstance(it, str):
+                        print(f"- {it}")
+
+            # Backward-compatible rendering (older schema)
+            for rc in (report.get("root_causes") or [])[:3]:
+                if isinstance(rc, dict):
+                    print(f"\n- cause: {rc.get('cause')} (conf={rc.get('confidence')})")
+                    for s in (rc.get("evidence") or [])[:2]:
+                        print(f"  * {s}")
+
+            for a in (report.get("action_items") or [])[:8]:
+                if not isinstance(a, dict):
+                    continue
+                t = a.get("type")
+                if t == "try_target":
+                    print(f"-> suggested target: {a.get('target')} ({a.get('why')})")
+                elif t == "set_var":
+                    print(f"-> suggested var: {a.get('var')}={a.get('value')} ({a.get('why')})")
+                elif t == "check":
+                    print(f"-> check: {a.get('text')}")
+
+            continue
+
+        
         # --- Agent routing + Make execution ---
         try:
             route_obj = route_query(base_url, line)
@@ -637,6 +896,12 @@ def main() -> None:
                 print("Aborted.", file=sys.stderr)
                 continue
 
+        log_dir = repo_root / "log"
+        # --- Snapshot flow logs in repo_root/log before running make ---
+        before_snap = snapshot_log_dir(repo_root)   # returns keys like "log/test_lint.log"
+        run_id = make_run_id(chosen)
+        start_ts = int(time.time())
+
         # Run make with true streaming (runner.py --raw)
         rc = runner_run_raw(
             python=python,
@@ -650,6 +915,32 @@ def main() -> None:
         )
         if rc != 0:
             print(f"(make exited with code {rc})", file=sys.stderr)
+
+        # --- Snapshot flow logs after running make and compute changed files ---
+        end_ts = int(time.time())
+        after_snap = snapshot_log_dir(repo_root)
+        flow_logs = diff_log_snapshot(before_snap, after_snap)
+
+        record = {
+            "id": run_id,
+            "ts_start": start_ts,
+            "ts_end": end_ts,
+            "target": chosen,
+            "vars": cmd.get("vars") or {},
+            "cwd": cmd.get("cwd"),
+            "exit_code": rc,
+            "flow_logs": flow_logs,  # <-- ONLY flow logs under log/
+        }
+
+        runs_dir = repo_root / "flexsoc_make_agent" / "runs"
+        rec_path = write_run_record(runs_dir, record)
+
+        if args.show_route:
+            print(f"[run] saved record: {rec_path}", file=sys.stderr)
+            if flow_logs:
+                print(f"[run] flow logs ({min(len(flow_logs), 5)} of {len(flow_logs)}): {flow_logs[:5]}", file=sys.stderr)
+            else:
+                print("[run] flow logs: (none changed)", file=sys.stderr)
 
 
     # stop router server if we started it
