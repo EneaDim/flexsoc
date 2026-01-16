@@ -360,6 +360,21 @@ def choose_target(
 
     return chosen, float(best[0]), top
 
+MAKE_ASSIGN_RE = re.compile(r'(?<!\S)([A-Za-z_][A-Za-z0-9_]*)=([^\s]+)')
+
+def extract_make_vars(text: str) -> tuple[str, dict[str, str]]:
+    vars_out: dict[str, str] = {}
+
+    def _repl(m: re.Match) -> str:
+        k, v = m.group(1), m.group(2)
+        vars_out[k] = v
+        return ""  # remove token from routing text
+
+    cleaned = MAKE_ASSIGN_RE.sub(_repl, text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned, vars_out
+
+
 def route_query(
     db: List[Dict[str, Any]],
     embed_model: str,
@@ -370,27 +385,24 @@ def route_query(
 ) -> Dict[str, Any]:
     allowed_targets = {it["target"] for it in db}
 
+    # Extract VAR=VALUE tokens (e.g., TOP=test-ip) before routing
+    routed_text, vars_found = extract_make_vars(user_text)
+
     forced: str | None = None
     override_reason: str | None = None
 
-    # 1) Explicit "make <target>" (or equivalent) always wins
-    forced = explicit_target_override(user_text, allowed_targets)
+    # 1) Explicit "make <target>" always wins
+    forced = explicit_target_override(routed_text, allowed_targets)
     if forced is not None:
         override_reason = "explicit_target"
 
-    # 2) Deterministic HELP routing:
-    # If the user asks for help generically ("help", "help me", "aiuto"),
-    # prefer the generic "help" target unless a scope is explicitly mentioned (ip/soc/doc/fsm).
     if forced is None:
-        forced = help_target_override(user_text, allowed_targets)
+        forced = help_target_override(routed_text, allowed_targets)
         if forced is not None:
             override_reason = "help_intent"
 
-    # 3) Deterministic CLEAN routing:
-    # Only triggers if the user text contains a clean verb (clean/pulisci/remove/...)
-    # so "doc" won't ever become "clean_doc".
     if forced is None:
-        forced = clean_target_override(user_text, allowed_targets)
+        forced = clean_target_override(routed_text, allowed_targets)
         if forced is not None:
             override_reason = "clean_intent"
 
@@ -402,12 +414,14 @@ def route_query(
         risk = next((it.get("risk", "low") for it in db if it["target"] == forced), "low")
         top = [(1.0, forced, risk)]
     else:
-        lang = guess_lang(user_text)
-        qvec = embed(embed_model, user_text)
-        chosen, best_score, top = choose_target(db, qvec, topk, min_score, soft_gap, user_text, lang)
+        lang = guess_lang(routed_text)
+        qvec = embed(embed_model, routed_text)
+        chosen, best_score, top = choose_target(db, qvec, topk, min_score, soft_gap, routed_text, lang)
 
     return {
-        "query": user_text,
+        "query": user_text,                 # original
+        "query_routed": routed_text,        # cleaned for routing (optional but useful)
+        "vars": vars_found,                 # <-- NEW
         "chosen": chosen,
         "best_score": round(float(best_score), 4),
         "topk": [{"score": round(float(s), 4), "target": t, "risk": r} for s, t, r in top],
@@ -416,6 +430,7 @@ def route_query(
         "lang": lang if forced is None else None,
         "ts": int(time.time()),
     }
+
 # ---------------- Simple HTTP server ----------------
 class RouterHandler(BaseHTTPRequestHandler):
     db: List[Dict[str, Any]] = []

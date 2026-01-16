@@ -577,12 +577,22 @@ def main() -> None:
             continue
 
         chosen = route_obj.get("chosen") or "help"
+
+        # Vars extracted by router (e.g., TOP=myip). Keep it simple: pass-through, runner will validate.
+        vars_from_route = route_obj.get("vars") or {}
+        if not isinstance(vars_from_route, dict):
+            vars_from_route = {}
+
         if args.show_route:
             best = route_obj.get("best_score")
             reason = route_obj.get("override_reason") or ""
-            print(f"[route] {chosen} (score={best}) {reason}".rstrip())
+            vtxt = ""
+            if vars_from_route:
+                pairs = " ".join(f"{k}={vars_from_route[k]}" for k in sorted(vars_from_route))
+                vtxt = f" [{pairs}]"
+            print(f"[route] {chosen} (score={best}) {reason}{vtxt}".rstrip())
 
-        # if you want `cd` to affect make, set cmd["cwd"] accordingly
+        # If you want `cd` to affect make, set cmd["cwd"] accordingly
         rel_cwd = "."
         if args.cd_affects_make:
             try:
@@ -590,7 +600,13 @@ def main() -> None:
             except Exception:
                 rel_cwd = "."
 
-        cmd = {"action": "make", "target": chosen, "vars": {}, "make_flags": [], "cwd": rel_cwd}
+        cmd = {
+            "action": "make",
+            "target": chosen,
+            "vars": vars_from_route,
+            "make_flags": [],
+            "cwd": rel_cwd,
+        }
         cmd_json = json.dumps(cmd, ensure_ascii=False)
 
         try:
@@ -599,7 +615,29 @@ def main() -> None:
             print(f"ERROR: validation failed: {e}", file=sys.stderr)
             continue
 
-        # run make with true streaming (runner.py --raw)
+        # --- Risk gating (only for high-risk targets) ---
+        # NOTE: in this codebase `catalog` is a Path to catalog.json (not the parsed dict).
+        try:
+            catalog_obj = json.loads(Path(catalog).read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"ERROR: failed to read catalog for risk gating: {e}", file=sys.stderr)
+            continue
+
+        risk = ((catalog_obj.get("targets") or {}).get(chosen) or {}).get("risk", "low")
+
+        if (not args.dry_run) and risk == "high":
+            v = cmd.get("vars") or {}
+            f = cmd.get("make_flags") or []
+            preview = " ".join(["make"] + list(f) + [chosen] + [f"{k}={v[k]}" for k in sorted(v)])
+
+            print(f"⚠ high-risk target: {chosen}", file=sys.stderr)
+            print(f"About to run: {preview}", file=sys.stderr)
+            ans = input("Type 'y' to continue: ").strip().lower()
+            if ans != "y":
+                print("Aborted.", file=sys.stderr)
+                continue
+
+        # Run make with true streaming (runner.py --raw)
         rc = runner_run_raw(
             python=python,
             runner_py=runner_py,
@@ -612,6 +650,7 @@ def main() -> None:
         )
         if rc != 0:
             print(f"(make exited with code {rc})", file=sys.stderr)
+
 
     # stop router server if we started it
     if server_proc is not None:
