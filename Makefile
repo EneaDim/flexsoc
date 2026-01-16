@@ -564,6 +564,7 @@ clean_fsm_all:
 	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean_all
 clean_agent:
 	$(Q)$(RM) flexsoc_make_agent/logs
+	$(Q)$(RM) flexsoc_make_agent/runs
 clean_fsoc:
 	$(Q)$(RM) build
 clean_soc:
