@@ -149,25 +149,15 @@ nohup ollama serve > /tmp/ollama.log 2>&1 &
 
 ---
 
-### 🧠 Required Model (Embeddings Only)
+### 🧠 Required Models
 
-At this stage, the agent requires **one model only**:
-
+* **LLM** — used for explaining errors and warnings
 * **Embedding model** — used for semantic intent routing
 
-Pull it once:
-
 ```bash
+ollama pull qwen2.5:0.5b
 ollama pull nomic-embed-text
 ```
-
-⚠️ No chat / LLM model is required to run Make targets.
-
-The embedding model:
-
-* does **not** generate commands
-* does **not** reason about execution
-* only helps classify *which existing Make target* best matches the user intent
 
 ---
 
@@ -182,11 +172,11 @@ make agent
 Example commands:
 
 ```text
-help me
 start
-lint
-run view
-pulisci la simulazione
+:sum
+:why
+syn
+sta
 ```
 
 Each command is deterministically resolved to **one explicit `make <target>`**, validated, executed, and fully logged.
