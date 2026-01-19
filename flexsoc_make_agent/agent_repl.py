@@ -552,7 +552,6 @@ def install_readline_completion(repo_root: Path, state: dict) -> None:
     except Exception:
         pass
 
-
 # ---------------- REPL ----------------
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -574,7 +573,11 @@ def main() -> None:
     ap.add_argument("--timeout-s", type=int, default=3600)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--show-route", action="store_true", help="Print chosen target before running.")
-    ap.add_argument("--cd-affects-make", action="store_true", help="If set, make runs from the current shell-lite cwd.")
+    ap.add_argument(
+        "--cd-affects-make",
+        action="store_true",
+        help="If set, make runs from the current shell-lite cwd.",
+    )
 
     args = ap.parse_args()
 
@@ -600,21 +603,18 @@ def main() -> None:
     repo_root_str = str(repo_root.resolve())
     if repo_root_str not in sys.path:
         sys.path.insert(0, repo_root_str)
-        
-        # readline optional
-        try:
-            import readline  # noqa: F401
-        except Exception:
-            pass
+
+    # readline optional
+    try:
+        import readline  # noqa: F401
+    except Exception:
+        pass
 
     python = sys.executable
     base_url = f"http://{args.host}:{args.port}"
 
-    # State for shell-lite
-    state = {
-        "cwd": repo_root,
-        "history": [],
-    }
+    # shell-lite state
+    state: Dict[str, Any] = {"cwd": repo_root, "history": []}
     install_readline_completion(repo_root, state)
 
     # Start router server if needed
@@ -652,34 +652,31 @@ def main() -> None:
         if low in EXIT_WORDS:
             break
 
-        # record history (for h)
         state["history"].append(line)
 
         # shell-lite first
         if try_shell_lite(line, repo_root=repo_root, state=state):
             continue
 
-        # --- Refiner commands (start with ':') ---
+        # -------------------------
+        # Refiner commands: :why / :sum
+        # -------------------------
         if line.startswith(":"):
             cmdline = line.strip().lower()
-
             if cmdline not in (":why", ":sum"):
                 print("Unknown command. Available: :why, :sum", file=sys.stderr)
                 continue
 
             runs_dir = repo_root / "flexsoc_make_agent" / "runs"
-            prefer_failed = (cmdline == ":why")
-
-            rec = get_last_run_record(runs_dir, prefer_failed=prefer_failed) \
+            rec = (
+                get_last_run_record(runs_dir, prefer_failed=(cmdline == ":why"))
                 or get_last_run_record(runs_dir, prefer_failed=False)
+            )
             if not rec:
                 print("No runs found.", file=sys.stderr)
                 continue
 
-            # Pick flow logs from the run record (preferred)
             logs = pick_logs_for_analysis(rec, repo_root, max_files=3)
-
-            # Fallback: if the run record is missing flow_logs, pick newest files in log/
             if not logs:
                 log_dir = repo_root / "log"
                 if log_dir.exists():
@@ -692,51 +689,20 @@ def main() -> None:
 
             if not logs:
                 print("No flow logs found to analyze.", file=sys.stderr)
-                print(f"(debug) last run id: {rec.get('id')}", file=sys.stderr)
-                print(f"(debug) flow_logs in record: {rec.get('flow_logs')}", file=sys.stderr)
                 continue
 
-            # Use a concise, explicit question so the model produces the right shape of answer.
-            if cmdline == ":why":
-                question = (
-                    "Explain why the last run failed.\n"
-                    "Summarize the main error(s) and provide evidence from the logs.\n"
-                    "If you see warnings that likely contributed, summarize them too.\n"
-                    "Return JSON only."
-                )
-            else:  # :sum
-                question = (
-                    "Return JSON only with keys: summary, error_summary, warning_summary.\n"
-                    "error_summary MUST summarize errors if present (otherwise say 'none').\n"
-                    "warning_summary MUST summarize warnings if present (otherwise say 'none').\n"
-                    "Group warnings by type (e.g. Verilator %Warning-XYZ) and include 1-2 examples per type.\n"
-                )
+            question = (
+                "Explain each warning/error type with one short sentence."
+                if cmdline == ":why"
+                else "Return JSON only with keys: summary, error_summary, warning_summary."
+            )
+
             try:
                 from flexsoc_make_agent import refiner
                 import importlib
-                importlib.reload(refiner)  # pick up edits to refiner.py without restarting the REPL
 
-                # Debug: show which files we analyze
-                print("[refiner] files:", ", ".join(p.as_posix() for p in logs), file=sys.stderr)
+                importlib.reload(refiner)
 
-                # Deterministic counts (strict): avoid matching signal names containing "err"
-                ERR_PAT = re.compile(r"(^%Error-|(^|\s)Error(\s|:)|FATAL|Traceback|Exception|Assertion|Segmentation fault)", re.IGNORECASE)
-                WARN_PAT = re.compile(r"(^%Warning-|(^|\s)Warning(\s|:))", re.IGNORECASE)
-
-                err_count = 0
-                warn_count = 0
-                for fp in logs:
-                    try:
-                        txt = fp.read_text(encoding="utf-8", errors="replace")
-                        lines = txt.splitlines()
-                        err_count += sum(1 for ln in lines if ERR_PAT.search(ln))
-                        warn_count += sum(1 for ln in lines if WARN_PAT.search(ln))
-                    except Exception:
-                        pass
-
-                print(f"[refiner] matches(strict): errors={err_count} warnings={warn_count}", file=sys.stderr)
-
-                # Run refiner (fast-ish defaults; windows cover warnings/errors anywhere in file)
                 use_llm = (cmdline == ":why")
                 report = refiner.analyze(
                     rec,
@@ -755,80 +721,66 @@ def main() -> None:
                 print(f"ERROR: refiner failed: {e}", file=sys.stderr)
                 continue
 
-            # ----- Render (single pass, no duplicates) -----
+            # ----- Render -----
             summary = (report.get("summary") or "").strip()
             if summary:
                 print(summary)
 
+            if cmdline == ":why":
+                status = report.get("status")
+                if status:
+                    print(f"\nStatus: {status}")
+
             err_sum = report.get("error_summary") or []
             warn_sum = report.get("warning_summary") or []
 
-            # action items (optional)
-            for a in (report.get("action_items") or [])[:8]:
-                if not isinstance(a, dict):
-                    continue
-                t = a.get("type")
-                if t == "try_target":
-                    print(f"-> suggested target: {a.get('target')} ({a.get('why')})")
-                elif t == "set_var":
-                    print(f"-> suggested var: {a.get('var')}={a.get('value')} ({a.get('why')})")
-                elif t == "check":
-                    print(f"-> check: {a.get('text')}")
-            
-            if isinstance(err_sum, list):
-                print("\nErrors:")
-                for it in err_sum[:10]:
-                    if isinstance(it, dict):
-                        t = it.get("type") or "unknown"
-                        c = it.get("count")
-                        ex = it.get("examples") or []
-                        line_out = f"- {t}"
-                        if c is not None:
-                            line_out += f" (count={c})"
-                        print(line_out)
-                        for s in ex[:2]:
-                            print(f"  * {s}")
-                    elif isinstance(it, str):
-                        print(f"- {it}")
+            llm_sent = report.get("llm_sentences") or {}
+            w_sent: Dict[str, str] = llm_sent.get("warnings") or {}
+            e_sent: Dict[str, str] = llm_sent.get("errors") or {}
 
-            if isinstance(warn_sum, list):
-                print("\nWarnings:")
-                for it in warn_sum[:10]:
-                    if isinstance(it, dict):
-                        t = it.get("type") or "unknown"
-                        c = it.get("count")
-                        ex = it.get("examples") or []
-                        line_out = f"- {t}"
-                        if c is not None:
-                            line_out += f" (count={c})"
-                        print(line_out)
-                        for s in ex[:2]:
-                            print(f"  * {s}")
-                    elif isinstance(it, str):
-                        print(f"- {it}")
-
-            # Backward-compatible rendering (older schema)
-            for rc in (report.get("root_causes") or [])[:3]:
-                if isinstance(rc, dict):
-                    print(f"\n- cause: {rc.get('cause')} (conf={rc.get('confidence')})")
-                    for s in (rc.get("evidence") or [])[:2]:
+            print("\nErrors:")
+            if isinstance(err_sum, list) and err_sum:
+                for it in err_sum[:50]:
+                    if not isinstance(it, dict):
+                        continue
+                    t = it.get("type") or "unknown"
+                    c = it.get("count")
+                    ex = it.get("examples") or []
+                    hdr = f"- {t}" + (f" (count={c})" if c is not None else "")
+                    print(hdr)
+                    for s in ex[:2]:
                         print(f"  * {s}")
+                    if cmdline == ":why":
+                        sent = (e_sent.get(t) or "").strip()
+                        if sent:
+                            print(f"  -> {sent}")
+            else:
+                print("- (none)")
 
-            for a in (report.get("action_items") or [])[:8]:
-                if not isinstance(a, dict):
-                    continue
-                t = a.get("type")
-                if t == "try_target":
-                    print(f"-> suggested target: {a.get('target')} ({a.get('why')})")
-                elif t == "set_var":
-                    print(f"-> suggested var: {a.get('var')}={a.get('value')} ({a.get('why')})")
-                elif t == "check":
-                    print(f"-> check: {a.get('text')}")
+            print("\nWarnings:")
+            if isinstance(warn_sum, list) and warn_sum:
+                for it in warn_sum[:50]:
+                    if not isinstance(it, dict):
+                        continue
+                    t = it.get("type") or "unknown"
+                    c = it.get("count")
+                    ex = it.get("examples") or []
+                    hdr = f"- {t}" + (f" (count={c})" if c is not None else "")
+                    print(hdr)
+                    for s in ex[:2]:
+                        print(f"  * {s}")
+                    if cmdline == ":why":
+                        sent = (w_sent.get(t) or "").strip()
+                        if sent:
+                            print(f"  -> {sent}")
+            else:
+                print("- (none)")
 
             continue
 
-        
-        # --- Agent routing + Make execution ---
+        # -------------------------
+        # Agent routing + Make execution
+        # -------------------------
         try:
             route_obj = route_query(base_url, line)
         except Exception as e:
@@ -836,8 +788,6 @@ def main() -> None:
             continue
 
         chosen = route_obj.get("chosen") or "help"
-
-        # Vars extracted by router (e.g., TOP=myip). Keep it simple: pass-through, runner will validate.
         vars_from_route = route_obj.get("vars") or {}
         if not isinstance(vars_from_route, dict):
             vars_from_route = {}
@@ -851,7 +801,6 @@ def main() -> None:
                 vtxt = f" [{pairs}]"
             print(f"[route] {chosen} (score={best}) {reason}{vtxt}".rstrip())
 
-        # If you want `cd` to affect make, set cmd["cwd"] accordingly
         rel_cwd = "."
         if args.cd_affects_make:
             try:
@@ -874,8 +823,7 @@ def main() -> None:
             print(f"ERROR: validation failed: {e}", file=sys.stderr)
             continue
 
-        # --- Risk gating (only for high-risk targets) ---
-        # NOTE: in this codebase `catalog` is a Path to catalog.json (not the parsed dict).
+        # Risk gating (only for high-risk targets)
         try:
             catalog_obj = json.loads(Path(catalog).read_text(encoding="utf-8"))
         except Exception as e:
@@ -883,26 +831,20 @@ def main() -> None:
             continue
 
         risk = ((catalog_obj.get("targets") or {}).get(chosen) or {}).get("risk", "low")
-
         if (not args.dry_run) and risk == "high":
             v = cmd.get("vars") or {}
             f = cmd.get("make_flags") or []
             preview = " ".join(["make"] + list(f) + [chosen] + [f"{k}={v[k]}" for k in sorted(v)])
-
             print(f"⚠ high-risk target: {chosen}", file=sys.stderr)
             print(f"About to run: {preview}", file=sys.stderr)
-            ans = input("Type 'y' to continue: ").strip().lower()
-            if ans != "y":
+            if input("Type 'y' to continue: ").strip().lower() != "y":
                 print("Aborted.", file=sys.stderr)
                 continue
 
-        log_dir = repo_root / "log"
-        # --- Snapshot flow logs in repo_root/log before running make ---
-        before_snap = snapshot_log_dir(repo_root)   # returns keys like "log/test_lint.log"
+        before_snap = snapshot_log_dir(repo_root)
         run_id = make_run_id(chosen)
         start_ts = int(time.time())
 
-        # Run make with true streaming (runner.py --raw)
         rc = runner_run_raw(
             python=python,
             runner_py=runner_py,
@@ -916,7 +858,6 @@ def main() -> None:
         if rc != 0:
             print(f"(make exited with code {rc})", file=sys.stderr)
 
-        # --- Snapshot flow logs after running make and compute changed files ---
         end_ts = int(time.time())
         after_snap = snapshot_log_dir(repo_root)
         flow_logs = diff_log_snapshot(before_snap, after_snap)
@@ -929,7 +870,7 @@ def main() -> None:
             "vars": cmd.get("vars") or {},
             "cwd": cmd.get("cwd"),
             "exit_code": rc,
-            "flow_logs": flow_logs,  # <-- ONLY flow logs under log/
+            "flow_logs": flow_logs,
         }
 
         runs_dir = repo_root / "flexsoc_make_agent" / "runs"
@@ -937,11 +878,6 @@ def main() -> None:
 
         if args.show_route:
             print(f"[run] saved record: {rec_path}", file=sys.stderr)
-            if flow_logs:
-                print(f"[run] flow logs ({min(len(flow_logs), 5)} of {len(flow_logs)}): {flow_logs[:5]}", file=sys.stderr)
-            else:
-                print("[run] flow logs: (none changed)", file=sys.stderr)
-
 
     # stop router server if we started it
     if server_proc is not None:
