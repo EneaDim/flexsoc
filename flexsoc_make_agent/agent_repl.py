@@ -668,10 +668,12 @@ def main() -> None:
                 continue
 
             runs_dir = repo_root / "flexsoc_make_agent" / "runs"
-            rec = (
-                get_last_run_record(runs_dir, prefer_failed=(cmdline == ":why"))
-                or get_last_run_record(runs_dir, prefer_failed=False)
-            )
+            # Always analyze the last run (same behavior for :why and :sum)
+            rec = get_last_run_record(runs_dir, prefer_failed=False)            
+            #rec = (
+            #    get_last_run_record(runs_dir, prefer_failed=(cmdline == ":why"))
+            #    or get_last_run_record(runs_dir, prefer_failed=False)
+            #)
             if not rec:
                 print("No runs found.", file=sys.stderr)
                 continue
