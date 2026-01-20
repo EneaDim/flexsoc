@@ -235,7 +235,7 @@ view_presyn_sv:
 
 compile_syn:
 	@echo "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(Q)iverilog -g2012 -v -gspecify -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DSYN \
+	$(Q)iverilog -g2012 -v -gspecify -DFUNCTIONAL -DSIM -DSYN -DUNIT_DELAY=\#1 \
 	-o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
 	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 
@@ -249,9 +249,9 @@ view_syn:
 	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
 	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_syn_tb.vcd $(VIEWER_CONF) & 
 
-##################################################
-###              Static Timing Analysis        ###
-##################################################
+############################################
+###        Static Timing Analysis        ###
+############################################
 
 sta: setup_signoff 
 	@echo "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
