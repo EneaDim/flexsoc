@@ -7,6 +7,6 @@
   `include "rtl/fft_fsm.v"
 `else
   `include "verilog/primitives.v"
-  `include "verilog/sky130_fd_sc_hd.v"
+  `include "verilog/sky130_fd_sc_hd.no_tc.v"
   `include "syn/fft_fsm_synth.v"
 `endif

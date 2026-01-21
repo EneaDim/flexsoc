@@ -10,6 +10,6 @@
   `include "rtl/gpio.sv"
 `else
   `include "verilog/primitives.v"
-  `include "verilog/sky130_fd_sc_hd.v"
+  `include "verilog/sky130_fd_sc_hd.no_tc.v"
   `include "syn/gpio_synth.v"
 `endif

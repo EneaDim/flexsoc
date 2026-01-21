@@ -235,14 +235,15 @@ view_presyn_sv:
 
 compile_syn:
 	@echo "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(Q)iverilog -g2012 -v -gspecify -DFUNCTIONAL -DSIM -DSYN -DUNIT_DELAY=\#1 \
+	$(Q)iverilog -g2012 -v -gspecify -DSIM -DSYN -s $(TOP)_tb \
 	-o $(SIMDIR)/$(TOP)_syn_tb.vvp $(PRIM) $(TBDIR)/$(TOP)_tb.sv \
 	> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 
 # SIMULATE POST SYNTHESIS NETLIST
 sim_syn: compile_syn
 	@echo "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
-	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
+	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose \
+	> $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
 
 # VIEW WAVEFORMS RTL SIMULATION
 view_syn:

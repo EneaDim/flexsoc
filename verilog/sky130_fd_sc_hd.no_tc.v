@@ -44282,11 +44282,15 @@ module sky130_fd_sc_hd__dfbbn_1 (
     wire CLK            ;
     wire buf_Q          ;
     wire CLK_N_delayed  ;
-    wire RESET_B_delayed;
-    wire SET_B_delayed  ;
-    reg  notifier       ;
+    assign CLK_N_delayed = CLK_N;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire SET_B_delayed  ;
+assign SET_B_delayed = SET_B;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire awake          ;
+    assign D_delayed = D;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire condb          ;
@@ -44310,16 +44314,16 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( negedge CLK_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge CLK_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_N_delayed ) ;
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_N_delayed , D_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -44467,11 +44471,15 @@ module sky130_fd_sc_hd__dfbbn_1 (
     wire CLK            ;
     wire buf_Q          ;
     wire CLK_N_delayed  ;
-    wire RESET_B_delayed;
-    wire SET_B_delayed  ;
-    reg  notifier       ;
+    assign CLK_N_delayed = CLK_N;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire SET_B_delayed  ;
+assign SET_B_delayed = SET_B;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire awake          ;
+    assign D_delayed = D;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire condb          ;
@@ -44495,16 +44503,16 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( negedge CLK_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge CLK_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_N_delayed ) ;
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_N_delayed , D_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -44703,11 +44711,15 @@ module sky130_fd_sc_hd__dfbbn_2 (
     wire CLK            ;
     wire buf_Q          ;
     wire CLK_N_delayed  ;
-    wire RESET_B_delayed;
-    wire SET_B_delayed  ;
-    reg  notifier       ;
+    assign CLK_N_delayed = CLK_N;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire SET_B_delayed  ;
+assign SET_B_delayed = SET_B;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire awake          ;
+    assign D_delayed = D;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire condb          ;
@@ -44731,16 +44743,16 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( negedge CLK_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge CLK_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_N_delayed ) ;
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_N_delayed , D_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -44888,11 +44900,15 @@ module sky130_fd_sc_hd__dfbbn_2 (
     wire CLK            ;
     wire buf_Q          ;
     wire CLK_N_delayed  ;
-    wire RESET_B_delayed;
-    wire SET_B_delayed  ;
-    reg  notifier       ;
+    assign CLK_N_delayed = CLK_N;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire SET_B_delayed  ;
+assign SET_B_delayed = SET_B;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire awake          ;
+    assign D_delayed = D;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire condb          ;
@@ -44916,16 +44932,16 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( negedge CLK_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge CLK_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_N_delayed ) ;
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_N_delayed , D_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -45121,11 +45137,15 @@ module sky130_fd_sc_hd__dfbbp_1 (
     wire SET            ;
     wire buf_Q          ;
     wire CLK_delayed    ;
-    wire RESET_B_delayed;
-    wire SET_B_delayed  ;
-    reg  notifier       ;
+    assign CLK_delayed = CLK;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire SET_B_delayed  ;
+assign SET_B_delayed = SET_B;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire awake          ;
+    assign D_delayed = D;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire condb          ;
@@ -45148,16 +45168,16 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( posedge CLK => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge CLK => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_delayed ) ;
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , SET_B_delayed  ) ;
-$width ( negedge CLK &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -45302,11 +45322,15 @@ module sky130_fd_sc_hd__dfbbp_1 (
     wire SET            ;
     wire buf_Q          ;
     wire CLK_delayed    ;
-    wire RESET_B_delayed;
-    wire SET_B_delayed  ;
-    reg  notifier       ;
+    assign CLK_delayed = CLK;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire SET_B_delayed  ;
+assign SET_B_delayed = SET_B;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire awake          ;
+    assign D_delayed = D;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire condb          ;
@@ -45329,16 +45353,16 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( posedge CLK => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge CLK => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_delayed ) ;
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , condb , condb , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , SET_B_delayed  ) ;
-$width ( negedge CLK &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -45523,11 +45547,14 @@ module sky130_fd_sc_hd__dfrbp_1 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -45544,12 +45571,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -45684,11 +45711,14 @@ module sky130_fd_sc_hd__dfrbp_1 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -45705,12 +45735,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -45895,11 +45925,14 @@ module sky130_fd_sc_hd__dfrbp_2 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -45916,12 +45949,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -46056,11 +46089,14 @@ module sky130_fd_sc_hd__dfrbp_2 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -46077,12 +46113,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -46268,11 +46304,14 @@ module sky130_fd_sc_hd__dfrtn_1 (
     wire buf_Q          ;
     wire RESET          ;
     wire intclk         ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_N_delayed  ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_N_delayed  ;
+    assign CLK_N_delayed = CLK_N;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -46288,12 +46327,12 @@ module sky130_fd_sc_hd__dfrtn_1 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( negedge CLK_N => ( Q : CLK_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_N_delayed , D_delayed ) ;
-$width ( posedge CLK_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -46428,11 +46467,14 @@ module sky130_fd_sc_hd__dfrtn_1 (
     wire buf_Q          ;
     wire RESET          ;
     wire intclk         ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_N_delayed  ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_N_delayed  ;
+    assign CLK_N_delayed = CLK_N;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -46448,12 +46490,12 @@ module sky130_fd_sc_hd__dfrtn_1 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( negedge CLK_N => ( Q : CLK_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_N_delayed , D_delayed ) ;
-$width ( posedge CLK_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -46633,11 +46675,14 @@ module sky130_fd_sc_hd__dfrtp_1 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -46652,12 +46697,12 @@ module sky130_fd_sc_hd__dfrtp_1 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -46787,11 +46832,14 @@ module sky130_fd_sc_hd__dfrtp_1 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -46806,12 +46854,12 @@ module sky130_fd_sc_hd__dfrtp_1 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -46991,11 +47039,14 @@ module sky130_fd_sc_hd__dfrtp_2 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -47010,12 +47061,12 @@ module sky130_fd_sc_hd__dfrtp_2 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -47145,11 +47196,14 @@ module sky130_fd_sc_hd__dfrtp_2 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -47164,12 +47218,12 @@ module sky130_fd_sc_hd__dfrtp_2 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -47349,11 +47403,14 @@ module sky130_fd_sc_hd__dfrtp_4 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -47368,12 +47425,12 @@ module sky130_fd_sc_hd__dfrtp_4 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -47503,11 +47560,14 @@ module sky130_fd_sc_hd__dfrtp_4 (
     // Local signals
     wire buf_Q          ;
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
 
@@ -47522,12 +47582,12 @@ module sky130_fd_sc_hd__dfrtp_4 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -47712,11 +47772,14 @@ module sky130_fd_sc_hd__dfsbp_1 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -47734,12 +47797,12 @@ specify
 ( negedge SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -47874,11 +47937,14 @@ module sky130_fd_sc_hd__dfsbp_1 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -47896,12 +47962,12 @@ specify
 ( negedge SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -48086,11 +48152,14 @@ module sky130_fd_sc_hd__dfsbp_2 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -48108,12 +48177,12 @@ specify
 ( negedge SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -48248,11 +48317,14 @@ module sky130_fd_sc_hd__dfsbp_2 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -48270,12 +48342,12 @@ specify
 ( negedge SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -48455,11 +48527,14 @@ module sky130_fd_sc_hd__dfstp_1 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -48474,12 +48549,12 @@ module sky130_fd_sc_hd__dfstp_1 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -48609,11 +48684,14 @@ module sky130_fd_sc_hd__dfstp_1 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -48628,12 +48706,12 @@ module sky130_fd_sc_hd__dfstp_1 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -48813,11 +48891,14 @@ module sky130_fd_sc_hd__dfstp_2 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -48832,12 +48913,12 @@ module sky130_fd_sc_hd__dfstp_2 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -48967,11 +49048,14 @@ module sky130_fd_sc_hd__dfstp_2 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -48986,12 +49070,12 @@ module sky130_fd_sc_hd__dfstp_2 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -49171,11 +49255,14 @@ module sky130_fd_sc_hd__dfstp_4 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -49190,12 +49277,12 @@ module sky130_fd_sc_hd__dfstp_4 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -49325,11 +49412,14 @@ module sky130_fd_sc_hd__dfstp_4 (
     // Local signals
     wire buf_Q        ;
     wire SET          ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
 
@@ -49344,12 +49434,12 @@ module sky130_fd_sc_hd__dfstp_4 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , CLK_delayed , D_delayed ) ;
-$width ( posedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -49527,10 +49617,12 @@ module sky130_fd_sc_hd__dfxbp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -49541,10 +49633,10 @@ module sky130_fd_sc_hd__dfxbp_1 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -49672,10 +49764,12 @@ module sky130_fd_sc_hd__dfxbp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -49686,10 +49780,10 @@ module sky130_fd_sc_hd__dfxbp_1 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -49867,10 +49961,12 @@ module sky130_fd_sc_hd__dfxbp_2 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -49881,10 +49977,10 @@ module sky130_fd_sc_hd__dfxbp_2 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -50012,10 +50108,12 @@ module sky130_fd_sc_hd__dfxbp_2 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -50026,10 +50124,10 @@ module sky130_fd_sc_hd__dfxbp_2 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -50202,10 +50300,12 @@ module sky130_fd_sc_hd__dfxtp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -50214,10 +50314,10 @@ module sky130_fd_sc_hd__dfxtp_1 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -50340,10 +50440,12 @@ module sky130_fd_sc_hd__dfxtp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -50352,10 +50454,10 @@ module sky130_fd_sc_hd__dfxtp_1 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -50528,10 +50630,12 @@ module sky130_fd_sc_hd__dfxtp_2 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -50540,10 +50644,10 @@ module sky130_fd_sc_hd__dfxtp_2 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -50666,10 +50770,12 @@ module sky130_fd_sc_hd__dfxtp_2 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -50678,10 +50784,10 @@ module sky130_fd_sc_hd__dfxtp_2 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -50854,10 +50960,12 @@ module sky130_fd_sc_hd__dfxtp_4 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -50866,10 +50974,10 @@ module sky130_fd_sc_hd__dfxtp_4 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -50992,10 +51100,12 @@ module sky130_fd_sc_hd__dfxtp_4 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
 
     //                                 Name  Output  Other arguments
     sky130_fd_sc_hd__udp_dff$P_pp$PG$N dff0 (buf_Q , D_delayed, CLK_delayed, notifier, VPWR, VGND);
@@ -51004,10 +51114,10 @@ module sky130_fd_sc_hd__dfxtp_4 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -51434,8 +51544,10 @@ module sky130_fd_sc_hd__dlclkp_1 (
     wire m0          ;
     wire clkn        ;
     wire CLK_delayed ;
-    wire GATE_delayed;
-    reg  notifier    ;
+    assign CLK_delayed = CLK;
+wire GATE_delayed;
+assign GATE_delayed = GATE;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -51446,9 +51558,9 @@ module sky130_fd_sc_hd__dlclkp_1 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -51575,8 +51687,10 @@ module sky130_fd_sc_hd__dlclkp_1 (
     wire m0          ;
     wire clkn        ;
     wire CLK_delayed ;
-    wire GATE_delayed;
-    reg  notifier    ;
+    assign CLK_delayed = CLK;
+wire GATE_delayed;
+assign GATE_delayed = GATE;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -51587,9 +51701,9 @@ module sky130_fd_sc_hd__dlclkp_1 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -51766,8 +51880,10 @@ module sky130_fd_sc_hd__dlclkp_2 (
     wire m0          ;
     wire clkn        ;
     wire CLK_delayed ;
-    wire GATE_delayed;
-    reg  notifier    ;
+    assign CLK_delayed = CLK;
+wire GATE_delayed;
+assign GATE_delayed = GATE;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -51778,9 +51894,9 @@ module sky130_fd_sc_hd__dlclkp_2 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -51907,8 +52023,10 @@ module sky130_fd_sc_hd__dlclkp_2 (
     wire m0          ;
     wire clkn        ;
     wire CLK_delayed ;
-    wire GATE_delayed;
-    reg  notifier    ;
+    assign CLK_delayed = CLK;
+wire GATE_delayed;
+assign GATE_delayed = GATE;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -51919,9 +52037,9 @@ module sky130_fd_sc_hd__dlclkp_2 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -52098,8 +52216,10 @@ module sky130_fd_sc_hd__dlclkp_4 (
     wire m0          ;
     wire clkn        ;
     wire CLK_delayed ;
-    wire GATE_delayed;
-    reg  notifier    ;
+    assign CLK_delayed = CLK;
+wire GATE_delayed;
+assign GATE_delayed = GATE;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -52110,9 +52230,9 @@ module sky130_fd_sc_hd__dlclkp_4 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -52239,8 +52359,10 @@ module sky130_fd_sc_hd__dlclkp_4 (
     wire m0          ;
     wire clkn        ;
     wire CLK_delayed ;
-    wire GATE_delayed;
-    reg  notifier    ;
+    assign CLK_delayed = CLK;
+wire GATE_delayed;
+assign GATE_delayed = GATE;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -52251,9 +52373,9 @@ module sky130_fd_sc_hd__dlclkp_4 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , GATE_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -52443,12 +52565,15 @@ module sky130_fd_sc_hd__dlrbn_1 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -52470,12 +52595,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q_N : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -52614,12 +52739,15 @@ module sky130_fd_sc_hd__dlrbn_1 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -52641,12 +52769,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q_N : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -52836,12 +52964,15 @@ module sky130_fd_sc_hd__dlrbn_2 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -52863,12 +52994,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q_N : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -53007,12 +53138,15 @@ module sky130_fd_sc_hd__dlrbn_2 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -53034,12 +53168,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q_N : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -53226,12 +53360,15 @@ module sky130_fd_sc_hd__dlrbp_1 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -53252,12 +53389,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q_N : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -53393,12 +53530,15 @@ module sky130_fd_sc_hd__dlrbp_1 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -53419,12 +53559,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q_N : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -53611,12 +53751,15 @@ module sky130_fd_sc_hd__dlrbp_2 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -53637,12 +53780,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q_N : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -53778,12 +53921,15 @@ module sky130_fd_sc_hd__dlrbp_2 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -53804,12 +53950,12 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q_N : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -53991,12 +54137,15 @@ module sky130_fd_sc_hd__dlrtn_1 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -54014,12 +54163,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -54151,12 +54300,15 @@ module sky130_fd_sc_hd__dlrtn_1 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -54174,12 +54326,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -54361,12 +54513,15 @@ module sky130_fd_sc_hd__dlrtn_2 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -54384,12 +54539,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -54521,12 +54676,15 @@ module sky130_fd_sc_hd__dlrtn_2 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -54544,12 +54702,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -54731,12 +54889,15 @@ module sky130_fd_sc_hd__dlrtn_4 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -54754,12 +54915,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -54891,12 +55052,15 @@ module sky130_fd_sc_hd__dlrtn_4 (
     // Local signals
     wire RESET          ;
     wire intgate        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_N_delayed ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_N_delayed ;
+    assign GATE_N_delayed = GATE_N;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -54914,12 +55078,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q : GATE_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge GATE_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_N_delayed ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_N_delayed , D_delayed ) ;
-$width ( negedge GATE_N &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -55101,12 +55265,15 @@ module sky130_fd_sc_hd__dlrtp_1 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -55123,12 +55290,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -55259,12 +55426,15 @@ module sky130_fd_sc_hd__dlrtp_1 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -55281,12 +55451,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -55468,12 +55638,15 @@ module sky130_fd_sc_hd__dlrtp_2 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -55490,12 +55663,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -55626,12 +55799,15 @@ module sky130_fd_sc_hd__dlrtp_2 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -55648,12 +55824,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -55835,12 +56011,15 @@ module sky130_fd_sc_hd__dlrtp_4 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -55857,12 +56036,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -55993,12 +56172,15 @@ module sky130_fd_sc_hd__dlrtp_4 (
 
     // Local signals
     wire RESET          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire GATE_delayed   ;
-    wire RESET_delayed  ;
+    assign D_delayed = D;
+wire GATE_delayed   ;
+    assign GATE_delayed = GATE;
+wire RESET_delayed  ;
     wire RESET_B_delayed;
-    wire buf_Q          ;
+    assign RESET_B_delayed = RESET_B;
+wire buf_Q          ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -56015,12 +56197,12 @@ specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 , 0:0:0 ) ;  // delay is tfall
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q : GATE ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge GATE , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , GATE_delayed ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , GATE_delayed , D_delayed ) ;
-$width ( posedge GATE &&& cond1 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -56202,8 +56384,10 @@ module sky130_fd_sc_hd__dlxbn_1 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -56218,9 +56402,9 @@ specify
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( negedge GATE_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are  tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -56352,8 +56536,10 @@ module sky130_fd_sc_hd__dlxbn_1 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -56368,9 +56554,9 @@ specify
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( negedge GATE_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are  tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -56552,8 +56738,10 @@ module sky130_fd_sc_hd__dlxbn_2 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -56568,9 +56756,9 @@ specify
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( negedge GATE_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are  tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -56702,8 +56890,10 @@ module sky130_fd_sc_hd__dlxbn_2 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -56718,9 +56908,9 @@ specify
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( negedge GATE_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are  tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -56899,8 +57089,10 @@ module sky130_fd_sc_hd__dlxbp_1 (
     // Local signals
     wire buf_Q       ;
     wire GATE_delayed;
-    wire D_delayed   ;
-    reg  notifier    ;
+    assign GATE_delayed = GATE;
+wire D_delayed   ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -56914,9 +57106,9 @@ specify
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge GATE => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are  tris , tfall
-$width ( posedge GATE &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -57045,8 +57237,10 @@ module sky130_fd_sc_hd__dlxbp_1 (
     // Local signals
     wire buf_Q       ;
     wire GATE_delayed;
-    wire D_delayed   ;
-    reg  notifier    ;
+    assign GATE_delayed = GATE;
+wire D_delayed   ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -57060,9 +57254,9 @@ specify
 ( D -=> Q_N ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge GATE => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are  tris , tfall
-$width ( posedge GATE &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -57239,8 +57433,10 @@ module sky130_fd_sc_hd__dlxtn_1 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -57252,9 +57448,9 @@ module sky130_fd_sc_hd__dlxtn_1 (
 specify
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -57381,8 +57577,10 @@ module sky130_fd_sc_hd__dlxtn_1 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -57394,9 +57592,9 @@ module sky130_fd_sc_hd__dlxtn_1 (
 specify
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -57573,8 +57771,10 @@ module sky130_fd_sc_hd__dlxtn_2 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -57586,9 +57786,9 @@ module sky130_fd_sc_hd__dlxtn_2 (
 specify
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -57715,8 +57915,10 @@ module sky130_fd_sc_hd__dlxtn_2 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -57728,9 +57930,9 @@ module sky130_fd_sc_hd__dlxtn_2 (
 specify
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -57907,8 +58109,10 @@ module sky130_fd_sc_hd__dlxtn_4 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -57920,9 +58124,9 @@ module sky130_fd_sc_hd__dlxtn_4 (
 specify
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -58049,8 +58253,10 @@ module sky130_fd_sc_hd__dlxtn_4 (
     wire GATE          ;
     wire buf_Q         ;
     wire GATE_N_delayed;
-    wire D_delayed     ;
-    reg  notifier      ;
+    assign GATE_N_delayed = GATE_N;
+wire D_delayed     ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake         ;
 
     //                                    Name     Output  Other arguments
@@ -58062,9 +58268,9 @@ module sky130_fd_sc_hd__dlxtn_4 (
 specify
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge GATE_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( negedge GATE_N &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge GATE_N , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
-$setuphold ( posedge GATE_N , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_N_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -58238,8 +58444,10 @@ module sky130_fd_sc_hd__dlxtp_1 (
     // Local signals
     wire buf_Q       ;
     wire GATE_delayed;
-    wire D_delayed   ;
-    reg  notifier    ;
+    assign GATE_delayed = GATE;
+wire D_delayed   ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -58250,9 +58458,9 @@ module sky130_fd_sc_hd__dlxtp_1 (
 specify
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge GATE &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -58376,8 +58584,10 @@ module sky130_fd_sc_hd__dlxtp_1 (
     // Local signals
     wire buf_Q       ;
     wire GATE_delayed;
-    wire D_delayed   ;
-    reg  notifier    ;
+    assign GATE_delayed = GATE;
+wire D_delayed   ;
+assign D_delayed = D;
+reg notifier; initial notifier = 1'b0;
     wire awake       ;
 
     //                                    Name     Output  Other arguments
@@ -58388,9 +58598,9 @@ module sky130_fd_sc_hd__dlxtp_1 (
 specify
 ( D +=> Q ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge GATE => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge GATE &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( negedge GATE , posedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_delayed , D_delayed ) ;
-$setuphold ( negedge GATE , negedge D , 0:0:0 , 0:0:0 , notifier , awake , awake , GATE_delayed , D_delayed ) ;
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -61600,11 +61810,14 @@ module sky130_fd_sc_hd__edfxbp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire awake      ;
     wire cond0      ;
 
@@ -61619,12 +61832,12 @@ module sky130_fd_sc_hd__edfxbp_1 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 ,  cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 ,  cond0 , CLK_delayed , D_delayed ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -61760,11 +61973,14 @@ module sky130_fd_sc_hd__edfxbp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire awake      ;
     wire cond0      ;
 
@@ -61779,12 +61995,12 @@ module sky130_fd_sc_hd__edfxbp_1 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 ,  cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 ,  cond0 , CLK_delayed , D_delayed ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -61966,11 +62182,14 @@ module sky130_fd_sc_hd__edfxtp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire awake      ;
     wire cond0      ;
 
@@ -61983,12 +62202,12 @@ module sky130_fd_sc_hd__edfxtp_1 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 ,  cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 ,  cond0 , CLK_delayed , D_delayed ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -62119,11 +62338,14 @@ module sky130_fd_sc_hd__edfxtp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire awake      ;
     wire cond0      ;
 
@@ -62136,12 +62358,12 @@ module sky130_fd_sc_hd__edfxtp_1 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond0 ,  cond0 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond0 ,  cond0 , CLK_delayed , D_delayed ) ;
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -77353,21 +77575,23 @@ module sky130_fd_sc_hd__lpflow_inputisolatch_1 (
 
     // Local signals
     wire buf_Q          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire SLEEP_B_delayed;
-    wire D_delayed      ;
+    assign SLEEP_B_delayed = SLEEP_B;
+wire D_delayed      ;
 
-    //                                     Name     Output  Other arguments
+    assign D_delayed = D;
+//                                     Name     Output  Other arguments
     sky130_fd_sc_hd__udp_dlatch$lP_pp$PG$N dlatch0 (buf_Q , D_delayed, SLEEP_B_delayed, notifier, VPWR, VGND);
     buf                                    buf0    (Q     , buf_Q                                           );
 
 specify
 (D +=> Q ) = (0:0:0,0:0:0);  // delays are tris,tfall
 (posedge SLEEP_B => (Q +: D ) ) = (0:0:0,0:0:0); // delays are tris,tfall
-$width (posedge SLEEP_B , 0:0:0, 0, notifier);
-$width (negedge SLEEP_B , 0:0:0, 0, notifier);
-$setuphold ( negedge SLEEP_B , posedge D , 0:0:0, 0:0:0, notifier , , , SLEEP_B_delayed , D_delayed ) ;
-$setuphold ( negedge SLEEP_B , negedge D , 0:0:0, 0:0:0, notifier , , , SLEEP_B_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -77490,21 +77714,23 @@ module sky130_fd_sc_hd__lpflow_inputisolatch_1 (
 
     // Local signals
     wire buf_Q          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire SLEEP_B_delayed;
-    wire D_delayed      ;
+    assign SLEEP_B_delayed = SLEEP_B;
+wire D_delayed      ;
 
-    //                                     Name     Output  Other arguments
+    assign D_delayed = D;
+//                                     Name     Output  Other arguments
     sky130_fd_sc_hd__udp_dlatch$lP_pp$PG$N dlatch0 (buf_Q , D_delayed, SLEEP_B_delayed, notifier, VPWR, VGND);
     buf                                    buf0    (Q     , buf_Q                                           );
 
 specify
 (D +=> Q ) = (0:0:0,0:0:0);  // delays are tris,tfall
 (posedge SLEEP_B => (Q +: D ) ) = (0:0:0,0:0:0); // delays are tris,tfall
-$width (posedge SLEEP_B , 0:0:0, 0, notifier);
-$width (negedge SLEEP_B , 0:0:0, 0, notifier);
-$setuphold ( negedge SLEEP_B , posedge D , 0:0:0, 0:0:0, notifier , , , SLEEP_B_delayed , D_delayed ) ;
-$setuphold ( negedge SLEEP_B , negedge D , 0:0:0, 0:0:0, notifier , , , SLEEP_B_delayed , D_delayed ) ;
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -134401,14 +134627,20 @@ module sky130_fd_sc_hd__sdfbbn_1 (
     wire SET            ;
     wire CLK            ;
     wire buf_Q          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire CLK_N_delayed  ;
-    wire SET_B_delayed  ;
-    wire RESET_B_delayed;
-    wire mux_out        ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire CLK_N_delayed  ;
+    assign CLK_N_delayed = CLK_N;
+wire SET_B_delayed  ;
+    assign SET_B_delayed = SET_B;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire mux_out        ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -134440,20 +134672,20 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( negedge CLK_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge CLK_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_N_delayed ) ;
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -134610,14 +134842,20 @@ module sky130_fd_sc_hd__sdfbbn_1 (
     wire SET            ;
     wire CLK            ;
     wire buf_Q          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire CLK_N_delayed  ;
-    wire SET_B_delayed  ;
-    wire RESET_B_delayed;
-    wire mux_out        ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire CLK_N_delayed  ;
+    assign CLK_N_delayed = CLK_N;
+wire SET_B_delayed  ;
+    assign SET_B_delayed = SET_B;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire mux_out        ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -134649,20 +134887,20 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( negedge CLK_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge CLK_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_N_delayed ) ;
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -134870,14 +135108,20 @@ module sky130_fd_sc_hd__sdfbbn_2 (
     wire SET            ;
     wire CLK            ;
     wire buf_Q          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire CLK_N_delayed  ;
-    wire SET_B_delayed  ;
-    wire RESET_B_delayed;
-    wire mux_out        ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire CLK_N_delayed  ;
+    assign CLK_N_delayed = CLK_N;
+wire SET_B_delayed  ;
+    assign SET_B_delayed = SET_B;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire mux_out        ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -134909,20 +135153,20 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( negedge CLK_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge CLK_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_N_delayed ) ;
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -135079,14 +135323,20 @@ module sky130_fd_sc_hd__sdfbbn_2 (
     wire SET            ;
     wire CLK            ;
     wire buf_Q          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire CLK_N_delayed  ;
-    wire SET_B_delayed  ;
-    wire RESET_B_delayed;
-    wire mux_out        ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire CLK_N_delayed  ;
+    assign CLK_N_delayed = CLK_N;
+wire SET_B_delayed  ;
+    assign SET_B_delayed = SET_B;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire mux_out        ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -135118,20 +135368,20 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( negedge CLK_N => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( negedge CLK_N => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_N_delayed ) ;
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK_N &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -135336,14 +135586,20 @@ module sky130_fd_sc_hd__sdfbbp_1 (
     wire RESET          ;
     wire SET            ;
     wire buf_Q          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire CLK_delayed    ;
-    wire SET_B_delayed  ;
-    wire RESET_B_delayed;
-    wire mux_out        ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire SET_B_delayed  ;
+    assign SET_B_delayed = SET_B;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire mux_out        ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -135374,20 +135630,20 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( posedge CLK => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge CLK => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_delayed ) ;
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -135541,14 +135797,20 @@ module sky130_fd_sc_hd__sdfbbp_1 (
     wire RESET          ;
     wire SET            ;
     wire buf_Q          ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire CLK_delayed    ;
-    wire SET_B_delayed  ;
-    wire RESET_B_delayed;
-    wire mux_out        ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire SET_B_delayed  ;
+    assign SET_B_delayed = SET_B;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire mux_out        ;
     wire awake          ;
     wire cond0          ;
     wire cond1          ;
@@ -135579,20 +135841,20 @@ specify
 ( SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 , 0:0:0 ) ;      // delay is tris , tfall
 ( posedge CLK => ( Q +: D ) ) = ( 0:0:0 , 0:0:0 ) ;  // delays are tris , tfall
 ( posedge CLK => ( Q_N -: D ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , cond0 , cond0 , SET_B_delayed , CLK_delayed ) ;
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond_D , cond_D , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond_SCD , cond_SCD , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond_SCE , cond_SCE , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge SET_B , posedge RESET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , RESET_B_delayed  ) ;
-$setuphold ( posedge RESET_B , posedge SET_B , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed  , SET_B_delayed ) ;
-$width ( negedge CLK &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( posedge CLK &&& condb , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -135791,13 +136053,18 @@ module sky130_fd_sc_hd__sdfrbp_1 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -135822,16 +136089,16 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -135979,13 +136246,18 @@ module sky130_fd_sc_hd__sdfrbp_1 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -136010,16 +136282,16 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -136218,13 +136490,18 @@ module sky130_fd_sc_hd__sdfrbp_2 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -136249,16 +136526,16 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -136406,13 +136683,18 @@ module sky130_fd_sc_hd__sdfrbp_2 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -136437,16 +136719,16 @@ specify
 ( negedge RESET_B => ( Q_N -: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -136643,13 +136925,18 @@ module sky130_fd_sc_hd__sdfrtn_1 (
     wire RESET          ;
     wire intclk         ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_N_delayed  ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_N_delayed  ;
+    assign CLK_N_delayed = CLK_N;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -136672,16 +136959,16 @@ module sky130_fd_sc_hd__sdfrtn_1 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( negedge CLK_N => ( Q : CLK_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_N_delayed , SCE_delayed ) ;
-$width ( posedge CLK_N &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK_N &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -136827,13 +137114,18 @@ module sky130_fd_sc_hd__sdfrtn_1 (
     wire RESET          ;
     wire intclk         ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_N_delayed  ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_N_delayed  ;
+    assign CLK_N_delayed = CLK_N;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -136856,16 +137148,16 @@ module sky130_fd_sc_hd__sdfrtn_1 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( negedge CLK_N => ( Q : CLK_N ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , negedge CLK_N , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_N_delayed ) ;
-$setuphold ( negedge CLK_N , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_N_delayed , D_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_N_delayed , SCD_delayed ) ;
-$setuphold ( negedge CLK_N , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_N_delayed , SCE_delayed ) ;
-$setuphold ( negedge CLK_N , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_N_delayed , SCE_delayed ) ;
-$width ( posedge CLK_N &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK_N &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -137059,13 +137351,18 @@ module sky130_fd_sc_hd__sdfrtp_1 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -137087,16 +137384,16 @@ module sky130_fd_sc_hd__sdfrtp_1 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -137239,13 +137536,18 @@ module sky130_fd_sc_hd__sdfrtp_1 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -137267,16 +137569,16 @@ module sky130_fd_sc_hd__sdfrtp_1 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -137470,13 +137772,18 @@ module sky130_fd_sc_hd__sdfrtp_2 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -137498,16 +137805,16 @@ module sky130_fd_sc_hd__sdfrtp_2 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -137650,13 +137957,18 @@ module sky130_fd_sc_hd__sdfrtp_2 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -137678,16 +137990,16 @@ module sky130_fd_sc_hd__sdfrtp_2 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -137881,13 +138193,18 @@ module sky130_fd_sc_hd__sdfrtp_4 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -137909,16 +138226,16 @@ module sky130_fd_sc_hd__sdfrtp_4 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -138061,13 +138378,18 @@ module sky130_fd_sc_hd__sdfrtp_4 (
     wire buf_Q          ;
     wire RESET          ;
     wire mux_out        ;
-    reg  notifier       ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed      ;
-    wire SCD_delayed    ;
-    wire SCE_delayed    ;
-    wire RESET_B_delayed;
-    wire CLK_delayed    ;
-    wire awake          ;
+    assign D_delayed = D;
+wire SCD_delayed    ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed    ;
+    assign SCE_delayed = SCE;
+wire RESET_B_delayed;
+    assign RESET_B_delayed = RESET_B;
+wire CLK_delayed    ;
+    assign CLK_delayed = CLK;
+wire awake          ;
     wire cond0          ;
     wire cond1          ;
     wire cond2          ;
@@ -138089,16 +138411,16 @@ module sky130_fd_sc_hd__sdfrtp_4 (
 specify
 ( negedge RESET_B => ( Q +: RESET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge RESET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , RESET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge RESET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -138297,13 +138619,18 @@ module sky130_fd_sc_hd__sdfsbp_1 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -138328,16 +138655,16 @@ specify
 ( negedge SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -138485,13 +138812,18 @@ module sky130_fd_sc_hd__sdfsbp_1 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -138516,16 +138848,16 @@ specify
 ( negedge SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -138724,13 +139056,18 @@ module sky130_fd_sc_hd__sdfsbp_2 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -138755,16 +139092,16 @@ specify
 ( negedge SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -138912,13 +139249,18 @@ module sky130_fd_sc_hd__sdfsbp_2 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -138943,16 +139285,16 @@ specify
 ( negedge SET_B => ( Q_N +: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -139146,13 +139488,18 @@ module sky130_fd_sc_hd__sdfstp_1 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -139174,16 +139521,16 @@ module sky130_fd_sc_hd__sdfstp_1 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -139326,13 +139673,18 @@ module sky130_fd_sc_hd__sdfstp_1 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -139354,16 +139706,16 @@ module sky130_fd_sc_hd__sdfstp_1 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -139557,13 +139909,18 @@ module sky130_fd_sc_hd__sdfstp_2 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -139585,16 +139942,16 @@ module sky130_fd_sc_hd__sdfstp_2 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -139737,13 +140094,18 @@ module sky130_fd_sc_hd__sdfstp_2 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -139765,16 +140127,16 @@ module sky130_fd_sc_hd__sdfstp_2 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -139968,13 +140330,18 @@ module sky130_fd_sc_hd__sdfstp_4 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -139996,16 +140363,16 @@ module sky130_fd_sc_hd__sdfstp_4 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -140148,13 +140515,18 @@ module sky130_fd_sc_hd__sdfstp_4 (
     wire buf_Q        ;
     wire SET          ;
     wire mux_out      ;
-    reg  notifier     ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed    ;
-    wire SCD_delayed  ;
-    wire SCE_delayed  ;
-    wire SET_B_delayed;
-    wire CLK_delayed  ;
-    wire awake        ;
+    assign D_delayed = D;
+wire SCD_delayed  ;
+    assign SCD_delayed = SCD;
+wire SCE_delayed  ;
+    assign SCE_delayed = SCE;
+wire SET_B_delayed;
+    assign SET_B_delayed = SET_B;
+wire CLK_delayed  ;
+    assign CLK_delayed = CLK;
+wire awake        ;
     wire cond0        ;
     wire cond1        ;
     wire cond2        ;
@@ -140176,16 +140548,16 @@ module sky130_fd_sc_hd__sdfstp_4 (
 specify
 ( negedge SET_B => ( Q -: SET_B ) ) = ( 0:0:0 ) ;  // delay is tris
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$recrem ( posedge SET_B , posedge CLK , 0:0:0 , 0:0:0 , notifier , awake , awake , SET_B_delayed , CLK_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& cond4 , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge SET_B &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -140374,12 +140746,16 @@ module sky130_fd_sc_hd__sdfxbp_1 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -140397,14 +140773,14 @@ module sky130_fd_sc_hd__sdfxbp_1 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -140543,12 +140919,16 @@ module sky130_fd_sc_hd__sdfxbp_1 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -140566,14 +140946,14 @@ module sky130_fd_sc_hd__sdfxbp_1 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -140762,12 +141142,16 @@ module sky130_fd_sc_hd__sdfxbp_2 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -140785,14 +141169,14 @@ module sky130_fd_sc_hd__sdfxbp_2 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -140931,12 +141315,16 @@ module sky130_fd_sc_hd__sdfxbp_2 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -140954,14 +141342,14 @@ module sky130_fd_sc_hd__sdfxbp_2 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -141145,12 +141533,16 @@ module sky130_fd_sc_hd__sdfxtp_1 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -141166,14 +141558,14 @@ module sky130_fd_sc_hd__sdfxtp_1 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -141307,12 +141699,16 @@ module sky130_fd_sc_hd__sdfxtp_1 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -141328,14 +141724,14 @@ module sky130_fd_sc_hd__sdfxtp_1 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -141519,12 +141915,16 @@ module sky130_fd_sc_hd__sdfxtp_2 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -141540,14 +141940,14 @@ module sky130_fd_sc_hd__sdfxtp_2 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -141681,12 +142081,16 @@ module sky130_fd_sc_hd__sdfxtp_2 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -141702,14 +142106,14 @@ module sky130_fd_sc_hd__sdfxtp_2 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -141893,12 +142297,16 @@ module sky130_fd_sc_hd__sdfxtp_4 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -141914,14 +142322,14 @@ module sky130_fd_sc_hd__sdfxtp_4 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -142055,12 +142463,16 @@ module sky130_fd_sc_hd__sdfxtp_4 (
     // Local signals
     wire buf_Q      ;
     wire mux_out    ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire awake      ;
+    assign D_delayed = D;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire awake      ;
     wire cond1      ;
     wire cond2      ;
     wire cond3      ;
@@ -142076,14 +142488,14 @@ module sky130_fd_sc_hd__sdfxtp_4 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -142269,10 +142681,13 @@ module sky130_fd_sc_hd__sdlclkp_1 (
     wire m0n             ;
     wire clkn            ;
     wire CLK_delayed     ;
-    wire SCE_delayed     ;
-    wire GATE_delayed    ;
-    wire SCE_gate_delayed;
-    reg  notifier        ;
+    assign CLK_delayed = CLK;
+wire SCE_delayed     ;
+    assign SCE_delayed = SCE;
+wire GATE_delayed    ;
+    assign GATE_delayed = GATE;
+wire SCE_gate_delayed;
+reg notifier; initial notifier = 1'b0;
     wire awake           ;
     wire SCE_awake       ;
     wire GATE_awake      ;
@@ -142289,11 +142704,11 @@ module sky130_fd_sc_hd__sdlclkp_1 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -142429,10 +142844,13 @@ module sky130_fd_sc_hd__sdlclkp_1 (
     wire m0n             ;
     wire clkn            ;
     wire CLK_delayed     ;
-    wire SCE_delayed     ;
-    wire GATE_delayed    ;
-    wire SCE_gate_delayed;
-    reg  notifier        ;
+    assign CLK_delayed = CLK;
+wire SCE_delayed     ;
+    assign SCE_delayed = SCE;
+wire GATE_delayed    ;
+    assign GATE_delayed = GATE;
+wire SCE_gate_delayed;
+reg notifier; initial notifier = 1'b0;
     wire awake           ;
     wire SCE_awake       ;
     wire GATE_awake      ;
@@ -142449,11 +142867,11 @@ module sky130_fd_sc_hd__sdlclkp_1 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -142639,10 +143057,13 @@ module sky130_fd_sc_hd__sdlclkp_2 (
     wire m0n             ;
     wire clkn            ;
     wire CLK_delayed     ;
-    wire SCE_delayed     ;
-    wire GATE_delayed    ;
-    wire SCE_gate_delayed;
-    reg  notifier        ;
+    assign CLK_delayed = CLK;
+wire SCE_delayed     ;
+    assign SCE_delayed = SCE;
+wire GATE_delayed    ;
+    assign GATE_delayed = GATE;
+wire SCE_gate_delayed;
+reg notifier; initial notifier = 1'b0;
     wire awake           ;
     wire SCE_awake       ;
     wire GATE_awake      ;
@@ -142659,11 +143080,11 @@ module sky130_fd_sc_hd__sdlclkp_2 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -142799,10 +143220,13 @@ module sky130_fd_sc_hd__sdlclkp_2 (
     wire m0n             ;
     wire clkn            ;
     wire CLK_delayed     ;
-    wire SCE_delayed     ;
-    wire GATE_delayed    ;
-    wire SCE_gate_delayed;
-    reg  notifier        ;
+    assign CLK_delayed = CLK;
+wire SCE_delayed     ;
+    assign SCE_delayed = SCE;
+wire GATE_delayed    ;
+    assign GATE_delayed = GATE;
+wire SCE_gate_delayed;
+reg notifier; initial notifier = 1'b0;
     wire awake           ;
     wire SCE_awake       ;
     wire GATE_awake      ;
@@ -142819,11 +143243,11 @@ module sky130_fd_sc_hd__sdlclkp_2 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -143009,10 +143433,13 @@ module sky130_fd_sc_hd__sdlclkp_4 (
     wire m0n             ;
     wire clkn            ;
     wire CLK_delayed     ;
-    wire SCE_delayed     ;
-    wire GATE_delayed    ;
-    wire SCE_gate_delayed;
-    reg  notifier        ;
+    assign CLK_delayed = CLK;
+wire SCE_delayed     ;
+    assign SCE_delayed = SCE;
+wire GATE_delayed    ;
+    assign GATE_delayed = GATE;
+wire SCE_gate_delayed;
+reg notifier; initial notifier = 1'b0;
     wire awake           ;
     wire SCE_awake       ;
     wire GATE_awake      ;
@@ -143029,11 +143456,11 @@ module sky130_fd_sc_hd__sdlclkp_4 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -143169,10 +143596,13 @@ module sky130_fd_sc_hd__sdlclkp_4 (
     wire m0n             ;
     wire clkn            ;
     wire CLK_delayed     ;
-    wire SCE_delayed     ;
-    wire GATE_delayed    ;
-    wire SCE_gate_delayed;
-    reg  notifier        ;
+    assign CLK_delayed = CLK;
+wire SCE_delayed     ;
+    assign SCE_delayed = SCE;
+wire GATE_delayed    ;
+    assign GATE_delayed = GATE;
+wire SCE_gate_delayed;
+reg notifier; initial notifier = 1'b0;
     wire awake           ;
     wire SCE_awake       ;
     wire GATE_awake      ;
@@ -143189,11 +143619,11 @@ module sky130_fd_sc_hd__sdlclkp_4 (
 
 specify
 ( CLK +=> GCLK ) = ( 0:0:0 , 0:0:0 ) ;                         // delays are tris , tfall
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , SCE_awake , SCE_awake , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , posedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$setuphold ( posedge CLK , negedge GATE , 0:0:0 , 0:0:0 , notifier , GATE_awake , GATE_awake , CLK_delayed , GATE_delayed ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -143390,13 +143820,18 @@ module sky130_fd_sc_hd__sedfxbp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -143417,16 +143852,16 @@ module sky130_fd_sc_hd__sedfxbp_1 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -143572,13 +144007,18 @@ module sky130_fd_sc_hd__sedfxbp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -143599,16 +144039,16 @@ module sky130_fd_sc_hd__sedfxbp_1 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -143805,13 +144245,18 @@ module sky130_fd_sc_hd__sedfxbp_2 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -143832,16 +144277,16 @@ module sky130_fd_sc_hd__sedfxbp_2 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -143987,13 +144432,18 @@ module sky130_fd_sc_hd__sedfxbp_2 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -144014,16 +144464,16 @@ module sky130_fd_sc_hd__sedfxbp_2 (
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
 ( posedge CLK => ( Q_N : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -144215,13 +144665,18 @@ module sky130_fd_sc_hd__sedfxtp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -144240,16 +144695,16 @@ module sky130_fd_sc_hd__sedfxtp_1 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -144390,13 +144845,18 @@ module sky130_fd_sc_hd__sedfxtp_1 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -144415,16 +144875,16 @@ module sky130_fd_sc_hd__sedfxtp_1 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -144616,13 +145076,18 @@ module sky130_fd_sc_hd__sedfxtp_2 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -144641,16 +145106,16 @@ module sky130_fd_sc_hd__sedfxtp_2 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -144791,13 +145256,18 @@ module sky130_fd_sc_hd__sedfxtp_2 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -144816,16 +145286,16 @@ module sky130_fd_sc_hd__sedfxtp_2 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -145017,13 +145487,18 @@ module sky130_fd_sc_hd__sedfxtp_4 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -145042,16 +145517,16 @@ module sky130_fd_sc_hd__sedfxtp_4 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine
@@ -145192,13 +145667,18 @@ module sky130_fd_sc_hd__sedfxtp_4 (
 
     // Local signals
     wire buf_Q      ;
-    reg  notifier   ;
+reg notifier; initial notifier = 1'b0;
     wire D_delayed  ;
-    wire DE_delayed ;
-    wire SCD_delayed;
-    wire SCE_delayed;
-    wire CLK_delayed;
-    wire mux_out    ;
+    assign D_delayed = D;
+wire DE_delayed ;
+    assign DE_delayed = DE;
+wire SCD_delayed;
+    assign SCD_delayed = SCD;
+wire SCE_delayed;
+    assign SCE_delayed = SCE;
+wire CLK_delayed;
+    assign CLK_delayed = CLK;
+wire mux_out    ;
     wire de_d       ;
     wire awake      ;
     wire cond1      ;
@@ -145217,16 +145697,16 @@ module sky130_fd_sc_hd__sedfxtp_4 (
 
 specify
 ( posedge CLK => ( Q : CLK ) ) = ( 0:0:0 , 0:0:0 ) ; // delays are tris , tfall
-$setuphold ( posedge CLK , posedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , negedge DE , 0:0:0 , 0:0:0 , notifier , awake , awake , CLK_delayed , DE_delayed ) ;
-$setuphold ( posedge CLK , posedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , negedge D , 0:0:0 , 0:0:0 , notifier , cond1 , cond1 , CLK_delayed , D_delayed ) ;
-$setuphold ( posedge CLK , posedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , negedge SCD , 0:0:0 , 0:0:0 , notifier , cond2 , cond2 , CLK_delayed , SCD_delayed ) ;
-$setuphold ( posedge CLK , posedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$setuphold ( posedge CLK , negedge SCE , 0:0:0 , 0:0:0 , notifier , cond3 , cond3 , CLK_delayed , SCE_delayed ) ;
-$width ( posedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
-$width ( negedge CLK &&& awake , 1.0:1.0:1.0 , 0 , notifier ) ;
+
+
+
+
+
+
+
+
+
+
 endspecify
 endmodule
 `endcelldefine

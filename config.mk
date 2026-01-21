@@ -99,7 +99,7 @@ LIBS            ?= lib/sky130_fd_sc_hd__ss_100C_1v40.lib \
                    lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
 LIB_SYN         ?= lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 PRIM            ?= verilog/primitives.v \
-                   verilog/sky130_fd_sc_hd.v
+                   verilog/sky130_fd_sc_hd.no_tc.v
 
 # OpenROAD
 ORS             ?= ~/openroad/flow

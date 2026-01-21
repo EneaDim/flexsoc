@@ -7,6 +7,6 @@
   `include "rtl/pwm_ramp.sv"
 `else
   `include "verilog/primitives.v"
-  `include "verilog/sky130_fd_sc_hd.v"
+  `include "verilog/sky130_fd_sc_hd.no_tc.v"
   `include "syn/pwm_ramp_synth.v"
 `endif

@@ -10,6 +10,6 @@
   `include "rtl/pwm.sv"
 `else
   `include "verilog/primitives.v"
-  `include "verilog/sky130_fd_sc_hd.v"
+  `include "verilog/sky130_fd_sc_hd.no_tc.v"
   `include "syn/pwm_synth.v"
 `endif

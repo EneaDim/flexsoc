@@ -13,6 +13,6 @@
   `include "rtl/spi_host.sv"
 `else
   `include "verilog/primitives.v"
-  `include "verilog/sky130_fd_sc_hd.v"
+  `include "verilog/sky130_fd_sc_hd.no_tc.v"
   `include "syn/spi_host_synth.v"
 `endif
