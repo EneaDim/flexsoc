@@ -2,6 +2,8 @@
 `timescale 1ns/1ps 
 // Include files 
 `include "tb/include_pwm_ramp_tb.sv"
+`include "model/rc_filter.sv"
+`include "model/lvds.sv"
 
 module pwm_ramp_tb;
   //Parameters
