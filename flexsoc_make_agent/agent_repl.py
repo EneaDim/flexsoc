@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import os
 import argparse
+import datetime
+import glob
 import json
+import re
+import shlex
 import socket
 import subprocess
 import sys
 import time
-import datetime
-import re
 import urllib.request
-import shlex
 from pathlib import Path
-from typing import List, Tuple
-import glob
+from typing import Any, Dict, List, Tuple
 
 EXIT_WORDS = {"/exit", "/quit", ":q", "quit", "exit"}
 
@@ -69,6 +68,7 @@ def wait_health(base_url: str, timeout_s: float = 6.0) -> bool:
             time.sleep(0.1)
     return False
 
+
 def snapshot_log_dir(repo_root: Path) -> dict[str, float]:
     log_dir = repo_root / "log"
     snap: dict[str, float] = {}
@@ -83,6 +83,7 @@ def snapshot_log_dir(repo_root: Path) -> dict[str, float]:
                 pass
     return snap
 
+
 def diff_log_snapshot(before: dict[str, float], after: dict[str, float]) -> list[str]:
     """
     Return list of files that are new or modified (mtime increased).
@@ -95,13 +96,16 @@ def diff_log_snapshot(before: dict[str, float], after: dict[str, float]) -> list
     changed.sort(key=lambda p: after.get(p, 0.0), reverse=True)  # newest first
     return changed
 
+
 def ensure_dir(p: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
+
 
 def make_run_id(target: str) -> str:
     # Zulu-ish, filesystem safe
     ts = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H-%M-%SZ")
     return f"{ts}_{target}"
+
 
 def write_run_record(runs_dir: Path, record: dict) -> Path:
     ensure_dir(runs_dir)
@@ -109,14 +113,17 @@ def write_run_record(runs_dir: Path, record: dict) -> Path:
     out.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
     return out
 
+
 def list_run_records(runs_dir: Path) -> list[Path]:
     if not runs_dir.exists():
         return []
     files = sorted(runs_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     return files
 
+
 def load_json_file(p: Path) -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
+
 
 def get_last_run_record(runs_dir: Path, prefer_failed: bool = False) -> dict | None:
     for p in list_run_records(runs_dir):
@@ -128,6 +135,7 @@ def get_last_run_record(runs_dir: Path, prefer_failed: bool = False) -> dict | N
         except Exception:
             continue
     return None
+
 
 def pick_logs_for_analysis(rec: dict, repo_root: Path, max_files: int = 3) -> list[Path]:
     paths = [Path(p) for p in (rec.get("flow_logs") or [])]
@@ -151,6 +159,7 @@ def pick_logs_for_analysis(rec: dict, repo_root: Path, max_files: int = 3) -> li
 
     good.sort(key=rank)
     return good[:max_files]
+
 
 # ---------------- Router server management ----------------
 def ensure_router_server(
@@ -444,28 +453,24 @@ def try_shell_lite(line: str, repo_root: Path, state: dict) -> bool:
             print(f"{exe}: not found. Install it or use another editor.", file=sys.stderr)
         return True
 
-    # If we got here, we handled it (or it's unknown but whitelisted)
     return True
+
 
 SHELL_LITE_CMDS = {"ll", "ls", "cd", "pwd", "cat", "head", "tail", "g", "grep", "h", "history", "gvim", "vim"}
 REPL_CMDS = {"/help", "/exit", "/quit"}
+
 
 def _list_dir_entries(base: Path, prefix: str) -> list[str]:
     """
     Return possible completions for prefix relative to base.
     Adds trailing '/' for directories.
     """
-    # If prefix is empty, match everything
     pat = prefix + "*"
-    # Use glob against filesystem
     matches = []
     for s in glob.glob(str((base / pat))):
         p = Path(s)
         name = p.name
-        # If prefix included subdirs, keep that part
-        # Example: prefix="rtl/to" -> completion should be "rtl/top.sv"
         if "/" in prefix or prefix.startswith("./"):
-            # compute relative to base
             try:
                 rel = p.relative_to(base)
                 out = str(rel)
@@ -478,9 +483,9 @@ def _list_dir_entries(base: Path, prefix: str) -> list[str]:
             out = out.rstrip("/") + "/"
         matches.append(out)
 
-    # Sort for stable completion
     matches.sort()
     return matches
+
 
 def install_readline_completion(repo_root: Path, state: dict) -> None:
     """
@@ -494,18 +499,14 @@ def install_readline_completion(repo_root: Path, state: dict) -> None:
         return
 
     def completer(text: str, state_idx: int) -> str | None:
-        # Current buffer
         buf = readline.get_line_buffer()
         beg = readline.get_begidx()
-        end = readline.get_endidx()
 
-        # Tokenize safely (shlex may throw if quotes not closed)
         try:
             parts = shlex.split(buf[:beg])
         except Exception:
             parts = buf[:beg].split()
 
-        # Are we completing first token?
         if not parts:
             options = sorted(SHELL_LITE_CMDS | REPL_CMDS)
             matches = [c for c in options if c.startswith(text)]
@@ -513,44 +514,69 @@ def install_readline_completion(repo_root: Path, state: dict) -> None:
 
         cmd = parts[0]
 
-        # If completing the command itself (still first token)
         if len(parts) == 1 and beg <= len(cmd):
             options = sorted(SHELL_LITE_CMDS | REPL_CMDS)
             matches = [c for c in options if c.startswith(text)]
             return matches[state_idx] if state_idx < len(matches) else None
 
-        # Commands that should complete paths
         path_cmds = {"cd", "ls", "ll", "cat", "head", "tail", "gvim", "vim", "g", "grep"}
         if cmd in path_cmds:
             base = state["cwd"]
-            # For grep: first arg is pattern, second is path
             if cmd in {"g", "grep"}:
-                # if user is typing the pattern (first arg), do not complete paths yet
-                # we start path completion from the 2nd argument
-                # Example: "g TODO <TAB>" -> completes path, but "g <TAB>" shouldn't.
                 if len(parts) < 2:
                     return None
-
             matches = _list_dir_entries(base, text)
             return matches[state_idx] if state_idx < len(matches) else None
 
         return None
 
-    # Enable tab completion
-    readline.set_completer(completer)
-
-    # This is the key line: bind TAB to completion
-    # GNU readline:
     try:
+        import readline
+        readline.set_completer(completer)
         readline.parse_and_bind("tab: complete")
-    except Exception:
-        pass
-
-    # Better word delimiters: keep '/' as part of token
-    try:
         readline.set_completer_delims(" \t\n")
     except Exception:
         pass
+
+
+def _render_advice_block(adv: Dict[str, Any], indent: str = "  ") -> None:
+    """
+    Pretty-print one advice JSON object produced by refiner (best effort).
+    """
+    if not isinstance(adv, dict):
+        return
+
+    cause = (adv.get("cause") or "").strip()
+    steps = adv.get("next_steps") or []
+    mts = adv.get("make_targets") or []
+    files = adv.get("files_to_check") or []
+    conf = adv.get("confidence")
+
+    if cause:
+        print(f"{indent}-> {cause}")
+
+    if isinstance(steps, list) and steps:
+        for s in steps[:3]:
+            if isinstance(s, str) and s.strip():
+                print(f"{indent}* {s.strip()}")
+
+    if isinstance(mts, list) and mts:
+        mts2 = [m.strip() for m in mts[:3] if isinstance(m, str) and m.strip()]
+        if mts2:
+            print(f"{indent}make: {', '.join(mts2)}")
+
+    if isinstance(files, list) and files:
+        f2 = [f.strip() for f in files[:5] if isinstance(f, str) and f.strip()]
+        if f2:
+            print(f"{indent}files: {', '.join(f2)}")
+
+    if conf is not None:
+        try:
+            cf = float(conf)
+            print(f"{indent}confidence: {cf:.2f}")
+        except Exception:
+            pass
+
 
 # ---------------- REPL ----------------
 def main() -> None:
@@ -604,12 +630,6 @@ def main() -> None:
     if repo_root_str not in sys.path:
         sys.path.insert(0, repo_root_str)
 
-    # readline optional
-    try:
-        import readline  # noqa: F401
-    except Exception:
-        pass
-
     python = sys.executable
     base_url = f"http://{args.host}:{args.port}"
 
@@ -657,27 +677,24 @@ def main() -> None:
         # shell-lite first
         if try_shell_lite(line, repo_root=repo_root, state=state):
             continue
-
         # -------------------------
-        # Refiner commands: :why / :sum
+        # Refiner commands: :sum / :why
+        #   Rename behavior:
+        #     :sum -> old ":why"  (playbook advice, deterministic, NO LLM)
+        #     :why -> old ":why+" (playbook + LLM augment)
         # -------------------------
         if line.startswith(":"):
             cmdline = line.strip().lower()
-            if cmdline not in (":why", ":sum"):
-                print("Unknown command. Available: :why, :sum", file=sys.stderr)
+            if cmdline not in (":sum", ":why"):
+                print("Unknown command. Available: :sum, :why", file=sys.stderr)
                 continue
-
+        
             runs_dir = repo_root / "flexsoc_make_agent" / "runs"
-            # Always analyze the last run (same behavior for :why and :sum)
-            rec = get_last_run_record(runs_dir, prefer_failed=False)            
-            #rec = (
-            #    get_last_run_record(runs_dir, prefer_failed=(cmdline == ":why"))
-            #    or get_last_run_record(runs_dir, prefer_failed=False)
-            #)
+            rec = get_last_run_record(runs_dir, prefer_failed=False)
             if not rec:
                 print("No runs found.", file=sys.stderr)
                 continue
-
+        
             logs = pick_logs_for_analysis(rec, repo_root, max_files=3)
             if not logs:
                 log_dir = repo_root / "log"
@@ -688,24 +705,27 @@ def main() -> None:
                     ]
                     candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
                     logs = candidates[:3]
-
+        
             if not logs:
                 print("No flow logs found to analyze.", file=sys.stderr)
                 continue
-
-            question = (
-                "Explain each warning/error type with one short sentence."
-                if cmdline == ":why"
-                else "Return JSON only with keys: summary, error_summary, warning_summary."
-            )
-
+        
+            # Behavior after rename:
+            # :sum -> deterministic playbook advice (no LLM)
+            # :why -> playbook + LLM augment
+            if cmdline == ":sum":
+                question = "Use ONLY the deterministic playbook to explain each warning/error type with actionable steps."
+                llm_mode = "off"
+            else:
+                question = "Explain each warning/error type with actionable steps. Use the playbook as a baseline and improve with log details."
+                llm_mode = "augment"
+        
             try:
                 from flexsoc_make_agent import refiner
                 import importlib
-
+        
                 importlib.reload(refiner)
-
-                use_llm = (cmdline == ":why")
+        
                 report = refiner.analyze(
                     rec,
                     logs,
@@ -717,67 +737,149 @@ def main() -> None:
                     max_windows=6,
                     max_bytes_per_file=400_000,
                     timeout_s=120,
-                    use_llm=use_llm,
+                    playbook_path=repo_root / "flexsoc_make_agent" / "data" / "verilator_playbook.json",
+                    llm_mode=llm_mode,        # "off" for :sum, "augment" for :why
+                    augment_top_n=8,          # only used when llm_mode=="augment"
                 )
             except Exception as e:
                 print(f"ERROR: refiner failed: {e}", file=sys.stderr)
                 continue
-
+        
             # ----- Render -----
             summary = (report.get("summary") or "").strip()
             if summary:
                 print(summary)
-
-            if cmdline == ":why":
-                status = report.get("status")
-                if status:
-                    print(f"\nStatus: {status}")
-
+        
+            status = report.get("status")
+            if status:
+                print(f"\nStatus: {status}")
+        
             err_sum = report.get("error_summary") or []
             warn_sum = report.get("warning_summary") or []
-
-            llm_sent = report.get("llm_sentences") or {}
-            w_sent: Dict[str, str] = llm_sent.get("warnings") or {}
-            e_sent: Dict[str, str] = llm_sent.get("errors") or {}
-
+        
+            # deterministic playbook advice (always computed from playbook matches)
+            advice = report.get("advice") or {}
+            w_adv: dict = advice.get("warnings") or {}
+            e_adv: dict = advice.get("errors") or {}
+        
+            # llm advice (present only when llm_mode == "augment")
+            llm_adv = report.get("llm_advice") or {}
+            w_llm: dict = llm_adv.get("warnings") or {}
+            e_llm: dict = llm_adv.get("errors") or {}
+        
+            want_llm_overlay = (cmdline == ":why")  # :why is augment
+        
+            def _print_advice_block(t: str, adv_obj: dict, prefix: str = "") -> None:
+                if not isinstance(adv_obj, dict):
+                    print(prefix + f"- {t}:")
+                    return
+        
+                cause = (adv_obj.get("cause") or "").strip()
+                steps = adv_obj.get("next_steps") or []
+                mts = adv_obj.get("make_targets") or []
+                fchk = adv_obj.get("files_to_check") or []
+                conf = adv_obj.get("confidence")
+        
+                line = f"- {t}" + (f": {cause}" if cause else ":")
+                print(prefix + line)
+        
+                if isinstance(steps, list):
+                    for s in steps[:3]:
+                        if isinstance(s, str) and s.strip():
+                            print(prefix + f"  * {s.strip()}")
+        
+                if isinstance(mts, list) and mts:
+                    mts_s = [str(x).strip() for x in mts[:3] if str(x).strip()]
+                    if mts_s:
+                        print(prefix + f"  make: {', '.join(mts_s)}")
+        
+                if isinstance(fchk, list) and fchk:
+                    fchk_s = [str(x).strip() for x in fchk[:5] if str(x).strip()]
+                    if fchk_s:
+                        print(prefix + f"  files: {', '.join(fchk_s)}")
+        
+                if conf is not None:
+                    try:
+                        print(prefix + f"  confidence: {float(conf):.2f}")
+                    except Exception:
+                        pass
+        
+            # Optional: for :why show a top-N "what to do" header (quick glance)
+            if want_llm_overlay and isinstance(warn_sum, list) and warn_sum:
+                print("\nWarnings (what to do):")
+                topn = 5
+                for it in warn_sum[:topn]:
+                    if not isinstance(it, dict):
+                        continue
+                    t = str(it.get("type") or "unknown").strip() or "unknown"
+        
+                    # Prefer playbook as baseline if exists, otherwise show LLM (if any)
+                    if t in w_adv and isinstance(w_adv[t], dict):
+                        _print_advice_block(t, w_adv[t])
+                    else:
+                        print(f"- {t}:")
+        
+                    if t in w_llm and isinstance(w_llm[t], dict):
+                        print("  LLM:")
+                        _print_advice_block(t, w_llm[t], prefix="  ")
+        
+            # Full lists (always), with playbook + optional LLM overlay
             print("\nErrors:")
             if isinstance(err_sum, list) and err_sum:
                 for it in err_sum[:50]:
                     if not isinstance(it, dict):
                         continue
-                    t = it.get("type") or "unknown"
+                    t = str(it.get("type") or "unknown").strip() or "unknown"
                     c = it.get("count")
                     ex = it.get("examples") or []
                     hdr = f"- {t}" + (f" (count={c})" if c is not None else "")
                     print(hdr)
-                    for s in ex[:2]:
-                        print(f"  * {s}")
-                    if cmdline == ":why":
-                        sent = (e_sent.get(t) or "").strip()
-                        if sent:
-                            print(f"  -> {sent}")
+        
+                    if isinstance(ex, list):
+                        for s in ex[:2]:
+                            if isinstance(s, str) and s.strip():
+                                print(f"  * {s.strip()}")
+        
+                    # Always show playbook in :sum and :why if present
+                    if t in e_adv and isinstance(e_adv[t], dict):
+                        print("  PLAYBOOK:")
+                        _print_advice_block(t, e_adv[t], prefix="  ")
+        
+                    # Show LLM only in :why
+                    if want_llm_overlay and t in e_llm and isinstance(e_llm[t], dict):
+                        print("  LLM:")
+                        _print_advice_block(t, e_llm[t], prefix="  ")
             else:
                 print("- (none)")
-
+        
             print("\nWarnings:")
             if isinstance(warn_sum, list) and warn_sum:
                 for it in warn_sum[:50]:
                     if not isinstance(it, dict):
                         continue
-                    t = it.get("type") or "unknown"
+                    t = str(it.get("type") or "unknown").strip() or "unknown"
                     c = it.get("count")
                     ex = it.get("examples") or []
                     hdr = f"- {t}" + (f" (count={c})" if c is not None else "")
                     print(hdr)
-                    for s in ex[:2]:
-                        print(f"  * {s}")
-                    if cmdline == ":why":
-                        sent = (w_sent.get(t) or "").strip()
-                        if sent:
-                            print(f"  -> {sent}")
+        
+                    if isinstance(ex, list):
+                        for s in ex[:2]:
+                            if isinstance(s, str) and s.strip():
+                                print(f"  * {s.strip()}")
+        
+                    # Always show playbook in :sum and :why if present
+                    if t in w_adv and isinstance(w_adv[t], dict):
+                        print("  PLAYBOOK:")
+                        _print_advice_block(t, w_adv[t], prefix="  ")
+        
+                    # Show LLM only in :why
+                    if want_llm_overlay and t in w_llm and isinstance(w_llm[t], dict):
+                        print("  LLM:")
+                        _print_advice_block(t, w_llm[t], prefix="  ")
             else:
                 print("- (none)")
-
+        
             continue
 
         # -------------------------

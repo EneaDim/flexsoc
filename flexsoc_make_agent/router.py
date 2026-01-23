@@ -50,6 +50,14 @@ def guess_lang(user_text: str) -> str:
         return "en"
     return "it"
 
+
+# ---------------- Tokenization (Patch 2) ----------------
+WORD_RE = re.compile(r"[a-z0-9_]+")
+
+def tokenize(s: str) -> List[str]:
+    return WORD_RE.findall((s or "").lower())
+
+
 # ---------------- Query heuristics ----------------
 def contains_waveform(q: str) -> bool:
     ql = q.lower()
@@ -304,12 +312,17 @@ def build_embeddings(
         emb_en = embed(embed_model, text_en)
         emb_it = embed(embed_model, text_it)
 
+        # NEW: keep lexical fields for Patch 2 scoring
         out.append({
             "target": target,
             "risk": risk,
             "depends_on": depends_on,
             "embedding_en": emb_en,
             "embedding_it": emb_it,
+            "keywords_en": (et_en.get("keywords") or []),
+            "keywords_it": (et_it.get("keywords") or []),
+            "negative_en": (et_en.get("negative") or []),
+            "negative_it": (et_it.get("negative") or []),
         })
 
     return out
@@ -322,19 +335,54 @@ def choose_target(
     min_score: float,
     soft_gap: float,
     user_text: str,
-    lang: str,
+    lang: str,  # kept for compat/telemetry; not used for scoring
 ) -> Tuple[str, float, List[Tuple[float, str, str]]]:
-    scored = []
+    q_tokens = set(tokenize(user_text))
+
+    scored: List[Tuple[float, str, str]] = []
+
     for it in db:
-        emb = it.get("embedding_it") if lang == "it" else it.get("embedding_en")
-        if emb is None:
-            emb = it.get("embedding")  # legacy fallback
-        s = cosine(qvec, emb)
-        scored.append((s, it["target"], it.get("risk", "low")))
+        target = it["target"]
+        risk = it.get("risk", "low")
+
+        # bilingual embedding score: max(en, it) with legacy fallback
+        emb_en = it.get("embedding_en")
+        emb_it = it.get("embedding_it")
+        emb_legacy = it.get("embedding")
+
+        s_candidates: List[float] = []
+        if emb_en is not None:
+            s_candidates.append(cosine(qvec, emb_en))
+        if emb_it is not None:
+            s_candidates.append(cosine(qvec, emb_it))
+        if not s_candidates and emb_legacy is not None:
+            s_candidates.append(cosine(qvec, emb_legacy))
+
+        s = max(s_candidates) if s_candidates else 0.0
+
+        # Patch 2: negative penalty + keywords tie-break
+        neg_en = it.get("negative_en") or []
+        neg_it = it.get("negative_it") or []
+        kw_en = it.get("keywords_en") or []
+        kw_it = it.get("keywords_it") or []
+
+        neg_tokens = set(tokenize(" ".join(map(str, neg_en + neg_it))))
+        kw_tokens = set(tokenize(" ".join(map(str, kw_en + kw_it + [target]))))
+
+        if neg_tokens and (q_tokens & neg_tokens):
+            s -= 0.08  # tune 0.05..0.12
+
+        overlap = len(q_tokens & kw_tokens)
+        if overlap:
+            s += 0.01 * min(overlap, 5)
+
+        scored.append((s, target, risk))
+
     scored.sort(reverse=True, key=lambda x: x[0])
 
-    top = scored[:topk]
-    best = scored[0]
+    top = scored[:topk] if scored else []
+    best = scored[0] if scored else (0.0, "help", "low")
+
     chosen = best[1] if best[0] >= min_score else "help"
 
     top_targets = {t: s for s, t, _ in top}
@@ -350,10 +398,7 @@ def choose_target(
         if best[0] - top_targets["help_ip"] <= soft_gap:
             chosen = "help_ip"
 
-    if contains_quickstart(user_text) and "ip_start" in top_targets:
-        if best[0] - top_targets["ip_start"] <= soft_gap:
-            chosen = "ip_start"
-
+    # IMPORTANT: only IP quickstart; no generic quickstart override
     if contains_ip_quickstart(user_text) and "ip_start" in top_targets:
         if best[0] - top_targets["ip_start"] <= soft_gap:
             chosen = "ip_start"
@@ -373,7 +418,6 @@ def extract_make_vars(text: str) -> tuple[str, dict[str, str]]:
     cleaned = MAKE_ASSIGN_RE.sub(_repl, text)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned, vars_out
-
 
 def route_query(
     db: List[Dict[str, Any]],
@@ -414,14 +458,15 @@ def route_query(
         risk = next((it.get("risk", "low") for it in db if it["target"] == forced), "low")
         top = [(1.0, forced, risk)]
     else:
+        # still compute for telemetry
         lang = guess_lang(routed_text)
         qvec = embed(embed_model, routed_text)
         chosen, best_score, top = choose_target(db, qvec, topk, min_score, soft_gap, routed_text, lang)
 
     return {
         "query": user_text,                 # original
-        "query_routed": routed_text,        # cleaned for routing (optional but useful)
-        "vars": vars_found,                 # <-- NEW
+        "query_routed": routed_text,        # cleaned for routing
+        "vars": vars_found,
         "chosen": chosen,
         "best_score": round(float(best_score), 4),
         "topk": [{"score": round(float(s), 4), "target": t, "risk": r} for s, t, r in top],
