@@ -1,0 +1,65 @@
+puts ""
+puts "==========================================================================="
+puts "Define corners Slowest Typical Fastest"
+puts "==========================================================================="
+puts ""
+puts "define_corners Slowest Typical Fastest"
+define_corners Slowest Typical Fastest
+
+puts ""
+puts "==========================================================================="
+puts "Read liberty files"
+puts "==========================================================================="
+puts ""
+puts "read_liberty -corner Slowest lib/sky130_fd_sc_hd__ss_100C_1v40.lib"
+read_liberty -corner Slowest lib/sky130_fd_sc_hd__ss_100C_1v40.lib
+puts "read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
+read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+puts "read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib"
+read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
+
+puts ""
+puts "==========================================================================="
+puts "Read verilog and link top module"
+puts "==========================================================================="
+puts ""
+puts "read_verilog syn/rv_timer_synth.v"
+puts "link_design rv_timer"
+read_verilog syn/rv_timer_synth.v
+link_design rv_timer
+
+puts ""
+puts "==========================================================================="
+puts "Read SDC"
+puts "==========================================================================="
+puts ""
+puts "read_sdc ors/rv_timer.sdc"
+read_sdc ors/rv_timer.sdc
+puts ""
+
+puts ""
+puts "==========================================================================="
+puts "(Probability Power Analysis) report_power"
+puts "============================================================================"
+puts "set_power_activity -input -activity .10"
+puts "set_power_activity -input_port rst_ni -activity 0"
+set_power_activity -input -activity .10
+set_power_activity -input_port rst_ni -activity 0
+foreach corner [sta::corners] {
+    puts ""
+    puts "======================= [$corner name] Corner ==================================="
+    report_power -corner [$corner name]
+    puts ""
+}
+
+puts "==========================================================================="
+puts "(VCD Power Analysis) report_power"
+puts "============================================================================"
+puts "read_vcd -scope rv_timer_tb/u_rv_timer sim/rv_timer_tb.vcd"
+read_vcd -scope rv_timer_tb/u_rv_timer sim/rv_timer_tb.vcd
+foreach corner [sta::corners] {
+    puts ""
+    puts "======================= [$corner name] Corner ==================================="
+    report_power -corner [$corner name]
+    puts ""
+}

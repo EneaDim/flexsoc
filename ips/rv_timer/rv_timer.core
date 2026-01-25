@@ -1,0 +1,31 @@
+CAPI=2:
+name: "prj:ip:rv_timer:0.1"
+description: "rv_timer"
+filesets:
+  files_rtl:
+    depend:
+      - ips:dependecies:all
+    files:
+      - rtl/rv_timer.sv
+      - rtl/rv_timer_reg_pkg.sv
+      - rtl/timer_core.sv
+      - rtl/rv_timer_reg_top.sv
+    file_type: systemVerilogSource
+
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+    toplevel: rv_timer
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"
+
