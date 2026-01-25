@@ -1,0 +1,33 @@
+CAPI=2:
+name: "prj:ip:uart-master:0.1"
+description: "uart.master"
+filesets:
+  files_rtl:
+    depend:
+      - ips:dependecies:all
+    files:
+      - rtl/uart_reg_pkg.sv
+      - rtl/uart_rx.sv
+      - rtl/uart_tx.sv
+      - rtl/uart_reg_top.sv
+      - rtl/uart_core.sv
+      - rtl/uart.sv
+    file_type: systemVerilogSource
+
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+    toplevel: uart
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"
+
