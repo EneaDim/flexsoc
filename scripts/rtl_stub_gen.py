@@ -229,7 +229,7 @@ def render_wrapper(hj: Hjson, itf: str) -> str:
     module = _sanitize_id(str(hj["name"]))
     reg_pkg = f"{module}_reg_pkg"
 
-    if itf.lower() not in ("tlul", "reg"):
+    if itf.lower() not in ("tlul", "reg_iface"):
         raise ValueError(f"Unsupported --itf '{itf}'. Supported: tlul, reg")
 
     # Interface ports
