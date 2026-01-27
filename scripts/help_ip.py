@@ -111,7 +111,19 @@ HELP = """
 
 - REGRESSION
   • Run "make regression" to run testbenches under tb/regression
+
+- FUSESOC
+  • Run "make fsoc_init" to initialize the .core file for your IP.
+
+- DRIVER
+  • Run "make driver TOP={top_ip} MOD_ADD=0x{ip_base_addr_in_the_soc}"
+  to generate .h and .c files for the IP
+
+- SAVE IP
+  • Run "make ip_save" to save the IP into ips folder
+
 """
+
 
 if __name__ == "__main__":
     sys.stdout.write(colorize(HELP))
