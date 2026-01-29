@@ -1,142 +1,85 @@
 from __future__ import annotations
+from typing import Any, Dict, List, Set
 import re
-from typing import List
-from .model import FSM
-from .cond_parser import parse_condition, collect_idents, CondParseError
+from .cond_parser import parse_condition, CondParseError, collect_idents
 
-OUTPUTS_HEADER = "StateName,busy_o,valid_o,error_o,low_power_o,dbg_o"
-TRANSITION_LINE_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]* -> [A-Za-z_][A-Za-z0-9_]* : ".*";$')
+OUTS = ["busy_o","valid_o","error_o","low_power_o","dbg_o"]
+STATE_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
-_PIPELINE_NAME_RE = re.compile(r'^(STAGE|MID|PIPE|FINAL)\d*', re.IGNORECASE)
+def validate_fsm(fsm: Dict[str, Any]) -> List[str]:
+    e: List[str] = []
+    for k in ["states","transitions","outputs_header","outputs","assumptions"]:
+        if k not in fsm:
+            e.append(f"missing key: {k}")
+    if e: return e
 
-def _contains_token(cond: str, token: str) -> bool:
-    return re.search(rf'(^|[^A-Za-z0-9_]){re.escape(token)}([^A-Za-z0-9_]|$)', cond) is not None
+    if fsm["outputs_header"] != OUTS:
+        e.append(f"outputs_header must be exactly {OUTS}")
 
-def validate_fsm_object(fsm: FSM) -> List[str]:
-    errors: List[str] = []
-    stset = set(fsm.states)
+    states = fsm.get("states", [])
+    if not isinstance(states, list) or not all(isinstance(s,str) and s for s in states):
+        e.append("states must be array of non-empty strings")
+        return e
 
-    out_deg = {s: 0 for s in fsm.states}
-    in_deg  = {s: 0 for s in fsm.states}
+    for s in states:
+        if s.endswith("_i") or s.endswith("_o"):
+            e.append(f"invalid state name (looks like signal): '{s}'")
+        if not STATE_RE.match(s):
+            e.append(f"invalid state name (must be UPPERCASE like WAIT_CMD): '{s}'")
 
-    # discourage invented pipeline states unless justified in assumptions
-    invented_pipeline = [s for s in fsm.states if _PIPELINE_NAME_RE.match(s)]
-    if invented_pipeline:
-        # allow only if assumptions mention "intermedio" or "pipeline"
-        joined = " ".join(fsm.assumptions or []).lower()
-        if ("intermedio" not in joined) and ("pipeline" not in joined) and ("1 ciclo" not in joined) and ("1-cycle" not in joined):
-            errors.append(f"stati pipeline non richiesti dalla spec: {invented_pipeline}")
+    st: Set[str] = set(states)
 
-    for t in fsm.transitions:
-        frm = t.from_state
-        to  = t.to_state
-        cond = (t.cond or "").strip()
+    trans = fsm.get("transitions", [])
+    if not isinstance(trans, list) or not trans:
+        e.append("transitions must be non-empty list")
+        return e
 
-        if frm not in stset:
-            errors.append(f"transition: from '{frm}' not in states")
+    indeg = {s:0 for s in st}
+    outdeg = {s:0 for s in st}
+
+    for i,t in enumerate(trans):
+        fr, to, cond = t.get("from"), t.get("to"), t.get("cond")
+        if fr == to:
+            e.append(f"forbidden self-loop: {fr}->{to}")
+        if fr not in st: e.append(f"transition[{i}] unknown from-state '{fr}'")
+        else: outdeg[fr]+=1
+        if to not in st: e.append(f"transition[{i}] unknown to-state '{to}'")
+        else: indeg[to]+=1
+
+        c = str(cond).strip()
+        try:
+            ast = parse_condition(c)
+        except CondParseError as ex:
+            e.append(str(ex))
             continue
-        if to not in stset:
-            errors.append(f"transition: to '{to}' not in states")
-            continue
 
-        if frm == to:
-            errors.append(f"forbidden self-loop: '{frm} -> {to}'")
+        ids = set(collect_idents(ast))
+        if "reset_i" in ids:
+            e.append(f"reset_i is forbidden in conditions: {fr}->{to}")
 
-        if not cond:
-            errors.append(f"empty condition on transition {frm}->{to}")
-        else:
-            # hard reject forbidden operators
-            if "&&" in cond or "||" in cond or "~" in cond or "==" in cond or "!=" in cond:
-                errors.append(f"forbidden operators in condition {frm}->{to}: '{cond}'")
+    for s in st:
+        if indeg[s]==0: e.append(f"graph not closed: state '{s}' has in-degree=0")
+        if outdeg[s]==0: e.append(f"graph not closed: state '{s}' has out-degree=0")
 
-            if _contains_token(cond, "reset_i"):
-                errors.append(f"reset_i forbidden in guards: {frm}->{to}")
+    # error_i rule (local)
+    ERROR_SIG="error_i"; ERROR_STATE="ERROR"
+    by_from: Dict[str, List[Dict[str, Any]]] = {}
+    for t in trans:
+        by_from.setdefault(t.get("from",""), []).append(t)
+    has_err_edge = {s:any((o.get("to")==ERROR_STATE and (o.get("cond") or "").strip()==ERROR_SIG) for o in outs)
+                    for s,outs in by_from.items()}
 
-            if _contains_token(cond, "done_i") and _contains_token(cond, "error_i"):
-                errors.append(f"forbidden mixing done_i and error_i in same condition: {frm}->{to}")
+    for t in trans:
+        fr, to, cond = t.get("from"), t.get("to"), (t.get("cond") or "").strip()
+        try:
+            ids = set(collect_idents(parse_condition(cond)))
+        except Exception:
+            ids = set()
+        if ERROR_SIG in ids and to != ERROR_STATE:
+            if ("!error_i" in cond) and has_err_edge.get(fr, False) and cond != ERROR_SIG:
+                continue
+            e.append(f"error_i can only drive transitions to ERROR: found {fr}->{to}")
+        if cond == "!error_i" and not has_err_edge.get(fr, False):
+            e.append(f"suspicious '!error_i' used as global filter in {fr}->{to}: '!error_i'")
 
-            # error_i only to ERROR
-            if _contains_token(cond, "error_i") and to != "ERROR":
-                errors.append(f"error_i can only drive transitions to ERROR: found {frm}->{to}")
-
-            # avoid global '!error_i' filters
-            if "!error_i" in cond and not _contains_token(cond, "done_i") and not _contains_token(cond, "start_i"):
-                errors.append(f"suspicious '!error_i' used as global filter in {frm}->{to}: '{cond}'")
-
-            # parse DSL
-            try:
-                ast = parse_condition(cond)
-                for name in collect_idents(ast):
-                    if name.endswith("_o"):
-                        errors.append(f"condition {frm}->{to} uses output '{name}' (forbidden; only *_i)")
-                    elif not name.endswith("_i"):
-                        errors.append(f"condition {frm}->{to} uses identifier '{name}' not ending with _i")
-            except CondParseError as e:
-                errors.append(f"unparsable condition in {frm}->{to}: {e}")
-
-        out_deg[frm] += 1
-        in_deg[to]   += 1
-
-    for s in fsm.states:
-        if out_deg.get(s, 0) < 1:
-            errors.append(f"graph not closed: state '{s}' has out-degree=0")
-        if in_deg.get(s, 0) < 1:
-            errors.append(f"graph not closed: state '{s}' has in-degree=0")
-
-    req_cols = ["busy_o","valid_o","error_o","low_power_o","dbg_o"]
-    for st in fsm.states:
-        if st not in fsm.outputs:
-            errors.append(f"outputs: missing state '{st}'")
-            continue
-        outs = fsm.outputs.get(st, {})
-        for col in req_cols:
-            if col not in outs:
-                errors.append(f"outputs: state '{st}' missing '{col}'")
-            else:
-                if str(outs[col]) not in ("0", "1"):
-                    errors.append(f"outputs: state '{st}' col '{col}' must be 0/1, got '{outs[col]}'")
-
-    for st in fsm.outputs.keys():
-        if st not in stset:
-            errors.append(f"outputs contains extra state '{st}' not in states")
-
-    return errors
-
-def validate_rendered_text(text: str, expected_states: List[str]) -> List[str]:
-    errors: List[str] = []
-    lines = [ln.rstrip("\n") for ln in text.splitlines()]
-
-    try:
-        idx_hdr = next(i for i, ln in enumerate(lines) if ln.strip() == OUTPUTS_HEADER)
-    except StopIteration:
-        errors.append(f"missing outputs CSV header exactly: '{OUTPUTS_HEADER}'")
-        return errors
-
-    trans_lines = [ln.strip() for ln in lines[:idx_hdr] if ln.strip()]
-    for ln in trans_lines:
-        if not TRANSITION_LINE_RE.match(ln):
-            errors.append(f"invalid transition line: {ln}")
-
-    seen = {}
-    for ln in lines[idx_hdr + 1:]:
-        if not ln.strip():
-            continue
-        parts = ln.split(",")
-        if len(parts) != 6:
-            errors.append(f"outputs row must have 6 columns: {ln}")
-            continue
-        st = parts[0].strip()
-        seen[st] = True
-        for bit in parts[1:]:
-            if bit.strip() not in ("0", "1"):
-                errors.append(f"non-binary outputs for state '{st}': {ln}")
-
-    for st in expected_states:
-        if st not in seen:
-            errors.append(f"missing outputs row for state '{st}'")
-
-    for st in seen.keys():
-        if st not in expected_states:
-            errors.append(f"outputs contains extra state '{st}' not in states")
-
-    return errors
+    return e

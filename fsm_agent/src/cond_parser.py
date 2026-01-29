@@ -14,7 +14,8 @@ TOK_RP = ")"
 TOK_EOF = "EOF"
 
 IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-CONST_RE = re.compile(r"^1'b[01]$")
+# Accept RTL-style 1'b0 / 1'b1 AND the DSL constant "1"
+CONST_RE = re.compile(r"^(1|1'b[01])$")
 
 @dataclass(frozen=True)
 class Token:
@@ -22,7 +23,7 @@ class Token:
     value: str
     pos: int
 
-# AST nodes (minimal)
+# AST nodes
 @dataclass(frozen=True)
 class Node:
     pass
@@ -33,7 +34,7 @@ class Ident(Node):
 
 @dataclass(frozen=True)
 class Const(Node):
-    value: str  # "1'b0" or "1'b1"
+    value: str  # "1" or "1'b0" or "1'b1"
 
 @dataclass(frozen=True)
 class Not(Node):
@@ -69,6 +70,7 @@ def tokenize(expr: str) -> List[Token]:
         while j < len(s) and (s[j].isalnum() or s[j] == "_" or s[j] == "'"):
             j += 1
         word = s[i:j]
+
         if CONST_RE.match(word):
             tokens.append(Token(kind=TOK_CONST, value=word, pos=i))
         elif IDENT_RE.match(word):
@@ -114,9 +116,7 @@ class Parser:
         while self.peek().kind == TOK_OR:
             self.pop(TOK_OR)
             xs.append(self.parse_and())
-        if len(xs) == 1:
-            return xs[0]
-        return Or(tuple(xs))
+        return xs[0] if len(xs) == 1 else Or(tuple(xs))
 
     def parse_and(self) -> Node:
         left = self.parse_unary()
@@ -124,9 +124,7 @@ class Parser:
         while self.peek().kind == TOK_AND:
             self.pop(TOK_AND)
             xs.append(self.parse_unary())
-        if len(xs) == 1:
-            return xs[0]
-        return And(tuple(xs))
+        return xs[0] if len(xs) == 1 else And(tuple(xs))
 
     def parse_unary(self) -> Node:
         if self.peek().kind == TOK_NOT:
@@ -175,8 +173,5 @@ def collect_idents(node: Node) -> List[str]:
         elif isinstance(n, Or):
             for k in n.xs:
                 rec(k)
-        else:
-            # future-proof
-            return
     rec(node)
     return out

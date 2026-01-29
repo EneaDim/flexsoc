@@ -1,6 +1,8 @@
 Controller sincrono con reset.
- Dopo il reset il blocco è pronto.
- Quando arriva start_i entra in esecuzione e rimane occupato finché l’operazione non è finita.
- Il completamento è indicato da done_i; al termine torna in uno stato pronto.
- Se durante l’esecuzione arriva error_i va in errore e ci resta finché clear_error_i.
- Dopo che clear_error_i arriva vai in uno stato pronto.
+Dopo il reset il blocco è pronto.
+Con start_i inizia l’operazione.
+Durante l’operazione il blocco è occupato.
+Se arriva done_i l’operazione termina.
+Se arriva error_i entra in errore.
+In errore resta finché clear_error_i.
+Dopo clear torna pronto.

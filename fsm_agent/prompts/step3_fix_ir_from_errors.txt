@@ -1,0 +1,32 @@
+Your previous INTENT-IR failed validation or sanitization.
+
+Return ONLY valid JSON with the SAME INTENT-IR schema:
+{
+  "init_state": string,
+  "states": [string, ...],
+  "edges": [ {"from":string, "to":string, "when":string}, ... ],
+  "outputs_header": ["busy_o","valid_o","error_o","low_power_o","dbg_o"],
+  "outputs": { state: {busy_o:0/1, valid_o:0/1, error_o:0/1, low_power_o:0/1, dbg_o:0/1}, ... },
+  "priorities": [ {"state":string, "high_when":string, "low_when":string}, ... ],
+  "assumptions": [string, ...]
+}
+
+VALIDATION ERRORS:
+{{ERRORS}}
+
+CURRENT INTENT-IR (for context):
+{{INTENT_JSON}}
+
+MANDATORY RULES:
+- Do NOT add/remove states. states MUST stay exactly the same.
+- init_state MUST stay the same.
+- edges may be edited/added/removed, but:
+  - when MUST be "1" or a single signal from signals_in (no expressions).
+  - no self-loops.
+- Do NOT invent signals.
+- outputs must be 0/1 constants only.
+
+REPAIR STRATEGY:
+- Ensure at least one outgoing edge per state and at least one incoming edge per state.
+- Use "1" only as a last resort for closure edges.
+- Prefer using existing event signals (start_i/done_i/error_i/clear_error_i) when they exist.

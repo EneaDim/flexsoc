@@ -1,52 +1,27 @@
 from __future__ import annotations
-from typing import Any, Dict, List
+import json
+from typing import Any, Dict
 
-OUTPUT_KEYS = ["busy_o","valid_o","error_o","low_power_o","dbg_o"]
+def _extract_json_object(text: str) -> str:
+    s = text.strip()
+    if s.startswith("{") and s.endswith("}"):
+        return s
+    start = s.find("{")
+    if start < 0:
+        raise ValueError("No JSON object start '{' found")
+    depth = 0
+    for i in range(start, len(s)):
+        if s[i] == "{":
+            depth += 1
+        elif s[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return s[start:i+1]
+    raise ValueError("No complete JSON object found")
 
-def _coerce_outputs(outputs: Any) -> Any:
-    # outputs deve essere dict: state -> dict(outputs)
-    if not isinstance(outputs, dict):
-        return outputs
-
-    new_out: Dict[str, Any] = {}
-    for st, v in outputs.items():
-        # caso sbagliato: lista [b,v,e,lp,d]
-        if isinstance(v, list) and len(v) == 5:
-            new_out[st] = {k: int(v[i]) for i, k in enumerate(OUTPUT_KEYS)}
-        # caso corretto: dict
-        elif isinstance(v, dict):
-            # assicurati che tutte le chiavi esistano (default 0 se mancanti)
-            new_out[st] = {k: int(v.get(k, 0)) for k in OUTPUT_KEYS}
-        else:
-            new_out[st] = v
-    return new_out
-
-def _coerce_assumptions(assumptions: Any) -> Any:
-    # assumptions deve essere list[str]
-    if not isinstance(assumptions, list):
-        return assumptions
-    out: List[str] = []
-    for a in assumptions:
-        if isinstance(a, str):
-            out.append(a)
-        elif isinstance(a, dict):
-            # caso comune: {"name": "...", "value": ...}
-            name = a.get("name", "assumption")
-            val = a.get("value", a)
-            out.append(f"{name}={val}")
-        else:
-            out.append(str(a))
-    return out
-
-def coerce_fsm_json(j: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(j, dict):
-        return j
-    j2 = dict(j)
-
-    if "outputs" in j2:
-        j2["outputs"] = _coerce_outputs(j2["outputs"])
-
-    if "assumptions" in j2:
-        j2["assumptions"] = _coerce_assumptions(j2["assumptions"])
-
-    return j2
+def coerce_json(raw_text: str) -> Dict[str, Any]:
+    js = _extract_json_object(raw_text)
+    obj = json.loads(js)
+    if not isinstance(obj, dict):
+        raise ValueError("Top-level JSON must be an object")
+    return obj

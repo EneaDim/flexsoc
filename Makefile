@@ -12,8 +12,10 @@ fsm_agent:
 	FSM_NAME=$(FSM) FSM_EXPORT_DIR=fsm_gen/inputs \
 	FSM_USE_GOLD=2 FSM_GOLD_BUDGET=4096 FSM_AUTO_RANK=0 \
 	python3 fsm_agent/scripts/repl.py 
+
+.PHONY: fsm
+fsm:
 	@$(MAKE) fsm_gen fsm_plot fsm2rtl FSM=$(FSM)
-	@$(MAKE) sim view $(TOP)=$(FSM)
 
 # HELP
 help:

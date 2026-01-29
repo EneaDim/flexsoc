@@ -1,15 +1,16 @@
 from __future__ import annotations
 import json
-from typing import Any, Dict
+from typing import Any
 
 def read_text(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
-def write_text(path: str, text: str) -> None:
+def write_text(path: str, s: str) -> None:
     with open(path, "w", encoding="utf-8") as f:
-        f.write(text)
+        f.write(s)
 
-def write_json(path: str, obj: Dict[str, Any]) -> None:
+def write_json(path: str, obj: Any) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2, ensure_ascii=False)
+        f.write("\n")
