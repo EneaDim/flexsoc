@@ -1,0 +1,7 @@
+CSR sequencer:
+- IDLE attende csr_req
+- DECODE interpreta indirizzo/op
+- EXEC esegue accesso (può stallare finché exec_ready)
+- RESP presenta risposta finché csr_rsp_hs
+- Se illegal access -> ERROR finché clear_error
+busy=1 in DECODE/EXEC/RESP. valid=1 in RESP. dbg=1 in DECODE/ERROR.

@@ -1,0 +1,21 @@
+{
+  "states": ["RESET","IDLE","RUN","ERROR"],
+  "transitions": [
+    { "from": "RESET", "to": "IDLE", "cond": "reset_done_i" },
+    { "from": "IDLE", "to": "RUN", "cond": "req_i" },
+    { "from": "RUN", "to": "IDLE", "cond": "done_i & !error_i" },
+    { "from": "RUN", "to": "ERROR", "cond": "error_i" },
+    { "from": "ERROR", "to": "IDLE", "cond": "clear_error_i" }
+  ],
+  "outputs_header": ["busy_o","valid_o","error_o","low_power_o","dbg_o"],
+  "outputs": {
+    "RESET": { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "IDLE":  { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "RUN":   { "busy_o": 1, "valid_o": 1, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "ERROR": { "busy_o": 0, "valid_o": 0, "error_o": 1, "low_power_o": 0, "dbg_o": 1 }
+  },
+  "assumptions": [
+    "error_i ha precedenza su done_i.",
+    "reset_done_i indica completamento reset sincrono."
+  ]
+}

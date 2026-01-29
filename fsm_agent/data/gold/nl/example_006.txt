@@ -1,0 +1,7 @@
+Streamer RTL:
+- IDLE attende start
+- FETCH prepara un beat di dato e poi passa a SEND
+- In SEND, se out_ready è 0 vai in STALL finché torna 1
+- In SEND, quando last_sent torna IDLE
+- Se error va in ERROR finché clear_error
+valid_o=1 quando stai mandando (SEND). busy_o=1 in FETCH/SEND/STALL.

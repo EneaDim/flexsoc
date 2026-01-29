@@ -1,0 +1,41 @@
+{
+  "states": ["RESET","IDLE","READ","CHECK","CORRECT","WRITE","NEXT","ERROR"],
+  "transitions": [
+    { "from": "RESET", "to": "IDLE", "cond": "reset_done_i" },
+
+    { "from": "IDLE", "to": "READ", "cond": "scrub_start_i" },
+
+    { "from": "READ", "to": "CHECK", "cond": "mem_rd_done_i & !mem_err_i" },
+    { "from": "READ", "to": "ERROR", "cond": "mem_err_i" },
+
+    { "from": "CHECK", "to": "NEXT", "cond": "!ecc_err_i" },
+    { "from": "CHECK", "to": "CORRECT", "cond": "ecc_corr_i & !ecc_uncorr_i" },
+    { "from": "CHECK", "to": "ERROR", "cond": "ecc_uncorr_i" },
+
+    { "from": "CORRECT", "to": "WRITE", "cond": "corr_done_i" },
+
+    { "from": "WRITE", "to": "NEXT", "cond": "mem_wr_done_i & !mem_err_i" },
+    { "from": "WRITE", "to": "ERROR", "cond": "mem_err_i" },
+
+    { "from": "NEXT", "to": "READ", "cond": "!scrub_last_i" },
+    { "from": "NEXT", "to": "IDLE", "cond": "scrub_last_i" },
+
+    { "from": "ERROR", "to": "IDLE", "cond": "clear_error_i" }
+  ],
+  "outputs_header": ["busy_o","valid_o","error_o","low_power_o","dbg_o"],
+  "outputs": {
+    "RESET":   { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "IDLE":    { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "READ":    { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "CHECK":   { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 1 },
+    "CORRECT": { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 1 },
+    "WRITE":   { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "NEXT":    { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "ERROR":   { "busy_o": 0, "valid_o": 0, "error_o": 1, "low_power_o": 0, "dbg_o": 1 }
+  },
+  "assumptions": [
+    "ecc_err_i indica presenza errore ECC, ecc_corr_i correctable, ecc_uncorr_i uncorrectable.",
+    "scrub_last_i indica fine range scrub.",
+    "mem_err_i indica errore bus/memoria su accesso."
+  ]
+}

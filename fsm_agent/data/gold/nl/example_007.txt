@@ -1,0 +1,8 @@
+DMA burst controller:
+- IDLE attende dma_start
+- ISSUE emette richiesta bus
+- WAIT_BEAT attende beat di trasferimento e conta i beat
+- LAST gestisce l'ultimo beat e chiude
+- IRQ segnala interrupt per completamento e torna IDLE
+- Se bus_err va in ERROR finché clear_error
+busy=1 in ISSUE/WAIT_BEAT/LAST. valid=1 in IRQ. dbg=1 in WAIT_BEAT/ERROR.

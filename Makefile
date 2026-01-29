@@ -3,8 +3,17 @@ include config.mk
 
 # LLM Agent
 .PHONY: agent
-agent:
+make_agent:
 	@python3 flexsoc_make_agent/agent_repl.py --repo-root . --catalog flexsoc_make_agent/catalog.json
+
+.PHONY: fsm_agent
+fsm_agent:
+	@PYTHONPATH=fsm_agent \
+	FSM_NAME=$(FSM) FSM_EXPORT_DIR=fsm_gen/inputs \
+	FSM_USE_GOLD=2 FSM_GOLD_BUDGET=4096 FSM_AUTO_RANK=0 \
+	python3 fsm_agent/scripts/repl.py 
+	@$(MAKE) fsm_gen fsm_plot fsm2rtl FSM=$(FSM)
+	@$(MAKE) sim view $(TOP)=$(FSM)
 
 # HELP
 help:
@@ -566,6 +575,8 @@ clean_fsm_all:
 clean_agent:
 	$(Q)$(RM) flexsoc_make_agent/logs
 	$(Q)$(RM) flexsoc_make_agent/runs
+	$(Q)$(RM) fsm_agent/src/__py*
+	$(Q)$(RM) fsm_agent/data/inbox/out*
 clean_fsoc:
 	$(Q)$(RM) build
 clean_soc:

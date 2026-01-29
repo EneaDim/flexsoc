@@ -1,0 +1,38 @@
+{
+  "states": ["RESET","IDLE","RD_ADDR","RD_DATA","WR_ADDR","WR_DATA","WR_RESP","ERROR"],
+  "transitions": [
+    { "from": "RESET", "to": "IDLE", "cond": "reset_done_i" },
+
+    { "from": "IDLE", "to": "RD_ADDR", "cond": "ar_valid_i" },
+    { "from": "RD_ADDR", "to": "RD_DATA", "cond": "ar_hs_i & !slv_err_i" },
+    { "from": "RD_ADDR", "to": "ERROR", "cond": "slv_err_i" },
+    { "from": "RD_DATA", "to": "IDLE", "cond": "r_hs_i & !slv_err_i" },
+    { "from": "RD_DATA", "to": "ERROR", "cond": "slv_err_i" },
+
+    { "from": "IDLE", "to": "WR_ADDR", "cond": "aw_valid_i" },
+    { "from": "WR_ADDR", "to": "WR_DATA", "cond": "aw_hs_i & !slv_err_i" },
+    { "from": "WR_ADDR", "to": "ERROR", "cond": "slv_err_i" },
+    { "from": "WR_DATA", "to": "WR_RESP", "cond": "w_hs_i & !slv_err_i" },
+    { "from": "WR_DATA", "to": "ERROR", "cond": "slv_err_i" },
+    { "from": "WR_RESP", "to": "IDLE", "cond": "b_hs_i & !slv_err_i" },
+    { "from": "WR_RESP", "to": "ERROR", "cond": "slv_err_i" },
+
+    { "from": "ERROR", "to": "IDLE", "cond": "clear_error_i" }
+  ],
+  "outputs_header": ["busy_o","valid_o","error_o","low_power_o","dbg_o"],
+  "outputs": {
+    "RESET":   { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "IDLE":    { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "RD_ADDR": { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "RD_DATA": { "busy_o": 1, "valid_o": 1, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "WR_ADDR": { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "WR_DATA": { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "WR_RESP": { "busy_o": 1, "valid_o": 1, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "ERROR":   { "busy_o": 0, "valid_o": 0, "error_o": 1, "low_power_o": 0, "dbg_o": 1 }
+  },
+  "assumptions": [
+    "ar_hs_i/aw_hs_i/w_hs_i/r_hs_i/b_hs_i sono handshake già combinati (valid&ready).",
+    "ar_valid_i/aw_valid_i sono sufficienti per uscire da IDLE (ready implicito o sempre 1).",
+    "slv_err_i può alzarsi in qualunque fase e porta a ERROR."
+  ]
+}

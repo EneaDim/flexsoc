@@ -137,6 +137,9 @@ endif
 
 SOC_MEMORY_MAP := $(foreach d,$(DEVLIST),--device $(d) $(BASE_$(d)) $(SIZE_$(d)) $(FROM_LR_$(d)))
 
+# LLM
+OLLAMA_MODEL=qwen2.5:3b-instruct
+
 # =========================
 # Colors
 # =========================

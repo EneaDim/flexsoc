@@ -1,0 +1,25 @@
+Hai prodotto un JSON che non passa la validazione.
+
+Devi restituire SOLO un JSON valido (nessun testo extra) con lo stesso schema:
+- states (array string)
+- transitions [{"from","to","cond"}]
+- outputs_header ["busy_o","valid_o","error_o","low_power_o","dbg_o"]
+- outputs dict state->{busy_o:0/1, valid_o:0/1, error_o:0/1, low_power_o:0/1, dbg_o:0/1}
+- assumptions (array di stringhe)
+
+ERRORI:
+{{ERRORS}}
+
+REGOLE DI FIX (OBBLIGATORIE):
+- Correggi SOLO ciò che serve per rispettare vincoli e schema.
+- Nelle condizioni usa SOLO: ! & | ( )  (vietati && || ~ == ecc.)
+- Vietato reset_i nelle condizioni.
+- Vietato self-loop (from==to).
+- Non inventare stati pipeline (STAGE/MID/PIPE/FINAL) se non richiesti dalla spec.
+- error_i può apparire SOLO in transizioni verso ERROR (non usare "!error_i" come filtro globale).
+- done_i deve portare SOLO a IDLE/READY; start_i deve portare a RUNNING/BUSY.
+- Vietato combinare done_i e error_i nella stessa condizione.
+- Se serve priorità error su done, aggiungi "!error_i" alla transizione done_i (solo se necessario).
+- Ogni stato deve avere almeno un arco entrante e uno uscente; se serve, aggiungi RESET -> IDLE/READY : "1" e dichiaralo.
+
+Restituisci SOLO il JSON corretto.

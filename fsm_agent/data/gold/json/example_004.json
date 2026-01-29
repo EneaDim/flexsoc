@@ -1,0 +1,21 @@
+{
+  "states": ["RESET","IDLE","LOW_POWER","RUN"],
+  "transitions": [
+    { "from": "RESET", "to": "IDLE", "cond": "reset_done_i" },
+    { "from": "IDLE", "to": "LOW_POWER", "cond": "sleep_req_i & !work_pending_i" },
+    { "from": "LOW_POWER", "to": "IDLE", "cond": "wake_i" },
+    { "from": "IDLE", "to": "RUN", "cond": "work_pending_i" },
+    { "from": "RUN", "to": "IDLE", "cond": "done_i" }
+  ],
+  "outputs_header": ["busy_o","valid_o","error_o","low_power_o","dbg_o"],
+  "outputs": {
+    "RESET":     { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "IDLE":      { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "LOW_POWER": { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 1, "dbg_o": 0 },
+    "RUN":       { "busy_o": 1, "valid_o": 1, "error_o": 0, "low_power_o": 0, "dbg_o": 0 }
+  },
+  "assumptions": [
+    "work_pending_i indica che esiste lavoro da fare (comando pendente).",
+    "valid_o=1 in RUN (semplificazione: dato/risultato valido durante esecuzione)."
+  ]
+}

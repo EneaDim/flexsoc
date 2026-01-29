@@ -1,0 +1,48 @@
+{
+  "states": [
+    "RESET",
+    "IDLE",
+    "WAIT_CMD",
+    "LOW_POWER",
+    "PREFETCH",
+    "EXECUTE",
+    "WRITEBACK",
+    "FLUSH",
+    "ERROR",
+    "SHUTDOWN"
+  ],
+  "transitions": [
+    { "from": "RESET", "to": "IDLE", "cond": "reset_done_i" },
+    { "from": "IDLE", "to": "WAIT_CMD", "cond": "cmd_pending_i" },
+    { "from": "IDLE", "to": "LOW_POWER", "cond": "sleep_req_i" },
+    { "from": "LOW_POWER", "to": "IDLE", "cond": "wake_i" },
+    { "from": "WAIT_CMD", "to": "PREFETCH", "cond": "cmd_valid_i & !flush_req_i" },
+    { "from": "WAIT_CMD", "to": "FLUSH", "cond": "flush_req_i" },
+    { "from": "PREFETCH", "to": "EXECUTE", "cond": "prefetch_done_i" },
+    { "from": "EXECUTE", "to": "WRITEBACK", "cond": "exec_done_i & !error_i" },
+    { "from": "EXECUTE", "to": "ERROR", "cond": "error_i" },
+    { "from": "WRITEBACK", "to": "IDLE", "cond": "writeback_done_i & !cmd_pending_i" },
+    { "from": "WRITEBACK", "to": "WAIT_CMD", "cond": "writeback_done_i & cmd_pending_i" },
+    { "from": "FLUSH", "to": "IDLE", "cond": "flush_done_i & !cmd_pending_i" },
+    { "from": "FLUSH", "to": "WAIT_CMD", "cond": "flush_done_i & cmd_pending_i" },
+    { "from": "ERROR", "to": "SHUTDOWN", "cond": "fatal_error_i" },
+    { "from": "ERROR", "to": "IDLE", "cond": "clear_error_i & !fatal_error_i" },
+    { "from": "SHUTDOWN", "to": "RESET", "cond": "restart_i" }
+  ],
+  "outputs_header": ["busy_o","valid_o","error_o","low_power_o","dbg_o"],
+  "outputs": {
+    "RESET":     { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "IDLE":      { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "WAIT_CMD":  { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "PREFETCH":  { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 1 },
+    "EXECUTE":   { "busy_o": 1, "valid_o": 1, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "WRITEBACK": { "busy_o": 1, "valid_o": 1, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "FLUSH":     { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 1 },
+    "ERROR":     { "busy_o": 0, "valid_o": 0, "error_o": 1, "low_power_o": 0, "dbg_o": 1 },
+    "LOW_POWER": { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 1, "dbg_o": 0 },
+    "SHUTDOWN":  { "busy_o": 0, "valid_o": 0, "error_o": 1, "low_power_o": 0, "dbg_o": 1 }
+  },
+  "assumptions": [
+    "Nessuna: questo esempio è definito completamente dalla specifica."
+  ]
+}

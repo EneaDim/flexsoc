@@ -1,0 +1,37 @@
+{
+  "states": ["RESET","IDLE","ISSUE","WAIT_BEAT","LAST","IRQ","ERROR"],
+  "transitions": [
+    { "from": "RESET", "to": "IDLE", "cond": "reset_done_i" },
+
+    { "from": "IDLE", "to": "ISSUE", "cond": "dma_start_i" },
+
+    { "from": "ISSUE", "to": "WAIT_BEAT", "cond": "bus_grant_i & !bus_err_i" },
+    { "from": "ISSUE", "to": "ERROR", "cond": "bus_err_i" },
+
+    { "from": "WAIT_BEAT", "to": "WAIT_BEAT", "cond": "beat_hs_i & !last_beat_i & !bus_err_i" },
+    { "from": "WAIT_BEAT", "to": "LAST", "cond": "beat_hs_i & last_beat_i & !bus_err_i" },
+    { "from": "WAIT_BEAT", "to": "ERROR", "cond": "bus_err_i" },
+
+    { "from": "LAST", "to": "IRQ", "cond": "last_done_i & !bus_err_i" },
+    { "from": "LAST", "to": "ERROR", "cond": "bus_err_i" },
+
+    { "from": "IRQ", "to": "IDLE", "cond": "irq_ack_i" },
+
+    { "from": "ERROR", "to": "IDLE", "cond": "clear_error_i" }
+  ],
+  "outputs_header": ["busy_o","valid_o","error_o","low_power_o","dbg_o"],
+  "outputs": {
+    "RESET":     { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "IDLE":      { "busy_o": 0, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "ISSUE":     { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "WAIT_BEAT": { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 1 },
+    "LAST":      { "busy_o": 1, "valid_o": 0, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "IRQ":       { "busy_o": 0, "valid_o": 1, "error_o": 0, "low_power_o": 0, "dbg_o": 0 },
+    "ERROR":     { "busy_o": 0, "valid_o": 0, "error_o": 1, "low_power_o": 0, "dbg_o": 1 }
+  },
+  "assumptions": [
+    "beat_hs_i è handshake del beat (valid&ready).",
+    "last_beat_i indica che il beat corrente è l'ultimo del burst.",
+    "irq_ack_i è l'ack SW/HW che consuma l'interrupt."
+  ]
+}
