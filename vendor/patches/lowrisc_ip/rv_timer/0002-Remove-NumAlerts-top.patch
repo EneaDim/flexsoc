@@ -1,0 +1,82 @@
+--- a/rtl/rv_timer.sv	2026-02-02 21:56:24.439155069 +0100
++++ b/rtl/rv_timer.sv	2026-02-02 21:56:03.825208750 +0100
+@@ -8,7 +8,7 @@
+ 
+ module rv_timer import rv_timer_reg_pkg::*;
+ #(
+-  parameter logic [NumAlerts-1:0] AlertAsyncOn = {NumAlerts{1'b1}}
++  parameter logic  AlertAsyncOn = 1'b1
+ ) (
+   input clk_i,
+   input rst_ni,
+@@ -16,8 +16,8 @@
+   input  tlul_pkg::tl_h2d_t tl_i,
+   output tlul_pkg::tl_d2h_t tl_o,
+ 
+-  input  prim_alert_pkg::alert_rx_t [NumAlerts-1:0] alert_rx_i,
+-  output prim_alert_pkg::alert_tx_t [NumAlerts-1:0] alert_tx_o,
++  input  prim_alert_pkg::alert_rx_t  alert_rx_i,
++  output prim_alert_pkg::alert_tx_t  alert_tx_o,
+ 
+   output logic intr_timer_expired_hart0_timer0_o
+ );
+@@ -113,7 +113,7 @@
+   end : gen_harts
+ 
+   // Register module
+-  logic [NumAlerts-1:0] alert_test, alerts;
++  logic  alert_test, alerts;
+   rv_timer_reg_top u_reg (
+     .clk_i,
+     .rst_ni,
+@@ -125,7 +125,7 @@
+     .hw2reg,
+ 
+     // SEC_CM: BUS.INTEGRITY
+-    .intg_err_o (alerts[0])
++    .intg_err_o (alerts)
+   );
+ 
+   // Alerts
+@@ -134,21 +134,19 @@
+     reg2hw.alert_test.qe
+   };
+ 
+-  for (genvar i = 0; i < NumAlerts; i++) begin : gen_alert_tx
+-    prim_alert_sender #(
+-      .AsyncOn(AlertAsyncOn[i]),
+-      .IsFatal(1'b1)
+-    ) u_prim_alert_sender (
+-      .clk_i,
+-      .rst_ni,
+-      .alert_test_i  ( alert_test[i] ),
+-      .alert_req_i   ( alerts[0]     ),
+-      .alert_ack_o   (               ),
+-      .alert_state_o (               ),
+-      .alert_rx_i    ( alert_rx_i[i] ),
+-      .alert_tx_o    ( alert_tx_o[i] )
+-    );
+-  end
++  prim_alert_sender #(
++    .AsyncOn(AlertAsyncOn),
++    .IsFatal(1'b1)
++  ) u_prim_alert_sender (
++    .clk_i,
++    .rst_ni,
++    .alert_test_i  ( alert_test ),
++    .alert_req_i   ( alerts     ),
++    .alert_ack_o   (            ),
++    .alert_state_o (            ),
++    .alert_rx_i    ( alert_rx_i ),
++    .alert_tx_o    ( alert_tx_o )
++  );
+ 
+   ////////////////
+   // Assertions //
+@@ -159,5 +157,5 @@
+   `ASSERT_KNOWN(IntrTimerExpiredHart0Timer0Known, intr_timer_expired_hart0_timer0_o)
+ 
+   // Alert assertions for reg_we onehot check
+-  `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o[0])
++  `ASSERT_PRIM_REG_WE_ONEHOT_ERROR_TRIGGER_ALERT(RegWeOnehotCheck_A, u_reg, alert_tx_o)
+ endmodule
