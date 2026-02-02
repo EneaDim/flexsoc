@@ -144,8 +144,10 @@ def generate_module_inst(mod, ports):
     port_assignments = ["    .clk_i", "    .rst_ni"]
     port_assignments += [f"    .tl_i(tl_{mod}_h2d)"]
     port_assignments += [f"    .tl_o(tl_{mod}_d2h)"]
-    port_assignments += [f"    .{name}" for direction, _, name in ports if not name == 'tl_i' and not name == 'tl_o' and not name == 'clk_i' and not name == 'rst_ni' and not 'intr' in name]
+    port_assignments += [f"    .{name}" for direction, _, name in ports if not name == 'tl_i' and not name == 'tl_o' and not name == 'clk_i' and not name == 'rst_ni' and not 'intr' in name and not 'alert' in name]
     port_assignments += [f"    .{name}()" for direction, _, name in ports if 'intr' in name]
+    port_assignments += [f"    .{name}()" for direction, _, name in ports if 'alert_rx' in name]
+    port_assignments += [f"    .{name}()" for direction, _, name in ports if 'alert_tx' in name]
     inst_lines.append(",\n".join(port_assignments))
     inst_lines.append("  );\n")
     return "\n".join(inst_lines)
@@ -197,7 +199,8 @@ def generate_soc_sv(host, device, root_dir, output_file):
         # Append unique ports
         port_decls = generate_port_decls(all_ports)
         for decl in port_decls:
-            f.write(f"\n{decl}")
+            if not 'alert' in decl.split()[1]:
+                f.write(f"\n{decl}")
 
         # Remove last comma and close header
         f.seek(f.tell() -1)
@@ -264,7 +267,10 @@ def generate_soc_sv(host, device, root_dir, output_file):
         for decl in cleaned_ports:
             decl = decl.split()
             if not decl[0] == 'logic':
-                decl = ['logic ' + ''.join(decl)]
+                if not 'alert' in decl[0]:
+                    decl = ['logic ' + ' '.join(decl)]
+                else:
+                    continue
             f.write(f"  {' '.join(decl)}\n")
         f.write(f"\n")
         cleaned_ports = [ re.sub(r'^\s*(input|output)\s+(logic|wire|reg)?\s*', '', decl.strip()) for decl in port_decls ]
@@ -275,7 +281,8 @@ def generate_soc_sv(host, device, root_dir, output_file):
         f.write(f"    .rst_ni,\n")
         for decl in cleaned_ports:
             decl = decl.split()
-            f.write(f"    .{decl[-1]}\n")
+            if not 'alert' in decl[0]:
+                f.write(f"    .{decl[-1]}\n")
         # Remove last comma and close header
         f.seek(f.tell() -2)
         f.write("\n);\n\n")
@@ -418,6 +425,7 @@ def generate_soc_sv(host, device, root_dir, output_file):
         for mod in lowrisc_modules[1:]:
             f.write(f'      - lowrisc:ip:{mod}\n')
         f.write(f'      - lowrisc:prim:onehot\n')
+        f.write(f'      - lowrisc:prim:alert\n')
         f.write(f'      - lowrisc:tlul:adapter_host\n')
         f.write(f'      - lowrisc:tlul:adapter_reg\n')
         for mod in modules:
