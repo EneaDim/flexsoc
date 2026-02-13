@@ -3,15 +3,12 @@ include config.mk
 
 # LLM Agent
 .PHONY: agent
-make_agent:
+agent:
 	@python3 flexsoc_make_agent/agent_repl.py --repo-root . --catalog flexsoc_make_agent/catalog.json
 
 .PHONY: fsm_agent
 fsm_agent:
-	@PYTHONPATH=fsm_agent \
-	FSM_NAME=$(FSM) FSM_EXPORT_DIR=fsm_gen/inputs \
-	FSM_USE_GOLD=2 FSM_GOLD_BUDGET=4096 FSM_AUTO_RANK=0 \
-	python3 fsm_agent/scripts/repl.py 
+	python3 fsm_agent/app.py 
 
 .PHONY: fsm
 fsm:
@@ -422,19 +419,6 @@ soc_run:
 soc_view:
 	@echo "\n$(ORANGE)Viewing ...\n$(RESET)"
 	$(Q)$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
-
-load-uart-host:
-	$(Q)$(CP) ips/soc/$(RTLDIR)/uart* $(RTLDIR)/
-
-copy-soc:
-	$(Q)$(CP) ips/soc/$(RTLDIR)/* $(RTLDIR)/
-	$(Q)$(CP) ips/soc/$(TBDIR)/* $(TBDIR)/
-	$(Q)$(CP) top/autogen/xbar_main.sv $(RTLDIR)/ 
-	$(Q)$(CP) top/autogen/tl_main_pkg.sv $(RTLDIR)/
-	#$(Q)$(CP) top/soc.sv $(RTLDIR)/
-
-copy-vendor:
-	$(Q)$(foreach x,$(Q)$(LOWRISC_IPS),cp vendor/lowrisc_ip/ip/$(x)/rtl/* $(RTLDIR);)
 
 #############
 # TUTORIALS #
