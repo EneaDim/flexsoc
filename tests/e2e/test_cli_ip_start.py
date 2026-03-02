@@ -32,4 +32,5 @@ def test_cli_ip_start(tmp_path: Path):
     assert run_dir.exists()
     assert (run_dir / "rtl" / "rtl_list.f").exists()
     assert (run_dir / "tb" / "my_ip_tb.sv").exists()
+    assert (run_dir / "manifest.json").exists()
     assert (run_dir / "report.json").exists()
