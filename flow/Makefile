@@ -126,7 +126,7 @@ else
 	@echo "\n$(ORANGE)Simulating...\n$(RESET)"
 	$(Q)$(COMPILER) ${VERILATOR_FLAGS} --trace --trace-structs
 	$(Q)$(TBDIR)/$(TESTBENCH).sv > $(LOGDIR)/$(TOP)_sim.log 2>&1
-	$(Q)./$(SIMDIR)/$(COMPILER)/V$(Q)$(TESTBENCH)
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(Q)$(TESTBENCH)
 endif
 
 sim_sv: compile_sv
@@ -137,7 +137,7 @@ else
 	@echo "\n$(ORANGE)Simulating...\n$(RESET)"
 	$(Q)$(COMPILER) ${VERILATOR_FLAGS} -f $(RTLDIR)/rtl_list.f --top-module $(TOP)_tb \
 	--trace --trace-structs $(TBDIR)/$(TESTBENCH).sv > $(LOGDIR)/$(TOP)_sim.log 2>&1
-	$(Q)./$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH)
 endif
 
 # VIEW WAVEFORMS RTL SIMULATION
@@ -574,3 +574,9 @@ clean_all: clean_fsm_all clean_vendor clean_agent clean
 	$(Q)$(RM) *.core
 	$(Q)$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(ORSDIR) \
 	$(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) $(FSMDIR) > /dev/null 2>&1
+
+
+.PHONY: clean_run
+clean_run:
+	@echo "\nCleaning run dir: $(OUTROOT)\n"
+	$(Q)rm -rf $(OUTROOT)
