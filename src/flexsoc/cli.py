@@ -11,6 +11,7 @@ from rich import print
 from .config import default_workspace
 from .runner import run_command
 from .reporting import parse_ip_start_flow, write_report_json
+from .manifest import write_flow_manifest
 from .doctor import run_doctor
 from .clean import clean_run, clean_workspace
 
@@ -92,16 +93,6 @@ def run(
     rid = run_id or None
 
     result = run_command(action_id=action, cmd=cmd, params=params, workspace_dir=ws)
-
-
-    # Produce a stable machine-readable report for flow runs
-    if action == "ip_start":
-        top_name = params.get("top")
-        if top_name and run_id:
-            flow_run_dir = ws / "runs" / str(top_name) / str(run_id)
-            if flow_run_dir.exists():
-                report = parse_ip_start_flow(flow_run_dir)
-                write_report_json(report, flow_run_dir / "report.json")
 
     print(f"[bold]Run dir:[/bold] {result.run_dir}")
     print(f"[bold]Exit code:[/bold] {result.exit_code}")
