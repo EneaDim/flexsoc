@@ -37,6 +37,9 @@ import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]  # repo root
+
 from typing import Dict, List
 
 
@@ -65,6 +68,7 @@ class STAConfig:
     """
 
     top: str
+    repo_root: Path
     rtldir: Path
     sdcdir: Path
     libs: List[Path]
@@ -72,12 +76,13 @@ class STAConfig:
     activity_pct: int
     output_dir: Path
     corners: Dict[str, Path]
+    syndir: Path = Path("syn")
+    simdir: Path = Path("sim")
 
 
 # ======================================================================
 # Argument parsing
 # ======================================================================
-
 def parse_args(argv: List[str]) -> STAConfig:
     """
     @brief Parse the command-line arguments and build an STAConfig instance.
@@ -120,6 +125,20 @@ def parse_args(argv: List[str]) -> STAConfig:
         type=str,
         required=True,
         help="Directory containing the SDC file of the design."
+    )
+
+    parser.add_argument(
+        "-syndir", "--syndir",
+        type=str,
+        required=True,
+        help="Directory containing the SYN file of the design."
+    )
+
+    parser.add_argument(
+        "-simdir", "--simdir",
+        type=str,
+        required=True,
+        help="Directory containing the SIM file of the design."
     )
 
     # Liberty file list (multiple liberty files required)
@@ -165,6 +184,8 @@ def parse_args(argv: List[str]) -> STAConfig:
     top = args.top
     rtldir = Path(args.rtldir)
     sdcdir = Path(args.sdcdir)
+    syndir = Path(args.syndir)
+    simdir = Path(args.simdir)
     libs = [Path(lib) for lib in args.libs]
     clk_period_ns = args.clk
     activity_pct = args.activity
@@ -174,9 +195,12 @@ def parse_args(argv: List[str]) -> STAConfig:
     corners = detect_corners(libs)
 
     return STAConfig(
+        repo_root=Path(__file__).resolve().parents[2],
         top=top,
         rtldir=rtldir,
         sdcdir=sdcdir,
+        syndir=syndir,
+        simdir=simdir,
         libs=libs,
         clk_period_ns=clk_period_ns,
         activity_pct=activity_pct,
@@ -253,6 +277,8 @@ def build_init_opensta(cfg: STAConfig) -> str:
     """
     lines: List[str] = []
 
+    vcd_abs = (Path(cfg.simdir) / f"{cfg.top}_tb.vcd").resolve().as_posix()
+
     # Print a small banner to the OpenSTA console
     lines += [
         'puts ""',
@@ -275,8 +301,10 @@ def build_init_opensta(cfg: STAConfig) -> str:
     ]
 
     for corner_name, lib_path in cfg.corners.items():
-        lines.append(f'puts "read_liberty -corner {corner_name} {lib_path}"')
-        lines.append(f"read_liberty -corner {corner_name} {lib_path}")
+        lp = Path(lib_path)
+        lp_abs = (lp if lp.is_absolute() else (Path(cfg.repo_root) / lp)).resolve().as_posix()
+        lines.append(f'puts "read_liberty -corner {corner_name} {lp_abs}"')
+        lines.append(f"read_liberty -corner {corner_name} {lp_abs}")
     lines.append("")
 
     # Read synthesized netlist and link top module
@@ -288,9 +316,9 @@ def build_init_opensta(cfg: STAConfig) -> str:
         'puts "Read verilog and link top module"',
         'puts "==========================================================================="',
         'puts ""',
-        f'puts "read_verilog syn/{cfg.top}_synth.v"',
+        f'puts "read_verilog {(cfg.syndir / f"{cfg.top}_synth.v").resolve().as_posix()}"',
         f'puts "link_design {cfg.top}"',
-        f"read_verilog syn/{cfg.top}_synth.v",
+        f"read_verilog {(cfg.syndir / f"{cfg.top}_synth.v").resolve().as_posix()}",
         f"link_design {cfg.top}",
         "",
     ]
@@ -314,28 +342,27 @@ def build_init_opensta(cfg: STAConfig) -> str:
 
 def build_write_sdf_tcl(cfg: STAConfig) -> str:
     """
-    @brief Build Tcl script for writing SDF files for all corners.
+    Build Tcl script for writing SDF files for all corners.
 
-    The original script generated three SDF files:
-    - <top>_tt.sdf for Typical  corner
-    - <top>_ss.sdf for Slowest  corner
-    - <top>_ff.sdf for Fastest  corner
-
-    All of them are stored under @c <output_dir>/sdf .
-
-    @param cfg Global configuration for STA script generation.
-    @return Multi-line Tcl string for write_sdf.tcl content.
+    Outputs under: <output_dir>/sdf
+      - <top>_tt.sdf (Typical)
+      - <top>_ss.sdf (Slowest)
+      - <top>_ff.sdf (Fastest)
     """
-    # Make sure the caller will create the sdf directory in Python if desired.
-    sdf_dir = cfg.output_dir / "sdf"
+    sdf_dir = Path(cfg.output_dir) / "sdf"
+
+    # Explicit filenames (Path-safe)
+    sdf_tt = (sdf_dir / f"{cfg.top}_tt.sdf").as_posix()
+    sdf_ss = (sdf_dir / f"{cfg.top}_ss.sdf").as_posix()
+    sdf_ff = (sdf_dir / f"{cfg.top}_ff.sdf").as_posix()
 
     lines: List[str] = []
 
-    # Common preamble
+    # Common preamble (defines corners, reads libs, reads netlist, reads sdc, etc.)
     lines.append(build_init_opensta(cfg))
 
-    # Banner
     lines += [
+        "",
         'puts "==========================================================================="',
         'puts "Write SDF files for each corner"',
         'puts "==========================================================================="',
@@ -344,25 +371,26 @@ def build_write_sdf_tcl(cfg: STAConfig) -> str:
 
     # Typical (TT)
     lines += [
-        f'puts "write_sdf -corner Typical -divider . -include_typ {sdf_dir}/{cfg.top}_tt.sdf"',
-        f"write_sdf -corner Typical -divider . -include_typ {sdf_dir}/{cfg.top}_tt.sdf",
+        f'puts "write_sdf -corner Typical -divider . -include_typ {sdf_tt}"',
+        f"write_sdf -corner Typical -divider . -include_typ {sdf_tt}",
+        "",
     ]
 
     # Slowest (SS)
     lines += [
-        f'puts "write_sdf -corner Slowest -divider . -include_typ {sdf_dir}/{cfg.top}_ss.sdf"',
-        f"write_sdf -corner Slowest -divider . -include_typ {sdf_dir}/{cfg.top}_ss.sdf",
+        f'puts "write_sdf -corner Slowest -divider . -include_typ {sdf_ss}"',
+        f"write_sdf -corner Slowest -divider . -include_typ {sdf_ss}",
+        "",
     ]
 
     # Fastest (FF)
     lines += [
-        f'puts "write_sdf -corner Fastest -divider . -include_typ {sdf_dir}/{cfg.top}_ff.sdf"',
-        f"write_sdf -corner Fastest -divider . -include_typ {sdf_dir}/{cfg.top}_ff.sdf",
+        f'puts "write_sdf -corner Fastest -divider . -include_typ {sdf_ff}"',
+        f"write_sdf -corner Fastest -divider . -include_typ {sdf_ff}",
         "",
     ]
 
-    return "\n".join(lines)
-
+    return "\n".join(lines) + "\n"
 
 def build_sta_violators_tcl(cfg: STAConfig) -> str:
     """
@@ -678,15 +706,17 @@ def build_power_tcl(cfg: STAConfig) -> str:
     ]
 
     # VCD-based power analysis
+# VCD-based power analysis
+    # Default: sim/<top>_tb.vcd (generated by your sim target)
     vcd_scope = f"{cfg.top}_tb/u_{cfg.top}"
-    vcd_file = f"sim/{cfg.top}_tb.vcd"
+    vcd_abs = (cfg.simdir / f"{cfg.top}_tb.vcd").resolve().as_posix()
 
     lines += [
         'puts "==========================================================================="',
         'puts "(VCD Power Analysis) report_power"',
         'puts "============================================================================"',
-        f'puts "read_vcd -scope {vcd_scope} {vcd_file}"',
-        f"read_vcd -scope {vcd_scope} {vcd_file}",
+        f'puts "read_vcd -scope {vcd_scope} {vcd_abs}"',
+        f"read_vcd -scope {vcd_scope} {vcd_abs}",
         'foreach corner [sta::corners] {',
         '    puts ""',
         '    puts "======================= [$corner name] Corner ==================================="',
@@ -694,6 +724,7 @@ def build_power_tcl(cfg: STAConfig) -> str:
         '    puts ""',
         '}',
     ]
+
 
     return "\n".join(lines)
 
@@ -719,47 +750,75 @@ def write_text_file(path: Path, content: str) -> None:
 # ======================================================================
 # Main entry point
 # ======================================================================
-
 def main(argv: List[str]) -> None:
     """
-    @brief Main entry point: parse arguments and generate Tcl scripts.
+    Main entry point: parse arguments and generate Tcl scripts.
 
-    This function orchestrates the flow:
-    - Parse CLI arguments into an STAConfig.
-    - Generate four Tcl files in the output directory:
-      - sta_violators.tcl
-      - sta.tcl
-      - power.tcl
-      - write_sdf.tcl
-
-    @param argv Command-line arguments (excluding the script name).
+    Flow:
+      1) Parse CLI args into an STAConfig
+      2) Normalize config path fields to pathlib.Path (defensive)
+      3) Emit:
+         - sta_violators.tcl
+         - sta.tcl
+         - power.tcl
+         - write_sdf.tcl
     """
     try:
         cfg = parse_args(argv)
 
-        # Resolve output directory (and ensure it exists)
-        output_dir = cfg.output_dir.resolve()
+        # -----------------------------
+        # Defensive normalization
+        # -----------------------------
+        # NOTE: cfg may contain strings even if annotated as Path.
+        # We force normalization here to avoid "str / str" crashes inside builders.
+        from pathlib import Path as _Path
 
-        # Paths to the four output Tcl files
-        sta_violators_path = output_dir / "sta_violators.tcl"
-        sta_path = output_dir / "sta.tcl"
-        power_path = output_dir / "power.tcl"
-        write_sdf_path = output_dir / "write_sdf.tcl"
+        # output_dir is mandatory
+        cfg.output_dir = _Path(cfg.output_dir).resolve()
 
-        # For write_sdf.tcl we also want the sdf/ directory to exist
+        # Optional/required fields depending on your CLI. Normalize if present.
+        if hasattr(cfg, "rtldir") and cfg.rtldir is not None:
+            cfg.rtldir = _Path(cfg.rtldir).resolve()
+
+        if hasattr(cfg, "sdcdir") and cfg.sdcdir is not None:
+            cfg.sdcdir = _Path(cfg.sdcdir).resolve()
+
+        if hasattr(cfg, "syndir") and cfg.syndir is not None:
+            cfg.syndir = _Path(cfg.syndir).resolve()
+
+        # libs may be list[str] or list[Path]
+        if hasattr(cfg, "libs") and cfg.libs is not None:
+            cfg.libs = [
+            (_Path(x) if _Path(x).is_absolute() else (REPO_ROOT / _Path(x))).resolve()
+            for x in cfg.libs
+        ]
+
+        # -----------------------------
+        # Create output locations
+        # -----------------------------
+        output_dir = cfg.output_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # For write_sdf.tcl we also want sdf/ directory
         (output_dir / "sdf").mkdir(parents=True, exist_ok=True)
 
-        # Generate and write each Tcl script
-        write_text_file(sta_violators_path, build_sta_violators_tcl(cfg))
-        write_text_file(sta_path, build_sta_tcl(cfg))
-        write_text_file(power_path, build_power_tcl(cfg))
-        write_text_file(write_sdf_path, build_write_sdf_tcl(cfg))
+        # -----------------------------
+        # Write Tcl scripts
+        # -----------------------------
+        sta_violators_path = output_dir / "sta_violators.tcl"
+        sta_path           = output_dir / "sta.tcl"
+        power_path         = output_dir / "power.tcl"
+        write_sdf_path     = output_dir / "write_sdf.tcl"
 
-        # Small success message for the user
-        #print(f"[INFO] Generated Tcl scripts in: {output_dir}")
+        write_text_file(sta_violators_path, build_sta_violators_tcl(cfg))
+        write_text_file(sta_path,           build_sta_tcl(cfg))
+        write_text_file(power_path,         build_power_tcl(cfg))
+        write_text_file(write_sdf_path,     build_write_sdf_tcl(cfg))
+
+        # Optional info
+        # print(f"[INFO] Generated Tcl scripts in: {output_dir}")
 
     except Exception as exc:
-        # Catch-all: mirrors the original script behavior but with a clearer message.
         exc_type, _, exc_traceback = sys.exc_info()
         lineno = exc_traceback.tb_lineno if exc_traceback is not None else "?"
         print(
@@ -770,7 +829,6 @@ def main(argv: List[str]) -> None:
         )
         print(exc, file=sys.stderr)
         sys.exit(1)
-
 
 if __name__ == "__main__":
     # Pass sys.argv[1:] so parse_args does not see the script name.
