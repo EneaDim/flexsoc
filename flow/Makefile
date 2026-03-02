@@ -32,7 +32,7 @@ help_soc:
 help_doc: 
 	$(Q)$(PYTHON) scripts/help_doc.py
 help_fsm:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen help
+	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen help
 
 
 # SETUP FOLDER STRUCTURE
@@ -335,23 +335,23 @@ driver:
 
 # FSM FLOW
 fsm_example_load:
-	$(Q)$(CP) fsm_gen/examples/* fsm_gen/inputs/
+	$(Q)$(CP) ../tools/fsm_gen/examples/* ../tools/fsm_gen/inputs/
 
 fsm2rtl:
-	$(Q)$(CP) fsm_gen/outputs/$(FSM).sv $(RTLDIR)
-	$(Q)$(CP) fsm_gen/outputs/$(FSM)_pkg.sv $(RTLDIR)
-	$(Q)$(CP) fsm_gen/outputs/$(FSM).gtkw $(SIMDIR)
-	$(Q)$(CP) fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
+	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM).sv $(RTLDIR)
+	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM)_pkg.sv $(RTLDIR)
+	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM).gtkw $(SIMDIR)
+	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
 
 fsm_setup:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen setup
+	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen setup
 
 .PHONY: fsm_gen
 fsm_gen:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen gen PYTHON=$(PYTHON) FSM=$(FSM) 
+	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen gen PYTHON=$(PYTHON) FSM=$(FSM) 
 
 fsm_plot:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen plot PYTHON=$(PYTHON) FSM=$(FSM) 
+	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen plot PYTHON=$(PYTHON) FSM=$(FSM) 
 
 fsm_flow: fsm_setup fsm_gen fsm_plot
 
@@ -476,20 +476,20 @@ setup_pnr:
 # SAVE FSM
 fsm_save:
 	$(Q)$(MKDIR) -p $(FSMDIR)/$(FSM)/inputs $(FSMDIR)/$(FSM)/outputs
-	$(Q)$(CP) -r fsm_gen/inputs/$(FSM)* $(FSMDIR)/$(FSM)/inputs || true
-	$(Q)$(CP) -r fsm_gen/outputs/$(FSM)* $(FSMDIR)/$(FSM)/outputs || true
+	$(Q)$(CP) -r ../tools/fsm_gen/inputs/$(FSM)* $(FSMDIR)/$(FSM)/inputs || true
+	$(Q)$(CP) -r ../tools/fsm_gen/outputs/$(FSM)* $(FSMDIR)/$(FSM)/outputs || true
 	@echo "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"	
 
 # LOAD FSM
 fsm_load: fsm_setup
-	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/inputs/* fsm_gen/inputs
-	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/outputs/* fsm_gen/outputs
+	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/inputs/* ../tools/fsm_gen/inputs
+	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/outputs/* ../tools/fsm_gen/outputs
 	@echo "\n$(ORANGE)$(FSM) FSM loaded into fsm_gen\n$(RESET)"
 
 
 # SAVE IP
 ip_save: clean_sim clean_rtl
-	$(Q)$(MKDIR) -p ips/$(TOP) 
+	$(Q)$(MKDIR) -p ../hw/ips/$(TOP) 
 	$(Q)$(CP) -r $(DATADIR)    ips/$(TOP) || true
 	$(Q)$(CP) -r $(DOCDIR)     ips/$(TOP) || true
 	$(Q)$(CP) -r $(DRIVERDIR)  ips/$(TOP) || true
@@ -510,7 +510,7 @@ ip_save: clean_sim clean_rtl
 # LOAD IP
 ip_load:
 	@echo "\n$(ORANGE)$(TOP) Loaded\n$(RESET)"
-	$(Q)$(CP) -r ips/$(TOP)/* .
+	$(Q)$(CP) -r ../hw/ips/$(TOP)/* .
 
 # DEPENDENCIES
 deps:
@@ -555,9 +555,9 @@ clean_pnr:
 	$(Q)$(RM) $(ORS_RESULTS)
 	$(Q)$(RM) $(ORS_OBJECTS)
 clean_fsm:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean
+	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen clean
 clean_fsm_all:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean_all
+	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen clean_all
 clean_agent:
 	$(Q)$(RM) flexsoc_make_agent/logs
 	$(Q)$(RM) flexsoc_make_agent/runs
@@ -577,8 +577,8 @@ clean_vendor:
 	$(Q)$(RM) vendor/lowrisc_ip.lock.hjson
 	$(Q)$(RM) vendor/lowrisc_ibex.lock.hjson
 clean_subdir:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen setup
+	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen clean
+	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen setup
 clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
 	$(Q)$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	$(Q)$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
