@@ -21,9 +21,9 @@ setup_syn: setup_sdc flist
 
 # SETUP STA SCRIPT
 setup_signoff: setup_sdc syn
-	$(Q)$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) -sdcdir $(ORSDIR) \
-	--syndir $(SYNDIR) \
-	-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
+	$(Q)$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) \
+	-sdcdir $(ORSDIR) -syndir $(SYNDIR) -simdir $(SIMDIR) -libs $(LIBS) -clk $(CLK_PERIOD) \
+	-activity $(ACTIVITY) -o $(SIGNOFFDIR) 
 
 # SETUP P&R
 setup_pnr:

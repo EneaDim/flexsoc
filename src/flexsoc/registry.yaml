@@ -1,37 +1,94 @@
 actions:
   lint:
-    description: "Run RTL lint"
-    command: ["make", "-C", "flow", "lint"]
+    description: Run RTL lint
+    command:
+    - make
+    - -C
+    - flow
+    - lint
     params:
-      design: {type: "string", required: false}
-      top:    {type: "string", required: false}
-
+      design:
+        type: string
+        required: false
+      top:
+        type: string
+        required: false
   sim:
-    description: "Compile and simulate (fast path)"
-    command: ["make", "-C", "flow", "sim"]
+    description: Compile and simulate (fast path)
+    command:
+    - make
+    - -C
+    - flow
+    - sim
     params:
-      design: {type: "string", required: false}
-      top:    {type: "string", required: false}
-      seed:   {type: "int", required: false}
-
+      design:
+        type: string
+        required: false
+      top:
+        type: string
+        required: false
+      seed:
+        type: int
+        required: false
   synth:
-    description: "Run synthesis (Yosys)"
-    command: ["make", "-C", "flow", "syn"]
+    description: Run synthesis (Yosys)
+    command:
+    - make
+    - -C
+    - flow
+    - syn
     params:
-      design: {type: "string", required: false}
-      top:    {type: "string", required: false}
-
+      design:
+        type: string
+        required: false
+      top:
+        type: string
+        required: false
   sta:
-    description: "Run static timing analysis"
-    command: ["make", "-C", "flow", "sta"]
+    description: Run static timing analysis
+    command:
+    - make
+    - -C
+    - flow
+    - sta
     params:
-      design: {type: "string", required: false}
-      top:    {type: "string", required: false}
-      corner: {type: "string", required: false}
-
+      design:
+        type: string
+        required: false
+      top:
+        type: string
+        required: false
+      corner:
+        type: string
+        required: false
   pnr:
-    description: "Run place and route (OpenROAD)"
-    command: ["make", "-C", "flow", "pnr"]
+    description: Run place and route (OpenROAD)
+    command:
+    - make
+    - -C
+    - flow
+    - pnr
     params:
-      design: {type: "string", required: false}
-      top:    {type: "string", required: false}
+      design:
+        type: string
+        required: false
+      top:
+        type: string
+        required: false
+  ip_start:
+    description: Create a new IP template and run full smoke flow (setup+hjson+reg+doc+rtl_stub+tb+lint+compile+sim)
+    command:
+    - make
+    - -C
+    - flow
+    - ip_start
+    params:
+      top:
+        type: string
+        required: true
+      reg_itf:
+        type: string
+        required: false
+      overwrite:
+        type: string
+        required: false

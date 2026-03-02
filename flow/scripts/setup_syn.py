@@ -350,8 +350,23 @@ def parse_args():
                     help="Output folder (default: syn)")
     ap.add_argument("--filelist", type=Path, default=Path("rtl_list.f"),
                     help="SystemVerilog file list for slang (default: {cfg.filelist.resolve().as_posix()})")
-    return ap.parse_args()
+    args = ap.parse_args()
 
+    # Normalize paths so generated scripts work inside WORKSPACE runs
+
+    flow_root = Path(__file__).resolve().parent.parent  # flow/
+
+    repo_root = flow_root.parent
+
+    if getattr(args, 'liberty', None) is not None:
+
+        lib = Path(args.liberty)
+
+        if not lib.is_absolute():
+
+            args.liberty = (repo_root / lib).resolve()
+
+    return args
 
 # ----------------------------
 # Main

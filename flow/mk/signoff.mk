@@ -15,4 +15,4 @@ path_view:
 sdf: setup_signoff
 	@echo "\n$(ORANGE)Write sdf files...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > /dev/null 2>&1
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl

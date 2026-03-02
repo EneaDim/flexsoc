@@ -74,11 +74,11 @@ def _sv_header_include_for_verilator(top: str, rtldir: str, syndir: str,
         inc.append(f'  `include "{rtldir}/{top}_reg_pkg.sv"')
     if flag_reg_pkg and itf == "tlul":
         inc.append('  `include "../hw/ips/pkgs/tlul_pkg.sv"')
-        inc.append('  `include "tb/tlul_utils.sv"')
-        inc.append('  `include "tb/tlul_if.sv"')
+        inc.append('  `include "tlul_utils.sv"')
+        inc.append('  `include "tlul_if.sv"')
     if flag_reg_pkg and itf == "reg_iface":
-        inc.append('  `include "tb/reg_utils.sv"')
-        inc.append('  `include "tb/reg_if.sv"')
+        inc.append('  `include "reg_utils.sv"')
+        inc.append('  `include "reg_if.sv"')
     # DUT source
     if vsv == "sv":
         inc.append(f'  `include "{rtldir}/{top}.sv"')
