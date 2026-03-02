@@ -26,7 +26,7 @@ def test_cli_ip_start(tmp_path: Path):
     assert p.returncode == 0
 
     out = re.sub(r"\x1b\[[0-9;]*m", "", p.stdout + "\n" + p.stderr)
-    assert "Run dir:" in out
+    assert "Flow dir:" in out
 
     run_dir = ws / "runs" / "my_ip" / "e2e_cli"
     assert run_dir.exists()
