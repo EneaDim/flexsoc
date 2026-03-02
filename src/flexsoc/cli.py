@@ -114,6 +114,8 @@ def clean_run_cmd(
     workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
 ) -> None:
      
+    ws = (workspace or default_workspace()).resolve()
+    ws = (workspace or default_workspace()).resolve()
     clean_run(ws, top, run_id)
 
 
@@ -122,4 +124,5 @@ def clean_workspace_cmd(
     workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
 ) -> None:
      
+    ws = (workspace or default_workspace()).resolve()
     clean_workspace(ws)
