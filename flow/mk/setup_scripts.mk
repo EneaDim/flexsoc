@@ -16,6 +16,7 @@ setup_sdc:
 # SETUP SYNTHESIS WITH YOSYS 
 setup_syn: setup_sdc flist
 	$(Q)$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
+	--filelist $(RTLDIR)/rtl_list.f \
 	-liberty $(LIB_SYN) -clk $(CLK_PERIOD) -target $(TARGET_SYN) -opt $(TARGET_OPT) -o $(SYNDIR)  
 
 # SETUP STA SCRIPT

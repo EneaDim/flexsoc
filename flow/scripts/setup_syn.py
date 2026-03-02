@@ -222,7 +222,7 @@ def yosys_synth_asic_slang(
         "\n           -I ../hw/ips/tlul \\"
         "\n           -D SYNTHESIS \\"
         "\n           --ignore-assertions \\"
-        f"\n           -f {filelist.as_posix()} \\"
+        f"\n           -f {filelist.resolve().as_posix()} \\"
         f"\n           --top {top}"
     )
     body.append("")
