@@ -79,3 +79,7 @@ def dump_registry() -> None:
     reg = _load_registry()
     print_json = json.dumps(reg, indent=2)
     print(print_json)
+
+
+if __name__ == "__main__":
+    app()
