@@ -14,13 +14,14 @@ setup_sdc:
 	$(Q)$(PYTHON) scripts/setup_sdc.py $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc 
 
 # SETUP SYNTHESIS WITH YOSYS 
-setup_syn: setup_sdc
+setup_syn: setup_sdc flist
 	$(Q)$(PYTHON) scripts/setup_syn.py -top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
 	-liberty $(LIB_SYN) -clk $(CLK_PERIOD) -target $(TARGET_SYN) -opt $(TARGET_OPT) -o $(SYNDIR)  
 
 # SETUP STA SCRIPT
-setup_signoff: setup_sdc
+setup_signoff: setup_sdc syn
 	$(Q)$(PYTHON) scripts/setup_signoff.py -top $(TOP) -rtldir $(RTLDIR) -sdcdir $(ORSDIR) \
+	--syndir $(SYNDIR) \
 	-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) -o $(SIGNOFFDIR) 
 
 # SETUP P&R
