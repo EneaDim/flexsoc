@@ -1,19 +1,6 @@
 # Include configuration
 include config.mk
 
-# LLM Agent
-.PHONY: agent
-agent:
-	@python3 flexsoc_make_agent/agent_repl.py --repo-root . --catalog flexsoc_make_agent/catalog.json
-
-.PHONY: fsm_agent
-fsm_agent:
-	python3 fsm_agent/app.py 
-
-.PHONY: fsm
-fsm:
-	@$(MAKE) fsm_gen fsm_plot fsm2rtl FSM=$(FSM)
-
 # HELP
 help:
 	@echo "$(ORANGE)"
@@ -38,7 +25,7 @@ help_fsm:
 # SETUP FOLDER STRUCTURE
 setup: 
 	@echo "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
-	$(Q)$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
+	$(Q)$(MKDIR) -p $(OUTROOT) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
 	 $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) $(UTILDIR) $(DOCDIR) \
 	 $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIR) $(FSMDIR) $(ORSDIR)
 
@@ -50,14 +37,14 @@ hjson: setup
 # SV REGISTER GENERATOR
 reg:
 	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
-	$(Q)./$(UTILDIR)/regtool.py -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
+	$(Q)$(UTILROOT)/regtool.py -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
 
 # MARKDOWN GENERATOR
 .PHONY: doc
 doc:
 	@echo "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
-	$(Q)./$(UTILDIR)/regtool.py -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
-	$(Q)./$(UTILDIR)/regtool.py --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
+	$(Q)$(UTILROOT)/regtool.py -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
+	$(Q)$(UTILROOT)/regtool.py --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
 # RTL base generator
 rtl_stub:
@@ -330,18 +317,18 @@ tb_view:
 # SW DRIVERS
 .PHONY: driver
 driver:
-	./$(UTILDIR)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
+	$(UTILROOT)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
 	$(Q)$(PYTHON) scripts/driver_gen.py -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR) 
 
 # FSM FLOW
 fsm_example_load:
-	$(Q)$(CP) ../tools/../tools/fsm_gen/examples/* ../tools/../tools/fsm_gen/inputs/
+	$(Q)$(CP) ../tools/fsm_gen/examples/* ../tools/fsm_gen/inputs/
 
 fsm2rtl:
-	$(Q)$(CP) ../tools/../tools/fsm_gen/outputs/$(FSM).sv $(RTLDIR)
-	$(Q)$(CP) ../tools/../tools/fsm_gen/outputs/$(FSM)_pkg.sv $(RTLDIR)
-	$(Q)$(CP) ../tools/../tools/fsm_gen/outputs/$(FSM).gtkw $(SIMDIR)
-	$(Q)$(CP) ../tools/../tools/fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
+	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM).sv $(RTLDIR)
+	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM)_pkg.sv $(RTLDIR)
+	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM).gtkw $(SIMDIR)
+	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
 
 fsm_setup:
 	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen setup
@@ -476,20 +463,20 @@ setup_pnr:
 # SAVE FSM
 fsm_save:
 	$(Q)$(MKDIR) -p $(FSMDIR)/$(FSM)/inputs $(FSMDIR)/$(FSM)/outputs
-	$(Q)$(CP) -r ../tools/../tools/fsm_gen/inputs/$(FSM)* $(FSMDIR)/$(FSM)/inputs || true
-	$(Q)$(CP) -r ../tools/../tools/fsm_gen/outputs/$(FSM)* $(FSMDIR)/$(FSM)/outputs || true
+	$(Q)$(CP) -r ../tools/fsm_gen/inputs/$(FSM)* $(FSMDIR)/$(FSM)/inputs || true
+	$(Q)$(CP) -r ../tools/fsm_gen/outputs/$(FSM)* $(FSMDIR)/$(FSM)/outputs || true
 	@echo "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"	
 
 # LOAD FSM
 fsm_load: fsm_setup
-	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/inputs/* ../tools/../tools/fsm_gen/inputs
-	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/outputs/* ../tools/../tools/fsm_gen/outputs
+	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/inputs/* ../tools/fsm_gen/inputs
+	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/outputs/* ../tools/fsm_gen/outputs
 	@echo "\n$(ORANGE)$(FSM) FSM loaded into fsm_gen\n$(RESET)"
 
 
 # SAVE IP
 ip_save: clean_sim clean_rtl
-	$(Q)$(MKDIR) -p ../hw/../hw/ips/$(TOP) 
+	$(Q)$(MKDIR) -p ../hw/ips/$(TOP) 
 	$(Q)$(CP) -r $(DATADIR)    ../hw/ips/$(TOP) || true
 	$(Q)$(CP) -r $(DOCDIR)     ../hw/ips/$(TOP) || true
 	$(Q)$(CP) -r $(DRIVERDIR)  ../hw/ips/$(TOP) || true
@@ -510,7 +497,7 @@ ip_save: clean_sim clean_rtl
 # LOAD IP
 ip_load:
 	@echo "\n$(ORANGE)$(TOP) Loaded\n$(RESET)"
-	$(Q)$(CP) -r ../hw/../hw/ips/$(TOP)/* .
+	$(Q)$(CP) -r ../hw/ips/$(TOP)/* .
 
 # DEPENDENCIES
 deps:

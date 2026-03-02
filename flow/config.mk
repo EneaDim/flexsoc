@@ -1,6 +1,38 @@
 # =========================
 # Toolchain / executables
 # =========================
+
+# ------------------------------------------------------------
+# Workspace-rooted outputs (do NOT write to repo root)
+# ------------------------------------------------------------
+WORKSPACE ?= ../workspace
+# allow caller to set RUN_ID; default timestamp-ish via shell date
+RUN_ID ?= $(shell date +%Y%m%d_%H%M%S)
+# place all artifacts under workspace/runs/<top>/<run_id>
+OUTROOT ?= $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)
+
+# Tools location in repo (read-only)
+UTILROOT ?= ../util
+
+# Standard output dirs (derived)
+LOGDIR     ?= $(OUTROOT)/logs
+RTLDIR     ?= $(OUTROOT)/rtl
+TBDIR      ?= $(OUTROOT)/tb
+SIMDIR     ?= $(OUTROOT)/sim
+SYNDIR     ?= $(OUTROOT)/syn
+SIGNOFFDIR ?= $(OUTROOT)/signoff
+MODELDIR   ?= $(OUTROOT)/model
+UTILOUT    ?= $(OUTROOT)/util
+# (compat) output util dir name
+UTILDIR    ?= $(UTILOUT)
+DOCDIR     ?= $(OUTROOT)/doc
+DATADIR    ?= $(OUTROOT)/data
+DRIVERDIR  ?= $(OUTROOT)/drivers
+LINTDIR    ?= $(OUTROOT)/lint
+PYDIR      ?= $(OUTROOT)/py
+FSMDIR     ?= $(OUTROOT)/fsm
+ORSDIR     ?= $(OUTROOT)/openroad
+
 PYTHON          ?= python3
 YOSYS           := yosys
 STA             := sta
@@ -60,13 +92,13 @@ REG_ITF         ?= tlul
 # Lint / compile flags
 # =========================
 LINT_FLAGS      := --lint-only -Wall -Wno-fatal --timing \
-                   +incdir+model +incdir+ips/pkgs +incdir+ips/prim \
-                   +incdir+ips/prim_opentitan +incdir+ips/tlul
+                   +incdir+model +incdir+../hw/ips/pkgs +incdir+../hw/ips/prim \
+                   +incdir+../hw/ips/prim_opentitan +incdir+../hw/ips/tlul
 
 IVERILOG_FLAGS  := -g2012 -v -Iips/pkgs -Iips/prim -I$(RTLDIR) -I$(TBDIR)
 VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
-                   +incdir+$(RTLDIR) +incdir+$(TBDIR) +incdir+model +incdir+ips/prim \
-                   +incdir+ips/pkgs +incdir+ips/prim_opentitan +incdir+ips/tlul
+                   +incdir+$(RTLDIR) +incdir+$(TBDIR) +incdir+model +incdir+../hw/ips/prim \
+                   +incdir+../hw/ips/pkgs +incdir+../hw/ips/prim_opentitan +incdir+../hw/ips/tlul
 
 # =========================
 # Simulation
