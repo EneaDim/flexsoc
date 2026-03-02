@@ -1,6 +1,27 @@
 from __future__ import annotations
 
 import json
+
+def _json_default(o):
+    # Make manifests resilient to typer OptionInfo / Path / other non-JSON types.
+    try:
+        from pathlib import Path as _Path
+        if isinstance(o, _Path):
+            return str(o)
+    except Exception:
+        pass
+
+    try:
+        from typer.models import OptionInfo
+        if isinstance(o, OptionInfo):
+            # If a Typer option default leaked into runtime, serialize it safely.
+            return None
+    except Exception:
+        pass
+
+    # Last resort: string representation
+    return str(o)
+
 import os
 import subprocess
 import time
@@ -65,6 +86,6 @@ def run_command(
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, indent=2, default=_json_default), encoding="utf-8")
 
     return RunResult(run_dir=run_dir, exit_code=p.returncode)
