@@ -12,7 +12,7 @@ from .config import default_workspace
 from .runner import run_command
 from .reporting import parse_ip_start_flow, write_report_json
 from .manifest import write_flow_manifest
-from .planning import Plan, load_registry, validate_plan, write_plan_json, naive_intent_to_plan
+from .planning import Plan, load_registry, validate_plan, write_plan_json, naive_intent_to_plan, read_plan_json
 from .doctor import run_doctor
 from .clean import clean_run, clean_workspace
 
@@ -171,3 +171,29 @@ def plan_cmd(
     validate_plan(plan, registry)
     write_plan_json(plan, out)
     print(f"Plan written: {out}")
+
+
+@app.command("exec")
+def exec_cmd(
+    plan_path: Path = typer.Argument(..., help="Path to plan JSON"),
+    workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
+    run_id: Optional[str] = typer.Option(None, help="Run identifier"),
+    overwrite: Optional[str] = typer.Option(None, help="Overwrite flag (e.g. --force)"),
+    reg_itf: Optional[str] = typer.Option(None, help="Register interface (e.g. tlul)"),
+    top: Optional[str] = typer.Option(None, help="Top name (if plan doesn't contain it)"),
+) -> None:
+    registry = load_registry(Path(__file__).parent / "registry.yaml")
+    plan = read_plan_json(plan_path)
+    # Allow CLI overrides
+    params = dict(plan.params)
+    if top is not None:
+        params["top"] = top
+    if reg_itf is not None:
+        params["reg_itf"] = reg_itf
+    if overwrite is not None:
+        params["overwrite"] = overwrite
+
+    validate_plan(Plan(action=plan.action, params=params), registry)
+
+    # dispatch to existing run()
+    run(action=plan.action, workspace=workspace, run_id=run_id, overwrite=overwrite, reg_itf=reg_itf, top=top)
