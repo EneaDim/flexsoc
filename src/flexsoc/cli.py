@@ -10,6 +10,8 @@ from rich import print
 
 from .config import default_workspace
 from .runner import run_command
+from .doctor import run_doctor
+from .clean import clean_run, clean_workspace
 
 app = typer.Typer(add_completion=False)
 
@@ -43,7 +45,10 @@ def run(
     top: Optional[str] = typer.Option(None, help="Top module"),
     corner: Optional[str] = typer.Option(None, help="Corner (e.g. min/max)"),
     seed: Optional[int] = typer.Option(None, help="Simulation seed"),
+    reg_itf: Optional[str] = typer.Option(None, help="Register interface (e.g. tlul)"),
+    overwrite: Optional[str] = typer.Option(None, help="Overwrite flag (e.g. --force)"),
     workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
+    run_id: Optional[str] = typer.Option(None, help="Run identifier (defaults to timestamp)"),
 ) -> None:
     reg = _load_registry()
     actions = reg["actions"]
@@ -60,14 +65,31 @@ def run(
     if seed is not None:
         params["seed"] = seed
 
+    if reg_itf is not None:
+        params["reg_itf"] = reg_itf
+    if overwrite is not None:
+        params["overwrite"] = overwrite
+
     cmd = list(actions[action]["command"])
+
+    ws = (workspace or default_workspace()).resolve()
+    rid = run_id or None
+
+    # Force flow outputs under workspace (Makefile uses WORKSPACE/RUN_ID)
+    cmd.append(f"WORKSPACE={ws}")
+    if rid:
+        cmd.append(f"RUN_ID={rid}")
+
+
 
     # Append Make VAR overrides as "KEY=VALUE" tokens (one-shot overrides)
     # This preserves the "only for this command" behavior.
     for k, v in params.items():
         cmd.append(f"{k.upper()}={v}")
 
-    ws = (workspace or default_workspace()).resolve()
+     
+    rid = run_id or None
+
     result = run_command(action_id=action, cmd=cmd, params=params, workspace_dir=ws)
     print(f"[bold]Run dir:[/bold] {result.run_dir}")
     print(f"[bold]Exit code:[/bold] {result.exit_code}")
@@ -83,3 +105,21 @@ def dump_registry() -> None:
 
 if __name__ == "__main__":
     app()
+
+
+@app.command("clean-run")
+def clean_run_cmd(
+    top: str = typer.Option(..., help="Top name"),
+    run_id: str = typer.Option(..., help="Run id"),
+    workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
+) -> None:
+     
+    clean_run(ws, top, run_id)
+
+
+@app.command("clean-workspace")
+def clean_workspace_cmd(
+    workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
+) -> None:
+     
+    clean_workspace(ws)
