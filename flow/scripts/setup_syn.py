@@ -22,7 +22,7 @@ Generates (depending on options):
   - area.abc  (if --opt area)
   - delay.abc (if --opt delay)
   - synth.ys     (Verilog flow: read_verilog <topdir>/<top>.v)
-  - synth_sv.ys  (SystemVerilog flow via slang + rtl/rtl_list.f)
+  - synth_sv.ys  (SystemVerilog flow via slang + {cfg.filelist.resolve().as_posix()})
 - Xilinx:
   - synth.ys (Yosys synth_xilinx to EDIF)
   - xilinx.tcl (Vivado run script)
@@ -192,10 +192,10 @@ def yosys_synth_asic_slang(
     opt: str,
     sdcdir: Path | None,
     outdir: Path,
-    filelist: Path = Path("rtl/rtl_list.f"),
+    filelist: Path = Path("rtl_list.f"),
 ) -> str:
     """
-    SystemVerilog ASIC flow via slang using an ordered file list (rtl/rtl_list.f).
+    SystemVerilog ASIC flow via slang using an ordered file list ({cfg.filelist.resolve().as_posix()}).
     Assumes include dirs: ../hw/ips/pkgs, ../hw/ips/prim, ../hw/ips/prim_opentitan, ../hw/ips/tlul.
 
     \\param opt   "area", "delay" or "none" (controls ABC -script usage).
@@ -348,8 +348,8 @@ def parse_args():
                     )
     ap.add_argument("-o", "--output", type=Path, default=Path("syn"),
                     help="Output folder (default: syn)")
-    ap.add_argument("--filelist", type=Path, default=Path("rtl/rtl_list.f"),
-                    help="SystemVerilog file list for slang (default: rtl/rtl_list.f)")
+    ap.add_argument("--filelist", type=Path, default=Path("rtl_list.f"),
+                    help="SystemVerilog file list for slang (default: {cfg.filelist.resolve().as_posix()})")
     return ap.parse_args()
 
 
