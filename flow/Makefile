@@ -74,7 +74,7 @@ flist:
 # SV to single Verilog file
 sv2v: clean_rtl
 	@echo "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
-	$(Q)$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv \
+	$(Q)$(SV2V) -v -I ../hw/ips/pkgs ../hw/ips/pkgs/*.sv ../hw/ips/prim/*.sv ../hw/ips/prim_opentitan/*.sv ../hw/ips/tlul/*.sv rtl/*.sv \
 	> $(RTLDIR)/$(TOP).v
 # FETCH VENDOR FROM HJSON
 fetch:
@@ -200,7 +200,7 @@ syn_sv: setup_syn
 yosys-vgen:
 	@echo "\n$(ORANGE)Verilog generation with Yosys...\n$(RESET)"
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p " \
-	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
+	read_slang -I ../hw/ips/pkgs -I ../hw/ips/prim -I ../hw/ips/prim_opentitan -I ../hw/ips/tlul -D SYNTHESIS --ignore-assertions \
 	           -f rtl/rtl_list.f \
 	           --top $(TOP); \
 	opt -keepdc; \
@@ -227,8 +227,8 @@ view_presyn_sv:
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots
 	@echo "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
-  read_slang -I ips/pkgs -I ips/prim \
-             -I ips/prim_opentitan -I ips/tlul \
+  read_slang -I ../hw/ips/pkgs -I ../hw/ips/prim \
+             -I ../hw/ips/prim_opentitan -I ../hw/ips/tlul \
              -D SYNTHESIS --ignore-assertions \
              -f rtl/rtl_list.f --top $(TOP) ; \
   prep -top $(TOP); select -clear; select -module $(MODULE) ; \
@@ -335,13 +335,13 @@ driver:
 
 # FSM FLOW
 fsm_example_load:
-	$(Q)$(CP) ../tools/fsm_gen/examples/* ../tools/fsm_gen/inputs/
+	$(Q)$(CP) ../tools/../tools/fsm_gen/examples/* ../tools/../tools/fsm_gen/inputs/
 
 fsm2rtl:
-	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM).sv $(RTLDIR)
-	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM)_pkg.sv $(RTLDIR)
-	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM).gtkw $(SIMDIR)
-	$(Q)$(CP) ../tools/fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
+	$(Q)$(CP) ../tools/../tools/fsm_gen/outputs/$(FSM).sv $(RTLDIR)
+	$(Q)$(CP) ../tools/../tools/fsm_gen/outputs/$(FSM)_pkg.sv $(RTLDIR)
+	$(Q)$(CP) ../tools/../tools/fsm_gen/outputs/$(FSM).gtkw $(SIMDIR)
+	$(Q)$(CP) ../tools/../tools/fsm_gen/outputs/$(FSM)_tb.sv $(TBDIR)
 
 fsm_setup:
 	$(Q)$(MAKE) --no-print-dir -C ../tools/fsm_gen setup
@@ -476,41 +476,41 @@ setup_pnr:
 # SAVE FSM
 fsm_save:
 	$(Q)$(MKDIR) -p $(FSMDIR)/$(FSM)/inputs $(FSMDIR)/$(FSM)/outputs
-	$(Q)$(CP) -r ../tools/fsm_gen/inputs/$(FSM)* $(FSMDIR)/$(FSM)/inputs || true
-	$(Q)$(CP) -r ../tools/fsm_gen/outputs/$(FSM)* $(FSMDIR)/$(FSM)/outputs || true
+	$(Q)$(CP) -r ../tools/../tools/fsm_gen/inputs/$(FSM)* $(FSMDIR)/$(FSM)/inputs || true
+	$(Q)$(CP) -r ../tools/../tools/fsm_gen/outputs/$(FSM)* $(FSMDIR)/$(FSM)/outputs || true
 	@echo "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"	
 
 # LOAD FSM
 fsm_load: fsm_setup
-	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/inputs/* ../tools/fsm_gen/inputs
-	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/outputs/* ../tools/fsm_gen/outputs
+	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/inputs/* ../tools/../tools/fsm_gen/inputs
+	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/outputs/* ../tools/../tools/fsm_gen/outputs
 	@echo "\n$(ORANGE)$(FSM) FSM loaded into fsm_gen\n$(RESET)"
 
 
 # SAVE IP
 ip_save: clean_sim clean_rtl
-	$(Q)$(MKDIR) -p ../hw/ips/$(TOP) 
-	$(Q)$(CP) -r $(DATADIR)    ips/$(TOP) || true
-	$(Q)$(CP) -r $(DOCDIR)     ips/$(TOP) || true
-	$(Q)$(CP) -r $(DRIVERDIR)  ips/$(TOP) || true
-	$(Q)$(CP) -r $(LINTDIR)    ips/$(TOP) || true
-	$(Q)$(CP) -r $(RTLDIR)     ips/$(TOP) || true
-	$(Q)$(CP) -r $(TBDIR)      ips/$(TOP) || true
-	$(Q)$(CP) -r $(SIMDIR)     ips/$(TOP) || true
-	$(Q)$(CP) -r $(SYNDIR)     ips/$(TOP) || true
-	$(Q)$(CP) -r $(SIGNOFFDIR) ips/$(TOP) || true
-	$(Q)$(CP) -r $(ORSDIR)     ips/$(TOP) || true
-	$(Q)$(CP) -r $(LOGDIR)     ips/$(TOP) || true
-	$(Q)$(CP) -r $(MODELDIR)   ips/$(TOP) || true
-	$(Q)$(CP) -r $(PYDIR)      ips/$(TOP) || true
-	$(Q)$(CP) -r $(FSMDIR)     ips/$(TOP) || true
-	$(Q)$(CP)    $(TOP).core   ips/$(TOP) || true
+	$(Q)$(MKDIR) -p ../hw/../hw/ips/$(TOP) 
+	$(Q)$(CP) -r $(DATADIR)    ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(DOCDIR)     ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(DRIVERDIR)  ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(LINTDIR)    ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(RTLDIR)     ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(TBDIR)      ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(SIMDIR)     ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(SYNDIR)     ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(SIGNOFFDIR) ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(ORSDIR)     ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(LOGDIR)     ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(MODELDIR)   ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(PYDIR)      ../hw/ips/$(TOP) || true
+	$(Q)$(CP) -r $(FSMDIR)     ../hw/ips/$(TOP) || true
+	$(Q)$(CP)    $(TOP).core   ../hw/ips/$(TOP) || true
 	@echo "\n$(ORANGE)$(TOP) IP saved\n$(RESET)"
 
 # LOAD IP
 ip_load:
 	@echo "\n$(ORANGE)$(TOP) Loaded\n$(RESET)"
-	$(Q)$(CP) -r ../hw/ips/$(TOP)/* .
+	$(Q)$(CP) -r ../hw/../hw/ips/$(TOP)/* .
 
 # DEPENDENCIES
 deps:
