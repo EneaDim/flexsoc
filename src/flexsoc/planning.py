@@ -19,7 +19,7 @@ def load_registry(path: Path) -> Dict[str, Any]:
     return data
 
 
-def validate_plan(plan: Plan, registry: Dict[str, Any]) -> None:
+def validate_plan(plan: Plan, registry: Dict[str, Any], *, allow_missing_required: bool = False) -> None:
     actions = registry.get("actions", {})
     if plan.action not in actions:
         raise ValueError(f"Unknown action: {plan.action}")
@@ -29,7 +29,7 @@ def validate_plan(plan: Plan, registry: Dict[str, Any]) -> None:
 
     # required check
     for k, v in params_spec.items():
-        if v.get("required") and k not in plan.params:
+        if v.get("required") and k not in plan.params and not allow_missing_required:
             raise ValueError(f"Missing required param: {k}")
 
     # unknown params check
