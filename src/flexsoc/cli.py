@@ -12,6 +12,7 @@ from rich import print
 
 from .config import default_workspace
 from .runner import run_command
+from .executor import execute_action
 from .reporting import parse_ip_start_flow, write_report_json
 from .manifest import write_flow_manifest
 from .planning import Plan, load_registry, validate_plan, write_plan_json, naive_intent_to_plan, read_plan_json
@@ -55,81 +56,29 @@ def run(
     workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
     run_id: Optional[str] = typer.Option(None, help="Run identifier (defaults to timestamp)"),
 ) -> None:
-    reg = _load_registry()
-    actions = reg["actions"]
-    if action not in actions:
-        raise typer.BadParameter(f"Unknown action '{action}'. Available: {', '.join(actions.keys())}")
-
-    params: Dict[str, Any] = {}
-    if design is not None:
-        params["design"] = design
+    # Collect params (these map to Makefile vars via executor)
+    params: dict = {}
     if top is not None:
         params["top"] = top
-    if corner is not None:
-        params["corner"] = corner
-    if seed is not None:
-        params["seed"] = seed
-
     if reg_itf is not None:
         params["reg_itf"] = reg_itf
     if overwrite is not None:
         params["overwrite"] = overwrite
-
-    cmd = list(actions[action]["command"])
-
-
-    # Resolve workspace/run-id once (used for flow outputs)
-    ws = (workspace or default_workspace()).resolve()
-    rid = run_id
-
-    # Ensure deterministic flow output location for make-based actions
-    # (critical for e2e tests + agents)
-    if action == "ip_start":
-        if not rid:
-            raise typer.BadParameter("--run-id is required for ip_start (deterministic workspace runs)")
-        cmd.append(f"WORKSPACE={ws}")
-        cmd.append(f"RUN_ID={rid}")
-
+    if seed is not None:
+        params["seed"] = seed
 
     ws = (workspace or default_workspace()).resolve()
-    rid = run_id or None
 
-
-
-    # Append Make VAR overrides as "KEY=VALUE" tokens (one-shot overrides)
-    # This preserves the "only for this command" behavior.
-    for k, v in params.items():
-        cmd.append(f"{k.upper()}={v}")
-
-     
-    rid = run_id or None
-
-    result = run_command(action_id=action, cmd=cmd, params=params, workspace_dir=ws)
-
-
-    if action == "ip_start":
-        top_name = params.get("top")
-        flow_run_dir = ws / "runs" / str(top_name) / str(rid)
-        if not flow_run_dir.exists():
-            # Fail loudly with debugging info
-            candidates = sorted((ws / "runs" / str(top_name)).glob("*")) if (ws / "runs" / str(top_name)).exists() else []
-            raise RuntimeError(f"Expected flow run dir missing: {flow_run_dir}. Existing: {[c.name for c in candidates]}")
-        write_flow_manifest(
-            flow_run_dir,
-            action=action,
-            top=str(top_name),
-            run_id=str(rid),
-            workspace=ws,
-            params=params,
-        )
-        report = parse_ip_start_flow(flow_run_dir)
-        write_report_json(report, flow_run_dir / "report.json")
-
-
-    print(f"[bold]Run dir:[/bold] {result.run_dir}")
-    print(f"[bold]Exit code:[/bold] {result.exit_code}")
-    raise typer.Exit(code=result.exit_code)
-
+    res = execute_action(
+        action=action,
+        params=params,
+        workspace=ws,
+        run_id=run_id,
+    )
+    print(f"Runner dir: {res.runner_run_dir}")
+    if res.flow_run_dir:
+        print(f"Flow dir: {res.flow_run_dir}")
+    raise typer.Exit(code=res.exit_code)
 
 @app.command()
 def dump_registry() -> None:
