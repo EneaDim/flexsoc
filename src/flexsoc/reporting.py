@@ -6,9 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-
 
 @dataclass
 class Report:
@@ -18,43 +16,36 @@ class Report:
     warnings: int
     summary: Dict[str, Any]
 
-
 def _read_text(p: Path) -> str:
     try:
         return p.read_text(encoding="utf-8", errors="replace")
     except FileNotFoundError:
         return ""
 
+def _first_existing(glob_paths) -> str:
+    for p in glob_paths:
+        if p.exists():
+            return _read_text(p)
+    return ""
 
 def parse_ip_start_flow(flow_run_dir: Path) -> Report:
-    """
-    Parse a flow run directory (workspace/runs/<top>/<run_id>/...) into a stable report.
-    This is intentionally conservative and only extracts invariants.
-    """
     logs = flow_run_dir / "logs"
-    lint_log = _read_text(logs / f"{flow_run_dir.name}_lint.log")  # may not match; fallback below
-    if not lint_log:
-        # fallback: search any *_lint.log
-        cands = list(logs.glob("*_lint.log"))
-        lint_log = _read_text(cands[0]) if cands else ""
 
-    sim_log = _read_text(logs / f"{flow_run_dir.name}_sim.log")
-    if not sim_log:
-        cands = list(logs.glob("*_sim.log"))
-        sim_log = _read_text(cands[0]) if cands else ""
+    lint_log = _first_existing(list(logs.glob("*_lint.log")))
+    sim_log = _first_existing(list(logs.glob("*_sim.log")))
 
-    # also accept stdout-style messages in sim log
     merged = "\n".join([lint_log, sim_log])
     merged = ANSI_RE.sub("", merged)
 
-    # Count errors/warnings in a tool-agnostic way
+    # Errors/warnings (tool-agnostic-ish)
     errors = len(re.findall(r"(?m)^%Error", merged)) + len(re.findall(r"(?m)\bError:", merged))
-    warning_types = {}
+    warnings = len(re.findall(r"(?m)^%Warning", merged)) + len(re.findall(r"(?m)\bWarning:", merged))
+
+    # Warning types (Verilator style)
+    warning_types: Dict[str, int] = {}
     for m in re.finditer(r"(?m)^%Warning-([A-Z0-9_]+):", merged):
         t = m.group(1)
         warning_types[t] = warning_types.get(t, 0) + 1
-
-warnings = len(re.findall(r"(?m)^%Warning", merged)) + len(re.findall(r"(?m)\bWarning:", merged))
 
     cov = None
     m = re.search(r"Coverage:\s*([0-9]+(?:\.[0-9]+)?)%", merged)
@@ -71,7 +62,6 @@ warnings = len(re.findall(r"(?m)^%Warning", merged)) + len(re.findall(r"(?m)\bWa
     }
 
     return Report(ok=ok, coverage=cov, errors=errors, warnings=warnings, summary=summary)
-
 
 def write_report_json(report: Report, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
