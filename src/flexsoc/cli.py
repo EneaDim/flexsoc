@@ -168,7 +168,7 @@ def plan_cmd(
 ) -> None:
     registry = load_registry(Path(__file__).parent / "registry.yaml")
     plan = naive_intent_to_plan(text)
-    validate_plan(plan, registry)
+    validate_plan(plan, registry, allow_missing_required=True)
     write_plan_json(plan, out)
     print(f"Plan written: {out}")
 
