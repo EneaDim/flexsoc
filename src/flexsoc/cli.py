@@ -12,6 +12,7 @@ from .config import default_workspace
 from .runner import run_command
 from .reporting import parse_ip_start_flow, write_report_json
 from .manifest import write_flow_manifest
+from .planning import Plan, load_registry, validate_plan, write_plan_json, naive_intent_to_plan
 from .doctor import run_doctor
 from .clean import clean_run, clean_workspace
 
@@ -158,3 +159,15 @@ def clean_workspace_cmd(
      
     ws = (workspace or default_workspace()).resolve()
     clean_workspace(ws)
+
+
+@app.command("plan")
+def plan_cmd(
+    text: str = typer.Argument(..., help="Natural language request"),
+    out: Path = typer.Option(Path("plan.json"), help="Output plan JSON path"),
+) -> None:
+    registry = load_registry(Path(__file__).parent / "registry.yaml")
+    plan = naive_intent_to_plan(text)
+    validate_plan(plan, registry)
+    write_plan_json(plan, out)
+    print(f"Plan written: {out}")
