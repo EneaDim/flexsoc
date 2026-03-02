@@ -25,13 +25,6 @@ ip_start: setup hjson reg doc rtl_stub setup_tb sim
 
 # File list generation
 flist:
-	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP)
-
-# SV to single Verilog file
-sv2v: clean_rtl
-	@echo "\n$(ORANGE)SystemVerilog to Verilog conversion...\n$(RESET)"
-	$(Q)$(SV2V) -v -I ips/pkgs ips/pkgs/*.sv ips/prim/*.sv ips/prim_opentitan/*.sv ips/tlul/*.sv rtl/*.sv \
-	> $(RTLDIR)/$(TOP).v
-# FETCH VENDOR FROM HJSON
+	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root ../hw/ips --rtldir $(RTLDIR)
 fetch:
 	$(Q)$(UTILROOT)/vendor.py --update vendor/$(VENDOR).vendor.hjson
