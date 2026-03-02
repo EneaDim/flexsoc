@@ -1,0 +1,6 @@
+# SETUP FOLDER STRUCTURE
+setup: 
+	@echo "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) \
+	 $(SIGNOFFDIR) $(SIGNOFFDIR)/sdf $(MODELDIR) $(DOCDIR) \
+	 $(DATADIR) $(DRIVERDIR) $(LINTDIR) $(PYDIR) $(FSMDIR) $(ORSDIR)

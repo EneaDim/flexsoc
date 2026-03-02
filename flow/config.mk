@@ -1,3 +1,5 @@
+REPOROOT := $(abspath $(CURDIR)/..)
+UTILROOT := $(REPOROOT)/util
 # =========================
 # Toolchain / executables
 # =========================
@@ -76,7 +78,6 @@ DATADIR         ?= data
 DRIVERDIR       ?= driver
 VENDORDIR       := vendor
 TOPDIR          := top
-UTILDIR         := util
 SCRIPTSDIR      ?= scripts
 REGRESSIONDIR   := $(TBDIR)/regression
 OUTNAME         ?= ok

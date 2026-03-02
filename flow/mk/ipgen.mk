@@ -6,14 +6,14 @@ hjson: setup
 # SV REGISTER GENERATOR
 reg:
 	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
-	$(Q)./$(UTILDIR)/regtool.py -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
+	$(Q)./$(UTILROOT)/regtool.py -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
 
 # MARKDOWN GENERATOR
 .PHONY: doc
 doc:
 	@echo "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
-	$(Q)./$(UTILDIR)/regtool.py -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
-	$(Q)./$(UTILDIR)/regtool.py --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
+	$(Q)./$(UTILROOT)/regtool.py -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
+	$(Q)./$(UTILROOT)/regtool.py --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
 # RTL base generator
 rtl_stub:
@@ -34,4 +34,4 @@ sv2v: clean_rtl
 	> $(RTLDIR)/$(TOP).v
 # FETCH VENDOR FROM HJSON
 fetch:
-	$(Q)$(UTILDIR)/vendor.py --update vendor/$(VENDOR).vendor.hjson
+	$(Q)$(UTILROOT)/vendor.py --update vendor/$(VENDOR).vendor.hjson
