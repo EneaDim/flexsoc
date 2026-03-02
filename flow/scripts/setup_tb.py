@@ -334,7 +334,7 @@ def _render_tb(top: str,
     lines.append("`timescale 1ns/1ps")
     lines.append("// Includes")
     if compiler == "verilator":
-        lines.append(f'`include "tb/include_{top}_tb.sv"')
+        lines.append(f'`include "include_{top}_tb.sv"')
     else:
         # Fallback includes for non-Verilator
         lines.append("`ifndef SYN")
@@ -509,7 +509,7 @@ def _render_simple_tb(top: str,
     lines = []
     lines.append("`timescale 1ns/1ps")
     if compiler == "verilator":
-        lines.append(f'`include "tb/include_{top}_tb.sv"')
+        lines.append(f'`include "include_{top}_tb.sv"')
     else:
         lines.append("`ifndef SYN")
         lines.append(f'  `include "rtl/{top}.v"')

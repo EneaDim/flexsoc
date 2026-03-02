@@ -80,7 +80,7 @@ lint_v: sv2v
 	
 lint_sv: flist
 	@echo "\n$(ORANGE)Linting...\n$(RESET)"
-	$(Q)$(LINTER) $(LINT_FLAGS) -f $(RTLDIR)/rtl_list.f --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
+	$(Q)$(LINTER) $(LINT_FLAGS) -I$(TBDIR) -f $(RTLDIR)/rtl_list.f --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
 	> $(LOGDIR)/$(TOP)_lint.log 2>&1 
 	
 # SETUP SV TESTBENCH FILE
