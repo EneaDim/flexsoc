@@ -240,8 +240,8 @@ def main():
     # =============================================================================
     # Common compile flags / includes
     # =============================================================================
-    COMPILE_ARGS += -I$(SRC_DIR) -I$(ROOT)/rtl -I$(ROOT)/ips/pkgs \\
-    \t\t       -I$(ROOT)/ips/prim -I$(ROOT)/ips/prim_opentitan -I$(ROOT)/ips/tlul
+    COMPILE_ARGS += -I$(SRC_DIR) -I$(ROOT)/rtl -I$(ROOT)/../hw/ips/pkgs \\
+    \t\t       -I$(ROOT)/../hw/ips/prim -I$(ROOT)/../hw/ips/prim_opentitan -I$(ROOT)/../hw/ips/tlul
 
     # Cocotb: path del report JUnit (usato dalla CI)
     export COCOTB_RESULTS_FILE ?= $(abspath results.xml)

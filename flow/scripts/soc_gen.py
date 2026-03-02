@@ -44,7 +44,7 @@ def find_sv_file(module_name, root_dir=".", from_vendor=False):
     if from_vendor:
         root_dir = 'vendor'
     else:
-        root_dir = 'ips/'+ module_name
+        root_dir = '../hw/ips/'+ module_name
     for path in Path(root_dir).rglob(f"{module_name}.sv"):
         return path
     print(path)

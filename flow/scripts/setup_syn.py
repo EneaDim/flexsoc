@@ -196,7 +196,7 @@ def yosys_synth_asic_slang(
 ) -> str:
     """
     SystemVerilog ASIC flow via slang using an ordered file list (rtl/rtl_list.f).
-    Assumes include dirs: ips/pkgs, ips/prim, ips/prim_opentitan, ips/tlul.
+    Assumes include dirs: ../hw/ips/pkgs, ../hw/ips/prim, ../hw/ips/prim_opentitan, ../hw/ips/tlul.
 
     \\param opt   "area", "delay" or "none" (controls ABC -script usage).
     """
@@ -216,10 +216,10 @@ def yosys_synth_asic_slang(
     body = []
     body.append("# read files (SystemVerilog via slang)")
     body.append(
-        "read_slang -I ips/pkgs \\"
-        "\n           -I ips/prim \\"
-        "\n           -I ips/prim_opentitan \\"
-        "\n           -I ips/tlul \\"
+        "read_slang -I ../hw/ips/pkgs \\"
+        "\n           -I ../hw/ips/prim \\"
+        "\n           -I ../hw/ips/prim_opentitan \\"
+        "\n           -I ../hw/ips/tlul \\"
         "\n           -D SYNTHESIS \\"
         "\n           --ignore-assertions \\"
         f"\n           -f {filelist.as_posix()} \\"

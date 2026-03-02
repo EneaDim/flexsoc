@@ -269,7 +269,7 @@ def always_include_packages(ips_root: Path) -> list[Path]:
 
 def candidate_ips_in_order(ips_root: Path) -> list[Path]:
     rel = [
-        # ips/prim/*
+        # ../hw/ips/prim/*
         "prim/prim_bin2gray.sv",
         "prim/prim_cdc_2phase.sv",
         "prim/prim_clk_div.sv",
@@ -288,7 +288,7 @@ def candidate_ips_in_order(ips_root: Path) -> list[Path]:
         "prim/prim_rom.sv",
         "prim/prim_rrarbiter.sv",
         "prim/prim_shreg.sv",
-        # ips/prim_opentitan/*
+        # ../hw/ips/prim_opentitan/*
         "prim_opentitan/prim_arbiter_ppc.sv",
         "prim_opentitan/prim_buf.sv",
         "prim_opentitan/prim_cdc_rand_delay.sv",
@@ -320,7 +320,7 @@ def candidate_ips_in_order(ips_root: Path) -> list[Path]:
         "prim_opentitan/prim_subreg_ext.sv",
         "prim_opentitan/prim_sync_reqack.sv",
         "prim_opentitan/prim_alert_sender.sv",
-        # ips/tlul/*
+        # ../hw/ips/tlul/*
         "tlul/sram2tlul.sv",
         "tlul/tlul_adapter_host.sv",
         "tlul/tlul_adapter_reg.sv",

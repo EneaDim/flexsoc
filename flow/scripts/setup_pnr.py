@@ -54,7 +54,7 @@ def main():
     # Filelist (.f) with +incdir+ and files
     FILELIST := {args.filelist}
     # Include dirs gathered from +incdir+ entries in FILELIST
-    export VERILOG_INCLUDE_DIRS := ips/pkgs
+    export VERILOG_INCLUDE_DIRS := ../hw/ips/pkgs
     # Source files: ignore blanks, comments (#) and +incdir+ lines
     export VERILOG_FILES := $(shell awk '!/^\\s*($$|#)/ && $$0 !~ /^\\+incdir\\+/' $(FILELIST))
     

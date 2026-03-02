@@ -66,14 +66,14 @@ def _sv_header_include_for_verilator(top: str, rtldir: str, syndir: str,
                                      itf: str, vsv: str) -> str:
     inc: List[str] = []
     inc.append("`ifndef SYN")
-    inc.append('  `include "ips/pkgs/top_pkg.sv"')
-    inc.append('  `include "ips/pkgs/prim_util_pkg.sv"')
-    inc.append('  `include "ips/pkgs/prim_mubi_pkg.sv"')
-    inc.append('  `include "ips/pkgs/prim_secded_pkg.sv"')
+    inc.append('  `include "../hw/ips/pkgs/top_pkg.sv"')
+    inc.append('  `include "../hw/ips/pkgs/prim_util_pkg.sv"')
+    inc.append('  `include "../hw/ips/pkgs/prim_mubi_pkg.sv"')
+    inc.append('  `include "../hw/ips/pkgs/prim_secded_pkg.sv"')
     if flag_reg_pkg:
         inc.append(f'  `include "{rtldir}/{top}_reg_pkg.sv"')
     if flag_reg_pkg and itf == "tlul":
-        inc.append('  `include "ips/pkgs/tlul_pkg.sv"')
+        inc.append('  `include "../hw/ips/pkgs/tlul_pkg.sv"')
         inc.append('  `include "tb/tlul_utils.sv"')
         inc.append('  `include "tb/tlul_if.sv"')
     if flag_reg_pkg and itf == "reg_iface":
@@ -743,11 +743,11 @@ def main(argv=None) -> int:
             # Find insertion point after prim_secded_pkg include if present
             ins = None
             for i, L in enumerate(lines):
-                if "ips/pkgs/prim_secded_pkg.sv" in L:
+                if "../hw/ips/pkgs/prim_secded_pkg.sv" in L:
                     ins = i + 1
             if ins is None:
                 ins = idx + 1
-            lines.insert(ins, '  `include "ips/pkgs/tlul_pkg.sv"')
+            lines.insert(ins, '  `include "../hw/ips/pkgs/tlul_pkg.sv"')
             include_txt = "\n".join(lines) + ("\n" if not include_txt.endswith("\n") else "")
             safe_write_file(outdir / f"include_{top}_tb.sv", include_txt, overwrite=force)
 
