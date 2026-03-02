@@ -49,7 +49,12 @@ def parse_ip_start_flow(flow_run_dir: Path) -> Report:
 
     # Count errors/warnings in a tool-agnostic way
     errors = len(re.findall(r"(?m)^%Error", merged)) + len(re.findall(r"(?m)\bError:", merged))
-    warnings = len(re.findall(r"(?m)^%Warning", merged)) + len(re.findall(r"(?m)\bWarning:", merged))
+    warning_types = {}
+    for m in re.finditer(r"(?m)^%Warning-([A-Z0-9_]+):", merged):
+        t = m.group(1)
+        warning_types[t] = warning_types.get(t, 0) + 1
+
+warnings = len(re.findall(r"(?m)^%Warning", merged)) + len(re.findall(r"(?m)\bWarning:", merged))
 
     cov = None
     m = re.search(r"Coverage:\s*([0-9]+(?:\.[0-9]+)?)%", merged)
@@ -62,6 +67,7 @@ def parse_ip_start_flow(flow_run_dir: Path) -> Report:
         "has_tlul_read_done": "TLUL READ DONE" in merged,
         "has_finish": "$finish" in merged,
         "has_verilator": "Verilator" in merged,
+        "warning_types_top": dict(sorted(warning_types.items(), key=lambda kv: kv[1], reverse=True)[:10]),
     }
 
     return Report(ok=ok, coverage=cov, errors=errors, warnings=warnings, summary=summary)
