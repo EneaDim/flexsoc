@@ -74,13 +74,22 @@ def run(
 
     cmd = list(actions[action]["command"])
 
+
+    # Resolve workspace/run-id once (used for flow outputs)
+    ws = (workspace or default_workspace()).resolve()
+    rid = run_id
+
+    # Ensure deterministic flow output location for make-based actions
+    # (critical for e2e tests + agents)
+    if action == "ip_start":
+        if not rid:
+            raise typer.BadParameter("--run-id is required for ip_start (deterministic workspace runs)")
+        cmd.append(f"WORKSPACE={ws}")
+        cmd.append(f"RUN_ID={rid}")
+
+
     ws = (workspace or default_workspace()).resolve()
     rid = run_id or None
-
-    # Force flow outputs under workspace (Makefile uses WORKSPACE/RUN_ID)
-    cmd.append(f"WORKSPACE={ws}")
-    if rid:
-        cmd.append(f"RUN_ID={rid}")
 
 
 
@@ -93,6 +102,26 @@ def run(
     rid = run_id or None
 
     result = run_command(action_id=action, cmd=cmd, params=params, workspace_dir=ws)
+
+
+    if action == "ip_start":
+        top_name = params.get("top")
+        flow_run_dir = ws / "runs" / str(top_name) / str(rid)
+        if not flow_run_dir.exists():
+            # Fail loudly with debugging info
+            candidates = sorted((ws / "runs" / str(top_name)).glob("*")) if (ws / "runs" / str(top_name)).exists() else []
+            raise RuntimeError(f"Expected flow run dir missing: {flow_run_dir}. Existing: {[c.name for c in candidates]}")
+        write_flow_manifest(
+            flow_run_dir,
+            action=action,
+            top=str(top_name),
+            run_id=str(rid),
+            workspace=ws,
+            params=params,
+        )
+        report = parse_ip_start_flow(flow_run_dir)
+        write_report_json(report, flow_run_dir / "report.json")
+
 
     print(f"[bold]Run dir:[/bold] {result.run_dir}")
     print(f"[bold]Exit code:[/bold] {result.exit_code}")
