@@ -56,7 +56,7 @@ ip_start: setup hjson reg doc rtl_stub setup_tb sim
 
 # File list generation
 flist:
-	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP)
+	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP) --out $(RTLDIR)/rtl_list.f
 
 # SV to single Verilog file
 sv2v: clean_rtl
@@ -188,7 +188,7 @@ yosys-vgen:
 	@echo "\n$(ORANGE)Verilog generation with Yosys...\n$(RESET)"
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p " \
 	read_slang -I ../hw/ips/pkgs -I ../hw/ips/prim -I ../hw/ips/prim_opentitan -I ../hw/ips/tlul -D SYNTHESIS --ignore-assertions \
-	           -f rtl/rtl_list.f \
+	           -f $(RTLDIR)/rtl_list.f \
 	           --top $(TOP); \
 	opt -keepdc; \
 	bwmuxmap; \
@@ -217,7 +217,7 @@ view_presyn_sv:
   read_slang -I ../hw/ips/pkgs -I ../hw/ips/prim \
              -I ../hw/ips/prim_opentitan -I ../hw/ips/tlul \
              -D SYNTHESIS --ignore-assertions \
-             -f rtl/rtl_list.f --top $(TOP) ; \
+             -f $(RTLDIR)/rtl_list.f --top $(TOP) ; \
   prep -top $(TOP); select -clear; select -module $(MODULE) ; \
   show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" \
 	> $(LOGDIR)/$(TOP)_presyn.log 2>&1
