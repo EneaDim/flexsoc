@@ -16,7 +16,9 @@ import sys
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
-import copy, tempfile, uuid
+import copy
+import tempfile
+import uuid
 
 # --- Optional deps ---
 HJSON_AVAILABLE = True

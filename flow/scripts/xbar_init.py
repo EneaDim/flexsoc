@@ -15,7 +15,6 @@
 
 import argparse
 import json
-import sys
 
 def parse_args():
     parser = argparse.ArgumentParser(

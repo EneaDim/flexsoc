@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import argparse
-import os
 import re
 from pathlib import Path
 
@@ -49,7 +48,6 @@ def find_sv_file(module_name, root_dir=".", from_vendor=False):
         return path
     print(path)
     return None
-import re
 
 def parse_ports(sv_file):
     with open(sv_file, "r", encoding="utf-8") as f:
@@ -144,7 +142,7 @@ def generate_module_inst(mod, ports):
     port_assignments = ["    .clk_i", "    .rst_ni"]
     port_assignments += [f"    .tl_i(tl_{mod}_h2d)"]
     port_assignments += [f"    .tl_o(tl_{mod}_d2h)"]
-    port_assignments += [f"    .{name}" for direction, _, name in ports if not name == 'tl_i' and not name == 'tl_o' and not name == 'clk_i' and not name == 'rst_ni' and not 'intr' in name and not 'alert' in name]
+    port_assignments += [f"    .{name}" for direction, _, name in ports if not name == 'tl_i' and not name == 'tl_o' and not name == 'clk_i' and not name == 'rst_ni' and 'intr' not in name and 'alert' not in name]
     port_assignments += [f"    .{name}()" for direction, _, name in ports if 'intr' in name]
     port_assignments += [f"    .{name}()" for direction, _, name in ports if 'alert_rx' in name]
     port_assignments += [f"    .{name}()" for direction, _, name in ports if 'alert_tx' in name]
@@ -199,7 +197,7 @@ def generate_soc_sv(host, device, root_dir, output_file):
         # Append unique ports
         port_decls = generate_port_decls(all_ports)
         for decl in port_decls:
-            if not 'alert' in decl.split()[1]:
+            if 'alert' not in decl.split()[1]:
                 f.write(f"\n{decl}")
 
         # Remove last comma and close header
@@ -217,36 +215,36 @@ def generate_soc_sv(host, device, root_dir, output_file):
             f.write(f"  tlul_pkg::tl_d2h_t tl_{mod}_d2h;\n")
 
 
-        f.write(f"\n")
-        f.write(f"  // Our main data bus.\n")
-        f.write(f"  xbar_main xbar (\n")
-        f.write(f"    // Clock and reset.\n")
-        f.write(f"    .clk_i,\n")
-        f.write(f"    .rst_ni,\n")
-        f.write(f"\n")
+        f.write("\n")
+        f.write("  // Our main data bus.\n")
+        f.write("  xbar_main xbar (\n")
+        f.write("    // Clock and reset.\n")
+        f.write("    .clk_i,\n")
+        f.write("    .rst_ni,\n")
+        f.write("\n")
         if host == 'ibex':
-            f.write(f"    // Host interfaces.\n")
-            f.write(f"    .tl_ibex_i (tl_ibex_h2d),\n")
-            f.write(f"    .tl_ibex_o (tl_ibex_d2h),\n")
-            f.write(f"\n")
-            f.write(f"    // Device interfaces.\n")
-            f.write(f"    .tl_sram_o     (tl_sram_h2d),\n")
-            f.write(f"    .tl_sram_i     (tl_sram_d2h),\n")
+            f.write("    // Host interfaces.\n")
+            f.write("    .tl_ibex_i (tl_ibex_h2d),\n")
+            f.write("    .tl_ibex_o (tl_ibex_d2h),\n")
+            f.write("\n")
+            f.write("    // Device interfaces.\n")
+            f.write("    .tl_sram_o     (tl_sram_h2d),\n")
+            f.write("    .tl_sram_i     (tl_sram_d2h),\n")
         elif host == 'uart':
-            f.write(f"    // Host interfaces.\n")
-            f.write(f"    .tl_uart_host_i (tl_uart_host_h2d),\n")
-            f.write(f"    .tl_uart_host_o (tl_uart_host_d2h),\n")
-            f.write(f"\n    // Device interfaces.\n")
-            f.write(f"    .tl_uart_o (tl_uart_h2d),\n")
-            f.write(f"    .tl_uart_i (tl_uart_d2h),\n")
+            f.write("    // Host interfaces.\n")
+            f.write("    .tl_uart_host_i (tl_uart_host_h2d),\n")
+            f.write("    .tl_uart_host_o (tl_uart_host_d2h),\n")
+            f.write("\n    // Device interfaces.\n")
+            f.write("    .tl_uart_o (tl_uart_h2d),\n")
+            f.write("    .tl_uart_i (tl_uart_d2h),\n")
         for mod in all_modules:
             if mod == 'uart' and host == 'uart':
                 continue
             f.write(f"    .tl_{mod}_o     (tl_{mod}_h2d),\n")
             f.write(f"    .tl_{mod}_i     (tl_{mod}_d2h),\n")
-        f.write(f"\n")
-        f.write(f"    .scanmode_i (prim_mubi_pkg::MuBi4False)\n")
-        f.write(f"  );\n")
+        f.write("\n")
+        f.write("    .scanmode_i (prim_mubi_pkg::MuBi4False)\n")
+        f.write("  );\n")
 
 
         f.write("\n")
@@ -263,54 +261,54 @@ def generate_soc_sv(host, device, root_dir, output_file):
         clean_decls = [re.sub(r'^\s*(input|output)\s+', '', decl.strip()) for decl in port_decls]
         # Substitute "," with ";"
         cleaned_ports = [decl.rstrip(',').strip() + ';' for decl in clean_decls]
-        f.write(f"module top_verilator (input logic clk_i, rst_ni);\n")
+        f.write("module top_verilator (input logic clk_i, rst_ni);\n")
         for decl in cleaned_ports:
             decl = decl.split()
             if not decl[0] == 'logic':
-                if not 'alert' in decl[0]:
+                if 'alert' not in decl[0]:
                     decl = ['logic ' + ' '.join(decl)]
                 else:
                     continue
             f.write(f"  {' '.join(decl)}\n")
-        f.write(f"\n")
+        f.write("\n")
         cleaned_ports = [ re.sub(r'^\s*(input|output)\s+(logic|wire|reg)?\s*', '', decl.strip()) for decl in port_decls ]
-        f.write(f"  // Our SoC\n")
-        f.write(f"  soc #(\n")
-        f.write(f"  ) u_soc (\n")
-        f.write(f"    .clk_i,\n")
-        f.write(f"    .rst_ni,\n")
+        f.write("  // Our SoC\n")
+        f.write("  soc #(\n")
+        f.write("  ) u_soc (\n")
+        f.write("    .clk_i,\n")
+        f.write("    .rst_ni,\n")
         for decl in cleaned_ports:
             decl = decl.split()
-            if not 'alert' in decl[0]:
+            if 'alert' not in decl[0]:
                 f.write(f"    .{decl[-1]}\n")
         # Remove last comma and close header
         f.seek(f.tell() -2)
         f.write("\n);\n\n")
-        f.write(f"  // Virtual UART\n")
-        f.write(f"  uartdpi #(\n")
-        f.write(f"    .BAUD ( 921_600    ),\n")
-        f.write(f"    .FREQ ( 50_000_000 )\n")
-        f.write(f"  ) u_uartdpi (\n")
-        f.write(f"    .clk_i,\n")
-        f.write(f"    .rst_ni,\n")
-        f.write(f"    .active(1'b1       ),\n")
-        f.write(f"    .tx_o  (cio_rx_i),\n")
-        f.write(f"    .rx_i  (cio_tx_o)\n")
-        f.write(f"  );\n")
-        f.write(f"\n")
-        f.write(f'  export "DPI-C" function mhpmcounter_num;\n')
-        f.write(f"\n")
-        f.write(f"  function automatic int unsigned mhpmcounter_num();\n")
-        f.write(f"    return u_soc.u_ibex_top_tracing.u_ibex_top.u_ibex_core.cs_registers_i.MHPMCounterNum;\n")
-        f.write(f"  endfunction\n")
-        f.write(f"\n")
-        f.write(f'  export "DPI-C" function mhpmcounter_get;\n')
-        f.write(f"\n")
-        f.write(f"  function automatic longint unsigned mhpmcounter_get(int index);\n")
-        f.write(f"    return u_soc.u_ibex_top_tracing.u_ibex_top.u_ibex_core.cs_registers_i.mhpmcounter[index];\n")
-        f.write(f"  endfunction\n")
-        f.write(f"\n")
-        f.write(f"endmodule\n")
+        f.write("  // Virtual UART\n")
+        f.write("  uartdpi #(\n")
+        f.write("    .BAUD ( 921_600    ),\n")
+        f.write("    .FREQ ( 50_000_000 )\n")
+        f.write("  ) u_uartdpi (\n")
+        f.write("    .clk_i,\n")
+        f.write("    .rst_ni,\n")
+        f.write("    .active(1'b1       ),\n")
+        f.write("    .tx_o  (cio_rx_i),\n")
+        f.write("    .rx_i  (cio_tx_o)\n")
+        f.write("  );\n")
+        f.write("\n")
+        f.write('  export "DPI-C" function mhpmcounter_num;\n')
+        f.write("\n")
+        f.write("  function automatic int unsigned mhpmcounter_num();\n")
+        f.write("    return u_soc.u_ibex_top_tracing.u_ibex_top.u_ibex_core.cs_registers_i.MHPMCounterNum;\n")
+        f.write("  endfunction\n")
+        f.write("\n")
+        f.write('  export "DPI-C" function mhpmcounter_get;\n')
+        f.write("\n")
+        f.write("  function automatic longint unsigned mhpmcounter_get(int index);\n")
+        f.write("    return u_soc.u_ibex_top_tracing.u_ibex_top.u_ibex_core.cs_registers_i.mhpmcounter[index];\n")
+        f.write("  endfunction\n")
+        f.write("\n")
+        f.write("endmodule\n")
 
     with open('tb/top_verilator.cc', 'w') as f:
         f.write('#include <cassert>\n')
@@ -415,79 +413,79 @@ def generate_soc_sv(host, device, root_dir, output_file):
         f.write('}\n')
 
     with open('soc.core', 'w') as f:
-        f.write(f'CAPI=2:\n')
-        f.write(f'name: "enea:soc:main"\n')
-        f.write(f'description: "An easy to build SoC"\n')
-        f.write(f'filesets:\n')
-        f.write(f'  files_rtl:\n')
-        f.write(f'    depend:\n')
-        f.write(f'      - lowrisc:ibex:ibex_top_tracing\n')
+        f.write('CAPI=2:\n')
+        f.write('name: "enea:soc:main"\n')
+        f.write('description: "An easy to build SoC"\n')
+        f.write('filesets:\n')
+        f.write('  files_rtl:\n')
+        f.write('    depend:\n')
+        f.write('      - lowrisc:ibex:ibex_top_tracing\n')
         for mod in lowrisc_modules[1:]:
             f.write(f'      - lowrisc:ip:{mod}\n')
-        f.write(f'      - lowrisc:prim:onehot\n')
-        f.write(f'      - lowrisc:prim:alert\n')
-        f.write(f'      - lowrisc:tlul:adapter_host\n')
-        f.write(f'      - lowrisc:tlul:adapter_reg\n')
+        f.write('      - lowrisc:prim:onehot\n')
+        f.write('      - lowrisc:prim:alert\n')
+        f.write('      - lowrisc:tlul:adapter_host\n')
+        f.write('      - lowrisc:tlul:adapter_reg\n')
         for mod in modules:
             f.write(f'      - prj:ip:{mod}\n')
-        f.write(f'    files:\n')
-        f.write(f'      - rtl/tl_main_pkg.sv\n')
-        f.write(f'      - rtl/xbar_main.sv\n')
-        f.write(f'      - rtl/soc.sv\n')
-        f.write(f'    file_type: systemVerilogSource\n')
-        f.write(f'\n')
-        f.write(f'  files_verilator:\n')
-        f.write(f'    depend:\n')
-        f.write(f'      - lowrisc:ibex:sim_shared\n')
-        f.write(f'      - lowrisc:dv_verilator:memutil_verilator\n')
-        f.write(f'      - lowrisc:dv_verilator:simutil_verilator\n')
-        f.write(f'      - lowrisc:dv_verilator:ibex_pcounts\n')
-        f.write(f'      - lowrisc:dv_dpi_c:uartdpi:0.1\n')
-        f.write(f'      - lowrisc:dv_dpi_sv:uartdpi:0.1\n')
-        f.write(f'    files:\n')
+        f.write('    files:\n')
+        f.write('      - rtl/tl_main_pkg.sv\n')
+        f.write('      - rtl/xbar_main.sv\n')
+        f.write('      - rtl/soc.sv\n')
+        f.write('    file_type: systemVerilogSource\n')
+        f.write('\n')
+        f.write('  files_verilator:\n')
+        f.write('    depend:\n')
+        f.write('      - lowrisc:ibex:sim_shared\n')
+        f.write('      - lowrisc:dv_verilator:memutil_verilator\n')
+        f.write('      - lowrisc:dv_verilator:simutil_verilator\n')
+        f.write('      - lowrisc:dv_verilator:ibex_pcounts\n')
+        f.write('      - lowrisc:dv_dpi_c:uartdpi:0.1\n')
+        f.write('      - lowrisc:dv_dpi_sv:uartdpi:0.1\n')
+        f.write('    files:\n')
         f.write('      - tb/top_verilator.sv: { file_type: systemVerilogSource }\n')
         f.write('      - tb/top_verilator.cc: { file_type: cppSource }\n')
-        f.write(f'\n')
-        f.write(f'parameters:\n')
-        f.write(f'  # For value definition, please see ip/prim/rtl/prim_pkg.sv\n')
-        f.write(f'  PRIM_DEFAULT_IMPL:\n')
-        f.write(f'    datatype: str\n')
-        f.write(f'    paramtype: vlogdefine\n')
-        f.write(f'    description: Primitives implementation to use, e.g. "prim_pkg::ImplGeneric".\n')
-        f.write(f'\n')
-        f.write(f'targets:\n')
-        f.write(f'  default: &default_target\n')
-        f.write(f'    filesets:\n')
-        f.write(f'      - files_rtl\n')
-        f.write(f'\n')
-        f.write(f'  sim:\n')
-        f.write(f'    <<: *default_target\n')
-        f.write(f'    default_tool: verilator\n')
-        f.write(f'    filesets_append:\n')
-        f.write(f'      - files_verilator\n')
-        f.write(f'    toplevel: top_verilator\n')
-        f.write(f'    tools:\n')
-        f.write(f'      verilator:\n')
-        f.write(f'        mode: cc\n')
-        f.write(f'        verilator_options:\n')
-        f.write(f"          # Disabling tracing reduces compile times but doesn't have a\n")
-        f.write(f'          # huge influence on runtime performance.\n')
-        f.write(f"          - '--trace'\n")
-        f.write(f"          - '--trace-fst' # this requires -DVM_TRACE_FMT_FST in CFLAGS below!\n")
-        f.write(f"          - '--trace-structs'\n")
-        f.write(f"          - '--trace-params'\n")
-        f.write(f"          - '--trace-max-array 1024'\n")
-        f.write(f"          - '-CFLAGS "+'"-Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=top_verilator"'+"'\n")
-        f.write(f"          - '-LDFLAGS "+'"-pthread -lutil -lelf"'+"'\n")
-        f.write(f'          - "-Wno-WIDTHEXPAND"\n')
-        f.write(f'          - "-Wno-WIDTHTRUNC"\n')
-        f.write(f'          - "-Wno-MODDUP"\n')
-        f.write(f'          - "-Wno-UNOPTFLAT"\n')
-        f.write(f'          # RAM primitives wider than 64bit (required for ECC) fail to build in\n')
-        f.write(f'          # Verilator without increasing the unroll count (see Verilator#1266)\n')
-        f.write(f'          - "--unroll-count 72"\n')
-        f.write(f'    parameters:\n')
-        f.write(f'      - PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric\n')
+        f.write('\n')
+        f.write('parameters:\n')
+        f.write('  # For value definition, please see ip/prim/rtl/prim_pkg.sv\n')
+        f.write('  PRIM_DEFAULT_IMPL:\n')
+        f.write('    datatype: str\n')
+        f.write('    paramtype: vlogdefine\n')
+        f.write('    description: Primitives implementation to use, e.g. "prim_pkg::ImplGeneric".\n')
+        f.write('\n')
+        f.write('targets:\n')
+        f.write('  default: &default_target\n')
+        f.write('    filesets:\n')
+        f.write('      - files_rtl\n')
+        f.write('\n')
+        f.write('  sim:\n')
+        f.write('    <<: *default_target\n')
+        f.write('    default_tool: verilator\n')
+        f.write('    filesets_append:\n')
+        f.write('      - files_verilator\n')
+        f.write('    toplevel: top_verilator\n')
+        f.write('    tools:\n')
+        f.write('      verilator:\n')
+        f.write('        mode: cc\n')
+        f.write('        verilator_options:\n')
+        f.write("          # Disabling tracing reduces compile times but doesn't have a\n")
+        f.write('          # huge influence on runtime performance.\n')
+        f.write("          - '--trace'\n")
+        f.write("          - '--trace-fst' # this requires -DVM_TRACE_FMT_FST in CFLAGS below!\n")
+        f.write("          - '--trace-structs'\n")
+        f.write("          - '--trace-params'\n")
+        f.write("          - '--trace-max-array 1024'\n")
+        f.write("          - '-CFLAGS "+'"-Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=top_verilator"'+"'\n")
+        f.write("          - '-LDFLAGS "+'"-pthread -lutil -lelf"'+"'\n")
+        f.write('          - "-Wno-WIDTHEXPAND"\n')
+        f.write('          - "-Wno-WIDTHTRUNC"\n')
+        f.write('          - "-Wno-MODDUP"\n')
+        f.write('          - "-Wno-UNOPTFLAT"\n')
+        f.write('          # RAM primitives wider than 64bit (required for ECC) fail to build in\n')
+        f.write('          # Verilator without increasing the unroll count (see Verilator#1266)\n')
+        f.write('          - "--unroll-count 72"\n')
+        f.write('    parameters:\n')
+        f.write('      - PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric\n')
 
 
 def defaults(host):

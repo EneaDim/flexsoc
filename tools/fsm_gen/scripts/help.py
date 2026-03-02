@@ -21,7 +21,6 @@ usage/help banner. It is meant to be invoked from the Makefile
 (e.g. `make help`) and does not take any arguments.
 """
 
-import sys
 
 
 def main() -> int:

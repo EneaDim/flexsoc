@@ -29,11 +29,10 @@ Key features:
 from __future__ import annotations
 
 import argparse
-import os
 import re
 from pathlib import Path
 from textwrap import dedent
-from typing import Iterable, List
+from typing import Iterable
 from common import build_ordered_sources, makefile_block_from_paths
 
 # -----------------------------------------------------------------------------

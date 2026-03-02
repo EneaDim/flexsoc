@@ -28,8 +28,8 @@ def insert_function_declarations(header_path, base_address, module_name):
         lines = f.readlines()
 
     decls = [
-        f"\n",
-        f"#include <stdint.h>\n\n",
+        "\n",
+        "#include <stdint.h>\n\n",
         f"#define {module_name.upper()}_BASE {base_address}\n\n",
         f"typedef void* {module_name}_t;\n",
         f"int {module_name}_init({module_name}_t {module_name});\n",
@@ -69,7 +69,7 @@ def generate_source_file(module_name, output_dir):
         "}\n",
 
         f"int {module_name}_in({module_name}_t {module_name}) {{",
-        f"  int res = -1;",
+        "  int res = -1;",
         f"  res = DEV_READ({module_name} + {base_name}_RDATA_REG_OFFSET);",
         "  return res;",
         "}\n",

@@ -48,12 +48,11 @@ r"""
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 from typing import List, Tuple
 
 from common import (
-    colorize, ensure_dir, safe_write_file,
+    ensure_dir, safe_write_file,
     parse_sv_signature, has_reg_pkg
 )
 
@@ -487,7 +486,7 @@ def _render_tb(top: str,
     lines.append('    $display("\\nEnd.\\n");')
     lines.append("    $finish;")
     lines.append("  end")
-    lines.append(f"endmodule")
+    lines.append("endmodule")
     return "\n".join(lines) + "\n"
 
 

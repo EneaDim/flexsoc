@@ -1,0 +1,10 @@
+# LOGIN
+docker logout ghcr.io
+printf '%s' "$GH_TOKEN" | docker login ghcr.io -u eneadim --password-stdin
+docker push ghcr.io/eneadim/flexsoc:latest
+
+# COMMIT
+docker ps
+docker commit $(CONTAINERID) ghcr.io/eneadim/flexsoc:latest
+docker tag ghcr.io/eneadim/flexsoc:latest ghcr.io/eneadim/flexsoc:latest
+docker push ghcr.io/eneadim/flexsoc:latest

@@ -1,4 +1,29 @@
-###                  Power Analysis            ###
+############################################
+###        Static Timing Analysis        ###
+############################################
+
+sta: setup_signoff 
+	@echo "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl \
+	> $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
+	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log \
+	> $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
+	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log \
+	> $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true 
+
+# Write SDF
+sdf: setup_signoff
+	@echo "\n$(ORANGE)Write sdf files...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl
+
+#####################################
+###        Power Analysis        ###
+####################################
+power: setup_signoff 
+	@echo "\n$(ORANGE)Power Analysis, static and with .vcd...\n$(RESET)"
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl > $(LOGDIR)/$(TOP)_power.log 
+
 # STA only violators
 sta_violators: setup_signoff 
 	@echo "\n$(ORANGE)Static Timing Analysis only timing violators...\n$(RESET)"
@@ -11,8 +36,3 @@ path_view:
 	$(Q)$(PYTHON) $(UTILDIR)/interactiveReport.py -i $(LOGDIR)/$(PATH_VIEW_FILE) \
 	-s $(UTILDIR)/default.svg -t opensta -n $(NPATHS)
 	
-# Write SDF
-sdf: setup_signoff
-	@echo "\n$(ORANGE)Write sdf files...\n$(RESET)"
-	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl

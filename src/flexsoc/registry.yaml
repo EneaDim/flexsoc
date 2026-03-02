@@ -6,6 +6,10 @@ actions:
     - -C
     - flow
     - lint
+    requires_top: false
+    requires_run_id: false
+    produces_outroot: false
+    postprocess: null
     params:
       design:
         type: string
@@ -13,6 +17,7 @@ actions:
       top:
         type: string
         required: false
+
   sim:
     description: Compile and simulate (fast path)
     command:
@@ -20,6 +25,10 @@ actions:
     - -C
     - flow
     - sim
+    requires_top: false
+    requires_run_id: false
+    produces_outroot: true
+    postprocess: null
     params:
       design:
         type: string
@@ -30,6 +39,7 @@ actions:
       seed:
         type: int
         required: false
+
   synth:
     description: Run synthesis (Yosys)
     command:
@@ -37,6 +47,10 @@ actions:
     - -C
     - flow
     - syn
+    requires_top: false
+    requires_run_id: false
+    produces_outroot: true
+    postprocess: null
     params:
       design:
         type: string
@@ -44,6 +58,7 @@ actions:
       top:
         type: string
         required: false
+
   sta:
     description: Run static timing analysis
     command:
@@ -51,6 +66,10 @@ actions:
     - -C
     - flow
     - sta
+    requires_top: false
+    requires_run_id: false
+    produces_outroot: true
+    postprocess: null
     params:
       design:
         type: string
@@ -61,6 +80,7 @@ actions:
       corner:
         type: string
         required: false
+
   pnr:
     description: Run place and route (OpenROAD)
     command:
@@ -68,6 +88,10 @@ actions:
     - -C
     - flow
     - pnr
+    requires_top: false
+    requires_run_id: false
+    produces_outroot: true
+    postprocess: null
     params:
       design:
         type: string
@@ -75,6 +99,7 @@ actions:
       top:
         type: string
         required: false
+
   ip_start:
     description: Create a new IP template and run full smoke flow (setup+hjson+reg+doc+rtl_stub+tb+lint+compile+sim)
     command:
@@ -82,6 +107,10 @@ actions:
     - -C
     - flow
     - ip_start
+    requires_top: true
+    requires_run_id: true
+    produces_outroot: true
+    postprocess: ip_start
     params:
       top:
         type: string
