@@ -56,7 +56,7 @@ ip_start: setup hjson reg doc rtl_stub setup_tb sim
 
 # File list generation
 flist:
-	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP) --out $(RTLDIR)/rtl_list.f
+	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root ../hw/ips --rtldir $(RTLDIR)
 
 # SV to single Verilog file
 sv2v: clean_rtl
