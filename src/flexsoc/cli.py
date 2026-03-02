@@ -136,10 +136,6 @@ def dump_registry() -> None:
     print(print_json)
 
 
-if __name__ == "__main__":
-    app()
-
-
 @app.command("clean-run")
 def clean_run_cmd(
     top: str = typer.Option(..., help="Top name"),
@@ -197,3 +193,6 @@ def exec_cmd(
 
     # dispatch to existing run()
     run(action=plan.action, workspace=workspace, run_id=run_id, overwrite=overwrite, reg_itf=reg_itf, top=top)
+
+if __name__ == "__main__":
+    app()
