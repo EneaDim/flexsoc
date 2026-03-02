@@ -1,0 +1,37 @@
+actions:
+  lint:
+    description: "Run RTL lint"
+    command: ["make", "-C", "flow", "lint"]
+    params:
+      design: {type: "string", required: false}
+      top:    {type: "string", required: false}
+
+  sim:
+    description: "Compile and simulate (fast path)"
+    command: ["make", "-C", "flow", "sim"]
+    params:
+      design: {type: "string", required: false}
+      top:    {type: "string", required: false}
+      seed:   {type: "int", required: false}
+
+  synth:
+    description: "Run synthesis (Yosys)"
+    command: ["make", "-C", "flow", "syn"]
+    params:
+      design: {type: "string", required: false}
+      top:    {type: "string", required: false}
+
+  sta:
+    description: "Run static timing analysis"
+    command: ["make", "-C", "flow", "sta"]
+    params:
+      design: {type: "string", required: false}
+      top:    {type: "string", required: false}
+      corner: {type: "string", required: false}
+
+  pnr:
+    description: "Run place and route (OpenROAD)"
+    command: ["make", "-C", "flow", "pnr"]
+    params:
+      design: {type: "string", required: false}
+      top:    {type: "string", required: false}
