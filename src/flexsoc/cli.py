@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import typer
+import sys
+import subprocess
 import yaml
 from rich import print
 
@@ -191,8 +193,26 @@ def exec_cmd(
 
     validate_plan(Plan(action=plan.action, params=params), registry)
 
-    # dispatch to existing run()
-    run(action=plan.action, workspace=workspace, run_id=run_id, overwrite=overwrite, reg_itf=reg_itf, top=top)
+    # Execute deterministically via CLI to avoid Typer OptionInfo leaking into runtime defaults
+    cmd = [sys.executable, "-m", "flexsoc.cli", "run", plan.action]
+
+    # Apply plan params first (as CLI flags)
+    if "top" in params:
+        cmd += ["--top", str(params["top"])]
+    if "reg_itf" in params:
+        cmd += ["--reg-itf", str(params["reg_itf"])]
+    if "overwrite" in params:
+        # overwrite is expected as a raw flag value, e.g. "--force"
+        cmd += ["--overwrite", str(params["overwrite"])]
+
+    # Runtime execution context
+    if workspace is not None:
+        cmd += ["--workspace", str(workspace)]
+    if run_id is not None:
+        cmd += ["--run-id", str(run_id)]
+
+    p = subprocess.run(cmd, text=True)
+    raise typer.Exit(code=p.returncode)
 
 if __name__ == "__main__":
     app()
