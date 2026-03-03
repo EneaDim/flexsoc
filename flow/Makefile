@@ -20,7 +20,6 @@ include mk/fsm.mk
 include mk/fusesoc.mk
 include mk/xbar_soc.mk
 include mk/tutorials.mk
-include mk/setup_scripts.mk
 include mk/save_load.mk
 include mk/deps.mk
 include mk/clean.mk
