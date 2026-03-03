@@ -288,6 +288,7 @@ class BackendResult:
     stderr_log: Path
 
 
+@dataclass(frozen=True)
 class MakeBackend:
     """
     Minimal backend that delegates to run_command().

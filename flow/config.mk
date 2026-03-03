@@ -1,9 +1,6 @@
+# ROOTS
 REPOROOT := $(abspath $(CURDIR)/..)
-UTILROOT := $(REPOROOT)/util
-# =========================
-# Toolchain / executables
-# =========================
-
+UTILROOT := ../flow/util
 # ------------------------------------------------------------
 # Workspace-rooted outputs (do NOT write to repo root)
 # ------------------------------------------------------------
@@ -12,9 +9,6 @@ WORKSPACE ?= ../workspace
 RUN_ID ?= $(shell date +%Y%m%d_%H%M%S)
 # place all artifacts under workspace/runs/<top>/<run_id>
 OUTROOT ?= $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)
-
-# Tools location in repo (read-only)
-UTILROOT ?= ../util
 
 # Standard output dirs (derived)
 LOGDIR     ?= $(OUTROOT)/logs

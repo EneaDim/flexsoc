@@ -25,6 +25,10 @@ def test_cli_ip_start(tmp_path: Path):
 
     assert p.returncode == 0
 
+    # Summary must be on stderr (keep stdout clean for piping / JSON)
+    assert "Runner dir:" in p.stderr
+    assert "Runner dir:" not in p.stdout
+
     out = re.sub(r"\x1b\[[0-9;]*m", "", p.stdout + "\n" + p.stderr)
     assert "Flow dir:" in out
 

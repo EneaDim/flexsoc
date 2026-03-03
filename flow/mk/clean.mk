@@ -1,4 +1,11 @@
 # CLEAN
+
+clean-pyc:
+	@find . -type d -name "__pycache__" -prune -exec rm -rf {} +
+	@find . -type f -name "*.pyc" -delete
+	@find . -type f -name "*.pyo" -delete
+	@rm -rf .pytest_cache .ruff_cache
+
 clean_doc:
 	$(Q)$(RM) $(DOCDIR)/*
 clean_log:
@@ -50,7 +57,7 @@ clean_vendor:
 clean_subdir:
 	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean
 	$(Q)$(MAKE) --no-print-dir -C fsm_gen setup
-clean: clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
+clean: clean-pyc clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
 	$(Q)$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	$(Q)$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	$(Q)$(CLEAR)
