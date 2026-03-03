@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import typer
 import yaml
@@ -18,7 +18,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .clean import clean_run, clean_workspace
+from .clean import clean_all, clean_pycache, clean_run, clean_workspace
 from .config import default_workspace
 from .doctor import run_doctor
 from .executor import execute_action
@@ -108,6 +108,15 @@ def _maybe_flow_dir(*, workspace: Path, top: Optional[str], run_id: Optional[str
     return workspace / "runs" / top / run_id
 
 
+def _fmt_duration(dur: object) -> Optional[str]:
+    if not isinstance(dur, (int, float)):
+        return None
+    # Keep it minimal and stable
+    if dur < 10:
+        return f"{dur:.1f}s"
+    return f"{dur:.0f}s"
+
+
 def _print_run_summary(
     *,
     label: str,
@@ -116,7 +125,7 @@ def _print_run_summary(
     flow_dir: Optional[Path] = None,
 ) -> None:
     m = _read_runner_manifest(runner_dir)
-    dur = m.get("duration_s")
+    dur = _fmt_duration(m.get("duration_s"))
     profiling = m.get("profiling", {}).get("enabled", False)
 
     ok = (exit_code == 0)
@@ -127,8 +136,8 @@ def _print_run_summary(
     head.append(f"{badge} ", style=style)
     head.append(label, style="bold")
     head.append(f"  ({exit_code})", style="dim")
-    if isinstance(dur, (int, float)):
-        head.append(f" · {dur}s", style="dim")
+    if isinstance(dur, str):
+        head.append(f" · {dur}", style="dim")
     if profiling:
         head.append(" · prof", style="dim")
 
@@ -195,9 +204,7 @@ def _render_hub() -> None:
     quick.append("\n")
     quick.append("Quick actions\n", style="bold")
     quick.append("  flexsoc run ip_start --top my_ip --run-id dev1 --reg-itf tlul --overwrite --force\n")
-    quick.append("  flexsoc make sim --top my_ip --run-id dev1 -- --jobs 8\n")
     quick.append("  flexsoc actions\n")
-    quick.append("  flexsoc action ip_start\n")
     quick.append("  flexsoc help topics\n")
 
     nav = Text()
@@ -333,8 +340,47 @@ def _render_actions_list() -> None:
     tbl.add_column("Action", style="bold")
     tbl.add_column("Description")
     tbl.add_column("Run")
+    preferred = [
+        # Authoring / generation steps
+        "hjson",
+        "reg",
+        "doc",
+        "rtl_stub",
+        "setup_tb",
+        # Bootstrap (composed flow)
+        "ip_start",
+        # Build / signoff pipeline
+        "lint",
+        "sim",
+        "synth",
+        "sta",
+        "power",
+        "pnr",
+        "pnr_gui",
+        # SW / integration
+        "driver",
+        # FuseSoC + bundle workflow
+        "fsoc_init",
+        # Save and load
+        "ip_save",
+        "ip_load",
+    ]
 
-    for name in sorted(actions.keys()):
+    ordered: List[str] = []
+    seen = set()
+
+    for n in preferred:
+        if n in actions and n not in seen:
+            ordered.append(n)
+            seen.add(n)
+
+    # Anything else goes after, stable alphabetical
+    for n in sorted(actions.keys()):
+        if n not in seen:
+            ordered.append(n)
+
+    for name in ordered:
+
         entry = actions.get(name, {}) or {}
         desc = str(entry.get("description", "")).strip()
         tbl.add_row(name, desc, f"flexsoc run {name}")
@@ -640,6 +686,31 @@ def clean_run_cmd(
     ws = (workspace or default_workspace()).resolve()
     clean_run(ws, top, run_id)
 
+
+
+@app.command("clean")
+def clean_pycache_cmd(
+    repo_root: Optional[Path] = typer.Option(None, help="Repo root (default: auto-detected)"),
+) -> None:
+    """
+    Remove Python caches (__pycache__, *.pyc) recursively.
+    """
+    _setup_logging()
+    removed = clean_pycache(repo_root)
+    _OUT.print(f"Removed {removed} cache entries")
+
+
+@app.command("clean-all")
+def clean_all_cmd(
+    workspace: Optional[Path] = typer.Option(None, help="Workspace directory (default: from config)"),
+) -> None:
+    """
+    Delete the entire workspace directory (hard reset).
+    """
+    _setup_logging()
+    ws = (workspace or default_workspace()).resolve()
+    clean_all(ws)
+    _OUT.print(f"Deleted workspace: {ws}")
 
 @app.command("clean-workspace")
 def clean_workspace_cmd(
