@@ -25,12 +25,12 @@ ip_start: setup hjson reg doc rtl_stub setup_tb sim
 
 # File list generation
 flist:
-	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root ../hw/ips --rtldir $(RTLDIR)
+	$(Q)$(PYTHON) scripts/gen_filelist.py --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root $(abspath ../hw/ips) --rtldir $(RTLDIR)
 
 # SW DRIVERS
 .PHONY: driver
 driver:
-	$(Q)$(UTILDIR)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
+	$(Q)$(UTILROOT)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
 	$(Q)$(PYTHON) scripts/driver_gen.py -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR)
 
 # Fetch ip from github

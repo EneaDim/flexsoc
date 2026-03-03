@@ -1,117 +1,138 @@
-# ROOTS
-REPOROOT := $(abspath $(CURDIR)/..)
-UTILROOT := ../flow/util
-# ------------------------------------------------------------
-# Workspace-rooted outputs (do NOT write to repo root)
-# ------------------------------------------------------------
-WORKSPACE ?= ../workspace
-# allow caller to set RUN_ID; default timestamp-ish via shell date
-RUN_ID ?= $(shell date +%Y%m%d_%H%M%S)
-# place all artifacts under workspace/runs/<top>/<run_id>
-OUTROOT ?= $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)
+# =============================================================================
+# flexsoc Flow Configuration (workspace-rooted)
+# - All artifacts MUST go under: $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)/
+# - Repo root is discovered from the flow/ directory.
+# =============================================================================
 
+# -----------------------------------------------------------------------------
+# Roots
+# -----------------------------------------------------------------------------
+# Repo root (robust when invoked as: make -C flow ...)
+REPO_ROOT := $(abspath $(CURDIR)/..)
+
+# Utilities root (if you have flow/util tooling)
+UTILROOT  ?= $(CURDIR)/util
+
+# Workspace root (caller may override)
+WORKSPACE ?= $(REPO_ROOT)/workspace
+
+# Run identity (caller may override; flexsoc will pass RUN_ID)
+RUN_ID    ?= $(shell date +%Y%m%d_%H%M%S)
+
+# Place all artifacts under workspace/runs/<top>/<run_id>
+OUTROOT   ?= $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)
+
+# -----------------------------------------------------------------------------
 # Standard output dirs (derived)
-LOGDIR     ?= $(OUTROOT)/logs
-RTLDIR     ?= $(OUTROOT)/rtl
-TBDIR      ?= $(OUTROOT)/tb
-SIMDIR     ?= $(OUTROOT)/sim
-SYNDIR     ?= $(OUTROOT)/syn
-SIGNOFFDIR ?= $(OUTROOT)/signoff
-MODELDIR   ?= $(OUTROOT)/model
-UTILOUT    ?= $(OUTROOT)/util
-# (compat) output util dir name
-UTILDIR    ?= $(UTILOUT)
-DOCDIR     ?= $(OUTROOT)/doc
-DATADIR    ?= $(OUTROOT)/data
-DRIVERDIR  ?= $(OUTROOT)/drivers
-LINTDIR    ?= $(OUTROOT)/lint
-PYDIR      ?= $(OUTROOT)/py
-FSMDIR     ?= $(OUTROOT)/fsm
-ORSDIR     ?= $(OUTROOT)/openroad
+# -----------------------------------------------------------------------------
+LOGDIR      ?= $(OUTROOT)/logs
+RTLDIR      ?= $(OUTROOT)/rtl
+TBDIR       ?= $(OUTROOT)/tb
+SIMDIR      ?= $(OUTROOT)/sim
+SYNDIR      ?= $(OUTROOT)/syn
+SIGNOFFDIR  ?= $(OUTROOT)/signoff
+MODELDIR    ?= $(OUTROOT)/model
+UTILOUT     ?= $(OUTROOT)/util
+UTILDIR     ?= $(UTILOUT)          # compat alias
+DOCDIR      ?= $(OUTROOT)/doc
+DATADIR     ?= $(OUTROOT)/data
+DRIVERDIR   ?= $(OUTROOT)/drivers
+LINTDIR     ?= $(OUTROOT)/lint
+PYDIR       ?= $(OUTROOT)/py
+FSMDIR      ?= $(OUTROOT)/fsm
+ORSDIR      ?= $(OUTROOT)/openroad
 
+# -----------------------------------------------------------------------------
+# Tools
+# -----------------------------------------------------------------------------
 PYTHON          ?= python3
-YOSYS           := yosys
-STA             := sta
+YOSYS           ?= yosys
+STA             ?= sta
 VSV             ?= sv
-SV2V            := sv2v
+SV2V            ?= sv2v
 LINTER          ?= verilator
 COMPILER        ?= verilator
-FUSESOC         := fusesoc
-ECHO            := echo
-MKDIR           := mkdir
-GREP            := grep
-CP              := cp
-RM              := rm -rf
-FIND            := find
-CLEAR           := clear
+FUSESOC         ?= fusesoc
+
+ECHO            ?= echo
+MKDIR           ?= mkdir
+GREP            ?= grep
+CP              ?= cp
+RM              ?= rm -rf
+FIND            ?= find
+CLEAR           ?= clear
+
 MAKEFLAGS       += --no-print-dir
-# =========================
+
+# -----------------------------------------------------------------------------
 # Project identifiers
-# =========================
+# -----------------------------------------------------------------------------
 PRJ             ?= prj
 TOP             ?= test
 FSM             ?= fsm_example
 HOST            ?= uart
 
-# =========================
-# Directories
-# =========================
-RTLDIR          ?= rtl
-TBDIR           ?= tb
-LINTDIR         ?= lint
-SIMDIR          ?= sim
-SYNDIR          ?= syn
-SIGNOFFDIR      ?= signoff
-ORSDIR          ?= ors
-MODELDIR        ?= model
-PYDIR           ?= py
-FSMDIR          ?= fsms
-LOGDIR          ?= log
-DOCDIR          ?= doc
-DATADIR         ?= data
-DRIVERDIR       ?= driver
-VENDORDIR       := vendor
-TOPDIR          := top
-SCRIPTSDIR      ?= scripts
-REGRESSIONDIR   := $(TBDIR)/regression
-OUTNAME         ?= ok
-
-# =========================
+# -----------------------------------------------------------------------------
 # Vendor / SoC settings
-# =========================
+# -----------------------------------------------------------------------------
 VENDOR          ?= lowrisc_ip
 TARGET_FSOC     ?= lint
 REG_ITF         ?= tlul
 
-# =========================
+# -----------------------------------------------------------------------------
+# Include dirs (Repo-absolute, cwd-independent)
+# -----------------------------------------------------------------------------
+# Common include dirs used across tools (OpenTitan-like layout)
+INC_PKGS        := $(REPO_ROOT)/hw/ips/pkgs
+INC_PRIM        := $(REPO_ROOT)/hw/ips/prim
+INC_PRIM_OT     := $(REPO_ROOT)/hw/ips/prim_opentitan
+INC_TLUL        := $(REPO_ROOT)/hw/ips/tlul
+
+# OpenROAD/Slang include dirs override (used in pnr.mk)
+OR_INC_DIRS     := \
+  $(INC_PKGS) \
+  $(INC_PRIM_OT) \
+  $(INC_PRIM_OT)/rtl \
+  $(INC_PRIM_OT)/include
+
+# -----------------------------------------------------------------------------
 # Lint / compile flags
-# =========================
+# NOTE: keep these as close as possible to original behavior, but make paths
+# repo-absolute to avoid cwd issues.
+# -----------------------------------------------------------------------------
 LINT_FLAGS      := --lint-only -Wall -Wno-fatal --timing \
-                   +incdir+model +incdir+../hw/ips/pkgs +incdir+../hw/ips/prim \
-                   +incdir+../hw/ips/prim_opentitan +incdir+../hw/ips/tlul
+                   +incdir+model \
+                   +incdir+$(INC_PKGS) \
+                   +incdir+$(INC_PRIM) \
+                   +incdir+$(INC_PRIM_OT) \
+                   +incdir+$(INC_TLUL)
 
-IVERILOG_FLAGS  := -g2012 -v -Iips/pkgs -Iips/prim -I$(RTLDIR) -I$(TBDIR)
+IVERILOG_FLAGS  := -g2012 -v -I$(INC_PKGS) -I$(INC_PRIM) -I$(RTLDIR) -I$(TBDIR)
+
 VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
-                   +incdir+$(RTLDIR) +incdir+$(TBDIR) +incdir+model +incdir+../hw/ips/prim \
-                   +incdir+../hw/ips/pkgs +incdir+../hw/ips/prim_opentitan +incdir+../hw/ips/tlul
+                   +incdir+$(RTLDIR) +incdir+$(TBDIR) +incdir+model \
+                   +incdir+$(INC_PRIM) \
+                   +incdir+$(INC_PKGS) \
+                   +incdir+$(INC_PRIM_OT) \
+                   +incdir+$(INC_TLUL)
 
-# =========================
+# -----------------------------------------------------------------------------
 # Simulation
-# =========================
+# -----------------------------------------------------------------------------
 TESTBENCH       ?= $(TOP)_tb
 TESTBENCHES     := $(wildcard $(TBDIR)/*.sv)
 
-# =========================
+# -----------------------------------------------------------------------------
 # Waveform viewer
-# =========================
+# -----------------------------------------------------------------------------
 VIEWER          ?= gtkwave
 VIEWER_FLAGS    ?= --dark --rcvar 'fontname_signals Monospace 17' \
                    --rcvar 'fontname_waves Monospace 17' --giga
 VIEWER_CONF     ?= $(SIMDIR)/$(TOP)_tb.gtkw
 
-# =========================
+# -----------------------------------------------------------------------------
 # Synthesis / sign-off
-# =========================
+# -----------------------------------------------------------------------------
 CLK_PERIOD      ?= 20
 TARGET_SYN      ?= asic
 TARGET_OPT      ?= area
@@ -125,10 +146,13 @@ LIBS            ?= lib/sky130_fd_sc_hd__ss_100C_1v40.lib \
                    lib/sky130_fd_sc_hd__tt_025C_1v80.lib \
                    lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
 LIB_SYN         ?= lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+
 PRIM            ?= verilog/primitives.v \
                    verilog/sky130_fd_sc_hd.no_tc.v
 
+# -----------------------------------------------------------------------------
 # OpenROAD
+# -----------------------------------------------------------------------------
 ORS             ?= ~/openroad/flow
 ORS_LOGS        ?= logs
 ORS_REPORTS     ?= reports
@@ -136,9 +160,9 @@ ORS_RESULTS     ?= results
 ORS_OBJECTS     ?= objects
 ORS_TECH        ?= sky130hd
 
-# =========================
+# -----------------------------------------------------------------------------
 # SoC memory map helpers
-# =========================
+# -----------------------------------------------------------------------------
 DEVLIST :=
 define add_device
 DEVLIST += $(1)
@@ -165,12 +189,14 @@ endif
 
 SOC_MEMORY_MAP := $(foreach d,$(DEVLIST),--device $(d) $(BASE_$(d)) $(SIZE_$(d)) $(FROM_LR_$(d)))
 
+# -----------------------------------------------------------------------------
 # LLM
-OLLAMA_MODEL=qwen2.5:3b-instruct
+# -----------------------------------------------------------------------------
+OLLAMA_MODEL ?= qwen2.5:3b-instruct
 
-# =========================
+# -----------------------------------------------------------------------------
 # Colors
-# =========================
+# -----------------------------------------------------------------------------
 ORANGE          := \033[38;5;214m
 RED             := \033[91m
 GREEN           := \033[92m
@@ -178,17 +204,20 @@ YELLOW          := \033[93m
 BLUE            := \033[94m
 RESET           := \033[0m
 
+# -----------------------------------------------------------------------------
 # Quiet by default; VERBOSE=1 to see commands
+# -----------------------------------------------------------------------------
 ifeq ($(VERBOSE),1)
   Q :=
 else
   Q := @
 endif
-#Q :=
 
-# Overwrite
+# -----------------------------------------------------------------------------
+# Overwrite handling (flexsoc uses --overwrite --force)
+# -----------------------------------------------------------------------------
 ifeq ($(FORCE),1)
-  OVERWRITE :=--force
+  OVERWRITE := --force
 else
   OVERWRITE :=
 endif
