@@ -5,4 +5,4 @@ from pathlib import Path
 
 def default_workspace() -> Path:
     # default workspace at repo root /workspace
-    return Path("workspace").resolve()
+    return Path("workspace")

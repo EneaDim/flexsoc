@@ -36,3 +36,8 @@ driver:
 # Fetch ip from github
 fetch:
 	$(Q)$(UTILROOT)/vendor.py --update vendor/$(VENDOR).vendor.hjson
+
+# BASIC FLOW:
+ip_flow: reg doc lint sim syn sdf sta sta_violators power view
+ip_flow_noreg: flist lint sim syn sdf sta sta_violators power view
+ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui

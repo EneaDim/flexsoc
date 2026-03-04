@@ -1,5 +1,5 @@
 // Include files 
-`include "tb/include_tb.sv"
+`include "include_tb.sv"
 
 module spi_host_tb;
   //Parameters
@@ -54,9 +54,9 @@ module spi_host_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/spi_host_tb.vcd");
+      $dumpfile("../workspace/runs/spi_host/dev1/sim/spi_host_tb.vcd");
     `else
-      $dumpfile("sim/spi_host_syn_tb.vcd");
+      $dumpfile("../workspace/runs/spi_host/dev1/sim/spi_host_syn_tb.vcd");
     `endif
     $dumpvars(0, spi_host_tb);
   end

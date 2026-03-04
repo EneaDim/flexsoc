@@ -1,18 +1,18 @@
 // Timescale 
 `timescale 1ns/1ps 
 // Include source files 
-`include "ips/pkgs/top_pkg.sv"
-`include "ips/pkgs/prim_util_pkg.sv"
-`include "ips/pkgs/prim_mubi_pkg.sv"
-`include "ips/pkgs/prim_secded_pkg.sv"
-`include "ips/pkgs/tlul_pkg.sv"
-`include "tb/tlul_utils.sv"
-`include "tb/tlul_if.sv"
-`include "rtl/spi_host_reg_pkg.sv"
+`include "top_pkg.sv"
+`include "prim_util_pkg.sv"
+`include "prim_mubi_pkg.sv"
+`include "prim_secded_pkg.sv"
+`include "tlul_pkg.sv"
+`include "tlul_utils.sv"
+`include "tlul_if.sv"
+`include "spi_host_reg_pkg.sv"
 `ifndef SYN
-  `include "rtl/spi_host.sv"
+  `include "spi_host.sv"
 `else
-  `include "verilog/primitives.v"
-  `include "verilog/sky130_fd_sc_hd.no_tc.v"
-  `include "syn/spi_host_synth.v"
+  `include "primitives.v"
+  `include "sky130_fd_sc_hd.no_tc.v"
+  `include "spi_host_synth.v"
 `endif

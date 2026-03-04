@@ -1,0 +1,2 @@
+Vtop_pkg_tlul_fifo_sync__RCz9_RDz9__0.o: \
+ Vtop_pkg_tlul_fifo_sync__RCz9_RDz9__0.cpp Vtop_pkg__pch.h

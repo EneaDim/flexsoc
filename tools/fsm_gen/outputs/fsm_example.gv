@@ -1,0 +1,18 @@
+digraph fsm_example {
+  RESET -> IDLE [ label = "reset_done_i" ];
+  IDLE -> WAIT_CMD [ label = "cmd_pending_i" ];
+  IDLE -> LOW_POWER [ label = "sleep_req_i" ];
+  LOW_POWER -> IDLE [ label = "wake_i" ];
+  WAIT_CMD -> PREFETCH [ label = "cmd_valid_i & ~flush_req_i" ];
+  WAIT_CMD -> FLUSH [ label = "flush_req_i" ];
+  PREFETCH -> EXECUTE [ label = "prefetch_done_i" ];
+  EXECUTE -> WRITEBACK [ label = "exec_done_i & ~error_i" ];
+  EXECUTE -> ERROR [ label = "error_i" ];
+  WRITEBACK -> IDLE [ label = "writeback_done_i & ~cmd_pending_i" ];
+  WRITEBACK -> WAIT_CMD [ label = "writeback_done_i & cmd_pending_i" ];
+  FLUSH -> IDLE [ label = "flush_done_i & ~cmd_pending_i" ];
+  FLUSH -> WAIT_CMD [ label = "flush_done_i & cmd_pending_i" ];
+  ERROR -> SHUTDOWN [ label = "fatal_error_i" ];
+  ERROR -> IDLE [ label = "clear_error_i & ~fatal_error_i" ];
+  SHUTDOWN -> RESET [ label = "restart_i" ];
+}

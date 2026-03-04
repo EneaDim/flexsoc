@@ -393,3 +393,6 @@ flexsoc action ip_start
 flexsoc plan "create ip" --out plan.json
 flexsoc exec plan.json --workspace workspace --run-id dev2 --top my_ip --reg-itf tlul --overwrite --force
 ```
+
+make -C flow ip_tutorial TOP=spi_host RUN_ID=dev1
+make -C flow ip_tutorial TOP=pwm_ramp RUN_ID=dev1

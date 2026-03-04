@@ -1,57 +1,38 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
 from .flow_config import FlowConfig
-from .manifest import write_flow_manifest
 from .registry import load_registry
-from .reporting import parse_ip_start_flow, write_report_json
 from .runner import MakeBackend
 
 log = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ExecResult:
+    """
+    Result of executing a registry action via MakeBackend.
+    """
     exit_code: int
     runner_run_dir: Path
     flow_run_dir: Optional[Path]
 
 
 def _default_run_id() -> str:
+    # Stable timestamp-ish id (runner has its own separate run dir)
     return datetime.now().strftime("%Y%m%d_%H%M%S")
-
-
-def _postprocess_ip_start(*, flow_run_dir: Path, cfg: FlowConfig, action: str, params: Dict[str, Any]) -> None:
-    """
-    Postprocess implementation keyed by registry 'postprocess' string.
-    Note: This function name mentions ip_start, but executor does NOT special-case the action id.
-    """
-    write_flow_manifest(
-        flow_run_dir,
-        action=action,
-        top=str(cfg.top),
-        run_id=str(cfg.run_id),
-        workspace=cfg.resolved_workspace(),
-        params=params,
-    )
-    report = parse_ip_start_flow(flow_run_dir)
-    write_report_json(report, flow_run_dir / "report.json")
-
-
-_POSTPROCESSORS: Dict[str, Callable[..., None]] = {
-    "ip_start": _postprocess_ip_start,
-}
 
 
 def _action_meta(action_entry: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract action metadata with safe defaults.
-    No knowledge of specific action ids.
+    Purely registry-driven; no action-id special cases.
     """
     def b(key: str, default: bool) -> bool:
         v = action_entry.get(key, default)
@@ -61,8 +42,12 @@ def _action_meta(action_entry: Dict[str, Any]) -> Dict[str, Any]:
         "requires_top": b("requires_top", False),
         "requires_run_id": b("requires_run_id", False),
         "produces_outroot": b("produces_outroot", False),
-        "postprocess": action_entry.get("postprocess", None),
     }
+
+
+def _make_kv(k: str, v: Any) -> str:
+    # Pass to make as KEY=VALUE (uppercased for convention)
+    return f"{k.upper()}={v}"
 
 
 def execute_action(
@@ -73,30 +58,46 @@ def execute_action(
     run_id: Optional[str] = None,
 ) -> ExecResult:
     """
-    Pure execution layer. No Typer.
+    Generic execution layer (no Typer / no Rich).
 
-    Generic behavior driven by registry metadata:
-    - WORKSPACE always enforced
-    - requires_top / requires_run_id validated
-    - produces_outroot => if TOP provided and RUN_ID missing, generate one
-    - postprocess => optional post-run steps (manifest/report/etc.)
+    Registry-driven behavior:
+      - command: base command list (usually: make -C flow <target>)
+      - requires_top / requires_run_id: validation
+      - produces_outroot: if TOP present and RUN_ID missing and not required, generate one
+
+    Contracts:
+      - NEVER prints (stdout/stderr) directly (runner handles logs)
+      - NEVER writes into flow/ (Makefile targets must honor WORKSPACE)
+      - Returns runner dir and (if resolvable) flow run dir
     """
+    # Normalize workspace ONCE, early, to avoid cwd-dependent paths later
+    ws = Path(workspace).expanduser().resolve()
+
+    # When invoking `make -C flow`, WORKSPACE must be relative to flow/ to keep generated artifacts portable
+    repo_root = Path(__file__).resolve().parents[2]
+    flow_dir = (repo_root / "flow").resolve()
+    ws_for_make = os.path.relpath(ws, flow_dir)
+
     registry = load_registry()
     actions = registry.get("actions", {})
-    if action not in actions:
+    if not isinstance(actions, dict) or action not in actions:
         raise ValueError(f"Unknown action: {action}")
 
     action_entry = actions[action]
-    if not isinstance(action_entry, dict) or "command" not in action_entry:
+    if not isinstance(action_entry, dict):
+        raise ValueError(f"Invalid registry entry for action '{action}': expected mapping")
+
+    if "command" not in action_entry:
         raise ValueError(f"Invalid registry entry for action '{action}': missing 'command'")
+
+    base_cmd = action_entry["command"]
+    if not isinstance(base_cmd, list) or not all(isinstance(x, (str, int, float)) for x in base_cmd):
+        raise ValueError(f"Invalid registry entry for action '{action}': 'command' must be a list")
 
     meta = _action_meta(action_entry)
 
-    cmd = list(action_entry["command"])
-    cfg = FlowConfig(workspace=workspace, top=params.get("top"), run_id=run_id)
-
-    # Always enforce workspace (absolute)
-    cmd.extend(cfg.to_make_vars())
+    top = params.get("top")
+    cfg = FlowConfig(workspace=ws, top=top, run_id=run_id)
 
     # Validate required fields
     if meta["requires_top"] and not cfg.top:
@@ -104,56 +105,59 @@ def execute_action(
     if meta["requires_run_id"] and not cfg.run_id:
         raise ValueError(f"{action} requires run_id")
 
-    # Auto-run-id only if action produces outroot AND top is present AND run_id missing
+    # Auto-generate run_id if action produces outroot, top is available, and run_id not required
     if meta["produces_outroot"] and cfg.top and not cfg.run_id and not meta["requires_run_id"]:
-        cfg = cfg.with_run_id_if_needed(require=True)
-        # ensure make sees the generated run id (vars already appended earlier)
-        cmd.append(f"RUN_ID={cfg.run_id}")
+        cfg = FlowConfig(workspace=ws, top=cfg.top, run_id=_default_run_id())
 
-    # Pass params as KEY=VALUE for make
+    # Build command:
+    # - start from registry command
+    # - always enforce workspace/top/run_id via FlowConfig make vars
+    # - then pass remaining params as uppercase make vars
+    cmd: list[str] = [str(x) for x in base_cmd]
+    # Enforce WORKSPACE/TOP/RUN_ID for make-based flows
+    if cmd and cmd[0] == "make":
+        # If registry command targets flow/ via -C flow, keep WORKSPACE relative to flow/
+        use_rel = (len(cmd) >= 3 and cmd[1] == "-C" and str(cmd[2]) == "flow")
+        cmd.append(f"WORKSPACE={ws_for_make}" if use_rel else f"WORKSPACE={ws}")
+        if cfg.top:
+            cmd.append(f"TOP={cfg.top}")
+        if cfg.run_id:
+            cmd.append(f"RUN_ID={cfg.run_id}")
+
+    # Pass params as KEY=VALUE (skip Nones; do not override FlowConfig vars)
     for k, v in params.items():
         if v is None:
             continue
-        cmd.append(f"{k.upper()}={v}")
+        ku = k.upper()
+        if ku in ("WORKSPACE", "TOP", "RUN_ID"):
+            continue
+        cmd.append(_make_kv(k, v))
 
     log.debug(
-        "execute_action: action=%s workspace=%s top=%s run_id=%s meta=%s",
+        "execute_action: action=%s ws=%s top=%s run_id=%s meta=%s",
         action,
-        cfg.resolved_workspace(),
+        ws,
         cfg.top,
         cfg.run_id,
         meta,
     )
-    log.debug("execute_action: cmd=%s", " ".join(str(x) for x in cmd))
+    log.debug("execute_action: cmd=%s", " ".join(cmd))
 
     backend = MakeBackend()
-    br = backend.run(action_id=action, cmd=cmd, params=params, workspace_dir=cfg.resolved_workspace())
+    br = backend.run(
+        action_id=action,
+        cmd=cmd,
+        params=params,
+        workspace_dir=ws,
+    )
+
+    # Flow run dir is only meaningful when we can resolve it (top+run_id)
+    flow_run_dir = cfg.flow_run_dir() if (cfg.top and cfg.run_id) else None
 
     log.info("action_done: action=%s exit_code=%s runner_dir=%s", action, br.exit_code, br.run_dir)
 
-    flow_run_dir: Optional[Path] = None
-
-    post = meta["postprocess"]
-    if post:
-        fn = _POSTPROCESSORS.get(str(post))
-        if fn is None:
-            raise ValueError(f"Unknown postprocess '{post}' for action '{action}'")
-
-        flow_run_dir = cfg.flow_run_dir()
-        if flow_run_dir is None:
-            raise RuntimeError(f"postprocess '{post}' requires top+run_id to resolve flow_run_dir")
-
-        if not flow_run_dir.exists():
-            candidates = (
-                sorted((cfg.resolved_workspace() / "runs" / str(cfg.top)).glob("*"))
-                if (cfg.resolved_workspace() / "runs" / str(cfg.top)).exists()
-                else []
-            )
-            raise RuntimeError(
-                f"Expected flow run dir missing: {flow_run_dir}. Existing: {[c.name for c in candidates]}"
-            )
-
-        fn(flow_run_dir=flow_run_dir, cfg=cfg, action=action, params=params)
-        log.debug("postprocess=%s done in %s", post, flow_run_dir)
-
-    return ExecResult(exit_code=br.exit_code, runner_run_dir=br.run_dir, flow_run_dir=flow_run_dir)
+    return ExecResult(
+        exit_code=br.exit_code,
+        runner_run_dir=br.run_dir,
+        flow_run_dir=flow_run_dir,
+    )

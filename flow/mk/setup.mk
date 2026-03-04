@@ -86,11 +86,3 @@ setup_signoff: setup_sdc syn
 		-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) \
 		-o $(SIGNOFFDIR)
 
-# SETUP P&R (OpenROAD config generation)
-setup_pnr: setup flist
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(ORSDIR)
-	$(Q)$(PYTHON) scripts/setup_pnr.py $(TOP) \
-	  --syn_strategy $(TARGET_OPT) --clk_period $(CLK_PERIOD) \
-	  --platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f \
-		--outdir $(ORSDIR) $(if $(strip $(OVERWRITE)),--overwrite,)

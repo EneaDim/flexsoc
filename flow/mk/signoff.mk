@@ -4,8 +4,8 @@
 
 sta: setup_signoff 
 	@echo "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl \
-	> $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl 2>&1 | tee \
+	$(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log 
 	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log \
 	> $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true 
 	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log \
@@ -15,14 +15,14 @@ sta: setup_signoff
 sdf: setup_signoff
 	@echo "\n$(ORANGE)Write sdf files...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl 2>&1 
 
 #####################################
 ###        Power Analysis        ###
 ####################################
 power: setup_signoff 
 	@echo "\n$(ORANGE)Power Analysis, static and with .vcd...\n$(RESET)"
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl > $(LOGDIR)/$(TOP)_power.log 
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl  2>&1 | tee $(LOGDIR)/$(TOP)_power.log 
 
 # STA only violators
 sta_violators: setup_signoff 

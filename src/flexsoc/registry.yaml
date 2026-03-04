@@ -149,6 +149,55 @@ actions:
         type: int
         required: false
 
+
+  view:
+    description: View RTL waveforms (GTKWave)
+    command:
+    - make
+    - -C
+    - flow
+    - view
+    requires_top: true
+    requires_run_id: true
+    produces_outroot: false
+    postprocess: null
+    params:
+      top:
+        type: string
+        required: true
+
+  sim_syn:
+    description: Simulate post-synthesis netlist (vvp + SDF verbose)
+    command:
+    - make
+    - -C
+    - flow
+    - sim_syn
+    requires_top: true
+    requires_run_id: true
+    produces_outroot: true
+    postprocess: null
+    params:
+      top:
+        type: string
+        required: true
+
+  view_syn:
+    description: View post-synthesis waveforms (GTKWave)
+    command:
+    - make
+    - -C
+    - flow
+    - view_syn
+    requires_top: true
+    requires_run_id: true
+    produces_outroot: false
+    postprocess: null
+    params:
+      top:
+        type: string
+        required: true
+
   synth:
     description: Run synthesis (Yosys)
     command:

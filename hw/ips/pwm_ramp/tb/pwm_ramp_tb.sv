@@ -1,9 +1,9 @@
 // Timescale 
 `timescale 1ns/1ps 
 // Include files 
-`include "tb/include_pwm_ramp_tb.sv"
-`include "model/rc_filter.sv"
-`include "model/lvds.sv"
+`include "include_pwm_ramp_tb.sv"
+`include "rc_filter.sv"
+`include "lvds.sv"
 
 module pwm_ramp_tb;
   //Parameters
@@ -81,9 +81,9 @@ module pwm_ramp_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/pwm_ramp_tb.vcd");
+      $dumpfile("../workspace/runs/pwm_ramp/dev1/sim/pwm_ramp_tb.vcd");
     `else
-      $dumpfile("sim/pwm_ramp_syn_tb.vcd");
+      $dumpfile("../workspace/runs/pwm_ramp/dev1/sim/pwm_ramp_syn_tb.vcd");
     `endif
     $dumpvars(0, pwm_ramp_tb);
   end

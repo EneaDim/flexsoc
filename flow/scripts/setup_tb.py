@@ -59,37 +59,46 @@ from common import (
 # -------------------------
 # Render helpers (SV text)
 # -------------------------
-
 def _sv_header_include_for_verilator(top: str, rtldir: str, syndir: str,
                                      prims: List[str], flag_reg_pkg: bool,
                                      itf: str, vsv: str) -> str:
     inc: List[str] = []
     inc.append("`ifndef SYN")
-    inc.append('  `include "../hw/ips/pkgs/top_pkg.sv"')
-    inc.append('  `include "../hw/ips/pkgs/prim_util_pkg.sv"')
-    inc.append('  `include "../hw/ips/pkgs/prim_mubi_pkg.sv"')
-    inc.append('  `include "../hw/ips/pkgs/prim_secded_pkg.sv"')
+
+    # pkgs: assume +incdir+<ips_root>/pkgs nel comando
+    inc.append('  `include "top_pkg.sv"')
+    inc.append('  `include "prim_util_pkg.sv"')
+    inc.append('  `include "prim_mubi_pkg.sv"')
+    inc.append('  `include "prim_secded_pkg.sv"')
+
+    # local rtl: assume +incdir+rtldir nel comando
     if flag_reg_pkg:
-        inc.append(f'  `include "{rtldir}/{top}_reg_pkg.sv"')
+        inc.append(f'  `include "{top}_reg_pkg.sv"')
+
+    # TLUL: assume +incdir+<ips_root>/pkgs e +incdir+<ips_root>/tlul
     if flag_reg_pkg and itf == "tlul":
-        inc.append('  `include "../hw/ips/pkgs/tlul_pkg.sv"')
+        inc.append('  `include "tlul_pkg.sv"')
         inc.append('  `include "tlul_utils.sv"')
         inc.append('  `include "tlul_if.sv"')
+
     if flag_reg_pkg and itf == "reg_iface":
         inc.append('  `include "reg_utils.sv"')
         inc.append('  `include "reg_if.sv"')
-    # DUT source
-    if vsv == "sv":
-        inc.append(f'  `include "{rtldir}/{top}.sv"')
-    else:
-        inc.append(f'  `include "{rtldir}/{top}.v"')
+
+    # DUT source: assume +incdir+rtldir nel comando
+    inc.append(f'  `include "{top}.{"sv" if vsv == "sv" else "v"}"')
+
     inc.append("`else")
+
+    # prims: includi solo il basename, e metti le loro dir in +incdir
     for p in prims:
-        inc.append(f'  `include "{p}"')
-    inc.append(f'  `include "{syndir}/{top}_synth.v"')
+        inc.append(f'  `include "{Path(p).name}"')
+
+    # synth netlist: includi solo nome, assume +incdir+syndir nel comando
+    inc.append(f'  `include "{top}_synth.v"')
+
     inc.append("`endif")
     return "\n".join(inc) + "\n"
-
 
 def _emit_tlul_if() -> str:
     return """`timescale 1ns/1ps
@@ -511,9 +520,9 @@ def _render_simple_tb(top: str,
         lines.append(f'`include "include_{top}_tb.sv"')
     else:
         lines.append("`ifndef SYN")
-        lines.append(f'  `include "rtl/{top}.v"')
+        lines.append(f'  `include "{top}.v"')
         lines.append("`else")
-        lines.append(f'  `include "{syndir}/{top}_synth.v"')
+        lines.append(f'  `include "{top}_synth.v"')
         lines.append("`endif")
     lines.append("")
     lines.append(f"module {top}_tb;")

@@ -14,13 +14,16 @@ REPO_ROOT := $(abspath $(CURDIR)/..)
 UTILROOT  ?= $(CURDIR)/util
 
 # Workspace root (caller may override)
-WORKSPACE ?= $(REPO_ROOT)/workspace
+WORKSPACE ?= ../workspace
 
 # Run identity (caller may override; flexsoc will pass RUN_ID)
 RUN_ID    ?= $(shell date +%Y%m%d_%H%M%S)
 
 # Place all artifacts under workspace/runs/<top>/<run_id>
 OUTROOT   ?= $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)
+
+# Sky130 / PDK inputs (Liberty + primitives)
+PDK_ROOT := $(REPO_ROOT)/pdks/sky130
 
 # -----------------------------------------------------------------------------
 # Standard output dirs (derived)
@@ -39,7 +42,7 @@ DATADIR     ?= $(OUTROOT)/data
 DRIVERDIR   ?= $(OUTROOT)/drivers
 LINTDIR     ?= $(OUTROOT)/lint
 PYDIR       ?= $(OUTROOT)/py
-FSMDIR      ?= $(OUTROOT)/fsm
+FSMDIR      ?= $(OUTROOT)/fsms
 ORSDIR      ?= $(OUTROOT)/openroad
 
 # -----------------------------------------------------------------------------
@@ -78,7 +81,7 @@ HOST            ?= uart
 VENDOR          ?= lowrisc_ip
 TARGET_FSOC     ?= lint
 REG_ITF         ?= tlul
-
+MOD_ADD         ?= 0x80000000
 # -----------------------------------------------------------------------------
 # Include dirs (Repo-absolute, cwd-independent)
 # -----------------------------------------------------------------------------
@@ -107,10 +110,12 @@ LINT_FLAGS      := --lint-only -Wall -Wno-fatal --timing \
                    +incdir+$(INC_PRIM_OT) \
                    +incdir+$(INC_TLUL)
 
-IVERILOG_FLAGS  := -g2012 -v -I$(INC_PKGS) -I$(INC_PRIM) -I$(RTLDIR) -I$(TBDIR)
+IVERILOG_FLAGS  := -g2012 -v -I$(INC_PKGS) -I$(INC_PRIM) -I$(RTLDIR) \
+									 -I$(TBDIR) -I$(PDK_ROOT)/verilog -I$(SYNDIR)
 
 VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
-                   +incdir+$(RTLDIR) +incdir+$(TBDIR) +incdir+model \
+									 --trace \
+                   +incdir+$(RTLDIR) +incdir+$(TBDIR) +incdir+$(MODELDIR) \
                    +incdir+$(INC_PRIM) \
                    +incdir+$(INC_PKGS) \
                    +incdir+$(INC_PRIM_OT) \
@@ -130,6 +135,21 @@ VIEWER_FLAGS    ?= --dark --rcvar 'fontname_signals Monospace 17' \
                    --rcvar 'fontname_waves Monospace 17' --giga
 VIEWER_CONF     ?= $(SIMDIR)/$(TOP)_tb.gtkw
 
+# Liberty files used by STA (multi-corner example)
+LIBS ?= \
+  $(PDK_ROOT)/lib/sky130_fd_sc_hd__ss_100C_1v40.lib \
+  $(PDK_ROOT)/lib/sky130_fd_sc_hd__tt_025C_1v80.lib \
+  $(PDK_ROOT)/lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
+
+# Liberty used for synthesis mapping (typical nominal corner)
+LIB_SYN ?= $(PDK_ROOT)/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+
+# Standard-cell primitives / tech verilog (for gate-level sim / iverilog)
+PRIM ?= \
+  $(PDK_ROOT)/verilog/primitives.v \
+  $(PDK_ROOT)/verilog/sky130_fd_sc_hd.no_tc.v
+
+
 # -----------------------------------------------------------------------------
 # Synthesis / sign-off
 # -----------------------------------------------------------------------------
@@ -140,16 +160,6 @@ ACTIVITY        ?= 10
 MODULE          ?= $(TOP)
 PATH_VIEW_FILE  ?= $(TOP)_sta.violators
 NPATHS          ?= 20
-
-# Sky130 libs (example)
-LIBS            ?= lib/sky130_fd_sc_hd__ss_100C_1v40.lib \
-                   lib/sky130_fd_sc_hd__tt_025C_1v80.lib \
-                   lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
-LIB_SYN         ?= lib/sky130_fd_sc_hd__tt_025C_1v80.lib
-
-PRIM            ?= verilog/primitives.v \
-                   verilog/sky130_fd_sc_hd.no_tc.v
-
 # -----------------------------------------------------------------------------
 # OpenROAD
 # -----------------------------------------------------------------------------

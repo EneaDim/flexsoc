@@ -26,7 +26,7 @@ class FlowConfig:
     run_id: Optional[str] = None
 
     def resolved_workspace(self) -> Path:
-        return self.workspace.resolve()
+        return self.workspace
 
     def flow_run_dir(self) -> Optional[Path]:
         if not self.top or not self.run_id:

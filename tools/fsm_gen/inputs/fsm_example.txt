@@ -1,0 +1,16 @@
+RESET -> IDLE : "reset_done_i";
+IDLE -> WAIT_CMD : "cmd_pending_i";
+IDLE -> LOW_POWER : "sleep_req_i";
+LOW_POWER -> IDLE : "wake_i";
+WAIT_CMD -> PREFETCH : "cmd_valid_i & !flush_req_i";
+WAIT_CMD -> FLUSH : "flush_req_i";
+PREFETCH -> EXECUTE : "prefetch_done_i";
+EXECUTE -> WRITEBACK : "exec_done_i & !error_i";
+EXECUTE -> ERROR : "error_i";
+WRITEBACK -> IDLE : "writeback_done_i & !cmd_pending_i";
+WRITEBACK -> WAIT_CMD : "writeback_done_i & cmd_pending_i";
+FLUSH -> IDLE : "flush_done_i & !cmd_pending_i";
+FLUSH -> WAIT_CMD : "flush_done_i & cmd_pending_i";
+ERROR -> SHUTDOWN : "fatal_error_i";
+ERROR -> IDLE : "clear_error_i & !fatal_error_i";
+SHUTDOWN -> RESET : "restart_i";

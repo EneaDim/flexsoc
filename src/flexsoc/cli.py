@@ -160,6 +160,7 @@ def _print_run_summary(
     if not ok:
         body.append("\n")
         body.append("Debug:\n", style="bold")
+        body.append(f"  cat {runner_dir}/stdout.log\n")
         body.append(f"  cat {runner_dir}/stderr.log\n")
 
     _UI.print(Panel(body, title=head, border_style=style))
@@ -203,7 +204,7 @@ def _render_hub() -> None:
     quick = Text()
     quick.append("\n")
     quick.append("Quick actions\n", style="bold")
-    quick.append("  flexsoc run ip_start --top my_ip --run-id dev1 --reg-itf tlul --overwrite --force\n")
+    quick.append("  flexsoc run ip_start --top my_ip --run-id dev1 --overwrite\n")
     quick.append("  flexsoc actions\n")
     quick.append("  flexsoc help topics\n")
 
@@ -213,8 +214,8 @@ def _render_hub() -> None:
     nav.append("  flexsoc h | ?         hub\n")
     nav.append("  flexsoc q             quickstart\n")
     nav.append("  flexsoc t             tutorial\n")
-    nav.append("  flexsoc ip            IP flow guide\n")
     nav.append("  flexsoc a             actions list\n")
+    nav.append("  flexsoc ip            IP flow guide\n")
     nav.append("  flexsoc make --list   make targets\n")
 
     tips = Text()
@@ -267,10 +268,10 @@ def _render_quickstart() -> None:
     body = Text()
     body.append("\n")
     body.append("1) Bootstrap IP template + smoke flow:\n", style="bold")
-    body.append("   flexsoc run ip_start --top my_ip --run-id dev1 --reg-itf tlul --overwrite --force\n")
+    body.append("   flexsoc run ip_start --top my_ip --run-id dev1 --overwrite\n")
     body.append("\n")
     body.append("2) Run any Makefile target (escape hatch):\n", style="bold")
-    body.append("   flexsoc make sim --top my_ip --run-id dev1 -- --jobs 8\n")
+    body.append("   flexsoc make view --top my_ip --run-id dev1\n")
     body.append("\n")
     body.append("3) Where outputs go:\n", style="bold")
     body.append("   - Flow artifacts: workspace/runs/<top>/<run_id>/...\n")
@@ -290,12 +291,10 @@ def _render_tutorial() -> None:
     body.append("\n")
     body.append("Suggested path:\n", style="bold")
     body.append("  A) flexsoc doctor\n")
-    body.append("  B) flexsoc run ip_start --top my_ip --run-id dev1 --reg-itf tlul\n")
-    body.append("  C) flexsoc make sim   --top my_ip --run-id dev1\n")
-    body.append("  D) flexsoc make syn   --top my_ip --run-id dev1\n")
-    body.append("  E) flexsoc make sta   --top my_ip --run-id dev1\n")
-    body.append("  F) flexsoc make power --top my_ip --run-id dev1\n")
-    body.append("  G) flexsoc make sdf   --top my_ip --run-id dev1\n")
+    body.append("  B) flexsoc make full_tutorial --top test --run-id dev1\n")
+    body.append("  C) flexsoc make ip_tutorial   --top pwm_ramp --run-id dev1\n")
+    body.append("  D) flexsoc make ip_tutorial   --top spi_host --run-id dev1\n")
+    body.append("  E) flexsoc make fsm_tutorial  --top fsm_example --run-id dev1 \n")
 
     _OUT.print(title)
     _OUT.print(subtitle)
@@ -629,8 +628,8 @@ def run(
     corner: Optional[str] = typer.Option(None, help="Corner (e.g. min/max)"),
     seed: Optional[int] = typer.Option(None, help="Simulation seed"),
     reg_itf: Optional[str] = typer.Option(None, help="Register interface (e.g. tlul)"),
-    overwrite: Optional[str] = typer.Option(None, help="Overwrite flag (e.g. --force)"),
-    workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing outputs"),
+    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws", help="Workspace directory"),
     run_id: Optional[str] = typer.Option(None, help="Run identifier"),
 ) -> None:
     _setup_logging()
@@ -643,20 +642,25 @@ def run(
         params["corner"] = corner
     if reg_itf is not None:
         params["reg_itf"] = reg_itf
-    if overwrite is not None:
-        params["overwrite"] = overwrite
+    if overwrite:
+        params["force"] = 1
     if seed is not None:
         params["seed"] = seed
 
-    ws = (workspace or default_workspace()).resolve()
+    ws = (workspace or default_workspace())
     log.debug("CLI run: action=%s workspace=%s run_id=%s params=%s", action, ws, run_id, params)
 
-    res = execute_action(
+    # Modern progress hint (stderr-only)
+    run_msg = f"Running action: {action}"
+    if top and run_id:
+        run_msg += f"  (top={top}, run_id={run_id})"
+    with _UI.status(run_msg, spinner="dots"):
+        res = execute_action(
         action=action,
         params=params,
         workspace=ws,
         run_id=run_id,
-    )
+        )
 
     flow_dir = res.flow_run_dir or _maybe_flow_dir(workspace=ws, top=top, run_id=run_id)
     _print_run_summary(
@@ -680,10 +684,10 @@ def dump_registry() -> None:
 def clean_run_cmd(
     top: str = typer.Option(..., help="Top name"),
     run_id: str = typer.Option(..., help="Run id"),
-    workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
+    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws", help="Workspace directory"),
 ) -> None:
     _setup_logging()
-    ws = (workspace or default_workspace()).resolve()
+    ws = (workspace or default_workspace())
     clean_run(ws, top, run_id)
 
 
@@ -702,22 +706,22 @@ def clean_pycache_cmd(
 
 @app.command("clean-all")
 def clean_all_cmd(
-    workspace: Optional[Path] = typer.Option(None, help="Workspace directory (default: from config)"),
+    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws", help="Workspace directory (default: from config)"),
 ) -> None:
     """
     Delete the entire workspace directory (hard reset).
     """
     _setup_logging()
-    ws = (workspace or default_workspace()).resolve()
+    ws = (workspace or default_workspace())
     clean_all(ws)
     _OUT.print(f"Deleted workspace: {ws}")
 
 @app.command("clean-workspace")
 def clean_workspace_cmd(
-    workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
+    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws", help="Workspace directory"),
 ) -> None:
     _setup_logging()
-    ws = (workspace or default_workspace()).resolve()
+    ws = (workspace or default_workspace())
     clean_workspace(ws)
 
 
@@ -737,9 +741,9 @@ def plan_cmd(
 @app.command("exec")
 def exec_cmd(
     plan_path: Path = typer.Argument(..., help="Path to plan JSON"),
-    workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
+    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws", help="Workspace directory"),
     run_id: Optional[str] = typer.Option(None, help="Run identifier"),
-    overwrite: Optional[str] = typer.Option(None, help="Overwrite flag (e.g. --force)"),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing outputs"),
     reg_itf: Optional[str] = typer.Option(None, help="Register interface (e.g. tlul)"),
     top: Optional[str] = typer.Option(None, help="Top name (if plan doesn't contain it)"),
 ) -> None:
@@ -752,8 +756,8 @@ def exec_cmd(
         params["top"] = top
     if reg_itf is not None:
         params["reg_itf"] = reg_itf
-    if overwrite is not None:
-        params["overwrite"] = overwrite
+    if overwrite:
+        params["force"] = 1
 
     validate_plan(Plan(action=plan.action, params=params), registry)
 
@@ -762,8 +766,8 @@ def exec_cmd(
         cmd += ["--top", str(params["top"])]
     if "reg_itf" in params:
         cmd += ["--reg-itf", str(params["reg_itf"])]
-    if "overwrite" in params:
-        cmd += ["--overwrite", str(params["overwrite"])]
+    if params.get("force"):
+        cmd += ["--overwrite"]
 
     if workspace is not None:
         cmd += ["--workspace", str(workspace)]
@@ -797,17 +801,19 @@ def make_cmd(
     ctx: typer.Context,
     target: Optional[str] = typer.Argument(None, help="Make target to run inside flow/"),
     list_targets: bool = typer.Option(False, "--list", help="List available Make targets in flow/ (best effort)"),
-    workspace: Optional[Path] = typer.Option(None, help="Workspace directory"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Pass VERBOSE=1 V=1 to make"),
+    workspace: Optional[Path] = typer.Option(None, "--ws", "--workspace", help="Workspace directory"),
     top: Optional[str] = typer.Option(None, help="Top module"),
     run_id: Optional[str] = typer.Option(None, help="Run identifier"),
     design: Optional[str] = typer.Option(None, help="Design name"),
     corner: Optional[str] = typer.Option(None, help="Corner (e.g. min/max)"),
     seed: Optional[int] = typer.Option(None, help="Simulation seed"),
     reg_itf: Optional[str] = typer.Option(None, help="Register interface (e.g. tlul)"),
-    overwrite: Optional[str] = typer.Option(None, help="Overwrite flag (e.g. --force)"),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing outputs (sets FORCE=1)"),
 ) -> None:
     """
     Escape hatch: run ANY Makefile target from flow/ with workspace-based variables and runner logging.
+
     Examples:
       flexsoc make --list
       flexsoc make sim --top my_ip --run-id dev1 -- --jobs 8
@@ -815,6 +821,7 @@ def make_cmd(
     """
     _setup_logging()
 
+    # --list mode (UI)
     if list_targets:
         title = Text("Make targets", style="bold")
         subtitle = Text("Discover available Makefile targets under flow/ 🧰", style="dim")
@@ -833,11 +840,10 @@ def make_cmd(
             msg.append("\n")
             msg.append("Or run a known target:\n", style="bold")
             msg.append("  flexsoc make help\n")
-
-            _OUT.print(title)
-            _OUT.print(subtitle)
-            _OUT.print()
-            _OUT.print(Columns([Panel(msg, title="⚠️ Target discovery", border_style="red")]))
+            print(title)
+            print(subtitle)
+            print()
+            print(Columns([Panel(msg, title="⚠️ Target discovery", border_style="red")]))
             return
 
         tbl = Table(show_lines=False)
@@ -853,22 +859,33 @@ def make_cmd(
         hint.append("  flexsoc make help\n")
         hint.append("  flexsoc make sim --top my_ip --run-id dev1 -- --jobs 8\n")
 
-        _OUT.print(title)
-        _OUT.print(subtitle)
-        _OUT.print()
-        _OUT.print(Columns([
+        panels = [
             Panel(tbl, title="🧰 Targets (flow/)", border_style="green"),
             Panel(hint, title="💡 Next", border_style="cyan"),
-        ]))
+        ]
+
+        print(title)
+        print(subtitle)
+        print()
+        print(Columns(panels))
         return
 
     if not target:
         raise typer.BadParameter("Missing target. Use: flexsoc make --list OR flexsoc make <target> [-- ...]")
 
-    ws = (workspace or default_workspace()).resolve()
+    # Compute workspace for make:
+    # - flexsoc UX can show relative "workspace"
+    # - but make is invoked with -C flow, so WORKSPACE must be relative to flow/ (or absolute)
+    repo_root = Path(__file__).resolve().parents[2]
+    flow_dir = (repo_root / "flow").resolve()
+
+    ws_abs = Path(workspace or default_workspace()).expanduser().resolve()
+    ws_for_make = os.path.relpath(ws_abs, flow_dir)
+
     extra_make_args = list(ctx.args)
 
-    cmd = ["make", "-C", "flow", target, f"WORKSPACE={ws}"]
+    cmd = ["make", "-C", "flow", target]
+    cmd.append(f"WORKSPACE={ws_for_make}")
 
     if top is not None:
         cmd.append(f"TOP={top}")
@@ -880,15 +897,28 @@ def make_cmd(
         cmd.append(f"CORNER={corner}")
     if seed is not None:
         cmd.append(f"SEED={seed}")
-    if reg_itf is not None:
+
+    # Deterministic defaults / knobs
+    if reg_itf is None:
+        cmd.append("REG_ITF=tlul")
+    else:
         cmd.append(f"REG_ITF={reg_itf}")
-    if overwrite is not None:
-        cmd.append(f"OVERWRITE={overwrite}")
+
+    cmd.append("FORCE=1" if overwrite else "FORCE=0")
+
+    if verbose:
+        cmd.append("VERBOSE=1")
+        cmd.append("V=1")
 
     cmd.extend(extra_make_args)
 
     backend = MakeBackend()
-    br = backend.run(
+    # Modern progress hint (stderr-only)
+    make_msg = f"Running make target: {target}"
+    if top and run_id:
+        make_msg += f"  (top={top}, run_id={run_id})"
+    with _UI.status(make_msg, spinner="dots"):
+        br = backend.run(
         action_id=f"make_{target}",
         cmd=cmd,
         params={
@@ -902,18 +932,18 @@ def make_cmd(
             "overwrite": overwrite,
             "make_args": extra_make_args,
         },
-        workspace_dir=ws,
-    )
+        workspace_dir=ws_abs,
+        )
 
-    flow_dir = _maybe_flow_dir(workspace=ws, top=top, run_id=run_id)
+    # Print modern summary on stderr (keeps stdout clean)
+    flow_run_dir = (Path(workspace or default_workspace()) / "runs" / top / run_id) if (top and run_id) else None
     _print_run_summary(
         label=f"make {target}",
         exit_code=br.exit_code,
         runner_dir=br.run_dir,
-        flow_dir=flow_dir,
+        flow_dir=flow_run_dir,
     )
     raise typer.Exit(code=br.exit_code)
-
 
 if __name__ == "__main__":
     app()
