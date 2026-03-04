@@ -629,10 +629,12 @@ def run(
     seed: Optional[int] = typer.Option(None, help="Simulation seed"),
     reg_itf: Optional[str] = typer.Option(None, help="Register interface (e.g. tlul)"),
     overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing outputs"),
+    force: bool = typer.Option(False, "--force", help="Alias for --overwrite (deprecated)"),
     workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws", help="Workspace directory"),
     run_id: Optional[str] = typer.Option(None, help="Run identifier"),
 ) -> None:
     _setup_logging()
+    overwrite = bool(overwrite or force)
     params: Dict[str, Any] = {}
     if design is not None:
         params["design"] = design
@@ -748,6 +750,7 @@ def exec_cmd(
     top: Optional[str] = typer.Option(None, help="Top name (if plan doesn't contain it)"),
 ) -> None:
     _setup_logging()
+    overwrite = bool(overwrite or force)
     registry = load_registry(Path(__file__).parent / "registry.yaml")
     plan = read_plan_json(plan_path)
 
@@ -810,6 +813,7 @@ def make_cmd(
     seed: Optional[int] = typer.Option(None, help="Simulation seed"),
     reg_itf: Optional[str] = typer.Option(None, help="Register interface (e.g. tlul)"),
     overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing outputs (sets FORCE=1)"),
+    force: bool = typer.Option(False, "--force", help="Alias for --overwrite (deprecated)"),
 ) -> None:
     """
     Escape hatch: run ANY Makefile target from flow/ with workspace-based variables and runner logging.
@@ -820,6 +824,7 @@ def make_cmd(
       flexsoc make syn --top my_ip --run-id dev1 -- VERBOSE=1
     """
     _setup_logging()
+    overwrite = bool(overwrite or force)
 
     # --list mode (UI)
     if list_targets:
@@ -840,10 +845,10 @@ def make_cmd(
             msg.append("\n")
             msg.append("Or run a known target:\n", style="bold")
             msg.append("  flexsoc make help\n")
-            print(title)
-            print(subtitle)
-            print()
-            print(Columns([Panel(msg, title="⚠️ Target discovery", border_style="red")]))
+            _OUT.print(title)
+            _OUT.print(subtitle)
+            _OUT.print()
+            _OUT.print(Columns([Panel(msg, title="⚠️ Target discovery", border_style="red")]))
             return
 
         tbl = Table(show_lines=False)
@@ -864,10 +869,10 @@ def make_cmd(
             Panel(hint, title="💡 Next", border_style="cyan"),
         ]
 
-        print(title)
-        print(subtitle)
-        print()
-        print(Columns(panels))
+        _OUT.print(title)
+        _OUT.print(subtitle)
+        _OUT.print()
+        _OUT.print(Columns(panels))
         return
 
     if not target:

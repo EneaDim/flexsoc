@@ -33,23 +33,8 @@ dependencies = [
   "scipy",
 ]
 
-
 [project.scripts]
 flexsoc = "flexsoc.cli:app"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-
 
 [project.optional-dependencies]
 dev = [
@@ -68,3 +53,17 @@ fusesoc = [
 all = [
   "flexsoc[dev,fusesoc]",
 ]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

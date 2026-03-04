@@ -8,6 +8,11 @@ from pathlib import Path
 
 
 def _run(*args: str, env=None):
+    # Ensure subprocesses can import flexsoc when using system python
+    repo_root = Path(__file__).resolve().parents[2]
+    src = str(repo_root / "src")
+    env = os.environ.copy()
+    env["PYTHONPATH"] = src + (":" + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     e = os.environ.copy()
     if env:
         e.update(env)
