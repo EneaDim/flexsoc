@@ -645,6 +645,8 @@ def run(
     if reg_itf is not None:
         params["reg_itf"] = reg_itf
     if overwrite:
+        params["overwrite"] = "1"
+    if overwrite:
         params["force"] = 1
     if seed is not None:
         params["seed"] = seed
@@ -746,6 +748,7 @@ def exec_cmd(
     workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws", help="Workspace directory"),
     run_id: Optional[str] = typer.Option(None, help="Run identifier"),
     overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing outputs"),
+    force: bool = typer.Option(False, "--force", help="Alias for --overwrite (deprecated)"),
     reg_itf: Optional[str] = typer.Option(None, help="Register interface (e.g. tlul)"),
     top: Optional[str] = typer.Option(None, help="Top name (if plan doesn't contain it)"),
 ) -> None:
@@ -812,11 +815,16 @@ def make_cmd(
     corner: Optional[str] = typer.Option(None, help="Corner (e.g. min/max)"),
     seed: Optional[int] = typer.Option(None, help="Simulation seed"),
     reg_itf: Optional[str] = typer.Option(None, help="Register interface (e.g. tlul)"),
-    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing outputs (sets FORCE=1)"),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing outputs"),
     force: bool = typer.Option(False, "--force", help="Alias for --overwrite (deprecated)"),
 ) -> None:
     """
     Escape hatch: run ANY Makefile target from flow/ with workspace-based variables and runner logging.
+
+    Notes:
+      - stdout must stay clean (tests / JSON contracts). UI+summary go to stderr.
+      - make is invoked with `-C flow`, so WORKSPACE must be absolute (robust) or relative to flow/.
+        We pass it absolute to avoid path confusion across CI and repos.
 
     Examples:
       flexsoc make --list
@@ -831,7 +839,8 @@ def make_cmd(
         title = Text("Make targets", style="bold")
         subtitle = Text("Discover available Makefile targets under flow/ 🧰", style="dim")
 
-        flow_dir = Path("flow").resolve()
+        repo_root = Path(__file__).resolve().parents[2]
+        flow_dir = (repo_root / "flow").resolve()
         targets = _make_list_targets(flow_dir)
 
         if not targets:
@@ -845,6 +854,7 @@ def make_cmd(
             msg.append("\n")
             msg.append("Or run a known target:\n", style="bold")
             msg.append("  flexsoc make help\n")
+
             _OUT.print(title)
             _OUT.print(subtitle)
             _OUT.print()
@@ -878,20 +888,18 @@ def make_cmd(
     if not target:
         raise typer.BadParameter("Missing target. Use: flexsoc make --list OR flexsoc make <target> [-- ...]")
 
-    # Compute workspace for make:
-    # - flexsoc UX can show relative "workspace"
-    # - but make is invoked with -C flow, so WORKSPACE must be relative to flow/ (or absolute)
-    repo_root = Path(__file__).resolve().parents[2]
-    flow_dir = (repo_root / "flow").resolve()
-
-    ws_abs = Path(workspace or default_workspace()).expanduser().resolve()
-    ws_for_make = os.path.relpath(ws_abs, flow_dir)
+    # Workspace: default should remain user-friendly ("workspace"), but make should get a stable path.
+    ws_user = Path(workspace or default_workspace())
+    ws_abs = ws_user.expanduser().resolve()
 
     extra_make_args = list(ctx.args)
 
-    cmd = ["make", "-C", "flow", target]
-    cmd.append(f"WORKSPACE={ws_for_make}")
+    cmd: List[str] = ["make", "-C", "flow", target]
 
+    # Always provide WORKSPACE; because we use `-C flow`, absolute is simplest and avoids double-prefix bugs.
+    cmd.append(f"WORKSPACE={ws_abs}")
+
+    # Optional make vars
     if top is not None:
         cmd.append(f"TOP={top}")
     if run_id is not None:
@@ -903,45 +911,49 @@ def make_cmd(
     if seed is not None:
         cmd.append(f"SEED={seed}")
 
-    # Deterministic defaults / knobs
-    if reg_itf is None:
-        cmd.append("REG_ITF=tlul")
-    else:
-        cmd.append(f"REG_ITF={reg_itf}")
+    # Interface default (keeps "make ..." UX stable)
+    cmd.append(f"REG_ITF={reg_itf or 'tlul'}")
 
+    # Compatibility: existing flow uses FORCE to control OVERWRITE/--force behavior.
     cmd.append("FORCE=1" if overwrite else "FORCE=0")
 
+    # Verbose passthrough
     if verbose:
         cmd.append("VERBOSE=1")
         cmd.append("V=1")
 
+    # User-supplied extra args after `--`
     cmd.extend(extra_make_args)
 
     backend = MakeBackend()
+
     # Modern progress hint (stderr-only)
-    make_msg = f"Running make target: {target}"
+    msg = f"Running make {target}"
     if top and run_id:
-        make_msg += f"  (top={top}, run_id={run_id})"
-    with _UI.status(make_msg, spinner="dots"):
+        msg += f"  (top={top}, run_id={run_id})"
+
+    with _UI.status(msg, spinner="dots"):
         br = backend.run(
-        action_id=f"make_{target}",
-        cmd=cmd,
-        params={
-            "target": target,
-            "top": top,
-            "run_id": run_id,
-            "design": design,
-            "corner": corner,
-            "seed": seed,
-            "reg_itf": reg_itf,
-            "overwrite": overwrite,
-            "make_args": extra_make_args,
-        },
-        workspace_dir=ws_abs,
+            action_id=f"make_{target}",
+            cmd=cmd,
+            params={
+                "target": target,
+                "top": top,
+                "run_id": run_id,
+                "design": design,
+                "corner": corner,
+                "seed": seed,
+                "reg_itf": reg_itf,
+                "overwrite": overwrite,
+                "verbose": verbose,
+                "make_args": extra_make_args,
+            },
+            workspace_dir=ws_abs,
         )
 
-    # Print modern summary on stderr (keeps stdout clean)
-    flow_run_dir = (Path(workspace or default_workspace()) / "runs" / top / run_id) if (top and run_id) else None
+    # Flow dir should be reported only if user provided top+run_id.
+    flow_run_dir = (ws_user / "runs" / top / run_id) if (top and run_id) else None
+
     _print_run_summary(
         label=f"make {target}",
         exit_code=br.exit_code,
@@ -949,6 +961,5 @@ def make_cmd(
         flow_dir=flow_run_dir,
     )
     raise typer.Exit(code=br.exit_code)
-
 if __name__ == "__main__":
     app()
