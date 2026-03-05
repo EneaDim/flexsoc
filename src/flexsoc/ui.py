@@ -27,22 +27,44 @@ def cerr() -> Console:
     return Console(file=sys.stderr)
 
 
+
 def print_hub() -> None:
     c = cout()
-    title = Text("flexsoc", style="bold")
-    body = (
-        "[b]Quick actions[/b]\n"
-        "  flexsoc run ip_start --top <name> --run-id <id>\n"
-        "  flexsoc actions\n"
-        "  flexsoc make --list\n\n"
-        "[b]Shortcuts[/b]\n"
-        "  flexsoc ?        Show this hub\n"
-        "  flexsoc h        Alias for hub\n"
-        "  flexsoc q        Quickstart\n"
-        "  flexsoc t        Tutorial\n"
-        "  flexsoc ip       IP flow guide\n"
-    )
-    c.print(Panel(body, title=title, expand=False))
+
+    body = """
+[b]Quick actions[/b]
+  flexsoc run ip_start --top <name> --run-id <id>
+  flexsoc actions
+  flexsoc make --list
+
+[b]Common workflow[/b]
+  1. Start a new IP
+     flexsoc run ip_start --top my_ip --run-id dev
+
+  2. Run simulation
+     flexsoc make sim
+
+  3. Run synthesis
+     flexsoc make synth
+
+  4. Run signoff
+     flexsoc make sta
+
+[b]Shortcuts[/b]
+  flexsoc ?        Show this hub
+  flexsoc h        Alias for hub
+  flexsoc a        List actions
+  flexsoc q        Quickstart
+  flexsoc t        Tutorial
+  flexsoc ip       IP flow guide
+
+[b]Discover[/b]
+  flexsoc actions          List available actions
+  flexsoc action ip_start  Show action details
+  flexsoc make --list      List Make targets
+"""
+    c.print(Panel(body.strip(), title="flexsoc", expand=False))
+
 
 
 def print_help_topics() -> None:
@@ -67,14 +89,19 @@ def print_ip_guide() -> None:
     cout().print(Panel("IP flow guide\n\n- ip_start generates RTL + TB\n- sim prints Coverage: on stdout\n", title="IP flow guide", expand=False))
 
 
+
 def print_actions_table(action_ids: Iterable[str]) -> None:
     c = cout()
-    t = Table(title="Actions", show_lines=False)
-    t.add_column("Action", style="bold")
-    for aid in sorted(action_ids):
-        t.add_row(aid)
-    c.print(t)
 
+    t = Table(title="Available actions", show_lines=False)
+    t.add_column("Action", style="bold")
+    t.add_column("Description")
+
+    for aid in sorted(action_ids):
+        t.add_row(aid, "")
+
+    c.print(t)
+    c.print("Use: [bold]flexsoc action <name>[/bold] to see details.")
 
 def print_action_detail(action_id: str, meta: dict) -> None:
     c = cout()

@@ -61,6 +61,15 @@ def _registry_path() -> Path:
 def _registry() -> Dict[str, Any]:
     return load_registry(_registry_path())
 
+def _repo_root() -> Path:
+    # src/flexsoc/cli.py -> repo root = parents[2]
+    return Path(__file__).resolve().parents[2]
+
+
+def _flow_dir() -> Path:
+    return (_repo_root() / "flow").resolve()
+
+
 
 def _early_shortcuts() -> bool:
     """Handle ?,h,q,t,ip before Typer parsing (required for '?')."""
@@ -107,6 +116,40 @@ def actions() -> None:
     reg = _registry()
     action_ids = (reg.get("actions") or {}).keys()
     print_actions_table(action_ids)
+
+
+# ----------------------------------------------------------------------
+# Short aliases (real Typer commands)
+# ----------------------------------------------------------------------
+
+@app.command("h")
+def hub_alias() -> None:
+    """Alias for hub."""
+    print_hub()
+
+
+@app.command("q")
+def quickstart_alias() -> None:
+    """Show quickstart guide."""
+    print_quickstart()
+
+
+@app.command("t")
+def tutorial_alias() -> None:
+    """Show tutorial."""
+    print_tutorial()
+
+
+@app.command("ip")
+def ip_alias() -> None:
+    """Show IP flow guide."""
+    print_ip_guide()
+
+
+@app.command("a")
+def actions_alias() -> None:
+    """Alias for `flexsoc actions`."""
+    actions()
 
 
 @app.command("action")
@@ -274,8 +317,8 @@ def make_cmd(
 ) -> None:
     _setup_logging()
     ws = (workspace or default_workspace()).resolve()
-    repo_root = Path(__file__).resolve().parents[2]
-    flow_dir = (repo_root / "flow").resolve()
+    repo_root = _repo_root()
+    flow_dir = _flow_dir()
 
     if list_targets:
         targets = _make_list_targets(flow_dir) or ["help"]
