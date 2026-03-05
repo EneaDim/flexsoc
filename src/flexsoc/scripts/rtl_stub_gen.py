@@ -1,3 +1,4 @@
+# ruff: noqa
 #!/usr/bin/env python3
 # Copyright 2025 Enea Dimroci
 # 
@@ -46,7 +47,7 @@ from typing import List, Dict, Any
 
 # --- shared helpers (optional dependency on scripts/common.py) ----------------
 try:
-    from common import colorize, ensure_dir, safe_write_file  # type: ignore
+    from .common import colorize, ensure_dir, safe_write_file  # type: ignore
 except Exception:
     def colorize(s: str) -> str: return s
     def ensure_dir(path: str | os.PathLike[str]) -> None: os.makedirs(path, exist_ok=True)

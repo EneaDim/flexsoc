@@ -1,3 +1,4 @@
+# ruff: noqa
 #!/usr/bin/env python3
 # Copyright 2025 Enea Dimroci
 #

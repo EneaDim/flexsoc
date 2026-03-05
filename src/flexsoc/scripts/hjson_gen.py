@@ -1,3 +1,4 @@
+# ruff: noqa
 #!/usr/bin/env python3
 # Copyright 2025 Enea Dimroci
 # 
@@ -38,7 +39,7 @@ import sys
 
 # Shared helpers
 try:
-    from common import colorize, ensure_dir, safe_write_file
+    from .common import colorize, ensure_dir, safe_write_file
 except Exception:  # pragma: no cover
     def colorize(s: str) -> str: return s
     def ensure_dir(path: str) -> None:

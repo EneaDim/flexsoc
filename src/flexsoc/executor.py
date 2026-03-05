@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .flow_config import FlowConfig
+from .manifest import write_flow_manifest
 from .registry import load_registry
+from .reporting import postprocess_ip_start
 from .runner import MakeBackend
 
 log = logging.getLogger(__name__)
@@ -119,6 +121,10 @@ def execute_action(
     cmd = list(action_entry["command"])
     meta = _action_meta(action_entry)
 
+    # Optional postprocess hook (kept generic by using registry metadata).
+    # Example: ip_start -> write report.json
+    postprocess = action_entry.get("postprocess")
+
     # Workspace: user-friendly relative allowed at CLI, but execution must be stable
     ws_abs = Path(workspace).expanduser().resolve()
 
@@ -167,6 +173,36 @@ def execute_action(
     )
 
     flow_run_dir = cfg.flow_run_dir()
+
+
+    # ----------------------------
+    # Flow-level manifest + report
+    # ----------------------------
+    # Tests require a flow-level manifest.json under:
+    #   workspace/runs/<top>/<run_id>/manifest.json
+    # whenever top+run_id are known.
+    if flow_run_dir is not None and cfg.top and cfg.run_id:
+        try:
+            write_flow_manifest(
+                flow_run_dir,
+                action=action,
+                top=str(cfg.top),
+                run_id=str(cfg.run_id),
+                workspace=ws_abs,
+                params=params,
+            )
+        except Exception:
+            # Never fail the flow due to manifest writing.
+            log.exception("failed to write flow manifest")
+
+        # Postprocess is action-specific but dispatched through registry metadata.
+        try:
+            if postprocess == "ip_start":
+                postprocess_ip_start(flow_run_dir)
+        except Exception:
+            # Never fail the flow due to reporting.
+            log.exception("postprocess failed: %s", postprocess)
+
 
     return ExecResult(
         exit_code=br.exit_code,

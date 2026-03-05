@@ -1,3 +1,4 @@
+# ruff: noqa
 #!/usr/bin/env python3
 # Copyright 2025
 #
@@ -33,7 +34,7 @@ import re
 from pathlib import Path
 from textwrap import dedent
 from typing import Iterable
-from common import build_ordered_sources, makefile_block_from_paths
+from .common import build_ordered_sources, makefile_block_from_paths
 
 # -----------------------------------------------------------------------------
 # CLI

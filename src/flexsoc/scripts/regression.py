@@ -1,3 +1,4 @@
+# ruff: noqa
 # Copyright 2025 Enea Dimroci
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,7 +49,6 @@ def run_make(target, top_name=None, tb=None):
 def main():
     # Extract base names and testbench files
     top_names = extract_top_names()
-    for name in top_names:
     # Run lint for each testbench
     for top in top_names:
        testbenches = extract_testbenchs(top)

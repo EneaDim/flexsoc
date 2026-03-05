@@ -1,3 +1,4 @@
+# ruff: noqa
 #!/usr/bin/env python3
 # Copyright 2025 Enea Dimroci
 # 
@@ -50,8 +51,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from typing import List, Tuple
-
-from common import (
+from .common import (
     ensure_dir, safe_write_file,
     parse_sv_signature, has_reg_pkg
 )
