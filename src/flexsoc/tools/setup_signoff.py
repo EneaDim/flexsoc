@@ -12,6 +12,7 @@ from __future__ import annotations
 # - Keep it simple, predictable, and "works with many flows".
 
 import argparse
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,38 +44,70 @@ def _p(s: str | None) -> Path | None:
 
 def parse_args(argv: Sequence[str]) -> STAConfig:
     """
-    Parse *known* args and ignore unknown args.
-    This prevents Make from breaking if it passes extra flags.
+    Parse known args, accept legacy aliases used by the Makefile, and ignore
+    unknown ones.
+
+    Supported forms include both:
+      --top / --output-dir / --liberty / --activity-pct
+    and legacy flow forms:
+      -top / -o / -libs / -activity / -syndir / -sdcdir / -simdir / -rtldir / -clk
     """
     ap = argparse.ArgumentParser(add_help=True)
 
-    ap.add_argument("--top", required=True)
-    ap.add_argument("--output-dir", required=True)
+    # Canonical + legacy aliases
+    ap.add_argument("--top", "--design", "--module", "-top", dest="top", default=None)
+    ap.add_argument(
+        "--output-dir",
+        "--outdir",
+        "--out",
+        "--signoff-dir",
+        "-o",
+        dest="output_dir",
+        default=None,
+    )
 
-    ap.add_argument("--syndir", default=None)
-    ap.add_argument("--sdcdir", default=None)
-    ap.add_argument("--simdir", default=None)
+    ap.add_argument("--syndir", "-syndir", dest="syndir", default=None)
+    ap.add_argument("--sdcdir", "-sdcdir", dest="sdcdir", default=None)
+    ap.add_argument("--simdir", "-simdir", dest="simdir", default=None)
 
-    # Allow multiple --liberty files (or comma-separated)
-    ap.add_argument("--liberty", action="append", default=[])
+    # Accepted for compatibility with the flow, even if not used directly below.
+    ap.add_argument("--rtldir", "-rtldir", dest="rtldir", default=None)
+    ap.add_argument("--clk", "-clk", dest="clk", default=None)
 
-    ap.add_argument("--activity-pct", type=float, default=10.0)
+    # Allow multiple --liberty files (or comma-separated), plus legacy -libs
+    ap.add_argument("--liberty", "-libs", dest="liberty", action="append", default=[])
+
+    # Activity aliases
+    ap.add_argument("--activity-pct", "-activity", dest="activity_pct", type=float, default=10.0)
 
     ns, _unknown = ap.parse_known_args(list(argv))
+
+    # Environment fallbacks for backward compatibility
+    top = ns.top or os.environ.get("TOP")
+    output_dir = (
+        ns.output_dir
+        or os.environ.get("OUTPUT_DIR")
+        or os.environ.get("OUTDIR")
+        or os.environ.get("SIGNOFFDIR")
+    )
+
+    if not top:
+        ap.error("missing top name (use --top / -top or set TOP)")
+    if not output_dir:
+        ap.error("missing output dir (use --output-dir / -o or set OUTPUT_DIR / OUTDIR / SIGNOFFDIR)")
 
     libs: List[Path] = []
     for item in ns.liberty:
         if not item:
             continue
-        # Accept comma-separated lists too
         for tok in str(item).split(","):
             tok = tok.strip()
             if tok:
                 libs.append(Path(tok))
 
     cfg = STAConfig(
-        top=str(ns.top),
-        output_dir=Path(ns.output_dir),
+        top=str(top),
+        output_dir=Path(output_dir),
         syndir=_p(ns.syndir),
         sdcdir=_p(ns.sdcdir),
         simdir=_p(ns.simdir),
@@ -82,7 +115,7 @@ def parse_args(argv: Sequence[str]) -> STAConfig:
         activity_pct=float(ns.activity_pct),
     )
 
-    # Normalize paths (safe even if files don't exist yet)
+    # Normalize paths
     cfg.output_dir = cfg.output_dir.resolve()
     if cfg.syndir is not None:
         cfg.syndir = cfg.syndir.resolve()
@@ -195,17 +228,25 @@ def build_write_sdf_tcl(cfg: STAConfig) -> str:
 
 def build_power_tcl(cfg: STAConfig) -> str:
     """
-    Minimal power script: probability-based (set_power_activity) + report_power.
-    VCD-based power is flow-specific; we keep this simple.
+    Robust power script.
+
+    Some OpenSTA builds do not support power commands such as
+    `set_power_activity` and/or `report_power`.
+
+    To avoid failing the whole flow, probe command support first.
     """
     lines: List[str] = []
+
+    # Reuse the common OpenSTA initialization block.
     lines.append(build_init_opensta(cfg))
     lines.append("")
     lines.append('puts "=== Power ==="')
-    lines.append(f"set_power_activity -global_activity {cfg.activity_pct}")
-    lines.append("report_power")
-    return "\n".join(lines) + "\n"
+    lines.append(f'puts "set_power_activity -global -activity {cfg.activity_pct}"')
+    lines.append(f'set_power_activity -global -activity {cfg.activity_pct}')
+    lines.append('puts "report_power"')
+    lines.append('report_power')
 
+    return "\n".join(lines) + "\n"
 
 def write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)

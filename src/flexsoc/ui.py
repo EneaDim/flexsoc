@@ -4,10 +4,11 @@ from __future__ import annotations
 #
 # Solo presentazione.
 # - hub/help/tabelle su stdout
-# - summary run su stderr
+# - running/summary su stderr
 # - niente logica di business qui
 
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable, Mapping, Optional
 
@@ -35,9 +36,22 @@ def print_hub() -> None:
 
     body = """
 [bold]Quick actions[/bold]
-  [cyan]flexsoc run ip_start --top[/cyan] test [cyan]--run-id[/cyan] dev
+  [cyan]flexsoc run ip_start --top[/cyan] <name> [cyan]--run-id[/cyan] <id>
   [cyan]flexsoc actions[/cyan]
   [cyan]flexsoc make --list[/cyan]
+
+[bold]Common workflow[/bold]
+  1. Start a new IP
+     [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
+
+  2. Run simulation
+     [green]flexsoc make sim[/green]
+
+  3. Run synthesis
+     [green]flexsoc make synth[/green]
+
+  4. Run signoff
+     [green]flexsoc make sta[/green]
 
 [bold]Shortcuts[/bold]
   [magenta]flexsoc ?[/magenta]        Show this hub
@@ -51,20 +65,6 @@ def print_hub() -> None:
   [yellow]flexsoc actions[/yellow]          List available actions
   [yellow]flexsoc action ip_start[/yellow]  Show action details
   [yellow]flexsoc make --list[/yellow]      List Make targets
-
-[bold]Common workflow[/bold]
-  1. Start a new IP
-     [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
-
-  2. Run synthesis
-     [green]flexsoc make synth[/green]
-
-  3. Run static timing analysis 
-     [green]flexsoc make sta[/green]
-
-  4. Run power analysis
-     [green]flexsoc make power[/green]
-
 """
 
     c.print()
@@ -129,7 +129,8 @@ def print_ip_guide() -> None:
 [bold]IP flow guide[/bold]
 
 Typical authoring flow:
-  [green]ip_start[/green]  → create HJSON + RTL stub + TB scaffolding + SIM
+  [green]ip_start[/green]  → create HJSON + RTL stub + TB scaffolding
+  [green]sim[/green]       → run simulation
   [green]synth[/green]     → run synthesis
   [green]sta[/green]       → timing analysis
   [green]power[/green]     → power estimation
@@ -146,7 +147,7 @@ def print_actions_table(actions: Mapping[str, Mapping[str, object]]) -> None:
     t.add_column("Action", style="bold green", no_wrap=True)
     t.add_column("Description", style="dim")
 
-    for action_id in actions:
+    for action_id in sorted(actions):
         meta = actions[action_id] or {}
         desc = str(meta.get("description", "") or "")
         t.add_row(action_id, desc)
@@ -217,6 +218,16 @@ def print_make_targets(targets: Iterable[str]) -> None:
     c.print(Panel(t, title="flow", border_style="yellow", expand=False))
 
 
+@contextmanager
+def running_status(*, label: str):
+    """
+    Dynamic running indicator shown on stderr while a command is executing.
+    Keep it intentionally minimal: the detailed information is shown later
+    in the final summary.
+    """
+    c = cerr()
+    with c.status(f"[bold cyan]▶ Running[/bold cyan] {label}", spinner="dots") as status:
+        yield status
 
 def print_runner_summary(
     *,
@@ -226,34 +237,59 @@ def print_runner_summary(
     flow_dir: Optional[Path],
     command: Optional[str] = None,
 ) -> None:
+    """
+    Modern unified summary for run / exec / make.
+    Keep legacy label strings stable because tests search for them literally:
+      - Exit code:
+      - Runner dir:
+      - Flow dir:
+      - stdout.log:
+      - stderr.log:
+    """
     c = cerr()
 
     ok = exit_code == 0
-    color = "green" if ok else "red"
-    icon = "✅" if ok else "❌"
+    status_text = "SUCCESS" if ok else "FAILED"
+    status_color = "green" if ok else "red"
+    icon = "●"
 
     stdout_log = Path(runner_dir) / "stdout.log"
     stderr_log = Path(runner_dir) / "stderr.log"
 
-    lines = [
-        f"[bold]{icon} {label}[/bold]\n",
-        f"Exit code: {exit_code}\n",
-        f"Runner dir: {runner_dir}\n",
-    ]
+    lines: list[str] = []
 
+    # Header
+    lines.append(f"[bold {status_color}]{icon} {status_text}[/bold {status_color}]  [bold]{label}[/bold]")
+
+    # Stable labels required by tests
+    lines.append("")
+    lines.append(f"Exit code: {exit_code}")
+    lines.append(f"Runner dir: {runner_dir}")
     if flow_dir is not None:
-        lines.append(f"Flow dir: {flow_dir}\n")
+        lines.append(f"Flow dir: {flow_dir}")
 
     if command:
-        lines.append(f"Command: {command}\n")
+        lines.append("")
+        lines.append("[bold cyan]Command[/bold cyan]")
+        lines.append(command)
 
-    lines.append(f"stdout.log: {stdout_log}\n")
-    lines.append(f"stderr.log: {stderr_log}\n")
+    lines.append("")
+    lines.append("[bold cyan]Logs[/bold cyan]")
+    lines.append(f"stdout.log: {stdout_log}")
+    lines.append(f"stderr.log: {stderr_log}")
 
     if not ok:
         lines.append("")
-        lines.append("[bold]Inspect logs:[/bold]")
-        lines.append(f"  cat {stderr_log}\n")
-        lines.append(f"  cat {stdout_log}\n")
+        lines.append("[bold yellow]Quick inspect[/bold yellow]")
+        lines.append(f"cat {stderr_log}")
+        lines.append(f"cat {stdout_log}")
 
-    c.print(Panel("".join(lines), title="Summary", border_style=color, expand=False))
+    c.print(
+        Panel(
+            "\n".join(lines),
+            border_style=status_color,
+            title=f"[bold]{label}[/bold]",
+            expand=False,
+        )
+    )
+

@@ -38,6 +38,7 @@ from .ui import (
     print_quickstart,
     print_runner_summary,
     print_tutorial,
+    running_status,
 )
 
 log = logging.getLogger(__name__)
@@ -282,18 +283,6 @@ def exec_cmd(
     if profile:
         os.environ["FLEXSOC_PROFILE"] = "1"
 
-    res = execute_action(
-        action=plan.action,
-        params=plan.params,
-        workspace=ws,
-        run_id=run_id,
-    )
-
-    flow_dir = None
-    top2 = plan.params.get("top")
-    if top2 and run_id:
-        flow_dir = ws / "runs" / str(top2) / str(run_id)
-
     cmd_preview = "flexsoc exec " + str(plan_path)
     if top is not None:
         cmd_preview += f" --top {top}"
@@ -304,6 +293,24 @@ def exec_cmd(
     cmd_preview += f" --workspace {ws}"
     if overwrite or force:
         cmd_preview += " --overwrite"
+
+    top2_preview = plan.params.get("top")
+    flow_dir_preview = None
+    if top2_preview and run_id:
+        flow_dir_preview = ws / "runs" / str(top2_preview) / str(run_id)
+
+    with running_status(label=f"exec {plan.action}"):
+        res = execute_action(
+            action=plan.action,
+            params=plan.params,
+            workspace=ws,
+            run_id=run_id,
+        )
+
+    flow_dir = None
+    top2 = plan.params.get("top")
+    if top2 and run_id:
+        flow_dir = ws / "runs" / str(top2) / str(run_id)
 
     print_runner_summary(
         label=f"exec {plan.action}",
@@ -337,17 +344,6 @@ def run_cmd(
         params["overwrite"] = "1"
     params.pop("force", None)
 
-    res = execute_action(
-        action=action_id,
-        params=params,
-        workspace=ws,
-        run_id=run_id,
-    )
-
-    flow_dir = None
-    if top and run_id:
-        flow_dir = ws / "runs" / top / run_id
-
     cmd_preview = f"flexsoc run {action_id}"
     if top is not None:
         cmd_preview += f" --top {top}"
@@ -358,6 +354,22 @@ def run_cmd(
     cmd_preview += f" --workspace {ws}"
     if overwrite or force:
         cmd_preview += " --overwrite"
+
+    flow_dir_preview = None
+    if top and run_id:
+        flow_dir_preview = ws / "runs" / top / run_id
+
+    with running_status(label=f"run {action_id}"):
+        res = execute_action(
+            action=action_id,
+            params=params,
+            workspace=ws,
+            run_id=run_id,
+        )
+
+    flow_dir = None
+    if top and run_id:
+        flow_dir = ws / "runs" / top / run_id
 
     print_runner_summary(
         label=f"run {action_id}",
@@ -444,7 +456,16 @@ def make_cmd(
     cmd.extend([f"{k}={v}" for k, v in make_vars.items()])
     cmd.extend(passthrough)
 
-    res = backend.run(
+    flow_dir_preview = None
+    top2 = make_vars.get("TOP")
+    run_id2 = make_vars.get("RUN_ID")
+    if top2 and run_id2:
+        flow_dir_preview = ws / "runs" / str(top2) / str(run_id2)
+
+    cmd_preview = " ".join(cmd)
+
+    with running_status(label=f"make {target}"):
+        res = backend.run(
         action_id=action_exec_id,
         cmd=cmd,
         params={
@@ -457,13 +478,7 @@ def make_cmd(
         env=os.environ.copy(),
     )
 
-    flow_dir = None
-    top2 = make_vars.get("TOP")
-    run_id2 = make_vars.get("RUN_ID")
-    if top2 and run_id2:
-        flow_dir = ws / "runs" / str(top2) / str(run_id2)
-
-    cmd_preview = " ".join(cmd)
+    flow_dir = flow_dir_preview
 
     print_runner_summary(
         label=f"make {target}",
