@@ -1,7 +1,7 @@
 // Timescale 
 `timescale 1ns/1ps 
 // Include files 
-`include "tb/include_soc_tb.sv"
+`include "include_soc_tb.sv"
 
 module soc_tb;
   //Parameters
@@ -44,9 +44,9 @@ module soc_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("sim/soc_tb.vcd");
+      $dumpfile("../workspace/runs/tiny-soc/dev1/sim/soc_tb.vcd");
     `else
-      $dumpfile("sim/soc_syn_tb.vcd");
+      $dumpfile("../workspace/runs/tiny-soc/dev1/sim/soc_syn_tb.vcd");
     `endif
     $dumpvars(0, soc_tb);
   end

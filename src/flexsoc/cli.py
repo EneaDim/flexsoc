@@ -67,6 +67,7 @@ def _common_make_vars(
     *,
     workspace: Path,
     top: Optional[str],
+    run_top: Optional[str],
     run_id: Optional[str],
     reg_itf: Optional[str],
     overwrite: bool,
@@ -87,6 +88,8 @@ def _common_make_vars(
 
     if top is not None:
         make_vars["TOP"] = top
+    if run_top is not None:
+        make_vars["RUN_TOP"] = run_top
     if run_id is not None:
         make_vars["RUN_ID"] = run_id
     if reg_itf is not None:
@@ -253,6 +256,7 @@ def exec_cmd(
     plan_path: Path = typer.Argument(...),
     workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
     top: Optional[str] = typer.Option(None, "--top"),
+    run_top: Optional[str] = typer.Option(None, "--run-top"),
     run_id: Optional[str] = typer.Option(None, "--run-id"),
     reg_itf: Optional[str] = typer.Option(None, "--reg-itf"),
     overwrite: bool = typer.Option(False, "--overwrite"),
@@ -268,6 +272,8 @@ def exec_cmd(
     # - run_id is NOT a registry param; it must be passed separately to executor/runner
     if top is not None:
         plan.params["top"] = top
+    if run_top is not None:
+        plan.params["run_top"] = run_top
     if reg_itf is not None:
         plan.params["reg_itf"] = reg_itf
 
@@ -286,6 +292,8 @@ def exec_cmd(
     cmd_preview = "flexsoc exec " + str(plan_path)
     if top is not None:
         cmd_preview += f" --top {top}"
+    if run_top is not None:
+        cmd_preview += f" --run-top {run_top}"
     if run_id is not None:
         cmd_preview += f" --run-id {run_id}"
     if reg_itf is not None:
@@ -294,10 +302,10 @@ def exec_cmd(
     if overwrite or force:
         cmd_preview += " --overwrite"
 
-    top2_preview = plan.params.get("top")
+    run_top_preview = plan.params.get("run_top") or plan.params.get("top")
     flow_dir_preview = None
-    if top2_preview and run_id:
-        flow_dir_preview = ws / "runs" / str(top2_preview) / str(run_id)
+    if run_top_preview and run_id:
+        flow_dir_preview = ws / "runs" / str(run_top_preview) / str(run_id)
 
     with running_status(label=f"exec {plan.action}"):
         res = execute_action(
@@ -308,9 +316,9 @@ def exec_cmd(
         )
 
     flow_dir = None
-    top2 = plan.params.get("top")
-    if top2 and run_id:
-        flow_dir = ws / "runs" / str(top2) / str(run_id)
+    run_top2 = plan.params.get("run_top") or plan.params.get("top")
+    if run_top2 and run_id:
+        flow_dir = ws / "runs" / str(run_top2) / str(run_id)
 
     print_runner_summary(
         label=f"exec {plan.action}",
@@ -327,6 +335,7 @@ def run_cmd(
     action_id: str = typer.Argument(...),
     workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
     top: Optional[str] = typer.Option(None, "--top"),
+    run_top: Optional[str] = typer.Option(None, "--run-top"),
     run_id: Optional[str] = typer.Option(None, "--run-id"),
     reg_itf: Optional[str] = typer.Option(None, "--reg-itf"),
     overwrite: bool = typer.Option(False, "--overwrite"),
@@ -338,6 +347,8 @@ def run_cmd(
     params: Dict[str, Any] = {}
     if top is not None:
         params["top"] = top
+    if run_top is not None:
+        params["run_top"] = run_top
     if reg_itf is not None:
         params["reg_itf"] = reg_itf
     if overwrite or force:
@@ -347,6 +358,8 @@ def run_cmd(
     cmd_preview = f"flexsoc run {action_id}"
     if top is not None:
         cmd_preview += f" --top {top}"
+    if run_top is not None:
+        cmd_preview += f" --run-top {run_top}"
     if run_id is not None:
         cmd_preview += f" --run-id {run_id}"
     if reg_itf is not None:
@@ -356,8 +369,9 @@ def run_cmd(
         cmd_preview += " --overwrite"
 
     flow_dir_preview = None
-    if top and run_id:
-        flow_dir_preview = ws / "runs" / top / run_id
+    run_top_preview = run_top or top
+    if run_top_preview and run_id:
+        flow_dir_preview = ws / "runs" / run_top_preview / run_id
 
     with running_status(label=f"run {action_id}"):
         res = execute_action(
@@ -368,8 +382,9 @@ def run_cmd(
         )
 
     flow_dir = None
-    if top and run_id:
-        flow_dir = ws / "runs" / top / run_id
+    run_top2 = run_top or top
+    if run_top2 and run_id:
+        flow_dir = ws / "runs" / run_top2 / run_id
 
     print_runner_summary(
         label=f"run {action_id}",
@@ -411,6 +426,7 @@ def make_cmd(
     list_targets: bool = typer.Option(False, "--list"),
     workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
     top: Optional[str] = typer.Option(None, "--top"),
+    run_top: Optional[str] = typer.Option(None, "--run-top"),
     run_id: Optional[str] = typer.Option(None, "--run-id"),
     reg_itf: Optional[str] = typer.Option(None, "--reg-itf"),
     overwrite: bool = typer.Option(False, "--overwrite"),
@@ -435,6 +451,7 @@ def make_cmd(
     common_vars = _common_make_vars(
         workspace=ws,
         top=top,
+        run_top=run_top,
         run_id=run_id,
         reg_itf=reg_itf,
         overwrite=overwrite,
@@ -457,10 +474,10 @@ def make_cmd(
     cmd.extend(passthrough)
 
     flow_dir_preview = None
-    top2 = make_vars.get("TOP")
+    run_top2 = make_vars.get("RUN_TOP") or make_vars.get("TOP")
     run_id2 = make_vars.get("RUN_ID")
-    if top2 and run_id2:
-        flow_dir_preview = ws / "runs" / str(top2) / str(run_id2)
+    if run_top2 and run_id2:
+        flow_dir_preview = ws / "runs" / str(run_top2) / str(run_id2)
 
     cmd_preview = " ".join(cmd)
 

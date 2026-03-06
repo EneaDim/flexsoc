@@ -1,3 +1,5 @@
+RUN_TOP ?= $(TOP)
+
 # ------------------------------------------------------------------
 # Canonical repository roots
 # ------------------------------------------------------------------
@@ -30,7 +32,7 @@ MAKEFLAGS += --no-print-directory
 # ---- config.mk (inlined) ----
 # =============================================================================
 # flexsoc Flow Configuration (workspace-rooted)
-# - All artifacts MUST go under: $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)/
+# - All artifacts MUST go under: $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/
 # - Repo root is discovered from the flow/ directory.
 # =============================================================================
 
@@ -49,7 +51,7 @@ WORKSPACE ?= ../workspace
 RUN_ID    ?= $(shell date +%Y%m%d_%H%M%S)
 
 # Place all artifacts under workspace/runs/<top>/<run_id>
-OUTROOT   ?= $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)
+OUTROOT   ?= $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)
 
 # Sky130 / PDK inputs (Liberty + primitives)
 PDK_ROOT := $(REPO_ROOT)/pdks/sky130
@@ -795,14 +797,14 @@ TARGET ?= default
 
 # FuseSoC setup:
 # Generates:
-#   $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)/fusesoc/$(TOP).core
+#   $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/fusesoc/$(TOP).core
 fsoc_init:
 	@echo "\n$(ORANGE)FuseSOC setup...\n$(RESET)"
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_ID)
 	@set -eu; \
-	run_dir="$(WORKSPACE)/runs/$(TOP)/$(RUN_ID)"; \
+	run_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
 	rtl_dir="$$run_dir/rtl"; \
 	lint_dir="$$run_dir/lint"; \
 	out_abs="$$run_dir"; \
@@ -826,7 +828,7 @@ fsoc:
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_ID)
 	@set -eu; \
-	cores_root="$(WORKSPACE)/runs/$(TOP)/$(RUN_ID)/fusesoc"; \
+	cores_root="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/fusesoc"; \
 	$(Q)$(FUSESOC) --cores-root="$$cores_root" run --target "$(TARGET)" "$(PRJ):ip:$(TOP)"
 
 # ---- mk/xbar_soc.mk (inlined) ----
@@ -882,20 +884,24 @@ soc_view:
 # ---- mk/tutorials.mk (inlined) ----
 # TUTORIALS #
 full_tutorial:
-	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui TOP=test
+	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui TOP=test RUN_ID=dev1
 
 fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
-	$(Q)$(MAKE) ip_flow_noreg TOP=$(FSM)
+	$(Q)$(MAKE) ip_flow_noreg TOP=$(FSM) RUN_ID=dev1
 
 ip_tutorial:
-	$(Q)$(MAKE) ip_load
+	$(Q)$(MAKE) ip_load RUN_ID=dev1
 	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
-	$(Q)$(MAKE) sim syn sdf sta sta_violators power view
+	$(Q)$(MAKE) sim syn sdf sta sta_violators power view RUN_ID=dev1
 
 # SoC Processor-Less
+.PHONY: soc_pless
+
 soc_pless:
-	$(Q)$(MAKE) ip_load TOP=tiny-soc
-	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_ID)
+	$(Q)$(MAKE) ip_load TOP=tiny-soc RUN_TOP=tiny-soc WORKSPACE=$(WORKSPACE) RUN_ID=dev1
+	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc RUN_TOP=tiny-soc WORKSPACE=$(WORKSPACE) RUN_ID=dev1
 
 # SoC with IBEX
 soc_ibex_tutorial: soc_ibex_fetch soc_ibex
@@ -904,10 +910,10 @@ soc_ibex_tutorial: soc_ibex_fetch soc_ibex
 # Save/Load IP bundles
 #
 # ip_save copies:
-#   $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)  ->  $(IPS_ROOT)/$(TOP)
+#   $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)  ->  $(IPS_ROOT)/$(TOP)
 #
 # ip_load restores:
-#   $(IPS_ROOT)/$(TOP)  ->  $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)
+#   $(IPS_ROOT)/$(TOP)  ->  $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)
 #
 # fsoc_init: FuseSoC-friendly init target (creates run dir skeleton).
 #
@@ -937,7 +943,7 @@ ip_save:
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_ID)
 	@set -eu; \
-	src="$(WORKSPACE)/runs/$(TOP)/$(RUN_ID)"; \
+	src="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
 	dst="$(IPS_ROOT)/$(TOP)"; \
 	if [ ! -d "$$src" ]; then \
 		echo "ERROR: source run dir not found: $$src"; \
@@ -969,7 +975,7 @@ ip_load:
 	$(call _require_var,RUN_ID)
 	@set -eu; \
 	src="$(IPS_ROOT)/$(TOP)"; \
-	dst="$(WORKSPACE)/runs/$(TOP)/$(RUN_ID)"; \
+	dst="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
 	if [ ! -d "$$src" ]; then \
 		echo "ERROR: source IP bundle not found: $$src"; \
 		exit 2; \
