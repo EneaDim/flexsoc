@@ -100,6 +100,46 @@ def _common_make_vars(
     return make_vars
 
 
+
+def _split_make_targets_and_passthrough(
+    initial_targets: list[str],
+    extra_args: list[str],
+) -> tuple[list[str], Dict[str, str], list[str]]:
+    """
+    Build the final ordered target list for `flexsoc make`.
+
+    Why this exists:
+    - Typer may parse only the first positional target and leave the rest in ctx.args
+      because this command also accepts raw passthrough args.
+    - We want:
+        flexsoc make ip_start syn sta power --top my_ip --run-id dev
+      to mean four sequential make invocations, not one invocation with extra goals.
+
+    Return:
+    - targets: full ordered target list
+    - override_vars: KEY=VALUE overrides from raw passthrough
+    - passthrough: remaining raw args (flags etc.)
+    """
+    targets = list(initial_targets or [])
+    override_vars: Dict[str, str] = {}
+    passthrough: list[str] = []
+
+    for arg in extra_args:
+        if "=" in arg and not arg.startswith("-"):
+            key, value = arg.split("=", 1)
+            if key:
+                override_vars[key] = value
+                continue
+
+        # Bare non-option words are interpreted as additional make targets.
+        if not arg.startswith("-"):
+            targets.append(arg)
+            continue
+
+        passthrough.append(arg)
+
+    return targets, override_vars, passthrough
+
 def _parse_make_var_overrides(extra_args: list[str]) -> tuple[Dict[str, str], list[str]]:
     """
     Split `make` extra args into:
@@ -422,7 +462,7 @@ def _make_list_targets(flow_dir: Path) -> list[str]:
 @app.command("make", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def make_cmd(
     ctx: typer.Context,
-    target: Optional[str] = typer.Argument(None),
+    targets: list[str] = typer.Argument(None),
     list_targets: bool = typer.Option(False, "--list"),
     workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
     top: Optional[str] = typer.Option(None, "--top"),
@@ -435,17 +475,12 @@ def make_cmd(
     _setup_logging()
     ws = (workspace or default_workspace()).resolve()
     repo_root = _repo_root()
-    flow_dir = _flow_dir()
+    flow_make_dir = _flow_dir()
 
     if list_targets:
-        targets = _make_list_targets(flow_dir) or ["help"]
+        targets = _make_list_targets(flow_make_dir) or ["help"]
         print_make_targets(targets)
         raise typer.Exit(0)
-
-    if not target:
-        raise typer.BadParameter(
-            "Missing target. Use: flexsoc make --list OR flexsoc make <target> [-- ...]"
-        )
 
     # Common typed CLI flags -> canonical Make variables
     common_vars = _common_make_vars(
@@ -458,53 +493,66 @@ def make_cmd(
         force=force,
     )
 
-    # Extra args after `--` can still override/add Make variables
+    # Extra args after `--` may contain:
+    # - additional positional make targets
+    # - KEY=VALUE make var overrides
+    # - raw passthrough flags
     extra_args = list(ctx.args)
-    override_vars, passthrough = _parse_make_var_overrides(extra_args)
+    final_targets, override_vars, passthrough = _split_make_targets_and_passthrough(targets, extra_args)
+
+    if not final_targets:
+        raise typer.BadParameter(
+            "Missing target. Use: flexsoc make --list OR flexsoc make <target> [<target> ...] [-- ...]"
+        )
 
     # Backward compatibility rule:
     # raw KEY=VALUE overrides passed after `--` win over typed flags.
     make_vars = {**common_vars, **override_vars}
 
     backend = MakeBackend()
-    action_exec_id = f"make_{target}"
 
-    cmd = ["make", "-C", str(flow_dir), target]
-    cmd.extend([f"{k}={v}" for k, v in make_vars.items()])
-    cmd.extend(passthrough)
+    for target in final_targets:
+        action_exec_id = f"make_{target}"
 
-    flow_dir_preview = None
-    run_top2 = make_vars.get("RUN_TOP") or make_vars.get("TOP")
-    run_id2 = make_vars.get("RUN_ID")
-    if run_top2 and run_id2:
-        flow_dir_preview = ws / "runs" / str(run_top2) / str(run_id2)
+        cmd = ["make", "-C", str(flow_make_dir), target]
+        cmd.extend([f"{k}={v}" for k, v in make_vars.items()])
+        cmd.extend(passthrough)
 
-    cmd_preview = " ".join(cmd)
+        flow_run_dir_preview = None
+        run_top2 = make_vars.get("RUN_TOP") or make_vars.get("TOP")
+        run_id2 = make_vars.get("RUN_ID")
+        if run_top2 and run_id2:
+            flow_run_dir_preview = ws / "runs" / str(run_top2) / str(run_id2)
 
-    with running_status(label=f"make {target}"):
-        res = backend.run(
-        action_id=action_exec_id,
-        cmd=cmd,
-        params={
-            "target": target,
-            "make_vars": make_vars,
-            "passthrough": passthrough,
-        },
-        workspace_dir=ws,
-        cwd=repo_root,
-        env=os.environ.copy(),
-    )
+        cmd_preview = " ".join(cmd)
 
-    flow_dir = flow_dir_preview
+        with running_status(label=f"make {target}"):
+            res = backend.run(
+                action_id=action_exec_id,
+                cmd=cmd,
+                params={
+                    "target": target,
+                    "targets": final_targets,
+                    "make_vars": make_vars,
+                    "passthrough": passthrough,
+                },
+                workspace_dir=ws,
+                cwd=repo_root,
+                env=os.environ.copy(),
+            )
 
-    print_runner_summary(
-        label=f"make {target}",
-        exit_code=res.exit_code,
-        runner_dir=res.run_dir,
-        flow_dir=flow_dir,
-        command=cmd_preview,
-    )
-    raise typer.Exit(res.exit_code)
+        print_runner_summary(
+            label=f"make {target}",
+            exit_code=res.exit_code,
+            runner_dir=res.run_dir,
+            flow_dir=flow_run_dir_preview,
+            command=cmd_preview,
+        )
+
+        if res.exit_code != 0:
+            raise typer.Exit(res.exit_code)
+
+    raise typer.Exit(0)
 
 
 if __name__ == "__main__":
