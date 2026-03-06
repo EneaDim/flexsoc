@@ -114,8 +114,8 @@ def dump_registry() -> None:
 def actions() -> None:
     _setup_logging()
     reg = _registry()
-    action_ids = (reg.get("actions") or {}).keys()
-    print_actions_table(action_ids)
+    actions_map = reg.get("actions") or {}
+    print_actions_table(actions_map)
 
 
 # ----------------------------------------------------------------------

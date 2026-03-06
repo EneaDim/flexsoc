@@ -2,16 +2,14 @@ from __future__ import annotations
 
 # ui.py
 #
-# Tutto ciò che stampa “interfaccia umana” (hub/help/tabelle/summary).
-#
-# Contratti:
-# - Hub/help/tabelle: stdout (i test leggono stdout)
-# - Summary/run info: stderr (i test vogliono "Runner dir:" in stderr)
-# - JSON puro NON deve passare da qui.
+# Solo presentazione.
+# - hub/help/tabelle su stdout
+# - summary run su stderr
+# - niente logica di business qui
 
 import sys
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Mapping, Optional
 
 from rich.console import Console
 from rich.panel import Panel
@@ -27,101 +25,168 @@ def cerr() -> Console:
     return Console(file=sys.stderr)
 
 
-
 def print_hub() -> None:
     c = cout()
 
-    body = """
-[b]Quick actions[/b]
-  flexsoc run ip_start --top <name> --run-id <id>
-  flexsoc actions
-  flexsoc make --list
+    hero = Text()
+    hero.append("flexsoc", style="bold cyan")
+    hero.append("  ", style="dim")
+    hero.append("Workspace-based hardware IP flow runner", style="dim")
 
-[b]Common workflow[/b]
+    body = """
+[bold]Quick actions[/bold]
+  [cyan]flexsoc run ip_start --top[/cyan] <name> [cyan]--run-id[/cyan] <id>
+  [cyan]flexsoc actions[/cyan]
+  [cyan]flexsoc make --list[/cyan]
+
+[bold]Common workflow[/bold]
   1. Start a new IP
-     flexsoc run ip_start --top my_ip --run-id dev
+     [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
 
   2. Run simulation
-     flexsoc make sim
+     [green]flexsoc make sim[/green]
 
   3. Run synthesis
-     flexsoc make synth
+     [green]flexsoc make synth[/green]
 
   4. Run signoff
-     flexsoc make sta
+     [green]flexsoc make sta[/green]
 
-[b]Shortcuts[/b]
-  flexsoc ?        Show this hub
-  flexsoc h        Alias for hub
-  flexsoc a        List actions
-  flexsoc q        Quickstart
-  flexsoc t        Tutorial
-  flexsoc ip       IP flow guide
+[bold]Shortcuts[/bold]
+  [magenta]flexsoc ?[/magenta]        Show this hub
+  [magenta]flexsoc h[/magenta]        Alias for hub
+  [magenta]flexsoc a[/magenta]        List actions
+  [magenta]flexsoc q[/magenta]        Quickstart
+  [magenta]flexsoc t[/magenta]        Tutorial
+  [magenta]flexsoc ip[/magenta]       IP flow guide
 
-[b]Discover[/b]
-  flexsoc actions          List available actions
-  flexsoc action ip_start  Show action details
-  flexsoc make --list      List Make targets
+[bold]Discover[/bold]
+  [yellow]flexsoc actions[/yellow]          List available actions
+  [yellow]flexsoc action ip_start[/yellow]  Show action details
+  [yellow]flexsoc make --list[/yellow]      List Make targets
 """
-    c.print(Panel(body.strip(), title="flexsoc", expand=False))
 
+    c.print()
+    c.print(hero)
+    c.print()
+    c.print(Panel(body.strip(), title="[bold]flexsoc[/bold]", border_style="cyan", expand=False))
 
 
 def print_help_topics() -> None:
     c = cout()
-    t = Table(title="Help topics", show_lines=False)
+
+    t = Table(title="Help topics", show_lines=False, header_style="bold cyan")
     t.add_column("Topic", style="bold")
-    t.add_column("Description")
-    t.add_row("topics", "List help topics")
-    t.add_row("action", "Show action details from registry")
+    t.add_column("Description", style="dim")
+    t.add_row("hub", "Main entry hub and shortcuts")
+    t.add_row("quickstart", "First steps for starting a new IP flow")
+    t.add_row("tutorial", "Guided walkthrough")
+    t.add_row("ip", "IP generation and verification flow guide")
+    t.add_row("actions", "Registry-backed actions")
+    t.add_row("action <name>", "Detailed info for a single action")
+    t.add_row("make --list", "Available Make targets")
+
     c.print(t)
 
 
 def print_quickstart() -> None:
-    cout().print(Panel("Quickstart\n\n- Start an IP workspace\n- Run sim/syn/signoff\n", title="Quickstart", expand=False))
+    body = """
+[bold]Quickstart[/bold]
+
+1. Create a workspace-backed run
+   [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
+
+2. Explore available actions
+   [green]flexsoc actions[/green]
+
+3. Inspect a specific action
+   [green]flexsoc action ip_start[/green]
+
+4. Discover Make targets
+   [green]flexsoc make --list[/green]
+"""
+    cout().print(Panel(body.strip(), title="Quickstart", border_style="green", expand=False))
 
 
 def print_tutorial() -> None:
-    cout().print(Panel("Tutorial\n\n- Use `flexsoc make help`\n- Explore tutorial targets\n", title="Tutorial", expand=False))
+    body = """
+[bold]Tutorial[/bold]
+
+Use the CLI as the main entry point:
+  [green]flexsoc run ...[/green]
+  [green]flexsoc exec ...[/green]
+  [green]flexsoc make ...[/green]
+
+Use [cyan]flexsoc actions[/cyan] to discover workflow steps,
+and [cyan]flexsoc action <name>[/cyan] to inspect parameters.
+"""
+    cout().print(Panel(body.strip(), title="Tutorial", border_style="magenta", expand=False))
 
 
 def print_ip_guide() -> None:
-    cout().print(Panel("IP flow guide\n\n- ip_start generates RTL + TB\n- sim prints Coverage: on stdout\n", title="IP flow guide", expand=False))
+    body = """
+[bold]IP flow guide[/bold]
+
+Typical authoring flow:
+  [green]ip_start[/green]  → create HJSON + RTL stub + TB scaffolding
+  [green]sim[/green]       → run simulation
+  [green]synth[/green]     → run synthesis
+  [green]sta[/green]       → timing analysis
+  [green]power[/green]     → power estimation
+
+Simulation should print a [bold]Coverage:[/bold] line on stdout.
+"""
+    cout().print(Panel(body.strip(), title="IP flow guide", border_style="yellow", expand=False))
 
 
-
-def print_actions_table(action_ids: Iterable[str]) -> None:
+def print_actions_table(actions: Mapping[str, Mapping[str, object]]) -> None:
     c = cout()
 
-    t = Table(title="Available actions", show_lines=False)
-    t.add_column("Action", style="bold")
-    t.add_column("Description")
+    t = Table(title="Available actions", show_lines=False, header_style="bold cyan")
+    t.add_column("Action", style="bold green", no_wrap=True)
+    t.add_column("Description", style="dim")
 
-    for aid in sorted(action_ids):
-        t.add_row(aid, "")
+    for action_id in sorted(actions):
+        meta = actions[action_id] or {}
+        desc = str(meta.get("description", "") or "")
+        t.add_row(action_id, desc)
 
     c.print(t)
-    c.print("Use: [bold]flexsoc action <name>[/bold] to see details.")
+    c.print("[dim]Use[/dim] [bold]flexsoc action <name>[/bold] [dim]to see details.[/dim]")
 
-def print_action_detail(action_id: str, meta: dict) -> None:
+
+def print_action_detail(action_id: str, meta: Mapping[str, object]) -> None:
     c = cout()
 
     desc = str(meta.get("description", "") or "")
-    c.print(Panel(f"[b]{action_id}[/b]\n\n{desc}", title="Action info", expand=False))
+    c.print(
+        Panel(
+            f"[bold green]{action_id}[/bold green]\n\n{desc}",
+            title="Action info",
+            border_style="green",
+            expand=False,
+        )
+    )
 
     params = meta.get("params", {}) or {}
-    pt = Table(title="Parameters", show_lines=False)
+    pt = Table(title="Parameters", show_lines=False, header_style="bold cyan")
     pt.add_column("Name", style="bold")
     pt.add_column("Type")
     pt.add_column("Default")
     pt.add_column("Help")
-    for k, spec in sorted(params.items()):
-        pt.add_row(
-            str(k),
-            str(spec.get("type", "")),
-            str(spec.get("default", "")),
-            str(spec.get("help", "")),
-        )
+
+    if isinstance(params, dict):
+        for k, spec in sorted(params.items()):
+            spec = spec or {}
+            if not isinstance(spec, dict):
+                spec = {}
+            pt.add_row(
+                str(k),
+                str(spec.get("type", "")),
+                str(spec.get("default", "")),
+                str(spec.get("help", "")),
+            )
+
     c.print(pt)
 
     examples = meta.get("examples") or meta.get("usage") or []
@@ -130,33 +195,41 @@ def print_action_detail(action_id: str, meta: dict) -> None:
     if not examples:
         examples = [f"flexsoc run {action_id} --top <top> --run-id <run_id>"]
 
-    c.print(Panel("\n".join(map(str, examples)), title="Examples", expand=False))
+    c.print(
+        Panel(
+            "\n".join(map(str, examples)),
+            title="Examples",
+            border_style="cyan",
+            expand=False,
+        )
+    )
 
 
-def print_make_targets(targets: list[str]) -> None:
-    # I test vogliono "Target" e "flow" su stdout
+def print_make_targets(targets: Iterable[str]) -> None:
     c = cout()
-    c.print(Text("Make targets", style="bold"))
-    c.print(Text("Discover available Makefile targets under flow/ 🧰", style="dim"))
-    c.print()
 
-    t = Table(show_lines=False)
-    t.add_column("Target", style="bold")
+    t = Table(title="Make targets", show_lines=False, header_style="bold cyan")
+    t.add_column("Target", style="bold yellow")
+
     for x in targets:
-        t.add_row(x)
+        t.add_row(str(x))
 
-    c.print(Panel(t, title="flow", expand=False))
+    c.print(Panel(t, title="flow", border_style="yellow", expand=False))
 
 
 def print_runner_summary(*, label: str, exit_code: int, runner_dir: Path, flow_dir: Optional[Path]) -> None:
-    # Stderr only
     c = cerr()
+
+    ok = exit_code == 0
+    color = "green" if ok else "red"
+    icon = "✅" if ok else "❌"
+
     lines = [
-        f"[b]{label}[/b]",
+        f"[bold]{icon} {label}[/bold]",
         f"Exit code: {exit_code}",
         f"Runner dir: {runner_dir}",
     ]
     if flow_dir is not None:
         lines.append(f"Flow dir: {flow_dir}")
 
-    c.print(Panel("\n".join(lines), title="Summary", expand=False))
+    c.print(Panel("\n".join(lines), title="Summary", border_style=color, expand=False))

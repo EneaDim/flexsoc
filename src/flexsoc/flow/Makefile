@@ -1,5 +1,23 @@
+# ------------------------------------------------------------------
+# Canonical repository roots
+# ------------------------------------------------------------------
+REPO_ROOT ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../../..)
+FLOWROOT ?= $(REPO_ROOT)/flow
+FLEXSOCROOT ?= $(REPO_ROOT)/src/flexsoc
+TOOLSROOT ?= $(FLEXSOCROOT)/tools
+UTILROOT ?= $(REPO_ROOT)/src/util
+export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
 
 # Ensure Python can import src/ when invoked via `make -C flow`
+# ------------------------------------------------------------------
+# Canonical repository roots
+# ------------------------------------------------------------------
+REPO_ROOT ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../../..)
+FLOWROOT ?= $(REPO_ROOT)/flow
+
+UTILROOT ?= $(REPO_ROOT)/src/util
+export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
+
 REPO_ROOT := $(abspath ..)
 export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
 
@@ -160,7 +178,6 @@ PRIM ?= \
   $(PDK_ROOT)/verilog/primitives.v \
   $(PDK_ROOT)/verilog/sky130_fd_sc_hd.no_tc.v
 
-
 # -----------------------------------------------------------------------------
 # Synthesis / sign-off
 # -----------------------------------------------------------------------------
@@ -268,7 +285,6 @@ help_fsm:
 
 # ---- mk/setup.mk (inlined) ----
 .PHONY: setup setup_tb setup_cocotb setup_model setup_sdc setup_syn setup_signoff setup_pnr
-
 
 # SETUP FOLDER STRUCTURE
 setup:
@@ -549,7 +565,6 @@ view_syn:
 	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
 	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_syn_tb.vcd $(VIEWER_CONF) &
 
-
 # -----------------------------------------------------------------------------
 # REGRESSION
 # -----------------------------------------------------------------------------
@@ -619,7 +634,6 @@ view_presyn_sv:
   show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" \
 	> $(LOGDIR)/$(TOP)_presyn.log 2>&1
 	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot 2>/dev/null &
-
 
 ###          COMPILE & SIMULATE SYNTHESIS       ###
 
@@ -984,13 +998,13 @@ ip_load:
 deps:
 	@echo "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
 	sudo apt install -y make python3 python3-pip
-	sed -i 's/\r$$//' $(REPO_ROOT)/src/flexsoc/tools/deps.sh
-	bash $(REPO_ROOT)/src/flexsoc/tools/deps.sh ip
+	sed -i 's/\r$$//' $(REPO_ROOT)/src/flexsoc/tools/$(TOOLSROOT)/deps.sh
+	bash $(REPO_ROOT)/src/flexsoc/tools/$(TOOLSROOT)/deps.sh ip
 	pip install -r requirements.txt
 	
 deps-soc:
 	@echo "\n$(ORANGE)Installing dependencies for SoC integration ...\n$(RESET)"
-	bash $(REPO_ROOT)/src/flexsoc/tools/deps.sh soc
+	bash $(REPO_ROOT)/src/flexsoc/tools/$(TOOLSROOT)/deps.sh soc
 	echo
 	export PATH=$$PATH:/tools/riscv32/bin
 	echo "export PATH=/tools/riscv32/bin" >> ~/.bashrc
@@ -1064,11 +1078,9 @@ clean_all: clean_fsm_all clean_vendor clean_agent clean
 	$(Q)$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(ORSDIR) \
 	$(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) $(FSMDIR) > /dev/null 2>&1
 
-
 # =============================================================
 # BEGIN MERGED INCLUDES (auto-generated)
 # =============================================================
-
 
 # =============================================================
 # END MERGED INCLUDES
