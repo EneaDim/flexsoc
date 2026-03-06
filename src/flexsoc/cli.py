@@ -61,6 +61,66 @@ def _registry_path() -> Path:
 def _registry() -> Dict[str, Any]:
     return load_registry(_registry_path())
 
+
+def _common_make_vars(
+    *,
+    workspace: Path,
+    top: Optional[str],
+    run_id: Optional[str],
+    reg_itf: Optional[str],
+    overwrite: bool,
+    force: bool,
+) -> Dict[str, str]:
+    """
+    Build the common Make variable mapping shared by `run` and `make`.
+
+    Rules:
+    - WORKSPACE is always passed as an absolute path
+    - TOP / RUN_ID / REG_ITF are included only when provided
+    - --force is only a CLI alias for overwrite
+    - OVERWRITE is normalized to the Make contract expected by the flow
+    """
+    make_vars: Dict[str, str] = {
+        "WORKSPACE": str(Path(workspace).resolve()),
+    }
+
+    if top is not None:
+        make_vars["TOP"] = top
+    if run_id is not None:
+        make_vars["RUN_ID"] = run_id
+    if reg_itf is not None:
+        make_vars["REG_ITF"] = reg_itf
+    if overwrite or force:
+        make_vars["OVERWRITE"] = "--force"
+
+    return make_vars
+
+
+def _parse_make_var_overrides(extra_args: list[str]) -> tuple[Dict[str, str], list[str]]:
+    """
+    Split `make` extra args into:
+    - KEY=VALUE overrides
+    - passthrough positional/flag args
+
+    This keeps backward compatibility with:
+      flexsoc make ip_start -- TOP=... RUN_ID=...
+
+    while allowing common CLI flags to generate the same variables.
+    """
+    overrides: Dict[str, str] = {}
+    passthrough: list[str] = []
+
+    for arg in extra_args:
+        if "=" in arg and not arg.startswith("-"):
+            key, value = arg.split("=", 1)
+            if key:
+                overrides[key] = value
+                continue
+        passthrough.append(arg)
+
+    return overrides, passthrough
+
+
 def _repo_root() -> Path:
     # src/flexsoc/cli.py -> repo root = parents[2]
     return Path(__file__).resolve().parents[2]
@@ -314,6 +374,11 @@ def make_cmd(
     target: Optional[str] = typer.Argument(None),
     list_targets: bool = typer.Option(False, "--list"),
     workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
+    top: Optional[str] = typer.Option(None, "--top"),
+    run_id: Optional[str] = typer.Option(None, "--run-id"),
+    reg_itf: Optional[str] = typer.Option(None, "--reg-itf"),
+    overwrite: bool = typer.Option(False, "--overwrite"),
+    force: bool = typer.Option(False, "--force", help="Alias for --overwrite"),
 ) -> None:
     _setup_logging()
     ws = (workspace or default_workspace()).resolve()
@@ -326,18 +391,43 @@ def make_cmd(
         raise typer.Exit(0)
 
     if not target:
-        raise typer.BadParameter("Missing target. Use: flexsoc make --list OR flexsoc make <target> [-- ...]")
+        raise typer.BadParameter(
+            "Missing target. Use: flexsoc make --list OR flexsoc make <target> [-- ...]"
+        )
 
-    extra = list(ctx.args)
+    # Common typed CLI flags -> canonical Make variables
+    common_vars = _common_make_vars(
+        workspace=ws,
+        top=top,
+        run_id=run_id,
+        reg_itf=reg_itf,
+        overwrite=overwrite,
+        force=force,
+    )
+
+    # Extra args after `--` can still override/add Make variables
+    extra_args = list(ctx.args)
+    override_vars, passthrough = _parse_make_var_overrides(extra_args)
+
+    # Backward compatibility rule:
+    # raw KEY=VALUE overrides passed after `--` win over typed flags.
+    make_vars = {**common_vars, **override_vars}
 
     backend = MakeBackend()
     action_exec_id = f"make_{target}"
-    cmd = ["make", "-C", str(flow_dir), target] + extra
+
+    cmd = ["make", "-C", str(flow_dir), target]
+    cmd.extend([f"{k}={v}" for k, v in make_vars.items()])
+    cmd.extend(passthrough)
 
     res = backend.run(
         action_id=action_exec_id,
         cmd=cmd,
-        params={"target": target, "extra": extra},
+        params={
+            "target": target,
+            "make_vars": make_vars,
+            "passthrough": passthrough,
+        },
         workspace_dir=ws,
         cwd=repo_root,
         env=os.environ.copy(),

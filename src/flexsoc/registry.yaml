@@ -166,38 +166,6 @@ actions:
         type: string
         required: true
 
-  sim_syn:
-    description: Simulate post-synthesis netlist (vvp + SDF verbose)
-    command:
-    - make
-    - -C
-    - flow
-    - sim_syn
-    requires_top: true
-    requires_run_id: true
-    produces_outroot: true
-    postprocess: null
-    params:
-      top:
-        type: string
-        required: true
-
-  view_syn:
-    description: View post-synthesis waveforms (GTKWave)
-    command:
-    - make
-    - -C
-    - flow
-    - view_syn
-    requires_top: true
-    requires_run_id: true
-    produces_outroot: false
-    postprocess: null
-    params:
-      top:
-        type: string
-        required: true
-
   synth:
     description: Run synthesis (Yosys)
     command:
@@ -299,6 +267,38 @@ actions:
         type: string
         required: true
 
+  sim_syn:
+    description: Simulate post-synthesis netlist (vvp + SDF verbose)
+    command:
+    - make
+    - -C
+    - flow
+    - sim_syn
+    requires_top: true
+    requires_run_id: true
+    produces_outroot: true
+    postprocess: null
+    params:
+      top:
+        type: string
+        required: true
+
+  view_syn:
+    description: View post-synthesis waveforms (GTKWave)
+    command:
+    - make
+    - -C
+    - flow
+    - view_syn
+    requires_top: true
+    requires_run_id: true
+    produces_outroot: false
+    postprocess: null
+    params:
+      top:
+        type: string
+        required: true
+
   # ----------------------------
   # Composite / convenience
   # ----------------------------
@@ -373,6 +373,28 @@ actions:
         type: string
         required: false
 
+  ip_save:
+    description: Save IP run artifacts to an IP bundle
+    command:
+    - make
+    - -C
+    - flow
+    - ip_save
+    requires_top: true
+    requires_run_id: true
+    produces_outroot: true
+    postprocess: null
+    params:
+      top:
+        type: string
+        required: true
+      run_id:
+        type: string
+        required: true
+      overwrite:
+        type: string
+        required: false
+
   ip_load:
     description: Load an IP bundle into the current run (see flow save/load rules)
     command:
@@ -395,24 +417,3 @@ actions:
         type: string
         required: false
 
-  ip_save:
-    description: Save IP run artifacts to an IP bundle
-    command:
-    - make
-    - -C
-    - flow
-    - ip_save
-    requires_top: true
-    requires_run_id: true
-    produces_outroot: true
-    postprocess: null
-    params:
-      top:
-        type: string
-        required: true
-      run_id:
-        type: string
-        required: true
-      overwrite:
-        type: string
-        required: false

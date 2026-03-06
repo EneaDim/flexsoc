@@ -35,22 +35,9 @@ def print_hub() -> None:
 
     body = """
 [bold]Quick actions[/bold]
-  [cyan]flexsoc run ip_start --top[/cyan] <name> [cyan]--run-id[/cyan] <id>
+  [cyan]flexsoc run ip_start --top[/cyan] test [cyan]--run-id[/cyan] dev
   [cyan]flexsoc actions[/cyan]
   [cyan]flexsoc make --list[/cyan]
-
-[bold]Common workflow[/bold]
-  1. Start a new IP
-     [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
-
-  2. Run simulation
-     [green]flexsoc make sim[/green]
-
-  3. Run synthesis
-     [green]flexsoc make synth[/green]
-
-  4. Run signoff
-     [green]flexsoc make sta[/green]
 
 [bold]Shortcuts[/bold]
   [magenta]flexsoc ?[/magenta]        Show this hub
@@ -64,6 +51,20 @@ def print_hub() -> None:
   [yellow]flexsoc actions[/yellow]          List available actions
   [yellow]flexsoc action ip_start[/yellow]  Show action details
   [yellow]flexsoc make --list[/yellow]      List Make targets
+
+[bold]Common workflow[/bold]
+  1. Start a new IP
+     [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
+
+  2. Run synthesis
+     [green]flexsoc make synth[/green]
+
+  3. Run static timing analysis 
+     [green]flexsoc make sta[/green]
+
+  4. Run power analysis
+     [green]flexsoc make power[/green]
+
 """
 
     c.print()
@@ -128,8 +129,7 @@ def print_ip_guide() -> None:
 [bold]IP flow guide[/bold]
 
 Typical authoring flow:
-  [green]ip_start[/green]  → create HJSON + RTL stub + TB scaffolding
-  [green]sim[/green]       → run simulation
+  [green]ip_start[/green]  → create HJSON + RTL stub + TB scaffolding + SIM
   [green]synth[/green]     → run synthesis
   [green]sta[/green]       → timing analysis
   [green]power[/green]     → power estimation
@@ -146,7 +146,7 @@ def print_actions_table(actions: Mapping[str, Mapping[str, object]]) -> None:
     t.add_column("Action", style="bold green", no_wrap=True)
     t.add_column("Description", style="dim")
 
-    for action_id in sorted(actions):
+    for action_id in actions:
         meta = actions[action_id] or {}
         desc = str(meta.get("description", "") or "")
         t.add_row(action_id, desc)
