@@ -294,11 +294,23 @@ def exec_cmd(
     if top2 and run_id:
         flow_dir = ws / "runs" / str(top2) / str(run_id)
 
+    cmd_preview = "flexsoc exec " + str(plan_path)
+    if top is not None:
+        cmd_preview += f" --top {top}"
+    if run_id is not None:
+        cmd_preview += f" --run-id {run_id}"
+    if reg_itf is not None:
+        cmd_preview += f" --reg-itf {reg_itf}"
+    cmd_preview += f" --workspace {ws}"
+    if overwrite or force:
+        cmd_preview += " --overwrite"
+
     print_runner_summary(
         label=f"exec {plan.action}",
         exit_code=res.exit_code,
         runner_dir=res.runner_run_dir,
         flow_dir=flow_dir,
+        command=cmd_preview,
     )
     raise typer.Exit(res.exit_code)
 
@@ -336,11 +348,23 @@ def run_cmd(
     if top and run_id:
         flow_dir = ws / "runs" / top / run_id
 
+    cmd_preview = f"flexsoc run {action_id}"
+    if top is not None:
+        cmd_preview += f" --top {top}"
+    if run_id is not None:
+        cmd_preview += f" --run-id {run_id}"
+    if reg_itf is not None:
+        cmd_preview += f" --reg-itf {reg_itf}"
+    cmd_preview += f" --workspace {ws}"
+    if overwrite or force:
+        cmd_preview += " --overwrite"
+
     print_runner_summary(
         label=f"run {action_id}",
         exit_code=res.exit_code,
         runner_dir=res.runner_run_dir,
         flow_dir=flow_dir,
+        command=cmd_preview,
     )
     raise typer.Exit(res.exit_code)
 
@@ -433,11 +457,20 @@ def make_cmd(
         env=os.environ.copy(),
     )
 
+    flow_dir = None
+    top2 = make_vars.get("TOP")
+    run_id2 = make_vars.get("RUN_ID")
+    if top2 and run_id2:
+        flow_dir = ws / "runs" / str(top2) / str(run_id2)
+
+    cmd_preview = " ".join(cmd)
+
     print_runner_summary(
         label=f"make {target}",
         exit_code=res.exit_code,
         runner_dir=res.run_dir,
-        flow_dir=None,
+        flow_dir=flow_dir,
+        command=cmd_preview,
     )
     raise typer.Exit(res.exit_code)
 

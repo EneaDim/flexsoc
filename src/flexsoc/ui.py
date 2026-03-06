@@ -217,19 +217,43 @@ def print_make_targets(targets: Iterable[str]) -> None:
     c.print(Panel(t, title="flow", border_style="yellow", expand=False))
 
 
-def print_runner_summary(*, label: str, exit_code: int, runner_dir: Path, flow_dir: Optional[Path]) -> None:
+
+def print_runner_summary(
+    *,
+    label: str,
+    exit_code: int,
+    runner_dir: Path,
+    flow_dir: Optional[Path],
+    command: Optional[str] = None,
+) -> None:
     c = cerr()
 
     ok = exit_code == 0
     color = "green" if ok else "red"
     icon = "✅" if ok else "❌"
 
-    lines = [
-        f"[bold]{icon} {label}[/bold]",
-        f"Exit code: {exit_code}",
-        f"Runner dir: {runner_dir}",
-    ]
-    if flow_dir is not None:
-        lines.append(f"Flow dir: {flow_dir}")
+    stdout_log = Path(runner_dir) / "stdout.log"
+    stderr_log = Path(runner_dir) / "stderr.log"
 
-    c.print(Panel("\n".join(lines), title="Summary", border_style=color, expand=False))
+    lines = [
+        f"[bold]{icon} {label}[/bold]\n",
+        f"Exit code: {exit_code}\n",
+        f"Runner dir: {runner_dir}\n",
+    ]
+
+    if flow_dir is not None:
+        lines.append(f"Flow dir: {flow_dir}\n")
+
+    if command:
+        lines.append(f"Command: {command}\n")
+
+    lines.append(f"stdout.log: {stdout_log}\n")
+    lines.append(f"stderr.log: {stderr_log}\n")
+
+    if not ok:
+        lines.append("")
+        lines.append("[bold]Inspect logs:[/bold]")
+        lines.append(f"  cat {stderr_log}\n")
+        lines.append(f"  cat {stdout_log}\n")
+
+    c.print(Panel("".join(lines), title="Summary", border_style=color, expand=False))
