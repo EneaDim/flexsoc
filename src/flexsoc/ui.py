@@ -154,37 +154,33 @@ def print_ip_guide() -> None:
     body = """
 [bold]IP development guide[/bold]
 
-[bold]1. Start the workspace[/bold]
-  [green]ip_start[/green]
-  Creates the run folder and initial collateral under the workspace.
-
-[bold]2. HJSON authoring[/bold]
+[bold]1. HJSON authoring[/bold]
   [green]hjson[/green]
   A starter HJSON template is generated for the IP.
   This is where you describe registers and metadata.
   After generation, edit the template with the real register map.
 
-[bold]3. Register collateral and docs[/bold]
+[bold]2. Register collateral and docs[/bold]
   [green]reg[/green] and [green]doc[/green]
   Generate the reg package / reg top and the documentation from HJSON.
 
-[bold]4. Stub generation and RTL authoring[/bold]
+[bold]3. Stub generation and RTL authoring[/bold]
   [green]rtl_stub[/green]
   Generate the initial RTL stub, then write the actual core logic.
   This is where the IP implementation really starts.
 
-[bold]5. Testbench setup and verification authoring[/bold]
+[bold]4. Testbench setup and verification authoring[/bold]
   [green]setup_tb[/green]
   Generate the TB scaffold, then write / extend the testbench.
 
-[bold]6. Pre-silicon quality loop[/bold]
+[bold]5. Pre-silicon quality loop[/bold]
   [green]lint[/green]
       Structural / style checking
   [green]sim[/green]
       Functional simulation; stdout should include a [bold]Coverage:[/bold] line
 
-[bold]7. Implementation and signoff[/bold]
-  [green]synth[/green]
+[bold]6. Implementation and signoff[/bold]
+  [green]syn[/green]
       Synthesis
   [green]sta[/green]
       Static timing analysis
@@ -195,7 +191,7 @@ def print_ip_guide() -> None:
   [green]pnr_gui[/green]
       Interactive GUI flow for PnR/debug
 
-[bold]8. Software / integration helpers[/bold]
+[bold]7. Software / integration helpers[/bold]
   [green]driver[/green]
       Generate software-facing collateral / helpers
   [green]fsoc_init[/green]
@@ -204,11 +200,10 @@ def print_ip_guide() -> None:
       Save or package the resulting IP state
 
 [bold]Suggested command sequence[/bold]
-  [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
   [green]flexsoc make hjson reg doc --top my_ip --run-id dev[/green]
   [green]flexsoc make rtl_stub setup_tb --top my_ip --run-id dev[/green]
   [green]flexsoc make lint sim --top my_ip --run-id dev[/green]
-  [green]flexsoc make synth sta power --top my_ip --run-id dev[/green]
+  [green]flexsoc make syn sta power --top my_ip --run-id dev[/green]
   [green]flexsoc make pnr --top my_ip --run-id dev[/green]
   [green]flexsoc make driver ip_save --top my_ip --run-id dev[/green]
 """
