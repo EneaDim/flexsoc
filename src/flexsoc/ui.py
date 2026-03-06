@@ -2,10 +2,9 @@ from __future__ import annotations
 
 # ui.py
 #
-# Solo presentazione.
-# - hub/help/tabelle su stdout
-# - running/summary su stderr
-# - niente logica di business qui
+# Presentation only:
+# - hub/help/tables on stdout
+# - running/summary on stderr
 
 import sys
 from contextlib import contextmanager
@@ -26,52 +25,53 @@ def cerr() -> Console:
     return Console(file=sys.stderr)
 
 
+
 def print_hub() -> None:
     c = cout()
 
     hero = Text()
-    hero.append("flexsoc", style="bold cyan")
+    hero.append("✨ flexsoc", style="bold cyan")
     hero.append("  ", style="dim")
-    hero.append("Workspace-based hardware IP flow runner", style="dim")
+    hero.append("Framework for ", style="dim")
+    hero.append("IP development", style="bold green")
+    hero.append(" and ", style="dim")
+    hero.append("SoC integration", style="bold magenta")
 
     body = """
-[bold]Quick actions[/bold]
-  [cyan]flexsoc run ip_start --top[/cyan] <name> [cyan]--run-id[/cyan] <id>
+[bold]What you can do[/bold]
+  [cyan]flexsoc run ip_start --top my_ip --run-id dev --overwrite[/cyan]
+      Start a new IP workspace and generate the initial scaffolding
+
   [cyan]flexsoc actions[/cyan]
+      Explore registry-backed actions and their descriptions
+
   [cyan]flexsoc make --list[/cyan]
-
-[bold]Common workflow[/bold]
-  1. Start a new IP
-     [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
-
-  2. Run simulation
-     [green]flexsoc make sim[/green]
-
-  3. Run synthesis
-     [green]flexsoc make synth[/green]
-
-  4. Run signoff
-     [green]flexsoc make sta[/green]
+      Discover raw Make targets for the flow backend
 
 [bold]Shortcuts[/bold]
   [magenta]flexsoc ?[/magenta]        Show this hub
   [magenta]flexsoc h[/magenta]        Alias for hub
   [magenta]flexsoc a[/magenta]        List actions
   [magenta]flexsoc q[/magenta]        Quickstart
-  [magenta]flexsoc t[/magenta]        Tutorial
-  [magenta]flexsoc ip[/magenta]       IP flow guide
+  [magenta]flexsoc t[/magenta]        Tutorials
+  [magenta]flexsoc ip[/magenta]       IP development guide
 
-[bold]Discover[/bold]
-  [yellow]flexsoc actions[/yellow]          List available actions
-  [yellow]flexsoc action ip_start[/yellow]  Show action details
-  [yellow]flexsoc make --list[/yellow]      List Make targets
+[bold]Useful next commands[/bold]
+  [yellow]flexsoc action ip_start[/yellow]
+  [yellow]flexsoc action setup_tb[/yellow]
+  [yellow]flexsoc action ip_save[/yellow]
 """
-
     c.print()
     c.print(hero)
     c.print()
-    c.print(Panel(body.strip(), title="[bold]flexsoc[/bold]", border_style="cyan", expand=False))
-
+    c.print(
+        Panel(
+            body.strip(),
+            title="[bold]flexsoc[/bold]",
+            border_style="cyan",
+            expand=False,
+        )
+    )
 
 def print_help_topics() -> None:
     c = cout()
@@ -80,9 +80,9 @@ def print_help_topics() -> None:
     t.add_column("Topic", style="bold")
     t.add_column("Description", style="dim")
     t.add_row("hub", "Main entry hub and shortcuts")
-    t.add_row("quickstart", "First steps for starting a new IP flow")
-    t.add_row("tutorial", "Guided walkthrough")
-    t.add_row("ip", "IP generation and verification flow guide")
+    t.add_row("quickstart", "Practical first steps for a new IP")
+    t.add_row("tutorial", "Tutorial commands for shipped examples")
+    t.add_row("ip", "Full IP development guide")
     t.add_row("actions", "Registry-backed actions")
     t.add_row("action <name>", "Detailed info for a single action")
     t.add_row("make --list", "Available Make targets")
@@ -90,54 +90,136 @@ def print_help_topics() -> None:
     c.print(t)
 
 
+
 def print_quickstart() -> None:
     body = """
 [bold]Quickstart[/bold]
 
-1. Create a workspace-backed run
-   [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
+Recommended first flow for a new IP:
+  1. [green]flexsoc run ip_start --top my_ip --run-id dev --workspace workspace --overwrite[/green]
+  2. [green]flexsoc make view --top my_ip --run-id dev --workspace workspace --overwrite[/green]
+  3. [green]flexsoc make syn --top my_ip --run-id dev --workspace workspace --overwrite[/green]
+  4. [green]flexsoc make sta --top my_ip --run-id dev --workspace workspace --overwrite[/green]
+  5. [green]flexsoc make power --top my_ip --run-id dev --workspace workspace --overwrite[/green]
+  6. [green]flexsoc make pnr --top my_ip --run-id dev --workspace workspace --overwrite[/green]
+  7. [green]flexsoc make pnr_gui --top my_ip --run-id dev --workspace workspace --overwrite[/green]
 
-2. Explore available actions
-   [green]flexsoc actions[/green]
+Tip:
+  Use [bold]--overwrite[/bold] from the beginning while iterating quickly on the same run.
 
-3. Inspect a specific action
-   [green]flexsoc action ip_start[/green]
-
-4. Discover Make targets
-   [green]flexsoc make --list[/green]
+Useful discovery commands:
+  [cyan]flexsoc actions[/cyan]
+  [cyan]flexsoc make --list[/cyan]
 """
-    cout().print(Panel(body.strip(), title="Quickstart", border_style="green", expand=False))
-
+    cout().print(
+        Panel(
+            body.strip(),
+            title="Quickstart",
+            border_style="green",
+            expand=False,
+        )
+    )
 
 def print_tutorial() -> None:
     body = """
-[bold]Tutorial[/bold]
+[bold]Tutorials[/bold]
 
-Use the CLI as the main entry point:
-  [green]flexsoc run ...[/green]
-  [green]flexsoc exec ...[/green]
-  [green]flexsoc make ...[/green]
+Full IP workflow tutorials:
+  [green]flexsoc make full_tutorial[/green]
 
-Use [cyan]flexsoc actions[/cyan] to discover workflow steps,
-and [cyan]flexsoc action <name>[/cyan] to inspect parameters.
+IP tutorials:
+  [green]flexsoc make ip_tutorial --top spi_host[/green]
+  [green]flexsoc make ip_tutorial --top pwm_ramp[/green]
+
+FSM tutorial:
+  [green]flexsoc make fsm_tutorial --top fsm_example[/green]
+
+SoC tutorial:
+  [green]flexsoc make soc_pless[/green]
+
+Use tutorials to inspect the generated workspace structure,
+then reuse the same flow style for your own IPs.
 """
-    cout().print(Panel(body.strip(), title="Tutorial", border_style="magenta", expand=False))
+    cout().print(
+        Panel(
+            body.strip(),
+            title="Tutorials",
+            border_style="magenta",
+            expand=False,
+        )
+    )
 
 
 def print_ip_guide() -> None:
     body = """
-[bold]IP flow guide[/bold]
+[bold]IP development guide[/bold]
 
-Typical authoring flow:
-  [green]ip_start[/green]  → create HJSON + RTL stub + TB scaffolding
-  [green]sim[/green]       → run simulation
-  [green]synth[/green]     → run synthesis
-  [green]sta[/green]       → timing analysis
-  [green]power[/green]     → power estimation
+[bold]1. Start the workspace[/bold]
+  [green]ip_start[/green]
+  Creates the run folder and initial collateral under the workspace.
 
-Simulation should print a [bold]Coverage:[/bold] line on stdout.
+[bold]2. HJSON authoring[/bold]
+  [green]hjson[/green]
+  A starter HJSON template is generated for the IP.
+  This is where you describe registers and metadata.
+  After generation, edit the template with the real register map.
+
+[bold]3. Register collateral and docs[/bold]
+  [green]reg[/green] and [green]doc[/green]
+  Generate the reg package / reg top and the documentation from HJSON.
+
+[bold]4. Stub generation and RTL authoring[/bold]
+  [green]rtl_stub[/green]
+  Generate the initial RTL stub, then write the actual core logic.
+  This is where the IP implementation really starts.
+
+[bold]5. Testbench setup and verification authoring[/bold]
+  [green]setup_tb[/green]
+  Generate the TB scaffold, then write / extend the testbench.
+
+[bold]6. Pre-silicon quality loop[/bold]
+  [green]lint[/green]
+      Structural / style checking
+  [green]sim[/green]
+      Functional simulation; stdout should include a [bold]Coverage:[/bold] line
+
+[bold]7. Implementation and signoff[/bold]
+  [green]synth[/green]
+      Synthesis
+  [green]sta[/green]
+      Static timing analysis
+  [green]power[/green]
+      Power estimation
+  [green]pnr[/green]
+      Place and route
+  [green]pnr_gui[/green]
+      Interactive GUI flow for PnR/debug
+
+[bold]8. Software / integration helpers[/bold]
+  [green]driver[/green]
+      Generate software-facing collateral / helpers
+  [green]fsoc_init[/green]
+      Initialize FlexSoC-related integration material
+  [green]ip_save[/green]
+      Save or package the resulting IP state
+
+[bold]Suggested command sequence[/bold]
+  [green]flexsoc run ip_start --top my_ip --run-id dev[/green]
+  [green]flexsoc make hjson reg doc --top my_ip --run-id dev[/green]
+  [green]flexsoc make rtl_stub setup_tb --top my_ip --run-id dev[/green]
+  [green]flexsoc make lint sim --top my_ip --run-id dev[/green]
+  [green]flexsoc make synth sta power --top my_ip --run-id dev[/green]
+  [green]flexsoc make pnr --top my_ip --run-id dev[/green]
+  [green]flexsoc make driver ip_save --top my_ip --run-id dev[/green]
 """
-    cout().print(Panel(body.strip(), title="IP flow guide", border_style="yellow", expand=False))
+    cout().print(
+        Panel(
+            body.strip(),
+            title="IP development guide",
+            border_style="yellow",
+            expand=False,
+        )
+    )
 
 
 def print_actions_table(actions: Mapping[str, Mapping[str, object]]) -> None:
@@ -229,6 +311,7 @@ def running_status(*, label: str):
     with c.status(f"[bold cyan]▶ Running[/bold cyan] {label}", spinner="dots") as status:
         yield status
 
+
 def print_runner_summary(
     *,
     label: str,
@@ -239,12 +322,7 @@ def print_runner_summary(
 ) -> None:
     """
     Modern unified summary for run / exec / make.
-    Keep legacy label strings stable because tests search for them literally:
-      - Exit code:
-      - Runner dir:
-      - Flow dir:
-      - stdout.log:
-      - stderr.log:
+    Keep legacy label strings stable because tests search for them literally.
     """
     c = cerr()
 
@@ -257,11 +335,8 @@ def print_runner_summary(
     stderr_log = Path(runner_dir) / "stderr.log"
 
     lines: list[str] = []
-
-    # Header
     lines.append(f"[bold {status_color}]{icon} {status_text}[/bold {status_color}]  [bold]{label}[/bold]")
 
-    # Stable labels required by tests
     lines.append("")
     lines.append(f"Exit code: {exit_code}")
     lines.append(f"Runner dir: {runner_dir}")
@@ -292,4 +367,3 @@ def print_runner_summary(
             expand=False,
         )
     )
-

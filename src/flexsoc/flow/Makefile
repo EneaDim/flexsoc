@@ -883,25 +883,9 @@ soc_view:
 
 # ---- mk/tutorials.mk (inlined) ----
 # TUTORIALS #
-full_tutorial:
-	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui TOP=test RUN_ID=dev1
-
-fsm_tutorial: setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl
-	$(Q)$(MAKE) ip_flow_noreg TOP=$(FSM) RUN_ID=dev1
-
-ip_tutorial:
-	$(Q)$(MAKE) ip_load RUN_ID=dev1
-	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
-	$(Q)$(MAKE) sim syn sdf sta sta_violators power view RUN_ID=dev1
-
-# SoC Processor-Less
-.PHONY: soc_pless
-
 soc_pless:
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,RUN_ID)
-	$(Q)$(MAKE) ip_load TOP=tiny-soc RUN_TOP=tiny-soc WORKSPACE=$(WORKSPACE) RUN_ID=dev1
-	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc RUN_TOP=tiny-soc WORKSPACE=$(WORKSPACE) RUN_ID=dev1
+	$(Q)$(MAKE) ip_load TOP=tiny-soc RUN_TOP=tiny-soc WORKSPACE=../workspace RUN_ID=dev1
+	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc RUN_TOP=tiny-soc WORKSPACE=../workspace RUN_ID=dev1
 
 # SoC with IBEX
 soc_ibex_tutorial: soc_ibex_fetch soc_ibex
@@ -1091,4 +1075,42 @@ clean_all: clean_fsm_all clean_vendor clean_agent clean
 # =============================================================
 # END MERGED INCLUDES
 # =============================================================
+
+
+TUTORIAL_WS ?= $(REPO_ROOT)/workspace
+TUTORIAL_RUN_ID ?= dev1
+
+full_tutorial:
+	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui \
+		TOP=test RUN_TOP=test \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+
+fsm_tutorial:
+	$(call _require_var,TOP)
+	$(Q)$(MAKE) setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl \
+		TOP=$(TOP) RUN_TOP=$(TOP) \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+	$(Q)$(MAKE) ip_flow_noreg \
+		TOP=$(TOP) RUN_TOP=$(TOP) \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+
+ip_tutorial:
+	$(call _require_var,TOP)
+	$(Q)$(MAKE) ip_load \
+		TOP=$(TOP) RUN_TOP=$(TOP) \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
+	$(Q)$(MAKE) sim syn sdf sta sta_violators power view \
+		TOP=$(TOP) RUN_TOP=$(TOP) \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+
+.PHONY: soc_pless
+
+soc_pless:
+	$(Q)$(MAKE) ip_load \
+		TOP=tiny-soc RUN_TOP=tiny-soc \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+	$(Q)$(MAKE) sim syn sdf sta power view \
+		TOP=soc RUN_TOP=tiny-soc \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 
