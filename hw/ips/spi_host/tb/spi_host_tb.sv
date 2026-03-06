@@ -54,9 +54,9 @@ module spi_host_tb;
   // Dump vcd file 
   initial begin
     `ifndef SYN
-      $dumpfile("../workspace/runs/spi_host/dev1/sim/spi_host_tb.vcd");
+      $dumpfile("../workspace/runs/spi_host/dev1/ips/spi_host/sim/spi_host_tb.vcd");
     `else
-      $dumpfile("../workspace/runs/spi_host/dev1/sim/spi_host_syn_tb.vcd");
+      $dumpfile("../workspace/runs/spi_host/dev1/ips/spi_host/sim/spi_host_syn_tb.vcd");
     `endif
     $dumpvars(0, spi_host_tb);
   end

@@ -52,7 +52,7 @@ def test_runner_manifest_profiling_on_and_off(tmp_path: Path):
     ws = tmp_path / "workspace"
     ws.mkdir(parents=True, exist_ok=True)
 
-    runs_root = ws / "runs"
+    runs_root = ws / "sessions"
 
     # ----------------
     # Profiling ON

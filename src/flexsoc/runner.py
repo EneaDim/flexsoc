@@ -112,12 +112,12 @@ def _compute_signature(
 
 def _find_cached_run_dir(workspace_dir: Path, signature: str) -> Optional[Path]:
     """
-    Look for a previous runner run dir under <workspace>/runs whose manifest.json
+    Look for a previous runner run dir under <workspace>/sessions whose manifest.json
     has the same signature and exit_code==0.
 
     Conservative: only reuses successful runs.
     """
-    runs_root = workspace_dir / "runs"
+    runs_root = workspace_dir / "sessions"
     if not runs_root.exists():
         return None
 
@@ -165,7 +165,7 @@ def run_command(
     Low-level command runner.
 
     Contract (do not break):
-    - Creates runner run dir at: <workspace>/runs/<timestamp>_<action_id>/
+    - Creates runner run dir at: <workspace>/sessions/<timestamp>_<action_id>/
     - Writes stdout.log, stderr.log
     - Writes manifest.json (runner-level)
     """
@@ -203,7 +203,7 @@ def run_command(
             exit_code = 0
             return RunResult(run_dir=cached_dir, exit_code=exit_code)
 
-    run_dir = workspace_dir / "runs" / f"{_now_id()}_{action_id}"
+    run_dir = workspace_dir / "sessions" / f"{_now_id()}_{action_id}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
     stdout_path = run_dir / "stdout.log"

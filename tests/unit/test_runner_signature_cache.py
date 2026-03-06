@@ -46,6 +46,6 @@ def test_signature_is_present_and_cache_hit(tmp_path: Path, monkeypatch):
     assert r2.run_dir == r1.run_dir, "expected cache hit to reuse previous run_dir"
 
     # Also ensure it didn't create additional runner dirs
-    runs_root = ws / "runs"
+    runs_root = ws / "sessions"
     dirs = [p for p in runs_root.iterdir() if p.is_dir()]
     assert len(dirs) == 1, f"expected 1 run dir, got {len(dirs)}: {[d.name for d in dirs]}"

@@ -25,7 +25,7 @@ def _run(*args: str, env=None):
 
 
 def _latest_runner_dir(ws: Path, suffix: str) -> Path:
-    runs_root = ws / "runs"
+    runs_root = ws / "sessions"
     assert runs_root.exists(), f"Missing runs root: {runs_root}"
     dirs = sorted([d for d in runs_root.iterdir() if d.is_dir() and d.name.endswith(suffix)])
     assert dirs, f"No runner dirs ending with {suffix} under {runs_root}. Existing: {[d.name for d in runs_root.iterdir() if d.is_dir()]}"

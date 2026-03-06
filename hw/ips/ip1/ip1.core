@@ -1,0 +1,31 @@
+CAPI=2:
+name: "prj:ip:ip1:0.1"
+description: "ip1"
+filesets:
+  files_rtl:
+    depend:
+      - ips:dependecies:all
+    files:
+      - /home/eneadim/github/flexsoc/workspace/runs/ip1/dev/rtl/ip1_core.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/ip1/dev/rtl/ip1_reg_pkg.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/ip1/dev/rtl/ip1_reg_top.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/ip1/dev/rtl/ip1.sv
+    file_type: systemVerilogSource
+
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+    toplevel: ip1
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"
+

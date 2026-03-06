@@ -1,0 +1,19 @@
+# read files
+read_verilog /home/eneadim/github/flexsoc/workspace/runs/ip0/dev/rtl/ip0.v
+# basic synth
+synth -top ip0 -noabc
+show -width -format dot -prefix /home/eneadim/github/flexsoc/workspace/runs/ip0/dev/syn/plots/ip0_postsyn
+# map internal register types to the ones from the cell library
+dfflibmap -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+# mapping to internal cell library
+# mapping to internal cell library
+abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/ip0/dev/syn/area.abc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/ip0/dev/openroad/ip0.sdc \
+
+
+opt_clean -purge
+stat -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+# write verilog
+write_verilog /home/eneadim/github/flexsoc/workspace/runs/ip0/dev/syn/ip0_synth.v
+# write json
+write_json /home/eneadim/github/flexsoc/workspace/runs/ip0/dev/syn/ip0_synth.json

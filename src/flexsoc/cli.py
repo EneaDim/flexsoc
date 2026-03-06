@@ -17,9 +17,16 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from .config import default_workspace
 from .executor import execute_action
+from .helptext import render_detailed_help, render_help_overview, render_home_help
+from .manifest import read_run_history
+from .manifest import read_run_history, write_run_manifest
 from .planning import (
     load_registry,
     naive_intent_to_plan,
@@ -28,6 +35,7 @@ from .planning import (
     write_plan_json,
 )
 from .runner import MakeBackend
+from .workspace import resolve_run_ref
 from .ui import (
     print_action_detail,
     print_actions_table,
@@ -43,9 +51,11 @@ from .ui import (
 
 log = logging.getLogger(__name__)
 
-app = typer.Typer(add_completion=False, invoke_without_command=True)
-help_app = typer.Typer(add_completion=False)
+app = typer.Typer(add_completion=False, invoke_without_command=True, rich_markup_mode="rich")
+help_app = typer.Typer(add_completion=False, rich_markup_mode="rich")
+runs_app = typer.Typer(add_completion=False, help="Inspect workspace runs", rich_markup_mode="rich")
 app.add_typer(help_app, name="help")
+app.add_typer(runs_app, name="runs")
 
 
 def _setup_logging() -> None:
@@ -197,13 +207,62 @@ def _early_shortcuts() -> bool:
 
 
 @app.callback(invoke_without_command=True)
-def _root(ctx: typer.Context) -> None:
-    """Show hub when no subcommand is provided."""
-    if ctx.invoked_subcommand is not None:
-        return
-    if len(sys.argv) == 1:
-        print_hub()
-        raise typer.Exit(0)
+def main_callback(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        _setup_logging()
+        render_home_help()
+        raise typer.Exit()
+
+
+
+
+
+
+@runs_app.command("ls")
+def runs_ls(
+    workspace: Path = typer.Option(Path("workspace"), "--workspace", "--ws", help="Workspace directory"),
+) -> None:
+    _setup_logging()
+    ws = workspace.expanduser().resolve()
+    _print_runs_ls(workspace=ws)
+
+
+@runs_app.command("show")
+def runs_show(
+    run_top: str = typer.Option(..., "--run-top", help="Run-top name"),
+    run_id: str = typer.Option(..., "--run-id", help="Run identifier"),
+    workspace: Path = typer.Option(Path("workspace"), "--workspace", help="Workspace directory"),
+    history_limit: int = typer.Option(10, "--history-limit", min=1, help="Number of history entries to show"),
+) -> None:
+    ws = workspace.expanduser().resolve()
+    run_dir = ws / "runs" / run_top / run_id
+    _print_run_show(run_dir=run_dir, history_limit=history_limit)
+
+
+
+
+@app.command("hd")
+def help_detailed_alias() -> None:
+    _setup_logging()
+    render_detailed_help()
+
+
+@help_app.command("detailed")
+def help_detailed_cmd() -> None:
+    _setup_logging()
+    render_detailed_help()
+
+
+@help_app.command("commands")
+def help_commands_cmd() -> None:
+    _setup_logging()
+    render_detailed_help()
+
+
+@help_app.command("overview")
+def help_overview_cmd() -> None:
+    _setup_logging()
+    render_help_overview()
 
 
 @app.command("dump-registry")
@@ -227,9 +286,9 @@ def actions() -> None:
 # ----------------------------------------------------------------------
 
 @app.command("h")
-def hub_alias() -> None:
-    """Alias for hub."""
-    print_hub()
+def help_hub() -> None:
+    _setup_logging()
+    render_home_help()
 
 
 @app.command("q")
@@ -257,6 +316,271 @@ def actions_alias() -> None:
 
 
 @app.command("action")
+
+
+
+
+def _read_run_yaml_summary(run_yaml: Path) -> dict[str, str]:
+    out: dict[str, str] = {
+        "run_top": "",
+        "run_id": "",
+        "top": "",
+        "last_action": "",
+        "updated_at_utc": "",
+    }
+
+    if not run_yaml.exists():
+        return out
+
+    for raw_line in run_yaml.read_text(encoding="utf-8").splitlines():
+        line = raw_line.rstrip()
+        if not line or line.startswith(" ") or ":" not in line:
+            continue
+
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+
+        if key not in out:
+            continue
+
+        if value.startswith('"') and value.endswith('"') and len(value) >= 2:
+            value = value[1:-1]
+            value = value.replace(chr(92) + '"', '"')
+            value = value.replace(chr(92) + chr(92), chr(92))
+
+        out[key] = value
+
+    return out
+
+
+def _count_loaded_ips_from_run_yaml(run_yaml: Path) -> int:
+    if not run_yaml.exists():
+        return 0
+
+    lines = run_yaml.read_text(encoding="utf-8").splitlines()
+    in_loaded_ips = False
+    count = 0
+
+    for raw_line in lines:
+        line = raw_line.rstrip()
+
+        if not in_loaded_ips:
+            if line == "loaded_ips:":
+                in_loaded_ips = True
+            continue
+
+        if not line.startswith("  "):
+            break
+
+        stripped = line.strip()
+        if stripped == "[]":
+            return 0
+        if stripped.startswith("- "):
+            count += 1
+
+    return count
+
+
+def _flow_run_dir_preview(
+    *,
+    workspace: Path,
+    top: Optional[str],
+    run_top: Optional[str],
+    run_id: Optional[str],
+) -> Optional[Path]:
+    effective_run_top = run_top or top
+    if not effective_run_top or not run_id:
+        return None
+    return workspace / "runs" / effective_run_top / run_id
+
+
+_CONSOLE = Console()
+
+
+def _shell_quote_arg(value: object) -> str:
+    text = str(value)
+    if not text:
+        return '""'
+    if any(ch.isspace() for ch in text) or any(ch in text for ch in ['"', "'", "(", ")", "[", "]", "{", "}", "&", ";"]):
+        escaped = text.replace("\\", "\\\\").replace('"', '\\\"')
+        return f'"{escaped}"'
+    return text
+
+
+def _append_preview_opt(parts: list[str], flag: str, value: Optional[object]) -> None:
+    if value is None:
+        return
+    parts.extend([flag, _shell_quote_arg(value)])
+
+
+def _append_preview_flag(parts: list[str], flag: str, enabled: bool) -> None:
+    if enabled:
+        parts.append(flag)
+
+def _build_make_cmd_preview(
+    *,
+    target: str,
+    make_vars: dict[str, str],
+    passthrough: list[str],
+    workspace: Path,
+) -> str:
+    parts = ["flexsoc", "make", target]
+
+    top = make_vars.get("TOP")
+    run_top = make_vars.get("RUN_TOP")
+    run_id = make_vars.get("RUN_ID")
+
+    _append_preview_opt(parts, "--top", top)
+    _append_preview_opt(parts, "--run-top", run_top)
+    _append_preview_opt(parts, "--run-id", run_id)
+    _append_preview_opt(parts, "--workspace", workspace)
+
+    overwrite = make_vars.get("OVERWRITE")
+    if overwrite in {"--force", "-f", "1"}:
+        _append_preview_flag(parts, "--overwrite", True)
+
+    if passthrough:
+        parts.extend(_shell_quote_arg(x) for x in passthrough)
+
+    return " ".join(parts)
+
+
+def _print_runs_ls(*, workspace: Path) -> None:
+    runs_root = workspace / "runs"
+
+    _CONSOLE.print("")
+    _CONSOLE.print(
+        Panel(
+            Text(str(runs_root), style="bold cyan"),
+            title="Workspace runs",
+            border_style="bright_blue",
+        )
+    )
+
+    if not runs_root.exists():
+        _CONSOLE.print(
+            Panel(
+                Text("(no runs directory)", style="yellow"),
+                border_style="yellow",
+            )
+        )
+        _CONSOLE.print("")
+        return
+
+    rows: list[dict[str, str]] = []
+
+    for run_top_dir in sorted(p for p in runs_root.iterdir() if p.is_dir()):
+        for run_id_dir in sorted(p for p in run_top_dir.iterdir() if p.is_dir()):
+            run_yaml = run_id_dir / "run.yaml"
+            if not run_yaml.exists():
+                continue
+
+            summary = _read_run_yaml_summary(run_yaml)
+            rows.append(
+                {
+                    "run_top": summary.get("run_top", "") or run_top_dir.name,
+                    "run_id": summary.get("run_id", "") or run_id_dir.name,
+                    "top": summary.get("top", ""),
+                    "ips": str(_count_loaded_ips_from_run_yaml(run_yaml)),
+                    "last_action": summary.get("last_action", ""),
+                    "updated_at_utc": summary.get("updated_at_utc", ""),
+                }
+            )
+
+    if not rows:
+        _CONSOLE.print(
+            Panel(
+                Text("(no runs found)", style="yellow"),
+                border_style="yellow",
+            )
+        )
+        _CONSOLE.print("")
+        return
+
+    table = Table(
+        title="Registered runs",
+        title_style="bold magenta",
+        header_style="bold yellow",
+        show_header=True,
+    )
+    table.add_column("RUN_TOP", style="bold green")
+    table.add_column("RUN_ID", style="cyan")
+    table.add_column("TOP", style="white")
+    table.add_column("IPS", style="bold blue", justify="right")
+    table.add_column("LAST_ACTION", style="green")
+    table.add_column("UPDATED_AT_UTC", style="white")
+
+    for row in rows:
+        table.add_row(
+            row["run_top"],
+            row["run_id"],
+            row["top"],
+            row["ips"],
+            row["last_action"],
+            row["updated_at_utc"],
+        )
+
+    _CONSOLE.print(table)
+    _CONSOLE.print("")
+
+
+def _print_run_show(
+    *,
+    run_dir: Path,
+    history_limit: int,
+) -> None:
+    run_yaml = run_dir / "run.yaml"
+
+    if not run_yaml.exists():
+        raise typer.BadParameter(f"run manifest not found: {run_yaml}")
+
+    _CONSOLE.print("")
+    _CONSOLE.print(
+        Panel(
+            Text(str(run_dir), style="bold cyan"),
+            title="Run directory",
+            border_style="bright_blue",
+        )
+    )
+
+    _CONSOLE.print(
+        Panel(
+            run_yaml.read_text(encoding="utf-8").rstrip(),
+            title="run.yaml",
+            border_style="green",
+        )
+    )
+
+    entries = read_run_history(run_dir, limit=history_limit)
+
+    table = Table(
+        title=f"Recent history ({len(entries)})",
+        title_style="bold magenta",
+        header_style="bold yellow",
+        show_header=True,
+    )
+    table.add_column("#", style="bold cyan", no_wrap=True)
+    table.add_column("Timestamp", style="white", no_wrap=True)
+    table.add_column("Action", style="bold green")
+    table.add_column("Top", style="cyan")
+    table.add_column("Loaded IPs", style="white")
+
+    if not entries:
+        table.add_row("-", "-", "(no history entries)", "-", "-")
+    else:
+        for idx, entry in enumerate(entries, start=1):
+            ts = str(entry.get("timestamp_utc", ""))
+            act = str(entry.get("action", ""))
+            top = "" if entry.get("top") is None else str(entry.get("top", ""))
+            loaded = entry.get("loaded_ips", [])
+            loaded_text = ", ".join(str(x) for x in loaded) if loaded else "-"
+            table.add_row(str(idx), ts, act, top, loaded_text)
+
+    _CONSOLE.print(table)
+    _CONSOLE.print("")
+
+
 def action(action_id: str) -> None:
     _setup_logging()
     reg = _registry()
@@ -342,10 +666,12 @@ def exec_cmd(
     if overwrite or force:
         cmd_preview += " --overwrite"
 
-    run_top_preview = plan.params.get("run_top") or plan.params.get("top")
-    flow_dir_preview = None
-    if run_top_preview and run_id:
-        flow_dir_preview = ws / "runs" / str(run_top_preview) / str(run_id)
+    flow_dir_preview = _flow_run_dir_preview(
+        workspace=ws,
+        top=plan.params.get("top"),
+        run_top=plan.params.get("run_top"),
+        run_id=run_id,
+    )
 
     with running_status(label=f"exec {plan.action}"):
         res = execute_action(
@@ -355,16 +681,11 @@ def exec_cmd(
             run_id=run_id,
         )
 
-    flow_dir = None
-    run_top2 = plan.params.get("run_top") or plan.params.get("top")
-    if run_top2 and run_id:
-        flow_dir = ws / "runs" / str(run_top2) / str(run_id)
-
     print_runner_summary(
         label=f"exec {plan.action}",
         exit_code=res.exit_code,
         runner_dir=res.runner_run_dir,
-        flow_dir=flow_dir,
+        flow_dir=res.flow_run_dir,
         command=cmd_preview,
     )
     raise typer.Exit(res.exit_code)
@@ -408,10 +729,12 @@ def run_cmd(
     if overwrite or force:
         cmd_preview += " --overwrite"
 
-    flow_dir_preview = None
-    run_top_preview = run_top or top
-    if run_top_preview and run_id:
-        flow_dir_preview = ws / "runs" / run_top_preview / run_id
+    flow_dir_preview = _flow_run_dir_preview(
+        workspace=ws,
+        top=top,
+        run_top=run_top,
+        run_id=run_id,
+    )
 
     with running_status(label=f"run {action_id}"):
         res = execute_action(
@@ -421,16 +744,11 @@ def run_cmd(
             run_id=run_id,
         )
 
-    flow_dir = None
-    run_top2 = run_top or top
-    if run_top2 and run_id:
-        flow_dir = ws / "runs" / run_top2 / run_id
-
     print_runner_summary(
         label=f"run {action_id}",
         exit_code=res.exit_code,
         runner_dir=res.runner_run_dir,
-        flow_dir=flow_dir,
+        flow_dir=res.flow_run_dir,
         command=cmd_preview,
     )
     raise typer.Exit(res.exit_code)
@@ -518,11 +836,12 @@ def make_cmd(
         cmd.extend([f"{k}={v}" for k, v in make_vars.items()])
         cmd.extend(passthrough)
 
-        flow_run_dir_preview = None
-        run_top2 = make_vars.get("RUN_TOP") or make_vars.get("TOP")
-        run_id2 = make_vars.get("RUN_ID")
-        if run_top2 and run_id2:
-            flow_run_dir_preview = ws / "runs" / str(run_top2) / str(run_id2)
+        flow_run_dir_preview = _flow_run_dir_preview(
+            workspace=ws,
+            top=make_vars.get("TOP"),
+            run_top=make_vars.get("RUN_TOP"),
+            run_id=make_vars.get("RUN_ID"),
+        )
 
         cmd_preview = " ".join(cmd)
 
@@ -541,11 +860,34 @@ def make_cmd(
                 env=os.environ.copy(),
             )
 
+        run_ref = None
+        try:
+            run_ref = resolve_run_ref(
+                workspace=ws,
+                top=make_vars.get("TOP"),
+                run_top=make_vars.get("RUN_TOP"),
+                run_id=make_vars.get("RUN_ID"),
+            )
+            if run_ref is not None:
+                write_run_manifest(
+                    run_ref,
+                    action=f"make:{target}",
+                    params={
+                        "target": target,
+                        "targets": final_targets,
+                        "make_vars": make_vars,
+                        "passthrough": passthrough,
+                    },
+                    top=make_vars.get("TOP"),
+                )
+        except Exception:
+            log.exception("failed to write run manifest for make command")
+
         print_runner_summary(
             label=f"make {target}",
             exit_code=res.exit_code,
             runner_dir=res.run_dir,
-            flow_dir=flow_run_dir_preview,
+            flow_dir=run_ref.run_dir if run_ref is not None else flow_run_dir_preview,
             command=cmd_preview,
         )
 

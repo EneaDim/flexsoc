@@ -881,28 +881,9 @@ soc_view:
 	@echo "\n$(ORANGE)Viewing ...\n$(RESET)"
 	$(Q)$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw&
 
-# ---- mk/tutorials.mk (inlined) ----
-# TUTORIALS #
-soc_pless:
-	$(Q)$(MAKE) ip_load TOP=tiny-soc RUN_TOP=tiny-soc WORKSPACE=../workspace RUN_ID=dev1
-	$(Q)$(MAKE) sim syn sdf sta power view TOP=soc RUN_TOP=tiny-soc WORKSPACE=../workspace RUN_ID=dev1
-
 # SoC with IBEX
 soc_ibex_tutorial: soc_ibex_fetch soc_ibex
 
-# ---- mk/save_load.mk (inlined) ----
-# Save/Load IP bundles
-#
-# ip_save copies:
-#   $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)  ->  $(IPS_ROOT)/$(TOP)
-#
-# ip_load restores:
-#   $(IPS_ROOT)/$(TOP)  ->  $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)
-#
-# fsoc_init: FuseSoC-friendly init target (creates run dir skeleton).
-#
-# Defaults:
-#   IPS_ROOT defaults to ../hw/ips relative to flow/
 
 IPS_ROOT ?= $(abspath ../hw/ips)
 
@@ -927,10 +908,17 @@ ip_save:
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_ID)
 	@set -eu; \
-	src="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
+	run_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
+	src_ip="$$run_dir/ips/$(TOP)"; \
+	src_run="$$run_dir"; \
 	dst="$(IPS_ROOT)/$(TOP)"; \
+	if [ -d "$$src_ip" ]; then \
+		src="$$src_ip"; \
+	else \
+		src="$$src_run"; \
+	fi; \
 	if [ ! -d "$$src" ]; then \
-		echo "ERROR: source run dir not found: $$src"; \
+		echo "ERROR: source IP bundle not found: $$src"; \
 		exit 2; \
 	fi; \
 	mkdir -p "$(IPS_ROOT)"; \
@@ -959,14 +947,21 @@ ip_load:
 	$(call _require_var,RUN_ID)
 	@set -eu; \
 	src="$(IPS_ROOT)/$(TOP)"; \
-	dst="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
+	run_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
 	if [ ! -d "$$src" ]; then \
 		echo "ERROR: source IP bundle not found: $$src"; \
 		exit 2; \
 	fi; \
-	mkdir -p "$(WORKSPACE)/runs/$(TOP)"; \
+	if [ "$(RUN_TOP)" = "$(TOP)" ]; then \
+		dst="$$run_dir"; \
+		mode="single-ip"; \
+	else \
+		dst="$$run_dir/ips/$(TOP)"; \
+		mode="multi-ip"; \
+		mkdir -p "$$run_dir/ips"; \
+	fi; \
 	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "0" ]; then \
-		echo "ERROR: destination run dir already exists: $$dst"; \
+		echo "ERROR: destination already exists: $$dst"; \
 		echo "Hint: re-run with --overwrite (sets OVERWRITE)"; \
 		exit 2; \
 	fi; \
@@ -974,7 +969,7 @@ ip_load:
 		rm -rf "$$dst"; \
 	fi; \
 	mkdir -p "$$dst"; \
-	echo "Loading IP bundle:"; \
+	echo "Loading IP bundle ($$mode):"; \
 	echo "  from: $$src"; \
 	echo "  to:   $$dst"; \
 	if command -v rsync >/dev/null 2>&1; then \
