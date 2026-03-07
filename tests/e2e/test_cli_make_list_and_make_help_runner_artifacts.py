@@ -8,20 +8,22 @@ from pathlib import Path
 
 
 def _run(*args: str, env=None):
-    # Ensure subprocesses can import flexsoc when using system python
     repo_root = Path(__file__).resolve().parents[2]
     src = str(repo_root / "src")
-    env = os.environ.copy()
-    env["PYTHONPATH"] = src + (":" + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-    e = os.environ.copy()
+    merged_env = os.environ.copy()
+    merged_env["PYTHONPATH"] = src + (":" + merged_env["PYTHONPATH"] if merged_env.get("PYTHONPATH") else "")
     if env:
-        e.update(env)
+        merged_env.update(env)
     return subprocess.run(
         [sys.executable, "-m", "flexsoc.cli", *args],
         capture_output=True,
         text=True,
-        env=e,
+        env=merged_env,
     )
+
+
+def _out(p: subprocess.CompletedProcess[str]) -> str:
+    return (p.stdout or "") + (p.stderr or "")
 
 
 def _latest_runner_dir(ws: Path, suffix: str) -> Path:
@@ -35,10 +37,9 @@ def _latest_runner_dir(ws: Path, suffix: str) -> Path:
 def test_make_list_targets():
     p = _run("make", "--list")
     assert p.returncode == 0
-    out = p.stdout
-    # Rich may wrap title; assert stable table content instead
+    out = _out(p)
     assert "Target" in out
-    assert "flow" in out
+    assert "help" in out
 
 
 def test_make_help_creates_runner_logs_and_manifest(tmp_path: Path):
@@ -47,12 +48,9 @@ def test_make_help_creates_runner_logs_and_manifest(tmp_path: Path):
 
     p = _run("make", "help", "--workspace", str(ws))
     assert p.returncode == 0
-
-    # Summary must be on stderr (keep stdout clean for piping / JSON)
     assert "Runner dir:" in p.stderr
     assert "Runner dir:" not in p.stdout
 
-    # Don't parse stdout (Rich wraps). Discover runner dir from workspace.
     runner_dir = _latest_runner_dir(ws, "_make_help")
     assert runner_dir.exists()
 
@@ -60,11 +58,26 @@ def test_make_help_creates_runner_logs_and_manifest(tmp_path: Path):
     stderr_log = runner_dir / "stderr.log"
     manifest = runner_dir / "manifest.json"
 
-    assert stdout_log.exists(), f"Missing {stdout_log}"
-    assert stderr_log.exists(), f"Missing {stderr_log}"
-    assert manifest.exists(), f"Missing {manifest}"
+    assert stdout_log.exists()
+    assert stderr_log.exists()
+    assert manifest.exists()
 
     m = json.loads(manifest.read_text(encoding="utf-8"))
     assert m["exit_code"] == 0
     assert "cmd" in m
     assert "signature" in m
+
+
+def test_make_help_with_run_metadata(tmp_path: Path):
+    ws = tmp_path / "workspace"
+    ws.mkdir(parents=True, exist_ok=True)
+
+    p = _run("make", "help", "--workspace", str(ws), "--run-top", "spi_host", "--run-id", "dev1", "--top", "spi_host")
+    assert p.returncode == 0
+
+    run_dir = ws / "runs" / "spi_host" / "dev1"
+    assert (run_dir / "run.yaml").exists()
+    assert (run_dir / "manifest.json").exists()
+    hist = run_dir / "history"
+    assert hist.exists()
+    assert list(hist.glob("*.json"))

@@ -285,7 +285,7 @@ help_soc:
 help_doc: 
 	$(Q)$(PYTHON) -m flexsoc.tools.help_doc
 help_fsm:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen help
+	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) help
 
 # ---- mk/setup.mk (inlined) ----
 .PHONY: setup setup_tb setup_cocotb setup_model setup_sdc setup_syn setup_signoff setup_pnr
@@ -426,7 +426,7 @@ ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui
 ###########
 
 .PHONY: lint lint_v lint_sv
-lint: $(if $(filter v,$(Q)$(VSV)),lint_v,lint_sv)
+lint: $(if $(filter v,$(VSV)),lint_v,lint_sv)
 
 lint_v: sv2v 
 	@echo "\n$(ORANGE)Linting...\n$(RESET)"
@@ -993,13 +993,13 @@ ip_load:
 deps:
 	@echo "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
 	sudo apt install -y make python3 python3-pip
-	sed -i 's/\r$$//' $(REPO_ROOT)/src/flexsoc/tools/$(TOOLSROOT)/deps.sh
-	bash $(REPO_ROOT)/src/flexsoc/tools/$(TOOLSROOT)/deps.sh ip
+	sed -i 's/\r$$//' $(TOOLSROOT)/deps.sh
+	bash $(TOOLSROOT)/deps.sh ip
 	pip install -r requirements.txt
 	
 deps-soc:
 	@echo "\n$(ORANGE)Installing dependencies for SoC integration ...\n$(RESET)"
-	bash $(REPO_ROOT)/src/flexsoc/tools/$(TOOLSROOT)/deps.sh soc
+	bash $(TOOLSROOT)/deps.sh soc
 	echo
 	export PATH=$$PATH:/tools/riscv32/bin
 	echo "export PATH=/tools/riscv32/bin" >> ~/.bashrc
@@ -1040,9 +1040,9 @@ clean_pnr:
 	$(Q)$(RM) $(ORS_RESULTS)
 	$(Q)$(RM) $(ORS_OBJECTS)
 clean_fsm:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean
+	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) clean
 clean_fsm_all:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean_all
+	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) clean_all
 clean_agent:
 	$(Q)$(RM) flexsoc_make_agent/logs
 	$(Q)$(RM) flexsoc_make_agent/runs
@@ -1062,8 +1062,8 @@ clean_vendor:
 	$(Q)$(RM) vendor/lowrisc_ip.lock.hjson
 	$(Q)$(RM) vendor/lowrisc_ibex.lock.hjson
 clean_subdir:
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen clean
-	$(Q)$(MAKE) --no-print-dir -C fsm_gen setup
+	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) clean
+	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) setup
 clean: clean-pyc clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
 	$(Q)$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	$(Q)$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1

@@ -26,6 +26,7 @@ from .config import default_workspace
 from .executor import execute_action
 from .helptext import render_detailed_help, render_help_overview, render_home_help
 from .manifest import read_run_history, write_run_manifest
+from .manifest import write_flow_manifest
 from .planning import (
     load_registry,
     naive_intent_to_plan,
@@ -710,13 +711,6 @@ def exec_cmd(
     if overwrite or force:
         cmd_preview += " --overwrite"
 
-    flow_dir_preview = _flow_run_dir_preview(
-        workspace=ws,
-        top=plan.params.get("top"),
-        run_top=plan.params.get("run_top"),
-        run_id=run_id,
-    )
-
     with running_status(label=f"exec {plan.action}"):
         res = execute_action(
             action=plan.action,
@@ -772,13 +766,6 @@ def run_cmd(
     cmd_preview += f" --workspace {ws}"
     if overwrite or force:
         cmd_preview += " --overwrite"
-
-    flow_dir_preview = _flow_run_dir_preview(
-        workspace=ws,
-        top=top,
-        run_top=run_top,
-        run_id=run_id,
-    )
 
     with running_status(label=f"run {action_id}"):
         res = execute_action(
@@ -901,7 +888,7 @@ def make_cmd(
                 },
                 workspace_dir=ws,
                 cwd=repo_root,
-                env=os.environ.copy(),
+                env=None,
             )
 
         run_ref = None
@@ -923,6 +910,32 @@ def make_cmd(
                         "passthrough": passthrough,
                     },
                     top=make_vars.get("TOP"),
+                )
+                write_flow_manifest(
+                    run_ref.run_dir,
+                    action=f"make:{target}",
+                    top=str(make_vars.get("TOP") or make_vars.get("RUN_TOP") or ""),
+                    run_id=str(make_vars.get("RUN_ID") or ""),
+                    workspace=ws,
+                    params={
+                        "target": target,
+                        "targets": final_targets,
+                        "make_vars": make_vars,
+                        "passthrough": passthrough,
+                    },
+                )
+                write_flow_manifest(
+                    run_ref.run_dir,
+                    action=f"make:{target}",
+                    top=str(make_vars.get("TOP") or make_vars.get("RUN_TOP") or ""),
+                    run_id=str(make_vars.get("RUN_ID") or ""),
+                    workspace=ws,
+                    params={
+                        "target": target,
+                        "targets": final_targets,
+                        "make_vars": make_vars,
+                        "passthrough": passthrough,
+                    },
                 )
         except Exception:
             log.exception("failed to write run manifest for make command")
