@@ -11,7 +11,7 @@ from rich.table import Table
 from rich.text import Text
 
 
-_CONSOLE = Console()
+_CONSOLE = Console(stderr=True)
 
 
 def get_console() -> Console:

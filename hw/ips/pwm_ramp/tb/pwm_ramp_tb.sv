@@ -78,13 +78,20 @@ module pwm_ramp_tb;
     forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
   end
 
-  // Dump vcd file 
+  // Dump vcd file
+  string vcd_path;
+
   initial begin
-    `ifndef SYN
-      $dumpfile("../workspace/runs/pwm_ramp/dev1/sim/pwm_ramp_tb.vcd");
-    `else
-      $dumpfile("../workspace/runs/pwm_ramp/dev1/sim/pwm_ramp_syn_tb.vcd");
-    `endif
+    if (!$value$plusargs("VCD=%s", vcd_path)) begin
+`ifndef SYN
+      vcd_path = "sim/pwm_ramp_tb.vcd";
+`else
+      vcd_path = "sim/pwm_ramp_tb_syn.vcd";
+`endif
+    end
+
+    $display("[TB] dumpfile = %s", vcd_path);
+    $dumpfile(vcd_path);
     $dumpvars(0, pwm_ramp_tb);
   end
 

@@ -51,13 +51,20 @@ module spi_host_tb;
     forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
   end
 
-  // Dump vcd file 
+  // Dump vcd file
+  string vcd_path;
+
   initial begin
-    `ifndef SYN
-      $dumpfile("../workspace/runs/spi_host/dev1/ips/spi_host/sim/spi_host_tb.vcd");
-    `else
-      $dumpfile("../workspace/runs/spi_host/dev1/ips/spi_host/sim/spi_host_syn_tb.vcd");
-    `endif
+    if (!$value$plusargs("VCD=%s", vcd_path)) begin
+`ifndef SYN
+      vcd_path = "sim/spi_host_tb.vcd";
+`else
+      vcd_path = "sim/spi_host_tb_syn.vcd";
+`endif
+    end
+
+    $display("[TB] dumpfile = %s", vcd_path);
+    $dumpfile(vcd_path);
     $dumpvars(0, spi_host_tb);
   end
 

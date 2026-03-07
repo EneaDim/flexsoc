@@ -83,6 +83,8 @@ PYTHON          ?= python3
 YOSYS           ?= yosys
 STA             ?= sta
 VSV             ?= sv
+VCD_FILE ?= $(SIMDIR)/$(TESTBENCH).vcd
+VCD_SYN_FILE ?= $(SIMDIR)/$(TOP)_syn_tb.vcd
 SV2V            ?= sv2v
 LINTER          ?= verilator
 COMPILER        ?= verilator
@@ -447,6 +449,10 @@ lint_sv: flist
 #   v  -> use $(RTLDIR)/$(TOP).v (Verilog-only)
 VSV ?= sv
 
+VCD_FILE     ?= $(SIMDIR)/$(TESTBENCH).vcd
+VCD_SYN_FILE ?= $(SIMDIR)/$(TOP)_syn_tb.vcd
+SDF_FILE     ?= $(SIGNOFFDIR)/sdf/$(TOP)_ss.sdf
+
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv)
 sim:     $(if $(filter v,$(VSV)),sim_v,sim_sv)
 
@@ -474,9 +480,11 @@ endif
 sim_v: compile_v
 	@echo "\n$(ORANGE)Simulating...\n$(RESET)"
 ifeq ($(COMPILER),iverilog)
-	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp > $(LOGDIR)/$(TOP)_sim.log 2>&1
+	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) \
+	  > $(LOGDIR)/$(TOP)_sim.log 2>&1
 else
-	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) > $(LOGDIR)/$(TOP)_sim.log 2>&1
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) \
+	  > $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
 # -------------------------
@@ -503,9 +511,11 @@ endif
 sim_sv: compile_sv
 	@echo "\n$(ORANGE)Simulating...\n$(RESET)"
 ifeq ($(COMPILER),iverilog)
-	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp > $(LOGDIR)/$(TOP)_sim.log 2>&1
+	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) \
+	  > $(LOGDIR)/$(TOP)_sim.log 2>&1
 else
-	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) > $(LOGDIR)/$(TOP)_sim.log 2>&1
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) \
+	  > $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
 # -----------------------------------------------------------------------------
@@ -530,7 +540,7 @@ compile_syn: syn
 		exit 2; \
 	fi
 	$(Q)iverilog -g2012 -v -gspecify -DSIM -DSYN \
-	  -s $(TOP) \
+	  -s $(TESTBENCH) \
 	  $(IVERILOG_FLAGS) \
 	  -o $(SIMDIR)/$(TOP)_syn_tb.vvp \
 	  $(PRIM) \
@@ -540,7 +550,7 @@ compile_syn: syn
 
 sim_syn: compile_syn
 	@echo "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
-	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose \
+	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose +VCD=$(VCD_SYN_FILE) +SDF=$(SDF_FILE) \
 	  > $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
 
 # -----------------------------------------------------------------------------

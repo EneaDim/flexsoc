@@ -25,7 +25,6 @@ from rich.text import Text
 from .config import default_workspace
 from .executor import execute_action
 from .helptext import render_detailed_help, render_help_overview, render_home_help
-from .manifest import read_run_history
 from .manifest import read_run_history, write_run_manifest
 from .planning import (
     load_registry,
@@ -278,7 +277,14 @@ def actions() -> None:
     _setup_logging()
     reg = _registry()
     actions_map = reg.get("actions") or {}
-    print_actions_table(actions_map)
+
+    rows: list[tuple[str, str]] = []
+    for name in sorted(actions_map):
+        meta = actions_map.get(name) or {}
+        desc = str(meta.get("description", ""))
+        rows.append((name, desc))
+
+    print_actions_table(rows)
 
 
 # ----------------------------------------------------------------------
@@ -395,7 +401,7 @@ def _flow_run_dir_preview(
     return workspace / "runs" / effective_run_top / run_id
 
 
-_CONSOLE = Console()
+_CONSOLE = Console(stderr=True)
 
 
 def _shell_quote_arg(value: object) -> str:
@@ -586,9 +592,47 @@ def action(action_id: str) -> None:
     reg = _registry()
     actions_map = reg.get("actions") or {}
     meta = actions_map.get(action_id)
+
     if meta is None:
-        raise typer.Exit(2)
-    print_action_detail(action_id, meta)
+        raise typer.BadParameter(f"unknown action: {action_id}")
+
+    description = str(meta.get("description", ""))
+
+    command_value = meta.get("command")
+    if isinstance(command_value, list):
+        command = " ".join(str(x) for x in command_value)
+    elif command_value is None:
+        command = None
+    else:
+        command = str(command_value)
+
+    params = meta.get("params") or {}
+    required_params = [
+        str(name)
+        for name, spec in params.items()
+        if isinstance(spec, dict) and spec.get("required")
+    ]
+
+    notes: list[str] = []
+
+    if meta.get("requires_top"):
+        notes.append("Requires --top.")
+    if meta.get("requires_run_id"):
+        notes.append("Requires --run-id.")
+    if meta.get("produces_outroot"):
+        notes.append("Produces or updates workspace run artifacts.")
+
+    postprocess = meta.get("postprocess")
+    if postprocess:
+        notes.append(f"Postprocess: {postprocess}")
+
+    print_action_detail(
+        name=action_id,
+        description=description,
+        command=command,
+        required_params=required_params or None,
+        notes=notes or None,
+    )
 
 
 @help_app.command("topics")

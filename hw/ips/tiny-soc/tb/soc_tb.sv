@@ -41,13 +41,20 @@ module soc_tb;
     forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
   end
 
-  // Dump vcd file 
+  // Dump vcd file
+  string vcd_path;
+
   initial begin
-    `ifndef SYN
-      $dumpfile("../workspace/runs/tiny-soc/dev1/sim/soc_tb.vcd");
-    `else
-      $dumpfile("../workspace/runs/tiny-soc/dev1/sim/soc_syn_tb.vcd");
-    `endif
+    if (!$value$plusargs("VCD=%s", vcd_path)) begin
+`ifndef SYN
+      vcd_path = "sim/soc_tb.vcd";
+`else
+      vcd_path = "sim/soc_tb_syn.vcd";
+`endif
+    end
+
+    $display("[TB] dumpfile = %s", vcd_path);
+    $dumpfile(vcd_path);
     $dumpvars(0, soc_tb);
   end
 

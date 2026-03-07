@@ -7,7 +7,7 @@ from rich.text import Text
 
 
 def _console() -> Console:
-    return Console()
+    return Console(stderr=True)
 
 
 def _section_panel(title: str, body: str, *, border_style: str) -> Panel:
