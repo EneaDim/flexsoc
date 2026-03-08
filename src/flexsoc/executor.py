@@ -147,17 +147,18 @@ def execute_action(
                 run_ref,
                 action=action,
                 params=params,
-                top=top,
+                top=(top or run_top),
             )
         except Exception:
             log.exception("failed to write run manifest")
 
-    if flow_run_dir is not None and top and effective_run_id:
+    manifest_top = top or run_top
+    if flow_run_dir is not None and manifest_top and effective_run_id:
         try:
             write_flow_manifest(
                 flow_run_dir,
                 action=action,
-                top=str(top),
+                top=str(manifest_top),
                 run_id=str(effective_run_id),
                 workspace=ws_abs,
                 params=params,

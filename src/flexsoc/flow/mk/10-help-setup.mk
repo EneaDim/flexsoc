@@ -1,0 +1,113 @@
+# -----------------------------------------------------------------------------
+# Help
+# -----------------------------------------------------------------------------
+.PHONY: help help_ip help_soc help_doc help_fsm
+
+help:
+	@echo "$(ORANGE)"
+	@echo "Available make commands:"
+	@echo ""
+	@echo "  make help_ip"
+	@echo "  make help_soc"
+	@echo "  make help_doc"
+	@echo "  make help_fsm"
+	@echo "$(RESET)"
+
+help_ip:
+	$(Q)$(PYTHON) -m flexsoc.tools.help_ip
+
+help_soc:
+	$(Q)$(PYTHON) -m flexsoc.tools.help_soc
+
+help_doc:
+	$(Q)$(PYTHON) -m flexsoc.tools.help_doc
+
+help_fsm:
+	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) help
+
+# -----------------------------------------------------------------------------
+# Setup
+# -----------------------------------------------------------------------------
+.PHONY: setup setup_tb setup_cocotb setup_model setup_sdc setup_syn setup_signoff setup_pnr
+
+setup:
+	@echo "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,TOP)
+	$(call _require_var,RUN_ID)
+	$(Q)$(MKDIR) -p \
+		$(LOGDIR) \
+		$(RTLDIR) \
+		$(TBDIR) \
+		$(SIMDIR) \
+		$(SYNDIR) \
+		$(SIGNOFFDIR) \
+		$(SIGNOFFDIR)/sdf \
+		$(MODELDIR) \
+		$(DOCDIR) \
+		$(DATADIR) \
+		$(DRIVERDIR) \
+		$(LINTDIR) \
+		$(PYDIR) \
+		$(FSMDIR) \
+		$(ORSDIR)
+
+setup_tb: setup flist
+	@echo "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
+	$(Q)$(PYTHON) -m flexsoc.tools.setup_tb $(OVERWRITE) \
+		-top $(TOP) \
+		-rtldir $(RTLDIR) \
+		$(SOC_MEMORY_MAP) \
+		-simdir $(SIMDIR) \
+		-syndir $(SYNDIR) \
+		-prim $(PRIM) \
+		-clk $(CLK_PERIOD) \
+		-comp $(COMPILER) \
+		-itf $(REG_ITF) \
+		-vsv $(VSV) \
+		-o $(TBDIR)
+
+setup_cocotb: setup
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
+	$(Q)$(PYTHON) -m flexsoc.tools.setup_cocotb \
+		--top $(TOP) --itf $(REG_ITF) \
+		--rtl-dir $(RTLDIR) --output $(TBDIR)/cocotb \
+		--clk clk_i --rst rst_ni --rst-active low --period-ns 10 \
+		--sim $(COMPILER)
+
+setup_model: setup
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(MODELDIR)
+	$(Q)$(PYTHON) -m flexsoc.tools.setup_model -top $(TOP) -o $(MODELDIR)
+
+setup_sdc: setup
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(ORSDIR)
+	$(Q)$(PYTHON) -m flexsoc.tools.setup_sdc $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc
+
+setup_syn: setup_sdc flist
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(SYNDIR)
+	$(Q)$(PYTHON) -m flexsoc.tools.setup_syn \
+		-top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
+		--filelist $(RTLDIR)/rtl_list.f \
+		-liberty $(LIB_SYN) -clk $(CLK_PERIOD) \
+		-target $(TARGET_SYN) -opt $(TARGET_OPT) \
+		-o $(SYNDIR)
+
+setup_signoff: setup_sdc syn
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(SIGNOFFDIR)
+	$(Q)$(PYTHON) -m flexsoc.tools.setup_signoff \
+		-top $(TOP) -rtldir $(RTLDIR) \
+		-sdcdir $(ORSDIR) -syndir $(SYNDIR) -simdir $(SIMDIR) \
+		-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) \
+		-o $(SIGNOFFDIR)
+
+setup_pnr:
+	$(Q)$(MKDIR) -p $(ORSDIR)
+	$(Q)$(PYTHON) -m flexsoc.tools.setup_pnr $(TOP) --syn_strategy $(TARGET_OPT) --clk_period $(CLK_PERIOD) \
+		--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --outdir $(ORSDIR)

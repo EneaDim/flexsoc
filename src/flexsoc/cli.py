@@ -909,7 +909,7 @@ def make_cmd(
                         "make_vars": make_vars,
                         "passthrough": passthrough,
                     },
-                    top=make_vars.get("TOP"),
+                    top=(make_vars.get("TOP") or make_vars.get("RUN_TOP")),
                 )
                 write_flow_manifest(
                     run_ref.run_dir,

@@ -417,3 +417,18 @@ actions:
         type: string
         required: false
 
+  soc_start:
+    description: Initialize a SoC run from all IP bundles loaded under workspace/runs/<run_top>/<run_id>/ips
+    command:
+    - make
+    - -C
+    - flow
+    - soc_start
+    requires_top: false
+    requires_run_id: true
+    produces_outroot: true
+    postprocess: null
+    params:
+      overwrite:
+        type: string
+        required: false
