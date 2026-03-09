@@ -55,8 +55,8 @@ def _build_devices(ip_names: list[str], host: str):
 
     next_base = BASE_START
     used_bases = set(KNOWN_BASES.values())
-
     seen: set[str] = set()
+
     for raw_ip in ip_names:
         ip = _canon(raw_ip)
         if ip in seen:
@@ -64,8 +64,6 @@ def _build_devices(ip_names: list[str], host: str):
         seen.add(ip)
 
         if ip in {"ibex", "ibex_top_tracing"}:
-            continue
-        if host == "uart" and ip == "uart":
             continue
 
         if ip in KNOWN_BASES:
@@ -82,21 +80,7 @@ def _build_devices(ip_names: list[str], host: str):
     return devices
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description="Generate default HOST/SOC_MEMORY_MAP make vars from loaded SoC IPs")
-    ap.add_argument("--workspace", required=True)
-    ap.add_argument("--run-top", required=True)
-    ap.add_argument("--run-id", required=True)
-    ap.add_argument("--default-host", required=False)
-    args = ap.parse_args()
-
-    ips = _loaded_ips(args.workspace, args.run_top, args.run_id)
-    if not ips:
-        raise SystemExit("ERROR: no loaded IPs found under workspace/runs/<run_top>/<run_id>/ips")
-
-    host = _resolve_host(ips, args.default_host)
-    devices = _build_devices(ips, host)
-
+def emit_make(host: str, devices: list[tuple[str, str, str, str]]) -> None:
     print(f"HOST ?= {host}")
     print("DEVLIST :=")
     print("define add_device")
@@ -108,6 +92,35 @@ def main() -> int:
     for name, base, size, from_lr in devices:
         print(f"$(eval $(call add_device,{name},{base},{size},{from_lr}))")
     print('SOC_MEMORY_MAP ?= $(foreach d,$(DEVLIST),--device $(d) $(BASE_$(d)) $(SIZE_$(d)) $(FROM_LR_$(d)))')
+
+
+def emit_args(host: str, devices: list[tuple[str, str, str, str]]) -> None:
+    parts = [f"--host {host}"]
+    for name, base, size, from_lr in devices:
+        parts.append(f"--device {name} {base} {size} {from_lr}")
+    print(" ".join(parts))
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Generate default HOST/SOC_MEMORY_MAP from loaded SoC IPs")
+    ap.add_argument("--workspace", required=True)
+    ap.add_argument("--run-top", required=True)
+    ap.add_argument("--run-id", required=True)
+    ap.add_argument("--default-host", required=False)
+    ap.add_argument("--format", choices=["make", "args"], default="make")
+    args = ap.parse_args()
+
+    ips = _loaded_ips(args.workspace, args.run_top, args.run_id)
+    if not ips:
+        raise SystemExit("ERROR: no loaded IPs found under workspace/runs/<run_top>/<run_id>/ips")
+
+    host = _resolve_host(ips, args.default_host)
+    devices = _build_devices(ips, host)
+
+    if args.format == "args":
+        emit_args(host, devices)
+    else:
+        emit_make(host, devices)
     return 0
 
 

@@ -1,7 +1,7 @@
 // Timescale
 `timescale 1ns/1ps
 // Includes
-`include "tb/include_gpio_tb.sv"
+`include "include_gpio_tb.sv"
 
 module gpio_tb;
   // Parameters
@@ -43,20 +43,29 @@ module gpio_tb;
   end
 
   // Dump VCD
+  string vcd_path;
   initial begin
-    `ifndef SYN
-      $dumpfile("sim/gpio_tb.vcd");
-    `else
-      $dumpfile("sim/gpio_syn_tb.vcd");
-    `endif
+    if (!$value$plusargs("VCD=%s", vcd_path)) begin
+      `ifndef SYN
+        vcd_path = "/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/sim/gpio_tb.vcd";
+      `else
+        vcd_path = "/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/sim/gpio_syn_tb.vcd";
+      `endif
+    end
+    $display("[TB] dumpfile = %s", vcd_path);
+    $dumpfile(vcd_path);
     $dumpvars(0, gpio_tb);
   end
 
   // SDF backannotation
   `ifndef VERILATOR
+    string sdf_path;
     initial begin
-      string sdf = "signoff/sdf/gpio_ss.sdf";
-      $sdf_annotate(sdf, gpio_tb.u_gpio, , , "MAXIMUM");
+      if (!$value$plusargs("SDF=%s", sdf_path)) begin
+        sdf_path = "/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/signoff/sdf/gpio_ss.sdf";
+      end
+      $display("[TB] sdf = %s", sdf_path);
+      $sdf_annotate(sdf_path, gpio_tb.u_gpio, , , "MAXIMUM");
     end
   `endif
 

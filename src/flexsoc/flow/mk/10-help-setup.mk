@@ -52,22 +52,42 @@ setup:
 		$(FSMDIR) \
 		$(ORSDIR)
 
-setup_tb: setup flist
+setup_tb: setup
 	@echo "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
-	$(Q)$(PYTHON) -m flexsoc.tools.setup_tb $(OVERWRITE) \
-		-top $(TOP) \
-		-rtldir $(RTLDIR) \
-		$(SOC_MEMORY_MAP) \
-		-simdir $(SIMDIR) \
-		-syndir $(SYNDIR) \
-		-prim $(PRIM) \
-		-clk $(CLK_PERIOD) \
-		-comp $(COMPILER) \
-		-itf $(REG_ITF) \
-		-vsv $(VSV) \
-		-o $(TBDIR)
+	@if [ "$(TOP)" = "soc" ]; then \
+		dev_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
+			--workspace $(WORKSPACE) \
+			--run-top $(RUN_TOP) \
+			--run-id $(RUN_ID) \
+			--default-host $(HOST) \
+			--format args | sed 's/^--host [^ ]* //' )"; \
+		$(PYTHON) -m flexsoc.tools.setup_tb $(OVERWRITE) \
+			-top $(TOP) \
+			-rtldir $(RTLDIR) \
+			$$dev_args \
+			-simdir $(SIMDIR) \
+			-syndir $(SYNDIR) \
+			-prim $(PRIM) \
+			-clk $(CLK_PERIOD) \
+			-comp $(COMPILER) \
+			-itf $(REG_ITF) \
+			-vsv $(VSV) \
+			-o $(TBDIR); \
+	else \
+		$(PYTHON) -m flexsoc.tools.setup_tb $(OVERWRITE) \
+			-top $(TOP) \
+			-rtldir $(RTLDIR) \
+			-simdir $(SIMDIR) \
+			-syndir $(SYNDIR) \
+			-prim $(PRIM) \
+			-clk $(CLK_PERIOD) \
+			-comp $(COMPILER) \
+			-itf $(REG_ITF) \
+			-vsv $(VSV) \
+			-o $(TBDIR); \
+	fi
 
 setup_cocotb: setup
 	$(call _require_var,TOP)
@@ -88,7 +108,7 @@ setup_sdc: setup
 	$(Q)$(MKDIR) -p $(ORSDIR)
 	$(Q)$(PYTHON) -m flexsoc.tools.setup_sdc $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc
 
-setup_syn: setup_sdc flist
+setup_syn: setup_sdc
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SYNDIR)
 	$(Q)$(PYTHON) -m flexsoc.tools.setup_syn \

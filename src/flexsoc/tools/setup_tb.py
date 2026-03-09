@@ -647,11 +647,11 @@ def _render_simple_tb(top: str,
         lines.append("  // =========")
         lines.append("  // Addresses")
         lines.append("  // =========")
-        for d in device:
+        for d in (device or []):
             lines.append(f"  localparam logic [31:0] {d[0].upper()}_BASE   = 32'h{d[1][2:]};")
         lines.append("")
         lines.append("  // Offsets")
-        for d in device:
+        for d in (device or []):
             lines.append(f"  localparam logic [31:0] {d[0].upper()}_CTRL_OFF = 32'h00000000;")
             lines.append("  /////////////////////////////////////////////////////////////////")
 
@@ -696,7 +696,7 @@ def parse_args(argv=None):
                    help="RTL directory containing <top>.sv")
     p.add_argument("-simdir","--simdir","--sim-dir", dest="simdir", required=True, 
                    help="Simulation output dir for VCD")
-    p.add_argument("-device", "--device", action='append', nargs=4, required=True,
+    p.add_argument("-device", "--device", action='append', nargs=4, required=False,
                    metavar=('NAME', 'BASE_ADDR', 'SIZE_BYTE', 'FROM_LR'),
                    help='Add a device with NAME, BASE_ADDR, and SIZE_BYTE (all in hex format, e.g., 0x80000000)')
 

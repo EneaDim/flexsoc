@@ -16,7 +16,15 @@ module uart_core (
 
   // pin fisici
   input  logic           rx,
-  output logic           tx
+  output logic           tx,
+
+  output logic           rx_valid_o,
+  output logic [7:0]     rx_data_o,
+  input  logic           rx_pop_i,
+
+  input  logic           tx_valid_i,
+  input  logic [7:0]     tx_data_i,
+  output logic           tx_ready_o
 );
 
   import uart_reg_pkg::*;
@@ -104,8 +112,9 @@ module uart_core (
 
   assign tx_fifo_rready  = tx_uart_idle & tx_fifo_rvalid & tx_enable;
 
-  assign tx_fifo_wdata   = reg2hw.wdata.q;
-  assign tx_fifo_wvalid  = reg2hw.wdata.qe;
+  assign tx_fifo_wdata   = reg2hw.wdata.q  | tx_data_i;
+  assign tx_fifo_wvalid  = reg2hw.wdata.qe | tx_valid_i;
+  assign tx_ready_o      = tx_fifo_wready;
 
   prim_fifo_sync #(
     .Width   (8),
@@ -205,7 +214,7 @@ module uart_core (
 
   assign rx_fifo_wvalid = rx_valid & ~event_rx_frame_err & ~event_rx_parity_err;
 
-  assign rx_fifo_pop = reg2hw.rdata.re;
+  assign rx_fifo_pop = reg2hw.rdata.re | rx_pop_i;
 
   prim_fifo_sync #(
     .Width   (8),
@@ -225,6 +234,10 @@ module uart_core (
     .rdata_o (uart_rdata),
     .err_o   ()
   );
+
+  // Esposizione streaming RX
+  assign rx_valid_o = rx_fifo_rvalid;
+  assign rx_data_o  = uart_rdata;
 
 endmodule
 

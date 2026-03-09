@@ -76,7 +76,7 @@ clean_rtl:
 clean_sim:
 	$(Q)$(RM) $(SIMDIR)/*.vvp
 	$(Q)$(RM) $(SIMDIR)/*.vcd
-	$(Q)$(RM) $(SIMDIR)/verilator
+	$(Q)$(RM) -r $(SIMDIR)/verilator
 
 clean_cocotb:
 	$(Q)$(RM) $(TBDIR)/cocotb/*.vcd
@@ -85,18 +85,18 @@ clean_cocotb:
 	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb clean
 
 clean_syn:
-	$(Q)$(RM) $(SYNDIR)/*
+	$(Q)$(RM) -rf $(SYNDIR)/*
 
 clean_signoff:
 	$(Q)$(RM) $(SIGNOFFDIR)/sdf/*
 	$(Q)$(RM) $(SIGNOFFDIR)/*.sdc
 
 clean_pnr:
-	$(Q)$(RM) $(ORSDIR)/*
-	$(Q)$(RM) $(ORS_LOGS)
-	$(Q)$(RM) $(ORS_REPORTS)
-	$(Q)$(RM) $(ORS_RESULTS)
-	$(Q)$(RM) $(ORS_OBJECTS)
+	$(Q)$(RM) -rf $(ORSDIR)/*
+	$(Q)$(RM) -rf $(ORS_LOGS)
+	$(Q)$(RM) -rf $(ORS_REPORTS)
+	$(Q)$(RM) -rf $(ORS_RESULTS)
+	$(Q)$(RM) -rf $(ORS_OBJECTS)
 
 clean_fsm:
 	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) clean
@@ -130,7 +130,7 @@ clean_subdir:
 	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) clean
 	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) setup
 
-clean: clean-pyc clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_sw clean_fsm
+clean: clean-pyc clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_fsm
 	$(Q)$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	$(Q)$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	$(Q)$(CLEAR)

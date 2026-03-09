@@ -1,7 +1,7 @@
 // Timescale
 `timescale 1ns/1ps
 // Includes
-`include "tb/include_uart_tb.sv"
+`include "include_uart_tb.sv"
 
 module uart_tb;
   // Parameters

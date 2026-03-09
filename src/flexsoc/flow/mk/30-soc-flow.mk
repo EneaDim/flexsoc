@@ -47,8 +47,13 @@ xbar: xbar_init xbar_build
 xbar_init: soc_cfg
 	@echo "\n$(ORANGE)XBAR init ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR)
-	$(Q)$(PYTHON) -m flexsoc.tools.xbar_init $(SOC_MEMORY_MAP) --host $(HOST) \
-		--output $(DATADIR)/xbar_main.hjson
+	@cfg_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
+		--workspace $(WORKSPACE) \
+		--run-top $(RUN_TOP) \
+		--run-id $(RUN_ID) \
+		--default-host $(HOST) \
+		--format args )"; \
+	$(PYTHON) -m flexsoc.tools.xbar_init $$cfg_args --output $(DATADIR)/xbar_main.hjson
 
 xbar_build:
 	@echo "\n$(ORANGE)XBAR build ...\n$(RESET)"
@@ -70,15 +75,23 @@ xbar_build:
 soc: soc_cfg
 	@echo "\n$(ORANGE)SoC files building ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR) $(TBDIR) $(SIMDIR)
-	$(Q)$(PYTHON) -m flexsoc.tools.soc_gen --host $(HOST) $(SOC_MEMORY_MAP) -o $(RTLDIR)/soc.sv
-
-soc_flist:
-	@echo "\n$(ORANGE)Generating SoC filelist ...\n$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.tools.soc_flist \
+	@cfg_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \
-		--top soc
+		--default-host $(HOST) \
+		--format args )"; \
+	$(PYTHON) -m flexsoc.tools.soc_gen $$cfg_args -o $(RTLDIR)/soc.sv
+
+soc_flist:
+	@echo "\n$(ORANGE)Generating SoC filelist ...\n$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.tools.gen_filelist \
+		--soc \
+		--workspace $(WORKSPACE) \
+		--run-top $(RUN_TOP) \
+		--run-id $(RUN_ID) \
+		--top soc \
+		--out $(RTLDIR)/rtl_list.f
 
 
 soc_flow: xbar soc
@@ -115,7 +128,7 @@ soc_ibex_tutorial: soc_ibex_fetch soc_ibex
 # -----------------------------------------------------------------------------
 # IP save/load
 # -----------------------------------------------------------------------------
-ip_save:
+ip_save: clean_sim
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_ID)
@@ -147,9 +160,17 @@ ip_save:
 	echo "  from: $$src"; \
 	echo "  to:   $$dst"; \
 	if command -v rsync >/dev/null 2>&1; then \
-		rsync -a "$$src"/ "$$dst"/; \
+		rsync -a \
+			--exclude pnr_openroad/results \
+			--exclude pnr_openroad/reports \
+			--exclude pnr_openroad/objects \
+			--exclude signoff/sdf \
+			--exclude history/ \
+			--exclude logs/ \
+			"$$src"/ "$$dst"/; \
 	else \
 		cp -a "$$src"/. "$$dst"/; \
+		rm -rf "$$dst/history" "$$dst/logs"; \
 	fi
 
 ip_load:
@@ -188,3 +209,27 @@ ip_load:
 	else \
 		cp -a "$$src"/. "$$dst"/; \
 	fi
+
+
+setup_soc_tb: soc_cfg soc_flist
+	@echo "\n$(ORANGE)Setup SoC SystemVerilog Testbench Template...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
+	$(Q)$(PYTHON) -m flexsoc.tools.setup_tb $(OVERWRITE) \
+		-top soc \
+		-rtldir $(RTLDIR) \
+		$(SOC_MEMORY_MAP) \
+		-simdir $(SIMDIR) \
+		-syndir $(SYNDIR) \
+		-prim $(PRIM) \
+		-clk $(CLK_PERIOD) \
+		-comp $(COMPILER) \
+		-itf $(REG_ITF) \
+		-vsv $(VSV) \
+		-o $(TBDIR)
+
+sim_soc:
+	$(Q)$(MAKE) --no-print-dir sim \
+		WORKSPACE=$(WORKSPACE) \
+		RUN_TOP=$(RUN_TOP) \
+		RUN_ID=$(RUN_ID) \
+		TOP=soc

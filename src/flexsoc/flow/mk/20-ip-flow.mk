@@ -24,7 +24,7 @@ rtl_stub:
 	@echo "\n$(ORANGE)RTL stub generation...\n$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.tools.rtl_stub_gen $(OVERWRITE) -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
 
-ip_start: setup hjson reg doc rtl_stub setup_tb sim
+ip_start: setup hjson reg doc rtl_stub flist setup_tb sim
 
 soc_start:
 	$(call _require_var,WORKSPACE)
@@ -63,7 +63,7 @@ lint_v: sv2v
 	@echo "\n$(ORANGE)Linting...\n$(RESET)"
 	$(Q)$(LINTER) $(LINT_FLAGS) $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_lint.log 2>&1
 
-lint_sv:
+lint_sv: setup
 	@echo "\n$(ORANGE)Linting...\n$(RESET)"
 	$(Q)$(LINTER) $(LINT_FLAGS) -f $(RTLDIR)/rtl_list.f --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
 		> $(LOGDIR)/$(TOP)_lint.log 2>&1

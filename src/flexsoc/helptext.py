@@ -49,8 +49,8 @@ def render_home_help() -> None:
         _section_panel(
             "Learn",
             "[bold green]flexsoc q[/bold green]    Quickstart\n"
-            "[bold green]flexsoc ip[/bold green]   IP development guide\n"
             "[bold green]flexsoc t[/bold green]    Tutorials\n"
+            "[bold green]flexsoc ip[/bold green]   IP development guide\n"
             "[bold green]flexsoc hd[/bold green]   Detailed help",
             border_style="green",
         )
@@ -60,8 +60,8 @@ def render_home_help() -> None:
     console.print(
         _section_panel(
             "Inspect",
-            "[bold cyan]runs ls[/bold cyan]      List workspace runs\n"
-            "[bold cyan]runs show[/bold cyan]    Inspect one run",
+            "[bold cyan]flexsoc runs ls[/bold cyan]      List workspace runs\n"
+            "[bold cyan]flexsoc runs show[/bold cyan]    Inspect one run",
             border_style="cyan",
         )
     )
@@ -70,8 +70,8 @@ def render_home_help() -> None:
     console.print(
         _section_panel(
             "Explore",
-            "[bold yellow]actions[/bold yellow]        List all actions\n"
-            "[bold yellow]action <name>[/bold yellow]  Show one action",
+            "[bold yellow]flexsoc actions[/bold yellow]        List all actions\n"
+            "[bold yellow]flexsoc action <name>[/bold yellow]  Show one action",
             border_style="yellow",
         )
     )
@@ -181,24 +181,30 @@ def render_detailed_help() -> None:
 
 
 def render_quickstart() -> None:
-    console = _console()
-    console.print(
-        _section_panel(
-            "Quickstart",
-            "Recommended end-to-end IP flow:\n\n"
-            "  1. [bold green]flexsoc run ip_start --top my_ip --run-id dev --ws workspace --overwrite[/bold green]\n"
-            "  2. [bold green]flexsoc make view --top my_ip --run-id dev --ws workspace --overwrite[/bold green]\n"
-            "  3. [bold green]flexsoc make syn --top my_ip --run-id dev --ws workspace --overwrite[/bold green]\n"
-            "  4. [bold green]flexsoc make sta --top my_ip --run-id dev --ws workspace --overwrite[/bold green]\n"
-            "  5. [bold green]flexsoc make power --top my_ip --run-id dev --ws workspace --overwrite[/bold green]\n"
-            "  6. [bold green]flexsoc make pnr --top my_ip --run-id dev --ws workspace --overwrite[/bold green]\n"
-            "  7. [bold green]flexsoc make pnr_gui --top my_ip --run-id dev --ws workspace --overwrite[/bold green]\n\n"
-            "[bold yellow]Tip:[/bold yellow]\n"
-            "Use [bold cyan]--overwrite[/bold cyan] from the beginning while iterating quickly on the same run.",
-            border_style="bright_blue",
-        )
-    )
+    c = _console()
+    c.print(Panel.fit(
+        """[bold]Quickstart[/bold]
 
+[bold]IP development[/bold]
+[cyan]flexsoc run ip_start --top my_ip --run-id dev --ws workspace --overwrite[/cyan]
+[cyan]flexsoc make sim --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make syn --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make sta --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make power --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make ip_save --top my_ip --run-top my_ip --run-id dev --ws workspace --overwrite[/cyan]
+
+[bold]Basic SoC (uart host + gpio peripheral)[/bold]
+[cyan]flexsoc make ip_load --top uart-master --run-top soc0 --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make ip_load --top gpio --run-top soc0 --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc run soc_start --run-top soc0 --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make xbar --top soc0 --run-top soc0 --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make soc --top soc0 --run-top soc0 --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make soc_flist --top soc --run-top soc0 --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make setup_soc_tb --top soc0 --run-top soc0 --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make sim --top soc --run-top soc0 --run-id dev --ws workspace[/cyan]""",
+        title="Quickstart",
+        border_style="blue",
+    ))
 
 def render_tutorials() -> None:
     console = _console()
@@ -222,46 +228,17 @@ def render_tutorials() -> None:
 
 
 def render_ip_guide() -> None:
-    console = _console()
-    console.print(
-        _section_panel(
-            "IP development guide",
-            "This section describes the recommended lifecycle for building a reusable hardware IP using flexsoc.\n\n"
-            "[bold]1. HJSON authoring[/bold]\n"
-            "  hjson\n"
-            "  Generate a starter register/metadata description, then edit it with the real register map.\n\n"
-            "[bold]2. Register collateral and docs[/bold]\n"
-            "  reg and doc\n"
-            "  Generate register RTL / SW artifacts and documentation.\n\n"
-            "[bold]3. Stub generation and RTL authoring[/bold]\n"
-            "  rtl_stub\n"
-            "  Generate the initial RTL stub, then implement the actual IP logic.\n\n"
-            "[bold]4. Testbench setup and verification authoring[/bold]\n"
-            "  setup_tb\n"
-            "  Generate the TB scaffold, then write or extend the verification environment.\n\n"
-            "[bold]5. Pre-silicon quality loop[/bold]\n"
-            "  lint\n"
-            "      Structural / style checking\n"
-            "  sim\n"
-            "      Functional simulation\n\n"
-            "[bold]6. Implementation and signoff[/bold]\n"
-            "  syn\n"
-            "      Synthesis\n"
-            "  sta\n"
-            "      Static timing analysis\n"
-            "  power\n"
-            "      Power estimation\n"
-            "  pnr\n"
-            "      Place and route\n"
-            "  pnr_gui\n"
-            "      Interactive GUI flow for debug\n\n"
-            "[bold]7. Software / integration helpers[/bold]\n"
-            "  driver\n"
-            "      Generate software-facing collateral\n"
-            "  fsoc_init\n"
-            "      Initialize integration material\n"
-            "  ip_save\n"
-            "      Save or package the resulting IP state",
-            border_style="bright_blue",
-        )
-    )
+    c = _console()
+    c.print(Panel.fit(
+        """[bold]IP flow guide[/bold]
+
+[cyan]flexsoc run ip_start --top my_ip --run-id dev --ws workspace --overwrite[/cyan]
+[cyan]flexsoc make flist --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make sim --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make syn --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make sta --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make power --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
+[cyan]flexsoc make ip_save --top my_ip --run-top my_ip --run-id dev --ws workspace --overwrite[/cyan]""",
+        title="IP flow guide",
+        border_style="blue",
+    ))

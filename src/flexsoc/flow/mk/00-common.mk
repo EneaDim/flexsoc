@@ -41,7 +41,7 @@ DRIVERDIR      ?= $(OUTROOT)/drivers
 LINTDIR        ?= $(OUTROOT)/lint
 PYDIR          ?= $(OUTROOT)/py
 FSMDIR         ?= $(OUTROOT)/fsms
-ORSDIR         ?= $(OUTROOT)/openroad
+ORSDIR         ?= $(OR_WORKDIR)
 REGRESSIONDIR  ?= $(OUTROOT)/regression
 
 # -----------------------------------------------------------------------------
