@@ -24,6 +24,7 @@ from rich.text import Text
 
 from .config import default_workspace
 from .executor import execute_action
+from .context import clear_context, load_context, resolve_context, save_context
 from .helptext import render_detailed_help, render_help_overview, render_home_help
 from .manifest import read_run_history, write_run_manifest
 from .manifest import write_flow_manifest
@@ -741,6 +742,12 @@ def run_cmd(
     force: bool = typer.Option(False, "--force", help="Alias for --overwrite"),
 ) -> None:
     _setup_logging()
+    workspace, top, run_top, run_id = resolve_context(
+        workspace=workspace,
+        top=top,
+        run_top=run_top,
+        run_id=run_id,
+    )
     ws = (workspace or default_workspace()).resolve()
 
     params: Dict[str, Any] = {}
@@ -822,6 +829,12 @@ def make_cmd(
     force: bool = typer.Option(False, "--force", help="Alias for --overwrite"),
 ) -> None:
     _setup_logging()
+    workspace, top, run_top, run_id = resolve_context(
+        workspace=workspace,
+        top=top,
+        run_top=run_top,
+        run_id=run_id,
+    )
     ws = (workspace or default_workspace()).resolve()
     repo_root = _repo_root()
     flow_make_dir = _flow_dir()
@@ -953,6 +966,65 @@ def make_cmd(
 
     raise typer.Exit(0)
 
+
+@app.command("use")
+def use_cmd(
+    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
+    top: Optional[str] = typer.Option(None, "--top"),
+    run_top: Optional[str] = typer.Option(None, "--run-top"),
+    run_id: Optional[str] = typer.Option(None, "--run-id"),
+) -> None:
+    _setup_logging()
+    ws, top_eff, run_top_eff, run_id_eff = resolve_context(
+        workspace=workspace,
+        top=top,
+        run_top=run_top,
+        run_id=run_id,
+    )
+    if ws is None:
+        ws = default_workspace().resolve()
+    if run_top_eff is None and top_eff is not None:
+        run_top_eff = top_eff
+
+    data = save_context(
+        workspace=ws,
+        top=top_eff,
+        run_top=run_top_eff,
+        run_id=run_id_eff,
+    )
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Field")
+    table.add_column("Value")
+    table.add_row("workspace", str(data.get("workspace", "")))
+    table.add_row("top", str(data.get("top", "")))
+    table.add_row("run_top", str(data.get("run_top", "")))
+    table.add_row("run_id", str(data.get("run_id", "")))
+
+    _CONSOLE.print(Panel(table, title="Current flexsoc context", border_style="blue"))
+
+
+@app.command("current")
+def current_cmd() -> None:
+    _setup_logging()
+    data = load_context()
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Field")
+    table.add_column("Value")
+    table.add_row("workspace", str(data.get("workspace", "")))
+    table.add_row("top", str(data.get("top", "")))
+    table.add_row("run_top", str(data.get("run_top", "")))
+    table.add_row("run_id", str(data.get("run_id", "")))
+
+    _CONSOLE.print(Panel(table, title="Current flexsoc context", border_style="blue"))
+
+
+@app.command("clear-current")
+def clear_current_cmd() -> None:
+    _setup_logging()
+    clear_context()
+    _CONSOLE.print(Panel("Context cleared.", title="Current flexsoc context", border_style="blue"))
 
 if __name__ == "__main__":
     if _early_shortcuts():

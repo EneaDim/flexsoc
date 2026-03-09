@@ -131,15 +131,36 @@ interface tlul_if (
 endinterface
 """
 
-
 def _emit_tlul_utils() -> str:
     return """class tlul_utils;
 
-  virtual tlul_if drv_if;
+  virtual tlul_if.drv drv_if;
 
-  function new(virtual tlul_if drv_if);
+  function new(virtual tlul_if.drv drv_if);
     this.drv_if = drv_if;
   endfunction
+
+  task automatic cycle();
+    @(posedge drv_if.clk_i);
+  endtask
+
+  task automatic drive_idle();
+    drv_if.h2d.a_valid   <= 1'b0;
+    drv_if.h2d.a_opcode  <= tlul_pkg::Get;
+    drv_if.h2d.a_param   <= '0;
+    drv_if.h2d.a_size    <= '0;
+    drv_if.h2d.a_source  <= '0;
+    drv_if.h2d.a_address <= '0;
+    drv_if.h2d.a_mask    <= '0;
+    drv_if.h2d.a_data    <= '0;
+    drv_if.h2d.a_user    <= '0;
+    drv_if.h2d.d_ready   <= 1'b0;
+  endtask
+
+  task automatic init();
+    drive_idle();
+    cycle();
+  endtask
 
   task automatic tlul_write(input logic [top_pkg::TL_AW-1:0]  addr,
                             input logic [top_pkg::TL_DW-1:0]  data,
@@ -147,27 +168,35 @@ def _emit_tlul_utils() -> str:
 
     $display("[%0t] TLUL WRITE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
 
-    drv_if.h2d.d_ready   = 1'b1;
-    drv_if.h2d.a_valid   = 1'b1;
-    drv_if.h2d.a_opcode  = tlul_pkg::PutFullData;
-    drv_if.h2d.a_param   = 3'b000;
-    drv_if.h2d.a_size    = 2;
-    drv_if.h2d.a_source  = source;
-    drv_if.h2d.a_address = addr;
-    drv_if.h2d.a_mask    = 4'b1111;
-    drv_if.h2d.a_data    = data;
-    drv_if.h2d.a_user    = '0;
+    drive_idle();
+    cycle();
 
-    do @(posedge drv_if.clk_i); while (!drv_if.d2h.a_ready);
-    drv_if.h2d.a_valid = 0;
+    drv_if.h2d.d_ready   <= 1'b1;
+    drv_if.h2d.a_valid   <= 1'b1;
+    drv_if.h2d.a_opcode  <= tlul_pkg::PutFullData;
+    drv_if.h2d.a_param   <= 3'b000;
+    drv_if.h2d.a_size    <= 2;
+    drv_if.h2d.a_source  <= source;
+    drv_if.h2d.a_address <= addr;
+    drv_if.h2d.a_mask    <= 4'b1111;
+    drv_if.h2d.a_data    <= data;
+    drv_if.h2d.a_user    <= '0;
 
-    do @(posedge drv_if.clk_i); while (!drv_if.d2h.d_valid);
+    do cycle(); while (!drv_if.d2h.a_ready);
+    drv_if.h2d.a_valid <= 1'b0;
+
+    do cycle(); while (!drv_if.d2h.d_valid);
 
     if (drv_if.d2h.d_error) begin
       $display("[%0t] TLUL WRITE ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
     end else begin
       $display("[%0t] TLUL WRITE DONE: Addr = 0x%08x", $time, addr);
     end
+
+    cycle();
+    drive_idle();
+    cycle();
+
     #1;
   endtask
 
@@ -176,22 +205,26 @@ def _emit_tlul_utils() -> str:
                            input  logic [top_pkg::TL_AIW-1:0] source);
 
     $display("[%0t] TLUL READ: Addr = 0x%08x", $time, addr);
+    data = '0;
 
-    drv_if.h2d.d_ready   = 1'b1;
-    drv_if.h2d.a_valid   = 1'b1;
-    drv_if.h2d.a_opcode  = tlul_pkg::Get;
-    drv_if.h2d.a_param   = 3'b000;
-    drv_if.h2d.a_size    = 2;
-    drv_if.h2d.a_source  = source;
-    drv_if.h2d.a_address = addr;
-    drv_if.h2d.a_mask    = 4'b1111;
-    drv_if.h2d.a_data    = '0;
-    drv_if.h2d.a_user    = '0;
+    drive_idle();
+    cycle();
 
-    do @(posedge drv_if.clk_i); while (!drv_if.d2h.a_ready);
-    drv_if.h2d.a_valid = 0;
+    drv_if.h2d.d_ready   <= 1'b1;
+    drv_if.h2d.a_valid   <= 1'b1;
+    drv_if.h2d.a_opcode  <= tlul_pkg::Get;
+    drv_if.h2d.a_param   <= 3'b000;
+    drv_if.h2d.a_size    <= 2;
+    drv_if.h2d.a_source  <= source;
+    drv_if.h2d.a_address <= addr;
+    drv_if.h2d.a_mask    <= 4'b1111;
+    drv_if.h2d.a_data    <= '0;
+    drv_if.h2d.a_user    <= '0;
 
-    do @(posedge drv_if.clk_i); while (!drv_if.d2h.d_valid);
+    do cycle(); while (!drv_if.d2h.a_ready);
+    drv_if.h2d.a_valid <= 1'b0;
+
+    do cycle(); while (!drv_if.d2h.d_valid);
     data = drv_if.d2h.d_data;
 
     if (drv_if.d2h.d_error) begin
@@ -199,13 +232,16 @@ def _emit_tlul_utils() -> str:
     end else begin
       $display("[%0t] TLUL READ DONE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
     end
+
+    cycle();
+    drive_idle();
+    cycle();
+
     #1;
   endtask
 
 endclass
 """
-
-
 def _emit_reg_if(top: str) -> str:
     return f"""`timescale 1ns/1ps
 
@@ -346,9 +382,9 @@ def _render_tb(top: str,
     else:
         # Fallback includes for non-Verilator
         lines.append("`ifndef SYN")
-        lines.append(f'  `include "rtl/{top}.v"')
+        lines.append(f'  `include "{top}.v"')
         lines.append("`else")
-        lines.append(f'  `include "{syndir}/{top}_synth.v"')
+        lines.append(f'  `include "{top}_synth.v"')
         lines.append("`endif")
     lines.append("")
     lines.append(f"module {top}_tb;")
@@ -366,12 +402,6 @@ def _render_tb(top: str,
             lines.append(f"  logic {name};")
         elif isinstance(w, str) and w.startswith("["):
             lines.append(f"  logic {w} {name};")
-        else:
-            # typedef or package type
-            if itf == "tlul":
-                lines.append(f"  {w} {name};")
-            else:
-                lines.append(f"  {top}_reg_pkg::{w} {name};")
 
     # Outputs
     lines.append("\n  // Outputs")
@@ -380,11 +410,6 @@ def _render_tb(top: str,
             lines.append(f"  logic {name};")
         elif isinstance(w, str) and w.startswith("["):
             lines.append(f"  logic {w} {name};")
-        else:
-            if itf == "tlul":
-                lines.append(f"  {w} {name};")
-            else:
-                lines.append(f"  {top}_reg_pkg::{w} {name};")
 
     lines.append("\n  integer error_count;")
     # Optional rdata reg for quick examples
@@ -439,9 +464,9 @@ def _render_tb(top: str,
     lines.append("  initial begin")
     lines.append('    if (!$value$plusargs("VCD=%s", vcd_path)) begin')
     lines.append("      `ifndef SYN")
-    lines.append(f'        vcd_path = "{simdir}/{top}_tb.vcd";')
+    lines.append(f'        vcd_path = "";')
     lines.append("      `else")
-    lines.append(f'        vcd_path = "{simdir}/{top}_syn_tb.vcd";')
+    lines.append(f'        vcd_path = "";')
     lines.append("      `endif")
     lines.append("    end")
     lines.append('    $display("[TB] dumpfile = %s", vcd_path);')
@@ -455,7 +480,7 @@ def _render_tb(top: str,
     lines.append("    string sdf_path;")
     lines.append("    initial begin")
     lines.append('      if (!$value$plusargs("SDF=%s", sdf_path)) begin')
-    lines.append(f'        sdf_path = "{Path(simdir).parent / "signoff" / "sdf" / f"{top}_ss.sdf"}";')
+    lines.append(f'        sdf_path = "";')
     lines.append("      end")
     lines.append('      $display("[TB] sdf = %s", sdf_path);')
     lines.append(f'      $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MAXIMUM");')
@@ -468,7 +493,8 @@ def _render_tb(top: str,
     if ports_in:
         # init inputs (skip the first, often a clock)
         for nm, _ in ports_in[1:]:
-            lines.append(f"    {nm} = '0;")
+            if not nm == 'tl_i':
+                lines.append(f"    {nm} = '0;")
     # simple reset: first rst_ if present, else try second input heuristically
     if rsts:
         lines.append("    #(CLK_PERIOD);")
@@ -587,9 +613,9 @@ def _render_simple_tb(top: str,
     lines.append("  initial begin")
     lines.append('    if (!$value$plusargs("VCD=%s", vcd_path)) begin')
     lines.append("      `ifndef SYN")
-    lines.append(f'        vcd_path = "{simdir}/{top}_tb.vcd";')
+    lines.append(f'        vcd_path = "";')
     lines.append("      `else")
-    lines.append(f'        vcd_path = "{simdir}/{top}_syn_tb.vcd";')
+    lines.append(f'        vcd_path = "";')
     lines.append("      `endif")
     lines.append("    end")
     lines.append('    $display("[TB] dumpfile = %s", vcd_path);')

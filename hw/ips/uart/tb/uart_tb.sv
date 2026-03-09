@@ -11,10 +11,19 @@ module uart_tb;
   logic clk_i;
   logic rst_ni;
   tlul_pkg::tl_h2d_t tl_i;
+  logic gnt_i;
+  logic valid_i;
+  logic [31:0] rdata_i;
+  logic err_i;
   logic cio_rx_i;
 
   // Outputs
   tlul_pkg::tl_d2h_t tl_o;
+  logic req_o;
+  logic [31:0] addr_o;
+  logic we_o;
+  logic [31:0] wdata_o;
+  logic [3:0] be_o;
   logic cio_tx_o;
   logic cio_tx_en_o;
 
@@ -28,8 +37,17 @@ module uart_tb;
     .clk_i(clk_i),
     .rst_ni(rst_ni),
     .tl_i(tl_if.h2d),
+    .gnt_i(gnt_i),
+    .valid_i(valid_i),
+    .rdata_i(rdata_i),
+    .err_i(err_i),
     .cio_rx_i(cio_rx_i),
     .tl_o(tl_if.d2h),
+    .req_o(req_o),
+    .addr_o(addr_o),
+    .we_o(we_o),
+    .wdata_o(wdata_o),
+    .be_o(be_o),
     .cio_tx_o(cio_tx_o),
     .cio_tx_en_o(cio_tx_en_o)
   );
@@ -40,20 +58,29 @@ module uart_tb;
   end
 
   // Dump VCD
+  string vcd_path;
   initial begin
-    `ifndef SYN
-      $dumpfile("sim/uart_tb.vcd");
-    `else
-      $dumpfile("sim/uart_syn_tb.vcd");
-    `endif
+    if (!$value$plusargs("VCD=%s", vcd_path)) begin
+      `ifndef SYN
+        vcd_path = "";
+      `else
+        vcd_path = "";
+      `endif
+    end
+    $display("[TB] dumpfile = %s", vcd_path);
+    $dumpfile(vcd_path);
     $dumpvars(0, uart_tb);
   end
 
   // SDF backannotation
   `ifndef VERILATOR
+    string sdf_path;
     initial begin
-      string sdf = "signoff/sdf/uart_ss.sdf";
-      $sdf_annotate(sdf, uart_tb.u_uart, , , "MAXIMUM");
+      if (!$value$plusargs("SDF=%s", sdf_path)) begin
+        sdf_path = "";
+      end
+      $display("[TB] sdf = %s", sdf_path);
+      $sdf_annotate(sdf_path, uart_tb.u_uart, , , "MAXIMUM");
     end
   `endif
 
@@ -61,6 +88,10 @@ module uart_tb;
     error_count = 0;
     rst_ni = '0;
     tl_i = '0;
+    gnt_i = '0;
+    valid_i = '0;
+    rdata_i = '0;
+    err_i = '0;
     cio_rx_i = '0;
     #(CLK_PERIOD);
     rst_ni = 1'b1;

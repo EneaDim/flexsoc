@@ -185,23 +185,29 @@ def render_quickstart() -> None:
     c.print(Panel.fit(
         """[bold]Quickstart[/bold]
 
-[bold]IP development[/bold]
-[cyan]flexsoc run ip_start --top my_ip --run-id dev --ws workspace --overwrite[/cyan]
-[cyan]flexsoc make sim --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make syn --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make sta --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make power --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make ip_save --top my_ip --run-top my_ip --run-id dev --ws workspace --overwrite[/cyan]
+[bold]1. Set the working context once[/bold]
+[cyan]flexsoc use --ws workspace --top my_ip --run-top my_ip --run-id dev[/cyan]
 
-[bold]Basic SoC (uart host + gpio peripheral)[/bold]
-[cyan]flexsoc make ip_load --top uart-master --run-top soc0 --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make ip_load --top gpio --run-top soc0 --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc run soc_start --run-top soc0 --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make xbar --top soc0 --run-top soc0 --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make soc --top soc0 --run-top soc0 --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make soc_flist --top soc --run-top soc0 --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make setup_soc_tb --top soc0 --run-top soc0 --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make sim --top soc --run-top soc0 --run-id dev --ws workspace[/cyan]""",
+[bold]2. IP development[/bold]
+[cyan]flexsoc run ip_start[/cyan]
+[cyan]flexsoc make sim[/cyan]
+[cyan]flexsoc make syn[/cyan]
+[cyan]flexsoc make sta[/cyan]
+[cyan]flexsoc make power[/cyan]
+[cyan]flexsoc make ip_save --overwrite[/cyan]
+
+[bold]3. Switch context for a basic SoC[/bold]
+[cyan]flexsoc use --ws workspace --top soc0 --run-top soc0 --run-id dev[/cyan]
+
+[bold]4. Basic SoC (uart host + gpio peripheral)[/bold]
+[cyan]flexsoc make ip_load --top uart-master[/cyan]
+[cyan]flexsoc make ip_load --top gpio[/cyan]
+[cyan]flexsoc run soc_start[/cyan]
+[cyan]flexsoc make xbar[/cyan]
+[cyan]flexsoc make soc[/cyan]
+[cyan]flexsoc make soc_flist --top soc[/cyan]
+[cyan]flexsoc make setup_soc_tb --top soc[/cyan]
+[cyan]flexsoc make sim --top soc[/cyan]""",
         title="Quickstart",
         border_style="blue",
     ))

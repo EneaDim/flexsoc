@@ -47,9 +47,9 @@ module gpio_tb;
   initial begin
     if (!$value$plusargs("VCD=%s", vcd_path)) begin
       `ifndef SYN
-        vcd_path = "/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/sim/gpio_tb.vcd";
+        vcd_path = "";
       `else
-        vcd_path = "/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/sim/gpio_syn_tb.vcd";
+        vcd_path = "";
       `endif
     end
     $display("[TB] dumpfile = %s", vcd_path);
@@ -62,7 +62,7 @@ module gpio_tb;
     string sdf_path;
     initial begin
       if (!$value$plusargs("SDF=%s", sdf_path)) begin
-        sdf_path = "/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/signoff/sdf/gpio_ss.sdf";
+        sdf_path = "";
       end
       $display("[TB] sdf = %s", sdf_path);
       $sdf_annotate(sdf_path, gpio_tb.u_gpio, , , "MAXIMUM");
