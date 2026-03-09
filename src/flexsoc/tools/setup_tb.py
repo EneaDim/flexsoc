@@ -242,6 +242,7 @@ def _emit_tlul_utils() -> str:
 
 endclass
 """
+
 def _emit_reg_if(top: str) -> str:
     return f"""`timescale 1ns/1ps
 
@@ -402,6 +403,12 @@ def _render_tb(top: str,
             lines.append(f"  logic {name};")
         elif isinstance(w, str) and w.startswith("["):
             lines.append(f"  logic {w} {name};")
+        else:
+            # typedef or package type
+            if itf == "tlul":
+                lines.append(f"  {w} {name};")
+            else:
+                lines.append(f"  {top}_reg_pkg::{w} {name};")
 
     # Outputs
     lines.append("\n  // Outputs")
@@ -410,6 +417,11 @@ def _render_tb(top: str,
             lines.append(f"  logic {name};")
         elif isinstance(w, str) and w.startswith("["):
             lines.append(f"  logic {w} {name};")
+        else:
+            if itf == "tlul":
+                lines.append(f"  {w} {name};")
+            else:
+                lines.append(f"  {top}_reg_pkg::{w} {name};")
 
     lines.append("\n  integer error_count;")
     # Optional rdata reg for quick examples
@@ -493,8 +505,7 @@ def _render_tb(top: str,
     if ports_in:
         # init inputs (skip the first, often a clock)
         for nm, _ in ports_in[1:]:
-            if not nm == 'tl_i':
-                lines.append(f"    {nm} = '0;")
+            lines.append(f"    {nm} = '0;")
     # simple reset: first rst_ if present, else try second input heuristically
     if rsts:
         lines.append("    #(CLK_PERIOD);")
