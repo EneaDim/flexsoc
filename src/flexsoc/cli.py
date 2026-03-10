@@ -281,7 +281,7 @@ def actions() -> None:
     actions_map = reg.get("actions") or {}
 
     rows: list[tuple[str, str]] = []
-    for name in sorted(actions_map):
+    for name in actions_map:
         meta = actions_map.get(name) or {}
         desc = str(meta.get("description", ""))
         rows.append((name, desc))

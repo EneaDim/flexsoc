@@ -300,32 +300,6 @@ actions:
         required: true
 
   # ----------------------------
-  # Composite / convenience
-  # ----------------------------
-
-  ip_start:
-    description: Create a new IP template and run full smoke flow (setup+hjson+reg+doc+rtl_stub+tb+lint+compile+sim)
-    command:
-    - make
-    - -C
-    - flow
-    - ip_start
-    requires_top: true
-    requires_run_id: true
-    produces_outroot: true
-    postprocess: ip_start
-    params:
-      top:
-        type: string
-        required: true
-      reg_itf:
-        type: string
-        required: false
-      overwrite:
-        type: string
-        required: false
-
-  # ----------------------------
   # Integration / export
   # ----------------------------
 
@@ -413,6 +387,32 @@ actions:
       run_id:
         type: string
         required: true
+      overwrite:
+        type: string
+        required: false
+
+  # ----------------------------
+  # Composite / convenience
+  # ----------------------------
+
+  ip_start:
+    description: Create a new IP template and run full smoke flow (setup+hjson+reg+doc+rtl_stub+tb+lint+compile+sim)
+    command:
+    - make
+    - -C
+    - flow
+    - ip_start
+    requires_top: true
+    requires_run_id: true
+    produces_outroot: true
+    postprocess: ip_start
+    params:
+      top:
+        type: string
+        required: true
+      reg_itf:
+        type: string
+        required: false
       overwrite:
         type: string
         required: false

@@ -199,13 +199,13 @@ def render_quickstart() -> None:
 [bold]3. Switch context for a basic SoC[/bold]
 [cyan]flexsoc use --ws workspace --run-id dev --run-top soc0 --top soc0[/cyan]
 
-[bold]4. Basic SoC (uart host + gpio peripheral)[/bold]
+[bold]4. Basic SoC (uart host + peripherals)[/bold]
 [cyan]flexsoc make ip_load --top uart-master[/cyan]
 [cyan]flexsoc make ip_load --top gpio[/cyan]
-[cyan]flexsoc run soc_start[/cyan]
-[cyan]flexsoc make xbar[/cyan]
-[cyan]flexsoc make soc[/cyan]
-[cyan]flexsoc make soc_flist --top soc[/cyan]
+[cyan]flexsoc make ip_load --top rv_timer[/cyan]
+[cyan]flexsoc make ip_load --top pwm[/cyan]
+[cyan]flexsoc make soc_start[/cyan]
+[cyan]flexsoc make xbar soc[/cyan]
 [cyan]flexsoc make setup_soc_tb --top soc[/cyan]
 [cyan]flexsoc make sim --top soc[/cyan]""",
         title="Quickstart",

@@ -431,6 +431,59 @@ def resolve_ip_dependencies(initial_used: list[Path], ip_candidates: list[Path])
     return [p for p in ip_candidates if p.stem in used_stems]
 
 
+
+
+def _read_rtl_list_entries(rtl_list: Path) -> list[Path]:
+    out: list[Path] = []
+    if not rtl_list.exists():
+        return out
+
+    base = rtl_list.parent
+    for raw in rtl_list.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or line.startswith("+incdir+"):
+            continue
+        p = Path(line)
+        if not p.is_absolute():
+            p = (base / p).resolve()
+        else:
+            p = p.resolve()
+        out.append(p)
+    return out
+
+
+def collect_nested_ip_sources(run_root: Path) -> list[Path]:
+    """
+    If the current run is a SoC run with loaded IPs under:
+      <run_root>/ips/<ip>/rtl/rtl_list.f
+    collect all those sources in IP-folder order, preserving file order.
+    """
+    ips_dir = run_root / "ips"
+    if not ips_dir.exists():
+        return []
+
+    out: list[Path] = []
+    seen: set[Path] = set()
+
+    for ip_dir in sorted(p for p in ips_dir.iterdir() if p.is_dir()):
+        rtl_dir = ip_dir / "rtl"
+        rtl_list = rtl_dir / "rtl_list.f"
+
+        entries: list[Path] = []
+        if rtl_list.exists():
+            entries = _read_rtl_list_entries(rtl_list)
+        else:
+            entries = sorted(rtl_dir.glob("*.sv")) + sorted(rtl_dir.glob("*.v"))
+
+        for path in entries:
+            rp = path.resolve()
+            if rp not in seen and rp.exists():
+                seen.add(rp)
+                out.append(rp)
+
+    return out
+
+
 def build_ordered_sources(
     top: str,
     rtl_root: Path,
@@ -493,6 +546,15 @@ def build_ordered_sources(
     for p in tail:
         if p not in ordered:
             ordered.append(p)
+
+    # If this RTL root belongs to a SoC run, merge nested IP rtl_list.f sources too.
+    # Keep SoC-local tail files last.
+    run_root = rtl_root.parent
+    nested_ip_sources = collect_nested_ip_sources(run_root)
+    if nested_ip_sources:
+        tail_resolved = [p.resolve() for p in tail]
+        ordered_wo_tail = [p for p in ordered if p.resolve() not in set(tail_resolved)]
+        ordered = ordered_wo_tail + nested_ip_sources + tail
 
     # de-dup while preserving order
     final: list[Path] = []

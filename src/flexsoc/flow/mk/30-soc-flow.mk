@@ -233,3 +233,71 @@ sim_soc:
 		RUN_TOP=$(RUN_TOP) \
 		RUN_ID=$(RUN_ID) \
 		TOP=soc
+
+
+soc_save:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	@set -eu; \
+	src="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
+	dst="$(IPS_ROOT)/$(RUN_TOP)"; \
+	if [ ! -d "$$src" ]; then \
+		echo "ERROR: source SoC bundle not found: $$src"; \
+		exit 2; \
+	fi; \
+	mkdir -p "$(IPS_ROOT)"; \
+	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "0" ]; then \
+		echo "ERROR: destination already exists: $$dst"; \
+		echo "Hint: re-run with --overwrite"; \
+		exit 2; \
+	fi; \
+	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "1" ]; then \
+		rm -rf "$$dst"; \
+	fi; \
+	mkdir -p "$$dst"; \
+	echo "Saving SoC bundle:"; \
+	echo "  from: $$src"; \
+	echo "  to:   $$dst"; \
+	if command -v rsync >/dev/null 2>&1; then \
+		rsync -a \
+			--exclude history/ \
+			--exclude logs/ \
+			--exclude sessions/ \
+			"$${src}/" "$${dst}/"; \
+	else \
+		cp -a "$$src"/. "$$dst"/; \
+		rm -rf "$$dst/history" "$$dst/logs" "$$dst/sessions"; \
+	fi
+
+soc_load:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	$(call _require_var,TOP)
+	@set -eu; \
+	src="$(IPS_ROOT)/$(TOP)"; \
+	dst="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
+	if [ ! -d "$$src" ]; then \
+		echo "ERROR: source SoC bundle not found: $$src"; \
+		exit 2; \
+	fi; \
+	mkdir -p "$(WORKSPACE)/runs/$(RUN_TOP)"; \
+	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "0" ]; then \
+		echo "ERROR: destination already exists: $$dst"; \
+		echo "Hint: re-run with --overwrite"; \
+		exit 2; \
+	fi; \
+	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "1" ]; then \
+		rm -rf "$$dst"; \
+	fi; \
+	mkdir -p "$$dst"; \
+	echo "Loading SoC bundle:"; \
+	echo "  from: $$src"; \
+	echo "  to:   $$dst"; \
+	if command -v rsync >/dev/null 2>&1; then \
+		rsync -a "$$src"/ "$$dst"/; \
+	else \
+		cp -a "$$src"/. "$$dst"/; \
+	fi
+
