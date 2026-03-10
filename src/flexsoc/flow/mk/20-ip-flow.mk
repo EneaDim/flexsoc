@@ -148,7 +148,6 @@ compile_syn: syn
 		$(IVERILOG_FLAGS) \
 		-o $(SIMDIR)/$(TOP)_syn_tb.vvp \
 		$(PRIM) \
-		$(SYN_NETLIST) \
 		$(TBDIR)/$(TESTBENCH).sv \
 		> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 

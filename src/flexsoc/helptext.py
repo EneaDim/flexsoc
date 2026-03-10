@@ -186,7 +186,7 @@ def render_quickstart() -> None:
         """[bold]Quickstart[/bold]
 
 [bold]1. Set the working context once[/bold]
-[cyan]flexsoc use --ws workspace --top my_ip --run-top my_ip --run-id dev[/cyan]
+[cyan]flexsoc use --ws workspace --run-id dev --run-top my_ip --top my_ip[/cyan]
 
 [bold]2. IP development[/bold]
 [cyan]flexsoc run ip_start[/cyan]
@@ -197,7 +197,7 @@ def render_quickstart() -> None:
 [cyan]flexsoc make ip_save --overwrite[/cyan]
 
 [bold]3. Switch context for a basic SoC[/bold]
-[cyan]flexsoc use --ws workspace --top soc0 --run-top soc0 --run-id dev[/cyan]
+[cyan]flexsoc use --ws workspace --run-id dev --run-top soc0 --top soc0[/cyan]
 
 [bold]4. Basic SoC (uart host + gpio peripheral)[/bold]
 [cyan]flexsoc make ip_load --top uart-master[/cyan]

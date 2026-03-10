@@ -1,19 +1,19 @@
 # read files
-read_verilog rtl/rv_timer.v
+read_verilog /home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/rtl/rv_timer.v
 # basic synth
 synth -top rv_timer -noabc
-show -width -format dot -prefix syn/plots/rv_timer_postsyn
+show -width -format dot -prefix /home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/syn/plots/rv_timer_postsyn
 # map internal register types to the ones from the cell library
-dfflibmap -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+dfflibmap -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 # mapping to internal cell library
 # mapping to internal cell library
-abc -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script syn/area.abc \
-    -constr ors/rv_timer.sdc \
+abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/syn/area.abc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/pnr_openroad/rv_timer.sdc \
 
 
 opt_clean -purge
-stat -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+stat -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 # write verilog
-write_verilog syn/rv_timer_synth.v
+write_verilog /home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/syn/rv_timer_synth.v
 # write json
-write_json syn/rv_timer_synth.json
+write_json /home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/syn/rv_timer_synth.json

@@ -1,7 +1,7 @@
 // Timescale
 `timescale 1ns/1ps
 // Includes
-`include "tb/include_pwm_tb.sv"
+`include "include_pwm_tb.sv"
 
 module pwm_tb;
   // Parameters

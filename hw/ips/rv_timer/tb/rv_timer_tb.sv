@@ -1,7 +1,7 @@
 // Timescale
 `timescale 1ns/1ps
 // Includes
-`include "tb/include_rv_timer_tb.sv"
+`include "include_rv_timer_tb.sv"
 
 module rv_timer_tb;
   // Parameters
@@ -38,20 +38,29 @@ module rv_timer_tb;
   end
 
   // Dump VCD
+  string vcd_path;
   initial begin
-    `ifndef SYN
-      $dumpfile("sim/rv_timer_tb.vcd");
-    `else
-      $dumpfile("sim/rv_timer_syn_tb.vcd");
-    `endif
+    if (!$value$plusargs("VCD=%s", vcd_path)) begin
+      `ifndef SYN
+        vcd_path = "";
+      `else
+        vcd_path = "";
+      `endif
+    end
+    $display("[TB] dumpfile = %s", vcd_path);
+    $dumpfile(vcd_path);
     $dumpvars(0, rv_timer_tb);
   end
 
   // SDF backannotation
   `ifndef VERILATOR
+    string sdf_path;
     initial begin
-      string sdf = "signoff/sdf/rv_timer_ss.sdf";
-      $sdf_annotate(sdf, rv_timer_tb.u_rv_timer, , , "MAXIMUM");
+      if (!$value$plusargs("SDF=%s", sdf_path)) begin
+        sdf_path = "";
+      end
+      $display("[TB] sdf = %s", sdf_path);
+      $sdf_annotate(sdf_path, rv_timer_tb.u_rv_timer, , , "MAXIMUM");
     end
   `endif
 
