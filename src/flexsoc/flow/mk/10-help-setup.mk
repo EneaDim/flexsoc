@@ -66,6 +66,7 @@ setup_tb: setup
 			--workspace $(WORKSPACE) \
 			--run-top $(RUN_TOP) \
 			--run-id $(RUN_ID) \
+			--mode $(SOC_CFG_MODE) \
 			--default-host $(HOST) \
 			--format args | sed 's/^--host [^ ]* //' )"; \
 		$(PYTHON) -m flexsoc.tools.setup_tb $(OVERWRITE) \

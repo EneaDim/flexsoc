@@ -167,6 +167,7 @@ SIZE_$(1) := $(3)
 FROM_LR_$(1) := $(4)
 endef
 
+SOC_CFG_MODE ?= auto
 SOC_CFG_MK := $(OUTROOT)/soc_config.mk
 -include $(SOC_CFG_MK)
 
@@ -180,6 +181,7 @@ soc_cfg:
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \
+		--mode $(SOC_CFG_MODE) \
 		--default-host $(HOST) > $(SOC_CFG_MK)
 
 # -----------------------------------------------------------------------------

@@ -1,3 +1,26 @@
+.PHONY: soc_ibex_fetch soc_ibex soc_ibex_tutorial
+
+soc_ibex_fetch: HOST ?= ibex
+soc_ibex: HOST ?= ibex
+soc_ibex_tutorial: HOST ?= ibex
+
+
+soc_ibex_fetch: RUN_TOP ?= soc_ibex
+soc_ibex_fetch: RUN_ID ?= dev
+soc_ibex_fetch: TOP ?= soc
+
+soc_ibex: RUN_TOP ?= soc_ibex
+soc_ibex: RUN_ID ?= dev
+soc_ibex: TOP ?= soc
+
+soc_ibex_tutorial: RUN_TOP ?= soc_ibex
+soc_ibex_tutorial: RUN_ID ?= dev
+soc_ibex_tutorial: TOP ?= soc
+
+soc_ibex_tutorial: RUN_TOP ?= soc_ibex
+soc_ibex_tutorial: RUN_ID ?= dev
+soc_ibex_tutorial: TOP ?= soc
+
 # -----------------------------------------------------------------------------
 # FuseSoC
 # -----------------------------------------------------------------------------
@@ -102,16 +125,23 @@ soc_ibex_fetch:
 	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
 
+soc_ibex: HOST ?= ibex
+soc_ibex: SOC_CFG_MODE ?= builtin
 soc_ibex: setup
+	@echo "\n$(ORANGE)Preparing internal IPs for SoC IBEX tutorial...\n$(RESET)"
+	$(Q)$(MAKE) ip_load TOP=gpio RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) ip_load TOP=uart RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) ip_load TOP=rv_timer RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+
 	@echo "\n$(ORANGE)SoC files building with IBEX...\n$(RESET)"
-	$(Q)$(MAKE) xbar HOST=ibex
-	$(Q)$(MAKE) soc HOST=ibex
-	$(Q)$(FUSESOC) --cores-root=. run --target=sim --tool=verilator --setup --build enea:soc:main
+	$(Q)$(MAKE) xbar HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) soc  HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(FUSESOC) --cores-root=$(REPO_ROOT) run --target=sim --tool=verilator --setup --build enea:soc:main
 	$(Q)$(MAKE) soc_run
 
 soc_sim:
 	@echo "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
-	$(Q)$(FUSESOC) --cores-root=. run --target=sim --tool=verilator --setup --build enea:soc:main
+	$(Q)$(FUSESOC) --cores-root=$(REPO_ROOT) run --target=sim --tool=verilator --setup --build enea:soc:main
 
 soc_run:
 	@echo "\n$(ORANGE)GCC compilaiton of hello_world.c ...\n$(RESET)"

@@ -44,7 +44,7 @@ driver:
 	$(Q)$(PYTHON) -m flexsoc.tools.driver_gen -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR)
 
 fetch:
-	$(Q)$(UTILROOT)/vendor.py --update vendor/$(VENDOR).vendor.hjson
+	$(Q)$(UTILROOT)/vendor.py --update $(REPO_ROOT)/vendor/$(VENDOR).vendor.hjson
 
 ip_flow: reg doc lint sim syn sdf sta sta_violators power view
 ip_flow_noreg: flist lint sim syn sdf sta sta_violators power view

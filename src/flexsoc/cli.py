@@ -842,26 +842,137 @@ def run_cmd(
 
 
 def _make_list_targets(flow_dir: Path) -> list[str]:
-    """Best-effort target discovery via `make -qp`."""
+    """Best-effort user-facing target discovery via `make -qp`."""
     p = subprocess.run(
         ["make", "-C", str(flow_dir), "-qp"],
         capture_output=True,
         text=True,
         check=False,
     )
-    targets: set[str] = set()
-    for line in p.stdout.splitlines():
-        if not line or line.startswith("#") or line.startswith("."):
+
+    raw_targets: set[str] = set()
+
+    for raw_line in p.stdout.splitlines():
+        line = raw_line.rstrip()
+
+        if not line:
+            continue
+        if line.startswith("#"):
+            continue
+        if line.startswith("."):
+            continue
+        if line.startswith("	"):
+            continue
+        if line.startswith(" "):
             continue
         if ":" not in line:
             continue
+
         name = line.split(":", 1)[0].strip()
-        if not name or "%" in name:
+
+        if not name:
             continue
         if name == "Makefile":
             continue
-        targets.add(name)
-    return sorted(targets)
+        if "%" in name:
+            continue
+        if "/" in name:
+            continue
+        if "$" in name:
+            continue
+        if "=" in name:
+            continue
+        if " " in name:
+            continue
+        if '"' in name or "'" in name:
+            continue
+        if name.startswith("@"):
+            continue
+        if name.startswith("("):
+            continue
+
+        raw_targets.add(name)
+
+    blacklist = {
+        "SUFFIXES",
+        "MAKEFILE_LIST",
+        "MAKEFLAGS",
+        "MAKELEVEL",
+        "MAKE_COMMAND",
+        "MAKE_VERSION",
+        "CURDIR",
+        "SHELL",
+        "PATH",
+        "PWD",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "PYTHONPATH",
+        "DISPLAY",
+        "TERM",
+        "OVERWRITE",
+        "REPO_ROOT",
+        "FLOW_DIR",
+        "FLOWMK_DIR",
+        "Q",
+        "RED",
+        "GREEN",
+        "BLUE",
+        "YELLOW",
+        "ORANGE",
+        "RESET",
+        "DEVLIST",
+        "SOC_CFG_MK",
+        "FSMGEN_DIR",
+        "THIS_MK_DIR",
+        "OR_WORKDIR",
+        "OR_LOGDIR",
+        "OR_CFG_MK",
+        "OR_MAKEFILE",
+        "OR_INC_DIRS",
+        "_require_var",
+    }
+
+    targets = []
+    for t in raw_targets:
+        if t in blacklist:
+            continue
+        if t.isupper():
+            continue
+        targets.append(t)
+
+    preferred_order = [
+        "help",
+        "ip_start",
+        "reg",
+        "doc",
+        "rtl_stub",
+        "setup_tb",
+        "sim",
+        "view",
+        "syn",
+        "sdf",
+        "sta",
+        "power",
+        "pnr",
+        "ip_save",
+        "ip_load",
+        "soc_start",
+        "xbar",
+        "soc",
+        "setup_soc_tb",
+        "setup_cocotb",
+        "cocotb",
+        "clean",
+    ]
+
+    preferred_rank = {name: i for i, name in enumerate(preferred_order)}
+
+    targets = sorted(
+        set(targets),
+        key=lambda t: (preferred_rank.get(t, 9999), t),
+    )
+    return targets
 
 
 def _complete_make_targets(ctx: typer.Context, param: typer.CallbackParam, incomplete: str):
@@ -925,9 +1036,26 @@ def make_cmd(
     final_targets, override_vars, passthrough = _split_make_targets_and_passthrough(targets, extra_args)
 
     if not final_targets:
-        raise typer.BadParameter(
-            "Missing target. Use: flexsoc make --list OR flexsoc make <target> [<target> ...] [-- ...]"
-        )
+        discovered = _make_list_targets(flow_make_dir) or ["help"]
+
+        typer.echo("")
+        typer.echo("Available make targets:")
+        for i, name in enumerate(discovered, start=1):
+            typer.echo(f"  {i:>2}. {name}")
+        typer.echo("")
+
+        choice = typer.prompt("Select target number (empty to quit)", default="", show_default=False).strip()
+        if not choice:
+            raise typer.Exit(0)
+
+        if not choice.isdigit():
+            raise typer.BadParameter("Please enter a numeric target selection")
+
+        idx = int(choice)
+        if idx < 1 or idx > len(discovered):
+            raise typer.BadParameter("Target selection out of range")
+
+        final_targets = [discovered[idx - 1]]
 
     # Backward compatibility rule:
     # raw KEY=VALUE overrides passed after `--` win over typed flags.
