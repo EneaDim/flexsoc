@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 from .manifest import write_flow_manifest, write_run_manifest
 from .registry import load_registry
-from .reporting import postprocess_ip_start
+from .reporting import postprocess_action
 from .runner import MakeBackend
 from .workspace import resolve_run_ref
 
@@ -167,10 +167,14 @@ def execute_action(
             log.exception("failed to write flow manifest")
 
         try:
-            if postprocess == "ip_start":
-                postprocess_ip_start(flow_run_dir)
+            effective_postprocess = postprocess or action
+            postprocess_action(
+                action=effective_postprocess,
+                flow_run_dir=flow_run_dir,
+                runner_dir=br.run_dir,
+            )
         except Exception:
-            log.exception("postprocess failed: %s", postprocess)
+            log.exception("postprocess failed: %s", postprocess or action)
 
     return ExecResult(
         exit_code=br.exit_code,

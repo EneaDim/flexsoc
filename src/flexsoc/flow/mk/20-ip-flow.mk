@@ -229,7 +229,7 @@ view_presyn_sv:
 # -----------------------------------------------------------------------------
 sta: setup_signoff
 	@echo "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log
+	$(Q)bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log'
 	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true
 	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true
 
@@ -240,7 +240,7 @@ sdf: setup_signoff
 
 power: setup_signoff
 	@echo "\n$(ORANGE)Power Analysis, static and with .vcd...\n$(RESET)"
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_power.log
+	$(Q)bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_power.log'
 
 sta_violators: setup_signoff
 	@echo "\n$(ORANGE)Static Timing Analysis only timing violators...\n$(RESET)"

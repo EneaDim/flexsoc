@@ -5,22 +5,27 @@
 
 help:
 	@echo "$(ORANGE)"
-	@echo "Available make commands:"
+	@echo "FlexSoC help is now CLI-first."
 	@echo ""
-	@echo "  make help_ip"
-	@echo "  make help_soc"
-	@echo "  make help_doc"
-	@echo "  make help_fsm"
+	@echo "Recommended commands:"
+	@echo "  python -m flexsoc.cli"
+	@echo "  python -m flexsoc.cli help overview"
+	@echo "  python -m flexsoc.cli help topics"
+	@echo "  python -m flexsoc.cli actions"
+	@echo "  python -m flexsoc.cli make --list"
 	@echo "$(RESET)"
 
 help_ip:
-	$(Q)$(PYTHON) -m flexsoc.tools.help_ip
+	@echo "$(ORANGE)IP flow help moved to the CLI.$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.cli ip
 
 help_soc:
-	$(Q)$(PYTHON) -m flexsoc.tools.help_soc
+	@echo "$(ORANGE)SoC/help topics moved to the CLI.$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.cli help topics
 
 help_doc:
-	$(Q)$(PYTHON) -m flexsoc.tools.help_doc
+	@echo "$(ORANGE)Documentation/help overview moved to the CLI.$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.cli help overview
 
 help_fsm:
 	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) help

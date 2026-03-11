@@ -36,15 +36,33 @@ module cache_wrapper_tb;
     forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
   end
 
-  // Dump vcd file 
+  // Dump VCD
+  string vcd_path;
   initial begin
-    `ifndef SYN
-      $dumpfile("sim/cache_wrapper_tb.vcd");
-    `else
-      $dumpfile("sim/cache_wrapper_syn_tb.vcd");
-    `endif
-    $dumpvars(0, cache_wrapper_tb);
+    if (!$value$plusargs("VCD=%s", vcd_path)) begin
+      `ifndef SYN
+        vcd_path = "";
+      `else
+        vcd_path = "";
+      `endif
+    end
+    $display("[TB] dumpfile = %s", vcd_path);
+    $dumpfile(vcd_path);
+    $dumpvars(0, gpio_tb);
   end
+
+  // SDF backannotation
+  `ifndef VERILATOR
+    string sdf_path;
+    initial begin
+      if (!$value$plusargs("SDF=%s", sdf_path)) begin
+        sdf_path = "";
+      end
+      $display("[TB] sdf = %s", sdf_path);
+      $sdf_annotate(sdf_path, gpio_tb.u_gpio, , , "MAXIMUM");
+    end
+  `endif
+
 
   // Instantiate DUT
   cache_wrapper #(

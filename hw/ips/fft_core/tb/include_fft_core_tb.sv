@@ -1,12 +1,12 @@
 // Include source files 
-`include "ips/pkgs/top_pkg.sv"
-`include "ips/pkgs/prim_util_pkg.sv"
-`include "ips/pkgs/prim_mubi_pkg.sv"
-`include "ips/pkgs/prim_secded_pkg.sv"
 `ifndef SYN
-  `include "rtl/fft_core.sv"
+  `include "top_pkg.sv"
+  `include "prim_util_pkg.sv"
+  `include "prim_mubi_pkg.sv"
+  `include "prim_secded_pkg.sv"
+  `include "fft_core.sv"
 `else
-  `include "verilog/primitives.v"
-  `include "verilog/sky130_fd_sc_hd.no_tc.v"
-  `include "syn/fft_core_synth.v"
+  `include "primitives.v"
+  `include "sky130_fd_sc_hd.no_tc.v"
+  `include "fft_core_synth.v"
 `endif

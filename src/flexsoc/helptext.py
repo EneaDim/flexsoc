@@ -212,6 +212,7 @@ def render_quickstart() -> None:
         border_style="blue",
     ))
 
+
 def render_tutorials() -> None:
     console = _console()
     console.print(
@@ -237,14 +238,12 @@ def render_ip_guide() -> None:
     c = _console()
     c.print(Panel.fit(
         """[bold]IP flow guide[/bold]
-
-[cyan]flexsoc run ip_start --top my_ip --run-id dev --ws workspace --overwrite[/cyan]
-[cyan]flexsoc make flist --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make sim --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make syn --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make sta --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make power --top my_ip --run-top my_ip --run-id dev --ws workspace[/cyan]
-[cyan]flexsoc make ip_save --top my_ip --run-top my_ip --run-id dev --ws workspace --overwrite[/cyan]""",
+[cyan]flexsoc use --ws workspace --run-id dev --run-top my_ip --top my_ip[/cyan]
+[cyan]flexsoc run ip_start[/cyan]
+[cyan]flexsoc make sim view[/cyan]
+[cyan]flexsoc make syn sdf sta power[/cyan]
+[cyan]flexsoc make fsoc_init driver[/cyan]
+[cyan]flexsoc make ip_save[/cyan]""",
         title="IP flow guide",
         border_style="blue",
     ))

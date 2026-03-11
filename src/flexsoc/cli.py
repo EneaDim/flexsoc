@@ -24,10 +24,19 @@ from rich.text import Text
 
 from .config import default_workspace
 from .executor import execute_action
+from .doctor import run_doctor
 from .context import clear_context, load_context, resolve_context, save_context
-from .helptext import render_detailed_help, render_help_overview, render_home_help
-from .manifest import read_run_history, write_run_manifest
-from .manifest import write_flow_manifest
+from .clean import clean_all, clean_pycache, clean_run, clean_workspace
+from .helptext import (
+    render_detailed_help,
+    render_help_overview,
+    render_home_help,
+    render_ip_guide,
+    render_quickstart,
+    render_tutorials,
+)
+from .manifest import read_run_history
+from .orchestration import InvocationSpec, run_orchestrated
 from .planning import (
     load_registry,
     naive_intent_to_plan,
@@ -35,18 +44,14 @@ from .planning import (
     validate_plan,
     write_plan_json,
 )
-from .runner import MakeBackend
 from .workspace import resolve_run_ref
 from .ui import (
     print_action_detail,
     print_actions_table,
     print_help_topics,
     print_hub,
-    print_ip_guide,
     print_make_targets,
-    print_quickstart,
     print_runner_summary,
-    print_tutorial,
     running_status,
 )
 
@@ -196,13 +201,13 @@ def _early_shortcuts() -> bool:
         print_hub()
         return True
     if argv == ["q"]:
-        print_quickstart()
+        render_quickstart()
         return True
     if argv == ["t"]:
-        print_tutorial()
+        render_tutorials()
         return True
     if argv == ["ip"]:
-        print_ip_guide()
+        render_ip_guide()
         return True
     return False
 
@@ -264,6 +269,55 @@ def help_commands_cmd() -> None:
 def help_overview_cmd() -> None:
     _setup_logging()
     render_help_overview()
+
+
+
+@app.command("doctor")
+def doctor_cmd() -> None:
+    """Check Python deps and external toolchain availability."""
+    _setup_logging()
+    raise typer.Exit(run_doctor())
+
+
+@app.command("clean-pycache")
+def clean_pycache_cmd(
+    root: Path = typer.Option(Path("."), "--root", help="Root directory to clean"),
+) -> None:
+    _setup_logging()
+    removed = clean_pycache(root.expanduser().resolve())
+    typer.echo(f"Removed {removed} Python cache entries")
+
+
+@app.command("clean-run")
+def clean_run_cmd(
+    run_top: str = typer.Option(..., "--run-top", help="Run-top name"),
+    run_id: str = typer.Option(..., "--run-id", help="Run identifier"),
+    workspace: Path = typer.Option(Path("workspace"), "--workspace", "--ws", help="Workspace directory"),
+) -> None:
+    _setup_logging()
+    ws = workspace.expanduser().resolve()
+    clean_run(ws, run_top, run_id)
+    typer.echo(f"Removed run: {ws / 'runs' / run_top / run_id}")
+
+
+@app.command("clean-workspace")
+def clean_workspace_cmd(
+    workspace: Path = typer.Option(Path("workspace"), "--workspace", "--ws", help="Workspace directory"),
+) -> None:
+    _setup_logging()
+    ws = workspace.expanduser().resolve()
+    clean_workspace(ws)
+    typer.echo(f"Cleaned workspace runs under: {ws}")
+
+
+@app.command("clean-all")
+def clean_all_cmd(
+    workspace: Path = typer.Option(Path("workspace"), "--workspace", "--ws", help="Workspace directory"),
+) -> None:
+    _setup_logging()
+    ws = workspace.expanduser().resolve()
+    clean_all(ws)
+    typer.echo(f"Removed workspace: {ws}")
 
 
 @app.command("dump-registry")
@@ -871,8 +925,6 @@ def make_cmd(
     # raw KEY=VALUE overrides passed after `--` win over typed flags.
     make_vars = {**common_vars, **override_vars}
 
-    backend = MakeBackend()
-
     for target in final_targets:
         action_exec_id = f"make_{target}"
 
@@ -888,81 +940,46 @@ def make_cmd(
         )
 
         cmd_preview = " ".join(cmd)
+        params = {
+            "target": target,
+            "targets": final_targets,
+            "make_vars": make_vars,
+            "passthrough": passthrough,
+        }
+        run_ref = resolve_run_ref(
+            workspace=ws,
+            top=make_vars.get("TOP"),
+            run_top=make_vars.get("RUN_TOP"),
+            run_id=make_vars.get("RUN_ID"),
+        )
 
         with running_status(label=f"make {target}"):
-            res = backend.run(
-                action_id=action_exec_id,
-                cmd=cmd,
-                params={
-                    "target": target,
-                    "targets": final_targets,
-                    "make_vars": make_vars,
-                    "passthrough": passthrough,
-                },
-                workspace_dir=ws,
-                cwd=repo_root,
-                env=None,
+            orchestrated = run_orchestrated(
+                InvocationSpec(
+                    action_id=action_exec_id,
+                    summary_label=f"make {target}",
+                    cmd=cmd,
+                    params=params,
+                    workspace_dir=ws,
+                    cwd=repo_root,
+                    env=None,
+                    run_ref=run_ref,
+                    manifest_action=f"make:{target}",
+                    manifest_top=(make_vars.get("TOP") or make_vars.get("RUN_TOP")),
+                    manifest_run_id=make_vars.get("RUN_ID"),
+                )
             )
-
-        run_ref = None
-        try:
-            run_ref = resolve_run_ref(
-                workspace=ws,
-                top=make_vars.get("TOP"),
-                run_top=make_vars.get("RUN_TOP"),
-                run_id=make_vars.get("RUN_ID"),
-            )
-            if run_ref is not None:
-                write_run_manifest(
-                    run_ref,
-                    action=f"make:{target}",
-                    params={
-                        "target": target,
-                        "targets": final_targets,
-                        "make_vars": make_vars,
-                        "passthrough": passthrough,
-                    },
-                    top=(make_vars.get("TOP") or make_vars.get("RUN_TOP")),
-                )
-                write_flow_manifest(
-                    run_ref.run_dir,
-                    action=f"make:{target}",
-                    top=str(make_vars.get("TOP") or make_vars.get("RUN_TOP") or ""),
-                    run_id=str(make_vars.get("RUN_ID") or ""),
-                    workspace=ws,
-                    params={
-                        "target": target,
-                        "targets": final_targets,
-                        "make_vars": make_vars,
-                        "passthrough": passthrough,
-                    },
-                )
-                write_flow_manifest(
-                    run_ref.run_dir,
-                    action=f"make:{target}",
-                    top=str(make_vars.get("TOP") or make_vars.get("RUN_TOP") or ""),
-                    run_id=str(make_vars.get("RUN_ID") or ""),
-                    workspace=ws,
-                    params={
-                        "target": target,
-                        "targets": final_targets,
-                        "make_vars": make_vars,
-                        "passthrough": passthrough,
-                    },
-                )
-        except Exception:
-            log.exception("failed to write run manifest for make command")
 
         print_runner_summary(
             label=f"make {target}",
-            exit_code=res.exit_code,
-            runner_dir=res.run_dir,
-            flow_dir=run_ref.run_dir if run_ref is not None else flow_run_dir_preview,
+            exit_code=orchestrated.backend.exit_code,
+            runner_dir=orchestrated.backend.run_dir,
+            flow_dir=orchestrated.flow_run_dir or flow_run_dir_preview,
             command=cmd_preview,
         )
 
-        if res.exit_code != 0:
-            raise typer.Exit(res.exit_code)
+        if orchestrated.backend.exit_code != 0:
+            raise typer.Exit(orchestrated.backend.exit_code)
 
     raise typer.Exit(0)
 

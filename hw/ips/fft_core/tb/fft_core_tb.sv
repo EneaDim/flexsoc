@@ -1,7 +1,7 @@
 // Timescale 
 `timescale 1ns/1ps 
 // Include files 
-`include "tb/include_fft_core_tb.sv"
+`include "include_fft_core_tb.sv"
 
 module fft_core_tb;
   //Parameters
@@ -61,15 +61,32 @@ module fft_core_tb;
     forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
   end
 
-  // Dump vcd file 
+  // Dump VCD
+  string vcd_path;
   initial begin
-    `ifndef SYN
-      $dumpfile("sim/fft_core_tb.vcd");
-    `else
-      $dumpfile("sim/fft_core_syn_tb.vcd");
-    `endif
-    $dumpvars(0, fft_core_tb);
+    if (!$value$plusargs("VCD=%s", vcd_path)) begin
+      `ifndef SYN
+        vcd_path = "";
+      `else
+        vcd_path = "";
+      `endif
+    end
+    $display("[TB] dumpfile = %s", vcd_path);
+    $dumpfile(vcd_path);
+    $dumpvars(0, gpio_tb);
   end
+
+  // SDF backannotation
+  `ifndef VERILATOR
+    string sdf_path;
+    initial begin
+      if (!$value$plusargs("SDF=%s", sdf_path)) begin
+        sdf_path = "";
+      end
+      $display("[TB] sdf = %s", sdf_path);
+      $sdf_annotate(sdf_path, gpio_tb.u_gpio, , , "MAXIMUM");
+    end
+  `endif
 
   // Error count
   initial begin
