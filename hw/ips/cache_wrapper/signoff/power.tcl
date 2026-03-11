@@ -1,65 +1,16 @@
 puts ""
-puts "==========================================================================="
-puts "Define corners Slowest Typical Fastest"
-puts "==========================================================================="
-puts ""
-puts "define_corners Slowest Typical Fastest"
-define_corners Slowest Typical Fastest
-
-puts ""
-puts "==========================================================================="
-puts "Read liberty files"
-puts "==========================================================================="
-puts ""
-puts "read_liberty -corner Slowest lib/sky130_fd_sc_hd__ss_100C_1v40.lib"
-read_liberty -corner Slowest lib/sky130_fd_sc_hd__ss_100C_1v40.lib
-puts "read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
-read_liberty -corner Typical lib/sky130_fd_sc_hd__tt_025C_1v80.lib
-puts "read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib"
-read_liberty -corner Fastest lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
-
-puts ""
-puts "==========================================================================="
-puts "Read verilog and link top module"
-puts "==========================================================================="
-puts ""
-puts "read_verilog syn/cache_wrapper_synth.v"
+puts "=== flexsoc OpenSTA init ==="
+puts "read_liberty {/home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__ss_100C_1v40.lib}"
+read_liberty {/home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__ss_100C_1v40.lib}
+puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/syn/cache_wrapper_synth.v}"
+read_verilog {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/syn/cache_wrapper_synth.v}
 puts "link_design cache_wrapper"
-read_verilog syn/cache_wrapper_synth.v
 link_design cache_wrapper
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/pnr_openroad/cache_wrapper.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/pnr_openroad/cache_wrapper.sdc}
 
-puts ""
-puts "==========================================================================="
-puts "Read SDC"
-puts "==========================================================================="
-puts ""
-puts "read_sdc ors/cache_wrapper.sdc"
-read_sdc ors/cache_wrapper.sdc
-puts ""
-
-puts ""
-puts "==========================================================================="
-puts "(Probability Power Analysis) report_power"
-puts "============================================================================"
-puts "set_power_activity -input -activity .10"
-puts "set_power_activity -input_port rst_ni -activity 0"
-set_power_activity -input -activity .10
-set_power_activity -input_port rst_ni -activity 0
-foreach corner [sta::corners] {
-    puts ""
-    puts "======================= [$corner name] Corner ==================================="
-    report_power -corner [$corner name]
-    puts ""
-}
-
-puts "==========================================================================="
-puts "(VCD Power Analysis) report_power"
-puts "============================================================================"
-puts "read_vcd -scope cache_wrapper_tb/u_cache_wrapper sim/cache_wrapper_tb.vcd"
-read_vcd -scope cache_wrapper_tb/u_cache_wrapper sim/cache_wrapper_tb.vcd
-foreach corner [sta::corners] {
-    puts ""
-    puts "======================= [$corner name] Corner ==================================="
-    report_power -corner [$corner name]
-    puts ""
-}
+puts "=== Power ==="
+puts "set_power_activity -global -activity 10.0"
+set_power_activity -global -activity 10.0
+puts "report_power"
+report_power

@@ -1,19 +1,19 @@
 # read files
-read_verilog rtl/cache_wrapper.v
+read_verilog /home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/rtl/cache_wrapper.v
 # basic synth
 synth -top cache_wrapper -noabc
-show -width -format dot -prefix syn/plots/cache_wrapper_postsyn
+show -width -format dot -prefix /home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/syn/plots/cache_wrapper_postsyn
 # map internal register types to the ones from the cell library
-dfflibmap -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+dfflibmap -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 # mapping to internal cell library
 # mapping to internal cell library
-abc -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script syn/area.abc \
-    -constr ors/cache_wrapper.sdc \
+abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/syn/area.abc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/pnr_openroad/cache_wrapper.sdc \
 
 
 opt_clean -purge
-stat -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+stat -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 # write verilog
-write_verilog syn/cache_wrapper_synth.v
+write_verilog /home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/syn/cache_wrapper_synth.v
 # write json
-write_json syn/cache_wrapper_synth.json
+write_json /home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/syn/cache_wrapper_synth.json

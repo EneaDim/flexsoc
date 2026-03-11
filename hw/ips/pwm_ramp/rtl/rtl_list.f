@@ -85,6 +85,5 @@
 /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_socket_m1.sv
 /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_sram_byte.sv
 /home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/rtl/pwm_ramp_reg_pkg.sv
-/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/rtl/multiple_pwm_ramp.sv
 /home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/rtl/pwm_ramp_reg_top.sv
 /home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/rtl/pwm_ramp.sv

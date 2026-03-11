@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -11,9 +12,22 @@ from rich.text import Text
 _CONSOLE = Console(stderr=True)
 
 
-def _emit_lines(lines: Iterable[str]) -> None:
+def _emit_panel(
+    lines: Iterable[str],
+    *,
+    border_style: str = "blue",
+    title: Optional[str] = None,
+) -> None:
     text = "\n".join(lines).rstrip()
-    _CONSOLE.print(Panel(text, border_style="blue"))
+    _CONSOLE.print(
+        Panel(
+            text,
+            border_style=border_style,
+            title=title,
+            title_align="left",
+            padding=(0, 1),
+        )
+    )
 
 
 def print_runner_summary(
@@ -25,20 +39,24 @@ def print_runner_summary(
     command: Optional[str] = None,
 ) -> None:
     ok = exit_code == 0
+    border = "green" if ok else "red"
+    title = "Success" if ok else "Error"
 
     stdout_log = Path(runner_dir) / "stdout.log"
     stderr_log = Path(runner_dir) / "stderr.log"
-    report_path = (Path(flow_dir) / "report.json") if flow_dir is not None else None
 
-    lines: list[str] = []
-    lines.append(f"[bold]{label}[/bold]")
-    lines.append(f"Exit code: {exit_code}")
-    lines.append(f"Runner dir: {runner_dir}")
-    lines.append(f"stdout: {stdout_log}")
-    lines.append(f"stderr: {stderr_log}")
+    lines: list[str] = [
+        f"[bold]{label}[/bold]",
+        f"Exit code: {exit_code}",
+        f"Runner dir: {runner_dir}",
+        f"stdout: {stdout_log}",
+        f"stderr: {stderr_log}",
+    ]
 
     if flow_dir is not None:
         lines.append(f"Flow dir: {flow_dir}")
+
+    report_path = (Path(flow_dir) / "report.json") if flow_dir is not None else None
     if report_path is not None and report_path.exists():
         lines.append(f"Report: {report_path}")
 
@@ -53,24 +71,24 @@ def print_runner_summary(
         if report_path is not None and report_path.exists():
             lines.append(f"cat {report_path}")
 
-    _emit_lines(lines)
+    _emit_panel(lines, border_style=border, title=title)
 
 
+@contextmanager
 def running_status(*, label: str):
-    class _StatusCtx:
-        def __enter__(self):
-            _CONSOLE.print(f"[cyan]Running:[/cyan] {label}")
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-    return _StatusCtx()
+    # "arc" gives a circular moving-light feel in Rich.
+    with _CONSOLE.status(f"[bold cyan] Running :[/bold cyan] {label}", spinner="arc"):
+        yield
 
 
 def print_actions_table(rows: list[tuple[str, str]]) -> None:
-    table = Table(title="Available actions", header_style="bold cyan")
-    table.add_column("Action", style="green", no_wrap=True)
+    table = Table(
+        title="Available actions",
+        title_style="bold magenta",
+        header_style="bold yellow",
+        show_header=True,
+    )
+    table.add_column("Action", style="bold green", no_wrap=True)
     table.add_column("Description", style="white")
 
     for name, desc in rows:
@@ -87,83 +105,97 @@ def print_action_detail(
     required_params: Optional[list[str]] = None,
     notes: Optional[list[str]] = None,
 ) -> None:
-    lines = [f"[bold]{name}[/bold]"]
+    lines = [f"[bold bright_cyan]{name}[/bold bright_cyan]"]
+
     if description:
         lines.append(description)
     if command:
-        lines.append(f"Command: {command}")
+        lines.append("")
+        lines.append(f"[bold]Command:[/bold] {command}")
     if required_params:
-        lines.append(f"Required params: {', '.join(required_params)}")
+        lines.append("")
+        lines.append(f"[bold]Required params:[/bold] {', '.join(required_params)}")
     if notes:
-        lines.append("Notes:")
+        lines.append("")
+        lines.append("[bold]Notes:[/bold]")
         for note in notes:
-            lines.append(f"  - {note}")
+            lines.append(f"  • {note}")
 
-    _emit_lines(lines)
+    _emit_panel(lines, border_style="bright_blue", title="Action")
 
 
 def print_help_topics() -> None:
     lines = [
         "[bold]Help topics[/bold]",
+        "",
         "overview",
         "commands",
         "detailed",
         "action <id>",
     ]
-    _emit_lines(lines)
+    _emit_panel(lines, border_style="cyan", title="Help")
 
 
 def print_hub() -> None:
     lines = [
-        "[bold]flexsoc[/bold]",
+        "[bold bright_cyan]flexsoc[/bold bright_cyan]",
+        "",
         "Use one of:",
         "  flexsoc help overview",
         "  flexsoc help topics",
         "  flexsoc actions",
         "  flexsoc make --list",
     ]
-    _emit_lines(lines)
+    _emit_panel(lines, border_style="bright_blue", title="Home")
 
 
 def print_quickstart() -> None:
     lines = [
         "[bold]Quickstart[/bold]",
+        "",
         "flexsoc doctor",
         "flexsoc actions",
         "flexsoc run ip_start --top my_ip --run-id dev",
         "flexsoc make setup_tb --top my_ip --run-id dev",
         "flexsoc make sim --top my_ip --run-id dev",
     ]
-    _emit_lines(lines)
+    _emit_panel(lines, border_style="green", title="Quickstart")
 
 
 def print_tutorial() -> None:
     lines = [
         "[bold]Tutorial[/bold]",
+        "",
         "1. Create a run with flexsoc run ...",
         "2. Generate collateral with flexsoc make ...",
         "3. Inspect artifacts under workspace/runs/...",
         "4. Inspect runner sessions under workspace/sessions/...",
     ]
-    _emit_lines(lines)
+    _emit_panel(lines, border_style="magenta", title="Tutorial")
 
 
 def print_ip_guide() -> None:
     lines = [
         "[bold]IP flow guide[/bold]",
-        "Typical flow:",
-        "  flexsoc run ip_start --top my_ip --run-id dev",
-        "  flexsoc make reg --top my_ip --run-id dev",
-        "  flexsoc make setup_tb --top my_ip --run-id dev",
-        "  flexsoc make sim --top my_ip --run-id dev",
-        "  flexsoc make syn --top my_ip --run-id dev",
+        "",
+        "flexsoc use --ws workspace --run-id dev --run-top my_ip --top my_ip",
+        "flexsoc run ip_start",
+        "flexsoc make sim view",
+        "flexsoc make syn sdf sta power",
+        "flexsoc make fsoc_init driver",
+        "flexsoc make ip_save",
     ]
-    _emit_lines(lines)
+    _emit_panel(lines, border_style="blue", title="IP Guide")
 
 
 def print_make_targets(targets: list[str]) -> None:
-    table = Table(title="Make targets", header_style="bold cyan")
-    table.add_column("Target", style="green")
+    table = Table(
+        title="Make targets",
+        title_style="bold magenta",
+        header_style="bold yellow",
+        show_header=True,
+    )
+    table.add_column("Target", style="bold green")
 
     for target in targets:
         table.add_row(target)

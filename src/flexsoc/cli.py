@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import typer
+from click.shell_completion import CompletionItem
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -356,30 +357,24 @@ def help_hub() -> None:
 @app.command("q")
 def quickstart_alias() -> None:
     """Show quickstart guide."""
-    print_quickstart()
+    render_quickstart()
 
 
 @app.command("t")
 def tutorial_alias() -> None:
     """Show tutorial."""
-    print_tutorial()
-
+    render_tutorials()
 
 @app.command("ip")
 def ip_alias() -> None:
     """Show IP flow guide."""
-    print_ip_guide()
+    render_ip_guide()
 
 
 @app.command("a")
 def actions_alias() -> None:
     """Alias for `flexsoc actions`."""
     actions()
-
-
-@app.command("action")
-
-
 
 
 def _read_run_yaml_summary(run_yaml: Path) -> dict[str, str]:
@@ -869,10 +864,23 @@ def _make_list_targets(flow_dir: Path) -> list[str]:
     return sorted(targets)
 
 
+def _complete_make_targets(ctx: typer.Context, param: typer.CallbackParam, incomplete: str):
+    try:
+        targets = _make_list_targets(_flow_dir())
+    except Exception:
+        targets = []
+
+    out = []
+    for t in targets:
+        if not incomplete or t.startswith(incomplete):
+            out.append(CompletionItem(t))
+    return out
+
+
 @app.command("make", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def make_cmd(
     ctx: typer.Context,
-    targets: list[str] = typer.Argument(None),
+    targets: list[str] = typer.Argument(None, shell_complete=_complete_make_targets),
     list_targets: bool = typer.Option(False, "--list"),
     workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
     top: Optional[str] = typer.Option(None, "--top"),

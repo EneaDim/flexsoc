@@ -1,30 +1,30 @@
 # read files (SystemVerilog via slang)
-read_slang -I ips/pkgs \
-           -I ips/prim \
-           -I ips/prim_opentitan \
-           -I ips/tlul \
+read_slang -I ../hw/ips/pkgs \
+           -I ../hw/ips/prim \
+           -I ../hw/ips/prim_opentitan \
+           -I ../hw/ips/tlul \
            -D SYNTHESIS \
            --ignore-assertions \
-           -f rtl/rtl_list.f \
+           -f /home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/rtl/rtl_list.f \
            --top spi_host
 
 # basic synth
 synth -top spi_host -noabc
 
 # map internal register types to the ones from the cell library
-dfflibmap -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+dfflibmap -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 
 # mapping to internal cell library
-abc -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script syn/area.abc \
-    -constr ors/spi_host.sdc \
+abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/syn/area.abc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/pnr_openroad/spi_host.sdc \
 
 # Clean
 opt_clean -purge
 
 # Basic stats of std cells and area
-stat -liberty lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+stat -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 
 # write verilog
-write_verilog syn/spi_host_synth.v
+write_verilog /home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/syn/spi_host_synth.v
 # write json
-write_json syn/spi_host_synth.json
+write_json /home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/syn/spi_host_synth.json

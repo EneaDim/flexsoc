@@ -1,398 +1,559 @@
-# flexsoc — Guides
+# FlexSoC Architecture and Project Structure Guide
 
-This document replaces legacy `make help*` banners with **CLI-first** instructions.
-The backend Makefile targets still exist, but users should primarily use the **flexsoc CLI**.
+## 1. Introduction
 
-**Key idea**
-- Use `flexsoc run <action>` for *registry actions* (stable API).
-- Use `flexsoc make <target> [-- <extra make args>]` as an *escape hatch* for any Makefile target.
-- All outputs are **workspace-based**:
-  - **Flow dir**: `workspace/runs/<top>/<run_id>/...` (artifacts produced by the flow)
-  - **Runner dir**: `workspace/runs/<timestamp>_<action>/...` (logs + runner manifest)
+FlexSoC is a lightweight framework designed to support **digital IP development and SoC integration workflows**. It combines a **Python command‑line interface**, a **Make‑based backend flow**, and a **workspace‑driven execution model**.
 
----
+The framework aims to provide a deterministic and inspectable development environment for hardware engineers while keeping the implementation simple and extensible.
 
-## 0) Start here
+FlexSoC intentionally avoids heavy orchestration frameworks and instead builds on familiar tools such as **Make**, **Python**, and **standard filesystem organization**.
 
-### Environment / Toolchain check
-Run:
+The system supports the full lifecycle of hardware development including:
 
-```bash
-flexsoc doctor
-```
+* IP initialization
+* Register generation
+* Documentation generation
+* Testbench generation
+* Simulation
+* Synthesis
+* Timing analysis
+* Power analysis
+* SoC integration
+* Packaging and reuse
 
-Useful flags:
-```bash
-FLEXSOC_LOG_LEVEL=DEBUG flexsoc ...
-FLEXSOC_PROFILE=1 flexsoc ...
-```
+The guiding philosophy is:
 
-### Discoverability
-```bash
-flexsoc                # UI hub
-flexsoc help topics    # navigation
-flexsoc actions        # registry actions
-flexsoc action ip_start
-flexsoc make --list    # list available flow/ Make targets (best effort)
-```
+* deterministic workflows
+* reproducible builds
+* transparent backend flow
+* structured project organization
+* minimal abstraction layers
 
 ---
 
-# 1) Control And Status Register + Documentation Guide
+# 2. Architectural Overview
 
-## HJSON setup
-Create the `.hjson` template used to generate documentation and regmap.
+FlexSoC is organized into five conceptual layers:
 
-**CLI-first recommendation**
-- If you are creating a new IP: do **bootstrap** (`ip_start`) and then adjust the generated `data/*.hjson`.
+1. CLI Layer
+2. Orchestration Layer
+3. Execution Layer
+4. Flow Backend
+5. Workspace Model
 
-Bootstrap (creates an IP run and generates initial scaffolding):
-```bash
-flexsoc run ip_start --top my_ip --run-id dev1 --reg-itf tlul --overwrite --force
+Each layer has a clearly defined responsibility and communicates with adjacent layers through simple data structures.
+
+```
+User
+  ↓
+CLI Layer (Typer)
+  ↓
+Orchestration Layer
+  ↓
+Execution Layer
+  ↓
+Runner
+  ↓
+Make Backend
+  ↓
+EDA Tools
 ```
 
-If you want to run the backend step directly:
-```bash
-flexsoc make hjson --top my_ip --run-id dev1
-```
-and then adjust the generated `data/*.hjson`.
-
-## Documentation
-Generate Markdown documentation from the `.hjson`.
-
-```bash
-flexsoc make doc --top my_ip --run-id dev1
-```
-
-## Regmap
-Generate the regmap for SoC integration (TL-UL interface-based).
-
-```bash
-flexsoc make reg --top my_ip --run-id dev1 -- -- REG_ITF=tlul
-```
-
-Artifacts (typical):
-- `workspace/runs/my_ip/dev1/data/` (hjson + generated files)
-- `workspace/runs/my_ip/dev1/docs/` or `workspace/runs/my_ip/dev1/doc/` (generated docs, depending on backend)
-- `workspace/runs/my_ip/dev1/rtl/` (generated reg RTL, if applicable)
+This separation ensures the system remains modular and maintainable.
 
 ---
 
-# 2) IP DEVELOPMENT GUIDE  (legacy: help_ip.py order)
+# 3. CLI Layer
 
-## CONFIG
-- Define parameters under `config.mk` (backend config).
-- For flexsoc runs, you typically set:
-  - `--top <ip_name>`
-  - `--run-id <id>`
+The CLI layer is implemented using **Typer**.
 
-Example:
-```bash
-flexsoc run ip_start --top my_ip --run-id dev1 --reg-itf tlul --overwrite --force
+This layer provides the primary user interface and is responsible for parsing commands and delegating work to the orchestration and execution layers.
+
+### Responsibilities
+
+* Parse command line arguments
+* Provide user help and documentation
+* Construct execution parameters
+* Trigger actions or Make targets
+* Display execution summaries
+
+### Core Commands
+
+```
+flexsoc run <action>
 ```
 
-## SETUP
-Workspace/run dirs are created automatically by the CLI.
-If you need to execute the backend setup explicitly:
+Execute a high‑level action defined in the registry.
 
-```bash
-flexsoc make setup --top my_ip --run-id dev1
+```
+flexsoc exec <plan>
 ```
 
-## HJSON
-Initialize or regenerate CSR/doc configuration under the run directory:
+Execute a prepared action plan.
 
-```bash
-flexsoc make hjson --top my_ip --run-id dev1
+```
+flexsoc make <target>
 ```
 
-## DOC
-Generate documentation from HJSON:
+Direct entrypoint into the Make backend.
 
-```bash
-flexsoc make doc --top my_ip --run-id dev1
+```
+flexsoc runs ls
 ```
 
-## REG
-Generate CSR registers (TL-UL interface) from HJSON:
+List workspace runs.
 
-```bash
-flexsoc make reg --top my_ip --run-id dev1 -- -- REG_ITF=tlul
+```
+flexsoc runs show
 ```
 
-## RTL SKELETON
-Generate the RTL core and wrapper skeleton:
+Inspect a specific run.
 
-```bash
-flexsoc make rtl_stub --top my_ip --run-id dev1
 ```
-
-## RTL CODING
-Edit SystemVerilog RTL under:
-- `workspace/runs/my_ip/dev1/rtl/`
-
-## SV2V
-Generate a single Verilog file from all RTL sources:
-
-```bash
-flexsoc make sv2v --top my_ip --run-id dev1
-```
-
-## LINTING
-Run linting:
-
-```bash
-flexsoc run lint --top my_ip --workspace workspace --run-id dev1
-# or backend target:
-flexsoc make lint --top my_ip --run-id dev1
-```
-
-## TESTBENCH SETUP
-Setup the Verilog/SystemVerilog testbench:
-
-```bash
-flexsoc make setup_tb --top my_ip --run-id dev1
-```
-
-## COMPILE
-Compile testbench and DUT:
-
-```bash
-flexsoc make compile --top my_ip --run-id dev1
-```
-
-## SIMULATION RUN
-Run simulation (Verilator fast path):
-
-```bash
-flexsoc run sim --top my_ip --workspace workspace --run-id dev1
-# or backend target:
-flexsoc make sim --top my_ip --run-id dev1
-```
-
-Expected CLI output includes a **Coverage:** line (contracted by E2E tests).
-
-## SIMULATION VIEW
-View waveforms (if supported by backend):
-
-```bash
-flexsoc make view --top my_ip --run-id dev1
-```
-
-## TESTBENCH UPDATE
-Iterate on testbench sources under:
-- `workspace/runs/my_ip/dev1/tb/`
-
-Re-run:
-```bash
-flexsoc make sim --top my_ip --run-id dev1
-```
-
-## VIEW PRE-SYN with YOSYS
-Visualize pre-synthesis design graph (if supported):
-
-```bash
-flexsoc make view_presyn --top my_ip --run-id dev1
-```
-
-## SYNTHESIS
-Run synthesis:
-
-```bash
-flexsoc run synth --top my_ip --workspace workspace --run-id dev1
-# or backend target:
-flexsoc make syn --top my_ip --run-id dev1
-```
-
-Artifacts:
-- `workspace/runs/my_ip/dev1/syn/` (netlist, reports)
-
-## SDF
-Generate SDF:
-
-```bash
-flexsoc make sdf --top my_ip --run-id dev1
-```
-
-Artifacts:
-- `workspace/runs/my_ip/dev1/signoff/` (SDF output, depending on backend)
-
-## STATIC TIMING ANALYSIS
-Run STA:
-
-```bash
-flexsoc run sta --top my_ip --workspace workspace --run-id dev1
-# or backend target:
-flexsoc make sta --top my_ip --run-id dev1
-```
-
-Artifacts:
-- `workspace/runs/my_ip/dev1/signoff/` (timing reports)
-
-## PATH VIEW
-Generate path visualization (if supported):
-
-```bash
-flexsoc make path --top my_ip --run-id dev1 -- -- view
-```
-
-## POWER ANALYSIS
-Run static + VCD-based power analysis:
-
-```bash
-flexsoc make power --top my_ip --run-id dev1
-```
-
-Artifacts:
-- `workspace/runs/my_ip/dev1/signoff/` (power reports)
-
-## SYNTHESIS SIMULATION RUN
-Run post-synthesis simulation (if supported):
-
-```bash
-flexsoc make sim_syn --top my_ip --run-id dev1
-```
-
-## SYNTHESIS SIMULATION VIEW
-View post-synthesis waveforms (if supported):
-
-```bash
-flexsoc make view_syn --top my_ip --run-id dev1
-```
-
-## REGRESSION
-Run regression suites (if supported):
-
-```bash
-flexsoc make regression --top my_ip --run-id dev1
-```
-
-## FUSESOC
-Initialize a FuseSoC `.core` file for the IP (if supported):
-
-```bash
-flexsoc make fsoc_init --top my_ip --run-id dev1
-```
-
-## DRIVER
-Generate driver `.h`/`.c` files (if supported):
-
-```bash
-flexsoc make driver --top my_ip --run-id dev1 -- -- MOD_ADD=0x<base_addr>
-```
-
-## SAVE IP
-Save/export IP into `ips/` (if supported):
-
-```bash
-flexsoc make ip_save --top my_ip --run-id dev1
-```
-
----
-
-# 3) SoC INTEGRATION GUIDE  (legacy: help_soc.py order)
-
-## CONFIG
-- Verify memory mapping and SoC-related parameters in `config.mk` (backend config).
-- Ensure IPs are generated/available.
-
-## FETCH IPs
-Fetch IPs via vendor mechanism (examples):
-
-```bash
-flexsoc make fetch -- -- VENDOR=lowrisc_ip
-flexsoc make fetch -- -- VENDOR=lowrisc_ibex
-```
-
-## LOAD IPs
-Load each internal IP you need:
-
-```bash
-flexsoc make ip_load -- -- TOP=<ip_name>
-```
-
-## XBAR
-Define and build the crossbar:
-
-```bash
-flexsoc make xbar
-```
-
-(Under the hood some backends run `xbar_init` and `xbar_build`.)
-
-## SoC BUILD
-Generate SoC wrapper/config:
-
-```bash
-flexsoc make soc
-```
-
-## SoC SIM
-Setup testbench and run simulation for SoC:
-
-```bash
-flexsoc make setup_tb -- -- TOP=soc
-flexsoc make sim -- -- TOP=soc
-flexsoc make view -- -- TOP=soc
-```
-
-## SoC SIM with IBEX
-Run SoC simulation target with FuseSoC (if supported):
-
-```bash
-flexsoc make soc_sim
-```
-
-## SoC RUN with IBEX
-Compile SW and start Verilator (if supported):
-
-```bash
-flexsoc make soc_run
-```
-
-## SoC VIEW with IBEX
-View waveforms (if supported):
-
-```bash
-flexsoc make soc_view
-```
-
----
-
-# 4) Debugging cheat-sheet ✅
-
-### Where do I look when something fails?
-1) Runner logs (always):
-- `workspace/runs/<timestamp>_<action>/stdout.log`
-- `workspace/runs/<timestamp>_<action>/stderr.log`
-- `workspace/runs/<timestamp>_<action>/manifest.json`
-
-2) Flow logs (per run):
-- `workspace/runs/<top>/<run_id>/logs/`
-
-### What’s the difference between runner dir and flow dir?
-- **Runner dir**: execution wrapper for a single CLI call (good for debugging command invocation).
-- **Flow dir**: produced artifacts for the actual hardware flow run.
-
----
-
-# 5) Suggested next commands
-
-- Discover available actions:
-```bash
 flexsoc actions
 ```
 
-- Inspect action metadata/params:
-```bash
-flexsoc action ip_start
+List available high‑level actions.
+
+```
+flexsoc action <name>
 ```
 
-- Run a plan:
-```bash
-flexsoc plan "create ip" --out plan.json
-flexsoc exec plan.json --workspace workspace --run-id dev2 --top my_ip --reg-itf tlul --overwrite --force
+Show detailed information about an action.
+
+### Help Commands
+
+```
+flexsoc h
+flexsoc hd
+flexsoc q
+flexsoc t
+flexsoc ip
 ```
 
-make -C flow ip_tutorial TOP=spi_host RUN_ID=dev1
-make -C flow ip_tutorial TOP=pwm_ramp RUN_ID=dev1
+These commands provide structured help through the **helptext module**.
+
+Help output is formatted using **Rich** and printed to stderr so structured outputs on stdout remain stable.
+
+---
+
+# 4. Orchestration Layer
+
+The orchestration layer connects CLI commands to the backend execution system.
+
+It prepares execution specifications and coordinates the interaction between the runner, manifests, and reporting systems.
+
+### Responsibilities
+
+* Convert CLI invocations into execution specifications
+* Attach run metadata
+* Invoke the backend runner
+* Record execution metadata
+* Trigger post‑processing and reporting
+
+### Key Concepts
+
+**InvocationSpec**
+
+A data structure describing a backend execution request.
+
+Fields include:
+
+* action identifier
+* command to execute
+* parameters
+* workspace location
+* run reference
+* manifest metadata
+
+### Orchestrated Execution
+
+The orchestration layer ensures the following steps occur consistently:
+
+1. Backend command execution
+2. Session manifest creation
+3. Run manifest updates
+4. Flow manifest updates
+5. Post‑processing and reporting
+
+This guarantees consistent tracking of all workflow steps.
+
+---
+
+# 5. Execution Layer
+
+The execution layer is responsible for translating actions into backend commands and coordinating the execution lifecycle.
+
+### Responsibilities
+
+* Load the action registry
+* Validate parameters
+* Resolve run references
+* Construct backend commands
+* Launch the runner
+
+### Main Modules
+
+**executor.py**
+
+Central coordination for executing registry actions.
+
+**runner.py**
+
+Launches subprocesses and manages session tracking.
+
+**manifest.py**
+
+Writes run manifests and execution history entries.
+
+**workspace.py**
+
+Resolves run directories and workspace paths.
+
+**registry.py**
+
+Loads the action registry and maps actions to commands.
+
+**models.py**
+
+Defines small data structures representing run identity.
+
+---
+
+# 6. Runner System
+
+The runner is responsible for executing backend commands and recording execution metadata.
+
+Each invocation creates a **session directory** containing logs and a structured manifest.
+
+### Runner Responsibilities
+
+* Launch subprocesses
+* Capture stdout and stderr
+* Track execution time
+* Handle timeouts
+* Record metadata
+
+### Session Manifest
+
+Each run produces a manifest containing:
+
+* action identifier
+* command executed
+* parameters
+* exit code
+* execution timestamps
+* duration
+* log file paths
+
+Example session directory:
+
+```
+workspace/sessions/20260101_123000_make_sim/
+  manifest.json
+  stdout.log
+  stderr.log
+```
+
+---
+
+# 7. Reporting and Diagnostics
+
+FlexSoC includes a reporting system that analyzes backend logs and produces structured summaries.
+
+Reports are generated automatically after flow actions.
+
+### Report Features
+
+Reports can include:
+
+* error counts
+* warning counts
+* coverage information
+* tool detection
+* diagnostic summaries
+
+Example report location:
+
+```
+workspace/runs/<run_top>/<run_id>/report.json
+```
+
+The report system enables:
+
+* quick diagnostics
+* machine‑readable summaries
+* easier debugging of flows
+
+---
+
+# 8. Flow Backend
+
+The backend flow is implemented using **Make**.
+
+Each Make target represents a hardware development stage.
+
+Typical targets include:
+
+```
+ip_start
+reg
+lint
+sim
+syn
+sta
+power
+pnr
+ip_save
+ip_load
+```
+
+Makefiles orchestrate the execution of open‑source EDA tools such as:
+
+* Verilator
+* Yosys
+* OpenSTA
+* OpenROAD
+
+The Make backend ensures that the hardware flow remains:
+
+* transparent
+* reproducible
+* easy to debug
+
+---
+
+# 9. Workspace Model
+
+The workspace directory stores all persistent development state.
+
+```
+workspace/
+
+runs/
+  <run_top>/
+    <run_id>/
+
+sessions/
+  <timestamp>_<action>/
+```
+
+### runs/
+
+Stores **design state**.
+
+Each run represents a development environment for one IP or SoC configuration.
+
+### sessions/
+
+Stores **CLI execution records**.
+
+These sessions track how commands were executed independently of the run state.
+
+This separation enables better debugging and reproducibility.
+
+---
+
+# 10. Run Structure
+
+Each run directory contains:
+
+```
+run.yaml
+ips/
+history/
+logs/
+report.json
+```
+
+### run.yaml
+
+Primary run manifest storing:
+
+* run identifiers
+* workspace path
+* loaded IPs
+* last executed action
+* timestamps
+
+### ips/
+
+Contains IPs loaded into the run.
+
+### history/
+
+Stores chronological records of executed actions.
+
+---
+
+# 11. Run Identity
+
+A run is uniquely defined by four parameters:
+
+```
+workspace
+run_top
+run_id
+top
+```
+
+### workspace
+
+Root directory containing runs.
+
+### run_top
+
+Logical namespace grouping related IPs.
+
+### run_id
+
+Specific instance of a development run.
+
+### top
+
+Active IP for the current command.
+
+---
+
+# 12. IP Development Workflow
+
+Typical workflow for developing an IP:
+
+1. Initialize IP
+2. Generate registers
+3. Generate documentation
+4. Run simulation
+5. Run synthesis
+6. Run timing analysis
+7. Package IP
+
+Example run structure:
+
+```
+runs/my_ip/dev
+```
+
+---
+
+# 13. SoC Integration Workflow
+
+For system‑level integration multiple IPs are loaded into a single run.
+
+Example structure:
+
+```
+runs/mysoc/dev/ips/ip0
+runs/mysoc/dev/ips/ip1
+```
+
+Commands may include:
+
+```
+flexsoc make ip_load --top uart
+flexsoc make ip_load --top gpio
+flexsoc make soc_start
+```
+
+This allows system‑level builds to operate across multiple components.
+
+---
+
+# 14. Action Registry
+
+High‑level actions are defined in a registry file.
+
+Each entry defines:
+
+* command
+* required parameters
+* optional parameters
+* post‑processing behavior
+
+Example concept:
+
+```
+actions:
+  ip_start:
+    command: ["make", "ip_start"]
+    requires_top: true
+```
+
+The registry enables extending the CLI without modifying the core codebase.
+
+---
+
+# 15. Helper Modules
+
+Several modules provide supporting functionality.
+
+### helptext.py
+
+Rich‑formatted CLI documentation.
+
+### reporting.py
+
+Generates structured run reports.
+
+### planning.py
+
+Supports execution plans for batch operations.
+
+### tools/
+
+Contains scripts used by backend Make targets.
+
+---
+
+# 16. Typical Execution Path
+
+A command flows through the system as follows:
+
+1. User invokes CLI command
+2. CLI parses arguments
+3. Execution parameters are constructed
+4. Orchestration layer prepares invocation
+5. Runner launches backend command
+6. Flow generates artifacts
+7. Manifests and reports are written
+8. CLI displays results
+
+---
+
+# 17. Design Principles
+
+FlexSoC follows several guiding principles.
+
+### Minimalism
+
+Avoid unnecessary abstraction layers.
+
+### Transparency
+
+The Make backend remains visible and debuggable.
+
+### Determinism
+
+Workspace‑based runs ensure reproducibility.
+
+### Separation of Concerns
+
+CLI, orchestration, execution, and backend flow remain independent.
+
+### Extensibility
+
+New actions and tools can be added easily.
+
+---
+
+# 18. Summary
+
+FlexSoC provides a structured yet lightweight hardware development framework.
+
+By combining:
+
+* a Python CLI
+* a Make‑based backend
+* a workspace‑driven execution model
+
+FlexSoC supports both **single IP development** and **complex SoC integration workflows** while remaining simple, deterministic, and extensible.
+

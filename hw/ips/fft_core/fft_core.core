@@ -1,0 +1,38 @@
+CAPI=2:
+name: "prj:ip:fft_core:0.1"
+description: "fft_core"
+filesets:
+  files_rtl:
+    depend:
+      - ips:dependecies:all
+    files:
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/twiddle_rom_16.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/fft_core_reg_top.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/fft_core.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/fft_core_reg_pkg.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/twiddle_rom_64.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/twiddle_rom_256.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/fft_fsm_pkg.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/twiddle_rom_8.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/fft_fsm.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/twiddle_rom_1024.sv
+      - /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/rtl/twiddle_rom.sv
+    file_type: systemVerilogSource
+
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+    toplevel: fft_core
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-fatal"
+

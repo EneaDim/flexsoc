@@ -3,10 +3,10 @@
  * @brief Cache with parallel tag compare and proper writeback.
  */
 module cache_wrapper #(
-  parameter int DATA_WIDTH    = 32,   // 4bytes
-  parameter int ADDR_WIDTH    = 16,   // 64kbytes Main Memory
-  parameter int CACHE_SIZE    = 1024, // 4kbytes (1k*4bytes)
-  parameter int ASSOCIATIVITY = 2     // 2 ways
+  parameter int DATA_WIDTH    = 8,   // 4bytes
+  parameter int ADDR_WIDTH    = 8,   // 64kbytes Main Memory
+  parameter int CACHE_SIZE    = 256, // 4kbytes (1k*4bytes)
+  parameter int ASSOCIATIVITY = 2    // 2 ways
 )(
   input  logic                  clk_i,
   input  logic                  rst_ni,
