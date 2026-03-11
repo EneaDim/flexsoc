@@ -128,14 +128,15 @@ soc_ibex_fetch:
 soc_ibex: HOST ?= ibex
 soc_ibex: SOC_CFG_MODE ?= builtin
 soc_ibex: setup
+	@echo "[soc_ibex] HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"
 	@echo "\n$(ORANGE)Preparing internal IPs for SoC IBEX tutorial...\n$(RESET)"
 	$(Q)$(MAKE) ip_load TOP=gpio RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
 	$(Q)$(MAKE) ip_load TOP=uart RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
 	$(Q)$(MAKE) ip_load TOP=rv_timer RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
 
 	@echo "\n$(ORANGE)SoC files building with IBEX...\n$(RESET)"
-	$(Q)$(MAKE) xbar HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) soc  HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) xbar HOST=ibex SOC_CFG_MODE=builtin TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) soc  HOST=ibex SOC_CFG_MODE=builtin TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
 	$(Q)$(FUSESOC) --cores-root=$(REPO_ROOT) run --target=sim --tool=verilator --setup --build enea:soc:main
 	$(Q)$(MAKE) soc_run
 

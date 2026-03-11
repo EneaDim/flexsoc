@@ -176,6 +176,7 @@ soc_cfg:
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
+	@echo "[soc_cfg.mk] HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"
 	$(Q)$(MKDIR) -p $(OUTROOT)
 	$(Q)$(PYTHON) -m flexsoc.tools.soc_cfg \
 		--workspace $(WORKSPACE) \
