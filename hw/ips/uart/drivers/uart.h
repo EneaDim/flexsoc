@@ -18,10 +18,10 @@
 
 #define UART_BASE 0x80000000
 
-typedef void* uart_t;
-int uart_init(uart_t uart);
-int uart_in(uart_t uart);
-void uart_out(uart_t uart, char c);
+typedef uintptr_t uart_t;
+int uart_init(uart_t base);
+int uart_in(uart_t base);
+void uart_out(uart_t base, char c);
 int uart_putchar(int c);
 int uart_puts(const char* str);
 

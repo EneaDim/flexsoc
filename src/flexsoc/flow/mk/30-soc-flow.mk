@@ -1,3 +1,14 @@
+
+.PHONY: sw_soc
+sw_soc:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	$(Q)$(PYTHON) -m flexsoc.tools.sw_soc_gen \
+		--workspace $(WORKSPACE) \
+		--run-top $(RUN_TOP) \
+		--run-id $(RUN_ID)
+
 .PHONY: soc_ibex_fetch soc_ibex soc_ibex_tutorial
 
 soc_ibex_fetch: HOST ?= ibex
@@ -144,11 +155,11 @@ soc_sim:
 	@echo "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
 	$(Q)$(FUSESOC) --cores-root=$(REPO_ROOT) run --target=sim --tool=verilator --setup --build enea:soc:main
 
-soc_run:
-	@echo "\n$(ORANGE)GCC compilaiton of hello_world.c ...\n$(RESET)"
-	$(Q)$(MAKE) --no-print-dir -C sw
+soc_run: sw_soc
+	@echo "\n$(ORANGE)GCC compilation of SoC software ...\n$(RESET)"
+	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
 	@echo "\n$(ORANGE)Verilator run ... Press <CTRL>-C\n$(RESET)"
-	build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E sw/build/main.elf
+	$(REPO_ROOT)/flow/build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E $(OUTROOT)/sw/build/main.elf
 
 soc_view:
 	@echo "\n$(ORANGE)Viewing ...\n$(RESET)"
