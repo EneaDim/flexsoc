@@ -189,7 +189,7 @@ soc_cfg:
 # -----------------------------------------------------------------------------
 OLLAMA_MODEL    ?= qwen2.5:3b-instruct
 TUTORIAL_WS     ?= $(REPO_ROOT)/workspace
-TUTORIAL_RUN_ID ?= dev1
+TUTORIAL_RUN_ID ?= dev
 
 ORANGE          := \033[38;5;214m
 RED             := \033[91m
