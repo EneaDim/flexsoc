@@ -238,7 +238,7 @@ def render_quickstart() -> None:
 [bold]3. SoC with IBEX host[/bold]
 [orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top soc_ibex --top soc[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_ibex_fetch[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top uart-master --load-as uart[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top uart[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top gpio[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top rv_timer[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top pwm[/cyan]

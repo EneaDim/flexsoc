@@ -31,6 +31,12 @@ dependencies = [
   "cocotb==2.0.0",
   "numpy",
   "scipy",
+
+  # Runtime deps necessarie al flow standard
+  "edalize @ git+https://github.com/lowRISC/edalize.git@5ae2c3e1ca306e27d81ce5fcc769f62cb7ac42d0",
+  "fusesoc @ git+https://github.com/lowRISC/fusesoc.git@14dfc825ced58fe1fb343662fa80fc4fbd0fdc50",
+  "okonomiyaki==3.0.0",
+  "simplesat==0.9.2",
 ]
 
 [project.scripts]
@@ -41,17 +47,6 @@ dev = [
   "pytest==8.4.2",
   "pytest-xdist>=3.0.0",
   "ruff>=0.6.0",
-]
-
-fusesoc = [
-  "edalize @ git+https://github.com/lowRISC/edalize.git@5ae2c3e1ca306e27d81ce5fcc769f62cb7ac42d0",
-  "fusesoc @ git+https://github.com/lowRISC/fusesoc.git@14dfc825ced58fe1fb343662fa80fc4fbd0fdc50",
-  "okonomiyaki==3.0.0",
-  "simplesat==0.9.2",
-]
-
-all = [
-  "flexsoc[dev,fusesoc]",
 ]
 
 [tool.setuptools]
