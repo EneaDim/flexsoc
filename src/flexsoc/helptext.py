@@ -243,10 +243,8 @@ def render_quickstart() -> None:
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top rv_timer[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top pwm[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top spi_host[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]xbar HOST=ibex[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc HOST=ibex[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sw_soc[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_run[/cyan]""",
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]xbar soc HOST=ibex[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sw_soc soc_run HOST=ibex[/cyan]""",
         title="Quickstart",
         border_style="blue",
     ))

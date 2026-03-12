@@ -4,31 +4,31 @@
 
 .PHONY: fsoc_init fsoc
 .PHONY: xbar xbar_init xbar_build
-.PHONY: soc soc_flist soc_flow soc_sim soc_view
-.PHONY: soc_ibex_fetch soc_ibex_prepare_ip soc_ibex_prepare_ips soc_ibex soc_ibex_tutorial
-.PHONY: sw_soc soc_run
-.PHONY: ip_save ip_load
+.PHONY: soc soc_flist soc_flow soc_view
+.PHONY: soc_uart_gen soc_ibex_gen
+.PHONY: soc_sim soc_run sw_soc
+.PHONY: soc_uart_tutorial soc_ibex_fetch soc_ibex_tutorial
 
 PRJ    ?= flexsoc
 TARGET ?= default
+HOST   ?= uart
+SOC_CFG_MODE ?= builtin
 
 # -----------------------------------------------------------------------------
 # Tutorial defaults
 # -----------------------------------------------------------------------------
+
+soc_uart_tutorial: HOST ?= uart
+soc_uart_tutorial: RUN_TOP ?= soc_uart
+soc_uart_tutorial: RUN_ID ?= dev
+soc_uart_tutorial: TOP ?= soc
 
 soc_ibex_fetch: HOST ?= ibex
 soc_ibex_fetch: RUN_TOP ?= soc_ibex
 soc_ibex_fetch: RUN_ID ?= dev
 soc_ibex_fetch: TOP ?= soc
 
-soc_ibex: HOST ?= ibex
-soc_ibex: SOC_CFG_MODE ?= builtin
-soc_ibex: RUN_TOP ?= soc_ibex
-soc_ibex: RUN_ID ?= dev
-soc_ibex: TOP ?= soc
-
 soc_ibex_tutorial: HOST ?= ibex
-soc_ibex_tutorial: SOC_CFG_MODE ?= builtin
 soc_ibex_tutorial: RUN_TOP ?= soc_ibex
 soc_ibex_tutorial: RUN_ID ?= dev
 soc_ibex_tutorial: TOP ?= soc
@@ -76,7 +76,7 @@ fsoc:
 xbar: xbar_init xbar_build
 
 xbar_init: soc_cfg
-	@echo "\n$(ORANGE)XBAR init ...\n$(RESET)"
+	@echo "\n$(ORANGE)XBAR init (HOST=$(HOST)) ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR)
 	@cfg_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
 		--workspace $(WORKSPACE) \
@@ -105,7 +105,7 @@ xbar_build:
 	fi
 
 soc: soc_cfg
-	@echo "\n$(ORANGE)SoC files building ...\n$(RESET)"
+	@echo "\n$(ORANGE)SoC files building (HOST=$(HOST)) ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR) $(TBDIR) $(SIMDIR)
 	@cfg_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
 		--workspace $(WORKSPACE) \
@@ -129,57 +129,19 @@ soc_flist:
 soc_flow: xbar soc
 
 # -----------------------------------------------------------------------------
-# Ibex tutorial / reference SoC
+# Host-specific wrappers
 # -----------------------------------------------------------------------------
 
-soc_ibex_fetch:
-	@echo "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
-	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
-	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
-	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
+soc_uart_gen: HOST := uart
+soc_uart_gen: SOC_CFG_MODE := builtin
+soc_uart_gen: xbar soc
 
-# Prepare one standalone IP run so that its bundle includes generated drivers.
-# Usage:
-#   $(MAKE) soc_ibex_prepare_ip IP_NAME=gpio
-soc_ibex_prepare_ip:
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,IP_NAME)
-	@echo "\n$(ORANGE)Preparing standalone IP bundle: $(IP_NAME)\n$(RESET)"
-	$(Q)$(MAKE) ip_load TOP=$(IP_NAME) RUN_TOP=$(IP_NAME) RUN_ID=dev WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) driver  TOP=$(IP_NAME) RUN_TOP=$(IP_NAME) RUN_ID=dev WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) ip_save TOP=$(IP_NAME) RUN_TOP=$(IP_NAME) RUN_ID=dev WORKSPACE=$(WORKSPACE) OVERWRITE=--force
-
-soc_ibex_prepare_ips:
-	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=gpio
-	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=uart
-	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=rv_timer
-	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=pwm
-	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=spi_host
-
-soc_ibex: setup soc_ibex_prepare_ips
-	@echo "[soc_ibex] HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"
-	@echo "\n$(ORANGE)Loading prepared IP bundles into SoC run...\n$(RESET)"
-	$(Q)$(MAKE) ip_load TOP=gpio     RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) ip_load TOP=uart     RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) ip_load TOP=rv_timer RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) ip_load TOP=pwm      RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) ip_load TOP=spi_host RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-
-	@echo "\n$(ORANGE)XBAR build ...\n$(RESET)"
-	$(Q)$(MAKE) xbar HOST=ibex SOC_CFG_MODE=builtin TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-
-	@echo "\n$(ORANGE)SoC files building ...\n$(RESET)"
-	$(Q)$(MAKE) soc HOST=ibex SOC_CFG_MODE=builtin TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-
-	@echo "\n$(ORANGE)FuseSoC setup/build ...\n$(RESET)"
-	$(Q)$(FUSESOC) --cores-root=$(REPO_ROOT) run --target=sim --tool=verilator --setup --build enea:soc:main
-
-	$(Q)$(MAKE) soc_run WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
-
-soc_ibex_tutorial: soc_ibex_fetch soc_ibex
+soc_ibex_gen: HOST := ibex
+soc_ibex_gen: SOC_CFG_MODE := builtin
+soc_ibex_gen: xbar soc
 
 # -----------------------------------------------------------------------------
-# Software generation / run
+# Software generation
 # -----------------------------------------------------------------------------
 
 sw_soc:
@@ -191,34 +153,97 @@ sw_soc:
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID)
 
-soc_run:
-	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
-	$(Q)$(MKDIR) -p $(OUTROOT)/sim
-	@echo "\n$(ORANGE)GCC compilation of SoC software ...\n$(RESET)"
-	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
-	@echo "\n$(ORANGE)Verilator run with automatic timeout...\n$(RESET)"
-	$(Q)cd $(OUTROOT)/sim && timeout $${SIM_TIMEOUT:-20}s $(REPO_ROOT)/flow/build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E ../sw/build/main.elf || test $$? -eq 124
-	$(Q)$(MAKE) soc_view WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) || true
-
 # -----------------------------------------------------------------------------
-# Direct simulation helper
+# Simulation / run
 # -----------------------------------------------------------------------------
 
 soc_sim:
-	@echo "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	$(call _require_var,TOP)
+	@echo "\n$(ORANGE)Preparing SoC build (HOST=$(HOST)) ...\n$(RESET)"
+	$(Q)$(MAKE) xbar HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+	$(Q)$(MAKE) soc HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+	@echo "\n$(ORANGE)SoC simulation model build with FuseSoC ...\n$(RESET)"
 	$(Q)$(FUSESOC) --cores-root=$(REPO_ROOT) run --target=sim --tool=verilator --setup --build enea:soc:main
+
+soc_run:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	$(call _require_var,TOP)
+	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
+	$(Q)$(MKDIR) -p $(OUTROOT)/sim
+	@if [ ! -x "$(REPO_ROOT)/flow/build/enea_soc_main_0/sim-verilator/Vtop_verilator" ]; then \
+		echo "\n$(ORANGE)Simulation model missing, building with soc_sim (HOST=$(HOST)) ...\n$(RESET)"; \
+		$(MAKE) soc_sim HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
+			WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP); \
+	fi
+	@echo "\n$(ORANGE)GCC compilation of SoC software ...\n$(RESET)"
+	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
+	@echo "\n$(ORANGE)Verilator run with automatic timeout...\n$(RESET)"
+	$(Q)cd $(OUTROOT)/sim && timeout $${SIM_TIMEOUT:-20}s \
+		$(REPO_ROOT)/flow/build/enea_soc_main_0/sim-verilator/Vtop_verilator \
+		-t -E ../sw/build/main.elf || test $$? -eq 124
+	$(Q)$(MAKE) soc_view WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) || true
+
+# -----------------------------------------------------------------------------
+# Waveform viewer
+# -----------------------------------------------------------------------------
 
 soc_view:
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
 	@set -eu; \
-	fst="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/sim/sim.fst"; \
+	simdir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/sim"; \
+	fst="$$simdir/sim.fst"; \
+	gtkw=""; \
+	for f in "$$simdir"/*.gtkw; do \
+		if [ -f "$$f" ]; then gtkw="$$f"; break; fi; \
+	done; \
 	test -f "$$fst" || { echo "ERROR: missing waveform: $$fst"; exit 2; }; \
 	if command -v gtkwave >/dev/null 2>&1; then \
-		echo "Opening waveform: $$fst"; \
-		gtkwave $(VIEWER_FLAGS) "$$fst" >/dev/null 2>&1 & \
+		if [ -n "$$gtkw" ]; then \
+			echo "Opening waveform: $$fst with savefile $$gtkw"; \
+			gtkwave $(VIEWER_FLAGS) "$$gtkw" "$$fst" >/dev/null 2>&1 & \
+		else \
+			echo "Opening waveform: $$fst"; \
+			gtkwave $(VIEWER_FLAGS) "$$fst" >/dev/null 2>&1 & \
+		fi; \
 	else \
 		echo "WARNING: gtkwave not found in PATH"; \
 		echo "Waveform available at: $$fst"; \
 	fi
+
+# -----------------------------------------------------------------------------
+# Tutorials
+# -----------------------------------------------------------------------------
+
+soc_uart_tutorial:
+	@echo "\n$(ORANGE)Loading IPs for UART-host SoC tutorial ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
+	$(Q)$(MAKE) soc_run HOST=uart SOC_CFG_MODE=builtin \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+
+soc_ibex_fetch:
+	@echo "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
+	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
+	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
+	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
+
+soc_ibex_tutorial: soc_ibex_fetch
+	@echo "\n$(ORANGE)Loading IPs for IBEX-host SoC tutorial ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=spi_host
+	$(Q)$(MAKE) soc_run HOST=ibex SOC_CFG_MODE=builtin \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)

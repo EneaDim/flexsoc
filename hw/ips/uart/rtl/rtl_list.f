@@ -85,7 +85,6 @@
 /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_socket_m1.sv
 /home/eneadim/github/flexsoc/hw/ips/tlul/tlul_sram_byte.sv
 /home/eneadim/github/flexsoc/workspace/runs/uart/dev/rtl/uart_reg_pkg.sv
-/home/eneadim/github/flexsoc/workspace/runs/uart/dev/rtl/uart_host_bridge.sv
 /home/eneadim/github/flexsoc/workspace/runs/uart/dev/rtl/uart_reg_top.sv
 /home/eneadim/github/flexsoc/workspace/runs/uart/dev/rtl/uart_rx.sv
 /home/eneadim/github/flexsoc/workspace/runs/uart/dev/rtl/uart_tx.sv

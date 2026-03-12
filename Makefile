@@ -23,20 +23,17 @@ help:
 	@echo
 	@echo "Repository developer commands:"
 	@echo "  make help        Show this message"
+	@echo "  make install     Install dependencies"
 	@echo "  make lint        Run Ruff checks"
 	@echo "  make fix         Run Ruff with --fix"
 	@echo "  make test        Run pytest"
 	@echo "  make check       Run lint + test"
 	@echo "  make clean       Remove Python caches and local build artifacts"
 	@echo
-	@echo "Flow compatibility commands:"
-	@echo "  make flow-help   Show flow targets"
-	@echo "  make flow-lint   Run flow lint target"
-	@echo "  make flow-sim    Run flow sim target"
-	@echo "  make flow-syn    Run flow syn target"
-	@echo "  make flow-sta    Run flow sta target"
-	@echo "  make flow-pnr    Run flow pnr target"
-	@echo
+
+install:
+	@echo ">> Installing dependencies"
+	pip install -e .
 
 lint:
 	@echo ">> Running Ruff"

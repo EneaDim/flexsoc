@@ -103,3 +103,4 @@ module uart_rx (
                          (^{sreg_q[9:1],parity_odd});
 
 endmodule
+

@@ -77,3 +77,4 @@ module uart_tx (
   assign idle = (tx_enable) ? (bit_cnt_q == 4'h0) : 1'b1;
 
 endmodule
+

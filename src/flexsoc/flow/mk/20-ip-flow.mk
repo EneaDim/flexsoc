@@ -348,3 +348,46 @@ ip_load:
 		cp -a "$$src_ip"/. "$$dst_dir"/; \
 	fi; \
 	echo "Loaded IP from $$src_ip to $$dst_dir"
+
+ip_save:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,TOP)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	@echo "\n$(ORANGE)Saving IP\n$(RESET)"
+	@set -eu; \
+	src_run="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
+	dst_ip="$(REPO_ROOT)/hw/ips/$(TOP)"; \
+	test -d "$$src_run" || { echo "ERROR: missing run directory: $$src_run"; exit 2; }; \
+	mkdir -p "$$dst_ip"; \
+	for sub in rtl tb data doc drivers py model fsms lint syn; do \
+		if [ -d "$$src_run/$$sub" ]; then \
+			rm -rf "$$dst_ip/$$sub"; \
+			cp -a "$$src_run/$$sub" "$$dst_ip/$$sub"; \
+		fi; \
+	done; \
+	if [ -d "$$src_run/signoff" ]; then \
+		rm -rf "$$dst_ip/signoff"; \
+		mkdir -p "$$dst_ip/signoff"; \
+		find "$$src_run/signoff" -mindepth 1 -maxdepth 1 \
+			! -name sdf \
+			-exec cp -a {} "$$dst_ip/signoff"/ \; ; \
+	fi; \
+	if [ -d "$$src_run/pnr_openroad" ]; then \
+		rm -rf "$$dst_ip/pnr_openroad"; \
+		mkdir -p "$$dst_ip/pnr_openroad"; \
+		find "$$src_run/pnr_openroad" -maxdepth 1 -type f \
+			-exec cp -a {} "$$dst_ip/pnr_openroad"/ \; ; \
+	fi; \
+	if [ -d "$$src_run/sim" ]; then \
+		rm -rf "$$dst_ip/sim"; \
+		mkdir -p "$$dst_ip/sim"; \
+		find "$$src_run/sim" -maxdepth 1 -type f -name '*.gtkw' \
+			-exec cp -a {} "$$dst_ip/sim"/ \; ; \
+	fi; \
+	for f in manifest.json run.yaml report.json *.core; do \
+		for x in "$$src_run"/$$f; do \
+			if [ -e "$$x" ]; then cp -a "$$x" "$$dst_ip"/; fi; \
+		done; \
+	done; \
+	echo "Saved IP from $$src_run to $$dst_ip"
