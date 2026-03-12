@@ -26,7 +26,7 @@ rtl_stub:
 
 ip_start: setup hjson reg doc rtl_stub flist setup_tb sim
 
-soc_start:
+soc_start: flist
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
@@ -302,3 +302,49 @@ tb_view:
 	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
 	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd \
 		$(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw &
+# -----------------------------------------------------------------------------
+# IP load / save
+# -----------------------------------------------------------------------------
+
+.PHONY: ip_load ip_save
+
+ip_load:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,TOP)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	@echo "\n$(ORANGE)Loading IP\n$(RESET)"
+	@set -eu; \
+	src_ip="$(REPO_ROOT)/hw/ips/$(TOP)"; \
+	load_name="$(TOP)"; \
+	if [ -n "$${LOAD_AS:-}" ]; then load_name="$$LOAD_AS"; fi; \
+	test -d "$$src_ip" || { echo "ERROR: missing source IP directory: $$src_ip"; exit 2; }; \
+	echo "TOP=$(TOP)"; \
+	echo "RUN_TOP=$(RUN_TOP)"; \
+	echo "RUN_ID=$(RUN_ID)"; \
+	echo "LOAD_AS=$${LOAD_AS:-}"; \
+	echo "Effective load name=$$load_name"; \
+	if [ "$(RUN_TOP)" = "$(TOP)" ]; then \
+		dst_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
+		echo "Mode: standalone"; \
+		mkdir -p "$$dst_dir"; \
+		for sub in rtl tb data doc drivers py model fsms lint syn signoff pnr_openroad sim ips; do \
+			if [ -d "$$src_ip/$$sub" ]; then \
+				rm -rf "$$dst_dir/$$sub"; \
+				cp -a "$$src_ip/$$sub" "$$dst_dir/$$sub"; \
+			fi; \
+		done; \
+		for f in manifest.json run.yaml report.json *.core; do \
+			for x in "$$src_ip"/$$f; do \
+				if [ -e "$$x" ]; then cp -a "$$x" "$$dst_dir"/; fi; \
+			done; \
+		done; \
+	else \
+		dst_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/ips/$$load_name"; \
+		echo "Mode: integration"; \
+		mkdir -p "$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/ips"; \
+		rm -rf "$$dst_dir"; \
+		mkdir -p "$$dst_dir"; \
+		cp -a "$$src_ip"/. "$$dst_dir"/; \
+	fi; \
+	echo "Loaded IP from $$src_ip to $$dst_dir"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
 
 
@@ -180,8 +181,12 @@ def run_dir(workspace: Path, run_top: str, run_id: str) -> Path:
 
 
 def copy_driver_files(ips_dir: Path, sw_dir: Path) -> list[str]:
+    if not ips_dir.exists():
+        raise SystemExit(f"ERROR: missing loaded IP directory: {ips_dir}")
+
     copied_modules: list[str] = []
-    for ip_dir in sorted(p for p in ips_dir.iterdir() if p.is_dir()):
+
+    for ip_dir in sorted((p for p in ips_dir.iterdir() if p.is_dir()), key=lambda p: p.name):
         drv_dir = ip_dir / "drivers"
         if not drv_dir.exists():
             continue
@@ -199,28 +204,16 @@ def copy_driver_files(ips_dir: Path, sw_dir: Path) -> list[str]:
 
 
 def generate_main_c(sw_dir: Path, modules: list[str]) -> None:
-    includes = []
-    body = []
+    includes = [f'#include "{mod}.h"' for mod in sorted(modules)]
+
+    body = ["int main(void) {"]
 
     for mod in modules:
-        includes.append(f'#include "{mod}.h"')
-
-    includes_text = "\n".join(sorted(includes))
-
-    body.append("int main(void) {")
-    for mod in modules:
-        upper = mod.upper()
-        body.append(f"  {mod}_init(({mod}_t){upper}_BASE);")
+        body.append(f"  {mod}_init(({mod}_t){mod.upper()}_BASE);")
 
     if "uart" in modules:
         body.append('  uart_puts("FlexSoC SoC boot\\n");')
         body.append("  (void)uart_in((uart_t)UART_BASE);")
-
-    for mod in modules:
-        if mod == "uart":
-            continue
-        upper = mod.upper()
-        body.append(f"  {mod}_init(({mod}_t){upper}_BASE);")
 
     body.append("  for (;;) {")
     if "uart" in modules:
@@ -232,7 +225,7 @@ def generate_main_c(sw_dir: Path, modules: list[str]) -> None:
     body.append("  return 0;")
     body.append("}")
 
-    text = f"""{includes_text}
+    text = f"""{chr(10).join(includes)}
 
 {chr(10).join(body)}
 """
@@ -286,6 +279,8 @@ def main():
     sw_dir.mkdir(parents=True, exist_ok=True)
 
     modules = copy_driver_files(ips_dir, sw_dir)
+    if not modules:
+        raise SystemExit(f"ERROR: no driver files found under loaded IPs: {ips_dir}")
 
     (sw_dir / "boot.S").write_text(BOOT_S, encoding="utf-8")
     (sw_dir / "link.ld").write_text(LINK_LD, encoding="utf-8")
@@ -293,7 +288,7 @@ def main():
     generate_makefile(sw_dir, modules)
 
     print(f"Generated SoC software under: {sw_dir}")
-    print(f"Modules: {', '.join(modules) if modules else '(none)'}")
+    print(f"Modules: {', '.join(modules)}")
 
 
 if __name__ == "__main__":

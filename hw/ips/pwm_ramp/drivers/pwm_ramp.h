@@ -11,10 +11,10 @@
 
 #define PWM_RAMP_BASE 0x80000000
 
-typedef void* pwm_ramp_t;
-int pwm_ramp_init(pwm_ramp_t pwm_ramp);
-int pwm_ramp_in(pwm_ramp_t pwm_ramp);
-void pwm_ramp_out(pwm_ramp_t pwm_ramp, char c);
+typedef uintptr_t pwm_ramp_t;
+int pwm_ramp_init(pwm_ramp_t base);
+int pwm_ramp_in(pwm_ramp_t base);
+void pwm_ramp_out(pwm_ramp_t base, char c);
 int pwm_ramp_putchar(int c);
 int pwm_ramp_puts(const char* str);
 

@@ -998,6 +998,7 @@ def make_cmd(
     run_top: Optional[str] = typer.Option(None, "--run-top"),
     run_id: Optional[str] = typer.Option(None, "--run-id"),
     reg_itf: Optional[str] = typer.Option(None, "--reg-itf"),
+    load_as: Optional[str] = typer.Option(None, "--load-as", help="Rename destination folder when loading an IP into a run"),
     overwrite: bool = typer.Option(False, "--overwrite"),
     force: bool = typer.Option(False, "--force", help="Alias for --overwrite"),
 ) -> None:
@@ -1027,6 +1028,8 @@ def make_cmd(
         overwrite=overwrite,
         force=force,
     )
+    if load_as is not None:
+        common_vars["LOAD_AS"] = load_as
 
     # Extra args after `--` may contain:
     # - additional positional make targets

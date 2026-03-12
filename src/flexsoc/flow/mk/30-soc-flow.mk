@@ -1,48 +1,44 @@
-
-.PHONY: sw_soc
-sw_soc:
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,RUN_TOP)
-	$(call _require_var,RUN_ID)
-	$(Q)$(PYTHON) -m flexsoc.tools.sw_soc_gen \
-		--workspace $(WORKSPACE) \
-		--run-top $(RUN_TOP) \
-		--run-id $(RUN_ID)
-
-.PHONY: soc_ibex_fetch soc_ibex soc_ibex_tutorial
-
-soc_ibex_fetch: HOST ?= ibex
-soc_ibex: HOST ?= ibex
-soc_ibex_tutorial: HOST ?= ibex
-
-
-soc_ibex_fetch: RUN_TOP ?= soc_ibex
-soc_ibex_fetch: RUN_ID ?= dev
-soc_ibex_fetch: TOP ?= soc
-
-soc_ibex: RUN_TOP ?= soc_ibex
-soc_ibex: RUN_ID ?= dev
-soc_ibex: TOP ?= soc
-
-soc_ibex_tutorial: RUN_TOP ?= soc_ibex
-soc_ibex_tutorial: RUN_ID ?= dev
-soc_ibex_tutorial: TOP ?= soc
-
-soc_ibex_tutorial: RUN_TOP ?= soc_ibex
-soc_ibex_tutorial: RUN_ID ?= dev
-soc_ibex_tutorial: TOP ?= soc
-
 # -----------------------------------------------------------------------------
-# FuseSoC
+# SoC / FuseSoC flows
 # -----------------------------------------------------------------------------
-.PHONY: fsoc_init fsoc xbar xbar_init xbar_build soc soc_flow soc_ibex_fetch soc_ibex soc_sim soc_run soc_view soc_ibex_tutorial
+
+.PHONY: fsoc_init fsoc
+.PHONY: xbar xbar_init xbar_build
+.PHONY: soc soc_flist soc_flow soc_sim soc_view
+.PHONY: soc_ibex_fetch soc_ibex_prepare_ip soc_ibex_prepare_ips soc_ibex soc_ibex_tutorial
+.PHONY: sw_soc soc_run
 .PHONY: ip_save ip_load
 
 PRJ    ?= flexsoc
 TARGET ?= default
 
+# -----------------------------------------------------------------------------
+# Tutorial defaults
+# -----------------------------------------------------------------------------
+
+soc_ibex_fetch: HOST ?= ibex
+soc_ibex_fetch: RUN_TOP ?= soc_ibex
+soc_ibex_fetch: RUN_ID ?= dev
+soc_ibex_fetch: TOP ?= soc
+
+soc_ibex: HOST ?= ibex
+soc_ibex: SOC_CFG_MODE ?= builtin
+soc_ibex: RUN_TOP ?= soc_ibex
+soc_ibex: RUN_ID ?= dev
+soc_ibex: TOP ?= soc
+
+soc_ibex_tutorial: HOST ?= ibex
+soc_ibex_tutorial: SOC_CFG_MODE ?= builtin
+soc_ibex_tutorial: RUN_TOP ?= soc_ibex
+soc_ibex_tutorial: RUN_ID ?= dev
+soc_ibex_tutorial: TOP ?= soc
+
+# -----------------------------------------------------------------------------
+# FuseSoC init for single IP
+# -----------------------------------------------------------------------------
+
 fsoc_init:
-	@echo "\n$(ORANGE)FuseSOC setup...\n$(RESET)"
+	@echo "\n$(ORANGE)FuseSoC setup...\n$(RESET)"
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_ID)
@@ -71,11 +67,12 @@ fsoc:
 	$(call _require_var,RUN_ID)
 	@set -eu; \
 	cores_root="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/fusesoc"; \
-	$(Q)$(FUSESOC) --cores-root="$$cores_root" run --target "$(TARGET)" "$(PRJ):ip:$(TOP)"
+	$(FUSESOC) --cores-root="$$cores_root" run --target "$(TARGET)" "$(PRJ):ip:$(TOP)"
 
 # -----------------------------------------------------------------------------
-# XBAR / SoC
+# XBAR / SoC generation
 # -----------------------------------------------------------------------------
+
 xbar: xbar_init xbar_build
 
 xbar_init: soc_cfg
@@ -85,6 +82,7 @@ xbar_init: soc_cfg
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \
+		--mode $(SOC_CFG_MODE) \
 		--default-host $(HOST) \
 		--format args )"; \
 	$(PYTHON) -m flexsoc.tools.xbar_init $$cfg_args --output $(DATADIR)/xbar_main.hjson
@@ -113,6 +111,7 @@ soc: soc_cfg
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \
+		--mode $(SOC_CFG_MODE) \
 		--default-host $(HOST) \
 		--format args )"; \
 	$(PYTHON) -m flexsoc.tools.soc_gen $$cfg_args -o $(RTLDIR)/soc.sv
@@ -127,8 +126,11 @@ soc_flist:
 		--top soc \
 		--out $(RTLDIR)/rtl_list.f
 
-
 soc_flow: xbar soc
+
+# -----------------------------------------------------------------------------
+# Ibex tutorial / reference SoC
+# -----------------------------------------------------------------------------
 
 soc_ibex_fetch:
 	@echo "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
@@ -136,210 +138,87 @@ soc_ibex_fetch:
 	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
 
-soc_ibex: HOST ?= ibex
-soc_ibex: SOC_CFG_MODE ?= builtin
-soc_ibex: setup
-	@echo "[soc_ibex] HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"
-	@echo "\n$(ORANGE)Preparing internal IPs for SoC IBEX tutorial...\n$(RESET)"
-	$(Q)$(MAKE) ip_load TOP=gpio RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) ip_load TOP=uart RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) ip_load TOP=rv_timer RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+# Prepare one standalone IP run so that its bundle includes generated drivers.
+# Usage:
+#   $(MAKE) soc_ibex_prepare_ip IP_NAME=gpio
+soc_ibex_prepare_ip:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,IP_NAME)
+	@echo "\n$(ORANGE)Preparing standalone IP bundle: $(IP_NAME)\n$(RESET)"
+	$(Q)$(MAKE) ip_load TOP=$(IP_NAME) RUN_TOP=$(IP_NAME) RUN_ID=dev WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) driver  TOP=$(IP_NAME) RUN_TOP=$(IP_NAME) RUN_ID=dev WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) ip_save TOP=$(IP_NAME) RUN_TOP=$(IP_NAME) RUN_ID=dev WORKSPACE=$(WORKSPACE) OVERWRITE=--force
 
-	@echo "\n$(ORANGE)SoC files building with IBEX...\n$(RESET)"
+soc_ibex_prepare_ips:
+	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=gpio
+	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=uart
+	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=rv_timer
+	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=pwm
+	$(Q)$(MAKE) soc_ibex_prepare_ip WORKSPACE=$(WORKSPACE) IP_NAME=spi_host
+
+soc_ibex: setup soc_ibex_prepare_ips
+	@echo "[soc_ibex] HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"
+	@echo "\n$(ORANGE)Loading prepared IP bundles into SoC run...\n$(RESET)"
+	$(Q)$(MAKE) ip_load TOP=gpio     RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) ip_load TOP=uart     RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) ip_load TOP=rv_timer RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) ip_load TOP=pwm      RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+	$(Q)$(MAKE) ip_load TOP=spi_host RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+
+	@echo "\n$(ORANGE)XBAR build ...\n$(RESET)"
 	$(Q)$(MAKE) xbar HOST=ibex SOC_CFG_MODE=builtin TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
-	$(Q)$(MAKE) soc  HOST=ibex SOC_CFG_MODE=builtin TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+
+	@echo "\n$(ORANGE)SoC files building ...\n$(RESET)"
+	$(Q)$(MAKE) soc HOST=ibex SOC_CFG_MODE=builtin TOP=$(TOP) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) WORKSPACE=$(WORKSPACE)
+
+	@echo "\n$(ORANGE)FuseSoC setup/build ...\n$(RESET)"
 	$(Q)$(FUSESOC) --cores-root=$(REPO_ROOT) run --target=sim --tool=verilator --setup --build enea:soc:main
-	$(Q)$(MAKE) soc_run
+
+	$(Q)$(MAKE) soc_run WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+
+soc_ibex_tutorial: soc_ibex_fetch soc_ibex
+
+# -----------------------------------------------------------------------------
+# Software generation / run
+# -----------------------------------------------------------------------------
+
+sw_soc:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	$(Q)$(PYTHON) -m flexsoc.tools.sw_soc_gen \
+		--workspace $(WORKSPACE) \
+		--run-top $(RUN_TOP) \
+		--run-id $(RUN_ID)
+
+soc_run:
+	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
+	$(Q)$(MKDIR) -p $(OUTROOT)/sim
+	@echo "\n$(ORANGE)GCC compilation of SoC software ...\n$(RESET)"
+	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
+	@echo "\n$(ORANGE)Verilator run with automatic timeout...\n$(RESET)"
+	$(Q)cd $(OUTROOT)/sim && timeout $${SIM_TIMEOUT:-20}s $(REPO_ROOT)/flow/build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E ../sw/build/main.elf || test $$? -eq 124
+	$(Q)$(MAKE) soc_view WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) || true
+
+# -----------------------------------------------------------------------------
+# Direct simulation helper
+# -----------------------------------------------------------------------------
 
 soc_sim:
 	@echo "\n$(ORANGE)SoC simulation with FuseSoC ...\n$(RESET)"
 	$(Q)$(FUSESOC) --cores-root=$(REPO_ROOT) run --target=sim --tool=verilator --setup --build enea:soc:main
 
-soc_run: sw_soc
-	@echo "\n$(ORANGE)GCC compilation of SoC software ...\n$(RESET)"
-	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
-	@echo "\n$(ORANGE)Verilator run ... Press <CTRL>-C\n$(RESET)"
-	$(REPO_ROOT)/flow/build/enea_soc_main_0/sim-verilator/Vtop_verilator -t -E $(OUTROOT)/sw/build/main.elf
-
 soc_view:
-	@echo "\n$(ORANGE)Viewing ...\n$(RESET)"
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) sim.fst $(SIMDIR)/soc_$(TOP)_tb.gtkw &
-
-soc_ibex_tutorial: soc_ibex_fetch soc_ibex
-
-# -----------------------------------------------------------------------------
-# IP save/load
-# -----------------------------------------------------------------------------
-ip_save: clean_sim
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,TOP)
-	$(call _require_var,RUN_ID)
-	@set -eu; \
-	run_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
-	src_ip="$$run_dir/ips/$(TOP)"; \
-	src_run="$$run_dir"; \
-	dst="$(IPS_ROOT)/$(TOP)"; \
-	if [ -d "$$src_ip" ]; then \
-		src="$$src_ip"; \
-	else \
-		src="$$src_run"; \
-	fi; \
-	if [ ! -d "$$src" ]; then \
-		echo "ERROR: source IP bundle not found: $$src"; \
-		exit 2; \
-	fi; \
-	mkdir -p "$(IPS_ROOT)"; \
-	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "0" ]; then \
-		echo "ERROR: destination already exists: $$dst"; \
-		echo "Hint: re-run with --overwrite"; \
-		exit 2; \
-	fi; \
-	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "1" ]; then \
-		rm -rf "$$dst"; \
-	fi; \
-	mkdir -p "$$dst"; \
-	echo "Saving IP bundle:"; \
-	echo "  from: $$src"; \
-	echo "  to:   $$dst"; \
-	if command -v rsync >/dev/null 2>&1; then \
-		rsync -a \
-			--exclude pnr_openroad/results \
-			--exclude pnr_openroad/reports \
-			--exclude pnr_openroad/objects \
-			--exclude signoff/sdf \
-			--exclude history/ \
-			--exclude logs/ \
-			"$$src"/ "$$dst"/; \
-	else \
-		cp -a "$$src"/. "$$dst"/; \
-		rm -rf "$$dst/history" "$$dst/logs"; \
-	fi
-
-ip_load:
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,TOP)
-	$(call _require_var,RUN_ID)
-	@set -eu; \
-	src="$(IPS_ROOT)/$(TOP)"; \
-	run_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
-	if [ ! -d "$$src" ]; then \
-		echo "ERROR: source IP bundle not found: $$src"; \
-		exit 2; \
-	fi; \
-	if [ "$(RUN_TOP)" = "$(TOP)" ]; then \
-		dst="$$run_dir"; \
-		mode="single-ip"; \
-	else \
-		dst="$$run_dir/ips/$(TOP)"; \
-		mode="multi-ip"; \
-		mkdir -p "$$run_dir/ips"; \
-	fi; \
-	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "0" ]; then \
-		echo "ERROR: destination already exists: $$dst"; \
-		echo "Hint: re-run with --overwrite"; \
-		exit 2; \
-	fi; \
-	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "1" ]; then \
-		rm -rf "$$dst"; \
-	fi; \
-	mkdir -p "$$dst"; \
-	echo "Loading IP bundle ($$mode):"; \
-	echo "  from: $$src"; \
-	echo "  to:   $$dst"; \
-	if command -v rsync >/dev/null 2>&1; then \
-		rsync -a "$$src"/ "$$dst"/; \
-	else \
-		cp -a "$$src"/. "$$dst"/; \
-	fi
-
-
-setup_soc_tb: soc_cfg soc_flist
-	@echo "\n$(ORANGE)Setup SoC SystemVerilog Testbench Template...\n$(RESET)"
-	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
-	$(Q)$(PYTHON) -m flexsoc.tools.setup_tb $(OVERWRITE) \
-		-top soc \
-		-rtldir $(RTLDIR) \
-		$(SOC_MEMORY_MAP) \
-		-simdir $(SIMDIR) \
-		-syndir $(SYNDIR) \
-		-prim $(PRIM) \
-		-clk $(CLK_PERIOD) \
-		-comp $(COMPILER) \
-		-itf $(REG_ITF) \
-		-vsv $(VSV) \
-		-o $(TBDIR)
-
-sim_soc:
-	$(Q)$(MAKE) --no-print-dir sim \
-		WORKSPACE=$(WORKSPACE) \
-		RUN_TOP=$(RUN_TOP) \
-		RUN_ID=$(RUN_ID) \
-		TOP=soc
-
-
-soc_save:
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
 	@set -eu; \
-	src="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
-	dst="$(IPS_ROOT)/$(RUN_TOP)"; \
-	if [ ! -d "$$src" ]; then \
-		echo "ERROR: source SoC bundle not found: $$src"; \
-		exit 2; \
-	fi; \
-	mkdir -p "$(IPS_ROOT)"; \
-	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "0" ]; then \
-		echo "ERROR: destination already exists: $$dst"; \
-		echo "Hint: re-run with --overwrite"; \
-		exit 2; \
-	fi; \
-	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "1" ]; then \
-		rm -rf "$$dst"; \
-	fi; \
-	mkdir -p "$$dst"; \
-	echo "Saving SoC bundle:"; \
-	echo "  from: $$src"; \
-	echo "  to:   $$dst"; \
-	if command -v rsync >/dev/null 2>&1; then \
-		rsync -a \
-			--exclude history/ \
-			--exclude logs/ \
-			--exclude sessions/ \
-			"$${src}/" "$${dst}/"; \
+	fst="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/sim/sim.fst"; \
+	test -f "$$fst" || { echo "ERROR: missing waveform: $$fst"; exit 2; }; \
+	if command -v gtkwave >/dev/null 2>&1; then \
+		echo "Opening waveform: $$fst"; \
+		gtkwave $(VIEWER_FLAGS) "$$fst" >/dev/null 2>&1 & \
 	else \
-		cp -a "$$src"/. "$$dst"/; \
-		rm -rf "$$dst/history" "$$dst/logs" "$$dst/sessions"; \
+		echo "WARNING: gtkwave not found in PATH"; \
+		echo "Waveform available at: $$fst"; \
 	fi
-
-soc_load:
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,RUN_TOP)
-	$(call _require_var,RUN_ID)
-	$(call _require_var,TOP)
-	@set -eu; \
-	src="$(IPS_ROOT)/$(TOP)"; \
-	dst="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
-	if [ ! -d "$$src" ]; then \
-		echo "ERROR: source SoC bundle not found: $$src"; \
-		exit 2; \
-	fi; \
-	mkdir -p "$(WORKSPACE)/runs/$(RUN_TOP)"; \
-	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "0" ]; then \
-		echo "ERROR: destination already exists: $$dst"; \
-		echo "Hint: re-run with --overwrite"; \
-		exit 2; \
-	fi; \
-	if [ -e "$$dst" ] && [ "$(FLEXSOC_FORCE)" = "1" ]; then \
-		rm -rf "$$dst"; \
-	fi; \
-	mkdir -p "$$dst"; \
-	echo "Loading SoC bundle:"; \
-	echo "  from: $$src"; \
-	echo "  to:   $$dst"; \
-	if command -v rsync >/dev/null 2>&1; then \
-		rsync -a "$$src"/ "$$dst"/; \
-	else \
-		cp -a "$$src"/. "$$dst"/; \
-	fi
-

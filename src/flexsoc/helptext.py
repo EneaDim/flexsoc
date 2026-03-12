@@ -214,33 +214,42 @@ def render_quickstart() -> None:
     c.print(Panel.fit(
         """[bold]Quickstart[/bold]
 
-[bold]1. Set the working context once[/bold]
-[orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top my_ip --top my_ip[/cyan]
-
-[bold]2. IP development[/bold]
-[orange1]flexsoc[/orange1] [bold green]run[/bold green] [cyan]ip_start[/cyan]
+[bold]1. Standalone IP flow[/bold]
+[orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top gpio --top gpio[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]flist[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sim[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]syn[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sta[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]power[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]driver[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_save --overwrite[/cyan]
 
-[bold]3. Switch context for a basic SoC[/bold]
-[orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top soc0 --top soc0[/cyan]
-
-[bold]4. Basic SoC (uart host + peripherals)[/bold]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top uart-master[/cyan]
+[bold]2. SoC with UART host[/bold]
+[orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top soc_uart --top soc[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top uart-master --load-as uart[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top gpio[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top rv_timer[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top pwm[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_start[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]xbar soc[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]setup_soc_tb --top soc[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sim --top soc[/cyan]""",
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_flist setup_tb[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sim view[/cyan]
+
+[bold]3. SoC with IBEX host[/bold]
+[orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top soc_ibex --top soc[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_ibex_fetch[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top uart-master --load-as uart[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top gpio[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top rv_timer[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top pwm[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top spi_host[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]xbar HOST=ibex[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc HOST=ibex[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sw_soc[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_run[/cyan]""",
         title="Quickstart",
         border_style="blue",
     ))
-
 
 def render_tutorials() -> None:
     console = _console()
@@ -256,14 +265,15 @@ def render_tutorials() -> None:
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_tutorial --top pwm_ramp[/cyan]\n\n"
             "FSM tutorial:\n"
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_tutorial --top fsm_example[/cyan]\n\n"
-            "SoC tutorial:\n"
-            "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_pless[/cyan]\n\n"
-            "Tutorials generate example workspaces so you can inspect the structure "
-            "and reuse the same flow for your own IPs.",
+            "SoC tutorials:\n"
+            "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_pless[/cyan]\n"
+            "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_ibex_tutorial[/cyan]\n\n"
+            "Tutorial targets generate complete example runs so you can inspect the "
+            "workspace structure, replay the steps manually, and reuse the same flow "
+            "for your own IPs and SoCs.",
             border_style="magenta",
         )
     )
-
 
 def render_ip_guide() -> None:
     c = _console()
@@ -273,7 +283,7 @@ def render_ip_guide() -> None:
 [orange1]flexsoc[/orange1] [bold green]run[/bold green] [cyan]ip_start[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sim view[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]syn sdf sta power[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsoc_init driver[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]driver fsoc_init[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_save[/cyan]""",
         title="IP flow guide",
         border_style="blue",
