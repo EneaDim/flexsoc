@@ -13,7 +13,7 @@ def _repo_root() -> Path:
 
 def _safe_rmtree(p: Path) -> None:
     """
-    Defensive delete: refuse to delete root/home, and refuse empty paths.
+    Defensive delete: refuse to delete root/home, and refuse empty/suspicious paths.
     """
     p = p.resolve()
     if str(p) in ("/", str(Path.home().resolve())):
@@ -22,6 +22,25 @@ def _safe_rmtree(p: Path) -> None:
         raise ValueError(f"Refusing to delete suspiciously short path: {p}")
     if p.exists():
         shutil.rmtree(p)
+
+
+def _looks_like_workspace(ws: Path) -> bool:
+    """
+    Best-effort workspace detection.
+    Accept if:
+      - directory name is literally 'workspace', or
+      - contains known workspace subdirs/files
+    """
+    ws = ws.resolve()
+    if ws.name == "workspace":
+        return True
+
+    known_markers = [
+        ws / "runs",
+        ws / "sessions",
+        ws / ".flexsoc_context.json",
+    ]
+    return any(marker.exists() for marker in known_markers)
 
 
 def clean_pycache(root: Optional[Path] = None) -> int:
@@ -35,11 +54,9 @@ def clean_pycache(root: Optional[Path] = None) -> int:
     root = (root or _repo_root()).resolve()
     removed = 0
 
-    # Walk the tree; prune common heavy dirs if desired (keep it simple + safe)
     for dirpath, dirnames, filenames in os.walk(root):
         dp = Path(dirpath)
 
-        # Remove __pycache__ directories
         if "__pycache__" in dirnames:
             pyc_dir = dp / "__pycache__"
             try:
@@ -47,10 +64,8 @@ def clean_pycache(root: Optional[Path] = None) -> int:
                 removed += 1
             except Exception:
                 pass
-            # prevent further walk into it
             dirnames[:] = [d for d in dirnames if d != "__pycache__"]
 
-        # Remove stray .pyc/.pyo
         for fn in filenames:
             if fn.endswith((".pyc", ".pyo")):
                 fp = dp / fn
@@ -71,7 +86,6 @@ def clean_run(workspace: Path, top: str, run_id: str) -> None:
     run_dir = ws / "runs" / top / run_id
     _safe_rmtree(run_dir)
 
-    # Also cleanup empty parent dirs (best effort)
     top_dir = ws / "runs" / top
     try:
         if top_dir.exists() and not any(top_dir.iterdir()):
@@ -83,7 +97,6 @@ def clean_run(workspace: Path, top: str, run_id: str) -> None:
 def clean_workspace(workspace: Path) -> None:
     """
     Remove runs artifacts inside workspace, but keep the workspace root directory.
-    (Backward compatible behavior.)
     """
     ws = Path(workspace).resolve()
     runs = ws / "runs"
@@ -94,7 +107,15 @@ def clean_workspace(workspace: Path) -> None:
 
 def clean_all(workspace: Path) -> None:
     """
-    Remove the entire workspace directory (hard reset).
+    Remove the entire workspace directory (hard reset), but only if it really
+    looks like a FlexSoC workspace.
     """
     ws = Path(workspace).resolve()
+
+    if not _looks_like_workspace(ws):
+        raise ValueError(
+            f"Refusing to remove non-workspace path: {ws}. "
+            "Expected a FlexSoC workspace directory."
+        )
+
     _safe_rmtree(ws)

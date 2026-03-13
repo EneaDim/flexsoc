@@ -7,6 +7,7 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -15,12 +16,53 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-ci.txt
 
-      - name: Install (editable) + dev deps
+      - name: Upgrade packaging tools
         run: |
-          python -m pip install -U pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -U pip setuptools wheel
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install -r requirements-ci.txt
+
+      - name: Smoke check package import
+        run: |
+          python - <<'PY'
+          import flexsoc
+          import flexsoc.cli
+          print("flexsoc import OK")
+          PY
 
       - name: Run tests
         run: |
           python -m pytest -q
+
+  ruff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-ci.txt
+
+      - name: Upgrade packaging tools
+        run: |
+          python -m pip install -U pip setuptools wheel
+
+      - name: Install lint dependencies
+        run: |
+          python -m pip install -r requirements-ci.txt
+
+      - name: Run Ruff
+        run: |
+          ruff check .

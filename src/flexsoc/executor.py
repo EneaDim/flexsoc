@@ -6,10 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .manifest import write_flow_manifest, write_run_manifest
+from .orchestration import InvocationSpec, run_orchestrated
 from .registry import load_registry
-from .reporting import postprocess_action
-from .runner import MakeBackend
 from .workspace import resolve_run_ref
 
 log = logging.getLogger(__name__)
@@ -131,53 +129,25 @@ def execute_action(
     )
     log.debug("execute_action: cmd=%s", " ".join(str(x) for x in cmd))
 
-    backend = MakeBackend()
-    br = backend.run(
+    manifest_top = top or run_top
+
+    spec = InvocationSpec(
         action_id=action,
+        summary_label=action,
         cmd=cmd,
         params=params,
         workspace_dir=ws_abs,
+        run_ref=run_ref,
+        manifest_action=action,
+        manifest_top=manifest_top,
+        manifest_run_id=effective_run_id,
+        postprocess=postprocess,
     )
 
-    flow_run_dir = run_ref.run_dir if run_ref else None
-
-    if run_ref is not None:
-        try:
-            write_run_manifest(
-                run_ref,
-                action=action,
-                params=params,
-                top=(top or run_top),
-            )
-        except Exception:
-            log.exception("failed to write run manifest")
-
-    manifest_top = top or run_top
-    if flow_run_dir is not None and manifest_top and effective_run_id:
-        try:
-            write_flow_manifest(
-                flow_run_dir,
-                action=action,
-                top=str(manifest_top),
-                run_id=str(effective_run_id),
-                workspace=ws_abs,
-                params=params,
-            )
-        except Exception:
-            log.exception("failed to write flow manifest")
-
-        try:
-            effective_postprocess = postprocess or action
-            postprocess_action(
-                action=effective_postprocess,
-                flow_run_dir=flow_run_dir,
-                runner_dir=br.run_dir,
-            )
-        except Exception:
-            log.exception("postprocess failed: %s", postprocess or action)
+    orch = run_orchestrated(spec)
 
     return ExecResult(
-        exit_code=br.exit_code,
-        runner_run_dir=br.run_dir,
-        flow_run_dir=flow_run_dir,
+        exit_code=orch.backend.exit_code,
+        runner_run_dir=orch.backend.run_dir,
+        flow_run_dir=orch.flow_run_dir,
     )

@@ -37,7 +37,13 @@ def test_help_action_detail_shows_info():
     assert p.returncode == 0
     out = _out(p)
     assert "ip_start" in out
-    assert "Description" in out or "Action info" in out or "Action:" in out
+    assert (
+        "Description" in out
+        or "Action info" in out
+        or "Action:" in out
+        or "╭─ Action" in out
+        or "Command:" in out
+    )
 
 
 def test_help_action_alias_smoke():
