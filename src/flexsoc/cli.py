@@ -31,6 +31,7 @@ from .doctor import run_doctor
 from .executor import execute_action
 from .helptext import (
     render_detailed_help,
+    render_fsm_development_guide,
     render_help_overview,
     render_home_help,
     render_ip_guide,
@@ -172,11 +173,6 @@ def _safe_registry() -> dict[str, Any]:
     except Exception as e:
         _fail(str(e))
         raise
-        return _registry()
-    except Exception as e:
-        _fail(str(e))
-        raise
-
 
 def _setup_logging() -> None:
     """Always log to stderr so stdout remains clean for machine-readable outputs."""
@@ -207,9 +203,6 @@ def _resolved_workspace(workspace: Optional[Path]) -> Path:
     if not str(ws).strip():
         _fail(f"Invalid workspace path: {ws}")
     return ws
-    if not ws.name:
-        _fail(f"Invalid workspace path: {ws}")
-    return ws
 
 
 def _validate_run_lookup_inputs(run_top: Optional[str], run_id: Optional[str]) -> None:
@@ -236,6 +229,9 @@ def _early_shortcuts() -> bool:
         return True
     if argv == ["ip"]:
         render_ip_guide()
+        return True
+    if argv == ["fsm"]:
+        render_fsm_development_guide()
         return True
     return False
 
@@ -778,6 +774,11 @@ def runs_show(
     ws = _resolved_workspace(workspace)
     _print_run_show(run_dir=ws / "runs" / run_top / run_id, history_limit=history_limit)
 
+
+@app.command("fsm", help="Show FSM development guide.", rich_help_panel="Advanced / docs")
+def help_fs_guide_alias() -> None:
+    _setup_logging()
+    render_fsm_development_guide()
 
 @app.command("hd", help="Show the detailed help page.", rich_help_panel="Advanced / docs")
 def help_detailed_alias() -> None:

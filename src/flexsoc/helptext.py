@@ -51,6 +51,7 @@ def render_home_help() -> None:
             "[orange1]flexsoc[/orange1] [bold green]q[/bold green] [cyan][/cyan]   Quickstart\n"
             "[orange1]flexsoc[/orange1] [bold green]t[/bold green] [cyan][/cyan]   Tutorials\n"
             "[orange1]flexsoc[/orange1] [bold green]ip[/bold green] [cyan][/cyan]  IP development guide\n"
+            "[orange1]flexsoc[/orange1] [bold green]fsm[/bold green] [cyan][/cyan] FSM development guide\n"
             "[orange1]flexsoc[/orange1] [bold green]hd[/bold green] [cyan][/cyan]  Detailed help",
             border_style="green",
         )
@@ -284,5 +285,43 @@ def render_ip_guide() -> None:
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]driver fsoc_init[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_save[/cyan]""",
         title="IP flow guide",
+        border_style="blue",
+    ))
+
+def render_fsm_development_guide() -> None:
+    c = _console()
+    c.print(Panel.fit(
+        """[bold]FSM development guide[/bold]
+[orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top my_ip --top my_ip[/cyan]
+
+[dim]# 1) Prepare the IP run workspace[/dim]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]setup[/cyan]
+
+[dim]# 2) Create one FSM workspace inside the IP run[/dim]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_init[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
+
+[dim]# 3) Load an example FSM as a starting point[/dim]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_example_load[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
+
+[dim]# 4) Edit the FSM sources[/dim]
+[cyan]workspace/runs/my_ip/dev/fsms/rx_fsm/inputs/rx_fsm.txt[/cyan]
+[cyan]workspace/runs/my_ip/dev/fsms/rx_fsm/inputs/rx_fsm.csv[/cyan]
+
+[dim]# 5) Generate FSM artifacts[/dim]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_gen[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
+
+[dim]# 6) Install generated RTL/TB/GTKWave files into the IP run[/dim]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_install[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
+
+[dim]# 7) Simulate only the FSM testbench inside the IP run[/dim]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]flist sim[/cyan] [bold yellow]--top[/bold yellow] [cyan]rx_fsm[/cyan] [dim]--[/dim] [cyan]TESTBENCH=rx_fsm_tb[/cyan]
+
+[dim]# 8) Optional: inspect the graph[/dim]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_plot[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
+
+[dim]# 9) Repeat for more FSMs in the same IP[/dim]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_init fsm_gen fsm_install[/cyan] [dim]--[/dim] [cyan]FSM=tx_fsm[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_init fsm_gen fsm_install[/cyan] [dim]--[/dim] [cyan]FSM=ctrl_fsm[/cyan]""",
+        title="FSM development guide",
         border_style="blue",
     ))
