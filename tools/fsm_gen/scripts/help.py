@@ -22,17 +22,8 @@ usage/help banner. It is meant to be invoked from the Makefile
 """
 
 
-
 def main() -> int:
-    """Print the FSM generator help banner and exit.
-
-    The message describes:
-      - Where to configure parameters (Makefile),
-      - How to describe state transitions (txt file),
-      - How to describe output values (csv file),
-      - How to generate the SystemVerilog file,
-      - How to plot the FSM.
-    """
+    """Print the FSM generator help banner and exit."""
     msg = (
         "\033[38;5;214m\n"
         "\n ************************************************************* \n"
@@ -40,6 +31,8 @@ def main() -> int:
         "\n ************************************************************* \n"
         "\n - CONFIG"
         "\n   . Define the parameters under the Makefile"
+        "\n   . Or invoke Main.py with --fsm_name, --f_clk,"
+        "\n     --input-dir and --output-dir"
         "\n"
         "\n - STATE TRANSITION"
         "\n   . Describe the state transition with a txt file as"
@@ -48,6 +41,10 @@ def main() -> int:
         "\n - OUTPUT VALUES"
         "\n   . Describe the output values for each state with a csv file as"
         "\n     done in the example under examples/"
+        "\n"
+        "\n - INPUT / OUTPUT DIRECTORIES"
+        "\n   . Preferred mode: provide explicit --input-dir and --output-dir"
+        "\n   . Legacy mode still works with tools/fsm_gen/inputs and outputs"
         "\n"
         "\n - GENERATE SV FILE"
         "\n   . Run \"make gen\" to generate the SystemVerilog file of the FSM"

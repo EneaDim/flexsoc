@@ -1,42 +1,74 @@
 # -----------------------------------------------------------------------------
 # FSM flow
 # -----------------------------------------------------------------------------
-.PHONY: fsm_example_load fsm_setup fsm_gen fsm_plot fsm_flow fsm2rtl fsm_save fsm_load
+define _require_fsm
+	@if [ -z "$(strip $(FSM))" ]; then \
+	  echo "ERROR: FSM is required. Pass it as: -- FSM=<fsm_name>"; \
+	  exit 2; \
+	fi
+endef
+
+.PHONY: fsm_init fsm_tool_setup fsm_example_load fsm_setup fsm_gen fsm_plot fsm_flow
+.PHONY: fsm_install fsm2rtl fsm_save fsm_load
 .PHONY: deps deps-soc
 .PHONY: clean-pyc clean_doc clean_log clean_rtl clean_sim clean_cocotb clean_syn clean_signoff clean_pnr
 .PHONY: clean_fsm clean_fsm_all clean_agent clean_fsoc clean_soc clean_sw clean_vendor clean_subdir clean clean_all
 .PHONY: full_tutorial fsm_tutorial ip_tutorial soc_pless
 
-fsm_example_load: fsm_setup
-	$(Q)$(CP) -r $(FSMGEN_DIR)/examples/* $(FSMGEN_DIR)/inputs/ || true
+fsm_init:
+	$(call _require_fsm)
+	$(Q)$(MKDIR) -p "$(FSM_INPUT_DIR)" "$(FSM_OUTPUT_DIR)"
 
-fsm_setup:
+# Legacy name kept for compatibility. It now prepares the run-local FSM workspace
+# and also keeps the standalone tool directories available.
+fsm_setup: fsm_init
 	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) setup
 
-fsm_gen: fsm_setup
-	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) gen PYTHON=$(PYTHON) FSM=$(FSM)
+# Explicit tool setup alias (clearer than fsm_setup)
+fsm_tool_setup:
+	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) setup
 
-fsm_plot: fsm_setup
-	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) plot PYTHON=$(PYTHON) FSM=$(FSM)
+fsm_example_load: fsm_init
+	$(call _require_fsm)
+	$(Q)$(CP) "$(FSMGEN_DIR)/examples/fsm_example.txt" "$(FSM_INPUT_DIR)/$(FSM).txt"
+	$(Q)$(CP) "$(FSMGEN_DIR)/examples/fsm_example.csv" "$(FSM_INPUT_DIR)/$(FSM).csv"
+	@echo "\n$(ORANGE)Loaded FSM example into $(FSM_INPUT_DIR) as $(FSM)\n$(RESET)"
+
+fsm_gen: fsm_init
+	$(call _require_fsm)
+	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) gen \
+		PYTHON="$(PYTHON)" FSM="$(FSM)" F_CLK="$(or $(strip $(F_CLK)),32)" \
+		INPUT_DIR="$(FSM_INPUT_DIR)" OUTPUT_DIR="$(FSM_OUTPUT_DIR)"
+
+fsm_plot: fsm_init
+	$(call _require_fsm)
+	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) plot \
+		PYTHON=$(PYTHON) FSM=$(FSM) \
+		INPUT_DIR="$(FSM_INPUT_DIR)" OUTPUT_DIR="$(FSM_OUTPUT_DIR)"
 
 fsm_flow: fsm_gen fsm_plot
 
-fsm2rtl:
-	$(Q)$(CP) $(FSMGEN_DIR)/outputs/$(FSM).sv $(RTLDIR)/
-	$(Q)$(CP) $(FSMGEN_DIR)/outputs/$(FSM)_pkg.sv $(RTLDIR)/
-	$(Q)$(CP) $(FSMGEN_DIR)/outputs/$(FSM).gtkw $(SIMDIR)/ || true
-	$(Q)$(CP) $(FSMGEN_DIR)/outputs/$(FSM)_tb.sv $(TBDIR)/
+fsm_install: fsm_init
+	$(call _require_fsm)
+	$(Q)$(MKDIR) -p "$(RTLDIR)" "$(TBDIR)" "$(SIMDIR)"
+	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM).sv" "$(RTLDIR)/"
+	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM)_pkg.sv" "$(RTLDIR)/"
+	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM).gtkw" "$(SIMDIR)/" || true
+	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM)_tb.sv" "$(TBDIR)/"
+	@echo "\n$(ORANGE)Installed FSM $(FSM) artifacts into IP run directories\n$(RESET)"
 
-fsm_save:
-	$(Q)$(MKDIR) -p $(FSMDIR)/$(FSM)/inputs $(FSMDIR)/$(FSM)/outputs
-	$(Q)$(CP) -r $(FSMGEN_DIR)/inputs/$(FSM)* $(FSMDIR)/$(FSM)/inputs/ || true
-	$(Q)$(CP) -r $(FSMGEN_DIR)/outputs/$(FSM)* $(FSMDIR)/$(FSM)/outputs/ || true
-	@echo "\n$(ORANGE)$(FSM) FSM saved\n$(RESET)"
+# Backward-compatible alias
+fsm2rtl: fsm_install
 
-fsm_load: fsm_setup
-	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/inputs/* $(FSMGEN_DIR)/inputs/ || true
-	$(Q)$(CP) -r $(FSMDIR)/$(FSM)/outputs/* $(FSMGEN_DIR)/outputs/ || true
-	@echo "\n$(ORANGE)$(FSM) FSM loaded into fsm_gen\n$(RESET)"
+# Compatibility targets: with run-local FSM directories these are now effectively no-ops
+# or simple sync helpers.
+fsm_save: fsm_init
+	$(call _require_fsm)
+	@echo "\n$(ORANGE)FSM $(FSM) already lives inside the run workspace: $(FSMWORKDIR)\n$(RESET)"
+
+fsm_load: fsm_init
+	$(call _require_fsm)
+	@echo "\n$(ORANGE)FSM $(FSM) is already run-local. Edit inputs under $(FSM_INPUT_DIR)\n$(RESET)"
 
 # -----------------------------------------------------------------------------
 # Dependencies

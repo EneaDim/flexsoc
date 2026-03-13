@@ -37,6 +37,7 @@ import random
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
+
 @dataclass
 class Transition:
     """Transition of FSM: source, destination and condition."""
@@ -46,11 +47,21 @@ class Transition:
 
 
 class Interface:
-    def __init__(self, name: str) -> None:
+    def __init__(
+        self,
+        name: str,
+        *,
+        inputs_dir: Path | None = None,
+        outputs_dir: Path | None = None,
+    ) -> None:
         """!
         @brief Construct a new Interface.
 
         @param name Human-readable name/label for this interface instance.
+        @param inputs_dir Optional directory containing <fsm>.txt and <fsm>.csv.
+                          If omitted, falls back to the legacy repo-local inputs dir.
+        @param outputs_dir Optional directory where generated artifacts are written.
+                           If omitted, falls back to the legacy repo-local outputs dir.
         """
         self.name: str = name
         self.fsm_name: str | None = None
@@ -62,16 +73,28 @@ class Interface:
         self.output_names: List[str] = []
         # Output values in each state
         self.outputs_by_state: Dict[str, Dict[str, str]] = {}
-        # Dict of transitions: src, sdt, cond
+        # Dict of transitions: src, dst, cond
         self.transitions_from: Dict[str, List[Transition]] = defaultdict(list)
-        # Map src -> next_states 
+        # Map src -> next_states
         self.graph: Dict[str, Set[str]] = defaultdict(set)
         # TB lines generated
         self.functb: List[str] = []
-        # Derived paths (based on repository layout)
+
+        # Legacy repository-local default layout (backward compatibility)
         root_dir = Path(__file__).resolve().parents[1]
-        self.inputs_dir: Path = root_dir / "inputs"
-        self.outputs_dir: Path = root_dir / "outputs"
+        default_inputs_dir = root_dir / "inputs"
+        default_outputs_dir = root_dir / "outputs"
+
+        self.inputs_dir: Path = (
+            Path(inputs_dir).expanduser().resolve()
+            if inputs_dir is not None
+            else default_inputs_dir.resolve()
+        )
+        self.outputs_dir: Path = (
+            Path(outputs_dir).expanduser().resolve()
+            if outputs_dir is not None
+            else default_outputs_dir.resolve()
+        )
 
     # ------------------------------------------------------------------ #
     # Proprietà helper
@@ -99,8 +122,8 @@ class Interface:
         @brief Read and parse FSM input files.
 
         This method reads:
-          - `<fsm_name>.txt` from `inputs/` as transition description.
-          - `<fsm_name>.csv` from `inputs/` as state/output table.
+          - `<fsm_name>.txt` from inputs_dir as transition description.
+          - `<fsm_name>.csv` from inputs_dir as state/output table.
         """
         self.fsm_name = fsm_name
 
@@ -119,7 +142,6 @@ class Interface:
         self.outputs_by_state.clear()
         self.transitions_from.clear()
         self.graph.clear()
-        # self.functb la lascio com'è, di solito la compili altrove
 
         # 1) Transizioni + segnali
         self._parse_txt_file(txt_path)
@@ -139,30 +161,23 @@ class Interface:
         """Normalizza operatori logici e spaziatura in una condizione."""
         cond = raw_cond.strip()
 
-        # Parole chiave testuali -> operatori simbolici
-        cond = re.sub(r"\bnot\b",  "~", cond)
-        cond = re.sub(r"\band\b",  "&", cond)
-        cond = re.sub(r"\bor\b",   "|", cond)
+        cond = re.sub(r"\bnot\b", "~", cond)
+        cond = re.sub(r"\band\b", "&", cond)
+        cond = re.sub(r"\bor\b", "|", cond)
         cond = re.sub(r"\bnand\b", "%", cond)
-        cond = re.sub(r"\bnor\b",  "*", cond)
-        cond = re.sub(r"\bxor\b",  "^", cond)
+        cond = re.sub(r"\bnor\b", "*", cond)
+        cond = re.sub(r"\bxor\b", "^", cond)
 
-        # '!' -> '~'
         cond = re.sub(r"!\s*", "~", cond)
 
-        # Spazia parentesi
         for ch in "()[]":
             cond = cond.replace(ch, f" {ch} ")
 
-        # Spazia operatori
         for op in ["&", "|", "~", "%", "*", "^"]:
             cond = cond.replace(op, f" {op} ")
 
-        # Collassa spazi multipli
         tokens = cond.split()
         cond = " ".join(tokens)
-
-        # "~ signal" -> "~signal"
         cond = cond.replace("~ ", "~")
 
         return cond
@@ -174,7 +189,6 @@ class Interface:
         Formato generico:
           SRC_STATE -> DST_STATE : "espressione_logica";
         """
-        # Regex: SRC -> DST : "COND";
         line_re = re.compile(
             r"""^\s*
                 (?P<src>\w+)
@@ -207,16 +221,12 @@ class Interface:
 
                 cond = self._normalize_condition(raw_cond)
 
-                # Crea Transition e memorizzala
                 t = Transition(src=src, dst=dst, cond=cond)
                 self.transitions_from[src].append(t)
 
-                # Aggiorna set di segnali
                 for token in identifier_re.findall(cond):
                     if token in forbidden_tokens:
                         continue
-                    # Dopo normalizzazione, operatori sono (&, |, ~, etc), quindi
-                    # tutto ciò che matcha l'identifier è un segnale.
                     self._signals.add(token)
 
     def _parse_csv_file(self, csv_path: Path) -> None:
@@ -239,10 +249,8 @@ class Interface:
         if not raw_lines:
             raise ValueError(f"CSV file appears to be empty: {csv_path}")
 
-        # Intestazioni: nomi segnali di uscita
         self.output_names = raw_lines[0][1:]
 
-        # Stato -> dizionario uscite
         for row in raw_lines[1:]:
             state_name = row[0]
             out_vals = row[1:]
@@ -285,11 +293,8 @@ class Interface:
         gtkw_path = self.outputs_dir / f"{self.fsm_name}.gtkw"
         gtkw_path_tb = self.outputs_dir / f"{self.fsm_name}_tb.gtkw"
 
-        # ------------------------------------------------------------------ #
-        #  Package: typedef enum
-        # ------------------------------------------------------------------ #
         num_states = max(1, len(self.states))
-        dim = max(1, math.ceil(math.log2(num_states)))  # almeno 1 bit
+        dim = max(1, math.ceil(math.log2(num_states)))
         msb_index = dim - 1
 
         lines: List[str] = []
@@ -299,7 +304,6 @@ class Interface:
         lines.append(f"typedef enum logic [{msb_index}:0] ")
         lines.append("{")
 
-        # Codifica esplicita (0,1,2,..) in binario
         for i, state in enumerate(self.states):
             dim_format = "0" + str(dim) + "b"
             myformat = format(i, dim_format)
@@ -311,11 +315,8 @@ class Interface:
         lines.append("endpackage;")
         lines.append("")
 
-        sv_path_pkg.write_text("\n".join(lines))
+        sv_path_pkg.write_text("\n".join(lines), encoding="utf-8")
 
-        # ------------------------------------------------------------------ #
-        #  GTKWave state name mapping (binary -> state_name)
-        # ------------------------------------------------------------------ #
         lines = []
         for i, state in enumerate(self.states):
             dim_format = "0" + str(dim) + "b"
@@ -323,66 +324,35 @@ class Interface:
             lines.append(f"{myformat} {state}")
         lines.append("")
 
-        gtkw_path.write_text("\n".join(lines))
+        gtkw_path.write_text("\n".join(lines), encoding="utf-8")
+        gtkw_path_tb.write_text("", encoding="utf-8")
 
-        #lines = ['[timestart] 0']
-        #lines.append('[size] 1241 600 ')
-        #lines.append('[pos] -241 -1 ')
-        #lines.append('*-20.136848 2265625 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 ')
-        #lines.append(f'[treeopen] {self.fsm_name}_tb. ')
-        #lines.append('[sst_width] 276 ')
-        #lines.append('[signals_width] 198 ')
-        #lines.append('[sst_expanded] 1 ')
-        #lines.append('[sst_vpaned_height] 157 ')
-        #lines.append('@28 ')
-        #lines.append(f'{self.fsm_name}_tb.u_{self.fsm_name}.clk_i ')
-        #lines.append(f'{self.fsm_name}_tb.u_{self.fsm_name}.rst_ni ')
-        #lines.append('@2029 ')
-        #lines.append(f'^1 ./sim/{self.fsm_name}.gtkw ')
-        #lines.append(f'{self.fsm_name}_tb.u_{self.fsm_name}.state_o[3:0] ')
-        #lines.append('[pattern_trace] 1 ')
-        #lines.append('[pattern_trace] 0 ')
-        #gtkw_path_tb.write_text("\n".join(lines))
-
-        # ------------------------------------------------------------------ #
-        #  Module
-        # ------------------------------------------------------------------ #
         lines = []
-
-        # Module header
         lines.append(f"module {self.fsm_name} import {self.fsm_name}_pkg::*; (")
         lines.append("  input  logic clk_i,")
 
-        # Add reset only if not already a user signal
         if "rst_ni" not in self.signals:
             lines.append("  input  logic rst_ni,")
 
-        # Input signals (skip constant '1')
         for sig in self.signals:
             if sig != "1":
                 lines.append(f"  input  logic {sig},")
 
-        # Output ports
         for out_name in self.output_names:
             lines.append(f"  output logic {out_name},")
         lines.append("  output state_fsm state_o")
         lines.append(");")
         lines.append("")
 
-        # Registered version of each output
         for out_name in self.output_names:
             lines.append(f"  logic {out_name}_d;")
         lines.append("")
 
-        # State registers
         lines.append("  state_fsm current_state, next_state;")
         lines.append("")
         lines.append("  assign state_o = current_state;")
         lines.append("")
 
-        # ------------------------------------------------------------------ #
-        # State latching
-        # ------------------------------------------------------------------ #
         reset_state = self.states[0]
 
         lines.append("  // STATE LATCHING")
@@ -396,15 +366,11 @@ class Interface:
         lines.append("    end")
         lines.append("")
 
-        # ------------------------------------------------------------------ #
-        # Output latching
-        # ------------------------------------------------------------------ #
         lines.append("  // OUTPUT LATCHING")
         lines.append("  always_ff @(posedge clk_i or negedge rst_ni)")
         lines.append("    begin: output_latching")
         lines.append("      if (~rst_ni) begin")
 
-        # On reset, use the outputs of the reset state
         reset_outputs = self.outputs_by_state[reset_state]
         for out_name in self.output_names:
             reset_val = reset_outputs[out_name]
@@ -417,20 +383,15 @@ class Interface:
         lines.append("    end")
         lines.append("")
 
-        # ------------------------------------------------------------------ #
-        # Next-state and output logic
-        # ------------------------------------------------------------------ #
         lines.append("  // STATE TRANSITION AND OUTPUT DEFINITION")
         lines.append("  always_comb begin")
         lines.append("    next_state = current_state;")
 
-        # default: mantieni gli output dell'attuale stato
         for out_name in self.output_names:
             lines.append(f"    {out_name}_d = 1'b0; // overwritten below per-state")
 
         lines.append("    unique case (current_state)")
 
-        # Un case-item per stato
         for state in self.states:
             lines.append(f"      {state}: begin")
 
@@ -438,7 +399,6 @@ class Interface:
             current_outputs = self.outputs_by_state[state]
 
             if not t_list:
-                # Nessuna transizione: self-loop e outputs dello stato stesso
                 lines.append(f"        next_state = {state};")
                 for out_name in self.output_names:
                     val = current_outputs[out_name]
@@ -446,7 +406,6 @@ class Interface:
                 lines.append("      end")
                 continue
 
-            # Verifica se esiste una transizione incondizionata (cond == "1")
             unconditional = None
             conditional_list: List[Transition] = []
             for t in t_list:
@@ -456,7 +415,6 @@ class Interface:
                     conditional_list.append(t)
 
             if unconditional is not None:
-                # Transizione incondizionata: ignora le altre
                 dst = unconditional.dst
                 dst_outputs = self.outputs_by_state[dst]
                 lines.append(f"        next_state = {dst};")
@@ -466,7 +424,6 @@ class Interface:
                 lines.append("      end")
                 continue
 
-            # Catena if / else-if / else con le transizioni condizionali
             first = True
             for t in conditional_list:
                 dst = t.dst
@@ -485,7 +442,6 @@ class Interface:
                 lines.append("        end")
                 first = False
 
-            # Default: rimani nello stesso stato, outputs dello stato
             lines.append("        else begin")
             lines.append(f"          next_state = {state};")
             for out_name in self.output_names:
@@ -494,7 +450,6 @@ class Interface:
             lines.append("        end")
             lines.append("      end")
 
-        # Default case: vai allo stato di reset
         lines.append("      default: begin")
         lines.append(f"        next_state = {reset_state};")
         reset_outputs = self.outputs_by_state[reset_state]
@@ -508,7 +463,7 @@ class Interface:
         lines.append("endmodule")
         lines.append("")
 
-        sv_path.write_text("\n".join(lines))
+        sv_path.write_text("\n".join(lines), encoding="utf-8")
 
     # ------------------------------------------------------------------ #
     # Testbench generation
@@ -543,12 +498,10 @@ class Interface:
         lines.append("  logic clk_i;")
         lines.append("  logic rst_ni;")
 
-        # Input stimuli (skip constant '1')
         for sig in self.signals:
             if sig != "1":
                 lines.append(f"  logic {sig};")
 
-        # Outputs
         for out_name in self.output_names:
             lines.append(f"  logic {out_name};")
 
@@ -566,25 +519,40 @@ class Interface:
         lines.append("  );")
         lines.append("")
 
-        # Dump VCD
         lines.append("  // Dump VCD")
+        lines.append("  string vcd_path;")
         lines.append("  initial begin")
-        lines.append("    `ifndef SYN")
-        lines.append(f'      $dumpfile("sim/{self.fsm_name}_tb.vcd");')
-        lines.append("    `else")
-        lines.append(f'      $dumpfile("sim/{self.fsm_name}_syn_tb.vcd");')
-        lines.append("    `endif")
+        lines.append('    if (!$value$plusargs("VCD=%s", vcd_path)) begin')
+        lines.append("      `ifndef SYN")
+        lines.append(f'        vcd_path = "";')
+        lines.append("      `else")
+        lines.append(f'        vcd_path = "";')
+        lines.append("      `endif")
+        lines.append("    end")
+        lines.append('    $display("[TB] dumpfile = %s", vcd_path);')
+        lines.append("    $dumpfile(vcd_path);")
         lines.append(f"    $dumpvars(0, {self.fsm_name}_tb);")
         lines.append("  end\n")
 
-        # Clock generation
+        # SDF annotate (disabled for Verilator)
+        lines.append("  // SDF backannotation")
+        lines.append("  `ifndef VERILATOR")
+        lines.append("    string sdf_path;")
+        lines.append("    initial begin")
+        lines.append('      if (!$value$plusargs("SDF=%s", sdf_path)) begin')
+        lines.append(f'        sdf_path = "";')
+        lines.append("      end")
+        lines.append('      $display("[TB] sdf = %s", sdf_path);')
+        lines.append(f'      $sdf_annotate(sdf_path, {self.fsm_name}_tb.u_{self.fsm_name}, , , "MAXIMUM");')
+        lines.append("    end")
+        lines.append("  `endif\n")
+
         lines.append("  // Clock generation")
         lines.append("  initial begin")
         lines.append("    forever #(CLK_PERIOD/2) clk_i = ~clk_i;")
         lines.append("  end")
         lines.append("")
 
-        # Simple reset + stop sequence
         lines.append("  initial begin")
         lines.append("    clk_i = 1'b0;")
         lines.append("    rst_ni = 1'b0;")
@@ -607,7 +575,7 @@ class Interface:
         lines.append("endmodule")
         lines.append("")
 
-        tb_path.write_text("\n".join(lines))
+        tb_path.write_text("\n".join(lines), encoding="utf-8")
 
     # ------------------------------------------------------------------ #
     # Graphviz DOT generation
@@ -629,64 +597,40 @@ class Interface:
 
         for src, t_list in self.transitions_from.items():
             for t in t_list:
-                # Escapa eventuali doppi apici nella condizione
                 label = t.cond.replace('"', '\\"')
-                lines.append(
-                    f'  {src} -> {t.dst} [ label = "{label}" ];\n'
-                )
+                lines.append(f'  {src} -> {t.dst} [ label = "{label}" ];\n')
 
         lines.append("}\n")
+        gv_path.write_text("".join(lines), encoding="utf-8")
 
-        gv_path.write_text("".join(lines))
     ########
     # ATPG #
     ########
+
     def extract_signals(self, expr: str) -> list[str]:
-        """
-        Find all unique signal names in the boolean expression.
-        Signal names are assumed to be identifiers: [a-zA-Z_][a-zA-Z0-9_]*
-        """
-        tokens = re.findall(r'\b[a-zA-Z_]\w*\b', expr)
+        tokens = re.findall(r"\b[a-zA-Z_]\w*\b", expr)
         return sorted(set(tokens))
 
     def to_python_expr(self, expr: str) -> str:
-        """
-        Convert HDL-style boolean expr to a safe Python expression using booleans.
-        Supported ops:
-            &  -> and
-            |  -> or
-            ^  -> !=  (xor for booleans)
-            !, ~ -> not
-        """
         py = expr
-
-        # NOT first, to avoid messing replacements that introduce !
-        py = re.sub(r'~', ' not ', py)
-        py = re.sub(r'!', ' not ', py)
-
-        # Binary operators
-        py = py.replace('&', ' and ')
-        py = py.replace('|', ' or ')
-        # XOR: boolean xor is same as != for True/False
-        py = py.replace('^', ' != ')
-
+        py = re.sub(r"~", " not ", py)
+        py = re.sub(r"!", " not ", py)
+        py = py.replace("&", " and ")
+        py = py.replace("|", " or ")
+        py = py.replace("^", " != ")
         return py
 
     def print_truth_table(self, expr: str) -> None:
         signals, rows = self._truth_table_full(expr)
-        # Header
         header = " | ".join(signals) + " || OUT"
         print(header)
         print("-" * len(header))
         for env, res in rows:
             vals = " | ".join("1" if env[s] else "0" for s in signals)
-            out  = "1" if res else "0"
+            out = "1" if res else "0"
             print(f"{vals} || {out}")
 
     def _truth_table_full(self, expr: str):
-        """
-        Versione completa: restituisce tutte le combinazioni per debug/print.
-        """
         signals = self.extract_signals(expr)
         py_expr = self.to_python_expr(expr)
 
@@ -698,18 +642,6 @@ class Interface:
         return signals, rows
 
     def truth_table(self, expr: str, want_true: bool):
-        """
-        Trova UNA combinazione di ingressi che rende l'espressione vera o falsa.
-
-        Args:
-            expr: espressione booleana (stile HDL/normalized).
-            want_true: se True, cerca una combinazione con risultato 1;
-                       se False, cerca una combinazione con risultato 0.
-
-        Returns:
-            signals: lista dei nomi dei segnali
-            vals: lista di '0'/'1' per ciascun segnale (una sola riga)
-        """
         signals = self.extract_signals(expr)
         py_expr = self.to_python_expr(expr)
 
@@ -720,29 +652,17 @@ class Interface:
                 vals = ["1" if env[s] else "0" for s in signals]
                 return signals, vals
 
-        # Nessuna combinazione soddisfa il criterio: fallback tutto a 0
         return signals, ["0"] * len(signals)
 
     def choose_edge(self, actual_state: str) -> tuple[str, int, list[int]]:
-        """
-        Sceglie in modo random una transizione USCENTE dallo stato corrente.
-
-        Ritorna:
-            - stato di destinazione scelto,
-            - indice globale della transizione scelta (nella lista self.transitions),
-            - lista di indici globali delle altre transizioni con stessa sorgente
-              ma destinazione diversa (usate per "no trigger").
-        """
         t_list = self.transitions_from.get(actual_state, [])
         print
         if not t_list:
             raise RuntimeError(f"No outgoing transitions from state '{actual_state}'")
 
-        # Scegli una transizione random come "trigger"
         chosen_t = random.choice(t_list)
         chosen_dst = chosen_t.dst
 
-        # Trova indice globale della transizione scelta
         chosen_idx = None
         other_indices: list[int] = []
 
@@ -752,30 +672,19 @@ class Interface:
             if t.dst == chosen_dst and t.cond == chosen_t.cond and chosen_idx is None:
                 chosen_idx = idx
             elif t.dst != chosen_dst:
-                # altre destinazioni dalla stessa sorgente: "no trigger"
                 other_indices.append(idx)
 
         if chosen_idx is None:
             raise RuntimeError("Internal error: chosen transition index not found.")
 
-        # Marca l'arco come preso
         self.arcs[chosen_idx] = 1
-
-        #print(actual_state, chosen_t.dst, chosen_idx, other_indices)
         return chosen_t.dst, chosen_idx, other_indices
 
     def set_inputs(self, idx: int, idxs: list[int]) -> tuple[dict, list[dict]]:
-        """
-        Calcola una configurazione di ingressi che:
-          - ATTIVA la transizione idx (trigger)
-          - DISATTIVA ciascuna transizione in idxs (no-trigger).
-        """
-        # Trigger: espressione della transizione scelta
         expr_trigger = self.transitions[idx].cond
         signals, vals = self.truth_table(expr_trigger, True)
         mydict_trigger = dict(zip(signals, vals))
 
-        # No trigger: per ogni altra transizione, una combinazione che la rende falsa
         mydict_notrigger_list: list[dict] = []
         for i in idxs:
             expr_notrig = self.transitions[i].cond
@@ -786,12 +695,6 @@ class Interface:
         return mydict_trigger, mydict_notrigger_list
 
     def merge_input_setting(self, input_setting_trig: dict, input_setting_notrig: list[dict]) -> dict:
-        """
-        Merge tra:
-          - dizionario che soddisfa la transizione target
-          - lista di dizionari che disattivano altre transizioni.
-        In caso di conflitti vince input_setting_trig.
-        """
         not_in_target = [
             {k: v for k, v in d.items() if k not in input_setting_trig}
             for d in input_setting_notrig
@@ -802,12 +705,8 @@ class Interface:
         return merged
 
     def append_func_tb(self, sig_dict: dict, idx: int) -> None:
-        """
-        Aggiunge al testbench una sequenza che applica gli ingressi
-        e verifica che la FSM passi alla destinazione prevista.
-        """
         t = self.transitions[idx]
-        mystr  = f'    // {t.src} -> {t.dst} : "{t.cond}"\n'
+        mystr = f'    // {t.src} -> {t.dst} : "{t.cond}"\n'
         for k, v in sig_dict.items():
             mystr += f"    {k} = 1'b{v};\n"
         mystr += "    #(CLK_PERIOD);\n"
@@ -816,27 +715,26 @@ class Interface:
         self.functb.append(mystr)
 
     def eulerian_tour(self, adj, start):
-        local = {u: list(vs) for u, vs in adj.items()} # Mutable copy
-        stack = [start] # current path
-        circuit = []    # result path
+        local = {u: list(vs) for u, vs in adj.items()}
+        stack = [start]
+        circuit = []
         while stack:
-            v = stack[-1]                   # actual node
-            if local[v]:                    # if arcs not consumed
-                u = local[v].pop()          # take one arc that goes to node u
-                stack.append(u)             # arrival node
-            else:                           # if no more arcs from v node
-                circuit.append(stack.pop()) # append the path saved in stack
+            v = stack[-1]
+            if local[v]:
+                u = local[v].pop()
+                stack.append(u)
+            else:
+                circuit.append(stack.pop())
 
         circuit.reverse()
         return circuit
 
     def reconstruct_path(self, src, dst, parent):
-        """Ricostruisce il cammino minimo src→dst usando il dizionario parent della BFS da src."""
         if src == dst:
             return [src]
         if parent[dst] is None:
             raise ValueError(f"Nessun path da {src} a {dst}")
-    
+
         path = [dst]
         v = dst
         while v != src:
@@ -844,13 +742,13 @@ class Interface:
             if v is None:
                 raise ValueError(f"Nessun path da {src} a {dst}")
             path.append(v)
-    
+
         path.reverse()
         return path
-    
+
     def bfs(self, src):
-        dist   = {v: float("inf") for v in self.states}
-        parent = {v: None           for v in self.states}
+        dist = {v: float("inf") for v in self.states}
+        parent = {v: None for v in self.states}
         dist[src] = 0
         q = deque([src])
         while q:
@@ -859,89 +757,85 @@ class Interface:
                 if dist[v] == float("inf"):
                     dist[v] = dist[u] + 1
                     parent[v] = u
-                    q.append(v) # push right
+                    q.append(v)
         return dist, parent
-    
-    def chineese_postman(self, start_state):
-        """TODO: Docstring for chineese_postman.
-        :returns: TODO
 
-        """
-        # outdeg
+    def chineese_postman(self, start_state):
         outdeg = {v: len(self.graph.get(v, ())) for v in self.states}
-        # indeg
+
         indeg = defaultdict(int)
         for u, targets in self.graph.items():
             for v in targets:
                 indeg[v] += 1
-        # Balance
+
         b = {v: indeg[v] - outdeg[v] for v in self.states}
-        # Understand the path to computr bfs
         P = [v for v in self.states if b[v] > 0]
         N = [v for v in self.states if b[v] < 0]
-        # cost definition for each transition
+
         cost = {}
         parents = {}
         for p in P:
-            dist, parent = self.bfs(p)   # BFS da p
+            dist, parent = self.bfs(p)
             parents[p] = parent
             for n in N:
-                cost[(p, n)] = dist[n]   # potrebbe essere inf se non raggiungibile
-        # es: ['IDLE', 'IDLE', 'IDLE', 'WAIT_CMD'] ['EXECUTE', 'WRITEBACK', 'FLUSH', 'ERROR']:W
+                cost[(p, n)] = dist[n]
+
         pos_units = []
         for s in P:
             for _ in range(0, abs(b[s])):
                 pos_units.append(s)
+
         neg_units = []
         for s in N:
             for _ in range(0, abs(b[s])):
                 neg_units.append(s)
-        # check len src == len dst
+
         assert len(pos_units) == len(neg_units)
-        
-        # cost matrix definition
+
         cost_matrix = np.zeros((len(pos_units), len(neg_units)), dtype=int)
         for i, p in enumerate(pos_units):
             for j, n in enumerate(neg_units):
                 cost_matrix[i, j] = cost[(p, n)]
-        
-        # Hungarian algorith for min path calculation
+
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
-        # Define assegnments (p -> n)
+
         assignments = []
         for i, j in zip(row_ind, col_ind):
             p = pos_units[i]
             n = neg_units[j]
             assignments.append((p, n))
-        # Define the edges from starting FSM
+
         edges_mult = defaultdict(int)
         for u in self.states:
             for v in self.graph[u]:
                 edges_mult[(u, v)] += 1
-        # Recostruct the whole path and add duplicated edges
+
         for p, n in assignments:
             parent = parents[p]
             path = self.reconstruct_path(p, n, parent)
             for u, v in zip(path, path[1:]):
-                edges_mult[(u, v)] += 1 
-        # Re-elaborate datastruct to have key: start state -> v: list of next states
+                edges_mult[(u, v)] += 1
+
         multi_adj = defaultdict(list)
         for (u, v), k in edges_mult.items():
             multi_adj[u].extend([v] * k)
-        
+
         self.tour = self.eulerian_tour(multi_adj, start=start_state)
         print("\033[93mChinese Postman tour:")
         print(" -> ".join(self.tour))
         print(f"Number of iterations: {len(self.tour)}\033[0m")
-        
+
     def get_indexes(self, actual_state, next_state):
         idxs = []
+        idx = None
         for i, t in enumerate(self.transitions):
-            if t.src == actual_state and t.dst == next_state:
+            if t.src == actual_state and t.dst == next_state and idx is None:
                 idx = i
             else:
                 if t.src == actual_state:
                     idxs.append(i)
+        if idx is None:
+            raise RuntimeError(f"No transition found from {actual_state} to {next_state}")
         return idx, idxs
 
     def states_walkthrough(self) -> None:
@@ -949,18 +843,13 @@ class Interface:
         Genera una sequenza di stimoli che prova a percorrere tutti gli archi
         (transizioni) della FSM almeno una volta.
         """
-
-        # Stato iniziale: il primo in self.states (stato di reset)
         actual_state = self.states[0]
-        # Apply algorithm
         self.chineese_postman(actual_state)
-        # Go through the whole tour
-        for i in range(0, len(self.tour)-1):
+
+        for i in range(0, len(self.tour) - 1):
             actual_state = self.tour[i]
-            next_state = self.tour[i+1]
+            next_state = self.tour[i + 1]
             idx, idxs = self.get_indexes(actual_state, next_state)
             input_setting_trig, input_setting_notrig = self.set_inputs(idx, idxs)
             input_setting = self.merge_input_setting(input_setting_trig, input_setting_notrig)
-            # Appendi al testbench
             self.append_func_tb(input_setting, idx)
-

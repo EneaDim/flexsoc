@@ -1,16 +1,20 @@
 # SW
-PYTHON ?=python3
+PYTHON ?= python3
 
 # MAIN PARAMETERS
-FSM    ?=fsm_example
-F_CLK  ?=32
+FSM       ?= fsm_example
+F_CLK     ?= 32
+INPUT_DIR ?= inputs
+OUTPUT_DIR ?= outputs
 
 # Shell functions
-ECHO   :=echo
+ECHO   := echo
+MKDIR  := mkdir -p
+RM     := rm -rf
 
 # COLORS
-ORANGE :=\033[38;5;214m
-RESET  :=\033[0m
+ORANGE := \033[38;5;214m
+RESET  := \033[0m
 
 # HELP
 help: clean
@@ -18,26 +22,32 @@ help: clean
 
 # SETUP
 setup:
-	@mkdir -p inputs outputs  
+	@$(MKDIR) "$(INPUT_DIR)" "$(OUTPUT_DIR)"
 
 # GENERATE
 gen: clean_py setup
-	@$(ECHO) "\n$(ORANGE)Generating .sv and .gv file of FSM...\n$(RESET)"
-	@$(PYTHON) scripts/Main.py -fsm_name $(FSM) -f_clk $(F_CLK)
+	@$(ECHO) "\n$(ORANGE)Generating .sv, .gv and TB artifacts of FSM...\n$(RESET)"
+	@$(PYTHON) scripts/Main.py \
+		--fsm_name "$(FSM)" \
+		--f_clk "$(F_CLK)" \
+		--input-dir "$(INPUT_DIR)" \
+		--output-dir "$(OUTPUT_DIR)"
 
 # PLOT FSM
 .PHONY: plot
 plot:
 	@$(ECHO) "\n$(ORANGE)Plotting .gv file of FSM...\n$(RESET)"
-	@xdot outputs/$(FSM).gv 2>/dev/null &
+	@xdot "$(OUTPUT_DIR)/$(FSM).gv" 2>/dev/null &
 
 # CLEAN PYTHON SCRIPTS FOLDER
 clean_py:
-	@rm -rf scripts/__*
-	@rm -rf *~
+	@$(RM) scripts/__*
+	@$(RM) *~
+
 # CLEAN OUTPUT DIRECTORY
 clean: clean_py
-	@rm -rf outputs plot 
+	@$(RM) "$(OUTPUT_DIR)" plot
+
 # CLEAN ALL
 clean_all: clean
-	@rm -rf inputs/*
+	@$(RM) "$(INPUT_DIR)"/*

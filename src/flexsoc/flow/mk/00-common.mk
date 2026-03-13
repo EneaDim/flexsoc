@@ -41,6 +41,9 @@ DRIVERDIR      ?= $(OUTROOT)/drivers
 LINTDIR        ?= $(OUTROOT)/lint
 PYDIR          ?= $(OUTROOT)/py
 FSMDIR         ?= $(OUTROOT)/fsms
+FSMWORKDIR     ?= $(FSMDIR)/$(FSM)
+FSM_INPUT_DIR  ?= $(FSMWORKDIR)/inputs
+FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
 ORSDIR         ?= $(OR_WORKDIR)
 REGRESSIONDIR  ?= $(OUTROOT)/regression
 
@@ -139,6 +142,7 @@ PRIM ?= \
   $(PDK_ROOT)/verilog/primitives.v \
   $(PDK_ROOT)/verilog/sky130_fd_sc_hd.no_tc.v
 
+FCLK						?= 32
 CLK_PERIOD      ?= 20
 TARGET_SYN      ?= asic
 TARGET_OPT      ?= area

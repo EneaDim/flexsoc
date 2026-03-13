@@ -27,31 +27,29 @@ from __future__ import annotations
 import argparse
 import sys
 import traceback
+from pathlib import Path
 
 import Interface as itf
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """!
-    @brief Parse command-line arguments.
-
-    @param argv Optional list of arguments, mainly for unit tests. If None,
-                arguments are taken from sys.argv.
-
-    @return Parsed arguments as an argparse.Namespace instance.
-    """
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="FSM generator: from .txt/.csv FSM descriptions to "
-                    "SystemVerilog and Graphviz (.gv) files.",
+        description=(
+            "FSM generator: from .txt/.csv FSM descriptions to "
+            "SystemVerilog, Graphviz, and testbench files."
+        ),
     )
 
     parser.add_argument(
         "-fsm_name",
         "--fsm_name",
         required=True,
-        help="Base name of the FSM (without extension). "
-             "The tool expects '<fsm_name>.txt' and '<fsm_name>.csv' "
-             "inside the 'inputs/' directory.",
+        help=(
+            "Base name of the FSM (without extension). "
+            "The tool expects '<fsm_name>.txt' and '<fsm_name>.csv' "
+            "inside the selected input directory."
+        ),
     )
 
     parser.add_argument(
@@ -62,37 +60,55 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Clock frequency in MHz to be used in the generated testbench.",
     )
 
+    parser.add_argument(
+        "--input-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Directory containing FSM input files. "
+            "If omitted, the legacy tools/fsm_gen/inputs directory is used."
+        ),
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Directory where generated artifacts are written. "
+            "If omitted, the legacy tools/fsm_gen/outputs directory is used."
+        ),
+    )
+
+    parser.add_argument(
+        "--verbose-paths",
+        action="store_true",
+        help="Print resolved input/output directories.",
+    )
+
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
-    """!
-    @brief Main entry point.
-
-    This function:
-      - parses the command-line arguments,
-      - instantiates the Interface object,
-      - triggers the generation of SystemVerilog and Graphviz files,
-      - optionally generates a testbench.
-
-    @param argv Optional list of arguments, mainly for unit tests. If None,
-                arguments are taken from sys.argv.
-
-    @return Process exit code (0 on success, non-zero on error).
-    """
+    """Main entry point."""
     try:
         args = parse_args(argv)
         fsm_name: str = args.fsm_name
         f_clk: int = args.f_clk
+        input_dir: Path | None = args.input_dir
+        output_dir: Path | None = args.output_dir
 
         interface = itf.Interface(
-            "FSM Interface from .gv and .csv to SystemVerilog Modules"
+            "FSM Interface from .gv and .csv to SystemVerilog Modules",
+            inputs_dir=input_dir,
+            outputs_dir=output_dir,
         )
 
-        # Read and parse the FSM sources (TXT + CSV)
-        interface.read_inputs(fsm_name)
+        if args.verbose_paths:
+            print(f"[fsm_gen] input_dir : {interface.inputs_dir}", file=sys.stderr)
+            print(f"[fsm_gen] output_dir: {interface.outputs_dir}", file=sys.stderr)
 
-        # Generate outputs
+        interface.read_inputs(fsm_name)
         interface.write_sv()
         interface.write_gv()
         interface.states_walkthrough()
@@ -100,10 +116,8 @@ def main(argv: list[str] | None = None) -> int:
 
         return 0
 
-    except Exception as exc:  # Catch any unexpected error and report nicely.
-        # Print a concise error and a short traceback to stderr.
-        print("\033[38;5;208m[ERROR] An unhandled exception occurred:\033[0m",
-              file=sys.stderr)
+    except Exception as exc:
+        print("\033[38;5;208m[ERROR] An unhandled exception occurred:\033[0m", file=sys.stderr)
         print(f"  Type : {type(exc).__name__}", file=sys.stderr)
         print(f"  Error: {exc}", file=sys.stderr)
         print("  Traceback:", file=sys.stderr)
@@ -112,6 +126,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    # Delegate to main() and use its return value as process exit code.
     sys.exit(main())
-
