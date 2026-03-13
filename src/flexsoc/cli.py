@@ -478,31 +478,38 @@ def _split_make_targets_and_passthrough(
     extra_args: list[str],
 ) -> tuple[list[str], dict[str, str], list[str]]:
     """
-    Build the final ordered target list for `flexsoc make`.
+    Split user input for `flexsoc make` into:
+    - ordered make targets
+    - KEY=VALUE make variable overrides
+    - passthrough option-like args
 
-    Bare non-option tokens become additional make targets.
-    KEY=VALUE tokens become override vars.
-    Option-like tokens are kept as raw passthrough.
+    KEY=VALUE tokens must never become targets.
     """
-    targets = list(initial_targets or [])
+    targets: list[str] = []
     override_vars: dict[str, str] = {}
     passthrough: list[str] = []
 
-    for arg in extra_args:
+    def consume(arg: str) -> None:
         if "=" in arg and not arg.startswith("-"):
             key, value = arg.split("=", 1)
+            key = key.strip()
             if key:
                 override_vars[key] = value
-                continue
+                return
 
         if not arg.startswith("-"):
             targets.append(arg)
-            continue
+            return
 
         passthrough.append(arg)
 
-    return targets, override_vars, passthrough
+    for arg in list(initial_targets or []):
+        consume(arg)
 
+    for arg in list(extra_args or []):
+        consume(arg)
+
+    return targets, override_vars, passthrough
 
 def _flow_run_dir_preview(
     *,
@@ -875,7 +882,6 @@ def dump_registry_cmd() -> None:
         raise
     except Exception as e:
         _fail(str(e))
-
 
 @app.command("actions", help="List available registry actions.", rich_help_panel="Discovery / introspection")
 def actions_cmd() -> None:
