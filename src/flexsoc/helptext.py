@@ -215,7 +215,7 @@ def render_quickstart() -> None:
     c.print(Panel.fit(
         """[bold]Quickstart[/bold]
 
-[bold]1. Standalone IP flow[/bold]
+[dim]1. Standalone IP flow[/dim]
 [orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top gpio --top gpio[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]flist[/cyan]
@@ -226,7 +226,7 @@ def render_quickstart() -> None:
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]driver[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_save --overwrite[/cyan]
 
-[bold]2. SoC with UART host[/bold]
+[dim]2. SoC with UART host[/dim]
 [orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top soc_uart --top soc[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top uart-master --load-as uart[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top gpio[/cyan]
@@ -236,7 +236,7 @@ def render_quickstart() -> None:
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_flist setup_tb[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sim view[/cyan]
 
-[bold]3. SoC with IBEX host[/bold]
+[dim]3. SoC with IBEX host[/dim]
 [orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top soc_ibex --top soc[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_ibex_fetch[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load --top uart[/cyan]
@@ -255,16 +255,16 @@ def render_tutorials() -> None:
     console.print(
         _section_panel(
             "Tutorials",
-            "Full IP workflow tutorials:\n"
+            "[dim]Full IP workflow tutorials:[/dim]\n"
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]full_tutorial[/cyan]\n\n"
-            "IP tutorials:\n"
+            "[dim]IP tutorials[/dim]:\n"
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_tutorial --top cache_wrapper[/cyan]\n"
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_tutorial --top fft_core[/cyan]\n"
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_tutorial --top spi_host[/cyan]\n"
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_tutorial --top pwm_ramp[/cyan]\n\n"
-            "FSM tutorial:\n"
+            "[dim]FSM tutorial:[/dim]\n"
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_tutorial --top fsm_example[/cyan]\n\n"
-            "SoC tutorials:\n"
+            "[dim]SoC tutorials:[/dim]\n"
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_pless[/cyan]\n"
             "  [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]soc_ibex_tutorial[/cyan]\n\n"
             "Tutorial targets generate complete example runs so you can inspect the "
@@ -290,41 +290,6 @@ def render_ip_guide() -> None:
 
 def render_fsm_development_guide() -> None:
     c = _console()
-    c.print(Panel.fit(
-        """[bold]FSM development guide[/bold]
-[orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top my_ip --top my_ip[/cyan]
-
-[dim]# 1) Prepare the IP run workspace[/dim]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]setup[/cyan]
-
-[dim]# 2) Create one FSM workspace inside the IP run[/dim]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_init[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
-
-[dim]# 3) Load an example FSM as a starting point[/dim]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_example_load[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
-
-[dim]# 4) Edit the FSM sources[/dim]
-[cyan]workspace/runs/my_ip/dev/fsms/rx_fsm/inputs/rx_fsm.txt[/cyan]
-[cyan]workspace/runs/my_ip/dev/fsms/rx_fsm/inputs/rx_fsm.csv[/cyan]
-
-[dim]# 5) Generate FSM artifacts[/dim]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_gen[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
-
-[dim]# 6) Install generated RTL/TB/GTKWave files into the IP run[/dim]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_install[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
-
-[dim]# 7) Simulate only the FSM testbench inside the IP run[/dim]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]flist sim[/cyan] [bold yellow]--top[/bold yellow] [cyan]rx_fsm[/cyan] [bold yellow]--run-top[/bold yellow] [cyan]my_ip[/cyan] [bold yellow]--run-id[/bold yellow] [cyan]dev[/cyan] [bold yellow]--workspace[/bold yellow] [cyan]workspace[/cyan] [dim]--[/dim] [cyan]TESTBENCH=rx_fsm_tb[/cyan]
-
-[dim]# 8) Optional: inspect the graph[/dim]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_plot[/cyan] [dim]--[/dim] [cyan]FSM=rx_fsm[/cyan]
-
-[dim]# 9) Repeat for more FSMs in the same IP[/dim]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_init fsm_gen fsm_install[/cyan] [dim]--[/dim] [cyan]FSM=tx_fsm[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]fsm_init fsm_gen fsm_install[/cyan] [dim]--[/dim] [cyan]FSM=ctrl_fsm[/cyan]""",
-        title="FSM development guide",
-        border_style="blue",
-    ))
     c.print(Panel.fit(
         """[bold]FSM development guide[/bold]
 [orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top my_ip --top my_ip[/cyan]
