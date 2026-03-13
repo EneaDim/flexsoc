@@ -4,15 +4,32 @@
 
 .PHONY: fsoc_init fsoc
 .PHONY: xbar xbar_init xbar_build
-.PHONY: soc soc_flist soc_flow soc_view
+.PHONY: soc soc_stage_tops soc_flist soc_flow soc_view
 .PHONY: soc_uart_gen soc_ibex_gen
 .PHONY: soc_sim soc_run sw_soc
 .PHONY: soc_uart_tutorial soc_ibex_fetch soc_ibex_tutorial
 
-PRJ    ?= flexsoc
-TARGET ?= default
-HOST   ?= uart
-SOC_CFG_MODE ?= builtin
+# -----------------------------------------------------------------------------
+# User-facing configuration
+# -----------------------------------------------------------------------------
+
+PRJ            ?= flexsoc
+TARGET         ?= default
+TOP            ?= soc
+HOST           ?= uart
+SOC_CFG_MODE   ?= builtin
+FUSESOC_TOOL   ?=
+SOC_CORE_VLNV  ?= enea:soc:main
+
+# -----------------------------------------------------------------------------
+# Run-local FuseSoC layout
+# Host-specific to avoid stale UART/IBEX reuse inside the same run.
+# -----------------------------------------------------------------------------
+
+FUSESOC_ROOT       ?= $(OUTROOT)/fusesoc/$(HOST)
+FUSESOC_CORES_ROOT ?= $(FUSESOC_ROOT)/cores
+FUSESOC_BUILD_ROOT ?= $(FUSESOC_ROOT)/build
+SOC_SIM_EXE        ?= $(FUSESOC_BUILD_ROOT)/sim-verilator/Vtop_verilator
 
 # -----------------------------------------------------------------------------
 # Tutorial defaults
@@ -34,49 +51,74 @@ soc_ibex_tutorial: RUN_ID ?= dev
 soc_ibex_tutorial: TOP ?= soc
 
 # -----------------------------------------------------------------------------
-# FuseSoC init for single IP
+# Internal guards
+# -----------------------------------------------------------------------------
+
+define _require_soc_run_vars
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	$(call _require_var,TOP)
+endef
+
+# -----------------------------------------------------------------------------
+# FuseSoC init for run-local SoC core
 # -----------------------------------------------------------------------------
 
 fsoc_init:
-	@echo "\n$(ORANGE)FuseSoC setup...\n$(RESET)"
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,TOP)
-	$(call _require_var,RUN_ID)
+	@echo "\n$(ORANGE)FuseSoC setup (run-local core generation)...\n$(RESET)"
+	$(call _require_soc_run_vars)
 	@set -eu; \
 	run_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
 	rtl_dir="$$run_dir/rtl"; \
 	lint_dir="$$run_dir/lint"; \
-	out_abs="$$run_dir"; \
-	mkdir -p "$$out_abs" "$$lint_dir"; \
-	out_rel="$$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$$out_abs" "$$(pwd)")"; \
+	cores_dir="$(FUSESOC_CORES_ROOT)"; \
+	mkdir -p "$$rtl_dir" "$$lint_dir" "$$cores_dir"; \
+	core_out="$$cores_dir"; \
+	core_rel="$$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$$core_out" "$$(pwd)")"; \
 	$(PYTHON) -m flexsoc.tools.setup_fsoc \
 		-prj "$(PRJ)" \
 		-top "$(TOP)" \
 		-rtldir "$$rtl_dir" \
 		-lintdir "$$lint_dir" \
-		-o "$$out_rel"; \
-	test -f "$$out_abs/$(TOP).core" || { \
-		echo "ERROR: expected core not generated: $$out_abs/$(TOP).core"; \
+		-o "$$core_rel"; \
+	test -f "$$core_out/$(TOP).core" || { \
+		echo "ERROR: expected core not generated: $$core_out/$(TOP).core"; \
 		exit 2; \
 	}; \
-	echo "Generated: $$out_abs/$(TOP).core"
-
-fsoc:
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,TOP)
-	$(call _require_var,RUN_ID)
-	@set -eu; \
-	cores_root="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/fusesoc"; \
-	$(FUSESOC) --cores-root="$$cores_root" run --target "$(TARGET)" "$(PRJ):ip:$(TOP)"
+	echo "Generated: $$core_out/$(TOP).core"
 
 # -----------------------------------------------------------------------------
-# XBAR / SoC generation
+# FuseSoC build/run entry
+# -----------------------------------------------------------------------------
+
+fsoc:
+	$(call _require_soc_run_vars)
+	@set -eu; \
+	tool_arg=""; \
+	mkdir -p "$(FUSESOC_CORES_ROOT)" "$(FUSESOC_BUILD_ROOT)"; \
+	if [ -n "$(strip $(FUSESOC_TOOL))" ]; then \
+		tool_arg="--tool $(FUSESOC_TOOL)"; \
+	fi; \
+	cd "$(FUSESOC_ROOT)"; \
+	$(FUSESOC) \
+		--cores-root="$(REPO_ROOT)" \
+		--cores-root="$(FUSESOC_CORES_ROOT)" \
+		run \
+		--target "$(TARGET)" \
+		$$tool_arg \
+		--build-root "$(FUSESOC_BUILD_ROOT)" \
+		"$(SOC_CORE_VLNV)"
+
+# -----------------------------------------------------------------------------
+# XBAR generation
 # -----------------------------------------------------------------------------
 
 xbar: xbar_init xbar_build
 
 xbar_init: soc_cfg
 	@echo "\n$(ORANGE)XBAR init (HOST=$(HOST)) ...\n$(RESET)"
+	$(call _require_soc_run_vars)
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR)
 	@cfg_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
 		--workspace $(WORKSPACE) \
@@ -89,6 +131,7 @@ xbar_init: soc_cfg
 
 xbar_build:
 	@echo "\n$(ORANGE)XBAR build ...\n$(RESET)"
+	$(call _require_soc_run_vars)
 	$(Q)$(MKDIR) -p $(DATADIR)/autogen $(RTLDIR)
 	$(Q)$(PYTHON) $(UTILROOT)/tlgen.py -t $(DATADIR)/xbar_main.hjson -o $(DATADIR)/autogen
 	@if [ -d "$(DATADIR)/autogen/rtl/autogen" ]; then \
@@ -104,8 +147,47 @@ xbar_build:
 		exit 2; \
 	fi
 
-soc: soc_cfg
-	@echo "\n$(ORANGE)SoC files building (HOST=$(HOST)) ...\n$(RESET)"
+# -----------------------------------------------------------------------------
+# Stage loaded IP top modules into SoC RTL dir
+#
+# Why:
+# - soc_gen validates that referenced module wrappers exist.
+# - loaded IPs live under $(OUTROOT)/ips/<ip>/rtl/<ip>.sv
+# - stage only the top wrapper <ip>.sv into $(RTLDIR)
+# -----------------------------------------------------------------------------
+
+soc_stage_tops:
+	@echo "\n$(ORANGE)Staging loaded IP top RTL wrappers into run rtl/ ...\n$(RESET)"
+	$(call _require_soc_run_vars)
+	$(Q)$(MKDIR) -p $(RTLDIR)
+	@set -eu; \
+	ips_root="$(OUTROOT)/ips"; \
+	if [ ! -d "$$ips_root" ]; then \
+		echo "INFO: no loaded IPs found under $$ips_root"; \
+		exit 0; \
+	fi; \
+	found_any=0; \
+	for ipdir in "$$ips_root"/*; do \
+		[ -d "$$ipdir" ] || continue; \
+		ipname="$$(basename "$$ipdir")"; \
+		src="$$ipdir/rtl/$$ipname.sv"; \
+		if [ -f "$$src" ]; then \
+			cp -f "$$src" "$(RTLDIR)/"; \
+			echo "Staged $$src -> $(RTLDIR)/"; \
+			found_any=1; \
+		fi; \
+	done; \
+	if [ "$$found_any" -eq 0 ]; then \
+		echo "INFO: no IP top wrappers staged from $$ips_root"; \
+	fi
+
+# -----------------------------------------------------------------------------
+# SoC RTL generation
+# -----------------------------------------------------------------------------
+
+soc: soc_stage_tops
+	@echo "\n$(ORANGE)SoC RTL generation (HOST=$(HOST)) ...\n$(RESET)"
+	$(call _require_soc_run_vars)
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR) $(TBDIR) $(SIMDIR)
 	@cfg_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
 		--workspace $(WORKSPACE) \
@@ -118,6 +200,7 @@ soc: soc_cfg
 
 soc_flist:
 	@echo "\n$(ORANGE)Generating SoC filelist ...\n$(RESET)"
+	$(call _require_soc_run_vars)
 	$(Q)$(PYTHON) -m flexsoc.tools.gen_filelist \
 		--soc \
 		--workspace $(WORKSPACE) \
@@ -126,7 +209,7 @@ soc_flist:
 		--top soc \
 		--out $(RTLDIR)/rtl_list.f
 
-soc_flow: xbar soc
+soc_flow: xbar soc soc_flist
 
 # -----------------------------------------------------------------------------
 # Host-specific wrappers
@@ -134,11 +217,11 @@ soc_flow: xbar soc
 
 soc_uart_gen: HOST := uart
 soc_uart_gen: SOC_CFG_MODE := builtin
-soc_uart_gen: xbar soc
+soc_uart_gen: xbar soc soc_flist
 
 soc_ibex_gen: HOST := ibex
 soc_ibex_gen: SOC_CFG_MODE := builtin
-soc_ibex_gen: xbar soc
+soc_ibex_gen: xbar soc soc_flist
 
 # -----------------------------------------------------------------------------
 # Software generation
@@ -158,36 +241,41 @@ sw_soc:
 # -----------------------------------------------------------------------------
 
 soc_sim:
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,RUN_TOP)
-	$(call _require_var,RUN_ID)
-	$(call _require_var,TOP)
-	@echo "\n$(ORANGE)Preparing SoC build (HOST=$(HOST)) ...\n$(RESET)"
+	$(call _require_soc_run_vars)
+	@echo "\n$(ORANGE)Preparing SoC simulation model (HOST=$(HOST)) ...\n$(RESET)"
 	$(Q)$(MAKE) xbar HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 	$(Q)$(MAKE) soc HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
-	@echo "\n$(ORANGE)SoC simulation model build with FuseSoC ...\n$(RESET)"
-	$(Q)$(FUSESOC) --cores-root=$(REPO_ROOT) run --target=sim --tool=verilator --setup --build enea:soc:main
+	$(Q)$(MAKE) fsoc_init \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP) \
+		PRJ=$(PRJ)
+	@echo "\n$(ORANGE)Building SoC simulation model with FuseSoC ...\n$(RESET)"
+	$(Q)$(MAKE) fsoc \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP) \
+		PRJ=$(PRJ) TARGET=sim FUSESOC_TOOL=verilator SOC_CORE_VLNV="$(SOC_CORE_VLNV)"
 
 soc_run:
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,RUN_TOP)
-	$(call _require_var,RUN_ID)
-	$(call _require_var,TOP)
+	$(call _require_soc_run_vars)
 	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
 	$(Q)$(MKDIR) -p $(OUTROOT)/sim
-	@if [ ! -x "$(REPO_ROOT)/flow/build/enea_soc_main_0/sim-verilator/Vtop_verilator" ]; then \
+	@if [ ! -x "$(SOC_SIM_EXE)" ]; then \
 		echo "\n$(ORANGE)Simulation model missing, building with soc_sim (HOST=$(HOST)) ...\n$(RESET)"; \
 		$(MAKE) soc_sim HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
 			WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP); \
 	fi
 	@echo "\n$(ORANGE)GCC compilation of SoC software ...\n$(RESET)"
 	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
-	@echo "\n$(ORANGE)Verilator run with automatic timeout...\n$(RESET)"
-	$(Q)cd $(OUTROOT)/sim && timeout $${SIM_TIMEOUT:-20}s \
-		$(REPO_ROOT)/flow/build/enea_soc_main_0/sim-verilator/Vtop_verilator \
-		-t -E ../sw/build/main.elf || test $$? -eq 124
+	@echo "\n$(ORANGE)Verilator run with automatic Ctrl-C timeout...\n$(RESET)"
+	@set -eu; \
+	rc=0; \
+	cd "$(OUTROOT)/sim"; \
+	timeout -s INT -k 5s $${SIM_TIMEOUT:-20}s \
+		"$(SOC_SIM_EXE)" \
+		-t -E ../sw/build/main.elf || rc=$$?; \
+	if [ "$$rc" -ne 0 ] && [ "$$rc" -ne 124 ] && [ "$$rc" -ne 130 ]; then \
+		exit "$$rc"; \
+	fi
 	$(Q)$(MAKE) soc_view WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) || true
 
 # -----------------------------------------------------------------------------
@@ -233,9 +321,9 @@ soc_uart_tutorial:
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 
 soc_ibex_fetch:
-	@echo "\n$(ORANGE)Fetch lowrisc ips ...\n$(RESET)"
+	@echo "\n$(ORANGE)Fetch lowRISC IPs ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
-	@echo "\n$(ORANGE)Fetch ibex ...\n$(RESET)"
+	@echo "\n$(ORANGE)Fetch Ibex ...\n$(RESET)"
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
 
 soc_ibex_tutorial: soc_ibex_fetch
