@@ -86,7 +86,8 @@ fsoc_init:
 		echo "ERROR: expected core not generated: $$core_out/$(TOP).core"; \
 		exit 2; \
 	}; \
-	echo "Generated: $$core_out/$(TOP).core"
+	echo "Generated: $$core_out/$(TOP).core"; \
+	echo "$(HOST)" > "$(FUSESOC_ROOT)/.host"
 
 # -----------------------------------------------------------------------------
 # FuseSoC build/run entry
@@ -257,22 +258,42 @@ soc_sim:
 
 soc_run:
 	$(call _require_soc_run_vars)
+	@echo "\n$(ORANGE)[soc_run] step 1/5: generate software sources ...\n$(RESET)"
 	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
+	@echo "\n$(ORANGE)[soc_run] step 2/5: ensure sim directory ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(OUTROOT)/sim
-	@if [ ! -x "$(SOC_SIM_EXE)" ]; then \
-		echo "\n$(ORANGE)Simulation model missing, building with soc_sim (HOST=$(HOST)) ...\n$(RESET)"; \
+	@echo "\n$(ORANGE)[soc_run] step 3/5: check simulation model ...\n$(RESET)"
+	@need_rebuild=0; \
+	host_stamp="$(FUSESOC_ROOT)/.host"; \
+	if [ ! -x "$(SOC_SIM_EXE)" ]; then \
+		need_rebuild=1; \
+	elif [ ! -f "$$host_stamp" ]; then \
+		need_rebuild=1; \
+	elif [ "$$(cat "$$host_stamp")" != "$(HOST)" ]; then \
+		need_rebuild=1; \
+	fi; \
+	if [ "$$need_rebuild" -eq 1 ]; then \
+		echo "\n$(ORANGE)Simulation model missing/stale, building with soc_sim (HOST=$(HOST)) ...\n$(RESET)"; \
 		$(MAKE) soc_sim HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
 			WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP); \
+	else \
+		echo "Using existing simulation model: $(SOC_SIM_EXE)"; \
 	fi
-	@echo "\n$(ORANGE)GCC compilation of SoC software ...\n$(RESET)"
+	@echo "\n$(ORANGE)[soc_run] step 4/5: compile software ...\n$(RESET)"
 	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
-	@echo "\n$(ORANGE)Verilator run with automatic Ctrl-C timeout...\n$(RESET)"
+	@echo "\n$(ORANGE)[soc_run] step 5/5: run simulator with automatic Ctrl-C timeout ...\n$(RESET)"
 	@set -eu; \
+	if ! command -v timeout >/dev/null 2>&1; then \
+		echo "ERROR: 'timeout' command not found in PATH"; \
+		exit 2; \
+	fi; \
 	rc=0; \
 	cd "$(OUTROOT)/sim"; \
-	timeout -s INT -k 5s $${SIM_TIMEOUT:-20}s \
+	echo "SIM_TIMEOUT=$${SIM_TIMEOUT:-20}s"; \
+	timeout --foreground -s INT -k 5s $${SIM_TIMEOUT:-20}s \
 		"$(SOC_SIM_EXE)" \
 		-t -E ../sw/build/main.elf || rc=$$?; \
+	echo "sim rc=$$rc"; \
 	if [ "$$rc" -ne 0 ] && [ "$$rc" -ne 124 ] && [ "$$rc" -ne 130 ]; then \
 		exit "$$rc"; \
 	fi
@@ -327,11 +348,10 @@ soc_ibex_fetch:
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
 
 soc_ibex_tutorial: soc_ibex_fetch
-	@echo "\n$(ORANGE)Loading IPs for IBEX-host SoC tutorial ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=spi_host
-	$(Q)$(MAKE) soc_run HOST=ibex SOC_CFG_MODE=builtin \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+	flexsoc use --ws workspace --run-id dev --run-top soc_ibex --top soc
+	$(Q)$(MAKE) ip_load TOP=uart-master LOAD_AS=uart
+	$(Q)$(MAKE) ip_load TOP=gpio
+	$(Q)$(MAKE) ip_load TOP=rv_timer
+	$(Q)$(MAKE) ip_load TOP=pwm
+	$(Q)$(MAKE) ip_load TOP=spi_host
+	$(Q)$(MAKE) xbar soc sw_soc soc_run HOST=ibex

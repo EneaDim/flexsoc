@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from ..state.workspace import RunRef
 from .manifest import update_runner_manifest, write_flow_manifest, write_run_manifest
 from .reporting import postprocess_action
 from .runner import BackendResult, MakeBackend
-from .workspace import RunRef
 
 log = logging.getLogger(__name__)
 

@@ -216,7 +216,7 @@ def render_quickstart() -> None:
         """[bold]Quickstart[/bold]
 
 [dim]1. Standalone IP flow[/dim]
-[orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top cache_wrapper --top cache_wrapper[/cyan]
+[orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top uart --top uart[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sim view[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]syn sdf sta power[/cyan]
@@ -275,7 +275,9 @@ def render_ip_guide() -> None:
     c.print(Panel.fit(
         """[bold]IP flow guide[/bold]
 [orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top my_ip --top my_ip[/cyan]
-[orange1]flexsoc[/orange1] [bold green]run[/bold green] [cyan]ip_start[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]hjson[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]reg doc[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]rtl_stub setup_tb[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sim view[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]syn sdf sta power[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]driver fsoc_init[/cyan]

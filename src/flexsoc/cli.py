@@ -1,13 +1,5 @@
 from __future__ import annotations
 
-# flexsoc CLI (rewritten, Ruff-clean)
-#
-# Contracts:
-# - `python -m flexsoc.cli` must work.
-# - stdout must remain clean for structured outputs (e.g. dump-registry).
-# - UI summaries must go to stderr (tests look for "Runner dir:" in stderr).
-# - Support shortcuts (?, h, q, t, ip) BEFORE Typer parses argv (because '?' breaks Typer parsing).
-
 import json
 import logging
 import os
@@ -24,12 +16,12 @@ from rich.table import Table
 from rich.text import Text
 from typer.core import TyperGroup
 
-from .clean import clean_all, clean_pycache, clean_run, clean_workspace
+from .state.clean import clean_all, clean_pycache, clean_run, clean_workspace
 from .config import default_workspace
-from .context import clear_context, load_context, resolve_context, save_context
-from .doctor import run_doctor
-from .executor import execute_action
-from .helptext import (
+from .state.context import clear_context, load_context, resolve_context, save_context
+from .diagnostics.doctor import run_doctor
+from .runtime.executor import execute_action
+from .presentation.helptext import (
     render_detailed_help,
     render_fsm_development_guide,
     render_help_overview,
@@ -38,16 +30,16 @@ from .helptext import (
     render_quickstart,
     render_tutorials,
 )
-from .manifest import read_run_history
-from .orchestration import InvocationSpec, run_orchestrated
-from .planning import (
+from .runtime.manifest import read_run_history
+from .runtime.orchestration import InvocationSpec, run_orchestrated
+from .catalog.planning import (
     load_registry,
     naive_intent_to_plan,
     read_plan_json,
     validate_plan,
     write_plan_json,
 )
-from .ui import (
+from .presentation.ui import (
     print_actions_table,
     print_help_topics,
     print_hub,
@@ -55,7 +47,7 @@ from .ui import (
     print_runner_summary,
     running_status,
 )
-from .workspace import resolve_run_ref
+from .state.workspace import resolve_run_ref
 
 log = logging.getLogger(__name__)
 
@@ -174,15 +166,15 @@ def _safe_registry() -> dict[str, Any]:
         _fail(str(e))
         raise
 
+
 def _setup_logging() -> None:
-    """Always log to stderr so stdout remains clean for machine-readable outputs."""
     level_s = os.environ.get("FLEXSOC_LOG_LEVEL", "").strip().upper()
     level = getattr(logging, level_s, logging.INFO) if level_s else logging.INFO
     logging.basicConfig(level=level, format="%(levelname)s: %(message)s", stream=sys.stderr)
 
 
 def _registry_path() -> Path:
-    return Path(__file__).resolve().parent / "registry.yaml"
+    return Path(__file__).resolve().parent / "catalog" / "registry.yaml"
 
 
 def _registry() -> dict[str, Any]:
@@ -190,7 +182,6 @@ def _registry() -> dict[str, Any]:
 
 
 def _repo_root() -> Path:
-    # src/flexsoc/cli.py -> repo root = parents[2]
     return Path(__file__).resolve().parents[2]
 
 
@@ -213,7 +204,6 @@ def _validate_run_lookup_inputs(run_top: Optional[str], run_id: Optional[str]) -
 
 
 def _early_shortcuts() -> bool:
-    """Handle ?,h,q,t,ip before Typer parsing (required because '?' breaks parsing)."""
     argv = sys.argv[1:]
     if not argv:
         return False
@@ -456,7 +446,6 @@ def _common_make_vars(
     overwrite: bool,
     force: bool,
 ) -> dict[str, str]:
-    """Build canonical Make variables shared by `run` and `make`."""
     make_vars: dict[str, str] = {
         "WORKSPACE": str(workspace.resolve()),
     }
@@ -477,14 +466,6 @@ def _split_make_targets_and_passthrough(
     initial_targets: list[str],
     extra_args: list[str],
 ) -> tuple[list[str], dict[str, str], list[str]]:
-    """
-    Split user input for `flexsoc make` into:
-    - ordered make targets
-    - KEY=VALUE make variable overrides
-    - passthrough option-like args
-
-    KEY=VALUE tokens must never become targets.
-    """
     targets: list[str] = []
     override_vars: dict[str, str] = {}
     passthrough: list[str] = []
@@ -510,6 +491,7 @@ def _split_make_targets_and_passthrough(
         consume(arg)
 
     return targets, override_vars, passthrough
+
 
 def _flow_run_dir_preview(
     *,
@@ -553,7 +535,6 @@ def _build_make_cmd_preview(
 
 
 def _make_list_targets(flow_dir: Path) -> list[str]:
-    """Best-effort user-facing target discovery via `make -qp`."""
     proc = subprocess.run(
         ["make", "-C", str(flow_dir), "-qp"],
         capture_output=True,
@@ -653,11 +634,7 @@ def _make_list_targets(flow_dir: Path) -> list[str]:
     ]
     preferred_rank = {name: i for i, name in enumerate(preferred_order)}
 
-    targets = [
-        t
-        for t in raw_targets
-        if t not in blacklist and not t.isupper()
-    ]
+    targets = [t for t in raw_targets if t not in blacklist and not t.isupper()]
     return sorted(set(targets), key=lambda t: (preferred_rank.get(t, 9999), t))
 
 
@@ -787,6 +764,7 @@ def help_fs_guide_alias() -> None:
     _setup_logging()
     render_fsm_development_guide()
 
+
 @app.command("hd", help="Show the detailed help page.", rich_help_panel="Advanced / docs")
 def help_detailed_alias() -> None:
     _setup_logging()
@@ -874,7 +852,6 @@ def clean_all_cmd(
 
 @app.command("dump-registry", help="Emit the action registry as JSON.", rich_help_panel="Advanced / machine-readable")
 def dump_registry_cmd() -> None:
-    """Pure JSON to stdout, no UI."""
     _setup_logging()
     try:
         _emit_json_stdout(_safe_registry())
@@ -882,6 +859,7 @@ def dump_registry_cmd() -> None:
         raise
     except Exception as e:
         _fail(str(e))
+
 
 @app.command("actions", help="List available registry actions.", rich_help_panel="Discovery / introspection")
 def actions_cmd() -> None:
@@ -1081,11 +1059,7 @@ def make_cmd(
     run_top: Optional[str] = typer.Option(None, "--run-top"),
     run_id: Optional[str] = typer.Option(None, "--run-id"),
     reg_itf: Optional[str] = typer.Option(None, "--reg-itf"),
-    load_as: Optional[str] = typer.Option(
-        None,
-        "--load-as",
-        help="Rename destination folder when loading an IP into a run",
-    ),
+    load_as: Optional[str] = typer.Option(None, "--load-as", help="Rename destination folder when loading an IP into a run"),
     overwrite: bool = typer.Option(False, "--overwrite"),
     force: bool = typer.Option(False, "--force", help="Alias for --overwrite"),
 ) -> None:
@@ -1131,11 +1105,7 @@ def make_cmd(
                 typer.echo(f"  {idx:>2}. {name}")
             typer.echo("")
 
-            choice = typer.prompt(
-                "Select target number (empty to quit)",
-                default="",
-                show_default=False,
-            ).strip()
+            choice = typer.prompt("Select target number (empty to quit)", default="", show_default=False).strip()
             if not choice:
                 raise typer.Exit(0)
             if not choice.isdigit():
@@ -1187,8 +1157,7 @@ def make_cmd(
                 label=f"make {target}",
                 exit_code=orchestrated.backend.exit_code,
                 runner_dir=orchestrated.backend.run_dir,
-                flow_dir=orchestrated.flow_run_dir
-                or _flow_run_dir_preview(
+                flow_dir=orchestrated.flow_run_dir or _flow_run_dir_preview(
                     workspace=ws,
                     top=make_vars.get("TOP"),
                     run_top=make_vars.get("RUN_TOP"),

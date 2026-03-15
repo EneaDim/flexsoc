@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from .workspace import RunRef
+from ..state.workspace import RunRef
 
 
 def _cmd_first_line(cmd: list[str]) -> str:

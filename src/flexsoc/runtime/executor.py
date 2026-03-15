@@ -6,9 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from ..catalog.registry import load_registry
+from ..state.workspace import resolve_run_ref
 from .orchestration import InvocationSpec, run_orchestrated
-from .registry import load_registry
-from .workspace import resolve_run_ref
 
 log = logging.getLogger(__name__)
 
@@ -117,17 +117,6 @@ def execute_action(
     if effective_run_id:
         cmd.append(f"RUN_ID={effective_run_id}")
     cmd.extend(_normalize_make_vars_from_params(params))
-
-    log.debug(
-        "execute_action: action=%s ws=%s top=%s run_top=%s run_id=%s meta=%s",
-        action,
-        ws_abs,
-        top,
-        run_top,
-        effective_run_id,
-        meta,
-    )
-    log.debug("execute_action: cmd=%s", " ".join(str(x) for x in cmd))
 
     manifest_top = top or run_top
 

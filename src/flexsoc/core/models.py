@@ -1,5 +1,5 @@
 from __future__ import annotations
 
-from ..workspace import RunRef
+from ..state.workspace import RunRef
 
 __all__ = ["RunRef"]

@@ -1,16 +1,16 @@
 # Root development Makefile
 #
-# This Makefile is for repository-level developer tasks:
-# - help / welcome
+# Repository-level developer tasks only:
+# - help / install
 # - lint / fix
 # - tests
-# - clean Python caches and local build artifacts
+# - cleanup of Python caches and local/generated artifacts
 #
-# Flow execution stays available through explicit flow-* targets.
+# Flow execution remains available through explicit flow-* usage or the CLI.
 
 .DEFAULT_GOAL := help
 
-.PHONY: help lint fix test check clean clean-py clean-build clean-all
+.PHONY: help install lint fix test check clean clean-py clean-build clean-all
 
 PYTHON ?= python3
 RUFF ?= ruff
@@ -28,7 +28,7 @@ help:
 	@echo "  make fix         Run Ruff with --fix"
 	@echo "  make test        Run pytest"
 	@echo "  make check       Run lint + test"
-	@echo "  make clean       Remove Python caches and local build artifacts"
+	@echo "  make clean       Remove Python caches and local/generated build artifacts"
 	@echo
 
 install:
@@ -64,8 +64,8 @@ clean-build:
 	@echo ">> Removing local build artifacts"
 	@find . -type d -name "*.egg-info" -prune -exec rm -rf {} +
 	@rm -rf build dist .coverage htmlcov
+	@rm -rf flow/build
 
 clean-all: clean
 	@echo ">> Removing workspace artifacts"
 	@rm -rf workspace
-

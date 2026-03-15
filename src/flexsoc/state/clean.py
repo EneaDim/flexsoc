@@ -8,7 +8,7 @@ from typing import Optional
 
 def _repo_root() -> Path:
     # src/flexsoc/clean.py -> repo root is parents[2]
-    return Path(__file__).resolve().parents[2]
+    return Path(__file__).resolve().parents[3]
 
 
 def _safe_rmtree(p: Path) -> None:
