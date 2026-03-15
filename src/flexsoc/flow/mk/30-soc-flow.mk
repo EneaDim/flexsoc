@@ -348,10 +348,11 @@ soc_ibex_fetch:
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
 
 soc_ibex_tutorial: soc_ibex_fetch
-	flexsoc use --ws workspace --run-id dev --run-top soc_ibex --top soc
-	$(Q)$(MAKE) ip_load TOP=uart-master LOAD_AS=uart
-	$(Q)$(MAKE) ip_load TOP=gpio
-	$(Q)$(MAKE) ip_load TOP=rv_timer
-	$(Q)$(MAKE) ip_load TOP=pwm
-	$(Q)$(MAKE) ip_load TOP=spi_host
-	$(Q)$(MAKE) xbar soc sw_soc soc_run HOST=ibex
+	@echo "\n$(ORANGE)Loading IPs for IBEX-host SoC tutorial ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=spi_host
+	$(Q)$(MAKE) soc_run HOST=ibex SOC_CFG_MODE=builtin \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
