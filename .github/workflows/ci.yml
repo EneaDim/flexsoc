@@ -82,37 +82,30 @@ jobs:
           .venv/bin/python -m pip install -r requirements-ci.txt
           .venv/bin/python -m pip install -r requirements-flow.txt
 
-      - name: Debug doctor implementation
+      - name: Expose virtualenv on PATH for all following steps
+        run: |
+          echo "${GITHUB_WORKSPACE}/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Python resolution
         shell: bash
         run: |
           set -euo pipefail
-          echo "HEAD SHA: ${GITHUB_SHA}"
-          python3 - <<'PY2'
-          from pathlib import Path
-          p = Path("src/flexsoc/diagnostics/doctor.py")
-          print("doctor.py exists:", p.exists())
-          text = p.read_text(encoding="utf-8")
-          for needle in [
-              "sys.stdout.write",
-              "expected in full_output",
-              '"gtkwave"',
-              "not found in PATH or known install locations",
-          ]:
-              print(f"{needle!r} ->", needle in text)
-          PY2
-          echo "--- gtkwave probes ---"
-          which gtkwave || true
-          gtkwave --version || true
-          gtkwave -V || true
+          which python
+          which python3
+          python --version
+          python3 --version
+          python -c "import typer, hjson; print('venv imports OK')"
 
       - name: Run doctor
         run: |
-          .venv/bin/python -m flexsoc.cli doctor --json
+          python -m flexsoc.cli doctor --json
 
       - name: Run Ruff
         run: |
-          .venv/bin/python -m ruff check .
+          python -m ruff check .
 
       - name: Run tests
+        env:
+          VIRTUAL_ENV: ${{ github.workspace }}/.venv
         run: |
-          .venv/bin/python -m pytest -q
+          python -m pytest -q

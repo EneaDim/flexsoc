@@ -16,7 +16,7 @@ help:
 	@echo "$(RESET)"
 
 help_ip:
-	@echo "$(ORANGE)flexsoc IP flow flexsoc help moved to the CLI.$(RESET)"
+	@echo "$(ORANGE)flexsoc IP flow help moved to the CLI.$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.cli ip
 
 help_soc:
