@@ -17,10 +17,11 @@ jobs:
 
     env:
       PYTHONPATH: src
-      FLEXSOC_EXPECT_VERILATOR: "Verilator 5.043"
-      FLEXSOC_EXPECT_SV2V: "sv2v v0.0.13-5-gc1ce7d0"
-      FLEXSOC_EXPECT_YOSYS: "Yosys 0.58"
-      FLEXSOC_EXPECT_OPENROAD: "v2.0-26328-gd6e98657f1"
+      PATH: /usr/local/OpenROAD/bin:/opt/riscv32/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      FLEXSOC_EXPECT_VERILATOR: "Verilator 5.036"
+      FLEXSOC_EXPECT_SV2V: "sv2v v0.0.13-3-g80a2f0c"
+      FLEXSOC_EXPECT_YOSYS: "Yosys 0.57+218"
+      FLEXSOC_EXPECT_OPENROAD: "v2.0-24945-g9103e99444"
       FLEXSOC_EXPECT_OPENSTA: "2.7.0"
       FLEXSOC_EXPECT_IVERILOG: "Icarus Verilog version 12.0"
       FLEXSOC_EXPECT_GTKWAVE: "GTKWave Analyzer v3.3.116"
@@ -30,13 +31,33 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Show toolchain versions
+        shell: bash
         run: |
+          set -euo pipefail
+
           python3 --version
           verilator --version
           sv2v --version
           yosys -V
-          openroad -version
-          sta -version
+
+          if command -v openroad >/dev/null 2>&1; then
+            openroad -version
+          elif [ -x /usr/local/OpenROAD/bin/openroad ]; then
+            /usr/local/OpenROAD/bin/openroad -version
+          else
+            echo "openroad not found"
+            exit 127
+          fi
+
+          if command -v sta >/dev/null 2>&1; then
+            sta -version
+          elif [ -x /usr/local/OpenROAD/bin/sta ]; then
+            /usr/local/OpenROAD/bin/sta -version
+          else
+            echo "sta not found"
+            exit 127
+          fi
+
           iverilog -V | head -n 1
           gtkwave --version
           riscv32-unknown-elf-gcc --version | head -n 1
