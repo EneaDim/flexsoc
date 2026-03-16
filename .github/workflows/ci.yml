@@ -59,7 +59,7 @@ jobs:
           fi
 
           iverilog -V | head -n 1
-          gtkwave --version
+          gtkwave --version || gtkwave -V || true
 
           if command -v riscv32-unknown-elf-gcc >/dev/null 2>&1; then
             riscv32-unknown-elf-gcc --version | head -n 1
@@ -81,6 +81,29 @@ jobs:
         run: |
           .venv/bin/python -m pip install -r requirements-ci.txt
           .venv/bin/python -m pip install -r requirements-flow.txt
+
+      - name: Debug doctor implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "HEAD SHA: ${GITHUB_SHA}"
+          python3 - <<'PY2'
+          from pathlib import Path
+          p = Path("src/flexsoc/diagnostics/doctor.py")
+          print("doctor.py exists:", p.exists())
+          text = p.read_text(encoding="utf-8")
+          for needle in [
+              "sys.stdout.write",
+              "expected in full_output",
+              '"gtkwave"',
+              "not found in PATH or known install locations",
+          ]:
+              print(f"{needle!r} ->", needle in text)
+          PY2
+          echo "--- gtkwave probes ---"
+          which gtkwave || true
+          gtkwave --version || true
+          gtkwave -V || true
 
       - name: Run doctor
         run: |
