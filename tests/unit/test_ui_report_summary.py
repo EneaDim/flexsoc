@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from flexsoc.ui import print_runner_summary
+from flexsoc.presentation.ui import print_runner_summary
 
 
 def test_print_runner_summary_includes_report_when_present(tmp_path: Path, capsys):

@@ -1,8 +1,7 @@
-from pathlib import Path
-import yaml
+from flexsoc.catalog.registry import load_registry
+
 
 def test_registry_loads():
-    reg_path = Path("src/flexsoc/registry.yaml")
-    data = yaml.safe_load(reg_path.read_text(encoding="utf-8"))
+    data = load_registry()
     assert "actions" in data
     assert "lint" in data["actions"]

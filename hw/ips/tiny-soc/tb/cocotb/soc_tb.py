@@ -72,8 +72,6 @@ async def test_uart_program_soc(dut):
     # ---- indirizzi di esempio (adatta ai tuoi reali) ----
     UART_BASE     = 0x8000_0000
     PWM_BASE      = 0x8002_0000
-    GPIO_BASE     = 0x8004_0000
-    TIMER_BASE    = 0x8006_0000
 
     UART_CTRL_OFF = 0x0000_0000
     PWM_CFG_OFF   = 0x0000_0000

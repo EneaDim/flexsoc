@@ -4,9 +4,9 @@ import json
 import sys
 from pathlib import Path
 
-from flexsoc.manifest import read_run_manifest
-from flexsoc.orchestration import InvocationSpec, run_orchestrated
-from flexsoc.workspace import resolve_run_ref
+from flexsoc.runtime.manifest import read_run_manifest
+from flexsoc.runtime.orchestration import InvocationSpec, run_orchestrated
+from flexsoc.state.workspace import resolve_run_ref
 
 
 def test_run_orchestrated_writes_runner_and_flow_artifacts(tmp_path: Path):

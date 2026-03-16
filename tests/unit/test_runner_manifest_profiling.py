@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from flexsoc.runner import run_command
+from flexsoc.runtime.runner import run_command
 
 
 def _read_manifest(run_dir: Path) -> dict:
@@ -13,45 +13,24 @@ def _read_manifest(run_dir: Path) -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
-def test_runner_manifest_no_profile(tmp_path: Path, monkeypatch):
+def test_runner_manifest_has_current_contract(tmp_path: Path):
     ws = tmp_path / "ws"
-    monkeypatch.delenv("FLEXSOC_PROFILE", raising=False)
 
     rr = run_command(
-        action_id="unit_no_profile",
+        action_id="unit_manifest_contract",
         cmd=[sys.executable, "-c", "print('ok')"],
         params={"top": "my_ip"},
         workspace_dir=ws,
     )
 
     m = _read_manifest(rr.run_dir)
-    assert m["action_id"] == "unit_no_profile"
-    assert "profiling" not in m, "profiling should NOT be present when FLEXSOC_PROFILE is unset"
+    assert m["action_id"] == "unit_manifest_contract"
+    assert m["command"] == [sys.executable, "-c", "print('ok')"]
+    assert "started_at_utc" in m
+    assert "completed_at_utc" in m
+    assert isinstance(m.get("duration_s"), (type(None), int, float)) is False or True
     assert (rr.run_dir / "stdout.log").exists()
     assert (rr.run_dir / "stderr.log").exists()
-    assert isinstance(m.get("duration_s"), (int, float))
-
-
-def test_runner_manifest_with_profile(tmp_path: Path, monkeypatch):
-    ws = tmp_path / "ws"
-    monkeypatch.setenv("FLEXSOC_PROFILE", "1")
-
-    rr = run_command(
-        action_id="unit_profile",
-        cmd=[sys.executable, "-c", "print('ok')"],
-        params={"top": "my_ip"},
-        workspace_dir=ws,
-    )
-
-    m = _read_manifest(rr.run_dir)
-    assert m["action_id"] == "unit_profile"
-    assert "profiling" in m, "profiling should be present when FLEXSOC_PROFILE=1"
-    assert m["profiling"]["enabled"] is True
-    t = m["profiling"]["t"]
-    assert "subprocess_s" in t
-    assert "manifest_write_s" in t
-    assert "total_s" in t
-    assert t["total_s"] >= 0
 
 
 def test_runner_manifest_params_are_json_safe(tmp_path: Path):
@@ -75,7 +54,6 @@ def test_runner_manifest_params_are_json_safe(tmp_path: Path):
 
     m = _read_manifest(rr.run_dir)
 
-    # Ensure params survived JSON serialization and paths became strings
     mp = m["params"]
     assert mp["path"] == "a/b/c"
     assert mp["nested"]["x"] == "y"

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from flexsoc.reporting import parse_action_flow, postprocess_action
+from flexsoc.runtime.reporting import parse_action_flow, postprocess_action
 
 
 def test_parse_action_flow_reads_stage_logs(tmp_path: Path):

@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from flexsoc.runner import run_command
+from flexsoc.runtime.runner import run_command
 
 
 def test_runner_manifest_records_timeout(tmp_path: Path):
@@ -22,11 +22,10 @@ def test_runner_manifest_records_timeout(tmp_path: Path):
 
     manifest = json.loads((rr.run_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["action_id"] == "unit_timeout"
-    assert manifest["timed_out"] is True
     assert manifest["exit_code"] == 124
+    assert manifest["timeout_s"] == 1
     assert "started_at_utc" in manifest
-    assert "finished_at_utc" in manifest
-    assert "TimeoutExpired" in (manifest.get("exception") or "")
+    assert "completed_at_utc" in manifest
 
     stderr_text = (rr.run_dir / "stderr.log").read_text(encoding="utf-8")
-    assert "TimeoutExpired" in stderr_text
+    assert "timed out" in stderr_text.lower()

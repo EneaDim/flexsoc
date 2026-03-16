@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from flexsoc.runner import MakeBackend
+from flexsoc.runtime.runner import MakeBackend
 
 
 def test_make_backend_creates_logs_and_manifest(tmp_path: Path):
@@ -19,8 +19,8 @@ def test_make_backend_creates_logs_and_manifest(tmp_path: Path):
     )
 
     assert br.run_dir.exists()
-    assert br.stdout_log.exists()
-    assert br.stderr_log.exists()
+    assert br.stdout_path.exists()
+    assert br.stderr_path.exists()
 
     manifest_path = br.run_dir / "manifest.json"
     assert manifest_path.exists()
@@ -28,3 +28,4 @@ def test_make_backend_creates_logs_and_manifest(tmp_path: Path):
     m = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert m["action_id"] == "unit_backend"
     assert m["exit_code"] == 0
+    assert m["command"] == [sys.executable, "-c", "print('hello')"]
