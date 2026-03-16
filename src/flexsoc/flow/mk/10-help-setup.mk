@@ -16,15 +16,15 @@ help:
 	@echo "$(RESET)"
 
 help_ip:
-	@echo "$(ORANGE)IP flow help moved to the CLI.$(RESET)"
+	@echo "$(ORANGE)flexsoc IP flow flexsoc help moved to the CLI.$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.cli ip
 
 help_soc:
-	@echo "$(ORANGE)SoC/help topics moved to the CLI.$(RESET)"
+	@echo "$(ORANGE)flexsoc SoC/help topics moved to the CLI.$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.cli help topics
 
 help_doc:
-	@echo "$(ORANGE)Documentation/help overview moved to the CLI.$(RESET)"
+	@echo "$(ORANGE)flexsoc documentation/help overview moved to the CLI.$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.cli help overview
 
 help_fsm:
