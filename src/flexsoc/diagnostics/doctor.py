@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import asdict, dataclass
@@ -38,6 +39,27 @@ def _check_import(module_name: str, label: str) -> Check:
         return Check(label, False, f"{type(e).__name__}: {e}")
 
 
+def _find_openroad() -> str | None:
+    path = shutil.which("openroad")
+    if path:
+        return path
+
+    candidates = [
+        "/usr/local/bin/openroad",
+        "/usr/bin/openroad",
+        "/usr/local/OpenROAD/bin/openroad",
+        "/root/openroad/build/src/openroad",
+        "/root/openroad/src/openroad",
+        "/opt/openroad/bin/openroad",
+    ]
+
+    for c in candidates:
+        if os.path.exists(c) and os.access(c, os.X_OK):
+            return c
+
+    return None
+
+
 def collect_doctor_checks() -> List[Check]:
     checks: List[Check] = []
 
@@ -68,7 +90,6 @@ def collect_doctor_checks() -> List[Check]:
     for tool, ver_cmd in [
         ("verilator", ["verilator", "--version"]),
         ("yosys", ["yosys", "-V"]),
-        ("openroad", ["openroad", "-version"]),
         ("sv2v", ["sv2v", "--version"]),
     ]:
         path = _which(tool)
@@ -77,6 +98,13 @@ def collect_doctor_checks() -> List[Check]:
             continue
         ok, detail = _run_version(ver_cmd)
         checks.append(Check(tool, ok, detail))
+
+    openroad_path = _find_openroad()
+    if not openroad_path:
+        checks.append(Check("openroad", False, "not found in PATH or known locations"))
+    else:
+        ok, detail = _run_version([openroad_path, "-version"])
+        checks.append(Check("openroad", ok, detail))
 
     return checks
 
