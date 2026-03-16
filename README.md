@@ -24,52 +24,45 @@ The goal is simple:
 
 ------------------------------------------------------------------------
 
-# 🚀 What flexsoc enables
+# 🚀 What FlexSoC Enables
 
-With `flexsoc` you can manage the entire lifecycle of digital IPs and
-SoCs:
+With **FlexSoC**, you can manage the full lifecycle of digital IPs and SoCs:
 
-🧩 IP development\
-🧪 simulation and verification\
-📋 register-map generation\
-🧰 testbench scaffolding\
-⚙️ synthesis\
-📊 static timing analysis\
-🔋 power analysis\
-🏗 place & route\
-🔗 SoC integration\
-🧠 crossbar / interconnect generation
+* 🧩 **IP development**
+* 📋 **Register-map generation**
+* 🧰 **Testbench scaffolding**
+* 🧪 **Simulation and verification**
+* ⚙️ **Synthesis**
+* 📊 **Static timing analysis**
+* 🔋 **Power analysis**
+* 🏗 **Place & route**
+* 🧠 **Crossbar / interconnect generation**
+* 🔗 **SoC integration**
 
-All using **a single coherent development model**.
+All within **a single coherent development model**.
 
 ------------------------------------------------------------------------
 
 # 🎯 Project Objectives
 
-FlexSoC was created to solve a common problem in hardware development:
+FlexSoC was created to address a common challenge in hardware development:
 **tool fragmentation and fragile project setups**.
 
-Its objectives are:
+Its goals are to:
 
-• Enable digital designers to **develop, document, validate and
-integrate IPs** with minimal setup and focus on the core logic.
+* Enable digital designers to **develop, document, validate, and integrate IPs** with minimal setup, allowing them to focus on the core logic.
 
-• Make **open‑source EDA tools** practical and usable for real‑world
-hardware development.
+* Make **open-source EDA tools** practical and usable for real-world hardware development.
 
-• Provide a seamless **integration path into SoCs**, including systems
-based on the **lowRISC ecosystem**.
+* Provide a smooth **integration path into SoCs**, including systems based on the **lowRISC ecosystem**.
 
-• Serve as a launchpad for **future IP contributions to the lowRISC
-ecosystem**, following its Comportable IP principles and tooling flow.
+* Serve as a launchpad for **future IP contributions to the lowRISC ecosystem**, following its Comportable IP principles and tooling flow.
 
-• Experiment with **natural‑language‑driven hardware workflows**, while
-keeping execution deterministic through Makefile flows.
+* Explore **natural-language-assisted hardware workflows**, while maintaining deterministic execution through Makefile-based flows.
 
-In short:
+---
 
-> FlexSoC aims to bridge **structured hardware engineering** and
-> **modern developer workflows**.
+> **FlexSoC bridges structured hardware engineering with modern developer workflows.**
 
 ------------------------------------------------------------------------
 
@@ -134,18 +127,20 @@ without changing tools.
 
 ------------------------------------------------------------------------
 
-# 🌟 Key features
+# 🌟 Key Features
 
-✨ Python CLI (Typer-style UX)
-📦 workspace-based execution model
-📜 action registry system
-📊 run manifests and reports
-📁 deterministic directory structure
-⚡ Make-based flow backend
-🧩 automatic SoC generation tools
-🔗 FuseSoC integration
-🧪 Verilator simulation support
-🧰 open-source EDA compatibility
+FlexSoC provides a modern and structured hardware development workflow:
+
+* ✨ **Python CLI** with a Typer-style user experience
+* 📦 **Workspace-based execution model**
+* 📜 **Action registry system** for extensible flows
+* 📊 **Run manifests and reports** for reproducibility
+* 📁 **Deterministic directory structure**
+* ⚡ **Make-based flow backend**
+* 🧩 **Automatic SoC generation tools**
+* 🔗 **FuseSoC integration**
+* 🧪 **Verilator simulation support**
+* 🧰 **Compatibility with open-source EDA tools**
 
 ------------------------------------------------------------------------
 

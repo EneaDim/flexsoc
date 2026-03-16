@@ -218,7 +218,7 @@ def render_quickstart() -> None:
 [dim]1. Standalone IP flow[/dim]
 [orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top uart --top uart[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_load[/cyan]
-[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sim view[/cyan]
+[orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]flist sim view[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]syn sdf sta power[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]driver fsoc_init[/cyan]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_save --overwrite[/cyan]
