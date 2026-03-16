@@ -195,7 +195,7 @@ ip_tutorial:
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
-	$(Q)$(MAKE) sim syn sdf sta sta_violators power view \
+	$(Q)$(MAKE) flist sim syn sdf sta sta_violators power view \
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 
@@ -203,6 +203,6 @@ soc_pless:
 	$(Q)$(MAKE) ip_load \
 		TOP=tiny-soc RUN_TOP=tiny-soc \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-	$(Q)$(MAKE) sim syn sdf sta power view \
+	$(Q)$(MAKE) flist sim syn sdf sta power view \
 		TOP=soc RUN_TOP=tiny-soc \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
