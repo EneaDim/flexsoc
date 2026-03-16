@@ -69,17 +69,17 @@ def add_cell_to_path(_standardCell, tempCriticalPath):
     flag = False
     for iterationCell in tempCriticalPath:
         if _standardCell.id == iterationCell.id:
-            flag == True
+            flag = True
             pinFlag = False
             for pin in iterationCell.pins:
                 if pin.name == _standardCell.pins[0].name:
                     pinFlag = True
                     return pin.net
-            if pinFlag == False:
+            if not pinFlag:
                 iterationCell.pins.append(copy.deepcopy(_standardCell.pins[0]))
             return copy.copy(_standardCell.pins[0].net)
 
-    if flag == False:
+    if not flag:
         tempCriticalPath.append(copy.deepcopy(_standardCell))
     return copy.copy(_standardCell.pins[0].net)
 
@@ -91,10 +91,10 @@ def add_pin_to_blackbox_cell(pin, cell):
     flag = False
     for iterationPin in cell.pins:
         if pin.name == iterationPin.name:
-            flag == True
+            flag = True
             return
 
-    if flag == False:
+    if not flag:
         tempPin = Pin(copy.deepcopy(pin.name), "", copy.deepcopy(pin.type))
         cell.pins.append(copy.deepcopy(tempPin))
     return
@@ -104,13 +104,13 @@ def add_blackbox_cell(_standardCell):
     flag = False
     for iterationCell in blackboxCells:
         if _standardCell.name == iterationCell.name:
-            flag == True
+            flag = True
             # take care of deep copy
             for pin in _standardCell.pins:
                 add_pin_to_blackbox_cell(pin, iterationCell)
             return
 
-    if flag == False:
+    if not flag:
         blackboxCells.append(copy.deepcopy(_standardCell))
     return
 
@@ -297,7 +297,6 @@ def buildPath(groups, tempPathDelays, tempNetDelays,tempCriticalPath, wire = 0, 
             
             cellName = re.search(r'\((.*?)\)', criticalPathCell[0]).group(1)                    # extract the cell name "standard cell name"
             cellId = re.search(r'^(.*)/', criticalPathCell[0]).group(1)                         # extract the cell id "local naming"
-            cellIdAndInputPin =  re.search(r'\s*(.*?)\s*\(', criticalPathCell[0]).group(0)      # extract the cell id and input pin name
             inputPinName =  re.search(r'/([^/]+)\s*\(', criticalPathCell[0]).group(1)           # extract the input pin name
             inputPinName = inputPinName.strip()                                                 # remove leading and trailing spaces
             inputPinNumbers = re.findall(r'\d+\.\d+', criticalPathCell[0])                      # extract all the input report numbers
@@ -318,7 +317,6 @@ def buildPath(groups, tempPathDelays, tempNetDelays,tempCriticalPath, wire = 0, 
             _net = add_cell_to_path(_InputStandardCell, tempCriticalPath)
             
             
-            cellIdAndOutputPin = re.search(r'\s*(.*?)\s*\(', criticalPathCell[1]).group(1)
             outputPinName =  re.search(r'/([^/]+)\s*\(', criticalPathCell[1]).group(1)
             outputPinName = outputPinName.strip()
             outputPinNumbers = re.findall(r'\d+\.\d+', criticalPathCell[1])

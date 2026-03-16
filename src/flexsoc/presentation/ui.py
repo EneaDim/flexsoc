@@ -7,7 +7,6 @@ from typing import Iterable, Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 _CONSOLE = Console(stderr=True)
 

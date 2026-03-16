@@ -151,9 +151,9 @@ def _validate_secded(config):
         raise RuntimeError('ECC matrix does not have correct number of rows')
 
     log.info('SECDED Matrix:')
-    for i, l in enumerate(config['secded']['ecc_matrix']):
-        log.info('ECC Bit {} Fanin: {}'.format(i, l))
-        for j, e in enumerate(l):
+    for i, row in enumerate(config['secded']['ecc_matrix']):
+        log.info('ECC Bit {} Fanin: {}'.format(i, row))
+        for j, e in enumerate(row):
             e = check_int(e)
             if e < 0 or e >= total_width:
                 raise RuntimeError('ECC bit position is out of bounds')

@@ -3,8 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from flexsoc.manifest import read_run_manifest, update_runner_manifest, write_flow_manifest, write_run_manifest
-from flexsoc.workspace import resolve_run_ref
+from flexsoc.runtime.manifest import (
+    read_run_manifest,
+    update_runner_manifest,
+    write_flow_manifest,
+    write_run_manifest,
+)
+from flexsoc.state.workspace import resolve_run_ref
 
 
 def test_run_manifest_roundtrip_and_linkage(tmp_path: Path):

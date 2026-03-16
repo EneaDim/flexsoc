@@ -5,7 +5,8 @@ import os
 import platform
 import shlex
 import subprocess
-from dataclasses import asdict, dataclass
+import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -70,6 +71,22 @@ def _shell_preview(cmd: list[str]) -> str:
     return " ".join(shlex.quote(str(x)) for x in cmd)
 
 
+def _env_flag(name: str) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    return value not in {"", "0", "false", "no", "off"}
+
+
+def _profiling_payload(*, subprocess_s: float, manifest_write_s: float, total_s: float) -> dict[str, Any]:
+    return {
+        "enabled": True,
+        "t": {
+            "subprocess_s": round(subprocess_s, 6),
+            "manifest_write_s": round(manifest_write_s, 6),
+            "total_s": round(total_s, 6),
+        },
+    }
+
+
 def _write_runner_manifest(
     *,
     run_dir: Path,
@@ -85,6 +102,7 @@ def _write_runner_manifest(
     exit_code: Optional[int],
     stdout_path: Path,
     stderr_path: Path,
+    profiling: Optional[Dict[str, Any]] = None,
 ) -> None:
     payload = {
         "tool": "flexsoc",
@@ -110,6 +128,9 @@ def _write_runner_manifest(
         },
     }
 
+    if profiling is not None:
+        payload["profiling"] = profiling
+
     (run_dir / "manifest.json").write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
@@ -134,6 +155,7 @@ def run_command(
     stderr_path = run_dir / "stderr.log"
 
     started_at = _utc_now().isoformat()
+    overall_started = time.perf_counter()
 
     proc_env = os.environ.copy()
     if env:
@@ -142,6 +164,7 @@ def run_command(
     exit_code: int
     completed_at: str
 
+    subprocess_started = time.perf_counter()
     with stdout_path.open("w", encoding="utf-8") as stdout_f, stderr_path.open("w", encoding="utf-8") as stderr_f:
         try:
             proc = subprocess.run(
@@ -164,8 +187,18 @@ def run_command(
         except Exception as e:
             stderr_f.write(f"ERROR: {type(e).__name__}: {e}\n")
             exit_code = 1
+    subprocess_s = time.perf_counter() - subprocess_started
 
     completed_at = _utc_now().isoformat()
+
+    manifest_started = time.perf_counter()
+    profiling = None
+    if _env_flag("FLEXSOC_PROFILE"):
+        profiling = _profiling_payload(
+            subprocess_s=subprocess_s,
+            manifest_write_s=0.0,
+            total_s=0.0,
+        )
 
     _write_runner_manifest(
         run_dir=run_dir,
@@ -181,7 +214,31 @@ def run_command(
         exit_code=exit_code,
         stdout_path=stdout_path,
         stderr_path=stderr_path,
+        profiling=profiling,
     )
+
+    manifest_write_s = time.perf_counter() - manifest_started
+    if profiling is not None:
+        _write_runner_manifest(
+            run_dir=run_dir,
+            action_id=action_id,
+            cmd=cmd,
+            params=params,
+            workspace_dir=ws,
+            cwd=cwd,
+            env=env,
+            timeout_s=timeout_s,
+            started_at_utc=started_at,
+            completed_at_utc=completed_at,
+            exit_code=exit_code,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            profiling=_profiling_payload(
+                subprocess_s=subprocess_s,
+                manifest_write_s=manifest_write_s,
+                total_s=time.perf_counter() - overall_started,
+            ),
+        )
 
     return RunResult(
         exit_code=exit_code,

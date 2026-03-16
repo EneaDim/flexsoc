@@ -938,13 +938,23 @@ def exec_cmd(
 ) -> None:
     _setup_logging()
     try:
+        explicit_top = top
+        explicit_run_top = run_top
+
+        workspace, top, run_top, run_id = resolve_context(
+            workspace=workspace,
+            top=top,
+            run_top=run_top,
+            run_id=run_id,
+        )
+        if explicit_top is not None and explicit_run_top is None:
+            run_top = explicit_top
+
         ws = _resolved_workspace(workspace)
         plan = read_plan_json(plan_path)
 
         if top is not None:
             plan.params["top"] = top
-        if run_top is not None:
-            plan.params["run_top"] = run_top
         if reg_itf is not None:
             plan.params["reg_itf"] = reg_itf
         if overwrite or force:
@@ -1001,12 +1011,18 @@ def run_cmd(
 ) -> None:
     _setup_logging()
     try:
+        explicit_top = top
+        explicit_run_top = run_top
+
         workspace, top, run_top, run_id = resolve_context(
             workspace=workspace,
             top=top,
             run_top=run_top,
             run_id=run_id,
         )
+        if explicit_top is not None and explicit_run_top is None:
+            run_top = explicit_top
+
         ws = _resolved_workspace(workspace)
 
         params: dict[str, Any] = {}

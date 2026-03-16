@@ -20,23 +20,33 @@ jobs:
             pyproject.toml
             requirements-ci.txt
 
+      - name: Install system tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator
+
       - name: Upgrade packaging tools
         run: |
           python -m pip install -U pip setuptools wheel
 
-      - name: Install test dependencies
+      - name: Install package and test dependencies
         run: |
           python -m pip install -r requirements-ci.txt
 
-      - name: Smoke check package import
+      - name: Smoke check runtime dependencies
         run: |
           python - <<'PY'
           import flexsoc
           import flexsoc.cli
+          import mako
           print("flexsoc import OK")
+          print("mako import OK")
           PY
+          verilator --version
 
       - name: Run tests
+        env:
+          PYTHONPATH: src
         run: |
           python -m pytest -q
 
@@ -59,10 +69,10 @@ jobs:
         run: |
           python -m pip install -U pip setuptools wheel
 
-      - name: Install lint dependencies
+      - name: Install package and lint dependencies
         run: |
           python -m pip install -r requirements-ci.txt
 
       - name: Run Ruff
         run: |
-          ruff check .
+          python -m ruff check .

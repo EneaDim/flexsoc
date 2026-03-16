@@ -64,8 +64,9 @@ def test_make_help_creates_runner_logs_and_manifest(tmp_path: Path):
 
     m = json.loads(manifest.read_text(encoding="utf-8"))
     assert m["exit_code"] == 0
-    assert "cmd" in m
-    assert "signature" in m
+    assert "command" in m
+    assert isinstance(m["command"], list)
+    assert m["action_id"] == "make_help"
 
 
 def test_make_help_with_run_metadata(tmp_path: Path):
