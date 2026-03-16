@@ -217,7 +217,8 @@ soc_prepare:
 	$(Q)$(MKDIR) -p $(OUTROOT)/sim
 	$(Q)$(MAKE) soc_sim HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
-soc_build_sw:
+
+soc_build_sw: soc_prepare
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
