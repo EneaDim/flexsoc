@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Sequence
 
 from rich import print
@@ -21,8 +22,17 @@ class Check:
     required: bool = True
 
 
-def _which(cmd: str) -> str | None:
-    return shutil.which(cmd)
+def _resolve_tool_path(tool: str, candidate_paths: Sequence[str] | None = None) -> str | None:
+    found = shutil.which(tool)
+    if found:
+        return found
+
+    for candidate in candidate_paths or ():
+        candidate_path = Path(candidate)
+        if candidate_path.is_file() and os.access(candidate_path, os.X_OK):
+            return str(candidate_path)
+
+    return None
 
 
 def _run_version(cmd: Sequence[str]) -> tuple[bool, str]:
@@ -75,24 +85,27 @@ def _check_tool(
     category: str,
     required: bool,
     expected_env: str | None = None,
+    candidate_paths: Sequence[str] | None = None,
 ) -> Check:
-    path = _which(tool)
-    if not path:
+    resolved_path = _resolve_tool_path(tool, candidate_paths=candidate_paths)
+    if not resolved_path:
         return Check(
             category=category,
             name=tool,
             ok=False,
-            detail="not found in PATH",
+            detail="not found in PATH or known install locations",
             required=required,
         )
 
-    ok, version_line = _run_version(version_cmd)
+    actual_cmd = [resolved_path, *list(version_cmd)[1:]]
+
+    ok, version_line = _run_version(actual_cmd)
     if not ok:
         return Check(
             category=category,
             name=tool,
             ok=False,
-            detail=f"version command failed [{path}]: {version_line}",
+            detail=f"version command failed [{resolved_path}]: {version_line}",
             required=required,
         )
 
@@ -102,7 +115,7 @@ def _check_tool(
             category=category,
             name=tool,
             ok=False,
-            detail=f"version mismatch [{path}] expected fragment={expected!r}, got={version_line!r}",
+            detail=f"version mismatch [{resolved_path}] expected fragment={expected!r}, got={version_line!r}",
             required=required,
         )
 
@@ -110,7 +123,7 @@ def _check_tool(
         category=category,
         name=tool,
         ok=True,
-        detail=f"{version_line} [{path}]",
+        detail=f"{version_line} [{resolved_path}]",
         required=required,
     )
 
@@ -159,24 +172,39 @@ def collect_doctor_checks() -> list[Check]:
     )
 
     tool_specs = [
-        ("verilator", ["verilator", "--version"], "tool-core", True, "FLEXSOC_EXPECT_VERILATOR"),
-        ("sv2v", ["sv2v", "--version"], "tool-core", True, "FLEXSOC_EXPECT_SV2V"),
-        ("yosys", ["yosys", "-V"], "tool-flow", True, "FLEXSOC_EXPECT_YOSYS"),
-        ("openroad", ["openroad", "-version"], "tool-flow", True, "FLEXSOC_EXPECT_OPENROAD"),
-        ("sta", ["sta", "-version"], "tool-flow", True, "FLEXSOC_EXPECT_OPENSTA"),
-        ("iverilog", ["iverilog", "-V"], "tool-extra", True, "FLEXSOC_EXPECT_IVERILOG"),
-        ("gtkwave", ["gtkwave", "--version"], "tool-extra", True, "FLEXSOC_EXPECT_GTKWAVE"),
-        ("netlistsvg", ["netlistsvg", "--version"], "tool-extra", False, "FLEXSOC_EXPECT_NETLISTSVG"),
+        ("verilator", ["verilator", "--version"], "tool-core", True, "FLEXSOC_EXPECT_VERILATOR", ()),
+        ("sv2v", ["sv2v", "--version"], "tool-core", True, "FLEXSOC_EXPECT_SV2V", ()),
+        ("yosys", ["yosys", "-V"], "tool-flow", True, "FLEXSOC_EXPECT_YOSYS", ()),
+        (
+            "openroad",
+            ["openroad", "-version"],
+            "tool-flow",
+            True,
+            "FLEXSOC_EXPECT_OPENROAD",
+            ("/usr/local/OpenROAD/bin/openroad",),
+        ),
+        (
+            "sta",
+            ["sta", "-version"],
+            "tool-flow",
+            True,
+            "FLEXSOC_EXPECT_OPENSTA",
+            ("/usr/local/OpenROAD/bin/sta",),
+        ),
+        ("iverilog", ["iverilog", "-V"], "tool-extra", True, "FLEXSOC_EXPECT_IVERILOG", ()),
+        ("gtkwave", ["gtkwave", "--version"], "tool-extra", True, "FLEXSOC_EXPECT_GTKWAVE", ()),
+        ("netlistsvg", ["netlistsvg", "--version"], "tool-extra", False, "FLEXSOC_EXPECT_NETLISTSVG", ()),
         (
             "riscv32-unknown-elf-gcc",
             ["riscv32-unknown-elf-gcc", "--version"],
             "tool-soc",
             True,
             "FLEXSOC_EXPECT_RISCV_GCC",
+            (),
         ),
     ]
 
-    for tool, version_cmd, category, required, expected_env in tool_specs:
+    for tool, version_cmd, category, required, expected_env, candidate_paths in tool_specs:
         checks.append(
             _check_tool(
                 tool,
@@ -184,6 +212,7 @@ def collect_doctor_checks() -> list[Check]:
                 category=category,
                 required=required,
                 expected_env=expected_env,
+                candidate_paths=candidate_paths,
             )
         )
 
