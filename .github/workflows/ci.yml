@@ -98,14 +98,14 @@ jobs:
 
       - name: Run doctor
         run: |
-          python -m flexsoc.cli doctor --json
+          .venv/bin/python -m flexsoc.cli doctor --json
 
       - name: Run Ruff
         run: |
-          python -m ruff check .
+          .venv/bin/python -m ruff check .
 
       - name: Run tests
         env:
           VIRTUAL_ENV: ${{ github.workspace }}/.venv
         run: |
-          python -m pytest -q
+          .venv/bin/python -m pytest -q
