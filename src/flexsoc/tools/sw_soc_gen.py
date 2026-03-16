@@ -270,6 +270,7 @@ def main():
     ap.add_argument("--workspace", required=True)
     ap.add_argument("--run-top", required=True)
     ap.add_argument("--run-id", required=True)
+    ap.add_argument("--host", required=True, choices=["uart", "ibex"])
     args = ap.parse_args()
 
     ws = Path(args.workspace).expanduser().resolve()

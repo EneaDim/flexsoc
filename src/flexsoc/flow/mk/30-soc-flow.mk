@@ -232,10 +232,12 @@ sw_soc:
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
+	$(call _require_var,HOST)
 	$(Q)$(PYTHON) -m flexsoc.tools.sw_soc_gen \
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
-		--run-id $(RUN_ID)
+		--run-id $(RUN_ID) \
+		--host $(HOST)
 
 # -----------------------------------------------------------------------------
 # Simulation / run
@@ -278,7 +280,7 @@ soc_run:
 		echo "Using existing simulation model: $(SOC_SIM_EXE)"; \
 	fi
 	@echo "\n$(ORANGE)[soc_run] step 3/5: generate software sources ...\n$(RESET)"
-	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
+	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) HOST=$(HOST)
 	@echo "\n$(ORANGE)[soc_run] step 4/5: compile software ...\n$(RESET)"
 	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
 	@echo "\n$(ORANGE)[soc_run] step 5/5: run simulator with automatic Ctrl-C timeout ...\n$(RESET)"
