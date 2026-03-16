@@ -201,7 +201,7 @@ def collect_doctor_checks() -> list[Check]:
             "tool-soc",
             True,
             "FLEXSOC_EXPECT_RISCV_GCC",
-            (),
+            ("/tools/riscv32/bin/riscv32-unknown-elf-gcc",),
         ),
     ]
 
