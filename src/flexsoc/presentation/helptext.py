@@ -275,12 +275,26 @@ def render_ip_guide() -> None:
     c.print(Panel.fit(
         """[bold]IP flow guide[/bold]
 [orange1]flexsoc[/orange1] [bold green]use[/bold green] [cyan]--ws workspace --run-id dev --run-top my_ip --top my_ip[/cyan]
+
+[dim]# 1) Setup hjson configuration file[/dim]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]hjson[/cyan]
+
+[dim]# 2) Build CSR and documentation[/dim]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]reg doc[/cyan]
+
+[dim]# 3) Generate RTL stub and Testbench[/dim]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]rtl_stub setup_tb[/cyan]
+
+[dim]# 4) Linting, compilation, simulation and viewing[/dim]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]sim view[/cyan]
+
+[dim]# 5) Synthesis, sdf generation, STA, Power analysis[/dim]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]syn sdf sta power[/cyan]
+
+[dim]# 6) Generate .c, .h for software integration and .core file for FuseSoc flow[/dim]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]driver fsoc_init[/cyan]
+
+[dim]# 7) Save the IP under hw/ips folder[/dim]
 [orange1]flexsoc[/orange1] [bold green]make[/bold green] [cyan]ip_save[/cyan]""",
         title="IP flow guide",
         border_style="blue",

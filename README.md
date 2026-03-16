@@ -4,482 +4,394 @@
 
 <a id="setup"></a>
 
-# flexsoc ✨
+# ✨ flexsoc
 
-**A framework for IP development and SoC integration**
+> **A framework for IP development and SoC integration**
 
-`flexsoc` is a workspace‑based hardware development framework for building, verifying, and integrating digital IPs using a fully open‑source flow.
+`flexsoc` is a **workspace‑based hardware development framework**
+designed to make the full digital design lifecycle **structured,
+reproducible, and transparent**.
 
-It provides a consistent developer experience across the entire hardware lifecycle:
+It combines a modern **Python CLI 🐍**, deterministic **Make-based
+hardware flows 🛠**, and a clean **workspace execution model 📦** to
+support everything from **standalone IP development** to **complete SoC
+integration**.
 
-* IP bring‑up
-* register‑map generation
-* testbench setup
-* simulation
-* synthesis
-* STA / power signoff
-* place and route
-* SoC integration
+The goal is simple:
 
-The project combines a modern **Python CLI** with a deterministic **Make‑based backend**, giving designers both a guided interface and full low‑level control of the flow.
+> Keep hardware development **powerful**, **scriptable**, and
+> **engineer‑friendly**, without hiding the underlying tools.
+
+------------------------------------------------------------------------
+
+# 🚀 What flexsoc enables
+
+With `flexsoc` you can manage the entire lifecycle of digital IPs and
+SoCs:
+
+🧩 IP development\
+🧪 simulation and verification\
+📋 register-map generation\
+🧰 testbench scaffolding\
+⚙️ synthesis\
+📊 static timing analysis\
+🔋 power analysis\
+🏗 place & route\
+🔗 SoC integration\
+🧠 crossbar / interconnect generation
+
+All using **a single coherent development model**.
+
+------------------------------------------------------------------------
+
+# 🎯 Project Objectives
+
+FlexSoC was created to solve a common problem in hardware development:
+**tool fragmentation and fragile project setups**.
+
+Its objectives are:
+
+• Enable digital designers to **develop, document, validate and
+integrate IPs** with minimal setup and focus on the core logic.
+
+• Make **open‑source EDA tools** practical and usable for real‑world
+hardware development.
+
+• Provide a seamless **integration path into SoCs**, including systems
+based on the **lowRISC ecosystem**.
+
+• Serve as a launchpad for **future IP contributions to the lowRISC
+ecosystem**, following its Comportable IP principles and tooling flow.
+
+• Experiment with **natural‑language‑driven hardware workflows**, while
+keeping execution deterministic through Makefile flows.
+
+In short:
+
+> FlexSoC aims to bridge **structured hardware engineering** and
+> **modern developer workflows**.
+
+------------------------------------------------------------------------
+
+# 🧠 Core philosophy
+
+`flexsoc` is designed around a few strong ideas.
+
+## 1️⃣ Workspace‑first execution
+
+All generated artifacts live in a **workspace**, never inside the
+repository.
+
+    workspace/
+      runs/
+        <run_top>/<run_id>/
+
+This ensures:
+
+-   clean repositories
+-   reproducible runs
+-   easy comparison between runs
+-   safe experimentation
+
+Multiple runs can coexist without overwriting results.
+
+------------------------------------------------------------------------
+
+## 2️⃣ Modern CLI + deterministic backend
+
+Users interact with the system through a modern CLI:
+
+    flexsoc
+
+But internally the system still relies on **Make-based flows**.
+
+This means:
+
+✔ high-level interface\
+✔ explicit low-level commands\
+✔ easy debugging\
+✔ transparent flows
+
+Nothing is hidden.
+
+------------------------------------------------------------------------
+
+## 3️⃣ Incremental workflow
+
+`flexsoc` is designed for **iterative hardware development**.
+
+You can start with a single IP:
+
+    flexsoc run ip_start
+
+and grow naturally into:
+
+-   subsystem design
+-   SoC integration
+-   multi-IP systems
+
+without changing tools.
+
+------------------------------------------------------------------------
+
+# 🌟 Key features
+
+✨ Python CLI (Typer-style UX)
+📦 workspace-based execution model
+📜 action registry system
+📊 run manifests and reports
+📁 deterministic directory structure
+⚡ Make-based flow backend
+🧩 automatic SoC generation tools
+🔗 FuseSoC integration
+🧪 Verilator simulation support
+🧰 open-source EDA compatibility
+
+------------------------------------------------------------------------
+
+# 📂 Project structure
+
+    src/flexsoc
+    │
+    ├── cli.py                    🖥 CLI entry point
+    ├── config.py                 ⚙ global configuration
+    │
+    ├── catalog/                  📚 action registry system
+    │   ├── planning.py
+    │   ├── registry.py
+    │   └── registry.yaml
+    │
+    ├── runtime/                  ⚙ execution engine
+    │   ├── executor.py
+    │   ├── orchestration.py
+    │   ├── runner.py
+    │   ├── manifest.py
+    │   └── reporting.py
+    │
+    ├── state/                    📦 workspace state
+    │   ├── workspace.py
+    │   ├── context.py
+    │   └── clean.py
+    │
+    ├── presentation/             🎨 CLI output
+    │   ├── ui.py
+    │   └── helptext.py
+    │
+    ├── diagnostics/              🩺 environment checks
+    │   └── doctor.py
+    │
+    ├── flow/                     🛠 Make-based flows
+    │   └── mk/
+    │       ├── 00-common.mk
+    │       ├── 10-help-setup.mk
+    │       ├── 20-ip-flow.mk
+    │       ├── 30-soc-flow.mk
+    │       └── 40-fsm-clean.mk
+    │
+    └── tools/                    🔧 generators and utilities
+        ├── soc_gen.py
+        ├── soc_cfg.py
+        ├── driver_gen.py
+        ├── gen_filelist.py
+        ├── regression.py
+        ├── rtl_stub_gen.py
+        └── ...
+
+------------------------------------------------------------------------
+# 📦 Dependencies
+
+FlexSoC can run **locally** or inside **Docker** (recommended for reproducibility).
 
 ---
 
-# Why flexsoc
+## Install Docker
 
-Digital IP development often evolves into a collection of ad‑hoc scripts, fragile Makefiles, and project‑specific conventions.
+Ubuntu / Debian:
 
-`flexsoc` tries to solve this by introducing a cleaner model based on:
-
-* a **single entry point** for designers
-* a **workspace‑based execution model**
-* reproducible flow steps
-* automated **OpenTitan‑style collateral generation**
-* a smooth path from **standalone IP development → SoC integration**
-
-The framework is intentionally incremental: it helps you start quickly, iterate rapidly, and still keep the flow completely transparent.
-
----
-
-# Core ideas
-
-## Workspace‑first execution
-
-All generated artifacts live in a workspace instead of inside the repository.
-
-This keeps the repository clean and makes runs easier to compare, archive, and reproduce.
-
-```
-workspace/
-  runs/
-    <top>/<run_id>/
-```
-
-Multiple runs can coexist safely without overwriting previous results.
-
----
-
-## Modern CLI + deterministic backend
-
-Users interact through the `flexsoc` CLI.
-
-Under the hood the system still uses Make targets and explicit scripts.
-
-This provides:
-
-* a high‑level interface
-* explicit commands
-* compatibility with direct Make usage
-* easy debugging
-
----
-
-## IP development and SoC integration in one environment
-
-The same framework supports:
-
-* standalone IP development
-* SoC assembly and crossbar integration
-* bundled IP reuse
-* reproducible SoC runs
-
----
-
-# Highlights
-
-* Typer‑based CLI
-* registry‑driven actions
-* workspace‑based runs
-* runner‑level manifests
-* flow‑level manifests
-* pure JSON structured outputs
-* Verilator simulation
-* Yosys synthesis
-* OpenSTA signoff
-* OpenROAD PnR
-* Cocotb testbench generation
-* OpenTitan‑compatible register generation
-
----
-
-# Project structure
-
-```
-flexsoc/
-├── Makefile
-├── flow/
-│   └── util/
-├── src/
-│   └── flexsoc/
-│       ├── cli.py
-│       ├── ui.py
-│       ├── executor.py
-│       ├── runner.py
-│       ├── reporting.py
-│       ├── registry.yaml
-│       ├── flow/
-│       │   └── Makefile
-│       └── tools/
-├── hw/
-│   └── ips/
-├── workspace/
-└── tests/
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker
+docker version
 ```
 
 ---
 
-# Execution model
+## Run with Docker
 
-`flexsoc` produces two categories of artifacts.
+Pull the container:
 
-## Runner‑level artifacts
-
-Capture execution of the CLI command itself.
-
-```
-workspace/sessions/<timestamp>_<action>/
-  stdout.log
-  stderr.log
+```bash
+docker pull ghcr.io/eneadim/flexsoc:latest
 ```
 
-## Flow‑level artifacts
+Run it:
 
-Contain actual design outputs.
+```bash
+docker run --rm -it \
+  -e DISPLAY=$DISPLAY \
+  -e GDK_BACKEND=x11 -e QT_X11_NO_MITSHM=1 -e NO_AT_BRIDGE=1 \
+  -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
+  ghcr.io/eneadim/flexsoc:latest bash
 
-```
-workspace/runs/<top>/<run_id>/
-  rtl/
-  tb/
-  sim/
-  syn/
-  signoff/
-  logs/
+cd /opt/flexsoc
 ```
 
----
+The container includes the full open-source hardware toolchain.
 
-# Installation
+------------------------------------------------------------------------
 
-Create a Python virtual environment and install flexsoc in editable mode.
+# 🧭 Execution model
 
-```
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
+`flexsoc` produces **two categories of artifacts**.
 
-Developer checks:
+## 🧾 Runner‑level artifacts
 
-```
-make lint
-make test
-make check
-```
+Capture the execution of a CLI command.
 
----
+    workspace/sessions/<timestamp>_<action>/
+      stdout.log
+      stderr.log
 
-# CLI overview
+These logs help debug CLI-level execution.
 
-Main entry point:
+------------------------------------------------------------------------
 
-```
-flexsoc
-```
+## 🏗 Flow‑level artifacts
+
+Contain the actual hardware outputs.
+
+    workspace/runs/<run_top>/<run_id>/
+      rtl/
+      tb/
+      sim/
+      syn/
+      signoff/
+      logs/
+
+These directories contain the real design outputs.
+
+------------------------------------------------------------------------
+
+
+# ⚙️ CLI overview
 
 Main commands:
 
-```
-flexsoc run
-flexsoc make
-flexsoc use
-flexsoc actions
-flexsoc action <name>
-```
+    flexsoc run
+    flexsoc make
+    flexsoc use
+    flexsoc actions
+    flexsoc action <name>
+    flexsoc doctor
 
 Convenience shortcuts:
 
-```
-flexsoc h
-flexsoc q
-flexsoc t
-flexsoc ip
-```
+    flexsoc h   → help
+    flexsoc q   → quickstart
+    flexsoc t   → tutorials
+    flexsoc ip  → IP development guide
 
----
+------------------------------------------------------------------------
 
-# Workspace context (`use`)
+# 📦 Workspace context (`use`)
 
-Instead of repeating options for every command, you can set the working context once.
+Instead of repeating parameters for every command, you can define a
+working context:
 
-```
-flexsoc use --workspace workspace --run-top my_ip --run-id dev --top my_ip
-```
+    flexsoc use --workspace workspace --run-top my_ip --run-id dev --top my_ip
 
-Subsequent commands will automatically reuse those values.
+Subsequent commands automatically reuse this context.
 
-You can still override them per command if needed.
+------------------------------------------------------------------------
 
----
-
-# Typical usage
+# 🧩 Typical IP workflow
 
 Initialize an IP workspace:
 
-```
-flexsoc run ip_start --top my_ip --run-id dev --overwrite
-```
+    flexsoc run ip_start --top my_ip --run-id dev
 
-Run synthesis and analysis:
+Run simulation:
 
-```
-flexsoc make syn sta power
-```
+    flexsoc make sim
 
-Run PnR:
+Run implementation:
 
-```
-flexsoc make pnr
-```
+    flexsoc make syn
+    flexsoc make sta
+    flexsoc make power
+    flexsoc make pnr
 
-Open the OpenROAD GUI:
+Package the IP:
 
-```
-flexsoc make pnr_gui
-```
+    flexsoc make ip_save
 
----
+------------------------------------------------------------------------
 
-# IP development flow
+# 🏗 SoC integration flow
 
-## 1. Create the IP workspace
+Load IP bundles:
 
-```
-flexsoc run ip_start --top my_ip --run-id dev
-```
+    flexsoc make ip_load --top uart
+    flexsoc make ip_load --top gpio
 
-Directory created:
+Generate SoC:
 
-```
-workspace/runs/my_ip/dev/
-```
+    flexsoc make xbar soc
 
----
+Simulate:
 
-## 2. Generate register collateral
+    flexsoc make soc_run
 
-```
-flexsoc make reg doc
-```
+------------------------------------------------------------------------
 
-Inputs:
+# 🧪 Tutorials
 
-```
-data/my_ip.hjson
-```
+Example tutorials included in the framework:
 
-Outputs:
+    flexsoc make fsm_tutorial
+    flexsoc make ip_tutorial
+    flexsoc make soc_ibex_tutorial
 
-* register RTL
-* documentation
+------------------------------------------------------------------------
 
----
+# 🧑 💻 Developer commands
 
-## 3. Implement the RTL
+    make help
+    make lint
+    make test
+    make check
 
-Main files:
+------------------------------------------------------------------------
 
-```
-rtl/my_ip_core.sv
-rtl/my_ip.sv
-```
+# 🧠 Philosophy
 
----
+`flexsoc` deliberately avoids hiding the hardware flow.
 
-## 4. Create the testbench
+Instead it makes the process:
 
-```
-flexsoc make setup_tb
-```
+✨ structured
+✨ reproducible
+✨ discoverable
+✨ easy to integrate
 
-or cocotb:
+while keeping the underlying tools visible.
 
-```
-flexsoc make setup_cocotb
-```
+------------------------------------------------------------------------
 
----
+# 🧭 Roadmap
 
-## 5. Simulation
+Future directions include:
 
-```
-flexsoc make sim
-```
+🤖 AI-assisted workflow navigation
+🧠 natural-language FSM generation
+🔬 formal verification integration
+🔗 AXI interface support
+🏗 larger SoC assembly workflows
 
----
+------------------------------------------------------------------------
 
-## 6. Implementation
-
-```
-flexsoc make syn
-flexsoc make sta
-flexsoc make power
-flexsoc make pnr
-```
-
----
-
-## 7. Package the IP
-
-```
-flexsoc make ip_save
-```
-
-This stores the IP under:
-
-```
-hw/ips/<ip_name>/
-```
-
----
-
-# SoC integration flow
-
-The framework supports simple SoC assembly using IP bundles.
-
-## Load IPs
-
-```
-flexsoc make ip_load --top uart-master
-flexsoc make ip_load --top gpio
-```
-
-## Create SoC
-
-```
-flexsoc make soc
-```
-
-This generates:
-
-* crossbar
-* SoC RTL
-* memory map
-
-```
-workspace/runs/<soc>/<run_id>/rtl/
-```
-
----
-
-## SoC simulation
-
-```
-flexsoc make setup_cocotb
-flexsoc make cocotb
-```
-
----
-
-## Save / load SoC bundles
-
-Save a SoC configuration:
-
-```
-flexsoc make soc_save
-```
-
-Reload it later:
-
-```
-flexsoc make soc_load
-```
-
----
-
-# Tutorials
-
-## FSM tutorial
-
-```
-flexsoc make fsm_tutorial
-```
-
-## IP tutorial
-
-```
-flexsoc make ip_tutorial
-```
-
-## SoC tutorial
-
-```
-flexsoc make soc_tutorial
-```
-
----
-
-# Developer Makefile
-
-```
-make help
-make lint
-make fix
-make test
-make check
-```
-
----
-
-# Reports
-
-Flow metadata:
-
-```
-manifest.json
-```
-
-Run summaries:
-
-```
-report.json
-```
-
----
-
-# Philosophy
-
-`flexsoc` does not hide the hardware flow.
-
-Instead it aims to make it:
-
-* cleaner
-* reproducible
-* discoverable
-* easier to integrate
-
-The backend remains explicit.
-
-The user experience becomes friendlier.
-
-## Roadmap / next steps 
-
-### AI-assisted workflow 
-* guided use of the tool * natural-language help and flow Navigation.
-* automated FSM generation from natural-language descriptions.
-* future structured design-assist workflows without compromising determinism of execution.
-
-### Formal verification 
-* Add **SymbiYosys**-based formal checks for selected IP classes and protocol adapters. 
-
-### AXI interface support 
-* Extend the register / integration side with **AXI4 / AXI-Lite** support, ideally reusing existing work and conventions from the **PULP Platform** ecosystem where appropriate. 
-
-### Broader SoC Integration
-* Continue improving the path from standalone IP work to system-level integration, especially for crossbar/interconnect-oriented flows.
-
----
-
-# License
+# 📜 License
 
 Apache License 2.0
-
