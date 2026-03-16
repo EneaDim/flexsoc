@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Sequence
@@ -262,7 +263,7 @@ def run_doctor(json_mode: bool = False) -> int:
     checks = collect_doctor_checks()
 
     if json_mode:
-        print(doctor_as_json())
+        sys.stdout.write(doctor_as_json() + "\n")
         return 0 if all(check.ok or not check.required for check in checks) else 1
 
     exit_code = 0
