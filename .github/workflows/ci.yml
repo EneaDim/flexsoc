@@ -17,7 +17,7 @@ jobs:
 
     env:
       PYTHONPATH: src
-      PATH: /usr/local/OpenROAD/bin:/opt/riscv32/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      PATH: /usr/local/OpenROAD/bin:/tools/riscv32/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       FLEXSOC_EXPECT_VERILATOR: "Verilator 5.036"
       FLEXSOC_EXPECT_SV2V: "sv2v v0.0.13-3-g80a2f0c"
       FLEXSOC_EXPECT_YOSYS: "Yosys 0.57+218"
@@ -60,7 +60,16 @@ jobs:
 
           iverilog -V | head -n 1
           gtkwave --version
-          riscv32-unknown-elf-gcc --version | head -n 1
+
+          if command -v riscv32-unknown-elf-gcc >/dev/null 2>&1; then
+            riscv32-unknown-elf-gcc --version | head -n 1
+          elif [ -x /tools/riscv32/bin/riscv32-unknown-elf-gcc ]; then
+            /tools/riscv32/bin/riscv32-unknown-elf-gcc --version | head -n 1
+          else
+            echo "riscv32-unknown-elf-gcc not found"
+            exit 127
+          fi
+
           netlistsvg --version || true
 
       - name: Install Python dependencies
