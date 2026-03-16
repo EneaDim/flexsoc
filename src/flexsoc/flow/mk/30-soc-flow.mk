@@ -239,6 +239,25 @@ sw_soc:
 		--run-id $(RUN_ID) \
 		--host $(HOST)
 
+.PHONY: soc_prepare soc_build_sw soc_run_only
+
+soc_prepare:
+	$(call _require_soc_run_vars)
+	@echo "\n$(ORANGE)[soc_prepare] build simulation model (HOST=$(HOST)) ...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(OUTROOT)/sim
+	$(Q)$(MAKE) soc_sim HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+
+soc_build_sw:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	$(call _require_var,HOST)
+	@echo "\n$(ORANGE)[soc_build_sw] generate software sources ...\n$(RESET)"
+	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) HOST=$(HOST)
+	@echo "\n$(ORANGE)[soc_build_sw] compile software ...\n$(RESET)"
+	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
+
 # -----------------------------------------------------------------------------
 # Simulation / run
 # -----------------------------------------------------------------------------
@@ -260,30 +279,17 @@ soc_sim:
 
 soc_run:
 	$(call _require_soc_run_vars)
-	@echo "\n$(ORANGE)[soc_run] step 1/5: ensure sim directory ...\n$(RESET)"
-	$(Q)$(MKDIR) -p $(OUTROOT)/sim
-	@echo "\n$(ORANGE)[soc_run] step 2/5: check simulation model ...\n$(RESET)"
-	@need_rebuild=0; \
-	host_stamp="$(FUSESOC_ROOT)/.host"; \
-	if [ ! -x "$(SOC_SIM_EXE)" ]; then \
-		need_rebuild=1; \
-	elif [ ! -f "$$host_stamp" ]; then \
-		need_rebuild=1; \
-	elif [ "$$(cat "$$host_stamp")" != "$(HOST)" ]; then \
-		need_rebuild=1; \
-	fi; \
-	if [ "$$need_rebuild" -eq 1 ]; then \
-		echo "\n$(ORANGE)Simulation model missing/stale, building with soc_sim (HOST=$(HOST)) ...\n$(RESET)"; \
-		$(MAKE) soc_sim HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
-			WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP); \
-	else \
-		echo "Using existing simulation model: $(SOC_SIM_EXE)"; \
+	@echo "\n$(ORANGE)[soc_run] run simulator only (HOST=$(HOST)) ...\n$(RESET)"
+	@if [ ! -x "$(SOC_SIM_EXE)" ]; then \
+		echo "ERROR: missing simulation model: $(SOC_SIM_EXE)"; \
+		echo "Run: make soc_prepare HOST=$(HOST) WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)"; \
+		exit 2; \
 	fi
-	@echo "\n$(ORANGE)[soc_run] step 3/5: generate software sources ...\n$(RESET)"
-	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) HOST=$(HOST)
-	@echo "\n$(ORANGE)[soc_run] step 4/5: compile software ...\n$(RESET)"
-	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
-	@echo "\n$(ORANGE)[soc_run] step 5/5: run simulator with automatic Ctrl-C timeout ...\n$(RESET)"
+	@if [ ! -f "$(OUTROOT)/sw/build/main.elf" ]; then \
+		echo "ERROR: missing software ELF: $(OUTROOT)/sw/build/main.elf"; \
+		echo "Run: make soc_build_sw HOST=$(HOST) WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"; \
+		exit 2; \
+	fi
 	@set -eu; \
 	if ! command -v timeout >/dev/null 2>&1; then \
 		echo "ERROR: 'timeout' command not found in PATH"; \
@@ -350,11 +356,24 @@ soc_ibex_fetch:
 	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
 
 soc_ibex_tutorial: soc_ibex_fetch
-	@echo "\n$(ORANGE)Loading IPs for IBEX-host SoC tutorial ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 1/8: load uart ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 2/8: load gpio ...\n$(RESET)"
 	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 3/8: load rv_timer ...\n$(RESET)"
 	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 4/8: load pwm ...\n$(RESET)"
 	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 5/8: load spi_host ...\n$(RESET)"
 	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=spi_host
-	$(Q)$(MAKE) xbar soc HOST=ibex WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
-	$(Q)$(MAKE) soc_run HOST=ibex WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 6/8: generate xbar + soc ...\n$(RESET)"
+	$(Q)$(MAKE) xbar soc HOST=ibex SOC_CFG_MODE=builtin \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 7/8: build sim model + software ...\n$(RESET)"
+	$(Q)$(MAKE) soc_prepare HOST=ibex SOC_CFG_MODE=builtin \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+	$(Q)$(MAKE) soc_build_sw HOST=ibex \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 8/8: run simulation ...\n$(RESET)"
+	$(Q)$(MAKE) soc_run HOST=ibex SOC_CFG_MODE=builtin \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
