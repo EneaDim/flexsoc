@@ -96,7 +96,7 @@ _min_stack    = 0x1000;
 _stack_len    = LENGTH(stack);
 _stack_start  = ORIGIN(stack) + LENGTH(stack);
 
-_entry_point = _vectors_start + 0x80;
+_entry_point = _vectors_start;
 ENTRY(_entry_point)
 
 PROVIDE(_stext = ORIGIN(ram));
