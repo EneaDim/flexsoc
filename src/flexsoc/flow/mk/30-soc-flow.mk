@@ -258,11 +258,9 @@ soc_sim:
 
 soc_run:
 	$(call _require_soc_run_vars)
-	@echo "\n$(ORANGE)[soc_run] step 1/5: generate software sources ...\n$(RESET)"
-	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
-	@echo "\n$(ORANGE)[soc_run] step 2/5: ensure sim directory ...\n$(RESET)"
+	@echo "\n$(ORANGE)[soc_run] step 1/5: ensure sim directory ...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(OUTROOT)/sim
-	@echo "\n$(ORANGE)[soc_run] step 3/5: check simulation model ...\n$(RESET)"
+	@echo "\n$(ORANGE)[soc_run] step 2/5: check simulation model ...\n$(RESET)"
 	@need_rebuild=0; \
 	host_stamp="$(FUSESOC_ROOT)/.host"; \
 	if [ ! -x "$(SOC_SIM_EXE)" ]; then \
@@ -279,6 +277,8 @@ soc_run:
 	else \
 		echo "Using existing simulation model: $(SOC_SIM_EXE)"; \
 	fi
+	@echo "\n$(ORANGE)[soc_run] step 3/5: generate software sources ...\n$(RESET)"
+	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
 	@echo "\n$(ORANGE)[soc_run] step 4/5: compile software ...\n$(RESET)"
 	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
 	@echo "\n$(ORANGE)[soc_run] step 5/5: run simulator with automatic Ctrl-C timeout ...\n$(RESET)"
