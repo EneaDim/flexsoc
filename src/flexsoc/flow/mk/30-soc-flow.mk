@@ -331,8 +331,6 @@ soc_ibex_tutorial: soc_ibex_fetch
 	$(Q)$(MAKE) xbar soc HOST=ibex SOC_CFG_MODE=builtin \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 7/8: build sim model + software ...\n$(RESET)"
-	$(Q)$(MAKE) soc_prepare HOST=ibex SOC_CFG_MODE=builtin \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 	$(Q)$(MAKE) soc_build_sw HOST=ibex \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 8/8: run simulation ...\n$(RESET)"
