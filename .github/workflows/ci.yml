@@ -72,19 +72,23 @@ jobs:
 
           netlistsvg --version || true
 
+      - name: Create virtual environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -U pip setuptools wheel
+
       - name: Install Python dependencies
         run: |
-          python3 -m pip install -U pip setuptools wheel
-          python3 -m pip install -r requirements-ci.txt
+          .venv/bin/python -m pip install -r requirements-ci.txt
 
       - name: Run doctor
         run: |
-          python3 -m flexsoc.cli doctor --json
+          .venv/bin/python -m flexsoc.cli doctor --json
 
       - name: Run Ruff
         run: |
-          python3 -m ruff check .
+          .venv/bin/python -m ruff check .
 
       - name: Run tests
         run: |
-          python3 -m pytest -q
+          .venv/bin/python -m pytest -q
