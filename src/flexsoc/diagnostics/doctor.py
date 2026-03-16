@@ -193,7 +193,7 @@ def collect_doctor_checks() -> list[Check]:
             ("/usr/local/OpenROAD/bin/sta",),
         ),
         ("iverilog", ["iverilog", "-V"], "tool-extra", True, "FLEXSOC_EXPECT_IVERILOG", ()),
-        ("gtkwave", ["gtkwave", "-V"], "tool-extra", True, "FLEXSOC_EXPECT_GTKWAVE", ()),
+        ("gtkwave", ["gtkwave", "-V"], "tool-extra", False, "FLEXSOC_EXPECT_GTKWAVE", ()),
         ("netlistsvg", ["netlistsvg", "--version"], "tool-extra", False, "FLEXSOC_EXPECT_NETLISTSVG", ()),
         (
             "riscv32-unknown-elf-gcc",
