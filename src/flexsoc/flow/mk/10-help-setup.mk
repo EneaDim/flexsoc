@@ -57,7 +57,7 @@ setup:
 		$(FSMDIR) \
 		$(ORSDIR)
 
-setup_tb: setup
+setup_tb: setup flist
 	@echo "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
