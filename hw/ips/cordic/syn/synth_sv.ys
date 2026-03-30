@@ -1,0 +1,30 @@
+# read files (SystemVerilog via slang)
+read_slang -I ../hw/ips/pkgs \
+           -I ../hw/ips/prim \
+           -I ../hw/ips/prim_opentitan \
+           -I ../hw/ips/tlul \
+           -D SYNTHESIS \
+           --ignore-assertions \
+           -f /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/rtl/rtl_list.f \
+           --top cordic
+
+# basic synth
+synth -top cordic -noabc
+
+# map internal register types to the ones from the cell library
+dfflibmap -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+
+# mapping to internal cell library
+abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/area.abc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/pnr_openroad/cordic.sdc \
+
+# Clean
+opt_clean -purge
+
+# Basic stats of std cells and area
+stat -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+
+# write verilog
+write_verilog /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/cordic_synth.v
+# write json
+write_json /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/cordic_synth.json

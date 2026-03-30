@@ -1,0 +1,19 @@
+# read files
+read_verilog /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/rtl/cordic.v
+# basic synth
+synth -top cordic -noabc
+show -width -format dot -prefix /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/plots/cordic_postsyn
+# map internal register types to the ones from the cell library
+dfflibmap -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+# mapping to internal cell library
+# mapping to internal cell library
+abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/area.abc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/pnr_openroad/cordic.sdc \
+
+
+opt_clean -purge
+stat -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+# write verilog
+write_verilog /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/cordic_synth.v
+# write json
+write_json /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/cordic_synth.json

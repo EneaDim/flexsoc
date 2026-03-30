@@ -1,0 +1,263 @@
+{
+  name:               "cordic",
+  human_name:         "CORDIC",
+  one_line_desc:      "Iterative CORDIC engine with CSR interface",
+  one_paragraph_desc: '''
+    The CORDIC IP implements an iterative Coordinate Rotation Digital Computer
+    engine for trigonometric and vectoring operations using fixed-point signed
+    arithmetic. The block supports rotation mode and vectoring mode through a
+    simple CSR programming model.
+  '''
+
+  cip_id:             "1",
+  design_spec:        "../doc/cordic.md",
+  dv_doc:             "",
+  hw_checklist:       "",
+  sw_checklist:       "",
+
+  revisions: [
+    {
+      version:            "1.0.0",
+      life_stage:         "L1",
+      design_stage:       "D1",
+      verification_stage: "V0",
+      commit_id:          "",
+      notes:              "Initial CORDIC CSR definition."
+    }
+  ]
+
+  clocking: [{ clock: "clk_i", reset: "rst_ni" }]
+
+  bus_interfaces: [
+    { protocol: "tlul", direction: "device" }
+  ]
+
+  regwidth: "32"
+
+  registers: [
+    {
+      name: "CTRL",
+      desc: '''
+        Control register.
+        Software writes START to launch one operation.
+        MODE selects rotation or vectoring behavior.
+        SOFT_RST clears the internal control state.
+      ''',
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        {
+          bits: "0",
+          name: "START",
+          desc: "Start a new CORDIC operation."
+        },
+        {
+          bits: "1",
+          name: "MODE",
+          desc: "Operation mode: 0 = rotation, 1 = vectoring."
+        },
+        {
+          bits: "2",
+          name: "SOFT_RST",
+          desc: "Software reset pulse for the internal control logic."
+        },
+        {
+          bits: "7:3",
+          name: "RSVD",
+          desc: "Reserved."
+        },
+        {
+          bits: "15:8",
+          name: "N_ITER",
+          desc: '''
+            Number of iterations requested for the current operation.
+            A value of 0 may be interpreted by hardware as the implementation default.
+          '''
+        },
+        {
+          bits: "31:16",
+          name: "RSVD2",
+          desc: "Reserved."
+        }
+      ]
+    },
+
+    {
+      name: "STATUS",
+      desc: '''
+        Status register.
+        BUSY is asserted while an operation is in progress.
+        VALID is asserted when output data are available.
+        ERROR may be used to signal invalid configuration or internal faults.
+      ''',
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext:    "true",
+      hwre:     "true",
+      fields: [
+        {
+          bits: "0",
+          name: "BUSY",
+          desc: "CORDIC core is busy processing an operation."
+        },
+        {
+          bits: "1",
+          name: "VALID",
+          desc: "Output data are valid."
+        },
+        {
+          bits: "2",
+          name: "ERROR",
+          desc: "Sticky or pulse error indication from hardware."
+        },
+        {
+          bits: "31:3",
+          name: "RSVD",
+          desc: "Reserved."
+        }
+      ]
+    },
+
+    {
+      name: "X_IN",
+      desc: '''
+        Signed fixed-point X input operand.
+        For sin/cos usage in rotation mode, software typically programs the
+        pre-scaled CORDIC gain compensation constant here.
+      ''',
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        {
+          bits: "31:0",
+          name: "VALUE",
+          desc: "Signed fixed-point X input value."
+        }
+      ]
+    },
+
+    {
+      name: "Y_IN",
+      desc: "Signed fixed-point Y input operand.",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        {
+          bits: "31:0",
+          name: "VALUE",
+          desc: "Signed fixed-point Y input value."
+        }
+      ]
+    },
+
+    {
+      name: "Z_IN",
+      desc: '''
+        Signed fixed-point Z input operand.
+        In rotation mode this is the input angle.
+        In vectoring mode this may be initialized to zero.
+      ''',
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        {
+          bits: "31:0",
+          name: "VALUE",
+          desc: "Signed fixed-point Z input value."
+        }
+      ]
+    },
+
+    {
+      name: "X_OUT",
+      desc: '''
+        Signed fixed-point X output result.
+        In vectoring mode this typically contains the magnitude estimate.
+      ''',
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext:    "true",
+      hwre:     "true",
+      fields: [
+        {
+          bits: "31:0",
+          name: "VALUE",
+          desc: "Signed fixed-point X output value."
+        }
+      ]
+    },
+
+    {
+      name: "Y_OUT",
+      desc: '''
+        Signed fixed-point Y output result.
+        In rotation mode this typically contains the rotated Y component.
+      ''',
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext:    "true",
+      hwre:     "true",
+      fields: [
+        {
+          bits: "31:0",
+          name: "VALUE",
+          desc: "Signed fixed-point Y output value."
+        }
+      ]
+    },
+
+    {
+      name: "Z_OUT",
+      desc: '''
+        Signed fixed-point Z output result.
+        In vectoring mode this typically contains the angle estimate.
+      ''',
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext:    "true",
+      hwre:     "true",
+      fields: [
+        {
+          bits: "31:0",
+          name: "VALUE",
+          desc: "Signed fixed-point Z output value."
+        }
+      ]
+    },
+
+    {
+      name: "CFG",
+      desc: '''
+        Configuration register for implementation options.
+        DATA_WIDTH and FRAC_WIDTH are exposed as read-only software-visible
+        constants when driven by hardware.
+      ''',
+      swaccess: "ro",
+      hwaccess: "hrw",
+      hwext:    "true",
+      hwre:     "true",
+      fields: [
+        {
+          bits: "7:0",
+          name: "DATA_WIDTH",
+          desc: "Implemented datapath width in bits."
+        },
+        {
+          bits: "15:8",
+          name: "FRAC_WIDTH",
+          desc: "Implemented number of fractional bits."
+        },
+        {
+          bits: "23:16",
+          name: "MAX_ITER",
+          desc: "Maximum supported iteration count."
+        },
+        {
+          bits: "31:24",
+          name: "RSVD",
+          desc: "Reserved."
+        }
+      ]
+    }
+  ]
+}
