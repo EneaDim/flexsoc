@@ -38,6 +38,7 @@ module cordic_tb;
   // TB utilities
   // ---------------------------------------------------------------------------
   integer error_count;
+  integer vector_count;
   logic [cordic_reg_pkg::DW-1:0] rdata;
   tlul_utils tl_utils_inst;
   tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));
@@ -251,6 +252,8 @@ module cordic_tb;
     integer signed z_act;
 
     begin
+      vector_count++;
+
       // Program operands.
       csr_write(X_IN_ADDR, int_to_word(x_in));
       csr_write(Y_IN_ADDR, int_to_word(y_in));
@@ -415,6 +418,7 @@ module cordic_tb;
   // ---------------------------------------------------------------------------
   initial begin
     error_count = 0;
+    vector_count = 0;
     rst_ni      = 1'b0;
     tl_i        = '0;
 
@@ -457,6 +461,7 @@ module cordic_tb;
 
     if (error_count == 0) begin
       $display("[TB] PASS - no mismatches detected.");
+      $display("[TB] Executed vectors = %0d", vector_count);
       $display("Coverage: 100%%");
     end else begin
       $display("[TB] FAIL - error_count = %0d", error_count);
