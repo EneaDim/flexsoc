@@ -321,77 +321,69 @@ def emit_tlul_wrapper(args: argparse.Namespace, out_dir: Path, rtl_dir: Path) ->
 
     wrap = dedent(
         f"""\
-        `timescale 1ns/1ps
-        module {args.top}_tb;
-          logic {args.clk};
-          logic {args.rst};
-        {other_decls}
-
-          logic                       tl_i_a_valid;
-          tlul_pkg::tl_a_op_e         tl_i_a_opcode;
-          logic [2:0]                 tl_i_a_param;
-          logic [top_pkg::TL_SZW-1:0] tl_i_a_size;
-          logic [top_pkg::TL_AIW-1:0] tl_i_a_source;
-          logic [top_pkg::TL_AW-1:0]  tl_i_a_address;
-          logic [top_pkg::TL_DBW-1:0] tl_i_a_mask;
-          logic [top_pkg::TL_DW-1:0]  tl_i_a_data;
-          logic                       tl_i_d_ready;
-
-          logic                       tl_o_d_valid;
-          tlul_pkg::tl_d_op_e         tl_o_d_opcode;
-          logic [top_pkg::TL_DW-1:0]  tl_o_d_data;
-          logic                       tl_o_d_error;
-          logic                       tl_o_a_ready;
-
-          tlul_pkg::tl_h2d_t tl_i;
-          tlul_pkg::tl_d2h_t tl_o;
-
-          assign tl_i.a_valid   = tl_i_a_valid;
-          assign tl_i.a_opcode  = tl_i_a_opcode;
-          assign tl_i.a_param   = tl_i_a_param;
-          assign tl_i.a_size    = tl_i_a_size;
-          assign tl_i.a_source  = tl_i_a_source;
-          assign tl_i.a_address = tl_i_a_address;
-          assign tl_i.a_mask    = tl_i_a_mask;
-          assign tl_i.a_data    = tl_i_a_data;
-          assign tl_i.d_ready   = tl_i_d_ready;
-
-          logic [tlul_pkg::H2DCmdIntgWidth-1:0] cmd_intg_calc;
-          logic [tlul_pkg::DataIntgWidth-1:0]   data_intg_calc;
-
-          always_comb begin
-            tlul_pkg::tl_h2d_t t = '0;
-            t.a_address         = tl_i_a_address;
-            t.a_opcode          = tl_i_a_opcode;
-            t.a_mask            = tl_i_a_mask;
-            t.a_user.instr_type = prim_mubi_pkg::MuBi4False;
-            cmd_intg_calc       = tlul_pkg::get_cmd_intg(t);
-            data_intg_calc      = tlul_pkg::get_data_intg(tl_i_a_data);
-          end
-
-          assign tl_i.a_user.instr_type = prim_mubi_pkg::MuBi4False;
-          assign tl_i.a_user.cmd_intg   = cmd_intg_calc;
-          assign tl_i.a_user.data_intg  = data_intg_calc;
-
-          assign tl_o_d_valid  = tl_o.d_valid;
-          assign tl_o_d_opcode = tl_o.d_opcode;
-          assign tl_o_d_data   = tl_o.d_data;
-          assign tl_o_d_error  = tl_o.d_error;
-          assign tl_o_a_ready  = tl_o.a_ready;
-
-          initial begin
-            $dumpfile("{args.top}_tb.vcd");
-            $dumpvars(0, {args.top}_tb);
-            #1;
-          end
-
-          {args.top} u_{args.top} (
-            .{args.clk}({args.clk}),
-            .{args.rst}({args.rst}),
-            .*
-          );
-        endmodule
-        """
+`timescale 1ns/1ps
+module {args.top}_tb;
+  logic {args.clk};
+  logic {args.rst};
+  {other_decls}
+  logic                       tl_i_a_valid;
+  tlul_pkg::tl_a_op_e         tl_i_a_opcode;
+  logic [2:0]                 tl_i_a_param;
+  logic [top_pkg::TL_SZW-1:0] tl_i_a_size;
+  logic [top_pkg::TL_AIW-1:0] tl_i_a_source;
+  logic [top_pkg::TL_AW-1:0]  tl_i_a_address;
+  logic [top_pkg::TL_DBW-1:0] tl_i_a_mask;
+  logic [top_pkg::TL_DW-1:0]  tl_i_a_data;
+  logic                       tl_i_d_ready;
+  logic                       tl_o_d_valid;
+  tlul_pkg::tl_d_op_e         tl_o_d_opcode;
+  logic [top_pkg::TL_DW-1:0]  tl_o_d_data;
+  logic                       tl_o_d_error;
+  logic                       tl_o_a_ready;
+  tlul_pkg::tl_h2d_t tl_i;
+  tlul_pkg::tl_d2h_t tl_o;
+  assign tl_i.a_valid   = tl_i_a_valid;
+  assign tl_i.a_opcode  = tl_i_a_opcode;
+  assign tl_i.a_param   = tl_i_a_param;
+  assign tl_i.a_size    = tl_i_a_size;
+  assign tl_i.a_source  = tl_i_a_source;
+  assign tl_i.a_address = tl_i_a_address;
+  assign tl_i.a_mask    = tl_i_a_mask;
+  assign tl_i.a_data    = tl_i_a_data;
+  assign tl_i.d_ready   = tl_i_d_ready;
+  logic [tlul_pkg::H2DCmdIntgWidth-1:0] cmd_intg_calc;
+  logic [tlul_pkg::DataIntgWidth-1:0]   data_intg_calc;
+  always_comb begin
+    /* verilator lint_off IMPLICITSTATIC */
+    tlul_pkg::tl_h2d_t t = '0;
+    /* verilator lint_on */
+    t.a_address         = tl_i_a_address;
+    t.a_opcode          = tl_i_a_opcode;
+    t.a_mask            = tl_i_a_mask;
+    t.a_user.instr_type = prim_mubi_pkg::MuBi4False;
+    cmd_intg_calc       = tlul_pkg::get_cmd_intg(t);
+    data_intg_calc      = tlul_pkg::get_data_intg(tl_i_a_data);
+  end
+  assign tl_i.a_user.instr_type = prim_mubi_pkg::MuBi4False;
+  assign tl_i.a_user.cmd_intg   = cmd_intg_calc;
+  assign tl_i.a_user.data_intg  = data_intg_calc;
+  assign tl_o_d_valid  = tl_o.d_valid;
+  assign tl_o_d_opcode = tl_o.d_opcode;
+  assign tl_o_d_data   = tl_o.d_data;
+  assign tl_o_d_error  = tl_o.d_error;
+  assign tl_o_a_ready  = tl_o.a_ready;
+  initial begin
+    $dumpfile("{args.top}_tb.vcd");
+    $dumpvars(0, {args.top}_tb);
+    #1;
+  end
+  {args.top} u_{args.top} (
+    .{args.clk}({args.clk}),
+    .{args.rst}({args.rst}),
+    .*
+  );
+endmodule
+"""
     )
     (out_dir / f"{args.top}_tb.sv").write_text(wrap, encoding="utf-8")
 
