@@ -9,10 +9,21 @@ _CONTEXT_FILE = Path(".flexsoc_context.json")
 
 
 def context_file() -> Path:
+    """
+    Returns the resolved path to the context file.
+    This is the file where the context data is stored.
+    """
     return _CONTEXT_FILE.resolve()
 
 
 def load_context() -> dict[str, Any]:
+    """
+    Loads the context data from the context file.
+
+    Returns:
+        A dictionary containing the context data if the file exists and is valid.
+        If the file does not exist or is invalid, returns an empty dictionary.
+    """
     path = context_file()
     if not path.exists():
         return {}
@@ -32,6 +43,18 @@ def save_context(
     run_top: str | None = None,
     run_id: str | None = None,
 ) -> dict[str, Any]:
+    """
+    Saves the provided context data to the context file.
+
+    Args:
+        workspace (Path | str | None): The workspace path to save.
+        top (str | None): The top-level configuration to save.
+        run_top (str | None): The run top-level configuration to save.
+        run_id (str | None): The run ID to save.
+
+    Returns:
+        A dictionary containing the updated context data.
+    """
     current = load_context()
 
     if workspace is not None:
@@ -49,6 +72,9 @@ def save_context(
 
 
 def clear_context() -> None:
+    """
+    Clears the context data by deleting the context file if it exists.
+    """
     path = context_file()
     if path.exists():
         path.unlink()
@@ -61,6 +87,23 @@ def resolve_context(
     run_top: str | None,
     run_id: str | None,
 ) -> tuple[Path | None, str | None, str | None, str | None]:
+    """
+    Resolves the effective context values by combining the provided arguments
+    with the existing context data.
+
+    Args:
+        workspace (Path | None): The workspace path to resolve.
+        top (str | None): The top-level configuration to resolve.
+        run_top (str | None): The run top-level configuration to resolve.
+        run_id (str | None): The run ID to resolve.
+
+    Returns:
+        A tuple containing the resolved values for:
+        - workspace (Path | None)
+        - top (str | None)
+        - run_top (str | None)
+        - run_id (str | None)
+    """
     current = load_context()
 
     ws = workspace
