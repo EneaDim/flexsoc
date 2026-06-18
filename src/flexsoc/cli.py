@@ -9,20 +9,44 @@ import typer
 
 from .api import FlexSoC
 
-HELP_GUIDE = """FlexSoC CLI quick guide.
+HELP_GUIDE = """FlexSoC CLI guide.
 
-Common commands:
-  fx workflows                         List public high-level workflows.
-  fx workflow prepare --dry-run         Preview a workflow without running tools.
-  fx workflow prepare --dry-run --json  Emit a frontend-friendly workflow plan.
-  fx workflow prepare --dry-run --script
-                                        Emit a copyable shell script preview.
-  fx steps                             List advanced Make-backed steps.
-  fx step setup --dry-run --set TOP=demo
-                                        Preview one advanced backend step.
+Environment:
+  uv run fx help
+      Run the CLI from the project .venv managed by uv.
+
+Discovery:
+  uv run fx workflows
+      List public high-level workflows intended for normal users.
+  uv run fx steps
+      List advanced Make-backed steps exposed by the API layer.
+  uv run fx describe
+      Show the configured project root, workspace, and client options.
+
+Safe previews:
+  uv run fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
+      Print a copyable shell script without running external tools.
+  uv run fx workflow prepare --dry-run --json --set TOP=demo
+      Print a JSON workflow plan for frontends or web services.
+  uv run fx step setup --dry-run --set TOP=demo
+      Preview one advanced backend step.
+
+Execution:
+  uv run fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture
+      Run the safe workspace preparation workflow and capture stdout.
+  uv run fx step setup --set TOP=demo --capture
+      Run one advanced backend step through the same API layer.
+
+Common options:
+  --set KEY=VALUE
+      Override a Make variable for one call. Repeat it for multiple values.
+  --project-root PATH
+      Execute from a repository root different from the current directory.
+  --dry-run, --json, --script, --capture
+      Inspect, serialize, preview, or capture command execution.
 
 Design rule:
-  CLI commands call the FlexSoC API layer, not backend modules directly.
+  CLI commands call FlexSoC, never backend modules directly.
 """
 
 app = typer.Typer(
