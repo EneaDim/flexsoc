@@ -4,50 +4,119 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Iterable
 
 import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from .api import FlexSoC
 
-HELP_GUIDE = """FlexSoC CLI guide.
+ACCENT = "orange3"
+SECONDARY = "cyan"
+SUCCESS = "green"
+WARNING = "yellow"
 
-Environment:
-  uv run fx help
-      Run the CLI from the project .venv managed by uv.
+HELP_INTRO = """Thin command line interface over the public FlexSoC API layer.
+Use workflows for normal development and steps for advanced flow control."""
 
-Discovery:
-  uv run fx workflows
-      List public high-level workflows intended for normal users.
-  uv run fx steps
-      List advanced Make-backed steps exposed by the API layer.
-  uv run fx describe
-      Show the configured project root, workspace, and client options.
-
-Safe previews:
-  uv run fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
-      Print a copyable shell script without running external tools.
-  uv run fx workflow prepare --dry-run --json --set TOP=demo
-      Print a JSON workflow plan for frontends or web services.
-  uv run fx step setup --dry-run --set TOP=demo
-      Preview one advanced backend step.
-
-Execution:
-  uv run fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture
-      Run the safe workspace preparation workflow and capture stdout.
-  uv run fx step setup --set TOP=demo --capture
-      Run one advanced backend step through the same API layer.
-
-Common options:
-  --set KEY=VALUE
-      Override a Make variable for one call. Repeat it for multiple values.
-  --project-root PATH
-      Execute from a repository root different from the current directory.
-  --dry-run, --json, --script, --capture
-      Inspect, serialize, preview, or capture command execution.
-
-Design rule:
-  CLI commands call FlexSoC, never backend modules directly.
-"""
+HELP_SECTIONS = (
+    (
+        "Quickstart",
+        ACCENT,
+        (
+            ("fx help", "Open this guide."),
+            ("fx workflows", "List high-level workflows for normal use."),
+            ("fx steps", "List advanced Make-backed steps exposed through the API."),
+            ("fx describe", "Show project root, workspace, and client options."),
+        ),
+    ),
+    (
+        "Safe previews",
+        SECONDARY,
+        (
+            (
+                "fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke",
+                "Print a copyable shell script without running tools.",
+            ),
+            (
+                "fx workflow prepare --dry-run --json --set TOP=demo",
+                "Return a structured workflow plan for frontends or services.",
+            ),
+            ("fx step setup --dry-run --set TOP=demo", "Preview one advanced backend step."),
+        ),
+    ),
+    (
+        "IP development",
+        SUCCESS,
+        (
+            (
+                "fx workflow fsm --dry-run --script --set TOP=my_ip",
+                "Inspect the bundled FSM generator workflow.",
+            ),
+            (
+                "fx step fsm_gen --dry-run --set TOP=my_ip",
+                "Preview the FSM generator step directly.",
+            ),
+            (
+                "fx step soc --dry-run --set TOP=my_ip",
+                "Inspect how generated IP artefacts enter the SoC flow.",
+            ),
+        ),
+    ),
+    (
+        "SoC development",
+        WARNING,
+        (
+            (
+                "fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture",
+                "Create the workspace through the API layer.",
+            ),
+            (
+                "fx workflow soc --dry-run --script --set TOP=demo",
+                "Preview SoC generation before running external tools.",
+            ),
+            (
+                "fx step setup --set TOP=demo --capture",
+                "Run a single setup step when debugging the flow.",
+            ),
+        ),
+    ),
+    (
+        "Tutorials",
+        "magenta",
+        (
+            (
+                "1. fx workflow prepare --dry-run --script --set TOP=demo",
+                "Start by reading the script preview.",
+            ),
+            (
+                "2. fx workflow prepare --set TOP=demo --capture",
+                "Run the safe workspace preparation path.",
+            ),
+            (
+                "3. fx workflows && fx steps",
+                "Discover what to run next from the API catalog.",
+            ),
+        ),
+    ),
+    (
+        "Common options",
+        "blue",
+        (
+            ("--set KEY=VALUE", "Override one Make variable for one call. Repeat as needed."),
+            (
+                "--project-root PATH",
+                "Execute from a repository root different from the current directory.",
+            ),
+            (
+                "--dry-run / --json / --script / --capture",
+                "Inspect, serialize, preview, or capture execution.",
+            ),
+        ),
+    ),
+)
 
 app = typer.Typer(
     add_completion=False,
@@ -57,17 +126,17 @@ app = typer.Typer(
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context) -> None:
-    """Show the compact help guide when no subcommand is selected."""
+    """Show the extended help guide when no subcommand is selected."""
 
     if ctx.invoked_subcommand is None:
-        typer.echo(HELP_GUIDE.strip())
+        _print_help()
 
 
 @app.command()
 def help() -> None:
-    """Print an extended CLI guide with common commands and API boundaries."""
+    """Print an extended CLI guide with workflows, tutorials, and options."""
 
-    typer.echo(HELP_GUIDE.strip())
+    _print_help()
 
 
 @app.command()
@@ -146,6 +215,35 @@ def step(
         typer.echo(json.dumps(result.to_dict(), indent=2))
     elif capture and result.stdout:
         typer.echo(result.stdout, nl=False)
+
+
+def _print_help(console: Console | None = None) -> None:
+    """Render the project help guide with a small Rich color palette."""
+
+    console = console or Console()
+    console.print(
+        Panel(
+            f"[bold {ACCENT}]FlexSoC CLI[/bold {ACCENT}]\n{HELP_INTRO}",
+            border_style=ACCENT,
+        )
+    )
+    for title, color, rows in HELP_SECTIONS:
+        console.print(_help_section(title, color, rows))
+    console.print(
+        f"[dim]Design rule:[/dim] CLI commands call [bold {ACCENT}]FlexSoC[/bold {ACCENT}], "
+        "never backend modules directly."
+    )
+
+
+def _help_section(title: str, color: str, rows: Iterable[tuple[str, str]]) -> Panel:
+    """Build one colored help section for the extended CLI guide."""
+
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style=f"bold {color}", no_wrap=True)
+    table.add_column(style="white")
+    for command, description in rows:
+        table.add_row(command, description)
+    return Panel(table, title=f"[bold {color}]{title}[/bold {color}]", border_style=color)
 
 
 def _parse_overrides(items: list[str]) -> dict[str, str]:

@@ -359,14 +359,18 @@ def test_cli_steps_uses_public_serializer(capsys, monkeypatch) -> None:
     assert '"name"' in captured.out
     assert '"group"' in captured.out
 
-def test_cli_help_documents_uv_and_api_boundary(capsys) -> None:
-    """The help command documents uv usage and the API boundary."""
+def test_cli_help_documents_public_sections_without_local_runner(capsys) -> None:
+    """The help command documents public CLI usage, not local runner details."""
 
     from flexsoc import cli
 
     cli.help()
     captured = capsys.readouterr()
 
-    assert "uv run fx workflows" in captured.out
-    assert "--set KEY=VALUE" in captured.out
+    assert "Quickstart" in captured.out
+    assert "IP development" in captured.out
+    assert "SoC development" in captured.out
+    assert "Tutorials" in captured.out
+    assert "fx workflows" in captured.out
+    assert "uv run" not in captured.out
     assert "CLI commands call FlexSoC" in captured.out
