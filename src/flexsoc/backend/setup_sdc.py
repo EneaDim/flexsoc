@@ -1,19 +1,9 @@
-# ruff: noqa
-#!/usr/bin/env python3
-# Copyright 2025 Enea Dimroci
-# 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-# 
-#     http://www.apache.org/licenses/LICENSE-2.0
-# 
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Generate a small Synopsys Design Constraints file.
 
+The module is intentionally functional so the API layer can call it later.
+"""
+
+from __future__ import annotations
 
 import argparse
 from pathlib import Path
@@ -35,34 +25,49 @@ set_input_delay [expr $clk_period * $clk_io_pct] -clock $clk_name $non_clock_inp
 set_output_delay [expr $clk_period * $clk_io_pct] -clock $clk_name [all_outputs]
 """
 
-def main():
-    ap = argparse.ArgumentParser(description="Generate an SDC snippet and write it to a file.")
-    ap.add_argument("top",
-                    help="Top module / current_design name (e.g., ibex_core)")
-    ap.add_argument("clk_period", type=float,
-                    help="Clock period in ns (e.g., 10.0)")
-    ap.add_argument("-o", "--out", help="Output file path (default: <top>.sdc)")
-    ap.add_argument("--clk-name", default="core_clock",
-                    help="Clock name (default: core_clock)")
-    ap.add_argument("--clk-port-name", default="clk_i",
-                    help="Clock port name (default: clk_i)")
-    ap.add_argument("--clk-io-pct", type=float, default=0.2,
-                    help="I/O delay as fraction of period (default: 0.2)")
-    args = ap.parse_args()
 
-    sdc_text = TEMPLATE.format(
-        top=args.top,
-        clk_name=args.clk_name,
-        clk_port_name=args.clk_port_name,
-        clk_period=f"{args.clk_period:g}",
-        clk_io_pct=f"{args.clk_io_pct:g}",
+def render_sdc(top: str, clk_period: float, clk_name: str = "core_clock", clk_port_name: str = "clk_i", clk_io_pct: float = 0.2) -> str:
+    """Render the SDC text for one top module and clock definition."""
+
+    return TEMPLATE.format(
+        top=top,
+        clk_name=clk_name,
+        clk_port_name=clk_port_name,
+        clk_period=f"{clk_period:g}",
+        clk_io_pct=f"{clk_io_pct:g}",
     )
 
-    out_path = Path(args.out) if args.out else Path(f"{args.top}.sdc")
-    out_path.write_text(sdc_text, encoding="utf-8")
-    #print(f"Wrote SDC to: {out_path.resolve()}")
+
+def write_sdc(path: Path, text: str) -> Path:
+    """Write SDC text to disk and return the resolved output path."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path.resolve()
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse command line arguments for standalone SDC generation."""
+
+    parser = argparse.ArgumentParser(description="Generate an SDC snippet and write it to a file.")
+    parser.add_argument("top", help="Top module / current_design name, e.g. ibex_core.")
+    parser.add_argument("clk_period", type=float, help="Clock period in ns, e.g. 10.0.")
+    parser.add_argument("-o", "--out", help="Output file path. Defaults to <top>.sdc.")
+    parser.add_argument("--clk-name", default="core_clock", help="Clock name.")
+    parser.add_argument("--clk-port-name", default="clk_i", help="Clock port name.")
+    parser.add_argument("--clk-io-pct", type=float, default=0.2, help="I/O delay as a fraction of the clock period.")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Generate the requested SDC file from CLI arguments."""
+
+    args = parse_args(argv)
+    out = Path(args.out) if args.out else Path(f"{args.top}.sdc")
+    text = render_sdc(args.top, args.clk_period, args.clk_name, args.clk_port_name, args.clk_io_pct)
+    write_sdc(out, text)
+    return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

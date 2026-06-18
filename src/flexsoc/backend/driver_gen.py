@@ -1,57 +1,75 @@
-# ruff: noqa
+"""Generate small C driver helpers from an IP HJSON description."""
+
+from __future__ import annotations
+
 import argparse
-import os
 from pathlib import Path
+from typing import Any
 
-import hjson
 
 
-def parse_args():
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the driver generator CLI arguments."""
+
     parser = argparse.ArgumentParser(description="Generate C driver source/header helpers from HJSON.")
     parser.add_argument("--hjson_file", "-i", required=True, help="Path to the HJSON IP definition.")
     parser.add_argument("--base_address", "-b", default="0x80002000", help="Base address of the IP block.")
     parser.add_argument("--output_dir", "-o", default=".", help="Directory for generated files.")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def insert_function_declarations(header_path, base_address, module_name):
-    with open(header_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+def load_hjson(path: str | Path) -> dict[str, Any]:
+    """Load one HJSON file with hjson, falling back to a tiny name parser."""
 
-    base_upper = module_name.upper()
-    decls = [
-        "\n",
-        "#include <stdint.h>\n\n",
-        f"#define {base_upper}_BASE {base_address}\n\n",
-        f"typedef uintptr_t {module_name}_t;\n",
-        f"int {module_name}_init({module_name}_t base);\n",
-        f"int {module_name}_in({module_name}_t base);\n",
-        f"void {module_name}_out({module_name}_t base, char c);\n",
-        f"int {module_name}_putchar(int c);\n",
-        f"int {module_name}_puts(const char* str);\n",
-        "\n",
-    ]
+    text = Path(path).read_text(encoding="utf-8")
+    try:
+        import hjson  # type: ignore
 
-    insert_index = None
-    for i, line in enumerate(lines):
-        if line.strip().startswith("#ifdef __cplusplus"):
-            insert_index = i
-            break
+        return hjson.loads(text)
+    except ImportError:
+        import re
 
-    if insert_index is None:
-        lines.extend(decls)
-    else:
-        lines = lines[:insert_index] + decls + lines[insert_index:]
-
-    with open(header_path, "w", encoding="utf-8") as f:
-        f.writelines(lines)
-
-    print(f"Updated header: {header_path}")
+        match = re.search(r"\bname\s*:\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)", text)
+        if match:
+            return {"name": match.group(1)}
+        raise
 
 
-def generate_uart_source(module_name, output_dir):
-    source_file = Path(output_dir) / f"{module_name}.c"
-    text = f'''#include "{module_name}.h"
+def render_header_declarations(module_name: str, base_address: str) -> str:
+    """Render the C declarations injected into the generated header."""
+
+    upper = module_name.upper()
+    return "".join(
+        [
+            "\n",
+            "#include <stdint.h>\n\n",
+            f"#define {upper}_BASE {base_address}\n\n",
+            f"typedef uintptr_t {module_name}_t;\n",
+            f"int {module_name}_init({module_name}_t base);\n",
+            f"int {module_name}_in({module_name}_t base);\n",
+            f"void {module_name}_out({module_name}_t base, char c);\n",
+            f"int {module_name}_putchar(int c);\n",
+            f"int {module_name}_puts(const char* str);\n\n",
+        ]
+    )
+
+
+def insert_function_declarations(header_path: str | Path, base_address: str, module_name: str) -> Path:
+    """Inject the common driver declarations before the C++ guard when present."""
+
+    path = Path(header_path)
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    decls = render_header_declarations(module_name, base_address)
+    index = next((i for i, line in enumerate(lines) if line.strip().startswith("#ifdef __cplusplus")), len(lines))
+    path.write_text("".join(lines[:index]) + decls + "".join(lines[index:]), encoding="utf-8")
+    return path
+
+
+def render_uart_source(module_name: str) -> str:
+    """Render the UART-specialized C driver body."""
+
+    upper = module_name.upper()
+    return f'''#include "{module_name}.h"
 
 #define DEV_WRITE(addr, val) (*((volatile uint32_t *)(uintptr_t)(addr)) = (uint32_t)(val))
 #define DEV_READ(addr) (*((volatile uint32_t *)(uintptr_t)(addr)))
@@ -102,9 +120,9 @@ void {module_name}_out({module_name}_t base, char c) {{
 
 int {module_name}_putchar(int c) {{
   if (c == '\\n') {{
-    {module_name}_out(({module_name}_t){module_name.upper()}_BASE, '\\r');
+    {module_name}_out(({module_name}_t){upper}_BASE, '\\r');
   }}
-  {module_name}_out(({module_name}_t){module_name.upper()}_BASE, (char)c);
+  {module_name}_out(({module_name}_t){upper}_BASE, (char)c);
   return c;
 }}
 
@@ -115,14 +133,13 @@ int {module_name}_puts(const char* str) {{
   return 0;
 }}
 '''
-    source_file.write_text(text, encoding="utf-8")
-    print(f"Generated source file: {source_file}")
 
 
-def generate_generic_source(module_name, output_dir):
-    source_file = Path(output_dir) / f"{module_name}.c"
+def render_generic_source(module_name: str) -> str:
+    """Render the generic memory-mapped C driver body."""
+
     upper = module_name.upper()
-    text = f'''#include "{module_name}.h"
+    return f'''#include "{module_name}.h"
 
 #define DEV_WRITE(addr, val) (*((volatile uint32_t *)(uintptr_t)(addr)) = (uint32_t)(val))
 #define DEV_READ(addr) (*((volatile uint32_t *)(uintptr_t)(addr)))
@@ -164,28 +181,37 @@ int {module_name}_puts(const char* str) {{
   return 0;
 }}
 '''
-    source_file.write_text(text, encoding="utf-8")
-    print(f"Generated source file: {source_file}")
 
 
-def main():
-    args = parse_args()
+def write_source(module_name: str, output_dir: str | Path) -> Path:
+    """Write the selected C driver body and return the generated path."""
 
-    with open(args.hjson_file, "r", encoding="utf-8") as f:
-        data = hjson.load(f)
+    path = Path(output_dir) / f"{module_name}.c"
+    renderer = render_uart_source if module_name == "uart" else render_generic_source
+    path.write_text(renderer(module_name), encoding="utf-8")
+    return path
 
-    module_name = data["name"]
-    outdir = Path(args.output_dir)
+
+def generate_driver(hjson_file: str | Path, output_dir: str | Path, base_address: str) -> tuple[Path, Path]:
+    """Generate header declarations and C source for one decoded IP block."""
+
+    module_name = str(load_hjson(hjson_file)["name"])
+    outdir = Path(output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
+    header = insert_function_declarations(outdir / f"{module_name}.h", base_address, module_name)
+    source = write_source(module_name, outdir)
+    return header, source
 
-    header_file = outdir / f"{module_name}.h"
-    insert_function_declarations(str(header_file), args.base_address, module_name)
 
-    if module_name == "uart":
-        generate_uart_source(module_name, outdir)
-    else:
-        generate_generic_source(module_name, outdir)
+def main(argv: list[str] | None = None) -> int:
+    """Run the driver generator CLI."""
+
+    args = parse_args(argv)
+    header, source = generate_driver(args.hjson_file, args.output_dir, args.base_address)
+    print(f"Updated header: {header}")
+    print(f"Generated source file: {source}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -23,7 +23,7 @@ r"""
     - emit a compact include file for Verilator runs,
     - write `<output>/<top)_tb.sv` with clock gen, VCD dump, SDF annotate hook, and a tiny stimulus.
 
-  ## CLI (legacy & long flags accepted)
+  ## CLI (short & long flags accepted)
     - -top / --top
     - -rtldir / --rtldir / --rtl-dir
     - -simdir / --simdir / --sim-dir

@@ -1,119 +1,103 @@
-# ruff: noqa
-# Copyright 2025 Enea Dimroci
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Generate a compact FuseSoC core file from ordered RTL sources."""
 
-import sys
-import os
+from __future__ import annotations
+
 import argparse
+from pathlib import Path
 
 
-def rtl_sort_key(filename: str, top: str):
-    name = filename
-
-    # 1. generic packages first
-    if name.endswith("_pkg.sv") and name != f"{top}_reg_pkg.sv":
-        return (0, name)
-
-    # 2. register package
-    if name == f"{top}_reg_pkg.sv":
-        return (1, name)
-
-    # 3. register top
-    if name == f"{top}_reg_top.sv":
-        return (2, name)
-
-    # 4. core/helper modules before top
-    if name.endswith("_core.sv") or name == "timer_core.sv":
-        return (3, name)
-
-    # 5. top module last
-    if name == f"{top}.sv":
-        return (4, name)
-
-    # 6. everything else
-    return (5, name)
+LICENSE = """# Copyright 2025 Enea Dimroci
+#
+# Licensed under the Apache License, Version 2.0.
+"""
 
 
-# ARGUMENT PARSING
-try:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-prj", "--prj", type=str, required=True,
-        help="Define the project name of the design")
-    ap.add_argument("-top", "--top", type=str, required=True,
-        help="Define the TOP module in the design")
-    ap.add_argument("-rtldir", "--rtldir", type=str, required=True,
-        help="Define the directory of source files of the design")
-    ap.add_argument("-lintdir", "--lintdir", type=str, required=True,
-        help="Define the simulation directory where to put the .vcd file")
-    ap.add_argument("-o", "--output", type=str, required=False, help="Output Folder")
-    args = vars(ap.parse_args())
-    prj = args.get("prj")
-    top = args.get("top")
-    rtldir = args.get("rtldir")
-    lintdir = args.get("lintdir")
-    output_folder = args.get("output")
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit()
+def rtl_sort_key(filename: str, top: str) -> tuple[int, str]:
+    """Return a stable RTL order with packages first and the top module last."""
 
-try:
-    if output_folder:
-        path = './' + output_folder + '/'
-    else:
-        path = './'
+    if filename.endswith("_pkg.sv") and filename != f"{top}_reg_pkg.sv":
+        return (0, filename)
+    if filename == f"{top}_reg_pkg.sv":
+        return (1, filename)
+    if filename == f"{top}_reg_top.sv":
+        return (2, filename)
+    if filename.endswith("_core.sv") or filename == "timer_core.sv":
+        return (3, filename)
+    if filename == f"{top}.sv":
+        return (4, filename)
+    return (5, filename)
 
-    rtl_ref_dir = "rtl"
 
-    files = os.listdir(rtldir)
-    files = [f for f in files if not f.startswith('.')]
-    files = [f for f in files if f.endswith('.sv')]
-    files = sorted(files, key=lambda f: rtl_sort_key(f, top))
+def list_rtl_sources(rtl_dir: Path, top: str) -> list[str]:
+    """List visible SystemVerilog files in FuseSoC-friendly order."""
 
-    with open(path + top + '.core', 'w+') as f:
-        mystr  = 'CAPI=2:\n'
-        mystr += 'name: "' + str(prj) + ':ip:' + str(top) + ':0.1"\n'
-        mystr += 'description: "' + str(top) + '"\n'
-        mystr += 'filesets:\n'
-        mystr += '  files_rtl:\n'
-        mystr += '    depend:\n'
-        mystr += '      - ips:dependecies:all\n'
-        mystr += '    files:\n'
-        for i in files:
-            mystr += '      - ' + rtl_ref_dir + '/' + str(i) + '\n'
-        mystr += '    file_type: systemVerilogSource\n'
-        mystr += '\n'
-        mystr += 'targets:\n'
-        mystr += '  default: &default_target\n'
-        mystr += '    filesets:\n'
-        mystr += '      - files_rtl\n'
-        mystr += '    toplevel: ' + str(top) + '\n'
-        mystr += '\n'
-        mystr += '  lint:\n'
-        mystr += '    <<: *default_target\n'
-        mystr += '    default_tool: verilator\n'
-        mystr += '    tools:\n'
-        mystr += '      verilator:\n'
-        mystr += '        mode: lint-only\n'
-        mystr += '        verilator_options:\n'
-        mystr += '          - "-Wall"\n'
-        mystr += '          - "-Wno-fatal"\n\n'
-        f.write(mystr)
+    files = [p.name for p in rtl_dir.iterdir() if p.is_file() and not p.name.startswith(".")]
+    return sorted((name for name in files if name.endswith(".sv")), key=lambda name: rtl_sort_key(name, top))
 
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit()
+
+def render_core(prj: str, top: str, rtl_files: list[str], rtl_ref_dir: str = "rtl") -> str:
+    """Render the CAPI2 core description used by FuseSoC."""
+
+    file_lines = "\n".join(f"      - {rtl_ref_dir}/{name}" for name in rtl_files)
+    if file_lines:
+        file_lines += "\n"
+    return (
+        "CAPI=2:\n"
+        f"name: \"{prj}:ip:{top}:0.1\"\n"
+        f"description: \"{top}\"\n"
+        "filesets:\n"
+        "  files_rtl:\n"
+        "    depend:\n"
+        "      - ips:dependecies:all\n"
+        "    files:\n"
+        f"{file_lines}"
+        "    file_type: systemVerilogSource\n\n"
+        "targets:\n"
+        "  default: &default_target\n"
+        "    filesets:\n"
+        "      - files_rtl\n"
+        f"    toplevel: {top}\n\n"
+        "  lint:\n"
+        "    <<: *default_target\n"
+        "    default_tool: verilator\n"
+        "    tools:\n"
+        "      verilator:\n"
+        "        mode: lint-only\n"
+        "        verilator_options:\n"
+        "          - \"-Wall\"\n"
+        "          - \"-Wno-fatal\"\n"
+    )
+
+
+def write_core(prj: str, top: str, rtl_dir: Path, output: Path | None = None) -> Path:
+    """Write `<top>.core` and return the generated path."""
+
+    out_dir = output or Path.cwd()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    core_path = out_dir / f"{top}.core"
+    core_path.write_text(render_core(prj, top, list_rtl_sources(rtl_dir, top)), encoding="utf-8")
+    return core_path
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse the CLI flags used by the Make flow."""
+
+    parser = argparse.ArgumentParser(description="Generate a FuseSoC .core file from RTL sources.")
+    parser.add_argument("-prj", "--prj", required=True, help="Project/vendor prefix for the core name.")
+    parser.add_argument("-top", "--top", required=True, help="Top module name.")
+    parser.add_argument("-rtldir", "--rtldir", required=True, type=Path, help="Directory with RTL sources.")
+    parser.add_argument("-lintdir", "--lintdir", required=True, help="Legacy lint directory flag kept for compatibility.")
+    parser.add_argument("-o", "--output", type=Path, help="Output folder for the generated .core file.")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint used by the Make targets."""
+
+    args = parse_args(argv)
+    write_core(args.prj, args.top, args.rtldir, args.output)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

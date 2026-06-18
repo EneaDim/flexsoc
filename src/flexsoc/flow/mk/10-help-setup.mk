@@ -62,14 +62,14 @@ setup_tb: setup flist
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
 	@if [ "$(TOP)" = "soc" ]; then \
-		dev_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
+		dev_args="$$( $(PYTHON) -m flexsoc.backend.soc_cfg \
 			--workspace $(WORKSPACE) \
 			--run-top $(RUN_TOP) \
 			--run-id $(RUN_ID) \
 			--mode $(SOC_CFG_MODE) \
 			--default-host $(HOST) \
 			--format args | sed 's/^--host [^ ]* //' )"; \
-		$(PYTHON) -m flexsoc.tools.setup_tb $(OVERWRITE) \
+		$(PYTHON) -m flexsoc.backend.setup_tb $(OVERWRITE) \
 			-top $(TOP) \
 			-rtldir $(RTLDIR) \
 			$$dev_args \
@@ -82,7 +82,7 @@ setup_tb: setup flist
 			-vsv $(VSV) \
 			-o $(TBDIR); \
 	else \
-		$(PYTHON) -m flexsoc.tools.setup_tb $(OVERWRITE) \
+		$(PYTHON) -m flexsoc.backend.setup_tb $(OVERWRITE) \
 			-top $(TOP) \
 			-rtldir $(RTLDIR) \
 			-simdir $(SIMDIR) \
@@ -98,7 +98,7 @@ setup_tb: setup flist
 setup_cocotb: setup
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
-	$(Q)$(PYTHON) -m flexsoc.tools.setup_cocotb \
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_cocotb \
 		--top $(TOP) --itf $(REG_ITF) \
 		--rtl-dir $(RTLDIR) --output $(TBDIR)/cocotb \
 		--clk clk_i --rst rst_ni --rst-active low --period-ns 10 \
@@ -107,17 +107,17 @@ setup_cocotb: setup
 setup_model: setup
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(MODELDIR)
-	$(Q)$(PYTHON) -m flexsoc.tools.setup_model -top $(TOP) -o $(MODELDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_model -top $(TOP) -o $(MODELDIR)
 
 setup_sdc: setup
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(ORSDIR)
-	$(Q)$(PYTHON) -m flexsoc.tools.setup_sdc $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_sdc $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc
 
 setup_syn: setup_sdc
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SYNDIR)
-	$(Q)$(PYTHON) -m flexsoc.tools.setup_syn \
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_syn \
 		-top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
 		--filelist $(RTLDIR)/rtl_list.f \
 		-liberty $(LIB_SYN) -clk $(CLK_PERIOD) \
@@ -127,7 +127,7 @@ setup_syn: setup_sdc
 setup_signoff: setup_sdc syn
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SIGNOFFDIR)
-	$(Q)$(PYTHON) -m flexsoc.tools.setup_signoff \
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff \
 		-top $(TOP) -rtldir $(RTLDIR) \
 		-sdcdir $(ORSDIR) -syndir $(SYNDIR) -simdir $(SIMDIR) \
 		-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) \
@@ -135,5 +135,5 @@ setup_signoff: setup_sdc syn
 
 setup_pnr:
 	$(Q)$(MKDIR) -p $(ORSDIR)
-	$(Q)$(PYTHON) -m flexsoc.tools.setup_pnr $(TOP) --syn_strategy $(TARGET_OPT) --clk_period $(CLK_PERIOD) \
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_pnr $(TOP) --syn_strategy $(TARGET_OPT) --clk_period $(CLK_PERIOD) \
 		--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --outdir $(ORSDIR)

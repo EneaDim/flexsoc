@@ -11,7 +11,7 @@ THIS_MK_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 FLOW_DIR     := $(abspath $(THIS_MK_DIR)/..)
 REPO_ROOT    ?= $(abspath $(FLOW_DIR)/../../..)
 FLEXSOCROOT  ?= $(REPO_ROOT)/src/flexsoc
-TOOLSROOT    ?= $(FLEXSOCROOT)/tools
+TOOLSROOT    ?= $(FLEXSOCROOT)/backend
 UTILROOT     ?= $(REPO_ROOT)/src/util
 FLOWROOT     ?= $(REPO_ROOT)/flow
 export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
@@ -92,7 +92,7 @@ INC_PRIM        := $(REPO_ROOT)/hw/ips/prim
 INC_PRIM_OT     := $(REPO_ROOT)/hw/ips/prim_opentitan
 INC_TLUL        := $(REPO_ROOT)/hw/ips/tlul
 IPS_ROOT        ?= $(REPO_ROOT)/hw/ips
-FSMGEN_DIR      := $(REPO_ROOT)/tools/fsm_gen
+FSMGEN_DIR      := $(FLEXSOCROOT)/backend/fsm_gen
 
 OR_INC_DIRS     := \
   $(INC_PKGS) \
@@ -182,7 +182,7 @@ soc_cfg:
 	$(call _require_var,RUN_ID)
 	@echo "[soc_cfg.mk] HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"
 	$(Q)$(MKDIR) -p $(OUTROOT)
-	$(Q)$(PYTHON) -m flexsoc.tools.soc_cfg \
+	$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg \
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \

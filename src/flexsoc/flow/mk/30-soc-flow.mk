@@ -64,7 +64,7 @@ fsoc_init:
 	mkdir -p "$$rtl_dir" "$$lint_dir" "$$cores_dir"; \
 	core_out="$$cores_dir"; \
 	core_rel="$$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$$core_out" "$$(pwd)")"; \
-	$(PYTHON) -m flexsoc.tools.setup_fsoc \
+	$(PYTHON) -m flexsoc.backend.setup_fsoc \
 		-prj "$(PRJ)" \
 		-top "$(TOP)" \
 		-rtldir "$$rtl_dir" \
@@ -106,14 +106,14 @@ xbar_init: soc_cfg
 	@echo "\n$(ORANGE)XBAR init (HOST=$(HOST)) ...\n$(RESET)"
 	$(call _require_soc_run_vars)
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR)
-	@cfg_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
+	@cfg_args="$$( $(PYTHON) -m flexsoc.backend.soc_cfg \
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \
 		--mode $(SOC_CFG_MODE) \
 		--default-host $(HOST) \
 		--format args )"; \
-	$(PYTHON) -m flexsoc.tools.xbar_init $$cfg_args --output $(DATADIR)/xbar_main.hjson
+	$(PYTHON) -m flexsoc.backend.xbar_init $$cfg_args --output $(DATADIR)/xbar_main.hjson
 xbar_build:
 	@echo "\n$(ORANGE)XBAR build ...\n$(RESET)"
 	$(call _require_soc_run_vars)
@@ -170,18 +170,18 @@ soc: soc_stage_tops
 	@echo "\n$(ORANGE)SoC RTL generation (HOST=$(HOST)) ...\n$(RESET)"
 	$(call _require_soc_run_vars)
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR) $(TBDIR) $(SIMDIR)
-	@cfg_args="$$( $(PYTHON) -m flexsoc.tools.soc_cfg \
+	@cfg_args="$$( $(PYTHON) -m flexsoc.backend.soc_cfg \
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \
 		--mode $(SOC_CFG_MODE) \
 		--default-host $(HOST) \
 		--format args )"; \
-	$(PYTHON) -m flexsoc.tools.soc_gen $$cfg_args -o $(RTLDIR)/soc.sv
+	$(PYTHON) -m flexsoc.backend.soc_gen $$cfg_args -o $(RTLDIR)/soc.sv
 soc_flist:
 	@echo "\n$(ORANGE)Generating SoC filelist ...\n$(RESET)"
 	$(call _require_soc_run_vars)
-	$(Q)$(PYTHON) -m flexsoc.tools.gen_filelist \
+	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist \
 		--soc \
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
@@ -206,7 +206,7 @@ sw_soc:
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
 	$(call _require_var,HOST)
-	$(Q)$(PYTHON) -m flexsoc.tools.sw_soc_gen \
+	$(Q)$(PYTHON) -m flexsoc.backend.sw_soc_gen \
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \

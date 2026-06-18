@@ -66,7 +66,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "Directory containing FSM input files. "
-            "If omitted, the legacy tools/fsm_gen/inputs directory is used."
+            "If omitted, the bundled tools/fsm_gen/inputs directory is used."
         ),
     )
 
@@ -76,7 +76,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "Directory where generated artifacts are written. "
-            "If omitted, the legacy tools/fsm_gen/outputs directory is used."
+            "If omitted, the bundled tools/fsm_gen/outputs directory is used."
         ),
     )
 

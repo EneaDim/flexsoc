@@ -1,69 +1,64 @@
-# ruff: noqa
-# Copyright 2025 Enea Dimroci
-# 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-# 
-#     http://www.apache.org/licenses/LICENSE-2.0
-# 
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Generate a minimal Python reference model template.
 
-import sys
+The template is intentionally small and import-safe for API-driven usage.
+"""
+
+from __future__ import annotations
+
 import argparse
+from pathlib import Path
 
-# ARGUMENT PARSING
-try:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-top", "--top", type=str, required='True', 
-    help="Define the TOP module in the design")
-    ap.add_argument("-o", "--output", type=str, required='False', help="Output Folder")
-    args = vars(ap.parse_args())
-    top = args.get("top")
-    output_folder = args.get("output")
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit()
-
-try:
-    # Define the output folder
-    # Define the output folder
-    if output_folder:
-        path = './' + output_folder + '/'
-    else:
-        path = './'
-    # Create model.py
-    with open(path+'model.py', 'w+') as f:
-        mystr = 'import math\n'
-        mystr += 'import time\n'
-        mystr += '\n'
-        mystr += 'def _sum(a, b):\n'
-        mystr += '    expected_outcome = a + b\n'
-        mystr += '    return expected_outcome\n'
-        mystr += '\n'
-        mystr += 'def _sub(a, b):\n'
-        mystr += '    expected_outcome = a - b\n'
-        mystr += '    return expected_outcome\n'
-        mystr += '\n'
-        mystr += 'def _multiply(a, b):\n'
-        mystr += '    expected_outcome = a * b\n'
-        mystr += '    return expected_outcome\n'
-        mystr += '\n'
-        mystr += 'def _divide(a, b):\n'
-        mystr += '    expected_outcome = a / b\n'
-        mystr += '    return expected_outcome\n'
-        f.write(mystr)
-
-except Exception as err:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    print('\033[38;5;208mError during CORE CODE:\nError Type: '+str(exc_type)+'\nLine number: '+str(exc_traceback.tb_lineno)+'\033[0;0m')
-    print(err)
-    sys.exit()
+MODEL_TEMPLATE = """import math
+import time
 
 
+def _sum(a, b):
+    expected_outcome = a + b
+    return expected_outcome
+
+
+def _sub(a, b):
+    expected_outcome = a - b
+    return expected_outcome
+
+
+def _multiply(a, b):
+    expected_outcome = a * b
+    return expected_outcome
+
+
+def _divide(a, b):
+    expected_outcome = a / b
+    return expected_outcome
+"""
+
+
+def write_model(output: str | Path | None = None) -> Path:
+    """Write the default `model.py` template and return its path."""
+
+    folder = Path(output or ".")
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "model.py"
+    path.write_text(MODEL_TEMPLATE, encoding="utf-8")
+    return path.resolve()
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments while preserving the historical option names."""
+
+    parser = argparse.ArgumentParser(description="Generate a small Python model.py template.")
+    parser.add_argument("-top", "--top", required=True, help="Top module name kept for flow compatibility.")
+    parser.add_argument("-o", "--output", help="Output folder. Defaults to the current directory.")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Generate `model.py` from command line options."""
+
+    args = parse_args(argv)
+    write_model(args.output)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

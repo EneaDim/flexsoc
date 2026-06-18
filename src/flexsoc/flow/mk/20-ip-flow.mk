@@ -9,7 +9,7 @@
 
 hjson: setup
 	@echo "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.tools.hjson_gen $(OVERWRITE) -top $(TOP) -itf $(REG_ITF) -o $(DATADIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) -top $(TOP) -itf $(REG_ITF) -o $(DATADIR)
 
 reg:
 	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
@@ -22,7 +22,7 @@ doc:
 
 rtl_stub:
 	@echo "\n$(ORANGE)RTL stub generation...\n$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.tools.rtl_stub_gen $(OVERWRITE) -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
 
 ip_start: setup hjson reg doc rtl_stub flist setup_tb sim
 
@@ -31,17 +31,17 @@ soc_start: flist
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
 	@echo "\n$(ORANGE)Initializing SoC run from loaded IP bundles...\n$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.tools.soc_start \
+	$(Q)$(PYTHON) -m flexsoc.backend.soc_start \
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID)
 
 flist:
-	$(Q)$(PYTHON) -m flexsoc.tools.gen_filelist --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root $(IPS_ROOT) --rtldir $(RTLDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root $(IPS_ROOT) --rtldir $(RTLDIR)
 
 driver:
 	$(Q)$(UTILROOT)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
-	$(Q)$(PYTHON) -m flexsoc.tools.driver_gen -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.driver_gen -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR)
 
 fetch:
 	$(Q)$(UTILROOT)/vendor.py --update $(REPO_ROOT)/vendor/$(VENDOR).vendor.hjson

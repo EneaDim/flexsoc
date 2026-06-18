@@ -59,9 +59,9 @@ class Interface:
 
         @param name Human-readable name/label for this interface instance.
         @param inputs_dir Optional directory containing <fsm>.txt and <fsm>.csv.
-                          If omitted, falls back to the legacy repo-local inputs dir.
+                          If omitted, falls back to the bundled repo-local inputs dir.
         @param outputs_dir Optional directory where generated artifacts are written.
-                           If omitted, falls back to the legacy repo-local outputs dir.
+                           If omitted, falls back to the bundled repo-local outputs dir.
         """
         self.name: str = name
         self.fsm_name: str | None = None
