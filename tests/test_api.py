@@ -300,3 +300,29 @@ def test_backend_signoff_generator_writes_opensta_scripts(tmp_path) -> None:
     assert "read_liberty" in sta
     assert "link_design demo" in sta
     assert (tmp_path / "signoff" / "sta.tcl").exists()
+
+
+def test_reviewed_backend_parsers_use_canonical_flags(tmp_path) -> None:
+    """Reviewed backend entrypoints use one current flag style for Make calls."""
+
+    from flexsoc.backend.hjson_gen import parse_args as parse_hjson
+    from flexsoc.backend.rtl_stub_gen import parse_args as parse_rtl_stub
+    from flexsoc.backend.setup_fsoc import parse_args as parse_fsoc
+    from flexsoc.backend.setup_model import parse_args as parse_model
+    from flexsoc.backend.setup_pnr import parse_args as parse_pnr
+    from flexsoc.backend.setup_signoff import parse_args as parse_signoff
+
+    rtl_dir = tmp_path / "rtl"
+    out_dir = tmp_path / "out"
+    rtl_dir.mkdir()
+
+    assert parse_hjson(["--top", "demo", "--interface", "tlul"]).top == "demo"
+    assert parse_rtl_stub(["--hjson-file", "demo.hjson", "--interface", "tlul"]).itf == "tlul"
+    assert parse_model(["--top", "demo", "--output-dir", str(out_dir)]).output == str(out_dir)
+    assert parse_fsoc(["--project", "acme", "--top", "demo", "--rtl-dir", str(rtl_dir)]).project == "acme"
+    assert parse_pnr(["--top", "demo", "--filelist", "rtl.f", "--output-dir", str(out_dir)]).top == "demo"
+    assert parse_signoff(["--top", "demo", "--output-dir", str(out_dir)]).top == "demo"
+
+    import flexsoc.backend.setup_signoff as signoff
+
+    assert not hasattr(signoff, "build_sta_tcl")

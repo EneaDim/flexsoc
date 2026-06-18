@@ -220,16 +220,16 @@ def generate_rtl_stubs(hjson_path: str | Path, itf: str, outdir: str | Path, *, 
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse Make-compatible command-line arguments."""
+    """Parse command-line arguments for RTL stub generation."""
 
     parser = argparse.ArgumentParser(
         prog="rtl_stub_gen",
         description="Generate <top>_core.sv and <top>.sv from Comportable HJSON.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("-i", "--input", "--hjson", "--hjson-file", dest="hjson_path", required=True)
-    parser.add_argument("-itf", "-iT", "--itf", "--bus", dest="itf", required=True)
-    parser.add_argument("-o", "--output", "--output-dir", dest="outdir", default=".")
+    parser.add_argument("--hjson-file", dest="hjson_path", required=True)
+    parser.add_argument("--interface", dest="itf", required=True)
+    parser.add_argument("--output-dir", dest="outdir", default=".")
     parser.add_argument("-f", "--force", action="store_true", help="overwrite existing files")
     return parser.parse_args(argv)
 

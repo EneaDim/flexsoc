@@ -9,7 +9,7 @@
 
 hjson: setup
 	@echo "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) -top $(TOP) -itf $(REG_ITF) -o $(DATADIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
 
 reg:
 	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
@@ -22,7 +22,7 @@ doc:
 
 rtl_stub:
 	@echo "\n$(ORANGE)RTL stub generation...\n$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) -i $(DATADIR)/$(TOP).hjson -itf $(REG_ITF) -o $(RTLDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) --hjson-file $(DATADIR)/$(TOP).hjson --interface $(REG_ITF) --output-dir $(RTLDIR)
 
 ip_start: setup hjson reg doc rtl_stub flist setup_tb sim
 

@@ -8,8 +8,8 @@ define _require_fsm
 	fi
 endef
 
-.PHONY: fsm_init fsm_tool_setup fsm_example_load fsm_setup fsm_gen fsm_plot fsm_flow
-.PHONY: fsm_install fsm2rtl fsm_save fsm_load
+.PHONY: fsm_init fsm_example_load fsm_setup fsm_gen fsm_plot fsm_flow
+.PHONY: fsm_install
 .PHONY: deps deps-soc
 .PHONY: clean-pyc clean_doc clean_log clean_rtl clean_sim clean_cocotb clean_syn clean_signoff clean_pnr
 .PHONY: clean_fsm clean_fsm_all clean_agent clean_fsoc clean_soc clean_sw clean_vendor clean_subdir clean clean_all
@@ -19,13 +19,7 @@ fsm_init:
 	$(call _require_fsm)
 	$(Q)$(MKDIR) -p "$(FSM_INPUT_DIR)" "$(FSM_OUTPUT_DIR)"
 
-# Legacy name kept for compatibility. It now prepares the run-local FSM workspace
-# and also keeps the standalone tool directories available.
 fsm_setup: fsm_init
-	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) setup
-
-# Explicit tool setup alias (clearer than fsm_setup)
-fsm_tool_setup:
 	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) setup
 
 fsm_example_load: fsm_init
@@ -56,19 +50,6 @@ fsm_install: fsm_init
 	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM).gtkw" "$(SIMDIR)/" || true
 	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM)_tb.sv" "$(TBDIR)/"
 	@echo "\n$(ORANGE)Installed FSM $(FSM) artifacts into IP run directories\n$(RESET)"
-
-# Backward-compatible alias
-fsm2rtl: fsm_install
-
-# Compatibility targets: with run-local FSM directories these are now effectively no-ops
-# or simple sync helpers.
-fsm_save: fsm_init
-	$(call _require_fsm)
-	@echo "\n$(ORANGE)FSM $(FSM) already lives inside the run workspace: $(FSMWORKDIR)\n$(RESET)"
-
-fsm_load: fsm_init
-	$(call _require_fsm)
-	@echo "\n$(ORANGE)FSM $(FSM) is already run-local. Edit inputs under $(FSM_INPUT_DIR)\n$(RESET)"
 
 # -----------------------------------------------------------------------------
 # Dependencies

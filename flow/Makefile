@@ -1,9 +1,7 @@
-# flow/Makefile (compat shim)
+# flow/Makefile
 #
-# This directory is kept ONLY for backward compatibility:
-# - tests and users call: make -C flow <target>
-#
-# The real Makefile lives in: src/flexsoc/flow/Makefile
+# Thin wrapper around the packaged FlexSoC flow Makefile.
+# Keep this file small so Make, CLI, and API entrypoints stay aligned.
 
 # Repo root = parent of this directory
 REPO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))..)

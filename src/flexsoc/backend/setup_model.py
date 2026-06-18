@@ -44,11 +44,11 @@ def write_model(output: str | Path | None = None) -> Path:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse CLI arguments while preserving the historical option names."""
+    """Parse command-line arguments for model template generation."""
 
     parser = argparse.ArgumentParser(description="Generate a small Python model.py template.")
-    parser.add_argument("-top", "--top", required=True, help="Top module name kept for flow compatibility.")
-    parser.add_argument("-o", "--output", help="Output folder. Defaults to the current directory.")
+    parser.add_argument("--top", required=True, help="Top module name.")
+    parser.add_argument("--output-dir", dest="output", help="Output folder. Defaults to the current directory.")
     return parser.parse_args(argv)
 
 

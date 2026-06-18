@@ -55,7 +55,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 
 ## Rules for each backend cleanup
 
-- Preserve command line behavior unless a patch explicitly documents a breaking change.
+- Use current canonical names only; do not add aliases for removed APIs or old paths.
 - Add a short module docstring, plus concise docstrings for public functions.
 - Prefer pure helper functions plus a small `main()` entrypoint.
 - Avoid classes unless state or polymorphism clearly reduces complexity.
@@ -71,25 +71,27 @@ This document maps the current backend modules before deeper file-by-file cleanu
 ### Patch 0015 notes
 
 - `driver_gen.py` now exposes pure render helpers and a small `generate_driver()` entrypoint.
-- The CLI behavior stays compatible with the current Make flow while API integration can call Python functions directly.
+- `driver_gen.py` can now be called directly by API integration without shelling out.
 
 ## Patch 0016 note
 
-`rtl_stub_gen.py` now exposes `generate_rtl_stubs()` as a pure backend API entrypoint while keeping the existing CLI wrapper. This keeps generated RTL preview/generation callable from `FlexSoC` later without shelling out.
+`rtl_stub_gen.py` now exposes `generate_rtl_stubs()` as a pure backend API entrypoint. This keeps generated RTL preview/generation callable from `FlexSoC` later without shelling out.
 
 
 ## Patch 0017 note
 
-`setup_fsoc.py` now exposes `list_rtl_sources()`, `render_core()`, and `write_core()` so FuseSoC core generation can be called directly from the API layer while keeping the existing CLI flags.
+`setup_fsoc.py` now exposes `list_rtl_sources()`, `render_core()`, and `write_core()` so FuseSoC core generation can be called directly from the API layer.
 
 
 ## Patch 0018 note
 
-`setup_pnr.py` now exposes `parse_filelist()`, `render_config()`, and `write_config()` so OpenROAD `config.mk` generation can be called directly from the API layer while preserving direct script execution.
+`setup_pnr.py` now exposes `parse_filelist()`, `render_config()`, and `write_config()` so OpenROAD `config.mk` generation can be called directly from the API layer.
 
 
 ## Patch 0019 note
 
-`setup_signoff.py` now exposes `STAConfig`, render helpers, and `write_signoff_scripts()` so OpenSTA script generation can be called directly from the API layer while keeping the current Make-flow command line behavior.
+`setup_signoff.py` now exposes `STAConfig`, render helpers, and `write_signoff_scripts()` so OpenSTA script generation can be called directly from the API layer.
 
-Terminology note: docs and backend docstrings describe unchanged behavior as current Make-flow compatibility during this development phase.
+## Patch 0020 note
+
+The Make flow and reviewed backend parsers now use one canonical naming style for current entrypoints. Old import aliases and compatibility-only Make aliases were removed so the development tree stays coherent while the API layer becomes the only stable boundary.

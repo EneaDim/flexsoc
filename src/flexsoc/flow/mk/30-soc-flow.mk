@@ -65,11 +65,10 @@ fsoc_init:
 	core_out="$$cores_dir"; \
 	core_rel="$$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))' "$$core_out" "$$(pwd)")"; \
 	$(PYTHON) -m flexsoc.backend.setup_fsoc \
-		-prj "$(PRJ)" \
-		-top "$(TOP)" \
-		-rtldir "$$rtl_dir" \
-		-lintdir "$$lint_dir" \
-		-o "$$core_rel"; \
+		--project "$(PRJ)" \
+		--top "$(TOP)" \
+		--rtl-dir "$$rtl_dir" \
+		--output-dir "$$core_rel"; \
 	test -f "$$core_out/$(TOP).core" || { \
 		echo "ERROR: expected core not generated: $$core_out/$(TOP).core"; \
 		exit 2; \

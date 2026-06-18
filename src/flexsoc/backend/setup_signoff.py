@@ -37,26 +37,24 @@ def split_liberties(values: Sequence[str]) -> list[Path]:
 
 
 def parse_args(argv: Sequence[str]) -> STAConfig:
-    """Parse direct CLI arguments and the aliases used by the Make flow."""
+    """Parse the command-line arguments used by the Make flow."""
 
     parser = argparse.ArgumentParser(description="Generate OpenSTA signoff scripts.")
-    parser.add_argument("--top", "--design", "--module", "-top", dest="top")
-    parser.add_argument("--output-dir", "--outdir", "--out", "--signoff-dir", "-o", dest="output_dir")
-    parser.add_argument("--syndir", "-syndir", dest="syndir")
-    parser.add_argument("--sdcdir", "-sdcdir", dest="sdcdir")
-    parser.add_argument("--simdir", "-simdir", dest="simdir")
-    parser.add_argument("--rtldir", "-rtldir", dest="rtldir")
-    parser.add_argument("--clk", "-clk", dest="clk")
-    parser.add_argument("--liberty", "-libs", dest="liberty", action="append", default=[])
-    parser.add_argument("--activity-pct", "-activity", dest="activity_pct", type=float, default=10.0)
+    parser.add_argument("--top", required=False, help="Top module name.")
+    parser.add_argument("--output-dir", required=False, help="Output directory for generated signoff scripts.")
+    parser.add_argument("--synthesis-dir", dest="syndir", help="Directory containing the synthesized netlist.")
+    parser.add_argument("--constraints-dir", dest="sdcdir", help="Directory containing the generated SDC file.")
+    parser.add_argument("--simulation-dir", dest="simdir", help="Directory containing simulation activity data.")
+    parser.add_argument("--liberty", dest="liberty", action="append", default=[], help="Liberty file; repeat or comma-separate values.")
+    parser.add_argument("--activity-pct", dest="activity_pct", type=float, default=10.0, help="Global activity percentage for power reports.")
     ns, _unknown = parser.parse_known_args(list(argv))
 
     top = ns.top or os.environ.get("TOP")
     out = ns.output_dir or os.environ.get("OUTPUT_DIR") or os.environ.get("OUTDIR") or os.environ.get("SIGNOFFDIR")
     if not top:
-        parser.error("missing top name (use --top / -top or set TOP)")
+        parser.error("missing top name (use --top or set TOP)")
     if not out:
-        parser.error("missing output dir (use --output-dir / -o or set OUTPUT_DIR / OUTDIR / SIGNOFFDIR)")
+        parser.error("missing output dir (use --output-dir or set OUTPUT_DIR)")
 
     return STAConfig(
         top=str(top),
@@ -187,13 +185,6 @@ def main(argv: Sequence[str]) -> int:
     write_signoff_scripts(parse_args(argv))
     return 0
 
-
-# Backward-compatible names used by older imports inside this repository.
-build_init_opensta = render_init_opensta
-build_power_tcl = render_power_tcl
-build_sta_tcl = render_sta_tcl
-build_sta_violators_tcl = render_sta_violators_tcl
-build_write_sdf_tcl = render_write_sdf_tcl
 
 
 if __name__ == "__main__":

@@ -107,7 +107,7 @@ setup_cocotb: setup
 setup_model: setup
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(MODELDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_model -top $(TOP) -o $(MODELDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_model --top $(TOP) --output-dir $(MODELDIR)
 
 setup_sdc: setup
 	$(call _require_var,TOP)
@@ -128,12 +128,13 @@ setup_signoff: setup_sdc syn
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SIGNOFFDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff \
-		-top $(TOP) -rtldir $(RTLDIR) \
-		-sdcdir $(ORSDIR) -syndir $(SYNDIR) -simdir $(SIMDIR) \
-		-libs $(LIBS) -clk $(CLK_PERIOD) -activity $(ACTIVITY) \
-		-o $(SIGNOFFDIR)
+		--top $(TOP) \
+		--constraints-dir $(ORSDIR) --synthesis-dir $(SYNDIR) --simulation-dir $(SIMDIR) \
+		--liberty $(LIBS) --activity-pct $(ACTIVITY) \
+		--output-dir $(SIGNOFFDIR)
 
 setup_pnr:
 	$(Q)$(MKDIR) -p $(ORSDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_pnr $(TOP) --syn_strategy $(TARGET_OPT) --clk_period $(CLK_PERIOD) \
-		--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --outdir $(ORSDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_pnr --top $(TOP) \
+		--synthesis-strategy $(TARGET_OPT) --clock-period $(CLK_PERIOD) \
+		--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --output-dir $(ORSDIR)

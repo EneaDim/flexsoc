@@ -174,16 +174,16 @@ HJSON_TEMPLATE = r"""{{
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse Make-compatible HJSON generator arguments."""
+    """Parse command-line arguments for HJSON template generation."""
 
     parser = argparse.ArgumentParser(
         prog="hjson_gen",
         description="Generate a starter <TOP>.hjson template for an IP.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("-t", "-top", "--top", dest="top", required=True, help="Top module name.")
-    parser.add_argument("-i", "-itf", "--itf", dest="itf", required=True, help="Bus interface, for example tlul.")
-    parser.add_argument("-o", "--output", default=".", help="Output directory.")
+    parser.add_argument("--top", required=True, help="Top module name.")
+    parser.add_argument("--interface", dest="itf", required=True, help="Bus interface, for example tlul.")
+    parser.add_argument("--output-dir", dest="output", default=".", help="Output directory.")
     parser.add_argument("-f", "--force", action="store_true", help="Overwrite an existing <TOP>.hjson file.")
     return parser.parse_args(argv)
 

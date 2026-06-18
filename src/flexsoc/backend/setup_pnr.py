@@ -165,12 +165,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate OpenROAD-flow-scripts config.mk from an rtl_list.f."
     )
-    parser.add_argument("top", help="Top module name")
-    parser.add_argument("--syn_strategy", default="area", help="Synthesis strategy: none|area|delay")
-    parser.add_argument("--clk_period", type=int, default=50, help="Clock period in ns")
+    parser.add_argument("--top", required=True, help="Top module name")
+    parser.add_argument("--synthesis-strategy", dest="syn_strategy", default="area", help="Synthesis strategy: none|area|delay")
+    parser.add_argument("--clock-period", dest="clk_period", type=int, default=50, help="Clock period in ns")
     parser.add_argument("--platform", default="sky130hd", help="Target platform")
     parser.add_argument("--filelist", required=True, help="Path to the .f file")
-    parser.add_argument("--outdir", required=True, help="Output directory")
+    parser.add_argument("--output-dir", dest="outdir", required=True, help="Output directory")
     return parser.parse_args(argv)
 
 

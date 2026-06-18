@@ -6,16 +6,16 @@ import argparse
 from pathlib import Path
 
 
-ALIASES = {
+IP_NAME_MAP = {
     "uart-master": "uart",
     "uart_master": "uart",
 }
 
 
 def canon(name: str) -> str:
-    """Normalize existing IP aliases to canonical names."""
+    """Normalize known IP name variants to canonical names."""
 
-    return ALIASES.get(name, name)
+    return IP_NAME_MAP.get(name, name)
 
 
 def add_unique(out: list[str], seen: set[str], value: str) -> None:

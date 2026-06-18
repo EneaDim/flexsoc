@@ -80,7 +80,7 @@ class Interface:
         # TB lines generated
         self.functb: List[str] = []
 
-        # Legacy repository-local default layout (backward compatibility)
+        # Repository-local default layout used when directories are omitted
         root_dir = Path(__file__).resolve().parents[1]
         default_inputs_dir = root_dir / "inputs"
         default_outputs_dir = root_dir / "outputs"

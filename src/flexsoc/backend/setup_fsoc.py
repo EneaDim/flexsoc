@@ -83,11 +83,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse the CLI flags used by the Make flow."""
 
     parser = argparse.ArgumentParser(description="Generate a FuseSoC .core file from RTL sources.")
-    parser.add_argument("-prj", "--prj", required=True, help="Project/vendor prefix for the core name.")
-    parser.add_argument("-top", "--top", required=True, help="Top module name.")
-    parser.add_argument("-rtldir", "--rtldir", required=True, type=Path, help="Directory with RTL sources.")
-    parser.add_argument("-lintdir", "--lintdir", required=True, help="Legacy lint directory flag kept for compatibility.")
-    parser.add_argument("-o", "--output", type=Path, help="Output folder for the generated .core file.")
+    parser.add_argument("--project", required=True, help="Project/vendor prefix for the core name.")
+    parser.add_argument("--top", required=True, help="Top module name.")
+    parser.add_argument("--rtl-dir", required=True, type=Path, help="Directory with RTL sources.")
+    parser.add_argument("--output-dir", type=Path, help="Output folder for the generated .core file.")
     return parser.parse_args(argv)
 
 
@@ -95,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint used by the Make targets."""
 
     args = parse_args(argv)
-    write_core(args.prj, args.top, args.rtldir, args.output)
+    write_core(args.project, args.top, args.rtl_dir, args.output_dir)
     return 0
 
 
