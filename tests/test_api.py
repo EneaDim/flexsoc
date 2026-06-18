@@ -159,8 +159,8 @@ def test_api_and_cli_docs_exist() -> None:
 
     root = Path(__file__).resolve().parents[1]
 
-    assert "from flexsoc import FlexSoC" in (root / "API.md").read_text()
-    assert "fx workflow prepare --dry-run" in (root / "CLI.md").read_text()
+    assert "from flexsoc import FlexSoC" in (root / "docs" / "API.md").read_text()
+    assert "fx workflow prepare --dry-run" in (root / "docs" / "CLI.md").read_text()
 
 
 def test_backend_hjson_generator_writes_template(tmp_path) -> None:
