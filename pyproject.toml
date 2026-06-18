@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "flexsoc"
 version = "0.1.0"
-description = "FlexSoC tool platform (CLI) wrapping deterministic flows."
+description = "FlexSoC Python package with a thin API layer."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -32,6 +32,7 @@ dependencies = [
 
 [project.scripts]
 flexsoc = "flexsoc.cli:app"
+fx = "flexsoc.cli:app"
 
 [project.optional-dependencies]
 dev = [
@@ -58,7 +59,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 flexsoc = [
-  "catalog/registry.yaml",
   "flow/Makefile",
   "flow/mk/*.mk",
 ]
