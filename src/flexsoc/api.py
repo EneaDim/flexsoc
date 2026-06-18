@@ -73,6 +73,11 @@ class FlowStep:
     name: str
     group: str
 
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-ready step description for CLI and UI callers."""
+
+        return {"name": self.name, "group": self.group}
+
 
 @dataclass(frozen=True, slots=True)
 class FlowWorkflow:

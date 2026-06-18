@@ -95,7 +95,7 @@ def workflow(
 def steps(group: str | None = typer.Option(None, help="Show only one step group.")) -> None:
     """Print Make-backed workflow steps known by the API layer."""
 
-    payload = [step.__dict__ for step in FlexSoC().list_steps(group)]
+    payload = [step.to_dict() for step in FlexSoC().list_steps(group)]
     typer.echo(json.dumps(payload, indent=2))
 
 

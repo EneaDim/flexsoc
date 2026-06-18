@@ -326,3 +326,35 @@ def test_reviewed_backend_parsers_use_canonical_flags(tmp_path) -> None:
     import flexsoc.backend.setup_signoff as signoff
 
     assert not hasattr(signoff, "build_sta_tcl")
+
+def test_flow_step_serialization_supports_slots() -> None:
+    """Step descriptions serialize explicitly even when dataclasses use slots."""
+
+    from flexsoc import FlexSoC
+
+    step = FlexSoC().list_steps()[0]
+
+    assert set(step.to_dict()) == {"name", "group"}
+
+
+def test_cli_steps_uses_public_serializer(capsys, monkeypatch) -> None:
+    """The steps command prints JSON without relying on dataclass __dict__."""
+
+    from flexsoc.api import FlowStep
+    from flexsoc import cli
+
+    class Client:
+        """Minimal CLI test double exposing API-shaped step data."""
+
+        def list_steps(self, group=None):
+            """Return one step while accepting the CLI group argument."""
+
+            return (FlowStep(name="setup", group=group or "setup"),)
+
+    monkeypatch.setattr(cli, "FlexSoC", Client)
+
+    cli.steps(group=None)
+    captured = capsys.readouterr()
+
+    assert '"name"' in captured.out
+    assert '"group"' in captured.out
