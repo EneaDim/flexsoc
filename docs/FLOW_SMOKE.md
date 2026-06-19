@@ -49,7 +49,7 @@ structure.
 
 ```bash
 fx step setup --set TOP=demo --set RUN_ID=smoke --capture
-fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture
+fx workflow workspace --set TOP=demo --set RUN_ID=smoke --capture
 ```
 
 Inspect generated files:
@@ -144,10 +144,10 @@ fx smoke
 fx smoke --json
 ```
 
-By default this does not launch EDA tools. It validates the backend Makefile catalog, resolves the public workflows, and previews their Make commands through the `FlexSoC` API layer. To execute only the safe workspace preparation path:
+By default this does not launch EDA tools. It resolves the public workflows and previews their Make commands through the `FlexSoC` API layer. To execute only the safe workspace initialization path:
 
 ```bash
-fx smoke --run-prepare --top demo --run-id smoke
+fx smoke --run-workspace --top demo --run-id smoke
 ```
 
 Keep synthesis, signoff, PnR, and simulator execution as explicit step or workflow calls after the smoke output looks correct.

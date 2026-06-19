@@ -24,13 +24,13 @@ Start with safe previews:
 ```bash
 fx workflows
 fx steps
-fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx workflow workspace --dry-run --script --set TOP=demo --set RUN_ID=smoke
 ```
 
 Then run the safe setup path:
 
 ```bash
-fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture
+fx workflow workspace --set TOP=demo --set RUN_ID=smoke --capture
 ```
 
 Inspect the generated workspace:
@@ -45,7 +45,7 @@ Use workflows for normal operation.
 
 ```bash
 fx workflows
-fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx workflow workspace --dry-run --script --set TOP=demo --set RUN_ID=smoke
 fx workflow ip_development --dry-run --script --set TOP=demo --set RUN_ID=smoke
 fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke
 ```
@@ -120,7 +120,7 @@ fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke 
 Run the setup-only path first:
 
 ```bash
-fx workflow prepare --set TOP=soc --set RUN_ID=smoke --capture
+fx workflow workspace --set TOP=soc --set RUN_ID=smoke --capture
 ```
 
 ## Step parameters
@@ -186,7 +186,7 @@ fx step setup --dry-run --json --set TOP=demo --set RUN_ID=smoke
 Use script previews when you want copyable commands:
 
 ```bash
-fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx workflow workspace --dry-run --script --set TOP=demo --set RUN_ID=smoke
 fx workflow ip_development --dry-run --script --set TOP=demo --set RUN_ID=smoke
 fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke
 ```
@@ -196,8 +196,8 @@ fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke
 ### Tutorial 1: safe workspace setup
 
 ```bash
-fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
-fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture
+fx workflow workspace --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx workflow workspace --set TOP=demo --set RUN_ID=smoke --capture
 ```
 
 ### Tutorial 2: inspect an IP flow

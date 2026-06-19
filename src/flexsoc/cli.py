@@ -43,7 +43,7 @@ HELP_SECTIONS = (
                 "Preview the full IP flow as an ordered shell script.",
             ),
             (
-                "fx workflow prepare --dry-run --json --set TOP=demo",
+                "fx workflow workspace --dry-run --json --set TOP=demo",
                 "Return a structured workflow plan for frontends or services.",
             ),
             ("fx step setup --dry-run --set TOP=demo", "Preview one advanced backend step."),
@@ -72,8 +72,8 @@ HELP_SECTIONS = (
         WARNING,
         (
             (
-                "fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture",
-                "Create the workspace through the API layer.",
+                "fx workflow workspace --set TOP=demo --set RUN_ID=smoke --capture",
+                "Create the workspace and run folders through the API layer.",
             ),
             (
                 "fx workflow soc_development --dry-run --script --set TOP=soc",
@@ -90,12 +90,12 @@ HELP_SECTIONS = (
         "magenta",
         (
             (
-                "1. fx workflow prepare --dry-run --script --set TOP=demo",
+                "1. fx workflow workspace --dry-run --script --set TOP=demo",
                 "Start by reading the script preview.",
             ),
             (
-                "2. fx workflow prepare --set TOP=demo --capture",
-                "Run the safe workspace preparation path.",
+                "2. fx workflow workspace --set TOP=demo --capture",
+                "Run the safe workspace initialization path.",
             ),
             (
                 "3. fx step-info syn",
@@ -195,31 +195,18 @@ def steps(group: str | None = typer.Option(None, help="Show only one step group.
     typer.echo(json.dumps(payload, indent=2))
 
 
-@app.command("catalog-check")
-def catalog_check(json_: bool = typer.Option(False, "--json", help="Print the raw catalog validation payload.")) -> None:
-    """Check that backend Make targets and API step metadata are aligned."""
-
-    payload = FlexSoC().validate_step_catalog()
-    if json_:
-        typer.echo(json.dumps(payload, indent=2))
-        return
-    _print_catalog_check(payload)
-    if not payload["ok"]:
-        raise typer.Exit(1)
-
-
 @app.command("smoke")
 def smoke(
     top: str = typer.Option("demo", help="Top name used for smoke previews."),
     run_id: str = typer.Option("smoke", help="Run identifier used for smoke previews."),
     project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
     json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
-    run_prepare: bool = typer.Option(False, "--run-prepare", help="Execute only the safe prepare workflow."),
+    run_workspace: bool = typer.Option(False, "--run-workspace", help="Execute only the safe workspace workflow."),
 ) -> None:
     """Run safe API/CLI smoke checks without launching EDA tools by default."""
 
     client = FlexSoC(project_root=project_root)
-    payload = _smoke_payload(client, top, run_id, run_prepare)
+    payload = _smoke_payload(client, top, run_id, run_workspace)
     if json_:
         typer.echo(json.dumps(payload, indent=2))
     else:
@@ -270,23 +257,21 @@ def step(
         typer.echo(result.stdout, nl=False)
 
 
-def _smoke_payload(client: FlexSoC, top: str, run_id: str, run_prepare: bool) -> dict[str, object]:
-    """Build a safe smoke payload using only the public API layer."""
+def _smoke_payload(client: FlexSoC, top: str, run_id: str, run_workspace: bool) -> dict[str, object]:
+    """Build a safe smoke payload using only public framework workflows."""
 
-    catalog = client.validate_step_catalog()
     workflows = {
         name: client.inspect_workflow(name, top=top, run_id=run_id).shell_lines()
-        for name in ("prepare", "ip_development", "soc_development")
+        for name in ("workspace", "ip_development", "soc_development")
     }
-    prepare_results = []
-    if run_prepare:
-        prepare_results = [item.to_dict() for item in client.run_workflow("prepare", capture=True, top=top, run_id=run_id)]
-    prepare_ok = all(item.get("ok", False) for item in prepare_results) if prepare_results else True
+    workspace_results = []
+    if run_workspace:
+        workspace_results = [item.to_dict() for item in client.run_workflow("workspace", capture=True, top=top, run_id=run_id)]
+    workspace_ok = all(item.get("ok", False) for item in workspace_results) if workspace_results else True
     return {
-        "ok": bool(catalog["ok"]) and prepare_ok,
-        "catalog": catalog,
+        "ok": workspace_ok,
         "workflows": {name: list(lines) for name, lines in workflows.items()},
-        "prepare_results": prepare_results,
+        "workspace_results": workspace_results,
     }
 
 
@@ -296,36 +281,17 @@ def _print_smoke(payload: dict[str, object], console: Console | None = None) -> 
     console = console or Console()
     ok = bool(payload["ok"])
     style = SUCCESS if ok else WARNING
-    catalog = payload["catalog"]
     workflows = payload["workflows"]
     table = Table(title="Smoke checks", border_style=style)
     table.add_column("Check", style=f"bold {ACCENT}")
     table.add_column("Result", style="white")
-    table.add_row("Catalog", "ok" if catalog["ok"] else "mismatch")
     for name, lines in workflows.items():
         table.add_row(name, f"{len(lines)} command(s) previewed")
-    if payload["prepare_results"]:
-        table.add_row("prepare execution", "ok" if all(item["ok"] for item in payload["prepare_results"]) else "failed")
+    if payload["workspace_results"]:
+        table.add_row("workspace execution", "ok" if all(item["ok"] for item in payload["workspace_results"]) else "failed")
     console.print(Panel("[bold green]ok[/bold green]" if ok else "[bold yellow]mismatch[/bold yellow]", title="FlexSoC smoke", border_style=style))
     console.print(table)
 
-
-def _print_catalog_check(payload: dict[str, object], console: Console | None = None) -> None:
-    """Render the Makefile/API catalog consistency check."""
-
-    console = console or Console()
-    ok = bool(payload["ok"])
-    style = SUCCESS if ok else WARNING
-    table = Table(title="Flow catalog check", border_style=style)
-    table.add_column("Field", style=f"bold {ACCENT}")
-    table.add_column("Value", style="white")
-    table.add_row("Makefile", str(payload["makefile"]))
-    table.add_row("Make targets", str(len(payload["make_targets"])))
-    table.add_row("API steps", str(len(payload["api_steps"])))
-    table.add_row("Missing step info", ", ".join(payload["missing_step_info"]) or "none")
-    table.add_row("Missing Make targets", ", ".join(payload["missing_make_targets"]) or "none")
-    console.print(Panel("[bold green]ok[/bold green]" if ok else "[bold yellow]mismatch[/bold yellow]", border_style=style))
-    console.print(table)
 
 
 def _print_help(console: Console | None = None) -> None:

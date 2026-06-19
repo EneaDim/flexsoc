@@ -52,7 +52,7 @@ Current public workflows:
 
 | Workflow | Purpose |
 | --- | --- |
-| `prepare` | Create the workspace and common run folders. |
+| `workspace` | Create the workspace and common run folders. |
 | `ip_development` | Run the explicit IP development sequence. |
 | `soc_development` | Run the explicit SoC development sequence. |
 | `soc` | Generate or refresh the SoC project. |
@@ -93,7 +93,7 @@ print(plan.to_dict())
 Inspection never executes backend tools. It is intended for CLI dry-runs, frontend previews, web services, and debugging.
 
 ```python
-plan = fx.inspect_workflow("prepare", TOP="demo", RUN_ID="smoke")
+plan = fx.inspect_workflow("workspace", TOP="demo", RUN_ID="smoke")
 print(plan.to_dict())
 print(plan.shell_script())
 ```
@@ -109,7 +109,7 @@ print(plan.shell_script())
 ## Run a workflow
 
 ```python
-results = fx.run_workflow("prepare", TOP="demo", RUN_ID="smoke", capture=True)
+results = fx.run_workflow("workspace", TOP="demo", RUN_ID="smoke", capture=True)
 for result in results:
     print(result.ok, result.returncode)
 ```

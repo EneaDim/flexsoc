@@ -252,8 +252,8 @@ class FlexSoC:
 
         return tuple(workflow.name for workflow in self.list_workflows())
 
-    def prepare_workflow(self, name: str) -> tuple[str, ...]:
-        """Resolve one high-level workflow name into advanced backend steps."""
+    def workflow_steps(self, name: str) -> tuple[str, ...]:
+        """Resolve one high-level workflow into its ordered backend steps."""
 
         return self._workflow_by_name(name).steps
 
@@ -267,7 +267,7 @@ class FlexSoC:
 
         commands = tuple(
             self.flow_command(step, config, **overrides)
-            for step in self.prepare_workflow(name)
+            for step in self.workflow_steps(name)
         )
         return FlowPlan(name=name, commands=commands)
 
@@ -293,7 +293,7 @@ class FlexSoC:
                 capture=capture,
                 **overrides,
             )
-            for step in self.prepare_workflow(name)
+            for step in self.workflow_steps(name)
         )
 
     def list_steps(self, group: str | None = None) -> tuple[FlowStep, ...]:
@@ -308,25 +308,6 @@ class FlexSoC:
         """Return only the step names for compact API and CLI output."""
 
         return tuple(step.name for step in self.list_steps(group))
-
-    def make_target_names(self) -> tuple[str, ...]:
-        """Return canonical public targets declared by the backend Makefile."""
-
-        return self._makefile_targets(self._flow_makefile())
-
-    def validate_step_catalog(self) -> dict[str, Any]:
-        """Compare backend Make targets against API step metadata."""
-
-        make_targets = set(self.make_target_names())
-        api_steps = set(self.step_names())
-        return {
-            "ok": make_targets == api_steps,
-            "makefile": str(self._flow_makefile()),
-            "make_targets": sorted(make_targets),
-            "api_steps": sorted(api_steps),
-            "missing_step_info": sorted(make_targets - api_steps),
-            "missing_make_targets": sorted(api_steps - make_targets),
-        }
 
     def _step_name_suggestion(self, name: str) -> str | None:
         """Return the closest canonical step name for one unknown value."""
@@ -344,7 +325,7 @@ class FlexSoC:
         hint = f"; did you mean {suggestion}?" if suggestion else ""
         raise ValueError(f"unknown step: {name}{hint}")
 
-    def prepare_step(
+    def build_step_request(
         self,
         target: str,
         config: FlexSoCConfig | None = None,
@@ -363,7 +344,7 @@ class FlexSoC:
     ) -> FlowCommand:
         """Build the command line for a Make-backed workflow step without running it."""
 
-        request = self.prepare_step(target, config, **overrides)
+        request = self.build_step_request(target, config, **overrides)
         argv = ["make", "-f", str(self._flow_makefile()), request.target]
         argv.extend(f"{key}={value}" for key, value in request.make_vars.items())
         return FlowCommand(tuple(argv), self.project_root, self._flow_env(), request)
@@ -440,7 +421,7 @@ class FlexSoC:
         """Return the small public workflow catalog backed by advanced steps."""
 
         return (
-            FlowWorkflow("prepare", ("setup",), "Prepare a FlexSoC workspace."),
+            FlowWorkflow("workspace", ("setup",), "Create the FlexSoC workspace and run folders."),
             FlowWorkflow("soc", ("soc",), "Generate or refresh the SoC project."),
             FlowWorkflow("fsm", ("fsm_gen",), "Run the bundled FSM generator utility."),
             FlowWorkflow(

@@ -1,185 +1,137 @@
 <p align="center">
-  <img src="assets/open-IP-SoC-logo.png" alt="FlexSoC logo" width="280"/>
+<img src="assets/open-IP-SoC-logo.png" alt="FlexSoC logo" width="300"/>
 </p>
 
 # FlexSoC
 
-**FlexSoC** is a Python package for digital IP development and SoC integration.
-It keeps one public API boundary, one thin CLI, and one canonical backend flow.
+FlexSoC is a Python package for IP development and SoC integration.  The
+public surface is intentionally small: callers use the `FlexSoC` API layer or
+the thin `fx` CLI, and both route into the canonical backend Makefile.
 
 ```text
-CLI / future web / future frontend
+CLI / Python / future UI
         ↓
-from flexsoc import FlexSoC
+FlexSoC API layer
         ↓
 src/flexsoc/backend/Makefile
         ↓
-src/flexsoc/backend/*.py
+src/flexsoc/backend/*.py and external EDA tools
 ```
 
-The project is currently in active refactor mode. The goal is to preserve the
-core hardware-generation features while making the package smaller, clearer, and
-easier to drive from Python, a command line, or a future service layer.
+## Install for development
+
+```bash
+uv sync
+uv run pytest -q
+```
+
+For local interactive use you can also install the package in editable mode.
+
+```bash
+uv run python -m pip install -e .
+```
 
 ## Quickstart
 
-Install the package in an active Python environment:
+List public workflows and advanced steps:
 
 ```bash
-python -m pip install -e ".[dev]"
-```
-
-Discover the public CLI surface:
-
-```bash
-fx help
 fx workflows
 fx steps
-fx step-info setup
+fx step-info hjson_gen
 ```
 
-Preview an IP-development workflow without running tools:
+Preview the workspace initialization path without running tools:
+
+```bash
+fx workflow workspace --dry-run --script --set TOP=demo --set RUN_ID=smoke
+```
+
+Create the workspace and common run folders:
+
+```bash
+fx workflow workspace --set TOP=demo --set RUN_ID=smoke --capture
+```
+
+Preview the full IP development flow:
 
 ```bash
 fx workflow ip_development --dry-run --script --set TOP=demo --set RUN_ID=smoke
 ```
 
-Preview a SoC-development workflow without running tools:
+Preview the SoC development flow:
 
 ```bash
 fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke
 ```
 
-Run the safe setup workflow:
-
-```bash
-fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture
-```
-
-## Python API
-
-The API layer is the stable boundary for CLI, future web services, and future
-frontends.
+## Public Python API
 
 ```python
 from flexsoc import FlexSoC
 
-fx = FlexSoC(top="demo")
-print(fx.workflow_names())
-print(fx.step_info("syn").to_dict())
-
-plan = fx.inspect_workflow("ip_development", run_id="smoke")
+fx = FlexSoC(project_root=".", top="demo", run_id="smoke")
+plan = fx.inspect_workflow("ip_development")
 print(plan.shell_script())
 ```
 
-The CLI and any future frontend should call this API layer instead of importing
-backend modules directly.
+Run a single step through the same API boundary:
 
-## CLI model
-
-`fx` is intentionally thin. It exposes discovery, inspection, dry-runs, and
-execution while delegating all real work to the API layer.
-
-Useful commands:
-
-```bash
-fx help
-fx workflows
-fx steps
-fx step-info syn
-fx step-info syn --examples
-fx step-info syn --json
-fx step setup --dry-run --set TOP=demo
-fx workflow ip_development --dry-run --script --set TOP=demo
+```python
+result = fx.run_step("hjson_gen", capture=True)
+print(result.ok, result.returncode)
 ```
 
-## Canonical IP flow
+## Public workflows
 
-The explicit IP-development workflow is:
+| Workflow | Purpose |
+| --- | --- |
+| `workspace` | Create the workspace and common run folders. |
+| `ip_development` | Run the explicit IP development sequence. |
+| `soc_development` | Run the explicit SoC development sequence. |
+| `soc` | Generate or refresh the SoC project. |
+| `fsm` | Run the bundled FSM generator utility. |
+
+The IP development sequence is explicit:
 
 ```text
 setup → hjson_gen → reg → doc → rtl_stub → setup_tb → sim → syn → sta → power → pnr → sim_syn → cocotb
 ```
 
-Use `fx step-info NAME` to inspect accepted parameters for a specific step.
-Common variables include `TOP`, `RUN_ID`, `WORKSPACE`, `HOST`, and tool-specific
-values described per step.
-
-## Canonical SoC flow
-
-The explicit SoC-development workflow is:
+The SoC development sequence is explicit:
 
 ```text
 setup → soc_start → soc_flow → soc_prepare → soc_build_sw → soc_sim → soc_run
 ```
 
-The SoC flow is also Make-backed and routed through the same API boundary.
-
-## Repository layout
+## Project layout
 
 ```text
-.
-├── README.md
-├── docs/
-│   ├── API.md
-│   ├── CLI.md
-│   ├── ARCHITECTURE.md
-│   ├── BACKEND_MAP.md
-│   ├── FLOW_SMOKE.md
-│   ├── REFACTOR_CLOSEOUT.md
-│   └── SPEC_REFACTOR.md
-├── flow/
-│   └── Makefile              # thin wrapper to the backend Makefile
-├── src/flexsoc/
-│   ├── __init__.py
-│   ├── __main__.py
-│   ├── api.py                # public Python API layer
-│   ├── cli.py                # thin CLI over the API layer
-│   └── backend/
-│       ├── Makefile          # canonical flow entrypoint
-│       ├── fsm_gen/
-│       └── *.py              # core backend generators and setup helpers
-├── tests/
-│   └── test_api.py
-├── assets/
-└── vendor/
+src/flexsoc/
+├── __init__.py
+├── __main__.py
+├── api.py
+├── cli.py
+└── backend/
+    ├── Makefile
+    ├── fsm_gen/
+    └── *.py
 ```
 
-## Documentation
+Long-form framework documentation lives under `docs/`:
 
-Detailed docs live under `docs/`:
-
-- `docs/API.md` documents the Python API layer.
-- `docs/CLI.md` documents the `fx` CLI.
-- `docs/BACKEND_MAP.md` maps backend modules and responsibilities.
-- `docs/FLOW_SMOKE.md` gives safe flow checks and tool-dependent checks.
-- `docs/REFACTOR_CLOSEOUT.md` tracks remaining closeout work.
-- `docs/ARCHITECTURE.md` describes the target architecture.
-- `docs/SPEC_REFACTOR.md` records the active refactor specification.
+- `docs/API.md` for the Python API layer.
+- `docs/CLI.md` for the `fx` CLI.
+- `docs/ARCHITECTURE.md` for the framework architecture.
+- `docs/FLOW_SMOKE.md` for safe smoke and flow validation commands.
 
 ## Development checks
 
-Run the test suite:
-
 ```bash
-python -m pytest -q
+uv run pytest -q
+fx smoke
+fx smoke --json
 ```
 
-Run import and CLI smoke checks:
-
-```bash
-python -m flexsoc --help
-fx help
-fx workflows
-fx steps
-```
-
-## Design principles
-
-- Keep the public surface small.
-- Route every interface through `FlexSoC`.
-- Keep backend modules functional and importable.
-- Avoid compatibility shims while the package is in development.
-- Prefer explicit parameters over hidden state.
-- Keep generated artifacts in workspaces, not in the repository.
-- Document each module, class, and function with short triple-quoted docstrings.
+`fx smoke` previews safe framework workflows. It does not launch synthesis,
+signoff, PnR, or simulation tools unless you explicitly run those steps.

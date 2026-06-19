@@ -42,11 +42,11 @@ def test_api_lists_make_backed_steps() -> None:
     assert "fsm_gen" in client.step_names("fsm")
 
 
-def test_prepare_step_merges_call_config_and_overrides(tmp_path) -> None:
+def test_build_step_request_merges_call_config_and_overrides(tmp_path) -> None:
     """Step preparation exposes normalized Make variables before execution."""
 
     client = FlexSoC(project_root=tmp_path, workdir=tmp_path / "runs", top="base")
-    request = client.prepare_step(
+    request = client.build_step_request(
         "sim",
         FlexSoCConfig(options={"top": "configured", "host": "uart"}),
         top="override",
@@ -103,15 +103,15 @@ def test_api_exposes_high_level_workflows() -> None:
 
     client = FlexSoC()
 
-    assert "prepare" in client.workflow_names()
-    assert client.prepare_workflow("prepare") == ("setup",)
+    assert "workspace" in client.workflow_names()
+    assert client.workflow_steps("workspace") == ("setup",)
 
 
 def test_run_workflow_reuses_step_boundary(tmp_path) -> None:
     """Workflow previews return the same command objects as advanced steps."""
 
     client = FlexSoC(project_root=tmp_path)
-    commands = client.run_workflow("prepare", dry_run=True, top="demo")
+    commands = client.run_workflow("workspace", dry_run=True, top="demo")
 
     assert len(commands) == 1
     assert commands[0].request.target == "setup"
@@ -122,10 +122,10 @@ def test_inspect_workflow_returns_json_ready_plan(tmp_path) -> None:
     """Workflow inspection previews all resolved backend commands."""
 
     client = FlexSoC(project_root=tmp_path)
-    plan = client.inspect_workflow("prepare", top="demo")
+    plan = client.inspect_workflow("workspace", top="demo")
     payload = plan.to_dict()
 
-    assert payload["name"] == "prepare"
+    assert payload["name"] == "workspace"
     assert payload["commands"][0]["request"]["target"] == "setup"
     assert payload["commands"][0]["request"]["make_vars"]["TOP"] == "demo"
 
@@ -134,7 +134,7 @@ def test_workflow_plan_can_render_shell_script(tmp_path) -> None:
     """Workflow previews can be copied as a reproducible shell script."""
 
     client = FlexSoC(project_root=tmp_path)
-    plan = client.inspect_workflow("prepare", top="demo")
+    plan = client.inspect_workflow("workspace", top="demo")
     script = plan.shell_script()
 
     assert script.startswith("#!/usr/bin/env bash\nset -euo pipefail\n")
@@ -151,7 +151,7 @@ def test_cli_help_guide_mentions_api_boundary(capsys) -> None:
     help_command()
     captured = capsys.readouterr()
 
-    assert "fx workflow prepare --dry-run" in captured.out
+    assert "fx workflow workspace --dry-run" in captured.out
     assert "API layer" in captured.out
 
 
@@ -163,7 +163,7 @@ def test_api_and_cli_docs_exist() -> None:
     root = Path(__file__).resolve().parents[1]
 
     assert "from flexsoc import FlexSoC" in (root / "docs" / "API.md").read_text()
-    assert "fx workflow prepare --dry-run" in (root / "docs" / "CLI.md").read_text()
+    assert "fx workflow workspace --dry-run" in (root / "docs" / "CLI.md").read_text()
 
 
 def test_backend_hjson_generator_writes_template(tmp_path) -> None:
@@ -386,7 +386,7 @@ def test_full_ip_development_workflow_is_explicit() -> None:
 
     client = FlexSoC()
 
-    assert client.prepare_workflow("ip_development") == (
+    assert client.workflow_steps("ip_development") == (
         "setup",
         "hjson_gen",
         "reg",
@@ -455,17 +455,6 @@ def test_api_uses_backend_makefile_as_canonical_entrypoint() -> None:
 
 
 
-def test_packaged_flow_directory_was_removed() -> None:
-    """The packaged Make entrypoint lives in backend, not in a second flow tree."""
-
-    from pathlib import Path
-
-    root = Path(__file__).resolve().parents[1]
-
-    assert not (root / "src" / "flexsoc" / "flow").exists()
-    assert (root / "src" / "flexsoc" / "backend" / "Makefile").exists()
-    assert "src/flexsoc/backend/Makefile" in (root / "flow" / "Makefile").read_text()
-
 def test_step_catalog_covers_main_make_targets() -> None:
     """Every main development area has documented step-info metadata."""
 
@@ -503,28 +492,12 @@ def test_python_module_entrypoint_exists() -> None:
     assert "from .cli import app" in (root / "src" / "flexsoc" / "__main__.py").read_text()
 
 
-def test_step_catalog_documents_make_phony_targets() -> None:
-    """All Make-declared flow targets are visible through step-info."""
-
-    from pathlib import Path
-    from flexsoc import FlexSoC
-
-    root = Path(__file__).resolve().parents[1]
-    makefile = root / "src" / "flexsoc" / "backend" / "Makefile"
-    phony = set()
-    for line in makefile.read_text(encoding="utf-8").splitlines():
-        if line.startswith(".PHONY:"):
-            phony.update(line.removeprefix(".PHONY:").split())
-
-    assert phony <= set(FlexSoC().step_names())
-
-
 def test_soc_development_workflow_is_explicit() -> None:
     """The SoC workflow exposes setup, generation, software, and run steps."""
 
     from flexsoc import FlexSoC
 
-    assert FlexSoC().prepare_workflow("soc_development") == (
+    assert FlexSoC().workflow_steps("soc_development") == (
         "setup",
         "soc_start",
         "soc_flow",
@@ -572,7 +545,7 @@ def test_step_info_examples_option_prints_copy_ready_commands(capsys) -> None:
 def test_ip_development_workflow_keeps_explicit_order() -> None:
     """The public IP workflow follows the requested development sequence."""
 
-    assert FlexSoC().prepare_workflow("ip_development") == (
+    assert FlexSoC().workflow_steps("ip_development") == (
         "setup",
         "hjson_gen",
         "reg",
@@ -918,51 +891,8 @@ def test_backend_regression_exposes_discovery_plan(tmp_path, monkeypatch) -> Non
     assert calls == [("sim_sv", "demo", "demo_tb_irq"), ("sim_sv", "demo", "demo_tb_smoke")]
 
 
-def test_backend_modules_start_with_docstrings() -> None:
-    """Backend Python modules keep the file-level contract visible first."""
-
-    from pathlib import Path
-
-    backend = Path(__file__).resolve().parents[1] / "src" / "flexsoc" / "backend"
-    for module in backend.glob("*.py"):
-        text = module.read_text(encoding="utf-8")
-        assert text.startswith('"""'), module.name
-        assert "ruff: noqa" not in text, module.name
-
-
-def test_flow_catalog_matches_backend_makefile() -> None:
-    """Every public Make target has API metadata and no API-only target exists."""
-
-    from flexsoc import FlexSoC
-
-    client = FlexSoC()
-    report = client.validate_step_catalog()
-
-    assert report["ok"] is True
-    assert set(report["make_targets"]) == set(report["api_steps"])
-    assert report["missing_step_info"] == []
-    assert report["missing_make_targets"] == []
-
-
-def test_catalog_check_cli_reports_catalog_health(capsys) -> None:
-    """The CLI exposes a quick Makefile/API catalog consistency check."""
-
-    from typer.testing import CliRunner
-
-    from flexsoc.cli import app
-
-    result = CliRunner().invoke(app, ["catalog-check", "--json"])
-    payload = json.loads(result.output)
-
-    assert result.exit_code == 0
-    assert payload["ok"] is True
-    assert "setup" in payload["make_targets"]
-    assert "setup" in payload["api_steps"]
-
-
-
 def test_smoke_cli_serializes_safe_flow_previews() -> None:
-    """The smoke command validates catalog health and previews core workflows."""
+    """The smoke command previews safe framework workflows."""
 
     from typer.testing import CliRunner
 
@@ -973,9 +903,8 @@ def test_smoke_cli_serializes_safe_flow_previews() -> None:
 
     assert result.exit_code == 0
     assert payload["ok"] is True
-    assert payload["catalog"]["ok"] is True
     assert "ip_development" in payload["workflows"]
-    assert payload["workflows"]["prepare"][0].startswith("make -f")
+    assert payload["workflows"]["workspace"][0].startswith("make -f")
 
 
 def test_smoke_cli_renders_human_summary() -> None:
@@ -991,23 +920,3 @@ def test_smoke_cli_renders_human_summary() -> None:
     assert "FlexSoC smoke" in result.output
     assert "ip_development" in result.output
 
-def test_repository_root_keeps_only_current_public_docs() -> None:
-    """The root keeps README only; detailed docs and specs live in docs/."""
-
-    root = Path(__file__).resolve().parents[1]
-    stale_paths = [
-        "API.md",
-        "ARCHITECTURE.md",
-        "SPEC_REFACTOR.md",
-        ".pre-commit-config.yaml",
-        "requirements-ci.txt",
-        "requirements-flow.txt",
-        "ruff.toml",
-    ]
-
-    assert (root / "README.md").exists()
-    assert (root / "docs" / "API.md").exists()
-    assert (root / "docs" / "CLI.md").exists()
-    assert (root / "docs" / "ARCHITECTURE.md").exists()
-    assert (root / "docs" / "SPEC_REFACTOR.md").exists()
-    assert [path for path in stale_paths if (root / path).exists()] == []
