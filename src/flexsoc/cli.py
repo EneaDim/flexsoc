@@ -157,6 +157,13 @@ def help() -> None:
     _print_help()
 
 
+    console.print()
+    console.print("[bold magenta]Tutorials[/bold magenta]")
+    console.print("  fx commands")
+    console.print("  fx steps")
+    console.print("  fx step-info hjson_gen")
+    console.print("  fx step-info syn --examples")
+    console.print("  fx workflow ip_development --dry-run --script")
 @app.command("commands")
 def commands() -> None:
     """Render the public command catalog in the usual development order."""
