@@ -1,49 +1,82 @@
 """Build OpenTitan-style crossbar JSON configuration.
 
-This utility remains functional so API and CLI callers can reuse it later.
+Small config objects keep crossbar generation import-safe and API friendly.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+
+@dataclass(frozen=True, slots=True)
+class XbarDevice:
+    """Describe one device node attached to the generated crossbar."""
+
+    name: str
+    base_addr: str
+    size_byte: str
+    from_lr: str = "False"
+
+
+@dataclass(frozen=True, slots=True)
+class XbarConfig:
+    """Group all inputs needed to render one crossbar configuration."""
+
+    host: str
+    devices: tuple[XbarDevice, ...]
 
 
 def normalize_host(host: str) -> str:
     """Map user-facing host names to generated crossbar node names."""
 
-    return "uart_host" if host == "uart" else "ibex"
+    return "uart_host" if host.strip().lower() == "uart" else "ibex"
 
 
-def build_xbar_config(host: str, devices: list[list[str]]) -> dict[str, Any]:
-    """Build a JSON-ready crossbar configuration from host and device rows."""
+def device_node(device: XbarDevice) -> dict[str, Any]:
+    """Render one device as a JSON-ready crossbar node."""
 
-    host_name = normalize_host(host)
-    config: dict[str, Any] = {
+    return {
+        "name": device.name,
+        "type": "device",
+        "clock": "clk_i",
+        "reset": "rst_ni",
+        "xbar": False,
+        "addr_range": [{"base_addr": device.base_addr, "size_byte": device.size_byte}],
+    }
+
+
+def host_node(name: str) -> dict[str, Any]:
+    """Render the host node shared by all generated configurations."""
+
+    return {
+        "name": name,
+        "type": "host",
+        "clock": "clk_i",
+        "reset": "rst_ni",
+        "xbar": False,
+        "pipeline": False,
+    }
+
+
+def build_xbar_config(config: XbarConfig) -> dict[str, Any]:
+    """Build a JSON-ready crossbar configuration from normalized inputs."""
+
+    host_name = normalize_host(config.host)
+    nodes = [host_node(host_name), *(device_node(device) for device in config.devices)]
+    return {
         "name": "main",
         "type": "xbar",
         "clock": "clk_i",
         "clock_connections": {"clk_i": "main"},
         "reset": "rst_ni",
         "reset_connections": {"rst_ni": "main"},
-        "nodes": [{"name": host_name, "type": "host", "clock": "clk_i", "reset": "rst_ni", "xbar": False, "pipeline": False}],
-        "connections": {host_name: []},
+        "nodes": nodes,
+        "connections": {host_name: [device.name for device in config.devices]},
     }
-    for name, base_addr, size_byte, _from_lr in devices:
-        config["nodes"].append(
-            {
-                "name": name,
-                "type": "device",
-                "clock": "clk_i",
-                "reset": "rst_ni",
-                "xbar": False,
-                "addr_range": [{"base_addr": base_addr, "size_byte": size_byte}],
-            }
-        )
-        config["connections"][host_name].append(name)
-    return config
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> Path:
@@ -52,6 +85,12 @@ def write_json(path: Path, payload: dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path.resolve()
+
+
+def parse_device_rows(rows: list[list[str]]) -> tuple[XbarDevice, ...]:
+    """Convert argparse device rows into typed crossbar devices."""
+
+    return tuple(XbarDevice(name, base_addr, size_byte, from_lr) for name, base_addr, size_byte, from_lr in rows)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -68,11 +107,12 @@ def main(argv: list[str] | None = None) -> int:
     """Generate crossbar JSON from CLI options."""
 
     args = parse_args(argv)
-    config = build_xbar_config(args.host, args.device)
+    config = XbarConfig(args.host, parse_device_rows(args.device))
+    payload = build_xbar_config(config)
     if args.output:
-        write_json(Path(args.output), config)
+        write_json(Path(args.output), payload)
     else:
-        print(json.dumps(config, indent=2))
+        print(json.dumps(payload, indent=2))
     return 0
 
 

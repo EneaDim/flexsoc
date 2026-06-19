@@ -1,15 +1,24 @@
 """Run simulation regressions over discovered SystemVerilog testbenches.
 
-The module keeps Make execution isolated behind small import-safe helpers.
+Regression discovery is import-safe so API callers can preview it later.
 """
 
 from __future__ import annotations
 
 import argparse
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_TB_DIR = Path("tb/regression")
+
+
+@dataclass(frozen=True, slots=True)
+class RegressionConfig:
+    """Group the Make target and testbench directory used for regressions."""
+
+    target: str = "sim"
+    tb_dir: Path = DEFAULT_TB_DIR
 
 
 def top_names(tb_dir: Path = DEFAULT_TB_DIR) -> tuple[str, ...]:
@@ -25,21 +34,24 @@ def testbenches(top: str, tb_dir: Path = DEFAULT_TB_DIR) -> tuple[str, ...]:
     return tuple(sorted(path.stem for path in tb_dir.glob(f"{top}_tb*.sv")))
 
 
-def run_make(target: str, top: str | None = None, tb: str | None = None) -> subprocess.CompletedProcess[bytes]:
-    """Run one Make target, optionally binding TOP and TESTBENCH."""
+def regression_plan(config: RegressionConfig) -> tuple[tuple[str, str], ...]:
+    """Return ordered `(top, testbench)` pairs without running Make."""
 
-    command = ["make", target]
-    if top and tb:
-        command.extend([f"TOP={top}", f"TESTBENCH=regression/{tb}"])
-    return subprocess.run(command, check=True)
+    return tuple((top, tb) for top in top_names(config.tb_dir) for tb in testbenches(top, config.tb_dir))
 
 
-def run_regression(target: str = "sim", tb_dir: Path = DEFAULT_TB_DIR) -> None:
-    """Run the selected Make target for every discovered regression testbench."""
+def run_make(target: str, top: str, tb: str) -> subprocess.CompletedProcess[bytes]:
+    """Run one Make target with TOP and TESTBENCH variables set."""
 
-    for top in top_names(tb_dir):
-        for tb in testbenches(top, tb_dir):
-            run_make(target, top, tb)
+    return subprocess.run(["make", target, f"TOP={top}", f"TESTBENCH=regression/{tb}"], check=True)
+
+
+def run_regression(config: RegressionConfig | None = None) -> None:
+    """Run the selected Make target for every discovered testbench."""
+
+    config = config or RegressionConfig()
+    for top, tb in regression_plan(config):
+        run_make(config.target, top, tb)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -55,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     """Run all discovered regressions from the command line."""
 
     args = parse_args(argv)
-    run_regression(args.target, args.tb_dir)
+    run_regression(RegressionConfig(args.target, args.tb_dir))
     return 0
 
 

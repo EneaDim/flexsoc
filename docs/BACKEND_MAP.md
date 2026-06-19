@@ -19,7 +19,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 | `driver_gen.py` | Generates simple software driver sources for peripherals. | IP/device metadata, output path. | C driver/source artifacts. | `ADVANCED_STEP` |
 | `gen_filelist.py` | Builds RTL filelists for IP and SoC flows. | Top name, RTL directory, workspace/run id. | `rtl_list.f`-style filelists. | `ADVANCED_STEP` |
 | `hjson_gen.py` | Renders HJSON metadata used by downstream tooling. | IP/top configuration values. | HJSON files. | `ADVANCED_STEP` |
-| `regression.py` | Runs simulation regression targets over discovered testbenches. | `tb/regression/*.sv`, Make targets. | Make-driven simulation runs. | `ADVANCED_STEP` |
+| `regression.py` | Plans and runs simulation regression targets through `RegressionConfig`. | `tb/regression/*.sv`, Make targets. | Ordered regression plans and Make-driven simulation runs. | `ADVANCED_STEP` |
 | `rtl_stub_gen.py` | Generates RTL wrappers and stubs from module signatures. | Top RTL module and output paths. | SystemVerilog stub/wrapper files. | `ADVANCED_STEP` |
 | `setup_cocotb.py` | Generates cocotb scaffolding through `CocotbConfig`. | RTL filelists, top module, simulator choices. | cocotb Makefile, Python smoke test, SV wrapper. | `ADVANCED_STEP` |
 | `setup_fsoc.py` | Prepares FuseSoC-related setup or ordering data. | RTL/IP metadata. | FuseSoC support files. | `ADVANCED_STEP` |
@@ -33,7 +33,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 | `soc_gen.py` | Generates top-level SoC RTL and integration wrappers. | IP list, xbar data, run configuration. | SoC RTL and top-level generated files. | `PUBLIC_WORKFLOW` candidate |
 | `soc_start.py` | Initializes SoC run folders through `SoCStartConfig`. | Workspace/run identifiers, staged IP bundles. | Run directory, loaded IP list, merged RTL filelist, summary. | `PUBLIC_WORKFLOW` candidate |
 | `sw_soc_gen.py` | Generates SoC software scaffolds through `SoCSoftwareConfig`. | Workspace run directory, host, staged IP drivers. | Boot code, linker script, C entrypoint, copied drivers, Makefile. | `ADVANCED_STEP` |
-| `xbar_init.py` | Builds crossbar JSON configuration. | Host and device address ranges. | JSON xbar configuration. | `UTILITY` |
+| `xbar_init.py` | Builds crossbar JSON through typed `XbarConfig` and `XbarDevice` objects. | Host and device address ranges. | JSON xbar configuration. | `UTILITY` |
 | `fsm_gen/` | Bundled FSM generator utility. | FSM text/CSV input. | Generated FSM artifacts. | `UTILITY` / advanced step |
 
 ## First workflow hypothesis
@@ -52,6 +52,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 2. Review filelist and metadata generators: `gen_filelist.py` and `hjson_gen.py` are now import-safe; `setup_fsoc.py` is now import-safe; setup generators continue next.
 3. Review setup generators: `setup_tb.py`, `setup_syn.py`, and `setup_cocotb.py` now expose config-based writers; continue with remaining setup helpers.
 4. Review SoC workflow modules last: `soc_start.py`, `soc_cfg.py`, `soc_gen.py`, and `sw_soc_gen.py` now have config-based entrypoints.
+5. Finish utility cleanup: `xbar_init.py` and `regression.py` now expose config-based import APIs.
 
 ## Rules for each backend cleanup
 

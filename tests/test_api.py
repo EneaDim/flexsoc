@@ -869,3 +869,47 @@ endmodule
     assert list_hdl_files(rtl, recursive=False) == sorted(list_hdl_files(rtl, recursive=False))
     assert ordered[-1].name == "demo.sv"
     assert out.read_text(encoding="utf-8").endswith("demo.sv\n")
+
+
+def test_backend_xbar_init_exposes_config_api(tmp_path) -> None:
+    """The crossbar backend renders JSON through typed config objects."""
+
+    from flexsoc.backend.xbar_init import XbarConfig, XbarDevice, build_xbar_config, write_json
+
+    config = XbarConfig(
+        "uart",
+        (
+            XbarDevice("gpio", "0x80000000", "0x00001000", "False"),
+            XbarDevice("timer", "0x80001000", "0x00001000", "False"),
+        ),
+    )
+    payload = build_xbar_config(config)
+    output = write_json(tmp_path / "xbar_main.hjson", payload)
+
+    assert payload["connections"] == {"uart_host": ["gpio", "timer"]}
+    assert payload["nodes"][1]["addr_range"][0]["base_addr"] == "0x80000000"
+    assert output.read_text(encoding="utf-8").startswith("{\n")
+
+
+def test_backend_regression_exposes_discovery_plan(tmp_path, monkeypatch) -> None:
+    """The regression backend can plan and run Make calls from discovered benches."""
+
+    from flexsoc.backend.regression import RegressionConfig, regression_plan, run_regression
+
+    tb_dir = tmp_path / "tb" / "regression"
+    tb_dir.mkdir(parents=True)
+    (tb_dir / "demo_tb_smoke.sv").write_text("module demo_tb_smoke; endmodule\n", encoding="utf-8")
+    (tb_dir / "demo_tb_irq.sv").write_text("module demo_tb_irq; endmodule\n", encoding="utf-8")
+    calls = []
+
+    def fake_run_make(target: str, top: str, tb: str) -> None:
+        """Record planned Make calls without executing external tools."""
+
+        calls.append((target, top, tb))
+
+    config = RegressionConfig("sim_sv", tb_dir)
+    monkeypatch.setattr("flexsoc.backend.regression.run_make", fake_run_make)
+    run_regression(config)
+
+    assert regression_plan(config) == (("demo", "demo_tb_irq"), ("demo", "demo_tb_smoke"))
+    assert calls == [("sim_sv", "demo", "demo_tb_irq"), ("sim_sv", "demo", "demo_tb_smoke")]
