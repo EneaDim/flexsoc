@@ -15,7 +15,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 
 | Module | Current role | Likely inputs | Likely outputs | Future API class |
 | --- | --- | --- | --- | --- |
-| `common.py` | Shared filesystem, RTL discovery, and SystemVerilog parsing helpers. | RTL directory, top name, path values. | Parsed signatures, ordered file lists, helper side effects. | `INTERNAL` |
+| `common.py` | Shared filesystem, RTL discovery, and SystemVerilog parsing helpers with importable helpers. | RTL directory, top name, path values. | Parsed signatures, ordered file lists, helper side effects. | `INTERNAL` |
 | `driver_gen.py` | Generates simple software driver sources for peripherals. | IP/device metadata, output path. | C driver/source artifacts. | `ADVANCED_STEP` |
 | `gen_filelist.py` | Builds RTL filelists for IP and SoC flows. | Top name, RTL directory, workspace/run id. | `rtl_list.f`-style filelists. | `ADVANCED_STEP` |
 | `hjson_gen.py` | Renders HJSON metadata used by downstream tooling. | IP/top configuration values. | HJSON files. | `ADVANCED_STEP` |

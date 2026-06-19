@@ -836,3 +836,36 @@ def test_unknown_step_errors_suggest_canonical_step_name() -> None:
 
     assert "unknown step: sw_soc_gen" in message
     assert "did you mean sw_soc" in message
+
+
+def test_backend_common_helpers_are_importable_and_order_sources(tmp_path) -> None:
+    """Common backend helpers parse SV headers and write ordered source lists."""
+
+    from flexsoc.backend.common import build_ordered_sources, list_hdl_files, parse_sv_signature
+
+    rtl = tmp_path / "rtl"
+    ips = tmp_path / "ips"
+    rtl.mkdir()
+    (ips / "pkgs").mkdir(parents=True)
+    (ips / "prim").mkdir(parents=True)
+    (rtl / "demo.sv").write_text(
+        """module demo #(parameter int AW = 32) (
+  input logic clk_i,
+  input logic rst_ni,
+  output logic done_o
+);
+endmodule
+""",
+        encoding="utf-8",
+    )
+    (rtl / "demo_pkg.sv").write_text("package demo_pkg; endpackage\n", encoding="utf-8")
+    out = tmp_path / "rtl_list.f"
+
+    signature = parse_sv_signature(rtl, "demo")
+    ordered = build_ordered_sources("demo", rtl, ips, out_file=out)
+
+    assert signature["parameters"] == [("AW", "32")]
+    assert ("clk_i", 1) in signature["ports_in"]
+    assert list_hdl_files(rtl, recursive=False) == sorted(list_hdl_files(rtl, recursive=False))
+    assert ordered[-1].name == "demo.sv"
+    assert out.read_text(encoding="utf-8").endswith("demo.sv\n")

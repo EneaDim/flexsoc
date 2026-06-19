@@ -1,39 +1,29 @@
-# ruff: noqa
-#!/usr/bin/env python3
+"""Shared backend helpers for filesystem access and RTL source ordering.
+
+The helpers stay internal to the backend while exposing small pure functions to
+refactored generators and tests.
+"""
+
 from __future__ import annotations
-
-"""
-Shared helpers for flexsoc tools.
-
-Goals:
-- keep this file small and readable
-- provide filesystem helpers
-- provide light SV parsing helpers
-- provide canonical RTL ordering for rtl_list.f generation
-"""
 
 import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Iterable
 
-
-# -----------------------------------------------------------------------------
-# Terminal helpers
-# -----------------------------------------------------------------------------
 
 def colorize(text: str, color_code: str = "\033[38;5;214m") -> str:
+    """Return colored text when stdout supports color output."""
+
     if not sys.stdout.isatty() or os.environ.get("NO_COLOR"):
         return text
     return f"{color_code}{text}\033[0m"
 
 
-# -----------------------------------------------------------------------------
-# Filesystem helpers
-# -----------------------------------------------------------------------------
-
 def ensure_dir(path: str | os.PathLike[str]) -> None:
+    """Create a directory and parents when they do not already exist."""
+
     Path(path).mkdir(parents=True, exist_ok=True)
 
 
@@ -43,23 +33,25 @@ def safe_write_file(
     *,
     overwrite: bool = False,
 ) -> None:
+    """Write text while protecting existing files unless overwrite is enabled."""
+
     p = Path(path)
     if p.exists() and not overwrite:
         raise FileExistsError(str(p))
     p.write_text(content, encoding="utf-8")
 
 
-# -----------------------------------------------------------------------------
-# Small SV parsing helpers
-# -----------------------------------------------------------------------------
-
 def _strip_line_comment(line: str) -> str:
+    """Remove one SystemVerilog line comment from a line."""
+
     if "//" in line:
         return line.split("//", 1)[0]
     return line
 
 
 def _read_module_header_text(sv_path: Path) -> str:
+    """Return a comment-free SystemVerilog module header snippet."""
+
     text = sv_path.read_text(encoding="utf-8", errors="ignore")
 
     start = text.find("module")
@@ -90,32 +82,38 @@ def _read_module_header_text(sv_path: Path) -> str:
     return "\n".join(_strip_line_comment(line) for line in clean.splitlines())
 
 
-def parse_sv_signature(rtldir: str | os.PathLike[str], top: str) -> Dict[str, Any]:
+def parse_sv_signature(rtldir: str | os.PathLike[str], top: str) -> dict[str, Any]:
+    """Parse parameters, ports, clocks, and resets from one top module header."""
+
     sv = Path(rtldir) / f"{top}.sv"
     if not sv.exists():
         raise FileNotFoundError(str(sv))
 
     lines = _read_module_header_text(sv).splitlines()
 
-    parameters: List[Tuple[str, str]] = []
-    localparams: List[Tuple[str, str]] = []
-    ports_in: List[Tuple[str, Any]] = []
-    ports_out: List[Tuple[str, Any]] = []
-    clks: List[str] = []
-    rsts: List[str] = []
+    parameters: list[tuple[str, str]] = []
+    localparams: list[tuple[str, str]] = []
+    ports_in: list[tuple[str, Any]] = []
+    ports_out: list[tuple[str, Any]] = []
+    clks: list[str] = []
+    rsts: list[str] = []
 
     def push_param(line: str, kind: str) -> None:
+        """Append one parsed parameter or localparam line."""
+
         if "=" not in line:
             return
         left, right = line.split("=", 1)
         name = left.split()[-1].strip()
-        value = right.strip().rstrip(",)")
+        value = re.sub(r"\)\s*\($", "", right.strip()).rstrip(",)")
         if kind == "parameter":
             parameters.append((name, value))
         else:
             localparams.append((name, value))
 
     def push_port(line: str, direction: str) -> None:
+        """Append one parsed input or output port line."""
+
         toks = line.strip().rstrip(",)").split()
         if not toks:
             return
@@ -163,14 +161,14 @@ def parse_sv_signature(rtldir: str | os.PathLike[str], top: str) -> Dict[str, An
 
 
 def has_reg_pkg(rtldir: str | os.PathLike[str], top: str) -> bool:
+    """Return True when the RTL directory contains the generated register package."""
+
     return (Path(rtldir) / f"{top}_reg_pkg.sv").exists()
 
 
-# -----------------------------------------------------------------------------
-# Discovery helpers
-# -----------------------------------------------------------------------------
+def list_hdl_files(root: str | os.PathLike[str], *, recursive: bool = True) -> list[Path]:
+    """List Verilog/SystemVerilog files under a root in deterministic order."""
 
-def list_hdl_files(root: str | os.PathLike[str], *, recursive: bool = True) -> List[Path]:
     rootp = Path(root)
     if not rootp.exists():
         return []
@@ -187,17 +185,17 @@ def list_hdl_files(root: str | os.PathLike[str], *, recursive: bool = True) -> L
 
 
 def gather_rtl_sources(root: Path) -> list[Path]:
+    """Return all RTL source files under a root directory."""
+
     return list_hdl_files(root, recursive=True)
 
 
 def find_top_sv(rtldir: str | os.PathLike[str], top: str) -> Path | None:
+    """Return the top-level SystemVerilog file when it exists."""
+
     p = Path(rtldir) / f"{top}.sv"
     return p if p.exists() else None
 
-
-# -----------------------------------------------------------------------------
-# Canonical source ordering
-# -----------------------------------------------------------------------------
 
 def always_include_packages(ips_root: Path) -> list[Path]:
     """
@@ -223,6 +221,8 @@ def always_include_packages(ips_root: Path) -> list[Path]:
 
 
 def candidate_ips_in_order(ips_root: Path) -> list[Path]:
+    """Return backend IP support files in their canonical dependency order."""
+
     rel = [
         "prim/prim_bin2gray.sv",
         "prim/prim_cdc_2phase.sv",
@@ -389,6 +389,8 @@ def _parse_instantiated_modules_from_sv(path: Path) -> list[str]:
 
 
 def file_contains_any_token(path: Path, tokens: Iterable[str]) -> bool:
+    """Return True when a file contains any token as a standalone word."""
+
     try:
         text = path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
@@ -401,6 +403,8 @@ def file_contains_any_token(path: Path, tokens: Iterable[str]) -> bool:
 
 
 def select_used_ips_in_order(ip_candidates: list[Path], rtl_root: Path) -> list[Path]:
+    """Select candidate IP files referenced by the RTL sources."""
+
     rtl_files = gather_rtl_sources(rtl_root)
 
     used: list[Path] = []
@@ -434,6 +438,8 @@ def resolve_ip_dependencies(initial_used: list[Path], ip_candidates: list[Path])
 
 
 def _read_rtl_list_entries(rtl_list: Path) -> list[Path]:
+    """Read source entries from one rtl_list.f file."""
+
     out: list[Path] = []
     if not rtl_list.exists():
         return out
@@ -547,8 +553,7 @@ def build_ordered_sources(
         if p not in ordered:
             ordered.append(p)
 
-    # If this RTL root belongs to a SoC run, merge nested IP rtl_list.f sources too.
-    # Keep SoC-local tail files last.
+    # Merge nested IP rtl_list.f sources while keeping SoC-local tail files last.
     run_root = rtl_root.parent
     nested_ip_sources = collect_nested_ip_sources(run_root)
     if nested_ip_sources:
@@ -556,7 +561,7 @@ def build_ordered_sources(
         ordered_wo_tail = [p for p in ordered if p.resolve() not in set(tail_resolved)]
         ordered = ordered_wo_tail + nested_ip_sources + tail
 
-    # de-dup while preserving order
+    # Remove duplicate source paths while preserving the computed order.
     final: list[Path] = []
     seen: set[Path] = set()
     for p in ordered:
