@@ -806,3 +806,33 @@ def test_backend_sw_soc_gen_exposes_config_api(tmp_path) -> None:
     assert "$(BUILD_DIR)/uart.o" in (sw_dir / "Makefile").read_text(encoding="utf-8")
     assert (sw_dir / "boot.S").exists()
     assert (sw_dir / "link.ld").exists()
+
+
+def test_soc_software_step_uses_canonical_make_target_name() -> None:
+    """The SoC software step is exposed by Make target name, not module name."""
+
+    from flexsoc import FlexSoC
+
+    client = FlexSoC()
+    step = client.step_info("sw_soc")
+    params = {param.name for param in step.params}
+
+    assert step.group == "soc"
+    assert "HOST" in params
+    assert "sw_soc_gen" not in client.step_names()
+
+
+def test_unknown_step_errors_suggest_canonical_step_name() -> None:
+    """Unknown module-style names should point users to canonical step names."""
+
+    from flexsoc import FlexSoC
+
+    try:
+        FlexSoC().step_info("sw_soc_gen")
+    except ValueError as exc:
+        message = str(exc)
+    else:  # pragma: no cover - defensive assertion for the public API contract.
+        raise AssertionError("sw_soc_gen should not be a canonical step")
+
+    assert "unknown step: sw_soc_gen" in message
+    assert "did you mean sw_soc" in message

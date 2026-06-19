@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from difflib import get_close_matches
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -308,13 +309,21 @@ class FlexSoC:
 
         return tuple(step.name for step in self.list_steps(group))
 
+    def _step_name_suggestion(self, name: str) -> str | None:
+        """Return the closest canonical step name for one unknown value."""
+
+        matches = get_close_matches(name, self.step_names(), n=1, cutoff=0.45)
+        return matches[0] if matches else None
+
     def step_info(self, name: str) -> FlowStep:
         """Return one documented step or fail with a clear API error."""
 
         for step in self.list_steps():
             if step.name == name:
                 return step
-        raise ValueError(f"unknown step: {name}")
+        suggestion = self._step_name_suggestion(name)
+        hint = f"; did you mean {suggestion}?" if suggestion else ""
+        raise ValueError(f"unknown step: {name}{hint}")
 
     def prepare_step(
         self,
@@ -551,21 +560,21 @@ class FlexSoC:
             cls._step("fsoc_init", "soc", "Generate a run-local FuseSoC core.", p["HOST"], p["PRJ"]),
             cls._step("fsoc", "soc", "Run FuseSoC for the configured target.", p["TARGET_FSOC"], p["FUSESOC_TOOL"]),
             cls._step("xbar", "soc", "Generate and build the SoC crossbar.", p["HOST"], p["SOC_CFG_MODE"]),
-            cls._step("xbar_init", "soc", "Generate crossbar inputs for the current SoC."),
+            cls._step("xbar_init", "soc", "Generate crossbar inputs for the current SoC.", p["HOST"], p["SOC_CFG_MODE"]),
             cls._step("xbar_build", "soc", "Build generated crossbar RTL."),
             cls._step("soc", "soc", "Generate or refresh the SoC top-level RTL.", p["HOST"]),
-            cls._step("soc_stage_tops", "soc", "Stage IP tops into the SoC run."),
+            cls._step("soc_stage_tops", "soc", "Stage IP tops into the SoC run.", p["HOST"]),
             cls._step("soc_flist", "soc", "Generate the SoC RTL filelist."),
             cls._step("soc_flow", "soc", "Run crossbar, SoC generation, and SoC filelist generation.", p["HOST"]),
             cls._step("soc_uart_gen", "soc", "Generate a UART-hosted SoC."),
             cls._step("soc_ibex_gen", "soc", "Generate an Ibex-hosted SoC."),
-            cls._step("sw_soc", "soc", "Generate SoC software support files."),
-            cls._step("soc_prepare", "soc", "Prepare SoC software build inputs."),
-            cls._step("soc_build_sw", "soc", "Build SoC software."),
-            cls._step("soc_sim", "soc", "Run SoC simulation."),
-            cls._step("soc_run", "soc", "Run the generated SoC executable."),
-            cls._step("soc_run_only", "soc", "Run the SoC executable without rebuilding."),
-            cls._step("soc_view", "soc", "Open SoC waveform output.", p["VIEWER"]),
+            cls._step("sw_soc", "soc", "Generate SoC software support files.", p["HOST"]),
+            cls._step("soc_prepare", "soc", "Prepare SoC software build inputs.", p["HOST"], p["SOC_CFG_MODE"]),
+            cls._step("soc_build_sw", "soc", "Build SoC software.", p["HOST"]),
+            cls._step("soc_sim", "soc", "Run SoC simulation.", p["HOST"], p["SOC_CFG_MODE"], p["PRJ"], p["TARGET_FSOC"], p["FUSESOC_TOOL"]),
+            cls._step("soc_run", "soc", "Run the generated SoC executable.", p["HOST"], p["SOC_CFG_MODE"]),
+            cls._step("soc_run_only", "soc", "Run the SoC executable without rebuilding.", p["HOST"]),
+            cls._step("soc_view", "soc", "Open SoC waveform output.", p["HOST"], p["VIEWER"]),
             cls._step("soc_uart_tutorial", "tutorial", "Run the UART SoC tutorial."),
             cls._step("soc_ibex_fetch", "tutorial", "Fetch or prepare Ibex SoC tutorial inputs."),
             cls._step("soc_ibex_tutorial", "tutorial", "Run the Ibex SoC tutorial."),
