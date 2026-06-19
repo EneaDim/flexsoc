@@ -77,6 +77,7 @@ class FlowParameter:
     description: str
     default: str | None = None
     required: bool = False
+    category: str = "specific"
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-ready parameter description for frontend callers."""
@@ -86,7 +87,24 @@ class FlowParameter:
             "description": self.description,
             "default": self.default,
             "required": self.required,
+            "category": self.category,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class FlowExample:
+    """Document one copy-ready command for a flow step.
+
+    Examples keep CLI help concrete without bypassing the API layer.
+    """
+
+    command: str
+    description: str
+
+    def to_dict(self) -> dict[str, str]:
+        """Return a JSON-ready example for CLI and frontend callers."""
+
+        return {"command": self.command, "description": self.description}
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +115,7 @@ class FlowStep:
     group: str
     description: str
     params: tuple[FlowParameter, ...] = ()
+    examples: tuple[FlowExample, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-ready step description for CLI and UI callers."""
@@ -106,6 +125,7 @@ class FlowStep:
             "group": self.group,
             "description": self.description,
             "params": [param.to_dict() for param in self.params],
+            "examples": [example.to_dict() for example in self.examples],
         }
 
 
@@ -432,20 +452,38 @@ class FlexSoC:
         """Return variables shared by most flow steps."""
 
         return (
-            FlowParameter("TOP", "IP or SoC top-level name.", "test", True),
-            FlowParameter("RUN_ID", "Run identifier under the workspace.", "timestamp", True),
-            FlowParameter("WORKSPACE", "Workspace root used for generated artifacts.", "workspace"),
-            FlowParameter("RUN_TOP", "Run namespace; defaults to TOP when omitted.", "TOP"),
-            FlowParameter("FORCE", "Overwrite generated files when set to 1.", "0"),
+            FlowParameter("TOP", "IP or SoC top-level name.", "test", True, "common"),
+            FlowParameter("RUN_ID", "Run identifier under the workspace.", "timestamp", True, "common"),
+            FlowParameter("WORKSPACE", "Workspace root used for generated artifacts.", "workspace", False, "common"),
+            FlowParameter("RUN_TOP", "Run namespace; defaults to TOP when omitted.", "TOP", False, "common"),
+            FlowParameter("FORCE", "Overwrite generated files when set to 1.", "0", False, "common"),
         )
 
     @classmethod
     def _step(cls, name: str, group: str, description: str, *params: FlowParameter) -> FlowStep:
-        """Build one catalog entry with common variables plus step variables."""
+        """Build one catalog entry with parameters and examples."""
 
         names = {param.name for param in params}
         common = tuple(param for param in cls._common_params() if param.name not in names)
-        return FlowStep(name, group, description, common + params)
+        all_params = common + params
+        return FlowStep(name, group, description, all_params, cls._examples(name, all_params))
+
+    @staticmethod
+    def _examples(name: str, params: tuple[FlowParameter, ...]) -> tuple[FlowExample, ...]:
+        """Return copy-ready commands for one documented step."""
+
+        names = {param.name for param in params}
+        base = f"fx step {name} --dry-run --set TOP=demo --set RUN_ID=smoke"
+        examples = [FlowExample(base, "Preview the backend command without running tools.")]
+        if "REG_ITF" in names:
+            examples.append(FlowExample(f"{base} --set REG_ITF=tlul", "Select the generated register interface."))
+        if "COMPILER" in names:
+            examples.append(FlowExample(f"{base} --set COMPILER=verilator", "Select the simulator used by this step."))
+        if "TARGET_SYN" in names:
+            examples.append(FlowExample(f"{base} --set TARGET_SYN=asic --set TARGET_OPT=area", "Select synthesis target and strategy."))
+        if "HOST" in names:
+            examples.append(FlowExample(f"{base} --set HOST=uart", "Select the SoC host integration."))
+        return tuple(examples)
 
     @classmethod
     def _step_catalog(cls) -> tuple[FlowStep, ...]:
@@ -577,17 +615,17 @@ class FlexSoC:
         return {
             "ACTIVITY": FlowParameter("ACTIVITY", "Default switching activity percentage.", "10"),
             "CLK_PERIOD": FlowParameter("CLK_PERIOD", "Clock period used for constraints, in ns.", "20"),
-            "COMPILER": FlowParameter("COMPILER", "Simulator compiler command.", "verilator"),
+            "COMPILER": FlowParameter("COMPILER", "Simulator compiler command.", "verilator", False, "tool"),
             "F_CLK": FlowParameter("F_CLK", "FSM generator clock frequency value.", "32"),
             "FSM": FlowParameter("FSM", "FSM name to generate or install.", "fsm_example", True),
-            "FUSESOC_TOOL": FlowParameter("FUSESOC_TOOL", "FuseSoC backend tool override."),
+            "FUSESOC_TOOL": FlowParameter("FUSESOC_TOOL", "FuseSoC backend tool override.", None, False, "tool"),
             "HOST": FlowParameter("HOST", "SoC host wrapper selection.", "uart"),
             "IP_NAME": FlowParameter("IP_NAME", "IP bundle name used by load/save steps.", "TOP"),
-            "LIBS": FlowParameter("LIBS", "Timing liberty files used by OpenSTA."),
-            "LINTER": FlowParameter("LINTER", "RTL linter command.", "verilator"),
+            "LIBS": FlowParameter("LIBS", "Timing liberty files used by OpenSTA.", None, False, "tool"),
+            "LINTER": FlowParameter("LINTER", "RTL linter command.", "verilator", False, "tool"),
             "MOD_ADD": FlowParameter("MOD_ADD", "Driver base address value.", "0x80000000"),
             "NPATHS": FlowParameter("NPATHS", "Number of timing paths to report.", "20"),
-            "ORS_TECH": FlowParameter("ORS_TECH", "OpenROAD technology name.", "sky130hd"),
+            "ORS_TECH": FlowParameter("ORS_TECH", "OpenROAD technology name.", "sky130hd", False, "tool"),
             "PATH_VIEW_FILE": FlowParameter("PATH_VIEW_FILE", "Timing report file to inspect."),
             "PRJ": FlowParameter("PRJ", "Project/vendor prefix for generated FuseSoC cores.", "prj"),
             "REG_ITF": FlowParameter("REG_ITF", "Register bus interface for generated wrappers.", "tlul"),
@@ -596,7 +634,7 @@ class FlexSoC:
             "TARGET_OPT": FlowParameter("TARGET_OPT", "Synthesis optimization goal.", "area"),
             "TARGET_SYN": FlowParameter("TARGET_SYN", "Synthesis target style.", "asic"),
             "VENDOR": FlowParameter("VENDOR", "Vendor manifest name to update.", "lowrisc_ip"),
-            "VIEWER": FlowParameter("VIEWER", "Waveform viewer command.", "gtkwave"),
+            "VIEWER": FlowParameter("VIEWER", "Waveform viewer command.", "gtkwave", False, "tool"),
             "VSV": FlowParameter("VSV", "RTL flavor selector: v or sv.", "sv"),
         }
 

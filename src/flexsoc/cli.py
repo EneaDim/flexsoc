@@ -55,7 +55,7 @@ HELP_SECTIONS = (
         (
             (
                 "fx workflow ip_development --dry-run --script --set TOP=my_ip",
-                "Inspect setup, HJSON, reg, docs, RTL stubs, TB, sim, syn, STA, power, PnR, and Cocotb.",
+                "Inspect setup → hjson_gen → reg → doc → rtl_stub → setup_tb → sim → syn → sta → power → pnr → sim_syn → cocotb.",
             ),
             (
                 "fx step-info rtl_stub",
@@ -107,6 +107,7 @@ HELP_SECTIONS = (
         "Common options",
         "blue",
         (
+            ("fx step-info NAME", "Show parameters, defaults, categories, and copy-ready examples for one step."),
             ("--set KEY=VALUE", "Override one Make variable for one call. Repeat as needed."),
             (
                 "--project-root PATH",
@@ -198,14 +199,17 @@ def steps(group: str | None = typer.Option(None, help="Show only one step group.
 def step_info(
     name: str,
     json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
+    examples: bool = typer.Option(False, "--examples", help="Print only copy-ready command examples."),
 ) -> None:
-    """Show parameters and usage notes for one advanced flow step."""
+    """Show parameters, categories, and examples for one advanced flow step."""
 
     step = FlexSoC().step_info(name)
-    if json_:
+    json_enabled = json_ if isinstance(json_, bool) else False
+    examples_enabled = examples if isinstance(examples, bool) else False
+    if json_enabled:
         typer.echo(json.dumps(step.to_dict(), indent=2))
         return
-    _print_step_info(step)
+    _print_step_examples(step) if examples_enabled else _print_step_info(step)
 
 
 @app.command()
@@ -267,15 +271,34 @@ def _print_step_info(step: FlowStep, console: Console | None = None) -> None:
 
     console = console or Console()
     table = Table(title=f"{step.name} parameters", border_style=ACCENT)
+    table.add_column("Category", style="blue")
     table.add_column("Parameter", style=f"bold {ACCENT}")
     table.add_column("Required", style=WARNING)
     table.add_column("Default", style=SECONDARY)
     table.add_column("Description", style="white")
     for param in step.params:
-        table.add_row(param.name, "yes" if param.required else "no", param.default or "", param.description)
+        table.add_row(
+            param.category,
+            param.name,
+            "yes" if param.required else "no",
+            param.default or "",
+            param.description,
+        )
     console.print(Panel(f"[bold {ACCENT}]{step.name}[/bold {ACCENT}]\n{step.description}", border_style=ACCENT))
     console.print(table)
-    console.print(f"[dim]Preview:[/dim] fx step {step.name} --dry-run --set TOP=demo")
+    _print_step_examples(step, console)
+
+
+def _print_step_examples(step: FlowStep, console: Console | None = None) -> None:
+    """Render copy-ready examples for one documented step."""
+
+    console = console or Console()
+    table = Table(title=f"{step.name} examples", border_style=SECONDARY)
+    table.add_column("Command", style=f"bold {SECONDARY}")
+    table.add_column("Purpose", style="white")
+    for example in step.examples:
+        table.add_row(example.command, example.description)
+    console.print(table)
 
 
 def _parse_overrides(items: list[str]) -> dict[str, str]:

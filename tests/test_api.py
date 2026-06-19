@@ -541,3 +541,46 @@ def test_cli_help_mentions_package_module_entrypoint(capsys) -> None:
     captured = capsys.readouterr()
 
     assert "python -m flexsoc help" in captured.out
+
+
+def test_step_info_exposes_parameter_categories_and_examples() -> None:
+    """Step metadata explains accepted overrides and copy-ready commands."""
+
+    step = FlexSoC().step_info("syn")
+    payload = step.to_dict()
+
+    assert {param["category"] for param in payload["params"]} >= {"common", "specific"}
+    assert any(param["name"] == "TARGET_SYN" for param in payload["params"])
+    assert any("TARGET_SYN=asic" in example["command"] for example in payload["examples"])
+
+
+def test_step_info_examples_option_prints_copy_ready_commands(capsys) -> None:
+    """The CLI can print only examples for a selected step."""
+
+    from flexsoc.cli import step_info
+
+    step_info("setup_tb", examples=True)
+    captured = capsys.readouterr()
+
+    assert "setup_tb examples" in captured.out
+    assert "COMPILER=verilator" in captured.out
+
+
+def test_ip_development_workflow_keeps_explicit_order() -> None:
+    """The public IP workflow follows the requested development sequence."""
+
+    assert FlexSoC().prepare_workflow("ip_development") == (
+        "setup",
+        "hjson_gen",
+        "reg",
+        "doc",
+        "rtl_stub",
+        "setup_tb",
+        "sim",
+        "syn",
+        "sta",
+        "power",
+        "pnr",
+        "sim_syn",
+        "cocotb",
+    )
