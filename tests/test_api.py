@@ -584,3 +584,42 @@ def test_ip_development_workflow_keeps_explicit_order() -> None:
         "sim_syn",
         "cocotb",
     )
+
+
+def test_backend_testbench_generator_exposes_config_api(tmp_path) -> None:
+    """The testbench backend can generate files through a small config object."""
+
+    from flexsoc.backend.setup_tb import TestbenchConfig, generate_testbench_files, render_verilator_include
+
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    (rtl / "demo.sv").write_text(
+        """module demo #(parameter AW = 32) (
+  input logic clk_i,
+  input logic rst_ni,
+  output logic done_o
+);
+endmodule
+""",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "tb"
+    written = generate_testbench_files(
+        TestbenchConfig(
+            top="demo",
+            rtldir=rtl,
+            simdir=tmp_path / "sim",
+            syndir=tmp_path / "syn",
+            prims=(),
+            clk_period_ns=10,
+            compiler="iverilog",
+            interface="tlul",
+            output=out,
+            force=True,
+        )
+    )
+
+    assert out / "demo_tb.sv" in written
+    assert "module demo_tb" in (out / "demo_tb.sv").read_text(encoding="utf-8")
+    assert '`include "demo.sv"' in render_verilator_include("demo", rtl, tmp_path / "syn", (), False, "tlul", "sv")
