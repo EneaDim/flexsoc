@@ -960,6 +960,37 @@ def test_catalog_check_cli_reports_catalog_health(capsys) -> None:
     assert "setup" in payload["api_steps"]
 
 
+
+def test_smoke_cli_serializes_safe_flow_previews() -> None:
+    """The smoke command validates catalog health and previews core workflows."""
+
+    from typer.testing import CliRunner
+
+    from flexsoc.cli import app
+
+    result = CliRunner().invoke(app, ["smoke", "--json", "--top", "demo", "--run-id", "smoke"])
+    payload = json.loads(result.output)
+
+    assert result.exit_code == 0
+    assert payload["ok"] is True
+    assert payload["catalog"]["ok"] is True
+    assert "ip_development" in payload["workflows"]
+    assert payload["workflows"]["prepare"][0].startswith("make -f")
+
+
+def test_smoke_cli_renders_human_summary() -> None:
+    """The smoke command provides a compact colored human summary."""
+
+    from typer.testing import CliRunner
+
+    from flexsoc.cli import app
+
+    result = CliRunner().invoke(app, ["smoke", "--top", "demo", "--run-id", "smoke"])
+
+    assert result.exit_code == 0
+    assert "FlexSoC smoke" in result.output
+    assert "ip_development" in result.output
+
 def test_repository_root_keeps_only_current_public_docs() -> None:
     """The root keeps README only; detailed docs and specs live in docs/."""
 

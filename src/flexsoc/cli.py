@@ -208,6 +208,26 @@ def catalog_check(json_: bool = typer.Option(False, "--json", help="Print the ra
         raise typer.Exit(1)
 
 
+@app.command("smoke")
+def smoke(
+    top: str = typer.Option("demo", help="Top name used for smoke previews."),
+    run_id: str = typer.Option("smoke", help="Run identifier used for smoke previews."),
+    project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
+    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
+    run_prepare: bool = typer.Option(False, "--run-prepare", help="Execute only the safe prepare workflow."),
+) -> None:
+    """Run safe API/CLI smoke checks without launching EDA tools by default."""
+
+    client = FlexSoC(project_root=project_root)
+    payload = _smoke_payload(client, top, run_id, run_prepare)
+    if json_:
+        typer.echo(json.dumps(payload, indent=2))
+    else:
+        _print_smoke(payload)
+    if not payload["ok"]:
+        raise typer.Exit(1)
+
+
 @app.command("step-info")
 def step_info(
     name: str,
@@ -248,6 +268,46 @@ def step(
         typer.echo(json.dumps(result.to_dict(), indent=2))
     elif capture and result.stdout:
         typer.echo(result.stdout, nl=False)
+
+
+def _smoke_payload(client: FlexSoC, top: str, run_id: str, run_prepare: bool) -> dict[str, object]:
+    """Build a safe smoke payload using only the public API layer."""
+
+    catalog = client.validate_step_catalog()
+    workflows = {
+        name: client.inspect_workflow(name, top=top, run_id=run_id).shell_lines()
+        for name in ("prepare", "ip_development", "soc_development")
+    }
+    prepare_results = []
+    if run_prepare:
+        prepare_results = [item.to_dict() for item in client.run_workflow("prepare", capture=True, top=top, run_id=run_id)]
+    prepare_ok = all(item.get("ok", False) for item in prepare_results) if prepare_results else True
+    return {
+        "ok": bool(catalog["ok"]) and prepare_ok,
+        "catalog": catalog,
+        "workflows": {name: list(lines) for name, lines in workflows.items()},
+        "prepare_results": prepare_results,
+    }
+
+
+def _print_smoke(payload: dict[str, object], console: Console | None = None) -> None:
+    """Render the safe smoke summary for humans."""
+
+    console = console or Console()
+    ok = bool(payload["ok"])
+    style = SUCCESS if ok else WARNING
+    catalog = payload["catalog"]
+    workflows = payload["workflows"]
+    table = Table(title="Smoke checks", border_style=style)
+    table.add_column("Check", style=f"bold {ACCENT}")
+    table.add_column("Result", style="white")
+    table.add_row("Catalog", "ok" if catalog["ok"] else "mismatch")
+    for name, lines in workflows.items():
+        table.add_row(name, f"{len(lines)} command(s) previewed")
+    if payload["prepare_results"]:
+        table.add_row("prepare execution", "ok" if all(item["ok"] for item in payload["prepare_results"]) else "failed")
+    console.print(Panel("[bold green]ok[/bold green]" if ok else "[bold yellow]mismatch[/bold yellow]", title="FlexSoC smoke", border_style=style))
+    console.print(table)
 
 
 def _print_catalog_check(payload: dict[str, object], console: Console | None = None) -> None:

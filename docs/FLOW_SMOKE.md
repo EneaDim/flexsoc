@@ -134,3 +134,20 @@ Finally run with captured output:
 ```bash
 fx step STEP_NAME --set TOP=demo --set RUN_ID=smoke --capture --json
 ```
+
+## One-command smoke check
+
+Use the CLI smoke command when you want a quick API/Make consistency check before running tool-dependent steps:
+
+```bash
+fx smoke
+fx smoke --json
+```
+
+By default this does not launch EDA tools. It validates the backend Makefile catalog, resolves the public workflows, and previews their Make commands through the `FlexSoC` API layer. To execute only the safe workspace preparation path:
+
+```bash
+fx smoke --run-prepare --top demo --run-id smoke
+```
+
+Keep synthesis, signoff, PnR, and simulator execution as explicit step or workflow calls after the smoke output looks correct.
