@@ -12,7 +12,7 @@ def test_step_multi_dry_run_reuses_one_implicit_run_id() -> None:
 
     result = CliRunner().invoke(app, ["step", "hjson_gen", "reg", "doc", "--dry-run", "--script"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.output
     lines = [line for line in result.output.splitlines() if line.startswith("make ")]
     assert len(lines) == 3
 

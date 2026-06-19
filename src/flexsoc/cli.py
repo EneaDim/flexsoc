@@ -257,8 +257,9 @@ def step(
 
     client = FlexSoC(project_root=project_root)
     overrides = _parse_overrides(set_ or [])
+    sequence_overrides = _step_sequence_overrides(targets, overrides)
     if dry_run:
-        payloads = [client.inspect_step(target, **overrides) for target in targets]
+        payloads = [client.inspect_step(target, **sequence_overrides) for target in targets]
         if json_:
             payload: object = payloads[0] if len(payloads) == 1 else payloads
             typer.echo(json.dumps(payload, indent=2))
@@ -270,7 +271,7 @@ def step(
     results = []
     for target in targets:
         try:
-            results.append(client.run_step(target, capture=capture, **overrides))
+            results.append(client.run_step(target, capture=capture, **sequence_overrides))
         except subprocess.CalledProcessError as exc:
             command = " ".join(str(part) for part in exc.cmd)
             typer.secho(f"step failed: {target}", fg=typer.colors.RED, err=True)
@@ -285,6 +286,16 @@ def step(
             if result.stdout:
                 typer.echo(result.stdout, nl=False)
 
+
+
+def _step_sequence_overrides(targets: list[str], overrides: dict[str, str]) -> dict[str, str]:
+    """Return overrides with one RUN_ID shared by a multi-step call."""
+
+    if len(targets) <= 1 or "RUN_ID" in overrides:
+        return overrides
+    values = dict(overrides)
+    values["RUN_ID"] = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return values
 
 def _shell_script(lines: list[str]) -> str:
     """Render dry-run shell lines as a small executable script preview."""
