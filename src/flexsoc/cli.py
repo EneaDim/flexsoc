@@ -142,6 +142,15 @@ def _step_name_completion(incomplete: str):
 def help() -> None:
     """Print an extended CLI guide with workflows, tutorials, and options."""
 
+    console.print()
+    console.print("[bold orange3]Quickstart[/bold orange3]")
+    console.print("  fx help")
+    console.print("  python -m flexsoc help")
+    console.print("  fx commands")
+    console.print("  fx settings")
+    console.print("  fx workflow workspace --dry-run --script")
+    console.print("  fx step setup hjson_gen reg doc rtl_stub --dry-run --script")
+
     _print_help()
 
 
