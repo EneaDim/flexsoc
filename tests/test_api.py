@@ -36,7 +36,7 @@ def test_api_lists_make_backed_steps() -> None:
 
     assert "setup" in client.step_names()
     assert "soc" in client.step_names("soc")
-    assert "fsm_gen" in client.step_names("utility")
+    assert "fsm_gen" in client.step_names("fsm")
 
 
 def test_prepare_step_merges_call_config_and_overrides(tmp_path) -> None:
@@ -437,3 +437,94 @@ def test_hjson_gen_alias_is_available_for_make_backed_flow() -> None:
 
     assert ".PHONY: hjson hjson_gen" in text
     assert "hjson_gen: hjson" in text
+
+
+def test_api_uses_backend_makefile_as_canonical_entrypoint() -> None:
+    """The package runs flow steps through the backend Makefile."""
+
+    from flexsoc import FlexSoC
+
+    command = FlexSoC().flow_command("setup")
+
+    assert command.argv[2].endswith("src/flexsoc/backend/Makefile")
+    assert "src/flexsoc/flow/Makefile" not in command.argv[2]
+
+
+def test_step_catalog_covers_main_make_targets() -> None:
+    """Every main development area has documented step-info metadata."""
+
+    from flexsoc import FlexSoC
+
+    names = set(FlexSoC().step_names())
+
+    assert {
+        "setup",
+        "hjson_gen",
+        "reg",
+        "doc",
+        "rtl_stub",
+        "setup_tb",
+        "sim",
+        "syn",
+        "sta",
+        "power",
+        "pnr",
+        "sim_syn",
+        "cocotb",
+        "soc_flow",
+        "fsm_flow",
+        "clean_all",
+    } <= names
+
+
+def test_python_module_entrypoint_exists() -> None:
+    """The package can expose the same CLI through python -m flexsoc."""
+
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+
+    assert "from .cli import app" in (root / "src" / "flexsoc" / "__main__.py").read_text()
+
+
+def test_step_catalog_documents_make_phony_targets() -> None:
+    """All Make-declared flow targets are visible through step-info."""
+
+    from pathlib import Path
+    from flexsoc import FlexSoC
+
+    root = Path(__file__).resolve().parents[1]
+    makefile = root / "src" / "flexsoc" / "backend" / "Makefile"
+    phony = set()
+    for line in makefile.read_text(encoding="utf-8").splitlines():
+        if line.startswith(".PHONY:"):
+            phony.update(line.removeprefix(".PHONY:").split())
+
+    assert phony <= set(FlexSoC().step_names())
+
+
+def test_soc_development_workflow_is_explicit() -> None:
+    """The SoC workflow exposes setup, generation, software, and run steps."""
+
+    from flexsoc import FlexSoC
+
+    assert FlexSoC().prepare_workflow("soc_development") == (
+        "setup",
+        "soc_start",
+        "soc_flow",
+        "soc_prepare",
+        "soc_build_sw",
+        "soc_sim",
+        "soc_run",
+    )
+
+
+def test_cli_help_mentions_package_module_entrypoint(capsys) -> None:
+    """The public help shows the package module entrypoint too."""
+
+    from flexsoc import cli
+
+    cli.help()
+    captured = capsys.readouterr()
+
+    assert "python -m flexsoc help" in captured.out

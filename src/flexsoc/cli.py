@@ -27,6 +27,7 @@ HELP_SECTIONS = (
         ACCENT,
         (
             ("fx help", "Open this guide."),
+            ("python -m flexsoc help", "Open the same guide through the package module."),
             ("fx workflows", "List high-level workflows for normal use."),
             ("fx steps", "List advanced Make-backed steps exposed through the API."),
             ("fx step-info hjson_gen", "Show accepted parameters for one step."),
@@ -75,8 +76,8 @@ HELP_SECTIONS = (
                 "Create the workspace through the API layer.",
             ),
             (
-                "fx workflow soc --dry-run --script --set TOP=soc",
-                "Preview SoC generation before running external tools.",
+                "fx workflow soc_development --dry-run --script --set TOP=soc",
+                "Preview setup, IP loading, SoC generation, software build, simulation, and run.",
             ),
             (
                 "fx step-info soc",
