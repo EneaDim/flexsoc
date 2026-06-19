@@ -127,6 +127,16 @@ def main(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         _print_help()
 
+def _workflow_name_completion(incomplete: str):
+    """Return workflow names matching the shell completion prefix."""
+
+    return [name for name in FlexSoC().workflow_names() if name.startswith(incomplete)]
+
+
+def _step_name_completion(incomplete: str):
+    """Return step names matching the shell completion prefix."""
+
+    return [name for name in FlexSoC().step_names() if name.startswith(incomplete)]
 
 @app.command()
 def help() -> None:
@@ -373,22 +383,6 @@ def _print_smoke(payload: dict[str, object], console: Console | None = None) -> 
         table.add_row("workspace execution", "ok" if all(item["ok"] for item in payload["workspace_results"]) else "failed")
     console.print(Panel("[bold green]ok[/bold green]" if ok else "[bold yellow]mismatch[/bold yellow]", title="FlexSoC smoke", border_style=style))
     console.print(table)
-
-
-
-
-def _step_name_completion(incomplete: str) -> list[str]:
-    """Complete backend step names from the public API catalog."""
-
-    return [name for name in FlexSoC().step_names() if name.startswith(incomplete)]
-
-
-def _workflow_name_completion(incomplete: str) -> list[str]:
-    """Complete workflow names from the public API catalog."""
-
-    return [name for name in FlexSoC().workflow_names() if name.startswith(incomplete)]
-
-
 def _command_rows() -> tuple[tuple[str, str, str], ...]:
     """Return top-level commands ordered like a normal development session."""
 
