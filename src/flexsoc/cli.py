@@ -20,6 +20,10 @@ SECONDARY = "cyan"
 SUCCESS = "green"
 WARNING = "yellow"
 
+SETTINGS_DIRNAME = ".flexsoc"
+SETTINGS_FILENAME = "settings.json"
+DEFAULT_SETTINGS = {"TOP": "test", "HOST": "uart", "FORCE": "0"}
+
 HELP_INTRO = """Thin command line interface over the public FlexSoC API layer.
 Use workflows for normal development and steps for advanced flow control."""
 
@@ -34,6 +38,7 @@ HELP_SECTIONS = (
             ("fx steps", "List advanced Make-backed steps exposed through the API."),
             ("fx step-info hjson_gen", "Show accepted parameters for one step."),
             ("fx describe", "Show project root, workspace, and client options."),
+            ("fx settings", "Show project defaults and saved project settings."),
         ),
     ),
     (
@@ -111,6 +116,7 @@ HELP_SECTIONS = (
         (
             ("fx step-info NAME", "Show parameters, defaults, categories, and copy-ready examples for one step."),
             ("--set KEY=VALUE", "Override one Make variable for one call. Repeat as needed."),
+            ("fx settings --set TOP=my_ip --set HOST=uart", "Save project defaults for future CLI calls."),
             (
                 "--project-root PATH",
                 "Execute from a repository root different from the current directory.",
@@ -151,6 +157,44 @@ def describe() -> None:
     typer.echo(json.dumps(FlexSoC().describe(), indent=2))
 
 
+@app.command("settings")
+def settings(
+    set_: list[str] = typer.Option(None, "--set", help="Persist one project setting as KEY=VALUE."),
+    unset: list[str] = typer.Option(None, "--unset", help="Remove one persisted setting by name."),
+    reset: bool = typer.Option(False, "--reset", help="Remove all persisted project settings."),
+    project_root: Path | None = typer.Option(None, help="Repository root that owns the settings file."),
+    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
+) -> None:
+    """Show, save, or reset project-level FlexSoC CLI settings."""
+
+    root = _project_root(project_root)
+    path = _settings_path(root)
+    values = _read_settings(root)
+    changed = False
+
+    if reset:
+        path.unlink(missing_ok=True)
+        values = {}
+        changed = True
+
+    for key in unset or []:
+        removed = values.pop(key.upper(), None)
+        changed = changed or removed is not None
+
+    if set_:
+        values.update(_parse_overrides(set_))
+        changed = True
+
+    if changed:
+        _write_settings(root, values)
+
+    payload = _settings_payload(root)
+    if json_:
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    _print_settings(payload)
+
+
 @app.command("workflows")
 def workflows(
     json_: bool = typer.Option(False, "--json", help="Print JSON for tools and frontends."),
@@ -176,7 +220,7 @@ def workflow(
     """Run, preview, or serialize one high-level workflow through FlexSoC."""
 
     client = FlexSoC(project_root=project_root)
-    overrides = _parse_overrides(set_ or [])
+    overrides = _merged_settings(project_root, set_ or [])
     if dry_run and (json_ or script):
         plan = client.inspect_workflow(name, **overrides)
         typer.echo(json.dumps(plan.to_dict(), indent=2) if json_ else plan.shell_script(), nl=not script)
@@ -472,6 +516,87 @@ def _ensure_sequence_run_id(overrides: dict[str, str]) -> dict[str, str]:
         overrides["RUN_ID"] = datetime.now().strftime("%Y%m%d_%H%M%S")
     return overrides
 
+
+def _project_root(project_root: Path | None = None) -> Path:
+    """Return the repository root used for CLI settings and execution."""
+
+    return (project_root or Path.cwd()).resolve()
+
+
+def _settings_path(project_root: Path | None = None) -> Path:
+    """Return the project-local settings file path."""
+
+    return _project_root(project_root) / SETTINGS_DIRNAME / SETTINGS_FILENAME
+
+
+def _read_settings(project_root: Path | None = None) -> dict[str, str]:
+    """Read saved project settings, falling back to an empty mapping."""
+
+    path = _settings_path(project_root)
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text())
+    return {str(key).upper(): str(value) for key, value in data.items()}
+
+
+def _write_settings(project_root: Path | None, values: dict[str, str]) -> None:
+    """Write project settings in a compact JSON file."""
+
+    path = _settings_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if values:
+        path.write_text(json.dumps(dict(sorted(values.items())), indent=2) + "\n")
+    else:
+        path.unlink(missing_ok=True)
+
+
+def _settings_payload(project_root: Path | None = None) -> dict[str, object]:
+    """Return defaults, saved settings, and resolved values for display."""
+
+    root = _project_root(project_root)
+    defaults = dict(DEFAULT_SETTINGS)
+    saved = _read_settings(root)
+    resolved = {**defaults, **saved}
+    return {
+        "path": str(_settings_path(root)),
+        "defaults": defaults,
+        "saved": saved,
+        "resolved": resolved,
+        "workspace": str(FlexSoC(project_root=root).workdir),
+    }
+
+
+def _merged_settings(project_root: Path | None, overrides: list[str]) -> dict[str, str]:
+    """Merge saved project settings with one-call CLI overrides."""
+
+    values = _read_settings(project_root)
+    values.update(_parse_overrides(overrides))
+    return values
+
+
+def _generated_run_id() -> str:
+    """Return one timestamp run id shared by a multi-step CLI call."""
+
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def _print_settings(payload: dict[str, object], console: Console | None = None) -> None:
+    """Render project settings as a compact human table."""
+
+    console = console or Console()
+    table = Table(title="FlexSoC settings", border_style=ACCENT)
+    table.add_column("Name", style=f"bold {ACCENT}")
+    table.add_column("Value", style="white")
+    table.add_column("Source", style=SECONDARY)
+    defaults = payload["defaults"]
+    saved = payload["saved"]
+    resolved = payload["resolved"]
+    for key, value in resolved.items():
+        table.add_row(key, str(value), "saved" if key in saved else "default")
+    table.add_row("WORKSPACE", str(payload["workspace"]), "computed")
+    console.print(Panel(str(payload["path"]), title="Settings file", border_style=ACCENT))
+    console.print(table)
+
 def _parse_overrides(items: list[str]) -> dict[str, str]:
     """Parse KEY=VALUE CLI overrides into Make variable values."""
 
@@ -480,5 +605,5 @@ def _parse_overrides(items: list[str]) -> dict[str, str]:
         key, sep, value = item.partition("=")
         if not sep or not key:
             raise typer.BadParameter(f"expected KEY=VALUE, got {item!r}")
-        values[key] = value
+        values[key.upper()] = value
     return values
