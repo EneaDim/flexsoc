@@ -713,3 +713,29 @@ def test_backend_soc_start_exposes_config_api(tmp_path) -> None:
     assert (cfg.ips_dir / "loaded_ips.txt").read_text(encoding="utf-8") == "gpio\nuart\n"
     assert merged_rtl_sources(tuple(sorted(path.parent for path in (ip_a, ip_b))))
     assert "loaded_ips=2" in (cfg.run_dir / "doc" / "soc_start.txt").read_text(encoding="utf-8")
+
+
+def test_backend_soc_cfg_exposes_config_api(tmp_path) -> None:
+    """The SoC config backend resolves host/device maps through one config object."""
+
+    from flexsoc.backend.soc_cfg import (
+        SoCDevice,
+        builtin_devices,
+        render_args,
+        render_make_config,
+        resolve_soc_config,
+    )
+
+    ips = tmp_path / "runs" / "soc" / "smoke" / "ips"
+    for name in ["uart", "gpio", "custom_accel"]:
+        (ips / name).mkdir(parents=True, exist_ok=True)
+
+    config = resolve_soc_config(tmp_path, "soc", "smoke", mode="workspace")
+    make_text = render_make_config(config)
+    args_text = render_args(config)
+
+    assert config.host == "uart"
+    assert SoCDevice("sram", "0x00100000", "0x00100000", "True") in builtin_devices("ibex")
+    assert "$(eval $(call add_device,gpio,0x80040000,0x00001000,False))" in make_text
+    assert "--device custom_accel 0x800A0000 0x00001000 False" in args_text
+    assert "SOC_MEMORY_MAP" in make_text
