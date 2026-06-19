@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from flexsoc import FlexSoC, FlexSoCConfig
 
@@ -957,3 +958,25 @@ def test_catalog_check_cli_reports_catalog_health(capsys) -> None:
     assert payload["ok"] is True
     assert "setup" in payload["make_targets"]
     assert "setup" in payload["api_steps"]
+
+
+def test_repository_root_keeps_only_current_public_docs() -> None:
+    """The root keeps README only; detailed docs and specs live in docs/."""
+
+    root = Path(__file__).resolve().parents[1]
+    stale_paths = [
+        "API.md",
+        "ARCHITECTURE.md",
+        "SPEC_REFACTOR.md",
+        ".pre-commit-config.yaml",
+        "requirements-ci.txt",
+        "requirements-flow.txt",
+        "ruff.toml",
+    ]
+
+    assert (root / "README.md").exists()
+    assert (root / "docs" / "API.md").exists()
+    assert (root / "docs" / "CLI.md").exists()
+    assert (root / "docs" / "ARCHITECTURE.md").exists()
+    assert (root / "docs" / "SPEC_REFACTOR.md").exists()
+    assert [path for path in stale_paths if (root / path).exists()] == []
