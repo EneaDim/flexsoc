@@ -32,7 +32,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 | `soc_cfg.py` | Resolves SoC host and memory-map configuration through `SoCConfig`. | Workspace, run top/id, devices, host. | Make fragments/arguments for SoC generation. | `PUBLIC_WORKFLOW` candidate |
 | `soc_gen.py` | Generates top-level SoC RTL and integration wrappers. | IP list, xbar data, run configuration. | SoC RTL and top-level generated files. | `PUBLIC_WORKFLOW` candidate |
 | `soc_start.py` | Initializes SoC run folders through `SoCStartConfig`. | Workspace/run identifiers, staged IP bundles. | Run directory, loaded IP list, merged RTL filelist, summary. | `PUBLIC_WORKFLOW` candidate |
-| `sw_soc_gen.py` | Generates software project scaffolding for the SoC. | Run directory, devices/drivers. | C sources and Makefile. | `ADVANCED_STEP` |
+| `sw_soc_gen.py` | Generates SoC software scaffolds through `SoCSoftwareConfig`. | Workspace run directory, host, staged IP drivers. | Boot code, linker script, C entrypoint, copied drivers, Makefile. | `ADVANCED_STEP` |
 | `xbar_init.py` | Builds crossbar JSON configuration. | Host and device address ranges. | JSON xbar configuration. | `UTILITY` |
 | `fsm_gen/` | Bundled FSM generator utility. | FSM text/CSV input. | Generated FSM artifacts. | `UTILITY` / advanced step |
 
@@ -51,7 +51,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 1. Stabilize small utility modules first: `setup_sdc.py`, `setup_model.py`, `xbar_init.py`, `regression.py`.
 2. Review filelist and metadata generators: `gen_filelist.py` and `hjson_gen.py` are now import-safe; `setup_fsoc.py` is now import-safe; setup generators continue next.
 3. Review setup generators: `setup_tb.py`, `setup_syn.py`, and `setup_cocotb.py` now expose config-based writers; continue with remaining setup helpers.
-4. Review SoC workflow modules last: `soc_start.py` and `soc_cfg.py` now have config-based entrypoints; continue with `soc_gen.py` and `sw_soc_gen.py`.
+4. Review SoC workflow modules last: `soc_start.py`, `soc_cfg.py`, `soc_gen.py`, and `sw_soc_gen.py` now have config-based entrypoints.
 
 ## Rules for each backend cleanup
 
@@ -116,3 +116,7 @@ The Make flow and reviewed backend parsers now use one canonical naming style fo
 ## Patch 0035 note
 
 `soc_gen.py` now exposes `SoCGenerationConfig`, `SoCModule`, render helpers, and `generate_soc()` so top-level SoC RTL generation can be called directly from the API layer without duplicating CLI argument handling.
+
+## Patch 0036 note
+
+`sw_soc_gen.py` now exposes `SoCSoftwareConfig`, render helpers, and `write_soc_software()` so SoC software scaffolding can be called directly from the API layer.

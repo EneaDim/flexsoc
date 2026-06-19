@@ -786,3 +786,23 @@ endmodule
     assert "gpio u_gpio" in output.read_text(encoding="utf-8")
     assert "prj:ip:gpio" in (config.run_dir / "soc.core").read_text(encoding="utf-8")
     assert (config.tb_dir / "top_verilator.sv").exists()
+
+
+def test_backend_sw_soc_gen_exposes_config_api(tmp_path) -> None:
+    """The SoC software backend writes boot, linker, main, and Makefile files."""
+
+    from flexsoc.backend.sw_soc_gen import SoCSoftwareConfig, render_main_c, write_soc_software
+
+    drivers = tmp_path / "runs" / "soc" / "smoke" / "ips" / "uart" / "drivers"
+    drivers.mkdir(parents=True)
+    (drivers / "uart.h").write_text("typedef unsigned long uart_t;\n#define UART_BASE 0x80000000\n", encoding="utf-8")
+    (drivers / "uart.c").write_text("int uart_init(uart_t base) { return (int)base; }\n", encoding="utf-8")
+
+    sw_dir, modules = write_soc_software(SoCSoftwareConfig(tmp_path, "soc", "smoke", "uart"))
+
+    assert modules == ["uart"]
+    assert "uart_puts" in render_main_c(modules, "uart")
+    assert "uart_init((uart_t)UART_BASE);" in (sw_dir / "main.c").read_text(encoding="utf-8")
+    assert "$(BUILD_DIR)/uart.o" in (sw_dir / "Makefile").read_text(encoding="utf-8")
+    assert (sw_dir / "boot.S").exists()
+    assert (sw_dir / "link.ld").exists()

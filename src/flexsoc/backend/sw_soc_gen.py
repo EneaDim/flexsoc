@@ -1,7 +1,10 @@
+"""Generate the C software scaffold used by SoC runs."""
+
 from __future__ import annotations
 
 import argparse
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -175,67 +178,79 @@ SECTIONS
 """
 
 
+@dataclass(frozen=True, slots=True)
+class SoCSoftwareConfig:
+    """Collect paths and options used to build the SoC software scaffold."""
+
+    workspace: Path
+    run_top: str
+    run_id: str
+    host: str
+
+    @property
+    def run_dir(self) -> Path:
+        """Return the canonical run directory for this software scaffold."""
+
+        return run_dir(self.workspace, self.run_top, self.run_id)
+
+
 def run_dir(workspace: Path, run_top: str, run_id: str) -> Path:
+    """Build the canonical workspace run directory path."""
+
     return workspace / "runs" / run_top / run_id
 
 
 def copy_driver_files(ips_dir: Path, sw_dir: Path) -> list[str]:
+    """Copy staged IP C drivers into the software directory."""
+
     if not ips_dir.exists():
         raise SystemExit(f"ERROR: missing loaded IP directory: {ips_dir}")
 
-    copied_modules: list[str] = []
-
+    modules: list[str] = []
     for ip_dir in sorted((p for p in ips_dir.iterdir() if p.is_dir()), key=lambda p: p.name):
-        drv_dir = ip_dir / "drivers"
-        if not drv_dir.exists():
+        driver_files = sorted((ip_dir / "drivers").glob("*.h")) + sorted((ip_dir / "drivers").glob("*.c"))
+        if not driver_files:
             continue
-
-        copied_any = False
-        for ext in ("*.h", "*.c"):
-            for src in sorted(drv_dir.glob(ext)):
-                shutil.copy2(src, sw_dir / src.name)
-                copied_any = True
-
-        if copied_any:
-            copied_modules.append(ip_dir.name)
-
-    return copied_modules
+        for src in driver_files:
+            shutil.copy2(src, sw_dir / src.name)
+        modules.append(ip_dir.name)
+    return modules
 
 
-def generate_main_c(sw_dir: Path, modules: list[str]) -> None:
+def render_main_c(modules: list[str], host: str) -> str:
+    """Render the generated SoC C entrypoint."""
+
+    uses_uart = host == "uart" and "uart" in modules
     includes = [f'#include "{mod}.h"' for mod in sorted(modules)]
-
     body = ["int main(void) {"]
 
     for mod in modules:
         body.append(f"  {mod}_init(({mod}_t){mod.upper()}_BASE);")
 
-    if "uart" in modules:
-        body.append('  uart_puts("FlexSoC SoC boot\\n");')
-        body.append("  (void)uart_in((uart_t)UART_BASE);")
+    if uses_uart:
+        body.extend([
+            '  uart_puts("FlexSoC SoC boot\\n");',
+            "  (void)uart_in((uart_t)UART_BASE);",
+        ])
 
     body.append("  for (;;) {")
-    if "uart" in modules:
-        body.append("    int ch = uart_in((uart_t)UART_BASE);")
-        body.append("    if (ch >= 0) {")
-        body.append("      uart_putchar(ch);")
-        body.append("    }")
-    body.append("  }")
-    body.append("  return 0;")
-    body.append("}")
-
-    text = f"""{chr(10).join(includes)}
-
-{chr(10).join(body)}
-"""
-    (sw_dir / "main.c").write_text(text, encoding="utf-8")
+    if uses_uart:
+        body.extend([
+            "    int ch = uart_in((uart_t)UART_BASE);",
+            "    if (ch >= 0) {",
+            "      uart_putchar(ch);",
+            "    }",
+        ])
+    body.extend(["  }", "  return 0;", "}"])
+    return f"{chr(10).join(includes)}\n\n{chr(10).join(body)}\n"
 
 
-def generate_makefile(sw_dir: Path, modules: list[str]) -> None:
-    c_modules = ["main"] + modules
+def render_makefile(modules: list[str]) -> str:
+    """Render the generated RISC-V software Makefile."""
+
+    c_modules = ["main", *modules]
     obj_list = " ".join(f"$(BUILD_DIR)/{m}.o" for m in c_modules) + " $(BUILD_DIR)/boot.o"
-
-    text = f"""CC = riscv32-unknown-elf-gcc
+    return f"""CC = riscv32-unknown-elf-gcc
 CFLAGS = -march=rv32imc -mabi=ilp32 -static -mcmodel=medany -Wall -g -fvisibility=hidden -ffreestanding
 LDFLAGS = -nostdlib -nostartfiles -T link.ld
 BUILD_DIR = build
@@ -261,32 +276,47 @@ clean:
 
 .PHONY: all clean
 """
-    (sw_dir / "Makefile").write_text(text, encoding="utf-8")
 
 
-def main():
-    ap = argparse.ArgumentParser(description="Generate SoC software workspace from loaded IP drivers.")
-    ap.add_argument("--workspace", required=True)
-    ap.add_argument("--run-top", required=True)
-    ap.add_argument("--run-id", required=True)
-    ap.add_argument("--host", required=True, choices=["uart", "ibex"])
-    args = ap.parse_args()
+def write_soc_software(config: SoCSoftwareConfig) -> tuple[Path, list[str]]:
+    """Generate the SoC software directory and return its copied modules."""
 
-    ws = Path(args.workspace).expanduser().resolve()
-    rd = run_dir(ws, args.run_top, args.run_id)
-    ips_dir = rd / "ips"
-    sw_dir = rd / "sw"
+    sw_dir = config.run_dir / "sw"
     sw_dir.mkdir(parents=True, exist_ok=True)
 
-    modules = copy_driver_files(ips_dir, sw_dir)
+    modules = copy_driver_files(config.run_dir / "ips", sw_dir)
     if not modules:
-        raise SystemExit(f"ERROR: no driver files found under loaded IPs: {ips_dir}")
+        raise SystemExit(f"ERROR: no driver files found under loaded IPs: {config.run_dir / 'ips'}")
 
     (sw_dir / "boot.S").write_text(BOOT_S, encoding="utf-8")
     (sw_dir / "link.ld").write_text(LINK_LD, encoding="utf-8")
-    generate_main_c(sw_dir, modules)
-    generate_makefile(sw_dir, modules)
+    (sw_dir / "main.c").write_text(render_main_c(modules, config.host), encoding="utf-8")
+    (sw_dir / "Makefile").write_text(render_makefile(modules), encoding="utf-8")
+    return sw_dir, modules
 
+
+def build_parser() -> argparse.ArgumentParser:
+    """Create the command-line parser for the software generator."""
+
+    parser = argparse.ArgumentParser(description="Generate SoC software workspace from loaded IP drivers.")
+    parser.add_argument("--workspace", required=True)
+    parser.add_argument("--run-top", required=True)
+    parser.add_argument("--run-id", required=True)
+    parser.add_argument("--host", required=True, choices=["uart", "ibex"])
+    return parser
+
+
+def main() -> None:
+    """Run the software scaffold generator from CLI arguments."""
+
+    args = build_parser().parse_args()
+    config = SoCSoftwareConfig(
+        workspace=Path(args.workspace).expanduser().resolve(),
+        run_top=args.run_top,
+        run_id=args.run_id,
+        host=args.host,
+    )
+    sw_dir, modules = write_soc_software(config)
     print(f"Generated SoC software under: {sw_dir}")
     print(f"Modules: {', '.join(modules)}")
 
