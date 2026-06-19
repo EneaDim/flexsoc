@@ -21,7 +21,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 | `hjson_gen.py` | Renders HJSON metadata used by downstream tooling. | IP/top configuration values. | HJSON files. | `ADVANCED_STEP` |
 | `regression.py` | Runs simulation regression targets over discovered testbenches. | `tb/regression/*.sv`, Make targets. | Make-driven simulation runs. | `ADVANCED_STEP` |
 | `rtl_stub_gen.py` | Generates RTL wrappers and stubs from module signatures. | Top RTL module and output paths. | SystemVerilog stub/wrapper files. | `ADVANCED_STEP` |
-| `setup_cocotb.py` | Prepares cocotb simulation scaffolding. | RTL filelists, top module, workspace. | Makefile/testbench support files. | `ADVANCED_STEP` |
+| `setup_cocotb.py` | Generates cocotb scaffolding through `CocotbConfig`. | RTL filelists, top module, simulator choices. | cocotb Makefile, Python smoke test, SV wrapper. | `ADVANCED_STEP` |
 | `setup_fsoc.py` | Prepares FuseSoC-related setup or ordering data. | RTL/IP metadata. | FuseSoC support files. | `ADVANCED_STEP` |
 | `setup_model.py` | Emits a small Python reference model template. | Top name, optional output directory. | `model.py`. | `UTILITY` |
 | `setup_pnr.py` | Prepares place-and-route scripts/configuration. | Filelists, constraints, technology/workspace values. | PnR scripts and run assets. | `ADVANCED_STEP` |
@@ -50,7 +50,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 
 1. Stabilize small utility modules first: `setup_sdc.py`, `setup_model.py`, `xbar_init.py`, `regression.py`.
 2. Review filelist and metadata generators: `gen_filelist.py` and `hjson_gen.py` are now import-safe; `setup_fsoc.py` is now import-safe; setup generators continue next.
-3. Review setup generators: `setup_tb.py` now exposes a config-based writer; continue with `setup_cocotb.py`, `setup_syn.py`, and remaining setup helpers.
+3. Review setup generators: `setup_tb.py`, `setup_syn.py`, and `setup_cocotb.py` now expose config-based writers; continue with remaining setup helpers.
 4. Review SoC workflow modules last: `soc_start.py`, `soc_cfg.py`, `soc_gen.py`, `sw_soc_gen.py`.
 
 ## Rules for each backend cleanup
@@ -99,3 +99,7 @@ The Make flow and reviewed backend parsers now use one canonical naming style fo
 ## Patch 0031 note
 
 `setup_syn.py` now exposes `SynthesisConfig` and `generate_synthesis_scripts()` so ASIC/FPGA synthesis script generation can be called directly from the API layer without duplicating Makefile logic.
+
+## Patch 0032 note
+
+`setup_cocotb.py` now exposes `CocotbConfig` and `write_cocotb_scaffold()` so cocotb Makefile/test generation can be called directly from the API layer.

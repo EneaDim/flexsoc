@@ -660,3 +660,33 @@ def test_backend_synthesis_generator_exposes_config_api(tmp_path) -> None:
     assert out / "abc.constr" in written
     assert "abc -D 10000" in (out / "synth.ys").read_text(encoding="utf-8")
     assert "set_driving_cell" in render_abc_constraints()
+
+
+def test_backend_cocotb_generator_exposes_config_api(tmp_path) -> None:
+    """The cocotb backend writes scaffold files through one config object."""
+
+    from flexsoc.backend.setup_cocotb import CocotbConfig, render_makefile, write_cocotb_scaffold
+
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    (rtl / "demo.sv").write_text(
+        """module demo (
+  input logic clk_i,
+  input logic rst_ni,
+  output logic done_o
+);
+endmodule
+""",
+        encoding="utf-8",
+    )
+
+    cfg = CocotbConfig(top="demo", interface="tlul", output=tmp_path / "cocotb", rtl_dir=rtl)
+    written = write_cocotb_scaffold(cfg)
+    makefile = render_makefile(cfg, [rtl / "demo.sv"])
+
+    assert cfg.output / "Makefile" in written
+    assert cfg.output / "demo_tb.py" in written
+    assert cfg.output / "demo_tb.sv" in written
+    assert "TOPLEVEL          = demo_tb" in makefile
+    assert "module demo_tb" in (cfg.output / "demo_tb.sv").read_text(encoding="utf-8")
+    assert "async def demo_smoke_test" in (cfg.output / "demo_tb.py").read_text(encoding="utf-8")
