@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # IP generation
 # -----------------------------------------------------------------------------
-.PHONY: hjson reg doc rtl_stub ip_start soc_start flist driver fetch ip_flow ip_flow_noreg ip_flow_all
+.PHONY: hjson hjson_gen reg doc rtl_stub ip_start soc_start flist driver fetch ip_flow ip_flow_noreg ip_flow_all
 .PHONY: lint lint_v lint_sv compile compile_v compile_sv sim sim_v sim_sv
 .PHONY: compile_syn sim_syn cocotb view view_cocotb view_syn
 .PHONY: syn syn_v syn_sv yosys-vgen plot_postsyn view_presyn view_presyn_v view_presyn_sv
@@ -10,6 +10,8 @@
 hjson: setup
 	@echo "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
+
+hjson_gen: hjson
 
 reg:
 	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"

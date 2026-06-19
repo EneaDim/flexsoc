@@ -67,16 +67,46 @@ class FlexSoCConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class FlowParameter:
+    """Document one Make variable accepted by a flow step.
+
+    Parameters are exposed to CLI, web, and UI layers through the public API.
+    """
+
+    name: str
+    description: str
+    default: str | None = None
+    required: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-ready parameter description for frontend callers."""
+
+        return {
+            "name": self.name,
+            "description": self.description,
+            "default": self.default,
+            "required": self.required,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class FlowStep:
-    """Small public description for one Make-backed workflow step."""
+    """Public description for one Make-backed workflow step."""
 
     name: str
     group: str
+    description: str
+    params: tuple[FlowParameter, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-ready step description for CLI and UI callers."""
 
-        return {"name": self.name, "group": self.group}
+        return {
+            "name": self.name,
+            "group": self.group,
+            "description": self.description,
+            "params": [param.to_dict() for param in self.params],
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +288,14 @@ class FlexSoC:
 
         return tuple(step.name for step in self.list_steps(group))
 
+    def step_info(self, name: str) -> FlowStep:
+        """Return one documented step or fail with a clear API error."""
+
+        for step in self.list_steps():
+            if step.name == name:
+                return step
+        raise ValueError(f"unknown step: {name}")
+
     def prepare_step(
         self,
         target: str,
@@ -357,34 +395,76 @@ class FlexSoC:
             FlowWorkflow("prepare", ("setup",), "Prepare a FlexSoC workspace."),
             FlowWorkflow("soc", ("soc",), "Generate or refresh the SoC project."),
             FlowWorkflow("fsm", ("fsm_gen",), "Run the bundled FSM generator utility."),
+            FlowWorkflow(
+                "ip_development",
+                (
+                    "setup",
+                    "hjson_gen",
+                    "reg",
+                    "doc",
+                    "rtl_stub",
+                    "setup_tb",
+                    "sim",
+                    "syn",
+                    "sta",
+                    "power",
+                    "pnr",
+                    "sim_syn",
+                    "cocotb",
+                ),
+                "Run the explicit IP development flow from templates to simulation, synthesis, signoff, and PnR.",
+            ),
         )
 
     @classmethod
     def _discover_flow_steps(cls) -> set[FlowStep]:
-        """Read packaged Make fragments and collect declared phony targets."""
+        """Return the documented flow step catalog exposed by the API."""
 
-        steps: set[FlowStep] = set()
-        for mkfile in cls._flow_mk_dir().glob("*.mk"):
-            group = cls._step_group(mkfile.name)
-            for line in mkfile.read_text().splitlines():
-                if line.startswith(".PHONY:"):
-                    names = line.split(":", 1)[1].split()
-                    steps.update(FlowStep(name=name, group=group) for name in names)
-        return steps
+        return set(cls._step_catalog())
 
     @staticmethod
-    def _step_group(filename: str) -> str:
-        """Map Make fragment names to stable, human-readable groups."""
+    def _common_params() -> tuple[FlowParameter, ...]:
+        """Return variables shared by most flow steps."""
 
-        if "setup" in filename:
-            return "setup"
-        if "ip" in filename:
-            return "ip"
-        if "soc" in filename:
-            return "soc"
-        if "fsm" in filename or "clean" in filename:
-            return "utility"
-        return "core"
+        return (
+            FlowParameter("TOP", "IP or SoC top-level name.", "test", True),
+            FlowParameter("RUN_ID", "Run identifier under the workspace.", "timestamp", True),
+            FlowParameter("WORKSPACE", "Workspace root used for generated artifacts.", "workspace"),
+            FlowParameter("RUN_TOP", "Run namespace; defaults to TOP when omitted.", "TOP"),
+            FlowParameter("FORCE", "Overwrite generated files when set to 1.", "0"),
+        )
+
+    @classmethod
+    def _step(cls, name: str, group: str, description: str, *params: FlowParameter) -> FlowStep:
+        """Build one catalog entry with common variables plus step variables."""
+
+        names = {param.name for param in params}
+        common = tuple(param for param in cls._common_params() if param.name not in names)
+        return FlowStep(name, group, description, common + params)
+
+    @classmethod
+    def _step_catalog(cls) -> tuple[FlowStep, ...]:
+        """Return the explicit step catalog used by help, CLI, and UI layers."""
+
+        itf = FlowParameter("REG_ITF", "Register bus interface for generated wrappers.", "tlul")
+        return (
+            cls._step("setup", "setup", "Create the run directory tree and common output folders."),
+            cls._step("hjson_gen", "ip", "Create the initial IP HJSON description.", itf),
+            cls._step("reg", "ip", "Generate register RTL from the HJSON description.", itf),
+            cls._step("doc", "ip", "Generate register documentation from the IP description."),
+            cls._step("rtl_stub", "ip", "Generate core and wrapper RTL stubs for the IP.", itf),
+            cls._step("setup_tb", "simulation", "Create the SystemVerilog testbench template."),
+            cls._step("sim", "simulation", "Compile and run RTL simulation."),
+            cls._step("syn", "implementation", "Run synthesis for the selected top-level.", FlowParameter("TARGET_SYN", "Synthesis target style.", "asic")),
+            cls._step("sta", "signoff", "Run static timing analysis on synthesized output.", FlowParameter("LIBS", "Timing liberty files used by OpenSTA.")),
+            cls._step("power", "signoff", "Run power analysis using generated signoff scripts.", FlowParameter("ACTIVITY", "Default switching activity percentage.", "10")),
+            cls._step("pnr", "implementation", "Run place-and-route using the configured OpenROAD flow.", FlowParameter("ORS_TECH", "OpenROAD technology name.", "sky130hd")),
+            cls._step("sim_syn", "simulation", "Run post-synthesis simulation using generated SDF."),
+            cls._step("cocotb", "simulation", "Run the Cocotb testbench for the selected top-level."),
+            cls._step("flist", "ip", "Generate the RTL filelist consumed by downstream tools."),
+            cls._step("fsm_gen", "utility", "Run the bundled FSM generator.", FlowParameter("FSM", "FSM name to generate.", "fsm_example", True)),
+            cls._step("soc", "soc", "Generate or refresh the SoC top-level RTL.", FlowParameter("HOST", "SoC host wrapper selection.", "uart")),
+        )
 
     @staticmethod
     def _flow_mk_dir() -> Path:

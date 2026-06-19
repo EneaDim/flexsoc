@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .api import FlexSoC
+from .api import FlexSoC, FlowStep
 
 ACCENT = "orange3"
 SECONDARY = "cyan"
@@ -29,6 +29,7 @@ HELP_SECTIONS = (
             ("fx help", "Open this guide."),
             ("fx workflows", "List high-level workflows for normal use."),
             ("fx steps", "List advanced Make-backed steps exposed through the API."),
+            ("fx step-info hjson_gen", "Show accepted parameters for one step."),
             ("fx describe", "Show project root, workspace, and client options."),
         ),
     ),
@@ -37,8 +38,8 @@ HELP_SECTIONS = (
         SECONDARY,
         (
             (
-                "fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke",
-                "Print a copyable shell script without running tools.",
+                "fx workflow ip_development --dry-run --script --set TOP=demo --set RUN_ID=smoke",
+                "Preview the full IP flow as an ordered shell script.",
             ),
             (
                 "fx workflow prepare --dry-run --json --set TOP=demo",
@@ -52,16 +53,16 @@ HELP_SECTIONS = (
         SUCCESS,
         (
             (
-                "fx workflow fsm --dry-run --script --set TOP=my_ip",
-                "Inspect the bundled FSM generator workflow.",
+                "fx workflow ip_development --dry-run --script --set TOP=my_ip",
+                "Inspect setup, HJSON, reg, docs, RTL stubs, TB, sim, syn, STA, power, PnR, and Cocotb.",
             ),
             (
-                "fx step fsm_gen --dry-run --set TOP=my_ip",
-                "Preview the FSM generator step directly.",
+                "fx step-info rtl_stub",
+                "Show parameters accepted by the RTL stub generation step.",
             ),
             (
-                "fx step soc --dry-run --set TOP=my_ip",
-                "Inspect how generated IP artefacts enter the SoC flow.",
+                "fx step fsm_gen --dry-run --set FSM=my_fsm",
+                "Preview the bundled FSM generator step directly.",
             ),
         ),
     ),
@@ -74,12 +75,12 @@ HELP_SECTIONS = (
                 "Create the workspace through the API layer.",
             ),
             (
-                "fx workflow soc --dry-run --script --set TOP=demo",
+                "fx workflow soc --dry-run --script --set TOP=soc",
                 "Preview SoC generation before running external tools.",
             ),
             (
-                "fx step setup --set TOP=demo --capture",
-                "Run a single setup step when debugging the flow.",
+                "fx step-info soc",
+                "Show SoC generation parameters such as HOST and workspace values.",
             ),
         ),
     ),
@@ -96,8 +97,8 @@ HELP_SECTIONS = (
                 "Run the safe workspace preparation path.",
             ),
             (
-                "3. fx workflows && fx steps",
-                "Discover what to run next from the API catalog.",
+                "3. fx step-info syn",
+                "Check parameters before running a tool-dependent implementation step.",
             ),
         ),
     ),
@@ -192,6 +193,20 @@ def steps(group: str | None = typer.Option(None, help="Show only one step group.
     typer.echo(json.dumps(payload, indent=2))
 
 
+@app.command("step-info")
+def step_info(
+    name: str,
+    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
+) -> None:
+    """Show parameters and usage notes for one advanced flow step."""
+
+    step = FlexSoC().step_info(name)
+    if json_:
+        typer.echo(json.dumps(step.to_dict(), indent=2))
+        return
+    _print_step_info(step)
+
+
 @app.command()
 def step(
     target: str,
@@ -244,6 +259,22 @@ def _help_section(title: str, color: str, rows: Iterable[tuple[str, str]]) -> Pa
     for command, description in rows:
         table.add_row(command, description)
     return Panel(table, title=f"[bold {color}]{title}[/bold {color}]", border_style=color)
+
+
+def _print_step_info(step: FlowStep, console: Console | None = None) -> None:
+    """Render one documented step and its accepted Make variables."""
+
+    console = console or Console()
+    table = Table(title=f"{step.name} parameters", border_style=ACCENT)
+    table.add_column("Parameter", style=f"bold {ACCENT}")
+    table.add_column("Required", style=WARNING)
+    table.add_column("Default", style=SECONDARY)
+    table.add_column("Description", style="white")
+    for param in step.params:
+        table.add_row(param.name, "yes" if param.required else "no", param.default or "", param.description)
+    console.print(Panel(f"[bold {ACCENT}]{step.name}[/bold {ACCENT}]\n{step.description}", border_style=ACCENT))
+    console.print(table)
+    console.print(f"[dim]Preview:[/dim] fx step {step.name} --dry-run --set TOP=demo")
 
 
 def _parse_overrides(items: list[str]) -> dict[str, str]:

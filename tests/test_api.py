@@ -334,7 +334,7 @@ def test_flow_step_serialization_supports_slots() -> None:
 
     step = FlexSoC().list_steps()[0]
 
-    assert set(step.to_dict()) == {"name", "group"}
+    assert {"name", "group", "description", "params"} <= set(step.to_dict())
 
 
 def test_cli_steps_uses_public_serializer(capsys, monkeypatch) -> None:
@@ -349,7 +349,7 @@ def test_cli_steps_uses_public_serializer(capsys, monkeypatch) -> None:
         def list_steps(self, group=None):
             """Return one step while accepting the CLI group argument."""
 
-            return (FlowStep(name="setup", group=group or "setup"),)
+            return (FlowStep(name="setup", group=group or "setup", description="Create folders."),)
 
     monkeypatch.setattr(cli, "FlexSoC", Client)
 
@@ -374,3 +374,66 @@ def test_cli_help_documents_public_sections_without_local_runner(capsys) -> None
     assert "fx workflows" in captured.out
     assert "uv run" not in captured.out
     assert "CLI commands call FlexSoC" in captured.out
+
+
+def test_full_ip_development_workflow_is_explicit() -> None:
+    """The public workflow exposes the requested end-to-end IP sequence."""
+
+    from flexsoc import FlexSoC
+
+    client = FlexSoC()
+
+    assert client.prepare_workflow("ip_development") == (
+        "setup",
+        "hjson_gen",
+        "reg",
+        "doc",
+        "rtl_stub",
+        "setup_tb",
+        "sim",
+        "syn",
+        "sta",
+        "power",
+        "pnr",
+        "sim_syn",
+        "cocotb",
+    )
+
+
+def test_step_info_documents_accepted_parameters() -> None:
+    """Each documented step exposes accepted Make variables to callers."""
+
+    from flexsoc import FlexSoC
+
+    step = FlexSoC().step_info("hjson_gen")
+    params = {param.name: param for param in step.params}
+
+    assert step.group == "ip"
+    assert "TOP" in params
+    assert params["REG_ITF"].default == "tlul"
+
+
+def test_cli_step_info_renders_parameter_table(capsys) -> None:
+    """The CLI can explain one step without reading backend modules directly."""
+
+    from flexsoc import cli
+
+    cli.step_info("syn", json_=False)
+    captured = capsys.readouterr()
+
+    assert "syn parameters" in captured.out
+    assert "TARGET_SYN" in captured.out
+
+
+def test_hjson_gen_alias_is_available_for_make_backed_flow() -> None:
+    """The API step name hjson_gen maps to a concrete Make target."""
+
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    flow = root / "src" / "flexsoc" / "flow" / "mk" / "20-ip-flow.mk"
+
+    text = flow.read_text(encoding="utf-8")
+
+    assert ".PHONY: hjson hjson_gen" in text
+    assert "hjson_gen: hjson" in text
