@@ -1,83 +1,232 @@
 # FlexSoC CLI
 
-`fx` is the thin command line interface for the public `FlexSoC` API layer.
-It should not call backend modules directly.
+`fx` is the command line interface for the public `FlexSoC` API layer. It does not call backend modules directly.
 
-## Help
+```text
+CLI → FlexSoC API → src/flexsoc/backend/Makefile → backend modules
+```
+
+## Help and discovery
 
 ```bash
 fx --help
 fx help
+fx workflows
+fx steps
 ```
 
-`fx help` prints a compact guide with the common workflow and step commands.
+`fx help` renders a structured guide with colored sections for quickstart, IP development, SoC development, tutorials, and common options.
 
-## Describe the API client
+## Quickstart
 
-```bash
-fx describe
-```
-
-Prints the configured API client as JSON.
-
-## List high-level workflows
+Start with safe previews:
 
 ```bash
 fx workflows
-```
-
-Workflows are the recommended public entrypoints.
-They map intent-oriented commands to one or more backend steps.
-
-## Preview a workflow
-
-```bash
-fx workflow prepare --dry-run
-fx workflow prepare --dry-run --json
-fx workflow prepare --dry-run --script
-```
-
-Dry-runs do not execute backend tools.
-Use `--json` for frontends and `--script` for a copyable shell script.
-
-## Run a workflow
-
-```bash
-fx workflow prepare --set TOP=demo
-fx workflow prepare --set TOP=demo --capture
-fx workflow prepare --set TOP=demo --capture --json
-```
-
-`--set KEY=VALUE` forwards an override to the API layer.
-The API normalizes the key into the Make-backed backend request.
-
-## List advanced steps
-
-```bash
 fx steps
-fx steps --group setup
-fx steps --group soc
-fx steps --group utility
+fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
 ```
 
-Advanced steps expose the existing Make-backed flow while the backend is being refactored.
-
-## Preview one advanced step
+Then run the safe setup path:
 
 ```bash
-fx step setup --dry-run --set TOP=demo
-fx step setup --dry-run --json --set TOP=demo
+fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture
 ```
 
-Use this when you need to inspect the exact backend command before execution.
-
-## Run one advanced step
+Inspect the generated workspace:
 
 ```bash
-fx step setup --set TOP=demo
-fx step setup --set TOP=demo --capture
-fx step setup --set TOP=demo --capture --json
+tree workspace | head -80
 ```
 
-Direct step execution is considered advanced.
-Prefer workflows whenever one exists for the operation.
+## High-level workflows
+
+Use workflows for normal operation.
+
+```bash
+fx workflows
+fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx workflow ip_development --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke
+```
+
+Workflow dry-runs do not execute tools. They print the exact backend commands that would be launched.
+
+## IP development
+
+The IP development workflow is explicit:
+
+```text
+setup → hjson_gen → reg → doc → rtl_stub → setup_tb → sim → syn → sta → power → pnr → sim_syn → cocotb
+```
+
+Use `step-info` before running a specific step:
+
+```bash
+fx step-info hjson_gen
+fx step-info rtl_stub
+fx step-info setup_tb
+fx step-info sim
+fx step-info syn
+fx step-info sta
+fx step-info power
+fx step-info pnr
+fx step-info sim_syn
+fx step-info cocotb
+```
+
+Preview the full IP flow:
+
+```bash
+fx workflow ip_development --dry-run --script --set TOP=my_ip --set RUN_ID=smoke
+```
+
+Run individual safe/generator-oriented steps as needed:
+
+```bash
+fx step setup --set TOP=my_ip --set RUN_ID=smoke --capture
+fx step hjson_gen --dry-run --set TOP=my_ip --set RUN_ID=smoke
+fx step rtl_stub --dry-run --set TOP=my_ip --set RUN_ID=smoke
+```
+
+EDA-dependent steps such as `sim`, `syn`, `sta`, `power`, `pnr`, `sim_syn`, and `cocotb` require the corresponding tools and environment to be installed.
+
+## SoC development
+
+The SoC development workflow is explicit:
+
+```text
+setup → soc_start → soc_flow → soc_prepare → soc_build_sw → soc_sim → soc_run
+```
+
+Useful SoC step inspection commands:
+
+```bash
+fx step-info soc_start
+fx step-info soc_flow
+fx step-info soc_prepare
+fx step-info sw_soc
+fx step-info soc_build_sw
+fx step-info soc_sim
+fx step-info soc_run
+```
+
+Preview the full SoC flow:
+
+```bash
+fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke --set HOST=uart
+```
+
+Run the setup-only path first:
+
+```bash
+fx workflow prepare --set TOP=soc --set RUN_ID=smoke --capture
+```
+
+## Step parameters
+
+Use `fx step-info NAME` to see what can be passed to a specific step.
+
+```bash
+fx step-info syn
+fx step-info syn --examples
+fx step-info syn --json
+```
+
+The table is grouped by category:
+
+| Category | Meaning |
+| --- | --- |
+| `common` | Shared variables like `TOP`, `RUN_ID`, `WORKSPACE`, `RUN_TOP`, and `FORCE`. |
+| `specific` | Step-specific options such as host, interfaces, source names, or generated artifacts. |
+| `tool` | Simulator, synthesis, timing, power, and PnR tool options. |
+
+Overrides use repeated `--set KEY=VALUE` flags:
+
+```bash
+fx step syn --dry-run \
+  --set TOP=my_ip \
+  --set RUN_ID=smoke \
+  --set TARGET_SYN=asic \
+  --set TARGET_OPT=area
+```
+
+## Advanced step execution
+
+Preview one step:
+
+```bash
+fx step setup --dry-run --set TOP=demo --set RUN_ID=smoke
+fx step setup --dry-run --json --set TOP=demo --set RUN_ID=smoke
+```
+
+Run one step:
+
+```bash
+fx step setup --set TOP=demo --set RUN_ID=smoke --capture
+fx step setup --set TOP=demo --set RUN_ID=smoke --capture --json
+```
+
+Direct steps are useful for debugging and automation. Prefer workflows when a workflow describes the task.
+
+## JSON mode
+
+Use JSON for frontends, web services, or scripts:
+
+```bash
+fx workflows
+fx steps
+fx step-info syn --json
+fx workflow ip_development --dry-run --json --set TOP=demo --set RUN_ID=smoke
+fx step setup --dry-run --json --set TOP=demo --set RUN_ID=smoke
+```
+
+## Shell script previews
+
+Use script previews when you want copyable commands:
+
+```bash
+fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx workflow ip_development --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke
+```
+
+## Tutorials
+
+### Tutorial 1: safe workspace setup
+
+```bash
+fx workflow prepare --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx workflow prepare --set TOP=demo --set RUN_ID=smoke --capture
+```
+
+### Tutorial 2: inspect an IP flow
+
+```bash
+fx workflow ip_development --dry-run --script --set TOP=my_ip --set RUN_ID=smoke
+fx step-info rtl_stub
+fx step-info syn --examples
+```
+
+### Tutorial 3: inspect a SoC flow
+
+```bash
+fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke --set HOST=uart
+fx step-info soc
+fx step-info sw_soc
+```
+
+## Canonical names
+
+Use step names from `fx steps`. Do not use backend module filenames as CLI step names.
+
+Example:
+
+```bash
+fx step-info sw_soc      # correct
+fx step-info sw_soc_gen  # not a public step name
+```
+
+## Local environment files
+
+`uv.lock` is intentionally ignored for now. The public CLI documentation uses package commands such as `fx ...`; local development environments can run those commands however they prefer.
