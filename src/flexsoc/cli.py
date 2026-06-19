@@ -115,6 +115,7 @@ HELP_SECTIONS = (
 )
 
 app = typer.Typer(
+console = Console()
     add_completion=True,
     help="Thin FlexSoC CLI over the public API layer. Use `fx help` for examples.",
 )
