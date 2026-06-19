@@ -158,7 +158,6 @@ def test_cli_help_guide_mentions_api_boundary(capsys) -> None:
 def test_api_and_cli_docs_exist() -> None:
     """Repository docs describe the Python API and the thin CLI contract."""
 
-    from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
 
@@ -431,7 +430,6 @@ def test_cli_step_info_renders_parameter_table(capsys) -> None:
 def test_hjson_gen_target_is_available_in_backend_makefile() -> None:
     """The API step name hjson_gen maps to a concrete backend Make target."""
 
-    from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
     makefile = root / "src" / "flexsoc" / "backend" / "Makefile"
@@ -485,7 +483,6 @@ def test_step_catalog_covers_main_make_targets() -> None:
 def test_python_module_entrypoint_exists() -> None:
     """The package can expose the same CLI through python -m flexsoc."""
 
-    from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
 
@@ -604,7 +601,6 @@ endmodule
 def test_backend_synthesis_generator_exposes_config_api(tmp_path) -> None:
     """The synthesis backend writes scripts through one config object."""
 
-    from pathlib import Path
     from flexsoc.backend.setup_syn import SynthesisConfig, generate_synthesis_scripts, render_abc_constraints
 
     rtl = tmp_path / "rtl"
