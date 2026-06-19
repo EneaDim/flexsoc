@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Render OpenSTA signoff scripts for a FlexSoC run directory."""
 
 from __future__ import annotations

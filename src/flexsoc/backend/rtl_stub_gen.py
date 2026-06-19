@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate minimal SystemVerilog RTL stubs from a Comportable HJSON file."""
 
 from __future__ import annotations

@@ -913,3 +913,15 @@ def test_backend_regression_exposes_discovery_plan(tmp_path, monkeypatch) -> Non
 
     assert regression_plan(config) == (("demo", "demo_tb_irq"), ("demo", "demo_tb_smoke"))
     assert calls == [("sim_sv", "demo", "demo_tb_irq"), ("sim_sv", "demo", "demo_tb_smoke")]
+
+
+def test_backend_modules_start_with_docstrings() -> None:
+    """Backend Python modules keep the file-level contract visible first."""
+
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[1] / "src" / "flexsoc" / "backend"
+    for module in backend.glob("*.py"):
+        text = module.read_text(encoding="utf-8")
+        assert text.startswith('"""'), module.name
+        assert "ruff: noqa" not in text, module.name

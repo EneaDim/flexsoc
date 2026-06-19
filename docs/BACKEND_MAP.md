@@ -121,3 +121,9 @@ The Make flow and reviewed backend parsers now use one canonical naming style fo
 ## Patch 0036 note
 
 `sw_soc_gen.py` now exposes `SoCSoftwareConfig`, render helpers, and `write_soc_software()` so SoC software scaffolding can be called directly from the API layer.
+
+## Patch 0040 note
+
+Backend Python files now start directly with their module docstring. This keeps
+file purpose visible immediately and removes broad file-level lint bypasses from
+reviewed core modules.

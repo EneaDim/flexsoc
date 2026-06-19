@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate OpenROAD-flow-scripts `config.mk` files from RTL filelists."""
 
 from __future__ import annotations
