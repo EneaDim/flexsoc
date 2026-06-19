@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .api import FlexSoC, FlowStep
+from .api import FlexSoC, FlowStep, FlowWorkflow
 
 ACCENT = "orange3"
 SECONDARY = "cyan"
@@ -150,12 +150,16 @@ def describe() -> None:
 
 
 @app.command("workflows")
-def workflows() -> None:
-    """Print high-level workflows exposed by the public API."""
+def workflows(
+    json_: bool = typer.Option(False, "--json", help="Print JSON for tools and frontends."),
+) -> None:
+    """Render high-level workflows exposed by the public API."""
 
-    payload = [workflow.to_dict() for workflow in FlexSoC().list_workflows()]
-    typer.echo(json.dumps(payload, indent=2))
-
+    items = FlexSoC().list_workflows()
+    if json_:
+        typer.echo(json.dumps([workflow.to_dict() for workflow in items], indent=2))
+        return
+    _print_workflows(items)
 
 @app.command("workflow")
 def workflow(
@@ -188,12 +192,17 @@ def workflow(
 
 
 @app.command("steps")
-def steps(group: str | None = typer.Option(None, help="Show only one step group.")) -> None:
-    """Print Make-backed workflow steps known by the API layer."""
+def steps(
+    group: str | None = typer.Option(None, help="Show only one step group."),
+    json_: bool = typer.Option(False, "--json", help="Print JSON for tools and frontends."),
+) -> None:
+    """Render Make-backed workflow steps known by the API layer."""
 
-    payload = [step.to_dict() for step in FlexSoC().list_steps(group)]
-    typer.echo(json.dumps(payload, indent=2))
-
+    items = FlexSoC().list_steps(group)
+    if json_:
+        typer.echo(json.dumps([step.to_dict() for step in items], indent=2))
+        return
+    _print_steps(items, group)
 
 @app.command("smoke")
 def smoke(
@@ -357,6 +366,65 @@ def _print_step_examples(step: FlowStep, console: Console | None = None) -> None
         table.add_row(example.command, example.description)
     console.print(table)
 
+
+def _print_workflows(workflows: Iterable[FlowWorkflow], console: Console | None = None) -> None:
+    """Render public workflows as a compact human catalog."""
+
+    console = console or Console()
+    table = Table(title="FlexSoC workflows", border_style="orange3", show_lines=False)
+    table.add_column("Workflow", style="bold orange3", no_wrap=True)
+    table.add_column("Steps", style="cyan")
+    table.add_column("Purpose", style="white")
+    table.add_column("Preview", style="dim")
+    for workflow in workflows:
+        table.add_row(
+            workflow.name,
+            " → ".join(workflow.steps),
+            workflow.description,
+            f"fx workflow {workflow.name} --dry-run --script --set TOP=demo",
+        )
+    console.print(Panel("Use workflows for normal development paths.", title="Discovery", border_style="orange3"))
+    console.print(table)
+
+
+def _print_steps(steps: Iterable[FlowStep], group: str | None = None, console: Console | None = None) -> None:
+    """Render advanced steps grouped by development area."""
+
+    console = console or Console()
+    items = tuple(sorted(steps, key=lambda step: (step.group, step.name)))
+    title = f"FlexSoC steps: {group}" if group else "FlexSoC steps"
+    table = Table(title=title, border_style="orange3", show_lines=False)
+    table.add_column("Group", style="cyan", no_wrap=True)
+    table.add_column("Step", style="bold orange3", no_wrap=True)
+    table.add_column("Description", style="white")
+    table.add_column("Parameters", style="yellow")
+    table.add_column("Details", style="dim")
+    for step in items:
+        table.add_row(
+            step.group,
+            step.name,
+            step.description,
+            _step_param_summary(step),
+            f"fx step-info {step.name}",
+        )
+    console.print(
+        Panel(
+            "Run `fx step-info NAME` to inspect accepted parameters before running a step.",
+            title="Advanced steps",
+            border_style="orange3",
+        )
+    )
+    console.print(table)
+
+
+def _step_param_summary(step: FlowStep) -> str:
+    """Return a short parameter summary for the steps table."""
+
+    required = [param.name for param in step.params if param.required]
+    optional = [param.name for param in step.params if not param.required]
+    names = required + optional[: max(0, 4 - len(required))]
+    suffix = " …" if len(required) + len(optional) > len(names) else ""
+    return ", ".join(names) + suffix if names else "none"
 
 def _parse_overrides(items: list[str]) -> dict[str, str]:
     """Parse KEY=VALUE CLI overrides into Make variable values."""
