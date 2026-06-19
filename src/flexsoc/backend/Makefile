@@ -17,10 +17,13 @@ MAKEFLAGS += --no-print-dir
 # -----------------------------------------------------------------------------
 THIS_MK_DIR  := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 FLOW_DIR     := $(abspath $(THIS_MK_DIR)/..)
-REPO_ROOT    ?= $(abspath $(FLOW_DIR)/../../..)
+REPO_ROOT    ?= $(abspath $(THIS_MK_DIR)/../../..)
 FLEXSOCROOT  ?= $(REPO_ROOT)/src/flexsoc
 TOOLSROOT    ?= $(FLEXSOCROOT)/backend
 UTILROOT     ?= $(REPO_ROOT)/src/util
+REGTOOL     ?= $(UTILROOT)/regtool.py
+TLGEN       ?= $(UTILROOT)/tlgen.py
+VENDOR_TOOL ?= $(UTILROOT)/vendor.py
 FLOWROOT     ?= $(REPO_ROOT)/flow
 export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
 
@@ -401,12 +404,12 @@ hjson_gen: hjson
 
 reg:
 	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
-	$(Q)$(UTILROOT)/regtool.py -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
+	$(Q)$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
 
 doc:
 	@echo "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
-	$(Q)$(UTILROOT)/regtool.py -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
-	$(Q)$(UTILROOT)/regtool.py --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
+	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
+	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
 rtl_stub:
 	@echo "\n$(ORANGE)RTL stub generation...\n$(RESET)"
@@ -428,11 +431,11 @@ flist:
 	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root $(IPS_ROOT) --rtldir $(RTLDIR)
 
 driver:
-	$(Q)$(UTILROOT)/regtool.py -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
+	$(Q)$(PYTHON) $(REGTOOL) -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
 	$(Q)$(PYTHON) -m flexsoc.backend.driver_gen -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR)
 
 fetch:
-	$(Q)$(UTILROOT)/vendor.py --update $(REPO_ROOT)/vendor/$(VENDOR).vendor.hjson
+	$(Q)$(PYTHON) $(VENDOR_TOOL) --update $(REPO_ROOT)/vendor/$(VENDOR).vendor.hjson
 
 ip_flow: reg doc lint sim syn sdf sta sta_violators power view
 ip_flow_noreg: flist lint sim syn sdf sta sta_violators power view

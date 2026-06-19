@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Iterable
 
@@ -243,27 +244,51 @@ def step_info(
 
 @app.command()
 def step(
-    target: str,
+    targets: list[str] = typer.Argument(..., help="One or more backend steps to run in order."),
     set_: list[str] = typer.Option(None, "--set", help="Override a Make variable as KEY=VALUE."),
     project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
-    dry_run: bool = typer.Option(False, help="Print the command without executing it."),
+    dry_run: bool = typer.Option(False, help="Print commands without executing them."),
     capture: bool = typer.Option(False, help="Capture and print stdout after execution."),
     script: bool = typer.Option(False, "--script", help="Print a shell script preview during dry-runs."),
     json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
 ) -> None:
-    """Run, preview, or serialize one advanced backend flow step through FlexSoC."""
+    """Run, preview, or serialize one or more advanced backend flow steps."""
 
     client = FlexSoC(project_root=project_root)
     overrides = _parse_overrides(set_ or [])
     if dry_run:
-        payload = client.inspect_step(target, **overrides)
-        typer.echo(json.dumps(payload, indent=2) if json_ else payload["shell"])
+        payloads = [client.inspect_step(target, **overrides) for target in targets]
+        if json_:
+            payload: object = payloads[0] if len(payloads) == 1 else payloads
+            typer.echo(json.dumps(payload, indent=2))
+            return
+        lines = [item["shell"] for item in payloads]
+        typer.echo(_shell_script(lines) if script else "\n".join(lines), nl=not script)
         return
-    result = client.run_step(target, capture=capture, **overrides)
+
+    results = []
+    for target in targets:
+        try:
+            results.append(client.run_step(target, capture=capture, **overrides))
+        except subprocess.CalledProcessError as exc:
+            command = " ".join(str(part) for part in exc.cmd)
+            typer.secho(f"step failed: {target}", fg=typer.colors.RED, err=True)
+            typer.secho(f"command: {command}", err=True)
+            raise typer.Exit(exc.returncode) from exc
+
     if json_:
-        typer.echo(json.dumps(result.to_dict(), indent=2))
-    elif capture and result.stdout:
-        typer.echo(result.stdout, nl=False)
+        payload = results[0].to_dict() if len(results) == 1 else [item.to_dict() for item in results]
+        typer.echo(json.dumps(payload, indent=2))
+    elif capture:
+        for result in results:
+            if result.stdout:
+                typer.echo(result.stdout, nl=False)
+
+
+def _shell_script(lines: list[str]) -> str:
+    """Render dry-run shell lines as a small executable script preview."""
+
+    return "#!/usr/bin/env bash\nset -euo pipefail\n" + "\n".join(lines)
 
 
 def _smoke_payload(client: FlexSoC, top: str, run_id: str, run_workspace: bool) -> dict[str, object]:
