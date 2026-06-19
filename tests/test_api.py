@@ -690,3 +690,26 @@ endmodule
     assert "TOPLEVEL          = demo_tb" in makefile
     assert "module demo_tb" in (cfg.output / "demo_tb.sv").read_text(encoding="utf-8")
     assert "async def demo_smoke_test" in (cfg.output / "demo_tb.py").read_text(encoding="utf-8")
+
+
+def test_backend_soc_start_exposes_config_api(tmp_path) -> None:
+    """The SoC start backend can initialize a run through one config object."""
+
+    from flexsoc.backend.soc_start import SoCStartConfig, initialize_soc_run, merged_rtl_sources
+
+    ip_a = tmp_path / "runs" / "soc" / "smoke" / "ips" / "uart" / "rtl"
+    ip_b = tmp_path / "runs" / "soc" / "smoke" / "ips" / "gpio" / "rtl"
+    ip_a.mkdir(parents=True)
+    ip_b.mkdir(parents=True)
+    (ip_a / "rtl_list.f").write_text("# generated\nuart_pkg.sv\nuart.sv\n", encoding="utf-8")
+    (ip_b / "gpio.sv").write_text("module gpio; endmodule\n", encoding="utf-8")
+
+    cfg = SoCStartConfig(workspace=tmp_path, run_top="soc", run_id="smoke")
+    rtl_list = initialize_soc_run(cfg)
+
+    assert rtl_list == cfg.run_dir / "rtl" / "rtl_list.f"
+    assert "uart_pkg.sv" in rtl_list.read_text(encoding="utf-8")
+    assert str((ip_b / "gpio.sv").resolve()) in rtl_list.read_text(encoding="utf-8")
+    assert (cfg.ips_dir / "loaded_ips.txt").read_text(encoding="utf-8") == "gpio\nuart\n"
+    assert merged_rtl_sources(tuple(sorted(path.parent for path in (ip_a, ip_b))))
+    assert "loaded_ips=2" in (cfg.run_dir / "doc" / "soc_start.txt").read_text(encoding="utf-8")

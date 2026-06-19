@@ -31,7 +31,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 | `setup_tb.py` | Generates testbench scaffolding through `TestbenchConfig`. | Parsed RTL signature, top module, simulator choices. | SV testbench, include shim, optional bus helper files. | `ADVANCED_STEP` |
 | `soc_cfg.py` | Builds SoC configuration and Make arguments from loaded IPs. | Workspace, run top/id, devices, host. | Make fragments/arguments for SoC generation. | `PUBLIC_WORKFLOW` candidate |
 | `soc_gen.py` | Generates top-level SoC RTL and integration wrappers. | IP list, xbar data, run configuration. | SoC RTL and top-level generated files. | `PUBLIC_WORKFLOW` candidate |
-| `soc_start.py` | Starts or stages an SoC run workspace. | Workspace/run identifiers, loaded IPs. | Run directory with copied/linked RTL assets. | `PUBLIC_WORKFLOW` candidate |
+| `soc_start.py` | Initializes SoC run folders through `SoCStartConfig`. | Workspace/run identifiers, staged IP bundles. | Run directory, loaded IP list, merged RTL filelist, summary. | `PUBLIC_WORKFLOW` candidate |
 | `sw_soc_gen.py` | Generates software project scaffolding for the SoC. | Run directory, devices/drivers. | C sources and Makefile. | `ADVANCED_STEP` |
 | `xbar_init.py` | Builds crossbar JSON configuration. | Host and device address ranges. | JSON xbar configuration. | `UTILITY` |
 | `fsm_gen/` | Bundled FSM generator utility. | FSM text/CSV input. | Generated FSM artifacts. | `UTILITY` / advanced step |
@@ -51,7 +51,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 1. Stabilize small utility modules first: `setup_sdc.py`, `setup_model.py`, `xbar_init.py`, `regression.py`.
 2. Review filelist and metadata generators: `gen_filelist.py` and `hjson_gen.py` are now import-safe; `setup_fsoc.py` is now import-safe; setup generators continue next.
 3. Review setup generators: `setup_tb.py`, `setup_syn.py`, and `setup_cocotb.py` now expose config-based writers; continue with remaining setup helpers.
-4. Review SoC workflow modules last: `soc_start.py`, `soc_cfg.py`, `soc_gen.py`, `sw_soc_gen.py`.
+4. Review SoC workflow modules last: `soc_start.py` now has a config-based entrypoint; continue with `soc_cfg.py`, `soc_gen.py`, `sw_soc_gen.py`.
 
 ## Rules for each backend cleanup
 
@@ -103,3 +103,7 @@ The Make flow and reviewed backend parsers now use one canonical naming style fo
 ## Patch 0032 note
 
 `setup_cocotb.py` now exposes `CocotbConfig` and `write_cocotb_scaffold()` so cocotb Makefile/test generation can be called directly from the API layer.
+
+## Patch 0033 note
+
+`soc_start.py` now exposes `SoCStartConfig` and `initialize_soc_run()` so SoC run staging can be called directly from the API layer.
