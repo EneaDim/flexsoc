@@ -739,3 +739,50 @@ def test_backend_soc_cfg_exposes_config_api(tmp_path) -> None:
     assert "$(eval $(call add_device,gpio,0x80040000,0x00001000,False))" in make_text
     assert "--device custom_accel 0x800A0000 0x00001000 False" in args_text
     assert "SOC_MEMORY_MAP" in make_text
+
+
+def test_backend_soc_gen_exposes_config_api(tmp_path) -> None:
+    """The SoC generator can render SoC files through one config object."""
+
+    from flexsoc.backend.soc_gen import (
+        SoCGenerationConfig,
+        SoCModule,
+        collect_module_ports,
+        generate_soc,
+        normalize_host,
+        render_soc_sv,
+    )
+
+    ip_rtl = tmp_path / "hw" / "ips" / "gpio"
+    output = tmp_path / "runs" / "soc" / "smoke" / "rtl" / "soc.sv"
+    ip_rtl.mkdir(parents=True)
+    (ip_rtl / "gpio.sv").write_text(
+        """module gpio (
+  input logic clk_i,
+  input logic rst_ni,
+  input tlul_pkg::tl_h2d_t tl_i,
+  output tlul_pkg::tl_d2h_t tl_o,
+  output logic gpio_o
+);
+endmodule
+""",
+        encoding="utf-8",
+    )
+
+    config = SoCGenerationConfig(
+        host="uart",
+        devices=(SoCModule("gpio", "0x80000000", "0x00001000", False),),
+        root=tmp_path,
+        output=output,
+    )
+    modules_ports, local_modules = collect_module_ports(config)
+    rendered = render_soc_sv(config.host, modules_ports, local_modules)
+    generated = generate_soc(config)
+
+    assert normalize_host(" UART ") == "uart"
+    assert local_modules == ["gpio"]
+    assert generated == output
+    assert "module soc" in rendered
+    assert "gpio u_gpio" in output.read_text(encoding="utf-8")
+    assert "prj:ip:gpio" in (config.run_dir / "soc.core").read_text(encoding="utf-8")
+    assert (config.tb_dir / "top_verilator.sv").exists()

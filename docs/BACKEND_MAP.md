@@ -112,3 +112,7 @@ The Make flow and reviewed backend parsers now use one canonical naming style fo
 ## Patch 0034 note
 
 `soc_cfg.py` now exposes `SoCConfig`, `SoCDevice`, and `resolve_soc_config()` so host/device memory-map resolution can be called directly from the API layer.
+
+## Patch 0035 note
+
+`soc_gen.py` now exposes `SoCGenerationConfig`, `SoCModule`, render helpers, and `generate_soc()` so top-level SoC RTL generation can be called directly from the API layer without duplicating CLI argument handling.

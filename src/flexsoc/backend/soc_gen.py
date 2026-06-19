@@ -1,7 +1,43 @@
-# ruff: noqa
+"""Generate top-level SoC RTL, FuseSoC metadata, and Verilator wrappers."""
+
 import argparse
-import re
+from dataclasses import dataclass
 from pathlib import Path
+import re
+
+SUPPORTED_HOSTS = {"ibex", "uart"}
+
+
+@dataclass(frozen=True, slots=True)
+class SoCModule:
+    """Describe one generated SoC device and where its RTL should be resolved."""
+
+    name: str
+    base_addr: str
+    size_bytes: str
+    from_lowrisc: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class SoCGenerationConfig:
+    """Collect the inputs needed to generate SoC RTL and simulator files."""
+
+    host: str
+    devices: tuple[SoCModule, ...]
+    root: Path = Path(".")
+    output: Path = Path("soc.sv")
+
+    @property
+    def run_dir(self) -> Path:
+        """Return the run directory inferred from the RTL output path."""
+
+        return self.output.resolve().parent.parent
+
+    @property
+    def tb_dir(self) -> Path:
+        """Return the generated SoC testbench directory."""
+
+        return self.run_dir / "tb"
 
 
 TEMPLATE_HEADER = """module soc #(
@@ -17,18 +53,51 @@ endmodule
 """
 
 
-def find_sv_file(module_name, root_dir=".", from_vendor=False):
-    if from_vendor:
-        search_root = Path("vendor")
-    else:
-        search_root = Path("../hw/ips") / module_name
+def normalize_host(host: str) -> str:
+    """Normalize and validate the host selected for SoC generation."""
 
-    for path in search_root.rglob(f"{module_name}.sv"):
-        return path
+    host = host.strip().lower()
+    if host not in SUPPORTED_HOSTS:
+        expected = ", ".join(sorted(SUPPORTED_HOSTS))
+        raise ValueError(f"unsupported host {host!r}; expected one of: {expected}")
+    return host
+
+
+def normalize_device(raw: tuple[str, str, str, str] | list[str]) -> SoCModule:
+    """Convert one CLI device tuple into the canonical SoC module model."""
+
+    name, base_addr, size_bytes, from_lowrisc = raw
+    return SoCModule(name, base_addr, size_bytes, from_lowrisc == "True")
+
+
+def normalize_devices(devices: list[list[str]] | tuple[SoCModule, ...]) -> tuple[SoCModule, ...]:
+    """Normalize CLI or API device entries into immutable module objects."""
+
+    if all(isinstance(device, SoCModule) for device in devices):
+        return tuple(devices)
+    return tuple(normalize_device(device) for device in devices)
+
+
+def find_sv_file(module_name, root_dir=".", from_vendor=False):
+    """Find the SystemVerilog source for one module below canonical roots."""
+
+    root = Path(root_dir)
+    search_roots = [root / "vendor"] if from_vendor else [
+        root / "hw" / "ips" / module_name,
+        root / "rtl",
+        root,
+    ]
+    for search_root in search_roots:
+        if not search_root.exists():
+            continue
+        for path in search_root.rglob(f"{module_name}.sv"):
+            return path
     return None
 
 
 def parse_ports(sv_file):
+    """Parse simple input/output port declarations from a SystemVerilog module."""
+
     with open(sv_file, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -59,6 +128,8 @@ def parse_ports(sv_file):
 
 
 def generate_port_decls(all_ports):
+    """Render top-level SoC ports while hiding clocks, TL-UL, and interrupts."""
+
     lines = []
     for name, direction in all_ports.items():
         if "tl_" in name:
@@ -72,6 +143,8 @@ def generate_port_decls(all_ports):
 
 
 def generate_module_inst(mod, ports):
+    """Render one peripheral instance with TL-UL and auxiliary ports wired."""
+
     inst_lines = [f"  // Instantiate {mod}", f"  {mod} u_{mod} ("]
     port_assignments = [
         "    .clk_i",
@@ -107,6 +180,8 @@ def generate_module_inst(mod, ports):
 
 
 def defaults(host):
+    """Render host-specific default logic and TileLink adapters."""
+
     out = f"""
   localparam int unsigned MemSize       = 128 * 1024;
   localparam int unsigned DataWidth     = 32;
@@ -311,7 +386,8 @@ def defaults(host):
     return out
 
 def write_top_verilator_sv(tb_file, host, all_ports):
-    print(f"[soc_gen] write_top_verilator_sv host={host!r}")
+    """Write the generated Verilator SystemVerilog wrapper."""
+
     soc_ports = []
     for name, direction in all_ports.items():
         if name in {"clk_i", "rst_ni"}:
@@ -373,6 +449,8 @@ def write_top_verilator_sv(tb_file, host, all_ports):
         f.write("endmodule\n")
 
 def write_top_verilator_cc(tb_file, host):
+    """Write the generated Verilator C++ harness."""
+
     with open(tb_file, "w", encoding="utf-8") as f:
         f.write('#include <cassert>\n')
         f.write('#include <fstream>\n')
@@ -453,6 +531,8 @@ def write_top_verilator_cc(tb_file, host):
 
 
 def write_soc_core(core_file, host, modules):
+    """Write the FuseSoC core file for the generated SoC."""
+
     with open(core_file, "w", encoding="utf-8") as f:
         f.write('CAPI=2:\n')
         f.write('name: "enea:soc:main"\n')
@@ -523,100 +603,130 @@ def write_soc_core(core_file, host, modules):
         f.write("      - PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric\n")
 
 
-def generate_soc_sv(host, device, root_dir, output_file):
-    modules_ports = {}
-    modules = []
-    lowrisc_modules = []
+def split_devices(devices: tuple[SoCModule, ...]) -> tuple[list[str], list[str]]:
+    """Split normalized devices into local IPs and lowRISC dependencies."""
 
-    for m in device:
-        if m[-1] == "True":
-            lowrisc_modules.append(m[0])
-        else:
-            modules.append(m[0])
+    local = [device.name for device in devices if not device.from_lowrisc]
+    lowrisc = [device.name for device in devices if device.from_lowrisc]
+    return local, lowrisc
 
-    all_modules = lowrisc_modules[1:] + modules
 
-    for mod in all_modules:
-        if mod == "uart" and host == "uart":
+def soc_modules(devices: tuple[SoCModule, ...]) -> tuple[list[str], list[str], list[str]]:
+    """Return local, lowRISC, and renderable module lists for SoC generation."""
+
+    local, lowrisc = split_devices(devices)
+    return local, lowrisc, lowrisc[1:] + local
+
+
+def collect_module_ports(config: SoCGenerationConfig) -> tuple[dict[str, list[tuple[str, str | None, str]]], list[str]]:
+    """Resolve every renderable module and parse its external ports."""
+
+    local_modules, lowrisc_modules, modules = soc_modules(config.devices)
+    parsed = {}
+    for module in modules:
+        if module == "uart" and config.host == "uart":
             continue
-
-        from_vendor = mod in lowrisc_modules
-        sv_path = find_sv_file(mod, root_dir, from_vendor)
+        sv_path = find_sv_file(module, config.root, module in lowrisc_modules)
         if not sv_path:
-            raise FileNotFoundError(f"SystemVerilog file for module '{mod}' not found.")
-        modules_ports[mod] = parse_ports(sv_path)
+            raise FileNotFoundError(f"SystemVerilog file for module {module!r} not found.")
+        parsed[module] = parse_ports(sv_path)
+    return parsed, local_modules
+
+
+def collect_soc_ports(modules_ports):
+    """Merge parsed module ports into the generated SoC top-level port map."""
 
     all_ports = {}
     for mod_ports in modules_ports.values():
         for direction, dtype, name in mod_ports:
-            if name not in all_ports:
-                all_ports[name] = direction + " " + ("" if dtype is None else dtype)
+            all_ports.setdefault(name, direction + " " + ("" if dtype is None else dtype))
+    return all_ports
+
+
+def add_host_ports(host: str, all_ports: dict[str, str]) -> dict[str, str]:
+    """Add host-facing external pins that are not discovered from IP wrappers."""
 
     if host == "uart":
         all_ports.setdefault("cio_rx_i", "input logic")
         all_ports.setdefault("cio_tx_o", "output logic")
         all_ports.setdefault("cio_tx_en_o", "output logic")
+    return all_ports
 
-    output_path = Path(output_file).resolve()
-    run_dir = output_path.parent.parent
-    tb_dir = run_dir / "tb"
-    tb_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(TEMPLATE_HEADER)
+def render_xbar_connections(host: str, modules: list[str]) -> str:
+    """Render the generated xbar instance connections for host and devices."""
 
-        port_decls = generate_port_decls(all_ports)
-        for decl in port_decls:
-            f.write(f"\n{decl}")
+    lines = ["  // Our main data bus.", "  xbar_main xbar (", "    .clk_i,", "    .rst_ni,", ""]
+    if host == "ibex":
+        lines += [
+            "    .tl_ibex_i (tl_ibex_h2d),",
+            "    .tl_ibex_o (tl_ibex_d2h),",
+            "    .tl_sram_o (tl_sram_h2d),",
+            "    .tl_sram_i (tl_sram_d2h),",
+        ]
+    if host == "uart":
+        lines += [
+            "    .tl_uart_host_i (tl_uart_host_h2d),",
+            "    .tl_uart_host_o (tl_uart_host_d2h),",
+            "    .tl_uart_o (tl_uart_h2d),",
+            "    .tl_uart_i (tl_uart_d2h),",
+        ]
+    for module in modules:
+        if module == "uart" and host == "uart":
+            continue
+        lines += [f"    .tl_{module}_o (tl_{module}_h2d),", f"    .tl_{module}_i (tl_{module}_d2h),"]
+    lines += ["    .scanmode_i (prim_mubi_pkg::MuBi4False)", "  );", ""]
+    return "\n".join(lines)
 
-        f.seek(f.tell() - 1)
-        f.write("\n);\n\n")
 
-        f.write(defaults(host))
+def render_soc_sv(host: str, modules_ports, local_modules: list[str]) -> str:
+    """Render the generated `soc.sv` source as a string."""
 
-        for mod in all_modules:
-            if mod == "uart" and host == "uart":
-                continue
-            f.write(f"  tlul_pkg::tl_h2d_t tl_{mod}_h2d;\n")
-            f.write(f"  tlul_pkg::tl_d2h_t tl_{mod}_d2h;\n")
+    modules = list(modules_ports)
+    all_ports = add_host_ports(host, collect_soc_ports(modules_ports))
+    port_decls = generate_port_decls(all_ports)
+    body = [TEMPLATE_HEADER, *port_decls, ");", "", defaults(host)]
+    for module in modules:
+        if module == "uart" and host == "uart":
+            continue
+        body.append(f"  tlul_pkg::tl_h2d_t tl_{module}_h2d;")
+        body.append(f"  tlul_pkg::tl_d2h_t tl_{module}_d2h;")
+    body += ["", render_xbar_connections(host, local_modules)]
+    body.extend(generate_module_inst(module, ports) for module, ports in modules_ports.items())
+    body.append(TEMPLATE_FOOTER)
+    return "\n".join(body)
 
-        f.write("\n")
-        f.write("  // Our main data bus.\n")
-        f.write("  xbar_main xbar (\n")
-        f.write("    .clk_i,\n")
-        f.write("    .rst_ni,\n\n")
 
-        if host == "ibex":
-            f.write("    .tl_ibex_i (tl_ibex_h2d),\n")
-            f.write("    .tl_ibex_o (tl_ibex_d2h),\n")
-            f.write("    .tl_sram_o (tl_sram_h2d),\n")
-            f.write("    .tl_sram_i (tl_sram_d2h),\n")
-        elif host == "uart":
-            f.write("    .tl_uart_host_i (tl_uart_host_h2d),\n")
-            f.write("    .tl_uart_host_o (tl_uart_host_d2h),\n")
-            f.write("    .tl_uart_o (tl_uart_h2d),\n")
-            f.write("    .tl_uart_i (tl_uart_d2h),\n")
+def generate_soc(config: SoCGenerationConfig) -> Path:
+    """Generate SoC RTL, Verilator wrappers, and FuseSoC metadata."""
 
-        for mod in modules:
-            if mod == "uart" and host == "uart":
-                continue
-            f.write(f"    .tl_{mod}_o (tl_{mod}_h2d),\n")
-            f.write(f"    .tl_{mod}_i (tl_{mod}_d2h),\n")
+    modules_ports, local_modules = collect_module_ports(config)
+    all_ports = add_host_ports(config.host, collect_soc_ports(modules_ports))
+    config.output.parent.mkdir(parents=True, exist_ok=True)
+    config.tb_dir.mkdir(parents=True, exist_ok=True)
+    config.output.write_text(render_soc_sv(config.host, modules_ports, local_modules), encoding="utf-8")
+    write_top_verilator_sv(config.tb_dir / "top_verilator.sv", config.host, all_ports)
+    write_top_verilator_cc(config.tb_dir / "top_verilator.cc", config.host)
+    write_soc_core(config.run_dir / "soc.core", config.host, local_modules)
+    return config.output
 
-        f.write("    .scanmode_i (prim_mubi_pkg::MuBi4False)\n")
-        f.write("  );\n\n")
 
-        for mod, ports in modules_ports.items():
-            f.write(generate_module_inst(mod, ports))
+def generate_soc_sv(host, device, root_dir, output_file):
+    """Generate SoC files from CLI-style arguments."""
 
-        f.write(TEMPLATE_FOOTER)
-
-    write_top_verilator_sv(tb_dir / "top_verilator.sv", host, all_ports)
-    write_top_verilator_cc(tb_dir / "top_verilator.cc", host)
-    write_soc_core(run_dir / "soc.core", host, modules)
+    return generate_soc(
+        SoCGenerationConfig(
+            host=normalize_host(host),
+            devices=normalize_devices(device),
+            root=Path(root_dir),
+            output=Path(output_file),
+        )
+    )
 
 
 def main():
+    """Parse CLI arguments and generate the SoC files."""
+
     parser = argparse.ArgumentParser(description="Generate soc.sv with module instantiations.")
     parser.add_argument(
         "--host", "-host", required=True, type=str,
@@ -640,12 +750,10 @@ def main():
     )
 
     args = parser.parse_args()
-    host = str(args.host).strip().lower()
-
-    if host not in {"ibex", "uart"}:
-        raise SystemExit(f"ERROR: unsupported host '{args.host}'. Expected one of: ibex, uart")
-
-    generate_soc_sv(host, args.device, args.root, args.output)
+    try:
+        generate_soc_sv(args.host, args.device, args.root, args.output)
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
 
 
 if __name__ == "__main__":
