@@ -601,12 +601,6 @@ class FlexSoC:
         }
 
     @staticmethod
-    def _flow_mk_dir() -> Path:
-        """Return the directory containing packaged Make fragments."""
-
-        return Path(__file__).with_name("flow") / "mk"
-
-    @staticmethod
     def _flow_makefile() -> Path:
         """Return the packaged Make entrypoint used by flow targets."""
 

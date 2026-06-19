@@ -425,15 +425,15 @@ def test_cli_step_info_renders_parameter_table(capsys) -> None:
     assert "TARGET_SYN" in captured.out
 
 
-def test_hjson_gen_alias_is_available_for_make_backed_flow() -> None:
-    """The API step name hjson_gen maps to a concrete Make target."""
+def test_hjson_gen_target_is_available_in_backend_makefile() -> None:
+    """The API step name hjson_gen maps to a concrete backend Make target."""
 
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
-    flow = root / "src" / "flexsoc" / "flow" / "mk" / "20-ip-flow.mk"
+    makefile = root / "src" / "flexsoc" / "backend" / "Makefile"
 
-    text = flow.read_text(encoding="utf-8")
+    text = makefile.read_text(encoding="utf-8")
 
     assert ".PHONY: hjson hjson_gen" in text
     assert "hjson_gen: hjson" in text
@@ -449,6 +449,19 @@ def test_api_uses_backend_makefile_as_canonical_entrypoint() -> None:
     assert command.argv[2].endswith("src/flexsoc/backend/Makefile")
     assert "src/flexsoc/flow/Makefile" not in command.argv[2]
 
+
+
+
+def test_packaged_flow_directory_was_removed() -> None:
+    """The packaged Make entrypoint lives in backend, not in a second flow tree."""
+
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+
+    assert not (root / "src" / "flexsoc" / "flow").exists()
+    assert (root / "src" / "flexsoc" / "backend" / "Makefile").exists()
+    assert "src/flexsoc/backend/Makefile" in (root / "flow" / "Makefile").read_text()
 
 def test_step_catalog_covers_main_make_targets() -> None:
     """Every main development area has documented step-info metadata."""

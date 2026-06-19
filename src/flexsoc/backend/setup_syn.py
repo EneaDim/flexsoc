@@ -355,9 +355,8 @@ def parse_args():
 
     # Normalize paths so generated scripts work inside WORKSPACE runs
 
-    flow_root = Path(__file__).resolve().parent.parent  # flow/
-
-    repo_root = flow_root.parent
+    package_root = Path(__file__).resolve().parent.parent
+    repo_root = package_root.parent
 
     if getattr(args, 'liberty', None) is not None:
 
