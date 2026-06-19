@@ -201,7 +201,7 @@ def workflows(
 
 @app.command("workflow")
 def workflow(
-    name: str = typer.Argument(..., help=\"Workflow name. Use TAB to discover available workflows.\", autocompletion=_workflow_name_completion),
+    name: str = typer.Argument(..., help="Workflow name. Use TAB to discover available workflows.", autocompletion=_workflow_name_completion),
     set_: list[str] = typer.Option(None, "--set", help="Override a Make variable as KEY=VALUE."),
     project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
     dry_run: bool = typer.Option(False, help="Print commands without executing them."),
@@ -264,7 +264,7 @@ def smoke(
 
 @app.command("step-info")
 def step_info(
-    name: str = typer.Argument(..., help=\"Step name. Use TAB to discover available steps.\", autocompletion=_step_name_completion),
+    name: str = typer.Argument(..., help="Step name. Use TAB to discover available steps.", autocompletion=_step_name_completion),
     json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
     examples: bool = typer.Option(False, "--examples", help="Print only copy-ready command examples."),
 ) -> None:
