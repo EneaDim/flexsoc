@@ -401,12 +401,15 @@ hjson: setup
 	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
 
 hjson_gen: hjson
+	@mkdir -p $(RUN_DIR)/data
 
 reg:
+	@mkdir -p $(RUN_DIR)/rtl
 	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
 	$(Q)$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
 
 doc:
+	@mkdir -p $(RUN_DIR)/doc
 	@echo "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
 	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
 	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
@@ -1318,4 +1321,3 @@ soc_pless:
 	$(Q)$(MAKE) flist sim syn sdf sta power view \
 		TOP=soc RUN_TOP=tiny-soc \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-

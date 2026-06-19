@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import json
 import subprocess
 from pathlib import Path
@@ -450,6 +451,15 @@ def _step_param_summary(step: FlowStep) -> str:
     names = required + optional[: max(0, 4 - len(required))]
     suffix = " …" if len(required) + len(optional) > len(names) else ""
     return ", ".join(names) + suffix if names else "none"
+
+
+def _ensure_sequence_run_id(overrides: dict[str, str]) -> dict[str, str]:
+    """Return overrides with one RUN_ID shared by a multi-step CLI call."""
+
+    if "RUN_ID" not in overrides:
+        overrides = dict(overrides)
+        overrides["RUN_ID"] = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return overrides
 
 def _parse_overrides(items: list[str]) -> dict[str, str]:
     """Parse KEY=VALUE CLI overrides into Make variable values."""
