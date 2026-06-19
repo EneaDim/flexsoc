@@ -309,6 +309,25 @@ class FlexSoC:
 
         return tuple(step.name for step in self.list_steps(group))
 
+    def make_target_names(self) -> tuple[str, ...]:
+        """Return canonical public targets declared by the backend Makefile."""
+
+        return self._makefile_targets(self._flow_makefile())
+
+    def validate_step_catalog(self) -> dict[str, Any]:
+        """Compare backend Make targets against API step metadata."""
+
+        make_targets = set(self.make_target_names())
+        api_steps = set(self.step_names())
+        return {
+            "ok": make_targets == api_steps,
+            "makefile": str(self._flow_makefile()),
+            "make_targets": sorted(make_targets),
+            "api_steps": sorted(api_steps),
+            "missing_step_info": sorted(make_targets - api_steps),
+            "missing_make_targets": sorted(api_steps - make_targets),
+        }
+
     def _step_name_suggestion(self, name: str) -> str | None:
         """Return the closest canonical step name for one unknown value."""
 
@@ -646,6 +665,16 @@ class FlexSoC:
             "VIEWER": FlowParameter("VIEWER", "Waveform viewer command.", "gtkwave", False, "tool"),
             "VSV": FlowParameter("VSV", "RTL flavor selector: v or sv.", "sv"),
         }
+
+    @staticmethod
+    def _makefile_targets(makefile: Path) -> tuple[str, ...]:
+        """Parse public targets declared through .PHONY in one Makefile."""
+
+        targets: set[str] = set()
+        for line in makefile.read_text(encoding="utf-8").splitlines():
+            if line.startswith(".PHONY:"):
+                targets.update(line.partition(":")[2].split())
+        return tuple(sorted(targets))
 
     @staticmethod
     def _flow_makefile() -> Path:

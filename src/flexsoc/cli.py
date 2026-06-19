@@ -195,6 +195,19 @@ def steps(group: str | None = typer.Option(None, help="Show only one step group.
     typer.echo(json.dumps(payload, indent=2))
 
 
+@app.command("catalog-check")
+def catalog_check(json_: bool = typer.Option(False, "--json", help="Print the raw catalog validation payload.")) -> None:
+    """Check that backend Make targets and API step metadata are aligned."""
+
+    payload = FlexSoC().validate_step_catalog()
+    if json_:
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    _print_catalog_check(payload)
+    if not payload["ok"]:
+        raise typer.Exit(1)
+
+
 @app.command("step-info")
 def step_info(
     name: str,
@@ -235,6 +248,24 @@ def step(
         typer.echo(json.dumps(result.to_dict(), indent=2))
     elif capture and result.stdout:
         typer.echo(result.stdout, nl=False)
+
+
+def _print_catalog_check(payload: dict[str, object], console: Console | None = None) -> None:
+    """Render the Makefile/API catalog consistency check."""
+
+    console = console or Console()
+    ok = bool(payload["ok"])
+    style = SUCCESS if ok else WARNING
+    table = Table(title="Flow catalog check", border_style=style)
+    table.add_column("Field", style=f"bold {ACCENT}")
+    table.add_column("Value", style="white")
+    table.add_row("Makefile", str(payload["makefile"]))
+    table.add_row("Make targets", str(len(payload["make_targets"])))
+    table.add_row("API steps", str(len(payload["api_steps"])))
+    table.add_row("Missing step info", ", ".join(payload["missing_step_info"]) or "none")
+    table.add_row("Missing Make targets", ", ".join(payload["missing_make_targets"]) or "none")
+    console.print(Panel("[bold green]ok[/bold green]" if ok else "[bold yellow]mismatch[/bold yellow]", border_style=style))
+    console.print(table)
 
 
 def _print_help(console: Console | None = None) -> None:

@@ -925,3 +925,33 @@ def test_backend_modules_start_with_docstrings() -> None:
         text = module.read_text(encoding="utf-8")
         assert text.startswith('"""'), module.name
         assert "ruff: noqa" not in text, module.name
+
+
+def test_flow_catalog_matches_backend_makefile() -> None:
+    """Every public Make target has API metadata and no API-only target exists."""
+
+    from flexsoc import FlexSoC
+
+    client = FlexSoC()
+    report = client.validate_step_catalog()
+
+    assert report["ok"] is True
+    assert set(report["make_targets"]) == set(report["api_steps"])
+    assert report["missing_step_info"] == []
+    assert report["missing_make_targets"] == []
+
+
+def test_catalog_check_cli_reports_catalog_health(capsys) -> None:
+    """The CLI exposes a quick Makefile/API catalog consistency check."""
+
+    from typer.testing import CliRunner
+
+    from flexsoc.cli import app
+
+    result = CliRunner().invoke(app, ["catalog-check", "--json"])
+    payload = json.loads(result.output)
+
+    assert result.exit_code == 0
+    assert payload["ok"] is True
+    assert "setup" in payload["make_targets"]
+    assert "setup" in payload["api_steps"]
