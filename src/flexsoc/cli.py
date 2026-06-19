@@ -29,108 +29,93 @@ Use workflows for normal development and steps for advanced flow control."""
 
 HELP_SECTIONS = (
     (
-        "Quickstart",
+        "0. Shell discovery",
         ACCENT,
         (
-            ("fx help", "Open this guide."),
-            ("python -m flexsoc help", "Open the same guide through the package module."),
-            ("fx workflows", "List high-level workflows for normal use."),
-            ("fx steps", "List advanced Make-backed steps exposed through the API."),
-            ("fx step-info hjson_gen", "Show accepted parameters for one step."),
-            ("fx describe", "Show project root, workspace, and client options."),
-            ("fx settings", "Show project defaults and saved project settings."),
+            ("fx --install-completion", "Enable shell completion, then restart the shell or source the profile."),
+            ("fx <TAB>", "Discover top-level commands from your shell."),
+            ("fx commands", "Render the command catalog with short descriptions."),
+            ("fx help", "Open this chronological guide."),
         ),
     ),
     (
-        "Safe previews",
+        "1. Project settings",
         SECONDARY,
         (
-            (
-                "fx workflow ip_development --dry-run --script --set TOP=demo --set RUN_ID=smoke",
-                "Preview the full IP flow as an ordered shell script.",
-            ),
-            (
-                "fx workflow workspace --dry-run --json --set TOP=demo",
-                "Return a structured workflow plan for frontends or services.",
-            ),
-            ("fx step setup --dry-run --set TOP=demo", "Preview one advanced backend step."),
+            ("fx settings", "Show defaults, saved settings, and the active workspace."),
+            ("fx settings --set TOP=my_ip --set HOST=uart --set FORCE=1", "Save project defaults in .flexsoc/settings.json."),
+            ("fx describe", "Show project root, workspace, and API client options."),
         ),
     ),
     (
-        "IP development",
+        "2. Flow discovery",
         SUCCESS,
         (
-            (
-                "fx workflow ip_development --dry-run --script --set TOP=my_ip",
-                "Inspect setup → hjson_gen → reg → doc → rtl_stub → setup_tb → sim → syn → sta → power → pnr → sim_syn → cocotb.",
-            ),
-            (
-                "fx step-info rtl_stub",
-                "Show parameters accepted by the RTL stub generation step.",
-            ),
-            (
-                "fx step fsm_gen --dry-run --set FSM=my_fsm",
-                "Preview the bundled FSM generator step directly.",
-            ),
+            ("fx workflows", "List high-level development flows."),
+            ("fx steps", "List all advanced backend steps."),
+            ("fx steps --group ip", "List only IP-development steps."),
+            ("fx step-info hjson_gen", "Inspect parameters and examples for one step."),
         ),
     ),
     (
-        "SoC development",
+        "3. Workspace setup",
         WARNING,
         (
-            (
-                "fx workflow workspace --set TOP=demo --set RUN_ID=smoke --capture",
-                "Create the workspace and run folders through the API layer.",
-            ),
-            (
-                "fx workflow soc_development --dry-run --script --set TOP=soc",
-                "Preview setup, IP loading, SoC generation, software build, simulation, and run.",
-            ),
-            (
-                "fx step-info soc",
-                "Show SoC generation parameters such as HOST and workspace values.",
-            ),
+            ("fx workflow workspace --dry-run --script --set TOP=demo", "Preview workspace/run-folder initialization."),
+            ("fx workflow workspace --set TOP=demo --capture", "Create the workspace and run folders."),
+            ("fx step setup --set TOP=demo --capture", "Run only the setup step."),
         ),
     ),
     (
-        "Tutorials",
+        "4. IP development flow",
         "magenta",
         (
             (
-                "1. fx workflow workspace --dry-run --script --set TOP=demo",
-                "Start by reading the script preview.",
+                "fx workflow ip_development --dry-run --script --set TOP=my_ip",
+                "Preview setup → hjson_gen → reg → doc → rtl_stub → setup_tb → sim → syn → sta → power → pnr → sim_syn → cocotb.",
             ),
             (
-                "2. fx workflow workspace --set TOP=demo --capture",
-                "Run the safe workspace initialization path.",
+                "fx step setup hjson_gen reg doc rtl_stub setup_tb sim --set TOP=my_ip",
+                "Run a selected IP sequence, sharing one RUN_ID across the call.",
             ),
+            ("fx step-info syn", "Inspect synthesis-specific parameters before launching tool-dependent steps."),
+        ),
+    ),
+    (
+        "5. SoC development flow",
+        "blue",
+        (
             (
-                "3. fx step-info syn",
-                "Check parameters before running a tool-dependent implementation step.",
+                "fx workflow soc_development --dry-run --script --set TOP=soc",
+                "Preview setup → soc_start → soc_flow → soc_prepare → soc_build_sw → soc_sim → soc_run.",
             ),
+            ("fx step-info soc", "Inspect SoC generation parameters."),
+            ("fx step-info sw_soc", "Inspect software generation parameters."),
+        ),
+    ),
+    (
+        "6. Smoke and debug",
+        "cyan",
+        (
+            ("fx smoke", "Run safe catalog and workflow preview checks."),
+            ("fx smoke --run-workspace --top demo --run-id smoke", "Execute only the safe workspace path."),
+            ("fx step reg doc --dry-run --script", "Debug a short ordered step sequence before execution."),
+            ("--json", "Return structured output for tools and frontends."),
         ),
     ),
     (
         "Common options",
-        "blue",
+        "white",
         (
-            ("fx step-info NAME", "Show parameters, defaults, categories, and copy-ready examples for one step."),
             ("--set KEY=VALUE", "Override one Make variable for one call. Repeat as needed."),
-            ("fx settings --set TOP=my_ip --set HOST=uart", "Save project defaults for future CLI calls."),
-            (
-                "--project-root PATH",
-                "Execute from a repository root different from the current directory.",
-            ),
-            (
-                "--dry-run / --json / --script / --capture",
-                "Inspect, serialize, preview, or capture execution.",
-            ),
+            ("--project-root PATH", "Execute from a repository root different from the current directory."),
+            ("--dry-run / --script / --capture", "Inspect, preview, or capture execution."),
         ),
     ),
 )
 
 app = typer.Typer(
-    add_completion=False,
+    add_completion=True,
     help="Thin FlexSoC CLI over the public API layer. Use `fx help` for examples.",
 )
 
@@ -148,6 +133,13 @@ def help() -> None:
     """Print an extended CLI guide with workflows, tutorials, and options."""
 
     _print_help()
+
+
+@app.command("commands")
+def commands() -> None:
+    """Render the public command catalog in the usual development order."""
+
+    _print_commands()
 
 
 @app.command()
@@ -209,7 +201,7 @@ def workflows(
 
 @app.command("workflow")
 def workflow(
-    name: str,
+    name: str = typer.Argument(..., help=\"Workflow name. Use TAB to discover available workflows.\", autocompletion=_workflow_name_completion),
     set_: list[str] = typer.Option(None, "--set", help="Override a Make variable as KEY=VALUE."),
     project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
     dry_run: bool = typer.Option(False, help="Print commands without executing them."),
@@ -272,7 +264,7 @@ def smoke(
 
 @app.command("step-info")
 def step_info(
-    name: str,
+    name: str = typer.Argument(..., help=\"Step name. Use TAB to discover available steps.\", autocompletion=_step_name_completion),
     json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
     examples: bool = typer.Option(False, "--examples", help="Print only copy-ready command examples."),
 ) -> None:
@@ -289,7 +281,7 @@ def step_info(
 
 @app.command()
 def step(
-    targets: list[str] = typer.Argument(..., help="One or more backend steps to run in order."),
+    targets: list[str] = typer.Argument(..., help="One or more backend steps to run in order. Use TAB to discover steps.", autocompletion=_step_name_completion),
     set_: list[str] = typer.Option(None, "--set", help="Override a Make variable as KEY=VALUE."),
     project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
     dry_run: bool = typer.Option(False, help="Print commands without executing them."),
@@ -383,6 +375,49 @@ def _print_smoke(payload: dict[str, object], console: Console | None = None) -> 
     console.print(table)
 
 
+
+
+def _step_name_completion(incomplete: str) -> list[str]:
+    """Complete backend step names from the public API catalog."""
+
+    return [name for name in FlexSoC().step_names() if name.startswith(incomplete)]
+
+
+def _workflow_name_completion(incomplete: str) -> list[str]:
+    """Complete workflow names from the public API catalog."""
+
+    return [name for name in FlexSoC().workflow_names() if name.startswith(incomplete)]
+
+
+def _command_rows() -> tuple[tuple[str, str, str], ...]:
+    """Return top-level commands ordered like a normal development session."""
+
+    return (
+        ("help", "Guide", "Show the chronological CLI guide."),
+        ("commands", "Guide", "Show this compact command catalog."),
+        ("settings", "Setup", "Show or persist project defaults."),
+        ("describe", "Setup", "Show API client context."),
+        ("workflows", "Discovery", "List high-level workflows."),
+        ("steps", "Discovery", "List advanced backend steps."),
+        ("step-info", "Discovery", "Show parameters and examples for one step."),
+        ("workflow", "Execution", "Run or preview a high-level workflow."),
+        ("step", "Execution", "Run or preview one or more backend steps."),
+        ("smoke", "Validation", "Run safe catalog and workspace smoke checks."),
+    )
+
+
+def _print_commands(console: Console | None = None) -> None:
+    """Render the public command catalog as a Rich table."""
+
+    console = console or Console()
+    table = Table(title="FlexSoC commands", border_style=ACCENT, show_lines=False)
+    table.add_column("Phase", style=SECONDARY, no_wrap=True)
+    table.add_column("Command", style=f"bold {ACCENT}", no_wrap=True)
+    table.add_column("Purpose", style="white")
+    for command, phase, purpose in _command_rows():
+        table.add_row(phase, f"fx {command}", purpose)
+    console.print(Panel("Use shell completion with `fx --install-completion`.", title="Command discovery", border_style=ACCENT))
+    console.print(table)
 
 def _print_help(console: Console | None = None) -> None:
     """Render the project help guide with a small Rich color palette."""
