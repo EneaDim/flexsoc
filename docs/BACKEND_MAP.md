@@ -95,3 +95,7 @@ This document maps the current backend modules before deeper file-by-file cleanu
 ## Patch 0020 note
 
 The Make flow and reviewed backend parsers now use one canonical naming style for current entrypoints. Old import aliases and compatibility-only Make aliases were removed so the development tree stays coherent while the API layer becomes the only stable boundary.
+
+## Patch 0031 note
+
+`setup_syn.py` now exposes `SynthesisConfig` and `generate_synthesis_scripts()` so ASIC/FPGA synthesis script generation can be called directly from the API layer without duplicating Makefile logic.

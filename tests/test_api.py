@@ -623,3 +623,40 @@ endmodule
     assert out / "demo_tb.sv" in written
     assert "module demo_tb" in (out / "demo_tb.sv").read_text(encoding="utf-8")
     assert '`include "demo.sv"' in render_verilator_include("demo", rtl, tmp_path / "syn", (), False, "tlul", "sv")
+
+
+def test_backend_synthesis_generator_exposes_config_api(tmp_path) -> None:
+    """The synthesis backend writes scripts through one config object."""
+
+    from pathlib import Path
+    from flexsoc.backend.setup_syn import SynthesisConfig, generate_synthesis_scripts, render_abc_constraints
+
+    rtl = tmp_path / "rtl"
+    sdc = tmp_path / "sdc"
+    out = tmp_path / "syn"
+    rtl.mkdir()
+    sdc.mkdir()
+    (rtl / "demo.v").write_text("module demo; endmodule\n", encoding="utf-8")
+    liberty = tmp_path / "demo.lib"
+    liberty.write_text("library(demo) {}\n", encoding="utf-8")
+
+    written = generate_synthesis_scripts(
+        SynthesisConfig(
+            top="demo",
+            topdir=rtl,
+            target="asic",
+            clk_period_ns=10.0,
+            output=out,
+            liberty=liberty,
+            sdcdir=sdc,
+            opt="delay",
+            filelist=Path("rtl_list.f"),
+        )
+    )
+
+    assert out / "synth.ys" in written
+    assert out / "synth_sv.ys" in written
+    assert out / "delay.abc" in written
+    assert out / "abc.constr" in written
+    assert "abc -D 10000" in (out / "synth.ys").read_text(encoding="utf-8")
+    assert "set_driving_cell" in render_abc_constraints()

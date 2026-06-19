@@ -1,4 +1,3 @@
-# ruff: noqa
 #!/usr/bin/env python3
 # Copyright 2025 Enea Dimroci
 #
@@ -13,84 +12,172 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Generate synthesis scripts for ASIC and FPGA FlexSoC runs.
 
-r"""
-\file make_synth_scripts.py
-\brief Emit synthesis support scripts (ABC/Yosys/TCL) for ASIC or FPGA targets.
-
-Generates (depending on options):
-- ASIC:
-  - area.abc  (if --opt area)
-  - delay.abc (if --opt delay)
-  - synth.ys     (Verilog flow: read_verilog <topdir>/<top>.v)
-  - synth_sv.ys  (SystemVerilog flow via slang + {cfg.filelist.resolve().as_posix()})
-- Xilinx:
-  - synth.ys (Yosys synth_xilinx to EDIF)
-  - xilinx.tcl (Vivado run script)
-- iCE40:
-  - synth.ys (Yosys synth_ice40 to JSON)
-
-If --opt none is used (ASIC), no .abc script file is created
-and ABC is invoked without -script (default script).
+The module exposes pure render helpers plus a small writer function so the API,
+CLI, and Makefile can share one backend implementation.
 """
 
 from __future__ import annotations
 
-import sys
 import argparse
+import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 
-# ----------------------------
-# Utilities
-# ----------------------------
+@dataclass(frozen=True, slots=True)
+class SynthesisConfig:
+    """Describe one synthesis script generation request.
+
+    The config accepts Path objects so Make, CLI, and Python callers converge on
+    the same backend contract.
+    """
+
+    top: str
+    topdir: Path
+    target: str
+    clk_period_ns: float
+    output: Path = Path("syn")
+    liberty: Path | None = None
+    sdcdir: Path | None = None
+    opt: str = "delay"
+    filelist: Path = Path("rtl_list.f")
+
+
 def pjoin(*parts: str | Path) -> str:
-    """Join parts into POSIX path string."""
+    """Join path fragments and return a POSIX string for generated scripts."""
+
     return Path(*parts).as_posix()
 
 
-def write_text(path: Path, text: str) -> None:
+def write_text(path: Path, text: str) -> Path:
+    """Write UTF-8 text after creating the parent directory."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+    return path
 
 
 def abc_script_area() -> str:
-    return (
-        "# AREA-oriented ABC script (portable)\n"
-        "strash\n"
-        "dch\n"
-        "balance\n"
-        "rewrite\n"
-        "refactor\n"
-        "rewrite -z\n"
-        "balance\n"
-        "dch\n"
-        "map -a\n"
-        "topo\n"
-        "dnsize -c\n"
-        "stime -p\n"
-        "print_stats -m\n"
+    """Render the area-oriented ABC recipe."""
+
+    return "\n".join(
+        [
+            "# AREA-oriented ABC script (portable)",
+            "strash",
+            "dch",
+            "balance",
+            "rewrite",
+            "refactor",
+            "rewrite -z",
+            "balance",
+            "dch",
+            "map -a",
+            "topo",
+            "dnsize -c",
+            "stime -p",
+            "print_stats -m",
+            "",
+        ]
     )
 
 
 def abc_script_delay(clk_ns: float) -> str:
-    return (
-        f"# DELAY-oriented ABC script (portable) - target {clk_ns} ns\n"
-        "strash\n"
-        "balance\n"
-        "rewrite\n"
-        "refactor\n"
-        "rewrite -z\n"
-        "balance\n"
-        "dch\n"
-        "# retime -o\n"
-        "map\n"
-        "topo\n"
-        "upsize -c\n"
-        "buffer -c\n"
-        "stime -p\n"
-        "print_stats -m\n"
+    """Render the delay-oriented ABC recipe for one clock period."""
+
+    return "\n".join(
+        [
+            f"# DELAY-oriented ABC script (portable) - target {clk_ns} ns",
+            "strash",
+            "balance",
+            "rewrite",
+            "refactor",
+            "rewrite -z",
+            "balance",
+            "dch",
+            "# retime -o",
+            "map",
+            "topo",
+            "upsize -c",
+            "buffer -c",
+            "stime -p",
+            "print_stats -m",
+            "",
+        ]
     )
+
+
+def render_abc_constraints(driving_cell: str = "sky130_fd_sc_hd__buf_1", load: float = 10.0) -> str:
+    """Render ABC constraints shared by area and delay mappings."""
+
+    return "\n".join(
+        [
+            "# ABC constraint file (edit BUF_X1/load for your tech)",
+            f"set_driving_cell {driving_cell}",
+            f"set_load {load} [all_outputs]",
+            "",
+        ]
+    )
+
+
+def _abc_script_name(opt: str) -> str | None:
+    """Return the ABC script file name selected by an optimization mode."""
+
+    return {"area": "area.abc", "delay": "delay.abc"}.get(opt)
+
+
+def _abc_constraint_arg(cfg: SynthesisConfig) -> str:
+    """Return the optional ABC constraint argument for ASIC scripts."""
+
+    if cfg.sdcdir is None:
+        return ""
+    return f"\n    -constr {pjoin(cfg.sdcdir, cfg.top + '.sdc')} \\"
+
+
+def render_abc_command(cfg: SynthesisConfig, script_name: str | None) -> str:
+    """Render the ABC command for one ASIC synthesis script."""
+
+    if cfg.liberty is None:
+        raise ValueError("ASIC synthesis requires a Liberty file.")
+
+    if script_name is None:
+        delay_ps = int(round(cfg.clk_period_ns * 1000.0))
+        return f"abc -D {delay_ps} -liberty {cfg.liberty.as_posix()}"
+
+    base = f"abc -liberty {cfg.liberty.as_posix()}"
+    if cfg.opt == "delay":
+        delay_ps = int(round(cfg.clk_period_ns * 1000.0))
+        base = f"abc -D {delay_ps} -liberty {cfg.liberty.as_posix()}"
+    return f"{base} -script {pjoin(cfg.output, script_name)} \\" + _abc_constraint_arg(cfg)
+
+def _asic_tail(cfg: SynthesisConfig, script_name: str | None) -> list[str]:
+    """Return shared ASIC mapping, cleanup, and output commands."""
+
+    if cfg.liberty is None:
+        raise ValueError("ASIC synthesis requires a Liberty file.")
+
+    return [
+        "",
+        "# map internal register types to the ones from the cell library",
+        f"dfflibmap -liberty {cfg.liberty.as_posix()}",
+        "",
+        "# map logic to the selected cell library",
+        render_abc_command(cfg, script_name),
+        "",
+        "# Clean",
+        "opt_clean -purge",
+        "",
+        "# Basic stats of std cells and area",
+        f"stat -liberty {cfg.liberty.as_posix()}",
+        "",
+        "# write verilog",
+        f"write_verilog {pjoin(cfg.output, cfg.top + '_synth.v')}",
+        "# write json",
+        f"write_json {pjoin(cfg.output, cfg.top + '_synth.json')}",
+        "",
+    ]
 
 
 def yosys_synth_asic_verilog(
@@ -102,88 +189,19 @@ def yosys_synth_asic_verilog(
     sdcdir: Path | None,
     outdir: Path,
 ) -> str:
-    """
-    Verilog (non-SV) ASIC flow using read_verilog.
+    """Render a Verilog-only ASIC Yosys script."""
 
-    \\param opt   "area", "delay" or "none" (controls ABC -script usage).
-    """
-    abc_D_ps = int(round(clk_ns * 1000.0))  # ABC expects picoseconds
-
-    flag_area_delay = True
-
-    if opt == "area":
-        abc_script_name = "area.abc"
-    elif opt == "delay":
-        abc_script_name = "delay.abc"
-    else:
-        abc_script_name = None
-        flag_area_delay = False
-
-    body = []
-    body.append("# read files")
-    body.append(f"read_verilog {pjoin(topdir, top + '.v')}")
-    body.append("# basic synth")
-    if opt == "area":
-        body.append(f"synth -top {top} -noabc")
-    elif opt == "delay":
-        body.append(f"synth -top {top} -noabc")
-    else:  # none
-        # still do a normal synth, ABC will use default script
-        body.append(f"synth -top {top}")
-
-    body.append(f"show -width -format dot -prefix {pjoin(outdir, 'plots', top + '_postsyn')}")
-    body.append("# map internal register types to the ones from the cell library")
-    body.append(f"dfflibmap -liberty {liberty.as_posix()}")
-    body.append("# mapping to internal cell library")
-
-    # Write abc.constr file
-    if flag_area_delay:
-        with open(pjoin(outdir, 'abc.constr'),'w') as f:
-            mystr = '# ABC constraint file (edit BUF_X1/load for your tech)\\n'
-            # TODO: change driving cell based on technology
-            mystr += 'set_driving_cell sky130_fd_sc_hd__buf_1\\n'
-            mystr += 'set_load 10.0 [all_outputs]\\n'
-            f.write(mystr)
-    # Define constr
-    constr = ""
-    if sdcdir is not None:
-        constr = f"\n    -constr {pjoin(sdcdir, top + '.sdc')} \\"
-    # ABC call:
-    # - with script and -D (delay) only for opt == "delay"
-    # - with script but *no* -D for opt == "area"
-    # - without script and without -D for opt == "none"
-    if abc_script_name is not None:
-        if opt == "delay": # Delay
-            body.append(
-                "# mapping to internal cell library\n"
-                f"abc -D {abc_D_ps}"
-                f" -liberty {liberty.as_posix()} "
-                f" -script {pjoin(outdir, abc_script_name)} \\"
-                f"{constr}"
-            )
-        else: # Area
-            body.append(
-                "# mapping to internal cell library\n"
-                "abc"
-                f" -liberty {liberty.as_posix()}"
-                f" -script {pjoin(outdir, abc_script_name)} \\"
-                f"{constr}"
-            )
-    else: # None
-        body.append(
-            "abc -D " + str(abc_D_ps) + ""
-            f" -liberty {liberty.as_posix()}"
-        )
-
-    body.append("\n")
-    body.append("opt_clean -purge")
-    body.append(f"stat -liberty {liberty.as_posix()}")
-    body.append("# write verilog")
-    body.append(f"write_verilog {pjoin(outdir, top + '_synth.v')}")
-    body.append("# write json")
-    body.append(f"write_json {pjoin(outdir, top + '_synth.json')}")
-
-    return "\n".join(body) + "\n"
+    cfg = SynthesisConfig(top, topdir, "asic", clk_ns, outdir, liberty, sdcdir, opt)
+    script_name = _abc_script_name(opt)
+    lines = [
+        "# read files",
+        f"read_verilog {pjoin(topdir, top + '.v')}",
+        "# basic synth",
+        f"synth -top {top}" + (" -noabc" if opt in {"area", "delay"} else ""),
+        f"show -width -format dot -prefix {pjoin(outdir, 'plots', top + '_postsyn')}",
+        *_asic_tail(cfg, script_name),
+    ]
+    return "\n".join(lines)
 
 
 def yosys_synth_asic_slang(
@@ -195,257 +213,158 @@ def yosys_synth_asic_slang(
     outdir: Path,
     filelist: Path = Path("rtl_list.f"),
 ) -> str:
-    """
-    SystemVerilog ASIC flow via slang using an ordered file list ({cfg.filelist.resolve().as_posix()}).
-    Assumes include dirs: ../hw/ips/pkgs, ../hw/ips/prim, ../hw/ips/prim_opentitan, ../hw/ips/tlul.
+    """Render a SystemVerilog ASIC Yosys script through slang."""
 
-    \\param opt   "area", "delay" or "none" (controls ABC -script usage).
-    """
-
-    abc_D_ps = int(round(clk_ns * 1000.0))
-
-    flag_area_delay = True
-
-    if opt == "area":
-        abc_script_name = "area.abc"
-    elif opt == "delay":
-        abc_script_name = "delay.abc"
-    else:
-        abc_script_name = None
-        flag_area_delay = False
-
-    body = []
-    body.append("# read files (SystemVerilog via slang)")
-    body.append(
-        "read_slang -I ../hw/ips/pkgs \\"
-        "\n           -I ../hw/ips/prim \\"
-        "\n           -I ../hw/ips/prim_opentitan \\"
-        "\n           -I ../hw/ips/tlul \\"
-        "\n           -D SYNTHESIS \\"
-        "\n           --ignore-assertions \\"
-        f"\n           -f {filelist.resolve().as_posix()} \\"
-        f"\n           --top {top}"
-    )
-    body.append("")
-    body.append("# basic synth")
-    if opt == "area":
-        body.append(f"synth -top {top} -noabc")
-    elif opt == "delay":
-        body.append(f"synth -top {top} -noabc")
-    else:  # none
-        body.append(f"synth -top {top}")
-
-    body.append("")
-    body.append("# map internal register types to the ones from the cell library")
-    body.append(f"dfflibmap -liberty {liberty.as_posix()}")
-
-    # Write abc.constr file
-    body.append("")
-    if flag_area_delay:
-        with open(pjoin(outdir, 'abc.constr'),'w') as f:
-            mystr = '# ABC constraint file (edit BUF_X1/load for your tech)\\n'
-            mystr += 'set_driving_cell sky130_fd_sc_hd__buf_1\\n'
-            mystr += 'set_load 10.0 [all_outputs]\\n'
-            f.write(mystr)
-    # Define constr
-    constr = ""
-    if sdcdir is not None:
-        constr = f"\n    -constr {pjoin(sdcdir, top + '.sdc')} \\"
-    # ABC call:
-    # - with script and -D (delay) only for opt == "delay"
-    # - with script but *no* -D for opt == "area"
-    # - without script and without -D for opt == "none"
-    if abc_script_name is not None:
-        if opt == "delay": # Delay
-            body.append(
-                "# mapping to internal cell library\n"
-                f"abc -D {abc_D_ps}"
-                f" -liberty {liberty.as_posix()} "
-                f" -script {pjoin(outdir, abc_script_name)} \\"
-                f"{constr}"
-            )
-        else: # Area
-            body.append(
-                "# mapping to internal cell library\n"
-                "abc"
-                f" -liberty {liberty.as_posix()}"
-                f" -script {pjoin(outdir, abc_script_name)} \\"
-                f"{constr}"
-            )
-    else: # None
-        body.append(
-            "abc -D " + str(abc_D_ps) + ""
-            f" -liberty {liberty.as_posix()}"
-        )
-
-
-    body.append("")
-    body.append("# Clean")
-    body.append("opt_clean -purge")
-    body.append("")
-    body.append("# Basic stats of std cells and area")
-    body.append(f"stat -liberty {liberty.as_posix()}")
-    body.append("")
-    body.append("# write verilog")
-    body.append(f"write_verilog {pjoin(outdir, top + '_synth.v')}")
-    body.append("# write json")
-    body.append(f"write_json {pjoin(outdir, top + '_synth.json')}")
-
-    return "\n".join(body) + "\n"
+    cfg = SynthesisConfig(top, Path("rtl"), "asic", clk_ns, outdir, liberty, sdcdir, opt, filelist)
+    script_name = _abc_script_name(opt)
+    lines = [
+        "# read files (SystemVerilog via slang)",
+        "read_slang -I ../hw/ips/pkgs \\",
+        "           -I ../hw/ips/prim \\",
+        "           -I ../hw/ips/prim_opentitan \\",
+        "           -I ../hw/ips/tlul \\",
+        "           -D SYNTHESIS \\",
+        "           --ignore-assertions \\",
+        f"           -f {filelist.resolve().as_posix()} \\",
+        f"           --top {top}",
+        "",
+        "# basic synth",
+        f"synth -top {top}" + (" -noabc" if opt in {"area", "delay"} else ""),
+        *_asic_tail(cfg, script_name),
+    ]
+    return "\n".join(lines)
 
 
 def yosys_synth_xilinx(top: str, topdir: Path, outdir: Path) -> str:
-    return (
-        "# read files\n"
-        f"read_verilog {pjoin(topdir, top + '.v')}\n"
-        "# basic synth\n"
-        f"synth_xilinx -top {top} -flatten -edif {pjoin(outdir, top + '.edif')}\n"
+    """Render a Xilinx-oriented Yosys script."""
+
+    return "\n".join(
+        [
+            "# read files",
+            f"read_verilog {pjoin(topdir, top + '.v')}",
+            "# basic synth",
+            f"synth_xilinx -top {top} -flatten -edif {pjoin(outdir, top + '.edif')}",
+            "",
+        ]
     )
 
 
 def vivado_tcl_xilinx(top: str) -> str:
-    return (
-        f"read_xdc {top}.xdc\n"
-        f"read_edif {top}.edif\n"
-        f"link_design -part xc7a35tcpg236-1 -top {top}\n"
-        "opt_design\n"
-        "place_design\n"
-        "route_design\n"
-        "report_utilization\n"
-        "report_timing\n"
-        f"write_bitstream -force {top}.bit\n"
+    """Render a compact Vivado TCL implementation script."""
+
+    return "\n".join(
+        [
+            f"read_xdc {top}.xdc",
+            f"read_edif {top}.edif",
+            f"link_design -part xc7a35tcpg236-1 -top {top}",
+            "opt_design",
+            "place_design",
+            "route_design",
+            "report_utilization",
+            "report_timing",
+            f"write_bitstream -force {top}.bit",
+            "",
+        ]
     )
 
 
 def yosys_synth_ice40(top: str, topdir: Path, outdir: Path) -> str:
-    return (
-        "# read files\n"
-        f"read_verilog {pjoin(topdir, top + '.v')}\n"
-        "# basic synth\n"
-        f"synth_ice40 -top {top} -json {pjoin(outdir, top + '.json')}\n"
+    """Render an iCE40-oriented Yosys script."""
+
+    return "\n".join(
+        [
+            "# read files",
+            f"read_verilog {pjoin(topdir, top + '.v')}",
+            "# basic synth",
+            f"synth_ice40 -top {top} -json {pjoin(outdir, top + '.json')}",
+            "",
+        ]
     )
 
 
-# ----------------------------
-# Argument parsing
-# ----------------------------
-def parse_args():
-    ap = argparse.ArgumentParser(description="Emit Yosys/ABC/Vivado scripts for ASIC/FPGA.")
-    ap.add_argument("-top", "--top", required=True, type=str,
-                    help="TOP module name (without extension)")
-    ap.add_argument("-topdir", "--topdir", required=True, type=Path,
-                    help="Directory containing the TOP RTL (e.g., rtl/)")
-    ap.add_argument("-target", "--target", required=True,
-                    choices=["asic", "xilinx", "ice40"],
-                    help="Target technology")
-    ap.add_argument("-liberty", "--liberty", type=Path,
-                    help="Liberty file for ASIC mapping (required for target=asic)")
-    ap.add_argument("-clk", "--clk", type=float, required=True,
-                    help="Clock period in ns (used for ABC -D)")
-    ap.add_argument("-sdcdir", "--sdcdir", type=Path, default=None,
-                    help="Directory containing <top>.sdc (optional)")
-    ap.add_argument("-opt", "--opt", choices=["area", "delay", "none"], default="delay",
-                    help="Optimization target (ASIC only): area/delay/none",
-                    )
-    ap.add_argument("-o", "--output", type=Path, default=Path("syn"),
-                    help="Output folder (default: syn)")
-    ap.add_argument("--filelist", type=Path, default=Path("rtl_list.f"),
-                    help="SystemVerilog file list for slang (default: {cfg.filelist.resolve().as_posix()})")
-    args = ap.parse_args()
+def generate_synthesis_scripts(cfg: SynthesisConfig) -> tuple[Path, ...]:
+    """Generate synthesis scripts and return the written paths."""
 
-    # Normalize paths so generated scripts work inside WORKSPACE runs
+    cfg.output.mkdir(parents=True, exist_ok=True)
+    (cfg.output / "plots").mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+
+    if cfg.target == "asic":
+        if cfg.liberty is None:
+            raise ValueError("For target=asic you must provide a Liberty file.")
+        if cfg.opt == "area":
+            written.append(write_text(cfg.output / "area.abc", abc_script_area()))
+        elif cfg.opt == "delay":
+            written.append(write_text(cfg.output / "delay.abc", abc_script_delay(cfg.clk_period_ns)))
+        if cfg.opt in {"area", "delay"}:
+            written.append(write_text(cfg.output / "abc.constr", render_abc_constraints()))
+        written.append(write_text(cfg.output / "synth.ys", yosys_synth_asic_verilog(cfg.top, cfg.topdir, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output)))
+        written.append(write_text(cfg.output / "synth_sv.ys", yosys_synth_asic_slang(cfg.top, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output, cfg.filelist)))
+    elif cfg.target == "xilinx":
+        written.append(write_text(cfg.output / "synth.ys", yosys_synth_xilinx(cfg.top, cfg.topdir, cfg.output)))
+        written.append(write_text(cfg.output / "xilinx.tcl", vivado_tcl_xilinx(cfg.top)))
+    elif cfg.target == "ice40":
+        written.append(write_text(cfg.output / "synth.ys", yosys_synth_ice40(cfg.top, cfg.topdir, cfg.output)))
+    else:
+        raise ValueError(f"Unsupported target: {cfg.target}")
+
+    return tuple(written)
+
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments used by the backend Makefile."""
+
+    parser = argparse.ArgumentParser(description="Emit Yosys/ABC/Vivado scripts for ASIC/FPGA.")
+    parser.add_argument("-top", "--top", required=True, help="TOP module name without extension.")
+    parser.add_argument("-topdir", "--topdir", required=True, type=Path, help="Directory containing TOP RTL.")
+    parser.add_argument("-target", "--target", required=True, choices=["asic", "xilinx", "ice40"], help="Target technology.")
+    parser.add_argument("-liberty", "--liberty", type=Path, help="Liberty file for ASIC mapping.")
+    parser.add_argument("-clk", "--clk", type=float, required=True, help="Clock period in ns for ABC -D.")
+    parser.add_argument("-sdcdir", "--sdcdir", type=Path, default=None, help="Directory containing <top>.sdc.")
+    parser.add_argument("-opt", "--opt", choices=["area", "delay", "none"], default="delay", help="ASIC optimization mode.")
+    parser.add_argument("-o", "--output", type=Path, default=Path("syn"), help="Output folder.")
+    parser.add_argument("--filelist", type=Path, default=Path("rtl_list.f"), help="SystemVerilog file list for slang.")
+    args = parser.parse_args(argv)
 
     package_root = Path(__file__).resolve().parent.parent
     repo_root = package_root.parent
-
-    if getattr(args, 'liberty', None) is not None:
-
-        lib = Path(args.liberty)
-
-        if not lib.is_absolute():
-
-            args.liberty = (repo_root / lib).resolve()
-
+    if args.liberty is not None and not args.liberty.is_absolute():
+        args.liberty = (repo_root / args.liberty).resolve()
     return args
 
-# ----------------------------
-# Main
-# ----------------------------
-def main():
+
+def config_from_args(args: argparse.Namespace) -> SynthesisConfig:
+    """Convert parsed CLI arguments into a synthesis config."""
+
+    return SynthesisConfig(
+        top=args.top,
+        topdir=args.topdir,
+        target=args.target,
+        clk_period_ns=args.clk,
+        output=args.output,
+        liberty=args.liberty,
+        sdcdir=args.sdcdir,
+        opt=args.opt,
+        filelist=args.filelist,
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run synthesis script generation from the command line."""
+
     try:
-        args = parse_args()
-
-        top: str = args.top
-        topdir: Path = args.topdir
-        target: str = args.target
-        liberty: Path | None = args.liberty
-        sdcdir: Path | None = args.sdcdir
-        clk_period_ns: float = args.clk
-        opt: str = args.opt
-        outdir: Path = args.output
-        filelist: Path = args.filelist
-
-        outdir.mkdir(parents=True, exist_ok=True)
-        (outdir / "plots").mkdir(parents=True, exist_ok=True)
-
-        if target == "asic":
-            if liberty is None:
-                raise ValueError("For target=asic you must provide --liberty <path/to/xxx.lib>.")
-
-            # ABC recipes: create only what is needed
-            if opt == "area":
-                write_text(outdir / "area.abc", abc_script_area())
-            elif opt == "delay":
-                write_text(outdir / "delay.abc", abc_script_delay(clk_period_ns))
-            # opt == "none": do not create any .abc script
-
-            # Verilog-only flow (read_verilog)
-            synth_v = yosys_synth_asic_verilog(
-                top=top,
-                topdir=topdir,
-                liberty=liberty,
-                clk_ns=clk_period_ns,
-                opt=opt,
-                sdcdir=sdcdir,
-                outdir=outdir,
-            )
-            write_text(outdir / "synth.ys", synth_v)
-
-            # SystemVerilog flow via slang + rtl_list.f
-            synth_sv = yosys_synth_asic_slang(
-                top=top,
-                liberty=liberty,
-                clk_ns=clk_period_ns,
-                opt=opt,
-                sdcdir=sdcdir,
-                outdir=outdir,
-                filelist=filelist,
-            )
-            write_text(outdir / "synth_sv.ys", synth_sv)
-
-        elif target == "xilinx":
-            write_text(outdir / "synth.ys", yosys_synth_xilinx(top, topdir, outdir))
-            write_text(outdir / "xilinx.tcl", vivado_tcl_xilinx(top))
-
-        elif target == "ice40":
-            write_text(outdir / "synth.ys", yosys_synth_ice40(top, topdir, outdir))
-
-        else:
-            raise ValueError(f"Unsupported target: {target}")
-
+        generate_synthesis_scripts(config_from_args(parse_args(argv)))
+        return 0
     except Exception as err:
         exc_type, _, exc_tb = sys.exc_info()
         line = getattr(exc_tb, "tb_lineno", "?")
         print(
-            f"\033[38;5;208mError during CORE CODE:\n"
-            f"Error Type: {exc_type}\n"
-            f"Line number: {line}\033[0;0m",
+            f"\033[38;5;208mError during CORE CODE:\nError Type: {exc_type}\nLine number: {line}\033[0;0m",
             file=sys.stderr,
         )
         print(err, file=sys.stderr)
-        sys.exit(1)
+        return 1
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
