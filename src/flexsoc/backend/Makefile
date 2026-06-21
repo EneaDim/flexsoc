@@ -1269,7 +1269,7 @@ clean_sw:
 	$(Q)$(MAKE) --no-print-dir -C sw clean
 
 clean_vendor:
-	$(Q)$(RM) vendor/lowrisc_ip
+	$(Q)$(RM) -r vendor/lowrisc_ip
 	$(Q)$(RM) vendor/lowrisc_ibex
 	$(Q)$(RM) vendor/lowrisc_ip.lock.hjson
 	$(Q)$(RM) vendor/lowrisc_ibex.lock.hjson
