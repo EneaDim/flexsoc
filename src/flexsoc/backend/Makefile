@@ -33,6 +33,7 @@ export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
 WORKSPACE   ?= ../workspace
 RUN_ID      ?= $(shell date +%Y%m%d_%H%M%S)
 OUTROOT     ?= $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)
+RUN_DIR     ?= $(OUTROOT)
 
 # -----------------------------------------------------------------------------
 # Derived directories
@@ -401,15 +402,15 @@ hjson: setup
 	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
 
 hjson_gen: hjson
-	@mkdir -p $(RUN_DIR)/data
+	@$(MKDIR) -p $(DATADIR)
 
 reg:
-	@mkdir -p $(RUN_DIR)/rtl
+	@$(MKDIR) -p $(RTLDIR)
 	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
 	$(Q)$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
 
 doc:
-	@mkdir -p $(RUN_DIR)/doc
+	@$(MKDIR) -p $(DOCDIR)
 	@echo "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
 	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
 	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
