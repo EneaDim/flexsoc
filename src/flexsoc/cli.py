@@ -22,8 +22,15 @@ WARNING = "yellow"
 
 SETTINGS_DIRNAME = ".flexsoc"
 SETTINGS_FILENAME = "settings.json"
-DEFAULT_SETTINGS = {"TOP": "test", "HOST": "uart", "FORCE": "0"}
+DEFAULT_SETTINGS = {"TOP": "test", "HOST": "uart", "FORCE": "0", "RUN_ID": "default"}
 
+def _resolve_run_id(project_root: Path | None, values: dict[str, str]) -> dict[str, str]:
+    """Keep RUN_ID static unless the user provided one explicitly."""
+
+    resolved = dict(values)
+    if not resolved.get("RUN_ID"):
+        resolved["RUN_ID"] = DEFAULT_SETTINGS["RUN_ID"]
+    return resolved
 HELP_INTRO = """Thin command line interface over the public FlexSoC API layer.
 Use workflows for normal development and steps for advanced flow control."""
 
@@ -321,7 +328,7 @@ def step(
     """Run, preview, or serialize one or more advanced backend flow steps."""
 
     client = FlexSoC(project_root=project_root)
-    overrides = _parse_overrides(set_ or [])
+    overrides = _merged_settings(None, set_ or [])
     sequence_overrides = _step_sequence_overrides(targets, overrides)
     if dry_run:
         payloads = [client.inspect_step(target, **sequence_overrides) for target in targets]
@@ -354,12 +361,11 @@ def step(
 
 
 def _step_sequence_overrides(targets: list[str], overrides: dict[str, str]) -> dict[str, str]:
-    """Return overrides with one RUN_ID shared by a multi-step call."""
+    """Return step overrides without creating timestamp run identifiers."""
 
-    if len(targets) <= 1 or "RUN_ID" in overrides:
-        return overrides
     values = dict(overrides)
-    values["RUN_ID"] = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if not values.get("RUN_ID"):
+        values["RUN_ID"] = DEFAULT_SETTINGS["RUN_ID"]
     return values
 
 def _shell_script(lines: list[str]) -> str:
@@ -561,7 +567,7 @@ def _ensure_sequence_run_id(overrides: dict[str, str]) -> dict[str, str]:
 
     if "RUN_ID" not in overrides:
         overrides = dict(overrides)
-        overrides["RUN_ID"] = datetime.now().strftime("%Y%m%d_%H%M%S")
+        overrides["RUN_ID"] = DEFAULT_SETTINGS["RUN_ID"]
     return overrides
 
 
@@ -615,17 +621,20 @@ def _settings_payload(project_root: Path | None = None) -> dict[str, object]:
 
 
 def _merged_settings(project_root: Path | None, overrides: list[str]) -> dict[str, str]:
-    """Merge saved project settings with one-call CLI overrides."""
+    """Merge static defaults, saved project settings, and one-call overrides."""
 
-    values = _read_settings(project_root)
+    values = dict(DEFAULT_SETTINGS)
+    values.update(_read_settings(project_root))
     values.update(_parse_overrides(overrides))
+    if not values.get("RUN_ID"):
+        values["RUN_ID"] = DEFAULT_SETTINGS["RUN_ID"]
     return values
 
 
 def _generated_run_id() -> str:
-    """Return one timestamp run id shared by a multi-step CLI call."""
+    """Return the static default run id for old internal callers."""
 
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+    return DEFAULT_SETTINGS["RUN_ID"]
 
 
 def _print_settings(payload: dict[str, object], console: Console | None = None) -> None:
