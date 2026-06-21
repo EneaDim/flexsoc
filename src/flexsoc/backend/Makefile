@@ -1,3 +1,6 @@
+MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+REPO_ROOT ?= $(abspath $(MAKEFILE_DIR)/../../..)
+
 # FlexSoC backend flow Makefile
 #
 # This is the canonical Make-backed flow entrypoint used by the Python API.
@@ -31,7 +34,7 @@ export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
 # Workspace / run identity
 # -----------------------------------------------------------------------------
 WORKSPACE   ?= ../workspace
-RUN_ID      ?= $(shell date +%Y%m%d_%H%M%S)
+RUN_ID ?= default
 OUTROOT     ?= $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)
 RUN_DIR     ?= $(OUTROOT)
 
@@ -1269,7 +1272,7 @@ clean_sw:
 	$(Q)$(MAKE) --no-print-dir -C sw clean
 
 clean_vendor:
-	$(Q)$(RM) -r vendor/lowrisc_ip
+	$(Q)$(RM) vendor/lowrisc_ip
 	$(Q)$(RM) vendor/lowrisc_ibex
 	$(Q)$(RM) vendor/lowrisc_ip.lock.hjson
 	$(Q)$(RM) vendor/lowrisc_ibex.lock.hjson
@@ -1283,14 +1286,15 @@ clean: clean-pyc clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr
 	$(Q)$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	$(Q)$(CLEAR)
 
-clean_all: clean_fsm_all clean_vendor clean_agent clean
-	$(Q)$(RM) *.core
-	$(Q)$(RM) $(LOGDIR) $(RTLDIR) $(TBDIR) $(SIMDIR) $(SYNDIR) $(SIGNOFFDIR) $(ORSDIR) \
-		$(MODELDIR) $(DATADIR) $(DOCDIR) $(LINTDIR) $(DRIVERDIR) $(PYDIR) $(FSMDIR) > /dev/null 2>&1
-
-# -----------------------------------------------------------------------------
-# Tutorials
-# -----------------------------------------------------------------------------
+clean_all:
+	@echo "Cleaning generated FlexSoC outputs..."
+	@rm -rf $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)
+	@rm -rf $(WORKSPACE)/runs/$(TOP)/default
+	@find $(WORKSPACE)/runs/$(TOP) -maxdepth 1 -type d -empty -delete 2>/dev/null || true
+	@rm -rf build dist .pytest_cache .mypy_cache .ruff_cache
+	@find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name '*.pyc' -delete 2>/dev/null || true
+	@true
 full_tutorial:
 	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui \
 		TOP=test RUN_TOP=test \

@@ -13,6 +13,22 @@ from pathlib import Path
 from typing import Sequence
 
 
+def _repo_root() -> Path:
+    """Return the repository root used for generated synthesis paths."""
+
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    return Path.cwd()
+
+def _rewrite_hw_ip_include_paths(script: str) -> str:
+    """Resolve hw/ips include paths from the current repository root."""
+
+    ip_root = (_repo_root() / "hw" / "ips").as_posix()
+    for ip_name in ("pkgs", "prim_opentitan", "prim", "tlul"):
+        script = script.replace(f"../hw/ips/{ip_name}", f"{ip_root}/{ip_name}")
+    return script
+
 @dataclass(frozen=True, slots=True)
 class SynthesisConfig:
     """Describe one synthesis script generation request.
@@ -205,7 +221,7 @@ def yosys_synth_asic_slang(
     script_name = _abc_script_name(opt)
     lines = [
         "# read files (SystemVerilog via slang)",
-        "read_slang -I ../hw/ips/pkgs \\",
+        f"read_slang -I {(_repo_root() / 'hw' / 'ips' / 'pkgs').as_posix()} \\",
         "           -I ../hw/ips/prim \\",
         "           -I ../hw/ips/prim_opentitan \\",
         "           -I ../hw/ips/tlul \\",
@@ -218,7 +234,7 @@ def yosys_synth_asic_slang(
         f"synth -top {top}" + (" -noabc" if opt in {"area", "delay"} else ""),
         *_asic_tail(cfg, script_name),
     ]
-    return "\n".join(lines)
+    return _rewrite_hw_ip_include_paths("\n".join(lines))
 
 
 def yosys_synth_xilinx(top: str, topdir: Path, outdir: Path) -> str:
