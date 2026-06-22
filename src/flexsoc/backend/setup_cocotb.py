@@ -84,60 +84,6 @@ def config_from_args(args: argparse.Namespace) -> CocotbConfig:
     )
 
 
-def read_filelist(path: Path) -> list[Path]:
-    """Read a Verilog filelist while ignoring comments and include markers."""
-
-    if not path.exists():
-        return []
-    base = path.parent
-    sources: list[Path] = []
-    for raw in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or line.startswith("+incdir+"):
-            continue
-        source = Path(line)
-        sources.append((base / source).resolve() if not source.is_absolute() else source.resolve())
-    return sources
-
-
-def append_existing(paths: list[Path], seen: set[str], path: Path) -> None:
-    """Append one existing path once while preserving source order."""
-
-    resolved = path.resolve()
-    key = resolved.as_posix()
-    if resolved.exists() and key not in seen:
-        seen.add(key)
-        paths.append(resolved)
-
-
-def collect_sources(top: str, rtl_dir: Path, _ips_root: Path | None = None) -> list[Path]:
-    """Collect RTL sources for cocotb with the top wrapper kept last."""
-
-    seen: set[str] = set()
-    ordered: list[Path] = []
-    rtl_list = rtl_dir / "rtl_list.f"
-    if rtl_list.exists():
-        candidates = read_filelist(rtl_list)
-    else:
-        candidates = sorted(rtl_dir.glob("*.sv")) + sorted(rtl_dir.glob("*.v"))
-    for source in candidates:
-        append_existing(ordered, seen, source)
-    for tail in (rtl_dir / "tl_main_pkg.sv", rtl_dir / "xbar_main.sv", rtl_dir / f"{top}.sv"):
-        append_existing(ordered, seen, tail)
-    return ordered
-
-
-def render_source_block(paths: Sequence[Path], var_name: str = "VERILOG_SOURCES") -> str:
-    """Render one Make variable containing ordered Verilog sources."""
-
-    if not paths:
-        return f"{var_name} :="
-    lines = [f"{var_name} := \\"]
-    lines.extend(f"  {path.resolve()} \\" for path in paths[:-1])
-    lines.append(f"  {paths[-1].resolve()}")
-    return "\n".join(lines)
-
-
 def find_top_file(rtl_dir: Path, top: str) -> Path | None:
     """Find the SystemVerilog file that defines the selected top module."""
 
@@ -207,6 +153,58 @@ def render_extra_port_declarations(info: dict[str, list]) -> str:
         decls.append(f"  {render_width(entry.get('width', 1))} {name};")
     return "\n".join(decls)
 
+def read_filelist(path: Path) -> list[Path]:
+    """Read an RTL filelist and return ordered source paths."""
+
+    if not path.exists():
+        return []
+    base = path.parent
+    sources: list[Path] = []
+    for raw in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(("+incdir+", "-I", "+define+", "-D", "-f")):
+            continue
+        source = Path(line)
+        sources.append((base / source).resolve() if not source.is_absolute() else source.resolve())
+    return sources
+
+
+def append_existing(paths: list[Path], seen: set[str], path: Path) -> None:
+    """Append an existing source only once while preserving filelist order."""
+
+    resolved = path.resolve()
+    key = resolved.as_posix()
+    if resolved.exists() and key not in seen:
+        seen.add(key)
+        paths.append(resolved)
+
+
+def collect_sources(top: str, rtl_dir: Path, _ips_root: Path | None = None) -> list[Path]:
+    """Collect Cocotb RTL sources, preferring rtl_list.f when present."""
+
+    rtl_dir = Path(rtl_dir)
+    rtl_list = rtl_dir / "rtl_list.f"
+    candidates = read_filelist(rtl_list) if rtl_list.exists() else sorted(rtl_dir.glob("*.sv")) + sorted(rtl_dir.glob("*.v"))
+    seen: set[str] = set()
+    ordered: list[Path] = []
+    for source in candidates:
+        append_existing(ordered, seen, source)
+    for tail in (rtl_dir / "tl_main_pkg.sv", rtl_dir / "xbar_main.sv", rtl_dir / f"{top}.sv"):
+        append_existing(ordered, seen, tail)
+    return ordered
+
+
+def render_source_block(paths: Sequence[Path], var_name: str = "VERILOG_SOURCES") -> str:
+    """Render Cocotb VERILOG_SOURCES from the resolved RTL filelist."""
+
+    if not paths:
+        return f"# No RTL sources found; run the flist step first.\n{var_name} :="
+    lines = ["# RTL sources expanded from rtl/rtl_list.f", f"{var_name} := \\"]
+    lines.extend(f"  {path.resolve()} \\" for path in paths[:-1])
+    lines.append(f"  {paths[-1].resolve()}")
+    return "\n".join(lines)
 
 def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
     """Render the cocotb Makefile for RTL or gate-level simulation."""

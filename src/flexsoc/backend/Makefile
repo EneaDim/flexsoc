@@ -344,7 +344,7 @@ setup_tb: setup flist
 			-o $(TBDIR); \
 	fi
 
-setup_cocotb: setup
+setup_cocotb: setup flist
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_cocotb \
