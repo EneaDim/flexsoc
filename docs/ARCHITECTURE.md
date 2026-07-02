@@ -1,347 +1,155 @@
-# 🏗 flexsoc Architecture
+# FlexSoC architecture
 
-The architecture of **flexsoc** is designed to keep the framework:
+FlexSoC is organized as a Python package with a small public API, a CLI frontend,
+and a backend flow implementation.
 
-✔ modular\
-✔ understandable\
-✔ extensible
+```text
+src/flexsoc/
+├── __init__.py          # public package exports
+├── api.py               # FlexSoC public API
+├── cli.py               # fx command-line frontend
+└── backend/             # implementation details and flow backends
+    ├── Makefile         # canonical backend flow runner
+    ├── setup_*.py       # Python generators for flow setup files
+    └── ...
+```
 
-Each module has a **very specific responsibility**.
+## Public boundary
 
-The entire execution pipeline looks like this:
+External users should enter through one of these interfaces:
 
-    CLI
-     │
-     ▼
-    Runtime Engine
-     │
-     ▼
-    Action Catalog
-     │
-     ▼
-    Make Flows
-     │
-     ▼
-    EDA Tools (Verilator / Yosys / OpenROAD / FuseSoC)
+```python
+from flexsoc import FlexSoC
+```
 
-------------------------------------------------------------------------
+```bash
+fx help
+fx commands
+fx settings
+fx steps
+fx step hjson reg doc
+```
 
-# 🖥 CLI Layer
+The CLI calls the `FlexSoC` API. CLI commands should not call backend modules
+directly. Backend modules remain implementation details and may change without
+public compatibility guarantees.
 
-📄 `cli.py`
+## Backend flow runner
 
-The CLI is the **main user entry point**.
+For now, step execution is intentionally Makefile-backed:
 
-Responsibilities:
+```text
+fx step ...
+  -> flexsoc.cli
+  -> FlexSoC.run_step(...)
+  -> src/flexsoc/backend/Makefile
+  -> Python generators, vendor tools, and EDA tools
+```
 
--   parse command line arguments
--   resolve commands and actions
--   initialize workspace context
--   dispatch execution to the runtime
+The canonical Makefile is:
 
-The CLI intentionally contains **very little logic**.
+```text
+src/flexsoc/backend/Makefile
+```
 
-Its job is orchestration, not execution.
+The retired top-level `flow/` directory is not part of the package flow anymore.
+Do not add new flow logic there.
 
-------------------------------------------------------------------------
+## Project settings
 
-# ⚙ Runtime Layer
+Project defaults are managed by:
 
-Directory:
+```bash
+fx settings
+fx settings --set TOP=test --set HOST=uart --set RUN_ID=default
+```
 
-    runtime/
+The local project state is stored under `.flexsoc/` and should not be committed.
 
-This layer implements the **execution engine** of flexsoc.
+Default settings are deterministic:
 
-## executor.py
+```text
+TOP=test
+HOST=uart
+FORCE=0
+RUN_ID=default
+```
 
-Responsible for:
+`RUN_ID` is static by default. It does not use timestamps automatically. Change it
+only when you explicitly want a different run:
 
--   executing actions
--   invoking flows
--   coordinating runtime operations
+```bash
+fx settings --set RUN_ID=smoke
+fx step hjson reg doc
+```
 
-## orchestration.py
+For one command only:
 
-Defines the orchestration model for running commands.
+```bash
+fx step syn sta --set RUN_ID=trial_01
+```
 
-Handles:
+## Step lifecycle
 
--   command preparation
--   dependency sequencing
--   execution control
+A typical IP flow is:
 
-## runner.py
+```bash
+fx step hjson reg doc rtl_stub setup_tb sim
+```
 
-Manages execution sessions.
+A longer physical-design-oriented flow is:
 
-Responsibilities:
+```bash
+fx step hjson reg doc rtl_stub setup_tb sim syn sta power pnr
+```
 
--   create session directories
--   capture logs
--   maintain runtime state
+Cocotb setup uses the generated RTL filelist:
 
-## manifest.py
+```bash
+fx step hjson reg doc rtl_stub setup_cocotb cocotb
+```
 
-Stores metadata describing a run.
+Regeneration uses the backend `FORCE` setting. The CLI exposes convenient aliases:
 
-Examples:
+```bash
+fx step hjson reg doc --force
+fx step hjson reg doc --overwrite
+```
 
--   run configuration
--   flow parameters
--   execution metadata
+Without `--force` or `--overwrite`, generators should refuse to overwrite files
+and print a useful message explaining how to proceed.
 
-## reporting.py
+## Discovery and help
 
-Generates structured reports of execution results.
+Use CLI discovery before running flows:
 
-These reports help integrate flexsoc with:
+```bash
+fx commands
+fx steps
+fx workflows
+fx step-info hjson
+```
 
--   CI pipelines
--   dashboards
--   automated tooling
+Shell completion can be installed with:
 
-------------------------------------------------------------------------
+```bash
+fx --install-completion bash
+```
 
-# 📚 Catalog Layer
+After reloading the shell, completion should work for commands, steps, and
+workflows.
 
-Directory:
+## Cleanup
 
-    catalog/
+`clean_all` should be safe and idempotent. It is intended to clean local generated
+state, not to be a destructive source-tree operation.
 
-Defines the **action registry system**.
+```bash
+fx step clean_all
+```
 
-## registry.yaml
+## Documentation rule
 
-Central registry describing available actions.
-
-Each entry defines:
-
--   action name
--   parameters
--   associated flow
-
-## registry.py
-
-Loads and validates the registry.
-
-Provides runtime lookup for CLI commands.
-
-## planning.py
-
-Handles action planning.
-
-Responsibilities:
-
--   dependency resolution
--   action expansion
--   execution planning
-
-------------------------------------------------------------------------
-
-# 📦 State Layer
-
-Directory:
-
-    state/
-
-Manages workspace state.
-
-## workspace.py
-
-Defines workspace structure.
-
-Handles:
-
--   run directory creation
--   artifact layout
--   path resolution
-
-## context.py
-
-Stores the active CLI context.
-
-Example parameters:
-
-    workspace
-    run_top
-    run_id
-    top
-
-This allows commands to reuse the current context.
-
-## clean.py
-
-Provides utilities for cleaning runs and artifacts.
-
-------------------------------------------------------------------------
-
-# 🎨 Presentation Layer
-
-Directory:
-
-    presentation/
-
-Responsible for terminal output.
-
-Uses the **Rich** library.
-
-## ui.py
-
-Provides formatted CLI output such as:
-
--   tables
--   panels
--   summaries
--   action descriptions
-
-## helptext.py
-
-Implements structured help messages.
-
-Includes:
-
--   home help
--   quickstart guide
--   tutorial overview
-
-------------------------------------------------------------------------
-
-# 🩺 Diagnostics Layer
-
-Directory:
-
-    diagnostics/
-
-## doctor.py
-
-The **doctor command** verifies the development environment.
-
-Checks:
-
--   Python version
--   toolchain availability
--   FuseSoC installation
--   required tools
-
-This prevents misconfigured setups.
-
-------------------------------------------------------------------------
-
-# 🔧 Tools Layer
-
-Directory:
-
-    tools/
-
-These modules generate hardware collateral.
-
-Examples:
-
-## soc_gen.py
-
-Generates SoC RTL from configuration.
-
-## soc_cfg.py
-
-Builds the SoC memory map and device configuration.
-
-## driver_gen.py
-
-Generates software driver skeletons.
-
-## gen_filelist.py
-
-Creates simulation filelists.
-
-## rtl_stub_gen.py
-
-Creates RTL stubs for IP modules.
-
-## regression.py
-
-Supports regression testing infrastructure.
-
-These tools are designed as **stateless generators**.
-
-------------------------------------------------------------------------
-
-# 🛠 Backend Flow Layer
-
-Directory:
-
-    src/flexsoc/backend/Makefile
-
-This is the canonical Make-backed flow entrypoint used by the API and CLI.
-The top-level `flow/Makefile` remains a tiny repository wrapper that includes
-this backend Makefile for direct Make usage.
-
-The Python package no longer ships a separate `src/flexsoc/flow/` tree; flow
-metadata lives in `FlexSoC` and executable targets live in the backend Makefile.
-
-------------------------------------------------------------------------
-
-# 🧠 Run Model
-
-The run model is the **central concept of flexsoc**.
-
-    workspace/runs/<run_top>/<run_id>
-
-Example:
-
-    workspace/runs/soc_ibex/dev
-
-Each run contains:
-
-    rtl/
-    tb/
-    sim/
-    sw/
-    fusesoc/
-    lint/
-
-This ensures:
-
--   isolation between runs
--   reproducibility
--   easy debugging
-
-------------------------------------------------------------------------
-
-# 🔁 Execution lifecycle
-
-Typical execution flow:
-
-    User CLI command
-     → CLI parses command
-     → Catalog resolves action
-     → Runtime prepares execution
-     → Make flow executes tools
-     → Artifacts generated in workspace
-     → Reports generated
-
-------------------------------------------------------------------------
-
-# 🌱 Extensibility
-
-The architecture allows new capabilities to be added easily:
-
--   new flows
--   new generators
--   new actions
--   new backends
-
-without redesigning the framework.
-
-------------------------------------------------------------------------
-
-# 📚 Summary
-
-flexsoc is:
-
-🧠 a workflow orchestrator\
-📦 a workspace manager\
-⚙ a hardware flow engine
-
-built to make hardware development **cleaner, safer, and more
-reproducible**.
+When adding new user-facing behavior, update this file or the README before the
+change is tagged. Keep backend-only implementation details out of public help
+unless they affect the user workflow.
