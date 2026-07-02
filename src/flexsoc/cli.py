@@ -126,6 +126,39 @@ app = typer.Typer(
     help="Thin FlexSoC CLI over the public API layer. Use `fx help` for examples.",
 )
 
+def _step_error_hint(target: str, message: object = "") -> str:
+    """Return a short recovery hint for common backend step failures."""
+
+    text = str(message).lower()
+    if "refusing to overwrite" in text or "use --force" in text:
+        return (
+            f"hint: {target} found an existing generated file. "
+            "Re-run with --force or --overwrite, or choose another run with "
+            "--set RUN_ID=<name>."
+        )
+    if target in {"hjson", "hjson_gen"}:
+        return (
+            "hint: hjson writes data/<TOP>.hjson. If that file already exists, "
+            "use --force/--overwrite or change RUN_ID."
+        )
+    if target in {"reg", "doc", "rtl_stub"}:
+        return (
+            f"hint: {target} expects a generated HJSON file in the current run. "
+            "Run hjson first, or check TOP/RUN_ID with fx settings."
+        )
+    if target in {"setup_tb", "setup_cocotb", "sim", "cocotb"}:
+        return (
+            f"hint: {target} depends on generated RTL and rtl/rtl_list.f. "
+            "Run hjson reg doc rtl_stub setup_tb first, then retry with --capture."
+        )
+    if target in {"syn", "sta", "power", "pnr", "pnr_gui"}:
+        return (
+            f"hint: {target} expects synthesis inputs from the same RUN_ID. "
+            "Check rtl/rtl_list.f, syn scripts, and rerun with --capture for logs."
+        )
+    return "hint: re-run with --capture and inspect the run directory under workspace/runs/<TOP>/<RUN_ID>."
+
+
 
 
 console = Console()
@@ -163,7 +196,6 @@ def help() -> None:
 
     _print_help()
 
-
     console.print()
     console.print("[bold magenta]Tutorials[/bold magenta]")
     console.print("  fx commands")
@@ -171,12 +203,12 @@ def help() -> None:
     console.print("  fx step-info hjson_gen")
     console.print("  fx step-info syn --examples")
     console.print("  fx workflow ip_development --dry-run --script")
+
 @app.command("commands")
 def commands() -> None:
     """Render the public command catalog in the usual development order."""
 
     _print_commands()
-
 
 @app.command()
 def describe() -> None:
@@ -315,6 +347,26 @@ def step_info(
     _print_step_examples(step) if examples_enabled else _print_step_info(step)
 
 
+
+def _step_error_hint(step: str) -> str:
+    """Return a concise human hint for common backend step failures."""
+
+    hints = {
+        "hjson": "The HJSON file already exists. Re-run with --force/--overwrite or choose another RUN_ID.",
+        "reg": "Register generation needs data/<TOP>.hjson. Run hjson first, or re-run the flow with --force.",
+        "doc": "Documentation generation needs data/<TOP>.hjson. Run hjson first.",
+        "rtl_stub": "RTL stub generation needs data/<TOP>.hjson. Run hjson/reg first and keep the same RUN_ID.",
+        "setup_tb": "Testbench setup needs generated RTL/filelist inputs. Run rtl_stub and flist first, or use the full IP flow.",
+        "setup_cocotb": "Cocotb setup needs rtl/rtl_list.f. Run flist first, or use setup_cocotb after rtl_stub.",
+        "sim": "Simulation failed during lint/compile/run. Re-run with --capture and inspect logs under workspace/runs/<TOP>/<RUN_ID>/sim.",
+        "syn": "Synthesis needs rtl/rtl_list.f and valid vendor/IP include paths. Run rtl_stub/setup_syn first and inspect syn logs.",
+        "sta": "STA depends on synthesis outputs. Run syn first and inspect workspace/runs/<TOP>/<RUN_ID>/syn.",
+        "power": "Power analysis depends on synthesis/timing outputs. Run syn and sta first.",
+        "pnr": "PnR depends on synthesis and floorplan inputs. Run syn/setup_pnr first and inspect pnr_openroad logs.",
+        "pnr_gui": "PnR GUI depends on an existing PnR run. Run pnr first.",
+    }
+    return hints.get(step, "Re-run with --capture and inspect the generated workspace logs for this step.")
+
 @app.command()
 def step(
     targets: list[str] = typer.Argument(..., help="One or more backend steps to run in order. Use TAB to discover steps.", autocompletion=_step_name_completion),
@@ -324,11 +376,18 @@ def step(
     capture: bool = typer.Option(False, help="Capture and print stdout after execution."),
     script: bool = typer.Option(False, "--script", help="Print a shell script preview during dry-runs."),
     json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
+    force: bool = typer.Option(False, "--force", help="Overwrite generated files where supported."),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Alias for --force."),
 ) -> None:
     """Run, preview, or serialize one or more advanced backend flow steps."""
 
     client = FlexSoC(project_root=project_root)
     overrides = _merged_settings(None, set_ or [])
+    # CLI aliases map to the backend FORCE override. Without these flags,
+    # the backend receives FORCE=0 and reports overwrite conflicts itself.
+    if force or overwrite:
+        overrides = dict(overrides)
+        overrides["FORCE"] = "1"
     sequence_overrides = _step_sequence_overrides(targets, overrides)
     if dry_run:
         payloads = [client.inspect_step(target, **sequence_overrides) for target in targets]
@@ -408,6 +467,7 @@ def _print_smoke(payload: dict[str, object], console: Console | None = None) -> 
         table.add_row("workspace execution", "ok" if all(item["ok"] for item in payload["workspace_results"]) else "failed")
     console.print(Panel("[bold green]ok[/bold green]" if ok else "[bold yellow]mismatch[/bold yellow]", title="FlexSoC smoke", border_style=style))
     console.print(table)
+
 def _command_rows() -> tuple[tuple[str, str, str], ...]:
     """Return top-level commands ordered like a normal development session."""
 

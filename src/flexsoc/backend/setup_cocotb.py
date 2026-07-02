@@ -376,7 +376,7 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
     )
 
 
-def write_cocotb_scaffold(cfg: CocotbConfig) -> list[Path]:
+def _write_cocotb_scaffold_impl(cfg: CocotbConfig) -> list[Path]:
     """Write the cocotb scaffold and return generated paths."""
 
     out_dir = cfg.output.resolve()
@@ -396,6 +396,154 @@ def write_cocotb_scaffold(cfg: CocotbConfig) -> list[Path]:
         path.write_text(text, encoding="utf-8")
     return list(files)
 
+def _generated_tlul_wrapper_path(config: CocotbConfig) -> Path:
+    """Return the generated TL-UL wrapper path for a Cocotb scaffold."""
+
+    return Path(config.output) / f"{config.top}_tb.sv"
+
+
+def _extract_scalar_declarations_from_wrapper(text: str, clk: str, rst: str) -> str:
+    """Extract user scalar declarations from a previously generated wrapper."""
+
+    lines = text.splitlines()
+    scalars: list[str] = []
+    seen_clock_reset = False
+    for raw in lines:
+        line = raw.strip()
+        if not line:
+            continue
+        if re.fullmatch(rf"logic\s+{re.escape(clk)}\s*;", line) or re.fullmatch(rf"logic\s+{re.escape(rst)}\s*;", line):
+            seen_clock_reset = True
+            continue
+        if "tl_i_a_valid" in line:
+            break
+        if not seen_clock_reset:
+            continue
+        if line.startswith("logic ") and not line.startswith("logic                       tl_") and " tl_" not in line:
+            scalars.append(line)
+    if not scalars:
+        return "  // No extra scalar DUT ports detected."
+    return "\n".join(f"  {line}" for line in scalars)
+
+
+def _render_tlul_wrapper(config: CocotbConfig, previous_text: str) -> str:
+    """Render a readable TL-UL SystemVerilog wrapper using existing declarations."""
+
+    top = config.top
+    clk = config.clk
+    rst = config.rst
+    scalar_decls = _extract_scalar_declarations_from_wrapper(previous_text, clk, rst)
+    return f"""`timescale 1ns/1ps
+
+// Auto-generated Cocotb TL-UL wrapper for {top}.
+// Edit setup_cocotb.py instead of this generated file.
+module {top}_tb;
+
+  // Clock and reset.
+  logic {clk};
+  logic {rst};
+
+  // Scalar DUT ports discovered from the RTL header.
+{scalar_decls}
+
+  // TL-UL request channel fields driven from Cocotb.
+  logic                       tl_i_a_valid;
+  tlul_pkg::tl_a_op_e         tl_i_a_opcode;
+  logic [2:0]                 tl_i_a_param;
+  logic [top_pkg::TL_SZW-1:0] tl_i_a_size;
+  logic [top_pkg::TL_AIW-1:0] tl_i_a_source;
+  logic [top_pkg::TL_AW-1:0]  tl_i_a_address;
+  logic [top_pkg::TL_DBW-1:0] tl_i_a_mask;
+  logic [top_pkg::TL_DW-1:0]  tl_i_a_data;
+  logic                       tl_i_d_ready;
+
+  // TL-UL response channel fields sampled by Cocotb.
+  logic                       tl_o_d_valid;
+  tlul_pkg::tl_d_op_e         tl_o_d_opcode;
+  logic [top_pkg::TL_DW-1:0]  tl_o_d_data;
+  logic                       tl_o_d_error;
+  logic                       tl_o_a_ready;
+
+  // Packed TL-UL buses connected to the DUT.
+  tlul_pkg::tl_h2d_t          tl_i;
+  tlul_pkg::tl_d2h_t          tl_o;
+
+  assign tl_i.a_valid   = tl_i_a_valid;
+  assign tl_i.a_opcode  = tl_i_a_opcode;
+  assign tl_i.a_param   = tl_i_a_param;
+  assign tl_i.a_size    = tl_i_a_size;
+  assign tl_i.a_source  = tl_i_a_source;
+  assign tl_i.a_address = tl_i_a_address;
+  assign tl_i.a_mask    = tl_i_a_mask;
+  assign tl_i.a_data    = tl_i_a_data;
+  assign tl_i.d_ready   = tl_i_d_ready;
+
+  // Generate TL-UL integrity sideband values from the unpacked fields.
+  logic [tlul_pkg::H2DCmdIntgWidth-1:0] cmd_intg_calc;
+  logic [tlul_pkg::DataIntgWidth-1:0]   data_intg_calc;
+
+  always_comb begin
+    /* verilator lint_off IMPLICITSTATIC */
+    tlul_pkg::tl_h2d_t t = '0;
+    /* verilator lint_on */
+
+    t.a_address         = tl_i_a_address;
+    t.a_opcode          = tl_i_a_opcode;
+    t.a_mask            = tl_i_a_mask;
+    t.a_user.instr_type = prim_mubi_pkg::MuBi4False;
+
+    cmd_intg_calc       = tlul_pkg::get_cmd_intg(t);
+    data_intg_calc      = tlul_pkg::get_data_intg(tl_i_a_data);
+  end
+
+  assign tl_i.a_user.instr_type = prim_mubi_pkg::MuBi4False;
+  assign tl_i.a_user.cmd_intg   = cmd_intg_calc;
+  assign tl_i.a_user.data_intg  = data_intg_calc;
+
+  assign tl_o_d_valid  = tl_o.d_valid;
+  assign tl_o_d_opcode = tl_o.d_opcode;
+  assign tl_o_d_data   = tl_o.d_data;
+  assign tl_o_d_error  = tl_o.d_error;
+  assign tl_o_a_ready  = tl_o.a_ready;
+
+  // Wave dump for local debug.
+  initial begin
+    $dumpfile("{top}_tb.vcd");
+    $dumpvars(0, {top}_tb);
+    #1;
+  end
+
+  // Device under test.
+  {top} u_{top} (
+    .{clk}({clk}),
+    .{rst}({rst}),
+    .*
+  );
+
+endmodule
+"""
+
+
+def _format_generated_tlul_wrapper(config: CocotbConfig) -> None:
+    """Post-format the generated TL-UL wrapper if the scaffold emitted one."""
+
+    path = _generated_tlul_wrapper_path(config)
+    if not path.exists():
+        return
+    text = path.read_text(encoding="utf-8")
+    if "tlul_pkg::tl_h2d_t" not in text or f"module {config.top}_tb" not in text:
+        return
+    path.write_text(_render_tlul_wrapper(config, text), encoding="utf-8")
+
+def write_cocotb_scaffold(config: CocotbConfig) -> list[Path]:
+    """Generate Cocotb scaffolding and normalize the generated TL-UL wrapper."""
+
+    written = _write_cocotb_scaffold_impl(config)
+    if config.interface == "tlul":
+        _format_generated_tlul_wrapper(config)
+    if written is None:
+        return sorted(path for path in Path(config.output).iterdir() if path.is_file())
+    return written
 
 def main() -> None:
     """Run the cocotb scaffold generator from the command line."""
