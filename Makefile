@@ -1,3 +1,4 @@
+UV ?= uv
 # Root development Makefile
 #
 # Repository-level developer tasks only:
@@ -10,7 +11,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint fix test check clean clean-py clean-build clean-all
+.PHONY: help install lint fix test check clean clean-py clean-build clean-all venv install dev
 
 PYTHON ?= python3
 RUFF ?= ruff
@@ -31,10 +32,8 @@ help:
 	@echo "  make clean       Remove Python caches and local/generated build artifacts"
 	@echo
 
-install:
-	@echo ">> Installing dependencies"
-	pip install -e .
-
+install: venv
+	$(UV) sync
 lint:
 	@echo ">> Running Ruff"
 	@$(RUFF) check src/flexsoc/
@@ -44,9 +43,7 @@ fix:
 	@$(RUFF) check --fix src/flexsoc/
 
 test:
-	@echo ">> Running pytest"
-	@$(PYTEST) -q
-
+	$(UV) run pytest -q
 check: lint test
 
 clean: clean-py clean-build
@@ -69,3 +66,9 @@ clean-build:
 clean-all: clean
 	@echo ">> Removing workspace artifacts"
 	@rm -rf workspace
+
+venv:
+	$(UV) venv .venv
+
+dev: install
+	$(UV) run python -m flexsoc help

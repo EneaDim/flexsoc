@@ -153,3 +153,14 @@ fx step clean_all
 When adding new user-facing behavior, update this file or the README before the
 change is tagged. Keep backend-only implementation details out of public help
 unless they affect the user workflow.
+
+## CLI usage model
+
+The public CLI is intentionally small:
+
+- `fx settings` manages stable project defaults such as `TOP`, `HOST`, `RUN_ID`, and `FORCE`.
+- `fx step ...` runs explicit backend steps through the `FlexSoC` API facade.
+- `fx workflows` / `fx tutorials` show practical recipes, not a second orchestration layer.
+- The canonical backend flow remains `src/flexsoc/backend/Makefile`; the retired top-level `flow/` tree is not part of the package flow.
+
+The developer Makefile is `uv`-first: `make install` creates/synchronizes the local `.venv` through `uv`, and `make test` runs tests through `uv run`.

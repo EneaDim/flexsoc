@@ -122,9 +122,58 @@ HELP_SECTIONS = (
 )
 
 app = typer.Typer(
+
     add_completion=True,
     help="Thin FlexSoC CLI over the public API layer. Use `fx help` for examples.",
 )
+console = Console()
+
+_HELP_COMMAND_ROWS = [{'command': 'fx settings', 'purpose': 'Show or edit defaults such as TOP, HOST, RUN_ID, FORCE.'},
+ {'command': 'fx steps', 'purpose': 'List backend steps that can be launched with fx step.'},
+ {'command': 'fx step ...', 'purpose': 'Run one or more explicit backend steps in order.'},
+ {'command': 'fx step-info NAME', 'purpose': 'Explain one step, its parameters, and examples.'},
+ {'command': 'fx workflows',
+  'purpose': 'Show practical tutorial recipes built from real step commands.'},
+ {'command': 'fx smoke', 'purpose': 'Run safe package/backend smoke checks.'},
+ {'command': 'fx help', 'purpose': 'Show this concise getting-started guide.'}]
+_HELP_WORKFLOW_ROWS = [{'name': 'ip-from-scratch',
+  'goal': 'Create a minimal IP from metadata, generate RTL/testbench, and run simulation.',
+  'command': 'fx step hjson reg doc rtl_stub setup_tb sim --force'},
+ {'name': 'existing-ip-testbench',
+  'goal': 'Prepare an already-present IP/run and execute the generated testbench.',
+  'command': 'fx step ip_load setup_tb sim'},
+ {'name': 'cocotb-smoke',
+  'goal': 'Generate the Cocotb scaffold from the RTL filelist and run the Cocotb test.',
+  'command': 'fx step setup_cocotb cocotb --force'},
+ {'name': 'edit-and-regress',
+  'goal': 'After changing metadata or RTL, refresh generated collateral and rerun simulation.',
+  'command': 'fx step reg doc rtl_stub setup_tb sim --force'},
+ {'name': 'synthesis-smoke',
+  'goal': 'Run the synthesis/timing/power path for the current IP run.',
+  'command': 'fx step setup_syn syn sta power pnr'}]
+
+
+def _commands_table() -> Table:
+    """Render public CLI commands as a compact table."""
+    table = Table(title="Commands", show_lines=False)
+    table.add_column("Command", style="bold orange3", no_wrap=True)
+    table.add_column("Purpose")
+    for row in _HELP_COMMAND_ROWS:
+        table.add_row(row["command"], row["purpose"])
+    return table
+
+
+def _workflow_table() -> Table:
+    """Render practical workflow recipes as tutorials."""
+    table = Table(title="Workflow tutorials", show_lines=True)
+    table.add_column("Recipe", style="bold orange3", no_wrap=True)
+    table.add_column("Goal")
+    table.add_column("Command", style="cyan")
+    for row in _HELP_WORKFLOW_ROWS:
+        table.add_row(row["name"], row["goal"], row["command"])
+    return table
+
+
 
 def _step_error_hint(target: str, message: object = "") -> str:
     """Return a short recovery hint for common backend step failures."""
@@ -159,10 +208,6 @@ def _step_error_hint(target: str, message: object = "") -> str:
     return "hint: re-run with --capture and inspect the run directory under workspace/runs/<TOP>/<RUN_ID>."
 
 
-
-
-console = Console()
-
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context) -> None:
     """Show the extended help guide when no subcommand is selected."""
@@ -181,35 +226,46 @@ def _step_name_completion(incomplete: str):
 
     return [name for name in FlexSoC().step_names() if name.startswith(incomplete)]
 
+
 @app.command()
 def help() -> None:
-    """Print an extended CLI guide with workflows, tutorials, and options."""
-
-    console.print()
+    """Print a concise CLI guide with commands and practical recipes."""
+    console.print(
+        Panel(
+            "A Python API and CLI facade over the backend hardware flow.\n"
+            "Set stable project defaults, then launch explicit backend steps.",
+            title="FlexSoC CLI",
+            border_style="orange3",
+        )
+    )
     console.print("[bold orange3]Quickstart[/bold orange3]")
-    console.print("  fx help")
-    console.print("  python -m flexsoc help")
-    console.print("  fx commands")
     console.print("  fx settings")
-    console.print("  fx workflow workspace --dry-run --script")
-    console.print("  fx step setup hjson_gen reg doc rtl_stub --dry-run --script")
-
-    _print_help()
-
+    console.print("  fx settings --set TOP=test --set HOST=uart --set RUN_ID=default")
+    console.print("  fx step hjson reg doc rtl_stub setup_tb sim --force")
+    console.print("  python -m flexsoc help")
     console.print()
-    console.print("[bold magenta]Tutorials[/bold magenta]")
-    console.print("  fx commands")
-    console.print("  fx steps")
-    console.print("  fx step-info hjson_gen")
-    console.print("  fx step-info syn --examples")
-    console.print("  fx workflow ip_development --dry-run --script")
-
-@app.command("commands")
-def commands() -> None:
-    """Render the public command catalog in the usual development order."""
-
-    _print_commands()
-
+    console.print(_commands_table())
+    console.print()
+    console.print("[bold orange3]Workflow tutorials[/bold orange3]")
+    console.print("  Run [bold]fx workflows[/bold] for concise, practical recipes.")
+    console.print("  Recipes are built from backend Makefile targets, not separate orchestration code.")
+    console.print()
+    console.print("[bold orange3]Useful options[/bold orange3]")
+    console.print("  --set KEY=VALUE      Override a project setting for one command.")
+    console.print("  --force/--overwrite  Allow generated files to be refreshed.")
+    console.print("  --dry-run --script   Print backend commands without executing them.")
+    console.print("  --capture            Capture backend output and show step hints on failure.")
+    console.print()
+    console.print("Design rule: CLI commands call FlexSoC, never backend modules directly.")
+@app.command()
+def commands(
+    json_: bool = typer.Option(False, "--json", help="Print machine-readable JSON."),
+) -> None:
+    """List the public CLI commands."""
+    if json_:
+        print(json.dumps(_HELP_COMMAND_ROWS, indent=2))
+        return
+    console.print(_commands_table())
 @app.command()
 def describe() -> None:
     """Print the current FlexSoC API client description as JSON."""
@@ -255,18 +311,15 @@ def settings(
     _print_settings(payload)
 
 
-@app.command("workflows")
+@app.command()
 def workflows(
-    json_: bool = typer.Option(False, "--json", help="Print JSON for tools and frontends."),
+    json_: bool = typer.Option(False, "--json", help="Print machine-readable JSON."),
 ) -> None:
-    """Render high-level workflows exposed by the public API."""
-
-    items = FlexSoC().list_workflows()
+    """Show practical tutorial recipes built from backend steps."""
     if json_:
-        typer.echo(json.dumps([workflow.to_dict() for workflow in items], indent=2))
+        print(json.dumps(_HELP_WORKFLOW_ROWS, indent=2))
         return
-    _print_workflows(items)
-
+    console.print(_workflow_table())
 @app.command("workflow")
 def workflow(
     name: str = typer.Argument(..., help="Workflow name. Use TAB to discover available workflows.", autocompletion=_workflow_name_completion),
@@ -347,7 +400,6 @@ def step_info(
     _print_step_examples(step) if examples_enabled else _print_step_info(step)
 
 
-
 def _step_error_hint(step: str) -> str:
     """Return a concise human hint for common backend step failures."""
 
@@ -416,7 +468,6 @@ def step(
         for result in results:
             if result.stdout:
                 typer.echo(result.stdout, nl=False)
-
 
 
 def _step_sequence_overrides(targets: list[str], overrides: dict[str, str]) -> dict[str, str]:
@@ -724,3 +775,5 @@ def _parse_overrides(items: list[str]) -> dict[str, str]:
             raise typer.BadParameter(f"expected KEY=VALUE, got {item!r}")
         values[key.upper()] = value
     return values
+
+
