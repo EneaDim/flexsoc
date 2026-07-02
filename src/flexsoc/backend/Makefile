@@ -34,6 +34,7 @@ export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
 # Workspace / run identity
 # -----------------------------------------------------------------------------
 WORKSPACE   ?= ../workspace
+BACKEND_MAKEFILE ?= $(abspath $(lastword $(MAKEFILE_LIST)))
 RUN_ID ?= default
 OUTROOT     ?= $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)
 RUN_DIR     ?= $(OUTROOT)
@@ -746,7 +747,7 @@ ip_load:
 		cp -a "$$src_ip"/. "$$dst_dir"/; \
 	fi; \
 	echo "Loaded IP from $$src_ip to $$dst_dir"; \
-	$(MAKE) flist HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
+	$(MAKE) -f $(BACKEND_MAKEFILE) flist HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 
 ip_save:
