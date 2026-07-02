@@ -1,1264 +1,726 @@
+"""Minimal command line entrypoint for the FlexSoC API layer."""
+
 from __future__ import annotations
 
+from datetime import datetime
 import json
-import logging
-import os
 import subprocess
-import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Iterable
 
 import typer
-from click.shell_completion import CompletionItem
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
-from typer.core import TyperGroup
 
-from .state.clean import clean_all, clean_pycache, clean_run, clean_workspace
-from .config import default_workspace
-from .state.context import clear_context, load_context, resolve_context, save_context
-from .diagnostics.doctor import run_doctor
-from .runtime.executor import execute_action
-from .presentation.helptext import (
-    render_detailed_help,
-    render_fsm_development_guide,
-    render_help_overview,
-    render_home_help,
-    render_ip_guide,
-    render_quickstart,
-    render_tutorials,
+from .api import FlexSoC, FlowStep, FlowWorkflow
+
+ACCENT = "orange3"
+SECONDARY = "cyan"
+SUCCESS = "green"
+WARNING = "yellow"
+
+SETTINGS_DIRNAME = ".flexsoc"
+SETTINGS_FILENAME = "settings.json"
+DEFAULT_SETTINGS = {"TOP": "test", "HOST": "uart", "FORCE": "0", "RUN_ID": "default"}
+
+def _resolve_run_id(project_root: Path | None, values: dict[str, str]) -> dict[str, str]:
+    """Keep RUN_ID static unless the user provided one explicitly."""
+
+    resolved = dict(values)
+    if not resolved.get("RUN_ID"):
+        resolved["RUN_ID"] = DEFAULT_SETTINGS["RUN_ID"]
+    return resolved
+HELP_INTRO = """Thin command line interface over the public FlexSoC API layer.
+Use workflows for normal development and steps for advanced flow control."""
+
+HELP_SECTIONS = (
+    (
+        "0. Shell discovery",
+        ACCENT,
+        (
+            ("fx --install-completion", "Enable shell completion, then restart the shell or source the profile."),
+            ("fx <TAB>", "Discover top-level commands from your shell."),
+            ("fx commands", "Render the command catalog with short descriptions."),
+            ("fx help", "Open this chronological guide."),
+        ),
+    ),
+    (
+        "1. Project settings",
+        SECONDARY,
+        (
+            ("fx settings", "Show defaults, saved settings, and the active workspace."),
+            ("fx settings --set TOP=my_ip --set HOST=uart --set FORCE=1", "Save project defaults in .flexsoc/settings.json."),
+            ("fx describe", "Show project root, workspace, and API client options."),
+        ),
+    ),
+    (
+        "2. Flow discovery",
+        SUCCESS,
+        (
+            ("fx workflows", "List high-level development flows."),
+            ("fx steps", "List all advanced backend steps."),
+            ("fx steps --group ip", "List only IP-development steps."),
+            ("fx step-info hjson_gen", "Inspect parameters and examples for one step."),
+        ),
+    ),
+    (
+        "3. Workspace setup",
+        WARNING,
+        (
+            ("fx workflow workspace --dry-run --script --set TOP=demo", "Preview workspace/run-folder initialization."),
+            ("fx workflow workspace --set TOP=demo --capture", "Create the workspace and run folders."),
+            ("fx step setup --set TOP=demo --capture", "Run only the setup step."),
+        ),
+    ),
+    (
+        "4. IP development flow",
+        "magenta",
+        (
+            (
+                "fx workflow ip_development --dry-run --script --set TOP=my_ip",
+                "Preview setup → hjson_gen → reg → doc → rtl_stub → setup_tb → sim → syn → sta → power → pnr → sim_syn → cocotb.",
+            ),
+            (
+                "fx step setup hjson_gen reg doc rtl_stub setup_tb sim --set TOP=my_ip",
+                "Run a selected IP sequence, sharing one RUN_ID across the call.",
+            ),
+            ("fx step-info syn", "Inspect synthesis-specific parameters before launching tool-dependent steps."),
+        ),
+    ),
+    (
+        "5. SoC development flow",
+        "blue",
+        (
+            (
+                "fx workflow soc_development --dry-run --script --set TOP=soc",
+                "Preview setup → soc_start → soc_flow → soc_prepare → soc_build_sw → soc_sim → soc_run.",
+            ),
+            ("fx step-info soc", "Inspect SoC generation parameters."),
+            ("fx step-info sw_soc", "Inspect software generation parameters."),
+        ),
+    ),
+    (
+        "6. Smoke and debug",
+        "cyan",
+        (
+            ("fx smoke", "Run safe catalog and workflow preview checks."),
+            ("fx smoke --run-workspace --top demo --run-id smoke", "Execute only the safe workspace path."),
+            ("fx step reg doc --dry-run --script", "Debug a short ordered step sequence before execution."),
+            ("--json", "Return structured output for tools and frontends."),
+        ),
+    ),
+    (
+        "Common options",
+        "white",
+        (
+            ("--set KEY=VALUE", "Override one Make variable for one call. Repeat as needed."),
+            ("--project-root PATH", "Execute from a repository root different from the current directory."),
+            ("--dry-run / --script / --capture", "Inspect, preview, or capture execution."),
+        ),
+    ),
 )
-from .runtime.manifest import read_run_history
-from .runtime.orchestration import InvocationSpec, run_orchestrated
-from .catalog.planning import (
-    load_registry,
-    naive_intent_to_plan,
-    read_plan_json,
-    validate_plan,
-    write_plan_json,
-)
-from .presentation.ui import (
-    print_actions_table,
-    print_help_topics,
-    print_hub,
-    print_make_targets,
-    print_runner_summary,
-    running_status,
-)
-from .state.workspace import resolve_run_ref
-
-log = logging.getLogger(__name__)
-
-HELP_COMMAND_ORDER = [
-    "run",
-    "make",
-    "plan",
-    "exec",
-    "actions",
-    "action",
-    "help",
-    "runs",
-    "use",
-    "current",
-    "clear-current",
-    "doctor",
-    "clean-pycache",
-    "clean-run",
-    "clean-workspace",
-    "clean-all",
-    "dump-registry",
-    "hd",
-    "h",
-    "q",
-    "t",
-    "ip",
-    "a",
-]
-
-HELP_SUBCOMMAND_ORDER = [
-    "overview",
-    "topics",
-    "action",
-    "detailed",
-    "commands",
-]
-
-RUNS_SUBCOMMAND_ORDER = [
-    "ls",
-    "show",
-]
-
-
-class FlexSocHelpGroup(TyperGroup):
-    def list_commands(self, ctx):
-        names = list(self.commands.keys())
-        rank = {name: idx for idx, name in enumerate(HELP_COMMAND_ORDER)}
-        return sorted(names, key=lambda name: (rank.get(name, 9999), name))
-
-
-class FlexSocHelpTopicsGroup(TyperGroup):
-    def list_commands(self, ctx):
-        names = list(self.commands.keys())
-        rank = {name: idx for idx, name in enumerate(HELP_SUBCOMMAND_ORDER)}
-        return sorted(names, key=lambda name: (rank.get(name, 9999), name))
-
-
-class FlexSocRunsGroup(TyperGroup):
-    def list_commands(self, ctx):
-        names = list(self.commands.keys())
-        rank = {name: idx for idx, name in enumerate(RUNS_SUBCOMMAND_ORDER)}
-        return sorted(names, key=lambda name: (rank.get(name, 9999), name))
-
 
 app = typer.Typer(
-    cls=FlexSocHelpGroup,
-    add_completion=False,
-    invoke_without_command=True,
-    rich_markup_mode="rich",
-    help="FlexSoC CLI for flow execution, registry actions, workspace management, and diagnostics.",
+    add_completion=True,
+    help="Thin FlexSoC CLI over the public API layer. Use `fx help` for examples.",
 )
-help_app = typer.Typer(
-    cls=FlexSocHelpTopicsGroup,
-    add_completion=False,
-    rich_markup_mode="rich",
-    help="Guides, topics, and action-specific help.",
-)
-runs_app = typer.Typer(
-    cls=FlexSocRunsGroup,
-    add_completion=False,
-    help="Inspect workspace runs and history.",
-    rich_markup_mode="rich",
-)
-app.add_typer(help_app, name="help", help="Browse guides, topics, and action help.", rich_help_panel="Discovery / introspection")
-app.add_typer(runs_app, name="runs", help="Inspect workspace runs and history.", rich_help_panel="Discovery / introspection")
 
-_CONSOLE = Console(stderr=True)
+def _step_error_hint(target: str, message: object = "") -> str:
+    """Return a short recovery hint for common backend step failures."""
 
-
-def _emit_json_stdout(payload: object) -> None:
-    sys.stdout.write(json.dumps(payload, indent=2, sort_keys=True))
-    sys.stdout.write("\n")
-
-
-def _emit_text_stdout(text: str) -> None:
-    sys.stdout.write(text)
-    if not text.endswith("\n"):
-        sys.stdout.write("\n")
-
-
-def _emit_text_stderr(text: str) -> None:
-    sys.stderr.write(text)
-    if not text.endswith("\n"):
-        sys.stderr.write("\n")
-
-
-def _fail(message: str, exit_code: int = 2) -> None:
-    _emit_text_stderr(f"ERROR: {message}")
-    raise typer.Exit(exit_code)
-
-
-def _safe_registry() -> dict[str, Any]:
-    try:
-        return _registry()
-    except Exception as e:
-        _fail(str(e))
-        raise
-
-
-def _setup_logging() -> None:
-    level_s = os.environ.get("FLEXSOC_LOG_LEVEL", "").strip().upper()
-    level = getattr(logging, level_s, logging.INFO) if level_s else logging.INFO
-    logging.basicConfig(level=level, format="%(levelname)s: %(message)s", stream=sys.stderr)
-
-
-def _registry_path() -> Path:
-    return Path(__file__).resolve().parent / "catalog" / "registry.yaml"
-
-
-def _registry() -> dict[str, Any]:
-    return load_registry(_registry_path())
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def _flow_dir() -> Path:
-    return (_repo_root() / "flow").resolve()
-
-
-def _resolved_workspace(workspace: Optional[Path]) -> Path:
-    ws = (workspace or default_workspace()).expanduser().resolve()
-    if not str(ws).strip():
-        _fail(f"Invalid workspace path: {ws}")
-    return ws
-
-
-def _validate_run_lookup_inputs(run_top: Optional[str], run_id: Optional[str]) -> None:
-    if run_top is not None and not str(run_top).strip():
-        _fail("run_top cannot be empty")
-    if run_id is not None and not str(run_id).strip():
-        _fail("run_id cannot be empty")
-
-
-def _early_shortcuts() -> bool:
-    argv = sys.argv[1:]
-    if not argv:
-        return False
-
-    if argv in (["?"], ["h"]):
-        print_hub()
-        return True
-    if argv == ["q"]:
-        render_quickstart()
-        return True
-    if argv == ["t"]:
-        render_tutorials()
-        return True
-    if argv == ["ip"]:
-        render_ip_guide()
-        return True
-    if argv == ["fsm"]:
-        render_fsm_development_guide()
-        return True
-    return False
-
-
-def _read_run_yaml_summary(run_yaml: Path) -> dict[str, str]:
-    out: dict[str, str] = {
-        "run_top": "",
-        "run_id": "",
-        "top": "",
-        "last_action": "",
-        "updated_at_utc": "",
-    }
-
-    if not run_yaml.exists():
-        return out
-
-    for raw_line in run_yaml.read_text(encoding="utf-8").splitlines():
-        line = raw_line.rstrip()
-        if not line or line.startswith(" ") or ":" not in line:
-            continue
-
-        key, value = line.split(":", 1)
-        key = key.strip()
-        value = value.strip()
-
-        if key not in out:
-            continue
-
-        if value.startswith('"') and value.endswith('"') and len(value) >= 2:
-            value = value[1:-1]
-            value = value.replace('\\"', '"').replace("\\\\", "\\")
-
-        out[key] = value
-
-    return out
-
-
-def _count_loaded_ips_from_run_yaml(run_yaml: Path) -> int:
-    if not run_yaml.exists():
-        return 0
-
-    lines = run_yaml.read_text(encoding="utf-8").splitlines()
-    in_loaded_ips = False
-    count = 0
-
-    for raw_line in lines:
-        line = raw_line.rstrip()
-
-        if not in_loaded_ips:
-            if line == "loaded_ips:":
-                in_loaded_ips = True
-            continue
-
-        if not line.startswith("  "):
-            break
-
-        stripped = line.strip()
-        if stripped == "[]":
-            return 0
-        if stripped.startswith("- "):
-            count += 1
-
-    return count
-
-
-def _print_runs_ls(*, workspace: Path) -> None:
-    runs_root = workspace / "runs"
-
-    _CONSOLE.print("")
-    _CONSOLE.print(
-        Panel(
-            Text(str(runs_root), style="bold cyan"),
-            title="Workspace runs",
-            border_style="bright_blue",
+    text = str(message).lower()
+    if "refusing to overwrite" in text or "use --force" in text:
+        return (
+            f"hint: {target} found an existing generated file. "
+            "Re-run with --force or --overwrite, or choose another run with "
+            "--set RUN_ID=<name>."
         )
-    )
-
-    if not runs_root.exists():
-        _CONSOLE.print(
-            Panel(
-                Text("(no runs directory)", style="yellow"),
-                border_style="yellow",
-            )
+    if target in {"hjson", "hjson_gen"}:
+        return (
+            "hint: hjson writes data/<TOP>.hjson. If that file already exists, "
+            "use --force/--overwrite or change RUN_ID."
         )
-        _CONSOLE.print("")
-        return
-
-    rows: list[dict[str, str]] = []
-    for run_top_dir in sorted(p for p in runs_root.iterdir() if p.is_dir()):
-        for run_id_dir in sorted(p for p in run_top_dir.iterdir() if p.is_dir()):
-            run_yaml = run_id_dir / "run.yaml"
-            if not run_yaml.exists():
-                continue
-
-            summary = _read_run_yaml_summary(run_yaml)
-            rows.append(
-                {
-                    "run_top": summary.get("run_top", "") or run_top_dir.name,
-                    "run_id": summary.get("run_id", "") or run_id_dir.name,
-                    "top": summary.get("top", ""),
-                    "ips": str(_count_loaded_ips_from_run_yaml(run_yaml)),
-                    "last_action": summary.get("last_action", ""),
-                    "updated_at_utc": summary.get("updated_at_utc", ""),
-                }
-            )
-
-    if not rows:
-        _CONSOLE.print(
-            Panel(
-                Text("(no runs found)", style="yellow"),
-                border_style="yellow",
-            )
+    if target in {"reg", "doc", "rtl_stub"}:
+        return (
+            f"hint: {target} expects a generated HJSON file in the current run. "
+            "Run hjson first, or check TOP/RUN_ID with fx settings."
         )
-        _CONSOLE.print("")
-        return
-
-    table = Table(
-        title="Registered runs",
-        title_style="bold magenta",
-        header_style="bold yellow",
-        show_header=True,
-    )
-    table.add_column("RUN_TOP", style="bold green")
-    table.add_column("RUN_ID", style="cyan")
-    table.add_column("TOP", style="white")
-    table.add_column("IPS", style="bold blue", justify="right")
-    table.add_column("LAST_ACTION", style="green")
-    table.add_column("UPDATED_AT_UTC", style="white")
-
-    for row in rows:
-        table.add_row(
-            row["run_top"],
-            row["run_id"],
-            row["top"],
-            row["ips"],
-            row["last_action"],
-            row["updated_at_utc"],
+    if target in {"setup_tb", "setup_cocotb", "sim", "cocotb"}:
+        return (
+            f"hint: {target} depends on generated RTL and rtl/rtl_list.f. "
+            "Run hjson reg doc rtl_stub setup_tb first, then retry with --capture."
         )
-
-    _CONSOLE.print(table)
-    _CONSOLE.print("")
-
-
-def _print_run_show(*, run_dir: Path, history_limit: int) -> None:
-    run_yaml = run_dir / "run.yaml"
-    if not run_yaml.exists():
-        raise typer.BadParameter(f"run manifest not found: {run_yaml}")
-
-    _CONSOLE.print("")
-    _CONSOLE.print(
-        Panel(
-            Text(str(run_dir), style="bold cyan"),
-            title="Run directory",
-            border_style="bright_blue",
+    if target in {"syn", "sta", "power", "pnr", "pnr_gui"}:
+        return (
+            f"hint: {target} expects synthesis inputs from the same RUN_ID. "
+            "Check rtl/rtl_list.f, syn scripts, and rerun with --capture for logs."
         )
-    )
-    _CONSOLE.print(
-        Panel(
-            run_yaml.read_text(encoding="utf-8").rstrip(),
-            title="run.yaml",
-            border_style="green",
-        )
-    )
-
-    entries = read_run_history(run_dir, limit=history_limit)
-
-    table = Table(
-        title=f"Recent history ({len(entries)})",
-        title_style="bold magenta",
-        header_style="bold yellow",
-        show_header=True,
-    )
-    table.add_column("#", style="bold cyan", no_wrap=True)
-    table.add_column("Timestamp", style="white", no_wrap=True)
-    table.add_column("Action", style="bold green")
-    table.add_column("Top", style="cyan")
-    table.add_column("Loaded IPs", style="white")
-
-    if not entries:
-        table.add_row("-", "-", "(no history entries)", "-", "-")
-    else:
-        for idx, entry in enumerate(entries, start=1):
-            ts = str(entry.get("timestamp_utc", ""))
-            act = str(entry.get("action", ""))
-            top = "" if entry.get("top") is None else str(entry.get("top", ""))
-            loaded = entry.get("loaded_ips", [])
-            loaded_text = ", ".join(str(x) for x in loaded) if loaded else "-"
-            table.add_row(str(idx), ts, act, top, loaded_text)
-
-    _CONSOLE.print(table)
-    _CONSOLE.print("")
+    return "hint: re-run with --capture and inspect the run directory under workspace/runs/<TOP>/<RUN_ID>."
 
 
-def _shell_quote_arg(value: object) -> str:
-    text = str(value)
-    if not text:
-        return '""'
-    special = ['"', "'", "(", ")", "[", "]", "{", "}", "&", ";"]
-    if any(ch.isspace() for ch in text) or any(ch in text for ch in special):
-        escaped = text.replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{escaped}"'
-    return text
 
 
-def _append_preview_opt(parts: list[str], flag: str, value: Optional[object]) -> None:
-    if value is not None:
-        parts.extend([flag, _shell_quote_arg(value)])
-
-
-def _append_preview_flag(parts: list[str], flag: str, enabled: bool) -> None:
-    if enabled:
-        parts.append(flag)
-
-
-def _common_make_vars(
-    *,
-    workspace: Path,
-    top: Optional[str],
-    run_top: Optional[str],
-    run_id: Optional[str],
-    reg_itf: Optional[str],
-    overwrite: bool,
-    force: bool,
-) -> dict[str, str]:
-    make_vars: dict[str, str] = {
-        "WORKSPACE": str(workspace.resolve()),
-    }
-    if top is not None:
-        make_vars["TOP"] = top
-    if run_top is not None:
-        make_vars["RUN_TOP"] = run_top
-    if run_id is not None:
-        make_vars["RUN_ID"] = run_id
-    if reg_itf is not None:
-        make_vars["REG_ITF"] = reg_itf
-    if overwrite or force:
-        make_vars["OVERWRITE"] = "--force"
-    return make_vars
-
-
-def _split_make_targets_and_passthrough(
-    initial_targets: list[str],
-    extra_args: list[str],
-) -> tuple[list[str], dict[str, str], list[str]]:
-    targets: list[str] = []
-    override_vars: dict[str, str] = {}
-    passthrough: list[str] = []
-
-    def consume(arg: str) -> None:
-        if "=" in arg and not arg.startswith("-"):
-            key, value = arg.split("=", 1)
-            key = key.strip()
-            if key:
-                override_vars[key] = value
-                return
-
-        if not arg.startswith("-"):
-            targets.append(arg)
-            return
-
-        passthrough.append(arg)
-
-    for arg in list(initial_targets or []):
-        consume(arg)
-
-    for arg in list(extra_args or []):
-        consume(arg)
-
-    return targets, override_vars, passthrough
-
-
-def _flow_run_dir_preview(
-    *,
-    workspace: Path,
-    top: Optional[str],
-    run_top: Optional[str],
-    run_id: Optional[str],
-) -> Optional[Path]:
-    effective_run_top = run_top or top
-    if not effective_run_top or not run_id:
-        return None
-    return workspace / "runs" / effective_run_top / run_id
-
-
-def _build_make_cmd_preview(
-    *,
-    target: str,
-    make_vars: dict[str, str],
-    passthrough: list[str],
-    workspace: Path,
-) -> str:
-    parts = ["flexsoc", "make", target]
-
-    _append_preview_opt(parts, "--top", make_vars.get("TOP"))
-    _append_preview_opt(parts, "--run-top", make_vars.get("RUN_TOP"))
-    _append_preview_opt(parts, "--run-id", make_vars.get("RUN_ID"))
-    _append_preview_opt(parts, "--workspace", workspace)
-
-    overwrite = make_vars.get("OVERWRITE")
-    _append_preview_flag(parts, "--overwrite", overwrite in {"--force", "-f", "1"})
-
-    if "REG_ITF" in make_vars:
-        _append_preview_opt(parts, "--reg-itf", make_vars["REG_ITF"])
-    if "LOAD_AS" in make_vars:
-        _append_preview_opt(parts, "--load-as", make_vars["LOAD_AS"])
-
-    if passthrough:
-        parts.extend(_shell_quote_arg(x) for x in passthrough)
-
-    return " ".join(parts)
-
-
-def _make_list_targets(flow_dir: Path) -> list[str]:
-    proc = subprocess.run(
-        ["make", "-C", str(flow_dir), "-qp"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    raw_targets: set[str] = set()
-    for raw_line in proc.stdout.splitlines():
-        line = raw_line.rstrip()
-        if not line or line.startswith(("#", ".", "\t", " ")):
-            continue
-        if ":" not in line:
-            continue
-
-        name = line.split(":", 1)[0].strip()
-        if (
-            not name
-            or name == "Makefile"
-            or "%" in name
-            or "/" in name
-            or "$" in name
-            or "=" in name
-            or " " in name
-            or '"' in name
-            or "'" in name
-            or name.startswith("@")
-            or name.startswith("(")
-        ):
-            continue
-
-        raw_targets.add(name)
-
-    blacklist = {
-        "SUFFIXES",
-        "MAKEFILE_LIST",
-        "MAKEFLAGS",
-        "MAKELEVEL",
-        "MAKE_COMMAND",
-        "MAKE_VERSION",
-        "CURDIR",
-        "SHELL",
-        "PATH",
-        "PWD",
-        "HOME",
-        "USER",
-        "LOGNAME",
-        "PYTHONPATH",
-        "DISPLAY",
-        "TERM",
-        "OVERWRITE",
-        "REPO_ROOT",
-        "FLOW_DIR",
-        "FLOWMK_DIR",
-        "Q",
-        "RED",
-        "GREEN",
-        "BLUE",
-        "YELLOW",
-        "ORANGE",
-        "RESET",
-        "DEVLIST",
-        "SOC_CFG_MK",
-        "FSMGEN_DIR",
-        "THIS_MK_DIR",
-        "OR_WORKDIR",
-        "OR_LOGDIR",
-        "OR_CFG_MK",
-        "OR_MAKEFILE",
-        "OR_INC_DIRS",
-        "_require_var",
-    }
-
-    preferred_order = [
-        "help",
-        "ip_start",
-        "reg",
-        "doc",
-        "rtl_stub",
-        "setup_tb",
-        "sim",
-        "view",
-        "syn",
-        "sdf",
-        "sta",
-        "power",
-        "pnr",
-        "ip_save",
-        "ip_load",
-        "soc_start",
-        "xbar",
-        "soc",
-        "setup_soc_tb",
-        "setup_cocotb",
-        "cocotb",
-        "clean",
-    ]
-    preferred_rank = {name: i for i, name in enumerate(preferred_order)}
-
-    targets = [t for t in raw_targets if t not in blacklist and not t.isupper()]
-    return sorted(set(targets), key=lambda t: (preferred_rank.get(t, 9999), t))
-
-
-def _complete_make_targets(
-    ctx: typer.Context,
-    param: typer.CallbackParam,
-    incomplete: str,
-) -> list[CompletionItem]:
-    del ctx, param
-    try:
-        targets = _make_list_targets(_flow_dir())
-    except Exception:
-        targets = []
-
-    return [CompletionItem(t) for t in targets if not incomplete or t.startswith(incomplete)]
-
-
-def _action_rows() -> list[tuple[str, str]]:
-    reg = _safe_registry()
-    actions_map = reg.get("actions") or {}
-    rows: list[tuple[str, str]] = []
-
-    for name, meta in actions_map.items():
-        if not isinstance(meta, dict):
-            continue
-        rows.append((str(name), str(meta.get("description", ""))))
-
-    rows.sort(key=lambda row: row[0])
-    return rows
-
-
-def _action_meta(action_id: str) -> tuple[dict[str, Any] | None, list[str]]:
-    reg = _safe_registry()
-    actions_map = reg.get("actions") or {}
-    names = sorted(str(k) for k in actions_map.keys())
-    meta = actions_map.get(action_id)
-    if not isinstance(meta, dict):
-        return None, names
-    return meta, names
-
-
-def _render_action_detail(action_id: str) -> None:
-    _setup_logging()
-    meta, available = _action_meta(action_id)
-
-    if meta is None:
-        _emit_text_stderr(f"Unknown action: {action_id}")
-        _emit_text_stderr(
-            f"Available actions: {', '.join(available) if available else '(none)'}"
-        )
-        return
-
-    description_text = str(meta.get("description", "")).strip()
-
-    command_value = meta.get("command")
-    if isinstance(command_value, list):
-        command = " ".join(str(x) for x in command_value)
-    elif command_value is None:
-        command = "(none)"
-    else:
-        command = str(command_value)
-
-    params = meta.get("params") or {}
-    required_params = [
-        str(name)
-        for name, spec in params.items()
-        if isinstance(spec, dict) and spec.get("required")
-    ]
-
-    lines = [
-        f"Action: {action_id}",
-        f"Description: {description_text or '(none)'}",
-        f"Command: {command}",
-        f"Requires top: {bool(meta.get('requires_top', False))}",
-        f"Requires run_id: {bool(meta.get('requires_run_id', False))}",
-        f"Produces outroot: {bool(meta.get('produces_outroot', False))}",
-    ]
-
-    if required_params:
-        lines.append(f"Required params: {', '.join(required_params)}")
-
-    if meta.get("postprocess"):
-        lines.append(f"Postprocess: {meta['postprocess']}")
-
-    _emit_text_stdout("\n".join(lines))
-
+console = Console()
 
 @app.callback(invoke_without_command=True)
-def main_callback(ctx: typer.Context) -> None:
-    try:
-        if ctx.invoked_subcommand is None:
-            _setup_logging()
-            render_home_help()
-            raise typer.Exit(0)
-    except typer.Exit:
-        raise
-    except Exception as e:
-        _fail(str(e))
-        _setup_logging()
-        render_home_help()
-        raise typer.Exit(0)
+def main(ctx: typer.Context) -> None:
+    """Show the extended help guide when no subcommand is selected."""
+
+    if ctx.invoked_subcommand is None:
+        _print_help()
+
+def _workflow_name_completion(incomplete: str):
+    """Return workflow names matching the shell completion prefix."""
+
+    return [name for name in FlexSoC().workflow_names() if name.startswith(incomplete)]
 
 
-@runs_app.command("ls", help="List available runs in the workspace.", rich_help_panel="Workspace inspection")
-def runs_ls(
-    workspace: Path = typer.Option(Path("workspace"), "--workspace", "--ws", help="Workspace directory"),
+def _step_name_completion(incomplete: str):
+    """Return step names matching the shell completion prefix."""
+
+    return [name for name in FlexSoC().step_names() if name.startswith(incomplete)]
+
+@app.command()
+def help() -> None:
+    """Print an extended CLI guide with workflows, tutorials, and options."""
+
+    console.print()
+    console.print("[bold orange3]Quickstart[/bold orange3]")
+    console.print("  fx help")
+    console.print("  python -m flexsoc help")
+    console.print("  fx commands")
+    console.print("  fx settings")
+    console.print("  fx workflow workspace --dry-run --script")
+    console.print("  fx step setup hjson_gen reg doc rtl_stub --dry-run --script")
+
+    _print_help()
+
+    console.print()
+    console.print("[bold magenta]Tutorials[/bold magenta]")
+    console.print("  fx commands")
+    console.print("  fx steps")
+    console.print("  fx step-info hjson_gen")
+    console.print("  fx step-info syn --examples")
+    console.print("  fx workflow ip_development --dry-run --script")
+
+@app.command("commands")
+def commands() -> None:
+    """Render the public command catalog in the usual development order."""
+
+    _print_commands()
+
+@app.command()
+def describe() -> None:
+    """Print the current FlexSoC API client description as JSON."""
+
+    typer.echo(json.dumps(FlexSoC().describe(), indent=2))
+
+
+@app.command("settings")
+def settings(
+    set_: list[str] = typer.Option(None, "--set", help="Persist one project setting as KEY=VALUE."),
+    unset: list[str] = typer.Option(None, "--unset", help="Remove one persisted setting by name."),
+    reset: bool = typer.Option(False, "--reset", help="Remove all persisted project settings."),
+    project_root: Path | None = typer.Option(None, help="Repository root that owns the settings file."),
+    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
 ) -> None:
-    _setup_logging()
-    _print_runs_ls(workspace=_resolved_workspace(workspace))
+    """Show, save, or reset project-level FlexSoC CLI settings."""
+
+    root = _project_root(project_root)
+    path = _settings_path(root)
+    values = _read_settings(root)
+    changed = False
+
+    if reset:
+        path.unlink(missing_ok=True)
+        values = {}
+        changed = True
+
+    for key in unset or []:
+        removed = values.pop(key.upper(), None)
+        changed = changed or removed is not None
+
+    if set_:
+        values.update(_parse_overrides(set_))
+        changed = True
+
+    if changed:
+        _write_settings(root, values)
+
+    payload = _settings_payload(root)
+    if json_:
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    _print_settings(payload)
 
 
-@runs_app.command("show", help="Show one run manifest and recent history.", rich_help_panel="Workspace inspection")
-def runs_show(
-    run_top: str = typer.Option(..., "--run-top", help="Run-top name"),
-    run_id: str = typer.Option(..., "--run-id", help="Run identifier"),
-    workspace: Path = typer.Option(Path("workspace"), "--workspace", help="Workspace directory"),
-    history_limit: int = typer.Option(10, "--history-limit", min=1, help="Number of history entries to show"),
+@app.command("workflows")
+def workflows(
+    json_: bool = typer.Option(False, "--json", help="Print JSON for tools and frontends."),
 ) -> None:
-    _setup_logging()
-    _validate_run_lookup_inputs(run_top, run_id)
-    ws = _resolved_workspace(workspace)
-    _print_run_show(run_dir=ws / "runs" / run_top / run_id, history_limit=history_limit)
+    """Render high-level workflows exposed by the public API."""
 
+    items = FlexSoC().list_workflows()
+    if json_:
+        typer.echo(json.dumps([workflow.to_dict() for workflow in items], indent=2))
+        return
+    _print_workflows(items)
 
-@app.command("fsm", help="Show FSM development guide.", rich_help_panel="Advanced / docs")
-def help_fs_guide_alias() -> None:
-    _setup_logging()
-    render_fsm_development_guide()
-
-
-@app.command("hd", help="Show the detailed help page.", rich_help_panel="Advanced / docs")
-def help_detailed_alias() -> None:
-    _setup_logging()
-    render_detailed_help()
-
-
-@help_app.command("detailed", help="Show detailed command documentation.", rich_help_panel="Reference")
-def help_detailed_cmd() -> None:
-    _setup_logging()
-    render_detailed_help()
-
-
-@help_app.command("commands", help="Show command reference.", rich_help_panel="Reference")
-def help_commands_cmd() -> None:
-    _setup_logging()
-    render_detailed_help()
-
-
-@help_app.command("overview", help="Show a high-level overview of FlexSoC.", rich_help_panel="Start here")
-def help_overview_cmd() -> None:
-    _setup_logging()
-    render_help_overview()
-
-
-@help_app.command("topics", help="List available help topics.", rich_help_panel="Start here")
-def help_topics_cmd() -> None:
-    _setup_logging()
-    print_help_topics()
-
-
-@help_app.command("action", help="Show detailed help for one action.", rich_help_panel="Action help")
-def help_action_cmd(action_id: str) -> None:
-    _render_action_detail(action_id)
-
-
-@app.command("doctor", help="Check Python deps and external tool availability.", rich_help_panel="Diagnostics / maintenance")
-def doctor_cmd(
-    json_output: bool = typer.Option(False, "--json", help="Emit structured JSON output."),
+@app.command("workflow")
+def workflow(
+    name: str = typer.Argument(..., help="Workflow name. Use TAB to discover available workflows.", autocompletion=_workflow_name_completion),
+    set_: list[str] = typer.Option(None, "--set", help="Override a Make variable as KEY=VALUE."),
+    project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
+    dry_run: bool = typer.Option(False, help="Print commands without executing them."),
+    capture: bool = typer.Option(False, help="Capture and print stdout after execution."),
+    script: bool = typer.Option(False, "--script", help="Print a shell script preview during dry-runs."),
+    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
 ) -> None:
-    _setup_logging()
-    raise typer.Exit(run_doctor(json_mode=json_output))
+    """Run, preview, or serialize one high-level workflow through FlexSoC."""
+
+    client = FlexSoC(project_root=project_root)
+    overrides = _merged_settings(project_root, set_ or [])
+    if dry_run and (json_ or script):
+        plan = client.inspect_workflow(name, **overrides)
+        typer.echo(json.dumps(plan.to_dict(), indent=2) if json_ else plan.shell_script(), nl=not script)
+        return
+    results = client.run_workflow(name, dry_run=dry_run, capture=capture, **overrides)
+    if json_:
+        payload = [item.to_dict() for item in results]
+        typer.echo(json.dumps(payload, indent=2))
+        return
+    for item in results:
+        if dry_run:
+            typer.echo(item.shell_line())
+        elif capture and item.stdout:
+            typer.echo(item.stdout, nl=False)
 
 
-@app.command("clean-pycache", help="Remove Python cache files.", rich_help_panel="Diagnostics / maintenance")
-def clean_pycache_cmd(
-    root: Path = typer.Option(Path("."), "--root", help="Root directory to clean"),
+@app.command("steps")
+def steps(
+    group: str | None = typer.Option(None, help="Show only one step group."),
+    json_: bool = typer.Option(False, "--json", help="Print JSON for tools and frontends."),
 ) -> None:
-    _setup_logging()
-    removed = clean_pycache(root.expanduser().resolve())
-    typer.echo(f"Removed {removed} Python cache entries")
+    """Render Make-backed workflow steps known by the API layer."""
 
+    items = FlexSoC().list_steps(group)
+    if json_:
+        typer.echo(json.dumps([step.to_dict() for step in items], indent=2))
+        return
+    _print_steps(items, group)
 
-@app.command("clean-run", help="Remove one run directory.", rich_help_panel="Diagnostics / maintenance")
-def clean_run_cmd(
-    run_top: str = typer.Option(..., "--run-top", help="Run-top name"),
-    run_id: str = typer.Option(..., "--run-id", help="Run identifier"),
-    workspace: Path = typer.Option(Path("workspace"), "--workspace", "--ws", help="Workspace directory"),
+@app.command("smoke")
+def smoke(
+    top: str = typer.Option("demo", help="Top name used for smoke previews."),
+    run_id: str = typer.Option("smoke", help="Run identifier used for smoke previews."),
+    project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
+    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
+    run_workspace: bool = typer.Option(False, "--run-workspace", help="Execute only the safe workspace workflow."),
 ) -> None:
-    _setup_logging()
-    _validate_run_lookup_inputs(run_top, run_id)
-    ws = _resolved_workspace(workspace)
-    clean_run(ws, run_top, run_id)
-    typer.echo(f"Removed run: {ws / 'runs' / run_top / run_id}")
+    """Run safe API/CLI smoke checks without launching EDA tools by default."""
+
+    client = FlexSoC(project_root=project_root)
+    payload = _smoke_payload(client, top, run_id, run_workspace)
+    if json_:
+        typer.echo(json.dumps(payload, indent=2))
+    else:
+        _print_smoke(payload)
+    if not payload["ok"]:
+        raise typer.Exit(1)
 
 
-@app.command("clean-workspace", help="Clean workspace run artifacts.", rich_help_panel="Diagnostics / maintenance")
-def clean_workspace_cmd(
-    workspace: Path = typer.Option(Path("workspace"), "--workspace", "--ws", help="Workspace directory"),
+@app.command("step-info")
+def step_info(
+    name: str = typer.Argument(..., help="Step name. Use TAB to discover available steps.", autocompletion=_step_name_completion),
+    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
+    examples: bool = typer.Option(False, "--examples", help="Print only copy-ready command examples."),
 ) -> None:
-    _setup_logging()
-    ws = _resolved_workspace(workspace)
-    clean_workspace(ws)
-    typer.echo(f"Cleaned workspace runs under: {ws}")
+    """Show parameters, categories, and examples for one advanced flow step."""
+
+    step = FlexSoC().step_info(name)
+    json_enabled = json_ if isinstance(json_, bool) else False
+    examples_enabled = examples if isinstance(examples, bool) else False
+    if json_enabled:
+        typer.echo(json.dumps(step.to_dict(), indent=2))
+        return
+    _print_step_examples(step) if examples_enabled else _print_step_info(step)
 
 
-@app.command("clean-all", help="Remove the entire workspace directory.", rich_help_panel="Diagnostics / maintenance")
-def clean_all_cmd(
-    workspace: Path = typer.Option(Path("workspace"), "--workspace", "--ws", help="Workspace directory"),
+
+def _step_error_hint(step: str) -> str:
+    """Return a concise human hint for common backend step failures."""
+
+    hints = {
+        "hjson": "The HJSON file already exists. Re-run with --force/--overwrite or choose another RUN_ID.",
+        "reg": "Register generation needs data/<TOP>.hjson. Run hjson first, or re-run the flow with --force.",
+        "doc": "Documentation generation needs data/<TOP>.hjson. Run hjson first.",
+        "rtl_stub": "RTL stub generation needs data/<TOP>.hjson. Run hjson/reg first and keep the same RUN_ID.",
+        "setup_tb": "Testbench setup needs generated RTL/filelist inputs. Run rtl_stub and flist first, or use the full IP flow.",
+        "setup_cocotb": "Cocotb setup needs rtl/rtl_list.f. Run flist first, or use setup_cocotb after rtl_stub.",
+        "sim": "Simulation failed during lint/compile/run. Re-run with --capture and inspect logs under workspace/runs/<TOP>/<RUN_ID>/sim.",
+        "syn": "Synthesis needs rtl/rtl_list.f and valid vendor/IP include paths. Run rtl_stub/setup_syn first and inspect syn logs.",
+        "sta": "STA depends on synthesis outputs. Run syn first and inspect workspace/runs/<TOP>/<RUN_ID>/syn.",
+        "power": "Power analysis depends on synthesis/timing outputs. Run syn and sta first.",
+        "pnr": "PnR depends on synthesis and floorplan inputs. Run syn/setup_pnr first and inspect pnr_openroad logs.",
+        "pnr_gui": "PnR GUI depends on an existing PnR run. Run pnr first.",
+    }
+    return hints.get(step, "Re-run with --capture and inspect the generated workspace logs for this step.")
+
+@app.command()
+def step(
+    targets: list[str] = typer.Argument(..., help="One or more backend steps to run in order. Use TAB to discover steps.", autocompletion=_step_name_completion),
+    set_: list[str] = typer.Option(None, "--set", help="Override a Make variable as KEY=VALUE."),
+    project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
+    dry_run: bool = typer.Option(False, help="Print commands without executing them."),
+    capture: bool = typer.Option(False, help="Capture and print stdout after execution."),
+    script: bool = typer.Option(False, "--script", help="Print a shell script preview during dry-runs."),
+    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
+    force: bool = typer.Option(False, "--force", help="Overwrite generated files where supported."),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Alias for --force."),
 ) -> None:
-    _setup_logging()
-    ws = _resolved_workspace(workspace)
-    clean_all(ws)
-    typer.echo(f"Removed workspace: {ws}")
+    """Run, preview, or serialize one or more advanced backend flow steps."""
+
+    client = FlexSoC(project_root=project_root)
+    overrides = _merged_settings(None, set_ or [])
+    # CLI aliases map to the backend FORCE override. Without these flags,
+    # the backend receives FORCE=0 and reports overwrite conflicts itself.
+    if force or overwrite:
+        overrides = dict(overrides)
+        overrides["FORCE"] = "1"
+    sequence_overrides = _step_sequence_overrides(targets, overrides)
+    if dry_run:
+        payloads = [client.inspect_step(target, **sequence_overrides) for target in targets]
+        if json_:
+            payload: object = payloads[0] if len(payloads) == 1 else payloads
+            typer.echo(json.dumps(payload, indent=2))
+            return
+        lines = [item["shell"] for item in payloads]
+        typer.echo(_shell_script(lines) if script else "\n".join(lines), nl=not script)
+        return
+
+    results = []
+    for target in targets:
+        try:
+            results.append(client.run_step(target, capture=capture, **sequence_overrides))
+        except subprocess.CalledProcessError as exc:
+            command = " ".join(str(part) for part in exc.cmd)
+            typer.secho(f"step failed: {target}", fg=typer.colors.RED, err=True)
+            typer.secho(f"command: {command}", err=True)
+            raise typer.Exit(exc.returncode) from exc
+
+    if json_:
+        payload = results[0].to_dict() if len(results) == 1 else [item.to_dict() for item in results]
+        typer.echo(json.dumps(payload, indent=2))
+    elif capture:
+        for result in results:
+            if result.stdout:
+                typer.echo(result.stdout, nl=False)
 
 
-@app.command("dump-registry", help="Emit the action registry as JSON.", rich_help_panel="Advanced / machine-readable")
-def dump_registry_cmd() -> None:
-    _setup_logging()
-    try:
-        _emit_json_stdout(_safe_registry())
-    except typer.Exit:
-        raise
-    except Exception as e:
-        _fail(str(e))
+
+def _step_sequence_overrides(targets: list[str], overrides: dict[str, str]) -> dict[str, str]:
+    """Return step overrides without creating timestamp run identifiers."""
+
+    values = dict(overrides)
+    if not values.get("RUN_ID"):
+        values["RUN_ID"] = DEFAULT_SETTINGS["RUN_ID"]
+    return values
+
+def _shell_script(lines: list[str]) -> str:
+    """Render dry-run shell lines as a small executable script preview."""
+
+    return "#!/usr/bin/env bash\nset -euo pipefail\n" + "\n".join(lines)
 
 
-@app.command("actions", help="List available registry actions.", rich_help_panel="Discovery / introspection")
-def actions_cmd() -> None:
-    _setup_logging()
-    try:
-        print_actions_table(_action_rows())
-    except typer.Exit:
-        raise
-    except Exception as e:
-        _fail(str(e))
+def _smoke_payload(client: FlexSoC, top: str, run_id: str, run_workspace: bool) -> dict[str, object]:
+    """Build a safe smoke payload using only public framework workflows."""
+
+    workflows = {
+        name: client.inspect_workflow(name, top=top, run_id=run_id).shell_lines()
+        for name in ("workspace", "ip_development", "soc_development")
+    }
+    workspace_results = []
+    if run_workspace:
+        workspace_results = [item.to_dict() for item in client.run_workflow("workspace", capture=True, top=top, run_id=run_id)]
+    workspace_ok = all(item.get("ok", False) for item in workspace_results) if workspace_results else True
+    return {
+        "ok": workspace_ok,
+        "workflows": {name: list(lines) for name, lines in workflows.items()},
+        "workspace_results": workspace_results,
+    }
 
 
-@app.command("action", help="Show details for one registry action.", rich_help_panel="Discovery / introspection")
-def action_cmd(action_id: str) -> None:
-    try:
-        _render_action_detail(action_id)
-    except typer.Exit:
-        raise
-    except Exception as e:
-        _fail(str(e))
+def _print_smoke(payload: dict[str, object], console: Console | None = None) -> None:
+    """Render the safe smoke summary for humans."""
 
+    console = console or Console()
+    ok = bool(payload["ok"])
+    style = SUCCESS if ok else WARNING
+    workflows = payload["workflows"]
+    table = Table(title="Smoke checks", border_style=style)
+    table.add_column("Check", style=f"bold {ACCENT}")
+    table.add_column("Result", style="white")
+    for name, lines in workflows.items():
+        table.add_row(name, f"{len(lines)} command(s) previewed")
+    if payload["workspace_results"]:
+        table.add_row("workspace execution", "ok" if all(item["ok"] for item in payload["workspace_results"]) else "failed")
+    console.print(Panel("[bold green]ok[/bold green]" if ok else "[bold yellow]mismatch[/bold yellow]", title="FlexSoC smoke", border_style=style))
+    console.print(table)
 
-@app.command("h", hidden=True)
-def help_hub_cmd() -> None:
-    _setup_logging()
-    render_home_help()
+def _command_rows() -> tuple[tuple[str, str, str], ...]:
+    """Return top-level commands ordered like a normal development session."""
 
-
-@app.command("q", hidden=True)
-def quickstart_alias() -> None:
-    render_quickstart()
-
-
-@app.command("t", hidden=True)
-def tutorial_alias() -> None:
-    render_tutorials()
-
-
-@app.command("ip", hidden=True)
-def ip_alias() -> None:
-    render_ip_guide()
-
-
-@app.command("a", hidden=True)
-def actions_alias() -> None:
-    actions_cmd()
-
-
-@app.command("plan", help="Generate a plan JSON from a natural-language intent.", rich_help_panel="Core workflow")
-def plan_cmd(
-    text: str = typer.Argument(..., help="Natural-language intent, e.g. 'create ip'"),
-    out: Path = typer.Option(Path("plan.json"), "--out"),
-) -> None:
-    _setup_logging()
-    try:
-        plan = naive_intent_to_plan(text)
-        validate_plan(plan, _safe_registry(), allow_missing_required=True)
-        write_plan_json(plan, out)
-    except typer.Exit:
-        raise
-    except Exception as e:
-        _fail(str(e))
-
-
-@app.command("exec", help="Execute a previously generated plan.", rich_help_panel="Core workflow")
-def exec_cmd(
-    plan_path: Path = typer.Argument(...),
-    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
-    top: Optional[str] = typer.Option(None, "--top"),
-    run_top: Optional[str] = typer.Option(None, "--run-top"),
-    run_id: Optional[str] = typer.Option(None, "--run-id"),
-    reg_itf: Optional[str] = typer.Option(None, "--reg-itf"),
-    overwrite: bool = typer.Option(False, "--overwrite"),
-    force: bool = typer.Option(False, "--force", help="Alias for --overwrite"),
-    profile: bool = typer.Option(False, "--profile"),
-) -> None:
-    _setup_logging()
-    try:
-        explicit_top = top
-        explicit_run_top = run_top
-
-        workspace, top, run_top, run_id = resolve_context(
-            workspace=workspace,
-            top=top,
-            run_top=run_top,
-            run_id=run_id,
-        )
-        if explicit_top is not None and explicit_run_top is None:
-            run_top = explicit_top
-
-        ws = _resolved_workspace(workspace)
-        plan = read_plan_json(plan_path)
-
-        if top is not None:
-            plan.params["top"] = top
-        if reg_itf is not None:
-            plan.params["reg_itf"] = reg_itf
-        if overwrite or force:
-            plan.params["overwrite"] = "1"
-
-        plan.params.pop("force", None)
-        plan.params.pop("run_id", None)
-
-        validate_plan(plan, _safe_registry(), allow_missing_required=False)
-
-        if profile:
-            os.environ["FLEXSOC_PROFILE"] = "1"
-
-        cmd_preview_parts = ["flexsoc", "exec", str(plan_path)]
-        _append_preview_opt(cmd_preview_parts, "--top", top)
-        _append_preview_opt(cmd_preview_parts, "--run-top", run_top)
-        _append_preview_opt(cmd_preview_parts, "--run-id", run_id)
-        _append_preview_opt(cmd_preview_parts, "--reg-itf", reg_itf)
-        _append_preview_opt(cmd_preview_parts, "--workspace", ws)
-        _append_preview_flag(cmd_preview_parts, "--overwrite", overwrite or force)
-
-        with running_status(label=f"exec {plan.action}"):
-            result = execute_action(
-                action=plan.action,
-                params=plan.params,
-                workspace=ws,
-                run_id=run_id,
-            )
-
-        print_runner_summary(
-            label=f"exec {plan.action}",
-            exit_code=result.exit_code,
-            runner_dir=result.runner_run_dir,
-            flow_dir=result.flow_run_dir,
-            command=" ".join(cmd_preview_parts),
-        )
-        raise typer.Exit(result.exit_code)
-    except typer.Exit:
-        raise
-    except Exception as e:
-        _fail(str(e))
-
-
-@app.command("run", help="Execute one registry action.", rich_help_panel="Core workflow")
-def run_cmd(
-    action_id: str = typer.Argument(...),
-    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
-    top: Optional[str] = typer.Option(None, "--top"),
-    run_top: Optional[str] = typer.Option(None, "--run-top"),
-    run_id: Optional[str] = typer.Option(None, "--run-id"),
-    reg_itf: Optional[str] = typer.Option(None, "--reg-itf"),
-    overwrite: bool = typer.Option(False, "--overwrite"),
-    force: bool = typer.Option(False, "--force", help="Alias for --overwrite"),
-) -> None:
-    _setup_logging()
-    try:
-        explicit_top = top
-        explicit_run_top = run_top
-
-        workspace, top, run_top, run_id = resolve_context(
-            workspace=workspace,
-            top=top,
-            run_top=run_top,
-            run_id=run_id,
-        )
-        if explicit_top is not None and explicit_run_top is None:
-            run_top = explicit_top
-
-        ws = _resolved_workspace(workspace)
-
-        params: dict[str, Any] = {}
-        if top is not None:
-            params["top"] = top
-        if run_top is not None:
-            params["run_top"] = run_top
-        if reg_itf is not None:
-            params["reg_itf"] = reg_itf
-        if overwrite or force:
-            params["overwrite"] = "1"
-
-        cmd_preview_parts = ["flexsoc", "run", action_id]
-        _append_preview_opt(cmd_preview_parts, "--top", top)
-        _append_preview_opt(cmd_preview_parts, "--run-top", run_top)
-        _append_preview_opt(cmd_preview_parts, "--run-id", run_id)
-        _append_preview_opt(cmd_preview_parts, "--reg-itf", reg_itf)
-        _append_preview_opt(cmd_preview_parts, "--workspace", ws)
-        _append_preview_flag(cmd_preview_parts, "--overwrite", overwrite or force)
-
-        with running_status(label=f"run {action_id}"):
-            result = execute_action(
-                action=action_id,
-                params=params,
-                workspace=ws,
-                run_id=run_id,
-            )
-
-        print_runner_summary(
-            label=f"run {action_id}",
-            exit_code=result.exit_code,
-            runner_dir=result.runner_run_dir,
-            flow_dir=result.flow_run_dir,
-            command=" ".join(cmd_preview_parts),
-        )
-        raise typer.Exit(result.exit_code)
-    except typer.Exit:
-        raise
-    except Exception as e:
-        _fail(str(e))
-
-
-@app.command("make", help="Run one or more raw flow Make targets.", rich_help_panel="Core workflow", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
-def make_cmd(
-    ctx: typer.Context,
-    targets: list[str] = typer.Argument(None, shell_complete=_complete_make_targets),
-    list_targets: bool = typer.Option(False, "--list"),
-    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
-    top: Optional[str] = typer.Option(None, "--top"),
-    run_top: Optional[str] = typer.Option(None, "--run-top"),
-    run_id: Optional[str] = typer.Option(None, "--run-id"),
-    reg_itf: Optional[str] = typer.Option(None, "--reg-itf"),
-    load_as: Optional[str] = typer.Option(None, "--load-as", help="Rename destination folder when loading an IP into a run"),
-    overwrite: bool = typer.Option(False, "--overwrite"),
-    force: bool = typer.Option(False, "--force", help="Alias for --overwrite"),
-) -> None:
-    _setup_logging()
-    try:
-        workspace, top, run_top, run_id = resolve_context(
-            workspace=workspace,
-            top=top,
-            run_top=run_top,
-            run_id=run_id,
-        )
-        ws = _resolved_workspace(workspace)
-        repo_root = _repo_root()
-        flow_make_dir = _flow_dir()
-
-        if list_targets:
-            targets_to_show = _make_list_targets(flow_make_dir) or ["help"]
-            print_make_targets(targets_to_show)
-            raise typer.Exit(0)
-
-        common_vars = _common_make_vars(
-            workspace=ws,
-            top=top,
-            run_top=run_top,
-            run_id=run_id,
-            reg_itf=reg_itf,
-            overwrite=overwrite,
-            force=force,
-        )
-        if load_as is not None:
-            common_vars["LOAD_AS"] = load_as
-
-        final_targets, override_vars, passthrough = _split_make_targets_and_passthrough(
-            list(targets or []),
-            list(ctx.args),
-        )
-
-        if not final_targets:
-            discovered = _make_list_targets(flow_make_dir) or ["help"]
-            typer.echo("")
-            typer.echo("Available make targets:")
-            for idx, name in enumerate(discovered, start=1):
-                typer.echo(f"  {idx:>2}. {name}")
-            typer.echo("")
-
-            choice = typer.prompt("Select target number (empty to quit)", default="", show_default=False).strip()
-            if not choice:
-                raise typer.Exit(0)
-            if not choice.isdigit():
-                raise typer.BadParameter("Please enter a numeric target selection")
-
-            selected = int(choice)
-            if selected < 1 or selected > len(discovered):
-                raise typer.BadParameter("Target selection out of range")
-
-            final_targets = [discovered[selected - 1]]
-
-        make_vars = {**common_vars, **override_vars}
-
-        for target in final_targets:
-            cmd = ["make", "-C", str(flow_make_dir), target]
-            cmd.extend([f"{k}={v}" for k, v in make_vars.items()])
-            cmd.extend(passthrough)
-
-            run_ref = resolve_run_ref(
-                workspace=ws,
-                top=make_vars.get("TOP"),
-                run_top=make_vars.get("RUN_TOP"),
-                run_id=make_vars.get("RUN_ID"),
-            )
-
-            with running_status(label=f"make {target}"):
-                orchestrated = run_orchestrated(
-                    InvocationSpec(
-                        action_id=f"make_{target}",
-                        summary_label=f"make {target}",
-                        cmd=cmd,
-                        params={
-                            "target": target,
-                            "targets": final_targets,
-                            "make_vars": make_vars,
-                            "passthrough": passthrough,
-                        },
-                        workspace_dir=ws,
-                        cwd=repo_root,
-                        env=None,
-                        run_ref=run_ref,
-                        manifest_action=f"make:{target}",
-                        manifest_top=(make_vars.get("TOP") or make_vars.get("RUN_TOP")),
-                        manifest_run_id=make_vars.get("RUN_ID"),
-                    )
-                )
-
-            print_runner_summary(
-                label=f"make {target}",
-                exit_code=orchestrated.backend.exit_code,
-                runner_dir=orchestrated.backend.run_dir,
-                flow_dir=orchestrated.flow_run_dir or _flow_run_dir_preview(
-                    workspace=ws,
-                    top=make_vars.get("TOP"),
-                    run_top=make_vars.get("RUN_TOP"),
-                    run_id=make_vars.get("RUN_ID"),
-                ),
-                command=_build_make_cmd_preview(
-                    target=target,
-                    make_vars=make_vars,
-                    passthrough=passthrough,
-                    workspace=ws,
-                ),
-            )
-
-            if orchestrated.backend.exit_code != 0:
-                raise typer.Exit(orchestrated.backend.exit_code)
-
-        raise typer.Exit(0)
-    except typer.Exit:
-        raise
-    except Exception as e:
-        _fail(str(e))
-
-
-@app.command("use", help="Save the current workspace/top/run context.", rich_help_panel="Context / workspace")
-def use_cmd(
-    workspace: Optional[Path] = typer.Option(None, "--workspace", "--ws"),
-    top: Optional[str] = typer.Option(None, "--top"),
-    run_top: Optional[str] = typer.Option(None, "--run-top"),
-    run_id: Optional[str] = typer.Option(None, "--run-id"),
-) -> None:
-    _setup_logging()
-    ws, top_eff, run_top_eff, run_id_eff = resolve_context(
-        workspace=workspace,
-        top=top,
-        run_top=run_top,
-        run_id=run_id,
+    return (
+        ("help", "Guide", "Show the chronological CLI guide."),
+        ("commands", "Guide", "Show this compact command catalog."),
+        ("settings", "Setup", "Show or persist project defaults."),
+        ("describe", "Setup", "Show API client context."),
+        ("workflows", "Discovery", "List high-level workflows."),
+        ("steps", "Discovery", "List advanced backend steps."),
+        ("step-info", "Discovery", "Show parameters and examples for one step."),
+        ("workflow", "Execution", "Run or preview a high-level workflow."),
+        ("step", "Execution", "Run or preview one or more backend steps."),
+        ("smoke", "Validation", "Run safe catalog and workspace smoke checks."),
     )
 
-    if ws is None:
-        ws = default_workspace().resolve()
-    if run_top_eff is None and top_eff is not None:
-        run_top_eff = top_eff
 
-    data = save_context(
-        workspace=ws,
-        top=top_eff,
-        run_top=run_top_eff,
-        run_id=run_id_eff,
+def _print_commands(console: Console | None = None) -> None:
+    """Render the public command catalog as a Rich table."""
+
+    console = console or Console()
+    table = Table(title="FlexSoC commands", border_style=ACCENT, show_lines=False)
+    table.add_column("Phase", style=SECONDARY, no_wrap=True)
+    table.add_column("Command", style=f"bold {ACCENT}", no_wrap=True)
+    table.add_column("Purpose", style="white")
+    for command, phase, purpose in _command_rows():
+        table.add_row(phase, f"fx {command}", purpose)
+    console.print(Panel("Use shell completion with `fx --install-completion`.", title="Command discovery", border_style=ACCENT))
+    console.print(table)
+
+def _print_help(console: Console | None = None) -> None:
+    """Render the project help guide with a small Rich color palette."""
+
+    console = console or Console()
+    console.print(
+        Panel(
+            f"[bold {ACCENT}]FlexSoC CLI[/bold {ACCENT}]\n{HELP_INTRO}",
+            border_style=ACCENT,
+        )
+    )
+    for title, color, rows in HELP_SECTIONS:
+        console.print(_help_section(title, color, rows))
+    console.print(
+        f"[dim]Design rule:[/dim] CLI commands call [bold {ACCENT}]FlexSoC[/bold {ACCENT}], "
+        "never backend modules directly."
     )
 
-    table = Table(show_header=True, header_style="bold cyan")
-    table.add_column("Field")
-    table.add_column("Value")
-    table.add_row("workspace", str(data.get("workspace", "")))
-    table.add_row("top", str(data.get("top", "")))
-    table.add_row("run_top", str(data.get("run_top", "")))
-    table.add_row("run_id", str(data.get("run_id", "")))
 
-    _CONSOLE.print(Panel(table, title="Current flexsoc context", border_style="blue"))
+def _help_section(title: str, color: str, rows: Iterable[tuple[str, str]]) -> Panel:
+    """Build one colored help section for the extended CLI guide."""
 
-
-@app.command("current", help="Show the saved context.", rich_help_panel="Context / workspace")
-def current_cmd() -> None:
-    _setup_logging()
-    data = load_context()
-
-    table = Table(show_header=True, header_style="bold cyan")
-    table.add_column("Field")
-    table.add_column("Value")
-    table.add_row("workspace", str(data.get("workspace", "")))
-    table.add_row("top", str(data.get("top", "")))
-    table.add_row("run_top", str(data.get("run_top", "")))
-    table.add_row("run_id", str(data.get("run_id", "")))
-
-    _CONSOLE.print(Panel(table, title="Current flexsoc context", border_style="blue"))
+    table = Table.grid(padding=(0, 2))
+    table.add_column(style=f"bold {color}", no_wrap=True)
+    table.add_column(style="white")
+    for command, description in rows:
+        table.add_row(command, description)
+    return Panel(table, title=f"[bold {color}]{title}[/bold {color}]", border_style=color)
 
 
-@app.command("clear-current", help="Clear the saved context.", rich_help_panel="Context / workspace")
-def clear_current_cmd() -> None:
-    _setup_logging()
-    clear_context()
-    _CONSOLE.print(Panel("Context cleared.", title="Current flexsoc context", border_style="blue"))
+def _print_step_info(step: FlowStep, console: Console | None = None) -> None:
+    """Render one documented step and its accepted Make variables."""
+
+    console = console or Console()
+    table = Table(title=f"{step.name} parameters", border_style=ACCENT)
+    table.add_column("Category", style="blue")
+    table.add_column("Parameter", style=f"bold {ACCENT}")
+    table.add_column("Required", style=WARNING)
+    table.add_column("Default", style=SECONDARY)
+    table.add_column("Description", style="white")
+    for param in step.params:
+        table.add_row(
+            param.category,
+            param.name,
+            "yes" if param.required else "no",
+            param.default or "",
+            param.description,
+        )
+    console.print(Panel(f"[bold {ACCENT}]{step.name}[/bold {ACCENT}]\n{step.description}", border_style=ACCENT))
+    console.print(table)
+    _print_step_examples(step, console)
 
 
-if __name__ == "__main__":
-    if _early_shortcuts():
-        raise SystemExit(0)
-    app()
+def _print_step_examples(step: FlowStep, console: Console | None = None) -> None:
+    """Render copy-ready examples for one documented step."""
+
+    console = console or Console()
+    table = Table(title=f"{step.name} examples", border_style=SECONDARY)
+    table.add_column("Command", style=f"bold {SECONDARY}")
+    table.add_column("Purpose", style="white")
+    for example in step.examples:
+        table.add_row(example.command, example.description)
+    console.print(table)
+
+
+def _print_workflows(workflows: Iterable[FlowWorkflow], console: Console | None = None) -> None:
+    """Render public workflows as a compact human catalog."""
+
+    console = console or Console()
+    table = Table(title="FlexSoC workflows", border_style="orange3", show_lines=False)
+    table.add_column("Workflow", style="bold orange3", no_wrap=True)
+    table.add_column("Steps", style="cyan")
+    table.add_column("Purpose", style="white")
+    table.add_column("Preview", style="dim")
+    for workflow in workflows:
+        table.add_row(
+            workflow.name,
+            " → ".join(workflow.steps),
+            workflow.description,
+            f"fx workflow {workflow.name} --dry-run --script --set TOP=demo",
+        )
+    console.print(Panel("Use workflows for normal development paths.", title="Discovery", border_style="orange3"))
+    console.print(table)
+
+
+def _print_steps(steps: Iterable[FlowStep], group: str | None = None, console: Console | None = None) -> None:
+    """Render advanced steps grouped by development area."""
+
+    console = console or Console()
+    items = tuple(sorted(steps, key=lambda step: (step.group, step.name)))
+    title = f"FlexSoC steps: {group}" if group else "FlexSoC steps"
+    table = Table(title=title, border_style="orange3", show_lines=False)
+    table.add_column("Group", style="cyan", no_wrap=True)
+    table.add_column("Step", style="bold orange3", no_wrap=True)
+    table.add_column("Description", style="white")
+    table.add_column("Parameters", style="yellow")
+    table.add_column("Details", style="dim")
+    for step in items:
+        table.add_row(
+            step.group,
+            step.name,
+            step.description,
+            _step_param_summary(step),
+            f"fx step-info {step.name}",
+        )
+    console.print(
+        Panel(
+            "Run `fx step-info NAME` to inspect accepted parameters before running a step.",
+            title="Advanced steps",
+            border_style="orange3",
+        )
+    )
+    console.print(table)
+
+
+def _step_param_summary(step: FlowStep) -> str:
+    """Return a short parameter summary for the steps table."""
+
+    required = [param.name for param in step.params if param.required]
+    optional = [param.name for param in step.params if not param.required]
+    names = required + optional[: max(0, 4 - len(required))]
+    suffix = " …" if len(required) + len(optional) > len(names) else ""
+    return ", ".join(names) + suffix if names else "none"
+
+
+def _ensure_sequence_run_id(overrides: dict[str, str]) -> dict[str, str]:
+    """Return overrides with one RUN_ID shared by a multi-step CLI call."""
+
+    if "RUN_ID" not in overrides:
+        overrides = dict(overrides)
+        overrides["RUN_ID"] = DEFAULT_SETTINGS["RUN_ID"]
+    return overrides
+
+
+def _project_root(project_root: Path | None = None) -> Path:
+    """Return the repository root used for CLI settings and execution."""
+
+    return (project_root or Path.cwd()).resolve()
+
+
+def _settings_path(project_root: Path | None = None) -> Path:
+    """Return the project-local settings file path."""
+
+    return _project_root(project_root) / SETTINGS_DIRNAME / SETTINGS_FILENAME
+
+
+def _read_settings(project_root: Path | None = None) -> dict[str, str]:
+    """Read saved project settings, falling back to an empty mapping."""
+
+    path = _settings_path(project_root)
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text())
+    return {str(key).upper(): str(value) for key, value in data.items()}
+
+
+def _write_settings(project_root: Path | None, values: dict[str, str]) -> None:
+    """Write project settings in a compact JSON file."""
+
+    path = _settings_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if values:
+        path.write_text(json.dumps(dict(sorted(values.items())), indent=2) + "\n")
+    else:
+        path.unlink(missing_ok=True)
+
+
+def _settings_payload(project_root: Path | None = None) -> dict[str, object]:
+    """Return defaults, saved settings, and resolved values for display."""
+
+    root = _project_root(project_root)
+    defaults = dict(DEFAULT_SETTINGS)
+    saved = _read_settings(root)
+    resolved = {**defaults, **saved}
+    return {
+        "path": str(_settings_path(root)),
+        "defaults": defaults,
+        "saved": saved,
+        "resolved": resolved,
+        "workspace": str(FlexSoC(project_root=root).workdir),
+    }
+
+
+def _merged_settings(project_root: Path | None, overrides: list[str]) -> dict[str, str]:
+    """Merge static defaults, saved project settings, and one-call overrides."""
+
+    values = dict(DEFAULT_SETTINGS)
+    values.update(_read_settings(project_root))
+    values.update(_parse_overrides(overrides))
+    if not values.get("RUN_ID"):
+        values["RUN_ID"] = DEFAULT_SETTINGS["RUN_ID"]
+    return values
+
+
+def _generated_run_id() -> str:
+    """Return the static default run id for old internal callers."""
+
+    return DEFAULT_SETTINGS["RUN_ID"]
+
+
+def _print_settings(payload: dict[str, object], console: Console | None = None) -> None:
+    """Render project settings as a compact human table."""
+
+    console = console or Console()
+    table = Table(title="FlexSoC settings", border_style=ACCENT)
+    table.add_column("Name", style=f"bold {ACCENT}")
+    table.add_column("Value", style="white")
+    table.add_column("Source", style=SECONDARY)
+    defaults = payload["defaults"]
+    saved = payload["saved"]
+    resolved = payload["resolved"]
+    for key, value in resolved.items():
+        table.add_row(key, str(value), "saved" if key in saved else "default")
+    table.add_row("WORKSPACE", str(payload["workspace"]), "computed")
+    console.print(Panel(str(payload["path"]), title="Settings file", border_style=ACCENT))
+    console.print(table)
+
+def _parse_overrides(items: list[str]) -> dict[str, str]:
+    """Parse KEY=VALUE CLI overrides into Make variable values."""
+
+    values: dict[str, str] = {}
+    for item in items:
+        key, sep, value = item.partition("=")
+        if not sep or not key:
+            raise typer.BadParameter(f"expected KEY=VALUE, got {item!r}")
+        values[key.upper()] = value
+    return values

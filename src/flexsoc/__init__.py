@@ -1,3 +1,17 @@
+"""FlexSoC public package exports."""
+
 from __future__ import annotations
 
-# flexsoc package marker.
+from .api import FlexSoC, FlexSoCConfig, FlowCommand, FlowExample, FlowParameter, FlowRequest, FlowResult, FlowStep, FlowWorkflow
+
+__all__ = [
+    "FlexSoC",
+    "FlexSoCConfig",
+    "FlowCommand",
+    "FlowExample",
+    "FlowParameter",
+    "FlowRequest",
+    "FlowResult",
+    "FlowStep",
+    "FlowWorkflow",
+]
