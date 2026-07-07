@@ -1307,3 +1307,39 @@ def _fx_prune_registered_commands() -> None:
 _fx_prune_registered_commands()
 # --- end compact public CLI surface ---
 
+# Focused RTL lint direct commands.
+def _fx_lint_command(target: str, set_: list[str] | None, tool: str, force: bool, overwrite: bool, dry_run: bool, script: bool, capture: bool) -> None:
+    """Run one lint backend target with an optional tool selection."""
+    values = list(set_ or [])
+    if tool != "auto":
+        values.append(f"LINT_TOOL={tool}")
+    _fx_call_step(target, values, force, overwrite, dry_run, script, capture)
+
+
+def _fx_register_lint_command(name: str, target: str, title: str) -> None:
+    """Register one concise lint command."""
+    @app.command(name)
+    def command(
+        tool: str = typer.Option("auto", "--tool", help="Lint backend: auto, verilator, or slang."),
+        set_: list[str] | None = typer.Option(None, "--set", help="Override one project setting for this command."),
+        force: bool = typer.Option(False, "--force", help="Forward FORCE=1 to backend steps."),
+        overwrite: bool = typer.Option(False, "--overwrite", help="Alias for --force."),
+        dry_run: bool = typer.Option(False, "--dry-run", help="Print the backend command without running it."),
+        script: bool = typer.Option(False, "--script", help="Render dry-run output as a shell script."),
+        capture: bool = typer.Option(False, "--capture", help="Capture backend output and print hints on failure."),
+    ) -> None:
+        """Run one focused RTL lint command."""
+        _fx_lint_command(target, set_, tool, force, overwrite, dry_run, script, capture)
+    command.__name__ = f"fx_{name.replace('-', '_')}"
+    command.__doc__ = title
+
+
+for _lint_name, _lint_target, _lint_title in (
+    ("lint", "lint", "Run all configured RTL lint checks."),
+    ("lint-latch", "lint_latch", "Check inferred latch diagnostics."),
+    ("lint-undriven", "lint_undriven", "Check undriven signal diagnostics."),
+    ("lint-width", "lint_width", "Check width mismatch diagnostics."),
+    ("lint-unconnected", "lint_unconnected", "Check unconnected port diagnostics."),
+    ("lint-unused", "lint_unused", "Check unused signal diagnostics."),
+):
+    _fx_register_lint_command(_lint_name, _lint_target, _lint_title)

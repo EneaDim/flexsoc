@@ -75,5 +75,25 @@ dev: install
 # Waveform viewer tools -------------------------------------------------------
 SURFER ?= surfer
 SURFER_GIT ?= https://gitlab.com/surfer-project/surfer.git
+# Local EDA/tool downloads. These stay outside git under .tools/.
+TOOLS_DIR ?= $(CURDIR)/.tools
+TOOLS_BIN ?= $(TOOLS_DIR)/bin
+SLANG ?= $(TOOLS_BIN)/slang
 
-.PHONY: install-surfer
+.PHONY: install-slang
+install-slang:
+	@mkdir -p $(TOOLS_DIR)
+	@tmp=$$(mktemp -d); \
+	echo "Installing slang into $(SLANG)"; \
+	url=$$(curl -fsSL https://api.github.com/repos/MikePopoloski/slang/releases/latest \
+		| grep -E '"browser_download_url": ".*linux.*(x86_64|amd64).*tar.gz"' \
+		| head -n 1 \
+		| cut -d '"' -f 4); \
+	if [ -z "$$url" ]; then echo "Could not find latest Linux slang release asset"; exit 2; fi; \
+	curl -fL "$$url" -o "$$tmp/slang.tar.gz"; \
+	tar -xzf "$$tmp/slang.tar.gz" -C "$$tmp"; \
+	bin=$$(find "$$tmp" -type f -name slang -perm -111 | head -n 1); \
+	if [ -z "$$bin" ]; then echo "Could not find slang executable in archive"; exit 2; fi; \
+	cp "$$bin" "$(SLANG)"; \
+	chmod +x "$(SLANG)"; \
+	"$(SLANG)" --version || true

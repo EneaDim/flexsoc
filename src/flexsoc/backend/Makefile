@@ -473,20 +473,82 @@ ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui
 # -----------------------------------------------------------------------------
 # Lint
 # -----------------------------------------------------------------------------
-lint: $(if $(filter v,$(VSV)),lint_v,lint_sv)
+SLANG ?= $(CURDIR)/tools/bin/slang
+VERILATOR ?= verilator
+LINT_TOOL ?= auto
+LINT_FILELIST ?= $(RTLDIR)/rtl_list.f
+LINT_LOG ?= $(LOGDIR)/$(TOP)_lint_$(LINT_KIND).log
+LINT_SCOPE ?= local
 
-sv2v: flist
-	@echo "\n$(ORANGE)Converting SystemVerilog to Verilog with sv2v...\n$(RESET)"
-	$(Q)$(SV2V) $(RTLDIR)/$(TOP).sv > $(RTLDIR)/$(TOP).v
+VERILATOR_LINT_BASE ?= --lint-only --sv -Wall -Wno-fatal
+SLANG_LINT_BASE ?= --single-unit
 
-lint_v: sv2v
-	@echo "\n$(ORANGE)Linting...\n$(RESET)"
-	$(Q)$(LINTER) $(LINT_FLAGS) $(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_lint.log 2>&1
+lint: LINT_KIND := all
+lint: LINT_PATTERN := %Warning-|%Error-|warning:|error:
+lint: flist _lint_run
 
-lint_sv: setup flist
-	@echo "\n$(ORANGE)Linting...\n$(RESET)"
-	$(Q)$(LINTER) $(LINT_FLAGS) -f $(RTLDIR)/rtl_list.f --top-module $(TOP) $(RTLDIR)/$(TOP).sv \
-		> $(LOGDIR)/$(TOP)_lint.log 2>&1
+lint_latch: LINT_KIND := latch
+lint_latch: LINT_PATTERN := %Warning-LATCH|\[-Winferred-latch\]|inferred latch
+lint_latch: flist _lint_run
+
+lint_undriven: LINT_KIND := undriven
+lint_undriven: LINT_PATTERN := %Warning-UNDRIVEN|\[-Wundriven-port\]|undriven port|no driver|not driven
+lint_undriven: flist _lint_run
+
+lint_width: LINT_KIND := width
+lint_width: LINT_PATTERN := %Warning-(WIDTH|WIDTHEXPAND|WIDTHTRUNC)\b|\[-W(width-trunc|width-expand|port-width-trunc|port-width-expand)\]
+lint_width: flist _lint_run
+
+lint_unconnected: LINT_KIND := unconnected
+lint_unconnected: LINT_PATTERN := %Warning-(PINMISSING|PINCONNECTEMPTY|PINNOCONNECT)\b|\[-W(unconnected-|empty-.*connection)
+lint_unconnected: flist _lint_run
+
+lint_unused: LINT_KIND := unused
+lint_unused: LINT_PATTERN := %Warning-(UNUSEDSIGNAL|UNUSEDPARAM)\b|\[-Wunused-
+lint_unused: flist _lint_run
+
+.PHONY: lint lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run
+
+_lint_run:
+	@printf "\n$(ORANGE)Linting $(TOP) ($(LINT_KIND))...$(RESET)\n"
+	@mkdir -p $(LOGDIR)
+	@if [ ! -f "$(LINT_FILELIST)" ]; then echo "missing RTL filelist: $(LINT_FILELIST). Run: fx flist"; exit 2; fi
+	@tool="$(LINT_TOOL)"; \
+	if [ "$$tool" = "auto" ]; then \
+		if command -v "$(VERILATOR)" >/dev/null 2>&1; then tool="verilator"; \
+		elif [ -x "$(SLANG)" ] || command -v slang >/dev/null 2>&1; then tool="slang"; \
+		else echo "No lint backend found. Run: make install-slang or install verilator"; exit 2; fi; \
+	fi; \
+	case "$$tool:$(LINT_KIND)" in \
+		verilator:all) flags="" ;; \
+		verilator:latch) flags="-Wwarn-LATCH" ;; \
+		verilator:undriven) flags="-Wwarn-UNDRIVEN" ;; \
+		verilator:width) flags="-Wwarn-WIDTH -Wwarn-WIDTHEXPAND -Wwarn-WIDTHTRUNC" ;; \
+		verilator:unconnected) flags="-Wwarn-PINMISSING -Wwarn-PINCONNECTEMPTY -Wwarn-PINNOCONNECT" ;; \
+		verilator:unused) flags="-Wwarn-UNUSEDSIGNAL -Wwarn-UNUSEDPARAM" ;; \
+		slang:all) flags="" ;; \
+		slang:latch) flags="-Winferred-latch" ;; \
+		slang:undriven) flags="-Wundriven-port" ;; \
+		slang:width) flags="-Wwidth-trunc -Wwidth-expand -Wport-width-trunc -Wport-width-expand" ;; \
+		slang:unconnected) flags="-Wunconnected-input-port -Wunconnected-output-port -Wunconnected-inout-port -Wempty-input-connection -Wempty-output-connection -Wempty-inout-connection" ;; \
+		slang:unused) flags="-Wunused-def -Wunused-net -Wunused-port -Wunused-variable -Wunused-parameter -Wunused-typedef -Wunused-import" ;; \
+		*) echo "Unsupported LINT_TOOL=$$tool or LINT_KIND=$(LINT_KIND)"; exit 2 ;; \
+	esac; \
+	if [ "$$tool" = "verilator" ]; then \
+		cmd="$(VERILATOR) $(VERILATOR_LINT_BASE) $$flags -f $(LINT_FILELIST) --top-module $(TOP)"; \
+	else \
+		if [ -x "$(SLANG)" ]; then slang_cmd="$(SLANG)"; elif command -v slang >/dev/null 2>&1; then slang_cmd="slang"; else echo "slang not found. Run: make install-slang"; exit 2; fi; \
+		cmd="$$slang_cmd $(SLANG_LINT_BASE) $$flags -f $(LINT_FILELIST)"; \
+	fi; \
+	echo "$$cmd"; \
+	eval "$$cmd" > "$(LINT_LOG)" 2>&1; status=$$?; \
+	if [ "$(LINT_KIND)" = "all" ]; then cat "$(LINT_LOG)"; exit $$status; fi; \
+	matches="$(LINT_LOG).matches"; \
+	grep -E -i "$(LINT_PATTERN)" "$(LINT_LOG)" > "$$matches" || true; \
+	if [ "$(LINT_SCOPE)" != "all" ]; then grep -F "$(RTLDIR)" "$$matches" > "$$matches.local" || true; mv "$$matches.local" "$$matches"; fi; \
+	if [ -s "$$matches" ]; then cat "$$matches"; echo ""; echo "Found $(LINT_KIND) diagnostics. Full log: $(LINT_LOG)"; exit 1; fi; \
+	if [ $$status -ne 0 ]; then cat "$(LINT_LOG)"; exit $$status; fi; \
+	echo "No $(LINT_KIND) diagnostics found. Full log: $(LINT_LOG)"
 
 # -----------------------------------------------------------------------------
 # Sim
