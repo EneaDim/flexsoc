@@ -1,10 +1,35 @@
+# FlexSoC backend flow Makefile
+#
+# Canonical Make-backed flow entrypoint used by the Python API, CLI wrappers,
+# and direct Make users.
+#
+# Reordered by flow phase:
+#   1. global configuration and helper macros
+#   2. help and setup/init
+#   3. IP metadata, RTL/stub/filelist generation
+#   4. linting
+#   5. testbench/model setup and simulation
+#   6. waveform/netlist viewing and regression artifacts
+#   7. synthesis
+#   8. signoff: SDF, STA, power, path analysis
+#   9. OpenROAD place & route
+#  10. IP load/save
+#  11. SoC/FuseSoC/XBAR/software flow
+#  12. FSM flow
+#  13. tutorials, dependencies, cleanup
+#
+# Notes:
+# - Target-specific variables are kept close to their targets.
+# - Late ?= defaults from the original SoC section are preserved; they only
+#   apply when the variable was not set earlier by the command line/environment.
+# - Legacy phony-only targets are made explicit where useful.
+
+# ============================================================================
+# 1. Global configuration
+# ============================================================================
 MAKEFILE_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 REPO_ROOT ?= $(abspath $(MAKEFILE_DIR)/../../..)
 
-# FlexSoC backend flow Makefile
-#
-# This is the canonical Make-backed flow entrypoint used by the Python API.
-# Keep commands here explicit so CLI, API, and direct Make users run the same steps.
 
 # -----------------------------------------------------------------------------
 # Common configuration
@@ -212,23 +237,13 @@ SOC_CFG_MODE ?= auto
 SOC_CFG_MK := $(OUTROOT)/soc_config.mk
 -include $(SOC_CFG_MK)
 
-.PHONY: soc_cfg
-soc_cfg:
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,RUN_TOP)
-	$(call _require_var,RUN_ID)
-	@echo "[soc_cfg.mk] HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"
-	$(Q)$(MKDIR) -p $(OUTROOT)
-	$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg \
-		--workspace $(WORKSPACE) \
-		--run-top $(RUN_TOP) \
-		--run-id $(RUN_ID) \
-		--mode $(SOC_CFG_MODE) \
-		--default-host $(HOST) > $(SOC_CFG_MK)
+# OpenROAD run-local layout
+OR_WORKDIR  := $(abspath $(OUTROOT))/pnr_openroad
+OR_LOGDIR   := $(abspath $(LOGDIR))
+OR_CFG_MK   := $(abspath $(ORSDIR))/config.mk
+OR_MAKEFILE := $(ORS)/Makefile
 
-# -----------------------------------------------------------------------------
-# Misc
-# -----------------------------------------------------------------------------
+
 OLLAMA_MODEL    ?= qwen2.5:3b-instruct
 TUTORIAL_WS     ?= $(REPO_ROOT)/workspace
 TUTORIAL_RUN_ID ?= dev
@@ -266,14 +281,45 @@ define _require_var
 	fi
 endef
 
-# -----------------------------------------------------------------------------
-# Help and setup targets
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# Help
-# -----------------------------------------------------------------------------
-.PHONY: help help_ip help_soc help_doc help_fsm
+# Internal run guards
+define _require_soc_run_vars
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	$(call _require_var,TOP)
+endef
 
+define _require_fsm
+	@if [ -z "$(strip $(FSM))" ]; then \
+	  echo "ERROR: FSM is required. Pass it as: -- FSM=<fsm_name>"; \
+	  exit 2; \
+	fi
+endef
+
+# Consolidated phony declarations
+PHONY_TARGETS := \
+  help help_ip help_soc help_doc help_fsm setup soc_cfg soc_start \
+  hjson hjson_gen reg doc rtl_stub flist flist_split driver \
+  fetch ip_start ip_flow ip_flow_noreg ip_flow_all lint lint_v lint_sv \
+  lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier setup_tb \
+  setup_cocotb setup_model compile compile_v compile_sv sim sim_v sim_sv \
+  compile_syn sim_syn cocotb view view_cocotb view_syn plot_postsyn view_presyn \
+  view_presyn_v view_presyn_sv tb_save tb_view setup_sdc setup_syn syn syn_v \
+  syn_sv yosys-vgen sv2v setup_signoff sta sdf power sta_violators \
+  path_view setup_pnr pnr pnr_gui ip_load ip_save fsoc_init fsoc \
+  xbar xbar_init xbar_build soc soc_stage_tops soc_flist soc_flow soc_uart_gen \
+  soc_ibex_gen sw_soc soc_prepare soc_build_sw soc_sim soc_run soc_run_only soc_view \
+  soc_uart_tutorial soc_ibex_fetch soc_ibex_tutorial fsm_init fsm_setup fsm_example_load fsm_gen fsm_plot \
+  fsm_flow fsm_install fsm2rtl full_tutorial fsm_tutorial ip_tutorial soc_pless deps \
+  deps-soc clean-pyc clean_doc clean_log clean_rtl clean_sim clean_cocotb clean_syn \
+  clean_signoff clean_pnr clean_fsm clean_fsm_all clean_agent clean_fsoc clean_soc clean_sw \
+  clean_vendor clean_subdir clean clean_all
+
+.PHONY: $(PHONY_TARGETS)
+
+# ============================================================================
+# 2. Help
+# ============================================================================
 help:
 	@echo "$(ORANGE)"
 	@echo "FlexSoC help is now CLI-first."
@@ -299,13 +345,10 @@ help_doc:
 	$(Q)$(PYTHON) -m flexsoc.cli help overview
 
 help_fsm:
-	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) help
 
-# -----------------------------------------------------------------------------
-# Setup
-# -----------------------------------------------------------------------------
-.PHONY: setup setup_tb setup_cocotb setup_model setup_sdc setup_syn setup_signoff setup_pnr
-
+# ============================================================================
+# 3. Setup and run initialization
+# ============================================================================
 setup:
 	@echo "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
 	$(call _require_var,WORKSPACE)
@@ -328,6 +371,190 @@ setup:
 		$(FSMDIR) \
 		$(ORSDIR)
 
+soc_cfg:
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	@echo "[soc_cfg.mk] HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"
+	$(Q)$(MKDIR) -p $(OUTROOT)
+	$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg \
+		--workspace $(WORKSPACE) \
+		--run-top $(RUN_TOP) \
+		--run-id $(RUN_ID) \
+		--mode $(SOC_CFG_MODE) \
+		--default-host $(HOST) > $(SOC_CFG_MK)
+
+soc_start: flist
+	$(call _require_var,WORKSPACE)
+	$(call _require_var,RUN_TOP)
+	$(call _require_var,RUN_ID)
+	@echo "\n$(ORANGE)Initializing SoC run from loaded IP bundles...\n$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.backend.soc_start \
+		--workspace $(WORKSPACE) \
+		--run-top $(RUN_TOP) \
+		--run-id $(RUN_ID)
+
+# ============================================================================
+# 4. IP metadata, RTL stubs, filelists and IP flow aliases
+# ============================================================================
+hjson: setup
+	@echo "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
+
+hjson_gen: hjson
+	@$(MKDIR) -p $(DATADIR)
+
+reg:
+	@$(MKDIR) -p $(RTLDIR)
+	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
+	$(Q)$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
+
+doc:
+	@$(MKDIR) -p $(DOCDIR)
+	@echo "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
+	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
+	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
+
+rtl_stub:
+	@echo "\n$(ORANGE)RTL stub generation...\n$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) --hjson-file $(DATADIR)/$(TOP).hjson --interface $(REG_ITF) --output-dir $(RTLDIR)
+
+ip_start: setup hjson reg doc rtl_stub flist setup_tb sim
+
+flist:
+	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root $(IPS_ROOT) --rtldir $(RTLDIR)
+
+RTL_COMMON_LIST ?= $(RTLDIR)/rtl_common.f
+RTL_IP_LIST ?= $(RTLDIR)/rtl_ip.f
+RTL_LINT_LIST ?= $(RTLDIR)/rtl_lint.f
+
+flist_split: flist
+	@grep -E '/hw/ips/(pkgs|prim|prim_opentitan|tlul)/' $(RTLDIR)/rtl_list.f > $(RTL_COMMON_LIST) || true
+	@grep -vE '/hw/ips/(pkgs|prim|prim_opentitan|tlul)/' $(RTLDIR)/rtl_list.f > $(RTL_IP_LIST) || true
+	@cat $(RTL_COMMON_LIST) $(RTL_IP_LIST) > $(RTL_LINT_LIST)
+	@echo $(RTL_COMMON_LIST)
+	@echo $(RTL_IP_LIST)
+	@echo $(RTL_LINT_LIST)
+
+driver:
+	$(Q)$(PYTHON) $(REGTOOL) -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
+	$(Q)$(PYTHON) -m flexsoc.backend.driver_gen -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR)
+
+fetch:
+	$(Q)$(PYTHON) $(VENDOR_TOOL) --update $(REPO_ROOT)/vendor/$(VENDOR).vendor.hjson
+
+ip_flow: reg doc lint sim syn sdf sta sta_violators power view
+ip_flow_noreg: flist lint sim syn sdf sta sta_violators power view
+ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui
+
+# ============================================================================
+# 5. Linting
+# Supports the aggregate lint target and filtered diagnostics by kind.
+# ============================================================================
+SLANG ?= slang
+SLANG_HIER ?= slang-hier
+VERILATOR ?= verilator
+
+RTL_COMMON_LIST ?= $(RTLDIR)/rtl_common.f
+RTL_IP_LIST ?= $(RTLDIR)/rtl_list.f
+
+LINT_TOOL ?= auto
+LINT_PART ?= ip
+LINT_FULL_LOG ?= $(LOGDIR)/$(TOP)_lint_$(LINT_KIND)_full.log
+LINT_COMMON_LOG ?= $(LOGDIR)/$(TOP)_lint_$(LINT_KIND)_common.log
+LINT_IP_LOG ?= $(LOGDIR)/$(TOP)_lint_$(LINT_KIND)_ip.log
+
+VERILATOR_LINT_BASE ?= --lint-only --sv -Wall -Wno-fatal
+SLANG_LINT_BASE ?= --lint-only --single-unit --top $(TOP) -DSYNTHESIS --diag-hierarchy never
+
+LINT_KINDS := latch undriven width unconnected unused
+
+LINT_PATTERN_all := %Warning-|%Error-|warning:|error:
+LINT_PATTERN_latch := %Warning-LATCH|\[-Winferred-latch\]|inferred latch
+LINT_PATTERN_undriven := %Warning-UNDRIVEN|\[-Wundriven-port\]|undriven port|no driver|not driven
+LINT_PATTERN_width := %Warning-(WIDTH|WIDTHEXPAND|WIDTHTRUNC)\b|\[-W(width-trunc|width-expand|port-width-trunc|port-width-expand)\]
+LINT_PATTERN_unconnected := %Warning-(PINMISSING|PINCONNECTEMPTY|PINNOCONNECT)\b|\[-W(unconnected-|empty-.*connection)
+LINT_PATTERN_unused := %Warning-(UNUSEDSIGNAL|UNUSEDPARAM)\b|\[-Wunused-
+
+VERILATOR_FLAGS_all :=
+VERILATOR_FLAGS_latch := -Wwarn-LATCH
+VERILATOR_FLAGS_undriven := -Wwarn-UNDRIVEN
+VERILATOR_FLAGS_width := -Wwarn-WIDTH -Wwarn-WIDTHEXPAND -Wwarn-WIDTHTRUNC
+VERILATOR_FLAGS_unconnected := -Wwarn-PINMISSING -Wwarn-PINCONNECTEMPTY -Wwarn-PINNOCONNECT
+VERILATOR_FLAGS_unused := -Wwarn-UNUSEDSIGNAL -Wwarn-UNUSEDPARAM
+
+SLANG_FLAGS_all :=
+SLANG_FLAGS_latch := -Winferred-latch
+SLANG_FLAGS_undriven := -Wundriven-port
+SLANG_FLAGS_width := -Wwidth-trunc -Wwidth-expand -Wport-width-trunc -Wport-width-expand
+SLANG_FLAGS_unconnected := -Wunconnected-input-port -Wunconnected-output-port -Wunconnected-inout-port -Wempty-input-connection -Wempty-output-connection -Wempty-inout-connection
+SLANG_FLAGS_unused := -Wunused-def -Wunused-net -Wunused-port -Wunused-variable -Wunused-parameter -Wunused-typedef -Wunused-import
+
+LINT_ARGS = TOP="$(TOP)" HOST="$(HOST)" FORCE="$(FORCE)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" LINT_TOOL="$(LINT_TOOL)" LINT_PART="$(LINT_PART)"
+
+# Compatibility aliases used by compile_v/compile_sv prerequisites.
+lint_v lint_sv: lint
+
+lint: flist_split
+	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) \
+		LINT_KIND=all LINT_PATTERN="$(LINT_PATTERN_all)" \
+		LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_all)" \
+		LINT_SLANG_FLAGS="$(SLANG_FLAGS_all)"
+
+lint_latch lint_undriven lint_width lint_unconnected lint_unused: lint_%: flist_split
+	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) \
+		LINT_KIND="$*" LINT_PATTERN="$(LINT_PATTERN_$*)" \
+		LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_$*)" \
+		LINT_SLANG_FLAGS="$(SLANG_FLAGS_$*)"
+
+_lint_run:
+	@printf "\n$(ORANGE)Linting $(TOP) ($(LINT_KIND), $(LINT_PART))...$(RESET)\n"
+	@mkdir -p $(LOGDIR)
+	@if [ ! -f "$(RTL_COMMON_LIST)" ] || [ ! -f "$(RTL_IP_LIST)" ]; then echo "missing filelists. Run: fx flist"; exit 2; fi
+	@tool="$(LINT_TOOL)"; \
+	if [ "$$tool" = "auto" ]; then \
+		if command -v "$(VERILATOR)" >/dev/null 2>&1; then tool="verilator"; \
+		elif [ -x "$(SLANG)" ] || command -v slang >/dev/null 2>&1; then tool="slang"; \
+		else echo "No lint backend found. Run: make install-slang or install verilator"; exit 2; fi; \
+	fi; \
+	if [ "$$tool" = "verilator" ]; then \
+		cmd="$(VERILATOR) $(VERILATOR_LINT_BASE) $(LINT_VERILATOR_FLAGS) -f $(RTL_COMMON_LIST) -f $(RTL_IP_LIST) --top-module $(TOP)"; \
+	elif [ "$$tool" = "slang" ]; then \
+		if [ -x "$(SLANG)" ]; then slang_cmd="$(SLANG)"; elif command -v slang >/dev/null 2>&1; then slang_cmd="slang"; else echo "slang not found. Run: make install-slang"; exit 2; fi; \
+		cmd="$$slang_cmd $(SLANG_LINT_BASE) $(LINT_SLANG_FLAGS) -f $(RTL_COMMON_LIST) -f $(RTL_IP_LIST)"; \
+	else \
+		echo "Unsupported LINT_TOOL=$$tool. Use auto, verilator, or slang."; exit 2; \
+	fi; \
+	echo "$$cmd"; \
+	eval "$$cmd" > "$(LINT_FULL_LOG)" 2>&1; status=$$?; \
+	if [ "$(LINT_KIND)" = "all" ]; then cat "$(LINT_FULL_LOG)"; exit $$status; fi; \
+	grep -E -i "$(LINT_PATTERN)" "$(LINT_FULL_LOG)" | grep -vF "$(RTLDIR)" > "$(LINT_COMMON_LOG)" || true; \
+	grep -E -i "$(LINT_PATTERN)" "$(LINT_FULL_LOG)" | grep -F "$(RTLDIR)" > "$(LINT_IP_LOG)" || true; \
+	case "$(LINT_PART)" in \
+		common) show="$(LINT_COMMON_LOG)" ;; \
+		ip) show="$(LINT_IP_LOG)" ;; \
+		all) printf "\n[common]\n"; cat "$(LINT_COMMON_LOG)"; printf "\n[ip]\n"; cat "$(LINT_IP_LOG)"; show="" ;; \
+		*) echo "Unsupported LINT_PART=$(LINT_PART). Use ip, common, or all."; exit 2 ;; \
+	esac; \
+	if [ -n "$$show" ]; then cat "$$show"; fi; \
+	if [ "$(LINT_PART)" = "all" ]; then \
+		if [ -s "$(LINT_COMMON_LOG)" ] || [ -s "$(LINT_IP_LOG)" ]; then echo ""; echo "Found $(LINT_KIND) diagnostics."; exit 1; fi; \
+	elif [ -s "$$show" ]; then \
+		echo ""; echo "Found $(LINT_KIND) diagnostics. Full log: $(LINT_FULL_LOG)"; exit 1; \
+	fi; \
+	if [ $$status -ne 0 ]; then cat "$(LINT_FULL_LOG)"; exit $$status; fi; \
+	echo "No $(LINT_KIND) diagnostics found for $(LINT_PART). Full log: $(LINT_FULL_LOG)"
+
+SLANG_HIER_LOG ?= $(LOGDIR)/$(TOP)_hier.txt
+
+slang_hier: flist_split
+	@mkdir -p $(LOGDIR)
+	@if [ ! -x "$(SLANG_HIER)" ]; then echo "slang-hier not found. Run: make install-slang"; exit 2; fi
+	$(Q)$(SLANG_HIER) --top $(TOP) -DSYNTHESIS -f $(RTL_LINT_LIST) > $(SLANG_HIER_LOG)
+
+# ============================================================================
+# 6. Testbench/model setup and simulation
+# ============================================================================
 setup_tb: setup flist
 	@echo "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
 	$(call _require_var,TOP)
@@ -380,179 +607,6 @@ setup_model: setup
 	$(Q)$(MKDIR) -p $(MODELDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_model --top $(TOP) --output-dir $(MODELDIR)
 
-setup_sdc: setup
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(ORSDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_sdc $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc
-
-setup_syn: setup_sdc
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(SYNDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_syn \
-		-top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
-		--filelist $(RTLDIR)/rtl_list.f \
-		-liberty $(LIB_SYN) -clk $(CLK_PERIOD) \
-		-target $(TARGET_SYN) -opt $(TARGET_OPT) \
-		-o $(SYNDIR)
-
-setup_signoff: setup_sdc syn
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(SIGNOFFDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff \
-		--top $(TOP) \
-		--constraints-dir $(ORSDIR) --synthesis-dir $(SYNDIR) --simulation-dir $(SIMDIR) \
-		--liberty $(LIBS) --activity-pct $(ACTIVITY) \
-		--output-dir $(SIGNOFFDIR)
-
-setup_pnr:
-	$(Q)$(MKDIR) -p $(ORSDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_pnr --top $(TOP) \
-		--synthesis-strategy $(TARGET_OPT) --clock-period $(CLK_PERIOD) \
-		--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --output-dir $(ORSDIR)
-
-# -----------------------------------------------------------------------------
-# IP development targets
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# IP generation
-# -----------------------------------------------------------------------------
-.PHONY: hjson hjson_gen reg doc rtl_stub ip_start soc_start flist driver fetch ip_flow ip_flow_noreg ip_flow_all
-.PHONY: lint lint_v lint_sv compile compile_v compile_sv sim sim_v sim_sv
-.PHONY: compile_syn sim_syn cocotb view view_cocotb view_syn
-.PHONY: syn syn_v syn_sv yosys-vgen plot_postsyn view_presyn view_presyn_v view_presyn_sv
-.PHONY: sta sdf power sta_violators path_view pnr pnr_gui tb_save tb_view sv2v
-
-hjson: setup
-	@echo "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
-
-hjson_gen: hjson
-	@$(MKDIR) -p $(DATADIR)
-
-reg:
-	@$(MKDIR) -p $(RTLDIR)
-	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
-	$(Q)$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
-
-doc:
-	@$(MKDIR) -p $(DOCDIR)
-	@echo "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
-	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
-	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
-
-rtl_stub:
-	@echo "\n$(ORANGE)RTL stub generation...\n$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) --hjson-file $(DATADIR)/$(TOP).hjson --interface $(REG_ITF) --output-dir $(RTLDIR)
-
-ip_start: setup hjson reg doc rtl_stub flist setup_tb sim
-
-soc_start: flist
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,RUN_TOP)
-	$(call _require_var,RUN_ID)
-	@echo "\n$(ORANGE)Initializing SoC run from loaded IP bundles...\n$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.soc_start \
-		--workspace $(WORKSPACE) \
-		--run-top $(RUN_TOP) \
-		--run-id $(RUN_ID)
-
-flist:
-	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root $(IPS_ROOT) --rtldir $(RTLDIR)
-
-driver:
-	$(Q)$(PYTHON) $(REGTOOL) -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
-	$(Q)$(PYTHON) -m flexsoc.backend.driver_gen -i $(DATADIR)/$(TOP).hjson -b $(MOD_ADD) -o $(DRIVERDIR)
-
-fetch:
-	$(Q)$(PYTHON) $(VENDOR_TOOL) --update $(REPO_ROOT)/vendor/$(VENDOR).vendor.hjson
-
-ip_flow: reg doc lint sim syn sdf sta sta_violators power view
-ip_flow_noreg: flist lint sim syn sdf sta sta_violators power view
-ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui
-
-# -----------------------------------------------------------------------------
-# Lint
-# -----------------------------------------------------------------------------
-SLANG ?= $(CURDIR)/tools/bin/slang
-VERILATOR ?= verilator
-LINT_TOOL ?= auto
-LINT_FILELIST ?= $(RTLDIR)/rtl_list.f
-LINT_LOG ?= $(LOGDIR)/$(TOP)_lint_$(LINT_KIND).log
-LINT_SCOPE ?= local
-
-VERILATOR_LINT_BASE ?= --lint-only --sv -Wall -Wno-fatal
-SLANG_LINT_BASE ?= --single-unit
-
-lint: LINT_KIND := all
-lint: LINT_PATTERN := %Warning-|%Error-|warning:|error:
-lint: flist _lint_run
-
-lint_latch: LINT_KIND := latch
-lint_latch: LINT_PATTERN := %Warning-LATCH|\[-Winferred-latch\]|inferred latch
-lint_latch: flist _lint_run
-
-lint_undriven: LINT_KIND := undriven
-lint_undriven: LINT_PATTERN := %Warning-UNDRIVEN|\[-Wundriven-port\]|undriven port|no driver|not driven
-lint_undriven: flist _lint_run
-
-lint_width: LINT_KIND := width
-lint_width: LINT_PATTERN := %Warning-(WIDTH|WIDTHEXPAND|WIDTHTRUNC)\b|\[-W(width-trunc|width-expand|port-width-trunc|port-width-expand)\]
-lint_width: flist _lint_run
-
-lint_unconnected: LINT_KIND := unconnected
-lint_unconnected: LINT_PATTERN := %Warning-(PINMISSING|PINCONNECTEMPTY|PINNOCONNECT)\b|\[-W(unconnected-|empty-.*connection)
-lint_unconnected: flist _lint_run
-
-lint_unused: LINT_KIND := unused
-lint_unused: LINT_PATTERN := %Warning-(UNUSEDSIGNAL|UNUSEDPARAM)\b|\[-Wunused-
-lint_unused: flist _lint_run
-
-.PHONY: lint lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run
-
-_lint_run:
-	@printf "\n$(ORANGE)Linting $(TOP) ($(LINT_KIND))...$(RESET)\n"
-	@mkdir -p $(LOGDIR)
-	@if [ ! -f "$(LINT_FILELIST)" ]; then echo "missing RTL filelist: $(LINT_FILELIST). Run: fx flist"; exit 2; fi
-	@tool="$(LINT_TOOL)"; \
-	if [ "$$tool" = "auto" ]; then \
-		if command -v "$(VERILATOR)" >/dev/null 2>&1; then tool="verilator"; \
-		elif [ -x "$(SLANG)" ] || command -v slang >/dev/null 2>&1; then tool="slang"; \
-		else echo "No lint backend found. Run: make install-slang or install verilator"; exit 2; fi; \
-	fi; \
-	case "$$tool:$(LINT_KIND)" in \
-		verilator:all) flags="" ;; \
-		verilator:latch) flags="-Wwarn-LATCH" ;; \
-		verilator:undriven) flags="-Wwarn-UNDRIVEN" ;; \
-		verilator:width) flags="-Wwarn-WIDTH -Wwarn-WIDTHEXPAND -Wwarn-WIDTHTRUNC" ;; \
-		verilator:unconnected) flags="-Wwarn-PINMISSING -Wwarn-PINCONNECTEMPTY -Wwarn-PINNOCONNECT" ;; \
-		verilator:unused) flags="-Wwarn-UNUSEDSIGNAL -Wwarn-UNUSEDPARAM" ;; \
-		slang:all) flags="" ;; \
-		slang:latch) flags="-Winferred-latch" ;; \
-		slang:undriven) flags="-Wundriven-port" ;; \
-		slang:width) flags="-Wwidth-trunc -Wwidth-expand -Wport-width-trunc -Wport-width-expand" ;; \
-		slang:unconnected) flags="-Wunconnected-input-port -Wunconnected-output-port -Wunconnected-inout-port -Wempty-input-connection -Wempty-output-connection -Wempty-inout-connection" ;; \
-		slang:unused) flags="-Wunused-def -Wunused-net -Wunused-port -Wunused-variable -Wunused-parameter -Wunused-typedef -Wunused-import" ;; \
-		*) echo "Unsupported LINT_TOOL=$$tool or LINT_KIND=$(LINT_KIND)"; exit 2 ;; \
-	esac; \
-	if [ "$$tool" = "verilator" ]; then \
-		cmd="$(VERILATOR) $(VERILATOR_LINT_BASE) $$flags -f $(LINT_FILELIST) --top-module $(TOP)"; \
-	else \
-		if [ -x "$(SLANG)" ]; then slang_cmd="$(SLANG)"; elif command -v slang >/dev/null 2>&1; then slang_cmd="slang"; else echo "slang not found. Run: make install-slang"; exit 2; fi; \
-		cmd="$$slang_cmd $(SLANG_LINT_BASE) $$flags -f $(LINT_FILELIST)"; \
-	fi; \
-	echo "$$cmd"; \
-	eval "$$cmd" > "$(LINT_LOG)" 2>&1; status=$$?; \
-	if [ "$(LINT_KIND)" = "all" ]; then cat "$(LINT_LOG)"; exit $$status; fi; \
-	matches="$(LINT_LOG).matches"; \
-	grep -E -i "$(LINT_PATTERN)" "$(LINT_LOG)" > "$$matches" || true; \
-	if [ "$(LINT_SCOPE)" != "all" ]; then grep -F "$(RTLDIR)" "$$matches" > "$$matches.local" || true; mv "$$matches.local" "$$matches"; fi; \
-	if [ -s "$$matches" ]; then cat "$$matches"; echo ""; echo "Found $(LINT_KIND) diagnostics. Full log: $(LINT_LOG)"; exit 1; fi; \
-	if [ $$status -ne 0 ]; then cat "$(LINT_LOG)"; exit $$status; fi; \
-	echo "No $(LINT_KIND) diagnostics found. Full log: $(LINT_LOG)"
-
-# -----------------------------------------------------------------------------
-# Sim
-# -----------------------------------------------------------------------------
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv)
 sim:     $(if $(filter v,$(VSV)),sim_v,sim_sv)
 
@@ -610,6 +664,130 @@ else
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
+cocotb:
+	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb
+
+# ============================================================================
+# 7. Viewing, waveform inspection and regression artifacts
+# ============================================================================
+view: setup
+	@wave=$$(find "$(SIMDIR)" -maxdepth 1 -type f \( -name "*.fst" -o -name "*.vcd" -o -name "*.ghw" \) 2>/dev/null | sort | tail -n 1); \
+	if [ -z "$$wave" ]; then \
+		echo "No waveform found in $(SIMDIR). Run a simulation first, for example: fx sim"; \
+		exit 1; \
+	fi; \
+	echo "Opening $$wave with $(WAVE_VIEWER)"; \
+	case "$(WAVE_VIEWER)" in \
+		surfer) $(SURFER_ENV) $(SURFER) "$$wave" ;; \
+		gtkwave) $(GTKWAVE) "$$wave" ;; \
+		*) echo "Unknown WAVE_VIEWER=$(WAVE_VIEWER). Use surfer or gtkwave."; exit 2 ;; \
+	esac
+
+view_cocotb:
+	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(TBDIR)/cocotb/$(TOP)_tb.vcd $(VIEWER_CONF) &
+
+view_syn:
+
+plot_postsyn:
+	$(Q)xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot 2>/dev/null &
+
+view_presyn: $(if $(filter v,$(VSV)),view_presyn_v,view_presyn_sv)
+
+view_presyn_v: sv2v
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots
+	@echo "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn' \
+		$(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_presyn.log 2>&1
+	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot 2>/dev/null &
+
+view_presyn_sv:
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots
+	@echo "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
+	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
+		-f rtl/rtl_list.f --top $(TOP) ; \
+	prep -top $(TOP); select -clear; select -module $(MODULE) ; \
+	show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" \
+		> $(LOGDIR)/$(TOP)_presyn.log 2>&1
+	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot 2>/dev/null &
+
+# Signoff
+
+tb_save:
+	$(Q)$(MKDIR) -p $(REGRESSIONDIR) $(REGRESSIONDIR)/$(TBDIR) $(REGRESSIONDIR)/$(SIMDIR)
+	@echo "\n$(ORANGE)Save testbench file...\n$(RESET)"
+	$(Q)$(CP) $(TBDIR)/$(TOP)_tb.sv $(REGRESSIONDIR)/$(TBDIR)/$(TOP)_$(OUTNAME)_tb.sv
+	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.vcd $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd
+	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.gtkw $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw
+
+tb_view:
+	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd \
+		$(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw &
+
+# ============================================================================
+# 8. Synthesis and netlist generation
+# ============================================================================
+setup_sdc: setup
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(ORSDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_sdc $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc
+
+setup_syn: setup_sdc
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(SYNDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_syn \
+		-top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
+		--filelist $(RTLDIR)/rtl_list.f \
+		-liberty $(LIB_SYN) -clk $(CLK_PERIOD) \
+		-target $(TARGET_SYN) -opt $(TARGET_OPT) \
+		-o $(SYNDIR)
+
+syn: $(if $(filter v,$(VSV)),syn_v,syn_sv)
+
+syn_v: setup_syn
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots
+	@echo "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
+	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
+
+syn_sv: setup_syn
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots
+	@echo "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
+	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
+
+yosys-vgen:
+	@echo "\n$(ORANGE)Verilog generation with Yosys...\n$(RESET)"
+	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
+	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
+		-f rtl/rtl_list.f \
+		--top $(TOP); \
+	opt -keepdc; \
+	bwmuxmap; \
+	opt_clean; \
+	write_verilog -norename -noattr rtl/$(TOP).v" > /dev/null 2>&1
+
+# Legacy extension point kept explicit. Implement conversion here if SV2V is required.
+sv2v:
+	@true
+
+# ============================================================================
+# 9. Gate-level simulation and signoff analysis
+# SDF, STA, violator extraction, power and path-view reports.
+# ============================================================================
+setup_signoff: setup_sdc syn
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(SIGNOFFDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff \
+		--top $(TOP) \
+		--constraints-dir $(ORSDIR) --synthesis-dir $(SYNDIR) --simulation-dir $(SIMDIR) \
+		--liberty $(LIBS) --activity-pct $(ACTIVITY) \
+		--output-dir $(SIGNOFFDIR)
+
 SYN_NETLIST ?= $(SYNDIR)/$(TOP)_synth.v
 
 compile_syn: syn
@@ -638,73 +816,6 @@ sim_syn: compile_syn
 	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose +VCD=$(VCD_SYN_FILE) +SDF=$(SDF_FILE) \
 		> $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
 
-cocotb:
-	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb
-
-view_cocotb:
-	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(TBDIR)/cocotb/$(TOP)_tb.vcd $(VIEWER_CONF) &
-
-view_syn:
-	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_syn_tb.vcd $(VIEWER_CONF) &
-
-# -----------------------------------------------------------------------------
-# Synthesis
-# -----------------------------------------------------------------------------
-syn: $(if $(filter v,$(VSV)),syn_v,syn_sv)
-
-syn_v: setup_syn
-	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@echo "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
-	$(Q)$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
-	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
-	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
-
-syn_sv: setup_syn
-	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@echo "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
-	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
-	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
-	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
-
-yosys-vgen:
-	@echo "\n$(ORANGE)Verilog generation with Yosys...\n$(RESET)"
-	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
-	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
-		-f rtl/rtl_list.f \
-		--top $(TOP); \
-	opt -keepdc; \
-	bwmuxmap; \
-	opt_clean; \
-	write_verilog -norename -noattr rtl/$(TOP).v" > /dev/null 2>&1
-
-plot_postsyn:
-	$(Q)xdot $(SYNDIR)/plots/$(TOP)_postsyn.dot 2>/dev/null &
-
-view_presyn: $(if $(filter v,$(VSV)),view_presyn_v,view_presyn_sv)
-
-view_presyn_v: sv2v
-	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@echo "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
-	$(Q)$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn' \
-		$(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_presyn.log 2>&1
-	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot 2>/dev/null &
-
-view_presyn_sv:
-	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@echo "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
-	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
-	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
-		-f rtl/rtl_list.f --top $(TOP) ; \
-	prep -top $(TOP); select -clear; select -module $(MODULE) ; \
-	show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" \
-		> $(LOGDIR)/$(TOP)_presyn.log 2>&1
-	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot 2>/dev/null &
-
-# -----------------------------------------------------------------------------
-# Signoff
-# -----------------------------------------------------------------------------
 sta: setup_signoff
 	@echo "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
 	$(Q)bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log'
@@ -729,13 +840,14 @@ path_view:
 	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/path_view
 	$(Q)$(PYTHON) $(UTILDIR)/interactiveReport.py -i $(LOGDIR)/$(PATH_VIEW_FILE) -s $(UTILDIR)/default.svg -t opensta -n $(NPATHS)
 
-# -----------------------------------------------------------------------------
-# Place & Route
-# -----------------------------------------------------------------------------
-OR_WORKDIR  := $(abspath $(OUTROOT))/pnr_openroad
-OR_LOGDIR   := $(abspath $(LOGDIR))
-OR_CFG_MK   := $(abspath $(ORSDIR))/config.mk
-OR_MAKEFILE := $(ORS)/Makefile
+# ============================================================================
+# 10. OpenROAD place and route
+# ============================================================================
+setup_pnr:
+	$(Q)$(MKDIR) -p $(ORSDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_pnr --top $(TOP) \
+		--synthesis-strategy $(TARGET_OPT) --clock-period $(CLK_PERIOD) \
+		--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --output-dir $(ORSDIR)
 
 pnr: setup_pnr
 	@echo "\n$(ORANGE)Doing Place&Route...\n$(RESET)"
@@ -766,26 +878,9 @@ pnr_gui: setup_pnr
 	$(MAKE) gui_final --file="$(OR_MAKEFILE)" --no-print-dir \
 		DESIGN_CONFIG="$$cfg" 2>/dev/null &
 
-# -----------------------------------------------------------------------------
-# Testbench save/view
-# -----------------------------------------------------------------------------
-tb_save:
-	$(Q)$(MKDIR) -p $(REGRESSIONDIR) $(REGRESSIONDIR)/$(TBDIR) $(REGRESSIONDIR)/$(SIMDIR)
-	@echo "\n$(ORANGE)Save testbench file...\n$(RESET)"
-	$(Q)$(CP) $(TBDIR)/$(TOP)_tb.sv $(REGRESSIONDIR)/$(TBDIR)/$(TOP)_$(OUTNAME)_tb.sv
-	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.vcd $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd
-	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.gtkw $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw
-
-tb_view:
-	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd \
-		$(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw &
-# -----------------------------------------------------------------------------
-# IP load / save
-# -----------------------------------------------------------------------------
-
-.PHONY: ip_load ip_save
-
+# ============================================================================
+# 11. IP load/save
+# ============================================================================
 ip_load:
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
@@ -872,22 +967,9 @@ ip_save:
 	done; \
 	echo "Saved IP from $$src_run to $$dst_ip"
 
-# -----------------------------------------------------------------------------
-# SoC development targets
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# SoC / FuseSoC flows
-# -----------------------------------------------------------------------------
-.PHONY: fsoc_init fsoc
-.PHONY: xbar xbar_init xbar_build
-.PHONY: soc soc_stage_tops soc_flist soc_flow soc_view
-.PHONY: soc_uart_gen soc_ibex_gen
-.PHONY: soc_sim soc_run sw_soc
-.PHONY: soc_uart_tutorial soc_ibex_fetch soc_ibex_tutorial
-.PHONY: soc_prepare soc_build_sw soc_run_only
-# -----------------------------------------------------------------------------
-# User-facing configuration
-# -----------------------------------------------------------------------------
+# ============================================================================
+# 12. SoC, FuseSoC, XBAR and software flow
+# ============================================================================
 PRJ           ?= flexsoc
 TARGET        ?= default
 TOP           ?= soc
@@ -895,41 +977,13 @@ HOST          ?= uart
 SOC_CFG_MODE  ?= builtin
 FUSESOC_TOOL  ?=
 SOC_CORE_VLNV ?= enea:soc:main
-# -----------------------------------------------------------------------------
 # Run-local FuseSoC layout
 # Host-specific to avoid stale UART/IBEX reuse inside the same run.
-# -----------------------------------------------------------------------------
 FUSESOC_ROOT       ?= $(OUTROOT)/fusesoc/$(HOST)
 FUSESOC_CORES_ROOT ?= $(FUSESOC_ROOT)/cores
 FUSESOC_BUILD_ROOT ?= $(FUSESOC_ROOT)/build
 SOC_SIM_EXE        ?= $(FUSESOC_BUILD_ROOT)/sim-verilator/Vtop_verilator
-# -----------------------------------------------------------------------------
-# Tutorial defaults
-# -----------------------------------------------------------------------------
-soc_uart_tutorial: HOST ?= uart
-soc_uart_tutorial: RUN_TOP ?= soc_uart
-soc_uart_tutorial: RUN_ID ?= dev
-soc_uart_tutorial: TOP ?= soc
-soc_ibex_fetch: HOST ?= ibex
-soc_ibex_fetch: RUN_TOP ?= soc_ibex
-soc_ibex_fetch: RUN_ID ?= dev
-soc_ibex_fetch: TOP ?= soc
-soc_ibex_tutorial: HOST ?= ibex
-soc_ibex_tutorial: RUN_TOP ?= soc_ibex
-soc_ibex_tutorial: RUN_ID ?= dev
-soc_ibex_tutorial: TOP ?= soc
-# -----------------------------------------------------------------------------
-# Internal guards
-# -----------------------------------------------------------------------------
-define _require_soc_run_vars
-	$(call _require_var,WORKSPACE)
-	$(call _require_var,RUN_TOP)
-	$(call _require_var,RUN_ID)
-	$(call _require_var,TOP)
-endef
-# -----------------------------------------------------------------------------
-# FuseSoC init for run-local SoC core
-# -----------------------------------------------------------------------------
+
 fsoc_init:
 	@echo "\n$(ORANGE)FuseSoC setup (run-local core generation)...\n$(RESET)"
 	$(call _require_soc_run_vars)
@@ -952,9 +1006,7 @@ fsoc_init:
 	}; \
 	echo "Generated: $$core_out/$(TOP).core"; \
 	echo "$(HOST)" > "$(FUSESOC_ROOT)/.host"
-# -----------------------------------------------------------------------------
 # FuseSoC build/run entry
-# -----------------------------------------------------------------------------
 fsoc:
 	$(call _require_soc_run_vars)
 	@set -eu; \
@@ -974,9 +1026,7 @@ fsoc:
 		$$tool_arg \
 		--build-root "$(FUSESOC_BUILD_ROOT)" \
 		"$(SOC_CORE_VLNV)"
-# -----------------------------------------------------------------------------
 # XBAR generation
-# -----------------------------------------------------------------------------
 xbar: xbar_init xbar_build
 xbar_init: soc_cfg
 	@echo "\n$(ORANGE)XBAR init (HOST=$(HOST)) ...\n$(RESET)"
@@ -1007,14 +1057,12 @@ xbar_build:
 		echo "ERROR: missing generated $(RTLDIR)/xbar_main.sv"; \
 		exit 2; \
 	fi
-# -----------------------------------------------------------------------------
 # Stage loaded IP top modules into SoC RTL dir
 #
 # Why:
 # - soc_gen validates that referenced module wrappers exist.
 # - loaded IPs live under $(OUTROOT)/ips/<ip>/rtl/<ip>.sv
 # - stage only the top wrapper <ip>.sv into $(RTLDIR)
-# -----------------------------------------------------------------------------
 soc_stage_tops:
 	@echo "\n$(ORANGE)Staging loaded IP top RTL wrappers into run rtl/ ...\n$(RESET)"
 	$(call _require_soc_run_vars)
@@ -1039,9 +1087,7 @@ soc_stage_tops:
 	if [ "$$found_any" -eq 0 ]; then \
 		echo "INFO: no IP top wrappers staged from $$ips_root"; \
 	fi
-# -----------------------------------------------------------------------------
 # SoC RTL generation
-# -----------------------------------------------------------------------------
 soc: soc_stage_tops
 	@echo "\n$(ORANGE)SoC RTL generation (HOST=$(HOST)) ...\n$(RESET)"
 	$(call _require_soc_run_vars)
@@ -1065,18 +1111,14 @@ soc_flist:
 		--top soc \
 		--out $(RTLDIR)/rtl_list.f
 soc_flow: xbar soc soc_flist
-# -----------------------------------------------------------------------------
 # Host-specific wrappers
-# -----------------------------------------------------------------------------
 soc_uart_gen: HOST := uart
 soc_uart_gen: SOC_CFG_MODE := builtin
 soc_uart_gen: xbar soc soc_flist
 soc_ibex_gen: HOST := ibex
 soc_ibex_gen: SOC_CFG_MODE := builtin
 soc_ibex_gen: xbar soc soc_flist
-# -----------------------------------------------------------------------------
 # Software generation
-# -----------------------------------------------------------------------------
 sw_soc:
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
@@ -1103,9 +1145,7 @@ soc_build_sw: soc_prepare
 	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) HOST=$(HOST)
 	@echo "\n$(ORANGE)[soc_build_sw] compile software ...\n$(RESET)"
 	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
-# -----------------------------------------------------------------------------
 # Simulation / run
-# -----------------------------------------------------------------------------
 soc_sim:
 	$(call _require_soc_run_vars)
 	@echo "\n$(ORANGE)Preparing SoC simulation model (HOST=$(HOST)) ...\n$(RESET)"
@@ -1149,9 +1189,7 @@ soc_run:
 		exit "$$rc"; \
 	fi
 	$(Q)$(MAKE) soc_view WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) || true
-# -----------------------------------------------------------------------------
 # Waveform viewer
-# -----------------------------------------------------------------------------
 soc_view:
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
@@ -1176,63 +1214,13 @@ soc_view:
 		echo "WARNING: gtkwave not found in PATH"; \
 		echo "Waveform available at: $$fst"; \
 	fi
-# -----------------------------------------------------------------------------
-# Tutorials
-# -----------------------------------------------------------------------------
-soc_uart_tutorial:
-	@echo "\n$(ORANGE)Loading IPs for UART-host SoC tutorial ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
-	$(Q)$(MAKE) soc_run HOST=uart SOC_CFG_MODE=builtin \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
-soc_ibex_fetch:
-	@echo "\n$(ORANGE)Fetch lowRISC IPs ...\n$(RESET)"
-	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
-	@echo "\n$(ORANGE)Fetch Ibex ...\n$(RESET)"
-	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
-soc_ibex_tutorial: soc_ibex_fetch
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 1/8: load uart ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 2/8: load gpio ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 3/8: load rv_timer ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 4/8: load pwm ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 5/8: load spi_host ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=spi_host
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 6/8: generate xbar + soc ...\n$(RESET)"
-	$(Q)$(MAKE) xbar soc HOST=ibex SOC_CFG_MODE=builtin \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 7/8: build sim model + software ...\n$(RESET)"
-	$(Q)$(MAKE) soc_build_sw HOST=ibex \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 8/8: run simulation ...\n$(RESET)"
-	$(Q)$(MAKE) soc_run HOST=ibex SOC_CFG_MODE=builtin \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 
-# -----------------------------------------------------------------------------
-# FSM and clean targets
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# FSM flow
-# -----------------------------------------------------------------------------
-define _require_fsm
-	@if [ -z "$(strip $(FSM))" ]; then \
-	  echo "ERROR: FSM is required. Pass it as: -- FSM=<fsm_name>"; \
-	  exit 2; \
-	fi
-endef
+# Explicit alias for the phony target declared in the original file.
+soc_run_only: soc_run
 
-.PHONY: fsm_init fsm_example_load fsm_setup fsm_gen fsm_plot fsm_flow
-.PHONY: fsm_install
-.PHONY: deps deps-soc
-.PHONY: clean-pyc clean_doc clean_log clean_rtl clean_sim clean_cocotb clean_syn clean_signoff clean_pnr
-.PHONY: clean_fsm clean_fsm_all clean_agent clean_fsoc clean_soc clean_sw clean_vendor clean_subdir clean clean_all
-.PHONY: full_tutorial fsm_tutorial ip_tutorial soc_pless
-
+# ============================================================================
+# 13. FSM flow
+# ============================================================================
 fsm_init:
 	$(call _require_fsm)
 	$(Q)$(MKDIR) -p "$(FSM_INPUT_DIR)" "$(FSM_OUTPUT_DIR)"
@@ -1269,9 +1257,98 @@ fsm_install: fsm_init
 	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM)_tb.sv" "$(TBDIR)/"
 	@echo "\n$(ORANGE)Installed FSM $(FSM) artifacts into IP run directories\n$(RESET)"
 
-# -----------------------------------------------------------------------------
-# Dependencies
-# -----------------------------------------------------------------------------
+# Backwards-compatible name used by fsm_tutorial in the original flow.
+fsm2rtl: fsm_install
+
+# ============================================================================
+# 14. Tutorial and composed flows
+# ============================================================================
+# Tutorial defaults
+soc_uart_tutorial: HOST ?= uart
+soc_uart_tutorial: RUN_TOP ?= soc_uart
+soc_uart_tutorial: RUN_ID ?= dev
+soc_uart_tutorial: TOP ?= soc
+soc_ibex_fetch: HOST ?= ibex
+soc_ibex_fetch: RUN_TOP ?= soc_ibex
+soc_ibex_fetch: RUN_ID ?= dev
+soc_ibex_fetch: TOP ?= soc
+soc_ibex_tutorial: HOST ?= ibex
+soc_ibex_tutorial: RUN_TOP ?= soc_ibex
+soc_ibex_tutorial: RUN_ID ?= dev
+soc_ibex_tutorial: TOP ?= soc
+
+soc_uart_tutorial:
+	@echo "\n$(ORANGE)Loading IPs for UART-host SoC tutorial ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
+	$(Q)$(MAKE) soc_run HOST=uart SOC_CFG_MODE=builtin \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+soc_ibex_fetch:
+	@echo "\n$(ORANGE)Fetch lowRISC IPs ...\n$(RESET)"
+	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
+	@echo "\n$(ORANGE)Fetch Ibex ...\n$(RESET)"
+	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
+soc_ibex_tutorial: soc_ibex_fetch
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 1/8: load uart ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 2/8: load gpio ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 3/8: load rv_timer ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 4/8: load pwm ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 5/8: load spi_host ...\n$(RESET)"
+	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=spi_host
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 6/8: generate xbar + soc ...\n$(RESET)"
+	$(Q)$(MAKE) xbar soc HOST=ibex SOC_CFG_MODE=builtin \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 7/8: build sim model + software ...\n$(RESET)"
+	$(Q)$(MAKE) soc_build_sw HOST=ibex \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
+	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 8/8: run simulation ...\n$(RESET)"
+	$(Q)$(MAKE) soc_run HOST=ibex SOC_CFG_MODE=builtin \
+		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+
+# FSM and clean targets
+# FSM flow
+
+full_tutorial:
+	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui \
+		TOP=test RUN_TOP=test \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+
+fsm_tutorial:
+	$(call _require_var,TOP)
+	$(Q)$(MAKE) setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl \
+		TOP=$(TOP) RUN_TOP=$(TOP) \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+	$(Q)$(MAKE) ip_flow_noreg \
+		TOP=$(TOP) RUN_TOP=$(TOP) \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+
+ip_tutorial:
+	$(call _require_var,TOP)
+	$(Q)$(MAKE) ip_load \
+		TOP=$(TOP) RUN_TOP=$(TOP) \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
+	$(Q)$(MAKE) flist sim syn sdf sta sta_violators power view \
+		TOP=$(TOP) RUN_TOP=$(TOP) \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+
+soc_pless:
+	$(Q)$(MAKE) ip_load \
+		TOP=tiny-soc RUN_TOP=tiny-soc \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+	$(Q)$(MAKE) flist sim syn sdf sta power view \
+		TOP=soc RUN_TOP=tiny-soc \
+		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+
+# ============================================================================
+# 15. Dependencies
+# ============================================================================
 deps:
 	@echo "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
 	sudo apt install -y make python3 python3-pip
@@ -1286,9 +1363,9 @@ deps-soc:
 	export PATH=$$PATH:/tools/riscv32/bin
 	printf "%s\n" "export PATH=/tools/riscv32/bin" >> ~/.bashrc
 
-# -----------------------------------------------------------------------------
-# Clean
-# -----------------------------------------------------------------------------
+# ============================================================================
+# 16. Clean targets
+# ============================================================================
 clean-pyc:
 	@find . -type d -name "__pycache__" -prune -exec rm -rf {} +
 	@find . -type f -name "*.pyc" -delete
@@ -1375,49 +1452,3 @@ clean_all:
 	@find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name '*.pyc' -delete 2>/dev/null || true
 	@true
-full_tutorial:
-	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui \
-		TOP=test RUN_TOP=test \
-		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-
-fsm_tutorial:
-	$(call _require_var,TOP)
-	$(Q)$(MAKE) setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl \
-		TOP=$(TOP) RUN_TOP=$(TOP) \
-		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-	$(Q)$(MAKE) ip_flow_noreg \
-		TOP=$(TOP) RUN_TOP=$(TOP) \
-		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-
-ip_tutorial:
-	$(call _require_var,TOP)
-	$(Q)$(MAKE) ip_load \
-		TOP=$(TOP) RUN_TOP=$(TOP) \
-		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
-	$(Q)$(MAKE) flist sim syn sdf sta sta_violators power view \
-		TOP=$(TOP) RUN_TOP=$(TOP) \
-		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-
-soc_pless:
-	$(Q)$(MAKE) ip_load \
-		TOP=tiny-soc RUN_TOP=tiny-soc \
-		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-	$(Q)$(MAKE) flist sim syn sdf sta power view \
-		TOP=soc RUN_TOP=tiny-soc \
-		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-
-.PHONY: view
-
-view: setup
-	@wave=$$(find "$(SIMDIR)" -maxdepth 1 -type f \( -name "*.fst" -o -name "*.vcd" -o -name "*.ghw" \) 2>/dev/null | sort | tail -n 1); \
-	if [ -z "$$wave" ]; then \
-		echo "No waveform found in $(SIMDIR). Run a simulation first, for example: fx sim"; \
-		exit 1; \
-	fi; \
-	echo "Opening $$wave with $(WAVE_VIEWER)"; \
-	case "$(WAVE_VIEWER)" in \
-		surfer) $(SURFER_ENV) $(SURFER) "$$wave" ;; \
-		gtkwave) $(GTKWAVE) "$$wave" ;; \
-		*) echo "Unknown WAVE_VIEWER=$(WAVE_VIEWER). Use surfer or gtkwave."; exit 2 ;; \
-	esac

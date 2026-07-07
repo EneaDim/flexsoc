@@ -211,9 +211,7 @@ def main() -> int:
         rtldir = Path(args.rtldir).expanduser().resolve()
         write_ip_flist(args.top, out, rtldir, repo_root)
 
-    print(out)
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

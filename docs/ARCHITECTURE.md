@@ -203,3 +203,24 @@ with `fx view --set SURFER_BACKEND=native` or `fx view --set WAVE_VIEWER=gtkwave
 ## CLI flow
 
 The concise CLI exposes direct step commands such as `fx setup --dry-run`, `fx hjson`, `fx reg`, `fx setup_tb`, `fx sim`, and `fx view`.
+
+## RTL lint commands
+
+FlexSoC exposes focused lint commands for common RTL quality checks:
+
+```bash
+fx lint              # all configured lint diagnostics
+fx lint-latch        # inferred latch diagnostics
+fx lint-undriven     # undriven signal diagnostics
+fx lint-width        # width mismatch diagnostics
+fx lint-unconnected  # unconnected port diagnostics
+fx lint-unused       # unused signal diagnostics
+```
+
+Use `--tool auto|verilator|slang` to select the backend. `auto` prefers Verilator when it is available because its warning classes are convenient for focused checks; otherwise it uses `slang`. Install slang locally with:
+
+```bash
+make install-slang
+```
+
+The downloaded binary is placed under `.tools/bin/` and is not committed.
