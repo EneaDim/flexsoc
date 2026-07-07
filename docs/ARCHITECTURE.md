@@ -164,3 +164,42 @@ The public CLI is intentionally small:
 - The canonical backend flow remains `src/flexsoc/backend/Makefile`; the retired top-level `flow/` tree is not part of the package flow.
 
 The developer Makefile is `uv`-first: `make install` creates/synchronizes the local `.venv` through `uv`, and `make test` runs tests through `uv run`.
+
+### Waveform viewer
+
+`fx step view` opens the latest waveform under the active run with Surfer by default. Install it with `make install-surfer`, or select GTKWave for one command with `--set WAVE_VIEWER=gtkwave`.
+
+<!-- BEGIN FLEXSOC_CONCISE_CLI_DOCS -->
+
+## Concise CLI surface
+
+FlexSoC keeps `fx step ...` for multi-step runs, but common backend targets are also
+available as direct commands such as `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`,
+`fx setup_tb`, `fx sim`, and `fx view`. Use `fx setting` to persist project defaults
+such as `TOP`, `HOST`, `RUN_ID`, `FORCE`, and `WAVE_VIEWER`.
+
+The `fx help` command is intentionally short: it shows the command surface and a few
+practical IP-development tutorials. The previous workflow command layer is retired in
+favor of explicit step commands and tutorial recipes.
+
+## Portable waveform viewer
+
+Surfer is the default waveform viewer. The backend Makefile exposes deployment-friendly
+settings instead of installing GUI tools automatically:
+
+```make
+WAVE_VIEWER=surfer
+SURFER_BACKEND=auto   # auto, native, x11, or wayland
+SURFER=surfer
+GTKWAVE=gtkwave
+```
+
+`SURFER_BACKEND=auto` keeps native Linux unchanged and launches Surfer through X11 on
+WSL, where forcing X11 avoids common Wayland compositor issues. Override per command
+with `fx view --set SURFER_BACKEND=native` or `fx view --set WAVE_VIEWER=gtkwave`.
+
+<!-- END FLEXSOC_CONCISE_CLI_DOCS -->
+
+## CLI flow
+
+The concise CLI exposes direct step commands such as `fx setup --dry-run`, `fx hjson`, `fx reg`, `fx setup_tb`, `fx sim`, and `fx view`.

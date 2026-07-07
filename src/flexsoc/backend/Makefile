@@ -36,6 +36,27 @@ export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
 WORKSPACE   ?= ../workspace
 BACKEND_MAKEFILE ?= $(abspath $(lastword $(MAKEFILE_LIST)))
 RUN_ID ?= default
+# BEGIN FLEXSOC_PORTABLE_VIEWER
+# Waveform viewer settings. Use SURFER_BACKEND=auto|native|x11|wayland.
+WAVE_VIEWER ?= surfer
+SURFER ?= surfer
+GTKWAVE ?= gtkwave
+SURFER_BACKEND ?= auto
+WSL_DETECTED := $(shell grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null && echo 1 || echo 0)
+ifeq ($(SURFER_BACKEND),x11)
+SURFER_ENV ?= env -u WAYLAND_DISPLAY WINIT_UNIX_BACKEND=x11
+else ifeq ($(SURFER_BACKEND),wayland)
+SURFER_ENV ?= env WINIT_UNIX_BACKEND=wayland
+else ifeq ($(SURFER_BACKEND),native)
+SURFER_ENV ?= env
+else ifeq ($(WSL_DETECTED),1)
+SURFER_ENV ?= env -u WAYLAND_DISPLAY WINIT_UNIX_BACKEND=x11
+else
+SURFER_ENV ?= env
+endif
+# END FLEXSOC_PORTABLE_VIEWER
+
+# Waveform viewer defaults. Override with WAVE_VIEWER=gtkwave or SURFER=/path/to/surfer.
 OUTROOT     ?= $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)
 RUN_DIR     ?= $(OUTROOT)
 
@@ -557,10 +578,6 @@ sim_syn: compile_syn
 
 cocotb:
 	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb
-
-view:
-	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(SIMDIR)/$(TOP)_tb.vcd $(VIEWER_CONF) &
 
 view_cocotb:
 	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
@@ -1327,3 +1344,18 @@ soc_pless:
 	$(Q)$(MAKE) flist sim syn sdf sta power view \
 		TOP=soc RUN_TOP=tiny-soc \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
+
+.PHONY: view
+
+view: setup
+	@wave=$$(find "$(SIMDIR)" -maxdepth 1 -type f \( -name "*.fst" -o -name "*.vcd" -o -name "*.ghw" \) 2>/dev/null | sort | tail -n 1); \
+	if [ -z "$$wave" ]; then \
+		echo "No waveform found in $(SIMDIR). Run a simulation first, for example: fx sim"; \
+		exit 1; \
+	fi; \
+	echo "Opening $$wave with $(WAVE_VIEWER)"; \
+	case "$(WAVE_VIEWER)" in \
+		surfer) $(SURFER_ENV) $(SURFER) "$$wave" ;; \
+		gtkwave) $(GTKWAVE) "$$wave" ;; \
+		*) echo "Unknown WAVE_VIEWER=$(WAVE_VIEWER). Use surfer or gtkwave."; exit 2 ;; \
+	esac

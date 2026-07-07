@@ -58,10 +58,10 @@ HELP_SECTIONS = (
         "2. Flow discovery",
         SUCCESS,
         (
-            ("fx workflows", "List high-level development flows."),
             ("fx steps", "List all advanced backend steps."),
             ("fx steps --group ip", "List only IP-development steps."),
             ("fx step-info hjson_gen", "Inspect parameters and examples for one step."),
+            ("fx workflows", "List high-level development flows."),
         ),
     ),
     (
@@ -122,6 +122,7 @@ HELP_SECTIONS = (
 )
 
 app = typer.Typer(
+    context_settings={"help_option_names": ["-h", "--help"]},
 
     add_completion=True,
     help="Thin FlexSoC CLI over the public API layer. Use `fx help` for examples.",
@@ -159,7 +160,7 @@ def _commands_table() -> Table:
     table.add_column("Command", style="bold orange3", no_wrap=True)
     table.add_column("Purpose")
     for row in _HELP_COMMAND_ROWS:
-        table.add_row(row["command"], row["purpose"])
+        table.add_row(_row_command(row), _row_purpose(row))
     return table
 
 
@@ -170,7 +171,7 @@ def _workflow_table() -> Table:
     table.add_column("Goal")
     table.add_column("Command", style="cyan")
     for row in _HELP_WORKFLOW_ROWS:
-        table.add_row(row["name"], row["goal"], row["command"])
+        table.add_row(row["name"], row["goal"], _row_command(row))
     return table
 
 
@@ -227,45 +228,128 @@ def _step_name_completion(incomplete: str):
     return [name for name in FlexSoC().step_names() if name.startswith(incomplete)]
 
 
+
+def _command_rows() -> list[dict[str, str]]:
+    """Return the public command catalog shown by help and commands."""
+
+    return [
+        {"command": "fx setting", "purpose": "Show or edit TOP, HOST, RUN_ID, FORCE, and viewer defaults."},
+        {"command": "fx commands", "purpose": "Show this concise command catalog."},
+        {"command": "fx steps", "purpose": "List all backend steps available through fx step."},
+        {"command": "fx step NAME...", "purpose": "Run one or more backend steps in order."},
+        {"command": "fx <step>", "purpose": "Run a single step directly, for example fx hjson or fx setup_tb."},
+        {"command": "fx <step> --info", "purpose": "Explain one step before launching it."},
+        {"command": "fx view", "purpose": "Open the latest waveform using the configured viewer."},
+        {"command": "fx help", "purpose": "Show the concise guide and practical tutorials."},
+    ]
+
+
+def _print_command_table() -> None:
+    """Render the concise command catalog as a Rich table."""
+
+    table = Table(title="Commands", show_lines=False)
+    table.add_column("Command", style="bold orange3", no_wrap=True)
+    table.add_column("Purpose")
+    for row in _command_rows():
+        table.add_row(_row_command(row), _row_purpose(row))
+    console.print(table)
+
+def _row_field(row, index: int, key: str) -> str:
+    """Read one field from tuple-style or dict-style help rows."""
+    if isinstance(row, dict):
+        return str(row.get(key, ""))
+    try:
+        return str(row[index])
+    except (IndexError, TypeError):
+        return ""
+
+
+def _row_command(row) -> str:
+    """Return the command column from a help row."""
+    return _row_field(row, 0, "command")
+
+
+def _row_purpose(row) -> str:
+    """Return the purpose column from a help row."""
+    return _row_field(row, 1, "purpose")
+
+
+def _recipe_name(row) -> str:
+    """Return the tutorial recipe name from tuple or dict rows."""
+    return _row_field(row, 0, "name")
+
+
+def _recipe_title(row) -> str:
+    """Return the tutorial recipe title from tuple or dict rows."""
+    return _row_field(row, 1, "title")
+
+
+def _recipe_command(row) -> str:
+    """Return the tutorial command from tuple or dict rows."""
+    return _row_field(row, 2, "command")
+
+
+def _recipe_note(row) -> str:
+    """Return the tutorial note from tuple or dict rows."""
+    return _row_field(row, 3, "note")
+
+
 @app.command()
 def help() -> None:
-    """Print a concise CLI guide with commands and practical recipes."""
-    console.print(
-        Panel(
-            "A Python API and CLI facade over the backend hardware flow.\n"
-            "Set stable project defaults, then launch explicit backend steps.",
-            title="FlexSoC CLI",
-            border_style="orange3",
-        )
-    )
+    """Show a concise CLI guide with commands and practical IP recipes."""
+
+    console.print(Panel(
+        "A Python API and CLI facade over the backend hardware flow.\n"
+        "Set project defaults once, then launch explicit backend steps.",
+        title="FlexSoC CLI",
+        border_style="orange3",
+    ))
     console.print("[bold orange3]Quickstart[/bold orange3]")
-    console.print("  fx settings")
-    console.print("  fx settings --set TOP=test --set HOST=uart --set RUN_ID=default")
-    console.print("  fx step hjson reg doc rtl_stub setup_tb sim --force")
+    console.print("  fx setting")
+    console.print("  fx setting --set TOP=test --set HOST=uart --set RUN_ID=default")
+    console.print("  fx setup --dry-run --script")
+    console.print("  fx hjson --force")
+    console.print("  fx reg")
+    console.print("  fx doc")
+    console.print("  fx rtl_stub")
+    console.print("  fx setup_tb")
+    console.print("  fx sim")
     console.print("  python -m flexsoc help")
-    console.print()
-    console.print(_commands_table())
-    console.print()
-    console.print("[bold orange3]Workflow tutorials[/bold orange3]")
-    console.print("  Run [bold]fx workflows[/bold] for concise, practical recipes.")
-    console.print("  Recipes are built from backend Makefile targets, not separate orchestration code.")
-    console.print()
-    console.print("[bold orange3]Useful options[/bold orange3]")
-    console.print("  --set KEY=VALUE      Override a project setting for one command.")
-    console.print("  --force/--overwrite  Allow generated files to be refreshed.")
-    console.print("  --dry-run --script   Print backend commands without executing them.")
+
+    _print_command_table()
+
+    console.print("\n[bold orange3]Tutorials[/bold orange3]")
+    console.print("  [bold]IP development[/bold]")
+    console.print("    1. fx setting --set TOP=my_ip --set HOST=uart --set RUN_ID=default")
+    console.print("    2. fx setup")
+    console.print("    3. fx hjson --force")
+    console.print("    4. fx reg && fx doc")
+    console.print("    5. fx rtl_stub && fx setup_tb")
+    console.print("    6. fx sim")
+    console.print("  [bold]Existing IP[/bold]")
+    console.print("    1. fx setting --set TOP=cordic --set HOST=uart --set RUN_ID=default")
+    console.print("    2. fx ip_load --force")
+    console.print("    3. fx setup_tb")
+    console.print("    4. fx sim")
+    console.print("  [bold]Waveform debug[/bold]")
+    console.print("    1. fx sim")
+    console.print("    2. fx view")
+
+    console.print("\n[bold orange3]Useful options[/bold orange3]")
+    console.print("  --set KEY=VALUE      Override one project setting for one command.")
+    console.print("  --force/--overwrite  Refresh generated files when outputs already exist.")
+    console.print("  --dry-run --script   Print backend Make commands without executing them.")
     console.print("  --capture            Capture backend output and show step hints on failure.")
-    console.print()
-    console.print("Design rule: CLI commands call FlexSoC, never backend modules directly.")
+    console.print("\nDesign rule: CLI commands call FlexSoC, never backend modules directly.")
 @app.command()
-def commands(
-    json_: bool = typer.Option(False, "--json", help="Print machine-readable JSON."),
-) -> None:
-    """List the public CLI commands."""
-    if json_:
-        print(json.dumps(_HELP_COMMAND_ROWS, indent=2))
+def commands(json_output: bool = typer.Option(False, "--json", help="Print commands as JSON.")) -> None:
+    """List the concise command surface."""
+
+    rows = _command_rows()
+    if json_output:
+        typer.echo(json.dumps(rows, indent=2))
         return
-    console.print(_commands_table())
+    _print_command_table()
 @app.command()
 def describe() -> None:
     """Print the current FlexSoC API client description as JSON."""
@@ -311,15 +395,6 @@ def settings(
     _print_settings(payload)
 
 
-@app.command()
-def workflows(
-    json_: bool = typer.Option(False, "--json", help="Print machine-readable JSON."),
-) -> None:
-    """Show practical tutorial recipes built from backend steps."""
-    if json_:
-        print(json.dumps(_HELP_WORKFLOW_ROWS, indent=2))
-        return
-    console.print(_workflow_table())
 @app.command("workflow")
 def workflow(
     name: str = typer.Argument(..., help="Workflow name. Use TAB to discover available workflows.", autocompletion=_workflow_name_completion),
@@ -776,4 +851,223 @@ def _parse_overrides(items: list[str]) -> dict[str, str]:
         values[key.upper()] = value
     return values
 
+# BEGIN FLEXSOC_CONCISE_CLI
+import inspect as _fx_inspect
+import json as _fx_json
+from rich.console import Console as _FxConsole
+from rich.panel import Panel as _FxPanel
+from rich.table import Table as _FxTable
+import inspect
+
+_FX_CONSOLE = _FxConsole()
+
+_FX_DIRECT_STEPS = {
+    "setup": "setup",
+    "hjson": "hjson",
+    "reg": "reg",
+    "doc": "doc",
+    "rtl_stub": "rtl_stub",
+    "rtl-stub": "rtl_stub",
+    "flist": "flist",
+    "setup_tb": "setup_tb",
+    "setup-tb": "setup_tb",
+    "setup_cocotb": "setup_cocotb",
+    "setup-cocotb": "setup_cocotb",
+    "sim": "sim",
+    "view": "view",
+    "cocotb": "cocotb",
+    "syn": "syn",
+    "sta": "sta",
+    "power": "power",
+    "pnr": "pnr",
+    "pnr_gui": "pnr_gui",
+    "pnr-gui": "pnr_gui",
+    "ip_load": "ip_load",
+    "ip-load": "ip_load",
+}
+
+_FX_COMMAND_ROWS = [
+    ("fx setting", "Show or edit TOP, HOST, RUN_ID, FORCE, WAVE_VIEWER."),
+    ("fx steps", "List available backend steps."),
+    ("fx <step>", "Run one backend step directly, for example fx hjson --force."),
+    ("fx step ...", "Run multiple backend steps in order."),
+    ("fx step-info NAME", "Show detailed metadata for one backend step."),
+    ("fx smoke", "Run safe package/backend smoke checks."),
+]
+
+_FX_TUTORIAL_ROWS = [
+    ("IP from scratch", "setup → hjson → reg → doc → rtl_stub → setup_tb → sim", "fx step setup hjson reg doc rtl_stub setup_tb sim --force"),
+    ("Reload existing IP", "ip_load copies hw/ips/<TOP> into the current run, then rebuilds filelist/testbench/sim.", "fx step ip_load setup_tb sim --set TOP=cordic --force"),
+    ("Cocotb smoke", "Generate cocotb scaffold from the current RTL filelist, then run cocotb.", "fx step setup_cocotb cocotb --force"),
+    ("Synthesis smoke", "Use the generated RTL filelist and run the open synthesis checks.", "fx step setup_syn syn sta power"),
+    ("Open waveform", "Open the current run waveform with the configured viewer.", "fx view"),
+]
+
+
+def _fx_command_name(command_info: object) -> str:
+    """Return the visible Typer command name."""
+    name = getattr(command_info, "name", None)
+    callback = getattr(command_info, "callback", None)
+    if name:
+        return str(name)
+    if callback is None:
+        return ""
+    return callback.__name__.replace("_", "-")
+
+
+def _fx_drop_commands(names: set[str]) -> None:
+    """Remove commands registered by earlier CLI versions."""
+    app.registered_commands[:] = [cmd for cmd in app.registered_commands if _fx_command_name(cmd) not in names]
+
+
+def _fx_commands_table() -> _FxTable:
+    """Build the concise command table."""
+    table = _FxTable(title="Commands", show_lines=False)
+    table.add_column("command", style="orange3", no_wrap=True)
+    table.add_column("purpose")
+    for command, purpose in _FX_COMMAND_ROWS:
+        table.add_row(command, purpose)
+    return table
+
+
+def _fx_tutorial_table() -> _FxTable:
+    """Build the practical tutorial table."""
+    table = _FxTable(title="Tutorials", show_lines=True)
+    table.add_column("goal", style="orange3", no_wrap=True)
+    table.add_column("flow")
+    table.add_column("command", style="green")
+    for goal, flow, command in _FX_TUTORIAL_ROWS:
+        table.add_row(goal, flow, command)
+    return table
+
+
+def _fx_print_help() -> None:
+    """Print the concise FlexSoC guide."""
+    _FX_CONSOLE.print(_FxPanel(
+        "A compact Python CLI over the backend hardware flow.\n"
+        "Set project defaults once, then launch explicit steps directly.",
+        title="FlexSoC CLI",
+        border_style="orange3",
+    ))
+    _FX_CONSOLE.print("[bold orange3]Quickstart[/bold orange3]")
+    _FX_CONSOLE.print("  fx setting --set TOP=test --set HOST=uart --set RUN_ID=default")
+    _FX_CONSOLE.print("  fx hjson --force")
+    _FX_CONSOLE.print("  fx reg")
+    _FX_CONSOLE.print("  fx doc")
+    _FX_CONSOLE.print("  fx rtl_stub")
+    _FX_CONSOLE.print("  fx setup_tb")
+    _FX_CONSOLE.print("  fx sim")
+    _FX_CONSOLE.print()
+    _FX_CONSOLE.print(_fx_commands_table())
+    _FX_CONSOLE.print()
+    _FX_CONSOLE.print(_fx_tutorial_table())
+    _FX_CONSOLE.print()
+    _FX_CONSOLE.print("[bold]Common options[/bold]")
+    _FX_CONSOLE.print("  --info/-h          Show step metadata for a direct step command.")
+    _FX_CONSOLE.print("  --set KEY=VALUE    Override a project setting for one command.")
+    _FX_CONSOLE.print("  --force            Refresh generated files when they already exist.")
+    _FX_CONSOLE.print("  --dry-run --script Print backend commands without executing them.")
+    _FX_CONSOLE.print("  --capture          Capture backend output and print failure hints.")
+
+
+def _fx_step_parameter_default(name: str):
+    """Return safe Python defaults when calling a Typer command directly."""
+
+    if name == "targets":
+        return []
+    if name in {"set", "set_"}:
+        return []
+    if name in {"force", "overwrite", "dry_run", "script", "capture", "json", "json_output"}:
+        return False
+    if name in {"project_root", "workspace", "settings_path", "settings_file", "config"}:
+        return None
+    return None
+
+
+def _fx_call_step(
+    target: str,
+    set_: list[str] | None,
+    force: bool,
+    overwrite: bool,
+    dry_run: bool,
+    script: bool,
+    capture: bool,
+) -> None:
+    """Run one direct step alias without leaking Typer OptionInfo defaults."""
+
+    explicit = {
+        "targets": [target],
+        "set_": set_ or [],
+        "set": set_ or [],
+        "force": force,
+        "overwrite": overwrite,
+        "dry_run": dry_run,
+        "script": script,
+        "capture": capture,
+        "project_root": None,
+    }
+    signature = inspect.signature(step)
+    kwargs = {}
+    for name, parameter in signature.parameters.items():
+        if name in explicit:
+            kwargs[name] = explicit[name]
+        elif parameter.default.__class__.__name__.endswith("Info"):
+            kwargs[name] = _fx_step_parameter_default(name)
+    step(**kwargs)
+
+
+def _fx_make_step_command(command_name: str, target: str):
+    """Create a direct Typer command for one backend target."""
+    def command(
+        info: bool = typer.Option(False, "--info", "-h", help="Show step info and exit."),
+        force: bool = typer.Option(False, "--force", help="Refresh generated files."),
+        overwrite: bool = typer.Option(False, "--overwrite", help="Alias for --force."),
+        dry_run: bool = typer.Option(False, "--dry-run", help="Preview backend command."),
+        script: bool = typer.Option(False, "--script", help="Print dry-run as shell script."),
+        capture: bool = typer.Option(False, "--capture", help="Capture backend output."),
+        set_: list[str] | None = typer.Option(None, "--set", help="Override KEY=VALUE."),
+    ) -> None:
+        """Run one backend step directly."""
+        if info:
+            step_info(target)
+            return
+        _fx_call_step(target, set_, force, overwrite, dry_run, script, capture)
+    command.__name__ = f"fx_{command_name.replace('-', '_')}"
+    command.__doc__ = f"Run the {target} backend step."
+    return command
+
+
+def _fx_setting_alias(*args, **kwargs) -> None:
+    """Alias fx setting to the existing settings command."""
+    return settings(*args, **kwargs)
+
+
+def _fx_register_concise_cli() -> None:
+    """Register the concise public CLI surface."""
+    _fx_drop_commands(set(_FX_DIRECT_STEPS) | {"help", "commands", "workflow", "workflows", "tutorial", "tutorials", "setting"})
+    app.command(name="help")(_fx_help_command)
+    app.command(name="commands")(_fx_commands_command)
+    if "settings" in globals():
+        app.command(name="setting")(settings)
+    for command_name, target in _FX_DIRECT_STEPS.items():
+        app.command(name=command_name)(_fx_make_step_command(command_name, target))
+
+
+def _fx_help_command() -> None:
+    """Show the concise FlexSoC CLI guide."""
+    _fx_print_help()
+
+
+def _fx_commands_command(
+    json_: bool = typer.Option(False, "--json", help="Print commands as JSON."),
+) -> None:
+    """List the concise command surface."""
+    if json_:
+        typer.echo(_fx_json.dumps([{"command": c, "purpose": p} for c, p in _FX_COMMAND_ROWS], indent=2))
+        return
+    _FX_CONSOLE.print(_fx_commands_table())
+
+
+_fx_register_concise_cli()
+# END FLEXSOC_CONCISE_CLI
 

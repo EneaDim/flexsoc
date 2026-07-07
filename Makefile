@@ -32,8 +32,7 @@ help:
 	@echo "  make clean       Remove Python caches and local/generated build artifacts"
 	@echo
 
-install: venv
-	$(UV) sync
+install: venv$(UV) sync
 lint:
 	@echo ">> Running Ruff"
 	@$(RUFF) check src/flexsoc/
@@ -72,3 +71,9 @@ venv:
 
 dev: install
 	$(UV) run python -m flexsoc help
+
+# Waveform viewer tools -------------------------------------------------------
+SURFER ?= surfer
+SURFER_GIT ?= https://gitlab.com/surfer-project/surfer.git
+
+.PHONY: install-surfer

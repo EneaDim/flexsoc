@@ -230,3 +230,19 @@ fx step-info sw_soc_gen  # not a public step name
 ## Local environment files
 
 `uv.lock` is intentionally ignored for now. The public CLI documentation uses package commands such as `fx ...`; local development environments can run those commands however they prefer.
+
+## Quickstart
+
+```bash
+fx setting --set TOP=test --set HOST=uart --set RUN_ID=default
+fx setup --dry-run --script
+fx hjson --force
+fx reg
+fx doc
+fx rtl_stub
+fx setup_tb
+fx sim
+fx view
+```
+
+Use `fx <step> --info` to inspect a single backend step before running it.
