@@ -211,10 +211,10 @@ def _step_error_hint(target: str, message: object = "") -> str:
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context) -> None:
-    """Show the extended help guide when no subcommand is selected."""
+    """Show the concise CLI guide when fx has no subcommand."""
 
     if ctx.invoked_subcommand is None:
-        _print_help()
+        help()
 
 def _workflow_name_completion(incomplete: str):
     """Return workflow names matching the shell completion prefix."""
@@ -1070,4 +1070,240 @@ def _fx_commands_command(
 
 _fx_register_concise_cli()
 # END FLEXSOC_CONCISE_CLI
+# --- compact public CLI surface ---
+PUBLIC_TARGETS = (
+    ("setup", "setup", "Create the run directory layout."),
+    ("hjson", "hjson", "Generate or refresh the IP HJSON description."),
+    ("reg", "reg", "Generate register RTL and software collateral."),
+    ("doc", "doc", "Generate register documentation."),
+    ("rtl_stub", "rtl_stub", "Generate the RTL top stub."),
+    ("rtl-stub", "rtl_stub", "Generate the RTL top stub."),
+    ("flist", "flist", "Generate the RTL file list."),
+    ("setup_tb", "setup_tb", "Generate the SystemVerilog testbench."),
+    ("setup-tb", "setup_tb", "Generate the SystemVerilog testbench."),
+    ("setup_cocotb", "setup_cocotb", "Generate the Cocotb scaffold."),
+    ("setup-cocotb", "setup_cocotb", "Generate the Cocotb scaffold."),
+    ("sim", "sim", "Run lint, compile, and simulation."),
+    ("view", "view", "Open the latest waveform."),
+    ("cocotb", "cocotb", "Run Cocotb tests."),
+    ("setup_syn", "setup_syn", "Generate synthesis scripts."),
+    ("setup-syn", "setup_syn", "Generate synthesis scripts."),
+    ("syn", "syn", "Run synthesis."),
+    ("sta", "sta", "Run static timing analysis."),
+    ("power", "power", "Run power analysis."),
+    ("pnr", "pnr", "Run place and route."),
+    ("pnr_gui", "pnr_gui", "Open the PnR GUI."),
+    ("pnr-gui", "pnr_gui", "Open the PnR GUI."),
+    ("ip_load", "ip_load", "Load an existing IP into the current run."),
+    ("ip-load", "ip_load", "Load an existing IP into the current run."),
+)
+
+COMMAND_ROWS = (
+    ("fx", "Show this concise guide."),
+    ("fx setting", "Show or edit TOP, HOST, RUN_ID, FORCE, WAVE_VIEWER."),
+    ("fx commands", "List public commands."),
+    ("fx run ...", "Run several backend targets in order."),
+    ("fx <target>", "Run one target directly, for example fx hjson --force."),
+    ("fx <target> --info", "Show short help for one target."),
+    ("fx smoke", "Run safe package/backend checks."),
+)
+
+
+def _fx_table(title: str, columns: tuple[str, str], rows: tuple[tuple[str, str], ...]):
+    """Build a compact two-column Rich table."""
+
+    table = Table(title=title)
+    table.add_column(columns[0], style="bold orange3")
+    table.add_column(columns[1])
+    for left, right in rows:
+        table.add_row(left, right)
+    return table
+
+
+def _fx_target_rows() -> tuple[tuple[str, str], ...]:
+    """Return unique public target command rows for help rendering."""
+
+    seen: set[str] = set()
+    rows: list[tuple[str, str]] = []
+    for command, _target, purpose in PUBLIC_TARGETS:
+        if command in seen or "-" in command:
+            continue
+        seen.add(command)
+        rows.append((f"fx {command}", purpose))
+    return tuple(rows)
+
+
+def _fx_call_targets(
+    targets: list[str],
+    set_: list[str] | None = None,
+    force: bool = False,
+    overwrite: bool = False,
+    dry_run: bool = False,
+    script: bool = False,
+    capture: bool = False,
+) -> None:
+    """Run one or more backend targets through the existing API boundary."""
+
+    kwargs = {
+        "targets": targets,
+        "project_root": None,
+        "set_": set_ or [],
+        "force": force,
+        "overwrite": overwrite,
+        "dry_run": dry_run,
+        "script": script,
+        "capture": capture,
+    }
+    signature = inspect.signature(step)
+    step(**{key: value for key, value in kwargs.items() if key in signature.parameters})
+
+
+def _fx_target_command(command_name: str, target: str):
+    """Create one concise direct command for a backend target."""
+
+    @app.command(command_name)
+    def command(
+        info: bool = typer.Option(False, "--info", "-h", help="Show target information and exit."),
+        set_: list[str] | None = typer.Option(None, "--set", help="Override one project setting for this command."),
+        force: bool = typer.Option(False, "--force", help="Refresh generated files when they already exist."),
+        overwrite: bool = typer.Option(False, "--overwrite", help="Alias for --force."),
+        dry_run: bool = typer.Option(False, "--dry-run", help="Preview the backend Make command."),
+        script: bool = typer.Option(False, "--script", help="Print dry-run output as a shell script."),
+        capture: bool = typer.Option(False, "--capture", help="Capture backend output and print failure hints."),
+    ) -> None:
+        """Run one backend target directly."""
+
+        if info:
+            step_info(target)
+            return
+        _fx_call_targets([target], set_, force, overwrite, dry_run, script, capture)
+
+    command.__name__ = f"fx_{command_name.replace('-', '_')}"
+    command.__doc__ = f"Run the {target} backend target."
+    return command
+
+
+@app.callback(invoke_without_command=True, context_settings={"help_option_names": ["-h", "--help"]})
+def main(ctx: typer.Context) -> None:
+    """Show concise help when fx is launched without a subcommand."""
+
+    if ctx.invoked_subcommand is None:
+        help()
+
+
+@app.command("help")
+def help() -> None:
+    """Show the concise FlexSoC command guide."""
+
+    console.print(Panel(
+        "A compact Python CLI over the backend hardware flow.\n"
+        "Set project defaults once, then launch explicit backend targets.",
+        title="FlexSoC CLI",
+        border_style="orange3",
+    ))
+    console.print("[bold orange3]Quickstart[/bold orange3]")
+    for line in (
+        "fx setting --set TOP=test --set HOST=uart --set RUN_ID=default",
+        "fx hjson --force",
+        "fx reg",
+        "fx doc",
+        "fx rtl_stub",
+        "fx setup_tb",
+        "fx sim",
+        "fx view",
+    ):
+        console.print(f"  {line}")
+    console.print()
+    console.print(_fx_table("Commands", ("command", "purpose"), COMMAND_ROWS))
+    console.print()
+    console.print("[bold orange3]IP development[/bold orange3]")
+    for line in (
+        "1. fx setting --set TOP=my_ip --set HOST=uart --set RUN_ID=default",
+        "2. fx setup",
+        "3. fx hjson --force",
+        "4. fx reg && fx doc",
+        "5. fx rtl_stub && fx setup_tb",
+        "6. fx sim && fx view",
+    ):
+        console.print(f"  {line}")
+    console.print()
+    console.print("[bold orange3]Existing IP[/bold orange3]")
+    for line in (
+        "1. fx setting --set TOP=cordic --set HOST=uart --set RUN_ID=default",
+        "2. fx ip_load --force",
+        "3. fx setup_tb",
+        "4. fx sim && fx view",
+    ):
+        console.print(f"  {line}")
+    console.print()
+    console.print("[bold orange3]Useful options[/bold orange3]")
+    for line in (
+        "--info/-h          Show information for a direct target command.",
+        "--set KEY=VALUE    Override one project setting for one command.",
+        "--force            Refresh generated files when they already exist.",
+        "--dry-run --script Print backend Make commands without executing them.",
+        "--capture          Capture backend output and print failure hints.",
+    ):
+        console.print(f"  {line}")
+    console.print()
+    console.print("Design rule: CLI commands call FlexSoC, never backend modules directly.")
+
+
+@app.command("commands")
+def commands(json_: bool = typer.Option(False, "--json", help="Print command metadata as JSON.")) -> None:
+    """List the compact public command surface."""
+
+    rows = tuple({"command": command, "purpose": purpose} for command, purpose in COMMAND_ROWS)
+    if json_:
+        typer.echo(json.dumps(rows, indent=2))
+        return
+    console.print(_fx_table("Commands", ("command", "purpose"), COMMAND_ROWS))
+    console.print(_fx_table("Targets", ("command", "purpose"), _fx_target_rows()))
+
+
+@app.command("run")
+def run(
+    targets: list[str] = typer.Argument(..., help="Backend targets to run in order."),
+    set_: list[str] | None = typer.Option(None, "--set", help="Override one project setting for this command."),
+    force: bool = typer.Option(False, "--force", help="Refresh generated files when they already exist."),
+    overwrite: bool = typer.Option(False, "--overwrite", help="Alias for --force."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview backend Make commands."),
+    script: bool = typer.Option(False, "--script", help="Print dry-run output as a shell script."),
+    capture: bool = typer.Option(False, "--capture", help="Capture backend output and print failure hints."),
+) -> None:
+    """Run several backend targets in order."""
+
+    _fx_call_targets(targets, set_, force, overwrite, dry_run, script, capture)
+
+
+for _command_name, _target, _purpose in PUBLIC_TARGETS:
+    _fx_target_command(_command_name, _target)
+
+
+def _fx_command_name(command_info) -> str:
+    """Return the public Typer command name for filtering."""
+
+    name = command_info.name
+    if name:
+        return name
+    callback = getattr(command_info, "callback", None)
+    return callback.__name__.replace("_", "-") if callback else ""
+
+
+def _fx_prune_registered_commands() -> None:
+    """Drop old workflow/step commands and keep the newest duplicate commands."""
+
+    banned = {"workflow", "workflows", "tutorials", "step", "steps", "step-info"}
+    latest: dict[str, object] = {}
+    for info in app.registered_commands:
+        latest[_fx_command_name(info)] = info
+    app.registered_commands[:] = [
+        info
+        for info in app.registered_commands
+        if _fx_command_name(info) not in banned and latest.get(_fx_command_name(info)) is info
+    ]
+
+
+_fx_prune_registered_commands()
+# --- end compact public CLI surface ---
 

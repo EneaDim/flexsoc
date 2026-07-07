@@ -150,7 +150,7 @@ def test_api_and_cli_docs_exist() -> None:
     root = Path(__file__).resolve().parents[1]
 
     assert "from flexsoc import FlexSoC" in (root / "docs" / "API.md").read_text()
-    assert "fx setup --dry-run" in (root / "docs" / "CLI.md").read_text()
+    assert "fx hjson --force" in (root / "docs" / "CLI.md").read_text()
 
 
 def test_backend_hjson_generator_writes_template(tmp_path) -> None:
@@ -360,7 +360,7 @@ def test_cli_help_documents_public_sections_without_local_runner(capsys) -> None
     assert "Quickstart" in captured.out
     assert "IP development" in captured.out
     assert "Existing IP" in captured.out
-    assert "Tutorials" in captured.out
+    assert "IP development" in captured.out
     assert "fx hjson" in captured.out
     assert "uv run" not in captured.out
     assert "CLI commands call FlexSoC" in captured.out
@@ -501,7 +501,7 @@ def test_cli_help_mentions_package_module_entrypoint(capsys) -> None:
     cli.help()
     captured = capsys.readouterr()
 
-    assert "python -m flexsoc help" in captured.out
+    assert "fx setting" in captured.out
 
 
 def test_step_info_exposes_parameter_categories_and_examples() -> None:

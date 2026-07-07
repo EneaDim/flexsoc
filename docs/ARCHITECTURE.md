@@ -26,8 +26,8 @@ from flexsoc import FlexSoC
 fx help
 fx commands
 fx settings
-fx steps
-fx step hjson reg doc
+fx commands
+fx run hjson reg doc
 ```
 
 The CLI calls the `FlexSoC` API. CLI commands should not call backend modules
@@ -39,7 +39,7 @@ public compatibility guarantees.
 For now, step execution is intentionally Makefile-backed:
 
 ```text
-fx step ...
+fx run ...
   -> flexsoc.cli
   -> FlexSoC.run_step(...)
   -> src/flexsoc/backend/Makefile
@@ -80,13 +80,13 @@ only when you explicitly want a different run:
 
 ```bash
 fx settings --set RUN_ID=smoke
-fx step hjson reg doc
+fx run hjson reg doc
 ```
 
 For one command only:
 
 ```bash
-fx step syn sta --set RUN_ID=trial_01
+fx run syn sta --set RUN_ID=trial_01
 ```
 
 ## Step lifecycle
@@ -94,26 +94,26 @@ fx step syn sta --set RUN_ID=trial_01
 A typical IP flow is:
 
 ```bash
-fx step hjson reg doc rtl_stub setup_tb sim
+fx run hjson reg doc rtl_stub setup_tb sim
 ```
 
 A longer physical-design-oriented flow is:
 
 ```bash
-fx step hjson reg doc rtl_stub setup_tb sim syn sta power pnr
+fx run hjson reg doc rtl_stub setup_tb sim syn sta power pnr
 ```
 
 Cocotb setup uses the generated RTL filelist:
 
 ```bash
-fx step hjson reg doc rtl_stub setup_cocotb cocotb
+fx run hjson reg doc rtl_stub setup_cocotb cocotb
 ```
 
 Regeneration uses the backend `FORCE` setting. The CLI exposes convenient aliases:
 
 ```bash
-fx step hjson reg doc --force
-fx step hjson reg doc --overwrite
+fx run hjson reg doc --force
+fx run hjson reg doc --overwrite
 ```
 
 Without `--force` or `--overwrite`, generators should refuse to overwrite files
@@ -125,9 +125,9 @@ Use CLI discovery before running flows:
 
 ```bash
 fx commands
-fx steps
-fx workflows
-fx step-info hjson
+fx commands
+fx target sequences
+fx run --info hjson
 ```
 
 Shell completion can be installed with:
@@ -137,7 +137,7 @@ fx --install-completion bash
 ```
 
 After reloading the shell, completion should work for commands, steps, and
-workflows.
+target sequences.
 
 ## Cleanup
 
@@ -145,41 +145,41 @@ workflows.
 state, not to be a destructive source-tree operation.
 
 ```bash
-fx step clean_all
+fx run clean_all
 ```
 
 ## Documentation rule
 
 When adding new user-facing behavior, update this file or the README before the
 change is tagged. Keep backend-only implementation details out of public help
-unless they affect the user workflow.
+unless they affect the user target sequence.
 
 ## CLI usage model
 
 The public CLI is intentionally small:
 
 - `fx settings` manages stable project defaults such as `TOP`, `HOST`, `RUN_ID`, and `FORCE`.
-- `fx step ...` runs explicit backend steps through the `FlexSoC` API facade.
-- `fx workflows` / `fx tutorials` show practical recipes, not a second orchestration layer.
+- `fx run ...` runs explicit backend steps through the `FlexSoC` API facade.
+- `fx target sequences` / `fx tutorials` show practical recipes, not a second orchestration layer.
 - The canonical backend flow remains `src/flexsoc/backend/Makefile`; the retired top-level `flow/` tree is not part of the package flow.
 
 The developer Makefile is `uv`-first: `make install` creates/synchronizes the local `.venv` through `uv`, and `make test` runs tests through `uv run`.
 
 ### Waveform viewer
 
-`fx step view` opens the latest waveform under the active run with Surfer by default. Install it with `make install-surfer`, or select GTKWave for one command with `--set WAVE_VIEWER=gtkwave`.
+`fx run view` opens the latest waveform under the active run with Surfer by default. Install it with `make install-surfer`, or select GTKWave for one command with `--set WAVE_VIEWER=gtkwave`.
 
 <!-- BEGIN FLEXSOC_CONCISE_CLI_DOCS -->
 
 ## Concise CLI surface
 
-FlexSoC keeps `fx step ...` for multi-step runs, but common backend targets are also
+FlexSoC keeps `fx run ...` for multi-step runs, but common backend targets are also
 available as direct commands such as `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`,
 `fx setup_tb`, `fx sim`, and `fx view`. Use `fx setting` to persist project defaults
 such as `TOP`, `HOST`, `RUN_ID`, `FORCE`, and `WAVE_VIEWER`.
 
 The `fx help` command is intentionally short: it shows the command surface and a few
-practical IP-development tutorials. The previous workflow command layer is retired in
+practical IP-development tutorials. The previous target sequence command layer is retired in
 favor of explicit step commands and tutorial recipes.
 
 ## Portable waveform viewer
