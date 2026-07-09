@@ -4,9 +4,9 @@
 
 # FlexSoC
 
-FlexSoC is a Python package for IP development and SoC integration.  The
-public surface is intentionally small: callers use the `FlexSoC` API layer or
-the thin `fx` CLI, and both route into the canonical backend Makefile.
+FlexSoC is a Python package for IP development and SoC integration. The public
+surface is intentionally small: callers use the `FlexSoC` API layer or the thin
+`fx` CLI, and both route into the canonical backend Makefile.
 
 ```text
 CLI / Python / future UI
@@ -21,48 +21,55 @@ src/flexsoc/backend/*.py and external EDA tools
 ## Install for development
 
 ```bash
-uv sync
-uv run pytest -q
+make install
+make test
 ```
 
-For local interactive use you can also install the package in editable mode.
+The developer Makefile is `uv`-first. For direct `uv` usage:
 
 ```bash
-uv run python -m pip install -e .
+uv venv --allow-existing
+uv pip install -e ".[dev]"
+uv run pytest -q
 ```
 
 ## Quickstart
 
-List public workflows and advanced steps:
+List the compact public CLI surface and inspect a target:
 
 ```bash
-fx workflows
-fx steps
-fx step-info hjson_gen
+fx commands
+fx hjson --info
 ```
 
-Preview the workspace initialization path without running tools:
+Persist project defaults once:
 
 ```bash
-fx workflow workspace --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx settings --set TOP=demo --set HOST=uart --set RUN_ID=smoke
 ```
 
-Create the workspace and common run folders:
+Preview a workspace/generator path without running tools:
 
 ```bash
-fx workflow workspace --set TOP=demo --set RUN_ID=smoke --capture
+fx setup hjson reg doc --dry-run --script
 ```
 
-Preview the full IP development flow:
+Run the safe setup path and capture output:
 
 ```bash
-fx workflow ip_development --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx setup --capture
 ```
 
-Preview the SoC development flow:
+Preview an explicit IP development path:
 
 ```bash
-fx workflow soc_development --dry-run --script --set TOP=soc --set RUN_ID=smoke
+fx setup hjson reg doc rtl_stub setup_tb sim syn sta power pnr sim_syn cocotb --dry-run --script
+```
+
+Preview an explicit SoC development path:
+
+```bash
+fx setup soc_start soc_flow soc_prepare soc_build_sw soc_sim soc_run --dry-run --script --set TOP=soc
 ```
 
 ## Public Python API
@@ -75,34 +82,25 @@ plan = fx.inspect_workflow("ip_development")
 print(plan.shell_script())
 ```
 
-Run a single step through the same API boundary:
+Run a single backend target through the same API boundary:
 
 ```python
-result = fx.run_step("hjson_gen", capture=True)
+result = fx.run_step("hjson", capture=True)
 print(result.ok, result.returncode)
 ```
 
-## Public workflows
+## Common explicit flows
 
-| Workflow | Purpose |
+| Flow | Ordered backend targets |
 | --- | --- |
-| `workspace` | Create the workspace and common run folders. |
-| `ip_development` | Run the explicit IP development sequence. |
-| `soc_development` | Run the explicit SoC development sequence. |
-| `soc` | Generate or refresh the SoC project. |
-| `fsm` | Run the bundled FSM generator utility. |
+| Workspace setup | `setup` |
+| IP development | `setup hjson reg doc rtl_stub setup_tb sim syn sta power pnr sim_syn cocotb` |
+| SoC development | `setup soc_start soc_flow soc_prepare soc_build_sw soc_sim soc_run` |
+| Existing IP load | `setup ip_load flist setup_tb sim` |
 
-The IP development sequence is explicit:
-
-```text
-setup → hjson_gen → reg → doc → rtl_stub → setup_tb → sim → syn → sta → power → pnr → sim_syn → cocotb
-```
-
-The SoC development sequence is explicit:
-
-```text
-setup → soc_start → soc_flow → soc_prepare → soc_build_sw → soc_sim → soc_run
-```
+EDA-dependent targets such as `sim`, `syn`, `sta`, `power`, `pnr`, `sim_syn`,
+and `cocotb` require the corresponding tools and environment to be installed.
+Use `--dry-run --script` first when validating wiring.
 
 ## Project layout
 
@@ -128,10 +126,11 @@ Long-form framework documentation lives under `docs/`:
 ## Development checks
 
 ```bash
-uv run pytest -q
+make lint
+make test
 fx smoke
 fx smoke --json
 ```
 
-`fx smoke` previews safe framework workflows. It does not launch synthesis,
-signoff, PnR, or simulation tools unless you explicitly run those steps.
+`fx smoke` previews safe framework paths. It does not launch synthesis, signoff,
+PnR, or simulation tools unless you explicitly run those backend targets.

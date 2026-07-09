@@ -8,7 +8,7 @@
 from flexsoc import FlexSoC, FlexSoCConfig
 ```
 
-`FlexSoC` is intentionally thin. It resolves workflows and steps into backend commands, keeps previews inspectable, and returns stable objects instead of raw subprocess internals.
+`FlexSoC` is intentionally thin. It resolves programmatic workflows and direct backend targets into Make commands, keeps previews inspectable, and returns stable objects instead of raw subprocess internals.
 
 ## Basic client
 
@@ -38,9 +38,9 @@ Configuration is normalized into Make variables when a backend command is prepar
 src/flexsoc/backend/Makefile
 ```
 
-## Discover workflows
+## Discover programmatic workflows
 
-Workflows are the preferred public entrypoints because they describe user intent.
+Workflows are API-level helpers for scripts that want named ordered target groups. The CLI stays smaller and launches explicit target lists directly.
 
 ```python
 fx = FlexSoC()
@@ -122,9 +122,9 @@ for command in commands:
     print(command.shell_line())
 ```
 
-## Discover advanced steps
+## Discover backend targets
 
-Advanced steps are exposed for fine-grained control. They still go through the API layer and the backend Makefile.
+Backend targets are exposed for fine-grained control. They still go through the API layer and the backend Makefile.
 
 ```python
 for step in fx.list_steps():
@@ -138,9 +138,9 @@ for step in fx.list_steps(group="soc"):
     print(step.name)
 ```
 
-## Step metadata and parameters
+## Target metadata and parameters
 
-Use `step_info()` to inspect the parameters accepted by one step.
+Use `step_info()` to inspect the parameters accepted by one target.
 
 ```python
 step = fx.step_info("syn")
@@ -164,9 +164,9 @@ for example in fx.step_info("syn").examples:
     print(example.command, "#", example.description)
 ```
 
-## Run one advanced step from Python
+## Run one backend target from Python
 
-This is the direct package-level path for launching a single backend step from Python.
+This is the direct package-level path for launching a single backend target from Python.
 
 ```python
 command = fx.run_step("setup", dry_run=True, TOP="demo", RUN_ID="smoke")
@@ -176,7 +176,7 @@ result = fx.run_step("setup", TOP="demo", RUN_ID="smoke", capture=True)
 print(result.to_dict())
 ```
 
-Direct step execution is useful for automation and debugging. Workflows remain the preferred public abstraction when a workflow exists.
+Direct target execution is useful for automation and debugging. Programmatic workflows remain available when a script wants a named ordered target group.
 
 ## JSON-ready API objects
 
@@ -195,13 +195,13 @@ The public objects expose `to_dict()` for CLI, frontend, and service integration
 
 ## Naming rules
 
-Use canonical API/Make step names. Module filenames are not public step names.
+Use canonical API/Make target names. Module filenames are not public target names.
 
 Example:
 
 ```text
-sw_soc      # canonical step
-sw_soc_gen  # module filename, not a public step name
+sw_soc      # canonical target
+sw_soc_gen  # module filename, not a public target name
 ```
 
 The API reports clear errors for unknown names and may suggest the closest canonical step.

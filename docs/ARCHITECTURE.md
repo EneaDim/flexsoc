@@ -1,11 +1,12 @@
 # FlexSoC architecture
 
-FlexSoC is organized as a Python package with a small public API, a CLI frontend,
-and a backend flow implementation.
+FlexSoC is organized as a Python package with a small public API, a compact CLI
+frontend, and a Make-backed backend flow implementation.
 
 ```text
 src/flexsoc/
 ├── __init__.py          # public package exports
+├── __main__.py          # python -m flexsoc entrypoint
 ├── api.py               # FlexSoC public API
 ├── cli.py               # fx command-line frontend
 └── backend/             # implementation details and flow backends
@@ -26,8 +27,7 @@ from flexsoc import FlexSoC
 fx help
 fx commands
 fx settings
-fx commands
-fx run hjson reg doc
+fx hjson reg doc
 ```
 
 The CLI calls the `FlexSoC` API. CLI commands should not call backend modules
@@ -36,10 +36,10 @@ public compatibility guarantees.
 
 ## Backend flow runner
 
-For now, step execution is intentionally Makefile-backed:
+For now, target execution is intentionally Makefile-backed:
 
 ```text
-fx run ...
+fx TARGET [TARGET...]
   -> flexsoc.cli
   -> FlexSoC.run_step(...)
   -> src/flexsoc/backend/Makefile
@@ -80,40 +80,40 @@ only when you explicitly want a different run:
 
 ```bash
 fx settings --set RUN_ID=smoke
-fx run hjson reg doc
+fx hjson reg doc
 ```
 
 For one command only:
 
 ```bash
-fx run syn sta --set RUN_ID=trial_01
+fx syn sta --set RUN_ID=trial_01
 ```
 
-## Step lifecycle
+## Target lifecycle
 
-A typical IP flow is:
+A typical IP path is:
 
 ```bash
-fx run hjson reg doc rtl_stub setup_tb sim
+fx hjson reg doc rtl_stub setup_tb sim
 ```
 
-A longer physical-design-oriented flow is:
+A longer physical-design-oriented path is:
 
 ```bash
-fx run hjson reg doc rtl_stub setup_tb sim syn sta power pnr
+fx hjson reg doc rtl_stub setup_tb sim syn sta power pnr
 ```
 
 Cocotb setup uses the generated RTL filelist:
 
 ```bash
-fx run hjson reg doc rtl_stub setup_cocotb cocotb
+fx hjson reg doc rtl_stub setup_cocotb cocotb
 ```
 
-Regeneration uses the backend `FORCE` setting. The CLI exposes convenient aliases:
+Regeneration uses the backend `FORCE` setting. The CLI exposes convenient flags:
 
 ```bash
-fx run hjson reg doc --force
-fx run hjson reg doc --overwrite
+fx hjson reg doc --force
+fx hjson reg doc --overwrite
 ```
 
 Without `--force` or `--overwrite`, generators should refuse to overwrite files
@@ -125,9 +125,8 @@ Use CLI discovery before running flows:
 
 ```bash
 fx commands
-fx commands
-fx target sequences
-fx run --info hjson
+fx hjson --info
+fx syn --info --json
 ```
 
 Shell completion can be installed with:
@@ -136,8 +135,7 @@ Shell completion can be installed with:
 fx --install-completion bash
 ```
 
-After reloading the shell, completion should work for commands, steps, and
-target sequences.
+After reloading the shell, completion should work for commands and target names.
 
 ## Cleanup
 
@@ -145,47 +143,39 @@ target sequences.
 state, not to be a destructive source-tree operation.
 
 ```bash
-fx run clean_all
+fx clean_all
 ```
 
 ## Documentation rule
 
 When adding new user-facing behavior, update this file or the README before the
 change is tagged. Keep backend-only implementation details out of public help
-unless they affect the user target sequence.
+unless they affect explicit user target calls.
 
 ## CLI usage model
 
 The public CLI is intentionally small:
 
 - `fx settings` manages stable project defaults such as `TOP`, `HOST`, `RUN_ID`, and `FORCE`.
-- `fx run ...` runs explicit backend steps through the `FlexSoC` API facade.
-- `fx target sequences` / `fx tutorials` show practical recipes, not a second orchestration layer.
+- `fx TARGET [TARGET...]` runs explicit backend targets through the `FlexSoC` API facade.
+- `fx TARGET --info` shows target metadata and examples.
+- `fx commands` shows the compact command catalog.
 - The canonical backend flow remains `src/flexsoc/backend/Makefile`; the retired top-level `flow/` tree is not part of the package flow.
 
-The developer Makefile is `uv`-first: `make install` creates/synchronizes the local `.venv` through `uv`, and `make test` runs tests through `uv run`.
+The developer Makefile is `uv`-first: `make install` creates/synchronizes the
+local `.venv` through `uv`, and `make test` runs tests through `uv run`.
 
-### Waveform viewer
+## Waveform viewer
 
-`fx run view` opens the latest waveform under the active run with Surfer by default. Install it with `make install-surfer`, or select GTKWave for one command with `--set WAVE_VIEWER=gtkwave`.
+`fx view` opens the latest waveform under the active run with Surfer by default.
+Install it with `make install-surfer`, or select GTKWave for one command with:
 
-<!-- BEGIN FLEXSOC_CONCISE_CLI_DOCS -->
+```bash
+fx view --set WAVE_VIEWER=gtkwave
+```
 
-## Concise CLI surface
-
-FlexSoC keeps `fx run ...` for multi-step runs, but common backend targets are also
-available as direct commands such as `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`,
-`fx setup_tb`, `fx sim`, and `fx view`. Use `fx setting` to persist project defaults
-such as `TOP`, `HOST`, `RUN_ID`, `FORCE`, and `WAVE_VIEWER`.
-
-The `fx help` command is intentionally short: it shows the command surface and a few
-practical IP-development tutorials. The previous target sequence command layer is retired in
-favor of explicit step commands and tutorial recipes.
-
-## Portable waveform viewer
-
-Surfer is the default waveform viewer. The backend Makefile exposes deployment-friendly
-settings instead of installing GUI tools automatically:
+Surfer is the default waveform viewer. The backend Makefile exposes
+deployment-friendly settings instead of installing GUI tools automatically:
 
 ```make
 WAVE_VIEWER=surfer
@@ -194,15 +184,10 @@ SURFER=surfer
 GTKWAVE=gtkwave
 ```
 
-`SURFER_BACKEND=auto` keeps native Linux unchanged and launches Surfer through X11 on
-WSL, where forcing X11 avoids common Wayland compositor issues. Override per command
-with `fx view --set SURFER_BACKEND=native` or `fx view --set WAVE_VIEWER=gtkwave`.
-
-<!-- END FLEXSOC_CONCISE_CLI_DOCS -->
-
-## CLI flow
-
-The concise CLI exposes direct step commands such as `fx setup --dry-run`, `fx hjson`, `fx reg`, `fx setup_tb`, `fx sim`, and `fx view`.
+`SURFER_BACKEND=auto` keeps native Linux unchanged and launches Surfer through X11
+on WSL, where forcing X11 avoids common Wayland compositor issues. Override per
+command with `fx view --set SURFER_BACKEND=native` or
+`fx view --set WAVE_VIEWER=gtkwave`.
 
 ## RTL lint commands
 
@@ -217,7 +202,9 @@ fx lint-unconnected  # unconnected port diagnostics
 fx lint-unused       # unused signal diagnostics
 ```
 
-Use `--tool auto|verilator|slang` to select the backend. `auto` prefers Verilator when it is available because its warning classes are convenient for focused checks; otherwise it uses `slang`. Install slang locally with:
+Use `--tool auto|verilator|slang` to select the backend. `auto` prefers Verilator
+when it is available because its warning classes are convenient for focused
+checks; otherwise it uses `slang`. Install slang locally with:
 
 ```bash
 make install-slang

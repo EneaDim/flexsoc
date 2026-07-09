@@ -160,7 +160,42 @@ def test_api_and_cli_docs_exist() -> None:
     root = Path(__file__).resolve().parents[1]
 
     assert "from flexsoc import FlexSoC" in (root / "docs" / "API.md").read_text()
-    assert "fx hjson --force" in (root / "docs" / "CLI.md").read_text()
+    cli_doc = (root / "docs" / "CLI.md").read_text()
+    readme = (root / "README.md").read_text()
+
+    assert "fx TARGET [TARGET...]" in cli_doc
+    assert "fx setup hjson reg doc --dry-run --script" in readme
+
+
+def test_docs_do_not_advertise_removed_cli_commands() -> None:
+    """User-facing docs only advertise the compact CLI surface."""
+
+    root = Path(__file__).resolve().parents[1]
+    text = "\n".join(
+        (root / path).read_text(encoding="utf-8")
+        for path in (
+            "README.md",
+            "docs/API.md",
+            "docs/ARCHITECTURE.md",
+            "docs/CLI.md",
+            "docs/FLOW_SMOKE.md",
+        )
+    )
+
+    removed_phrases = (
+        "fx run",
+        "fx setting ",
+        "fx describe",
+        "fx workflow",
+        "fx workflows",
+        "fx step",
+        "fx steps",
+        "fx target",
+        "step-info",
+        "target sequence",
+    )
+
+    assert not any(phrase in text for phrase in removed_phrases)
 
 
 def test_backend_hjson_generator_writes_template(tmp_path) -> None:
@@ -480,7 +515,7 @@ def test_api_uses_backend_makefile_as_canonical_entrypoint() -> None:
 
 
 def test_step_catalog_covers_main_make_targets() -> None:
-    """Every main development area has documented step-info metadata."""
+    """Every main development area has documented target metadata."""
 
     from flexsoc import FlexSoC
 
