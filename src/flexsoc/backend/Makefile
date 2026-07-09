@@ -671,10 +671,7 @@ cocotb: ## Run cocotb tests
 	fi
 	$(Q)$(PYTHON) -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('cocotb_tools') else 1)" || { \
 		echo "cocotb is not installed in this environment."; \
-		echo "Install flow support, then retry:"; \
-		echo "  uv pip install -e '.[flow]'"; \
-		echo "For cocotb-only experiments you can also use:"; \
-		echo "  uv pip install cocotb==2.0.0"; \
+		echo "Run make install from the repository root, then retry."; \
 		exit 1; \
 	}
 	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME=$(TEST_NAME)

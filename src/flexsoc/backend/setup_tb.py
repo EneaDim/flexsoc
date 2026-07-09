@@ -51,8 +51,19 @@ def _hex(value: int, width: int = 8) -> str:
     return f"0x{value & 0xFFFFFFFF:0{width}x}"
 
 
+def _register_clock(hj: Hjson, reg: dict[str, Any]) -> str:
+    """Return the clock-domain name used to make a register key unique."""
+
+    value = reg.get("clock") or reg.get("clk") or reg.get("clock_primary") or hj.get("clock_primary")
+    if isinstance(value, dict):
+        value = value.get("name")
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else None
+    return str(value or "clk_i")
+
+
 def _register_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
-    """Return writable register entries with inferred word offsets."""
+    """Return writable register entries with clock-qualified names and offsets."""
 
     if hjson_path is None or not hjson_path.exists():
         return []
@@ -64,9 +75,18 @@ def _register_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
             continue
         swaccess = str(reg.get("swaccess", "")).lower()
         name = str(reg["name"]).upper()
+        clock = _register_clock(hj, reg)
         current = int(str(reg.get("offset", offset)), 0) if reg.get("offset") is not None else offset
         if swaccess in {"rw", "wo"}:
-            entries.append({"name": name, "addr": current, "swaccess": swaccess})
+            entries.append(
+                {
+                    "name": name,
+                    "clock": clock,
+                    "key": f"{clock}.{name}",
+                    "addr": current,
+                    "swaccess": swaccess,
+                }
+            )
         offset = current + 4
     return entries
 
@@ -88,16 +108,16 @@ def render_reg_config(top: str, test: str, registers: Sequence[dict[str, Any]]) 
     lines = [
         "# Auto-generated FlexSoC register configuration.",
         f"# top={top} test={test}",
-        "# format: write <REG_NAME> <ADDR> <DATA> <MASK> <WAIT_CYCLES> <NOTE>",
+        "# format: write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE...]",
+        "# defaults: MASK=0xffffffff WAIT_CYCLES=1",
     ]
     if not registers:
         lines.append("# no writable registers inferred from HJSON")
+    for reg in registers:
+        lines.append(f"# map {reg['key']} {_hex(int(reg['addr']))}")
     for index, reg in enumerate(registers):
         data = _config_value(test, reg, index, top=top)
-        lines.append(
-            f"write {reg['name']} {_hex(int(reg['addr']))} {_hex(data)} "
-            f"0xffffffff 1 {test}_{str(reg['name']).lower()}"
-        )
+        lines.append(f"write {reg['key']} {_hex(data)}")
     return "\n".join(lines) + "\n"
 
 
@@ -118,10 +138,10 @@ def render_vec(top: str, test: str, *, latency: int = 2) -> str:
     lines = [
         "# Auto-generated FlexSoC vector file.",
         f"# top={top} test={test} model=pipeline delay={latency}",
-        "# format: cycle input expected latency mask note",
+        "# format: cycle input expected latency mask [note]",
     ]
     for cycle, value in enumerate(_vector_values(test, top=top)):
-        lines.append(f"{cycle} {_hex(value)} {_hex(value)} {latency} 0xffffffff {test}_{cycle}")
+        lines.append(f"{cycle} {_hex(value)} {_hex(value)} {latency} 0xffffffff")
     return "\n".join(lines) + "\n"
 
 
@@ -142,7 +162,14 @@ def write_verification_tests(base_dir: str | Path, top: str, hjson_path: Path | 
     return written
 
 
-def render_sv_reg_sequence(top: str, interface: str, clk: str, *, active: bool) -> str:
+def render_sv_reg_sequence(
+    top: str,
+    interface: str,
+    clk: str,
+    *,
+    active: bool,
+    registers: Sequence[dict[str, Any]] = (),
+) -> str:
     """Render a SystemVerilog register config reader."""
 
     if not active:
@@ -157,14 +184,28 @@ endtask
         if interface == "tlul"
         else f"reg_utils_inst.write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
     )
+    addr_cases = "\n".join(
+        f'    "{reg["key"]}": begin addr = 32\'h{int(reg["addr"]):08x}; return 1\'b1; end'
+        for reg in registers
+    )
+    if not addr_cases:
+        addr_cases = "    default: begin addr = '0; return 1'b0; end"
+    else:
+        addr_cases += "\n    default: begin addr = '0; return 1'b0; end"
     return f"""// Auto-generated register sequence helper for {top}.
+function automatic bit tb_reg_addr(input string reg_key, output logic [31:0] addr);
+  case (reg_key)
+{addr_cases}
+  endcase
+endfunction
+
 task automatic run_reg_config(input string cfg_path);
   int fd;
   int code;
   int wait_cycles;
   string line;
   string op;
-  string reg_name;
+  string reg_key;
   string note;
   logic [31:0] addr;
   logic [31:0] data;
@@ -180,9 +221,16 @@ task automatic run_reg_config(input string cfg_path);
   while (!$feof(fd)) begin
     void'($fgets(line, fd));
     if (line.len() == 0 || line.substr(0, 0) == "#") continue;
-    code = $sscanf(line, "%s %s %h %h %h %d %s", op, reg_name, addr, data, mask, wait_cycles, note);
-    if (code >= 6 && op == "write") begin
-      $display("[TB] config write %s addr=0x%08x data=0x%08x", reg_name, addr, data);
+    mask = 32'hffff_ffff;
+    wait_cycles = 1;
+    note = "";
+    code = $sscanf(line, "%s %s %h %h %d %s", op, reg_key, data, mask, wait_cycles, note);
+    if (code >= 3 && op == "write") begin
+      if (!tb_reg_addr(reg_key, addr)) begin
+        $display("[TB][WARN] unknown register key in config: %s", reg_key);
+        continue;
+      end
+      $display("[TB] config write %s addr=0x%08x data=0x%08x", reg_key, addr, data);
       {write_call}
       repeat (wait_cycles) @(posedge {clk});
     end
@@ -271,6 +319,7 @@ task automatic run_vectors(input string vec_path);
   while (!$feof(fd)) begin
     void'($fgets(line, fd));
     if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+    note = "";
     code = $sscanf(line, "%d %h %h %d %h %s", cycle, input_value, expected, latency, mask, note);
     if (code < 5) continue;
     while (now_cycle < cycle) begin
@@ -312,6 +361,7 @@ def write_sv_verification_helpers(
     interface: str,
     sig: dict[str, Any],
     *,
+    hjson_path: Path | None = None,
     bus_active: bool,
     force: bool,
 ) -> list[Path]:
@@ -320,10 +370,13 @@ def write_sv_verification_helpers(
     out = Path(outdir)
     ensure_dir(out)
     clk = (sig.get("clks") or ["clk_i"])[0]
+    registers = _register_entries(hjson_path)
     input_signal = _find_named_port(sig, {"port_i", "data_i", "in_i"}, "in")
     output_signal = _find_named_port(sig, {"port_o", "data_o", "out_o"}, "out")
     files = {
-        out / f"{top}_reg_sequence.svh": render_sv_reg_sequence(top, interface, clk, active=bus_active),
+        out / f"{top}_reg_sequence.svh": render_sv_reg_sequence(
+            top, interface, clk, active=bus_active, registers=registers
+        ),
         out / f"{top}_vec_monitor.svh": render_sv_vec_monitor(top, output_signal),
         out / f"{top}_vec_driver.svh": render_sv_vec_driver(top, clk, input_signal, output_signal),
     }
@@ -1068,6 +1121,7 @@ def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
             config.top,
             config.interface,
             sig,
+            hjson_path=hjson_path,
             bus_active=(not simple_mode and config.compiler == "verilator"),
             force=True,
         )

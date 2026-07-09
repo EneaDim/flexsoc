@@ -13,7 +13,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Sequence
 
-from .setup_tb import _candidate_hjson_path, write_verification_tests
+from .setup_tb import _candidate_hjson_path, _register_entries, write_verification_tests
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,7 +266,7 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
 
         COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
         ifeq ($(strip $(COCOTB_MAKEFILES)),)
-        $(error cocotb is not installed in this environment; run: uv pip install -e ".[flow]" or uv pip install cocotb==2.0.0)
+        $(error cocotb is not installed in this environment; run: make install)
         endif
         include $(COCOTB_MAKEFILES)/Makefile.sim
         """
@@ -329,7 +329,7 @@ def render_pipeline_model_py(top: str) -> str:
             else:
                 rng = random.Random("{top}:" + test + ":vectors")
                 values = [rng.randrange(2) for _ in range(count)]
-            return [(cycle, value, value, latency, 0xFFFFFFFF, f"{{test}}_{{cycle}}") for cycle, value in enumerate(values)]
+            return [(cycle, value, value, latency, 0xFFFFFFFF) for cycle, value in enumerate(values)]
 
 
         def write_vec(path: str | Path, test: str = "smoke") -> Path:
@@ -337,73 +337,91 @@ def render_pipeline_model_py(top: str) -> str:
             target.parent.mkdir(parents=True, exist_ok=True)
             lines = [
                 "# Auto-generated FlexSoC vector file.",
-                "# format: cycle input expected latency mask note",
+                "# format: cycle input expected latency mask [note]",
             ]
-            for cycle, value, expected, latency, mask, note in vector_rows(test):
-                lines.append(f"{{cycle}} {{_hex(value)}} {{_hex(expected)}} {{latency}} {{_hex(mask)}} {{note}}")
+            for cycle, value, expected, latency, mask in vector_rows(test):
+                lines.append(f"{{cycle}} {{_hex(value)}} {{_hex(expected)}} {{latency}} {{_hex(mask)}}")
             target.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
             return target
         '''
     )
 
 
-def render_reg_driver_py() -> str:
+def render_reg_driver_py(registers: Sequence[dict[str, object]] = ()) -> str:
     """Render a lightweight cocotb register-sequence driver."""
 
-    return dedent(
-        '''\
-        import os
+    entries = "".join(f'    "{reg["key"]}": 0x{int(reg["addr"]):08x},\n' for reg in registers)
+    return f"""\
+import os
 
-        from cocotb.triggers import RisingEdge
-
-
-        def load_register_config(path=None):
-            cfg_path = path or os.environ.get("REG_CONFIG")
-            if not cfg_path:
-                return []
-            rows = []
-            try:
-                with open(cfg_path, encoding="utf-8") as handle:
-                    for line in handle:
-                        line = line.strip()
-                        if not line or line.startswith("#"):
-                            continue
-                        op, name, addr, data, mask, wait, *note = line.split()
-                        if op == "write":
-                            rows.append((name, int(addr, 0), int(data, 0), int(mask, 0), int(wait, 0), " ".join(note)))
-            except FileNotFoundError:
-                return []
-            return rows
+from cocotb.triggers import RisingEdge
 
 
-        async def _tlul_write(dut, clk, addr, data, mask):
-            dut.tl_i_d_ready.value = 1
-            dut.tl_i_a_valid.value = 1
-            dut.tl_i_a_opcode.value = 1  # PutFullData
-            dut.tl_i_a_param.value = 0
-            dut.tl_i_a_size.value = 2
-            dut.tl_i_a_source.value = 0
-            dut.tl_i_a_address.value = addr
-            dut.tl_i_a_mask.value = mask & 0xF
-            dut.tl_i_a_data.value = data
-            await RisingEdge(clk)
-            dut.tl_i_a_valid.value = 0
-            await RisingEdge(clk)
+REGISTER_ADDRS = {{
+{entries}}}
 
 
-        async def run_register_config(dut, path=None):
-            rows = load_register_config(path)
-            clk = getattr(dut, "clk_i", None)
-            can_tlul = clk is not None and hasattr(dut, "tl_i_a_valid")
-            for name, addr, data, mask, wait_cycles, note in rows:
-                dut._log.info("config write %s addr=0x%08x data=0x%08x %s", name, addr, data, note)
-                if can_tlul:
-                    await _tlul_write(dut, clk, addr, data, mask)
-                for _ in range(wait_cycles):
-                    if clk is not None:
-                        await RisingEdge(clk)
-        '''
-    )
+def _resolve_register(key):
+    if key in REGISTER_ADDRS:
+        return REGISTER_ADDRS[key]
+    if "." not in key:
+        matches = [addr for name, addr in REGISTER_ADDRS.items() if name.endswith("." + key)]
+        if len(matches) == 1:
+            return matches[0]
+    raise KeyError(f"unknown register key: {{key}}")
+
+
+def load_register_config(path=None):
+    cfg_path = path or os.environ.get("REG_CONFIG")
+    if not cfg_path:
+        return []
+    rows = []
+    try:
+        with open(cfg_path, encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split()
+                if len(parts) < 3 or parts[0] != "write":
+                    continue
+                _, key, data_text, *rest = parts
+                mask = int(rest[0], 0) if len(rest) >= 1 else 0xFFFFFFFF
+                wait_cycles = int(rest[1], 0) if len(rest) >= 2 else 1
+                note = " ".join(rest[2:]) if len(rest) >= 3 else ""
+                rows.append((key, _resolve_register(key), int(data_text, 0), mask, wait_cycles, note))
+    except FileNotFoundError:
+        return []
+    return rows
+
+
+async def _tlul_write(dut, clk, addr, data, mask):
+    dut.tl_i_d_ready.value = 1
+    dut.tl_i_a_valid.value = 1
+    dut.tl_i_a_opcode.value = 1  # PutFullData
+    dut.tl_i_a_param.value = 0
+    dut.tl_i_a_size.value = 2
+    dut.tl_i_a_source.value = 0
+    dut.tl_i_a_address.value = addr
+    dut.tl_i_a_mask.value = mask & 0xF
+    dut.tl_i_a_data.value = data
+    await RisingEdge(clk)
+    dut.tl_i_a_valid.value = 0
+    await RisingEdge(clk)
+
+
+async def run_register_config(dut, path=None):
+    rows = load_register_config(path)
+    clk = getattr(dut, "clk_i", None)
+    can_tlul = clk is not None and hasattr(dut, "tl_i_a_valid")
+    for key, addr, data, mask, wait_cycles, note in rows:
+        dut._log.info("config write %s addr=0x%08x data=0x%08x %s", key, addr, data, note)
+        if can_tlul:
+            await _tlul_write(dut, clk, addr, data, mask)
+        for _ in range(wait_cycles):
+            if clk is not None:
+                await RisingEdge(clk)
+"""
 
 
 def render_vec_monitor_py() -> str:
@@ -611,6 +629,7 @@ def _write_cocotb_scaffold_impl(cfg: CocotbConfig) -> list[Path]:
     drivers.mkdir(parents=True, exist_ok=True)
     sources = collect_sources(cfg.top, cfg.rtl_dir.resolve(), cfg.ips_root)
     hjson_path = _candidate_hjson_path(cfg.rtl_dir, cfg.top)
+    registers = _register_entries(hjson_path)
     test_files = write_verification_tests(out_dir.parent / "tests", cfg.top, hjson_path, force=True)
     files = {
         out_dir / "Makefile": render_makefile(cfg, sources),
@@ -619,7 +638,7 @@ def _write_cocotb_scaffold_impl(cfg: CocotbConfig) -> list[Path]:
         drivers / "__init__.py": "",
         drivers / "driver_reg_iface.py": render_driver_import(),
         drivers / "driver_tlul.py": render_driver_import(),
-        drivers / "reg_driver.py": render_reg_driver_py(),
+        drivers / "reg_driver.py": render_reg_driver_py(registers),
         drivers / "vec_driver.py": render_vec_driver_py(),
         drivers / "vec_monitor.py": render_vec_monitor_py(),
         out_dir / f"model_{cfg.top}.py": render_pipeline_model_py(cfg.top),

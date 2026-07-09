@@ -209,6 +209,9 @@ def test_makefiles_expose_automatic_comment_help() -> None:
     assert "^[A-Za-z0-9_.%-]+:.*##" in root_make
     assert "^[A-Za-z0-9_.%-]+:.*##" in backend_make
     assert "install: sync ## Install dependencies" in root_make
+    assert "install-flow" not in root_make
+    assert "install-cocotb" not in root_make
+    assert 'pip install -e ".[dev,flow]"' in root_make
     assert "##@ IP flow" in backend_make
     assert "setup: ## Create the run directory tree" in backend_make
     assert "pnr: setup_pnr ## Run OpenROAD place and route" in backend_make
@@ -786,7 +789,8 @@ endmodule
     assert "TOPLEVEL          = demo_tb" in makefile
     assert "export VEC_FILE" in makefile
     assert "COCOTB_MAKEFILES" in makefile
-    assert "uv pip install -e" in makefile
+    assert "run: make install" in makefile
+    assert "uv pip install" not in makefile
     assert "module demo_tb" in (cfg.output / "demo_tb.sv").read_text(encoding="utf-8")
     assert "async def demo_generated_test" in (cfg.output / "demo_tb.py").read_text(encoding="utf-8")
 
@@ -796,14 +800,20 @@ def test_verification_vectors_and_config_are_aligned(tmp_path) -> None:
 
     from flexsoc.backend.setup_tb import render_reg_config, render_vec
 
-    registers = [{"name": "CTRL", "addr": 0}, {"name": "WDATA", "addr": 12}]
+    registers = [
+        {"name": "CTRL", "key": "clk_i.CTRL", "clock": "clk_i", "addr": 0},
+        {"name": "WDATA", "key": "clk_i.WDATA", "clock": "clk_i", "addr": 12},
+    ]
     config = render_reg_config("demo", "smoke", registers)
     vec = render_vec("demo", "smoke")
 
-    assert "write CTRL 0x00000000 0x00000001" in config
-    assert "write WDATA 0x0000000c" in config
-    assert "# format: cycle input expected latency mask note" in vec
-    assert "1 0x00000001 0x00000001 2" in vec
+    assert "# format: write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE...]" in config
+    assert "# map clk_i.CTRL 0x00000000" in config
+    assert "write clk_i.CTRL 0x00000001" in config
+    assert "write clk_i.WDATA 0x00000002" in config
+    assert "# format: cycle input expected latency mask [note]" in vec
+    assert "1 0x00000001 0x00000001 2 0xffffffff" in vec
+    assert "smoke_1" not in vec
 
 
 def test_generated_sv_vector_driver_samples_after_nba() -> None:

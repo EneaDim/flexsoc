@@ -31,7 +31,7 @@ def render_model(top: str) -> str:
 
             def rows(self, values):
                 return [
-                    (cycle, value, self.expected(value), self.latency, 0xFFFFFFFF, f"model_{{cycle}}")
+                    (cycle, value, self.expected(value), self.latency, 0xFFFFFFFF)
                     for cycle, value in enumerate(values)
                 ]
 
@@ -56,11 +56,11 @@ def render_model(top: str) -> str:
             lines = [
                 "# Auto-generated FlexSoC vector file.",
                 f"# top={top} test={{test}} model=pipeline delay={{latency}}",
-                "# format: cycle input expected latency mask note",
+                "# format: cycle input expected latency mask [note]",
             ]
-            for cycle, value, expected, row_latency, mask, note in model.rows(values_for(test)):
+            for cycle, value, expected, row_latency, mask in model.rows(values_for(test)):
                 lines.append(
-                    f"{{cycle}} {{_hex(value)}} {{_hex(expected)}} {{row_latency}} {{_hex(mask)}} {{note}}"
+                    f"{{cycle}} {{_hex(value)}} {{_hex(expected)}} {{row_latency}} {{_hex(mask)}}"
                 )
             target.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
             return target
