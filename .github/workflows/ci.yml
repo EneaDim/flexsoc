@@ -72,40 +72,31 @@ jobs:
 
           netlistsvg --version || true
 
-      - name: Create virtual environment
-        run: |
-          python3 -m venv .venv
-          .venv/bin/python -m pip install -U pip setuptools wheel
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Install Python dependencies
         run: |
-          .venv/bin/python -m pip install -r requirements-ci.txt
-          .venv/bin/python -m pip install -r requirements-flow.txt
-
-      - name: Expose virtualenv on PATH for all following steps
-        run: |
-          echo "${GITHUB_WORKSPACE}/.venv/bin" >> "$GITHUB_PATH"
+          uv venv --allow-existing .venv
+          uv pip install -e ".[dev]"
 
       - name: Verify Python resolution
         shell: bash
         run: |
           set -euo pipefail
-          which python
-          which python3
-          python --version
-          python3 --version
-          python -c "import typer, hjson; print('venv imports OK')"
+          uv run --no-sync python --version
+          uv run --no-sync python -c "import typer, hjson; print('uv imports OK')"
 
-      - name: Run doctor
+      - name: Run CLI smoke
         run: |
-          .venv/bin/python -m flexsoc.cli doctor --json
+          uv run --no-sync python -m flexsoc smoke --json --top demo --run-id smoke
 
       - name: Run Ruff
         run: |
-          .venv/bin/python -m ruff check .
+          uv run --no-sync ruff check src/flexsoc/api.py src/flexsoc/backend tests
 
       - name: Run tests
-        env:
-          VIRTUAL_ENV: ${{ github.workspace }}/.venv
         run: |
-          .venv/bin/python -m pytest -q
+          uv run --no-sync pytest -q

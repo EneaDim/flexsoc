@@ -11,11 +11,12 @@ UV ?= uv
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint fix test check clean clean-py clean-build clean-all venv install dev
+.PHONY: help install sync dev lint fix test check clean clean-py clean-build clean-all venv
 
 PYTHON ?= python3
 RUFF ?= ruff
 PYTEST ?= pytest
+LINT_PATHS ?= src/flexsoc/api.py src/flexsoc/backend tests
 MAKEFLAGS += --no-print-directory
 
 help:
@@ -32,17 +33,22 @@ help:
 	@echo "  make clean       Remove Python caches and local/generated build artifacts"
 	@echo
 
-install: venv$(UV) sync
+install: sync
+
+sync: venv
+	$(UV) pip install -e ".[dev]"
+
 lint:
 	@echo ">> Running Ruff"
-	@$(RUFF) check src/flexsoc/
+	@$(UV) run --no-sync $(RUFF) check $(LINT_PATHS)
 
 fix:
 	@echo ">> Running Ruff --fix"
-	@$(RUFF) check --fix src/flexsoc/
+	@$(UV) run --no-sync $(RUFF) check --fix $(LINT_PATHS)
 
 test:
-	$(UV) run pytest -q
+	$(UV) run --no-sync $(PYTEST) -q
+
 check: lint test
 
 clean: clean-py clean-build
@@ -67,7 +73,7 @@ clean-all: clean
 	@rm -rf workspace
 
 venv:
-	$(UV) venv .venv
+	$(UV) venv --allow-existing .venv
 
 dev: install
-	$(UV) run python -m flexsoc help
+	$(UV) run --no-sync python -m flexsoc help

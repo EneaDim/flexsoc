@@ -13,6 +13,12 @@ from pathlib import Path
 from typing import Any
 
 
+def _as_path(value: Path | str | os.PathLike[str] | None) -> Path | None:
+    """Normalize optional path-like values accepted by the public API."""
+
+    return None if value is None else Path(value)
+
+
 @dataclass(frozen=True, slots=True)
 class FlowResult:
     """Result returned after executing one backend flow step.
@@ -64,7 +70,7 @@ class FlexSoCConfig:
         options = dict(base.options)
         options.update(overrides.pop("options", {}) or {})
         options.update(overrides)
-        return cls(project_root=project_root, workdir=workdir, options=options)
+        return cls(project_root=_as_path(project_root), workdir=_as_path(workdir), options=options)
 
 
 @dataclass(frozen=True, slots=True)
@@ -482,7 +488,7 @@ class FlexSoC:
         """Return copy-ready commands for one documented step."""
 
         names = {param.name for param in params}
-        base = f"fx step {name} --dry-run --set TOP=demo --set RUN_ID=smoke"
+        base = f"fx {name} --dry-run --set TOP=demo --set RUN_ID=smoke"
         examples = [FlowExample(base, "Preview the backend command without running tools.")]
         if "REG_ITF" in names:
             examples.append(FlowExample(f"{base} --set REG_ITF=tlul", "Select the generated register interface."))
