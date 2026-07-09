@@ -198,6 +198,25 @@ def test_docs_do_not_advertise_removed_cli_commands() -> None:
     assert not any(phrase in text for phrase in removed_phrases)
 
 
+
+def test_makefiles_expose_automatic_comment_help() -> None:
+    """Root and backend Makefiles expose help from short target comments."""
+
+    root = Path(__file__).resolve().parents[1]
+    root_make = (root / "Makefile").read_text(encoding="utf-8")
+    backend_make = (root / "src" / "flexsoc" / "backend" / "Makefile").read_text(encoding="utf-8")
+
+    assert "^[A-Za-z0-9_.%-]+:.*##" in root_make
+    assert "^[A-Za-z0-9_.%-]+:.*##" in backend_make
+    assert "install: sync ## Install dependencies" in root_make
+    assert "##@ IP flow" in backend_make
+    assert "setup: ## Create the run directory tree" in backend_make
+    assert "pnr: setup_pnr ## Run OpenROAD place and route" in backend_make
+    assert "clean_all: ## Remove all generated run outputs" in backend_make
+    assert "python -m flexsoc.cli ip" not in backend_make
+    assert "python -m flexsoc.cli help topics" not in backend_make
+    assert "$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg \\n\t$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg" not in backend_make
+
 def test_backend_hjson_generator_writes_template(tmp_path) -> None:
     """The HJSON backend helper exposes a pure writer for API integration."""
 
