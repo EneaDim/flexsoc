@@ -114,6 +114,7 @@ TESTDIR        ?= $(TBDIR)/tests/$(TEST_NAME)
 REGCFG         ?= $(TESTDIR)/config.regs
 VECFILE        ?= $(TESTDIR)/$(TEST_NAME).vec
 SIM_PLUSARGS   ?= +TEST_NAME=$(TEST_NAME) +CFG=$(REGCFG) +VEC=$(VECFILE)
+COCOTB_WAVES   ?= 1
 
 # -----------------------------------------------------------------------------
 # Toolchain
@@ -674,7 +675,7 @@ cocotb: ## Run cocotb tests
 		echo "Run make install from the repository root, then retry."; \
 		exit 1; \
 	}
-	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME=$(TEST_NAME)
+	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME=$(TEST_NAME) WAVES=$(COCOTB_WAVES)
 
 # ============================================================================
 # 7. Viewing, waveform inspection and regression artifacts
@@ -693,9 +694,21 @@ view: setup ## Open latest waveform
 		*) echo "Unknown WAVE_VIEWER=$(WAVE_VIEWER). Use surfer or gtkwave."; exit 2 ;; \
 	esac
 
-view_cocotb: ## Open cocotb waveform
-	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(TBDIR)/cocotb/$(TOP)_tb.vcd $(VIEWER_CONF) &
+view_cocotb: ## Open latest cocotb waveform
+	@wave=$$(find "$(TBDIR)/cocotb" -type f \( -name "*.fst" -o -name "*.vcd" -o -name "*.ghw" \) 2>/dev/null | sort | tail -n 1); \
+	if [ -z "$$wave" ]; then \
+		echo "No cocotb waveform found in $(TBDIR)/cocotb."; \
+		echo "Run cocotb first, for example:"; \
+		echo "  fx cocotb --set TOP=$(TOP) --set RUN_TOP=$(RUN_TOP) --set RUN_ID=$(RUN_ID) --set TEST_NAME=$(TEST_NAME)"; \
+		echo "Wave dumping is controlled by COCOTB_WAVES=$(COCOTB_WAVES)."; \
+		exit 1; \
+	fi; \
+	echo "Opening $$wave with $(WAVE_VIEWER)"; \
+	case "$(WAVE_VIEWER)" in \
+		surfer) $(SURFER_ENV) $(SURFER) "$$wave" ;; \
+		gtkwave) $(GTKWAVE) "$$wave" ;; \
+		*) echo "Unknown WAVE_VIEWER=$(WAVE_VIEWER). Use surfer or gtkwave."; exit 2 ;; \
+	esac
 
 view_syn: ## Reserved synthesis waveform viewer target
 

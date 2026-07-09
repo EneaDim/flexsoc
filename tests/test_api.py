@@ -216,6 +216,9 @@ def test_makefiles_expose_automatic_comment_help() -> None:
     assert "setup: ## Create the run directory tree" in backend_make
     assert "pnr: setup_pnr ## Run OpenROAD place and route" in backend_make
     assert "clean_all: ## Remove all generated run outputs" in backend_make
+    assert "COCOTB_WAVES   ?= 1" in backend_make
+    assert "view_cocotb: ## Open latest cocotb waveform" in backend_make
+    assert "WAVES=$(COCOTB_WAVES)" in backend_make
     assert "python -m flexsoc.cli ip" not in backend_make
     assert "python -m flexsoc.cli help topics" not in backend_make
     assert "$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg \\n\t$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg" not in backend_make
@@ -788,6 +791,7 @@ endmodule
     assert tmp_path / "tests" / "smoke" / "smoke.vec" in written
     assert "TOPLEVEL          = demo_tb" in makefile
     assert "export VEC_FILE" in makefile
+    assert "export WAVES ?= 1" in makefile
     assert "COCOTB_MAKEFILES" in makefile
     assert "run: make install" in makefile
     assert "uv pip install" not in makefile

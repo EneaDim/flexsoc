@@ -244,6 +244,7 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
 
         COMPILE_ARGS += --sv --timing
         COMPILE_ARGS += --trace --trace-fst --trace-structs
+        export WAVES ?= 1
         COMPILE_ARGS += -Wno-WIDTHEXPAND
         COMPILE_ARGS += -Wno-WIDTHTRUNC
         COMPILE_ARGS += -Wno-UNOPTFLAT
