@@ -32,6 +32,16 @@ def test_flow_command_uses_backend_make_entrypoint(tmp_path) -> None:
     assert f"WORKSPACE={(tmp_path / 'runs').resolve()}" in command.argv
 
 
+def test_api_accepts_string_paths(tmp_path) -> None:
+    """The public API accepts string path values from docs and scripts."""
+
+    client = FlexSoC(project_root=str(tmp_path), workdir=str(tmp_path / "runs"), top="demo")
+    command = client.run_step("setup", dry_run=True, run_id="smoke")
+
+    assert command.cwd == tmp_path.resolve()
+    assert f"WORKSPACE={(tmp_path / 'runs').resolve()}" in command.argv
+
+
 def test_api_lists_make_backed_steps() -> None:
     """The API exposes discoverable flow steps before the backend is rewritten."""
 
@@ -327,27 +337,46 @@ def test_flow_step_serialization_supports_slots() -> None:
     assert {"name", "group", "description", "params"} <= set(step.to_dict())
 
 
-def test_cli_steps_uses_public_serializer(capsys, monkeypatch) -> None:
-    """The steps command prints JSON without relying on dataclass __dict__."""
+def test_cli_direct_target_info_uses_public_serializer() -> None:
+    """Direct target --info exposes JSON without legacy step commands."""
 
-    from flexsoc.api import FlowStep
-    from flexsoc import cli
+    from typer.testing import CliRunner
 
-    class Client:
-        """Minimal CLI test double exposing API-shaped step data."""
+    from flexsoc.cli import app
 
-        def list_steps(self, group=None):
-            """Return one step while accepting the CLI group argument."""
+    result = CliRunner().invoke(app, ["syn", "--info", "--json"])
 
-            return (FlowStep(name="setup", group=group or "setup", description="Create folders."),)
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["name"] == "syn"
+    assert any(param["name"] == "TARGET_SYN" for param in payload["params"])
 
-    monkeypatch.setattr(cli, "FlexSoC", Client)
 
-    cli.steps(group=None)
-    captured = capsys.readouterr()
+def test_cli_direct_target_sequence_renders_script() -> None:
+    """Direct targets can run additional targets in the order provided."""
 
-    assert '"name"' in captured.out
-    assert '"group"' in captured.out
+    from typer.testing import CliRunner
+
+    from flexsoc.cli import app
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "setup",
+            "hjson",
+            "reg",
+            "--dry-run",
+            "--script",
+            "--set",
+            "TOP=demo",
+            "--set",
+            "RUN_ID=smoke",
+        ],
+    )
+
+    assert result.exit_code == 0
+    lines = [line for line in result.stdout.splitlines() if line.startswith("make -f ")]
+    assert [line.split()[3] for line in lines] == ["setup", "hjson", "reg"]
 
 def test_cli_help_documents_public_sections_without_local_runner(capsys) -> None:
     """The help command documents public CLI usage, not local runner details."""
@@ -403,16 +432,18 @@ def test_step_info_documents_accepted_parameters() -> None:
     assert params["REG_ITF"].default == "tlul"
 
 
-def test_cli_step_info_renders_parameter_table(capsys) -> None:
-    """The CLI can explain one step without reading backend modules directly."""
+def test_cli_target_info_renders_parameter_table() -> None:
+    """The CLI can explain one target without legacy public commands."""
 
-    from flexsoc import cli
+    from typer.testing import CliRunner
 
-    cli.step_info("syn", json_=False)
-    captured = capsys.readouterr()
+    from flexsoc.cli import app
 
-    assert "syn parameters" in captured.out
-    assert "TARGET_SYN" in captured.out
+    result = CliRunner().invoke(app, ["syn", "--info"])
+
+    assert result.exit_code == 0
+    assert "syn parameters" in result.stdout
+    assert "TARGET_SYN" in result.stdout
 
 
 def test_hjson_gen_target_is_available_in_backend_makefile() -> None:
@@ -423,8 +454,15 @@ def test_hjson_gen_target_is_available_in_backend_makefile() -> None:
     makefile = root / "src" / "flexsoc" / "backend" / "Makefile"
 
     text = makefile.read_text(encoding="utf-8")
+    logical_text = text.replace("\\\n", " ")
+    phony_targets = set()
+    for line in logical_text.splitlines():
+        if line.startswith("PHONY_TARGETS :="):
+            phony_targets.update(line.partition(":=")[2].split())
+        elif line.startswith("PHONY_TARGETS +="):
+            phony_targets.update(line.partition("+=")[2].split())
 
-    assert ".PHONY: hjson hjson_gen" in text
+    assert {"hjson", "hjson_gen"} <= phony_targets
     assert "hjson_gen: hjson" in text
 
 
@@ -501,7 +539,8 @@ def test_cli_help_mentions_package_module_entrypoint(capsys) -> None:
     cli.help()
     captured = capsys.readouterr()
 
-    assert "fx setting" in captured.out
+    assert "fx settings" in captured.out
+    assert "fx setting " not in captured.out
 
 
 def test_step_info_exposes_parameter_categories_and_examples() -> None:
@@ -513,18 +552,35 @@ def test_step_info_exposes_parameter_categories_and_examples() -> None:
     assert {param["category"] for param in payload["params"]} >= {"common", "specific"}
     assert any(param["name"] == "TARGET_SYN" for param in payload["params"])
     assert any("TARGET_SYN=asic" in example["command"] for example in payload["examples"])
+    assert all(example["command"].startswith("fx syn ") for example in payload["examples"])
+    assert not any("fx step" in example["command"] for example in payload["examples"])
 
 
-def test_step_info_examples_option_prints_copy_ready_commands(capsys) -> None:
-    """The CLI can print only examples for a selected step."""
+def test_target_info_prints_copy_ready_commands() -> None:
+    """Direct target info prints copy-ready examples."""
 
-    from flexsoc.cli import step_info
+    from typer.testing import CliRunner
 
-    step_info("setup_tb", examples=True)
-    captured = capsys.readouterr()
+    from flexsoc.cli import app
 
-    assert "setup_tb examples" in captured.out
-    assert "COMPILER=verilator" in captured.out
+    result = CliRunner().invoke(app, ["setup_tb", "--info"])
+
+    assert result.exit_code == 0
+    assert "setup_tb examples" in result.stdout
+    assert "COMPILER=verilator" in result.stdout
+
+
+def test_legacy_cli_commands_are_removed() -> None:
+    """Old public command names are not registered anymore."""
+
+    from typer.testing import CliRunner
+
+    from flexsoc.cli import app
+
+    runner = CliRunner()
+
+    for command in ("run", "setting", "describe", "step", "steps", "workflow", "workflows"):
+        assert runner.invoke(app, [command]).exit_code != 0
 
 
 def test_ip_development_workflow_keeps_explicit_order() -> None:
@@ -874,6 +930,44 @@ def test_backend_regression_exposes_discovery_plan(tmp_path, monkeypatch) -> Non
     assert regression_plan(config) == (("demo", "demo_tb_irq"), ("demo", "demo_tb_smoke"))
     assert calls == [("sim_sv", "demo", "demo_tb_irq"), ("sim_sv", "demo", "demo_tb_smoke")]
 
+
+def test_compact_cli_does_not_register_legacy_commands() -> None:
+    """The public Typer surface exposes compact commands only."""
+
+    from flexsoc.cli import app
+
+    names = {
+        command.name or command.callback.__name__.replace("_", "-")
+        for command in app.registered_commands
+    }
+
+    assert {"workflow", "workflows", "step", "steps", "step-info", "tutorials", "run", "setting", "describe"}.isdisjoint(names)
+    assert {"settings", "commands", "smoke", "hjson"} <= names
+
+
+def test_compact_cli_target_script_and_json_modes_are_distinct() -> None:
+    """Direct target commands render scripts and JSON only when requested."""
+
+    from typer.testing import CliRunner
+
+    from flexsoc.cli import app
+
+    runner = CliRunner()
+    script = runner.invoke(
+        app, ["setup", "--dry-run", "--script", "--set", "TOP=demo", "--set", "RUN_ID=smoke"]
+    )
+    payload = runner.invoke(
+        app, ["setup", "--dry-run", "--json", "--set", "TOP=demo", "--set", "RUN_ID=smoke"]
+    )
+
+    assert script.exit_code == 0
+    assert script.output.startswith("#!/usr/bin/env bash")
+    assert "make -f" in script.output
+
+    assert payload.exit_code == 0
+    data = json.loads(payload.output)
+    assert data["request"]["target"] == "setup"
+    assert data["request"]["make_vars"]["TOP"] == "demo"
 
 def test_smoke_cli_serializes_safe_flow_previews() -> None:
     """The smoke command previews safe framework workflows."""
