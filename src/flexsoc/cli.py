@@ -23,38 +23,29 @@ SETTINGS_DIRNAME = ".flexsoc"
 SETTINGS_FILENAME = "settings.json"
 DEFAULT_SETTINGS = {"TOP": "test", "HOST": "uart", "FORCE": "0", "RUN_ID": "default"}
 
-PUBLIC_TARGETS: tuple[tuple[str, str, str], ...] = (
-    ("setup", "setup", "Create the run directory layout."),
-    ("hjson", "hjson", "Generate or refresh the IP HJSON description."),
-    ("reg", "reg", "Generate register RTL and software collateral."),
-    ("doc", "doc", "Generate register documentation."),
-    ("rtl_stub", "rtl_stub", "Generate the RTL top stub."),
-    ("rtl-stub", "rtl_stub", "Generate the RTL top stub."),
-    ("flist", "flist", "Generate the RTL file list."),
-    ("setup_tb", "setup_tb", "Generate the SystemVerilog testbench."),
-    ("setup-tb", "setup_tb", "Generate the SystemVerilog testbench."),
-    ("setup_cocotb", "setup_cocotb", "Generate the Cocotb scaffold."),
-    ("setup-cocotb", "setup_cocotb", "Generate the Cocotb scaffold."),
-    ("sim", "sim", "Run lint, compile, and simulation."),
-    ("view", "view", "Open the latest waveform."),
-    ("cocotb", "cocotb", "Run Cocotb tests."),
-    ("setup_syn", "setup_syn", "Generate synthesis scripts."),
-    ("setup-syn", "setup_syn", "Generate synthesis scripts."),
-    ("syn", "syn", "Run synthesis."),
-    ("sta", "sta", "Run static timing analysis."),
-    ("power", "power", "Run power analysis."),
-    ("pnr", "pnr", "Run place and route."),
-    ("pnr_gui", "pnr_gui", "Open the PnR GUI."),
-    ("pnr-gui", "pnr_gui", "Open the PnR GUI."),
-    ("ip_load", "ip_load", "Load an existing IP into the current run."),
-    ("ip-load", "ip_load", "Load an existing IP into the current run."),
-    ("lint", "lint", "Run all configured RTL lint checks."),
-    ("lint-latch", "lint_latch", "Check inferred latch diagnostics."),
-    ("lint-undriven", "lint_undriven", "Check undriven signal diagnostics."),
-    ("lint-width", "lint_width", "Check width mismatch diagnostics."),
-    ("lint-unconnected", "lint_unconnected", "Check unconnected port diagnostics."),
-    ("lint-unused", "lint_unused", "Check unused signal diagnostics."),
-)
+def _target_aliases_for_step(name: str) -> tuple[str, ...]:
+    """Return ergonomic aliases for one backend target."""
+
+    aliases = [name]
+    dashed = name.replace("_", "-")
+    if dashed != name:
+        aliases.append(dashed)
+    return tuple(aliases)
+
+
+def _public_targets() -> tuple[tuple[str, str, str], ...]:
+    """Expose every documented backend step as a compact `fx TARGET` command."""
+
+    rows: list[tuple[str, str, str]] = []
+    for step in FlexSoC().list_steps():
+        if step.group == "help" or step.name == "help":
+            continue
+        for command in _target_aliases_for_step(step.name):
+            rows.append((command, step.name, step.description))
+    return tuple(rows)
+
+
+PUBLIC_TARGETS: tuple[tuple[str, str, str], ...] = _public_targets()
 
 TARGET_ALIASES = {target: target for _, target, _ in PUBLIC_TARGETS} | {
     command: target for command, target, _ in PUBLIC_TARGETS

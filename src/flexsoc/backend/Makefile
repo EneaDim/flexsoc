@@ -109,6 +109,11 @@ FSM_INPUT_DIR  ?= $(FSMWORKDIR)/inputs
 FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
 ORSDIR         ?= $(OR_WORKDIR)
 REGRESSIONDIR  ?= $(OUTROOT)/regression
+TEST_NAME      ?= smoke
+TESTDIR        ?= $(TBDIR)/tests/$(TEST_NAME)
+REGCFG         ?= $(TESTDIR)/config.regs
+VECFILE        ?= $(TESTDIR)/$(TEST_NAME).vec
+SIM_PLUSARGS   ?= +TEST_NAME=$(TEST_NAME) +CFG=$(REGCFG) +VEC=$(VECFILE)
 
 # -----------------------------------------------------------------------------
 # Toolchain
@@ -623,10 +628,10 @@ endif
 sim_v: compile_v ## Run Verilog simulation
 	@echo "\n$(ORANGE)Simulating...\n$(RESET)"
 ifeq ($(COMPILER),iverilog)
-	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) \
+	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 else
-	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) \
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
@@ -650,15 +655,29 @@ endif
 sim_sv: compile_sv ## Run SystemVerilog simulation
 	@echo "\n$(ORANGE)Simulating...\n$(RESET)"
 ifeq ($(COMPILER),iverilog)
-	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) \
+	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 else
-	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) \
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
 cocotb: ## Run cocotb tests
-	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb
+	$(Q)if [ ! -f "$(TBDIR)/cocotb/Makefile" ]; then \
+		echo "cocotb scaffold not found: $(TBDIR)/cocotb/Makefile"; \
+		echo "Generate it first, for example:"; \
+		echo "  fx setup_cocotb --set TOP=$(TOP) --set RUN_TOP=$(RUN_TOP) --set RUN_ID=$(RUN_ID)"; \
+		exit 1; \
+	fi
+	$(Q)$(PYTHON) -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('cocotb_tools') else 1)" || { \
+		echo "cocotb is not installed in this environment."; \
+		echo "Install flow support, then retry:"; \
+		echo "  uv pip install -e '.[flow]'"; \
+		echo "For cocotb-only experiments you can also use:"; \
+		echo "  uv pip install cocotb==2.0.0"; \
+		exit 1; \
+	}
+	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME=$(TEST_NAME)
 
 # ============================================================================
 # 7. Viewing, waveform inspection and regression artifacts

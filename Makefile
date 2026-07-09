@@ -12,7 +12,7 @@ PYTEST ?= pytest
 LINT_PATHS ?= src/flexsoc/api.py src/flexsoc/backend tests
 MAKEFLAGS += --no-print-directory
 
-.PHONY: help install sync dev lint fix test check clean clean-py clean-build clean-all venv
+.PHONY: help install install-flow install-cocotb sync dev lint fix test check clean clean-py clean-build clean-all venv
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nflexsoc ✨\n"} \
@@ -22,6 +22,12 @@ help: ## Show this help
 
 ##@ Setup
 install: sync ## Install dependencies
+
+install-flow: venv ## Install dev plus full optional flow dependencies
+	$(UV) pip install -e ".[dev,flow]"
+
+install-cocotb: venv ## Install only the cocotb runner for cocotb experiments
+	$(UV) pip install cocotb==2.0.0
 
 sync: venv ## Install the editable package with dev tools
 	$(UV) pip install -e ".[dev]"
