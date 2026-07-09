@@ -381,6 +381,20 @@ def test_reviewed_backend_parsers_use_canonical_flags(tmp_path) -> None:
 
     assert not hasattr(signoff, "build_sta_tcl")
 
+
+def test_setup_model_writes_only_named_model(tmp_path) -> None:
+    """The standalone model generator avoids ambiguous generic model.py shims."""
+
+    from flexsoc.backend.setup_model import write_model
+
+    (tmp_path / "model.py").write_text("stale shim\n", encoding="utf-8")
+    path = write_model("demo", tmp_path)
+
+    assert path == (tmp_path / "model_demo.py").resolve()
+    assert (tmp_path / "model_demo.py").exists()
+    assert not (tmp_path / "model.py").exists()
+
+
 def test_flow_step_serialization_supports_slots() -> None:
     """Step descriptions serialize explicitly even when dataclasses use slots."""
 
@@ -692,7 +706,11 @@ endmodule
     )
 
     assert out / "demo_tb.sv" in written
+    assert out / "demo_vec_driver.svh" in written
+    assert out / "tests" / "smoke" / "smoke.vec" in written
+    assert out / "tests" / "smoke" / "config.regs" in written
     assert "module demo_tb" in (out / "demo_tb.sv").read_text(encoding="utf-8")
+    assert "run_vectors(vec_path)" in (out / "demo_tb.sv").read_text(encoding="utf-8")
     assert '`include "demo.sv"' in render_verilator_include("demo", rtl, tmp_path / "syn", (), False, "tlul", "sv")
 
 
@@ -757,9 +775,47 @@ endmodule
     assert cfg.output / "Makefile" in written
     assert cfg.output / "demo_tb.py" in written
     assert cfg.output / "demo_tb.sv" in written
+    assert cfg.output / "drivers" / "vec_driver.py" in written
+    vec_driver = (cfg.output / "drivers" / "vec_driver.py").read_text(encoding="utf-8")
+    assert "ReadOnly" in vec_driver
+    assert "NextTimeStep" in vec_driver
+    assert cfg.output / "drivers" / "vec_monitor.py" in written
+    assert cfg.output / "drivers" / "reg_driver.py" in written
+    assert cfg.output / "model_demo.py" in written
+    assert tmp_path / "tests" / "smoke" / "smoke.vec" in written
     assert "TOPLEVEL          = demo_tb" in makefile
+    assert "export VEC_FILE" in makefile
+    assert "COCOTB_MAKEFILES" in makefile
+    assert "uv pip install -e" in makefile
     assert "module demo_tb" in (cfg.output / "demo_tb.sv").read_text(encoding="utf-8")
-    assert "async def demo_smoke_test" in (cfg.output / "demo_tb.py").read_text(encoding="utf-8")
+    assert "async def demo_generated_test" in (cfg.output / "demo_tb.py").read_text(encoding="utf-8")
+
+
+def test_verification_vectors_and_config_are_aligned(tmp_path) -> None:
+    """Generated SV/cocotb tests share one vector/config layout."""
+
+    from flexsoc.backend.setup_tb import render_reg_config, render_vec
+
+    registers = [{"name": "CTRL", "addr": 0}, {"name": "WDATA", "addr": 12}]
+    config = render_reg_config("demo", "smoke", registers)
+    vec = render_vec("demo", "smoke")
+
+    assert "write CTRL 0x00000000 0x00000001" in config
+    assert "write WDATA 0x0000000c" in config
+    assert "# format: cycle input expected latency mask note" in vec
+    assert "1 0x00000001 0x00000001 2" in vec
+
+
+def test_generated_sv_vector_driver_samples_after_nba() -> None:
+    """The generated SV monitor samples after NBA updates on each clock edge."""
+
+    from flexsoc.backend.setup_tb import render_sv_vec_driver
+
+    driver = render_sv_vec_driver("demo", "clk_i", "port_i", "port_o")
+
+    assert "@(posedge clk_i);" in driver
+    assert "#1;" in driver
+    assert "tb_check_cycle(now_cycle);" in driver
 
 
 def test_backend_soc_start_exposes_config_api(tmp_path) -> None:
@@ -997,6 +1053,24 @@ def test_compact_cli_does_not_register_legacy_commands() -> None:
 
     assert {"workflow", "workflows", "step", "steps", "step-info", "tutorials", "run", "setting", "describe"}.isdisjoint(names)
     assert {"settings", "commands", "smoke", "hjson"} <= names
+
+
+def test_compact_cli_exposes_documented_backend_steps() -> None:
+    """The compact CLI can run documented IP, SoC, fetch, and tutorial targets."""
+
+    from flexsoc.cli import TARGET_ALIASES, app
+
+    names = {
+        command.name or command.callback.__name__.replace("_", "-")
+        for command in app.registered_commands
+    }
+
+    assert TARGET_ALIASES["fetch"] == "fetch"
+    assert TARGET_ALIASES["soc_uart_gen"] == "soc_uart_gen"
+    assert TARGET_ALIASES["soc-ibex-gen"] == "soc_ibex_gen"
+    assert TARGET_ALIASES["soc_build_sw"] == "soc_build_sw"
+    assert TARGET_ALIASES["soc-run"] == "soc_run"
+    assert {"fetch", "soc_uart_gen", "soc-ibex-gen", "soc_build_sw", "soc-run"} <= names
 
 
 def test_compact_cli_target_script_and_json_modes_are_distinct() -> None:

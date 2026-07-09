@@ -7,12 +7,329 @@ and CLI can preview or test generated artifacts without invoking external EDA to
 from __future__ import annotations
 
 import argparse
+import ast
+import random
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
 from .common import ensure_dir, has_reg_pkg, parse_sv_signature, safe_write_file
 
+
+
+TEST_NAMES = ("smoke", "corners", "random")
+Hjson = dict[str, Any]
+
+try:
+    import hjson  # type: ignore
+except ImportError:  # pragma: no cover - only used when the optional package is missing.
+    hjson = None
+
+
+def _load_hjson(path: Path) -> Hjson:
+    """Load HJSON metadata with the real parser and a tiny fallback for tests."""
+
+    text = path.read_text(encoding="utf-8")
+    if hjson is not None:
+        return dict(hjson.loads(text))
+    normalized = re.sub(r"([{,]\s*)([A-Za-z_][\w]*)\s*:", r'\1"\2":', text)
+    return dict(ast.literal_eval(normalized))
+
+
+def _candidate_hjson_path(rtldir: str | Path, top: str) -> Path | None:
+    """Infer the copied/generated HJSON path for a run directory."""
+
+    rtl = Path(rtldir).resolve()
+    candidates = [rtl.parent / "data" / f"{top}.hjson", rtl.parent.parent / "data" / f"{top}.hjson"]
+    return next((path for path in candidates if path.exists()), None)
+
+
+def _hex(value: int, width: int = 8) -> str:
+    """Render one zero-padded 32-bit hex value."""
+
+    return f"0x{value & 0xFFFFFFFF:0{width}x}"
+
+
+def _register_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
+    """Return writable register entries with inferred word offsets."""
+
+    if hjson_path is None or not hjson_path.exists():
+        return []
+    hj = _load_hjson(hjson_path)
+    entries: list[dict[str, Any]] = []
+    offset = 0
+    for reg in hj.get("registers", []) or []:
+        if not isinstance(reg, dict) or "name" not in reg:
+            continue
+        swaccess = str(reg.get("swaccess", "")).lower()
+        name = str(reg["name"]).upper()
+        current = int(str(reg.get("offset", offset)), 0) if reg.get("offset") is not None else offset
+        if swaccess in {"rw", "wo"}:
+            entries.append({"name": name, "addr": current, "swaccess": swaccess})
+        offset = current + 4
+    return entries
+
+
+def _config_value(test: str, reg: dict[str, Any], index: int, *, top: str) -> int:
+    """Choose a deterministic register write value for one generated test."""
+
+    name = str(reg["name"])
+    if test == "smoke":
+        return 1 if name == "CTRL" else (index + 1) & 0xFF
+    if test == "corners":
+        return [0, 1, 0xFFFFFFFF, 0x80000000][index % 4]
+    return random.Random(f"{top}:{test}:{name}:{index}").getrandbits(32)
+
+
+def render_reg_config(top: str, test: str, registers: Sequence[dict[str, Any]]) -> str:
+    """Render a register-write config consumed by SV and cocotb drivers."""
+
+    lines = [
+        "# Auto-generated FlexSoC register configuration.",
+        f"# top={top} test={test}",
+        "# format: write <REG_NAME> <ADDR> <DATA> <MASK> <WAIT_CYCLES> <NOTE>",
+    ]
+    if not registers:
+        lines.append("# no writable registers inferred from HJSON")
+    for index, reg in enumerate(registers):
+        data = _config_value(test, reg, index, top=top)
+        lines.append(
+            f"write {reg['name']} {_hex(int(reg['addr']))} {_hex(data)} "
+            f"0xffffffff 1 {test}_{str(reg['name']).lower()}"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _vector_values(test: str, *, top: str, count: int = 12) -> list[int]:
+    """Return deterministic one-bit input values for generated pipeline vectors."""
+
+    if test == "smoke":
+        return [0, 1, 0, 1, 1, 0]
+    if test == "corners":
+        return [0, 0, 1, 1, 0, 1, 0, 1]
+    rng = random.Random(f"{top}:{test}:vectors")
+    return [rng.randrange(2) for _ in range(count)]
+
+
+def render_vec(top: str, test: str, *, latency: int = 2) -> str:
+    """Render vectors for the default 2-flop pipeline model."""
+
+    lines = [
+        "# Auto-generated FlexSoC vector file.",
+        f"# top={top} test={test} model=pipeline delay={latency}",
+        "# format: cycle input expected latency mask note",
+    ]
+    for cycle, value in enumerate(_vector_values(test, top=top)):
+        lines.append(f"{cycle} {_hex(value)} {_hex(value)} {latency} 0xffffffff {test}_{cycle}")
+    return "\n".join(lines) + "\n"
+
+
+def write_verification_tests(base_dir: str | Path, top: str, hjson_path: Path | None, *, force: bool) -> list[Path]:
+    """Create per-test config/vector directories shared by SV and cocotb."""
+
+    root = Path(base_dir)
+    registers = _register_entries(hjson_path)
+    written: list[Path] = []
+    for test in TEST_NAMES:
+        test_dir = root / test
+        ensure_dir(test_dir)
+        config_path = test_dir / "config.regs"
+        vec_path = test_dir / f"{test}.vec"
+        safe_write_file(config_path, render_reg_config(top, test, registers), overwrite=force)
+        safe_write_file(vec_path, render_vec(top, test), overwrite=force)
+        written.extend([config_path, vec_path])
+    return written
+
+
+def render_sv_reg_sequence(top: str, interface: str, clk: str, *, active: bool) -> str:
+    """Render a SystemVerilog register config reader."""
+
+    if not active:
+        return f"""// Auto-generated register sequence helper for {top}.
+// This DUT has no generated register bus helper in the current testbench.
+task automatic run_reg_config(input string cfg_path);
+  $display("[TB] register config skipped: %s", cfg_path);
+endtask
+"""
+    write_call = (
+        "tl_utils_inst.tlul_write(addr[top_pkg::TL_AW-1:0], data, 4'h0, mask[top_pkg::TL_DBW-1:0]);"
+        if interface == "tlul"
+        else f"reg_utils_inst.write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
+    )
+    return f"""// Auto-generated register sequence helper for {top}.
+task automatic run_reg_config(input string cfg_path);
+  int fd;
+  int code;
+  int wait_cycles;
+  string line;
+  string op;
+  string reg_name;
+  string note;
+  logic [31:0] addr;
+  logic [31:0] data;
+  logic [31:0] mask;
+
+  fd = $fopen(cfg_path, "r");
+  if (fd == 0) begin
+    $display("[TB] register config not found: %s", cfg_path);
+    return;
+  end
+
+  $display("[TB] applying register config: %s", cfg_path);
+  while (!$feof(fd)) begin
+    void'($fgets(line, fd));
+    if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+    code = $sscanf(line, "%s %s %h %h %h %d %s", op, reg_name, addr, data, mask, wait_cycles, note);
+    if (code >= 6 && op == "write") begin
+      $display("[TB] config write %s addr=0x%08x data=0x%08x", reg_name, addr, data);
+      {write_call}
+      repeat (wait_cycles) @(posedge {clk});
+    end
+  end
+  $fclose(fd);
+endtask
+"""
+
+
+def render_sv_vec_monitor(top: str, output_signal: str | None) -> str:
+    """Render a latency-aware SystemVerilog output monitor."""
+
+    if output_signal is None:
+        return f"""// Auto-generated vector monitor for {top}.
+task automatic tb_expect_after(input int cycle, input int latency, input logic [31:0] expected,
+                               input logic [31:0] mask, input string note);
+endtask
+
+task automatic tb_check_cycle(input int cycle);
+endtask
+"""
+    return f"""// Auto-generated vector monitor for {top}.
+logic [31:0] tb_expected_by_cycle[int];
+logic [31:0] tb_mask_by_cycle[int];
+string       tb_note_by_cycle[int];
+int          tb_last_expected_cycle;
+
+task automatic tb_expect_after(input int cycle, input int latency, input logic [31:0] expected,
+                               input logic [31:0] mask, input string note);
+  int expected_cycle;
+  expected_cycle = cycle + latency;
+  tb_expected_by_cycle[expected_cycle] = expected;
+  tb_mask_by_cycle[expected_cycle] = mask;
+  tb_note_by_cycle[expected_cycle] = note;
+  if (expected_cycle > tb_last_expected_cycle) tb_last_expected_cycle = expected_cycle;
+endtask
+
+task automatic tb_check_cycle(input int cycle);
+  logic [31:0] actual;
+  if (tb_expected_by_cycle.exists(cycle)) begin
+    actual = {{31'b0, {output_signal}}};
+    if ((actual & tb_mask_by_cycle[cycle]) !== (tb_expected_by_cycle[cycle] & tb_mask_by_cycle[cycle])) begin
+      error_count++;
+      $display("[TB][FAIL] cycle=%0d note=%s actual=0x%08x expected=0x%08x mask=0x%08x",
+               cycle, tb_note_by_cycle[cycle], actual, tb_expected_by_cycle[cycle], tb_mask_by_cycle[cycle]);
+    end else begin
+      $display("[TB][PASS] cycle=%0d note=%s actual=0x%08x", cycle, tb_note_by_cycle[cycle], actual);
+    end
+  end
+endtask
+"""
+
+
+def render_sv_vec_driver(top: str, clk: str, input_signal: str | None, output_signal: str | None) -> str:
+    """Render a SystemVerilog vector reader/driver."""
+
+    if input_signal is None or output_signal is None:
+        return f"""// Auto-generated vector driver for {top}.
+// No port_i/port_o style data path was detected, so vector checking is skipped.
+task automatic run_vectors(input string vec_path);
+  $display("[TB] vector test skipped for this DUT: %s", vec_path);
+endtask
+"""
+    return f"""// Auto-generated vector driver for {top}.
+task automatic run_vectors(input string vec_path);
+  int fd;
+  int code;
+  int cycle;
+  int now_cycle;
+  int latency;
+  string line;
+  string note;
+  logic [31:0] input_value;
+  logic [31:0] expected;
+  logic [31:0] mask;
+
+  now_cycle = 0;
+  tb_last_expected_cycle = 0;
+  fd = $fopen(vec_path, "r");
+  if (fd == 0) begin
+    $display("[TB] vector file not found: %s", vec_path);
+    return;
+  end
+
+  $display("[TB] running vector file: %s", vec_path);
+  while (!$feof(fd)) begin
+    void'($fgets(line, fd));
+    if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+    code = $sscanf(line, "%d %h %h %d %h %s", cycle, input_value, expected, latency, mask, note);
+    if (code < 5) continue;
+    while (now_cycle < cycle) begin
+      @(posedge {clk});
+      #1;
+      now_cycle++;
+      tb_check_cycle(now_cycle);
+    end
+    tb_check_cycle(now_cycle);
+    {input_signal} <= input_value[0];
+    tb_expect_after(cycle, latency, expected, mask, note);
+    @(posedge {clk});
+    #1;
+    now_cycle++;
+    tb_check_cycle(now_cycle);
+  end
+  $fclose(fd);
+
+  repeat (tb_last_expected_cycle - now_cycle + 3) begin
+    @(posedge {clk});
+    #1;
+    now_cycle++;
+    tb_check_cycle(now_cycle);
+  end
+endtask
+"""
+
+
+def _find_named_port(sig: dict[str, Any], names: set[str], direction: str) -> str | None:
+    """Return the first matching port name from parsed SV signature."""
+
+    key = "ports_in" if direction == "in" else "ports_out"
+    return next((name for name, _ in sig[key] if name in names), None)
+
+
+def write_sv_verification_helpers(
+    outdir: str | Path,
+    top: str,
+    interface: str,
+    sig: dict[str, Any],
+    *,
+    bus_active: bool,
+    force: bool,
+) -> list[Path]:
+    """Write SystemVerilog driver/monitor/config helper include files."""
+
+    out = Path(outdir)
+    ensure_dir(out)
+    clk = (sig.get("clks") or ["clk_i"])[0]
+    input_signal = _find_named_port(sig, {"port_i", "data_i", "in_i"}, "in")
+    output_signal = _find_named_port(sig, {"port_o", "data_o", "out_o"}, "out")
+    files = {
+        out / f"{top}_reg_sequence.svh": render_sv_reg_sequence(top, interface, clk, active=bus_active),
+        out / f"{top}_vec_monitor.svh": render_sv_vec_monitor(top, output_signal),
+        out / f"{top}_vec_driver.svh": render_sv_vec_driver(top, clk, input_signal, output_signal),
+    }
+    for path, text in files.items():
+        safe_write_file(path, text, overwrite=force)
+    return list(files)
 
 @dataclass(frozen=True, slots=True)
 class TestbenchConfig:
@@ -179,7 +496,8 @@ def render_tlul_utils() -> str:
 
   task automatic tlul_write(input logic [top_pkg::TL_AW-1:0]  addr,
                             input logic [top_pkg::TL_DW-1:0]  data,
-                            input logic [top_pkg::TL_AIW-1:0] source);
+                            input logic [top_pkg::TL_AIW-1:0] source,
+                            input logic [top_pkg::TL_DBW-1:0] mask = '1);
 
     $display("[%0t] TLUL WRITE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
 
@@ -193,7 +511,7 @@ def render_tlul_utils() -> str:
     drv_if.h2d.a_size    <= 2;
     drv_if.h2d.a_source  <= source;
     drv_if.h2d.a_address <= addr;
-    drv_if.h2d.a_mask    <= 4'b1111;
+    drv_if.h2d.a_mask    <= mask;
     drv_if.h2d.a_data    <= data;
     drv_if.h2d.a_user    <= '0;
 
@@ -440,6 +758,11 @@ def render_testbench(top: str,
             lines.append("  reg_utils reg_utils_inst;")
             lines.append("  reg_if regif(.clk_i(clk_i), .rst_ni(rst_ni));")
 
+    lines.append("\n  // Verification helpers")
+    lines.append(f'  `include "{top}_reg_sequence.svh"')
+    lines.append(f'  `include "{top}_vec_monitor.svh"')
+    lines.append(f'  `include "{top}_vec_driver.svh"')
+
     # DUT instance
     lines.append("\n  // DUT")
     lines.append(f"  {top} u_{top} (")
@@ -483,8 +806,13 @@ def render_testbench(top: str,
     lines.append("  `endif\n")
 
     # Stimulus
+    lines.append("  string cfg_path;")
+    lines.append("  string vec_path;")
+    lines.append("")
     lines.append("  initial begin")
     lines.append("    error_count = 0;")
+    lines.append('    if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "tests/smoke/config.regs";')
+    lines.append('    if (!$value$plusargs("VEC=%s", vec_path)) vec_path = "tests/smoke/smoke.vec";')
     if ports_in:
         # init inputs (skip the first, often a clock)
         for nm, _ in ports_in[1:]:
@@ -504,22 +832,14 @@ def render_testbench(top: str,
     if compiler == "verilator":
         if interface == "tlul":
             lines.append("    tl_utils_inst = new(tl_if);")
-            lines.append("    #(CLK_PERIOD*10);")
-            lines.append("    tl_utils_inst.tlul_write(32'h0, 32'h1, 4'h0);")
-            lines.append("    #(CLK_PERIOD*10);")
-            lines.append("    tl_utils_inst.tlul_read (32'h0, rdata, 4'h0);")
-            lines.append('    $display("Read data: %h", rdata);')
-            lines.append("    #(CLK_PERIOD*10);")
         if interface == "reg_iface":
             lines.append("    reg_utils_inst = new(regif);")
-            lines.append("    #(CLK_PERIOD*10);")
-            lines.append("    reg_utils_inst.write('h0, 32'h1);")
-            lines.append("    #(CLK_PERIOD*10);")
-            lines.append("    reg_utils_inst.read ('h0, rdata);")
-            lines.append('    $display("Read data: 0x%08x", rdata);')
-            lines.append("    #(CLK_PERIOD*10);")
+        lines.append("    #(CLK_PERIOD*10);")
+        lines.append("    run_reg_config(cfg_path);")
+        lines.append("    run_vectors(vec_path);")
+        lines.append("    #(CLK_PERIOD*10);")
 
-    lines.append("    // INSERT YOUR STIMULUS HERE")
+    lines.append("    // INSERT ADDITIONAL TEST-SPECIFIC STIMULUS HERE")
     lines.append("    if (error_count == 0) $display(\"Coverage: 100%%\");")
     lines.append('    $display("\\nEnd.\\n");')
     lines.append("    $finish;")
@@ -576,6 +896,12 @@ def render_simple_testbench(top: str,
     lines.append(f"  {top} u_{top} (")
     lines.extend(_connect_ports(ports_in, ports_out, top, "direct"))
     lines.append("  );\n")
+
+    lines.append("  // Verification helpers")
+    lines.append(f'  `include "{top}_reg_sequence.svh"')
+    lines.append(f'  `include "{top}_vec_monitor.svh"')
+    lines.append(f'  `include "{top}_vec_driver.svh"')
+    lines.append("")
 
     # Clocks
     for c in clks:
@@ -658,8 +984,14 @@ def render_simple_testbench(top: str,
             lines.append(f"  localparam logic [31:0] {d[0].upper()}_CTRL_OFF = 32'h00000000;")
             lines.append("  /////////////////////////////////////////////////////////////////")
 
+    lines.append("  string cfg_path;")
+    lines.append("  string vec_path;")
+    lines.append("")
+
     # Simple reset pulse(s)
     lines.append("  initial begin")
+    lines.append('    if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "tests/smoke/config.regs";')
+    lines.append('    if (!$value$plusargs("VEC=%s", vec_path)) vec_path = "tests/smoke/smoke.vec";')
     # Init inputs to 0
     for nm, _ in ports_in:
         if nm not in clks and nm not in rsts:
@@ -677,6 +1009,8 @@ def render_simple_testbench(top: str,
         lines.append("    #(CLK_PERIOD*2000);")
         lines.append("    uart_read32(UART_BASE + UART_CTRL_OFF);")
         lines.append("    #(CLK_PERIOD*2000);    ")
+    lines.append("    run_reg_config(cfg_path);")
+    lines.append("    run_vectors(vec_path);")
     lines.append("    #(CLK_PERIOD*10);")
     lines.append("    $finish;")
     lines.append("  end")
@@ -726,6 +1060,18 @@ def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
     reg_pkg = has_reg_pkg(config.rtldir, config.top)
     simple_mode = uses_simple_testbench(config)
     written: list[Path] = []
+    hjson_path = _candidate_hjson_path(config.rtldir, config.top)
+    written.extend(write_verification_tests(outdir / "tests", config.top, hjson_path, force=True))
+    written.extend(
+        write_sv_verification_helpers(
+            outdir,
+            config.top,
+            config.interface,
+            sig,
+            bus_active=(not simple_mode and config.compiler == "verilator"),
+            force=True,
+        )
+    )
 
     if config.compiler == "verilator":
         include = render_verilator_include(

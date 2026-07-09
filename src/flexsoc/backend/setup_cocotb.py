@@ -13,6 +13,8 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Sequence
 
+from .setup_tb import _candidate_hjson_path, write_verification_tests
+
 
 @dataclass(frozen=True, slots=True)
 class CocotbConfig:
@@ -256,9 +258,17 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
 
         COMPILE_ARGS += {includes}
         export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
+        export TEST_NAME ?= smoke
+        export REG_CONFIG ?= $(abspath ../tests/$(TEST_NAME)/config.regs)
+        export VEC_FILE ?= $(abspath ../tests/$(TEST_NAME)/$(TEST_NAME).vec)
+        export PYTHONPATH := $(PWD):$(PYTHONPATH)
         VERILOG_SOURCES += {(out_dir / f"{cfg.top}_tb.sv").resolve()}
 
-        include $(shell cocotb-config --makefiles)/Makefile.sim
+        COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
+        ifeq ($(strip $(COCOTB_MAKEFILES)),)
+        $(error cocotb is not installed in this environment; run: uv pip install -e ".[flow]" or uv pip install cocotb==2.0.0)
+        endif
+        include $(COCOTB_MAKEFILES)/Makefile.sim
         """
     )
 
@@ -284,21 +294,238 @@ def render_driver_import() -> str:
     return "from cocotb.triggers import RisingEdge\n"
 
 
+def render_pipeline_model_py(top: str) -> str:
+    """Render the reference model used by generated cocotb tests."""
+
+    return dedent(
+        f'''\
+        """Auto-generated reference model for {top}."""
+
+        from __future__ import annotations
+
+        import random
+        from pathlib import Path
+
+
+        class Pipeline2Model:
+            """Default model matching the generated rtl_stub two-flop pipeline."""
+
+            def __init__(self, latency: int = 2) -> None:
+                self.latency = latency
+
+            def expected(self, value: int) -> int:
+                return value & 0xFFFFFFFF
+
+
+        def _hex(value: int) -> str:
+            return f"0x{{value & 0xFFFFFFFF:08x}}"
+
+
+        def vector_rows(test: str = "smoke", count: int = 12, latency: int = 2):
+            if test == "smoke":
+                values = [0, 1, 0, 1, 1, 0]
+            elif test == "corners":
+                values = [0, 0, 1, 1, 0, 1, 0, 1]
+            else:
+                rng = random.Random("{top}:" + test + ":vectors")
+                values = [rng.randrange(2) for _ in range(count)]
+            return [(cycle, value, value, latency, 0xFFFFFFFF, f"{{test}}_{{cycle}}") for cycle, value in enumerate(values)]
+
+
+        def write_vec(path: str | Path, test: str = "smoke") -> Path:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            lines = [
+                "# Auto-generated FlexSoC vector file.",
+                "# format: cycle input expected latency mask note",
+            ]
+            for cycle, value, expected, latency, mask, note in vector_rows(test):
+                lines.append(f"{{cycle}} {{_hex(value)}} {{_hex(expected)}} {{latency}} {{_hex(mask)}} {{note}}")
+            target.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+            return target
+        '''
+    )
+
+
+def render_reg_driver_py() -> str:
+    """Render a lightweight cocotb register-sequence driver."""
+
+    return dedent(
+        '''\
+        import os
+
+        from cocotb.triggers import RisingEdge
+
+
+        def load_register_config(path=None):
+            cfg_path = path or os.environ.get("REG_CONFIG")
+            if not cfg_path:
+                return []
+            rows = []
+            try:
+                with open(cfg_path, encoding="utf-8") as handle:
+                    for line in handle:
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        op, name, addr, data, mask, wait, *note = line.split()
+                        if op == "write":
+                            rows.append((name, int(addr, 0), int(data, 0), int(mask, 0), int(wait, 0), " ".join(note)))
+            except FileNotFoundError:
+                return []
+            return rows
+
+
+        async def _tlul_write(dut, clk, addr, data, mask):
+            dut.tl_i_d_ready.value = 1
+            dut.tl_i_a_valid.value = 1
+            dut.tl_i_a_opcode.value = 1  # PutFullData
+            dut.tl_i_a_param.value = 0
+            dut.tl_i_a_size.value = 2
+            dut.tl_i_a_source.value = 0
+            dut.tl_i_a_address.value = addr
+            dut.tl_i_a_mask.value = mask & 0xF
+            dut.tl_i_a_data.value = data
+            await RisingEdge(clk)
+            dut.tl_i_a_valid.value = 0
+            await RisingEdge(clk)
+
+
+        async def run_register_config(dut, path=None):
+            rows = load_register_config(path)
+            clk = getattr(dut, "clk_i", None)
+            can_tlul = clk is not None and hasattr(dut, "tl_i_a_valid")
+            for name, addr, data, mask, wait_cycles, note in rows:
+                dut._log.info("config write %s addr=0x%08x data=0x%08x %s", name, addr, data, note)
+                if can_tlul:
+                    await _tlul_write(dut, clk, addr, data, mask)
+                for _ in range(wait_cycles):
+                    if clk is not None:
+                        await RisingEdge(clk)
+        '''
+    )
+
+
+def render_vec_monitor_py() -> str:
+    """Render a latency-aware cocotb monitor."""
+
+    return dedent(
+        '''\
+        class LatencyMonitor:
+            def __init__(self, dut, *, output_name="port_o", model=None):
+                self.dut = dut
+                self.output_name = output_name
+                self.model = model
+                self.expected = {}
+
+            def expect(self, cycle, latency, input_value, expected, mask, note):
+                value = self.model.expected(input_value) if self.model is not None else expected
+                self.expected[cycle + latency] = (value, mask, note)
+
+            def check(self, cycle):
+                if cycle not in self.expected:
+                    return
+                expected, mask, note = self.expected[cycle]
+                if not hasattr(self.dut, self.output_name):
+                    self.dut._log.info("vector check skipped: missing %s", self.output_name)
+                    return
+                actual = int(getattr(self.dut, self.output_name).value) & 0xFFFFFFFF
+                assert (actual & mask) == (expected & mask), (
+                    f"cycle={cycle} note={note} actual=0x{actual:08x} expected=0x{expected:08x} mask=0x{mask:08x}"
+                )
+        '''
+    )
+
+
+def render_vec_driver_py() -> str:
+    """Render a vector-file loader and input driver."""
+
+    return dedent(
+        '''\
+        import os
+
+        from cocotb.triggers import NextTimeStep, ReadOnly, RisingEdge
+
+
+        def load_vectors(path=None):
+            vec_path = path or os.environ.get("VEC_FILE")
+            rows = []
+            if not vec_path:
+                return rows
+            try:
+                with open(vec_path, encoding="utf-8") as handle:
+                    for line in handle:
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        cycle, value, expected, latency, mask, *note = line.split()
+                        rows.append((int(cycle, 0), int(value, 0), int(expected, 0), int(latency, 0), int(mask, 0), " ".join(note)))
+            except FileNotFoundError:
+                return rows
+            return rows
+
+
+        async def _sample_cycle(clk, monitor, cycle):
+            await RisingEdge(clk)
+            await ReadOnly()
+            monitor.check(cycle)
+            await NextTimeStep()
+
+
+        async def drive_vectors(dut, clk, rows, monitor, input_name="port_i"):
+            now = 0
+            for cycle, value, expected, latency, mask, note in rows:
+                while now < cycle:
+                    now += 1
+                    await _sample_cycle(clk, monitor, now)
+                monitor.check(now)
+                if hasattr(dut, input_name):
+                    getattr(dut, input_name).value = value & 1
+                    monitor.expect(cycle, latency, value, expected, mask, note)
+                now += 1
+                await _sample_cycle(clk, monitor, now)
+            for _ in range(8):
+                now += 1
+                await _sample_cycle(clk, monitor, now)
+        '''
+    )
+
+
 def render_python_test(cfg: CocotbConfig) -> str:
     """Render a small cocotb smoke test for the generated wrapper."""
 
     return dedent(
         f"""\
+        import os
+
         import cocotb
         from cocotb.clock import Clock
         from cocotb.triggers import RisingEdge
 
+        from drivers.reg_driver import run_register_config
+        from drivers.vec_driver import drive_vectors, load_vectors
+        from drivers.vec_monitor import LatencyMonitor
+        from model_{cfg.top} import Pipeline2Model
+
         @cocotb.test()
-        async def {cfg.top}_smoke_test(dut):
+        async def {cfg.top}_generated_test(dut):
             clk = getattr(dut, "{cfg.clk}")
             cocotb.start_soon(Clock(clk, {cfg.period_ns}, unit="ns").start())
+
+            rst = getattr(dut, "{cfg.rst}", None)
+            if rst is not None:
+                rst.value = 0 if "{cfg.rst_active}" == "low" else 1
             for _ in range(5):
                 await RisingEdge(clk)
+            if rst is not None:
+                rst.value = 1 if "{cfg.rst_active}" == "low" else 0
+            for _ in range(5):
+                await RisingEdge(clk)
+
+            await run_register_config(dut, os.environ.get("REG_CONFIG"))
+            vectors = load_vectors(os.environ.get("VEC_FILE"))
+            monitor = LatencyMonitor(dut, model=Pipeline2Model())
+            await drive_vectors(dut, clk, vectors, monitor)
         """
     )
 
@@ -383,18 +610,25 @@ def _write_cocotb_scaffold_impl(cfg: CocotbConfig) -> list[Path]:
     drivers = out_dir / "drivers"
     drivers.mkdir(parents=True, exist_ok=True)
     sources = collect_sources(cfg.top, cfg.rtl_dir.resolve(), cfg.ips_root)
+    hjson_path = _candidate_hjson_path(cfg.rtl_dir, cfg.top)
+    test_files = write_verification_tests(out_dir.parent / "tests", cfg.top, hjson_path, force=True)
     files = {
         out_dir / "Makefile": render_makefile(cfg, sources),
         out_dir / "utils.py": render_utils(),
         out_dir / "__init__.py": "",
+        drivers / "__init__.py": "",
         drivers / "driver_reg_iface.py": render_driver_import(),
         drivers / "driver_tlul.py": render_driver_import(),
+        drivers / "reg_driver.py": render_reg_driver_py(),
+        drivers / "vec_driver.py": render_vec_driver_py(),
+        drivers / "vec_monitor.py": render_vec_monitor_py(),
+        out_dir / f"model_{cfg.top}.py": render_pipeline_model_py(cfg.top),
         out_dir / f"{cfg.top}_tb.py": render_python_test(cfg),
         out_dir / f"{cfg.top}_tb.sv": render_tlul_wrapper(cfg),
     }
     for path, text in files.items():
         path.write_text(text, encoding="utf-8")
-    return list(files)
+    return [*test_files, *files]
 
 def _generated_tlul_wrapper_path(config: CocotbConfig) -> Path:
     """Return the generated TL-UL wrapper path for a Cocotb scaffold."""
