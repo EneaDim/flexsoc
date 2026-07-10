@@ -1,159 +1,115 @@
 # FlexSoC Flow Smoke Guide
 
-This guide lists safe commands for checking that the current API, CLI, and
-Make-backed backend still agree after the refactor.
+Use this checklist after refactoring or after applying patches. It starts with
+safe checks and ends with optional EDA-dependent commands.
 
-## Rule of thumb
-
-Start with discovery and dry-runs, then run generator-only targets, and only
-then move to EDA-dependent targets.
-
-```text
-CLI -> FlexSoC API -> backend Makefile -> backend Python modules / EDA tools
-```
-
-## 1. Discover the public surface
+## 1. Environment
 
 ```bash
-fx help
+make install
+source .venv/bin/activate
+make lint
+make test
+```
+
+## 2. CLI and settings
+
+```bash
 fx commands
-fx hjson --info
-fx syn --info --json
-```
-
-## 2. Preview complete explicit paths
-
-Preview commands do not execute tools. They are the safest way to validate the
-current wiring.
-
-```bash
-fx setup hjson reg doc rtl_stub setup_tb sim syn sta power pnr sim_syn cocotb \
-  --dry-run --script \
-  --set TOP=demo \
-  --set RUN_ID=smoke
-
-fx setup soc_start soc_flow soc_prepare soc_build_sw soc_sim soc_run \
-  --dry-run --script \
-  --set TOP=soc \
-  --set RUN_ID=smoke
-```
-
-Expected result: a shell script that calls the canonical backend Makefile under
-`src/flexsoc/backend/Makefile`.
-
-## 3. Run setup-only smoke checks
-
-`setup` should be the first real command because it mainly creates workspace
-structure.
-
-```bash
-fx setup --set TOP=demo --set RUN_ID=smoke --capture
-```
-
-Inspect generated files:
-
-```bash
-tree workspace/runs/demo/smoke | head -80
-```
-
-## 4. Run generator-only IP checks
-
-These targets should be cheaper than synthesis, PnR, or signoff. They can still
-fail if input files are missing, but they should not require the full EDA stack.
-
-```bash
-fx hjson --set TOP=demo --set RUN_ID=smoke --capture
-fx reg --set TOP=demo --set RUN_ID=smoke --capture
-fx doc --set TOP=demo --set RUN_ID=smoke --capture
-fx rtl_stub --set TOP=demo --set RUN_ID=smoke --capture
-fx setup_tb --set TOP=demo --set RUN_ID=smoke --capture
-fx setup_cocotb --set TOP=demo --set RUN_ID=smoke --capture
-```
-
-## 5. Run EDA-dependent IP checks
-
-These commands depend on external tools and local environment setup.
-
-```bash
-fx sim --set TOP=demo --set RUN_ID=smoke --capture
-fx syn --set TOP=demo --set RUN_ID=smoke --capture
-fx sta --set TOP=demo --set RUN_ID=smoke --capture
-fx power --set TOP=demo --set RUN_ID=smoke --capture
-fx pnr --set TOP=demo --set RUN_ID=smoke --capture
-fx sim_syn --set TOP=demo --set RUN_ID=smoke --capture
-fx cocotb --set TOP=demo --set RUN_ID=smoke --capture
-```
-
-A failure here does not necessarily mean the refactor broke the API. First check
-whether the required simulator, synthesis, signoff, PnR, PDK, or FuseSoC tooling
-is available.
-
-## 6. Run SoC development previews
-
-```bash
-fx setup soc_start soc_flow soc_prepare soc_build_sw soc_sim soc_run \
-  --dry-run --script \
-  --set TOP=soc \
-  --set RUN_ID=smoke
-
-fx sw_soc --info
-fx soc_sim --info
-fx soc_run --info
-```
-
-Run setup first:
-
-```bash
-fx setup --set TOP=soc --set RUN_ID=smoke --capture
-fx soc_start --set TOP=soc --set RUN_ID=smoke --capture
-```
-
-Then proceed target by target:
-
-```bash
-fx soc_flow --set TOP=soc --set RUN_ID=smoke --capture
-fx soc_prepare --set TOP=soc --set RUN_ID=smoke --capture
-fx soc_build_sw --set TOP=soc --set RUN_ID=smoke --capture
-fx soc_sim --set TOP=soc --set RUN_ID=smoke --capture
-```
-
-## 7. Debug a failing target
-
-For any failing command, first print the planned command:
-
-```bash
-fx TARGET --dry-run --script --set TOP=demo --set RUN_ID=smoke
-```
-
-Then print structured metadata:
-
-```bash
-fx TARGET --info --json
-```
-
-Finally run with captured output:
-
-```bash
-fx TARGET --set TOP=demo --set RUN_ID=smoke --capture --json
-```
-
-## One-command smoke check
-
-Use the CLI smoke command when you want a quick API/Make consistency check before
-running tool-dependent targets:
-
-```bash
-fx smoke
+fx settings --set TOP=quick_ip --set RUN_TOP=quick_ip --set RUN_ID=smoke --set HOST=uart
+fx settings
 fx smoke --json
 ```
 
-By default this does not launch EDA tools. It resolves safe API paths and
-previews their Make commands through the `FlexSoC` API layer. To execute only the
-safe workspace initialization path:
+Remember: `--set KEY=VALUE` on a target is one-shot. Use `fx settings --set ...`
+when you want future commands to use the same context.
+
+## 3. Preview commands
 
 ```bash
-fx smoke --run-workspace --top demo --run-id smoke
+fx setup hjson reg doc --dry-run --script
+fx setup hjson reg doc rtl_stub flist setup_tb setup_cocotb setup_model --dry-run --script
+fx cocotb --dry-run --script --set TEST_NAME=smoke
 ```
 
-Keep synthesis, signoff, PnR, and simulator execution as explicit target calls
-after the smoke output looks correct.
+Expected result: a shell script that calls `src/flexsoc/backend/Makefile` with
+the resolved variables.
+
+## 4. Generate and test a new IP
+
+```bash
+fx setup hjson reg doc rtl_stub flist setup_tb setup_cocotb setup_model --force
+
+fx cocotb --set TEST_NAME=smoke
+fx cocotb --set TEST_NAME=corners
+fx cocotb --set TEST_NAME=random
+fx view_cocotb --set TEST_NAME=random
+```
+
+Inspect generated verification inputs:
+
+```bash
+cat workspace/runs/quick_ip/smoke/tb/tests/smoke/config.regs
+cat workspace/runs/quick_ip/smoke/tb/tests/smoke/smoke.vec
+```
+
+## 5. Load and test an existing IP
+
+```bash
+fx ip_load flist setup_tb setup_cocotb setup_model \
+  --force \
+  --set TOP=cordic \
+  --set RUN_TOP=cordic \
+  --set RUN_ID=smoke
+
+fx cocotb --set TOP=cordic --set RUN_TOP=cordic --set RUN_ID=smoke --set TEST_NAME=smoke
+```
+
+The generated `config.regs` should list every software-writable register from the
+HJSON regmap. For IPs without a generic top-level datapath pair, generic vector
+checks are skipped and register configuration still runs.
+
+## 6. SoC previews
+
+UART-host SoC:
+
+```bash
+fx soc_uart_gen --dry-run --script \
+  --set TOP=soc \
+  --set RUN_TOP=soc_uart \
+  --set HOST=uart \
+  --set SOC_CFG_MODE=builtin
+```
+
+Ibex-host SoC:
+
+```bash
+fx soc_ibex_gen --dry-run --script \
+  --set TOP=soc \
+  --set RUN_TOP=soc_ibex \
+  --set HOST=ibex \
+  --set SOC_CFG_MODE=builtin
+```
+
+Build and simulation targets need the external toolchain:
+
+```bash
+fx soc_build_sw soc_sim soc_run --dry-run --script --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
+```
+
+## 7. Debug a failing command
+
+```bash
+fx TARGET --info --json
+fx TARGET --dry-run --script --set TOP=... --set RUN_TOP=... --set RUN_ID=...
+fx TARGET --capture --json --set TOP=... --set RUN_TOP=... --set RUN_ID=...
+```
+
+For generated files, first check the active settings:
+
+```bash
+fx settings
+```
+
+Most confusing failures come from running a target with a saved `RUN_ID` that is
+different from the run that was generated.

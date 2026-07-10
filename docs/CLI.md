@@ -1,15 +1,24 @@
 # FlexSoC CLI
 
-`fx` is the command-line interface for the public `FlexSoC` API layer. It does
-not call backend modules directly.
+`fx` is the user CLI for FlexSoC. It is intentionally small: it saves project
+settings, exposes backend targets, previews commands, and runs targets through
+the public `FlexSoC` API.
 
 ```text
-CLI → FlexSoC API → src/flexsoc/backend/Makefile → backend modules
+fx -> FlexSoC API -> src/flexsoc/backend/Makefile -> backend generators/tools
 ```
 
-## Command surface
+## Install and activate
 
-The CLI is intentionally compact:
+```bash
+make install
+source .venv/bin/activate
+```
+
+`make install` installs the editable package with the `dev` and `flow` extras
+from `pyproject.toml`.
+
+## Command surface
 
 ```bash
 fx help
@@ -20,291 +29,179 @@ fx TARGET --info
 fx smoke
 ```
 
-`TARGET` is a backend target exposed as a direct CLI command, for example
-`setup`, `hjson`, `reg`, `doc`, `rtl_stub`, `setup_tb`, `sim`, `syn`, `sta`,
-`power`, `pnr`, `view`, or the focused lint targets. When more than one target is
-provided, FlexSoC launches them in the exact order given.
+Examples of direct targets are `setup`, `hjson`, `reg`, `doc`, `rtl_stub`,
+`flist`, `setup_tb`, `setup_cocotb`, `setup_model`, `sim`, `syn`, `sta`,
+`power`, `pnr`, `cocotb`, `view_cocotb`, `soc_uart_gen`, and `soc_ibex_gen`.
+When more than one target is provided, FlexSoC runs them in the given order.
 
-## Help and discovery
+## Settings
 
-```bash
-fx --help
-fx help
-fx commands
-fx hjson --info
-fx syn --info --json
-```
-
-`fx help` renders a short guide with the compact command surface and practical
-examples. `fx commands --json` is intended for scripts and frontends.
-
-## Project settings
-
-Persist project defaults under `.flexsoc/settings.json`:
+Save defaults for repeated commands:
 
 ```bash
-fx settings --set TOP=test --set HOST=uart --set RUN_ID=default
-```
-
-Show resolved defaults, saved values, and computed workspace path:
-
-```bash
+fx settings --set TOP=quick_ip --set RUN_TOP=quick_ip --set RUN_ID=smoke --set HOST=uart
 fx settings
-fx settings --json
 ```
 
-Reset saved values and return to defaults:
+Use `--set KEY=VALUE` on a target for a one-command override. It does not update
+`.flexsoc/settings.json`.
+
+```bash
+fx lint --set TOP=cordic --set RUN_TOP=cordic --set RUN_ID=smoke
+```
+
+Reset saved defaults:
 
 ```bash
 fx settings --reset
 ```
 
-One-shot overrides use repeated `--set KEY=VALUE` flags and do not change saved
-settings:
-
-```bash
-fx syn sta --dry-run --script --set TOP=my_ip --set RUN_ID=trial_01
-```
-
-## Quickstart
-
-Start with safe previews:
+## Discovery and previews
 
 ```bash
 fx commands
-fx setup hjson reg doc --dry-run --script --set TOP=demo --set RUN_ID=smoke
-```
-
-Then run the safe setup path:
-
-```bash
-fx setup --set TOP=demo --set RUN_ID=smoke --capture
-```
-
-Inspect the generated workspace:
-
-```bash
-tree workspace | head -80
-```
-
-## IP development
-
-A typical explicit IP path is:
-
-```text
-setup → hjson → reg → doc → rtl_stub → setup_tb → sim → syn → sta → power → pnr → sim_syn → cocotb
-```
-
-Inspect targets before running them:
-
-```bash
 fx hjson --info
-fx rtl_stub --info
-fx setup_tb --info
-fx sim --info
-fx syn --info
-fx sta --info
-fx power --info
-fx pnr --info
-fx sim_syn --info
 fx cocotb --info
+fx setup hjson reg doc --dry-run --script --set TOP=demo --set RUN_ID=smoke
+fx setup hjson reg doc --dry-run --json --set TOP=demo --set RUN_ID=smoke
 ```
 
-Preview the full IP path:
+Use `--capture` when you want command output captured and reported by the CLI:
 
 ```bash
-fx setup hjson reg doc rtl_stub setup_tb sim syn sta power pnr sim_syn cocotb \
-  --dry-run --script \
-  --set TOP=my_ip \
+fx setup --capture
+```
+
+## IP from scratch
+
+```bash
+fx settings --set TOP=quick_ip --set RUN_TOP=quick_ip --set RUN_ID=smoke --set HOST=uart
+fx setup hjson reg doc rtl_stub flist setup_tb setup_cocotb setup_model --force
+```
+
+This creates the workspace, HJSON regmap, register RTL, docs, RTL stub, filelist,
+SystemVerilog testbench, Cocotb scaffold, generated vectors, register configs,
+and Python model.
+
+Run generated tests:
+
+```bash
+fx cocotb --set TEST_NAME=smoke
+fx cocotb --set TEST_NAME=corners
+fx cocotb --set TEST_NAME=random
+```
+
+Open the latest Cocotb waveform:
+
+```bash
+fx view_cocotb --set TEST_NAME=random
+```
+
+## Existing IP
+
+Example with `cordic`:
+
+```bash
+fx ip_load flist setup_tb setup_cocotb setup_model \
+  --force \
+  --set TOP=cordic \
+  --set RUN_TOP=cordic \
   --set RUN_ID=smoke
+
+fx cocotb --set TOP=cordic --set RUN_TOP=cordic --set RUN_ID=smoke --set TEST_NAME=smoke
 ```
 
-Run individual safe/generator-oriented targets as needed:
+If an existing IP has no generic top-level datapath pair, the generated register
+configuration still runs and the generic vector checker is skipped. Add an
+IP-specific checker when the datapath behavior is defined.
 
-```bash
-fx setup --set TOP=my_ip --set RUN_ID=smoke --capture
-fx hjson --dry-run --set TOP=my_ip --set RUN_ID=smoke
-fx rtl_stub --dry-run --set TOP=my_ip --set RUN_ID=smoke
-```
+## Generated verification files
 
-EDA-dependent targets such as `sim`, `syn`, `sta`, `power`, `pnr`, `sim_syn`,
-and `cocotb` require the corresponding tools and environment to be installed.
-
-## SoC development
-
-A typical explicit SoC path is:
+For each run, `setup_tb`, `setup_cocotb`, and `setup_model` generate:
 
 ```text
-setup → soc_start → soc_flow → soc_prepare → soc_build_sw → soc_sim → soc_run
+workspace/runs/<RUN_TOP>/<RUN_ID>/tb/
+├── <top>_tb.sv
+├── <top>_reg_sequence.svh
+├── tests/<test>/config.regs
+├── tests/<test>/<test>.vec
+└── cocotb/
+    ├── <top>_tb.py
+    ├── model_<top>.py
+    └── drivers/{reg_driver.py,vec_driver.py,vec_monitor.py}
 ```
 
-Useful SoC inspection commands:
+The generated tests are `smoke`, `corners`, and `random`.
+
+`config.regs` lists all software-writable registers from the HJSON regmap:
+
+```text
+# write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE]
+write clk_i.CTRL 0x00000001
+write clk_i.WDATA 0x00000002
+```
+
+`.vec` files drive datapath values and expected results. The note field is
+optional:
+
+```text
+# cycle input expected latency mask [note]
+0 0x00000000 0x00000000 2 0xffffffff
+1 0x00000001 0x00000001 2 0xffffffff smoke_1
+```
+
+## SoC generation
+
+UART-host SoC:
 
 ```bash
-fx soc_start --info
-fx soc_flow --info
-fx soc_prepare --info
-fx sw_soc --info
-fx soc_build_sw --info
-fx soc_sim --info
-fx soc_run --info
+fx ip_load --force --set TOP=uart-master --set LOAD_AS=uart --set RUN_TOP=soc_uart
+fx ip_load --force --set TOP=gpio        --set RUN_TOP=soc_uart
+fx ip_load --force --set TOP=rv_timer    --set RUN_TOP=soc_uart
+fx ip_load --force --set TOP=pwm         --set RUN_TOP=soc_uart
+fx soc_uart_gen --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart --set SOC_CFG_MODE=builtin
 ```
 
-Preview the full SoC path:
+Ibex-host SoC:
 
 ```bash
-fx setup soc_start soc_flow soc_prepare soc_build_sw soc_sim soc_run \
-  --dry-run --script \
-  --set TOP=soc \
-  --set RUN_ID=smoke \
-  --set HOST=uart
+fx fetch --set VENDOR=lowrisc_ip
+fx fetch --set VENDOR=lowrisc_ibex
+fx ip_load --force --set TOP=uart     --set RUN_TOP=soc_ibex
+fx ip_load --force --set TOP=gpio     --set RUN_TOP=soc_ibex
+fx ip_load --force --set TOP=rv_timer --set RUN_TOP=soc_ibex
+fx ip_load --force --set TOP=pwm      --set RUN_TOP=soc_ibex
+fx ip_load --force --set TOP=spi_host --set RUN_TOP=soc_ibex
+fx soc_ibex_gen --set TOP=soc --set RUN_TOP=soc_ibex --set HOST=ibex --set SOC_CFG_MODE=builtin
 ```
 
-Run the setup-only path first:
+Build/run only after the required software and simulator tools are installed:
 
 ```bash
-fx setup --set TOP=soc --set RUN_ID=smoke --capture
+fx soc_build_sw soc_sim soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
 ```
 
-## Target parameters
-
-Use `fx TARGET --info` to see accepted parameters:
+## Lint
 
 ```bash
-fx syn --info
-fx syn --info --json
+fx lint
+fx lint-latch
+fx lint-undriven
+fx lint-width
+fx lint-unconnected
+fx lint-unused
 ```
 
-The metadata table is grouped by category:
+Use `--tool auto|verilator|slang` to select the lint backend. `auto` prefers
+Verilator when available, otherwise `slang`.
 
-| Category | Meaning |
-| --- | --- |
-| `common` | Shared variables like `TOP`, `RUN_ID`, `WORKSPACE`, `RUN_TOP`, and `FORCE`. |
-| `specific` | Target-specific options such as host, interfaces, source names, or generated artifacts. |
-| `tool` | Simulator, synthesis, timing, power, and PnR tool options. |
-
-Overrides use repeated `--set KEY=VALUE` flags:
+## Useful maintenance commands
 
 ```bash
-fx syn --dry-run \
-  --set TOP=my_ip \
-  --set RUN_ID=smoke \
-  --set TARGET_SYN=asic \
-  --set TARGET_OPT=area
+make lint
+make test
+fx smoke --json
+fx clean_all
 ```
 
-## Execution modes
-
-Preview one target:
-
-```bash
-fx setup --dry-run --set TOP=demo --set RUN_ID=smoke
-fx setup --dry-run --json --set TOP=demo --set RUN_ID=smoke
-```
-
-Preview multiple targets as a copyable shell script:
-
-```bash
-fx setup hjson reg doc --dry-run --script --set TOP=demo --set RUN_ID=smoke
-```
-
-Run one target:
-
-```bash
-fx setup --set TOP=demo --set RUN_ID=smoke --capture
-fx setup --set TOP=demo --set RUN_ID=smoke --capture --json
-```
-
-Run multiple targets in order:
-
-```bash
-fx hjson reg doc rtl_stub --set TOP=demo --set RUN_ID=smoke --capture
-```
-
-## JSON mode
-
-Use JSON for frontends, web services, or scripts:
-
-```bash
-fx commands --json
-fx syn --info --json
-fx setup hjson reg doc --dry-run --json --set TOP=demo --set RUN_ID=smoke
-fx setup --capture --json --set TOP=demo --set RUN_ID=smoke
-```
-
-## Shell script previews
-
-Use script previews when you want copyable commands:
-
-```bash
-fx setup --dry-run --script --set TOP=demo --set RUN_ID=smoke
-fx setup hjson reg doc rtl_stub setup_tb --dry-run --script --set TOP=demo --set RUN_ID=smoke
-fx setup soc_start soc_flow soc_prepare --dry-run --script --set TOP=soc --set RUN_ID=smoke
-```
-
-## Tutorials
-
-### Tutorial 1: safe workspace setup
-
-```bash
-fx setup --dry-run --script --set TOP=demo --set RUN_ID=smoke
-fx setup --set TOP=demo --set RUN_ID=smoke --capture
-```
-
-### Tutorial 2: inspect an IP path
-
-```bash
-fx setup hjson reg doc rtl_stub setup_tb --dry-run --script --set TOP=my_ip --set RUN_ID=smoke
-fx rtl_stub --info
-fx syn --info --json
-```
-
-### Tutorial 3: inspect a SoC path
-
-```bash
-fx setup soc_start soc_flow soc_prepare --dry-run --script --set TOP=soc --set RUN_ID=smoke --set HOST=uart
-fx soc_flow --info
-fx sw_soc --info
-```
-
-## Canonical names
-
-Use target names from `fx commands`. Do not use backend module filenames as CLI
-target names.
-
-Example:
-
-```bash
-fx sw_soc --info      # correct
-fx sw_soc_gen --info  # not a public target name
-```
-
-## RTL lint commands
-
-FlexSoC exposes focused lint commands for common RTL quality checks:
-
-```bash
-fx lint              # all configured lint diagnostics
-fx lint-latch        # inferred latch diagnostics
-fx lint-undriven     # undriven signal diagnostics
-fx lint-width        # width mismatch diagnostics
-fx lint-unconnected  # unconnected port diagnostics
-fx lint-unused       # unused signal diagnostics
-```
-
-Use `--tool auto|verilator|slang` to select the backend. `auto` prefers
-Verilator when it is available because its warning classes are convenient for
-focused checks; otherwise it uses `slang`. Install slang locally with:
-
-```bash
-make install-slang
-```
-
-The downloaded binary is placed under `.tools/bin/` and is not committed.
-
-## Local environment files
-
-`uv.lock` is intentionally ignored for now. The public CLI documentation uses
-package commands such as `fx ...`; local development environments can run those
-commands through an editable install, the project virtual environment, or
-`python -m flexsoc`.
+Use `--dry-run --script` before running EDA-heavy targets in a new environment.

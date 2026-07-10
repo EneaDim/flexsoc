@@ -4,124 +4,166 @@
 
 # FlexSoC
 
-FlexSoC is a Python package for IP development and SoC integration. The public
-surface is intentionally small: callers use the `FlexSoC` API layer or the thin
-`fx` CLI, and both route into the canonical backend Makefile.
+FlexSoC is a Python package for IP development, generated verification, and SoC
+integration. Users enter through the `fx` CLI or the `FlexSoC` Python API; both
+route into the canonical backend Makefile.
 
 ```text
-CLI / Python / future UI
-        ↓
+fx / Python API
+    ↓
 FlexSoC API layer
-        ↓
+    ↓
 src/flexsoc/backend/Makefile
-        ↓
-src/flexsoc/backend/*.py and external EDA tools
+    ↓
+backend generators and external EDA tools
 ```
 
-## Install for development
+## Install
 
 ```bash
 make install
+source .venv/bin/activate
 make test
 ```
 
-The developer Makefile is `uv`-first. For direct `uv` usage:
-
-```bash
-uv venv --allow-existing
-uv pip install -e ".[dev]"
-uv run pytest -q
-```
+`make install` uses `uv` and installs the editable package with the development
+and flow extras from `pyproject.toml`.
 
 ## Quickstart
 
-List the compact public CLI surface and inspect a target:
+Discover commands and inspect a backend target:
 
 ```bash
 fx commands
 fx hjson --info
 ```
 
-Persist project defaults once:
+Save the default run context once:
 
 ```bash
-fx settings --set TOP=demo --set HOST=uart --set RUN_ID=smoke
+fx settings --set TOP=quick_ip --set RUN_TOP=quick_ip --set RUN_ID=smoke --set HOST=uart
+fx settings
 ```
 
-Preview a workspace/generator path without running tools:
+Preview a generator path before running it:
 
 ```bash
 fx setup hjson reg doc --dry-run --script
 ```
 
-Run the safe setup path and capture output:
+Generate a small IP with RTL, SystemVerilog TB, Cocotb scaffold, vectors, and a
+Python model:
 
 ```bash
-fx setup --capture
+fx setup hjson reg doc rtl_stub flist setup_tb setup_cocotb setup_model --force
 ```
 
-Preview an explicit IP development path:
+Run Cocotb with one generated test:
 
 ```bash
-fx setup hjson reg doc rtl_stub setup_tb sim syn sta power pnr sim_syn cocotb --dry-run --script
+fx cocotb --set TEST_NAME=smoke
+fx cocotb --set TEST_NAME=corners
+fx cocotb --set TEST_NAME=random
 ```
 
-Preview an explicit SoC development path:
+Open the latest Cocotb waveform:
 
 ```bash
-fx setup soc_start soc_flow soc_prepare soc_build_sw soc_sim soc_run --dry-run --script --set TOP=soc
+fx view_cocotb --set TEST_NAME=random
 ```
 
-## Public Python API
+## Generated verification layout
 
-```python
-from flexsoc import FlexSoC
-
-fx = FlexSoC(project_root=".", top="demo", run_id="smoke")
-plan = fx.inspect_workflow("ip_development")
-print(plan.shell_script())
-```
-
-Run a single backend target through the same API boundary:
-
-```python
-result = fx.run_step("hjson", capture=True)
-print(result.ok, result.returncode)
-```
-
-## Common explicit flows
-
-| Flow | Ordered backend targets |
-| --- | --- |
-| Workspace setup | `setup` |
-| IP development | `setup hjson reg doc rtl_stub setup_tb sim syn sta power pnr sim_syn cocotb` |
-| SoC development | `setup soc_start soc_flow soc_prepare soc_build_sw soc_sim soc_run` |
-| Existing IP load | `setup ip_load flist setup_tb sim` |
-
-EDA-dependent targets such as `sim`, `syn`, `sta`, `power`, `pnr`, `sim_syn`,
-and `cocotb` require the corresponding tools and environment to be installed.
-Use `--dry-run --script` first when validating wiring.
-
-## Project layout
+`setup_tb`, `setup_cocotb`, and `setup_model` generate a shared verification
+layout under the active run:
 
 ```text
-src/flexsoc/
-├── __init__.py
-├── __main__.py
-├── api.py
-├── cli.py
-└── backend/
-    ├── Makefile
-    ├── fsm_gen/
-    └── *.py
+workspace/runs/<RUN_TOP>/<RUN_ID>/
+├── tb/
+│   ├── <top>_tb.sv
+│   ├── <top>_reg_sequence.svh
+│   ├── <top>_vec_driver.svh          # generated only when useful
+│   ├── <top>_vec_monitor.svh         # generated only when useful
+│   ├── tests/
+│   │   ├── smoke/config.regs + smoke.vec
+│   │   ├── corners/config.regs + corners.vec
+│   │   └── random/config.regs + random.vec
+│   └── cocotb/
+│       ├── <top>_tb.py
+│       ├── model_<top>.py
+│       └── drivers/
+│           ├── reg_driver.py
+│           ├── vec_driver.py
+│           └── vec_monitor.py
+└── model/model_<top>.py
 ```
 
-Long-form framework documentation lives under `docs/`:
+Each `config.regs` contains all software-writable registers found in the HJSON
+regmap. Config files use register names, not raw addresses:
 
-- `docs/API.md` for the Python API layer.
-- `docs/CLI.md` for the `fx` CLI.
-- `docs/ARCHITECTURE.md` for the framework architecture.
-- `docs/FLOW_SMOKE.md` for safe smoke and flow validation commands.
+```text
+write clk_i.CTRL 0x00000001
+write clk_i.WDATA 0x00000002
+```
+
+Each `.vec` file contains datapath stimuli and expected values. The final note is
+optional:
+
+```text
+# cycle input expected latency mask [note]
+0 0x00000000 0x00000000 2 0xffffffff
+1 0x00000001 0x00000001 2 0xffffffff smoke_1
+```
+
+## Existing IP example
+
+Load an existing IP and generate the same verification structure:
+
+```bash
+fx ip_load flist setup_tb setup_cocotb setup_model \
+  --force \
+  --set TOP=cordic \
+  --set RUN_TOP=cordic \
+  --set RUN_ID=smoke
+
+fx cocotb --set TOP=cordic --set RUN_TOP=cordic --set RUN_ID=smoke --set TEST_NAME=smoke
+```
+
+For IPs without a simple top-level datapath pair, the generic vector check is
+skipped and the register configuration still runs. Add an IP-specific model or
+checker when the datapath contract is known.
+
+## SoC examples
+
+UART-host SoC generation:
+
+```bash
+fx ip_load --force --set TOP=uart-master --set LOAD_AS=uart --set RUN_TOP=soc_uart
+fx ip_load --force --set TOP=gpio        --set RUN_TOP=soc_uart
+fx ip_load --force --set TOP=rv_timer    --set RUN_TOP=soc_uart
+fx ip_load --force --set TOP=pwm         --set RUN_TOP=soc_uart
+fx soc_uart_gen --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart --set SOC_CFG_MODE=builtin
+```
+
+Ibex-host SoC generation:
+
+```bash
+fx fetch --set VENDOR=lowrisc_ip
+fx fetch --set VENDOR=lowrisc_ibex
+fx ip_load --force --set TOP=uart     --set RUN_TOP=soc_ibex
+fx ip_load --force --set TOP=gpio     --set RUN_TOP=soc_ibex
+fx ip_load --force --set TOP=rv_timer --set RUN_TOP=soc_ibex
+fx ip_load --force --set TOP=pwm      --set RUN_TOP=soc_ibex
+fx ip_load --force --set TOP=spi_host --set RUN_TOP=soc_ibex
+fx soc_ibex_gen --set TOP=soc --set RUN_TOP=soc_ibex --set HOST=ibex --set SOC_CFG_MODE=builtin
+```
+
+Build and run software/simulation only after the required external tools are
+installed:
+
+```bash
+fx soc_build_sw soc_sim soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
+```
 
 ## Development checks
 
@@ -132,5 +174,12 @@ fx smoke
 fx smoke --json
 ```
 
-`fx smoke` previews safe framework paths. It does not launch synthesis, signoff,
-PnR, or simulation tools unless you explicitly run those backend targets.
+Use `--dry-run --script` before EDA-dependent targets such as `sim`, `syn`,
+`sta`, `power`, `pnr`, `cocotb`, and SoC simulation targets.
+
+## Documentation
+
+- `docs/CLI.md` explains day-to-day `fx` usage.
+- `docs/API.md` documents the Python API layer.
+- `docs/ARCHITECTURE.md` describes the package and generated verification architecture.
+- `docs/FLOW_SMOKE.md` gives a short validation checklist.

@@ -63,10 +63,10 @@ Current public workflows:
 The explicit IP development workflow is ordered as:
 
 ```text
-setup → hjson_gen → reg → doc → rtl_stub → setup_tb → sim → syn → sta → power → pnr → sim_syn → cocotb
+setup → hjson → reg → doc → rtl_stub → flist → setup_tb → setup_cocotb → setup_model → sim → syn → sta → power → pnr → sim_syn → cocotb
 ```
 
-Use this flow when iterating on an IP block from metadata/templates through RTL, simulation, synthesis, timing/power, PnR, gate-level simulation, and Cocotb scaffolding.
+Use this flow when iterating on an IP block from metadata/templates through RTL, generated verification, simulation, synthesis, timing/power, PnR, gate-level simulation, and Cocotb.
 
 ```python
 plan = fx.inspect_workflow("ip_development", TOP="demo", RUN_ID="smoke")
@@ -78,10 +78,10 @@ print(plan.shell_script())
 The explicit SoC workflow is ordered as:
 
 ```text
-setup → soc_start → soc_flow → soc_prepare → soc_build_sw → soc_sim → soc_run
+setup → soc_uart_gen/soc_ibex_gen → soc_prepare → soc_build_sw → soc_sim → soc_run
 ```
 
-Use this flow when integrating IPs into a SoC, generating the SoC wrapper/configuration, building software, and preparing simulation/run steps.
+Use this flow when integrating IPs into UART-host or Ibex-host SoC runs, building software, and preparing simulation/run steps.
 
 ```python
 plan = fx.inspect_workflow("soc_development", TOP="soc", RUN_ID="smoke")
@@ -162,6 +162,40 @@ Every `FlowStep` also carries copy-ready examples:
 ```python
 for example in fx.step_info("syn").examples:
     print(example.command, "#", example.description)
+```
+
+
+## Generated verification targets
+
+The verification generators share one run-local structure:
+
+```text
+setup_tb      # SystemVerilog TB, register sequence, test configs, vectors
+setup_cocotb  # Cocotb TB and drivers using the same configs/vectors
+setup_model   # Python model_<top>.py
+```
+
+Generated `config.regs` files use clock-qualified register names resolved from
+the HJSON regmap:
+
+```text
+write clk_i.CTRL 0x00000001
+write clk_i.WDATA 0x00000002
+```
+
+Generated `.vec` files are shared by SystemVerilog and Cocotb:
+
+```text
+# cycle input expected latency mask [note]
+0 0x00000000 0x00000000 2 0xffffffff
+```
+
+Run one generated test from Python by launching the `cocotb` target with
+`TEST_NAME`:
+
+```python
+result = fx.run_step("cocotb", TOP="quick_ip", RUN_TOP="quick_ip", RUN_ID="smoke", TEST_NAME="smoke")
+print(result.ok)
 ```
 
 ## Run one backend target from Python
