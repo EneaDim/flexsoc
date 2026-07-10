@@ -19,6 +19,7 @@ from .common import ensure_dir, has_reg_pkg, parse_sv_signature, safe_write_file
 
 
 TEST_NAMES = ("smoke", "corners", "random")
+WRITABLE_SWACCESS = {"rw", "wo", "w1c", "w1s", "rw1c", "rw1s", "rw0c", "rw0w1c"}
 Hjson = dict[str, Any]
 
 try:
@@ -34,6 +35,7 @@ def _load_hjson(path: Path) -> Hjson:
     if hjson is not None:
         return dict(hjson.loads(text))
     normalized = re.sub(r"([{,]\s*)([A-Za-z_][\w]*)\s*:", r'\1"\2":', text)
+    normalized = re.sub(r",\s*([}\]])", r"\1", normalized).strip()
     return dict(ast.literal_eval(normalized))
 
 
@@ -62,8 +64,24 @@ def _register_clock(hj: Hjson, reg: dict[str, Any]) -> str:
     return str(value or "clk_i")
 
 
+def _is_writable_register(reg: dict[str, Any]) -> bool:
+    """Return true when software can write the register or one of its fields."""
+
+    swaccess = str(reg.get("swaccess", "")).lower()
+    if swaccess in WRITABLE_SWACCESS:
+        return True
+    for field in reg.get("fields", []) or []:
+        if isinstance(field, dict) and str(field.get("swaccess", "")).lower() in WRITABLE_SWACCESS:
+            return True
+    return False
+
+
 def _register_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
-    """Return writable register entries with clock-qualified names and offsets."""
+    """Return every writable register with clock-qualified names and offsets.
+
+    The generated config uses ``clock.register`` keys so multi-clock IP can
+    disambiguate registers without requiring users to write raw addresses.
+    """
 
     if hjson_path is None or not hjson_path.exists():
         return []
@@ -73,11 +91,11 @@ def _register_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
     for reg in hj.get("registers", []) or []:
         if not isinstance(reg, dict) or "name" not in reg:
             continue
-        swaccess = str(reg.get("swaccess", "")).lower()
+        current = int(str(reg.get("offset", offset)), 0) if reg.get("offset") is not None else offset
         name = str(reg["name"]).upper()
         clock = _register_clock(hj, reg)
-        current = int(str(reg.get("offset", offset)), 0) if reg.get("offset") is not None else offset
-        if swaccess in {"rw", "wo"}:
+        if _is_writable_register(reg):
+            swaccess = str(reg.get("swaccess", "rw")).lower()
             entries.append(
                 {
                     "name": name,
@@ -103,18 +121,22 @@ def _config_value(test: str, reg: dict[str, Any], index: int, *, top: str) -> in
 
 
 def render_reg_config(top: str, test: str, registers: Sequence[dict[str, Any]]) -> str:
-    """Render a register-write config consumed by SV and cocotb drivers."""
+    """Render a complete register-write config for one generated test."""
 
     lines = [
         "# Auto-generated FlexSoC register configuration.",
+        "# Edit this file per test to change the register programming sequence.",
         f"# top={top} test={test}",
-        "# format: write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE...]",
-        "# defaults: MASK=0xffffffff WAIT_CYCLES=1",
+        "# format: write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE]",
+        "# defaults: MASK=0xffffffff WAIT_CYCLES=1 NOTE=''",
+        f"# writable_registers={len(registers)}",
     ]
     if not registers:
         lines.append("# no writable registers inferred from HJSON")
     for reg in registers:
-        lines.append(f"# map {reg['key']} {_hex(int(reg['addr']))}")
+        lines.append(f"# map {reg['key']} {_hex(int(reg['addr']))} access={reg.get('swaccess', 'rw')}")
+    if registers:
+        lines.append("# sequence: one default write per writable register")
     for index, reg in enumerate(registers):
         data = _config_value(test, reg, index, top=top)
         lines.append(f"write {reg['key']} {_hex(data)}")
@@ -193,7 +215,17 @@ endtask
     else:
         addr_cases += "\n    default: begin addr = '0; return 1'b0; end"
     return f"""// Auto-generated register sequence helper for {top}.
-function automatic bit tb_reg_addr(input string reg_key, output logic [31:0] addr);
+//
+// Source of truth:
+//   - register names, clock domains and addresses are generated from the HJSON regmap.
+//   - config files use clock-qualified keys such as clk_i.CTRL, not raw addresses.
+//
+// Config format:
+//   write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE]
+//
+// Keep custom test intent in tb/tests/<test>/config.regs; regenerate this helper
+// from setup_tb.py when the regmap changes.
+function automatic bit tb_lookup_reg_addr(input string reg_key, output logic [31:0] addr);
   case (reg_key)
 {addr_cases}
   endcase
@@ -226,11 +258,11 @@ task automatic run_reg_config(input string cfg_path);
     note = "";
     code = $sscanf(line, "%s %s %h %h %d %s", op, reg_key, data, mask, wait_cycles, note);
     if (code >= 3 && op == "write") begin
-      if (!tb_reg_addr(reg_key, addr)) begin
+      if (!tb_lookup_reg_addr(reg_key, addr)) begin
         $display("[TB][WARN] unknown register key in config: %s", reg_key);
         continue;
       end
-      $display("[TB] config write %s addr=0x%08x data=0x%08x", reg_key, addr, data);
+      $display("[TB] config write %s addr=0x%08x data=0x%08x mask=0x%08x", reg_key, addr, data, mask);
       {write_call}
       repeat (wait_cycles) @(posedge {clk});
     end
@@ -355,6 +387,37 @@ def _find_named_port(sig: dict[str, Any], names: set[str], direction: str) -> st
     return next((name for name, _ in sig[key] if name in names), None)
 
 
+def _simple_datapath_ports(sig: dict[str, Any]) -> tuple[str | None, str | None]:
+    """Return the supported simple vector datapath, if the DUT has one.
+
+    The generic vector checker intentionally supports only the default stub-style
+    datapath. Register-only IPs still get register config sequencing, but no
+    placeholder vector driver/monitor files are generated.
+    """
+
+    return (
+        _find_named_port(sig, {"port_i", "data_i", "in_i"}, "in"),
+        _find_named_port(sig, {"port_o", "data_o", "out_o"}, "out"),
+    )
+
+
+def _has_simple_datapath(sig: dict[str, Any]) -> bool:
+    """Return true when generated vector drive/check helpers are meaningful."""
+
+    return all(_simple_datapath_ports(sig))
+
+
+def _render_no_vector_task(top: str) -> str:
+    """Render the inline no-op used when no generic datapath exists."""
+
+    return f'''  // No generic port_i/port_o-style datapath was detected for {top}.
+  // Register config still runs; add an IP-specific checker for datapath checks.
+  task automatic run_vectors(input string vec_path);
+    $display("[TB] vector check skipped for this DUT: %s", vec_path);
+  endtask
+'''
+
+
 def write_sv_verification_helpers(
     outdir: str | Path,
     top: str,
@@ -371,15 +434,20 @@ def write_sv_verification_helpers(
     ensure_dir(out)
     clk = (sig.get("clks") or ["clk_i"])[0]
     registers = _register_entries(hjson_path)
-    input_signal = _find_named_port(sig, {"port_i", "data_i", "in_i"}, "in")
-    output_signal = _find_named_port(sig, {"port_o", "data_o", "out_o"}, "out")
+    input_signal, output_signal = _simple_datapath_ports(sig)
     files = {
         out / f"{top}_reg_sequence.svh": render_sv_reg_sequence(
             top, interface, clk, active=bus_active, registers=registers
         ),
-        out / f"{top}_vec_monitor.svh": render_sv_vec_monitor(top, output_signal),
-        out / f"{top}_vec_driver.svh": render_sv_vec_driver(top, clk, input_signal, output_signal),
     }
+    stale_vec_files = [out / f"{top}_vec_monitor.svh", out / f"{top}_vec_driver.svh"]
+    if input_signal and output_signal:
+        files[stale_vec_files[0]] = render_sv_vec_monitor(top, output_signal)
+        files[stale_vec_files[1]] = render_sv_vec_driver(top, clk, input_signal, output_signal)
+    else:
+        for stale in stale_vec_files:
+            if stale.exists():
+                stale.unlink()
     for path, text in files.items():
         safe_write_file(path, text, overwrite=force)
     return list(files)
@@ -813,8 +881,11 @@ def render_testbench(top: str,
 
     lines.append("\n  // Verification helpers")
     lines.append(f'  `include "{top}_reg_sequence.svh"')
-    lines.append(f'  `include "{top}_vec_monitor.svh"')
-    lines.append(f'  `include "{top}_vec_driver.svh"')
+    if _has_simple_datapath(sig):
+        lines.append(f'  `include "{top}_vec_monitor.svh"')
+        lines.append(f'  `include "{top}_vec_driver.svh"')
+    else:
+        lines.append(_render_no_vector_task(top).rstrip())
 
     # DUT instance
     lines.append("\n  // DUT")
@@ -952,8 +1023,11 @@ def render_simple_testbench(top: str,
 
     lines.append("  // Verification helpers")
     lines.append(f'  `include "{top}_reg_sequence.svh"')
-    lines.append(f'  `include "{top}_vec_monitor.svh"')
-    lines.append(f'  `include "{top}_vec_driver.svh"')
+    if _has_simple_datapath(sig):
+        lines.append(f'  `include "{top}_vec_monitor.svh"')
+        lines.append(f'  `include "{top}_vec_driver.svh"')
+    else:
+        lines.append(_render_no_vector_task(top).rstrip())
     lines.append("")
 
     # Clocks

@@ -688,6 +688,8 @@ def test_backend_testbench_generator_exposes_config_api(tmp_path) -> None:
         """module demo #(parameter AW = 32) (
   input logic clk_i,
   input logic rst_ni,
+  input logic port_i,
+  output logic port_o,
   output logic done_o
 );
 endmodule
@@ -788,6 +790,12 @@ endmodule
     assert cfg.output / "drivers" / "vec_monitor.py" in written
     assert cfg.output / "drivers" / "reg_driver.py" in written
     assert cfg.output / "model_demo.py" in written
+    assert cfg.output / "utils.py" not in written
+    assert cfg.output / "__init__.py" not in written
+    assert cfg.output / "drivers" / "__init__.py" not in written
+    assert cfg.output / "drivers" / "driver_reg_iface.py" not in written
+    assert cfg.output / "drivers" / "driver_tlul.py" not in written
+    assert not (cfg.output / "drivers" / "driver_tlul.py").exists()
     assert tmp_path / "tests" / "smoke" / "smoke.vec" in written
     assert "TOPLEVEL          = demo_tb" in makefile
     assert "export VEC_FILE" in makefile
@@ -811,14 +819,49 @@ def test_verification_vectors_and_config_are_aligned(tmp_path) -> None:
     config = render_reg_config("demo", "smoke", registers)
     vec = render_vec("demo", "smoke")
 
-    assert "# format: write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE...]" in config
-    assert "# map clk_i.CTRL 0x00000000" in config
+    assert "# format: write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE]" in config
+    assert "# map clk_i.CTRL 0x00000000 access=rw" in config
     assert "write clk_i.CTRL 0x00000001" in config
+    assert "# writable_registers=2" in config
     assert "write clk_i.WDATA 0x00000002" in config
     assert "# format: cycle input expected latency mask [note]" in vec
     assert "1 0x00000001 0x00000001 2 0xffffffff" in vec
     assert "smoke_1" not in vec
 
+
+
+def test_register_config_covers_all_writable_hjson_registers(tmp_path) -> None:
+    """Generated configs expose every software-writable register from HJSON."""
+
+    from flexsoc.backend.setup_tb import _register_entries, render_reg_config
+
+    hjson_path = tmp_path / "demo.hjson"
+    hjson_path.write_text(
+        """{
+        clock_primary: "clk_main_i",
+        registers: [
+          { name: "STATUS", swaccess: "ro" },
+          { name: "CTRL", swaccess: "rw" },
+          { name: "CMD", swaccess: "wo", offset: "0x10" },
+          { name: "INTR_STATE", fields: [{ name: "DONE", swaccess: "w1c" }] },
+        ]
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    registers = _register_entries(hjson_path)
+    config = render_reg_config("demo", "smoke", registers)
+
+    assert [reg["key"] for reg in registers] == [
+        "clk_main_i.CTRL",
+        "clk_main_i.CMD",
+        "clk_main_i.INTR_STATE",
+    ]
+    assert "write clk_main_i.CTRL" in config
+    assert "write clk_main_i.CMD" in config
+    assert "write clk_main_i.INTR_STATE" in config
+    assert "STATUS" not in "\n".join(line for line in config.splitlines() if line.startswith("write "))
 
 def test_generated_sv_vector_driver_samples_after_nba() -> None:
     """The generated SV monitor samples after NBA updates on each clock edge."""
@@ -830,6 +873,30 @@ def test_generated_sv_vector_driver_samples_after_nba() -> None:
     assert "@(posedge clk_i);" in driver
     assert "#1;" in driver
     assert "tb_check_cycle(now_cycle);" in driver
+
+
+def test_register_only_sv_tb_does_not_emit_empty_vector_helpers(tmp_path) -> None:
+    """Register-only IP should not generate placeholder SV driver/monitor files."""
+
+    from flexsoc.backend.setup_tb import render_testbench, write_sv_verification_helpers
+
+    sig = {
+        "parameters": [],
+        "localparams": [],
+        "ports_in": [("clk_i", 1), ("rst_ni", 1), ("tl_i", "tlul_pkg::tl_h2d_t")],
+        "ports_out": [("tl_o", "tlul_pkg::tl_d2h_t")],
+        "clks": ["clk_i"],
+        "rsts": ["rst_ni"],
+    }
+    written = write_sv_verification_helpers(tmp_path, "demo", "tlul", sig, bus_active=True, force=True)
+    tb = render_testbench("demo", 10, tmp_path, tmp_path, "tlul", "verilator", "sv", sig)
+
+    assert tmp_path / "demo_reg_sequence.svh" in written
+    assert not (tmp_path / "demo_vec_driver.svh").exists()
+    assert not (tmp_path / "demo_vec_monitor.svh").exists()
+    assert "vector check skipped for this DUT" in tb
+    assert "demo_vec_driver.svh" not in tb
+    assert "demo_vec_monitor.svh" not in tb
 
 
 def test_backend_soc_start_exposes_config_api(tmp_path) -> None:

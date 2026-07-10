@@ -274,26 +274,6 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
     )
 
 
-def render_utils() -> str:
-    """Render small Python helpers imported by generated cocotb tests."""
-
-    return dedent(
-        """\
-        import random
-
-        def rand_bin_values(nbit: int):
-            a = random.randint(0, (1 << nbit) - 1)
-            b = random.randint(0, (1 << nbit) - 1)
-            return a, b
-        """
-    )
-
-
-def render_driver_import() -> str:
-    """Render the minimal placeholder driver module used by generated tests."""
-
-    return "from cocotb.triggers import RisingEdge\n"
-
 
 def render_pipeline_model_py(top: str) -> str:
     """Render the reference model used by generated cocotb tests."""
@@ -353,6 +333,15 @@ def render_reg_driver_py(registers: Sequence[dict[str, object]] = ()) -> str:
 
     entries = "".join(f'    "{reg["key"]}": 0x{int(reg["addr"]):08x},\n' for reg in registers)
     return f"""\
+# Auto-generated FlexSoC cocotb register driver.
+#
+# Source of truth:
+#   - REGISTER_ADDRS is generated from the HJSON regmap.
+#   - config files use clock-qualified keys such as clk_i.CTRL.
+#
+# Config format:
+#   write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE]
+
 import os
 
 from cocotb.triggers import RisingEdge
@@ -373,6 +362,8 @@ def _resolve_register(key):
 
 
 def load_register_config(path=None):
+    # Notes are optional. Bare register names are accepted only when they
+    # uniquely map to one clock-qualified key.
     cfg_path = path or os.environ.get("REG_CONFIG")
     if not cfg_path:
         return []
@@ -416,7 +407,7 @@ async def run_register_config(dut, path=None):
     clk = getattr(dut, "clk_i", None)
     can_tlul = clk is not None and hasattr(dut, "tl_i_a_valid")
     for key, addr, data, mask, wait_cycles, note in rows:
-        dut._log.info("config write %s addr=0x%08x data=0x%08x %s", key, addr, data, note)
+        dut._log.info("config write %s addr=0x%08x data=0x%08x mask=0x%08x %s", key, addr, data, mask, note)
         if can_tlul:
             await _tlul_write(dut, clk, addr, data, mask)
         for _ in range(wait_cycles):
@@ -634,11 +625,6 @@ def _write_cocotb_scaffold_impl(cfg: CocotbConfig) -> list[Path]:
     test_files = write_verification_tests(out_dir.parent / "tests", cfg.top, hjson_path, force=True)
     files = {
         out_dir / "Makefile": render_makefile(cfg, sources),
-        out_dir / "utils.py": render_utils(),
-        out_dir / "__init__.py": "",
-        drivers / "__init__.py": "",
-        drivers / "driver_reg_iface.py": render_driver_import(),
-        drivers / "driver_tlul.py": render_driver_import(),
         drivers / "reg_driver.py": render_reg_driver_py(registers),
         drivers / "vec_driver.py": render_vec_driver_py(),
         drivers / "vec_monitor.py": render_vec_monitor_py(),
@@ -646,6 +632,15 @@ def _write_cocotb_scaffold_impl(cfg: CocotbConfig) -> list[Path]:
         out_dir / f"{cfg.top}_tb.py": render_python_test(cfg),
         out_dir / f"{cfg.top}_tb.sv": render_tlul_wrapper(cfg),
     }
+    for stale in (
+        out_dir / "utils.py",
+        out_dir / "__init__.py",
+        drivers / "__init__.py",
+        drivers / "driver_reg_iface.py",
+        drivers / "driver_tlul.py",
+    ):
+        if stale.exists():
+            stale.unlink()
     for path, text in files.items():
         path.write_text(text, encoding="utf-8")
     return [*test_files, *files]
