@@ -418,7 +418,7 @@ rtl_stub: ## Generate RTL wrapper/core stubs
 
 ip_start: setup hjson reg doc rtl_stub flist setup_tb sim ## Bootstrap a complete IP run
 
-flist: ## Generate the RTL filelist
+flist: setup ## Generate the RTL filelist
 	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root $(IPS_ROOT) --rtldir $(RTLDIR)
 
 RTL_COMMON_LIST ?= $(RTLDIR)/rtl_common.f
