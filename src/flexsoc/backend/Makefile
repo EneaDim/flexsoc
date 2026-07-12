@@ -61,6 +61,7 @@ export PYTHONPATH := $(REPO_ROOT)/src$(if $(PYTHONPATH),:$(PYTHONPATH),)
 # -----------------------------------------------------------------------------
 WORKSPACE   ?= ../workspace
 BACKEND_MAKEFILE ?= $(abspath $(lastword $(MAKEFILE_LIST)))
+BACKEND_MAKE ?= $(MAKE) -f $(BACKEND_MAKEFILE)
 RUN_ID ?= default
 # BEGIN FLEXSOC_PORTABLE_VIEWER
 # Waveform viewer settings. Use SURFER_BACKEND=auto|native|x11|wayland.
@@ -1165,37 +1166,24 @@ sw_soc: ## Generate SoC software scaffold
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \
 		--host $(HOST)
-soc_prepare: ## Prepare SoC build directory
+soc_prepare: soc_sim ## Prepare SoC build directory
 	$(call _require_soc_run_vars)
-	@echo "\n$(ORANGE)[soc_prepare] build simulation model (HOST=$(HOST)) ...\n$(RESET)"
+	@echo "$(ORANGE)[soc_prepare] SoC simulator ready (HOST=$(HOST)).$(RESET)"
 	$(Q)$(MKDIR) -p $(OUTROOT)/sim
-	$(Q)$(MAKE) soc_sim HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 
-soc_build_sw: soc_prepare ## Build SoC software
+soc_build_sw: soc_prepare sw_soc ## Build SoC software
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
 	$(call _require_var,HOST)
-	@echo "\n$(ORANGE)[soc_build_sw] generate software sources ...\n$(RESET)"
-	$(Q)$(MAKE) sw_soc WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) HOST=$(HOST)
-	@echo "\n$(ORANGE)[soc_build_sw] compile software ...\n$(RESET)"
+	@echo "$(ORANGE)[soc_build_sw] compile software ...$(RESET)"
 	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
 # Simulation / run
-soc_sim: ## Build SoC simulator
+soc_sim: TARGET := sim
+soc_sim: FUSESOC_TOOL := verilator
+soc_sim: xbar soc fsoc_init fsoc ## Build SoC simulator
 	$(call _require_soc_run_vars)
-	@echo "\n$(ORANGE)Preparing SoC simulation model (HOST=$(HOST)) ...\n$(RESET)"
-	$(Q)$(MAKE) xbar HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
-	$(Q)$(MAKE) soc HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
-	$(Q)$(MAKE) fsoc_init \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP) \
-		PRJ=$(PRJ)
-	@echo "\n$(ORANGE)Building SoC simulation model with FuseSoC ...\n$(RESET)"
-	$(Q)$(MAKE) fsoc \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP) \
-		PRJ=$(PRJ) TARGET=sim FUSESOC_TOOL=verilator SOC_CORE_VLNV="$(SOC_CORE_VLNV)"
+	@echo "$(ORANGE)SoC simulation model ready (HOST=$(HOST)).$(RESET)"
 soc_run: ## Run SoC simulation
 	$(call _require_soc_run_vars)
 	@echo "\n$(ORANGE)[soc_run] run simulator only (HOST=$(HOST)) ...\n$(RESET)"
@@ -1224,7 +1212,7 @@ soc_run: ## Run SoC simulation
 	if [ "$$rc" -ne 0 ] && [ "$$rc" -ne 124 ] && [ "$$rc" -ne 130 ]; then \
 		exit "$$rc"; \
 	fi
-	$(Q)$(MAKE) soc_view WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) || true
+	$(Q)$(BACKEND_MAKE) soc_view WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) || true
 # Waveform viewer
 soc_view: ## Open SoC waveform
 	$(call _require_var,WORKSPACE)
@@ -1317,70 +1305,70 @@ soc_ibex_tutorial: TOP ?= soc
 
 soc_uart_tutorial: ## Run UART-host SoC tutorial
 	@echo "\n$(ORANGE)Loading IPs for UART-host SoC tutorial ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
-	$(Q)$(MAKE) soc_run HOST=uart SOC_CFG_MODE=builtin \
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
+	$(Q)$(BACKEND_MAKE) soc_run HOST=uart SOC_CFG_MODE=builtin \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 soc_ibex_fetch: ## Fetch Ibex tutorial dependencies
 	@echo "\n$(ORANGE)Fetch lowRISC IPs ...\n$(RESET)"
-	$(Q)$(MAKE) fetch VENDOR=lowrisc_ip
+	$(Q)$(BACKEND_MAKE) fetch VENDOR=lowrisc_ip
 	@echo "\n$(ORANGE)Fetch Ibex ...\n$(RESET)"
-	$(Q)$(MAKE) fetch VENDOR=lowrisc_ibex
+	$(Q)$(BACKEND_MAKE) fetch VENDOR=lowrisc_ibex
 soc_ibex_tutorial: soc_ibex_fetch ## Run Ibex-host SoC tutorial
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 1/8: load uart ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 2/8: load gpio ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 3/8: load rv_timer ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 4/8: load pwm ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 5/8: load spi_host ...\n$(RESET)"
-	$(Q)$(MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=spi_host
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=spi_host
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 6/8: generate xbar + soc ...\n$(RESET)"
-	$(Q)$(MAKE) xbar soc HOST=ibex SOC_CFG_MODE=builtin \
+	$(Q)$(BACKEND_MAKE) xbar soc HOST=ibex SOC_CFG_MODE=builtin \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 7/8: build sim model + software ...\n$(RESET)"
-	$(Q)$(MAKE) soc_build_sw HOST=ibex \
+	$(Q)$(BACKEND_MAKE) soc_build_sw HOST=ibex \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
 	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 8/8: run simulation ...\n$(RESET)"
-	$(Q)$(MAKE) soc_run HOST=ibex SOC_CFG_MODE=builtin \
+	$(Q)$(BACKEND_MAKE) soc_run HOST=ibex SOC_CFG_MODE=builtin \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 
 # FSM and clean targets
 # FSM flow
 
 full_tutorial: ## Run the full IP tutorial flow
-	$(Q)$(MAKE) ip_start ip_flow pnr pnr_gui \
+	$(Q)$(BACKEND_MAKE) ip_start ip_flow pnr pnr_gui \
 		TOP=test RUN_TOP=test \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 
 fsm_tutorial: ## Run the FSM tutorial flow
 	$(call _require_var,TOP)
-	$(Q)$(MAKE) setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl \
+	$(Q)$(BACKEND_MAKE) setup fsm_setup fsm_example_load fsm_gen fsm_plot fsm2rtl \
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-	$(Q)$(MAKE) ip_flow_noreg \
+	$(Q)$(BACKEND_MAKE) ip_flow_noreg \
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 
 ip_tutorial: ## Run the IP tutorial flow
 	$(call _require_var,TOP)
-	$(Q)$(MAKE) ip_load \
+	$(Q)$(BACKEND_MAKE) ip_load \
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
-	$(Q)$(MAKE) flist sim syn sdf sta sta_violators power view \
+	$(Q)$(BACKEND_MAKE) flist sim syn sdf sta sta_violators power view \
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 
 soc_pless: ## Run the tiny SoC tutorial flow
-	$(Q)$(MAKE) ip_load \
+	$(Q)$(BACKEND_MAKE) ip_load \
 		TOP=tiny-soc RUN_TOP=tiny-soc \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-	$(Q)$(MAKE) flist sim syn sdf sta power view \
+	$(Q)$(BACKEND_MAKE) flist sim syn sdf sta power view \
 		TOP=soc RUN_TOP=tiny-soc \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 

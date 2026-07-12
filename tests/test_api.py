@@ -223,6 +223,36 @@ def test_makefiles_expose_automatic_comment_help() -> None:
     assert "python -m flexsoc.cli help topics" not in backend_make
     assert "$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg \\n\t$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg" not in backend_make
 
+
+def test_backend_recursive_calls_pin_backend_makefile() -> None:
+    """Recursive backend target calls must use the backend Makefile, not the root Makefile."""
+
+    root = Path(__file__).resolve().parents[1]
+    backend_make = (root / "src" / "flexsoc" / "backend" / "Makefile").read_text(encoding="utf-8")
+
+    assert "BACKEND_MAKE ?= $(MAKE) -f $(BACKEND_MAKEFILE)" in backend_make
+    assert "soc_prepare: soc_sim ## Prepare SoC build directory" in backend_make
+    assert "soc_build_sw: soc_prepare sw_soc ## Build SoC software" in backend_make
+    assert "soc_sim: xbar soc fsoc_init fsoc ## Build SoC simulator" in backend_make
+    assert "$(Q)$(BACKEND_MAKE) soc_sim" not in backend_make
+    soc_sim_section = backend_make.split("soc_sim: TARGET := sim", 1)[1].split("soc_run:", 1)[0]
+    assert "$(Q)$(BACKEND_MAKE) xbar" not in soc_sim_section
+    assert "$(Q)$(BACKEND_MAKE) soc HOST" not in soc_sim_section
+    assert "$(Q)$(BACKEND_MAKE) fsoc_init" not in soc_sim_section
+    assert "$(Q)$(BACKEND_MAKE) sw_soc" not in soc_sim_section
+    offenders = []
+    for lineno, line in enumerate(backend_make.splitlines(), 1):
+        stripped = line.strip()
+        if not stripped.startswith(("$(Q)$(MAKE)", "@$(MAKE)", "$(MAKE)")):
+            continue
+        if "$(BACKEND_MAKE)" in stripped:
+            continue
+        if any(token in stripped for token in (" -f ", " --file", " -C ")):
+            continue
+        offenders.append(f"{lineno}: {stripped}")
+
+    assert offenders == []
+
 def test_backend_hjson_generator_writes_template(tmp_path) -> None:
     """The HJSON backend helper exposes a pure writer for API integration."""
 
