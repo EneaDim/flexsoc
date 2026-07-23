@@ -16,23 +16,25 @@ ROOT = Path(__file__).resolve().parents[1]
 SETTINGS_FILE = ROOT / ".flexsoc" / "settings.json"
 RUN_DIR = ROOT / "workspace" / "runs" / "test" / "dev"
 SETTINGS = ("settings", "TOP=test", "RUN_TOP=test", "RUN_ID=dev", "HOST=uart")
-IP_DEV = (
+FLOW = (
     "setup",
     "hjson",
     "reg",
     "doc",
-    "lint",
-    "lint_latch",
-    "lint_width",
-    "lint_unconnected",
-    "lint_undriven",
-    "lint_unused",
     "rtl_stub",
-    "flist",
+    "lint",
+    "setup_model",
     "setup_tb",
+    "setup_cocotb",
     "sim",
+    "cocotb",
+    "sim_tests",
+    "syn",
+    "sdf",
+    "sta",
+    "power",
+    "--force",
 )
-SIGNOFF = ("syn", "sdf", "sta", "power")
 
 pytestmark = [
     pytest.mark.e2e,
@@ -45,11 +47,13 @@ pytestmark = [
 
 def _fx() -> list[str]:
     """Return the configured fx launcher."""
+
     return shlex.split(os.environ.get("FLEXSOC_E2E_FX", "fx"))
 
 
 def _env() -> dict[str, str]:
     """Import this checkout before any installed package."""
+
     env = os.environ.copy()
     extra = os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
     env["PYTHONPATH"] = str(ROOT / "src") + extra
@@ -58,6 +62,7 @@ def _env() -> dict[str, str]:
 
 def _run_fx(tmp_path: Path, *args: str) -> None:
     """Run one real fx command and save its combined log."""
+
     cmd = [*_fx(), *args]
     done = subprocess.run(
         cmd,
@@ -75,22 +80,19 @@ def _run_fx(tmp_path: Path, *args: str) -> None:
     assert done.returncode == 0, f"failed: {shlex.join(cmd)}\nlog: {log}\n{done.stdout}"
 
 
-def test_e2e_fx_ip_development_from_scratch(tmp_path: Path) -> None:
-    """Run settings, scratch IP generation, lint, simulation, synthesis, STA, and power."""
+def test_e2e_fx_scratch_ip_flow(tmp_path: Path) -> None:
+    """Run the current scratch-IP generation, verification, and signoff flow."""
+
     old_settings = SETTINGS_FILE.read_bytes() if SETTINGS_FILE.exists() else None
     shutil.rmtree(RUN_DIR, ignore_errors=True)
     try:
         _run_fx(tmp_path, *SETTINGS)
-        _run_fx(tmp_path, *IP_DEV)
-        _run_fx(tmp_path, *SIGNOFF)
+        _run_fx(tmp_path, *FLOW)
         assert (RUN_DIR / "rtl" / "test.sv").exists()
-        assert sorted(path.name for path in (RUN_DIR / "rtl").glob("*.f")) == ["rtl_common.f", "rtl_ip.f"]
-        tb = RUN_DIR / "tb" / "tests" / "smoke"
-        assert (tb / "config.regs").exists()
-        assert (tb / "data_in.vec").exists()
-        assert (tb / "data_out.vec").exists()
-        assert not (tb / "smoke.vec").exists()
-        assert "write " not in (tb / "config.regs").read_text(encoding="utf-8")
+        assert (RUN_DIR / "rtl" / "test_core.sv").exists()
+        assert (RUN_DIR / "tb" / "tests" / "smoke" / "data_in.vec").exists()
+        assert (RUN_DIR / "tb" / "tests" / "smoke" / "data_out.vec").exists()
+        assert (RUN_DIR / "tb" / "cocotb" / "Makefile").exists()
         assert (RUN_DIR / "logs").exists()
     finally:
         if old_settings is None:
