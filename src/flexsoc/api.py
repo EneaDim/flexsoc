@@ -26,7 +26,7 @@ IP_DEV = (*BASE, "REG_ITF", "FORCE")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
 IP_FULL = (*COMMON, "REG_ITF", "LINT_TOOL", "LINT_PART", "TARGET_SYN", "TARGET_OPT")
 LINT = (*COMMON, "LINT_TOOL", "LINT_PART", "VSV")
-SIM = (*COMMON, "TESTBENCH", "TEST_NAMES", "TEST_NAME", "TEST_ID", "REGCFG", "DATA_IN", "DATA_OUT", "VSV", "COMPILER", "COCOTB_WAVES")
+SIM = (*COMMON, "TESTBENCH", "TEST_NAMES", "TEST_NAME", "REGCFG", "DATA_IN", "DATA_OUT", "VSV", "COMPILER", "COCOTB_WAVES")
 VIEW = (*COMMON, "WAVE_VIEWER", "SURFER_BACKEND")
 SYN = (*COMMON, "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV")
 SIGNOFF = (*COMMON, "LIBS", "ACTIVITY", "PATH_VIEW_FILE", "NPATHS")
@@ -78,6 +78,7 @@ TARGETS: dict[str, TargetSpec] = {
     "setup_tb": ("Simulation", "Generate a SystemVerilog testbench", SIM),
     "setup_cocotb": ("Simulation", "Generate a cocotb scaffold", SIM),
     "setup_model": ("Simulation", "Generate a Python model scaffold", SIM),
+    "tests": ("Simulation", "List generated vector tests", SIM),
     "compile": ("Simulation", "Compile the current testbench", SIM),
     "compile_v": ("Simulation", "Compile Verilog simulation", SIM),
     "compile_sv": ("Simulation", "Compile SystemVerilog simulation", SIM),

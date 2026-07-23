@@ -14,6 +14,7 @@ from .api import DEFAULT_SETTINGS, TARGETS, FlexSoC, FlexSoCConfig
 try:  # Keep the entry point understandable if the new CLI deps are not installed yet.
     import click
     import typer
+    from rich import box
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
@@ -61,38 +62,10 @@ else:
     )
 
     HELP = """\
-Run FlexSoC backend Make targets through one small API layer.
+FlexSoC command runner.
 
-[bold]Pseudo-commands[/bold]
-  [cyan]settings[/cyan]  show/update persistent project settings
-  [cyan]commands[/cyan]  list every callable Make target
-  [cyan]shell[/cyan]     open a Prompt Toolkit REPL with target completion
-
-[bold]Examples[/bold]
-  [green]Settings[/green]
-    fx settings TOP=cordic RUN_TOP=cordic RUN_ID=dev HOST=uart
-    fx settings --unset RUN_ID
-
-  [green]Command discovery[/green]
-    fx commands
-    fx lint_width --info
-
-  [green]IP development[/green]
-    fx setup hjson reg doc rtl_stub flist setup_tb --force --set TOP=my_ip
-    fx lint lint_latch lint_width lint_unconnected lint_undriven lint_unused --set TOP=my_ip
-    fx syn sta power --set TOP=my_ip
-
-  [green]Existing IP development[/green]
-    fx ip_load --force --set TOP=cordic --set RUN_TOP=cordic
-    fx ip_load lint syn sta power --set TOP=spi_host --set RUN_TOP=spi_host
-
-  [green]System-on-chip building[/green]
-    fx ip_load --force --set TOP=uart --set RUN_TOP=soc_uart
-    fx soc_uart_gen soc_prepare soc_build_sw soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
-
-[bold]Completion[/bold]
-  fx --install-completion
-  fx --show-completion
+Run `fx` or `fx --help` to show the readable orange/cyan guide.
+Use `fx commands` to list every backend Make target.
 """
 
     typer_app = typer.Typer(
@@ -118,28 +91,79 @@ Run FlexSoC backend Make targets through one small API layer.
         return [word for word in _completion_words() if word.startswith(incomplete)]
 
     def _guide() -> None:
-        """Print the friendly structured fx guide."""
+        """Print a compact orange/cyan guide with one description per row."""
 
-        console.print(Panel.fit("[bold cyan]FlexSoC fx[/bold cyan]\nSettings + overrides + ordered Make targets"))
-        entries = Table(title="Main entries", show_lines=False)
-        entries.add_column("Entry", style="cyan", no_wrap=True)
-        entries.add_column("Purpose")
-        entries.add_row("fx settings", "Persist default Make variables in .flexsoc/settings.json")
-        entries.add_row("fx commands", "Show the full backend target catalog")
-        entries.add_row("fx shell", "Open an interactive Prompt Toolkit shell with tab completion")
-        entries.add_row("fx <targets...>", "Run one or more Make targets in the order you write them")
-        console.print(entries)
+        def row(cmd: str, desc: str) -> str:
+            """Format one command plus its short explanation."""
 
-        examples = Table(title="Examples", show_lines=True)
-        examples.add_column("Area", style="green", no_wrap=True)
-        examples.add_column("Command")
-        examples.add_row("Settings", "fx settings TOP=cordic RUN_TOP=cordic RUN_ID=dev HOST=uart")
-        examples.add_row("Commands", "fx commands\nfx lint_width --info")
-        examples.add_row("IP development", "fx setup hjson reg doc rtl_stub flist setup_tb --force --set TOP=my_ip")
-        examples.add_row("Existing IP", "fx ip_load lint syn sta power --set TOP=cordic --set RUN_TOP=cordic")
-        examples.add_row("SoC build", "fx soc_uart_gen soc_prepare soc_build_sw soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart")
-        examples.add_row("Completion", "fx --install-completion\nfx shell")
-        console.print(examples)
+            return f"  [bold bright_cyan]{cmd}[/bold bright_cyan]\n    [white]{desc}[/white]"
+
+        def section(title: str, rows: list[tuple[str, str]]) -> str:
+            """Format one readable help section."""
+
+            body = "\n".join(row(cmd, desc) for cmd, desc in rows)
+            return f"[bold orange1]{title}[/bold orange1]\n{body}"
+
+        blocks = [
+            section(
+                "Main commands",
+                [
+                    ("fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart", "Save the default IP/run configuration."),
+                    ("fx commands", "List every backend target exposed by the Makefile."),
+                    ("fx tests", "Show generated verification tests for the current IP."),
+                    ("fx shell", "Open the interactive prompt with target completion."),
+                ],
+            ),
+            section(
+                "Model + verification",
+                [
+                    ("fx setup_model --force", "Create the editable model and generate config/data vectors."),
+                    ("fx setup_tb setup_cocotb --force", "Generate SystemVerilog and cocotb runners."),
+                    ("fx sim --set TEST_NAME=smoke --force", "Run one SystemVerilog vector test by name."),
+                    ("fx cocotb --set TEST_NAME=smoke --force", "Run one cocotb vector test by name."),
+                    ("fx sim_tests", "Run all generated SystemVerilog tests for this IP."),
+                    ("fx cocotb_tests", "Run all generated cocotb tests for this IP."),
+                ],
+            ),
+            section(
+                "IP development",
+                [
+                    ("fx setup hjson reg doc rtl_stub lint --force", "Create a fresh IP workspace and run lint."),
+                    ("fx setup_model setup_tb setup_cocotb sim cocotb --force", "Generate and run model-driven verification."),
+                    ("fx syn sdf sta power --force", "Run synthesis and signoff checks."),
+                ],
+            ),
+            section(
+                "Existing IP + SoC",
+                [
+                    ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic", "Load an existing IP into the workspace."),
+                    ("fx soc_uart_gen soc_prepare soc_build_sw soc_run", "Build and run a UART-hosted SoC flow."),
+                ],
+            ),
+            section(
+                "Useful options",
+                [
+                    ("--set KEY=VALUE", "Override one Make/config variable for this command."),
+                    ("--force", "Overwrite generated files where supported."),
+                    ("--dry-run", "Print the Make command without executing it."),
+                    ("--info", "Describe selected targets instead of running them."),
+                    ("--json", "Print machine-readable output for scripts."),
+                    ("--install-completion", "Install shell completion through Typer."),
+                ],
+            ),
+        ]
+        text = "\n\n".join(blocks)
+        console.print()
+        console.print(
+            Panel(
+                text,
+                title="[bold orange1]FlexSoC fx help[/bold orange1]",
+                subtitle="[bold bright_cyan]settings • targets • verification[/bold bright_cyan]",
+                border_style="orange1",
+                padding=(1, 2),
+            )
+        )
+        console.print("[white]Tip:[/white] use [bold bright_cyan]fx commands[/bold bright_cyan] for the full target catalog.\n")
 
     # -----------------------------------------------------------------------
     # Persistent settings
@@ -391,8 +415,12 @@ Run FlexSoC backend Make targets through one small API layer.
     def app(argv: list[str] | None = None) -> int:
         """Run the fx command-line interface."""
 
+        args = list(sys.argv[1:] if argv is None else argv)
+        if args in (["-h"], ["--help"]):
+            _guide()
+            return 0
         try:
-            return _click_command().main(args=argv, prog_name="fx", standalone_mode=False) or 0
+            return _click_command().main(args=args, prog_name="fx", standalone_mode=False) or 0
         except click.exceptions.Exit as exc:
             return int(exc.exit_code or 0)
         except click.ClickException as exc:
