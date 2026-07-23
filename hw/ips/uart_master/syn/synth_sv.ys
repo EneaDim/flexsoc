@@ -5,7 +5,7 @@ read_slang -I ../hw/ips/pkgs \
            -I ../hw/ips/tlul \
            -D SYNTHESIS \
            --ignore-assertions \
-           -f /home/eneadim/github/flexsoc/workspace/runs/uart-master/dev/rtl/rtl_list.f \
+           -f /home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/rtl/rtl_list.f \
            --top uart_master
 
 # basic synth
@@ -15,8 +15,8 @@ synth -top uart_master -noabc
 dfflibmap -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 
 # mapping to internal cell library
-abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/uart-master/dev/syn/area.abc \
-    -constr /home/eneadim/github/flexsoc/workspace/runs/uart-master/dev/pnr_openroad/uart_master.sdc \
+abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/syn/area.abc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/pnr_openroad/uart_master.sdc \
 
 # Clean
 opt_clean -purge
@@ -25,6 +25,6 @@ opt_clean -purge
 stat -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 
 # write verilog
-write_verilog /home/eneadim/github/flexsoc/workspace/runs/uart-master/dev/syn/uart_synth.v
+write_verilog /home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/syn/uart_synth.v
 # write json
-write_json /home/eneadim/github/flexsoc/workspace/runs/uart-master/dev/syn/uart_synth.json
+write_json /home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/syn/uart_synth.json
