@@ -6,7 +6,7 @@
 
 `include "prim_assert.sv"
 
-module uart import uart_reg_pkg::*; (
+module uart_master import uart_reg_pkg::*; (
   input           clk_i,
   input           rst_ni,
 

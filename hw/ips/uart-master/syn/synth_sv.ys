@@ -6,17 +6,17 @@ read_slang -I ../hw/ips/pkgs \
            -D SYNTHESIS \
            --ignore-assertions \
            -f /home/eneadim/github/flexsoc/workspace/runs/uart-master/dev/rtl/rtl_list.f \
-           --top uart
+           --top uart_master
 
 # basic synth
-synth -top uart -noabc
+synth -top uart_master -noabc
 
 # map internal register types to the ones from the cell library
 dfflibmap -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
 
 # mapping to internal cell library
 abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/uart-master/dev/syn/area.abc \
-    -constr /home/eneadim/github/flexsoc/workspace/runs/uart-master/dev/pnr_openroad/uart.sdc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/uart-master/dev/pnr_openroad/uart_master.sdc \
 
 # Clean
 opt_clean -purge

@@ -7,7 +7,7 @@
   `include "tlul_pkg.sv"
   `include "tlul_utils.sv"
   `include "tlul_if.sv"
-  `include "uart.sv"
+  `include "uart_master.sv"
 `else
   `include "primitives.v"
   `include "sky130_fd_sc_hd.no_tc.v"

@@ -1,9 +1,9 @@
 // Timescale
 `timescale 1ns/1ps
 // Includes
-`include "include_uart_tb.sv"
+`include "include_uart_master_tb.sv"
 
-module uart_tb;
+module uart_master_tb;
   // Parameters
   parameter int CLK_PERIOD = 20; // ns
 
@@ -33,7 +33,7 @@ module uart_tb;
   tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));
 
   // DUT
-  uart u_uart (
+  uart_master u_uart (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
     .tl_i(tl_if.h2d),
@@ -69,7 +69,7 @@ module uart_tb;
     end
     $display("[TB] dumpfile = %s", vcd_path);
     $dumpfile(vcd_path);
-    $dumpvars(0, uart_tb);
+    $dumpvars(0, uart_master_tb);
   end
 
   // SDF backannotation
@@ -80,7 +80,7 @@ module uart_tb;
         sdf_path = "";
       end
       $display("[TB] sdf = %s", sdf_path);
-      $sdf_annotate(sdf_path, uart_tb.u_uart, , , "MAXIMUM");
+      $sdf_annotate(sdf_path, uart_master_tb.u_uart, , , "MAXIMUM");
     end
   `endif
 
