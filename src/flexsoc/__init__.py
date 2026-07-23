@@ -2,16 +2,6 @@
 
 from __future__ import annotations
 
-from .api import FlexSoC, FlexSoCConfig, FlowCommand, FlowExample, FlowParameter, FlowRequest, FlowResult, FlowStep, FlowWorkflow
+from .api import FlexSoC, FlexSoCCommand, FlexSoCConfig, FlexSoCResult, FlexSoCTarget
 
-__all__ = [
-    "FlexSoC",
-    "FlexSoCConfig",
-    "FlowCommand",
-    "FlowExample",
-    "FlowParameter",
-    "FlowRequest",
-    "FlowResult",
-    "FlowStep",
-    "FlowWorkflow",
-]
+__all__ = ["FlexSoC", "FlexSoCCommand", "FlexSoCConfig", "FlexSoCResult", "FlexSoCTarget"]

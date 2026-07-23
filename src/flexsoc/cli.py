@@ -1,616 +1,412 @@
-"""Compact command line entrypoint for the FlexSoC API layer."""
+"""Readable Typer/Prompt Toolkit front-end for FlexSoC."""
 
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
+import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Annotated, Any, Iterable, Mapping
 
-import typer
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
+from .api import DEFAULT_SETTINGS, TARGETS, FlexSoC, FlexSoCConfig
 
-from .api import FlexSoC
-
-ACCENT = "orange3"
-SECONDARY = "cyan"
-SUCCESS = "green"
-WARNING = "yellow"
-
-SETTINGS_DIRNAME = ".flexsoc"
-SETTINGS_FILENAME = "settings.json"
-DEFAULT_SETTINGS = {"TOP": "test", "HOST": "uart", "FORCE": "0", "RUN_ID": "default"}
-
-def _target_aliases_for_step(name: str) -> tuple[str, ...]:
-    """Return ergonomic aliases for one backend target."""
-
-    aliases = [name]
-    dashed = name.replace("_", "-")
-    if dashed != name:
-        aliases.append(dashed)
-    return tuple(aliases)
+try:  # Keep the entry point understandable if the new CLI deps are not installed yet.
+    import click
+    import typer
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+except ModuleNotFoundError as exc:  # pragma: no cover - exercised only in incomplete envs.
+    _MISSING = exc.name
+else:
+    _MISSING = ""
 
 
-def _public_targets() -> tuple[tuple[str, str, str], ...]:
-    """Expose every documented backend step as a compact `fx TARGET` command."""
+if _MISSING:  # pragma: no cover - exercised only in incomplete envs.
 
-    rows: list[tuple[str, str, str]] = []
-    for step in FlexSoC().list_steps():
-        if step.group == "help" or step.name == "help":
-            continue
-        for command in _target_aliases_for_step(step.name):
-            rows.append((command, step.name, step.description))
-    return tuple(rows)
+    def app(argv: list[str] | None = None) -> int:
+        """Explain how to install the CLI dependencies."""
 
-
-PUBLIC_TARGETS: tuple[tuple[str, str, str], ...] = _public_targets()
-
-TARGET_ALIASES = {target: target for _, target, _ in PUBLIC_TARGETS} | {
-    command: target for command, target, _ in PUBLIC_TARGETS
-}
-
-COMMAND_ROWS: tuple[tuple[str, str], ...] = (
-    ("fx", "Show this concise guide."),
-    ("fx help", "Show this concise guide."),
-    ("fx settings", "Show or edit TOP, HOST, RUN_ID, FORCE, and WAVE_VIEWER."),
-    ("fx commands", "List the compact command catalog."),
-    ("fx TARGET [TARGET...]", "Run backend targets in the exact order provided."),
-    ("fx TARGET --info", "Show target metadata and examples."),
-    ("fx smoke", "Run safe package/backend smoke checks."),
-)
-
-app = typer.Typer(
-    add_completion=True,
-    context_settings={"help_option_names": ["-h", "--help"]},
-    help="Compact FlexSoC CLI over the public API layer. Use `fx help` for examples.",
-)
-console = Console()
-
-
-def _as_bool(value: object) -> bool:
-    """Return True only for real boolean CLI flags, not Typer OptionInfo defaults."""
-
-    return value is True
-
-
-def _project_root(project_root: Path | None = None) -> Path:
-    """Return the repository root used for CLI settings and execution."""
-
-    return (project_root or Path.cwd()).resolve()
-
-
-def _settings_path(project_root: Path | None = None) -> Path:
-    """Return the project-local settings file path."""
-
-    return _project_root(project_root) / SETTINGS_DIRNAME / SETTINGS_FILENAME
-
-
-def _read_settings(project_root: Path | None = None) -> dict[str, str]:
-    """Read saved project settings, falling back to an empty mapping."""
-
-    path = _settings_path(project_root)
-    if not path.exists():
-        return {}
-    return {str(key).upper(): str(value) for key, value in json.loads(path.read_text()).items()}
-
-
-def _write_settings(project_root: Path | None, values: dict[str, str]) -> None:
-    """Write project settings in a compact JSON file."""
-
-    path = _settings_path(project_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if values:
-        path.write_text(json.dumps(dict(sorted(values.items())), indent=2) + "\n")
-    else:
-        path.unlink(missing_ok=True)
-
-
-def _parse_overrides(items: Iterable[str] | None) -> dict[str, str]:
-    """Parse KEY=VALUE CLI overrides into Make variable values."""
-
-    values: dict[str, str] = {}
-    for item in items or ():
-        key, sep, value = str(item).partition("=")
-        if not sep or not key:
-            raise typer.BadParameter(f"expected KEY=VALUE, got {item!r}")
-        values[key.upper()] = value
-    return values
-
-
-def _merged_settings(project_root: Path | None, overrides: Iterable[str] | None) -> dict[str, str]:
-    """Merge static defaults, saved project settings, and one-call overrides."""
-
-    values = dict(DEFAULT_SETTINGS)
-    values.update(_read_settings(project_root))
-    values.update(_parse_overrides(overrides))
-    if not values.get("RUN_ID"):
-        values["RUN_ID"] = DEFAULT_SETTINGS["RUN_ID"]
-    return values
-
-
-def _settings_payload(project_root: Path | None = None) -> dict[str, object]:
-    """Return defaults, saved settings, and resolved values for display."""
-
-    root = _project_root(project_root)
-    defaults = dict(DEFAULT_SETTINGS)
-    saved = _read_settings(root)
-    resolved = {**defaults, **saved}
-    return {
-        "path": str(_settings_path(root)),
-        "defaults": defaults,
-        "saved": saved,
-        "resolved": resolved,
-        "workspace": str(FlexSoC(project_root=root).workdir),
-    }
-
-
-def _print_settings(payload: dict[str, object], output: Console | None = None) -> None:
-    """Render project settings as a compact human table."""
-
-    output = output or console
-    saved = payload["saved"]
-    resolved = payload["resolved"]
-    table = Table(title="FlexSoC settings", border_style=ACCENT)
-    table.add_column("Name", style=f"bold {ACCENT}")
-    table.add_column("Value")
-    table.add_column("Source", style=SECONDARY)
-    for key, value in resolved.items():
-        table.add_row(str(key), str(value), "saved" if key in saved else "default")
-    table.add_row("WORKSPACE", str(payload["workspace"]), "computed")
-    output.print(Panel(str(payload["path"]), title="Settings file", border_style=ACCENT))
-    output.print(table)
-
-
-def _table(title: str, columns: tuple[str, str], rows: Iterable[tuple[str, str]]) -> Table:
-    """Build a compact two-column Rich table."""
-
-    table = Table(title=title)
-    table.add_column(columns[0], style=f"bold {ACCENT}")
-    table.add_column(columns[1])
-    for left, right in rows:
-        table.add_row(left, right)
-    return table
-
-
-def _target_rows() -> tuple[tuple[str, str], ...]:
-    """Return unique public target command rows for help rendering."""
-
-    seen: set[str] = set()
-    rows: list[tuple[str, str]] = []
-    for command, target, purpose in PUBLIC_TARGETS:
-        if target in seen:
-            continue
-        seen.add(target)
-        rows.append((f"fx {command}", purpose))
-    return tuple(rows)
-
-
-def _print_help(output: Console | None = None) -> None:
-    """Render the canonical compact command guide."""
-
-    output = output or console
-    output.print(
-        Panel(
-            "A compact Python CLI over the backend hardware flow.\n"
-            "Set project defaults once, then launch explicit backend targets.",
-            title="FlexSoC CLI",
-            border_style=ACCENT,
+        print(
+            f"missing CLI dependency: {_MISSING}\n"
+            "run: uv sync\n"
+            "then: uv run fx --help",
+            file=sys.stderr,
         )
-    )
-    output.print(f"[bold {ACCENT}]Quickstart[/bold {ACCENT}]")
-    for line in (
-        "fx settings --set TOP=test --set HOST=uart --set RUN_ID=default",
-        "fx hjson --force",
-        "fx reg",
-        "fx doc",
-        "fx rtl_stub",
-        "fx setup_tb",
-        "fx sim",
-        "fx view",
-    ):
-        output.print(f"  {line}")
-    output.print()
-    output.print(_table("Commands", ("command", "purpose"), COMMAND_ROWS))
-    output.print()
-    output.print(f"[bold {ACCENT}]IP development[/bold {ACCENT}]")
-    for line in (
-        "1. fx settings --set TOP=my_ip --set HOST=uart --set RUN_ID=default",
-        "2. fx setup",
-        "3. fx hjson --force",
-        "4. fx reg doc",
-        "5. fx rtl_stub setup_tb",
-        "6. fx sim view",
-    ):
-        output.print(f"  {line}")
-    output.print()
-    output.print(f"[bold {ACCENT}]Existing IP[/bold {ACCENT}]")
-    for line in (
-        "1. fx settings --set TOP=cordic --set HOST=uart --set RUN_ID=default",
-        "2. fx ip_load --force",
-        "3. fx setup_tb",
-        "4. fx sim view",
-    ):
-        output.print(f"  {line}")
-    output.print()
-    output.print(f"[bold {ACCENT}]Useful options[/bold {ACCENT}]")
-    for line in (
-        "--info/-h          Show information for a direct target command.",
-        "--set KEY=VALUE    Override one project setting for one command.",
-        "--force            Refresh generated files when they already exist.",
-        "--dry-run --script Print backend Make commands without executing them.",
-        "--capture          Capture backend output and print failure hints.",
-    ):
-        output.print(f"  {line}")
-    output.print()
-    output.print(
-        f"[dim]Design rule:[/dim] CLI commands call [bold {ACCENT}]FlexSoC[/bold {ACCENT}], "
-        "never backend modules directly."
+        return 2
+
+    main = app
+
+else:
+    console = Console()
+    error_console = Console(stderr=True)
+    PSEUDO_COMMANDS = ("settings", "commands", "shell")
+    OPTION_WORDS = (
+        "--set",
+        "--unset",
+        "--project-root",
+        "--workdir",
+        "--tool",
+        "--reset",
+        "--force",
+        "--overwrite",
+        "--dry-run",
+        "--script",
+        "--capture",
+        "--json",
+        "--info",
+        "--install-completion",
+        "--show-completion",
     )
 
+    HELP = """\
+Run FlexSoC backend Make targets through one small API layer.
 
-def _print_step_examples(step: Any, output: Console | None = None) -> None:
-    """Render copy-ready examples for one documented step."""
+[bold]Pseudo-commands[/bold]
+  [cyan]settings[/cyan]  show/update persistent project settings
+  [cyan]commands[/cyan]  list every callable Make target
+  [cyan]shell[/cyan]     open a Prompt Toolkit REPL with target completion
 
-    output = output or console
-    table = Table(title=f"{step.name} examples", border_style=SECONDARY)
-    table.add_column("Command", style=f"bold {SECONDARY}")
-    table.add_column("Purpose")
-    for example in step.examples:
-        table.add_row(example.command, example.description)
-    output.print(table)
+[bold]Examples[/bold]
+  [green]Settings[/green]
+    fx settings TOP=cordic RUN_TOP=cordic RUN_ID=dev HOST=uart
+    fx settings --unset RUN_ID
 
+  [green]Command discovery[/green]
+    fx commands
+    fx lint_width --info
 
-def _print_step_info(step: Any, output: Console | None = None) -> None:
-    """Render one documented step and its accepted Make variables."""
+  [green]IP development[/green]
+    fx setup hjson reg doc rtl_stub flist setup_tb --force --set TOP=my_ip
+    fx lint lint_latch lint_width lint_unconnected lint_undriven lint_unused --set TOP=my_ip
+    fx syn sta power --set TOP=my_ip
 
-    output = output or console
-    table = Table(title=f"{step.name} parameters", border_style=ACCENT)
-    table.add_column("Category", style="blue")
-    table.add_column("Parameter", style=f"bold {ACCENT}")
-    table.add_column("Required", style=WARNING)
-    table.add_column("Default", style=SECONDARY)
-    table.add_column("Description")
-    for param in step.params:
-        table.add_row(
-            param.category,
-            param.name,
-            "yes" if param.required else "no",
-            param.default or "",
-            param.description,
-        )
-    output.print(Panel(f"[bold {ACCENT}]{step.name}[/bold {ACCENT}]\n{step.description}", border_style=ACCENT))
-    output.print(table)
-    _print_step_examples(step, output)
+  [green]Existing IP development[/green]
+    fx ip_load --force --set TOP=cordic --set RUN_TOP=cordic
+    fx ip_load lint syn sta power --set TOP=spi_host --set RUN_TOP=spi_host
 
+  [green]System-on-chip building[/green]
+    fx ip_load --force --set TOP=uart --set RUN_TOP=soc_uart
+    fx soc_uart_gen soc_prepare soc_build_sw soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
 
-def _shell_script(lines: Iterable[str]) -> str:
-    """Render dry-run shell lines as a small executable script preview."""
+[bold]Completion[/bold]
+  fx --install-completion
+  fx --show-completion
+"""
 
-    return "#!/usr/bin/env bash\nset -euo pipefail\n" + "\n".join(lines) + "\n"
+    typer_app = typer.Typer(
+        add_completion=True,
+        no_args_is_help=False,
+        rich_markup_mode="rich",
+        pretty_exceptions_show_locals=False,
+        context_settings={"help_option_names": ["-h", "--help"]},
+    )
 
+    # -----------------------------------------------------------------------
+    # Completion and help text
+    # -----------------------------------------------------------------------
 
-def _error_hint(target: str, message: object = "") -> str:
-    """Return a short recovery hint for common backend target failures."""
+    def _completion_words() -> tuple[str, ...]:
+        """Return words offered by shell and REPL completion."""
 
-    text = str(message).lower()
-    if "refusing to overwrite" in text or "use --force" in text:
-        return (
-            f"hint: {target} found an existing generated file. "
-            "Re-run with --force or choose another RUN_ID."
-        )
-    hints = {
-        "hjson": "hint: hjson writes data/<TOP>.hjson; use --force/--overwrite when refreshing it.",
-        "hjson_gen": "hint: hjson_gen writes data/<TOP>.hjson; use --force/--overwrite when refreshing it.",
-        "reg": "hint: reg expects data/<TOP>.hjson. Run hjson first and keep the same TOP/RUN_ID.",
-        "doc": "hint: doc expects data/<TOP>.hjson. Run hjson first and keep the same TOP/RUN_ID.",
-        "rtl_stub": "hint: rtl_stub expects generated metadata. Run hjson/reg first.",
-        "setup_tb": "hint: setup_tb expects generated RTL/filelist inputs. Run rtl_stub/flist first.",
-        "setup_cocotb": "hint: setup_cocotb expects rtl/rtl_list.f. Run flist first.",
-        "sim": "hint: sim depends on generated RTL/testbench inputs; rerun with --capture for logs.",
-        "syn": "hint: syn needs synthesis inputs from the same RUN_ID; inspect syn logs with --capture.",
-        "sta": "hint: sta depends on synthesis outputs. Run syn first.",
-        "power": "hint: power depends on synthesis/timing outputs. Run syn and sta first.",
-        "pnr": "hint: pnr depends on synthesis and floorplan inputs. Run syn/setup_pnr first.",
-        "pnr_gui": "hint: pnr_gui depends on an existing PnR run. Run pnr first.",
-    }
-    return hints.get(target, "hint: re-run with --capture and inspect workspace/runs/<TOP>/<RUN_ID> logs.")
+        return tuple(dict.fromkeys((*PSEUDO_COMMANDS, *TARGETS, *OPTION_WORDS)))
 
+    def _complete_items(incomplete: str) -> list[str]:
+        """Complete pseudo-commands and backend targets."""
 
-def _normalize_targets(targets: Iterable[str]) -> list[str]:
-    """Resolve CLI command aliases into backend Make target names."""
+        return [word for word in _completion_words() if word.startswith(incomplete)]
 
-    resolved: list[str] = []
-    for item in targets:
-        key = str(item)
-        target = TARGET_ALIASES.get(key)
-        if target is None:
-            known = ", ".join(sorted(TARGET_ALIASES))
-            raise typer.BadParameter(f"unknown target {key!r}; expected one of: {known}")
-        resolved.append(target)
-    return resolved
+    def _guide() -> None:
+        """Print the friendly structured fx guide."""
 
+        console.print(Panel.fit("[bold cyan]FlexSoC fx[/bold cyan]\nSettings + overrides + ordered Make targets"))
+        entries = Table(title="Main entries", show_lines=False)
+        entries.add_column("Entry", style="cyan", no_wrap=True)
+        entries.add_column("Purpose")
+        entries.add_row("fx settings", "Persist default Make variables in .flexsoc/settings.json")
+        entries.add_row("fx commands", "Show the full backend target catalog")
+        entries.add_row("fx shell", "Open an interactive Prompt Toolkit shell with tab completion")
+        entries.add_row("fx <targets...>", "Run one or more Make targets in the order you write them")
+        console.print(entries)
 
-def _target_payloads(
-    client: FlexSoC,
-    targets: Iterable[str],
-    values: dict[str, str],
-) -> list[dict[str, Any]]:
-    """Return JSON-ready dry-run previews for targets."""
+        examples = Table(title="Examples", show_lines=True)
+        examples.add_column("Area", style="green", no_wrap=True)
+        examples.add_column("Command")
+        examples.add_row("Settings", "fx settings TOP=cordic RUN_TOP=cordic RUN_ID=dev HOST=uart")
+        examples.add_row("Commands", "fx commands\nfx lint_width --info")
+        examples.add_row("IP development", "fx setup hjson reg doc rtl_stub flist setup_tb --force --set TOP=my_ip")
+        examples.add_row("Existing IP", "fx ip_load lint syn sta power --set TOP=cordic --set RUN_TOP=cordic")
+        examples.add_row("SoC build", "fx soc_uart_gen soc_prepare soc_build_sw soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart")
+        examples.add_row("Completion", "fx --install-completion\nfx shell")
+        console.print(examples)
 
-    return [client.inspect_step(target, **values) for target in targets]
+    # -----------------------------------------------------------------------
+    # Persistent settings
+    # -----------------------------------------------------------------------
 
+    def _upper(values: Mapping[str, Any]) -> dict[str, str]:
+        """Convert settings to Make-style uppercase strings."""
 
-def _run_targets(
-    targets: Iterable[str],
-    *,
-    set_: Iterable[str] | None = None,
-    project_root: Path | None = None,
-    force: bool = False,
-    overwrite: bool = False,
-    dry_run: bool = False,
-    script: bool = False,
-    capture: bool = False,
-    json_: bool = False,
-) -> None:
-    """Run, preview, or serialize one or more backend targets through FlexSoC."""
+        return {str(key).upper(): str(value) for key, value in values.items() if value is not None}
 
-    target_list = _normalize_targets(targets)
-    client = FlexSoC(project_root=project_root)
-    values = _merged_settings(project_root, set_)
-    if force or overwrite:
-        values["FORCE"] = "1"
-    if dry_run:
-        payloads = _target_payloads(client, target_list, values)
-        if json_:
-            payload: object = payloads[0] if len(payloads) == 1 else payloads
-            typer.echo(json.dumps(payload, indent=2))
+    def _settings_path(root: Path) -> Path:
+        """Return the project-local settings file."""
+
+        return root / ".flexsoc" / "settings.json"
+
+    def _read_settings(root: Path) -> dict[str, str]:
+        """Read persisted settings merged over defaults."""
+
+        path = _settings_path(root)
+        values = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        return {**DEFAULT_SETTINGS, **_upper(values)}
+
+    def _write_settings(root: Path, values: Mapping[str, Any]) -> None:
+        """Write project-local settings."""
+
+        path = _settings_path(root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(_upper(values), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    def _assignments(items: Iterable[str]) -> dict[str, str]:
+        """Parse KEY=VALUE items."""
+
+        values: dict[str, str] = {}
+        for item in items:
+            if "=" not in item:
+                raise typer.BadParameter(f"expected KEY=VALUE, got {item!r}")
+            key, value = item.split("=", 1)
+            values[key.upper()] = value
+        return values
+
+    # -----------------------------------------------------------------------
+    # Output helpers
+    # -----------------------------------------------------------------------
+
+    def _print_commands(client: FlexSoC, as_json: bool) -> None:
+        """Print the unified target table."""
+
+        targets = client.targets()
+        if as_json:
+            print(json.dumps([target.to_dict() for target in targets], indent=2))
             return
-        lines = [str(item["shell"]) for item in payloads]
-        typer.echo(_shell_script(lines) if script else "\n".join(lines), nl=not script)
-        return
+        table = Table(title="FlexSoC Make targets", show_lines=False)
+        table.add_column("Target", style="cyan", no_wrap=True)
+        table.add_column("Group", style="magenta", no_wrap=True)
+        table.add_column("Description")
+        table.add_column("Variables")
+        for target in targets:
+            table.add_row(target.name, target.group, target.description, ", ".join(target.params))
+        console.print(table)
 
-    results = []
-    for target in target_list:
+    def _print_settings(values: Mapping[str, str], as_json: bool) -> None:
+        """Print current settings."""
+
+        if as_json:
+            print(json.dumps(dict(values), indent=2))
+            return
+        table = Table(title="FlexSoC settings", show_header=False)
+        table.add_column("Key", style="cyan", no_wrap=True)
+        table.add_column("Value")
+        for key, value in sorted(values.items()):
+            table.add_row(key, value)
+        console.print(table)
+
+    def _print_info(client: FlexSoC, targets: tuple[str, ...], as_json: bool) -> None:
+        """Print metadata for selected targets."""
+
+        data = [client.target_info(target).to_dict() for target in targets]
+        if as_json:
+            print(json.dumps(data[0] if len(data) == 1 else data, indent=2))
+            return
+        for item in data:
+            text = f"[bold cyan]{item['name']}[/bold cyan]\n{item['description']}\nvars: {', '.join(item['params']) or '-'}"
+            console.print(Panel.fit(text, title=item["group"]))
+
+    # -----------------------------------------------------------------------
+    # Command handlers
+    # -----------------------------------------------------------------------
+
+    def _settings(root: Path, items: tuple[str, ...], sets: tuple[str, ...], unsets: tuple[str, ...], reset: bool, as_json: bool) -> None:
+        """Show or update persistent project settings."""
+
+        values = dict(DEFAULT_SETTINGS if reset else _read_settings(root))
+        for key in unsets:
+            values.pop(key.upper(), None)
+        values.update(_assignments((*items, *sets)))
+        if reset or unsets or sets or items:
+            _write_settings(root, values)
+        _print_settings(values, as_json)
+
+    def _overrides(sets: tuple[str, ...], tool: str | None, force: bool) -> dict[str, str]:
+        """Collect one-shot Make-variable overrides."""
+
+        values = _assignments(sets)
+        if tool:
+            values["LINT_TOOL"] = tool
+        if force:
+            values["FORCE"] = "1"
+        return values
+
+    def _run(client: FlexSoC, targets: tuple[str, ...], *, sets: tuple[str, ...], tool: str | None, force: bool, dry_run: bool, script: bool, capture: bool, as_json: bool, info: bool) -> int:
+        """Run, preview, or describe requested targets."""
+
+        if info:
+            _print_info(client, targets, as_json)
+            return 0
         try:
-            results.append(client.run_step(target, capture=capture, **values))
-        except subprocess.CalledProcessError as exc:
-            command = " ".join(str(part) for part in exc.cmd)
-            typer.secho(f"target failed: {target}", fg=typer.colors.RED, err=True)
-            typer.secho(f"command: {command}", err=True)
-            typer.secho(_error_hint(target, exc.stderr or exc.stdout or exc), err=True)
-            raise typer.Exit(exc.returncode) from exc
+            result = client.run(*targets, dry_run=dry_run, capture=capture, **_overrides(sets, tool, force))
+        except (ValueError, subprocess.CalledProcessError, typer.BadParameter) as exc:
+            error_console.print(f"[red]{exc}[/red]")
+            return getattr(exc, "returncode", 2) or 2
+        if dry_run:
+            text = "\n".join(item.shell_line() for item in result)
+            print("#!/usr/bin/env bash\nset -euo pipefail\n" + text if script else text)
+        elif as_json:
+            data = [item.to_dict() for item in result]
+            print(json.dumps(data[0] if len(data) == 1 else data, indent=2))
+        elif capture:
+            print("".join(item.stdout or "" for item in result), end="")
+        return 0
 
-    if json_:
-        payload = results[0].to_dict() if len(results) == 1 else [item.to_dict() for item in results]
-        typer.echo(json.dumps(payload, indent=2))
-    elif capture:
-        for result in results:
-            if result.stdout:
-                typer.echo(result.stdout, nl=False)
+    def _shell(root: Path, workdir: Path | None) -> int:
+        """Open a Prompt Toolkit shell with command completion."""
 
-
-def _smoke_payload(client: FlexSoC, top: str, run_id: str, run_workspace: bool) -> dict[str, object]:
-    """Build a safe smoke payload using public framework workflows."""
-
-    workflows = {
-        name: client.inspect_workflow(name, top=top, run_id=run_id).shell_lines()
-        for name in ("workspace", "ip_development", "soc_development")
-    }
-    workspace_results = []
-    if run_workspace:
-        workspace_results = [
-            item.to_dict()
-            for item in client.run_workflow("workspace", capture=True, top=top, run_id=run_id)
-        ]
-    workspace_ok = all(item.get("ok", False) for item in workspace_results) if workspace_results else True
-    return {
-        "ok": workspace_ok,
-        "workflows": {name: list(lines) for name, lines in workflows.items()},
-        "workspace_results": workspace_results,
-    }
-
-
-def _print_smoke(payload: dict[str, object], output: Console | None = None) -> None:
-    """Render the safe smoke summary for humans."""
-
-    output = output or console
-    ok = bool(payload["ok"])
-    style = SUCCESS if ok else WARNING
-    workflows = payload["workflows"]
-    table = Table(title="Smoke checks", border_style=style)
-    table.add_column("Check", style=f"bold {ACCENT}")
-    table.add_column("Result")
-    for name, lines in workflows.items():
-        table.add_row(str(name), f"{len(lines)} command(s) previewed")
-    if payload["workspace_results"]:
-        table.add_row(
-            "workspace execution",
-            "ok" if all(item["ok"] for item in payload["workspace_results"]) else "failed",
+        try:
+            from prompt_toolkit import PromptSession
+            from prompt_toolkit.completion import WordCompleter
+            from prompt_toolkit.history import FileHistory
+        except ModuleNotFoundError:
+            console.print("[red]missing dependency: prompt_toolkit[/red]")
+            return 2
+        history = _settings_path(root).with_name("history")
+        history.parent.mkdir(parents=True, exist_ok=True)
+        session = PromptSession(
+            history=FileHistory(str(history)),
+            completer=WordCompleter(_completion_words(), ignore_case=True, sentence=True),
         )
-    output.print(
-        Panel(
-            "[bold green]ok[/bold green]" if ok else "[bold yellow]mismatch[/bold yellow]",
-            title="FlexSoC smoke",
-            border_style=style,
-        )
-    )
-    output.print(table)
+        console.print("[bold cyan]fx shell[/bold cyan]  type 'help', 'commands', 'exit' or Make targets")
+        while True:
+            try:
+                line = session.prompt("fx> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                console.print()
+                return 0
+            if not line:
+                continue
+            if line in {"exit", "quit", ":q"}:
+                return 0
+            if line in {"help", "?"}:
+                _guide()
+                continue
+            app([*shlex.split(line), *( ["--workdir", str(workdir)] if workdir else [] )])
 
+    # -----------------------------------------------------------------------
+    # Typer command and entry point
+    # -----------------------------------------------------------------------
 
-def _show_target_info(target: str, *, json_: bool = False) -> None:
-    """Show parameters, categories, and examples for one backend target."""
-
-    step = FlexSoC().step_info(target)
-    if _as_bool(json_):
-        typer.echo(json.dumps(step.to_dict(), indent=2))
-    else:
-        _print_step_info(step)
-
-
-@app.callback(invoke_without_command=True)
-def main(ctx: typer.Context) -> None:
-    """Show concise help when fx is launched without a subcommand."""
-
-    if ctx.invoked_subcommand is None:
-        help()
-
-
-@app.command("help")
-def help() -> None:
-    """Show the concise FlexSoC command guide."""
-
-    _print_help()
-
-
-@app.command("commands")
-def commands(json_: bool = typer.Option(False, "--json", help="Print command metadata as JSON.")) -> None:
-    """List the compact public command surface."""
-
-    rows = tuple({"command": command, "purpose": purpose} for command, purpose in COMMAND_ROWS)
-    if _as_bool(json_):
-        typer.echo(json.dumps(rows, indent=2))
-        return
-    console.print(_table("Commands", ("command", "purpose"), COMMAND_ROWS))
-    console.print(_table("Targets", ("command", "purpose"), _target_rows()))
-
-
-
-@app.command("settings")
-def settings(
-    set_: list[str] | None = typer.Option(None, "--set", help="Persist one project setting as KEY=VALUE."),
-    unset: list[str] | None = typer.Option(None, "--unset", help="Remove one persisted setting by name."),
-    reset: bool = typer.Option(False, "--reset", help="Remove all persisted project settings."),
-    project_root: Path | None = typer.Option(None, help="Repository root that owns the settings file."),
-    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
-) -> None:
-    """Show, save, or reset project-level FlexSoC CLI settings."""
-
-    root = _project_root(project_root)
-    path = _settings_path(root)
-    values = _read_settings(root)
-    changed = False
-    if _as_bool(reset):
-        path.unlink(missing_ok=True)
-        values = {}
-        changed = True
-    for key in unset or []:
-        changed = values.pop(str(key).upper(), None) is not None or changed
-    if set_:
-        values.update(_parse_overrides(set_))
-        changed = True
-    if changed:
-        _write_settings(root, values)
-    payload = _settings_payload(root)
-    if _as_bool(json_):
-        typer.echo(json.dumps(payload, indent=2))
-    else:
-        _print_settings(payload)
-
-
-
-@app.command("smoke")
-def smoke(
-    top: str = typer.Option("demo", help="Top name used for smoke previews."),
-    run_id: str = typer.Option("smoke", help="Run identifier used for smoke previews."),
-    project_root: Path | None = typer.Option(None, help="Repository root used as execution cwd."),
-    json_: bool = typer.Option(False, "--json", help="Print a JSON payload for tools and frontends."),
-    run_workspace: bool = typer.Option(False, "--run-workspace", help="Execute only the safe workspace workflow."),
-) -> None:
-    """Run safe API/CLI smoke checks without launching EDA tools by default."""
-
-    payload = _smoke_payload(FlexSoC(project_root=project_root), top, run_id, run_workspace)
-    if _as_bool(json_):
-        typer.echo(json.dumps(payload, indent=2))
-    else:
-        _print_smoke(payload)
-    if not payload["ok"]:
-        raise typer.Exit(1)
-
-
-def _target_command(command_name: str, target: str):
-    """Create one concise direct command for a backend target."""
-
-    def command(
-        extra_targets: list[str] | None = typer.Argument(
-            None, help="Additional backend targets to run after this one."
-        ),
-        info: bool = typer.Option(False, "--info", "-h", help="Show target information and exit."),
-        set_: list[str] | None = typer.Option(None, "--set", help="Override one project setting for this command."),
-        force: bool = typer.Option(False, "--force", help="Refresh generated files when they already exist."),
-        overwrite: bool = typer.Option(False, "--overwrite", help="Alias for --force."),
-        dry_run: bool = typer.Option(False, "--dry-run", help="Preview the backend Make command."),
-        script: bool = typer.Option(False, "--script", help="Print dry-run output as a shell script."),
-        capture: bool = typer.Option(False, "--capture", help="Capture backend output and print failure hints."),
-        json_: bool = typer.Option(False, "--json", help="Print JSON for dry-run or execution results."),
+    @typer_app.command(name="fx", help=HELP, no_args_is_help=False)
+    def _entry(
+        items: Annotated[
+            list[str] | None,
+            typer.Argument(
+                help="Pseudo-command (`settings`, `commands`, `shell`) or one or more Make targets.",
+                autocompletion=_complete_items,
+                show_default=False,
+            ),
+        ] = None,
+        sets: Annotated[
+            list[str] | None,
+            typer.Option("--set", "-s", help="Add KEY=VALUE override.", rich_help_panel="Settings and overrides"),
+        ] = None,
+        unsets: Annotated[
+            list[str] | None,
+            typer.Option("--unset", help="Remove a persistent setting.", rich_help_panel="Settings and overrides"),
+        ] = None,
+        project_root: Annotated[
+            Path | None,
+            typer.Option("--project-root", help="Repository root used as Make cwd.", rich_help_panel="Paths"),
+        ] = None,
+        workdir: Annotated[
+            Path | None,
+            typer.Option("--workdir", help="Workspace passed to Make as WORKSPACE.", rich_help_panel="Paths"),
+        ] = None,
+        tool: Annotated[
+            str | None,
+            typer.Option("--tool", help="Shortcut for LINT_TOOL=VALUE.", rich_help_panel="Target options"),
+        ] = None,
+        reset: Annotated[
+            bool,
+            typer.Option("--reset", help="Reset settings before applying updates.", rich_help_panel="Settings and overrides"),
+        ] = False,
+        force: Annotated[
+            bool,
+            typer.Option("--force", "--overwrite", help="Shortcut for FORCE=1.", rich_help_panel="Target options"),
+        ] = False,
+        dry_run: Annotated[
+            bool,
+            typer.Option("--dry-run", help="Print Make commands without running them.", rich_help_panel="Output"),
+        ] = False,
+        script: Annotated[
+            bool,
+            typer.Option("--script", help="Render dry-run output as a bash script.", rich_help_panel="Output"),
+        ] = False,
+        capture: Annotated[
+            bool,
+            typer.Option("--capture", help="Capture and print target stdout.", rich_help_panel="Output"),
+        ] = False,
+        as_json: Annotated[
+            bool,
+            typer.Option("--json", help="Print machine-readable JSON.", rich_help_panel="Output"),
+        ] = False,
+        info: Annotated[
+            bool,
+            typer.Option("--info", help="Describe targets instead of running them.", rich_help_panel="Output"),
+        ] = False,
     ) -> None:
-        """Run one or more backend targets directly."""
+        """Dispatch pseudo-commands or ordered Make targets."""
 
-        if _as_bool(info):
-            _show_target_info(target, json_=json_)
+        root = (project_root or Path.cwd()).resolve()
+        args, set_args, unset_args = tuple(items or ()), tuple(sets or ()), tuple(unsets or ())
+        client = FlexSoC(FlexSoCConfig(root, workdir), **_read_settings(root))
+        if not args:
+            _guide()
             return
-        _run_targets(
-            [target, *(extra_targets or [])],
-            set_=set_,
-            force=force,
-            overwrite=overwrite,
-            dry_run=dry_run,
-            script=script,
-            capture=capture,
-            json_=json_,
-        )
-
-    command.__name__ = f"fx_{command_name.replace('-', '_')}"
-    command.__doc__ = f"Run the {target} backend target."
-    return command
-
-
-def _lint_command(command_name: str, target: str):
-    """Create one direct lint command with optional lint-tool selection."""
-
-    def command(
-        extra_targets: list[str] | None = typer.Argument(
-            None, help="Additional backend targets to run after this one."
-        ),
-        info: bool = typer.Option(False, "--info", "-h", help="Show target information and exit."),
-        tool: str = typer.Option("auto", "--tool", help="Lint backend: auto, verilator, or slang."),
-        set_: list[str] | None = typer.Option(None, "--set", help="Override one project setting for this command."),
-        force: bool = typer.Option(False, "--force", help="Refresh generated files when they already exist."),
-        overwrite: bool = typer.Option(False, "--overwrite", help="Alias for --force."),
-        dry_run: bool = typer.Option(False, "--dry-run", help="Preview the backend Make command."),
-        script: bool = typer.Option(False, "--script", help="Print dry-run output as a shell script."),
-        capture: bool = typer.Option(False, "--capture", help="Capture backend output and print failure hints."),
-        json_: bool = typer.Option(False, "--json", help="Print JSON for dry-run or execution results."),
-    ) -> None:
-        """Run one or more backend targets, starting with one focused RTL lint target."""
-
-        if _as_bool(info):
-            _show_target_info(target, json_=json_)
+        if args[0] == "commands":
+            _print_commands(client, as_json)
             return
-        values = list(set_ or [])
-        if tool != "auto":
-            values.append(f"LINT_TOOL={tool}")
-        _run_targets(
-            [target, *(extra_targets or [])],
-            set_=values,
-            force=force,
-            overwrite=overwrite,
-            dry_run=dry_run,
-            script=script,
-            capture=capture,
-            json_=json_,
-        )
+        if args[0] == "settings":
+            _settings(root, args[1:], set_args, unset_args, reset, as_json)
+            return
+        if args[0] == "shell":
+            raise typer.Exit(_shell(root, workdir))
+        raise typer.Exit(_run(client, args, sets=set_args, tool=tool, force=force, dry_run=dry_run, script=script, capture=capture, as_json=as_json, info=info))
 
-    command.__name__ = f"fx_{command_name.replace('-', '_')}"
-    command.__doc__ = f"Run the {target} backend target."
-    return command
+    def _click_command() -> click.Command:
+        """Build the Click command generated by Typer."""
 
+        return typer.main.get_command(typer_app)
 
-for _command_name, _target, _purpose in PUBLIC_TARGETS:
-    factory = _lint_command if _target.startswith("lint") else _target_command
-    app.command(_command_name)(factory(_command_name, _target))
+    def app(argv: list[str] | None = None) -> int:
+        """Run the fx command-line interface."""
+
+        try:
+            return _click_command().main(args=argv, prog_name="fx", standalone_mode=False) or 0
+        except click.exceptions.Exit as exc:
+            return int(exc.exit_code or 0)
+        except click.ClickException as exc:
+            exc.show()
+            return int(exc.exit_code or 2)
+        except KeyboardInterrupt:
+            error_console.print("\n[red]interrupted[/red]")
+            return 130
+
+    def main(argv: list[str] | None = None) -> int:
+        """Alias app for standard console script names."""
+
+        return app(argv)
 
 
 if __name__ == "__main__":
-    app()
+    raise SystemExit(app())

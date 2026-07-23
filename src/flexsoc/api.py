@@ -1,44 +1,266 @@
-"""Public API layer for FlexSoC.
-
-This module is the stable boundary used by future CLI, web, and frontend code.
-"""
+"""Small FlexSoC Python API for launching backend Make targets."""
 
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
-from difflib import get_close_matches
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
-def _as_path(value: Path | str | os.PathLike[str] | None) -> Path | None:
-    """Normalize optional path-like values accepted by the public API."""
+# ---------------------------------------------------------------------------
+# Configuration data
+# ---------------------------------------------------------------------------
 
-    return None if value is None else Path(value)
+PathLike = str | os.PathLike[str] | Path | None
+TargetSpec = tuple[str, str, tuple[str, ...]]
+DEFAULT_SETTINGS = {"TOP": "test", "HOST": "uart", "FORCE": "0", "RUN_ID": "default"}
+
+# Parameter bundles keep the target table compact; every value is still overrideable.
+NONE = ()
+BASE = ("TOP", "RUN_ID", "WORKSPACE")
+COMMON = (*BASE, "RUN_TOP", "FORCE")
+IP_DEV = (*BASE, "REG_ITF", "FORCE")
+FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
+IP_FULL = (*COMMON, "REG_ITF", "LINT_TOOL", "LINT_PART", "TARGET_SYN", "TARGET_OPT")
+LINT = (*COMMON, "LINT_TOOL", "LINT_PART", "VSV")
+SIM = (*COMMON, "TESTBENCH", "TEST_NAMES", "TEST_NAME", "TEST_ID", "REGCFG", "DATA_IN", "DATA_OUT", "VSV", "COMPILER", "COCOTB_WAVES")
+VIEW = (*COMMON, "WAVE_VIEWER", "SURFER_BACKEND")
+SYN = (*COMMON, "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV")
+SIGNOFF = (*COMMON, "LIBS", "ACTIVITY", "PATH_VIEW_FILE", "NPATHS")
+PNR = (*COMMON, "ORS", "ORS_TECH")
+IP_LOAD = (*COMMON, "IP_NAME")
+SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
+FSM = (*BASE, "FSM", "FORCE")
+TUTORIAL = ("TUTORIAL_WS", "TUTORIAL_RUN_ID", *COMMON)
+CLEAN = (*BASE, "RUN_TOP")
+
+
+# ---------------------------------------------------------------------------
+# Make targets: one row per callable backend target
+# ---------------------------------------------------------------------------
+
+TARGETS: dict[str, TargetSpec] = {
+    "help": ("Help", "Show backend target help", NONE),
+    "help_ip": ("Help", "Show IP-flow help", NONE),
+    "help_soc": ("Help", "Show SoC-flow help", NONE),
+    "help_doc": ("Help", "Show documentation-flow help", NONE),
+    "help_fsm": ("Help", "Show FSM-flow help", NONE),
+    "setup": ("Setup", "Create the run directory tree", BASE),
+    "soc_cfg": ("Setup", "Render SoC configuration variables", SOC),
+    "soc_start": ("Setup", "Initialize a SoC run from loaded IPs", SOC),
+    "hjson": ("IP flow", "Generate an HJSON register template", IP_DEV),
+    "hjson_gen": ("IP flow", "Compatibility alias for HJSON generation", IP_DEV),
+    "reg": ("IP flow", "Generate register RTL from HJSON", IP_DEV),
+    "doc": ("IP flow", "Generate register documentation", IP_DEV),
+    "rtl_stub": ("IP flow", "Generate RTL core and aligned top wrapper", IP_DEV),
+    "top_from_core": ("IP flow", "Regenerate top wrapper from edited core ports", IP_DEV),
+    "flist": ("IP flow", "Generate the RTL filelist", IP_DEV),
+    "flist_split": ("IP flow", "Split common and IP RTL filelists", IP_DEV),
+    "driver": ("IP flow", "Generate C driver files from HJSON", IP_DEV),
+    "fetch": ("IP flow", "Fetch or update a vendored dependency", FETCH),
+    "ip_start": ("IP flow", "Bootstrap a complete IP run", IP_FULL),
+    "ip_flow": ("IP flow", "Run the standard IP flow", IP_FULL),
+    "ip_flow_noreg": ("IP flow", "Run IP flow without regenerating registers", IP_DEV),
+    "ip_flow_all": ("IP flow", "Run full IP flow including PnR", IP_FULL),
+    "lint": ("Linting", "Run HDL lint checks", LINT),
+    "lint_v": ("Linting", "Run Verilog lint checks", LINT),
+    "lint_sv": ("Linting", "Run SystemVerilog lint checks", LINT),
+    "lint_latch": ("Linting", "Run latch-focused HDL lint diagnostics", LINT),
+    "lint_undriven": ("Linting", "Run undriven-signal HDL lint diagnostics", LINT),
+    "lint_width": ("Linting", "Run width-focused HDL lint diagnostics", LINT),
+    "lint_unconnected": ("Linting", "Run unconnected-port HDL lint diagnostics", LINT),
+    "lint_unused": ("Linting", "Run unused-object HDL lint diagnostics", LINT),
+    "_lint_run": ("Linting", "Internal lint dispatcher", LINT),
+    "slang_hier": ("Linting", "Print hierarchy with slang-hier", LINT),
+    "setup_tb": ("Simulation", "Generate a SystemVerilog testbench", SIM),
+    "setup_cocotb": ("Simulation", "Generate a cocotb scaffold", SIM),
+    "setup_model": ("Simulation", "Generate a Python model scaffold", SIM),
+    "compile": ("Simulation", "Compile the current testbench", SIM),
+    "compile_v": ("Simulation", "Compile Verilog simulation", SIM),
+    "compile_sv": ("Simulation", "Compile SystemVerilog simulation", SIM),
+    "sim": ("Simulation", "Run simulation", SIM),
+    "sim_v": ("Simulation", "Run Verilog simulation", SIM),
+    "sim_sv": ("Simulation", "Run SystemVerilog simulation", SIM),
+    "sim_tests": ("Simulation", "Run every generated SystemVerilog vector test", SIM),
+    "cocotb": ("Simulation", "Run cocotb tests", SIM),
+    "cocotb_tests": ("Simulation", "Run every generated cocotb vector test", SIM),
+    "view": ("Viewing", "Open latest waveform", VIEW),
+    "view_cocotb": ("Viewing", "Open latest cocotb waveform", VIEW),
+    "view_syn": ("Viewing", "Reserved synthesis waveform viewer target", VIEW),
+    "plot_postsyn": ("Viewing", "Open post-synthesis graph", VIEW),
+    "view_presyn": ("Viewing", "Open pre-synthesis graph", VIEW),
+    "view_presyn_v": ("Viewing", "Open pre-synthesis graph from Verilog", VIEW),
+    "view_presyn_sv": ("Viewing", "Open pre-synthesis graph from SV", VIEW),
+    "tb_save": ("Viewing", "Save testbench regression artifacts", VIEW),
+    "tb_view": ("Viewing", "Open saved testbench waveform", VIEW),
+    "setup_sdc": ("Synthesis", "Generate timing constraints", SYN),
+    "setup_syn": ("Synthesis", "Generate Yosys synthesis scripts", SYN),
+    "syn": ("Synthesis", "Run synthesis", SYN),
+    "syn_v": ("Synthesis", "Run Verilog synthesis", SYN),
+    "syn_sv": ("Synthesis", "Run SystemVerilog synthesis", SYN),
+    "yosys-vgen": ("Synthesis", "Convert SV to Verilog with Yosys", SYN),
+    "sv2v": ("Synthesis", "Convert SV to Verilog with sv2v", SYN),
+    "setup_signoff": ("Signoff", "Generate signoff scripts", SIGNOFF),
+    "compile_syn": ("Signoff", "Compile post-synthesis simulation", SIGNOFF),
+    "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
+    "sta": ("Signoff", "Run static timing analysis", SIGNOFF),
+    "sdf": ("Signoff", "Write SDF timing files", SIGNOFF),
+    "power": ("Signoff", "Run power analysis", SIGNOFF),
+    "sta_violators": ("Signoff", "Report timing violators", SIGNOFF),
+    "path_view": ("Signoff", "Build interactive STA path view", SIGNOFF),
+    "setup_pnr": ("Place and route", "Generate OpenROAD config", PNR),
+    "pnr": ("Place and route", "Run OpenROAD place and route", PNR),
+    "pnr_gui": ("Place and route", "Open OpenROAD GUI", PNR),
+    "ip_load": ("IP load/save", "Load an IP into a run workspace", IP_LOAD),
+    "ip_save": ("IP load/save", "Save run artifacts back to hw/ips", IP_LOAD),
+    "soc_vendor_deps": (
+        "SoC flow",
+        "Fetch pinned lowRISC dependencies required by SoC simulation",
+        SOC,
+    ),
+    "fsoc_init": ("SoC flow", "Initialize FuseSoC metadata", SOC),
+    "fsoc": ("SoC flow", "Generate FuseSoC core file", SOC),
+    "xbar": ("SoC flow", "Generate crossbar artifacts", SOC),
+    "xbar_init": ("SoC flow", "Generate crossbar input config", SOC),
+    "xbar_build": ("SoC flow", "Run tlgen for crossbar RTL", SOC),
+    "soc": ("SoC flow", "Generate SoC RTL", SOC),
+    "soc_stage_tops": ("SoC flow", "Stage SoC top-level files", SOC),
+    "soc_flist": ("SoC flow", "Generate SoC filelist", SOC),
+    "soc_flow": ("SoC flow", "Generate crossbar, SoC RTL and filelist", SOC),
+    "soc_uart_gen": ("SoC flow", "Generate UART-host SoC artifacts", SOC),
+    "soc_ibex_gen": ("SoC flow", "Generate Ibex-host SoC artifacts", SOC),
+    "sw_soc": ("SoC flow", "Generate SoC software scaffold", SOC),
+    "soc_prepare": ("SoC flow", "Prepare SoC build directory", SOC),
+    "soc_build_sw": ("SoC flow", "Build SoC software", SOC),
+    "soc_sim": ("SoC flow", "Build SoC simulator", SOC),
+    "soc_run": ("SoC flow", "Run SoC simulation", SOC),
+    "soc_run_only": ("SoC flow", "Alias for SoC simulation run", SOC),
+    "soc_view": ("SoC flow", "Open SoC waveform", SOC),
+    "fsm_init": ("FSM flow", "Create FSM workspace directories", FSM),
+    "fsm_setup": ("FSM flow", "Set up the FSM generator", FSM),
+    "fsm_example_load": ("FSM flow", "Load the FSM example inputs", FSM),
+    "fsm_gen": ("FSM flow", "Generate FSM RTL", FSM),
+    "fsm_plot": ("FSM flow", "Plot FSM diagrams", FSM),
+    "fsm_flow": ("FSM flow", "Generate and plot FSM artifacts", FSM),
+    "fsm_install": ("FSM flow", "Install FSM artifacts into the IP run", FSM),
+    "fsm2rtl": ("FSM flow", "Alias for FSM RTL installation", FSM),
+    "soc_uart_tutorial": ("Tutorials", "Run UART-host SoC tutorial", TUTORIAL),
+    "soc_ibex_fetch": ("Tutorials", "Fetch Ibex tutorial dependencies", TUTORIAL),
+    "soc_ibex_tutorial": ("Tutorials", "Run Ibex-host SoC tutorial", TUTORIAL),
+    "full_tutorial": ("Tutorials", "Run the full IP tutorial flow", TUTORIAL),
+    "fsm_tutorial": ("Tutorials", "Run the FSM tutorial flow", TUTORIAL),
+    "ip_tutorial": ("Tutorials", "Run the IP tutorial flow", TUTORIAL),
+    "soc_pless": ("Tutorials", "Run the tiny SoC tutorial flow", TUTORIAL),
+    "deps": ("Dependencies", "Install IP development dependencies", NONE),
+    "deps-soc": ("Dependencies", "Install SoC development dependencies", NONE),
+    "clean-pyc": ("Cleanup", "Remove Python caches", CLEAN),
+    "clean_doc": ("Cleanup", "Remove generated docs", CLEAN),
+    "clean_log": ("Cleanup", "Remove logs", CLEAN),
+    "clean_rtl": ("Cleanup", "Remove generated RTL", CLEAN),
+    "clean_sim": ("Cleanup", "Remove simulation outputs", CLEAN),
+    "clean_cocotb": ("Cleanup", "Remove cocotb outputs", CLEAN),
+    "clean_syn": ("Cleanup", "Remove synthesis outputs", CLEAN),
+    "clean_signoff": ("Cleanup", "Remove signoff outputs", CLEAN),
+    "clean_pnr": ("Cleanup", "Remove PnR outputs", CLEAN),
+    "clean_fsm": ("Cleanup", "Clean FSM generator outputs", CLEAN),
+    "clean_fsm_all": ("Cleanup", "Deep-clean FSM generator outputs", CLEAN),
+    "clean_agent": ("Cleanup", "Remove old agent outputs", CLEAN),
+    "clean_fsoc": ("Cleanup", "Remove FuseSoC build outputs", CLEAN),
+    "clean_soc": ("Cleanup", "Remove SoC build outputs", CLEAN),
+    "clean_sw": ("Cleanup", "Clean SoC software outputs", CLEAN),
+    "clean_vendor": ("Cleanup", "Remove vendored IP checkouts", CLEAN),
+    "clean_subdir": ("Cleanup", "Clean helper subdirectories", CLEAN),
+    "clean": ("Cleanup", "Clean generated flow outputs", CLEAN),
+    "clean_all": ("Cleanup", "Remove all generated run outputs", CLEAN),
+}
+
+
+# ---------------------------------------------------------------------------
+# API objects
+# ---------------------------------------------------------------------------
+
+@dataclass(slots=True)
+class FlexSoCConfig:
+    """Store project paths and default Make variables."""
+
+    project_root: PathLike = None
+    workdir: PathLike = None
+    values: Mapping[str, Any] = field(default_factory=dict)
+    options: Mapping[str, Any] = field(default_factory=dict)
+
+    def make_values(self) -> dict[str, Any]:
+        """Merge the new values field with the old options alias."""
+
+        return {**dict(self.options), **dict(self.values)}
 
 
 @dataclass(frozen=True, slots=True)
-class FlowResult:
-    """Result returned after executing one backend flow step.
+class FlexSoCTarget:
+    """Describe one callable Make target."""
 
-    The object keeps subprocess details small and stable for CLI or web callers.
-    """
+    name: str
+    group: str
+    description: str
+    params: tuple[str, ...] = ()
 
-    command: "FlowCommand"
+    def to_dict(self) -> dict[str, Any]:
+        """Return target metadata as plain data."""
+
+        return {
+            "name": self.name,
+            "group": self.group,
+            "description": self.description,
+            "params": list(self.params),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class FlexSoCCommand:
+    """Preview one Make invocation."""
+
+    target: str
+    argv: tuple[str, ...]
+    cwd: Path
+    env: Mapping[str, str]
+    values: Mapping[str, str]
+
+    def shell_line(self) -> str:
+        """Render the command for a shell."""
+
+        return shlex.join(self.argv)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return command data as plain data."""
+
+        return {
+            "target": self.target,
+            "argv": list(self.argv),
+            "cwd": str(self.cwd),
+            "values": dict(self.values),
+            "shell": self.shell_line(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class FlexSoCResult:
+    """Store one executed command result."""
+
+    command: FlexSoCCommand
     returncode: int
     stdout: str | None = None
     stderr: str | None = None
 
     @property
     def ok(self) -> bool:
-        """Return True when the executed command completed successfully."""
+        """Report whether Make exited successfully."""
 
         return self.returncode == 0
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-ready result for CLI, frontend, or service callers."""
+        """Return execution data as plain data."""
 
         return {
             "ok": self.ok,
@@ -49,622 +271,186 @@ class FlowResult:
         }
 
 
-@dataclass(slots=True)
-class FlexSoCConfig:
-    """Configuration object shared by workflow and step calls.
+# ---------------------------------------------------------------------------
+# Small helpers
+# ---------------------------------------------------------------------------
 
-    Extra values keep the first API thin while backend contracts are stabilized.
-    """
+def _backend_makefile() -> Path:
+    """Return the packaged backend Makefile."""
 
-    project_root: Path | None = None
-    workdir: Path | None = None
-    options: dict[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def from_values(cls, config: "FlexSoCConfig | None" = None, **overrides: Any) -> "FlexSoCConfig":
-        """Build a config from an optional object plus keyword overrides."""
-
-        base = config or cls()
-        project_root = overrides.pop("project_root", base.project_root)
-        workdir = overrides.pop("workdir", base.workdir)
-        options = dict(base.options)
-        options.update(overrides.pop("options", {}) or {})
-        options.update(overrides)
-        return cls(project_root=_as_path(project_root), workdir=_as_path(workdir), options=options)
+    return Path(__file__).with_name("backend") / "Makefile"
 
 
-@dataclass(frozen=True, slots=True)
-class FlowParameter:
-    """Document one Make variable accepted by a flow step.
+def _path(value: PathLike, fallback: Path) -> Path:
+    """Resolve a path-like value or fallback."""
 
-    Parameters are exposed to CLI, web, and UI layers through the public API.
-    """
-
-    name: str
-    description: str
-    default: str | None = None
-    required: bool = False
-    category: str = "specific"
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-ready parameter description for frontend callers."""
-
-        return {
-            "name": self.name,
-            "description": self.description,
-            "default": self.default,
-            "required": self.required,
-            "category": self.category,
-        }
+    return (Path(value) if value is not None else fallback).resolve()
 
 
-@dataclass(frozen=True, slots=True)
-class FlowExample:
-    """Document one copy-ready command for a flow step.
+def _upper(values: Mapping[str, Any]) -> dict[str, str]:
+    """Convert settings to Make-style uppercase strings."""
 
-    Examples keep CLI help concrete without bypassing the API layer.
-    """
-
-    command: str
-    description: str
-
-    def to_dict(self) -> dict[str, str]:
-        """Return a JSON-ready example for CLI and frontend callers."""
-
-        return {"command": self.command, "description": self.description}
+    return {str(key).upper(): str(value) for key, value in values.items() if value is not None}
 
 
-@dataclass(frozen=True, slots=True)
-class FlowStep:
-    """Public description for one Make-backed workflow step."""
+def _target(name: str) -> str:
+    """Accept exact, dashed, or underscored target spelling."""
 
-    name: str
-    group: str
-    description: str
-    params: tuple[FlowParameter, ...] = ()
-    examples: tuple[FlowExample, ...] = ()
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-ready step description for CLI and UI callers."""
-
-        return {
-            "name": self.name,
-            "group": self.group,
-            "description": self.description,
-            "params": [param.to_dict() for param in self.params],
-            "examples": [example.to_dict() for example in self.examples],
-        }
+    for item in (name, name.replace("-", "_"), name.replace("_", "-")):
+        if item in TARGETS:
+            return item
+    raise ValueError(f"unknown target {name!r}; run `fx commands` to list targets")
 
 
-@dataclass(frozen=True, slots=True)
-class FlowWorkflow:
-    """Public high-level workflow that maps to one or more advanced steps."""
+def _target_object(name: str) -> FlexSoCTarget:
+    """Build one target object from the unified table."""
 
-    name: str
-    steps: tuple[str, ...]
-    description: str
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-ready workflow description for CLI and UI callers."""
-
-        return {"name": self.name, "steps": list(self.steps), "description": self.description}
+    group, description, params = TARGETS[name]
+    return FlexSoCTarget(name, group, description, params)
 
 
-@dataclass(frozen=True, slots=True)
-class FlowPlan:
-    """Preview for a high-level workflow resolved into backend commands."""
-
-    name: str
-    commands: tuple["FlowCommand", ...]
-
-    def shell_lines(self) -> tuple[str, ...]:
-        """Return one shell-ready command preview per workflow step."""
-
-        return tuple(command.shell_line() for command in self.commands)
-
-    def shell_script(self) -> str:
-        """Return a compact shell script preview for reproducible workflow runs."""
-
-        lines = ["#!/usr/bin/env bash", "set -euo pipefail", *self.shell_lines()]
-        return "\n".join(lines) + "\n"
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-ready workflow preview for CLI and UI callers."""
-
-        return {
-            "name": self.name,
-            "commands": [command.to_dict() for command in self.commands],
-            "shell": list(self.shell_lines()),
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class FlowRequest:
-    """Normalized request for one API-triggered backend flow step."""
-
-    target: str
-    make_vars: dict[str, str]
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-ready request for UI and CLI previews."""
-
-        return {"target": self.target, "make_vars": dict(self.make_vars)}
-
-
-@dataclass(frozen=True, slots=True)
-class FlowCommand:
-    """Command description for one Make-backed FlexSoC workflow step."""
-
-    argv: tuple[str, ...]
-    cwd: Path
-    env: dict[str, str]
-    request: FlowRequest
-
-    def shell_line(self) -> str:
-        """Return a readable command preview for CLI and frontend integrations."""
-
-        return " ".join(self.argv)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-ready command preview without subprocess internals."""
-
-        return {
-            "argv": list(self.argv),
-            "cwd": str(self.cwd),
-            "env": {"PYTHONPATH": self.env.get("PYTHONPATH", "")},
-            "request": self.request.to_dict(),
-            "shell": self.shell_line(),
-        }
-
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 class FlexSoC:
-    """Thin public client for FlexSoC workflows and advanced backend steps."""
+    """Configure and launch backend Make targets."""
 
-    def __init__(self, config: FlexSoCConfig | None = None, **overrides: Any) -> None:
-        """Create a client and normalize user-provided configuration values."""
+    def __init__(
+        self,
+        config: FlexSoCConfig | None = None,
+        project_root: PathLike = None,
+        workdir: PathLike = None,
+        **values: Any,
+    ) -> None:
+        """Create a client with paths and initial Make-variable defaults."""
 
-        self.config = FlexSoCConfig.from_values(config, **overrides)
-
-    def describe(self) -> dict[str, Any]:
-        """Return a small, testable description of the configured API client."""
-
-        return {
-            "package": "flexsoc",
-            "api": "FlexSoC",
-            "project_root": str(self.project_root),
-            "workdir": str(self.workdir),
-            "options": dict(self.config.options),
-        }
+        base = config or FlexSoCConfig()
+        self.config = FlexSoCConfig(
+            project_root if project_root is not None else base.project_root,
+            workdir if workdir is not None else base.workdir,
+            base.make_values(),
+        )
+        self.settings = _upper({**self.config.make_values(), **values})
 
     @property
     def project_root(self) -> Path:
-        """Return the repository root used as default execution directory."""
+        """Return the repository root used as cwd."""
 
-        return (self.config.project_root or Path.cwd()).resolve()
+        return _path(self.config.project_root, Path.cwd())
 
     @property
     def workdir(self) -> Path:
-        """Return the workspace directory passed to Make-backed flow steps."""
+        """Return the workspace directory passed to Make."""
 
-        return (self.config.workdir or self.project_root / "workspace").resolve()
+        return _path(self.config.workdir, self.project_root / "workspace")
 
-    def list_workflows(self) -> tuple[FlowWorkflow, ...]:
-        """List stable high-level workflows exposed by the public API."""
-
-        return self._workflows()
-
-    def workflow_names(self) -> tuple[str, ...]:
-        """Return only workflow names for compact CLI and frontend menus."""
-
-        return tuple(workflow.name for workflow in self.list_workflows())
-
-    def workflow_steps(self, name: str) -> tuple[str, ...]:
-        """Resolve one high-level workflow into its ordered backend steps."""
-
-        return self._workflow_by_name(name).steps
-
-    def inspect_workflow(
-        self,
-        name: str,
-        config: FlexSoCConfig | None = None,
-        **overrides: Any,
-    ) -> FlowPlan:
-        """Preview one high-level workflow without executing backend commands."""
-
-        commands = tuple(
-            self.flow_command(step, config, **overrides)
-            for step in self.workflow_steps(name)
-        )
-        return FlowPlan(name=name, commands=commands)
-
-    def run_workflow(
-        self,
-        name: str,
-        config: FlexSoCConfig | None = None,
-        *,
-        check: bool = True,
-        dry_run: bool = False,
-        capture: bool = False,
-        **overrides: Any,
-    ) -> tuple[FlowCommand | FlowResult, ...]:
-        """Run or preview a high-level workflow through the same step API."""
-
-        if dry_run:
-            return self.inspect_workflow(name, config, **overrides).commands
-        return tuple(
-            self.run_step(
-                step,
-                config,
-                check=check,
-                capture=capture,
-                **overrides,
-            )
-            for step in self.workflow_steps(name)
-        )
-
-    def list_steps(self, group: str | None = None) -> tuple[FlowStep, ...]:
-        """List available Make-backed workflow steps exposed through the API."""
-
-        steps = tuple(sorted(self._discover_flow_steps(), key=lambda step: (step.group, step.name)))
-        if group is None:
-            return steps
-        return tuple(step for step in steps if step.group == group)
-
-    def step_names(self, group: str | None = None) -> tuple[str, ...]:
-        """Return only the step names for compact API and CLI output."""
-
-        return tuple(step.name for step in self.list_steps(group))
-
-    def _step_name_suggestion(self, name: str) -> str | None:
-        """Return the closest canonical step name for one unknown value."""
-
-        matches = get_close_matches(name, self.step_names(), n=1, cutoff=0.45)
-        return matches[0] if matches else None
-
-    def step_info(self, name: str) -> FlowStep:
-        """Return one documented step or fail with a clear API error."""
-
-        for step in self.list_steps():
-            if step.name == name:
-                return step
-        suggestion = self._step_name_suggestion(name)
-        hint = f"; did you mean {suggestion}?" if suggestion else ""
-        raise ValueError(f"unknown step: {name}{hint}")
-
-    def build_step_request(
-        self,
-        target: str,
-        config: FlexSoCConfig | None = None,
-        **overrides: Any,
-    ) -> FlowRequest:
-        """Normalize one backend step request before command creation or execution."""
-
-        values = self._flow_values(config, overrides)
-        return FlowRequest(target=target, make_vars=values)
-
-    def flow_command(
-        self,
-        target: str,
-        config: FlexSoCConfig | None = None,
-        **overrides: Any,
-    ) -> FlowCommand:
-        """Build the command line for a Make-backed workflow step without running it."""
-
-        request = self.build_step_request(target, config, **overrides)
-        argv = ["make", "-f", str(self._flow_makefile()), request.target]
-        argv.extend(f"{key}={value}" for key, value in request.make_vars.items())
-        return FlowCommand(tuple(argv), self.project_root, self._flow_env(), request)
-
-    def inspect_step(
-        self,
-        target: str,
-        config: FlexSoCConfig | None = None,
-        **overrides: Any,
-    ) -> dict[str, Any]:
-        """Return a JSON-ready preview of one backend step without executing it."""
-
-        return self.flow_command(target, config, **overrides).to_dict()
-
-    def run_step(
-        self,
-        target: str,
-        config: FlexSoCConfig | None = None,
-        *,
-        check: bool = True,
-        dry_run: bool = False,
-        capture: bool = False,
-        **overrides: Any,
-    ) -> FlowCommand | FlowResult:
-        """Run or preview one advanced flow step through the API boundary."""
-
-        command = self.flow_command(target, config, **overrides)
-        if dry_run:
-            return command
-        completed = subprocess.run(
-            command.argv,
-            cwd=command.cwd,
-            env=command.env,
-            check=check,
-            capture_output=capture,
-            text=capture,
-        )
-        return FlowResult(
-            command=command,
-            returncode=completed.returncode,
-            stdout=completed.stdout if capture else None,
-            stderr=completed.stderr if capture else None,
-        )
-
-    def _flow_values(
-        self,
-        config: FlexSoCConfig | None,
-        overrides: dict[str, Any],
-    ) -> dict[str, str]:
-        """Merge client, call config, and call-specific Make variable overrides."""
-
-        local = FlexSoCConfig.from_values(config) if config else FlexSoCConfig()
-        merged = {**self.config.options, **local.options, **overrides, "WORKSPACE": self.workdir}
-        return {str(key).upper(): str(value) for key, value in merged.items() if value is not None}
-
-    def _flow_env(self) -> dict[str, str]:
-        """Create a subprocess environment that can import the local package."""
-
-        env = os.environ.copy()
-        src = str(self.project_root / "src")
-        env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-        return env
-
-    def _workflow_by_name(self, name: str) -> FlowWorkflow:
-        """Return one workflow description or fail with a clear API error."""
-
-        for workflow in self._workflows():
-            if workflow.name == name:
-                return workflow
-        raise ValueError(f"unknown workflow: {name}")
-
-    @staticmethod
-    def _workflows() -> tuple[FlowWorkflow, ...]:
-        """Return the small public workflow catalog backed by advanced steps."""
-
-        return (
-            FlowWorkflow("workspace", ("setup",), "Create the FlexSoC workspace and run folders."),
-            FlowWorkflow("soc", ("soc",), "Generate or refresh the SoC project."),
-            FlowWorkflow("fsm", ("fsm_gen",), "Run the bundled FSM generator utility."),
-            FlowWorkflow(
-                "soc_development",
-                ("setup", "soc_start", "soc_flow", "soc_prepare", "soc_build_sw", "soc_sim", "soc_run"),
-                "Run the explicit SoC development flow from IP loading to software-backed simulation.",
-            ),
-            FlowWorkflow(
-                "ip_development",
-                (
-                    "setup",
-                    "hjson_gen",
-                    "reg",
-                    "doc",
-                    "rtl_stub",
-                    "setup_tb",
-                    "sim",
-                    "syn",
-                    "sta",
-                    "power",
-                    "pnr",
-                    "sim_syn",
-                    "cocotb",
-                ),
-                "Run the explicit IP development flow from templates to simulation, synthesis, signoff, and PnR.",
-            ),
-        )
-
-    @classmethod
-    def _discover_flow_steps(cls) -> set[FlowStep]:
-        """Return the documented flow step catalog exposed by the API."""
-
-        return set(cls._step_catalog())
-
-    @staticmethod
-    def _common_params() -> tuple[FlowParameter, ...]:
-        """Return variables shared by most flow steps."""
-
-        return (
-            FlowParameter("TOP", "IP or SoC top-level name.", "test", True, "common"),
-            FlowParameter("RUN_ID", "Run identifier under the workspace.", "timestamp", True, "common"),
-            FlowParameter("WORKSPACE", "Workspace root used for generated artifacts.", "workspace", False, "common"),
-            FlowParameter("RUN_TOP", "Run namespace; defaults to TOP when omitted.", "TOP", False, "common"),
-            FlowParameter("FORCE", "Overwrite generated files when set to 1.", "0", False, "common"),
-        )
-
-    @classmethod
-    def _step(cls, name: str, group: str, description: str, *params: FlowParameter) -> FlowStep:
-        """Build one catalog entry with parameters and examples."""
-
-        names = {param.name for param in params}
-        common = tuple(param for param in cls._common_params() if param.name not in names)
-        all_params = common + params
-        return FlowStep(name, group, description, all_params, cls._examples(name, all_params))
-
-    @staticmethod
-    def _examples(name: str, params: tuple[FlowParameter, ...]) -> tuple[FlowExample, ...]:
-        """Return copy-ready commands for one documented step."""
-
-        names = {param.name for param in params}
-        base = f"fx {name} --dry-run --set TOP=demo --set RUN_ID=smoke"
-        examples = [FlowExample(base, "Preview the backend command without running tools.")]
-        if "REG_ITF" in names:
-            examples.append(FlowExample(f"{base} --set REG_ITF=tlul", "Select the generated register interface."))
-        if "COMPILER" in names:
-            examples.append(FlowExample(f"{base} --set COMPILER=verilator", "Select the simulator used by this step."))
-        if "TARGET_SYN" in names:
-            examples.append(FlowExample(f"{base} --set TARGET_SYN=asic --set TARGET_OPT=area", "Select synthesis target and strategy."))
-        if "HOST" in names:
-            examples.append(FlowExample(f"{base} --set HOST=uart", "Select the SoC host integration."))
-        return tuple(examples)
-
-    @classmethod
-    def _step_catalog(cls) -> tuple[FlowStep, ...]:
-        """Return the explicit step catalog used by help, CLI, and UI layers."""
-
-        p = cls._params()
-        return (
-            cls._step("setup", "setup", "Create the run directory tree and common output folders."),
-            cls._step("setup_tb", "setup", "Create the SystemVerilog testbench template.", p["COMPILER"]),
-            cls._step("setup_cocotb", "setup", "Create a Cocotb testbench scaffold."),
-            cls._step("setup_model", "setup", "Create a lightweight software model scaffold."),
-            cls._step("setup_sdc", "setup", "Create timing constraint files.", p["CLK_PERIOD"]),
-            cls._step("setup_syn", "setup", "Create synthesis scripts.", p["TARGET_SYN"], p["TARGET_OPT"]),
-            cls._step("setup_signoff", "setup", "Create signoff scripts.", p["LIBS"], p["ACTIVITY"]),
-            cls._step("setup_pnr", "setup", "Create OpenROAD configuration.", p["ORS_TECH"]),
-            cls._step("hjson", "ip", "Create the initial IP HJSON description.", p["REG_ITF"]),
-            cls._step("hjson_gen", "ip", "Create the initial IP HJSON description.", p["REG_ITF"]),
-            cls._step("reg", "ip", "Generate register RTL from the HJSON description.", p["REG_ITF"]),
-            cls._step("doc", "ip", "Generate register documentation from the IP description."),
-            cls._step("rtl_stub", "ip", "Generate core and wrapper RTL stubs for the IP.", p["REG_ITF"]),
-            cls._step("ip_start", "ip", "Run setup, HJSON, reg, docs, RTL stub, filelist, TB, and simulation."),
-            cls._step("soc_start", "ip", "Load generated IP bundles into a SoC run."),
-            cls._step("flist", "ip", "Generate the RTL filelist consumed by downstream tools."),
-            cls._step("driver", "ip", "Generate software driver files from the HJSON description.", p["MOD_ADD"]),
-            cls._step("fetch", "ip", "Update one vendored dependency description.", p["VENDOR"]),
-            cls._step("ip_load", "ip", "Load an IP bundle into the workspace.", p["IP_NAME"]),
-            cls._step("ip_save", "ip", "Save generated IP artifacts as a reusable bundle.", p["IP_NAME"]),
-            cls._step("ip_flow", "ip", "Run the standard IP implementation flow."),
-            cls._step("ip_flow_noreg", "ip", "Run the IP flow from an existing register description."),
-            cls._step("ip_flow_all", "ip", "Run generation, signoff, and PnR for one IP."),
-            cls._step("lint", "simulation", "Run lint according to the selected RTL flavor.", p["VSV"], p["LINTER"]),
-            cls._step("lint_v", "simulation", "Run Verilog lint.", p["LINTER"]),
-            cls._step("lint_sv", "simulation", "Run SystemVerilog lint.", p["LINTER"]),
-            cls._step("sv2v", "simulation", "Convert SystemVerilog sources to Verilog."),
-            cls._step("compile", "simulation", "Compile simulation according to the selected RTL flavor.", p["VSV"], p["COMPILER"]),
-            cls._step("compile_v", "simulation", "Compile Verilog simulation.", p["COMPILER"]),
-            cls._step("compile_sv", "simulation", "Compile SystemVerilog simulation.", p["COMPILER"]),
-            cls._step("sim", "simulation", "Compile and run RTL simulation.", p["VSV"], p["COMPILER"]),
-            cls._step("sim_v", "simulation", "Run Verilog simulation.", p["COMPILER"]),
-            cls._step("sim_sv", "simulation", "Run SystemVerilog simulation.", p["COMPILER"]),
-            cls._step("compile_syn", "simulation", "Compile post-synthesis simulation.", p["COMPILER"]),
-            cls._step("sim_syn", "simulation", "Run post-synthesis simulation using generated SDF.", p["COMPILER"]),
-            cls._step("cocotb", "simulation", "Run the Cocotb testbench for the selected top-level."),
-            cls._step("tb_save", "simulation", "Save the current testbench as a reusable artifact."),
-            cls._step("tb_view", "simulation", "Open the testbench waveform view."),
-            cls._step("syn", "implementation", "Run synthesis for the selected top-level.", p["TARGET_SYN"], p["TARGET_OPT"], p["VSV"]),
-            cls._step("syn_v", "implementation", "Run Verilog synthesis.", p["TARGET_SYN"], p["TARGET_OPT"]),
-            cls._step("syn_sv", "implementation", "Run SystemVerilog synthesis.", p["TARGET_SYN"], p["TARGET_OPT"]),
-            cls._step("yosys-vgen", "implementation", "Export Verilog from the synthesis database."),
-            cls._step("plot_postsyn", "implementation", "Plot the post-synthesis netlist."),
-            cls._step("view_presyn", "implementation", "Open the pre-synthesis schematic view.", p["VSV"]),
-            cls._step("view_presyn_v", "implementation", "Open the Verilog pre-synthesis schematic view."),
-            cls._step("view_presyn_sv", "implementation", "Open the SystemVerilog pre-synthesis schematic view."),
-            cls._step("sta", "signoff", "Run static timing analysis on synthesized output.", p["LIBS"]),
-            cls._step("sdf", "signoff", "Generate SDF timing data.", p["LIBS"]),
-            cls._step("power", "signoff", "Run power analysis using generated signoff scripts.", p["ACTIVITY"]),
-            cls._step("sta_violators", "signoff", "Report the worst timing violators.", p["NPATHS"]),
-            cls._step("path_view", "signoff", "Open a timing path view.", p["PATH_VIEW_FILE"]),
-            cls._step("pnr", "implementation", "Run place-and-route using the configured OpenROAD flow.", p["ORS_TECH"]),
-            cls._step("pnr_gui", "implementation", "Open the OpenROAD GUI for the current run.", p["ORS_TECH"]),
-            cls._step("view", "view", "Open the default RTL simulation waveform.", p["VIEWER"]),
-            cls._step("view_cocotb", "view", "Open Cocotb waveform output.", p["VIEWER"]),
-            cls._step("view_syn", "view", "Open post-synthesis waveform output.", p["VIEWER"]),
-            cls._step("soc_cfg", "soc", "Generate SoC configuration for the current run.", p["HOST"], p["SOC_CFG_MODE"]),
-            cls._step("fsoc_init", "soc", "Generate a run-local FuseSoC core.", p["HOST"], p["PRJ"]),
-            cls._step("fsoc", "soc", "Run FuseSoC for the configured target.", p["TARGET_FSOC"], p["FUSESOC_TOOL"]),
-            cls._step("xbar", "soc", "Generate and build the SoC crossbar.", p["HOST"], p["SOC_CFG_MODE"]),
-            cls._step("xbar_init", "soc", "Generate crossbar inputs for the current SoC.", p["HOST"], p["SOC_CFG_MODE"]),
-            cls._step("xbar_build", "soc", "Build generated crossbar RTL."),
-            cls._step("soc", "soc", "Generate or refresh the SoC top-level RTL.", p["HOST"]),
-            cls._step("soc_stage_tops", "soc", "Stage IP tops into the SoC run.", p["HOST"]),
-            cls._step("soc_flist", "soc", "Generate the SoC RTL filelist."),
-            cls._step("soc_flow", "soc", "Run crossbar, SoC generation, and SoC filelist generation.", p["HOST"]),
-            cls._step("soc_uart_gen", "soc", "Generate a UART-hosted SoC."),
-            cls._step("soc_ibex_gen", "soc", "Generate an Ibex-hosted SoC."),
-            cls._step("sw_soc", "soc", "Generate SoC software support files.", p["HOST"]),
-            cls._step("soc_prepare", "soc", "Prepare SoC software build inputs.", p["HOST"], p["SOC_CFG_MODE"]),
-            cls._step("soc_build_sw", "soc", "Build SoC software.", p["HOST"]),
-            cls._step("soc_sim", "soc", "Run SoC simulation.", p["HOST"], p["SOC_CFG_MODE"], p["PRJ"], p["TARGET_FSOC"], p["FUSESOC_TOOL"]),
-            cls._step("soc_run", "soc", "Run the generated SoC executable.", p["HOST"], p["SOC_CFG_MODE"]),
-            cls._step("soc_run_only", "soc", "Run the SoC executable without rebuilding.", p["HOST"]),
-            cls._step("soc_view", "soc", "Open SoC waveform output.", p["HOST"], p["VIEWER"]),
-            cls._step("soc_uart_tutorial", "tutorial", "Run the UART SoC tutorial."),
-            cls._step("soc_ibex_fetch", "tutorial", "Fetch or prepare Ibex SoC tutorial inputs."),
-            cls._step("soc_ibex_tutorial", "tutorial", "Run the Ibex SoC tutorial."),
-            cls._step("fsm_init", "fsm", "Create FSM input and output directories.", p["FSM"]),
-            cls._step("fsm_example_load", "fsm", "Load the bundled FSM example.", p["FSM"]),
-            cls._step("fsm_setup", "fsm", "Prepare the bundled FSM generator.", p["FSM"]),
-            cls._step("fsm_gen", "fsm", "Run the bundled FSM generator.", p["FSM"], p["F_CLK"]),
-            cls._step("fsm_plot", "fsm", "Render FSM plots.", p["FSM"]),
-            cls._step("fsm_flow", "fsm", "Generate and plot one FSM.", p["FSM"], p["F_CLK"]),
-            cls._step("fsm_install", "fsm", "Install generated FSM artifacts into the IP run.", p["FSM"]),
-            cls._step("deps", "environment", "Install IP development dependencies."),
-            cls._step("deps-soc", "environment", "Install SoC development dependencies."),
-            cls._step("help", "help", "Show the backend Make help."),
-            cls._step("help_ip", "help", "Show IP flow help."),
-            cls._step("help_soc", "help", "Show SoC flow help."),
-            cls._step("help_doc", "help", "Show documentation flow help."),
-            cls._step("help_fsm", "help", "Show FSM flow help."),
-            cls._step("clean-pyc", "clean", "Remove Python caches."),
-            cls._step("clean_doc", "clean", "Remove generated documentation."),
-            cls._step("clean_log", "clean", "Remove generated logs."),
-            cls._step("clean_rtl", "clean", "Remove generated RTL outputs."),
-            cls._step("clean_sim", "clean", "Remove simulation outputs."),
-            cls._step("clean_cocotb", "clean", "Remove Cocotb outputs."),
-            cls._step("clean_syn", "clean", "Remove synthesis outputs."),
-            cls._step("clean_signoff", "clean", "Remove signoff outputs."),
-            cls._step("clean_pnr", "clean", "Remove PnR outputs."),
-            cls._step("clean_fsm", "clean", "Remove generated FSM artifacts."),
-            cls._step("clean_fsm_all", "clean", "Remove all FSM working files."),
-            cls._step("clean_agent", "clean", "Remove agent-generated files."),
-            cls._step("clean_fsoc", "clean", "Remove FuseSoC outputs."),
-            cls._step("clean_soc", "clean", "Remove SoC outputs."),
-            cls._step("clean_sw", "clean", "Remove generated software outputs."),
-            cls._step("clean_vendor", "clean", "Remove vendored dependency outputs."),
-            cls._step("clean_subdir", "clean", "Run clean in generated subdirectories."),
-            cls._step("clean", "clean", "Clean generated run artifacts but keep vendored sources."),
-            cls._step("clean_all", "clean", "Clean generated artifacts, FSM cache, vendor cache, and agents."),
-            cls._step("full_tutorial", "tutorial", "Run the full tutorial flow."),
-            cls._step("fsm_tutorial", "tutorial", "Run the FSM tutorial flow."),
-            cls._step("ip_tutorial", "tutorial", "Run the IP tutorial flow."),
-            cls._step("soc_pless", "tutorial", "Run the P-less SoC tutorial flow."),
-        )
-
-    @staticmethod
-    def _params() -> dict[str, FlowParameter]:
-        """Return reusable step parameter descriptions keyed by Make variable."""
+    def describe(self) -> dict[str, Any]:
+        """Return the current client configuration."""
 
         return {
-            "ACTIVITY": FlowParameter("ACTIVITY", "Default switching activity percentage.", "10"),
-            "CLK_PERIOD": FlowParameter("CLK_PERIOD", "Clock period used for constraints, in ns.", "20"),
-            "COMPILER": FlowParameter("COMPILER", "Simulator compiler command.", "verilator", False, "tool"),
-            "F_CLK": FlowParameter("F_CLK", "FSM generator clock frequency value.", "32"),
-            "FSM": FlowParameter("FSM", "FSM name to generate or install.", "fsm_example", True),
-            "FUSESOC_TOOL": FlowParameter("FUSESOC_TOOL", "FuseSoC backend tool override.", None, False, "tool"),
-            "HOST": FlowParameter("HOST", "SoC host wrapper selection.", "uart"),
-            "IP_NAME": FlowParameter("IP_NAME", "IP bundle name used by load/save steps.", "TOP"),
-            "LIBS": FlowParameter("LIBS", "Timing liberty files used by OpenSTA.", None, False, "tool"),
-            "LINTER": FlowParameter("LINTER", "RTL linter command.", "verilator", False, "tool"),
-            "MOD_ADD": FlowParameter("MOD_ADD", "Driver base address value.", "0x80000000"),
-            "NPATHS": FlowParameter("NPATHS", "Number of timing paths to report.", "20"),
-            "ORS_TECH": FlowParameter("ORS_TECH", "OpenROAD technology name.", "sky130hd", False, "tool"),
-            "PATH_VIEW_FILE": FlowParameter("PATH_VIEW_FILE", "Timing report file to inspect."),
-            "PRJ": FlowParameter("PRJ", "Project/vendor prefix for generated FuseSoC cores.", "prj"),
-            "REG_ITF": FlowParameter("REG_ITF", "Register bus interface for generated wrappers.", "tlul"),
-            "SOC_CFG_MODE": FlowParameter("SOC_CFG_MODE", "SoC configuration source mode.", "auto"),
-            "TARGET_FSOC": FlowParameter("TARGET_FSOC", "FuseSoC target to run.", "lint"),
-            "TARGET_OPT": FlowParameter("TARGET_OPT", "Synthesis optimization goal.", "area"),
-            "TARGET_SYN": FlowParameter("TARGET_SYN", "Synthesis target style.", "asic"),
-            "VENDOR": FlowParameter("VENDOR", "Vendor manifest name to update.", "lowrisc_ip"),
-            "VIEWER": FlowParameter("VIEWER", "Waveform viewer command.", "gtkwave", False, "tool"),
-            "VSV": FlowParameter("VSV", "RTL flavor selector: v or sv.", "sv"),
+            "package": "flexsoc",
+            "project_root": str(self.project_root),
+            "workdir": str(self.workdir),
+            "settings": dict(self.settings),
         }
 
-    @staticmethod
-    def _makefile_targets(makefile: Path) -> tuple[str, ...]:
-        """Parse public targets declared through .PHONY in one Makefile."""
+    def set(self, **values: Any) -> "FlexSoC":
+        """Update default Make variables in place."""
 
-        targets: set[str] = set()
-        for line in makefile.read_text(encoding="utf-8").splitlines():
-            if line.startswith(".PHONY:"):
-                targets.update(line.partition(":")[2].split())
-        return tuple(sorted(targets))
+        self.settings.update(_upper(values))
+        return self
 
-    @staticmethod
-    def _flow_makefile() -> Path:
-        """Return the packaged Make entrypoint used by flow targets."""
+    def override(self, **values: Any) -> "FlexSoC":
+        """Return a copy with extra Make-variable defaults."""
 
-        return Path(__file__).with_name("backend") / "Makefile"
+        return FlexSoC(FlexSoCConfig(self.project_root, self.workdir, self.settings), **values)
+
+    def targets(self) -> tuple[FlexSoCTarget, ...]:
+        """List every backend Make target exposed by fx."""
+
+        return tuple(_target_object(name) for name in TARGETS)
+
+    def target_names(self) -> tuple[str, ...]:
+        """Return only callable target names."""
+
+        return tuple(TARGETS)
+
+    def target_info(self, target: str) -> FlexSoCTarget:
+        """Return metadata for one target."""
+
+        return _target_object(_target(target))
+
+    def values(self, overrides: Mapping[str, Any] | None = None) -> dict[str, str]:
+        """Merge defaults, workspace, and call overrides."""
+
+        return _upper({"WORKSPACE": self.workdir, **self.settings, **dict(overrides or {})})
+
+    def command(self, target: str, **overrides: Any) -> FlexSoCCommand:
+        """Build one Make command without executing it."""
+
+        name, values = _target(target), self.values(overrides)
+        argv = ("make", "-f", str(_backend_makefile()), name, *(f"{k}={v}" for k, v in values.items()))
+        return FlexSoCCommand(name, tuple(argv), self.project_root, self._env(), values)
+
+    def commands(self, *targets: str, **overrides: Any) -> tuple[FlexSoCCommand, ...]:
+        """Build several Make commands in user order."""
+
+        return tuple(self.command(target, **overrides) for target in targets)
+
+    def run(
+        self,
+        *targets: str,
+        check: bool = True,
+        dry_run: bool = False,
+        capture: bool = False,
+        **overrides: Any,
+    ) -> tuple[FlexSoCCommand | FlexSoCResult, ...]:
+        """Run or preview one or more targets."""
+
+        commands = self.commands(*targets, **overrides)
+        if dry_run:
+            return commands
+        results: list[FlexSoCResult] = []
+        for command in commands:
+            done = subprocess.run(
+                command.argv,
+                cwd=command.cwd,
+                env=command.env,
+                check=check,
+                capture_output=capture,
+                text=capture,
+            )
+            results.append(
+                FlexSoCResult(
+                    command,
+                    done.returncode,
+                    done.stdout if capture else None,
+                    done.stderr if capture else None,
+                )
+            )
+        return tuple(results)
+
+    def _env(self) -> dict[str, str]:
+        """Prepend this checkout to PYTHONPATH."""
+
+        env = os.environ.copy()
+        extra = os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
+        env["PYTHONPATH"] = str(self.project_root / "src") + extra
+        return env
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible script hook
+# ---------------------------------------------------------------------------
+
+def main(argv: list[str] | None = None) -> int:
+    """Delegate old script entry points to the CLI module."""
+
+    from .cli import app
+
+    return app(argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

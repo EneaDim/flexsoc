@@ -1,5 +1,5 @@
-"""Module entrypoint for running the FlexSoC CLI with python -m flexsoc."""
+"""Run the minimal fx front-end with ``python -m flexsoc``."""
 
 from .cli import app
 
-app()
+raise SystemExit(app())
