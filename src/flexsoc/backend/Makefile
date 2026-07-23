@@ -824,7 +824,7 @@ sv2v: ## Convert SV to Verilog with sv2v
 # SDF, STA, violator extraction, power and path-view reports.
 # ============================================================================
 ##@ Signoff
-setup_signoff: setup_sdc syn ## Generate signoff scripts
+setup_signoff: setup_sdc ## Generate signoff scripts
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SIGNOFFDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff \
@@ -1338,7 +1338,7 @@ soc_ibex_tutorial: TOP ?= soc
 
 soc_uart_tutorial: ## Run UART-host SoC tutorial
 	@echo "\n$(ORANGE)Loading IPs for UART-host SoC tutorial ...\n$(RESET)"
-	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart-master LOAD_AS=uart
+	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart_master LOAD_AS=uart
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
