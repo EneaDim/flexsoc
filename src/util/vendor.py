@@ -294,11 +294,17 @@ class Mapping1:
 
     @staticmethod
     def apply_patch(basedir, patchfile):
-        cmd = ['git', 'apply', '--directory', str(basedir), '-p1',
-               str(patchfile)]
+        # Apply each mapping-local patch from the mapped destination directory.
+        #
+        # Do not use `git apply --directory <absolute-path>` here: recent Git
+        # rejects the resulting absolute paths as unsafe (for example
+        # `/repo/vendor/lowrisc_ip/ip/tlul/tlul.core`). Running from `basedir`
+        # keeps patch paths relative and works for vendored trees that are not
+        # Git repositories.
+        cmd = ['git', 'apply', '-p1', str(patchfile.resolve())]
         if verbose:
             cmd += ['--verbose']
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True, cwd=str(basedir))
 
     def import_from_upstream(self, upstream_path,
                              target_path, exclude_files, patch_dir):
