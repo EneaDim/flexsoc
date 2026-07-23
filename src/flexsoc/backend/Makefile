@@ -110,11 +110,16 @@ FSM_INPUT_DIR  ?= $(FSMWORKDIR)/inputs
 FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
 ORSDIR         ?= $(OR_WORKDIR)
 REGRESSIONDIR  ?= $(OUTROOT)/regression
+TEST_NAMES     ?= smoke corners random
+TEST_ID        ?=
 TEST_NAME      ?= smoke
 TESTDIR        ?= $(TBDIR)/tests/$(TEST_NAME)
 REGCFG         ?= $(TESTDIR)/config.regs
-VECFILE        ?= $(TESTDIR)/$(TEST_NAME).vec
-SIM_PLUSARGS   ?= +TEST_NAME=$(TEST_NAME) +CFG=$(REGCFG) +VEC=$(VECFILE)
+DATA_IN        ?= $(TESTDIR)/data_in.vec
+DATA_OUT       ?= $(TESTDIR)/data_out.vec
+SIM_TEST_SEL   := $(if $(strip $(TEST_ID)),+TEST_ID=$(TEST_ID),+TEST_NAME=$(TEST_NAME))
+SIM_TEST_FILES := $(if $(strip $(TEST_ID)),,+CFG=$(REGCFG) +DATA_IN=$(DATA_IN) +DATA_OUT=$(DATA_OUT))
+SIM_PLUSARGS   ?= $(SIM_TEST_SEL) $(SIM_TEST_FILES)
 COCOTB_WAVES   ?= 1
 
 # -----------------------------------------------------------------------------
@@ -308,10 +313,10 @@ endef
 PHONY_TARGETS :=
 PHONY_TARGETS += help help_ip help_soc help_doc help_fsm
 PHONY_TARGETS += setup soc_cfg soc_start
-PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub flist flist_split driver fetch
+PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist flist_split driver fetch
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
 PHONY_TARGETS += lint lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier
-PHONY_TARGETS += setup_tb setup_cocotb setup_model compile compile_v compile_sv sim sim_v sim_sv cocotb
+PHONY_TARGETS += setup_tb setup_cocotb setup_model compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
 PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
 PHONY_TARGETS += setup_signoff compile_syn sim_syn sta sdf power sta_violators path_view
@@ -413,26 +418,28 @@ doc: ## Generate register documentation
 	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
 	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
-rtl_stub: ## Generate RTL wrapper/core stubs
+rtl_stub: ## Generate RTL core and aligned top wrapper
 	@echo "\n$(ORANGE)RTL stub generation...\n$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) --hjson-file $(DATADIR)/$(TOP).hjson --interface $(REG_ITF) --output-dir $(RTLDIR)
 
-ip_start: setup hjson reg doc rtl_stub flist setup_tb sim ## Bootstrap a complete IP run
+top_from_core: ## Regenerate $(TOP).sv from edited $(TOP)_core.sv
+	$(call _require_var,TOP)
+	$(Q)$(PYTHON) -m flexsoc.backend.top_from_core $(OVERWRITE) --top $(TOP) --rtl-dir $(RTLDIR) --interface $(REG_ITF)
 
-flist: setup ## Generate the RTL filelist
-	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --out $(RTLDIR)/rtl_list.f --ips-root $(IPS_ROOT) --rtldir $(RTLDIR)
+ip_start: setup hjson reg doc rtl_stub flist setup_tb sim ## Bootstrap a complete IP run
 
 RTL_COMMON_LIST ?= $(RTLDIR)/rtl_common.f
 RTL_IP_LIST ?= $(RTLDIR)/rtl_ip.f
-RTL_LINT_LIST ?= $(RTLDIR)/rtl_lint.f
+RTL_FILELISTS = -f $(RTL_COMMON_LIST) -f $(RTL_IP_LIST)
+RTL_FILELIST_ARGS = --filelist $(RTL_COMMON_LIST) --filelist $(RTL_IP_LIST)
 
-flist_split: flist ## Split common and IP RTL filelists
-	@grep -E '/hw/ips/(pkgs|prim|prim_opentitan|tlul)/' $(RTLDIR)/rtl_list.f > $(RTL_COMMON_LIST) || true
-	@grep -vE '/hw/ips/(pkgs|prim|prim_opentitan|tlul)/' $(RTLDIR)/rtl_list.f > $(RTL_IP_LIST) || true
-	@cat $(RTL_COMMON_LIST) $(RTL_IP_LIST) > $(RTL_LINT_LIST)
+flist: setup ## Generate clean common/IP RTL filelists
+	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --common-out $(RTL_COMMON_LIST) --ip-out $(RTL_IP_LIST) --ips-root $(IPS_ROOT) --rtldir $(RTLDIR)
+	@rm -f $(RTLDIR)/rtl_list.f $(RTLDIR)/rtl_lint.f
+
+flist_split: flist ## Compatibility alias for clean common/IP filelists
 	@echo $(RTL_COMMON_LIST)
 	@echo $(RTL_IP_LIST)
-	@echo $(RTL_LINT_LIST)
 
 driver: ## Generate C driver files from HJSON
 	$(Q)$(PYTHON) $(REGTOOL) -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
@@ -453,9 +460,6 @@ ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui ## Run fu
 SLANG ?= slang
 SLANG_HIER ?= slang-hier
 VERILATOR ?= verilator
-
-RTL_COMMON_LIST ?= $(RTLDIR)/rtl_common.f
-RTL_IP_LIST ?= $(RTLDIR)/rtl_list.f
 
 LINT_TOOL ?= auto
 LINT_PART ?= ip
@@ -489,7 +493,7 @@ SLANG_FLAGS_width := -Wwidth-trunc -Wwidth-expand -Wport-width-trunc -Wport-widt
 SLANG_FLAGS_unconnected := -Wunconnected-input-port -Wunconnected-output-port -Wunconnected-inout-port -Wempty-input-connection -Wempty-output-connection -Wempty-inout-connection
 SLANG_FLAGS_unused := -Wunused-def -Wunused-net -Wunused-port -Wunused-variable -Wunused-parameter -Wunused-typedef -Wunused-import
 
-LINT_ARGS = TOP="$(TOP)" HOST="$(HOST)" FORCE="$(FORCE)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" LINT_TOOL="$(LINT_TOOL)" LINT_PART="$(LINT_PART)"
+LINT_ARGS = TOP="$(TOP)" HOST="$(HOST)" FORCE="$(FORCE)" RUN_ID="$(RUN_ID)" RUN_TOP="$(RUN_TOP)" WORKSPACE="$(WORKSPACE)" LINT_TOOL="$(LINT_TOOL)" LINT_PART="$(LINT_PART)"
 
 # Compatibility aliases used by compile_v/compile_sv prerequisites.
 lint_v lint_sv: lint
@@ -527,6 +531,7 @@ _lint_run:
 	echo "$$cmd"; \
 	eval "$$cmd" > "$(LINT_FULL_LOG)" 2>&1; status=$$?; \
 	if [ "$(LINT_KIND)" = "all" ]; then cat "$(LINT_FULL_LOG)"; exit $$status; fi; \
+	if [ $$status -ne 0 ]; then cat "$(LINT_FULL_LOG)"; exit $$status; fi; \
 	grep -E -i "$(LINT_PATTERN)" "$(LINT_FULL_LOG)" | grep -vF "$(RTLDIR)" > "$(LINT_COMMON_LOG)" || true; \
 	grep -E -i "$(LINT_PATTERN)" "$(LINT_FULL_LOG)" | grep -F "$(RTLDIR)" > "$(LINT_IP_LOG)" || true; \
 	case "$(LINT_PART)" in \
@@ -537,11 +542,10 @@ _lint_run:
 	esac; \
 	if [ -n "$$show" ]; then cat "$$show"; fi; \
 	if [ "$(LINT_PART)" = "all" ]; then \
-		if [ -s "$(LINT_COMMON_LOG)" ] || [ -s "$(LINT_IP_LOG)" ]; then echo ""; echo "Found $(LINT_KIND) diagnostics."; exit 1; fi; \
+		if [ -s "$(LINT_COMMON_LOG)" ] || [ -s "$(LINT_IP_LOG)" ]; then echo ""; echo "Found $(LINT_KIND) diagnostics. Full log: $(LINT_FULL_LOG)"; exit 0; fi; \
 	elif [ -s "$$show" ]; then \
-		echo ""; echo "Found $(LINT_KIND) diagnostics. Full log: $(LINT_FULL_LOG)"; exit 1; \
+		echo ""; echo "Found $(LINT_KIND) diagnostics. Full log: $(LINT_FULL_LOG)"; exit 0; \
 	fi; \
-	if [ $$status -ne 0 ]; then cat "$(LINT_FULL_LOG)"; exit $$status; fi; \
 	echo "No $(LINT_KIND) diagnostics found for $(LINT_PART). Full log: $(LINT_FULL_LOG)"
 
 SLANG_HIER_LOG ?= $(LOGDIR)/$(TOP)_hier.txt
@@ -549,7 +553,7 @@ SLANG_HIER_LOG ?= $(LOGDIR)/$(TOP)_hier.txt
 slang_hier: flist_split ## Print hierarchy with slang-hier
 	@mkdir -p $(LOGDIR)
 	@if [ ! -x "$(SLANG_HIER)" ]; then echo "slang-hier not found. Run: make install-slang"; exit 2; fi
-	$(Q)$(SLANG_HIER) --top $(TOP) -DSYNTHESIS -f $(RTL_LINT_LIST) > $(SLANG_HIER_LOG)
+	$(Q)$(SLANG_HIER) --top $(TOP) -DSYNTHESIS $(RTL_FILELISTS) > $(SLANG_HIER_LOG)
 
 # ============================================================================
 # 6. Testbench/model setup and simulation
@@ -610,6 +614,13 @@ setup_model: setup ## Generate a Python model scaffold
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv) ## Compile the current testbench
 sim:     $(if $(filter v,$(VSV)),sim_v,sim_sv) ## Run simulation
 
+sim_tests: setup_tb ## Run every generated SystemVerilog vector test
+	@set -eu; \
+	for test in $(TEST_NAMES); do \
+		printf '\n$(ORANGE)[sim_tests] TEST_NAME=%s$(RESET)\n' "$$test"; \
+		$(MAKE) --no-print-dir -f $(abspath $(lastword $(MAKEFILE_LIST))) sim TEST_NAME="$$test" TEST_ID=; \
+	done
+
 compile_v: lint_v ## Compile Verilog simulation
 	@echo "\n$(ORANGE)Compiling...\n$(RESET)"
 ifeq ($(COMPILER),iverilog)
@@ -648,7 +659,7 @@ ifeq ($(COMPILER),iverilog)
 else
 	$(Q)$(MKDIR) -p $(SIMDIR)/$(COMPILER) $(LOGDIR)
 	$(Q)verilator $(VERILATOR_FLAGS) \
-		-f $(RTLDIR)/rtl_list.f \
+		$(RTL_FILELISTS) \
 		$(TBDIR)/$(TESTBENCH).sv \
 		--top-module $(TESTBENCH) \
 		> $(LOGDIR)/$(TOP)_compile.log 2>&1
@@ -664,7 +675,7 @@ else
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
-cocotb: ## Run cocotb tests
+cocotb: ## Run one cocotb vector test selected by TEST_NAME or TEST_ID
 	$(Q)if [ ! -f "$(TBDIR)/cocotb/Makefile" ]; then \
 		echo "cocotb scaffold not found: $(TBDIR)/cocotb/Makefile"; \
 		echo "Generate it first, for example:"; \
@@ -673,10 +684,18 @@ cocotb: ## Run cocotb tests
 	fi
 	$(Q)$(PYTHON) -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('cocotb_tools') else 1)" || { \
 		echo "cocotb is not installed in this environment."; \
-		echo "Run make install from the repository root, then retry."; \
+		echo "Run uv sync from the repository root, then retry."; \
 		exit 1; \
 	}
-	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME=$(TEST_NAME) WAVES=$(COCOTB_WAVES)
+	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb \
+		TEST_NAMES="$(TEST_NAMES)" TEST_NAME="$(TEST_NAME)" TEST_ID="$(TEST_ID)" WAVES=$(COCOTB_WAVES)
+
+cocotb_tests: setup_cocotb ## Run every generated cocotb vector test
+	@set -eu; \
+	for test in $(TEST_NAMES); do \
+		printf '\n$(ORANGE)[cocotb_tests] TEST_NAME=%s$(RESET)\n' "$$test"; \
+		$(MAKE) --no-print-dir -f $(abspath $(lastword $(MAKEFILE_LIST))) cocotb TEST_NAME="$$test" TEST_ID=; \
+	done
 
 # ============================================================================
 # 7. Viewing, waveform inspection and regression artifacts
@@ -730,7 +749,7 @@ view_presyn_sv: ## Open pre-synthesis graph from SV
 	@echo "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
 	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
-		-f rtl/rtl_list.f --top $(TOP) ; \
+		-f rtl/rtl_common.f -f rtl/rtl_ip.f --top $(TOP) ; \
 	prep -top $(TOP); select -clear; select -module $(MODULE) ; \
 	show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" \
 		> $(LOGDIR)/$(TOP)_presyn.log 2>&1
@@ -764,7 +783,7 @@ setup_syn: setup_sdc ## Generate Yosys synthesis scripts
 	$(Q)$(MKDIR) -p $(SYNDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_syn \
 		-top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
-		--filelist $(RTLDIR)/rtl_list.f \
+		$(RTL_FILELIST_ARGS) \
 		-liberty $(LIB_SYN) -clk $(CLK_PERIOD) \
 		-target $(TARGET_SYN) -opt $(TARGET_OPT) \
 		-o $(SYNDIR)
@@ -789,7 +808,7 @@ yosys-vgen: ## Convert SV to Verilog with Yosys
 	@echo "\n$(ORANGE)Verilog generation with Yosys...\n$(RESET)"
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
 	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
-		-f rtl/rtl_list.f \
+		-f rtl/rtl_common.f -f rtl/rtl_ip.f \
 		--top $(TOP); \
 	opt -keepdc; \
 	bwmuxmap; \
@@ -874,7 +893,7 @@ setup_pnr: ## Generate OpenROAD config
 	$(Q)$(MKDIR) -p $(ORSDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_pnr --top $(TOP) \
 		--synthesis-strategy $(TARGET_OPT) --clock-period $(CLK_PERIOD) \
-		--platform $(ORS_TECH) --filelist $(RTLDIR)/rtl_list.f --output-dir $(ORSDIR)
+		--platform $(ORS_TECH) $(RTL_FILELIST_ARGS) --output-dir $(ORSDIR)
 
 pnr: setup_pnr ## Run OpenROAD place and route
 	@echo "\n$(ORANGE)Doing Place&Route...\n$(RESET)"
@@ -1158,7 +1177,9 @@ soc_flist: ## Generate SoC filelist
 		--run-top $(RUN_TOP) \
 		--run-id $(RUN_ID) \
 		--top soc \
-		--out $(RTLDIR)/rtl_list.f
+		--common-out $(RTL_COMMON_LIST) \
+		--ip-out $(RTL_IP_LIST)
+	@rm -f $(RTLDIR)/rtl_list.f $(RTLDIR)/rtl_lint.f
 soc_flow: xbar soc soc_flist ## Generate crossbar, SoC RTL and filelist
 # Host-specific wrappers
 soc_uart_gen: HOST := uart

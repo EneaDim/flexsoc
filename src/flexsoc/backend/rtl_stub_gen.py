@@ -1,4 +1,4 @@
-"""Generate minimal SystemVerilog RTL stubs from a Comportable HJSON file."""
+"""Generate starter RTL core logic and a wrapper aligned from the core ports."""
 
 from __future__ import annotations
 
@@ -10,35 +10,36 @@ from pathlib import Path
 from typing import Any
 
 from .common import colorize, ensure_dir, safe_write_file
+from .top_from_core import render_top_from_core
 
 try:
     import hjson  # type: ignore
-except ImportError:  # pragma: no cover - exercised only when hjson is missing.
+except ImportError:  # pragma: no cover - import fallback for tiny tests.
     hjson = None
 
 Hjson = dict[str, Any]
-SUPPORTED_INTERFACES = {"tlul", "reg_iface", "reg"}
 
 
 def _load_hjson(path: Path) -> Hjson:
-    """Load HJSON with hjson when available and a tiny literal fallback otherwise."""
+    """Load HJSON metadata with hjson or a tiny literal fallback."""
 
     text = path.read_text(encoding="utf-8")
     if hjson is not None:
         return dict(hjson.loads(text))
-    normalized = re.sub(r"([{,]\s*)([A-Za-z_][\w]*)\s*:", r'\1"\2":', text)
-    return dict(ast.literal_eval(normalized))
+    text = re.sub(r"([{,]\s*)([A-Za-z_]\w*)\s*:", r'\1"\2":', text)
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+    return dict(ast.literal_eval(text))
 
 
-def _sanitize_id(value: str) -> str:
+def _id(value: str) -> str:
     """Return a conservative lowercase SystemVerilog identifier."""
 
     name = re.sub(r"\W+", "_", value.strip().lower()).strip("_")
     return f"_{name}" if name[:1].isdigit() else name
 
 
-def _bit_width(bits: str) -> int:
-    """Return the width encoded by a single bit or msb:lsb range."""
+def _width(bits: str) -> int:
+    """Return the width encoded by one bit or msb:lsb range."""
 
     if ":" not in bits:
         return 1
@@ -46,186 +47,162 @@ def _bit_width(bits: str) -> int:
     return abs(msb - lsb) + 1
 
 
-def _sv_logic_decl(name: str, width: int) -> str:
-    """Render a SystemVerilog logic declaration for a scalar or vector."""
+def _logic(name: str, width: int) -> str:
+    """Render a scalar/vector logic declaration."""
 
     return f"  logic [{width - 1}:0] {name};" if width > 1 else f"  logic {name};"
 
 
-def _field_signal(reg_name: str, field: Hjson) -> tuple[str, int, str]:
-    """Return signal name, width, and CSR path suffix for one register field."""
+def _field_signal(reg_name: str, field: Hjson, *, flat: bool) -> tuple[str, int, str]:
+    """Return local name, width, and reggen CSR path for one HJSON field."""
 
-    field_name = _sanitize_id(str(field.get("name") or reg_name))
-    signal = reg_name if field_name == reg_name else f"{reg_name}_{field_name}"
-    path = reg_name if field_name == reg_name else f"{reg_name}.{field_name}"
-    return signal, _bit_width(str(field["bits"])), path
+    field_name = _id(str(field.get("name") or reg_name))
+    signal = reg_name if flat else f"{reg_name}_{field_name}"
+    path = reg_name if flat else f"{reg_name}.{field_name}"
+    return signal, _width(str(field["bits"])), path
 
 
-def _register_signals(hj: Hjson) -> tuple[list[str], list[str], list[str]]:
-    """Derive internal declarations and CSR assignments from register metadata."""
+def _register_signals(hj: Hjson) -> tuple[list[str], list[str], list[str], set[str]]:
+    """Map HJSON registers to reggen's reg2hw/hw2reg structs."""
 
-    declarations: list[str] = []
-    reg2core: list[str] = []
-    core2reg: list[str] = []
+    decls, reg2core, core2reg, names = [], [], [], set()
     for reg in hj.get("registers", []) or []:
-        reg_name = _sanitize_id(str(reg["name"]))
-        fields = reg.get("fields", []) or []
-        swaccess = str(reg.get("swaccess", "")).lower()
-        hwaccess = str(reg.get("hwaccess", "")).lower()
-        hwqe = bool(reg.get("hwqe", False))
-        hwre = bool(reg.get("hwre", False))
-        for signal, width, path in (_field_signal(reg_name, field) for field in fields):
-            declarations.append(_sv_logic_decl(signal, width))
-            if swaccess in {"rw", "wo"}:
+        if not isinstance(reg, dict) or "name" not in reg:
+            continue
+        reg_name = _id(str(reg["name"]))
+        fields = [f for f in reg.get("fields", []) or [] if isinstance(f, dict) and "bits" in f]
+        flat = len(fields) == 1
+        for field in fields:
+            signal, width, path = _field_signal(reg_name, field, flat=flat)
+            swaccess = str(field.get("swaccess", reg.get("swaccess", ""))).lower()
+            hwaccess = str(field.get("hwaccess", reg.get("hwaccess", ""))).lower()
+            if signal not in names:
+                decls.append(_logic(signal, width))
+                names.add(signal)
+            if swaccess in {"rw", "wo", "w1c", "w1s", "rw1c", "rw1s", "rw0c", "rw0w1c"}:
                 reg2core.append(f"  assign {signal} = reg2hw.{path}.q;")
-                if hwqe:
-                    declarations.append(_sv_logic_decl(f"{signal}_valid", 1))
-                    reg2core.append(f"  assign {signal}_valid = reg2hw.{path}.qe;")
-                if hwre:
-                    declarations.append(_sv_logic_decl(f"{signal}_ready", 1))
-                    reg2core.append(f"  assign {signal}_ready = reg2hw.{path}.re;")
             if swaccess == "ro" and hwaccess in {"hrw", "hwo"}:
                 core2reg.append(f"  assign hw2reg.{path}.d = {signal};")
-    return declarations, reg2core, core2reg
+    return decls, reg2core, core2reg, names
 
 
-def _block(title: str, lines: list[str], fallback: str) -> list[str]:
-    """Render a short generated section with a fallback comment."""
+def _assign_if(name: str, expr: str, names: set[str]) -> list[str]:
+    """Assign a generated CSR signal only when it exists."""
 
-    return ["", f"  // {title}", *(lines or [f"  // {fallback}"])]
+    return [f"  assign {name} = {expr};"] if name in names else []
+
+
+def _sig(names: set[str], name: str, default: str) -> str:
+    """Return a CSR signal expression or a safe default."""
+
+    return name if name in names else default
 
 
 def render_core(hj: Hjson) -> str:
-    """Render the generated `<top>_core.sv` module body."""
+    """Render a small but useful pipelined <top>_core.sv."""
 
-    module = _sanitize_id(str(hj["name"]))
-    declarations, reg2core, core2reg = _register_signals(hj)
+    top = _id(str(hj["name"]))
+    decls, reg2core, core2reg, names = _register_signals(hj)
+    ctrl_en = _sig(names, "ctrl_en", "1'b1")
+    ctrl_clr = _sig(names, "ctrl_clr", "1'b0")
+    mode_sel = _sig(names, "mode_sel", "2'd0")
+    scale = _sig(names, "scale", "8'd0")
+    core_logic = [
+        "  logic [31:0] add_result;",
+        "  logic [31:0] xor_result;",
+        "  logic [31:0] selected_d;",
+        "  logic [31:0] pipe_q0;",
+        "  logic [31:0] pipe_q1;",
+        "  logic        valid_q0;",
+        "  logic        valid_q1;",
+        "",
+        "  assign add_result = data_i + coeff_i;",
+        "  assign xor_result = data_i ^ coeff_i;",
+        "",
+        "  always_comb begin",
+        f"    unique case ({mode_sel}[1:0])",
+        "      2'd0: selected_d = add_result;",
+        "      2'd1: selected_d = xor_result;",
+        f"      2'd2: selected_d = data_i << {scale}[4:0];",
+        "      default: selected_d = data_i;",
+        "    endcase",
+        f"    if (!{ctrl_en}) selected_d = '0;",
+        "  end",
+        "",
+        "  always_ff @(posedge clk_i or negedge rst_ni) begin",
+        f"    if (!rst_ni || {ctrl_clr}) begin",
+        "      pipe_q0  <= '0;",
+        "      pipe_q1  <= '0;",
+        "      valid_q0 <= 1'b0;",
+        "      valid_q1 <= 1'b0;",
+        "    end else begin",
+        "      pipe_q0  <= selected_d;",
+        "      pipe_q1  <= pipe_q0;",
+        f"      valid_q0 <= valid_i & {ctrl_en};",
+        "      valid_q1 <= valid_q0;",
+        "    end",
+        "  end",
+        "",
+        "  assign data_o  = pipe_q1;",
+        "  assign valid_o = valid_q1;",
+        *_assign_if("status_busy", "valid_q0", names),
+        *_assign_if("status_done", "valid_q1", names),
+        *_assign_if("status_error", "1'b0", names),
+        *_assign_if("result", "pipe_q1", names),
+    ]
     lines = [
         "// Auto-generated by flexsoc.backend.rtl_stub_gen.",
-        f"module {module}_core",
-        f"  import {module}_reg_pkg::*;",
+        f"module {top}_core",
+        f"  import {top}_reg_pkg::*;",
         "(",
         "  input        clk_i,",
         "  input        rst_ni,",
-        f"  input  {module}_reg2hw_t reg2hw,",
-        f"  output {module}_hw2reg_t hw2reg,",
+        f"  input  {top}_reg2hw_t reg2hw,",
+        f"  output {top}_hw2reg_t hw2reg,",
         "",
-        "  input  logic port_i,",
-        "  output logic port_o",
+        "  input  logic [31:0] data_i,",
+        "  input  logic [31:0] coeff_i,",
+        "  input  logic        valid_i,",
+        "  output logic [31:0] data_o,",
+        "  output logic        valid_o",
         ");",
-    ]
-    lines += _block("CSR-derived signals", declarations, "no CSR-driven signals inferred")
-    lines += _block("Register-to-core assignments", reg2core, "no register-to-core assignments")
-    lines += _block("Core-to-register assignments", core2reg, "no core-to-register assignments")
-    lines += [
         "",
-        "  prim_ff_2sync #(",
-        "    .Width(1),",
-        "    .ResetValue('0)",
-        "  ) u_sync_name (",
-        "    .clk_i (clk_i),",
-        "    .rst_ni(rst_ni),",
-        "    .d_i   (port_i),",
-        "    .q_o   (port_o)",
-        "  );",
+        "  // CSR signals",
+        *(decls or ["  // no CSR signals inferred"]),
+        "",
+        "  // CSR to core",
+        *(reg2core or ["  // no writable CSR fields inferred"]),
+        "",
+        "  // Core datapath",
+        *core_logic,
+        "",
+        "  // Core to CSR",
+        *(core2reg or ["  // no readable HW CSR fields inferred"]),
         "",
         "endmodule",
     ]
-    return "\n".join(lines)
-
-
-def _bus_interface(itf: str) -> tuple[str, str, str, str]:
-    """Return wrapper port and register-top connection snippets for one bus type."""
-
-    if itf == "tlul":
-        return (
-            "input  tlul_pkg::tl_h2d_t tl_i",
-            "output tlul_pkg::tl_d2h_t tl_o",
-            ".tl_i(tl_i),",
-            ".tl_o(tl_o),",
-        )
-    return (
-        "input  reg_req_t reg_req_i",
-        "output reg_rsp_t reg_rsp_o",
-        ".reg_req_i(reg_req_i),",
-        ".reg_rsp_o(reg_rsp_o),",
-    )
-
-
-def render_wrapper(hj: Hjson, itf: str) -> str:
-    """Render the generated `<top>.sv` register-wrapper module."""
-
-    itf = itf.strip().lower()
-    if itf not in SUPPORTED_INTERFACES:
-        raise ValueError(f"Unsupported --itf '{itf}'. Supported: tlul, reg_iface, reg")
-    module = _sanitize_id(str(hj["name"]))
-    bus_in, bus_out, bus_conn_in, bus_conn_out = _bus_interface("reg_iface" if itf == "reg" else itf)
-    lines = [
-        "// Auto-generated by flexsoc.backend.rtl_stub_gen.",
-        f"module {module}",
-        f"  import {module}_reg_pkg::*;",
-        "(",
-        "  input  clk_i,",
-        "  input  rst_ni,",
-        "",
-        f"  {bus_in},",
-        f"  {bus_out},",
-        "",
-        "  input  logic port_i,",
-        "  output logic port_o",
-        ");",
-        "",
-        f"  {module}_reg2hw_t reg2hw;",
-        f"  {module}_hw2reg_t hw2reg;",
-        "",
-        f"  {module}_reg_top u_{module}_reg (",
-        "    .clk_i(clk_i),",
-        "    .rst_ni(rst_ni),",
-        f"    {bus_conn_in}",
-        f"    {bus_conn_out}",
-        "    .reg2hw(reg2hw),",
-        "    .hw2reg(hw2reg),",
-        "    .devmode_i(1'b1)",
-        "  );",
-        "",
-        f"  {module}_core u_{module}_core (",
-        "    .clk_i(clk_i),",
-        "    .rst_ni(rst_ni),",
-        "    .reg2hw(reg2hw),",
-        "    .hw2reg(hw2reg),",
-        "    .port_i(port_i),",
-        "    .port_o(port_o)",
-        "  );",
-        "",
-        "endmodule",
-    ]
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
 
 def generate_rtl_stubs(hjson_path: str | Path, itf: str, outdir: str | Path, *, force: bool = False) -> tuple[Path, Path]:
-    """Generate core and wrapper SystemVerilog files and return their paths."""
+    """Generate <top>_core.sv and an aligned <top>.sv wrapper."""
 
-    source = Path(hjson_path).resolve()
-    hj = _load_hjson(source)
-    name = _sanitize_id(str(hj.get("name", "")))
-    if not name:
+    hj = _load_hjson(Path(hjson_path).resolve())
+    top = _id(str(hj.get("name", "")))
+    if not top:
         raise ValueError("missing or empty 'name' in HJSON")
     ensure_dir(outdir)
-    core_path = Path(outdir) / f"{name}_core.sv"
-    wrapper_path = Path(outdir) / f"{name}.sv"
+    rtl = Path(outdir)
+    core_path, top_path = rtl / f"{top}_core.sv", rtl / f"{top}.sv"
     safe_write_file(core_path, render_core(hj), overwrite=force)
-    safe_write_file(wrapper_path, render_wrapper(hj, itf), overwrite=force)
-    return core_path, wrapper_path
+    safe_write_file(top_path, render_top_from_core(top, core_path, itf), overwrite=force)
+    return core_path, top_path
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse command-line arguments for RTL stub generation."""
+    """Parse command-line arguments."""
 
-    parser = argparse.ArgumentParser(
-        prog="rtl_stub_gen",
-        description="Generate <top>_core.sv and <top>.sv from Comportable HJSON.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
+    parser = argparse.ArgumentParser(description="Generate starter RTL core and top wrapper.")
     parser.add_argument("--hjson-file", dest="hjson_path", required=True)
     parser.add_argument("--interface", dest="itf", required=True)
     parser.add_argument("--output-dir", dest="outdir", default=".")
@@ -234,18 +211,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the command-line wrapper around the pure generator."""
+    """Run the RTL stub generator."""
 
     try:
         args = parse_args(argv)
         generate_rtl_stubs(args.hjson_path, args.itf, args.outdir, force=args.force)
         return 0
-    except FileExistsError as err:
-        print(colorize(f"Refusing to overwrite existing file: {err}. Use --force."), file=sys.stderr)
-        return 1
-    except KeyboardInterrupt:
-        print(colorize("Aborted by user."), file=sys.stderr)
-        return 130
     except Exception as err:
         print(colorize(f"Error: {err}"), file=sys.stderr)
         return 1

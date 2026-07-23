@@ -34,17 +34,22 @@ def loaded_ips(ips_dir: Path) -> tuple[Path, ...]:
     return tuple(sorted(path for path in ips_dir.iterdir() if path.is_dir()))
 
 
-def read_rtl_list(ip_dir: Path) -> tuple[str, ...]:
-    """Read one IP `rtl/rtl_list.f`, ignoring blank lines and comments."""
+def read_filelists(ip_dir: Path) -> tuple[str, ...]:
+    """Read staged IP common/IP filelists, with legacy fallback."""
 
-    flist = ip_dir / "rtl" / "rtl_list.f"
-    if not flist.exists():
-        return ()
-    return tuple(
-        line
-        for raw in flist.read_text(encoding="utf-8").splitlines()
-        if (line := raw.strip()) and not line.startswith("#")
-    )
+    rtl = ip_dir / "rtl"
+    files = [rtl / "rtl_common.f", rtl / "rtl_ip.f"]
+    if not any(path.exists() for path in files):
+        files = [rtl / "rtl_list.f"]
+    lines: list[str] = []
+    for flist in files:
+        if flist.exists():
+            lines.extend(
+                line
+                for raw in flist.read_text(encoding="utf-8").splitlines()
+                if (line := raw.strip()) and not line.startswith("#")
+            )
+    return tuple(lines)
 
 
 def fallback_rtl_sources(ip_dir: Path) -> tuple[str, ...]:
@@ -63,14 +68,14 @@ def merged_rtl_sources(ips: tuple[Path, ...]) -> tuple[str, ...]:
     merged: list[str] = []
     seen: set[str] = set()
     for ip_dir in ips:
-        for source in read_rtl_list(ip_dir) or fallback_rtl_sources(ip_dir):
+        for source in read_filelists(ip_dir) or fallback_rtl_sources(ip_dir):
             if source not in seen:
                 seen.add(source)
                 merged.append(source)
     return tuple(merged)
 
 
-def write_soc_start_summary(config: SoCStartConfig, ips: tuple[Path, ...], rtl_list: Path) -> Path:
+def write_soc_start_summary(config: SoCStartConfig, ips: tuple[Path, ...], rtl_ip: Path) -> Path:
     """Write a compact summary for the initialized SoC run."""
 
     doc_dir = config.run_dir / "doc"
@@ -83,7 +88,7 @@ def write_soc_start_summary(config: SoCStartConfig, ips: tuple[Path, ...], rtl_l
                 f"run_id={config.run_id}",
                 f"run_dir={config.run_dir}",
                 f"loaded_ips={len(ips)}",
-                f"rtl_list={rtl_list}",
+                f"rtl_ip={rtl_ip}",
             )
         )
         + "\n",
@@ -110,10 +115,11 @@ def initialize_soc_run(config: SoCStartConfig) -> Path:
     if not sources:
         raise ValueError(f"no RTL sources found under loaded IPs in: {config.ips_dir}")
 
-    rtl_list = config.run_dir / "rtl" / "rtl_list.f"
-    rtl_list.write_text("\n".join(sources) + "\n", encoding="utf-8")
-    write_soc_start_summary(config, ips, rtl_list)
-    return rtl_list
+    rtl_ip = config.run_dir / "rtl" / "rtl_ip.f"
+    rtl_ip.write_text("\n".join(sources) + "\n", encoding="utf-8")
+    (config.run_dir / "rtl" / "rtl_list.f").unlink(missing_ok=True)
+    write_soc_start_summary(config, ips, rtl_ip)
+    return rtl_ip
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -139,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     ips = loaded_ips(config.ips_dir)
     print(f"Initialized SoC run: {config.run_dir}")
     print(f"Loaded IPs: {', '.join(ip.name for ip in ips)}")
-    print(f"RTL filelist: {rtl_list}")
+    print(f"RTL IP filelist: {rtl_list}")
     return 0
 
 

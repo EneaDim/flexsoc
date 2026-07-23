@@ -437,15 +437,15 @@ def resolve_ip_dependencies(initial_used: list[Path], ip_candidates: list[Path])
 
 
 
-def _read_rtl_list_entries(rtl_list: Path) -> list[Path]:
-    """Read source entries from one rtl_list.f file."""
+def _read_filelist_entries(filelist: Path) -> list[Path]:
+    """Read source entries from one .f file."""
 
     out: list[Path] = []
-    if not rtl_list.exists():
+    if not filelist.exists():
         return out
 
-    base = rtl_list.parent
-    for raw in rtl_list.read_text(encoding="utf-8", errors="ignore").splitlines():
+    base = filelist.parent
+    for raw in filelist.read_text(encoding="utf-8", errors="ignore").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or line.startswith("+incdir+"):
             continue
@@ -461,8 +461,8 @@ def _read_rtl_list_entries(rtl_list: Path) -> list[Path]:
 def collect_nested_ip_sources(run_root: Path) -> list[Path]:
     """
     If the current run is a SoC run with loaded IPs under:
-      <run_root>/ips/<ip>/rtl/rtl_list.f
-    collect all those sources in IP-folder order, preserving file order.
+      <run_root>/ips/<ip>/rtl/rtl_common.f and rtl_ip.f
+    collect all sources in IP-folder order, preserving file order.
     """
     ips_dir = run_root / "ips"
     if not ips_dir.exists():
@@ -473,12 +473,14 @@ def collect_nested_ip_sources(run_root: Path) -> list[Path]:
 
     for ip_dir in sorted(p for p in ips_dir.iterdir() if p.is_dir()):
         rtl_dir = ip_dir / "rtl"
-        rtl_list = rtl_dir / "rtl_list.f"
+        lists = [rtl_dir / "rtl_common.f", rtl_dir / "rtl_ip.f"]
 
         entries: list[Path] = []
-        if rtl_list.exists():
-            entries = _read_rtl_list_entries(rtl_list)
-        else:
+        for filelist in lists:
+            entries.extend(_read_filelist_entries(filelist))
+        if not entries:
+            entries = _read_filelist_entries(rtl_dir / "rtl_list.f")
+        if not entries:
             entries = sorted(rtl_dir.glob("*.sv")) + sorted(rtl_dir.glob("*.v"))
 
         for path in entries:
@@ -498,7 +500,7 @@ def build_ordered_sources(
     out_file: Path | None = None,
 ) -> list[Path]:
     """
-    Canonical source ordering for rtl_list.f:
+    Canonical source ordering for generated filelists:
       1. always-include packages (explicit order)
       2. used IP support files (explicit order)
       3. remaining RTL package files
@@ -553,7 +555,7 @@ def build_ordered_sources(
         if p not in ordered:
             ordered.append(p)
 
-    # Merge nested IP rtl_list.f sources while keeping SoC-local tail files last.
+    # Merge nested IP filelist sources while keeping SoC-local tail files last.
     run_root = rtl_root.parent
     nested_ip_sources = collect_nested_ip_sources(run_root)
     if nested_ip_sources:

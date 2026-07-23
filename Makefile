@@ -1,7 +1,7 @@
 # Root development Makefile
 #
 # Repository-level developer tasks only. Hardware flow execution stays in
-# src/flexsoc/backend/Makefile and is normally reached through the CLI.
+# src/flexsoc/backend/Makefile and is normally reached through the fx command.
 
 .DEFAULT_GOAL := help
 
@@ -12,7 +12,7 @@ PYTEST ?= pytest
 LINT_PATHS ?= src/flexsoc/api.py src/flexsoc/backend tests
 MAKEFLAGS += --no-print-directory
 
-.PHONY: help install sync dev lint fix test check clean clean-py clean-build clean-all venv
+.PHONY: help install sync dev lint fix test test-e2e check clean clean-py clean-build clean-all venv
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nflexsoc ✨\n"} \
@@ -21,16 +21,15 @@ help: ## Show this help
 		END {printf "\n"}' $(lastword $(MAKEFILE_LIST))
 
 ##@ Setup
-install: sync ## Install dependencies
+install: sync ## Sync the local environment
 
-sync: venv ## Install the editable package with dev and flow tools
-	$(UV) pip install -e ".[dev,flow]"
+sync: ## Install the editable package and every Python dependency
+	$(UV) sync
 
-venv: ## Create or reuse the local uv virtualenv
-	$(UV) venv --allow-existing .venv
+venv: sync ## Create or update the local uv virtualenv
 
-dev: install ## Install and print CLI help
-	$(UV) run --no-sync python -m flexsoc help
+dev: sync ## Sync and print fx help
+	$(UV) run --no-sync fx --help
 
 ##@ Quality
 lint: ## Run Ruff checks
@@ -43,6 +42,9 @@ fix: ## Run Ruff with --fix
 
 test: ## Run pytest
 	$(UV) run --no-sync $(PYTEST) -q
+
+test-e2e: ## Run opt-in real end-to-end fx/tool flow tests
+	FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_FX="$(UV) run --no-sync fx" $(UV) run --no-sync $(PYTEST) -q -m e2e tests/test_e2e_fx.py
 
 check: lint test ## Run lint and tests
 

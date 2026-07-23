@@ -13,7 +13,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Sequence
 
-from .setup_tb import _candidate_hjson_path, _register_entries, write_verification_tests
+from .setup_tb import TEST_NAMES, _candidate_hjson_path, _register_entries, write_verification_tests
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,11 +184,15 @@ def append_existing(paths: list[Path], seen: set[str], path: Path) -> None:
 
 
 def collect_sources(top: str, rtl_dir: Path, _ips_root: Path | None = None) -> list[Path]:
-    """Collect Cocotb RTL sources, preferring rtl_list.f when present."""
+    """Collect Cocotb RTL sources from clean common/IP filelists."""
 
     rtl_dir = Path(rtl_dir)
-    rtl_list = rtl_dir / "rtl_list.f"
-    candidates = read_filelist(rtl_list) if rtl_list.exists() else sorted(rtl_dir.glob("*.sv")) + sorted(rtl_dir.glob("*.v"))
+    lists = [rtl_dir / "rtl_common.f", rtl_dir / "rtl_ip.f"]
+    candidates = [src for flist in lists for src in read_filelist(flist)]
+    if not candidates and (rtl_dir / "rtl_list.f").exists():
+        candidates = read_filelist(rtl_dir / "rtl_list.f")
+    if not candidates:
+        candidates = sorted(rtl_dir.glob("*.sv")) + sorted(rtl_dir.glob("*.v"))
     seen: set[str] = set()
     ordered: list[Path] = []
     for source in candidates:
@@ -203,7 +207,7 @@ def render_source_block(paths: Sequence[Path], var_name: str = "VERILOG_SOURCES"
 
     if not paths:
         return f"# No RTL sources found; run the flist step first.\n{var_name} :="
-    lines = ["# RTL sources expanded from rtl/rtl_list.f", f"{var_name} := \\"]
+    lines = ["# RTL sources expanded from rtl_common.f and rtl_ip.f", f"{var_name} := \\"]
     lines.extend(f"  {path.resolve()} \\" for path in paths[:-1])
     lines.append(f"  {paths[-1].resolve()}")
     return "\n".join(lines)
@@ -259,19 +263,37 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
 
         COMPILE_ARGS += {includes}
         export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
-        export TEST_NAME ?= smoke
+        TEST_NAMES ?= smoke corners random
+        TEST_ID ?=
+        TEST_NAME ?= smoke
+
+        ifeq ($(strip $(TEST_ID)),)
+          SELECTED_TEST := $(TEST_NAME)
+        else
+          TEST_NUMBER := $(shell expr $(TEST_ID) + 1)
+          SELECTED_TEST := $(word $(TEST_NUMBER),$(TEST_NAMES))
+          ifeq ($(strip $(SELECTED_TEST)),)
+            $(error unknown TEST_ID=$(TEST_ID); valid tests: $(TEST_NAMES))
+          endif
+        endif
+
+        export TEST_NAMES
+        export TEST_ID
+        export TEST_NAME := $(SELECTED_TEST)
         export REG_CONFIG ?= $(abspath ../tests/$(TEST_NAME)/config.regs)
-        export VEC_FILE ?= $(abspath ../tests/$(TEST_NAME)/$(TEST_NAME).vec)
+        export DATA_IN  ?= $(abspath ../tests/$(TEST_NAME)/data_in.vec)
+        export DATA_OUT ?= $(abspath ../tests/$(TEST_NAME)/data_out.vec)
         export PYTHONPATH := $(PWD):$(PYTHONPATH)
         VERILOG_SOURCES += {(out_dir / f"{cfg.top}_tb.sv").resolve()}
 
         COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
         ifeq ($(strip $(COCOTB_MAKEFILES)),)
-        $(error cocotb is not installed in this environment; run: make install)
+        $(error cocotb is not installed in this environment; run: uv sync)
         endif
         include $(COCOTB_MAKEFILES)/Makefile.sim
         """
     )
+
 
 
 
@@ -282,48 +304,12 @@ def render_pipeline_model_py(top: str) -> str:
         f'''\
         """Auto-generated reference model for {top}."""
 
-        from __future__ import annotations
-
-        import random
-        from pathlib import Path
-
-
-        class Pipeline2Model:
-            """Default model matching the generated rtl_stub two-flop pipeline."""
-
-            def __init__(self, latency: int = 2) -> None:
-                self.latency = latency
-
-            def expected(self, value: int) -> int:
-                return value & 0xFFFFFFFF
-
-
-        def _hex(value: int) -> str:
-            return f"0x{{value & 0xFFFFFFFF:08x}}"
-
-
-        def vector_rows(test: str = "smoke", count: int = 12, latency: int = 2):
-            if test == "smoke":
-                values = [0, 1, 0, 1, 1, 0]
-            elif test == "corners":
-                values = [0, 0, 1, 1, 0, 1, 0, 1]
-            else:
-                rng = random.Random("{top}:" + test + ":vectors")
-                values = [rng.randrange(2) for _ in range(count)]
-            return [(cycle, value, value, latency, 0xFFFFFFFF) for cycle, value in enumerate(values)]
-
-
-        def write_vec(path: str | Path, test: str = "smoke") -> Path:
-            target = Path(path)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            lines = [
-                "# Auto-generated FlexSoC vector file.",
-                "# format: cycle input expected latency mask [note]",
-            ]
-            for cycle, value, expected, latency, mask in vector_rows(test):
-                lines.append(f"{{cycle}} {{_hex(value)}} {{_hex(expected)}} {{latency}} {{_hex(mask)}}")
-            target.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
-            return target
+        def expected(data: int, coeff: int, mode: int = 0) -> int:
+            if mode == 1:
+                return (data ^ coeff) & 0xFFFFFFFF
+            if mode == 2:
+                return (data << 1) & 0xFFFFFFFF
+            return (data + coeff) & 0xFFFFFFFF
         '''
     )
 
@@ -340,7 +326,7 @@ def render_reg_driver_py(registers: Sequence[dict[str, object]] = ()) -> str:
 #   - config files use clock-qualified keys such as clk_i.CTRL.
 #
 # Config format:
-#   write <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE]
+#   <CLOCK.REG_NAME> <DATA> [MASK] [WAIT_CYCLES] [NOTE]
 
 import os
 
@@ -375,9 +361,9 @@ def load_register_config(path=None):
                 if not line or line.startswith("#"):
                     continue
                 parts = line.split()
-                if len(parts) < 3 or parts[0] != "write":
+                if len(parts) < 2:
                     continue
-                _, key, data_text, *rest = parts
+                key, data_text, *rest = parts
                 mask = int(rest[0], 0) if len(rest) >= 1 else 0xFFFFFFFF
                 wait_cycles = int(rest[1], 0) if len(rest) >= 2 else 1
                 note = " ".join(rest[2:]) if len(rest) >= 3 else ""
@@ -416,39 +402,35 @@ async def run_register_config(dut, path=None):
 """
 
 
+
 def render_vec_monitor_py() -> str:
-    """Render a latency-aware cocotb monitor."""
+    """Render a simple cocotb expected-output checker."""
 
     return dedent(
         '''\
         class LatencyMonitor:
-            def __init__(self, dut, *, output_name="port_o", model=None):
+            def __init__(self, dut, expected_rows=None):
                 self.dut = dut
-                self.output_name = output_name
-                self.model = model
-                self.expected = {}
-
-            def expect(self, cycle, latency, input_value, expected, mask, note):
-                value = self.model.expected(input_value) if self.model is not None else expected
-                self.expected[cycle + latency] = (value, mask, note)
+                self.expected = expected_rows or []
 
             def check(self, cycle):
-                if cycle not in self.expected:
-                    return
-                expected, mask, note = self.expected[cycle]
-                if not hasattr(self.dut, self.output_name):
-                    self.dut._log.info("vector check skipped: missing %s", self.output_name)
-                    return
-                actual = int(getattr(self.dut, self.output_name).value) & 0xFFFFFFFF
-                assert (actual & mask) == (expected & mask), (
-                    f"cycle={cycle} note={note} actual=0x{actual:08x} expected=0x{expected:08x} mask=0x{mask:08x}"
-                )
+                for expected_cycle, pairs in self.expected:
+                    if expected_cycle != cycle:
+                        continue
+                    for name, expected in pairs:
+                        if not hasattr(self.dut, name):
+                            self.dut._log.info("vector check skipped: missing %s", name)
+                            continue
+                        actual = int(getattr(self.dut, name).value) & 0xFFFFFFFF
+                        assert actual == (expected & 0xFFFFFFFF), (
+                            f"cycle={cycle} {name} actual=0x{actual:08x} expected=0x{expected:08x}"
+                        )
         '''
     )
 
 
 def render_vec_driver_py() -> str:
-    """Render a vector-file loader and input driver."""
+    """Render data_in/data_out vector loaders and a named input driver."""
 
     return dedent(
         '''\
@@ -458,7 +440,7 @@ def render_vec_driver_py() -> str:
 
 
         def load_vectors(path=None):
-            vec_path = path or os.environ.get("VEC_FILE")
+            vec_path = path or os.environ.get("DATA_IN")
             rows = []
             if not vec_path:
                 return rows
@@ -468,8 +450,10 @@ def render_vec_driver_py() -> str:
                         line = line.strip()
                         if not line or line.startswith("#"):
                             continue
-                        cycle, value, expected, latency, mask, *note = line.split()
-                        rows.append((int(cycle, 0), int(value, 0), int(expected, 0), int(latency, 0), int(mask, 0), " ".join(note)))
+                        parts = line.split()
+                        cycle = int(parts[0], 0)
+                        pairs = [(parts[i], int(parts[i + 1], 0)) for i in range(1, len(parts) - 1, 2)]
+                        rows.append((cycle, pairs))
             except FileNotFoundError:
                 return rows
             return rows
@@ -482,16 +466,15 @@ def render_vec_driver_py() -> str:
             await NextTimeStep()
 
 
-        async def drive_vectors(dut, clk, rows, monitor, input_name="port_i"):
+        async def drive_vectors(dut, clk, rows, monitor):
             now = 0
-            for cycle, value, expected, latency, mask, note in rows:
+            for cycle, pairs in rows:
                 while now < cycle:
                     now += 1
                     await _sample_cycle(clk, monitor, now)
-                monitor.check(now)
-                if hasattr(dut, input_name):
-                    getattr(dut, input_name).value = value & 1
-                    monitor.expect(cycle, latency, value, expected, mask, note)
+                for name, value in pairs:
+                    if hasattr(dut, name):
+                        getattr(dut, name).value = value
                 now += 1
                 await _sample_cycle(clk, monitor, now)
             for _ in range(8):
@@ -502,11 +485,13 @@ def render_vec_driver_py() -> str:
 
 
 def render_python_test(cfg: CocotbConfig) -> str:
-    """Render a small cocotb smoke test for the generated wrapper."""
+    """Render a small cocotb test that selects vectors by TEST_NAME or TEST_ID."""
 
+    tests = " ".join(TEST_NAMES)
     return dedent(
         f"""\
         import os
+        from pathlib import Path
 
         import cocotb
         from cocotb.clock import Clock
@@ -515,7 +500,26 @@ def render_python_test(cfg: CocotbConfig) -> str:
         from drivers.reg_driver import run_register_config
         from drivers.vec_driver import drive_vectors, load_vectors
         from drivers.vec_monitor import LatencyMonitor
-        from model_{cfg.top} import Pipeline2Model
+
+        TESTS = {tests!r}.split()
+
+
+        def selected_test():
+            test_id = os.environ.get("TEST_ID", "").strip()
+            if test_id:
+                index = int(test_id, 0)
+                if index < 0 or index >= len(TESTS):
+                    raise ValueError(f"unknown TEST_ID={{index}}; valid tests: {{' '.join(TESTS)}}")
+                return TESTS[index]
+            return os.environ.get("TEST_NAME", TESTS[0])
+
+
+        def test_file(env_name, test_name, filename):
+            override = os.environ.get(env_name, "").strip()
+            if override:
+                return override
+            return str((Path(__file__).resolve().parent / ".." / "tests" / test_name / filename).resolve())
+
 
         @cocotb.test()
         async def {cfg.top}_generated_test(dut):
@@ -532,10 +536,17 @@ def render_python_test(cfg: CocotbConfig) -> str:
             for _ in range(5):
                 await RisingEdge(clk)
 
-            await run_register_config(dut, os.environ.get("REG_CONFIG"))
-            vectors = load_vectors(os.environ.get("VEC_FILE"))
-            monitor = LatencyMonitor(dut, model=Pipeline2Model())
-            await drive_vectors(dut, clk, vectors, monitor)
+            test_name = selected_test()
+            dut._log.info("running vector test %s", test_name)
+            cfg_path = test_file("REG_CONFIG", test_name, "config.regs")
+            data_in = test_file("DATA_IN", test_name, "data_in.vec")
+            data_out = test_file("DATA_OUT", test_name, "data_out.vec")
+
+            await run_register_config(dut, cfg_path)
+            inputs = load_vectors(data_in)
+            expected = load_vectors(data_out)
+            monitor = LatencyMonitor(dut, expected)
+            await drive_vectors(dut, clk, inputs, monitor)
         """
     )
 

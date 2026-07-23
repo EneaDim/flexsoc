@@ -45,7 +45,7 @@ class SynthesisConfig:
     liberty: Path | None = None
     sdcdir: Path | None = None
     opt: str = "delay"
-    filelist: Path = Path("rtl_list.f")
+    filelists: tuple[Path, ...] = (Path("rtl_common.f"), Path("rtl_ip.f"))
 
 
 def pjoin(*parts: str | Path) -> str:
@@ -213,11 +213,11 @@ def yosys_synth_asic_slang(
     opt: str,
     sdcdir: Path | None,
     outdir: Path,
-    filelist: Path = Path("rtl_list.f"),
+    filelists: Sequence[Path] = (Path("rtl_common.f"), Path("rtl_ip.f")),
 ) -> str:
     """Render a SystemVerilog ASIC Yosys script through slang."""
 
-    cfg = SynthesisConfig(top, Path("rtl"), "asic", clk_ns, outdir, liberty, sdcdir, opt, filelist)
+    cfg = SynthesisConfig(top, Path("rtl"), "asic", clk_ns, outdir, liberty, sdcdir, opt, tuple(filelists))
     script_name = _abc_script_name(opt)
     lines = [
         "# read files (SystemVerilog via slang)",
@@ -227,7 +227,7 @@ def yosys_synth_asic_slang(
         "           -I ../hw/ips/tlul \\",
         "           -D SYNTHESIS \\",
         "           --ignore-assertions \\",
-        f"           -f {filelist.resolve().as_posix()} \\",
+        *(f"           -f {Path(filelist).resolve().as_posix()} \\" for filelist in filelists),
         f"           --top {top}",
         "",
         "# basic synth",
@@ -301,7 +301,7 @@ def generate_synthesis_scripts(cfg: SynthesisConfig) -> tuple[Path, ...]:
         if cfg.opt in {"area", "delay"}:
             written.append(write_text(cfg.output / "abc.constr", render_abc_constraints()))
         written.append(write_text(cfg.output / "synth.ys", yosys_synth_asic_verilog(cfg.top, cfg.topdir, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output)))
-        written.append(write_text(cfg.output / "synth_sv.ys", yosys_synth_asic_slang(cfg.top, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output, cfg.filelist)))
+        written.append(write_text(cfg.output / "synth_sv.ys", yosys_synth_asic_slang(cfg.top, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output, cfg.filelists)))
     elif cfg.target == "xilinx":
         written.append(write_text(cfg.output / "synth.ys", yosys_synth_xilinx(cfg.top, cfg.topdir, cfg.output)))
         written.append(write_text(cfg.output / "xilinx.tcl", vivado_tcl_xilinx(cfg.top)))
@@ -325,7 +325,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("-sdcdir", "--sdcdir", type=Path, default=None, help="Directory containing <top>.sdc.")
     parser.add_argument("-opt", "--opt", choices=["area", "delay", "none"], default="delay", help="ASIC optimization mode.")
     parser.add_argument("-o", "--output", type=Path, default=Path("syn"), help="Output folder.")
-    parser.add_argument("--filelist", type=Path, default=Path("rtl_list.f"), help="SystemVerilog file list for slang.")
+    parser.add_argument("--filelist", type=Path, action="append", default=None, help="SystemVerilog file list for slang. Repeat for common/IP lists.")
     args = parser.parse_args(argv)
 
     package_root = Path(__file__).resolve().parent.parent
@@ -347,7 +347,7 @@ def config_from_args(args: argparse.Namespace) -> SynthesisConfig:
         liberty=args.liberty,
         sdcdir=args.sdcdir,
         opt=args.opt,
-        filelist=args.filelist,
+        filelists=tuple(args.filelist or (Path("rtl_common.f"), Path("rtl_ip.f"))),
     )
 
 
