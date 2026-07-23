@@ -81,7 +81,7 @@ Useful IP examples:
 ```bash
 uv run fx settings TOP=cordic      RUN_TOP=cordic      RUN_ID=dev HOST=uart
 uv run fx settings TOP=spi_host    RUN_TOP=spi_host    RUN_ID=dev HOST=uart
-uv run fx settings TOP=uart-master RUN_TOP=uart-master RUN_ID=dev HOST=uart
+uv run fx settings TOP=uart_master RUN_TOP=uart_master RUN_ID=dev HOST=uart
 uv run fx settings TOP=fft_core    RUN_TOP=fft_core    RUN_ID=dev HOST=uart
 ```
 
@@ -90,7 +90,7 @@ uv run fx settings TOP=fft_core    RUN_TOP=fft_core    RUN_ID=dev HOST=uart
 UART-host SoC example:
 
 ```bash
-uv run fx ip_load --force --set TOP=uart-master --set LOAD_AS=uart_master --set RUN_TOP=soc_uart --set RUN_ID=dev
+uv run fx ip_load --force --set TOP=uart_master --set LOAD_AS=uart_master --set RUN_TOP=soc_uart --set RUN_ID=dev
 uv run fx ip_load --force --set TOP=gpio        --set RUN_TOP=soc_uart --set RUN_ID=dev
 uv run fx ip_load --force --set TOP=rv_timer    --set RUN_TOP=soc_uart --set RUN_ID=dev
 uv run fx soc_uart_gen --set TOP=soc --set RUN_TOP=soc_uart --set RUN_ID=dev --set HOST=uart --set SOC_CFG_MODE=builtin

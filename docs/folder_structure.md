@@ -9,8 +9,8 @@ flexsoc/
 ├── pyproject.toml             # uv package + dependency definition
 ├── Makefile                   # developer shortcuts
 ├── docs/
-│   ├── QUICKSTART.md          # practical flow commands
-│   └── FOLDER_STRUCTURE.md    # this guide
+│   ├── quickstart.md          # practical flow commands
+│   └── folder_structure.md    # this guide
 ├── src/flexsoc/
 │   ├── api.py                 # minimal Python API layer
 │   ├── cli.py                 # minimal Typer/Rich fx CLI

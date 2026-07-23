@@ -1,5 +1,5 @@
 <p align="center">
-<img src="assets/open-IP-SoC-logo.png" alt="FlexSoC logo" width="280"/>
+  <img src="assets/open-IP-SoC-logo.png" alt="Open IP SoC logo" width="280"/>
 </p>
 
 # FlexSoC
@@ -62,5 +62,5 @@ uv run fx cocotb_tests
 
 Keep it simple:
 
-- [`docs/QUICKSTART.md`](docs/QUICKSTART.md) — practical commands for IP and SoC flows.
-- [`docs/FOLDER_STRUCTURE.md`](docs/FOLDER_STRUCTURE.md) — what each folder is for.
+- [`docs/quickstart.md`](docs/quickstart.md) — practical commands for IP and SoC flows.
+- [`docs/folder_structure.md`](docs/folder_structure.md) — what each folder is for.
