@@ -12,7 +12,7 @@ from pathlib import Path
 SUPPORTED_HOSTS = {"ibex", "uart"}
 KNOWN_BASES = {
     "uart": 0x80000000,
-    "uart-master": 0x80000000,
+    "uart_master": 0x80000000,
     "pwm": 0x80020000,
     "gpio": 0x80040000,
     "rv_timer": 0x80060000,
@@ -113,7 +113,7 @@ def resolve_host(ip_names: tuple[str, ...], default_host: str | None = None) -> 
     names = set(ip_names)
     if names & HOST_IPS:
         return "ibex"
-    if names & {"uart", "uart-master"}:
+    if names & {"uart", "uart_master"}:
         return "uart"
     raise SystemExit("ERROR: no loaded IPs found under workspace/runs/<run_top>/<run_id>/ips")
 
