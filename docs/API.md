@@ -78,7 +78,7 @@ print(plan.shell_script())
 The explicit SoC workflow is ordered as:
 
 ```text
-setup → soc_uart_gen/soc_ibex_gen → soc_prepare → soc_build_sw → soc_sim → soc_run
+setup → soc_uart_gen/soc_ibex_gen → soc_build_sw → soc_run
 ```
 
 Use this flow when integrating IPs into UART-host or Ibex-host SoC runs, building software, and preparing simulation/run steps.

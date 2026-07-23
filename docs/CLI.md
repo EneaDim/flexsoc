@@ -178,7 +178,7 @@ fx soc_ibex_gen --set TOP=soc --set RUN_TOP=soc_ibex --set HOST=ibex --set SOC_C
 Build/run only after the required software and simulator tools are installed:
 
 ```bash
-fx soc_build_sw soc_sim soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
+fx soc_build_sw soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
 ```
 
 ## Lint

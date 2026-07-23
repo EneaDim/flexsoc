@@ -162,7 +162,7 @@ Build and run software/simulation only after the required external tools are
 installed:
 
 ```bash
-fx soc_build_sw soc_sim soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
+fx soc_build_sw soc_run --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
 ```
 
 ## Development checks

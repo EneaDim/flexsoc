@@ -94,7 +94,7 @@ fx soc_ibex_gen --dry-run --script \
 Build and simulation targets need the external toolchain:
 
 ```bash
-fx soc_build_sw soc_sim soc_run --dry-run --script --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
+fx soc_build_sw soc_run --dry-run --script --set TOP=soc --set RUN_TOP=soc_uart --set HOST=uart
 ```
 
 ## 7. Debug a failing command

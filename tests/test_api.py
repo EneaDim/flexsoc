@@ -233,7 +233,8 @@ def test_backend_recursive_calls_pin_backend_makefile() -> None:
     assert "BACKEND_MAKE ?= $(MAKE) -f $(BACKEND_MAKEFILE)" in backend_make
     assert "soc_prepare: soc_sim ## Prepare SoC build directory" in backend_make
     assert "soc_build_sw: soc_prepare sw_soc ## Build SoC software" in backend_make
-    assert "soc_sim: xbar soc fsoc_init fsoc ## Build SoC simulator" in backend_make
+    assert "soc_vendor_deps: ## Fetch pinned lowRISC dependencies required by SoC simulation" in backend_make
+    assert "soc_sim: soc_vendor_deps xbar soc fsoc_init fsoc ## Build SoC simulator" in backend_make
     assert "$(Q)$(BACKEND_MAKE) soc_sim" not in backend_make
     soc_sim_section = backend_make.split("soc_sim: TARGET := sim", 1)[1].split("soc_run:", 1)[0]
     assert "$(Q)$(BACKEND_MAKE) xbar" not in soc_sim_section

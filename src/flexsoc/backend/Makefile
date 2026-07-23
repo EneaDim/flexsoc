@@ -317,7 +317,7 @@ PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
 PHONY_TARGETS += setup_signoff compile_syn sim_syn sta sdf power sta_violators path_view
 PHONY_TARGETS += setup_pnr pnr pnr_gui
 PHONY_TARGETS += ip_load ip_save
-PHONY_TARGETS += fsoc_init fsoc xbar xbar_init xbar_build soc soc_stage_tops soc_flist soc_flow soc_uart_gen soc_ibex_gen
+PHONY_TARGETS += soc_vendor_deps fsoc_init fsoc xbar xbar_init xbar_build soc soc_stage_tops soc_flist soc_flow soc_uart_gen soc_ibex_gen
 PHONY_TARGETS += sw_soc soc_prepare soc_build_sw soc_sim soc_run soc_run_only soc_view
 PHONY_TARGETS += fsm_init fsm_setup fsm_example_load fsm_gen fsm_plot fsm_flow fsm_install fsm2rtl
 PHONY_TARGETS += soc_uart_tutorial soc_ibex_fetch soc_ibex_tutorial full_tutorial fsm_tutorial ip_tutorial soc_pless
@@ -1021,6 +1021,18 @@ FUSESOC_CORES_ROOT ?= $(FUSESOC_ROOT)/cores
 FUSESOC_BUILD_ROOT ?= $(FUSESOC_ROOT)/build
 SOC_SIM_EXE        ?= $(FUSESOC_BUILD_ROOT)/sim-verilator/Vtop_verilator
 
+soc_vendor_deps: ## Fetch pinned lowRISC dependencies required by SoC simulation
+	$(call _require_var,REPO_ROOT)
+	@set -eu; \
+	for vendor in lowrisc_ip lowrisc_ibex; do \
+		if [ ! -d "$(REPO_ROOT)/vendor/$$vendor" ]; then \
+			echo "[soc_vendor_deps] fetching $$vendor ..."; \
+			$(MAKE) -f "$(REPO_ROOT)/src/flexsoc/backend/Makefile" fetch VENDOR=$$vendor; \
+		else \
+			echo "[soc_vendor_deps] $$vendor already present"; \
+		fi; \
+	done
+
 fsoc_init: ## Initialize FuseSoC metadata
 	@echo "\n$(ORANGE)FuseSoC setup (run-local core generation)...\n$(RESET)"
 	$(call _require_soc_run_vars)
@@ -1181,7 +1193,7 @@ soc_build_sw: soc_prepare sw_soc ## Build SoC software
 # Simulation / run
 soc_sim: TARGET := sim
 soc_sim: FUSESOC_TOOL := verilator
-soc_sim: xbar soc fsoc_init fsoc ## Build SoC simulator
+soc_sim: soc_vendor_deps xbar soc fsoc_init fsoc ## Build SoC simulator
 	$(call _require_soc_run_vars)
 	@echo "$(ORANGE)SoC simulation model ready (HOST=$(HOST)).$(RESET)"
 soc_run: ## Run SoC simulation
