@@ -67,7 +67,21 @@ This creates:
 - `doc/test.md`: generated register documentation.
 - `rtl/test_core.sv` and `rtl/test.sv`: generated RTL stub and wrapper.
 
-## 4. Generate verification collateral
+## 4. Generate filelists and lint
+
+Run lint before building the verification model. This catches structural RTL
+issues early, while the generated register RTL and core wrapper are still easy
+to inspect.
+
+```bash
+fx flist lint
+fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
+```
+
+Focused lint targets may print diagnostics without always meaning the IP is
+unusable. Treat the logs as review artifacts.
+
+## 5. Generate verification collateral
 
 ```bash
 fx setup_model setup_tb setup_cocotb --force
@@ -82,7 +96,7 @@ This creates:
 - `tb/test_tb.sv`: SystemVerilog vector testbench.
 - `tb/cocotb/test_tb.py`: cocotb test using the same vectors.
 
-## 5. List and run tests
+## 6. List and run tests
 
 ```bash
 fx tests
@@ -96,16 +110,6 @@ Run every generated test:
 fx sim_tests
 fx cocotb_tests
 ```
-
-## 6. Lint and backend checks
-
-```bash
-fx lint
-fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
-```
-
-Focused lint targets may print diagnostics without always meaning the IP is
-unusable. Treat the logs as review artifacts.
 
 ## 7. Synthesis, timing and power
 

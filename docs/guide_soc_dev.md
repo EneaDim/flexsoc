@@ -18,14 +18,17 @@ the SoC run.
 
 ## 1. Validate IPs first
 
-For each IP, run at least:
+For each IP, run lint first, then verification and backend signoff:
 
 ```bash
 fx settings TOP=<ip> RUN_TOP=<ip> RUN_ID=dev HOST=uart
-fx lint sim_tests cocotb_tests syn sdf sta power --force
+fx flist lint --force
+fx sim_tests cocotb_tests
+fx syn sdf sta power --force
 ```
 
-A SoC is easier to debug when each IP already has passing standalone tests.
+A SoC is easier to debug when every IP has clean lint before its standalone
+regression and signoff steps.
 
 ## 2. Create a SoC run
 
@@ -80,7 +83,20 @@ fx soc_uart_gen soc_prepare --force
 The generated top should instantiate the host and the loaded IPs, connect address
 maps and expose only SoC-level ports.
 
-## 6. Verification strategy
+## 6. Lint the integrated SoC
+
+Lint the SoC before writing or running SoC-level tests. At this point the host,
+loaded IPs, filelists and generated top are connected, so lint catches integration
+issues before the verification layer adds more variables.
+
+```bash
+fx flist lint --force
+fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
+```
+
+Review focused lint logs before moving to SoC-level modelling or regression.
+
+## 7. Verification strategy
 
 Keep two levels of tests:
 
@@ -99,7 +115,7 @@ For SoC-level verification, generate SoC tests that write/read through the host
 interface and check visible behavior. Do not assume that standalone IP vectors
 can be reused unchanged at SoC level; the access path and timing are different.
 
-## 7. Constraints and signoff
+## 8. Constraints and signoff
 
 The SoC must have its own SDC:
 
@@ -124,7 +140,7 @@ fx sta
 fx power
 ```
 
-## 8. Software flow
+## 9. Software flow
 
 When available, build and run software with:
 
@@ -135,7 +151,7 @@ fx soc_run
 
 Use this once the hardware top and address map are stable.
 
-## 9. Recommended SoC checklist
+## 10. Recommended SoC checklist
 
 Before calling a SoC flow stable, check:
 
