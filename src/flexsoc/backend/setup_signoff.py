@@ -66,6 +66,16 @@ def parse_args(argv: Sequence[str]) -> STAConfig:
     )
 
 
+def liberty_corner(path: Path) -> str:
+    """Infer a short process corner name from a Liberty filename."""
+
+    name = path.name.lower()
+    for corner in ("ss", "tt", "ff"):
+        if f"__{corner}_" in name or f"_{corner}_" in name or name.startswith(f"{corner}_"):
+            return corner
+    return path.stem
+
+
 def tcl_quote(path: Path) -> str:
     """Quote a filesystem path using Tcl brace syntax."""
 
@@ -73,12 +83,27 @@ def tcl_quote(path: Path) -> str:
 
 
 def render_init_opensta(config: STAConfig) -> str:
-    """Render the common OpenSTA initialization shared by all reports."""
+    """Render OpenSTA initialization shared by timing, SDF, and power."""
 
-    lines = ['puts ""', 'puts "=== flexsoc OpenSTA init ==="']
+    lines = [
+        'puts ""',
+        'puts "=== flexsoc OpenSTA init ==="',
+        'if {[info exists ::env(STA_CORNER)]} {set sta_corner $::env(STA_CORNER)} else {set sta_corner "default"}',
+    ]
     if config.liberty:
-        for lib in config.liberty:
-            lines += [f'puts "read_liberty {tcl_quote(lib)}"', f"read_liberty {tcl_quote(lib)}"]
+        entries = " ".join("{" + liberty_corner(lib) + " " + lib.resolve().as_posix() + "}" for lib in config.liberty)
+        fallback = config.liberty[0].resolve().as_posix()
+        lines += [
+            f"set liberty_files {{{entries}}}",
+            'set selected_lib ""',
+            'foreach item $liberty_files {',
+            '  lassign $item corner path',
+            '  if {$corner == $sta_corner} {set selected_lib $path}',
+            '}',
+            f'if {{$selected_lib == ""}} {{set selected_lib "{fallback}"}}',
+            'puts "corner=$sta_corner liberty=$selected_lib"',
+            'read_liberty $selected_lib',
+        ]
     else:
         lines.append('puts "WARNING: no --liberty provided"')
 
@@ -96,23 +121,26 @@ def render_init_opensta(config: STAConfig) -> str:
         lines.append('puts "WARNING: no --sdcdir provided; skipping read_sdc"')
     return "\n".join(lines)
 
-
 def render_sta_tcl(config: STAConfig) -> str:
-    """Render the main setup and timing report script."""
+    """Render a corner/mode aware OpenSTA timing report script."""
 
     return "\n".join(
         [
             render_init_opensta(config),
             "",
-            'puts "=== Timing reports ==="',
-            "report_checks -path_delay max -fields {slew cap input_pins} -digits 3",
-            "report_checks -path_delay min -fields {slew cap input_pins} -digits 3",
-            "report_tns",
-            "report_wns",
+            'if {[info exists ::env(STA_MODE)]} {set sta_mode $::env(STA_MODE)} else {set sta_mode "setup"}',
+            'if {$sta_mode == "hold"} {set delay_type "min"} else {set delay_type "max"}',
+            'puts "=== Static timing analysis ==="',
+            'puts "corner=$sta_corner mode=$sta_mode path_delay=$delay_type"',
+            'if {[info exists ::env(STA_PATHS)]} {set sta_paths $::env(STA_PATHS)} else {set sta_paths 100}',
+            'if {[info exists ::env(STA_GROUPS)]} {set sta_groups $::env(STA_GROUPS)} else {set sta_groups 20}',
+            'puts "report_checks group_count=$sta_groups endpoint_count=$sta_paths"',
+            'report_checks -path_delay $delay_type -fields {slew cap input_pins nets fanout} -digits 3 -group_count $sta_groups -endpoint_count $sta_paths -sort_by_slack',
+            'report_tns',
+            'report_wns',
             "",
         ]
     )
-
 
 def render_sta_violators_tcl(config: STAConfig) -> str:
     """Render a focused OpenSTA timing violators report script."""
@@ -142,13 +170,14 @@ def render_write_sdf_tcl(config: STAConfig) -> str:
 
 
 def render_power_tcl(config: STAConfig) -> str:
-    """Render a simple OpenSTA power script using global activity."""
+    """Render a corner-aware OpenSTA power script using global activity."""
 
     return "\n".join(
         [
             render_init_opensta(config),
             "",
-            'puts "=== Power ==="',
+            'puts "=== Power analysis ==="',
+            'puts "corner=$sta_corner"',
             f'puts "set_power_activity -global -activity {config.activity_pct}"',
             f"set_power_activity -global -activity {config.activity_pct}",
             'puts "report_power"',
@@ -156,7 +185,6 @@ def render_power_tcl(config: STAConfig) -> str:
             "",
         ]
     )
-
 
 def write_text(path: Path, content: str) -> Path:
     """Write UTF-8 text and return the written path."""

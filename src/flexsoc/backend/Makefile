@@ -91,6 +91,11 @@ RUN_DIR     ?= $(OUTROOT)
 # Derived directories
 # -----------------------------------------------------------------------------
 LOGDIR         ?= $(OUTROOT)/logs
+VERIFY_LOGDIR  ?= $(LOGDIR)/verification
+SIGNOFF_LOGDIR ?= $(LOGDIR)/signoff
+SV_COMPILE_LOG ?= $(VERIFY_LOGDIR)/$(TOP)_sv_compile_$(TEST_NAME).log
+SV_SIM_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_sv_sim_$(TEST_NAME).log
+COCOTB_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_cocotb_$(TEST_NAME).log
 RTLDIR         ?= $(OUTROOT)/rtl
 TBDIR          ?= $(OUTROOT)/tb
 SIMDIR         ?= $(OUTROOT)/sim
@@ -123,6 +128,8 @@ space := $(empty) $(empty)
 MULTICLOCK_SELECTED_REGMAPS = $(subst $(comma),$(space),$(if $(strip $(REGMAP)),$(REGMAP),$(MULTICLOCK_REGMAPS)))
 SIGNOFF_CORNERS    ?= ss tt ff
 STA_MODES          ?= setup hold
+STA_PATHS          ?= 100
+STA_GROUPS         ?= 20
 TEST_NAME      ?= smoke
 TEST_ROOT      ?= $(TBDIR)/tests
 TESTDIR        ?= $(TEST_ROOT)/$(TEST_NAME)
@@ -285,6 +292,7 @@ ifeq ($(VERBOSE),1)
 else
   Q := @
 endif
+LIVE ?= 0
 
 ifeq ($(FORCE),1)
   OVERWRITE := --force
@@ -364,7 +372,7 @@ help_fsm: help ## Show FSM-flow help
 # ============================================================================
 ##@ Setup
 setup: ## Create the run directory tree
-	@echo "\n$(ORANGE)Setup Folder Structure...\n$(RESET)"
+	@if [ "$(LIVE)" = "1" ]; then printf "%b\n" "$(ORANGE)[setup]$(RESET) $(BLUE)create run directories$(RESET)"; fi
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_ID)
@@ -465,7 +473,7 @@ doc_multi: setup ## Generate docs for selected multi-clock regmap HJSON files
 	done
 
 hjson: setup ## Generate an HJSON register template
-	@echo "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[hjson]$(RESET) $(BLUE)generate register template$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
 
 hjson_gen: hjson ## Compatibility alias for HJSON generation
@@ -473,17 +481,17 @@ hjson_gen: hjson ## Compatibility alias for HJSON generation
 
 reg: ## Generate register RTL from HJSON
 	@$(MKDIR) -p $(RTLDIR)
-	@echo "\n$(ORANGE)Generating REGMAP from hjson description...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[reg]$(RESET) $(BLUE)generate register RTL from HJSON$(RESET)"
 	$(Q)$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
 
 doc: ## Generate register documentation
 	@$(MKDIR) -p $(DOCDIR)
-	@echo "\n$(ORANGE)Generating documentation from hjson description...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[doc]$(RESET) $(BLUE)generate register documentation$(RESET)"
 	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
 	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
 rtl_stub: ## Generate RTL core and aligned top wrapper
-	@echo "\n$(ORANGE)RTL stub generation...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[rtl_stub]$(RESET) $(BLUE)generate core and top wrapper$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) --hjson-file $(DATADIR)/$(TOP).hjson --interface $(REG_ITF) --output-dir $(RTLDIR)
 
 top_from_core: ## Regenerate $(TOP).sv from edited $(TOP)_core.sv
@@ -496,14 +504,23 @@ RTL_COMMON_LIST ?= $(RTLDIR)/rtl_common.f
 RTL_IP_LIST ?= $(RTLDIR)/rtl_ip.f
 RTL_FILELISTS = -f $(RTL_COMMON_LIST) -f $(RTL_IP_LIST)
 RTL_FILELIST_ARGS = --filelist $(RTL_COMMON_LIST) --filelist $(RTL_IP_LIST)
+FLIST_LOG ?= $(LOGDIR)/$(TOP)_flist.log
 
 flist: setup ## Generate clean common/IP RTL filelists
-	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --common-out $(RTL_COMMON_LIST) --ip-out $(RTL_IP_LIST) --ips-root $(IPS_ROOT) --rtldir $(RTLDIR)
+	@if [ "$(LIVE)" = "1" ]; then printf "%b\n" "$(ORANGE)[flist]$(RESET) $(BLUE)write rtl_common.f + rtl_ip.f$(RESET)"; fi
+	@$(MKDIR) -p $(LOGDIR)
+	@log="$(FLIST_LOG)"; status_file="$$log.status"; rm -f "$$status_file"; \
+	if [ "$(LIVE)" = "1" ]; then \
+		{ $(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --common-out $(RTL_COMMON_LIST) --ip-out $(RTL_IP_LIST) --ips-root $(IPS_ROOT) --rtldir $(RTLDIR); echo $$? > "$$status_file"; } 2>&1 | tee "$$log"; \
+		status=$$(cat "$$status_file"); rm -f "$$status_file"; \
+	else \
+		$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --common-out $(RTL_COMMON_LIST) --ip-out $(RTL_IP_LIST) --ips-root $(IPS_ROOT) --rtldir $(RTLDIR) > "$$log" 2>&1; status=$$?; \
+	fi; \
+	if [ $$status -ne 0 ]; then echo "[flist] failed. log: $$log"; [ "$(LIVE)" = "1" ] || cat "$$log"; exit $$status; fi; \
+	[ -s "$$log" ] || rm -f "$$log"
 	@rm -f $(RTLDIR)/rtl_list.f $(RTLDIR)/rtl_lint.f
 
 flist_split: flist ## Compatibility alias for clean common/IP filelists
-	@echo $(RTL_COMMON_LIST)
-	@echo $(RTL_IP_LIST)
 
 driver: ## Generate C driver files from HJSON
 	$(Q)$(PYTHON) $(REGTOOL) -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
@@ -575,7 +592,7 @@ lint_latch lint_undriven lint_width lint_unconnected lint_unused: lint_%: flist_
 		LINT_SLANG_FLAGS="$(SLANG_FLAGS_$*)"
 
 _lint_run:
-	@printf "\n$(ORANGE)Linting $(TOP) ($(LINT_KIND), $(LINT_PART))...$(RESET)\n"
+	@printf "%b\n" "$(ORANGE)[lint]$(RESET) $(BLUE)$(TOP) kind=$(LINT_KIND) part=$(LINT_PART)$(RESET)"
 	@mkdir -p $(LOGDIR)
 	@if [ ! -f "$(RTL_COMMON_LIST)" ] || [ ! -f "$(RTL_IP_LIST)" ]; then echo "missing filelists. Run: fx flist"; exit 2; fi
 	@tool="$(LINT_TOOL)"; \
@@ -592,25 +609,50 @@ _lint_run:
 	else \
 		echo "Unsupported LINT_TOOL=$$tool. Use auto, verilator, or slang."; exit 2; \
 	fi; \
-	echo "$$cmd"; \
-	eval "$$cmd" > "$(LINT_FULL_LOG)" 2>&1; status=$$?; \
-	if [ "$(LINT_KIND)" = "all" ]; then cat "$(LINT_FULL_LOG)"; exit $$status; fi; \
-	if [ $$status -ne 0 ]; then cat "$(LINT_FULL_LOG)"; exit $$status; fi; \
+	printf "%b\n" "$(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
+	status_file="$(LINT_FULL_LOG).status"; rm -f "$$status_file"; \
+	if [ "$(LIVE)" = "1" ]; then \
+		{ echo "$$cmd"; eval "$$cmd"; echo $$? > "$$status_file"; } 2>&1 | tee "$(LINT_FULL_LOG)"; \
+		status=$$(cat "$$status_file"); rm -f "$$status_file"; \
+	else \
+		echo "$$cmd" > "$(LINT_FULL_LOG)"; \
+		eval "$$cmd" >> "$(LINT_FULL_LOG)" 2>&1; status=$$?; \
+	fi; \
+	if [ "$(LINT_KIND)" = "all" ]; then \
+		if [ $$status -ne 0 ]; then \
+			printf "%b\n" "$(RED)[lint] failed$(RESET) $(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
+			[ "$(LIVE)" = "1" ] || tail -n 80 "$(LINT_FULL_LOG)"; \
+			exit $$status; \
+		fi; \
+		printf "%b\n" "$(GREEN)[lint] passed$(RESET) $(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
+		exit 0; \
+	fi; \
+	if [ $$status -ne 0 ]; then \
+		printf "%b\n" "$(RED)[lint] failed$(RESET) $(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
+		[ "$(LIVE)" = "1" ] || tail -n 80 "$(LINT_FULL_LOG)"; \
+		exit $$status; \
+	fi; \
 	grep -E -i "$(LINT_PATTERN)" "$(LINT_FULL_LOG)" | grep -vF "$(RTLDIR)" > "$(LINT_COMMON_LOG)" || true; \
 	grep -E -i "$(LINT_PATTERN)" "$(LINT_FULL_LOG)" | grep -F "$(RTLDIR)" > "$(LINT_IP_LOG)" || true; \
+	common_count=$$(wc -l < "$(LINT_COMMON_LOG)" | tr -d ' '); \
+	ip_count=$$(wc -l < "$(LINT_IP_LOG)" | tr -d ' '); \
 	case "$(LINT_PART)" in \
-		common) show="$(LINT_COMMON_LOG)" ;; \
-		ip) show="$(LINT_IP_LOG)" ;; \
-		all) printf "\n[common]\n"; cat "$(LINT_COMMON_LOG)"; printf "\n[ip]\n"; cat "$(LINT_IP_LOG)"; show="" ;; \
+		common) count="$$common_count"; filtered="$(LINT_COMMON_LOG)" ;; \
+		ip) count="$$ip_count"; filtered="$(LINT_IP_LOG)" ;; \
+		all) count=$$((common_count + ip_count)); filtered="$(LINT_COMMON_LOG), $(LINT_IP_LOG)" ;; \
 		*) echo "Unsupported LINT_PART=$(LINT_PART). Use ip, common, or all."; exit 2 ;; \
 	esac; \
-	if [ -n "$$show" ]; then cat "$$show"; fi; \
-	if [ "$(LINT_PART)" = "all" ]; then \
-		if [ -s "$(LINT_COMMON_LOG)" ] || [ -s "$(LINT_IP_LOG)" ]; then echo ""; echo "Found $(LINT_KIND) diagnostics. Full log: $(LINT_FULL_LOG)"; exit 0; fi; \
-	elif [ -s "$$show" ]; then \
-		echo ""; echo "Found $(LINT_KIND) diagnostics. Full log: $(LINT_FULL_LOG)"; exit 0; \
-	fi; \
-	echo "No $(LINT_KIND) diagnostics found for $(LINT_PART). Full log: $(LINT_FULL_LOG)"
+	if [ $$count -gt 0 ]; then \
+		echo "[lint] found $$count $(LINT_KIND) diagnostic line(s)."; \
+		echo "[lint] filtered log(s): $$filtered"; \
+		echo "[lint] full log: $(LINT_FULL_LOG)"; \
+		if [ "$(LIVE)" = "1" ]; then \
+			[ "$(LINT_PART)" != "ip" ] && { printf "\n[common]\n"; cat "$(LINT_COMMON_LOG)"; } || true; \
+			[ "$(LINT_PART)" != "common" ] && { printf "\n[ip]\n"; cat "$(LINT_IP_LOG)"; } || true; \
+		fi; \
+	else \
+		printf "%b\n" "$(GREEN)[lint] no $(LINT_KIND) diagnostics for $(LINT_PART)$(RESET) $(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
+	fi
 
 SLANG_HIER_LOG ?= $(LOGDIR)/$(TOP)_hier.txt
 
@@ -624,7 +666,7 @@ slang_hier: flist_split ## Print hierarchy with slang-hier
 # ============================================================================
 ##@ Simulation
 setup_tb: setup flist ## Generate a SystemVerilog testbench
-	@echo "\n$(ORANGE)Setup SystemVerilog Testbench Template...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[setup_tb]$(RESET) $(BLUE)generate SystemVerilog testbench$(RESET)"
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
 	@if [ "$(TOP)" = "soc" ]; then \
@@ -712,8 +754,8 @@ sim_tests: setup_model setup_tb ## Run every generated SystemVerilog vector test
 		exit 1; \
 	fi
 
-compile_v: lint_v ## Compile Verilog simulation
-	@echo "\n$(ORANGE)Compiling...\n$(RESET)"
+compile_v: flist_split ## Compile Verilog simulation
+	@printf "%b\n" "$(ORANGE)[compile_v]$(RESET) $(BLUE)compile Verilog testbench$(RESET)"
 ifeq ($(COMPILER),iverilog)
 	$(Q)$(MKDIR) -p $(SIMDIR) $(LOGDIR)
 	$(Q)iverilog $(IVERILOG_FLAGS) \
@@ -730,7 +772,7 @@ else
 endif
 
 sim_v: compile_v ## Run Verilog simulation
-	@echo "\n$(ORANGE)Simulating...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[sim_v]$(RESET) $(BLUE)run Verilog simulation$(RESET)"
 ifeq ($(COMPILER),iverilog)
 	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
@@ -739,34 +781,37 @@ else
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
-compile_sv: lint_sv ## Compile SystemVerilog simulation
-	@echo "\n$(ORANGE)Compiling...\n$(RESET)"
+compile_sv: flist_split ## Compile SystemVerilog simulation
+	@printf "%b\n" "$(ORANGE)[compile_sv]$(RESET) $(BLUE)compile SystemVerilog testbench$(RESET)"
+	@printf "%b\n" "$(BLUE)log: $(SV_COMPILE_LOG)$(RESET)"
 ifeq ($(COMPILER),iverilog)
-	$(Q)$(MKDIR) -p $(SIMDIR) $(LOGDIR)
+	$(Q)$(MKDIR) -p $(SIMDIR) $(VERIFY_LOGDIR)
 	$(Q)iverilog $(IVERILOG_FLAGS) \
 		-o $(SIMDIR)/$(TESTBENCH).vvp \
 		$(TBDIR)/$(TESTBENCH).sv \
-		> $(LOGDIR)/$(TOP)_compile.log 2>&1
+		> $(SV_COMPILE_LOG) 2>&1
 else
-	$(Q)$(MKDIR) -p $(SIMDIR)/$(COMPILER) $(LOGDIR)
+	$(Q)$(MKDIR) -p $(SIMDIR)/$(COMPILER) $(VERIFY_LOGDIR)
 	$(Q)verilator $(VERILATOR_FLAGS) \
 		$(RTL_FILELISTS) \
 		$(TBDIR)/$(TESTBENCH).sv \
 		--top-module $(TESTBENCH) \
-		> $(LOGDIR)/$(TOP)_compile.log 2>&1
+		> $(SV_COMPILE_LOG) 2>&1
 endif
 
 sim_sv: compile_sv ## Run SystemVerilog simulation
-	@echo "\n$(ORANGE)Simulating...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[sim_sv]$(RESET) $(BLUE)run SystemVerilog test TEST_NAME=$(TEST_NAME)$(RESET)"
+	@printf "%b\n" "$(BLUE)log: $(SV_SIM_LOG)$(RESET)"
 ifeq ($(COMPILER),iverilog)
 	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
-		> $(LOGDIR)/$(TOP)_sim.log 2>&1
+		> $(SV_SIM_LOG) 2>&1
 else
 	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
-		> $(LOGDIR)/$(TOP)_sim.log 2>&1
+		> $(SV_SIM_LOG) 2>&1
 endif
 
 cocotb: ## Run one cocotb vector test selected by TEST_NAME
+	$(Q)$(MKDIR) -p $(VERIFY_LOGDIR)
 	$(Q)if [ ! -f "$(TBDIR)/cocotb/Makefile" ]; then \
 		echo "cocotb scaffold not found: $(TBDIR)/cocotb/Makefile"; \
 		echo "Generate it first, for example:"; \
@@ -778,8 +823,13 @@ cocotb: ## Run one cocotb vector test selected by TEST_NAME
 		echo "Run uv sync from the repository root, then retry."; \
 		exit 1; \
 	}
-	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb \
-		TEST_NAME="$(TEST_NAME)" WAVES=$(COCOTB_WAVES)
+	@printf "%b\n" "$(ORANGE)[cocotb]$(RESET) $(BLUE)run cocotb test TEST_NAME=$(TEST_NAME)$(RESET)"
+	@printf "%b\n" "$(BLUE)log: $(COCOTB_LOG)$(RESET)"
+	$(Q)if [ "$(LIVE)" = "1" ]; then \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" WAVES=$(COCOTB_WAVES) 2>&1 | tee $(COCOTB_LOG); \
+	else \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" WAVES=$(COCOTB_WAVES) > $(COCOTB_LOG) 2>&1; \
+	fi
 
 cocotb_tests: setup_model setup_cocotb ## Run every generated cocotb vector test
 	@set -eu; \
@@ -891,14 +941,14 @@ syn: $(if $(filter v,$(VSV)),syn_v,syn_sv) ## Run synthesis
 
 syn_v: setup_syn ## Run Verilog synthesis
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@echo "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[syn]$(RESET) $(BLUE)run synthesis with Yosys$(RESET)"
 	$(Q)$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
 	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
 	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
 syn_sv: setup_syn ## Run SystemVerilog synthesis
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@echo "\n$(ORANGE)Synthesis with Yosys...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[syn]$(RESET) $(BLUE)run synthesis with Yosys$(RESET)"
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
 	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
 	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
@@ -929,7 +979,8 @@ setup_signoff: setup_sdc ## Generate signoff scripts
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff \
 		--top $(TOP) \
 		--constraints-dir $(ORSDIR) --synthesis-dir $(SYNDIR) --simulation-dir $(SIMDIR) \
-		--liberty $(LIBS) --activity-pct $(ACTIVITY) \
+		$(foreach lib,$(LIBS),--liberty $(lib)) \
+		--activity-pct $(ACTIVITY) \
 		--output-dir $(SIGNOFFDIR)
 
 SYN_NETLIST ?= $(SYNDIR)/$(TOP)_synth.v
@@ -964,41 +1015,56 @@ sim_syn: compile_syn ## Run post-synthesis simulation
 
 sta_corners: setup_signoff ## Run STA for every configured corner and setup/hold mode
 	$(call _require_var,TOP)
-	@set -eu; for corner in $(SIGNOFF_CORNERS); do \
+	$(Q)$(MKDIR) -p $(SIGNOFF_LOGDIR)
+	@set -eu; failed=0; \
+	for corner in $(SIGNOFF_CORNERS); do \
 		for mode in $(STA_MODES); do \
-			echo "$(ORANGE)[sta_corners] corner=$$corner mode=$$mode$(RESET)"; \
-			STA_CORNER="$$corner" STA_MODE="$$mode" \
-			bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_sta_'"$$corner"'_'"$$mode"'.log'; \
+			log="$(SIGNOFF_LOGDIR)/$(TOP)_sta_$${corner}_$${mode}.log"; \
+			printf "%b\n" "$(ORANGE)[sta]$(RESET) $(BLUE)corner=$$corner mode=$$mode log=$$log$(RESET)"; \
+			if [ "$(LIVE)" = "1" ]; then \
+				STA_CORNER="$$corner" STA_MODE="$$mode" STA_PATHS="$(STA_PATHS)" STA_GROUPS="$(STA_GROUPS)" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl 2>&1 | tee '"$$log"; \
+			else \
+				STA_CORNER="$$corner" STA_MODE="$$mode" STA_PATHS="$(STA_PATHS)" STA_GROUPS="$(STA_GROUPS)" $(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > "$$log" 2>&1; \
+			fi || failed=1; \
 		done; \
-	done
+	done; \
+	exit $$failed
 
 power_corners: setup_signoff ## Run power analysis for every configured corner
 	$(call _require_var,TOP)
-	@set -eu; for corner in $(SIGNOFF_CORNERS); do \
-		echo "$(ORANGE)[power_corners] corner=$$corner$(RESET)"; \
-		STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_power_'"$$corner"'.log'; \
-	done
+	$(Q)$(MKDIR) -p $(SIGNOFF_LOGDIR)
+	@set -eu; failed=0; \
+	for corner in $(SIGNOFF_CORNERS); do \
+		log="$(SIGNOFF_LOGDIR)/$(TOP)_power_$${corner}.log"; \
+		printf "%b\n" "$(ORANGE)[power]$(RESET) $(BLUE)corner=$$corner log=$$log$(RESET)"; \
+		if [ "$(LIVE)" = "1" ]; then \
+			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl 2>&1 | tee '"$$log"; \
+		else \
+			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl > "$$log" 2>&1; \
+		fi || failed=1; \
+	done; \
+	exit $$failed
 
-signoff_corners: sdf sta_corners power_corners ## Run SDF plus multi-corner STA and power
+signoff_corners: sdf sta_corners power_corners ## Run SDF plus complete multi-corner signoff
 
-sta: setup_signoff ## Run static timing analysis
-	@echo "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
-	$(Q)bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log'
-	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).warnings || true
-	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_sta_opt_$(TARGET_OPT).errors || true
+sta: sta_corners ## Run STA for every corner and setup/hold mode
 
 sdf: setup_signoff ## Write SDF timing files
-	@echo "\n$(ORANGE)Write sdf files...\n$(RESET)"
-	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl 2>&1
+	@printf "%b\n" "$(ORANGE)[sdf]$(RESET) $(BLUE)write SDF timing files$(RESET)"
+	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf $(SIGNOFF_LOGDIR)
+	@printf "%b\n" "$(BLUE)log: $(SIGNOFF_LOGDIR)/$(TOP)_sdf.log$(RESET)"
+	$(Q)if [ "$(LIVE)" = "1" ]; then \
+		bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl 2>&1 | tee $(SIGNOFF_LOGDIR)/$(TOP)_sdf.log'; \
+	else \
+		$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > $(SIGNOFF_LOGDIR)/$(TOP)_sdf.log 2>&1; \
+	fi
 
-power: setup_signoff ## Run power analysis
-	@echo "\n$(ORANGE)Power Analysis, static and with .vcd...\n$(RESET)"
-	$(Q)bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_power.log'
+power: power_corners ## Run power analysis for every configured corner
 
 sta_violators: setup_signoff ## Report timing violators
 	@echo "\n$(ORANGE)Static Timing Analysis only timing violators...\n$(RESET)"
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta_violators.tcl > $(LOGDIR)/$(TOP)_sta.violators
+	$(Q)$(MKDIR) -p $(SIGNOFF_LOGDIR)
+	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta_violators.tcl > $(SIGNOFF_LOGDIR)/$(TOP)_sta.violators
 
 path_view: ## Build interactive STA path view
 	@echo "\n$(ORANGE)Path view generation of STA report...\n$(RESET)"

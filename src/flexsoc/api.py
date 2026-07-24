@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
@@ -259,6 +261,7 @@ class FlexSoCResult:
     returncode: int
     stdout: str | None = None
     stderr: str | None = None
+    log_path: Path | None = None
 
     @property
     def ok(self) -> bool:
@@ -275,6 +278,7 @@ class FlexSoCResult:
             "command": self.command.to_dict(),
             "stdout": self.stdout,
             "stderr": self.stderr,
+            "log_path": str(self.log_path) if self.log_path else None,
         }
 
 
@@ -298,6 +302,13 @@ def _upper(values: Mapping[str, Any]) -> dict[str, str]:
     """Convert settings to Make-style uppercase strings."""
 
     return {str(key).upper(): str(value) for key, value in values.items() if value is not None}
+
+
+def _safe_log_name(value: str) -> str:
+    """Return a filesystem-safe log filename fragment."""
+
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip())
+    return safe.strip("._") or "target"
 
 
 def _target(name: str) -> str:
@@ -411,6 +422,7 @@ class FlexSoC:
         check: bool = True,
         dry_run: bool = False,
         capture: bool = False,
+        live: bool = False,
         **overrides: Any,
     ) -> tuple[FlexSoCCommand | FlexSoCResult, ...]:
         """Run or preview one or more targets."""
@@ -418,25 +430,87 @@ class FlexSoC:
         commands = self.commands(*targets, **overrides)
         if dry_run:
             return commands
+
         results: list[FlexSoCResult] = []
         for command in commands:
-            done = subprocess.run(
+            log_path = self._command_log_path(command) if capture or live else None
+            if log_path:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if capture:
+                done = subprocess.run(
+                    command.argv,
+                    cwd=command.cwd,
+                    env=command.env,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                assert log_path is not None
+                log_path.write_text((done.stdout or "") + (done.stderr or ""), encoding="utf-8")
+            elif live:
+                assert log_path is not None
+                done = self._run_live(command, log_path)
+            else:
+                group, description, _ = TARGETS.get(command.target, ("Target", "Run target", ()))
+                orange, blue, green, red, reset = "\033[38;5;214m", "\033[94m", "\033[92m", "\033[91m", "\033[0m"
+                print(f"{orange}→ {command.target}{reset}: {blue}{description}{reset}", flush=True)
+                done = subprocess.run(
+                    command.argv,
+                    cwd=command.cwd,
+                    env=command.env,
+                    check=False,
+                    text=True,
+                )
+                ok = done.returncode == 0
+                status = f"{green}✓{reset}" if ok else f"{red}✗{reset}"
+                suffix = "done" if ok else f"failed ({done.returncode})"
+                print(f"{status} {orange}{command.target}{reset}: {suffix}", flush=True)
+
+            result = FlexSoCResult(
+                command,
+                done.returncode,
+                done.stdout if capture else None,
+                done.stderr if capture else None,
+                log_path,
+            )
+            results.append(result)
+            if check and done.returncode:
+                detail = f"; log: {log_path}" if log_path else ""
+                raise RuntimeError(
+                    f"target '{command.target}' failed with exit code {done.returncode}{detail}"
+                )
+        return tuple(results)
+
+    def _command_log_path(self, command: FlexSoCCommand) -> Path:
+        """Return the per-target command log path."""
+
+        values = command.values
+        workspace = Path(values.get("WORKSPACE", str(self.workdir)))
+        run_top = values.get("RUN_TOP") or values.get("TOP") or "run"
+        run_id = values.get("RUN_ID", "default")
+        name = _safe_log_name(command.target)
+        if command.target in {"sim", "sim_v", "sim_sv", "cocotb"} and values.get("TEST_NAME"):
+            name = f"{name}_{_safe_log_name(values['TEST_NAME'])}"
+        return workspace / "runs" / run_top / run_id / "logs" / "commands" / f"{name}.log"
+
+    def _run_live(self, command: FlexSoCCommand, log_path: Path) -> subprocess.CompletedProcess[str]:
+        """Run a command while teeing stdout/stderr to terminal and log."""
+
+        with log_path.open("w", encoding="utf-8") as log:
+            proc = subprocess.Popen(
                 command.argv,
                 cwd=command.cwd,
                 env=command.env,
-                check=check,
-                capture_output=capture,
-                text=capture,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
             )
-            results.append(
-                FlexSoCResult(
-                    command,
-                    done.returncode,
-                    done.stdout if capture else None,
-                    done.stderr if capture else None,
-                )
-            )
-        return tuple(results)
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                sys.stdout.write(line)
+                log.write(line)
+            return subprocess.CompletedProcess(command.argv, proc.wait())
 
     def _env(self) -> dict[str, str]:
         """Prepend this checkout to PYTHONPATH."""
