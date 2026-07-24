@@ -4,6 +4,18 @@
 
 # FlexSoC
 
+
+> 🧰 **Shell setup used in this guide**
+>
+> Install/sync dependencies once, then activate the project environment:
+>
+> ```bash
+> uv sync
+> source .venv/bin/activate
+> ```
+>
+> After activation, run commands directly with `fx ...`.
+
 FlexSoC is a lightweight hardware development flow for building, verifying and
 signing off IP blocks and small SoCs from a single `fx` command-line interface.
 
@@ -41,18 +53,18 @@ FlexSoC orchestrates common open-source RTL and physical-design tools:
 
 ```bash
 uv sync
-uv run fx --help
-uv run fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart
-uv run fx setup hjson reg doc rtl_stub lint setup_model setup_tb setup_cocotb sim cocotb --force
-uv run fx syn sdf sta power --force
+fx --help
+fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart
+fx setup hjson reg doc rtl_stub lint setup_model setup_tb setup_cocotb sim cocotb --force
+fx syn sdf sta power --force
 ```
 
 List generated tests and run one by name:
 
 ```bash
-uv run fx tests
-uv run fx sim --set TEST_NAME=smoke
-uv run fx cocotb --set TEST_NAME=smoke
+fx tests
+fx sim --set TEST_NAME=smoke
+fx cocotb --set TEST_NAME=smoke
 ```
 
 ## 📚 Documentation
@@ -71,3 +83,5 @@ Start here:
 FlexSoC intentionally keeps the generated files explicit. Generated RTL, models,
 test vectors and constraints are meant to be read, edited and reviewed. The tool
 should accelerate setup without hiding design intent.
+
+- Signoff produces setup/hold STA and power logs per corner, plus a compact Markdown report under `logs/`.
