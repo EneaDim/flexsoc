@@ -318,13 +318,27 @@ function automatic bit tb_lookup_reg_addr(input string reg_key, output logic [31
   endcase
 endfunction
 
+function automatic bit tb_parse_cfg_u32(input string raw, output logic [31:0] value);
+  string s;
+  int ok;
+  value = '0;
+  s = raw;
+  if (raw.len() > 2 && (raw.substr(0, 1) == "0x" || raw.substr(0, 1) == "0X")) begin
+    s = raw.substr(2, raw.len() - 1);
+  end
+  ok = $sscanf(s, "%h", value);
+  if (ok != 1) ok = $sscanf(raw, "%d", value);
+  if (ok != 1) $display("[TB][WARN] cannot parse config value: %s", raw);
+  return ok == 1;
+endfunction
+
 task automatic run_reg_config(input string cfg_path);
   int fd;
   int code;
-  int wait_cycles;
-  string line;
+  int writes;
+  string rest;
   string reg_key;
-  string note;
+  string data_raw;
   logic [31:0] addr;
   logic [31:0] data;
   logic [31:0] mask;
@@ -335,25 +349,52 @@ task automatic run_reg_config(input string cfg_path);
     return;
   end
 
+  writes = 0;
   $display("[TB] applying register config: %s", cfg_path);
   while (!$feof(fd)) begin
-    void'($fgets(line, fd));
-    if (line.len() == 0 || line.substr(0, 0) == "#") continue;
-    mask = 32'hffff_ffff;
-    wait_cycles = 1;
-    note = "";
-    code = $sscanf(line, "%s %h %h %d %s", reg_key, data, mask, wait_cycles, note);
-    if (code >= 2) begin
-      if (!tb_lookup_reg_addr(reg_key, addr)) begin
-        $display("[TB][WARN] unknown register key in config: %s", reg_key);
-        continue;
-      end
-      $display("[TB] config write %s addr=0x%08x data=0x%08x mask=0x%08x", reg_key, addr, data, mask);
-      {write_call}
-      repeat (wait_cycles) @(posedge {clk});
+    reg_key = "";
+    data_raw = "";
+    code = $fscanf(fd, "%s", reg_key);
+    if (code != 1) begin
+      void'($fgets(rest, fd));
+      continue;
     end
+
+    if (reg_key.len() == 0) continue;
+    if (reg_key.substr(0, 0) == "#") begin
+      void'($fgets(rest, fd));
+      continue;
+    end
+
+    if (reg_key == "write") begin
+      code = $fscanf(fd, "%s %s", reg_key, data_raw);
+    end else begin
+      code = $fscanf(fd, "%s", data_raw);
+    end
+    void'($fgets(rest, fd));
+
+    if (code < 1 || data_raw.len() == 0) begin
+      $display("[TB][WARN] malformed config row near key: %s", reg_key);
+      continue;
+    end
+    if (!tb_lookup_reg_addr(reg_key, addr)) begin
+      $display("[TB][WARN] unknown register key in config: %s", reg_key);
+      continue;
+    end
+    if (!tb_parse_cfg_u32(data_raw, data)) continue;
+
+    mask = 32'hffff_ffff;
+    $display("[TB] config write %s addr=0x%08x data=0x%08x", reg_key, addr, data);
+    {write_call}
+    writes++;
+    @(posedge {clk});
   end
   $fclose(fd);
+
+  if (writes == 0) begin
+    $display("[TB][ERROR] no register config writes were applied from %s", cfg_path);
+    error_count++;
+  end
 endtask
 """
 
@@ -372,23 +413,53 @@ def render_sv_vec_monitor(top: str, outputs: Sequence[str]) -> str:
 
     if not outputs:
         return f"""// Auto-generated vector monitor for {top}.
+// Scan data_out.vec and apply all checks scheduled for this cycle.
 task automatic tb_check_outputs(input string out_path, input int cycle);
 endtask
 """
-    cases = "\n".join(f'    "{name}": actual = {_sv_output_expr(name)};' for name in outputs)
+    checks = []
+    for index, name in enumerate(outputs):
+        head = "if" if index == 0 else "else if"
+        checks.append(
+            f'  {head} (name == "{name}") begin\n'
+            f"    actual = {_sv_output_expr(name)};\n"
+            "  end"
+        )
+    checks_text = "\n".join(checks)
     return f"""// Auto-generated vector monitor for {top}.
+// Reads data_out.vec and checks named DUT outputs at vector cycles.
+// Format: <CYCLE> <SIGNAL> <EXPECTED>. Repeat a cycle for multiple checks.
+function automatic bit tb_parse_u32(input string raw, output logic [31:0] value);
+  string s;
+  int ok;
+  value = '0;
+  s = raw;
+  if (raw.len() > 2 && (raw.substr(0, 1) == "0x" || raw.substr(0, 1) == "0X")) begin
+    s = raw.substr(2, raw.len() - 1);
+  end
+  ok = $sscanf(s, "%h", value);
+  if (ok != 1) ok = $sscanf(raw, "%d", value);
+  if (ok != 1) $display("[TB][WARN] cannot parse vector value: %s", raw);
+  return ok == 1;
+endfunction
+
+// Return one DUT output as a 32-bit value for comparison.
 function automatic logic [31:0] tb_read_output(input string name);
   logic [31:0] actual;
   actual = '0;
-  case (name)
-{cases}
-    default: $display("[TB][WARN] unknown output vector signal: %s", name);
-  endcase
+{checks_text}
+  else begin
+    $display("[TB][WARN] unknown output vector signal: %s", name);
+  end
   return actual;
 endfunction
 
-task automatic tb_check_one(input int cycle, input string name, input logic [31:0] expected);
+// Compare one expected output row against the current DUT value.
+task automatic tb_check_one(input int cycle, input string name, input string raw);
   logic [31:0] actual;
+  logic [31:0] expected;
+  if (name == "") return;
+  if (!tb_parse_u32(raw, expected)) return;
   actual = tb_read_output(name);
   if (actual !== expected) begin
     error_count++;
@@ -398,117 +469,150 @@ task automatic tb_check_one(input int cycle, input string name, input logic [31:
   end
 endtask
 
-task automatic tb_check_pairs(input int cycle, input int code, input string n0, input logic [31:0] v0,
-                              input string n1, input logic [31:0] v1, input string n2, input logic [31:0] v2,
-                              input string n3, input logic [31:0] v3);
-  if (code >= 3) tb_check_one(cycle, n0, v0);
-  if (code >= 5) tb_check_one(cycle, n1, v1);
-  if (code >= 7) tb_check_one(cycle, n2, v2);
-  if (code >= 9) tb_check_one(cycle, n3, v3);
-endtask
-
+// Scan data_out.vec and apply all checks scheduled for this cycle.
 task automatic tb_check_outputs(input string out_path, input int cycle);
   int fd;
   int code;
   int expected_cycle;
   string line;
-  string n0, n1, n2, n3;
-  logic [31:0] v0, v1, v2, v3;
+  string name;
+  string value;
   fd = $fopen(out_path, "r");
   if (fd == 0) return;
   while (!$feof(fd)) begin
     void'($fgets(line, fd));
-    if (line.len() == 0 || line.substr(0, 0) == "#") continue;
-    n0 = ""; n1 = ""; n2 = ""; n3 = ""; v0 = '0; v1 = '0; v2 = '0; v3 = '0;
-    code = $sscanf(line, "%d %s %h %s %h %s %h %s %h", expected_cycle, n0, v0, n1, v1, n2, v2, n3, v3);
-    if (code >= 3 && expected_cycle == cycle) tb_check_pairs(cycle, code, n0, v0, n1, v1, n2, v2, n3, v3);
+    name = "";
+    value = "";
+    code = $sscanf(line, "%d %s %s", expected_cycle, name, value);
+    if (code == 3 && expected_cycle == cycle) tb_check_one(cycle, name, value);
   end
   $fclose(fd);
 endtask
 """
-
 
 def render_sv_vec_driver(top: str, clk: str, inputs: Sequence[str], outputs: Sequence[str]) -> str:
     """Render named input-vector drive tasks from data_in.vec."""
 
     if not inputs or not outputs:
         return f"""// Auto-generated vector driver for {top}.
+// Main vector runner used by the generated testbench.
 task automatic run_vectors(input string data_in_path, input string data_out_path);
   $display("[TB] vector check skipped for this DUT: %s %s", data_in_path, data_out_path);
 endtask
 """
-    cases = "\n".join(f'    "{name}": {name} <= value;' for name in inputs)
+    drives = []
+    for index, name in enumerate(inputs):
+        head = "if" if index == 0 else "else if"
+        drives.append(
+            f'  {head} (name == "{name}") begin\n'
+            f"    {name} = value;\n"
+            "    tb_vector_drive_count++;\n"
+            f'    $display("[TB][DRV] {name} <= 0x%08h", value);\n'
+            "  end"
+        )
+    drives_text = "\n".join(drives)
     return f"""// Auto-generated vector driver for {top}.
+// Reads data_in.vec, drives named DUT inputs, and applies @cfg reconfiguration.
+// Format: <CYCLE> <SIGNAL> <VALUE>. Repeat a cycle for simultaneous drives.
+int tb_vector_drive_count;
+
+// Drive one named top-level input.
 task automatic tb_drive_input(input string name, input logic [31:0] value);
-  case (name)
-{cases}
-    default: $display("[TB][WARN] unknown input vector signal: %s", name);
-  endcase
-endtask
-
-task automatic tb_drive_pairs(input int code, input string n0, input logic [31:0] v0,
-                              input string n1, input logic [31:0] v1, input string n2, input logic [31:0] v2,
-                              input string n3, input logic [31:0] v3);
-  if (code >= 3) tb_drive_input(n0, v0);
-  if (code >= 5) tb_drive_input(n1, v1);
-  if (code >= 7) tb_drive_input(n2, v2);
-  if (code >= 9) tb_drive_input(n3, v3);
-endtask
-
-task automatic tb_wait_cycle(input int target_cycle, inout int now_cycle, input string data_out_path);
-  while (now_cycle < target_cycle) begin
-    @(posedge {clk}); #1; now_cycle++;
-    tb_check_outputs(data_out_path, now_cycle);
+{drives_text}
+  else begin
+    $display("[TB][WARN] unknown input vector signal: %s", name);
   end
 endtask
 
+task automatic tb_drive_raw(input string name, input string raw);
+  logic [31:0] value;
+  if (name == "") return;
+  if (tb_parse_u32(raw, value)) tb_drive_input(name, value);
+endtask
+
+// Advance one logical vector cycle and check expected outputs.
+task automatic tb_step(input string data_out_path, inout int now_cycle);
+  @(posedge {clk}); #1;
+  now_cycle++;
+  tb_check_outputs(data_out_path, now_cycle);
+endtask
+
+task automatic tb_finish_cycle(input string data_out_path, inout int now_cycle, inout bit cycle_open);
+  if (cycle_open) begin
+    tb_step(data_out_path, now_cycle);
+    cycle_open = 1'b0;
+  end
+endtask
+
+task automatic tb_wait_before_drive(input int target_cycle, input string data_out_path, inout int now_cycle);
+  while (now_cycle < target_cycle - 1) begin
+    tb_step(data_out_path, now_cycle);
+  end
+  @(negedge {clk}); #1;
+endtask
+
+// Main vector runner used by the generated testbench.
 task automatic run_vectors(input string data_in_path, input string data_out_path);
   int fd;
   int code;
   int cycle;
   int now_cycle;
-  int cfg_code;
+  int current_cycle;
+  int drive_start;
+  bit cycle_open;
   string line;
-  string n0, n1, n2, n3;
-  string cfg_path;
-  logic [31:0] v0, v1, v2, v3;
+  string name;
+  string value;
 
-  now_cycle = 0;
+  now_cycle = -1;
+  current_cycle = -1;
+  cycle_open = 1'b0;
+  drive_start = tb_vector_drive_count;
   fd = $fopen(data_in_path, "r");
   if (fd == 0) begin
-    $display("[TB] input vector file not found: %s", data_in_path);
+    $display("[TB][ERROR] input vector file not found: %s", data_in_path);
+    error_count++;
     return;
   end
 
   $display("[TB] running vectors: in=%s out=%s", data_in_path, data_out_path);
   while (!$feof(fd)) begin
     void'($fgets(line, fd));
-    if (line.len() == 0 || line.substr(0, 0) == "#") continue;
-    n0 = ""; n1 = ""; n2 = ""; n3 = ""; cfg_path = ""; v0 = '0; v1 = '0; v2 = '0; v3 = '0;
+    name = "";
+    value = "";
+    code = $sscanf(line, "%d %s %s", cycle, name, value);
+    if (code < 3) continue;
 
-    cfg_code = $sscanf(line, "%d %s %s", cycle, n0, cfg_path);
-    if (cfg_code >= 3 && (n0 == "@cfg" || n0 == "cfg" || n0 == "@config" || n0 == "config")) begin
-      tb_wait_cycle(cycle, now_cycle, data_out_path);
-      run_reg_config(cfg_path);
+    if (name == "@cfg" || name == "cfg" || name == "@config" || name == "config") begin
+      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      current_cycle = -1;
+      $display("[TB][CFG] cycle=%0d path=%s", cycle, value);
+      run_reg_config(value);
       continue;
     end
 
-    code = $sscanf(line, "%d %s %h %s %h %s %h %s %h", cycle, n0, v0, n1, v1, n2, v2, n3, v3);
-    if (code < 3) continue;
-    tb_wait_cycle(cycle, now_cycle, data_out_path);
-    tb_drive_pairs(code, n0, v0, n1, v1, n2, v2, n3, v3);
-    @(posedge {clk}); #1; now_cycle++;
-    tb_check_outputs(data_out_path, now_cycle);
+    if (!cycle_open || cycle != current_cycle) begin
+      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      current_cycle = cycle;
+      cycle_open = 1'b1;
+      $display("[TB][VEC] cycle=%0d", cycle);
+    end
+    tb_drive_raw(name, value);
   end
   $fclose(fd);
 
+  tb_finish_cycle(data_out_path, now_cycle, cycle_open);
   repeat (8) begin
-    @(posedge {clk}); #1; now_cycle++;
-    tb_check_outputs(data_out_path, now_cycle);
+    tb_step(data_out_path, now_cycle);
+  end
+  if (tb_vector_drive_count == drive_start) begin
+    error_count++;
+    $display("[TB][ERROR] no vector inputs were driven from %s", data_in_path);
   end
 endtask
 """
-
 
 def _simple_datapath_ports(sig: dict[str, Any]) -> tuple[list[str], list[str]]:
     """Return generic data ports detected on the DUT."""
@@ -528,7 +632,8 @@ def _render_no_vector_task(top: str) -> str:
 
     return f'''  // No generic data input/output ports were detected for {top}.
   // Register config still runs; add an IP-specific checker for datapath checks.
-  task automatic run_vectors(input string data_in_path, input string data_out_path);
+  // Main vector runner used by the generated testbench.
+task automatic run_vectors(input string data_in_path, input string data_out_path);
     $display("[TB] vector check skipped for this DUT: %s %s", data_in_path, data_out_path);
   endtask
 '''
@@ -678,10 +783,10 @@ interface tlul_if (
   import tlul_pkg::*;
 
   // Host to Device
-  tl_h2d_t h2d /*verilator public*/;
+  tl_h2d_t h2d /* simulator public*/;
 
   // Device to Host
-  tl_d2h_t d2h /*verilator public*/;
+  tl_d2h_t d2h /* simulator public*/;
 
   // Modport for driver (testbench)
   modport drv (
@@ -825,9 +930,9 @@ interface reg_if (
   import {top}_reg_pkg::*;
 
   // Toward DUT (registered request)
-  reg_req_t req /*verilator public*/;
+  reg_req_t req /* simulator public*/;
   // From DUT (response)
-  reg_rsp_t rsp /*verilator public*/;
+  reg_rsp_t rsp /* simulator public*/;
 
   // Staging avoids combinational loops from TB into DUT
   reg_req_t req_q;
@@ -934,38 +1039,32 @@ endclass
 
 
 def render_sv_test_selector(tests: Sequence[str] = TEST_NAMES) -> str:
-    """Render plusarg-based test selection by name or zero-based index."""
+    """Render plusarg-based test selection by name or explicit files."""
 
-    cases = "\n".join(f'      {idx}: test_name = "{name}";' for idx, name in enumerate(tests))
     names = ", ".join(tests)
     return f"""  // Test selection
-  // Use +TEST_NAME=<name>, +TEST_ID=<zero_based_index>, or override file paths directly.
-  // Available generated tests: {names}
+  // Use +TEST_NAME=<name> or explicit CFG/DATA_IN/DATA_OUT file paths.
+  // Use +TEST_ROOT=<dir> to relocate generated tests.
+  // Available generated tests from the default model: {names}
   task automatic tb_select_test(output string cfg_path, output string data_in_path, output string data_out_path);
-    int test_id;
     string test_name;
+    string test_root;
 
     test_name = "{tests[0]}";
-    if ($value$plusargs("TEST_ID=%d", test_id)) begin
-      case (test_id)
-{cases}
-        default: begin
-          $display("[TB][WARN] unknown TEST_ID=%0d; using {tests[0]}", test_id);
-          test_name = "{tests[0]}";
-        end
-      endcase
-    end
+    test_root = "tests";
+    void'($value$plusargs("TEST_ROOT=%s", test_root));
     void'($value$plusargs("TEST_NAME=%s", test_name));
 
-    cfg_path      = {{"tests/", test_name, "/config.regs"}};
-    data_in_path  = {{"tests/", test_name, "/data_in.vec"}};
-    data_out_path = {{"tests/", test_name, "/data_out.vec"}};
+    cfg_path      = {{test_root, "/", test_name, "/config.regs"}};
+    data_in_path  = {{test_root, "/", test_name, "/data_in.vec"}};
+    data_out_path = {{test_root, "/", test_name, "/data_out.vec"}};
 
     void'($value$plusargs("CFG=%s", cfg_path));
     void'($value$plusargs("DATA_IN=%s", data_in_path));
     void'($value$plusargs("DATA_OUT=%s", data_out_path));
 
     $display("[TB] test=%s", test_name);
+    $display("[TB] test_root=%s", test_root);
     $display("[TB] cfg=%s", cfg_path);
     $display("[TB] data_in=%s", data_in_path);
     $display("[TB] data_out=%s", data_out_path);
@@ -1353,7 +1452,7 @@ def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
     simple_mode = uses_simple_testbench(config)
     written: list[Path] = []
     hjson_path = _candidate_hjson_path(config.rtldir, config.top)
-    written.extend(write_verification_tests(outdir / "tests", config.top, hjson_path, sig, force=True))
+    # setup_model owns config.regs/data_in.vec/data_out.vec generation.
     written.extend(
         write_sv_verification_helpers(
             outdir,

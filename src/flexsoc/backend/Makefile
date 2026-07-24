@@ -110,15 +110,15 @@ FSM_INPUT_DIR  ?= $(FSMWORKDIR)/inputs
 FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
 ORSDIR         ?= $(OR_WORKDIR)
 REGRESSIONDIR  ?= $(OUTROOT)/regression
-TEST_NAMES     ?= smoke corners random
-TEST_ID        ?=
+TEST_NAMES     ?= smoke corners random reconfig
 TEST_NAME      ?= smoke
-TESTDIR        ?= $(TBDIR)/tests/$(TEST_NAME)
+TEST_ROOT      ?= $(TBDIR)/tests
+TESTDIR        ?= $(TEST_ROOT)/$(TEST_NAME)
 REGCFG         ?= $(TESTDIR)/config.regs
 DATA_IN        ?= $(TESTDIR)/data_in.vec
 DATA_OUT       ?= $(TESTDIR)/data_out.vec
-SIM_TEST_SEL   := $(if $(strip $(TEST_ID)),+TEST_ID=$(TEST_ID),+TEST_NAME=$(TEST_NAME))
-SIM_TEST_FILES := $(if $(strip $(TEST_ID)),,+CFG=$(REGCFG) +DATA_IN=$(DATA_IN) +DATA_OUT=$(DATA_OUT))
+SIM_TEST_SEL   := +TEST_NAME=$(TEST_NAME)
+SIM_TEST_FILES := +TEST_ROOT=$(TEST_ROOT) +CFG=$(REGCFG) +DATA_IN=$(DATA_IN) +DATA_OUT=$(DATA_OUT)
 SIM_PLUSARGS   ?= $(SIM_TEST_SEL) $(SIM_TEST_FILES)
 COCOTB_WAVES   ?= 1
 
@@ -316,7 +316,7 @@ PHONY_TARGETS += setup soc_cfg soc_start
 PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist flist_split driver fetch
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
 PHONY_TARGETS += lint lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier
-PHONY_TARGETS += setup_tb setup_cocotb setup_model compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests
+PHONY_TARGETS += setup_tb setup_cocotb setup_model tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
 PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
 PHONY_TARGETS += setup_signoff compile_syn sim_syn sta sdf power sta_violators path_view
@@ -606,20 +606,47 @@ setup_cocotb: setup flist ## Generate a cocotb scaffold
 		--clk clk_i --rst rst_ni --rst-active low --period-ns 10 \
 		--sim $(COMPILER)
 
-setup_model: setup ## Generate a Python model scaffold
+setup_model: setup ## Generate/update the model and vector tests
 	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(MODELDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_model --top $(TOP) --output-dir $(MODELDIR)
+	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_model $(OVERWRITE) \
+		--top $(TOP) \
+		--output-dir $(MODELDIR) \
+		--tests-dir $(TEST_ROOT) \
+		--hjson $(DATADIR)/$(TOP).hjson \
+		--rtl-dir $(RTLDIR)
+
+tests: setup_model ## List generated vector tests
+	@set -eu; \
+	printf '\n$(BLUE)Available vector tests in $(TEST_ROOT):$(RESET)\n'; \
+	found=0; \
+	for dir in "$(TEST_ROOT)"/*; do \
+		[ -d "$$dir" ] || continue; \
+		found=1; \
+		name=$$(basename "$$dir"); \
+		printf '  $(ORANGE)%s$(RESET)\n' "$$name"; \
+	done; \
+	if [ "$$found" -eq 0 ]; then \
+		echo "  no tests found; run fx setup_model --force"; \
+	fi
 
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv) ## Compile the current testbench
 sim:     $(if $(filter v,$(VSV)),sim_v,sim_sv) ## Run simulation
 
-sim_tests: setup_tb ## Run every generated SystemVerilog vector test
+sim_tests: setup_model setup_tb ## Run every generated SystemVerilog vector test
 	@set -eu; \
-	for test in $(TEST_NAMES); do \
+	found=0; \
+	for dir in "$(TEST_ROOT)"/*; do \
+		[ -d "$$dir" ] || continue; \
+		found=1; \
+		test=$$(basename "$$dir"); \
 		printf '\n$(ORANGE)[sim_tests] TEST_NAME=%s$(RESET)\n' "$$test"; \
-		$(MAKE) --no-print-dir -f $(abspath $(lastword $(MAKEFILE_LIST))) sim TEST_NAME="$$test" TEST_ID=; \
-	done
+		$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) sim TEST_NAME="$$test"; \
+	done; \
+	if [ "$$found" -eq 0 ]; then \
+		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
+		exit 1; \
+	fi
 
 compile_v: lint_v ## Compile Verilog simulation
 	@echo "\n$(ORANGE)Compiling...\n$(RESET)"
@@ -675,7 +702,7 @@ else
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
-cocotb: ## Run one cocotb vector test selected by TEST_NAME or TEST_ID
+cocotb: ## Run one cocotb vector test selected by TEST_NAME
 	$(Q)if [ ! -f "$(TBDIR)/cocotb/Makefile" ]; then \
 		echo "cocotb scaffold not found: $(TBDIR)/cocotb/Makefile"; \
 		echo "Generate it first, for example:"; \
@@ -688,14 +715,22 @@ cocotb: ## Run one cocotb vector test selected by TEST_NAME or TEST_ID
 		exit 1; \
 	}
 	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb \
-		TEST_NAMES="$(TEST_NAMES)" TEST_NAME="$(TEST_NAME)" TEST_ID="$(TEST_ID)" WAVES=$(COCOTB_WAVES)
+		TEST_NAME="$(TEST_NAME)" WAVES=$(COCOTB_WAVES)
 
-cocotb_tests: setup_cocotb ## Run every generated cocotb vector test
+cocotb_tests: setup_model setup_cocotb ## Run every generated cocotb vector test
 	@set -eu; \
-	for test in $(TEST_NAMES); do \
+	found=0; \
+	for dir in "$(TEST_ROOT)"/*; do \
+		[ -d "$$dir" ] || continue; \
+		found=1; \
+		test=$$(basename "$$dir"); \
 		printf '\n$(ORANGE)[cocotb_tests] TEST_NAME=%s$(RESET)\n' "$$test"; \
-		$(MAKE) --no-print-dir -f $(abspath $(lastword $(MAKEFILE_LIST))) cocotb TEST_NAME="$$test" TEST_ID=; \
-	done
+		$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) cocotb TEST_NAME="$$test"; \
+	done; \
+	if [ "$$found" -eq 0 ]; then \
+		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
+		exit 1; \
+	fi
 
 # ============================================================================
 # 7. Viewing, waveform inspection and regression artifacts
