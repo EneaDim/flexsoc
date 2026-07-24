@@ -71,8 +71,8 @@ tb/tests/smoke/
 Run a test by name:
 
 ```bash
-uv run fx sim --set TEST_NAME=smoke
-uv run fx cocotb --set TEST_NAME=smoke
+fx sim --set TEST_NAME=smoke
+fx cocotb --set TEST_NAME=smoke
 ```
 
 ### `pnr_openroad/`

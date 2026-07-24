@@ -1,5 +1,17 @@
 # SoC development guide 🏗️
 
+
+> 🧰 **Shell setup used in this guide**
+>
+> Install/sync dependencies once, then activate the project environment:
+>
+> ```bash
+> uv sync
+> source .venv/bin/activate
+> ```
+>
+> After activation, run commands directly with `fx ...`.
+
 This guide explains how to build a small SoC on top of existing FlexSoC IPs.
 The recommended approach is IP-first: validate each IP alone, then stage it into
 the SoC run.
@@ -9,8 +21,8 @@ the SoC run.
 For each IP, run at least:
 
 ```bash
-uv run fx settings TOP=<ip> RUN_TOP=<ip> RUN_ID=dev HOST=uart
-uv run fx lint sim_tests cocotb_tests syn sdf sta power --force
+fx settings TOP=<ip> RUN_TOP=<ip> RUN_ID=dev HOST=uart
+fx lint sim_tests cocotb_tests syn sdf sta power --force
 ```
 
 A SoC is easier to debug when each IP already has passing standalone tests.
@@ -18,8 +30,8 @@ A SoC is easier to debug when each IP already has passing standalone tests.
 ## 2. Create a SoC run
 
 ```bash
-uv run fx settings TOP=soc RUN_TOP=soc RUN_ID=dev HOST=uart
-uv run fx setup
+fx settings TOP=soc RUN_TOP=soc RUN_ID=dev HOST=uart
+fx setup
 ```
 
 Use `HOST=uart` for a UART-hosted system, or `HOST=ibex` when the system is
@@ -30,8 +42,8 @@ CPU-hosted.
 Stage IPs into the SoC workspace with `ip_load`:
 
 ```bash
-uv run fx ip_load --set IP=uart_master
-uv run fx ip_load --set IP=stream_accel
+fx ip_load --set IP=uart_master
+fx ip_load --set IP=stream_accel
 ```
 
 The SoC run should collect:
@@ -62,7 +74,7 @@ workspace/runs/soc/dev/
 For a UART-hosted system, generate and prepare the SoC wrapper:
 
 ```bash
-uv run fx soc_uart_gen soc_prepare --force
+fx soc_uart_gen soc_prepare --force
 ```
 
 The generated top should instantiate the host and the loaded IPs, connect address
@@ -78,9 +90,9 @@ Keep two levels of tests:
 For IP-level regression:
 
 ```bash
-uv run fx settings TOP=<ip> RUN_TOP=<ip> RUN_ID=dev HOST=uart
-uv run fx sim_tests
-uv run fx cocotb_tests
+fx settings TOP=<ip> RUN_TOP=<ip> RUN_ID=dev HOST=uart
+fx sim_tests
+fx cocotb_tests
 ```
 
 For SoC-level verification, generate SoC tests that write/read through the host
@@ -106,10 +118,10 @@ Do not blindly reuse an IP-level SDC. At SoC level:
 Then run:
 
 ```bash
-uv run fx syn --force
-uv run fx sdf
-uv run fx sta
-uv run fx power
+fx syn --force
+fx sdf
+fx sta
+fx power
 ```
 
 ## 8. Software flow
@@ -117,8 +129,8 @@ uv run fx power
 When available, build and run software with:
 
 ```bash
-uv run fx soc_build_sw
-uv run fx soc_run
+fx soc_build_sw
+fx soc_run
 ```
 
 Use this once the hardware top and address map are stable.

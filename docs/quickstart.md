@@ -1,5 +1,17 @@
 # Quickstart 🚀
 
+
+> 🧰 **Shell setup used in this guide**
+>
+> Install/sync dependencies once, then activate the project environment:
+>
+> ```bash
+> uv sync
+> source .venv/bin/activate
+> ```
+>
+> After activation, run commands directly with `fx ...`.
+
 This guide gets you from a clean checkout to a working generated IP flow.
 
 ## 1. Install everything with uv
@@ -15,7 +27,7 @@ uv sync
 Run the CLI through `uv` or activate the environment:
 
 ```bash
-uv run fx --help
+fx --help
 # or
 source .venv/bin/activate
 fx --help
@@ -26,7 +38,7 @@ fx --help
 A run is identified by `TOP`, `RUN_TOP` and `RUN_ID`.
 
 ```bash
-uv run fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart
+fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart
 ```
 
 Meaning:
@@ -39,13 +51,13 @@ Meaning:
 You can inspect the current settings with:
 
 ```bash
-uv run fx settings
+fx settings
 ```
 
 ## 3. Generate the basic IP scaffold
 
 ```bash
-uv run fx setup hjson reg doc rtl_stub --force
+fx setup hjson reg doc rtl_stub --force
 ```
 
 This creates:
@@ -58,7 +70,7 @@ This creates:
 ## 4. Generate verification collateral
 
 ```bash
-uv run fx setup_model setup_tb setup_cocotb --force
+fx setup_model setup_tb setup_cocotb --force
 ```
 
 This creates:
@@ -73,23 +85,23 @@ This creates:
 ## 5. List and run tests
 
 ```bash
-uv run fx tests
-uv run fx sim --set TEST_NAME=smoke
-uv run fx cocotb --set TEST_NAME=smoke
+fx tests
+fx sim --set TEST_NAME=smoke
+fx cocotb --set TEST_NAME=smoke
 ```
 
 Run every generated test:
 
 ```bash
-uv run fx sim_tests
-uv run fx cocotb_tests
+fx sim_tests
+fx cocotb_tests
 ```
 
 ## 6. Lint and backend checks
 
 ```bash
-uv run fx lint
-uv run fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
+fx lint
+fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
 ```
 
 Focused lint targets may print diagnostics without always meaning the IP is
@@ -98,11 +110,23 @@ unusable. Treat the logs as review artifacts.
 ## 7. Synthesis, timing and power
 
 ```bash
-uv run fx syn
-uv run fx sdf
-uv run fx sta
-uv run fx power
+fx syn
+fx sdf
+fx sta
+fx power
 ```
 
 `sta`, `sdf` and `power` assume synthesis collateral already exists. They do not
 implicitly rerun `syn`, which keeps the flow explicit and predictable.
+
+### Logs and reports
+
+Verification logs are kept separate so SystemVerilog and cocotb runs do not overwrite each other:
+
+```bash
+logs/verification/<top>_sv_compile_<test>.log
+logs/verification/<top>_sv_sim_<test>.log
+logs/verification/<top>_cocotb_<test>.log
+```
+
+Signoff logs are grouped under `logs/signoff/`. `fx sta` runs setup and hold analysis for every configured corner, and `fx power` runs power for every corner.

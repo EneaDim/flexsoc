@@ -1,5 +1,17 @@
 # Multi-clock IP development guide ⏱️
 
+
+> 🧰 **Shell setup used in this guide**
+>
+> Install/sync dependencies once, then activate the project environment:
+>
+> ```bash
+> uv sync
+> source .venv/bin/activate
+> ```
+>
+> After activation, run commands directly with `fx ...`.
+
 This guide describes a more complex IP development flow for an IP with multiple
 clock domains, multiple register maps, clock gating, asynchronous FIFOs and a
 small DSP datapath.
@@ -34,14 +46,14 @@ The datapath is intentionally small but realistic:
 ## 2. Create the run
 
 ```bash
-uv run fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart
-uv run fx setup
+fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart
+fx setup
 ```
 
 ## 3. Generate the multi-clock scaffold
 
 ```bash
-uv run fx multiclock_scaffold --force
+fx multiclock_scaffold --force
 ```
 
 The scaffold is meant to be equivalent in spirit to `fx hjson + fx rtl_stub`, but
@@ -84,19 +96,19 @@ data/tri_stream_dsp_cfg.hjson
 Generate all regmaps:
 
 ```bash
-uv run fx reg_multi doc_multi
+fx reg_multi doc_multi
 ```
 
 Generate only the `cfg` regmap:
 
 ```bash
-uv run fx reg_multi doc_multi --set REGMAP=cfg
+fx reg_multi doc_multi --set REGMAP=cfg
 ```
 
 Generate only the `dsp` regmap:
 
 ```bash
-uv run fx reg_multi doc_multi --set REGMAP=dsp
+fx reg_multi doc_multi --set REGMAP=dsp
 ```
 
 Without `--force`, the flow is incremental: it skips generated files that are
@@ -248,9 +260,9 @@ Review these constraints manually. CDC intent must be explicit.
 The scaffold registers helper targets:
 
 ```bash
-uv run fx sta_corners
-uv run fx power_corners
-uv run fx signoff_corners
+fx sta_corners
+fx power_corners
+fx signoff_corners
 ```
 
 The intent is to run setup/hold STA and power across configured corners. These
@@ -273,17 +285,17 @@ The multi-clock IP must be easy to integrate into a SoC. Follow these rules:
 ## 11. Suggested development sequence
 
 ```bash
-uv run fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart
-uv run fx setup
-uv run fx multiclock_scaffold --force
-uv run fx reg_multi doc_multi --force
-uv run fx flist lint --force
-uv run fx setup_model setup_tb setup_cocotb --force
-uv run fx tests
-uv run fx sim --set TEST_NAME=smoke
-uv run fx cocotb --set TEST_NAME=smoke
-uv run fx syn --force
-uv run fx sdf
-uv run fx sta_corners
-uv run fx power_corners
+fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart
+fx setup
+fx multiclock_scaffold --force
+fx reg_multi doc_multi --force
+fx flist lint --force
+fx setup_model setup_tb setup_cocotb --force
+fx tests
+fx sim --set TEST_NAME=smoke
+fx cocotb --set TEST_NAME=smoke
+fx syn --force
+fx sdf
+fx sta_corners
+fx power_corners
 ```
