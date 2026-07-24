@@ -1,124 +1,108 @@
-# 🚀 FlexSoC Quickstart
+# Quickstart 🚀
 
-This guide is intentionally short: set the run context, launch `fx` targets, and
-inspect the generated workspace.
+This guide gets you from a clean checkout to a working generated IP flow.
 
-## 1. Install everything
+## 1. Install everything with uv
+
+FlexSoC is designed so a normal `uv sync` installs the Python package and the
+Python-side flow dependencies.
 
 ```bash
+cd ~/github/flexsoc
 uv sync
-uv run fx --help
-uv run fx commands
 ```
 
-`uv sync` installs the package and the Python dependencies used by the CLI,
-tests, cocotb, and flow helpers.
+Run the CLI through `uv` or activate the environment:
 
-## 2. IP development from scratch 🧩
+```bash
+uv run fx --help
+# or
+source .venv/bin/activate
+fx --help
+```
 
-Create a new scratch IP run:
+## 2. Configure a run
+
+A run is identified by `TOP`, `RUN_TOP` and `RUN_ID`.
 
 ```bash
 uv run fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart
 ```
 
-Generate the useful source artifacts:
+Meaning:
+
+- `TOP=test`: the IP/module you are working on.
+- `RUN_TOP=test`: the workspace group for this run.
+- `RUN_ID=dev`: the run name under the workspace.
+- `HOST=uart`: the host style used by higher-level generated flows.
+
+You can inspect the current settings with:
 
 ```bash
-uv run fx setup hjson reg doc rtl_stub flist setup_tb setup_cocotb setup_model --force
+uv run fx settings
 ```
 
-Run one SystemVerilog vector test:
+## 3. Generate the basic IP scaffold
 
 ```bash
+uv run fx setup hjson reg doc rtl_stub --force
+```
+
+This creates:
+
+- `data/test.hjson`: editable register map source.
+- `rtl/test_reg_pkg.sv` and `rtl/test_reg_top.sv`: generated register RTL.
+- `doc/test.md`: generated register documentation.
+- `rtl/test_core.sv` and `rtl/test.sv`: generated RTL stub and wrapper.
+
+## 4. Generate verification collateral
+
+```bash
+uv run fx setup_model setup_tb setup_cocotb --force
+```
+
+This creates:
+
+- `model/model_test.py`: Python model template.
+- `tb/tests/<name>/config.regs`: register writes for each test.
+- `tb/tests/<name>/data_in.vec`: input stimulus vectors.
+- `tb/tests/<name>/data_out.vec`: expected output vectors.
+- `tb/test_tb.sv`: SystemVerilog vector testbench.
+- `tb/cocotb/test_tb.py`: cocotb test using the same vectors.
+
+## 5. List and run tests
+
+```bash
+uv run fx tests
 uv run fx sim --set TEST_NAME=smoke
-uv run fx sim --set TEST_ID=1
-```
-
-Run the whole SystemVerilog regression:
-
-```bash
-uv run fx sim_tests
-```
-
-Run one cocotb test, or the full cocotb regression:
-
-```bash
 uv run fx cocotb --set TEST_NAME=smoke
-uv run fx cocotb --set TEST_ID=1
-uv run fx cocotb_tests
 ```
 
-Run lint, synthesis, timing, and power:
-
-```bash
-uv run fx lint lint_latch lint_width lint_unconnected lint_undriven lint_unused
-uv run fx syn sdf sta power
-```
-
-Focused lint warnings can be useful diagnostics. They should not be treated like
-fatal flow errors unless the underlying tool reports a real error.
-
-## 3. Existing IP development 📦
-
-Load an existing IP into a clean run folder:
-
-```bash
-uv run fx settings TOP=cordic RUN_TOP=cordic RUN_ID=dev HOST=uart
-uv run fx ip_load flist setup_tb setup_cocotb setup_model --force
-```
-
-Then use the same commands as the scratch flow:
+Run every generated test:
 
 ```bash
 uv run fx sim_tests
 uv run fx cocotb_tests
-uv run fx lint syn sdf sta power
 ```
 
-Useful IP examples:
+## 6. Lint and backend checks
 
 ```bash
-uv run fx settings TOP=cordic      RUN_TOP=cordic      RUN_ID=dev HOST=uart
-uv run fx settings TOP=spi_host    RUN_TOP=spi_host    RUN_ID=dev HOST=uart
-uv run fx settings TOP=uart_master RUN_TOP=uart_master RUN_ID=dev HOST=uart
-uv run fx settings TOP=fft_core    RUN_TOP=fft_core    RUN_ID=dev HOST=uart
+uv run fx lint
+uv run fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
 ```
 
-## 4. SoC development 🌐
+Focused lint targets may print diagnostics without always meaning the IP is
+unusable. Treat the logs as review artifacts.
 
-UART-host SoC example:
+## 7. Synthesis, timing and power
 
 ```bash
-uv run fx ip_load --force --set TOP=uart_master --set LOAD_AS=uart_master --set RUN_TOP=soc_uart --set RUN_ID=dev
-uv run fx ip_load --force --set TOP=gpio        --set RUN_TOP=soc_uart --set RUN_ID=dev
-uv run fx ip_load --force --set TOP=rv_timer    --set RUN_TOP=soc_uart --set RUN_ID=dev
-uv run fx soc_uart_gen --set TOP=soc --set RUN_TOP=soc_uart --set RUN_ID=dev --set HOST=uart --set SOC_CFG_MODE=builtin
+uv run fx syn
+uv run fx sdf
+uv run fx sta
+uv run fx power
 ```
 
-Ibex-host SoC example:
-
-```bash
-uv run fx fetch --set VENDOR=lowrisc_ip
-uv run fx fetch --set VENDOR=lowrisc_ibex
-uv run fx ip_load --force --set TOP=uart     --set RUN_TOP=soc_ibex --set RUN_ID=dev
-uv run fx ip_load --force --set TOP=gpio     --set RUN_TOP=soc_ibex --set RUN_ID=dev
-uv run fx ip_load --force --set TOP=rv_timer --set RUN_TOP=soc_ibex --set RUN_ID=dev
-uv run fx ip_load --force --set TOP=spi_host --set RUN_TOP=soc_ibex --set RUN_ID=dev
-uv run fx soc_ibex_gen --set TOP=soc --set RUN_TOP=soc_ibex --set RUN_ID=dev --set HOST=ibex --set SOC_CFG_MODE=builtin
-```
-
-Build and run only after external toolchains are available:
-
-```bash
-uv run fx soc_build_sw soc_run --set TOP=soc --set RUN_TOP=soc_uart --set RUN_ID=dev --set HOST=uart
-```
-
-## 5. Helpful CLI commands 🧭
-
-```bash
-uv run fx commands
-uv run fx <target> --info
-uv run fx <target> --dry-run --script
-uv run fx shell
-```
+`sta`, `sdf` and `power` assume synthesis collateral already exists. They do not
+implicitly rerun `syn`, which keeps the flow explicit and predictable.
