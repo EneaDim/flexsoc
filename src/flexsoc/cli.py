@@ -118,6 +118,7 @@ Use `fx commands` to list every backend Make target.
                 "Model + verification",
                 [
                     ("fx setup_model --force", "Create the editable model and generate config/data vectors."),
+"fx multiclock_scaffold --force",
                     ("fx setup_tb setup_cocotb --force", "Generate SystemVerilog and cocotb runners."),
                     ("fx sim --set TEST_NAME=smoke --force", "Run one SystemVerilog vector test by name."),
                     ("fx cocotb --set TEST_NAME=smoke --force", "Run one cocotb vector test by name."),

@@ -111,6 +111,18 @@ FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
 ORSDIR         ?= $(OR_WORKDIR)
 REGRESSIONDIR  ?= $(OUTROOT)/regression
 TEST_NAMES     ?= smoke corners random reconfig
+MULTICLOCK_DOMAINS ?= cfg,rx,dsp
+MULTICLOCK_REGMAPS ?= cfg,dsp
+# Select one multi-clock regmap without touching the others:
+#   fx reg_multi doc_multi --set REGMAP=cfg
+# Leave REGMAP empty to process every name in MULTICLOCK_REGMAPS.
+REGMAP ?=
+comma := ,
+empty :=
+space := $(empty) $(empty)
+MULTICLOCK_SELECTED_REGMAPS = $(subst $(comma),$(space),$(if $(strip $(REGMAP)),$(REGMAP),$(MULTICLOCK_REGMAPS)))
+SIGNOFF_CORNERS    ?= ss tt ff
+STA_MODES          ?= setup hold
 TEST_NAME      ?= smoke
 TEST_ROOT      ?= $(TBDIR)/tests
 TESTDIR        ?= $(TEST_ROOT)/$(TEST_NAME)
@@ -312,8 +324,8 @@ endef
 # Consolidated phony declarations, grouped in file order.
 PHONY_TARGETS :=
 PHONY_TARGETS += help help_ip help_soc help_doc help_fsm
-PHONY_TARGETS += setup soc_cfg soc_start
-PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist flist_split driver fetch
+PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_corners signoff_corners
+PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist flist_split driver fetch multiclock_scaffold reg_multi doc_multi
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
 PHONY_TARGETS += lint lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier
 PHONY_TARGETS += setup_tb setup_cocotb setup_model tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests
@@ -400,6 +412,58 @@ soc_start: flist ## Initialize a SoC run from loaded IPs
 # 4. IP metadata, RTL stubs, filelists and IP flow aliases
 # ============================================================================
 ##@ IP flow
+
+
+multiclock_scaffold: setup ## Generate an advanced multi-clock IP scaffold
+	$(call _require_var,TOP)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) \
+		--top $(TOP) \
+		--run-dir $(OUTROOT) \
+		--rtl-dir $(RTLDIR) \
+		--data-dir $(DATADIR) \
+		--signoff-dir $(SIGNOFFDIR) \
+		--constraints-dir $(ORSDIR) \
+		--model-dir $(MODELDIR) \
+		--domains "$(MULTICLOCK_DOMAINS)" \
+		--regmaps "$(MULTICLOCK_REGMAPS)"
+
+
+reg_multi: setup ## Generate register RTL for selected multi-clock regmap HJSON files
+	$(call _require_var,TOP)
+	@set -eu; \
+	for map in $(MULTICLOCK_SELECTED_REGMAPS); do \
+		base="$(TOP)_$$map"; \
+		file="$(DATADIR)/$$base.hjson"; \
+		pkg="$(RTLDIR)/$${base}_reg_pkg.sv"; \
+		top_sv="$(RTLDIR)/$${base}_reg_top.sv"; \
+		if [ ! -f "$$file" ]; then echo "ERROR: missing $$file"; exit 2; fi; \
+		if [ "$(FLEXSOC_FORCE)" = "0" ] && [ -f "$$pkg" ] && [ -f "$$top_sv" ] && [ "$$pkg" -nt "$$file" ] && [ "$$top_sv" -nt "$$file" ]; then \
+			echo "[reg_multi] skip $$base (up to date)"; \
+		else \
+			echo "[reg_multi] $$file"; \
+			$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) "$$file"; \
+		fi; \
+	done
+
+
+doc_multi: setup ## Generate docs for selected multi-clock regmap HJSON files
+	$(call _require_var,TOP)
+	@set -eu; \
+	for map in $(MULTICLOCK_SELECTED_REGMAPS); do \
+		base="$(TOP)_$$map"; \
+		file="$(DATADIR)/$$base.hjson"; \
+		main_doc="$(DOCDIR)/$$base.md"; \
+		if_doc="$(DOCDIR)/$${base}_interfaces.md"; \
+		if [ ! -f "$$file" ]; then echo "ERROR: missing $$file"; exit 2; fi; \
+		if [ "$(FLEXSOC_FORCE)" = "0" ] && [ -f "$$main_doc" ] && [ -f "$$if_doc" ] && [ "$$main_doc" -nt "$$file" ] && [ "$$if_doc" -nt "$$file" ]; then \
+			echo "[doc_multi] skip $$base (up to date)"; \
+		else \
+			echo "[doc_multi] $$file"; \
+			$(PYTHON) $(REGTOOL) -d -o "$$main_doc" "$$file"; \
+			$(PYTHON) $(REGTOOL) --interfaces -o "$$if_doc" "$$file"; \
+		fi; \
+	done
+
 hjson: setup ## Generate an HJSON register template
 	@echo "\n$(ORANGE)Generating HJSON template file...\n$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
@@ -895,6 +959,27 @@ sim_syn: compile_syn ## Run post-synthesis simulation
 	@echo "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
 	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose +VCD=$(VCD_SYN_FILE) +SDF=$(SDF_FILE) \
 		> $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
+
+
+
+sta_corners: setup_signoff ## Run STA for every configured corner and setup/hold mode
+	$(call _require_var,TOP)
+	@set -eu; for corner in $(SIGNOFF_CORNERS); do \
+		for mode in $(STA_MODES); do \
+			echo "$(ORANGE)[sta_corners] corner=$$corner mode=$$mode$(RESET)"; \
+			STA_CORNER="$$corner" STA_MODE="$$mode" \
+			bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_sta_'"$$corner"'_'"$$mode"'.log'; \
+		done; \
+	done
+
+power_corners: setup_signoff ## Run power analysis for every configured corner
+	$(call _require_var,TOP)
+	@set -eu; for corner in $(SIGNOFF_CORNERS); do \
+		echo "$(ORANGE)[power_corners] corner=$$corner$(RESET)"; \
+		STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl 2>&1 | tee $(LOGDIR)/$(TOP)_power_'"$$corner"'.log'; \
+	done
+
+signoff_corners: sdf sta_corners power_corners ## Run SDF plus multi-corner STA and power
 
 sta: setup_signoff ## Run static timing analysis
 	@echo "\n$(ORANGE)Static Timing Analysis...\n$(RESET)"
