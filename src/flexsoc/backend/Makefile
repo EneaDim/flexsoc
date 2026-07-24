@@ -544,11 +544,14 @@ VERILATOR ?= verilator
 
 LINT_TOOL ?= auto
 LINT_PART ?= ip
-LINT_FULL_LOG ?= $(LOGDIR)/$(TOP)_lint_$(LINT_KIND)_full.log
-LINT_COMMON_LOG ?= $(LOGDIR)/$(TOP)_lint_$(LINT_KIND)_common.log
-LINT_IP_LOG ?= $(LOGDIR)/$(TOP)_lint_$(LINT_KIND)_ip.log
+LINT_LOGDIR ?= $(LOGDIR)/lint
+LINT_RAW_LOG ?= $(LINT_LOGDIR)/raw/$(TOP)_lint_$(LINT_KIND)_raw.log
+LINT_FULL_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_KIND)_all.log
+LINT_COMMON_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_KIND)_common.log
+LINT_IP_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_KIND)_ip.log
 
-VERILATOR_LINT_BASE ?= --lint-only --sv -Wall -Wno-fatal
+VERILATOR_LINT_BASE ?= --lint-only --sv -Wno-fatal
+VERILATOR_FOCUSED_OFF ?= -Wno-DECLFILENAME -Wno-PINMISSING -Wno-PINCONNECTEMPTY -Wno-PINNOCONNECT -Wno-UNDRIVEN -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-WIDTH -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-LATCH
 SLANG_LINT_BASE ?= --lint-only --single-unit --top $(TOP) -DSYNTHESIS --diag-hierarchy never
 
 LINT_KINDS := latch undriven width unconnected unused
@@ -560,7 +563,7 @@ LINT_PATTERN_width := %Warning-(WIDTH|WIDTHEXPAND|WIDTHTRUNC)\b|\[-W(width-trunc
 LINT_PATTERN_unconnected := %Warning-(PINMISSING|PINCONNECTEMPTY|PINNOCONNECT)\b|\[-W(unconnected-|empty-.*connection)
 LINT_PATTERN_unused := %Warning-(UNUSEDSIGNAL|UNUSEDPARAM)\b|\[-Wunused-
 
-VERILATOR_FLAGS_all :=
+VERILATOR_FLAGS_all := -Wall
 VERILATOR_FLAGS_latch := -Wwarn-LATCH
 VERILATOR_FLAGS_undriven := -Wwarn-UNDRIVEN
 VERILATOR_FLAGS_width := -Wwarn-WIDTH -Wwarn-WIDTHEXPAND -Wwarn-WIDTHTRUNC
@@ -593,7 +596,7 @@ lint_latch lint_undriven lint_width lint_unconnected lint_unused: lint_%: flist_
 
 _lint_run:
 	@printf "%b\n" "$(ORANGE)[lint]$(RESET) $(BLUE)$(TOP) kind=$(LINT_KIND) part=$(LINT_PART)$(RESET)"
-	@mkdir -p $(LOGDIR)
+	@mkdir -p $(LINT_LOGDIR) $(LINT_LOGDIR)/raw
 	@if [ ! -f "$(RTL_COMMON_LIST)" ] || [ ! -f "$(RTL_IP_LIST)" ]; then echo "missing filelists. Run: fx flist"; exit 2; fi
 	@tool="$(LINT_TOOL)"; \
 	if [ "$$tool" = "auto" ]; then \
@@ -602,23 +605,27 @@ _lint_run:
 		else echo "No lint backend found. Run: make install-slang or install verilator"; exit 2; fi; \
 	fi; \
 	if [ "$$tool" = "verilator" ]; then \
-		cmd="$(VERILATOR) $(VERILATOR_LINT_BASE) $(LINT_VERILATOR_FLAGS) -f $(RTL_COMMON_LIST) -f $(RTL_IP_LIST) --top-module $(TOP)"; \
+		extra="$(LINT_VERILATOR_FLAGS)"; \
+		if [ "$(LINT_KIND)" != "all" ]; then extra="$(VERILATOR_FOCUSED_OFF) $$extra"; fi; \
+		cmd="$(VERILATOR) $(VERILATOR_LINT_BASE) $$extra -f $(RTL_COMMON_LIST) -f $(RTL_IP_LIST) --top-module $(TOP)"; \
 	elif [ "$$tool" = "slang" ]; then \
 		if [ -x "$(SLANG)" ]; then slang_cmd="$(SLANG)"; elif command -v slang >/dev/null 2>&1; then slang_cmd="slang"; else echo "slang not found. Run: make install-slang"; exit 2; fi; \
 		cmd="$$slang_cmd $(SLANG_LINT_BASE) $(LINT_SLANG_FLAGS) -f $(RTL_COMMON_LIST) -f $(RTL_IP_LIST)"; \
 	else \
 		echo "Unsupported LINT_TOOL=$$tool. Use auto, verilator, or slang."; exit 2; \
 	fi; \
-	printf "%b\n" "$(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
-	status_file="$(LINT_FULL_LOG).status"; rm -f "$$status_file"; \
+	printf "%b\n" "$(BLUE)raw: $(LINT_RAW_LOG)$(RESET)"; \
+	status_file="$(LINT_RAW_LOG).status"; rm -f "$$status_file"; \
 	if [ "$(LIVE)" = "1" ]; then \
-		{ echo "$$cmd"; eval "$$cmd"; echo $$? > "$$status_file"; } 2>&1 | tee "$(LINT_FULL_LOG)"; \
+		{ echo "$$cmd"; eval "$$cmd"; echo $$? > "$$status_file"; } 2>&1 | tee "$(LINT_RAW_LOG)"; \
 		status=$$(cat "$$status_file"); rm -f "$$status_file"; \
 	else \
-		echo "$$cmd" > "$(LINT_FULL_LOG)"; \
-		eval "$$cmd" >> "$(LINT_FULL_LOG)" 2>&1; status=$$?; \
+		echo "$$cmd" > "$(LINT_RAW_LOG)"; \
+		eval "$$cmd" >> "$(LINT_RAW_LOG)" 2>&1; status=$$?; \
 	fi; \
 	if [ "$(LINT_KIND)" = "all" ]; then \
+		cp "$(LINT_RAW_LOG)" "$(LINT_FULL_LOG)"; \
+		printf "%b\n" "$(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
 		if [ $$status -ne 0 ]; then \
 			printf "%b\n" "$(RED)[lint] failed$(RESET) $(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
 			[ "$(LIVE)" = "1" ] || tail -n 80 "$(LINT_FULL_LOG)"; \
@@ -628,30 +635,31 @@ _lint_run:
 		exit 0; \
 	fi; \
 	if [ $$status -ne 0 ]; then \
-		printf "%b\n" "$(RED)[lint] failed$(RESET) $(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
-		[ "$(LIVE)" = "1" ] || tail -n 80 "$(LINT_FULL_LOG)"; \
+		printf "%b\n" "$(RED)[lint] tool failed$(RESET) $(BLUE)raw: $(LINT_RAW_LOG)$(RESET)"; \
+		[ "$(LIVE)" = "1" ] || tail -n 80 "$(LINT_RAW_LOG)"; \
 		exit $$status; \
 	fi; \
-	grep -E -i "$(LINT_PATTERN)" "$(LINT_FULL_LOG)" | grep -vF "$(RTLDIR)" > "$(LINT_COMMON_LOG)" || true; \
-	grep -E -i "$(LINT_PATTERN)" "$(LINT_FULL_LOG)" | grep -F "$(RTLDIR)" > "$(LINT_IP_LOG)" || true; \
+	grep -E -i "$(LINT_PATTERN)" "$(LINT_RAW_LOG)" | grep -vF "$(RTLDIR)" > "$(LINT_COMMON_LOG)" || true; \
+	grep -E -i "$(LINT_PATTERN)" "$(LINT_RAW_LOG)" | grep -F "$(RTLDIR)" > "$(LINT_IP_LOG)" || true; \
 	common_count=$$(wc -l < "$(LINT_COMMON_LOG)" | tr -d ' '); \
 	ip_count=$$(wc -l < "$(LINT_IP_LOG)" | tr -d ' '); \
 	case "$(LINT_PART)" in \
-		common) count="$$common_count"; filtered="$(LINT_COMMON_LOG)" ;; \
-		ip) count="$$ip_count"; filtered="$(LINT_IP_LOG)" ;; \
-		all) count=$$((common_count + ip_count)); filtered="$(LINT_COMMON_LOG), $(LINT_IP_LOG)" ;; \
+		common) count="$$common_count"; selected="$(LINT_COMMON_LOG)" ;; \
+		ip) count="$$ip_count"; selected="$(LINT_IP_LOG)" ;; \
+		all) count=$$((common_count + ip_count)); selected="$(LINT_FULL_LOG)"; { printf "# common diagnostics\n"; cat "$(LINT_COMMON_LOG)"; printf "\n# ip diagnostics\n"; cat "$(LINT_IP_LOG)"; } > "$$selected" ;; \
 		*) echo "Unsupported LINT_PART=$(LINT_PART). Use ip, common, or all."; exit 2 ;; \
 	esac; \
+	if [ "$(LINT_PART)" != "all" ]; then cp "$$selected" "$(LINT_FULL_LOG)"; fi; \
 	if [ $$count -gt 0 ]; then \
-		echo "[lint] found $$count $(LINT_KIND) diagnostic line(s)."; \
-		echo "[lint] filtered log(s): $$filtered"; \
-		echo "[lint] full log: $(LINT_FULL_LOG)"; \
-		if [ "$(LIVE)" = "1" ]; then \
-			[ "$(LINT_PART)" != "ip" ] && { printf "\n[common]\n"; cat "$(LINT_COMMON_LOG)"; } || true; \
-			[ "$(LINT_PART)" != "common" ] && { printf "\n[ip]\n"; cat "$(LINT_IP_LOG)"; } || true; \
-		fi; \
+		printf "%b\n" "$(ORANGE)[lint]$(RESET) $(BLUE)found $$count $(LINT_KIND) diagnostic line(s)$(RESET)"; \
+		printf "%b\n" "$(BLUE)filtered: $$selected$(RESET)"; \
+		printf "%b\n" "$(BLUE)raw: $(LINT_RAW_LOG)$(RESET)"; \
+		[ "$(LIVE)" = "1" ] && { printf "\n"; cat "$$selected"; } || true; \
 	else \
-		printf "%b\n" "$(GREEN)[lint] no $(LINT_KIND) diagnostics for $(LINT_PART)$(RESET) $(BLUE)log: $(LINT_FULL_LOG)$(RESET)"; \
+		printf "No $(LINT_KIND) diagnostics for $(LINT_PART).\n" > "$$selected"; \
+		cp "$$selected" "$(LINT_FULL_LOG)"; \
+		printf "%b\n" "$(GREEN)[lint] no $(LINT_KIND) diagnostics for $(LINT_PART)$(RESET) $(BLUE)log: $$selected$(RESET)"; \
+		printf "%b\n" "$(BLUE)raw: $(LINT_RAW_LOG)$(RESET)"; \
 	fi
 
 SLANG_HIER_LOG ?= $(LOGDIR)/$(TOP)_hier.txt
@@ -722,9 +730,14 @@ setup_model: setup ## Generate/update the model and vector tests
 		--hjson $(DATADIR)/$(TOP).hjson \
 		--rtl-dir $(RTLDIR)
 
-tests: setup_model ## List generated vector tests
+
+tests: ## List generated vector tests without regenerating them
 	@set -eu; \
 	printf '\n$(BLUE)Available vector tests in $(TEST_ROOT):$(RESET)\n'; \
+	if [ ! -d "$(TEST_ROOT)" ]; then \
+		echo "  no tests directory found; run: fx setup_model --force"; \
+		exit 0; \
+	fi; \
 	found=0; \
 	for dir in "$(TEST_ROOT)"/*; do \
 		[ -d "$$dir" ] || continue; \
@@ -733,20 +746,31 @@ tests: setup_model ## List generated vector tests
 		printf '  $(ORANGE)%s$(RESET)\n' "$$name"; \
 	done; \
 	if [ "$$found" -eq 0 ]; then \
-		echo "  no tests found; run fx setup_model --force"; \
+		echo "  no tests found; run: fx setup_model --force"; \
 	fi
 
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv) ## Compile the current testbench
 sim:     $(if $(filter v,$(VSV)),sim_v,sim_sv) ## Run simulation
 
-sim_tests: setup_model setup_tb ## Run every generated SystemVerilog vector test
+
+sim_tests: ## Run every generated SystemVerilog vector test
 	@set -eu; \
+	if [ ! -d "$(TEST_ROOT)" ]; then \
+		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
+		echo "Run: fx setup_model --force"; \
+		exit 1; \
+	fi; \
+	if [ ! -f "$(TBDIR)/$(TESTBENCH).sv" ]; then \
+		echo "ERROR: SystemVerilog testbench not found: $(TBDIR)/$(TESTBENCH).sv"; \
+		echo "Run: fx setup_tb --force"; \
+		exit 1; \
+	fi; \
 	found=0; \
 	for dir in "$(TEST_ROOT)"/*; do \
 		[ -d "$$dir" ] || continue; \
 		found=1; \
 		test=$$(basename "$$dir"); \
-		printf '\n$(ORANGE)[sim_tests] TEST_NAME=%s$(RESET)\n' "$$test"; \
+		printf '\n$(ORANGE)[sim_tests]$(RESET) $(BLUE)TEST_NAME=%s$(RESET)\n' "$$test"; \
 		$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) sim TEST_NAME="$$test"; \
 	done; \
 	if [ "$$found" -eq 0 ]; then \
@@ -831,14 +855,25 @@ cocotb: ## Run one cocotb vector test selected by TEST_NAME
 		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" WAVES=$(COCOTB_WAVES) > $(COCOTB_LOG) 2>&1; \
 	fi
 
-cocotb_tests: setup_model setup_cocotb ## Run every generated cocotb vector test
+
+cocotb_tests: ## Run every generated cocotb vector test
 	@set -eu; \
+	if [ ! -d "$(TEST_ROOT)" ]; then \
+		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
+		echo "Run: fx setup_model --force"; \
+		exit 1; \
+	fi; \
+	if [ ! -f "$(TBDIR)/cocotb/Makefile" ]; then \
+		echo "ERROR: cocotb scaffold not found: $(TBDIR)/cocotb/Makefile"; \
+		echo "Run: fx setup_cocotb --force"; \
+		exit 1; \
+	fi; \
 	found=0; \
 	for dir in "$(TEST_ROOT)"/*; do \
 		[ -d "$$dir" ] || continue; \
 		found=1; \
 		test=$$(basename "$$dir"); \
-		printf '\n$(ORANGE)[cocotb_tests] TEST_NAME=%s$(RESET)\n' "$$test"; \
+		printf '\n$(ORANGE)[cocotb_tests]$(RESET) $(BLUE)TEST_NAME=%s$(RESET)\n' "$$test"; \
 		$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) cocotb TEST_NAME="$$test"; \
 	done; \
 	if [ "$$found" -eq 0 ]; then \
