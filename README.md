@@ -4,64 +4,70 @@
 
 # FlexSoC
 
-FlexSoC is a compact Python-driven flow for building, checking, and integrating
-SystemVerilog IPs and small SoCs. The main entry point is `fx`: a thin CLI over a
-single backend Makefile.
+FlexSoC is a lightweight hardware development flow for building, verifying and
+signing off IP blocks and small SoCs from a single `fx` command-line interface.
 
-## ✨ What it does
+The goal is simple: generate the boring project scaffolding, keep the generated
+files readable, and let the designer focus on architecture, RTL, verification
+and constraints.
 
-- 🧩 **IP development flow**: create the folder structure, generate hjson file
-  to describe the register map, generate documentation, RTL stubs, filelists,
-  testbenches, cocotb scaffolds, and models.
-- 🔍 **Lint flow**: run broad and focused lint checks, including latch, width,
-  unconnected, undriven, and unused diagnostics.
-- ✅ **Verification flow**: run SystemVerilog vector tests, cocotb tests, and full
-  per-IP regressions.
-- 🏗️ **Implementation flow**: run synthesis, SDF generation, static timing
-  analysis, power analysis, and OpenROAD backend preparation.
-- 🌐 **SoC development flow**: load reusable IPs, generate UART-host or Ibex-host
-  SoCs, build software, and run simulation flows.
+## ✨ Features
 
-## 🛠️ Tools used
+- 🧩 **IP development flow**: register map generation, documentation, RTL stub,
+  filelists, lint, model-based vectors, SystemVerilog simulation, cocotb,
+  synthesis, SDF, STA and power.
+- 🏗️ **SoC development flow**: load existing IPs, stage their metadata, generate
+  SoC-level structure and build on top of UART or Ibex-hosted systems.
+- 🔁 **Model-driven verification**: generate `config.regs`, `data_in.vec` and
+  `data_out.vec` from a Python model, then run the same tests with SV or cocotb.
+- ⏱️ **Multi-clock IP scaffolding**: generate a coherent starting point for IPs
+  with multiple clock domains, multiple regmaps, clock gating, async FIFOs and
+  multi-corner signoff constraints.
+- 🧹 **Focused linting**: run full lint or specific checks such as latch, width,
+  unconnected, undriven and unused diagnostics.
 
-FlexSoC coordinates common open-source EDA tools instead of hiding them:
+## 🛠️ Tools
 
-- **slang** for SystemVerilog front-end handling;
-- **verible** and **verilator** for formatting, linting, and simulation checks;
-- **cocotb** for Python-based verification;
-- **yosys** for synthesis;
-- **OpenSTA** for timing and power signoff scripts;
-- **OpenROAD** for physical implementation flows.
+FlexSoC orchestrates common open-source RTL and physical-design tools:
 
-## 🚀 Quick start
+- `slang` and `verible` for SystemVerilog parsing/formatting/lint support;
+- `verilator` for lint and fast simulation;
+- `cocotb` for Python-driven verification;
+- `yosys` for synthesis;
+- `OpenSTA` for timing analysis;
+- `OpenROAD` for physical-design oriented setup and collateral.
+
+## 🚀 Minimal quickstart
 
 ```bash
 uv sync
 uv run fx --help
-uv run fx commands
+uv run fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart
+uv run fx setup hjson reg doc rtl_stub lint setup_model setup_tb setup_cocotb sim cocotb --force
+uv run fx syn sdf sta power --force
 ```
 
-Create and validate a scratch IP:
+List generated tests and run one by name:
 
 ```bash
-uv run fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart
-uv run fx setup hjson reg doc rtl_stub flist setup_tb setup_cocotb setup_model --force
+uv run fx tests
 uv run fx sim --set TEST_NAME=smoke
 uv run fx cocotb --set TEST_NAME=smoke
-uv run fx lint lint_latch lint_width lint_unconnected lint_undriven lint_unused
-uv run fx syn sdf sta power
-```
-
-Run all generated tests for the active IP:
-
-```bash
-uv run fx sim_tests
-uv run fx cocotb_tests
 ```
 
 ## 📚 Documentation
 
-Keep it simple:
+Start here:
 
-- [`docs/quickstart.md`](docs/quickstart.md) — practical commands for IP and SoC flows.
-- [`docs/folder_structure.md`](docs/folder_structure.md) — what each folder is for.
+- [Quickstart](docs/quickstart.md) — install, configure and run the basic flow.
+- [Folder structure](docs/folder_structure.md) — understand what FlexSoC creates.
+- [IP development guide](docs/guide_ip_dev.md) — complete single-clock IP flow.
+- [SoC development guide](docs/guide_soc_dev.md) — load IPs and build a SoC on top.
+- [Multi-clock IP guide](docs/guide_multiclock_ip_dev.md) — advanced IPs with
+  multiple clock domains, multiple regmaps, CDC and multi-corner signoff.
+
+## 🧭 Design philosophy
+
+FlexSoC intentionally keeps the generated files explicit. Generated RTL, models,
+test vectors and constraints are meant to be read, edited and reviewed. The tool
+should accelerate setup without hiding design intent.
