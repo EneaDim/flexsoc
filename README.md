@@ -10,12 +10,13 @@ single backend Makefile.
 
 ## ✨ What it does
 
-- 🧩 **IP development flow**: create the run folder, generate HJSON/register RTL,
-  documentation, RTL stubs, filelists, testbenches, cocotb scaffolds, and models.
-- ✅ **Verification flow**: run SystemVerilog vector tests, cocotb tests, and full
-  per-IP regressions.
+- 🧩 **IP development flow**: create the folder structure, generate hjson file
+  to describe the register map, generate documentation, RTL stubs, filelists,
+  testbenches, cocotb scaffolds, and models.
 - 🔍 **Lint flow**: run broad and focused lint checks, including latch, width,
   unconnected, undriven, and unused diagnostics.
+- ✅ **Verification flow**: run SystemVerilog vector tests, cocotb tests, and full
+  per-IP regressions.
 - 🏗️ **Implementation flow**: run synthesis, SDF generation, static timing
   analysis, power analysis, and OpenROAD backend preparation.
 - 🌐 **SoC development flow**: load reusable IPs, generate UART-host or Ibex-host
@@ -25,7 +26,7 @@ single backend Makefile.
 
 FlexSoC coordinates common open-source EDA tools instead of hiding them:
 
-- **slang** and **sv2v** for SystemVerilog front-end handling;
+- **slang** for SystemVerilog front-end handling;
 - **verible** and **verilator** for formatting, linting, and simulation checks;
 - **cocotb** for Python-based verification;
 - **yosys** for synthesis;

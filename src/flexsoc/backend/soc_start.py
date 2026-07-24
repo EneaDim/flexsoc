@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,6 +34,32 @@ def loaded_ips(ips_dir: Path) -> tuple[Path, ...]:
 
     return tuple(sorted(path for path in ips_dir.iterdir() if path.is_dir()))
 
+
+
+def _copy_tree(src: Path, dst: Path) -> bool:
+    """Copy one optional verification asset tree."""
+
+    if not src.exists():
+        return False
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst)
+    return True
+
+
+def stage_ip_verification_assets(config: SoCStartConfig, ips: tuple[Path, ...]) -> Path:
+    """Stage per-IP tests/models into the SoC run root."""
+
+    manifest = config.run_dir / "tests" / "loaded_tests.txt"
+    lines: list[str] = []
+    for ip in ips:
+        copied_tests = _copy_tree(ip / "tb" / "tests", config.run_dir / "tests" / ip.name)
+        copied_model = _copy_tree(ip / "model", config.run_dir / "model" / ip.name)
+        if copied_tests or copied_model:
+            lines.append(f"{ip.name}: tests={int(copied_tests)} model={int(copied_model)}")
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return manifest
 
 def read_filelists(ip_dir: Path) -> tuple[str, ...]:
     """Read staged IP common/IP filelists, with legacy fallback."""
@@ -107,7 +134,7 @@ def initialize_soc_run(config: SoCStartConfig) -> Path:
     if not ips:
         raise ValueError(f"no loaded IPs under: {config.ips_dir}")
 
-    for dirname in ("rtl", "tb", "sim", "logs", "doc"):
+    for dirname in ("rtl", "tb", "sim", "logs", "doc", "tests", "model"):
         (config.run_dir / dirname).mkdir(parents=True, exist_ok=True)
 
     (config.ips_dir / "loaded_ips.txt").write_text("".join(f"{ip.name}\n" for ip in ips), encoding="utf-8")
@@ -118,6 +145,7 @@ def initialize_soc_run(config: SoCStartConfig) -> Path:
     rtl_ip = config.run_dir / "rtl" / "rtl_ip.f"
     rtl_ip.write_text("\n".join(sources) + "\n", encoding="utf-8")
     (config.run_dir / "rtl" / "rtl_list.f").unlink(missing_ok=True)
+    stage_ip_verification_assets(config, ips)
     write_soc_start_summary(config, ips, rtl_ip)
     return rtl_ip
 
