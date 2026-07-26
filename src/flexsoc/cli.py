@@ -119,7 +119,6 @@ Use `fx commands` to list every backend Make target.
                 "Model + verification",
                 [
                     ("fx setup_model --force", "Create the editable model and generate config/data vectors."),
-"fx multiclock_scaffold --force",
                     ("fx setup_tb setup_cocotb --force", "Generate SystemVerilog and cocotb runners."),
                     ("fx sim --set TEST_NAME=smoke --force", "Run one SystemVerilog vector test by name."),
                     ("fx cocotb --set TEST_NAME=smoke --force", "Run one cocotb vector test by name."),
@@ -136,7 +135,17 @@ Use `fx commands` to list every backend Make target.
                 ],
             ),
             section(
-                "Existing IP + SoC",
+                "Multi-clock IP",
+                [
+                    ("fx hjson_multi reg_multi doc_multi --force", "Create and build cfg/dsp register maps."),
+                    ("fx rtl_stub_multi --force", "Generate core from regmaps and wrapper from core."),
+                    ("fx top_from_core_multi --force", "Refresh the wrapper after editing core ports."),
+                    ("fx setup_model_multi setup_tb_multi setup_cocotb_multi --force", "Generate multi-clock model, vectors and runners."),
+                    ("fx multiclock_scaffold --force", "Run the decomposed multi-clock bootstrap."),
+                ],
+            ),
+            section(
+                "System-on-chip building",
                 [
                     ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic", "Load an existing IP into the workspace."),
                     ("fx soc_uart_gen soc_prepare soc_build_sw soc_run", "Build and run a UART-hosted SoC flow."),
