@@ -1,99 +1,131 @@
-# Folder structure 📁
+# Folder structure
 
-FlexSoC keeps generated work under `workspace/runs/<RUN_TOP>/<RUN_ID>`.
+FlexSoC keeps generated files inside a run directory:
 
-Example:
+```text
+workspace/runs/<TOP>/<RUN_ID>/
+```
+
+For example:
 
 ```text
 workspace/runs/test/dev/
-├── data/          # HJSON register-map sources
-├── doc/           # generated documentation
-├── logs/          # lint, sim, synth, STA and power logs
-├── model/         # editable Python models that generate tests
-├── pnr_openroad/  # SDC and OpenROAD-related collateral
-├── rtl/           # generated and edited SystemVerilog RTL
-├── signoff/       # STA, SDF and power scripts/reports
-├── sim/           # simulation outputs, VCDs and executables
-├── syn/           # synthesis scripts and netlists
-└── tb/            # SV/cocotb testbench and generated vector tests
+workspace/runs/tri_stream_dsp/dev/
 ```
 
-## Important directories
-
-### `data/`
-
-Contains HJSON register-map sources. For a simple IP there is usually one file:
+## Run directory
 
 ```text
-data/<top>.hjson
+workspace/runs/<TOP>/<RUN_ID>/
+├── data/          # HJSON register descriptions
+├── doc/           # generated register documentation
+├── logs/          # compact logs, lint logs, verification logs, signoff logs
+├── model/         # editable Python model and generated regmap helpers
+├── pnr_openroad/  # SDC and physical/signoff collateral
+├── rtl/           # generated register RTL, core, wrapper, filelists
+├── sim/           # simulation outputs and waveforms
+└── tb/            # verification scaffold and vector tests
 ```
 
-For a multi-clock or multi-regmap IP there may be several files:
+## RTL
 
 ```text
-data/<top>_cfg.hjson
-data/<top>_dsp.hjson
+rtl/
+├── <top>.sv             # top wrapper; this is what the TB instantiates
+├── <top>_core.sv        # user-editable core logic
+├── rtl_common.f         # common packages/primitives/filelist
+└── rtl_ip.f             # generated IP-local RTL/filelist
 ```
 
-### `rtl/`
-
-Contains RTL and filelists. FlexSoC keeps filelists simple:
+For multi-clock designs, the wrapper also instantiates the generated regblocks,
+for example:
 
 ```text
-rtl_common.f
-rtl_ip.f
+rtl/<top>_cfg_reg_top.sv
+rtl/<top>_dsp_reg_top.sv
+rtl/<top>_core.sv
+rtl/<top>.sv
 ```
 
-Avoid adding duplicate filelists unless there is a clear reason.
-
-### `model/`
-
-Contains the Python model that generates tests. The model is not used directly
-by the simulator after vectors are generated. The simulator consumes only:
+## Model
 
 ```text
-tb/tests/<test>/config.regs
-tb/tests/<test>/data_in.vec
-tb/tests/<test>/data_out.vec
+model/
+├── model_<top>.py              # editable single-clock model
+├── model_<top>_multiclock.py   # editable multi-clock model
+└── regmap_<top>.py             # generated helper for register names/paths
 ```
 
-### `tb/tests/`
+`setup_model` creates the editable model scaffold and the generated regmap
+helper. The model is then run by `tests_gen` or `test_gen` to create vector
+files.
 
-Each test has its own self-contained directory:
+## Vector tests
 
 ```text
-tb/tests/smoke/
+tb/tests/<TEST_NAME>/
 ├── config.regs
 ├── data_in.vec
 └── data_out.vec
 ```
 
-Run a test by name:
+These files are generated from the model. SystemVerilog and cocotb consume these
+files only; they do not import the model during simulation.
 
-```bash
-fx sim --set TEST_NAME=smoke
-fx cocotb --set TEST_NAME=smoke
-```
+## SystemVerilog testbench
 
-### `pnr_openroad/`
-
-The IP-level SDC lives here:
+Single-clock and multi-clock flows use the same layout. The reusable
+SystemVerilog driver and monitor files live under `tb/drivers/`:
 
 ```text
-pnr_openroad/<top>.sdc
+tb/
+├── include_<top>_tb.sv
+├── <top>_tb.sv
+├── drivers/
+│   ├── <top>_vec_driver.svh
+│   ├── <top>_vec_monitor.svh
+│   └── <top>_tlul_driver.svh      # only when the generated TB needs TL-UL access
+└── tests/
+    └── <TEST_NAME>/
 ```
 
-This is the canonical constraint source used by synthesis/signoff setup.
+The testbench instantiates `<top>`, not `<top>_core`. To test the core directly,
+set `TOP=<top>_core` explicitly.
 
-### `signoff/`
+## cocotb
 
-Contains generated scripts and reports for SDF, STA and power. The signoff
-scripts read the relevant synthesized netlist and constraints; they should not
-be treated as the primary source of design constraints.
+```text
+tb/cocotb/
+├── Makefile
+├── <top>_cocotb_tb.sv
+├── <top>_test.py
+└── drivers/
+    ├── __init__.py
+    ├── reg_driver.py
+    ├── vec_driver.py
+    └── vec_monitor.py
+```
 
-## SoC staging
+For multi-clock TL-UL designs, the cocotb wrapper exposes scalar proxy signals
+instead of asking cocotb to drive packed struct fields directly.
 
-When building a SoC, loaded IPs are staged under the SoC run. The SoC has its
-own top-level RTL, address map, verification layout and SDC. Do not blindly reuse
-an IP SDC as the SoC SDC: clock ports, generated clocks and hierarchy change at
-SoC level.
+## Logs
+
+```text
+logs/
+├── lint/
+│   ├── <top>_lint_all.log
+│   ├── <top>_lint_width_ip.log
+│   └── raw/
+├── signoff/
+│   ├── <top>_sdf.log
+│   ├── <top>_sta_ss_setup.log
+│   └── <top>_power_tt.log
+└── verification/
+    ├── <top>_sv_compile_<TEST_NAME>.log
+    ├── <top>_sv_sim_<TEST_NAME>.log
+    └── <top>_cocotb_<TEST_NAME>.log
+```
+
+The terminal shows compact progress by default. Use `--live` for full tool
+output.

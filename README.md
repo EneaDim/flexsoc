@@ -4,88 +4,115 @@
 
 # FlexSoC
 
+FlexSoC is a compact IP and SoC development flow for register-driven hardware.
+It creates a clean run directory, generates register RTL from HJSON, scaffolds
+RTL and verification, runs lint and simulations, and then drives synthesis,
+timing, and power analysis.
 
-> 🧰 **Shell setup used in this guide**
->
-> Install/sync dependencies once, then activate the project environment:
->
-> ```bash
-> uv sync
-> source .venv/bin/activate
-> ```
->
-> After activation, run commands directly with `fx ...`.
+The flow is intentionally explicit. You run the stage you need, inspect the
+files it generated, edit the source-of-truth file, and rerun only the affected
+stage.
 
-FlexSoC is a lightweight hardware development flow for building, verifying and
-signing off IP blocks and small SoCs from a single `fx` command-line interface.
+## Main ideas
 
-The goal is simple: generate the boring project scaffolding, keep the generated
-files readable, and let the designer focus on architecture, RTL, verification
-and constraints.
+- **One command-line interface:** `fx`.
+- **One run tree:** `workspace/runs/<TOP>/<RUN_ID>/`.
+- **One selected design top:** `TOP=<top>`.
+- **One clock-mode switch:** `CLOCK_MODE=single` or `CLOCK_MODE=multi`.
+- **Model-driven vector tests:** the Python model generates `config.regs`,
+  `data_in.vec`, and `data_out.vec`.
+- **Testbenches consume vectors only:** SystemVerilog and cocotb do not import
+  the model during simulation.
+- **Lint before verification:** filelists and lint come before model/testbench
+  work.
+- **Top-level verification:** testbenches instantiate `<top>.sv`. To test a
+  core directly, set `TOP=<top>_core` explicitly.
 
-## ✨ Features
-
-- 🧩 **IP development flow**: register map generation, documentation, RTL stub,
-  filelists, lint, model-based vectors, SystemVerilog simulation, cocotb,
-  synthesis, SDF, STA and power.
-- 🏗️ **SoC development flow**: load existing IPs, stage their metadata, generate
-  SoC-level structure and build on top of UART or Ibex-hosted systems.
-- 🔁 **Model-driven verification**: generate `config.regs`, `data_in.vec` and
-  `data_out.vec` from a Python model, then run the same tests with SV or cocotb.
-- ⏱️ **Multi-clock IP scaffolding**: generate a coherent starting point for IPs
-  with multiple clock domains, multiple regmaps, clock gating, async FIFOs and
-  multi-corner signoff constraints.
-- 🧹 **Focused linting**: run full lint or specific checks such as latch, width,
-  unconnected, undriven and unused diagnostics.
-
-## 🛠️ Tools
-
-FlexSoC orchestrates common open-source RTL and physical-design tools:
-
-- `slang` and `verible` for SystemVerilog parsing/formatting/lint support;
-- `verilator` for lint and fast simulation;
-- `cocotb` for Python-driven verification;
-- `yosys` for synthesis;
-- `OpenSTA` for timing analysis;
-- `OpenROAD` for physical-design oriented setup and collateral.
-
-## 🚀 Minimal quickstart
+## Install
 
 ```bash
 uv sync
+source .venv/bin/activate
 fx --help
-fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart
-fx setup hjson reg doc rtl_stub flist lint --force
+```
+
+## Single-clock full flow
+
+```bash
+fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart CLOCK_MODE=single
+
+fx setup --force
+fx hjson --force
+fx reg doc --force
+fx rtl_stub --force
+fx top_from_core --force
+
+fx flist --force
+fx lint
+fx lint_latch
+fx lint_width
+fx lint_unconnected
+fx lint_undriven
+fx lint_unused
+
 fx setup_model --force
 fx tests_gen
-fx setup_tb setup_cocotb --force
-fx sim cocotb --set TEST_NAME=smoke
+fx tests
+
+fx setup_tb --force
+fx setup_cocotb --force
+
+fx sim_tests
+fx cocotb_tests
+
 fx syn sdf sta power --force
 ```
 
-List generated tests and run one by name:
+## Multi-clock full flow
 
 ```bash
+fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart CLOCK_MODE=multi
+
+fx setup --force
+fx hjson --force
+fx reg doc --force
+fx rtl_stub --force
+fx top_from_core --force
+
+fx flist --force
+fx lint
+fx lint_latch
+fx lint_width
+fx lint_unconnected
+fx lint_undriven
+fx lint_unused
+
+fx setup_model --force
+fx tests_gen
 fx tests
-fx sim --set TEST_NAME=smoke
-fx cocotb --set TEST_NAME=smoke
+
+fx setup_tb --force
+fx setup_cocotb --force
+
+fx sim_tests
+fx cocotb_tests
+
+fx sdc_multi --force
+fx syn sdf sta power --force
 ```
 
-## 📚 Documentation
+The `_multi` target names are still available for direct use, but the preferred
+workflow is to set `CLOCK_MODE=multi` once and then use the normal targets.
 
-Start here:
+## Useful guides
 
-- [Quickstart](docs/quickstart.md) — install, configure and run the basic flow.
-- [Folder structure](docs/folder_structure.md) — understand what FlexSoC creates.
-- [IP development guide](docs/guide_ip_dev.md) — complete single-clock IP flow.
-- [SoC development guide](docs/guide_soc_dev.md) — load IPs and build a SoC on top.
-- [Multi-clock IP guide](docs/guide_multiclock_ip_dev.md) — advanced IPs with
-  multiple clock domains, multiple regmaps, CDC and multi-corner signoff.
+- [Quickstart](docs/quickstart.md)
+- [Folder structure](docs/folder_structure.md)
+- [Single-clock IP development guide](docs/guide_ip_dev.md)
+- [Multi-clock IP development guide](docs/guide_multiclock_ip_dev.md)
+- [SoC development guide](docs/guide_soc_dev.md)
 
-## 🧭 Design philosophy
+## Tooling
 
-FlexSoC intentionally keeps the generated files explicit. Generated RTL, models,
-test vectors and constraints are meant to be read, edited and reviewed. The tool
-should accelerate setup without hiding design intent.
-
-- Signoff produces setup/hold STA and power logs per corner, plus a compact Markdown report under `logs/`.
+FlexSoC is designed to sit on top of standard open-source tooling such as
+regtool, slang, Verible, Verilator, cocotb, Yosys, OpenSTA, and OpenROAD.
