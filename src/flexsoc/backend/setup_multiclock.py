@@ -1244,8 +1244,8 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     TOPLEVEL_LANG ?= verilog
     TOPLEVEL = {top}_cocotb_tb
     MODULE = {top}_multiclock_test
-    VERILOG_SOURCES += $(shell sed 's|^|$(PWD)/../../rtl/|' ../../rtl/rtl_common.f 2>/dev/null)
-    VERILOG_SOURCES += $(shell sed 's|^|$(PWD)/../../rtl/|' ../../rtl/rtl_ip.f 2>/dev/null)
+    EXTRA_ARGS += -f $(PWD)/../../rtl/rtl_common.f
+    EXTRA_ARGS += -f $(PWD)/../../rtl/rtl_ip.f
     VERILOG_SOURCES += $(PWD)/{top}_cocotb_tb.sv
     EXTRA_ARGS += --top-module $(TOPLEVEL)
     EXTRA_ARGS += -Wno-fatal
