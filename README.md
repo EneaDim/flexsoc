@@ -55,7 +55,11 @@ FlexSoC orchestrates common open-source RTL and physical-design tools:
 uv sync
 fx --help
 fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart
-fx setup hjson reg doc rtl_stub flist lint setup_model tests_gen setup_tb setup_cocotb sim cocotb --force
+fx setup hjson reg doc rtl_stub flist lint --force
+fx setup_model --force
+fx tests_gen
+fx setup_tb setup_cocotb --force
+fx sim cocotb --set TEST_NAME=smoke
 fx syn sdf sta power --force
 ```
 

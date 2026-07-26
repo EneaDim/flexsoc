@@ -179,11 +179,10 @@ The terminal shows a compact summary. Use `--live` only when you want full tool 
 fx lint_width --live
 ```
 
-## 8. Generate the multi-clock model and tests
+## 8. Generate the multi-clock model and vector tests
 
 ```bash
 fx setup_model_multi --force
-fx tests_gen_multi
 ```
 
 This creates an editable model:
@@ -192,7 +191,14 @@ This creates an editable model:
 model/model_tri_stream_dsp_multiclock.py
 ```
 
-and generated vector tests:
+Generate vector tests explicitly from that model:
+
+```bash
+fx tests_gen_multi
+fx test_gen_multi --set TEST_NAME=my_new_case
+```
+
+Generated vector tests live here:
 
 ```text
 tb/tests/<test>/
@@ -201,7 +207,7 @@ tb/tests/<test>/
 └── data_out.vec
 ```
 
-The model is the source of the vector tests. Simulators do not call the model at runtime; they consume the generated files.
+The model is the only source of the vector tests. Simulators do not call the model at runtime; they consume the generated files.
 
 Example `config.regs`:
 
@@ -238,6 +244,10 @@ The verification collateral is split like the single-clock flow, so you can rege
 fx setup_tb_multi --force
 fx setup_cocotb_multi --force
 ```
+
+These targets only create the verification scaffolds. They do not regenerate
+`tb/tests/*`; run `tests_gen_multi` or `test_gen_multi` when the model or a
+specific vector test changes.
 
 SystemVerilog files:
 

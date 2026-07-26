@@ -440,7 +440,7 @@ hjson_multi: setup ## Generate multi-clock HJSON register templates
 	@printf "%b\n" "$(ORANGE)[hjson_multi]$(RESET) $(BLUE)generate multi-clock HJSON regmaps$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit hjson
 
-multiclock_scaffold: hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi setup_model_multi setup_tb_multi setup_cocotb_multi notes_multi ## Bootstrap the decomposed multi-clock IP scaffold
+multiclock_scaffold: hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi setup_model_multi tests_gen_multi setup_tb_multi setup_cocotb_multi notes_multi ## Bootstrap the decomposed multi-clock IP scaffold
 
 reg_multi: setup ## Generate register RTL for selected multi-clock regmap HJSON files
 	$(call _require_var,TOP)
@@ -524,7 +524,7 @@ top_from_core: ## Regenerate $(TOP).sv from edited $(TOP)_core.sv
 	$(call _require_var,TOP)
 	$(Q)$(PYTHON) -m flexsoc.backend.top_from_core $(OVERWRITE) --top $(TOP) --rtl-dir $(RTLDIR) --interface $(REG_ITF)
 
-ip_start: setup hjson reg doc rtl_stub flist setup_tb sim ## Bootstrap a complete IP run
+ip_start: setup hjson reg doc rtl_stub flist lint setup_model tests_gen setup_tb sim ## Bootstrap a complete IP run
 
 RTL_COMMON_LIST ?= $(RTLDIR)/rtl_common.f
 RTL_IP_LIST ?= $(RTLDIR)/rtl_ip.f
@@ -699,7 +699,7 @@ slang_hier: flist_split ## Print hierarchy with slang-hier
 # 6. Testbench/model setup and simulation
 # ============================================================================
 ##@ Simulation
-setup_tb: setup flist tests_gen ## Generate a SystemVerilog testbench
+setup_tb: setup flist ## Generate a SystemVerilog testbench scaffold
 	@printf "%b\n" "$(ORANGE)[setup_tb]$(RESET) $(BLUE)generate SystemVerilog testbench$(RESET)"
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
@@ -737,7 +737,7 @@ setup_tb: setup flist tests_gen ## Generate a SystemVerilog testbench
 			-o $(TBDIR); \
 	fi
 
-setup_cocotb: setup flist tests_gen ## Generate a cocotb scaffold
+setup_cocotb: setup flist ## Generate a cocotb scaffold
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_cocotb \
@@ -758,7 +758,7 @@ setup_model: setup ## Generate/update the editable model scaffold
 
 setup_model_multi: setup ## Generate multi-clock Python model scaffold
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[setup_model_multi]$(RESET) $(BLUE)generate multi-clock model and tests$(RESET)"
+	@printf "%b\n" "$(ORANGE)[setup_model_multi]$(RESET) $(BLUE)generate multi-clock model scaffold$(RESET)"
 	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit model
 
@@ -806,17 +806,26 @@ test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_N
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
 	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP)_multiclock.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
 
-setup_tb_multi: setup tests_gen_multi ## Generate a multi-clock SystemVerilog testbench
+setup_tb_multi: setup ## Generate a multi-clock SystemVerilog testbench scaffold
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[setup_tb_multi]$(RESET) $(BLUE)generate multi-clock SystemVerilog testbench$(RESET)"
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit tb
 
-setup_cocotb_multi: setup tests_gen_multi ## Generate a multi-clock cocotb scaffold
+setup_cocotb_multi: setup ## Generate a multi-clock cocotb scaffold
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[setup_cocotb_multi]$(RESET) $(BLUE)generate multi-clock cocotb scaffold$(RESET)"
 	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit cocotb
+
+
+_require_test_vectors:
+	@if [ ! -d "$(TEST_ROOT)/$(TEST_NAME)" ]; then \
+		echo "ERROR: missing vector test: $(TEST_ROOT)/$(TEST_NAME)"; \
+		echo "Run: fx tests_gen or fx test_gen --set TEST_NAME=$(TEST_NAME)"; \
+		echo "For multi-clock: fx tests_gen_multi or fx test_gen_multi --set TEST_NAME=$(TEST_NAME)"; \
+		exit 1; \
+	fi
 
 tests: ## List generated vector tests without regenerating them
 	@set -eu; \
@@ -882,7 +891,7 @@ else
 		> $(LOGDIR)/$(TOP)_compile.log 2>&1
 endif
 
-sim_v: compile_v ## Run Verilog simulation
+sim_v: compile_v _require_test_vectors ## Run Verilog simulation
 	@printf "%b\n" "$(ORANGE)[sim_v]$(RESET) $(BLUE)run Verilog simulation$(RESET)"
 ifeq ($(COMPILER),iverilog)
 	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
@@ -910,7 +919,7 @@ else
 		> $(SV_COMPILE_LOG) 2>&1
 endif
 
-sim_sv: compile_sv ## Run SystemVerilog simulation
+sim_sv: compile_sv _require_test_vectors ## Run SystemVerilog simulation
 	@printf "%b\n" "$(ORANGE)[sim_sv]$(RESET) $(BLUE)run SystemVerilog test TEST_NAME=$(TEST_NAME)$(RESET)"
 	@printf "%b\n" "$(BLUE)log: $(SV_SIM_LOG)$(RESET)"
 ifeq ($(COMPILER),iverilog)
@@ -921,7 +930,7 @@ else
 		> $(SV_SIM_LOG) 2>&1
 endif
 
-cocotb: ## Run one cocotb vector test selected by TEST_NAME
+cocotb: _require_test_vectors ## Run one cocotb vector test selected by TEST_NAME
 	$(Q)$(MKDIR) -p $(VERIFY_LOGDIR)
 	$(Q)if [ ! -f "$(TBDIR)/cocotb/Makefile" ]; then \
 		echo "cocotb scaffold not found: $(TBDIR)/cocotb/Makefile"; \

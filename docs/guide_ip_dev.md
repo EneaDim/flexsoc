@@ -155,17 +155,23 @@ fx lint_undriven
 fx lint_unused
 ```
 
-## 6. Generate the model and tests
+## 6. Generate the editable model
 
 ```bash
 fx setup_model --force
-fx tests_gen
 ```
 
-This creates:
+This creates the editable reference model:
 
 ```text
 model/model_stream_accel.py
+```
+
+Generate vector tests explicitly from that model:
+
+```bash
+fx tests_gen
+fx test_gen --set TEST_NAME=my_new_case
 ```
 
 The generated model is the source of verification tests. It writes:
@@ -257,11 +263,16 @@ Change register configuration during simulation with `@cfg`:
 
 The testbench applies the new config at that vector cycle and continues.
 
-## 8. Generate SV and cocotb testbenches
+## 8. Generate SV and cocotb testbench scaffolds
 
 ```bash
-fx setup_tb setup_cocotb --force
+fx setup_tb --force
+fx setup_cocotb --force
 ```
+
+These targets create only verification infrastructure: drivers, monitors, and
+testbench files. They do not generate `config.regs`, `data_in.vec`, or
+`data_out.vec`; those files always come from `tests_gen` / `test_gen`.
 
 Both flows consume the same vector files. The model is not imported by the
 simulator after the vectors are generated.

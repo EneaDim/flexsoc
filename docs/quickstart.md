@@ -81,22 +81,25 @@ fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
 Focused lint targets may print diagnostics without always meaning the IP is
 unusable. Treat the logs as review artifacts.
 
-## 5. Generate verification collateral
+## 5. Generate model, vector tests, and verification scaffolds
+
+The responsibilities are intentionally separate:
 
 ```bash
-fx setup_model --force
-fx tests_gen
-fx setup_tb setup_cocotb --force
+fx setup_model --force   # creates model/model_test.py
+fx tests_gen             # runs the model and writes tb/tests/*
+fx setup_tb --force      # creates the SystemVerilog testbench scaffold
+fx setup_cocotb --force  # creates the cocotb scaffold
 ```
 
-This creates:
+The model owns the generated vector tests:
 
-- `model/model_test.py`: Python model template.
 - `tb/tests/<name>/config.regs`: register writes for each test.
 - `tb/tests/<name>/data_in.vec`: input stimulus vectors.
 - `tb/tests/<name>/data_out.vec`: expected output vectors.
-- `tb/test_tb.sv`: SystemVerilog vector testbench.
-- `tb/cocotb/test_tb.py`: cocotb test using the same vectors.
+
+The testbench setup targets do not generate vectors; they only create drivers,
+monitors, and testbench files that consume those vectors.
 
 ## 6. List and run tests
 
