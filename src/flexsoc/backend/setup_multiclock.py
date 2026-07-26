@@ -661,6 +661,7 @@ def model_text(top: str) -> str:
     from pathlib import Path
 
     ROOT = Path(__file__).resolve().parents[1] / "tb" / "tests"
+    TESTS = ("mac_smoke", "absdiff", "energy")
 
 
     def i16(value: int) -> int:
@@ -699,9 +700,9 @@ def model_text(top: str) -> str:
         path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
 
 
-    def write_test(name: str, cfg: dict[str, int], rows: list[tuple[int, int]]) -> None:
+    def write_test(name: str, cfg: dict[str, int], rows: list[tuple[int, int]], root: str | Path = ROOT) -> None:
         """Generate one multi-clock vector test directory."""
-        out = ROOT / name
+        out = Path(root) / name
         ctrl = cfg.get("ctrl", 0x1)
         gain = cfg.get("gain", 0)
         dsp_ctrl = cfg.get("dsp_ctrl", 0)
@@ -742,15 +743,50 @@ def model_text(top: str) -> str:
         write_lines(out / "data_out.vec", data_out)
 
 
-    def write_all_tests() -> None:
-        """Generate the default regression for the scaffolded RTL."""
-        write_test("mac_smoke", {{"ctrl": 0x1, "gain": 1, "dsp_ctrl": 0x0, "threshold": 0x10}}, [(3, 4), (7, 2), (-3, 5)])
-        write_test("absdiff", {{"ctrl": 0x1, "gain": 0, "dsp_ctrl": 0x1, "threshold": 0x4}}, [(9, 4), (-2, 8)])
-        write_test("energy", {{"ctrl": 0x1, "gain": 0, "dsp_ctrl": 0x2, "threshold": 0x20}}, [(3, 4), (5, 12)])
+    def scenario(name: str) -> tuple[dict[str, int], list[tuple[int, int]]]:
+        """Return register config and input rows for one named test.
+
+        Add new tests here. Unknown ad-hoc TEST_NAME values fall back to the
+        mac_smoke pattern, which makes it easy to create a new folder first and
+        then refine the model behavior.
+        """
+        if name == "absdiff":
+            return {{"ctrl": 0x1, "gain": 0, "dsp_ctrl": 0x1, "threshold": 0x4}}, [(9, 4), (-2, 8)]
+        if name == "energy":
+            return {{"ctrl": 0x1, "gain": 0, "dsp_ctrl": 0x2, "threshold": 0x20}}, [(3, 4), (5, 12)]
+        return {{"ctrl": 0x1, "gain": 1, "dsp_ctrl": 0x0, "threshold": 0x10}}, [(3, 4), (7, 2), (-3, 5)]
+
+
+    def write_named_test(root: str | Path, name: str) -> None:
+        """Generate exactly one TEST_NAME folder from scenario()."""
+        cfg, rows = scenario(name)
+        write_test(name, cfg, rows, root)
+
+
+    def write_all_tests(root: str | Path = ROOT, tests: list[str] | tuple[str, ...] | None = None) -> None:
+        """Generate requested tests, or the full TESTS catalogue when omitted."""
+        for name in (tests or TESTS):
+            write_named_test(root, name)
+
+
+    def main() -> int:
+        """Command-line entry point used by tests_gen_multi/test_gen_multi."""
+        import argparse
+        parser = argparse.ArgumentParser(description="Generate multi-clock vector tests from the editable model.")
+        parser.add_argument("--tests-dir", default=str(ROOT))
+        parser.add_argument("--test", action="append", default=[], help="Generate only this TEST_NAME. May be repeated.")
+        parser.add_argument("--list", action="store_true", help="Print the TESTS catalogue and exit.")
+        args = parser.parse_args()
+        if args.list:
+            for test in TESTS:
+                print(test)
+            return 0
+        write_all_tests(args.tests_dir, args.test or None)
+        return 0
 
 
     if __name__ == "__main__":
-        write_all_tests()
+        raise SystemExit(main())
     ''')
 
 
@@ -1520,7 +1556,7 @@ def notes_text(top: str, domains: tuple[str, ...], regmaps: tuple[str, ...]) -> 
     - Run `fx rtl_stub_multi --force` when generated RTL must be recreated from existing reg RTL.
     - Edit `rtl/{top}_core.sv` for the design logic.
     - Run `fx top_from_core_multi --force` after changing core ports.
-    - Edit `model/model_{top}_multiclock.py`, then run it or `fx setup_model_multi` to regenerate tests.
+    - Edit `model/model_{top}_multiclock.py`, then run `fx tests_gen_multi` or `fx test_gen_multi --set TEST_NAME=<name>` to regenerate vectors.
     - Edit `tb/drivers/{top}_tlul_driver.svh` for top-level TL-UL config writes.
     - Edit `tb/drivers/{top}_vec_driver.svh` and `tb/drivers/{top}_vec_monitor.svh` for SV verification behavior.
     - Edit `tb/cocotb/drivers/reg_driver.py`, `vec_driver.py`, and `vec_monitor.py` for cocotb behavior.

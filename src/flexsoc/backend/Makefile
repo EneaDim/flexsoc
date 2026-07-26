@@ -333,10 +333,10 @@ endef
 PHONY_TARGETS :=
 PHONY_TARGETS += help help_ip help_soc help_doc help_fsm
 PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_corners signoff_corners
-PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist flist_split driver fetch multiclock_scaffold reg_multi doc_multi
+PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist flist_split driver fetch hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi notes_multi setup_model_multi tests_gen_multi test_gen_multi setup_tb_multi setup_cocotb_multi multiclock_scaffold
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
 PHONY_TARGETS += lint lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier
-PHONY_TARGETS += setup_tb setup_cocotb setup_model tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests
+PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
 PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
 PHONY_TARGETS += setup_signoff compile_syn sim_syn sta sdf power sta_violators path_view
@@ -422,19 +422,25 @@ soc_start: flist ## Initialize a SoC run from loaded IPs
 ##@ IP flow
 
 
-multiclock_scaffold: setup ## Generate an advanced multi-clock IP scaffold
-	$(call _require_var,TOP)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) \
-		--top $(TOP) \
-		--run-dir $(OUTROOT) \
-		--rtl-dir $(RTLDIR) \
-		--data-dir $(DATADIR) \
-		--signoff-dir $(SIGNOFFDIR) \
-		--constraints-dir $(ORSDIR) \
-		--model-dir $(MODELDIR) \
-		--domains "$(MULTICLOCK_DOMAINS)" \
-		--regmaps "$(MULTICLOCK_REGMAPS)"
+MULTICLOCK_ARGS = \
+	--top $(TOP) \
+	--run-dir $(OUTROOT) \
+	--rtl-dir $(RTLDIR) \
+	--data-dir $(DATADIR) \
+	--signoff-dir $(SIGNOFFDIR) \
+	--constraints-dir $(ORSDIR) \
+	--model-dir $(MODELDIR) \
+	--tb-dir $(TBDIR) \
+	--testbench $(TESTBENCH) \
+	--domains "$(MULTICLOCK_DOMAINS)" \
+	--regmaps "$(MULTICLOCK_REGMAPS)"
 
+hjson_multi: setup ## Generate multi-clock HJSON register templates
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[hjson_multi]$(RESET) $(BLUE)generate multi-clock HJSON regmaps$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit hjson
+
+multiclock_scaffold: hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi setup_model_multi setup_tb_multi setup_cocotb_multi notes_multi ## Bootstrap the decomposed multi-clock IP scaffold
 
 reg_multi: setup ## Generate register RTL for selected multi-clock regmap HJSON files
 	$(call _require_var,TOP)
@@ -471,6 +477,26 @@ doc_multi: setup ## Generate docs for selected multi-clock regmap HJSON files
 			$(PYTHON) $(REGTOOL) --interfaces -o "$$if_doc" "$$file"; \
 		fi; \
 	done
+
+rtl_stub_multi: setup ## Generate multi-clock RTL core and wrapper from existing reg RTL
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[rtl_stub_multi]$(RESET) $(BLUE)generate core from regmaps and wrapper from core$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit rtl
+
+top_from_core_multi: ## Regenerate multi-clock top wrapper from edited core ports
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[top_from_core_multi]$(RESET) $(BLUE)refresh wrapper from core ports$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit top
+
+sdc_multi: setup ## Generate multi-clock IP timing constraints
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[sdc_multi]$(RESET) $(BLUE)generate multi-clock IP SDC$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit sdc
+
+notes_multi: setup ## Generate local multi-clock scaffold notes
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[notes_multi]$(RESET) $(BLUE)write multi-clock scaffold notes$(RESET)"
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit notes
 
 hjson: setup ## Generate an HJSON register template
 	@printf "%b\n" "$(ORANGE)[hjson]$(RESET) $(BLUE)generate register template$(RESET)"
@@ -546,7 +572,7 @@ LINT_TOOL ?= auto
 LINT_PART ?= ip
 LINT_LOGDIR ?= $(LOGDIR)/lint
 LINT_RAW_LOG ?= $(LINT_LOGDIR)/raw/$(TOP)_lint_$(LINT_KIND)_raw.log
-LINT_FULL_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_KIND)_all.log
+LINT_FULL_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(if $(filter all,$(LINT_KIND)),all,$(LINT_KIND)_all).log
 LINT_COMMON_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_KIND)_common.log
 LINT_IP_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_KIND)_ip.log
 
@@ -673,7 +699,7 @@ slang_hier: flist_split ## Print hierarchy with slang-hier
 # 6. Testbench/model setup and simulation
 # ============================================================================
 ##@ Simulation
-setup_tb: setup flist ## Generate a SystemVerilog testbench
+setup_tb: setup flist tests_gen ## Generate a SystemVerilog testbench
 	@printf "%b\n" "$(ORANGE)[setup_tb]$(RESET) $(BLUE)generate SystemVerilog testbench$(RESET)"
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
@@ -711,7 +737,7 @@ setup_tb: setup flist ## Generate a SystemVerilog testbench
 			-o $(TBDIR); \
 	fi
 
-setup_cocotb: setup flist ## Generate a cocotb scaffold
+setup_cocotb: setup flist tests_gen ## Generate a cocotb scaffold
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_cocotb \
@@ -720,22 +746,83 @@ setup_cocotb: setup flist ## Generate a cocotb scaffold
 		--clk clk_i --rst rst_ni --rst-active low --period-ns 10 \
 		--sim $(COMPILER)
 
-setup_model: setup ## Generate/update the model and vector tests
+setup_model: setup ## Generate/update the editable model scaffold
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_model $(OVERWRITE) \
 		--top $(TOP) \
 		--output-dir $(MODELDIR) \
-		--tests-dir $(TEST_ROOT) \
 		--hjson $(DATADIR)/$(TOP).hjson \
 		--rtl-dir $(RTLDIR)
 
+
+setup_model_multi: setup ## Generate multi-clock Python model scaffold
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[setup_model_multi]$(RESET) $(BLUE)generate multi-clock model and tests$(RESET)"
+	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit model
+
+tests_gen: setup ## Generate all vector tests from the editable model
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[tests_gen]$(RESET) $(BLUE)generate vector tests from model_$(TOP).py$(RESET)"
+	@if [ ! -f "$(MODELDIR)/model_$(TOP).py" ]; then \
+		echo "ERROR: missing model scaffold: $(MODELDIR)/model_$(TOP).py"; \
+		echo "Run: fx setup_model --force"; \
+		exit 1; \
+	fi
+	$(Q)$(MKDIR) -p $(TEST_ROOT)
+	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP).py --tests-dir $(TEST_ROOT)
+
+test_gen: setup ## Generate one vector test selected by TEST_NAME from the editable model
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[test_gen]$(RESET) $(BLUE)generate TEST_NAME=$(TEST_NAME) from model_$(TOP).py$(RESET)"
+	@if [ ! -f "$(MODELDIR)/model_$(TOP).py" ]; then \
+		echo "ERROR: missing model scaffold: $(MODELDIR)/model_$(TOP).py"; \
+		echo "Run: fx setup_model --force"; \
+		exit 1; \
+	fi
+	$(Q)$(MKDIR) -p $(TEST_ROOT)
+	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP).py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
+
+tests_gen_multi: setup ## Generate all multi-clock vector tests from the editable model
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[tests_gen_multi]$(RESET) $(BLUE)generate vector tests from model_$(TOP)_multiclock.py$(RESET)"
+	@if [ ! -f "$(MODELDIR)/model_$(TOP)_multiclock.py" ]; then \
+		echo "ERROR: missing model scaffold: $(MODELDIR)/model_$(TOP)_multiclock.py"; \
+		echo "Run: fx setup_model_multi --force"; \
+		exit 1; \
+	fi
+	$(Q)$(MKDIR) -p $(TEST_ROOT)
+	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP)_multiclock.py --tests-dir $(TEST_ROOT)
+
+test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_NAME
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[test_gen_multi]$(RESET) $(BLUE)generate TEST_NAME=$(TEST_NAME) from model_$(TOP)_multiclock.py$(RESET)"
+	@if [ ! -f "$(MODELDIR)/model_$(TOP)_multiclock.py" ]; then \
+		echo "ERROR: missing model scaffold: $(MODELDIR)/model_$(TOP)_multiclock.py"; \
+		echo "Run: fx setup_model_multi --force"; \
+		exit 1; \
+	fi
+	$(Q)$(MKDIR) -p $(TEST_ROOT)
+	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP)_multiclock.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
+
+setup_tb_multi: setup tests_gen_multi ## Generate a multi-clock SystemVerilog testbench
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[setup_tb_multi]$(RESET) $(BLUE)generate multi-clock SystemVerilog testbench$(RESET)"
+	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit tb
+
+setup_cocotb_multi: setup tests_gen_multi ## Generate a multi-clock cocotb scaffold
+	$(call _require_var,TOP)
+	@printf "%b\n" "$(ORANGE)[setup_cocotb_multi]$(RESET) $(BLUE)generate multi-clock cocotb scaffold$(RESET)"
+	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit cocotb
 
 tests: ## List generated vector tests without regenerating them
 	@set -eu; \
 	printf '\n$(BLUE)Available vector tests in $(TEST_ROOT):$(RESET)\n'; \
 	if [ ! -d "$(TEST_ROOT)" ]; then \
-		echo "  no tests directory found; run: fx setup_model --force"; \
+		echo "  no tests directory found; run: fx tests_gen or fx tests_gen_multi"; \
 		exit 0; \
 	fi; \
 	found=0; \
@@ -746,7 +833,7 @@ tests: ## List generated vector tests without regenerating them
 		printf '  $(ORANGE)%s$(RESET)\n' "$$name"; \
 	done; \
 	if [ "$$found" -eq 0 ]; then \
-		echo "  no tests found; run: fx setup_model --force"; \
+		echo "  no tests found; run: fx tests_gen or fx tests_gen_multi"; \
 	fi
 
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv) ## Compile the current testbench
@@ -757,12 +844,12 @@ sim_tests: ## Run every generated SystemVerilog vector test
 	@set -eu; \
 	if [ ! -d "$(TEST_ROOT)" ]; then \
 		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
-		echo "Run: fx setup_model --force"; \
+		echo "Run: fx tests_gen or fx tests_gen_multi"; \
 		exit 1; \
 	fi; \
 	if [ ! -f "$(TBDIR)/$(TESTBENCH).sv" ]; then \
 		echo "ERROR: SystemVerilog testbench not found: $(TBDIR)/$(TESTBENCH).sv"; \
-		echo "Run: fx setup_tb --force"; \
+		echo "Run: fx setup_tb --force or fx setup_tb_multi --force"; \
 		exit 1; \
 	fi; \
 	found=0; \
@@ -860,12 +947,12 @@ cocotb_tests: ## Run every generated cocotb vector test
 	@set -eu; \
 	if [ ! -d "$(TEST_ROOT)" ]; then \
 		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
-		echo "Run: fx setup_model --force"; \
+		echo "Run: fx tests_gen or fx tests_gen_multi"; \
 		exit 1; \
 	fi; \
 	if [ ! -f "$(TBDIR)/cocotb/Makefile" ]; then \
 		echo "ERROR: cocotb scaffold not found: $(TBDIR)/cocotb/Makefile"; \
-		echo "Run: fx setup_cocotb --force"; \
+		echo "Run: fx setup_cocotb --force or fx setup_cocotb_multi --force"; \
 		exit 1; \
 	fi; \
 	found=0; \

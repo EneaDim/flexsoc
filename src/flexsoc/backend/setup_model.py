@@ -117,8 +117,9 @@ def _model_text(top: str, registers: dict[str, int], inputs: list[str], outputs:
         # ------------------------------------------------------------------
         # Test catalogue and generated interface metadata.
         # ------------------------------------------------------------------
-        # TESTS controls which folders are created under tb/tests/.
+        # TESTS controls which folders are created by `fx tests_gen`.
         TESTS = ("smoke", "corners", "random", "reconfig")
+        # Create or rewrite one ad-hoc test with: fx test_gen --set TEST_NAME=my_case
         # Vector cycles describe when inputs are sampled; the starter core responds one cycle later.
         LATENCY = 1
         # REGISTERS is inferred from the HJSON regmap and used only to write config.regs.
@@ -175,6 +176,7 @@ def _model_text(top: str, registers: dict[str, int], inputs: list[str], outputs:
 
             Each dictionary contains the signals driven together on that cycle.
             Add IP-specific inputs here for Cordic, FFT, UART, custom blocks, etc.
+            Unknown ad-hoc test names intentionally fall back to the smoke pattern.
             """
 
             if test == "corners":
@@ -278,10 +280,10 @@ def _model_text(top: str, registers: dict[str, int], inputs: list[str], outputs:
             (folder / "data_out.vec").write_text("\\n".join(data_out) + "\\n", encoding="utf-8")
 
 
-        def write_all_tests(root: str | Path) -> None:
-            """Write every test folder listed in TESTS for the current IP."""
+        def write_all_tests(root: str | Path, tests: list[str] | tuple[str, ...] | None = None) -> None:
+            """Write requested tests, or every test listed in TESTS when omitted."""
 
-            for test in TESTS:
+            for test in (tests or TESTS):
                 write_test(root, test)
 
 
@@ -291,8 +293,14 @@ def _model_text(top: str, registers: dict[str, int], inputs: list[str], outputs:
             import argparse
             parser = argparse.ArgumentParser(description="Generate FlexSoC vector tests from the editable model.")
             parser.add_argument("--tests-dir", default="../tb/tests")
+            parser.add_argument("--test", action="append", default=[], help="Generate only this TEST_NAME. May be repeated.")
+            parser.add_argument("--list", action="store_true", help="Print the TESTS catalogue and exit.")
             args = parser.parse_args()
-            write_all_tests(args.tests_dir)
+            if args.list:
+                for test in TESTS:
+                    print(test)
+                return 0
+            write_all_tests(args.tests_dir, args.test or None)
             return 0
 
 
