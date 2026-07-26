@@ -84,7 +84,9 @@ unusable. Treat the logs as review artifacts.
 ## 5. Generate verification collateral
 
 ```bash
-fx setup_model setup_tb setup_cocotb --force
+fx setup_model --force
+fx tests_gen
+fx setup_tb setup_cocotb --force
 ```
 
 This creates:

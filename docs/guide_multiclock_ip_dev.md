@@ -183,6 +183,7 @@ fx lint_width --live
 
 ```bash
 fx setup_model_multi --force
+fx tests_gen_multi
 ```
 
 This creates an editable model:
@@ -267,6 +268,7 @@ Regenerate selectively:
 ```bash
 # Config/model changed and tests must be regenerated:
 fx setup_model_multi --force
+fx tests_gen_multi
 
 # SV verification changed or was deleted:
 fx setup_tb_multi --force
@@ -308,7 +310,8 @@ fx top_from_core_multi --force
 fx flist lint --force
 
 # Model changed:
-python3 workspace/runs/tri_stream_dsp/dev/model/model_tri_stream_dsp_multiclock.py
+fx tests_gen_multi
+fx test_gen_multi --set TEST_NAME=my_new_case
 fx tests
 
 # Testbench scaffold changed or was deleted:
@@ -364,6 +367,7 @@ fx top_from_core_multi --force
 fx flist lint --force
 fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
 fx setup_model_multi --force
+fx tests_gen_multi
 fx setup_tb_multi setup_cocotb_multi --force
 fx tests
 fx sim --set TEST_NAME=mac_smoke

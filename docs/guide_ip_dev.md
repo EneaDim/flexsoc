@@ -159,6 +159,7 @@ fx lint_unused
 
 ```bash
 fx setup_model --force
+fx tests_gen
 ```
 
 This creates:
@@ -303,7 +304,7 @@ During development, use this loop:
 
 ```bash
 fx reg doc rtl_stub flist lint --force
-fx setup_model setup_tb setup_cocotb
+fx setup_model tests_gen setup_tb setup_cocotb
 fx sim --set TEST_NAME=smoke
 fx cocotb --set TEST_NAME=smoke
 ```
