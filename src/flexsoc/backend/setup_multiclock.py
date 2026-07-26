@@ -1178,7 +1178,12 @@ def sv_tb_text(top: str, testbench: str) -> str:
 
 
 def cocotb_sv_text(top: str) -> str:
-    """Render the cocotb SystemVerilog top-level wrapper."""
+    """Render a cocotb wrapper with scalar TL-UL proxy signals.
+
+    Cocotb/Verilator exposes packed structs as LogicArrayObject values, so Python
+    cannot access cfg_tl_i.d_ready directly.  The wrapper keeps the real DUT
+    connected to TL-UL structs, but exposes scalar proxy signals for cocotb.
+    """
 
     return dedent(f"""\
     `timescale 1ns/1ps
@@ -1198,6 +1203,34 @@ def cocotb_sv_text(top: str) -> str:
       tlul_pkg::tl_h2d_t dsp_tl_i;
       tlul_pkg::tl_d2h_t dsp_tl_o;
 
+      logic        cfg_a_valid;
+      logic [2:0]  cfg_a_opcode;
+      logic [2:0]  cfg_a_param;
+      logic [1:0]  cfg_a_size;
+      logic [7:0]  cfg_a_source;
+      logic [31:0] cfg_a_address;
+      logic [3:0]  cfg_a_mask;
+      logic [31:0] cfg_a_data;
+      logic        cfg_d_ready;
+      logic        cfg_a_ready;
+      logic        cfg_d_valid;
+      logic [31:0] cfg_d_data;
+      logic        cfg_d_error;
+
+      logic        dsp_a_valid;
+      logic [2:0]  dsp_a_opcode;
+      logic [2:0]  dsp_a_param;
+      logic [1:0]  dsp_a_size;
+      logic [7:0]  dsp_a_source;
+      logic [31:0] dsp_a_address;
+      logic [3:0]  dsp_a_mask;
+      logic [31:0] dsp_a_data;
+      logic        dsp_d_ready;
+      logic        dsp_a_ready;
+      logic        dsp_d_valid;
+      logic [31:0] dsp_d_data;
+      logic        dsp_d_error;
+
       logic rx_valid_i;
       logic rx_ready_o;
       logic signed [15:0] rx_sample_i;
@@ -1207,6 +1240,40 @@ def cocotb_sv_text(top: str) -> str:
       logic signed [31:0] dsp_result_o;
       logic dsp_above_threshold_o;
       logic dsp_overflow_o;
+
+      always_comb begin
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.a_valid   = cfg_a_valid;
+        cfg_tl_i.a_opcode  = tlul_pkg::tl_a_op_e'(cfg_a_opcode);
+        cfg_tl_i.a_param   = cfg_a_param;
+        cfg_tl_i.a_size    = cfg_a_size;
+        cfg_tl_i.a_source  = cfg_a_source;
+        cfg_tl_i.a_address = cfg_a_address;
+        cfg_tl_i.a_mask    = cfg_a_mask;
+        cfg_tl_i.a_data    = cfg_a_data;
+        cfg_tl_i.d_ready   = cfg_d_ready;
+
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i.a_valid   = dsp_a_valid;
+        dsp_tl_i.a_opcode  = tlul_pkg::tl_a_op_e'(dsp_a_opcode);
+        dsp_tl_i.a_param   = dsp_a_param;
+        dsp_tl_i.a_size    = dsp_a_size;
+        dsp_tl_i.a_source  = dsp_a_source;
+        dsp_tl_i.a_address = dsp_a_address;
+        dsp_tl_i.a_mask    = dsp_a_mask;
+        dsp_tl_i.a_data    = dsp_a_data;
+        dsp_tl_i.d_ready   = dsp_d_ready;
+      end
+
+      assign cfg_a_ready = cfg_tl_o.a_ready;
+      assign cfg_d_valid = cfg_tl_o.d_valid;
+      assign cfg_d_data  = cfg_tl_o.d_data;
+      assign cfg_d_error = cfg_tl_o.d_error;
+
+      assign dsp_a_ready = dsp_tl_o.a_ready;
+      assign dsp_d_valid = dsp_tl_o.d_valid;
+      assign dsp_d_data  = dsp_tl_o.d_data;
+      assign dsp_d_error = dsp_tl_o.d_error;
 
       {top} u_dut (
         .cfg_clk_i             (cfg_clk_i),
@@ -1233,7 +1300,6 @@ def cocotb_sv_text(top: str) -> str:
       );
     endmodule
     """)
-
 def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     """Render a cocotb Makefile for the multi-clock wrapper."""
 
@@ -1269,23 +1335,43 @@ def cocotb_reg_driver_py_text(top: str) -> str:
     from cocotb.triggers import FallingEdge, RisingEdge
 
 
+    ADDR = {
+        "cfg": {
+            "CTRL": 0x0,
+            "GAIN": 0x4,
+            "STATUS": 0x8,
+            "CFG_STATUS": 0x8,
+        },
+        "dsp": {
+            "DSP_CTRL": 0x0,
+            "THRESHOLD": 0x4,
+            "DSP_STATUS": 0x8,
+            "STATUS": 0x8,
+            "RESULT": 0xC,
+        },
+    }
+
+
     def rows(path: str):
-        \"\"\"Read non-comment config/vector rows.\"\"\"
-        for raw in Path(path).read_text(encoding=\"utf-8\").splitlines():
+        "Read non-comment config/vector rows."
+        for raw in Path(path).read_text(encoding="utf-8").splitlines():
             line = raw.strip()
-            if not line or line.startswith(\"#\"):
+            if not line or line.startswith("#"):
                 continue
             yield line.split()
 
 
+    def _set_domain_defaults(dut, domain: str):
+        "Initialize scalar TL-UL proxy signals for one domain."
+        for name in ("a_valid", "a_opcode", "a_param", "a_size", "a_source", "a_address", "a_mask", "a_data"):
+            getattr(dut, f"{domain}_{name}").value = 0
+        getattr(dut, f"{domain}_d_ready").value = 1
+
+
     def set_defaults(dut):
-        \"\"\"Initialize top-level TL-UL ports and scalar IO.\"\"\"
-        dut.cfg_tl_i.value = 0
-        dut.dsp_tl_i.value = 0
-        dut.cfg_tl_i.d_ready.value = 1
-        dut.dsp_tl_i.d_ready.value = 1
-        dut.cfg_tl_i.a_valid.value = 0
-        dut.dsp_tl_i.a_valid.value = 0
+        "Initialize top-level scalar IO and TL-UL proxy signals."
+        _set_domain_defaults(dut, "cfg")
+        _set_domain_defaults(dut, "dsp")
         dut.rx_valid_i.value = 0
         dut.rx_sample_i.value = 0
         dut.rx_coeff_i.value = 0
@@ -1295,7 +1381,7 @@ def cocotb_reg_driver_py_text(top: str) -> str:
 
 
     async def reset(dut):
-        \"\"\"Apply asynchronous resets to all scaffold clocks.\"\"\"
+        "Apply asynchronous resets to all scaffold clocks."
         dut.cfg_rst_ni.value = 0
         dut.rx_rst_ni.value = 0
         dut.dsp_rst_ni.value = 0
@@ -1308,57 +1394,99 @@ def cocotb_reg_driver_py_text(top: str) -> str:
             await RisingEdge(dut.cfg_clk_i)
 
 
-    async def _tlul_write(clk, req, rsp, addr: int, data: int):
-        \"\"\"Issue one simple PutFullData write on a top-level TL-UL port.\"\"\"
+    async def _tlul_write(dut, domain: str, clk, addr: int, data: int):
+        "Issue one simple PutFullData write through scalar TL-UL proxies."
         await FallingEdge(clk)
-        req.value = 0
-        req.d_ready.value = 1
-        req.a_valid.value = 1
-        req.a_opcode.value = 0
-        req.a_param.value = 0
-        req.a_size.value = 2
-        req.a_source.value = 0
-        req.a_address.value = addr & 0xFFFFFFFF
-        req.a_mask.value = 0xF
-        req.a_data.value = data & 0xFFFFFFFF
-        while not bool(rsp.a_ready.value):
+        _set_domain_defaults(dut, domain)
+        getattr(dut, f"{domain}_a_valid").value = 1
+        getattr(dut, f"{domain}_a_opcode").value = 0
+        getattr(dut, f"{domain}_a_param").value = 0
+        getattr(dut, f"{domain}_a_size").value = 2
+        getattr(dut, f"{domain}_a_source").value = 0
+        getattr(dut, f"{domain}_a_address").value = addr & 0xFFFFFFFF
+        getattr(dut, f"{domain}_a_mask").value = 0xF
+        getattr(dut, f"{domain}_a_data").value = data & 0xFFFFFFFF
+        while not bool(getattr(dut, f"{domain}_a_ready").value):
             await RisingEdge(clk)
         await FallingEdge(clk)
-        req.a_valid.value = 0
-        while not bool(rsp.d_valid.value):
+        getattr(dut, f"{domain}_a_valid").value = 0
+        while not bool(getattr(dut, f"{domain}_d_valid").value):
             await RisingEdge(clk)
         await FallingEdge(clk)
-        req.value = 0
-        req.d_ready.value = 1
+        _set_domain_defaults(dut, domain)
+
+
+    async def _tlul_read(dut, domain: str, clk, addr: int) -> int:
+        "Issue one simple Get read through scalar TL-UL proxies."
+        await FallingEdge(clk)
+        _set_domain_defaults(dut, domain)
+        getattr(dut, f"{domain}_a_valid").value = 1
+        getattr(dut, f"{domain}_a_opcode").value = 4
+        getattr(dut, f"{domain}_a_param").value = 0
+        getattr(dut, f"{domain}_a_size").value = 2
+        getattr(dut, f"{domain}_a_source").value = 0
+        getattr(dut, f"{domain}_a_address").value = addr & 0xFFFFFFFF
+        getattr(dut, f"{domain}_a_mask").value = 0xF
+        while not bool(getattr(dut, f"{domain}_a_ready").value):
+            await RisingEdge(clk)
+        await FallingEdge(clk)
+        getattr(dut, f"{domain}_a_valid").value = 0
+        while not bool(getattr(dut, f"{domain}_d_valid").value):
+            await RisingEdge(clk)
+        data = int(getattr(dut, f"{domain}_d_data").value) & 0xFFFFFFFF
+        error = int(getattr(dut, f"{domain}_d_error").value)
+        await FallingEdge(clk)
+        _set_domain_defaults(dut, domain)
+        if error:
+            raise AssertionError(f"TL-UL read error on {domain} addr=0x{addr:08x}")
+        return data
+
+
+    def _decode_reg(name: str) -> tuple[str, int]:
+        "Resolve a generated config/check register name to domain and address."
+        clean = name[6:] if name.startswith("clk_i.") else name
+        if "." in clean:
+            domain, reg = clean.split(".", 1)
+        else:
+            domain, reg = "cfg", clean
+        reg = reg.upper()
+        try:
+            return domain, ADDR[domain][reg]
+        except KeyError as exc:
+            raise KeyError(f"unknown register {name!r}; update drivers/reg_driver.py") from exc
 
 
     async def apply_reg(dut, name: str, value: int):
-        \"\"\"Apply one config.regs row through the real top-level regblocks.\"\"\"
-        if name == \"cfg.CTRL\":
-            await _tlul_write(dut.cfg_clk_i, dut.cfg_tl_i, dut.cfg_tl_o, 0x0, value)
-        elif name == \"cfg.GAIN\":
-            await _tlul_write(dut.cfg_clk_i, dut.cfg_tl_i, dut.cfg_tl_o, 0x4, value)
-        elif name == \"dsp.DSP_CTRL\":
-            await _tlul_write(dut.dsp_clk_i, dut.dsp_tl_i, dut.dsp_tl_o, 0x0, value)
-        elif name == \"dsp.THRESHOLD\":
-            await _tlul_write(dut.dsp_clk_i, dut.dsp_tl_i, dut.dsp_tl_o, 0x4, value)
-        else:
-            dut._log.warning(\"unknown config register: %s\", name)
+        "Apply one config.regs row through the real top-level regblocks."
+        domain, addr = _decode_reg(name)
+        clk = dut.cfg_clk_i if domain == "cfg" else dut.dsp_clk_i
+        await _tlul_write(dut, domain, clk, addr, value)
+
+
+    async def read_reg(dut, name: str) -> int:
+        "Read one register by generated model name, for simple status checks."
+        domain, addr = _decode_reg(name)
+        clk = dut.cfg_clk_i if domain == "cfg" else dut.dsp_clk_i
+        return await _tlul_read(dut, domain, clk, addr)
+
+
+    async def expect_reg(dut, name: str, expected: int, mask: int = 0xFFFFFFFF):
+        "Read one register and assert its masked value."
+        got = await read_reg(dut, name)
+        if (got & mask) != (expected & mask):
+            raise AssertionError(
+                f"{name} got=0x{got & mask:08x} exp=0x{expected & mask:08x} mask=0x{mask:08x}"
+            )
 
 
     async def apply_config(dut, path: str):
-        \"\"\"Apply generated config rows and allow CDC synchronizers to settle.\"\"\"
+        "Apply generated config rows and allow CDC synchronizers to settle."
         for parts in rows(path):
             if len(parts) >= 2:
-                name = parts[0]
-                if name.startswith(\"clk_i.\"):
-                    name = name[6:]
-                await apply_reg(dut, name, int(parts[1], 0))
+                await apply_reg(dut, parts[0], int(parts[1], 0))
         for _ in range(8):
             await RisingEdge(dut.dsp_clk_i)
     """)
-
-
 def cocotb_vec_driver_py_text(top: str) -> str:
     """Render cocotb input-vector driver helpers."""
 
