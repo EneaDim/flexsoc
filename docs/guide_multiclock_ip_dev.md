@@ -393,3 +393,37 @@ fx multiclock_scaffold --force
 ```
 
 It runs the decomposed generation steps in the correct order.
+
+
+## Unified generic targets
+
+Set the run mode once, then use the same target names as the single-clock flow:
+
+```bash
+fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart CLOCK_MODE=multi
+fx hjson --force
+fx reg doc --force
+fx rtl_stub --force
+fx top_from_core --force
+fx flist lint --force
+fx setup_model --force
+fx tests_gen
+fx setup_tb setup_cocotb --force
+fx sim_tests
+fx cocotb_tests
+```
+
+The explicit `_multi` targets still exist, but the generic names dispatch to them
+when `CLOCK_MODE=multi` or `MULTICLOCK=1` is set.
+
+The model scaffold owns vector generation. `setup_tb` and `setup_cocotb` only
+create verification infrastructure. Regmap helper files are regenerated beside
+the model:
+
+```text
+model/model_tri_stream_dsp_multiclock.py
+model/regmap_tri_stream_dsp.py
+```
+
+Use `write("REG", value)` for config writes and `expect("STATUS", value)` for
+simple status read/check rows in `config.regs`.

@@ -1,3 +1,5 @@
+CLOCK_MODE ?= single
+MULTICLOCK ?= 0
 # FlexSoC backend flow Makefile
 #
 # Canonical Make-backed flow entrypoint used by the Python API, CLI wrappers,
@@ -754,6 +756,7 @@ setup_model: setup ## Generate/update the editable model scaffold
 		--output-dir $(MODELDIR) \
 		--hjson $(DATADIR)/$(TOP).hjson \
 		--rtl-dir $(RTLDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_model_helpers --top $(TOP) --data-dir $(DATADIR) --model-dir $(MODELDIR) $(OVERWRITE)
 
 
 setup_model_multi: setup ## Generate multi-clock Python model scaffold

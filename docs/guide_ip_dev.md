@@ -342,3 +342,21 @@ Verification logs are also test-name aware:
 logs/verification/<top>_sv_sim_<TEST_NAME>.log
 logs/verification/<top>_cocotb_<TEST_NAME>.log
 ```
+
+
+## Verification structure
+
+SystemVerilog and cocotb verification now use parallel driver directories:
+
+```text
+tb/drivers/                 # SV driver and monitor includes
+tb/cocotb/drivers/          # cocotb driver and monitor modules
+tb/tests/<TEST_NAME>/       # vectors generated only by the model
+```
+
+`setup_model` creates the editable model and generated regmap helper:
+
+```text
+model/model_<top>.py
+model/regmap_<top>.py
+```

@@ -1137,8 +1137,8 @@ def render_testbench(top: str,
     lines.append("\n  // Verification helpers")
     lines.append(f'  `include "{top}_reg_sequence.svh"')
     if _has_simple_datapath(sig):
-        lines.append(f'  `include "{top}_vec_monitor.svh"')
-        lines.append(f'  `include "{top}_vec_driver.svh"')
+        lines.append(f'  `include "drivers/{top}_vec_monitor.svh"')
+        lines.append(f'  `include "drivers/{top}_vec_driver.svh"')
     else:
         lines.append(_render_no_vector_task(top).rstrip())
 
@@ -1284,8 +1284,8 @@ def render_simple_testbench(top: str,
     lines.append("  // Verification helpers")
     lines.append(f'  `include "{top}_reg_sequence.svh"')
     if _has_simple_datapath(sig):
-        lines.append(f'  `include "{top}_vec_monitor.svh"')
-        lines.append(f'  `include "{top}_vec_driver.svh"')
+        lines.append(f'  `include "drivers/{top}_vec_monitor.svh"')
+        lines.append(f'  `include "drivers/{top}_vec_driver.svh"')
     else:
         lines.append(_render_no_vector_task(top).rstrip())
     lines.append("")

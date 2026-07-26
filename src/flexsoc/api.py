@@ -323,6 +323,48 @@ def _safe_log_name(value: str) -> str:
     return safe.strip("._") or "target"
 
 
+
+MULTICLOCK_TARGET_ALIASES = {
+    "hjson": "hjson_multi",
+    "reg": "reg_multi",
+    "doc": "doc_multi",
+    "rtl_stub": "rtl_stub_multi",
+    "top_from_core": "top_from_core_multi",
+    "setup_model": "setup_model_multi",
+    "tests_gen": "tests_gen_multi",
+    "test_gen": "test_gen_multi",
+    "setup_tb": "setup_tb_multi",
+    "setup_cocotb": "setup_cocotb_multi",
+    "setup_sdc": "sdc_multi",
+}
+MULTICLOCK_TRUE_VALUES = {"1", "true", "yes", "on", "multi", "multiclock"}
+
+
+def _is_multiclock_run(target: str, values: Mapping[str, Any], project_root: Path) -> bool:
+    """Return true when generic targets should resolve to multi-clock targets."""
+    for key in ("CLOCK_MODE", "MODE", "IP_MODE"):
+        if str(values.get(key, "")).lower() in {"multi", "multiclock"}:
+            return True
+    for key in ("MULTICLOCK", "MULTI_CLOCK"):
+        if str(values.get(key, "")).lower() in MULTICLOCK_TRUE_VALUES:
+            return True
+    if target == "hjson":
+        return False
+    workspace = Path(values.get("WORKSPACE", project_root / "workspace"))
+    top = str(values.get("TOP", ""))
+    run_top = str(values.get("RUN_TOP") or top or "run")
+    run_id = str(values.get("RUN_ID", "default"))
+    data_dir = workspace / "runs" / run_top / run_id / "data"
+    return bool(top and any(data_dir.glob(f"{top}_*.hjson")))
+
+
+def _resolve_target_for_run(target: str, values: Mapping[str, Any], project_root: Path) -> str:
+    """Map a user-facing target to the Make target for this run."""
+    if target in MULTICLOCK_TARGET_ALIASES and _is_multiclock_run(target, values, project_root):
+        return MULTICLOCK_TARGET_ALIASES[target]
+    return target
+
+
 def _target(name: str) -> str:
     """Accept exact, dashed, or underscored target spelling."""
 
@@ -420,7 +462,8 @@ class FlexSoC:
         """Build one Make command without executing it."""
 
         name, values = _target(target), self.values(overrides)
-        argv = ("make", "-f", str(_backend_makefile()), name, *(f"{k}={v}" for k, v in values.items()))
+        make_target = _resolve_target_for_run(name, values, self.project_root)
+        argv = ("make", "-f", str(_backend_makefile()), make_target, *(f"{k}={v}" for k, v in values.items()))
         return FlexSoCCommand(name, tuple(argv), self.project_root, self._env(), values)
 
     def commands(self, *targets: str, **overrides: Any) -> tuple[FlexSoCCommand, ...]:
