@@ -22,14 +22,14 @@ without manually wiring the same scaffolding every time.
   Create a run folder, generate HJSON register maps, register RTL,
   documentation, RTL stubs, top wrappers, filelists, and verification scaffolds.
 
+- 🔍 **Lint flow**  
+  Run full lint or focused diagnostics for latch, width, unconnected, undriven,
+  and unused issues. Long tool output goes to logs; the terminal stays readable.
+
 - ✅ **Model-driven verification**  
   `setup_model` creates an editable Python model. The model generates vector
   tests under `tb/tests/<TEST_NAME>/`. SystemVerilog and cocotb consume the same
   generated files: `config.regs`, `data_in.vec`, and `data_out.vec`.
-
-- 🔍 **Lint flow**  
-  Run full lint or focused diagnostics for latch, width, unconnected, undriven,
-  and unused issues. Long tool output goes to logs; the terminal stays readable.
 
 - 🧪 **SystemVerilog and cocotb testbenches**  
   Generate ordered verification structure with `tb/drivers/` and
@@ -127,10 +127,6 @@ fx cocotb_tests
 fx sdc_multi --force
 fx syn sdf sta power --force
 ```
-
-The `_multi` commands still exist as explicit aliases, but the recommended
-workflow is to set `CLOCK_MODE=multi` and use the same command names as the
-single-clock flow.
 
 ## Verification model
 
