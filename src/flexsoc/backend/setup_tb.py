@@ -1551,10 +1551,82 @@ def config_from_args(args: argparse.Namespace) -> TestbenchConfig:
     )
 
 
+
+
+
+# -----------------------------------------------------------------------------
+# Single-clock verification layout repair
+# -----------------------------------------------------------------------------
+def _single_tb_dir_from_config(config) -> Path:
+    """Return the generated SystemVerilog TB directory for any config shape."""
+    for attr in ("tb_dir", "output", "outdir"):
+        value = getattr(config, attr, None)
+        if value:
+            return Path(value)
+    rtldir = getattr(config, "rtldir", None)
+    if rtldir:
+        return Path(rtldir).resolve().parent / "tb"
+    raise AttributeError("could not infer testbench output directory from config")
+
+
+def _ensure_single_tb_driver_layout(config) -> None:
+    """Keep single-clock SV driver/monitor files under tb/drivers.
+
+    setup_tb writes the top-level testbench in tb/.  The included driver and
+    monitor snippets live in tb/drivers/, matching the multi-clock and cocotb
+    layouts.  This helper is intentionally tolerant of older generated layouts
+    and copies legacy files into the structured directory when needed.
+    """
+    import shutil
+    from pathlib import Path
+
+    tb_dir = _single_tb_dir_from_config(config)
+    top = str(getattr(config, "top", ""))
+    if not top:
+        for tb in sorted(tb_dir.glob("*_tb.sv")):
+            top = tb.stem[:-3]
+            break
+    if not top:
+        return
+
+    drivers_dir = tb_dir / "drivers"
+    drivers_dir.mkdir(parents=True, exist_ok=True)
+
+    # Keep both canonical names and legacy test_* names working during upgrades.
+    for kind in ("driver", "monitor"):
+        canonical = drivers_dir / f"{top}_vec_{kind}.svh"
+        legacy_named = drivers_dir / f"test_vec_{kind}.svh"
+        candidates = [
+            canonical,
+            tb_dir / f"{top}_vec_{kind}.svh",
+            tb_dir / f"test_vec_{kind}.svh",
+            legacy_named,
+        ]
+        source = next((path for path in candidates if path.exists()), None)
+        if source is not None:
+            if not canonical.exists():
+                shutil.copyfile(source, canonical)
+            if not legacy_named.exists():
+                shutil.copyfile(canonical, legacy_named)
+
+    for tb in sorted({tb_dir / f"{top}_tb.sv", tb_dir / "test_tb.sv"}):
+        if not tb.exists():
+            continue
+        text = tb.read_text(encoding="utf-8")
+        new = text
+        new = new.replace(f'`include "{top}_vec_driver.svh"', f'`include "drivers/{top}_vec_driver.svh"')
+        new = new.replace(f'`include "{top}_vec_monitor.svh"', f'`include "drivers/{top}_vec_monitor.svh"')
+        new = new.replace('`include "test_vec_driver.svh"', f'`include "drivers/{top}_vec_driver.svh"')
+        new = new.replace('`include "test_vec_monitor.svh"', f'`include "drivers/{top}_vec_monitor.svh"')
+        if new != text:
+            tb.write_text(new, encoding="utf-8")
+
 def main(argv=None) -> int:
     """Run testbench generation from the command line."""
 
-    generate_testbench_files(config_from_args(parse_args(argv)))
+    config = config_from_args(parse_args(argv))
+    generate_testbench_files(config)
+    _ensure_single_tb_driver_layout(config)
     return 0
 
 
