@@ -1,6 +1,5 @@
 # Multi-clock IP development guide ⏱️
 
-
 > 🧰 **Shell setup used in this guide**
 >
 > Install/sync dependencies once, then activate the project environment:
@@ -12,36 +11,34 @@
 >
 > After activation, run commands directly with `fx ...`.
 
-This guide describes a more complex IP development flow for an IP with multiple
-clock domains, multiple register maps, clock gating, asynchronous FIFOs and a
-small DSP datapath.
+This guide shows the multi-clock IP flow using the same mental model as the single-clock IP flow: generate register descriptions, run regtool, generate an RTL scaffold, edit the core, refresh the top wrapper from the core, lint early, then build model and verification collateral.
 
-The example IP is called `tri_stream_dsp`.
+The example IP is `tri_stream_dsp`.
 
 ## 1. Architecture goal
 
-`tri_stream_dsp` has three clock domains:
+`tri_stream_dsp` has three explicit clock domains:
 
-| Domain | Clock | Purpose |
-| --- | --- | --- |
-| cfg | `clk_cfg_i` | Software register access and control |
-| rx | `clk_rx_i` | Input stream capture |
-| dsp | `clk_dsp_i` | DSP compute pipeline |
+| Domain | Clock | Reset | Purpose |
+| --- | --- | --- | --- |
+| cfg | `cfg_clk_i` | `cfg_rst_ni` | software register access and global control |
+| rx | `rx_clk_i` | `rx_rst_ni` | input stream capture |
+| dsp | `dsp_clk_i` | `dsp_rst_ni` | compute datapath and DSP status |
 
 It has two register maps:
 
 | Regmap | File | Domain | Purpose |
 | --- | --- | --- | --- |
-| cfg | `data/tri_stream_dsp_cfg.hjson` | cfg | global enable, mode, IRQ/status |
-| dsp | `data/tri_stream_dsp_dsp.hjson` | dsp | coefficients, thresholds, results |
+| cfg | `data/tri_stream_dsp_cfg.hjson` | cfg | enable, soft reset, clock-gate intent, cfg status |
+| dsp | `data/tri_stream_dsp_dsp.hjson` | dsp | operation select, threshold, result, DSP status |
 
-The datapath is intentionally small but realistic:
+The scaffolded datapath is intentionally small but realistic:
 
 - RX domain accepts input samples.
 - RX→DSP crossing uses `prim_fifo_async`.
-- DSP domain applies a MAC-like operation and an absolute-difference estimate.
-- DSP clock can be gated with `prim_clk_gate` when the block is idle.
-- Status and result registers expose the output back to software.
+- DSP domain computes MAC, absolute difference, or energy estimate.
+- Clock-gating intent is represented with `prim_clk_gate`.
+- Status and result registers are driven through `hw2reg` paths.
 
 ## 2. Create the run
 
@@ -50,267 +47,335 @@ fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart
 fx setup
 ```
 
-## 3. Generate the multi-clock scaffold
+## 3. Generate only the multi-clock HJSON files
 
 ```bash
-fx multiclock_scaffold --force
+fx hjson_multi --force
 ```
 
-The scaffold is meant to be equivalent in spirit to `fx hjson + fx rtl_stub`, but
-for a multi-clock/multi-regmap IP.
-
-It creates coherent starting files:
+This creates:
 
 ```text
-workspace/runs/tri_stream_dsp/dev/
-├── data/
-│   ├── tri_stream_dsp_cfg.hjson
-│   └── tri_stream_dsp_dsp.hjson
-├── rtl/
-│   ├── tri_stream_dsp.sv
-│   └── tri_stream_dsp_core.sv
-├── model/
-│   └── model_tri_stream_dsp_multiclock.py
-├── pnr_openroad/
-│   └── tri_stream_dsp.sdc
-└── multiclock_readme.md
+workspace/runs/tri_stream_dsp/dev/data/
+├── tri_stream_dsp_cfg.hjson
+└── tri_stream_dsp_dsp.hjson
 ```
 
-## 4. Edit the HJSON regmaps
+Edit the HJSON files before running regtool. Use `cfg` for global/software-facing control and `dsp` for datapath-local control/status.
 
-Edit only the regmap that changed. For example, if you add a DSP coefficient,
-edit:
-
-```text
-data/tri_stream_dsp_dsp.hjson
-```
-
-If you add a global control bit, edit:
-
-```text
-data/tri_stream_dsp_cfg.hjson
-```
-
-## 5. Generate only the regmap you changed
+## 4. Generate register RTL and docs
 
 Generate all regmaps:
 
 ```bash
-fx reg_multi doc_multi
+fx reg_multi doc_multi --force
 ```
 
-Generate only the `cfg` regmap:
+Generate only one changed regmap:
 
 ```bash
 fx reg_multi doc_multi --set REGMAP=cfg
-```
-
-Generate only the `dsp` regmap:
-
-```bash
 fx reg_multi doc_multi --set REGMAP=dsp
 ```
 
-Without `--force`, the flow is incremental: it skips generated files that are
-newer than their source HJSON.
+Without `--force`, `reg_multi` and `doc_multi` are incremental: they skip outputs that are newer than their HJSON source.
 
-## 6. Understand the generated RTL stub
+`regtool` still generates each register block with local ports named `clk_i` and `rst_ni`. The generated wrapper maps those local ports to the real domain clocks, for example `cfg_clk_i` and `dsp_clk_i`.
 
-The multi-clock RTL stub is not just a placeholder. It is designed to show the
-correct structure.
+## 5. Generate RTL from the regmaps
+
+```bash
+fx rtl_stub_multi --force
+```
+
+This creates:
+
+```text
+rtl/tri_stream_dsp_core.sv
+rtl/tri_stream_dsp.sv
+```
+
+The split is the same idea as the single-clock flow:
+
+- `tri_stream_dsp_core.sv` is the user-editable design file.
+- `tri_stream_dsp.sv` is the generated wrapper.
 
 The wrapper instantiates:
 
 ```systemverilog
-// Configuration register block in the cfg clock domain.
 tri_stream_dsp_cfg_reg_top u_cfg_reg_top (...);
-
-// DSP register block in the dsp clock domain.
 tri_stream_dsp_dsp_reg_top u_dsp_reg_top (...);
-
-// Core containing CDC, FIFO and datapath logic.
-tri_stream_dsp_core u_core (...);
+tri_stream_dsp_core        u_core (...);
 ```
 
-The core uses explicit interfaces:
+The core uses explicit regmap structs:
 
 ```systemverilog
-// Register inputs from software-visible register blocks.
-input  tri_stream_dsp_cfg_reg_pkg::tri_stream_dsp_cfg_reg2hw_t cfg_reg2hw_i,
-input  tri_stream_dsp_dsp_reg_pkg::tri_stream_dsp_dsp_reg2hw_t dsp_reg2hw_i,
-
-// Hardware-updated register values.
-output tri_stream_dsp_cfg_reg_pkg::tri_stream_dsp_cfg_hw2reg_t cfg_hw2reg_o,
-output tri_stream_dsp_dsp_reg_pkg::tri_stream_dsp_dsp_hw2reg_t dsp_hw2reg_o,
+input  tri_stream_dsp_cfg_reg2hw_t cfg_reg2hw_i,
+output tri_stream_dsp_cfg_hw2reg_t cfg_hw2reg_o,
+input  tri_stream_dsp_dsp_reg2hw_t dsp_reg2hw_i,
+output tri_stream_dsp_dsp_hw2reg_t dsp_hw2reg_o,
 ```
 
-### Clock-domain crossing rules
-
-Single-bit controls should be synchronized:
+Reggen path rule:
 
 ```systemverilog
-// Synchronize enable from cfg domain into dsp domain.
-prim_flop_2sync #(.Width(1)) u_enable_sync (
-  .clk_i(clk_dsp_i),
-  .rst_ni(rst_dsp_ni),
-  .d_i(cfg_enable),
-  .q_o(cfg_enable_dsp)
-);
+// Multi-field register:
+cfg_reg2hw_i.ctrl.enable.q
+
+// Single-field register:
+cfg_reg2hw_i.gain.q
+
+// Hardware-updated single-field register:
+dsp_hw2reg_o.result.d
 ```
 
-Multi-bit streaming data should cross through an async FIFO:
+Do not use `.value.q` or `.value.d` for single-field registers.
 
-```systemverilog
-// Move samples from rx clock domain to dsp clock domain.
-prim_fifo_async #(
-  .Width(32),
-  .Depth(8)
-) u_rx_to_dsp_fifo (...);
+## 6. Refresh the wrapper after editing the core
+
+Edit only the core when you change datapath logic or add/remove external ports:
+
+```text
+rtl/tri_stream_dsp_core.sv
 ```
 
-Do not synchronize multi-bit data with independent two-flop synchronizers.
+Then refresh the wrapper:
 
-### Clock gating
-
-The scaffold uses a clock-gating wrapper pattern:
-
-```systemverilog
-// Gate the DSP clock only when the block is idle and software allows gating.
-prim_clk_gate u_dsp_clk_gate (
-  .clk_i(clk_dsp_i),
-  .en_i(dsp_clk_en),
-  .test_en_i(test_en_i),
-  .clk_o(clk_dsp_gated)
-);
+```bash
+fx top_from_core_multi --force
 ```
 
-Keep clock-gating enables simple, glitch-safe and easy to constrain.
+This regenerates only:
 
-## 7. Generate filelists and lint
+```text
+rtl/tri_stream_dsp.sv
+```
 
-Before modelling or verification, build the filelists and lint the generated
-wrapper/core structure. For a multi-clock IP this is especially important because
-lint catches missing domain ports, FIFO connections, regmap wiring mistakes and
-obvious reset/clock-gating issues before tests are introduced.
+It preserves the multi-clock structure: cfg TL-UL window, dsp TL-UL window, reg2hw/hw2reg wiring, and all non-register core ports exposed at the top level.
+
+## 7. Generate filelists and lint before modelling
+
+Before modelling or verification, build the filelists and lint the generated RTL:
 
 ```bash
 fx flist lint --force
 fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
 ```
 
-Focused lint diagnostics should be reviewed before moving to the model. Some
-warning-only checks are useful design review items, not necessarily fatal errors.
+This stage intentionally comes before modelling. It catches syntax errors, broken regmap paths, missing domain ports, FIFO wiring issues and obvious reset/clocking mistakes while the design is still small.
 
-## 8. Model and verification
-
-The model generated by `multiclock_scaffold` is a starting point. You can adapt it
-like the normal IP model.
-
-Recommended structure:
-
-```python
-def cfg_config(test):
-    '''Return writes for the cfg-domain register map.'''
-    return [
-        ("clk_cfg_i.CTRL", 0x00000003),
-    ]
-
-
-def dsp_config(test):
-    '''Return writes for the dsp-domain register map.'''
-    return [
-        ("clk_dsp_i.COEFF_A", test["coeff_a"]),
-        ("clk_dsp_i.COEFF_B", test["coeff_b"]),
-    ]
-
-
-def expected(sample, coeff_a, coeff_b):
-    '''Mirror the DSP datapath algorithm for one sample.'''
-    mac = sample * coeff_a
-    diff = abs(sample - coeff_b)
-    return (mac + diff) & 0xFFFFFFFF
-```
-
-The model writes the same verification files as the single-clock flow:
+Focused lint logs are written under:
 
 ```text
-tb/tests/<test>/config.regs
-tb/tests/<test>/data_in.vec
-tb/tests/<test>/data_out.vec
+logs/lint/
+├── <top>_lint_width_ip.log
+└── raw/<top>_lint_width_raw.log
 ```
 
-A multi-clock test can still reconfigure during simulation:
+The terminal shows a compact summary. Use `--live` only when you want full tool output:
+
+```bash
+fx lint_width --live
+```
+
+## 8. Generate the multi-clock model and tests
+
+```bash
+fx setup_model_multi --force
+```
+
+This creates an editable model:
 
 ```text
-8 @cfg /absolute/path/to/config_high_gain.regs
+model/model_tri_stream_dsp_multiclock.py
 ```
 
-## 9. Constraints
+and generated vector tests:
 
-The IP-level SDC belongs under `pnr_openroad`:
+```text
+tb/tests/<test>/
+├── config.regs
+├── data_in.vec
+└── data_out.vec
+```
+
+The model is the source of the vector tests. Simulators do not call the model at runtime; they consume the generated files.
+
+Example `config.regs`:
+
+```text
+cfg.CTRL 0x00000001
+cfg.GAIN 0x00000001
+dsp.DSP_CTRL 0x00000000
+dsp.THRESHOLD 0x00000010
+```
+
+Example `data_in.vec`:
+
+```text
+0 rx_sample_i 0x0003
+0 rx_coeff_i 0x0004
+0 rx_valid_i 0x1
+```
+
+Example `data_out.vec`:
+
+```text
+0 dsp_result_o 0x0000000d
+0 dsp_valid_o 0x1
+0 dsp_overflow_o 0x0
+```
+
+For the default multi-clock scaffold, the first column is a transaction index. The SV and cocotb scaffolds check outputs by order because exact cycle alignment across async domains is not a stable contract.
+
+## 9. Generate verification scaffolds
+
+The verification collateral is split like the single-clock flow, so you can regenerate only the piece you need:
+
+```bash
+fx setup_tb_multi --force
+fx setup_cocotb_multi --force
+```
+
+SystemVerilog files:
+
+```text
+tb/include_tri_stream_dsp_tb.sv
+tb/drivers/tri_stream_dsp_tlul_driver.svh
+tb/drivers/tri_stream_dsp_vec_driver.svh
+tb/drivers/tri_stream_dsp_vec_monitor.svh
+tb/tri_stream_dsp_tb.sv
+```
+
+cocotb files:
+
+```text
+tb/cocotb/Makefile
+tb/cocotb/tri_stream_dsp_cocotb_tb.sv
+tb/cocotb/drivers/__init__.py
+tb/cocotb/drivers/reg_driver.py
+tb/cocotb/drivers/vec_driver.py
+tb/cocotb/drivers/vec_monitor.py
+tb/cocotb/tri_stream_dsp_multiclock_test.py
+```
+
+Both SV and cocotb instantiate the real top-level wrapper `tri_stream_dsp`, not `tri_stream_dsp_core`. The tests therefore exercise the generated cfg/dsp TL-UL register blocks plus the editable core. If you want a core-only testbench, make the core the selected `TOP` explicitly.
+
+Regenerate selectively:
+
+```bash
+# Config/model changed and tests must be regenerated:
+fx setup_model_multi --force
+
+# SV verification changed or was deleted:
+fx setup_tb_multi --force
+
+# cocotb verification changed or was deleted:
+fx setup_cocotb_multi --force
+
+# Core ports changed, but verification files are still valid:
+fx top_from_core_multi --force
+```
+
+`fx sim` and `fx sim_tests` do not regenerate scaffolds. They compile and run the existing testbench against generated vector files. Waveforms are written through the standard `+VCD=...` plusarg under `sim/`, so `fx view` can open the latest SV waveform after simulation.
+
+## 10. List and run tests
+
+```bash
+fx tests
+fx sim --set TEST_NAME=mac_smoke
+fx cocotb --set TEST_NAME=mac_smoke
+```
+
+Run all generated tests:
+
+```bash
+fx sim_tests
+fx cocotb_tests
+```
+
+Regenerate only the pieces you changed:
+
+```bash
+# HJSON changed:
+fx reg_multi doc_multi --set REGMAP=dsp
+fx rtl_stub_multi --force
+fx flist lint --force
+
+# Core ports changed:
+fx top_from_core_multi --force
+fx flist lint --force
+
+# Model changed:
+python3 workspace/runs/tri_stream_dsp/dev/model/model_tri_stream_dsp_multiclock.py
+fx tests
+
+# Testbench scaffold changed or was deleted:
+fx setup_tb_multi setup_cocotb_multi --force
+```
+
+## 11. Constraints and signoff
+
+Generate the IP-level multi-clock SDC:
+
+```bash
+fx sdc_multi --force
+```
+
+The SDC lives under:
 
 ```text
 pnr_openroad/tri_stream_dsp.sdc
 ```
 
-This file should define clocks, generated clocks and asynchronous relationships
-from the IP boundary.
+It defines IP-boundary clocks and asynchronous relationships. Review it manually; CDC and generated-clock intent must be explicit.
 
-Example intent:
-
-```tcl
-# Primary clocks at the IP boundary.
-create_clock -name clk_cfg -period 10.000 [get_ports clk_cfg_i]
-create_clock -name clk_rx  -period 6.667  [get_ports clk_rx_i]
-create_clock -name clk_dsp -period 5.000  [get_ports clk_dsp_i]
-
-# Declare unrelated domains asynchronous.
-set_clock_groups -asynchronous   -group [get_clocks clk_cfg]   -group [get_clocks clk_rx]   -group [get_clocks clk_dsp]
-```
-
-Review these constraints manually. CDC intent must be explicit.
-
-## 10. Multi-corner signoff helpers
-
-The scaffold registers helper targets:
+Then run synthesis/signoff:
 
 ```bash
-fx sta_corners
-fx power_corners
-fx signoff_corners
-```
-
-The intent is to run setup/hold STA and power across configured corners. These
-steps do not rerun synthesis implicitly.
-
-## 11. SoC compliance
-
-The multi-clock IP must be easy to integrate into a SoC. Follow these rules:
-
-- Keep IP clock/reset ports explicit.
-- Keep IP regmaps separate and named by domain.
-- Keep IP SDC under `pnr_openroad/<ip>.sdc`.
-- When integrating into a SoC, create a new SoC-level SDC under
-  `workspace/runs/soc/<run>/pnr_openroad/soc.sdc`.
-- Do not copy IP constraints blindly into the SoC; adapt clock names, hierarchy,
-  generated clocks and false paths to the SoC top.
-- Keep CDC structures inside the IP unless the crossing is intentionally moved to
-  the SoC boundary.
-
-## 12. Suggested development sequence
-
-```bash
-fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart
-fx setup
-fx multiclock_scaffold --force
-fx reg_multi doc_multi --force
-fx flist lint --force
-fx setup_model setup_tb setup_cocotb --force
-fx tests
-fx sim --set TEST_NAME=smoke
-fx cocotb --set TEST_NAME=smoke
 fx syn --force
 fx sdf
 fx sta_corners
 fx power_corners
 ```
+
+## 12. SoC compliance
+
+A SoC must connect both register windows and every clock/reset explicitly:
+
+- cfg register window: `cfg_tl_i` / `cfg_tl_o`
+- dsp register window: `dsp_tl_i` / `dsp_tl_o`
+- cfg domain: `cfg_clk_i` / `cfg_rst_ni`
+- rx domain: `rx_clk_i` / `rx_rst_ni`
+- dsp domain: `dsp_clk_i` / `dsp_rst_ni`
+
+Do not blindly copy the IP SDC into a SoC. The SoC owns top-level clock names, generated clocks, clock groups, IO delays and hierarchy-specific CDC exceptions. Use the IP SDC as the authoring contract, then adapt it at the SoC boundary.
+
+## 13. Full clean sequence
+
+```bash
+fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart
+fx setup
+fx hjson_multi --force
+fx reg_multi doc_multi --force
+fx rtl_stub_multi --force
+fx top_from_core_multi --force
+fx flist lint --force
+fx lint_latch lint_width lint_unconnected lint_undriven lint_unused
+fx setup_model_multi --force
+fx setup_tb_multi setup_cocotb_multi --force
+fx tests
+fx sim --set TEST_NAME=mac_smoke
+fx cocotb --set TEST_NAME=mac_smoke
+fx sdc_multi --force
+fx syn sdf sta_corners power_corners --force
+```
+
+The compatibility shortcut is still available:
+
+```bash
+fx multiclock_scaffold --force
+```
+
+It runs the decomposed generation steps in the correct order.

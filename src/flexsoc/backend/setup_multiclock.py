@@ -1,87 +1,125 @@
-"""Generate a coherent multi-clock IP scaffold.
+"""Generate decomposed multi-clock IP scaffolds for FlexSoC.
 
-The scaffold follows the same idea as the normal ``hjson`` + ``rtl_stub`` flow,
-but it is explicit about clock domains, multiple regmaps, clock gating and CDC.
-It creates editable starter RTL, reggen inputs, an IP-level SDC and notes for SoC
-integration. It does not pretend to close CDC or timing automatically: the intent
-is visible in the generated files and must be reviewed by the designer.
+The multi-clock flow mirrors the single-clock flow:
+
+* hjson_multi creates one HJSON file per register domain.
+* reg_multi/doc_multi run regtool on only the selected or changed regmaps.
+* rtl_stub_multi creates an editable core and a wrapper from the core ports.
+* top_from_core_multi refreshes only the wrapper after the core signature changes.
+* setup_model_multi writes the reference model and generated vector tests.
+* setup_tb_multi/setup_cocotb_multi write verification scaffolds that consume vectors.
 """
 
 from __future__ import annotations
 
 import argparse
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
 
 
+# ---------------------------------------------------------------------------
+# Defaults and small helpers
+# ---------------------------------------------------------------------------
+
 DEFAULT_DOMAINS = ("cfg", "rx", "dsp")
 DEFAULT_REGMAPS = ("cfg", "dsp")
+REG_PORTS = {"cfg_reg2hw_i", "cfg_hw2reg_o", "dsp_reg2hw_i", "dsp_hw2reg_o"}
+
+
+@dataclass(frozen=True)
+class Port:
+    """One parsed SystemVerilog module port declaration."""
+
+    direction: str
+    name: str
+    declaration: str
 
 
 def csv(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
-    """Parse a comma-separated option, falling back to a default tuple."""
+    """Parse comma-separated values while preserving a sane default."""
 
     items = tuple(item.strip() for item in (value or "").split(",") if item.strip())
     return items or default
 
 
-def clk(domain: str) -> str:
-    """Return the clock port name for one domain."""
-
-    return f"{domain}_clk_i"
-
-
-def rst(domain: str) -> str:
-    """Return the active-low reset port name for one domain."""
-
-    return f"{domain}_rst_ni"
-
-
 def write_file(path: Path, text: str, force: bool) -> bool:
-    """Write one generated file, respecting --force."""
+    """Write one generated file unless it already exists and force is false."""
 
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not force:
+        print(f"skip {path} (exists; use --force to overwrite)")
         return False
     path.write_text(text.rstrip() + "\n", encoding="utf-8")
+    print(path)
     return True
 
 
+def snake(name: str) -> str:
+    """Normalize names to lower-case register/member style."""
+
+    return name.strip().lower()
+
+
+# ---------------------------------------------------------------------------
+# HJSON generation
+# ---------------------------------------------------------------------------
+
 def cfg_hjson(top: str) -> str:
-    """Render the cfg-domain regmap used by the generated RTL stub."""
+    """Render the cfg-domain HJSON regmap."""
 
     name = f"{top}_cfg"
     return dedent(f"""\
     {{
-      name: "{name}"
-      clock_primary: "cfg_clk_i"
-      reset_primary: "cfg_rst_ni"
-      bus_interfaces: [ {{ protocol: "tlul", direction: "device" }} ]
+      name:               "{name}",
+      human_name:         "{name}",
+      one_line_desc:      "Cfg-domain controls for the generated multi-clock IP.",
+      one_paragraph_desc: "Global control and cfg-domain status registers for the generated multi-clock scaffold.",
+      cip_id:             "1",
+      design_spec:        "",
+      dv_doc:             "",
+      hw_checklist:       "",
+      sw_checklist:       "",
+      revisions: [{{
+        version:            "1.0.0",
+        life_stage:         "L0",
+        design_stage:       "D0",
+        verification_stage: "V0",
+        commit_id:          "",
+        notes:              "Generated multi-clock cfg regmap."
+      }}],
+      clocking: [{{ clock: "clk_i", reset: "rst_ni" }}],
+      bus_interfaces: [{{ protocol: "tlul", direction: "device" }}],
+      regwidth: "32",
       registers: [
-        {{ name: CTRL
-          desc: "Global control written from the cfg clock domain."
-          swaccess: "rw"
-          hwaccess: "hro"
+        {{
+          name: "CTRL",
+          desc: "Global control written from the cfg clock domain.",
+          swaccess: "rw",
+          hwaccess: "hro",
           fields: [
-            {{ bits: "0", name: enable, desc: "Enable RX input and DSP processing." }}
-            {{ bits: "1", name: soft_reset, desc: "Synchronous datapath clear request." }}
-            {{ bits: "2", name: clk_gate_en, desc: "Allow the DSP clock gate to close when idle." }}
+            {{ bits: "0", name: "ENABLE", desc: "Enable RX input and DSP processing." }},
+            {{ bits: "1", name: "SOFT_RESET", desc: "Synchronous datapath clear request." }},
+            {{ bits: "2", name: "CLK_GATE_EN", desc: "Allow the DSP clock gate to close when idle." }}
           ]
-        }}
-        {{ name: GAIN
-          desc: "Signed Q1.15 gain added by the DSP pipeline. Update while CTRL.enable is low."
-          swaccess: "rw"
-          hwaccess: "hro"
-          fields: [ {{ bits: "15:0", name: value, desc: "DSP gain coefficient." }} ]
-        }}
-        {{ name: CFG_STATUS
-          desc: "Cfg-domain view of status synchronized back from the datapath."
-          swaccess: "ro"
-          hwaccess: "hrw"
-          hwext: "true"
+        }},
+        {{
+          name: "GAIN",
+          desc: "Signed Q1.15 gain added by the DSP pipeline. Update while CTRL.ENABLE is low.",
+          swaccess: "rw",
+          hwaccess: "hro",
+          fields: [{{ bits: "15:0", name: "VALUE", desc: "DSP gain coefficient." }}]
+        }},
+        {{
+          name: "CFG_STATUS",
+          desc: "Cfg-domain view of datapath status synchronized back from the DSP domain.",
+          swaccess: "ro",
+          hwaccess: "hrw",
+          hwext: "true",
           fields: [
-            {{ bits: "0", name: busy, desc: "The DSP pipeline currently owns an output sample." }}
-            {{ bits: "1", name: overflow, desc: "The latest result overflowed or saturated." }}
+            {{ bits: "0", name: "BUSY", desc: "The DSP pipeline currently owns an output sample." }},
+            {{ bits: "1", name: "OVERFLOW", desc: "The latest result overflowed or saturated." }}
           ]
         }}
       ]
@@ -90,49 +128,116 @@ def cfg_hjson(top: str) -> str:
 
 
 def dsp_hjson(top: str) -> str:
-    """Render the dsp-domain regmap used by the generated RTL stub."""
+    """Render the dsp-domain HJSON regmap."""
 
     name = f"{top}_dsp"
     return dedent(f"""\
     {{
-      name: "{name}"
-      clock_primary: "dsp_clk_i"
-      reset_primary: "dsp_rst_ni"
-      bus_interfaces: [ {{ protocol: "tlul", direction: "device" }} ]
+      name:               "{name}",
+      human_name:         "{name}",
+      one_line_desc:      "DSP-domain controls and status for the generated multi-clock IP.",
+      one_paragraph_desc: "Algorithm selection, threshold, result and live DSP status registers for the generated multi-clock scaffold.",
+      cip_id:             "1",
+      design_spec:        "",
+      dv_doc:             "",
+      hw_checklist:       "",
+      sw_checklist:       "",
+      revisions: [{{
+        version:            "1.0.0",
+        life_stage:         "L0",
+        design_stage:       "D0",
+        verification_stage: "V0",
+        commit_id:          "",
+        notes:              "Generated multi-clock dsp regmap."
+      }}],
+      clocking: [{{ clock: "clk_i", reset: "rst_ni" }}],
+      bus_interfaces: [{{ protocol: "tlul", direction: "device" }}],
+      regwidth: "32",
       registers: [
-        {{ name: DSP_CTRL
-          desc: "DSP-domain algorithm control."
-          swaccess: "rw"
-          hwaccess: "hro"
+        {{
+          name: "DSP_CTRL",
+          desc: "DSP-domain algorithm control.",
+          swaccess: "rw",
+          hwaccess: "hro",
           fields: [
-            {{ bits: "1:0", name: op, desc: "0=MAC plus gain, 1=absolute difference, 2=energy estimate." }}
-            {{ bits: "2", name: saturate, desc: "Clamp overflowing results to signed 32-bit limits." }}
+            {{ bits: "1:0", name: "OP", desc: "0=MAC plus gain, 1=absolute difference, 2=energy estimate." }},
+            {{ bits: "2", name: "SATURATE", desc: "Clamp overflowing results to signed 32-bit limits." }}
+          ]
+        }},
+        {{
+          name: "THRESHOLD",
+          desc: "Unsigned threshold compared with the DSP result.",
+          swaccess: "rw",
+          hwaccess: "hro",
+          fields: [{{ bits: "31:0", name: "VALUE", desc: "Result threshold." }}]
+        }},
+        {{
+          name: "RESULT",
+          desc: "Latest signed DSP result.",
+          swaccess: "ro",
+          hwaccess: "hrw",
+          hwext: "true",
+          fields: [{{ bits: "31:0", name: "VALUE", desc: "Latest output result." }}]
+        }},
+        {{
+          name: "DSP_STATUS",
+          desc: "DSP-domain live status.",
+          swaccess: "ro",
+          hwaccess: "hrw",
+          hwext: "true",
+          fields: [
+            {{ bits: "0", name: "VALID", desc: "RESULT contains a valid sample." }},
+            {{ bits: "1", name: "ABOVE_THRESHOLD", desc: "RESULT is greater than THRESHOLD." }},
+            {{ bits: "2", name: "FIFO_EMPTY", desc: "RX-to-DSP FIFO has no readable payload." }},
+            {{ bits: "3", name: "OVERFLOW", desc: "The latest operation overflowed before saturation." }}
           ]
         }}
-        {{ name: THRESHOLD
-          desc: "Unsigned threshold compared with the DSP result."
-          swaccess: "rw"
-          hwaccess: "hro"
-          fields: [ {{ bits: "31:0", name: value, desc: "Result threshold." }} ]
-        }}
-        {{ name: RESULT
-          desc: "Latest signed DSP result."
-          swaccess: "ro"
-          hwaccess: "hrw"
-          hwext: "true"
-          fields: [ {{ bits: "31:0", name: value, desc: "Latest output result." }} ]
-        }}
-        {{ name: DSP_STATUS
-          desc: "DSP-domain live status."
-          swaccess: "ro"
-          hwaccess: "hrw"
-          hwext: "true"
-          fields: [
-            {{ bits: "0", name: valid, desc: "RESULT contains a valid sample." }}
-            {{ bits: "1", name: above_threshold, desc: "RESULT is greater than THRESHOLD." }}
-            {{ bits: "2", name: fifo_empty, desc: "RX-to-DSP FIFO has no readable payload." }}
-            {{ bits: "3", name: overflow, desc: "The latest operation overflowed before saturation." }}
-          ]
+      ]
+    }}
+    """)
+
+
+def generic_hjson(top: str, regmap: str) -> str:
+    """Render a small generic HJSON for an extra domain regmap."""
+
+    name = f"{top}_{regmap}"
+    return dedent(f"""\
+    {{
+      name:               "{name}",
+      human_name:         "{name}",
+      one_line_desc:      "Generated {regmap}-domain control/status registers.",
+      one_paragraph_desc: "Starter control/status map for a generated multi-clock domain.",
+      cip_id:             "1",
+      design_spec:        "",
+      dv_doc:             "",
+      hw_checklist:       "",
+      sw_checklist:       "",
+      revisions: [{{
+        version:            "1.0.0",
+        life_stage:         "L0",
+        design_stage:       "D0",
+        verification_stage: "V0",
+        commit_id:          "",
+        notes:              "Generated multi-clock domain regmap."
+      }}],
+      clocking: [{{ clock: "clk_i", reset: "rst_ni" }}],
+      bus_interfaces: [{{ protocol: "tlul", direction: "device" }}],
+      regwidth: "32",
+      registers: [
+        {{
+          name: "CTRL",
+          desc: "Domain control.",
+          swaccess: "rw",
+          hwaccess: "hro",
+          fields: [{{ bits: "0", name: "ENABLE", desc: "Enable this domain." }}]
+        }},
+        {{
+          name: "STATUS",
+          desc: "Domain status.",
+          swaccess: "ro",
+          hwaccess: "hrw",
+          hwext: "true",
+          fields: [{{ bits: "0", name: "BUSY", desc: "Domain busy." }}]
         }}
       ]
     }}
@@ -140,148 +245,32 @@ def dsp_hjson(top: str) -> str:
 
 
 def hjson_text(top: str, regmap: str) -> str:
-    """Render one supported multi-clock regmap."""
+    """Render one multi-clock regmap by short name."""
 
     if regmap == "cfg":
         return cfg_hjson(top)
     if regmap == "dsp":
         return dsp_hjson(top)
-    return dedent(f"""\
-    {{
-      name: "{top}_{regmap}"
-      clock_primary: "{clk(regmap)}"
-      reset_primary: "{rst(regmap)}"
-      bus_interfaces: [ {{ protocol: "tlul", direction: "device" }} ]
-      registers: [
-        {{ name: CTRL desc: "Domain control." swaccess: "rw" hwaccess: "hro"
-          fields: [ {{ bits: "0", name: enable, desc: "Enable this domain." }} ] }}
-        {{ name: STATUS desc: "Domain status." swaccess: "ro" hwaccess: "hrw" hwext: "true"
-          fields: [ {{ bits: "0", name: busy, desc: "Domain busy." }} ] }}
-      ]
-    }}
-    """)
+    return generic_hjson(top, regmap)
 
 
-def wrapper_text(top: str) -> str:
-    """Render the SoC-facing top wrapper with two TL-UL regmap ports."""
-
-    return dedent(f"""\
-    // Auto-generated multi-clock top-level stub for {top}.
-    //
-    // SoC integration model:
-    //   - cfg_tl_* is one TL-UL device window for global configuration.
-    //   - dsp_tl_* is one TL-UL device window for datapath-local control/status.
-    //   - both windows must be address-mapped by the SoC top/xbar.
-    //   - each clock/reset is explicit so the SoC can connect real clock domains.
-
-    module {top}
-      import {top}_cfg_reg_pkg::*;
-      import {top}_dsp_reg_pkg::*;
-    (
-      input  logic                cfg_clk_i,
-      input  logic                cfg_rst_ni,
-      input  logic                rx_clk_i,
-      input  logic                rx_rst_ni,
-      input  logic                dsp_clk_i,
-      input  logic                dsp_rst_ni,
-      input  logic                test_en_i,
-      input  logic                devmode_i,
-
-      // Cfg-domain TL-UL register window.
-      input  tlul_pkg::tl_h2d_t   cfg_tl_i,
-      output tlul_pkg::tl_d2h_t   cfg_tl_o,
-
-      // DSP-domain TL-UL register window.
-      input  tlul_pkg::tl_h2d_t   dsp_tl_i,
-      output tlul_pkg::tl_d2h_t   dsp_tl_o,
-
-      // RX-domain input stream.
-      input  logic                rx_valid_i,
-      output logic                rx_ready_o,
-      input  logic signed [15:0]  rx_sample_i,
-      input  logic signed [15:0]  rx_coeff_i,
-
-      // DSP-domain output stream.
-      output logic                dsp_valid_o,
-      input  logic                dsp_ready_i,
-      output logic signed [31:0]  dsp_result_o,
-      output logic                dsp_above_threshold_o,
-      output logic                dsp_overflow_o
-    );
-
-      {top}_cfg_reg2hw_t cfg_reg2hw;
-      {top}_cfg_hw2reg_t cfg_hw2reg;
-      {top}_dsp_reg2hw_t dsp_reg2hw;
-      {top}_dsp_hw2reg_t dsp_hw2reg;
-
-      // Cfg register block. It lives in cfg_clk_i and owns global controls.
-      {top}_cfg_reg_top u_cfg_reg_top (
-        .clk_i     (cfg_clk_i),
-        .rst_ni    (cfg_rst_ni),
-        .tl_i      (cfg_tl_i),
-        .tl_o      (cfg_tl_o),
-        .reg2hw    (cfg_reg2hw),
-        .hw2reg    (cfg_hw2reg),
-        .devmode_i (devmode_i)
-      );
-
-      // DSP register block. It lives in dsp_clk_i and owns datapath controls.
-      {top}_dsp_reg_top u_dsp_reg_top (
-        .clk_i     (dsp_clk_i),
-        .rst_ni    (dsp_rst_ni),
-        .tl_i      (dsp_tl_i),
-        .tl_o      (dsp_tl_o),
-        .reg2hw    (dsp_reg2hw),
-        .hw2reg    (dsp_hw2reg),
-        .devmode_i (devmode_i)
-      );
-
-      // The core consumes reg2hw controls and drives hw2reg status/result fields.
-      {top}_core u_core (
-        .cfg_clk_i              (cfg_clk_i),
-        .cfg_rst_ni             (cfg_rst_ni),
-        .rx_clk_i               (rx_clk_i),
-        .rx_rst_ni              (rx_rst_ni),
-        .dsp_clk_i              (dsp_clk_i),
-        .dsp_rst_ni             (dsp_rst_ni),
-        .test_en_i              (test_en_i),
-        .cfg_reg2hw_i           (cfg_reg2hw),
-        .cfg_hw2reg_o           (cfg_hw2reg),
-        .dsp_reg2hw_i           (dsp_reg2hw),
-        .dsp_hw2reg_o           (dsp_hw2reg),
-        .rx_valid_i             (rx_valid_i),
-        .rx_ready_o             (rx_ready_o),
-        .rx_sample_i            (rx_sample_i),
-        .rx_coeff_i             (rx_coeff_i),
-        .dsp_valid_o            (dsp_valid_o),
-        .dsp_ready_i            (dsp_ready_i),
-        .dsp_result_o           (dsp_result_o),
-        .dsp_above_threshold_o  (dsp_above_threshold_o),
-        .dsp_overflow_o         (dsp_overflow_o)
-      );
-
-    endmodule
-    """)
-
+# ---------------------------------------------------------------------------
+# RTL generation
+# ---------------------------------------------------------------------------
 
 def core_text(top: str) -> str:
-    """Render the editable multi-clock RTL stub."""
+    """Render the editable multi-clock core stub."""
 
     return dedent(f"""\
-    // Editable multi-clock RTL stub for {top}.
+    // Editable multi-clock RTL core for {top}.
     //
-    // This file is intentionally more complete than a placeholder:
-    //   - cfg_reg2hw_i controls the block.
-    //   - dsp_reg2hw_i selects the DSP algorithm.
-    //   - RX samples cross into the DSP domain through prim_fifo_async.
-    //   - the DSP clock is gated with prim_clk_gate.
-    //   - hw2reg status/result fields are driven by the core.
+    // User edit point:
+    //   Keep this file as the main design surface. After changing ports, run
+    //   `fx top_from_core_multi --force` to refresh rtl/{top}.sv.
     //
-    // Design rule:
-    //   Multi-bit data must cross clock domains through an explicit CDC structure.
-    //   This scaffold uses prim_fifo_async for data and prim_flop_2sync for
-    //   single-bit status/control examples. Review and replace with stronger
-    //   handshakes where runtime updates can occur while the datapath is active.
+    // Register path rule from reggen:
+    //   - multi-field registers use .<field>.q/.d, e.g. ctrl.enable.q.
+    //   - single-field registers are flat, e.g. gain.q and result.d.
 
     module {top}_core
       import {top}_cfg_reg_pkg::*;
@@ -316,10 +305,8 @@ def core_text(top: str) -> str:
       localparam logic signed [63:0] I32_MIN = -64'sd2147483648;
 
       // --------------------------------------------------------------------
-      // Register map extraction
+      // Register extraction
       // --------------------------------------------------------------------
-      // Multi-field registers use .<field>.q. Single-field registers are flat
-      // in reggen, so GAIN, THRESHOLD and RESULT use .q/.d directly.
       logic               cfg_enable;
       logic               cfg_soft_reset;
       logic               cfg_clk_gate_en;
@@ -339,9 +326,6 @@ def core_text(top: str) -> str:
       // --------------------------------------------------------------------
       // Single-bit CDC controls
       // --------------------------------------------------------------------
-      // cfg_enable and cfg_soft_reset are synchronized into RX/DSP domains.
-      // cfg_gain is sampled in the DSP domain for this scaffold; in production,
-      // update multi-bit configuration while disabled or add a config handshake.
       logic enable_rx;
       logic enable_dsp;
       logic soft_reset_dsp;
@@ -380,31 +364,14 @@ def core_text(top: str) -> str:
         if (!dsp_rst_ni) begin
           gain_dsp_q <= '0;
         end else if (!enable_dsp) begin
-          // Safe default policy: multi-bit cfg is sampled only while disabled.
+          // Safe scaffold policy: update multi-bit cfg while disabled.
           gain_dsp_q <= cfg_gain;
         end
       end
 
       // --------------------------------------------------------------------
-      // DSP clock gating
+      // RX -> DSP async FIFO
       // --------------------------------------------------------------------
-      // test_en_i keeps the gated clock open for scan/debug/gate-level checks.
-      logic dsp_clk_gated;
-      logic dsp_clk_active;
-
-      assign dsp_clk_active = enable_dsp & (!clk_gate_en_dsp | fifo_rvalid | dsp_valid_o);
-
-      prim_clk_gate u_dsp_clk_gate (
-        .clk_i     (dsp_clk_i),
-        .en_i      (dsp_clk_active),
-        .test_en_i (test_en_i),
-        .clk_o     (dsp_clk_gated)
-      );
-
-      // --------------------------------------------------------------------
-      // RX -> DSP asynchronous FIFO
-      // --------------------------------------------------------------------
-      // RX writes {{sample, coeff}}. DSP reads the packed payload with dsp_clk_i.
       logic        fifo_wready;
       logic        fifo_rvalid;
       logic        fifo_rready;
@@ -438,11 +405,26 @@ def core_text(top: str) -> str:
       );
 
       // --------------------------------------------------------------------
+      // DSP clock gate intent
+      // --------------------------------------------------------------------
+      // The scaffold keeps computation on dsp_clk_i for broad tool support and
+      // still instantiates prim_clk_gate so the intended enable is visible to
+      // lint/timing review. Replace this with a gated-clock implementation only
+      // after your constraints and gate-level checks are ready.
+      logic dsp_clk_gated;
+      logic dsp_clk_active;
+      assign dsp_clk_active = enable_dsp & (!clk_gate_en_dsp | fifo_rvalid | dsp_valid_o);
+
+      prim_clk_gate u_dsp_clk_gate (
+        .clk_i     (dsp_clk_i),
+        .en_i      (dsp_clk_active),
+        .test_en_i (test_en_i),
+        .clk_o     (dsp_clk_gated)
+      );
+
+      // --------------------------------------------------------------------
       // Small DSP algorithm
       // --------------------------------------------------------------------
-      // op=0: sample * coeff + gain
-      // op=1: abs(sample - coeff)
-      // op=2: sample^2 + coeff^2
       logic signed [15:0] sample_d;
       logic signed [15:0] coeff_d;
       logic signed [63:0] sample_ext;
@@ -455,9 +437,9 @@ def core_text(top: str) -> str:
 
       assign sample_d   = fifo_rdata[31:16];
       assign coeff_d    = fifo_rdata[15:0];
-      assign sample_ext = {{48{{sample_d[15]}}, sample_d}};
-      assign coeff_ext  = {{48{{coeff_d[15]}}, coeff_d}};
-      assign gain_ext   = {{48{{gain_dsp_q[15]}}, gain_dsp_q}};
+      assign sample_ext = {{{{48{{sample_d[15]}}}}, sample_d}};
+      assign coeff_ext  = {{{{48{{coeff_d[15]}}}}, coeff_d}};
+      assign gain_ext   = {{{{48{{gain_dsp_q[15]}}}}, gain_dsp_q}};
 
       always_comb begin
         unique case (dsp_op)
@@ -477,7 +459,7 @@ def core_text(top: str) -> str:
         above_threshold_d = $unsigned(clipped_result) > dsp_threshold;
       end
 
-      always_ff @(posedge dsp_clk_gated or negedge dsp_rst_ni) begin
+      always_ff @(posedge dsp_clk_i or negedge dsp_rst_ni) begin
         if (!dsp_rst_ni) begin
           dsp_valid_o           <= 1'b0;
           dsp_result_o          <= '0;
@@ -501,8 +483,6 @@ def core_text(top: str) -> str:
       // --------------------------------------------------------------------
       // HW -> register status/result
       // --------------------------------------------------------------------
-      // DSP-domain regmap gets live status. cfg-domain regmap gets a synchronized
-      // summary for software that only polls the cfg window.
       logic cfg_busy;
       logic cfg_overflow;
 
@@ -529,24 +509,151 @@ def core_text(top: str) -> str:
       assign dsp_hw2reg_o.dsp_status.fifo_empty.d      = ~fifo_rvalid;
       assign dsp_hw2reg_o.dsp_status.overflow.d        = dsp_overflow_o;
 
-      // Keep FIFO depth wires visible for debug and quiet for lint.
-      logic unused_fifo_depth;
-      assign unused_fifo_depth = ^{{fifo_wdepth, fifo_rdepth}};
+      // Debug visibility and lint quieting for intentionally unused scaffold nets.
+      logic unused_debug;
+      assign unused_debug = ^{{fifo_wdepth, fifo_rdepth, dsp_clk_gated}};
 
     endmodule
     """)
 
 
+def _remove_sv_comments(text: str) -> str:
+    """Remove simple SystemVerilog comments before parsing a module header."""
+
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    return re.sub(r"//.*", "", text)
+
+
+def parse_core_ports(top: str, rtl_dir: Path) -> list[Port]:
+    """Parse simple one-line ports from rtl/<top>_core.sv."""
+
+    path = rtl_dir / f"{top}_core.sv"
+    if not path.exists():
+        raise FileNotFoundError(f"missing core RTL: {path}")
+    text = _remove_sv_comments(path.read_text(encoding="utf-8"))
+    match = re.search(rf"module\s+{re.escape(top)}_core\b.*?\((.*?)\)\s*;", text, flags=re.S)
+    if not match:
+        raise ValueError(f"could not parse module header in {path}")
+    ports: list[Port] = []
+    for raw in match.group(1).splitlines():
+        line = raw.strip().rstrip(",")
+        if not line or not re.match(r"^(input|output|inout)\b", line):
+            continue
+        name_match = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*$", line)
+        if not name_match:
+            continue
+        direction = line.split(None, 1)[0]
+        ports.append(Port(direction=direction, name=name_match.group(1), declaration=line))
+    return ports
+
+
+def _port_block(declarations: list[str]) -> str:
+    """Format a comma-terminated SystemVerilog port list."""
+
+    return ",\n".join(f"      {decl}" for decl in declarations)
+
+
+def wrapper_from_core(top: str, rtl_dir: Path) -> str:
+    """Render the SoC-facing wrapper from the editable core port list."""
+
+    ports = parse_core_ports(top, rtl_dir)
+    exposed = [p for p in ports if p.name not in REG_PORTS]
+    declarations = [p.declaration for p in exposed]
+    if "devmode_i" not in {p.name for p in exposed}:
+        insert_at = 0
+        for idx, port in enumerate(exposed):
+            if not ("clk" in port.name or "rst" in port.name or port.name == "test_en_i"):
+                insert_at = idx
+                break
+            insert_at = idx + 1
+        declarations.insert(insert_at, "input  logic                     devmode_i")
+    declarations.extend([
+        "input  tlul_pkg::tl_h2d_t        cfg_tl_i",
+        "output tlul_pkg::tl_d2h_t        cfg_tl_o",
+        "input  tlul_pkg::tl_h2d_t        dsp_tl_i",
+        "output tlul_pkg::tl_d2h_t        dsp_tl_o",
+    ])
+
+    core_connections: list[str] = []
+    for port in ports:
+        if port.name == "cfg_reg2hw_i":
+            core_connections.append("        .cfg_reg2hw_i          (cfg_reg2hw)")
+        elif port.name == "cfg_hw2reg_o":
+            core_connections.append("        .cfg_hw2reg_o          (cfg_hw2reg)")
+        elif port.name == "dsp_reg2hw_i":
+            core_connections.append("        .dsp_reg2hw_i          (dsp_reg2hw)")
+        elif port.name == "dsp_hw2reg_o":
+            core_connections.append("        .dsp_hw2reg_o          (dsp_hw2reg)")
+        else:
+            core_connections.append(f"        .{port.name:<22}({port.name})")
+
+    core_connection_block = ",\n".join(core_connections)
+
+    return dedent(f"""\
+    // Auto-generated multi-clock wrapper for {top}.
+    //
+    // User edit point:
+    //   Edit rtl/{top}_core.sv, then run `fx top_from_core_multi --force`.
+    //   This wrapper exposes core ports, instantiates one TL-UL register window
+    //   per regmap, and wires reg2hw/hw2reg structs into the core.
+
+    module {top}
+      import {top}_cfg_reg_pkg::*;
+      import {top}_dsp_reg_pkg::*;
+    (
+    {_port_block(declarations)}
+    );
+
+      {top}_cfg_reg2hw_t cfg_reg2hw;
+      {top}_cfg_hw2reg_t cfg_hw2reg;
+      {top}_dsp_reg2hw_t dsp_reg2hw;
+      {top}_dsp_hw2reg_t dsp_hw2reg;
+
+      // Cfg-domain register block. Regtool requires local clk_i/rst_ni names
+      // inside the generated block; the wrapper maps them to cfg_clk_i/cfg_rst_ni.
+      {top}_cfg_reg_top u_cfg_reg_top (
+        .clk_i     (cfg_clk_i),
+        .rst_ni    (cfg_rst_ni),
+        .tl_i      (cfg_tl_i),
+        .tl_o      (cfg_tl_o),
+        .reg2hw    (cfg_reg2hw),
+        .hw2reg    (cfg_hw2reg),
+        .devmode_i (devmode_i)
+      );
+
+      // DSP-domain register block mapped to dsp_clk_i/dsp_rst_ni.
+      {top}_dsp_reg_top u_dsp_reg_top (
+        .clk_i     (dsp_clk_i),
+        .rst_ni    (dsp_rst_ni),
+        .tl_i      (dsp_tl_i),
+        .tl_o      (dsp_tl_o),
+        .reg2hw    (dsp_reg2hw),
+        .hw2reg    (dsp_hw2reg),
+        .devmode_i (devmode_i)
+      );
+
+      {top}_core u_core (
+    {core_connection_block}
+      );
+
+    endmodule
+    """)
+
+
+# ---------------------------------------------------------------------------
+# Model and vector generation
+# ---------------------------------------------------------------------------
+
 def model_text(top: str) -> str:
-    """Render a small Python reference model for the scaffolded DSP algorithm."""
+    """Render the editable Python model/test generator."""
 
     return dedent(f'''\
     #!/usr/bin/env python3
-    """Reference model template for the {top} multi-clock scaffold.
+    """Reference model and vector generator for the {top} multi-clock scaffold.
 
-    Edit this file to describe the algorithm, then run it to regenerate vector
-    tests. SV and cocotb simulations only consume the generated files; they do
-    not call this model during simulation.
+    Edit the functions in this file as the RTL changes. Running the file rewrites
+    tb/tests/<name>/config.regs, data_in.vec and data_out.vec. Simulation and
+    cocotb consume only those generated files.
     """
 
     from __future__ import annotations
@@ -557,19 +664,18 @@ def model_text(top: str) -> str:
 
 
     def i16(value: int) -> int:
-        """Convert an integer to signed 16-bit."""
+        """Convert a value to signed 16-bit."""
         value &= 0xFFFF
         return value - 0x10000 if value & 0x8000 else value
 
 
-    def i32(value: int) -> int:
-        """Convert an integer to signed 32-bit."""
-        value &= 0xFFFFFFFF
-        return value - 0x100000000 if value & 0x80000000 else value
+    def u32(value: int) -> int:
+        """Convert a value to unsigned 32-bit."""
+        return value & 0xFFFFFFFF
 
 
     def compute(sample: int, coeff: int, gain: int, op: int, saturate: bool) -> tuple[int, bool]:
-        """Mirror the RTL DSP operation and return result plus overflow flag."""
+        """Mirror the default RTL DSP operation for one transaction."""
         sample = i16(sample)
         coeff = i16(coeff)
         gain = i16(gain)
@@ -582,67 +688,65 @@ def model_text(top: str) -> str:
         overflow = raw > 0x7FFFFFFF or raw < -0x80000000
         if saturate and raw > 0x7FFFFFFF:
             raw = 0x7FFFFFFF
-        if saturate and raw < -0x80000000:
+        elif saturate and raw < -0x80000000:
             raw = -0x80000000
-        return i32(raw) & 0xFFFFFFFF, overflow
+        return u32(raw), overflow
 
 
     def write_lines(path: Path, lines: list[str]) -> None:
-        """Create one generated vector/config file."""
+        """Write a generated test file."""
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
 
 
-    def write_test(name: str, cfg: dict[str, int], rows: list[tuple[int, int, int]]) -> None:
-        """Generate config.regs, data_in.vec and data_out.vec for one test."""
+    def write_test(name: str, cfg: dict[str, int], rows: list[tuple[int, int]]) -> None:
+        """Generate one multi-clock vector test directory."""
         out = ROOT / name
+        ctrl = cfg.get("ctrl", 0x1)
+        gain = cfg.get("gain", 0)
+        dsp_ctrl = cfg.get("dsp_ctrl", 0)
+        threshold = cfg.get("threshold", 0)
         write_lines(out / "config.regs", [
-            f"cfg.CTRL 0x{{cfg['ctrl']:08x}}",
-            f"cfg.GAIN 0x{{cfg['gain'] & 0xFFFFFFFF:08x}}",
-            f"dsp.DSP_CTRL 0x{{cfg['dsp_ctrl']:08x}}",
-            f"dsp.THRESHOLD 0x{{cfg['threshold']:08x}}",
+            "# format: <regmap>.<REG> <VALUE>",
+            "# Multi-clock note: write cfg.GAIN while cfg.CTRL.ENABLE is still low.",
+            "# The final cfg.CTRL row enables the RX/DSP domains after config is stable.",
+            f"cfg.GAIN 0x{{gain & 0xFFFFFFFF:08x}}",
+            f"dsp.DSP_CTRL 0x{{dsp_ctrl:08x}}",
+            f"dsp.THRESHOLD 0x{{threshold:08x}}",
+            f"cfg.CTRL 0x{{ctrl:08x}}",
         ])
+
         data_in = [
-            "# format: <CYCLE> <SIGNAL> <VALUE>",
-            "# repeat the same cycle to drive multiple signals together",
+            "# format: <STEP> <SIGNAL> <VALUE>",
+            "# STEP is an input transaction index for this multi-clock scaffold.",
         ]
-        data_out = ["# format: <CYCLE> <SIGNAL> <VALUE>"]
-        op = cfg["dsp_ctrl"] & 0x3
-        saturate = bool(cfg["dsp_ctrl"] & 0x4)
-        gain = cfg["gain"]
-        for cycle, sample, coeff in rows:
+        data_out = [
+            "# format: <STEP> <SIGNAL> <VALUE>",
+            "# STEP is an output transaction index; async domains are checked by order.",
+        ]
+        op = dsp_ctrl & 0x3
+        saturate = bool(dsp_ctrl & 0x4)
+        for step, (sample, coeff) in enumerate(rows):
             data_in += [
-                f"{{cycle}} rx_sample_i 0x{{sample & 0xFFFF:04x}}",
-                f"{{cycle}} rx_coeff_i 0x{{coeff & 0xFFFF:04x}}",
-                f"{{cycle}} rx_valid_i 0x1",
+                f"{{step}} rx_sample_i 0x{{sample & 0xFFFF:04x}}",
+                f"{{step}} rx_coeff_i 0x{{coeff & 0xFFFF:04x}}",
+                f"{{step}} rx_valid_i 0x1",
             ]
             result, overflow = compute(sample, coeff, gain, op, saturate)
             data_out += [
-                f"{{cycle + 1}} dsp_result_o 0x{{result:08x}}",
-                f"{{cycle + 1}} dsp_valid_o 0x1",
-                f"{{cycle + 1}} dsp_overflow_o 0x{{int(overflow)}}",
+                f"{{step}} dsp_result_o 0x{{result:08x}}",
+                f"{{step}} dsp_valid_o 0x1",
+                f"{{step}} dsp_overflow_o 0x{{int(overflow)}}",
             ]
         write_lines(out / "data_in.vec", data_in)
         write_lines(out / "data_out.vec", data_out)
 
 
     def write_all_tests() -> None:
-        """Generate a small regression; add more entries as the IP grows."""
-        write_test(
-            "mac_smoke",
-            cfg={{"ctrl": 0x7, "gain": 1, "dsp_ctrl": 0x0, "threshold": 0x10}},
-            rows=[(0, 3, 4), (1, 7, 2), (2, -3, 5)],
-        )
-        write_test(
-            "absdiff",
-            cfg={{"ctrl": 0x7, "gain": 0, "dsp_ctrl": 0x1, "threshold": 0x4}},
-            rows=[(0, 9, 4), (1, -2, 8)],
-        )
-        write_test(
-            "energy",
-            cfg={{"ctrl": 0x7, "gain": 0, "dsp_ctrl": 0x2, "threshold": 0x20}},
-            rows=[(0, 3, 4), (1, 5, 12)],
-        )
+        """Generate the default regression for the scaffolded RTL."""
+        write_test("mac_smoke", {{"ctrl": 0x1, "gain": 1, "dsp_ctrl": 0x0, "threshold": 0x10}}, [(3, 4), (7, 2), (-3, 5)])
+        write_test("absdiff", {{"ctrl": 0x1, "gain": 0, "dsp_ctrl": 0x1, "threshold": 0x4}}, [(9, 4), (-2, 8)])
+        write_test("energy", {{"ctrl": 0x1, "gain": 0, "dsp_ctrl": 0x2, "threshold": 0x20}}, [(3, 4), (5, 12)])
 
 
     if __name__ == "__main__":
@@ -650,8 +754,710 @@ def model_text(top: str) -> str:
     ''')
 
 
+# ---------------------------------------------------------------------------
+# SystemVerilog verification scaffold
+# ---------------------------------------------------------------------------
+
+def sv_include_text(top: str) -> str:
+    """Render a small include file matching the single-clock TB layout."""
+
+    guard = f"{top.upper()}_MULTICLOCK_TB_INCLUDE_SV".replace("-", "_")
+    return dedent(f"""\
+    `ifndef {guard}
+    `define {guard}
+
+    // Multi-clock TB include hook.
+    // The Makefile compiles rtl_common.f and rtl_ip.f explicitly, so this file
+    // is intentionally small. Keep local TB typedefs/macros here if needed.
+
+    `endif
+    """)
+
+
+
+def sv_driver_text(top: str) -> str:
+    """Render top-level TL-UL config-driver tasks."""
+
+    return dedent("""\
+      // Reset top-level scalar IO and both TL-UL register ports.
+      task automatic apply_defaults();
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.a_valid = 1'b0;
+        dsp_tl_i.a_valid = 1'b0;
+        cfg_tl_i.d_ready = 1'b1;
+        dsp_tl_i.d_ready = 1'b1;
+        rx_valid_i = 1'b0;
+        rx_sample_i = '0;
+        rx_coeff_i = '0;
+        dsp_ready_i = 1'b1;
+        test_en_i = 1'b1;
+        devmode_i = 1'b1;
+      endtask
+
+      // Perform one cfg-domain TL-UL write into the generated cfg regblock.
+      task automatic cfg_write(input logic [31:0] addr, input logic [31:0] data);
+        @(negedge cfg_clk_i);
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.a_valid   = 1'b1;
+        cfg_tl_i.a_opcode  = tlul_pkg::PutFullData;
+        cfg_tl_i.a_param   = '0;
+        cfg_tl_i.a_size    = 3'd2;
+        cfg_tl_i.a_source  = '0;
+        cfg_tl_i.a_address = addr;
+        cfg_tl_i.a_mask    = 4'hf;
+        cfg_tl_i.a_data    = data;
+        cfg_tl_i.d_ready   = 1'b1;
+        do @(posedge cfg_clk_i); while (!cfg_tl_o.a_ready);
+        @(negedge cfg_clk_i);
+        cfg_tl_i.a_valid = 1'b0;
+        do @(posedge cfg_clk_i); while (!cfg_tl_o.d_valid);
+        @(negedge cfg_clk_i);
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.d_ready = 1'b1;
+      endtask
+
+      // Perform one dsp-domain TL-UL write into the generated dsp regblock.
+      task automatic dsp_write(input logic [31:0] addr, input logic [31:0] data);
+        @(negedge dsp_clk_i);
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i.a_valid   = 1'b1;
+        dsp_tl_i.a_opcode  = tlul_pkg::PutFullData;
+        dsp_tl_i.a_param   = '0;
+        dsp_tl_i.a_size    = 3'd2;
+        dsp_tl_i.a_source  = '0;
+        dsp_tl_i.a_address = addr;
+        dsp_tl_i.a_mask    = 4'hf;
+        dsp_tl_i.a_data    = data;
+        dsp_tl_i.d_ready   = 1'b1;
+        do @(posedge dsp_clk_i); while (!dsp_tl_o.a_ready);
+        @(negedge dsp_clk_i);
+        dsp_tl_i.a_valid = 1'b0;
+        do @(posedge dsp_clk_i); while (!dsp_tl_o.d_valid);
+        @(negedge dsp_clk_i);
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i.d_ready = 1'b1;
+      endtask
+
+      // Apply one generated config register write through the top-level regblocks.
+      task automatic apply_reg(input string reg_name, input logic [31:0] value);
+        if (reg_name == "cfg.CTRL") begin
+          cfg_write(32'h0000_0000, value);
+        end else if (reg_name == "cfg.GAIN") begin
+          cfg_write(32'h0000_0004, value);
+        end else if (reg_name == "dsp.DSP_CTRL") begin
+          dsp_write(32'h0000_0000, value);
+        end else if (reg_name == "dsp.THRESHOLD") begin
+          dsp_write(32'h0000_0004, value);
+        end else begin
+          $display("[TB][WARN] unknown config register: %s", reg_name);
+        end
+      endtask
+
+      // Load config.regs. cfg.CTRL should remain the final enable write.
+      task automatic load_config(input string path);
+        integer fd;
+        integer code;
+        string reg_name;
+        logic [31:0] value;
+        string line;
+        fd = $fopen(path, "r");
+        if (fd == 0) begin
+          $display("[TB][ERROR] config file not found: %s", path);
+          errors++;
+          return;
+        end
+        while (!$feof(fd)) begin
+          line = "";
+          void'($fgets(line, fd));
+          if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+          code = $sscanf(line, "%s %h", reg_name, value);
+          if (code == 2) begin
+            if (reg_name.len() > 6 && reg_name.substr(0, 5) == "clk_i.") reg_name = reg_name.substr(6, reg_name.len() - 1);
+            apply_reg(reg_name, value);
+          end
+        end
+        $fclose(fd);
+      endtask
+    """)
+
+
+def sv_vec_driver_text(top: str) -> str:
+    """Render top-level input-vector driver tasks."""
+
+    return dedent("""\
+      // Push one sample into the RX clock domain.
+      task automatic send_sample(input logic signed [15:0] sample, input logic signed [15:0] coeff);
+        integer timeout;
+        timeout = 0;
+        while (!rx_ready_o && timeout < 64) begin
+          @(posedge rx_clk_i);
+          timeout++;
+        end
+        if (!rx_ready_o) begin
+          $display("[TB][ERROR] rx_ready_o timeout");
+          errors++;
+          return;
+        end
+        @(negedge rx_clk_i);
+        rx_sample_i = sample;
+        rx_coeff_i  = coeff;
+        rx_valid_i  = 1'b1;
+        @(negedge rx_clk_i);
+        rx_valid_i  = 1'b0;
+      endtask
+
+      // Drive input transactions from data_in.vec.
+      task automatic run_inputs(input string path);
+        integer fd;
+        integer code;
+        integer step;
+        string sig;
+        logic [31:0] value;
+        string line;
+        logic signed [15:0] sample;
+        logic signed [15:0] coeff;
+        sample = '0;
+        coeff = '0;
+        fd = $fopen(path, "r");
+        if (fd == 0) begin
+          $display("[TB][ERROR] input file not found: %s", path);
+          errors++;
+          return;
+        end
+        while (!$feof(fd)) begin
+          line = "";
+          void'($fgets(line, fd));
+          if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+          code = $sscanf(line, "%d %s %h", step, sig, value);
+          if (code != 3) continue;
+          if (sig == "rx_sample_i") begin
+            sample = value[15:0];
+          end else if (sig == "rx_coeff_i") begin
+            coeff = value[15:0];
+          end else if (sig == "rx_valid_i" && value[0]) begin
+            send_sample(sample, coeff);
+          end
+        end
+        $fclose(fd);
+      endtask
+    """)
+
+def sv_monitor_text(top: str) -> str:
+    """Render output-vector monitor/checker tasks."""
+
+    return dedent("""\
+      // Load expected output transactions by order, not by absolute cycle.
+      task automatic load_expected(input string path);
+        integer fd;
+        integer code;
+        integer step;
+        string sig;
+        logic [31:0] value;
+        string line;
+        exp_count = 0;
+        fd = $fopen(path, "r");
+        if (fd == 0) begin
+          $display("[TB][ERROR] expected file not found: %s", path);
+          errors++;
+          return;
+        end
+        while (!$feof(fd)) begin
+          line = "";
+          void'($fgets(line, fd));
+          if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+          code = $sscanf(line, "%d %s %h", step, sig, value);
+          if (code == 3 && sig == "dsp_result_o") begin
+            exp_result[exp_count] = value;
+            exp_overflow[exp_count] = 1'b0;
+            exp_count++;
+          end else if (code == 3 && sig == "dsp_overflow_o" && exp_count > 0) begin
+            exp_overflow[exp_count - 1] = value[0];
+          end
+        end
+        $fclose(fd);
+      endtask
+
+      // Compare each output transaction when the DSP domain produces it.
+      task automatic check_outputs();
+        integer timeout;
+        got_count = 0;
+        timeout = 0;
+        dsp_ready_i = 1'b1;
+        while (got_count < exp_count && timeout < 4096) begin
+          @(posedge dsp_clk_i);
+          if (dsp_valid_o) begin
+            if ($unsigned(dsp_result_o) !== exp_result[got_count]) begin
+              $display("[TB][ERROR] result[%0d] got=0x%08x exp=0x%08x", got_count, $unsigned(dsp_result_o), exp_result[got_count]);
+              errors++;
+            end
+            if (dsp_overflow_o !== exp_overflow[got_count]) begin
+              $display("[TB][ERROR] overflow[%0d] got=%0d exp=%0d", got_count, dsp_overflow_o, exp_overflow[got_count]);
+              errors++;
+            end
+            got_count++;
+          end
+          timeout++;
+        end
+        if (got_count != exp_count) begin
+          $display("[TB][ERROR] observed %0d/%0d expected outputs", got_count, exp_count);
+          errors++;
+        end
+      endtask
+    """)
+
+
+
+def sv_tb_text(top: str, testbench: str) -> str:
+    """Render a top-level multi-clock SV vector testbench."""
+
+    return dedent(f"""\
+    `timescale 1ns/1ps
+    `include "include_{top}_tb.sv"
+
+    module {testbench};
+
+      logic cfg_clk_i;
+      logic cfg_rst_ni;
+      logic rx_clk_i;
+      logic rx_rst_ni;
+      logic dsp_clk_i;
+      logic dsp_rst_ni;
+      logic test_en_i;
+      logic devmode_i;
+
+      tlul_pkg::tl_h2d_t cfg_tl_i;
+      tlul_pkg::tl_d2h_t cfg_tl_o;
+      tlul_pkg::tl_h2d_t dsp_tl_i;
+      tlul_pkg::tl_d2h_t dsp_tl_o;
+
+      logic rx_valid_i;
+      logic rx_ready_o;
+      logic signed [15:0] rx_sample_i;
+      logic signed [15:0] rx_coeff_i;
+      logic dsp_valid_o;
+      logic dsp_ready_i;
+      logic signed [31:0] dsp_result_o;
+      logic dsp_above_threshold_o;
+      logic dsp_overflow_o;
+
+      string cfg_path;
+      string data_in_path;
+      string data_out_path;
+      string vcd_path;
+      integer errors;
+
+      logic [31:0] exp_result [0:1023];
+      logic        exp_overflow [0:1023];
+      integer exp_count;
+      integer got_count;
+
+      always #5 cfg_clk_i = ~cfg_clk_i;
+      always #4 rx_clk_i  = ~rx_clk_i;
+      always #3 dsp_clk_i = ~dsp_clk_i;
+
+      {top} u_dut (
+        .cfg_clk_i             (cfg_clk_i),
+        .cfg_rst_ni            (cfg_rst_ni),
+        .rx_clk_i              (rx_clk_i),
+        .rx_rst_ni             (rx_rst_ni),
+        .dsp_clk_i             (dsp_clk_i),
+        .dsp_rst_ni            (dsp_rst_ni),
+        .test_en_i             (test_en_i),
+        .devmode_i             (devmode_i),
+        .cfg_tl_i              (cfg_tl_i),
+        .cfg_tl_o              (cfg_tl_o),
+        .dsp_tl_i              (dsp_tl_i),
+        .dsp_tl_o              (dsp_tl_o),
+        .rx_valid_i            (rx_valid_i),
+        .rx_ready_o            (rx_ready_o),
+        .rx_sample_i           (rx_sample_i),
+        .rx_coeff_i            (rx_coeff_i),
+        .dsp_valid_o           (dsp_valid_o),
+        .dsp_ready_i           (dsp_ready_i),
+        .dsp_result_o          (dsp_result_o),
+        .dsp_above_threshold_o (dsp_above_threshold_o),
+        .dsp_overflow_o        (dsp_overflow_o)
+      );
+
+      // Verification helpers are split like the single-clock scaffold.
+      `include "drivers/{top}_tlul_driver.svh"
+      `include "drivers/{top}_vec_monitor.svh"
+      `include "drivers/{top}_vec_driver.svh"
+
+      initial begin
+        errors = 0;
+        cfg_clk_i = 1'b0;
+        rx_clk_i = 1'b0;
+        dsp_clk_i = 1'b0;
+        cfg_rst_ni = 1'b0;
+        rx_rst_ni = 1'b0;
+        dsp_rst_ni = 1'b0;
+        apply_defaults();
+
+        if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "tb/tests/mac_smoke/config.regs";
+        if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "tb/tests/mac_smoke/data_in.vec";
+        if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "tb/tests/mac_smoke/data_out.vec";
+        if (!$value$plusargs("VCD=%s", vcd_path)) vcd_path = "{testbench}.vcd";
+        if (vcd_path != "") begin
+          $display("[TB] dumpfile = %s", vcd_path);
+          $dumpfile(vcd_path);
+          $dumpvars(0, {testbench});
+        end
+
+        repeat (5) @(posedge cfg_clk_i);
+        cfg_rst_ni = 1'b1;
+        rx_rst_ni = 1'b1;
+        dsp_rst_ni = 1'b1;
+        repeat (8) @(posedge cfg_clk_i);
+
+        load_config(cfg_path);
+        load_expected(data_out_path);
+        // Let cfg->rx/dsp synchronizers and gain sampling settle before traffic.
+        repeat (8) @(posedge dsp_clk_i);
+        fork
+          run_inputs(data_in_path);
+          check_outputs();
+        join
+
+        repeat (10) @(posedge dsp_clk_i);
+        if (errors == 0) begin
+          $display("[TB] PASS");
+          $finish;
+        end else begin
+          $display("[TB] FAIL errors=%0d", errors);
+          $fatal(1);
+        end
+      end
+
+    endmodule
+    """)
+
+# ---------------------------------------------------------------------------
+# cocotb scaffold
+
+# ---------------------------------------------------------------------------
+# cocotb scaffold
+# ---------------------------------------------------------------------------
+
+
+def cocotb_sv_text(top: str) -> str:
+    """Render the cocotb SystemVerilog top-level wrapper."""
+
+    return dedent(f"""\
+    `timescale 1ns/1ps
+
+    module {top}_cocotb_tb;
+      logic cfg_clk_i;
+      logic cfg_rst_ni;
+      logic rx_clk_i;
+      logic rx_rst_ni;
+      logic dsp_clk_i;
+      logic dsp_rst_ni;
+      logic test_en_i;
+      logic devmode_i;
+
+      tlul_pkg::tl_h2d_t cfg_tl_i;
+      tlul_pkg::tl_d2h_t cfg_tl_o;
+      tlul_pkg::tl_h2d_t dsp_tl_i;
+      tlul_pkg::tl_d2h_t dsp_tl_o;
+
+      logic rx_valid_i;
+      logic rx_ready_o;
+      logic signed [15:0] rx_sample_i;
+      logic signed [15:0] rx_coeff_i;
+      logic dsp_valid_o;
+      logic dsp_ready_i;
+      logic signed [31:0] dsp_result_o;
+      logic dsp_above_threshold_o;
+      logic dsp_overflow_o;
+
+      {top} u_dut (
+        .cfg_clk_i             (cfg_clk_i),
+        .cfg_rst_ni            (cfg_rst_ni),
+        .rx_clk_i              (rx_clk_i),
+        .rx_rst_ni             (rx_rst_ni),
+        .dsp_clk_i             (dsp_clk_i),
+        .dsp_rst_ni            (dsp_rst_ni),
+        .test_en_i             (test_en_i),
+        .devmode_i             (devmode_i),
+        .cfg_tl_i              (cfg_tl_i),
+        .cfg_tl_o              (cfg_tl_o),
+        .dsp_tl_i              (dsp_tl_i),
+        .dsp_tl_o              (dsp_tl_o),
+        .rx_valid_i            (rx_valid_i),
+        .rx_ready_o            (rx_ready_o),
+        .rx_sample_i           (rx_sample_i),
+        .rx_coeff_i            (rx_coeff_i),
+        .dsp_valid_o           (dsp_valid_o),
+        .dsp_ready_i           (dsp_ready_i),
+        .dsp_result_o          (dsp_result_o),
+        .dsp_above_threshold_o (dsp_above_threshold_o),
+        .dsp_overflow_o        (dsp_overflow_o)
+      );
+    endmodule
+    """)
+
+def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
+    """Render a cocotb Makefile for the multi-clock wrapper."""
+
+    common_f = rtl_dir / "rtl_common.f"
+    ip_f = rtl_dir / "rtl_ip.f"
+    return dedent(f"""\
+    SIM ?= verilator
+    TOPLEVEL_LANG ?= verilog
+    TOPLEVEL = {top}_cocotb_tb
+    MODULE = {top}_multiclock_test
+    VERILOG_SOURCES += $(shell sed 's|^|$(PWD)/../../rtl/|' ../../rtl/rtl_common.f 2>/dev/null)
+    VERILOG_SOURCES += $(shell sed 's|^|$(PWD)/../../rtl/|' ../../rtl/rtl_ip.f 2>/dev/null)
+    VERILOG_SOURCES += $(PWD)/{top}_cocotb_tb.sv
+    EXTRA_ARGS += --top-module $(TOPLEVEL)
+    EXTRA_ARGS += -Wno-fatal
+    export TEST_NAME ?= mac_smoke
+    export CFG ?= ../tests/$(TEST_NAME)/config.regs
+    export DATA_IN ?= ../tests/$(TEST_NAME)/data_in.vec
+    export DATA_OUT ?= ../tests/$(TEST_NAME)/data_out.vec
+    include $(shell cocotb-config --makefiles)/Makefile.sim
+    """)
+
+
+
+def cocotb_reg_driver_py_text(top: str) -> str:
+    """Render cocotb TL-UL register-driver helpers."""
+
+    return dedent("""\
+    from __future__ import annotations
+
+    from pathlib import Path
+
+    from cocotb.triggers import FallingEdge, RisingEdge
+
+
+    def rows(path: str):
+        \"\"\"Read non-comment config/vector rows.\"\"\"
+        for raw in Path(path).read_text(encoding=\"utf-8\").splitlines():
+            line = raw.strip()
+            if not line or line.startswith(\"#\"):
+                continue
+            yield line.split()
+
+
+    def set_defaults(dut):
+        \"\"\"Initialize top-level TL-UL ports and scalar IO.\"\"\"
+        dut.cfg_tl_i.value = 0
+        dut.dsp_tl_i.value = 0
+        dut.cfg_tl_i.d_ready.value = 1
+        dut.dsp_tl_i.d_ready.value = 1
+        dut.cfg_tl_i.a_valid.value = 0
+        dut.dsp_tl_i.a_valid.value = 0
+        dut.rx_valid_i.value = 0
+        dut.rx_sample_i.value = 0
+        dut.rx_coeff_i.value = 0
+        dut.dsp_ready_i.value = 1
+        dut.test_en_i.value = 1
+        dut.devmode_i.value = 1
+
+
+    async def reset(dut):
+        \"\"\"Apply asynchronous resets to all scaffold clocks.\"\"\"
+        dut.cfg_rst_ni.value = 0
+        dut.rx_rst_ni.value = 0
+        dut.dsp_rst_ni.value = 0
+        for _ in range(5):
+            await RisingEdge(dut.cfg_clk_i)
+        dut.cfg_rst_ni.value = 1
+        dut.rx_rst_ni.value = 1
+        dut.dsp_rst_ni.value = 1
+        for _ in range(8):
+            await RisingEdge(dut.cfg_clk_i)
+
+
+    async def _tlul_write(clk, req, rsp, addr: int, data: int):
+        \"\"\"Issue one simple PutFullData write on a top-level TL-UL port.\"\"\"
+        await FallingEdge(clk)
+        req.value = 0
+        req.d_ready.value = 1
+        req.a_valid.value = 1
+        req.a_opcode.value = 0
+        req.a_param.value = 0
+        req.a_size.value = 2
+        req.a_source.value = 0
+        req.a_address.value = addr & 0xFFFFFFFF
+        req.a_mask.value = 0xF
+        req.a_data.value = data & 0xFFFFFFFF
+        while not bool(rsp.a_ready.value):
+            await RisingEdge(clk)
+        await FallingEdge(clk)
+        req.a_valid.value = 0
+        while not bool(rsp.d_valid.value):
+            await RisingEdge(clk)
+        await FallingEdge(clk)
+        req.value = 0
+        req.d_ready.value = 1
+
+
+    async def apply_reg(dut, name: str, value: int):
+        \"\"\"Apply one config.regs row through the real top-level regblocks.\"\"\"
+        if name == \"cfg.CTRL\":
+            await _tlul_write(dut.cfg_clk_i, dut.cfg_tl_i, dut.cfg_tl_o, 0x0, value)
+        elif name == \"cfg.GAIN\":
+            await _tlul_write(dut.cfg_clk_i, dut.cfg_tl_i, dut.cfg_tl_o, 0x4, value)
+        elif name == \"dsp.DSP_CTRL\":
+            await _tlul_write(dut.dsp_clk_i, dut.dsp_tl_i, dut.dsp_tl_o, 0x0, value)
+        elif name == \"dsp.THRESHOLD\":
+            await _tlul_write(dut.dsp_clk_i, dut.dsp_tl_i, dut.dsp_tl_o, 0x4, value)
+        else:
+            dut._log.warning(\"unknown config register: %s\", name)
+
+
+    async def apply_config(dut, path: str):
+        \"\"\"Apply generated config rows and allow CDC synchronizers to settle.\"\"\"
+        for parts in rows(path):
+            if len(parts) >= 2:
+                name = parts[0]
+                if name.startswith(\"clk_i.\"):
+                    name = name[6:]
+                await apply_reg(dut, name, int(parts[1], 0))
+        for _ in range(8):
+            await RisingEdge(dut.dsp_clk_i)
+    """)
+
+
+def cocotb_vec_driver_py_text(top: str) -> str:
+    """Render cocotb input-vector driver helpers."""
+
+    return dedent("""\
+    from __future__ import annotations
+
+    from cocotb.triggers import FallingEdge, RisingEdge
+
+    from .reg_driver import rows
+
+
+    async def send_sample(dut, sample: int, coeff: int):
+        \"\"\"Send one RX-domain input transaction.\"\"\"
+        timeout = 0
+        while not bool(dut.rx_ready_o.value) and timeout < 64:
+            await RisingEdge(dut.rx_clk_i)
+            timeout += 1
+        assert bool(dut.rx_ready_o.value), \"rx_ready_o timeout\"
+        await FallingEdge(dut.rx_clk_i)
+        dut.rx_sample_i.value = sample & 0xFFFF
+        dut.rx_coeff_i.value = coeff & 0xFFFF
+        dut.rx_valid_i.value = 1
+        await FallingEdge(dut.rx_clk_i)
+        dut.rx_valid_i.value = 0
+
+
+    async def drive_inputs(dut, path: str):
+        \"\"\"Drive inputs from data_in.vec.\"\"\"
+        sample = 0
+        coeff = 0
+        for parts in rows(path):
+            if len(parts) < 3:
+                continue
+            _, sig, value = parts[:3]
+            value = int(value, 0)
+            if sig == \"rx_sample_i\":
+                sample = value
+            elif sig == \"rx_coeff_i\":
+                coeff = value
+            elif sig == \"rx_valid_i\" and value:
+                await send_sample(dut, sample, coeff)
+    """)
+
+
+def cocotb_monitor_py_text(top: str) -> str:
+    """Render cocotb output-vector monitor helpers."""
+
+    return dedent("""\
+    from __future__ import annotations
+
+    from cocotb.triggers import ReadOnly, RisingEdge
+
+    from .reg_driver import rows
+
+
+    def expected_outputs(path: str):
+        \"\"\"Load expected output transactions by order.\"\"\"
+        out = []
+        for parts in rows(path):
+            if len(parts) < 3:
+                continue
+            _, sig, value = parts[:3]
+            value = int(value, 0)
+            if sig == \"dsp_result_o\":
+                out.append({\"result\": value, \"overflow\": 0})
+            elif sig == \"dsp_overflow_o\" and out:
+                out[-1][\"overflow\"] = value & 1
+        return out
+
+
+    async def check_outputs(dut, expected):
+        \"\"\"Check DSP outputs in transaction order.\"\"\"
+        got = 0
+        timeout = 0
+        while got < len(expected) and timeout < 4096:
+            await RisingEdge(dut.dsp_clk_i)
+            await ReadOnly()
+            if bool(dut.dsp_valid_o.value):
+                result = int(dut.dsp_result_o.value) & 0xFFFFFFFF
+                overflow = int(dut.dsp_overflow_o.value) & 1
+                assert result == expected[got][\"result\"], f\"result[{got}] got=0x{result:08x} exp=0x{expected[got]['result']:08x}\"
+                assert overflow == expected[got][\"overflow\"], f\"overflow[{got}] got={overflow} exp={expected[got]['overflow']}\"
+                got += 1
+            timeout += 1
+        assert got == len(expected), f\"observed {got}/{len(expected)} expected outputs\"
+    """)
+
+
+def cocotb_py_text(top: str) -> str:
+    """Render the small cocotb test entry point."""
+
+    return dedent(f"""\
+    \"\"\"cocotb test for the {top} multi-clock scaffold.\"\"\"
+
+    from __future__ import annotations
+
+    import os
+
+    import cocotb
+    from cocotb.clock import Clock
+
+    from drivers.reg_driver import apply_config, reset, set_defaults
+    from drivers.vec_driver import drive_inputs
+    from drivers.vec_monitor import check_outputs, expected_outputs
+
+
+    @cocotb.test()
+    async def vector_test(dut):
+        \"\"\"Run one generated vector test selected by TEST_NAME.\"\"\"
+        cocotb.start_soon(Clock(dut.cfg_clk_i, 10, units=\"ns\").start())
+        cocotb.start_soon(Clock(dut.rx_clk_i, 8, units=\"ns\").start())
+        cocotb.start_soon(Clock(dut.dsp_clk_i, 6, units=\"ns\").start())
+        set_defaults(dut)
+        await reset(dut)
+
+        test_name = os.environ.get(\"TEST_NAME\", \"mac_smoke\")
+        cfg = os.environ.get(\"CFG\", f\"../tests/{{test_name}}/config.regs\")
+        data_in = os.environ.get(\"DATA_IN\", f\"../tests/{{test_name}}/data_in.vec\")
+        data_out = os.environ.get(\"DATA_OUT\", f\"../tests/{{test_name}}/data_out.vec\")
+        await apply_config(dut, cfg)
+        expected = expected_outputs(data_out)
+        checker = cocotb.start_soon(check_outputs(dut, expected))
+        await drive_inputs(dut, data_in)
+        await checker
+    """)
+
+# ---------------------------------------------------------------------------
+# SDC and notes
+
+# ---------------------------------------------------------------------------
+# SDC and notes
+# ---------------------------------------------------------------------------
+
 def sdc_text(top: str, domains: tuple[str, ...]) -> str:
-    """Render the canonical IP-level SDC in pnr_openroad/<top>.sdc."""
+    """Render the canonical IP-level SDC."""
 
     clocks = "\n".join(
         f"create_clock -name {domain}_clk -period 10.000 [get_ports {domain}_clk_i]"
@@ -660,45 +1466,46 @@ def sdc_text(top: str, domains: tuple[str, ...]) -> str:
     groups = " ".join(f"-group [get_clocks {domain}_clk]" for domain in domains)
     return dedent(f"""\
     # Canonical IP-level timing constraints for {top}.
-    # This file is generated in pnr_openroad/{top}.sdc, matching the normal IP flow.
-    # Review periods, clock relationships, IO delays and CDC exceptions before signoff.
+    # Review periods, generated clocks, IO delays and CDC exceptions before signoff.
 
     {clocks}
 
-    # The scaffold assumes independent clock domains until the SoC proves otherwise.
+    # The scaffold assumes independent clock domains until integration proves otherwise.
     set_clock_groups -asynchronous {groups}
 
-    # Gate checks are part of timing review for gated DSP logic.
+    # Gate checks are part of timing review for the DSP clock-gating intent.
     set_clock_gating_check -setup 0.050 -hold 0.050 [get_clocks dsp_clk]
 
     # The RX-to-DSP FIFO is the intentional multi-bit CDC boundary.
-    # Narrow this exception to exact implementation paths after hierarchy is stable.
     set_false_path -through [get_cells -hierarchical *u_rx_to_dsp_fifo*]
 
-    # Placeholder IO budgets. Replace these with the real IP integration envelope.
+    # Placeholder IO budgets. Replace with the real integration envelope.
     set_input_delay  1.000 -clock rx_clk  [remove_from_collection [all_inputs] [get_ports *clk_i]]
     set_output_delay 1.000 -clock dsp_clk [all_outputs]
     """)
 
 
 def notes_text(top: str, domains: tuple[str, ...], regmaps: tuple[str, ...]) -> str:
-    """Render a README for the generated multi-clock scaffold."""
+    """Render the generated scaffold README."""
 
     return dedent(f"""\
     # {top} multi-clock scaffold
 
-    Generated by `fx multiclock_scaffold`.
+    Generated by the decomposed FlexSoC multi-clock flow.
 
-    ## What was generated
+    ## Generated stages
 
-    - `data/{top}_cfg.hjson`: cfg-domain global control/status regmap.
-    - `data/{top}_dsp.hjson`: dsp-domain algorithm/result regmap.
-    - `rtl/{top}.sv`: SoC-facing wrapper with two TL-UL windows.
-    - `rtl/{top}_core.sv`: editable multi-clock RTL stub.
-    - `model/model_{top}_multiclock.py`: reference model/test generator template.
-    - `pnr_openroad/{top}.sdc`: canonical IP-level SDC used by synth/signoff.
+    ```bash
+    fx hjson_multi --force
+    fx reg_multi doc_multi --force
+    fx rtl_stub_multi --force
+    fx top_from_core_multi --force
+    fx flist lint --force
+    fx setup_model_multi --force
+    fx setup_tb_multi setup_cocotb_multi --force
+    ```
 
-    ## Clock domains
+    ## Domains
 
     {', '.join(domains)}
 
@@ -706,37 +1513,127 @@ def notes_text(top: str, domains: tuple[str, ...], regmaps: tuple[str, ...]) -> 
 
     {', '.join(regmaps)}
 
-    ## Suggested flow
+    ## User edit points
 
-    ```bash
-    fx reg_multi doc_multi --force
-    fx flist lint --force
-    python3 model/model_{top}_multiclock.py
-    fx setup_tb setup_cocotb --force
-    fx tests
-    fx sim --set TEST_NAME=mac_smoke
-    fx cocotb --set TEST_NAME=mac_smoke
-    fx syn sdf sta_corners power_corners
-    ```
-
-    ## SoC compliance notes
-
-    A SoC must connect both TL-UL register windows and provide all clocks/resets:
-
-    - cfg window: `{top}_cfg`
-    - dsp window: `{top}_dsp`
-    - data stream: `rx_*` input and `dsp_*` output
-
-    Do not blindly reuse this IP SDC as the top-level SoC SDC. The SoC must own
-    its top-level clock definitions, generated clocks, clock groups and IO delays.
-    The IP SDC is the IP authoring contract that informs the SoC constraints.
+    - Edit `data/{top}_cfg.hjson` and `data/{top}_dsp.hjson` for software-visible registers.
+    - Run `fx reg_multi doc_multi --set REGMAP=<name>` after one regmap changes.
+    - Run `fx rtl_stub_multi --force` when generated RTL must be recreated from existing reg RTL.
+    - Edit `rtl/{top}_core.sv` for the design logic.
+    - Run `fx top_from_core_multi --force` after changing core ports.
+    - Edit `model/model_{top}_multiclock.py`, then run it or `fx setup_model_multi` to regenerate tests.
+    - Edit `tb/drivers/{top}_tlul_driver.svh` for top-level TL-UL config writes.
+    - Edit `tb/drivers/{top}_vec_driver.svh` and `tb/drivers/{top}_vec_monitor.svh` for SV verification behavior.
+    - Edit `tb/cocotb/drivers/reg_driver.py`, `vec_driver.py`, and `vec_monitor.py` for cocotb behavior.
     """)
 
+
+# ---------------------------------------------------------------------------
+# Emission actions
+# ---------------------------------------------------------------------------
+
+def emit_hjson(args: argparse.Namespace, regmaps: tuple[str, ...]) -> None:
+    """Generate selected multi-clock HJSON regmaps."""
+
+    for regmap in regmaps:
+        write_file(args.data_dir / f"{args.top}_{regmap}.hjson", hjson_text(args.top, regmap), args.force)
+
+
+def emit_rtl(args: argparse.Namespace) -> None:
+    """Generate the editable core and wrapper from that core."""
+
+    write_file(args.rtl_dir / f"{args.top}_core.sv", core_text(args.top), args.force)
+    write_file(args.rtl_dir / f"{args.top}.sv", wrapper_from_core(args.top, args.rtl_dir), args.force)
+
+
+def emit_top(args: argparse.Namespace) -> None:
+    """Refresh only the top wrapper from the edited core."""
+
+    write_file(args.rtl_dir / f"{args.top}.sv", wrapper_from_core(args.top, args.rtl_dir), args.force)
+
+
+def emit_model(args: argparse.Namespace) -> None:
+    """Generate the editable Python model/test generator."""
+
+    path = args.model_dir / f"model_{args.top}_multiclock.py"
+    wrote = write_file(path, model_text(args.top), args.force)
+    if wrote:
+        path.chmod(0o755)
+
+
+
+def emit_tb(args: argparse.Namespace) -> None:
+    """Generate the split SystemVerilog multi-clock top-level testbench scaffold."""
+
+    drivers = args.tb_dir / "drivers"
+    for stale in (
+        args.tb_dir / f"{args.top}_vec_driver.svh",
+        args.tb_dir / f"{args.top}_vec_monitor.svh",
+    ):
+        if stale.exists():
+            stale.unlink()
+            print(f"removed stale {stale}")
+    write_file(args.tb_dir / f"include_{args.top}_tb.sv", sv_include_text(args.top), args.force)
+    write_file(drivers / f"{args.top}_tlul_driver.svh", sv_driver_text(args.top), args.force)
+    write_file(drivers / f"{args.top}_vec_driver.svh", sv_vec_driver_text(args.top), args.force)
+    write_file(drivers / f"{args.top}_vec_monitor.svh", sv_monitor_text(args.top), args.force)
+    write_file(args.tb_dir / f"{args.testbench}.sv", sv_tb_text(args.top, args.testbench), args.force)
+
+
+def emit_cocotb(args: argparse.Namespace) -> None:
+    """Generate the split cocotb multi-clock top-level scaffold."""
+
+    out = args.tb_dir / "cocotb"
+    drivers = out / "drivers"
+    for stale in (
+        out / "multiclock_driver.py",
+        out / "multiclock_monitor.py",
+    ):
+        if stale.exists():
+            stale.unlink()
+            print(f"removed stale {stale}")
+    write_file(out / "Makefile", cocotb_makefile_text(args.top, args.rtl_dir), args.force)
+    write_file(out / f"{args.top}_cocotb_tb.sv", cocotb_sv_text(args.top), args.force)
+    write_file(drivers / "__init__.py", "", True)
+    write_file(drivers / "reg_driver.py", cocotb_reg_driver_py_text(args.top), args.force)
+    write_file(drivers / "vec_driver.py", cocotb_vec_driver_py_text(args.top), args.force)
+    write_file(drivers / "vec_monitor.py", cocotb_monitor_py_text(args.top), args.force)
+    write_file(out / f"{args.top}_multiclock_test.py", cocotb_py_text(args.top), args.force)
+
+def emit_sdc(args: argparse.Namespace, domains: tuple[str, ...]) -> None:
+    """Generate the IP-level multi-clock SDC."""
+
+    write_file(args.constraints_dir / f"{args.top}.sdc", sdc_text(args.top, domains), args.force)
+
+
+def emit_notes(args: argparse.Namespace, domains: tuple[str, ...], regmaps: tuple[str, ...]) -> None:
+    """Generate the local multi-clock README."""
+
+    write_file(args.run_dir / "multiclock_readme.md", notes_text(args.top, domains, regmaps), args.force)
+
+
+def remove_stale(args: argparse.Namespace) -> None:
+    """Remove stale files from older combined multi-clock scaffold versions."""
+
+    if not args.force:
+        return
+    for old in (
+        args.rtl_dir / f"{args.top}_core_multiclock.sv",
+        args.signoff_dir / f"{args.top}_multiclock.sdc",
+        args.rtl_dir / f"{args.top}_multiclock.sdc",
+    ):
+        if old.exists():
+            old.unlink()
+            print(f"removed stale {old}")
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
 
-    parser = argparse.ArgumentParser(description="Generate a coherent multi-clock IP scaffold")
+    parser = argparse.ArgumentParser(description="Generate decomposed multi-clock IP scaffolds")
     parser.add_argument("--top", required=True)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--rtl-dir", type=Path, required=True)
@@ -744,52 +1641,42 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--signoff-dir", type=Path, required=True)
     parser.add_argument("--constraints-dir", type=Path, required=True)
     parser.add_argument("--model-dir", type=Path, required=True)
+    parser.add_argument("--tb-dir", type=Path, required=True)
+    parser.add_argument("--testbench", default="test_tb")
     parser.add_argument("--domains", default=",".join(DEFAULT_DOMAINS))
     parser.add_argument("--regmaps", default=",".join(DEFAULT_REGMAPS))
+    parser.add_argument("--emit", action="append", choices=("all", "hjson", "rtl", "top", "model", "tb", "cocotb", "sdc", "notes"), default=[])
     parser.add_argument("--force", action="store_true")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Generate regmaps, RTL, model and constraints for a multi-clock IP."""
+    """Run the selected multi-clock scaffold emission actions."""
 
     args = parse_args(argv)
     domains = csv(args.domains, DEFAULT_DOMAINS)
     regmaps = csv(args.regmaps, DEFAULT_REGMAPS)
-    written: list[Path] = []
+    emits = set(args.emit or ["all"])
+    if "all" in emits:
+        emits = {"hjson", "rtl", "model", "tb", "cocotb", "sdc", "notes"}
 
-    for regmap in regmaps:
-        hjson_path = args.data_dir / f"{args.top}_{regmap}.hjson"
-        if write_file(hjson_path, hjson_text(args.top, regmap), args.force):
-            written.append(hjson_path)
-
-    files = {
-        args.rtl_dir / f"{args.top}.sv": wrapper_text(args.top),
-        args.rtl_dir / f"{args.top}_core.sv": core_text(args.top),
-        args.model_dir / f"model_{args.top}_multiclock.py": model_text(args.top),
-        args.constraints_dir / f"{args.top}.sdc": sdc_text(args.top, domains),
-        args.run_dir / "multiclock_readme.md": notes_text(args.top, domains, regmaps),
-    }
-    for output, text in files.items():
-        if write_file(output, text, args.force):
-            written.append(output)
-
-    stale = [
-        args.rtl_dir / f"{args.top}_core_multiclock.sv",
-        args.signoff_dir / f"{args.top}_multiclock.sdc",
-        args.rtl_dir / f"{args.top}_multiclock.sdc",
-    ]
-    if args.force:
-        for old in stale:
-            if old.exists():
-                old.unlink()
-                print(f"removed stale {old}")
-
-    if written:
-        for output in written:
-            print(output)
-    else:
-        print("No files written. Use --force to overwrite existing scaffold files.")
+    remove_stale(args)
+    if "hjson" in emits:
+        emit_hjson(args, regmaps)
+    if "rtl" in emits:
+        emit_rtl(args)
+    if "top" in emits:
+        emit_top(args)
+    if "model" in emits:
+        emit_model(args)
+    if "tb" in emits:
+        emit_tb(args)
+    if "cocotb" in emits:
+        emit_cocotb(args)
+    if "sdc" in emits:
+        emit_sdc(args, domains)
+    if "notes" in emits:
+        emit_notes(args, domains, regmaps)
     return 0
 
 
