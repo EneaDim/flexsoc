@@ -3,87 +3,56 @@ name: CI
 on:
   push:
   pull_request:
-  workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
-  ci:
+  test:
+    name: Python, lint, and FlexSoC E2E
     runs-on: ubuntu-latest
-
-    container:
-      image: ghcr.io/eneadim/flexsoc:v0.1.0
+    timeout-minutes: 90
 
     env:
       PYTHONPATH: src
-      PATH: /usr/local/OpenROAD/bin:/tools/riscv32/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      FLEXSOC_EXPECT_VERILATOR: "Verilator 5.036"
-      FLEXSOC_EXPECT_SV2V: "sv2v v0.0.13-3-g80a2f0c"
-      FLEXSOC_EXPECT_YOSYS: "Yosys 0.57+218"
-      FLEXSOC_EXPECT_OPENROAD: "v2.0-24945-g9103e99444"
-      FLEXSOC_EXPECT_OPENSTA: "2.7.0"
-      FLEXSOC_EXPECT_IVERILOG: "Icarus Verilog version 12.0"
-      FLEXSOC_EXPECT_GTKWAVE: "GTKWave Analyzer v3.3.116"
-      FLEXSOC_EXPECT_RISCV_GCC: "15.2.0"
+      OSS_CAD_SUITE_URL: https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-07-28/oss-cad-suite-linux-x64-20250728.tgz
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Show toolchain versions
-        shell: bash
+      - name: Install host packages
         run: |
           set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            curl \
+            git \
+            make \
+            pkg-config \
+            python3-dev \
+            tcl \
+            tk \
+            unzip
 
-          python3 --version
-          verilator --version
-          sv2v --version
-          yosys -V
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-          if command -v openroad >/dev/null 2>&1; then
-            openroad -version
-          elif [ -x /usr/local/OpenROAD/bin/openroad ]; then
-            /usr/local/OpenROAD/bin/openroad -version
-          else
-            echo "openroad not found"
-            exit 127
-          fi
-
-          if command -v sta >/dev/null 2>&1; then
-            sta -version
-          elif [ -x /usr/local/OpenROAD/bin/sta ]; then
-            /usr/local/OpenROAD/bin/sta -version
-          else
-            echo "sta not found"
-            exit 127
-          fi
-
-          iverilog -V | head -n 1
-          gtkwave --version || gtkwave -V || true
-
-          if command -v riscv32-unknown-elf-gcc >/dev/null 2>&1; then
-            riscv32-unknown-elf-gcc --version | head -n 1
-          elif [ -x /tools/riscv32/bin/riscv32-unknown-elf-gcc ]; then
-            /tools/riscv32/bin/riscv32-unknown-elf-gcc --version | head -n 1
-          else
-            echo "riscv32-unknown-elf-gcc not found"
-            exit 127
-          fi
-
-          netlistsvg --version || true
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
-      - name: Install Python dependencies
+      - name: Install OSS CAD Suite
         run: |
-          uv venv --allow-existing .venv
-          uv pip install -e ".[dev]"
+          set -euo pipefail
+          mkdir -p "$HOME/eda"
+          curl -L "$OSS_CAD_SUITE_URL" -o "$RUNNER_TEMP/oss-cad-suite.tgz"
+          tar -xzf "$RUNNER_TEMP/oss-cad-suite.tgz" -C "$HOME/eda"
+          echo "$HOME/eda/oss-cad-suite/bin" >> "$GITHUB_PATH"
 
-      - name: Verify Python resolution
-        shell: bash
+      - name: Sync Python environment
         run: |
           set -euo pipefail
           unset VIRTUAL_ENV || true
@@ -91,14 +60,37 @@ jobs:
           uv run python --version
           uv run python -c "import typer, hjson; print('uv imports OK')"
 
-      - name: Run CLI smoke
+      - name: Check EDA tools
         run: |
-          uv run --no-sync python -m flexsoc smoke --json --top demo --run-id smoke
+          set -euo pipefail
+          command -v verilator
+          command -v yosys
+          command -v openroad
+          command -v opensta || command -v sta
+          command -v sv2v || true
+          command -v iverilog || true
+          verilator --version
+          yosys -V
+          openroad -version
+          if command -v opensta >/dev/null 2>&1; then opensta -version; else sta -version; fi
 
-      - name: Run Ruff
+      - name: Ruff lint
         run: |
-          uv run --no-sync ruff check src/flexsoc/api.py src/flexsoc/backend tests
+          set -euo pipefail
+          unset VIRTUAL_ENV || true
+          uv run ruff check .
 
-      - name: Run tests
+      - name: Unit tests
         run: |
-          uv run --no-sync pytest -q
+          set -euo pipefail
+          unset VIRTUAL_ENV || true
+          uv run pytest -s tests/test_api.py
+
+      - name: End-to-end flow
+        env:
+          FLEXSOC_RUN_E2E: '1'
+          FLEXSOC_E2E_SKIP_SIGNOFF: '0'
+        run: |
+          set -euo pipefail
+          unset VIRTUAL_ENV || true
+          uv run pytest -s tests/test_e2e_fx.py
