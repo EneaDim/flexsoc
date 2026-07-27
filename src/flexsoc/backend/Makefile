@@ -1833,3 +1833,5 @@ clean_all: ## Remove all generated run outputs
 	@find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name '*.pyc' -delete 2>/dev/null || true
 	@true
+
+.PHONY:

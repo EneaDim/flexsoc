@@ -133,3 +133,8 @@ Show live tool output:
 ```bash
 FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_LIVE=1 pytest -s tests/test_e2e_fx.py
 ```
+
+## Existing IPs
+
+For CORDIC-style existing IP adoption, see `docs/guide_existing_ip_dev.md`.
+
