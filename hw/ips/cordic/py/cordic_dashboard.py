@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402,F401
 """
 Minimal Streamlit dashboard for CORDIC model analysis.
 
@@ -21,28 +22,27 @@ _THIS_DIR = Path(__file__).resolve().parent
 if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
-import numpy as np
-import pandas as pd
-import plotly.graph_objects as go
-import streamlit as st
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import plotly.graph_objects as go  # noqa: E402
+import streamlit as st  # noqa: E402
 
-from cordic_common import (
+from cordic_common import (  # noqa: E402
     PI,
     CordicConfig,
     FixedFormat,
     build_atan_lut_fixed,
     build_atan_lut_float,
-    cordic_gain,
     cordic_gain_inverse,
     fixed_to_float,
 )
-from cordic_float_model import (
+from cordic_float_model import (  # noqa: E402
     atan2_mag_float,
     atan2_math_reference,
     sincos_float,
     sincos_math_reference,
 )
-from cordic_fixed_model import (
+from cordic_fixed_model import (  # noqa: E402
     atan2_mag_fixed,
     generate_directed_rotation_vectors,
     generate_directed_vectoring_vectors,

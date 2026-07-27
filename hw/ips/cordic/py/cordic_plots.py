@@ -23,7 +23,6 @@ all numerical behavior remains centralized in the same reference implementation.
 from __future__ import annotations
 
 import argparse
-import math
 import os
 from dataclasses import dataclass
 

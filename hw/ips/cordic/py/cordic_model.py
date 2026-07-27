@@ -1,3 +1,4 @@
+# ruff: noqa: F403,F405
 #!/usr/bin/env python3
 """
 Compatibility wrapper for the refactored CORDIC modeling stack.
