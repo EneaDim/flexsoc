@@ -96,6 +96,7 @@ TARGETS: dict[str, TargetSpec] = {
     "setup_tb": ("Simulation", "Generate a SystemVerilog testbench scaffold", SIM),
     "setup_cocotb": ("Simulation", "Generate a cocotb scaffold", SIM),
     "setup_model": ("Simulation", "Generate a Python model scaffold", SIM),
+    "regmap_py": ("Simulation", "Generate a Python model scaffold", SIM),
     "tests_gen": ("Simulation", "Generate all vector tests from the model", SIM),
     "test_gen": ("Simulation", "Generate one vector test selected by TEST_NAME", SIM),
     "tests": ("Simulation", "List generated vector tests", SIM),

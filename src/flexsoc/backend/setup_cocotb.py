@@ -407,8 +407,22 @@ def render_vec_monitor_py() -> str:
 
 
         def _value(text):
-            # Parse a vector value using Python integer syntax, including 0x....
-            return int(str(text), 0) & 0xFFFFFFFF
+            # Parse decimal, Python-prefixed integers, and bare hexadecimal words.
+            token = str(text).strip().replace("_", "")
+            if not token:
+                raise ValueError("empty numeric token")
+
+            lower = token.lower()
+            if lower.startswith(("0x", "0b", "0o")):
+                return int(token, 0) & 0xFFFFFFFF
+
+            if any(ch in "abcdefABCDEF" for ch in token):
+                return int(token, 16) & 0xFFFFFFFF
+
+            if len(token) > 1 and token.startswith("0"):
+                return int(token, 16) & 0xFFFFFFFF
+
+            return int(token, 10) & 0xFFFFFFFF
 
 
         def load_expected(path=None):
@@ -418,14 +432,25 @@ def render_vec_monitor_py() -> str:
                 return []
             try:
                 with open(str(path), encoding="utf-8") as handle:
-                    for line in handle:
+                    for line_no, line in enumerate(handle, start=1):
                         line = line.strip()
                         if not line or line.startswith("#"):
                             continue
                         parts = line.split()
                         if len(parts) < 3:
                             continue
-                        cycle = int(parts[0], 0)
+
+                        try:
+                            cycle = _value(parts[0])
+                        except ValueError as exc:
+                            raise ValueError(f"{path}:{line_no}: invalid cycle {parts[0]!r}") from exc
+
+                        if (len(parts) - 1) % 2 != 0:
+                            raise ValueError(
+                                f"{path}:{line_no}: expected cycle followed by signal/value pairs, "
+                                f"got {len(parts)} token(s): {line!r}"
+                            )
+
                         pairs = [
                             (parts[i], _value(parts[i + 1]))
                             for i in range(1, len(parts) - 1, 2)
@@ -460,12 +485,148 @@ def render_vec_monitor_py() -> str:
         """
     )
 
+
 def render_vec_driver_py() -> str:
     """Render data_in/data_out vector loaders and a named input driver."""
 
     return dedent(
-        'import os\n\nfrom cocotb.triggers import FallingEdge, NextTimeStep, ReadOnly, RisingEdge\n\n\nCONFIG_TOKENS = {"@cfg", "cfg", "@config", "config"}\n\n\ndef load_vectors(path=None):\n    vec_path = path or os.environ.get("DATA_IN")\n    rows = []\n    if not vec_path:\n        return rows\n    try:\n        with open(vec_path, encoding="utf-8") as handle:\n            for line in handle:\n                line = line.strip()\n                if not line or line.startswith("#"):\n                    continue\n                parts = line.split()\n                cycle = int(parts[0], 0)\n                if len(parts) >= 3 and parts[1] in CONFIG_TOKENS:\n                    rows.append((cycle, [(parts[1], parts[2])]))\n                    continue\n                pairs = [(parts[i], int(parts[i + 1], 0)) for i in range(1, len(parts) - 1, 2)]\n                if pairs:\n                    rows.append((cycle, pairs))\n    except FileNotFoundError:\n        return rows\n    return rows\n\n\nasync def _sample_cycle(clk, monitor, state):\n    state["now"] += 1\n    await RisingEdge(clk)\n    await ReadOnly()\n    monitor.check(state["now"])\n    await NextTimeStep()\n\n\nasync def _finish_open_cycle(clk, monitor, state):\n    if state["open"]:\n        await _sample_cycle(clk, monitor, state)\n        state["open"] = False\n\n\nasync def _wait_before_drive(clk, monitor, state, target_cycle):\n    while state["now"] < target_cycle - 1:\n        await _sample_cycle(clk, monitor, state)\n    await FallingEdge(clk)\n\n\nasync def drive_vectors(dut, clk, rows, monitor, config_runner=None):\n    state = {"now": -1, "open": False}\n    current_cycle = None\n    drive_count = 0\n\n    for cycle, pairs in rows:\n        if pairs and pairs[0][0] in CONFIG_TOKENS:\n            await _finish_open_cycle(clk, monitor, state)\n            await _wait_before_drive(clk, monitor, state, cycle)\n            current_cycle = None\n            if config_runner is not None:\n                await config_runner(str(pairs[0][1]))\n            continue\n\n        if not state["open"] or cycle != current_cycle:\n            await _finish_open_cycle(clk, monitor, state)\n            await _wait_before_drive(clk, monitor, state, cycle)\n            current_cycle = cycle\n            state["open"] = True\n            dut._log.info("vector cycle=%d", cycle)\n\n        for name, value in pairs:\n            if hasattr(dut, name):\n                getattr(dut, name).value = value\n                drive_count += 1\n                dut._log.info("drive %s <= 0x%08x", name, value & 0xFFFFFFFF)\n            else:\n                dut._log.warning("unknown input vector signal: %s", name)\n\n    await _finish_open_cycle(clk, monitor, state)\n    for _ in range(8):\n        await _sample_cycle(clk, monitor, state)\n\n    if drive_count == 0:\n        raise AssertionError("no vector inputs were driven")\n'
+        """\
+        import os
+
+        from cocotb.triggers import FallingEdge, NextTimeStep, ReadOnly, RisingEdge
+
+
+        CONFIG_TOKENS = {"@cfg", "cfg", "@config", "config"}
+
+
+        def _parse_value(text):
+            # Parse decimal, Python-prefixed integers, and bare hexadecimal words.
+            #
+            # Python's int(token, 0) rejects strings such as "00001000". FlexSoC
+            # vector files often use fixed-width hexadecimal words without a 0x
+            # prefix, so those are treated as hexadecimal while plain non-padded
+            # digits remain decimal.
+            token = str(text).strip().replace("_", "")
+            if not token:
+                raise ValueError("empty numeric token")
+
+            lower = token.lower()
+            if lower.startswith(("0x", "0b", "0o")):
+                return int(token, 0) & 0xFFFFFFFF
+
+            if any(ch in "abcdefABCDEF" for ch in token):
+                return int(token, 16) & 0xFFFFFFFF
+
+            if len(token) > 1 and token.startswith("0"):
+                return int(token, 16) & 0xFFFFFFFF
+
+            return int(token, 10) & 0xFFFFFFFF
+
+
+        def load_vectors(path=None):
+            vec_path = path or os.environ.get("DATA_IN")
+            rows = []
+            if not vec_path:
+                return rows
+            try:
+                with open(vec_path, encoding="utf-8") as handle:
+                    for line_no, line in enumerate(handle, start=1):
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        parts = line.split()
+
+                        try:
+                            cycle = _parse_value(parts[0])
+                        except ValueError as exc:
+                            raise ValueError(f"{vec_path}:{line_no}: invalid cycle {parts[0]!r}") from exc
+
+                        if len(parts) >= 3 and parts[1] in CONFIG_TOKENS:
+                            rows.append((cycle, [(parts[1], parts[2])]))
+                            continue
+
+                        if (len(parts) - 1) % 2 != 0:
+                            raise ValueError(
+                                f"{vec_path}:{line_no}: expected cycle followed by signal/value pairs, "
+                                f"got {len(parts)} token(s): {line!r}"
+                            )
+
+                        pairs = []
+                        for i in range(1, len(parts) - 1, 2):
+                            name = parts[i]
+                            try:
+                                value = _parse_value(parts[i + 1])
+                            except ValueError as exc:
+                                raise ValueError(
+                                    f"{vec_path}:{line_no}: invalid value for {name}: {parts[i + 1]!r}"
+                                ) from exc
+                            pairs.append((name, value))
+
+                        if pairs:
+                            rows.append((cycle, pairs))
+            except FileNotFoundError:
+                return rows
+            return rows
+
+
+        async def _sample_cycle(clk, monitor, state):
+            state["now"] += 1
+            await RisingEdge(clk)
+            await ReadOnly()
+            monitor.check(state["now"])
+            await NextTimeStep()
+
+
+        async def _finish_open_cycle(clk, monitor, state):
+            if state["open"]:
+                await _sample_cycle(clk, monitor, state)
+                state["open"] = False
+
+
+        async def _wait_before_drive(clk, monitor, state, target_cycle):
+            while state["now"] < target_cycle - 1:
+                await _sample_cycle(clk, monitor, state)
+            await FallingEdge(clk)
+
+
+        async def drive_vectors(dut, clk, rows, monitor, config_runner=None):
+            state = {"now": -1, "open": False}
+            current_cycle = None
+            drive_count = 0
+
+            for cycle, pairs in rows:
+                if pairs and pairs[0][0] in CONFIG_TOKENS:
+                    await _finish_open_cycle(clk, monitor, state)
+                    await _wait_before_drive(clk, monitor, state, cycle)
+                    current_cycle = None
+                    if config_runner is not None:
+                        await config_runner(str(pairs[0][1]))
+                    continue
+
+                if not state["open"] or cycle != current_cycle:
+                    await _finish_open_cycle(clk, monitor, state)
+                    await _wait_before_drive(clk, monitor, state, cycle)
+                    current_cycle = cycle
+                    state["open"] = True
+                    dut._log.info("vector cycle=%d", cycle)
+
+                for name, value in pairs:
+                    if hasattr(dut, name):
+                        getattr(dut, name).value = value
+                        drive_count += 1
+                        dut._log.info("drive %s <= 0x%08x", name, value & 0xFFFFFFFF)
+                    else:
+                        dut._log.warning("unknown input vector signal: %s", name)
+
+            await _finish_open_cycle(clk, monitor, state)
+            for _ in range(8):
+                await _sample_cycle(clk, monitor, state)
+
+            if drive_count == 0:
+                raise AssertionError("no vector inputs were driven")
+        """
     )
+
 
 def render_python_test(cfg: CocotbConfig) -> str:
     """Render a small cocotb test that selects vectors by TEST_NAME."""

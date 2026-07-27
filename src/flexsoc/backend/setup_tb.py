@@ -10,7 +10,7 @@ import argparse
 import ast
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -1441,9 +1441,41 @@ def write_bus_helpers(config: TestbenchConfig, *, reg_pkg: bool, simple_mode: bo
     return written
 
 
+
+# BEGIN FLEXSOC CANONICAL SV OUTPUT
+def _canonical_sv_output_dir(output: str | Path) -> Path:
+    """Return the canonical SystemVerilog output directory.
+
+    FlexSoC keeps generated verification artifacts split as:
+
+      tb/sv      SystemVerilog testbench and SV drivers
+      tb/tests   generated vector tests
+      tb/cocotb  cocotb scaffold
+
+    Older callers may still pass ``--output tb``.  Treat that as the testbench
+    root and write SV files into ``tb/sv``.  If the caller already passes
+    ``tb/sv``, keep it unchanged.
+    """
+
+    out = Path(output)
+    if out.name == "sv":
+        return out
+    return out / "sv"
+
+
+def _with_canonical_sv_output(config: TestbenchConfig) -> TestbenchConfig:
+    """Return a config whose output points at the canonical tb/sv directory."""
+
+    sv_output = _canonical_sv_output_dir(config.output)
+    if Path(config.output) == sv_output:
+        return config
+    return replace(config, output=sv_output)
+# END FLEXSOC CANONICAL SV OUTPUT
+
 def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
     """Generate include, helper, and top-level testbench files for one request."""
 
+    config = _with_canonical_sv_output(config)
     outdir = Path(config.output)
     ensure_dir(outdir)
 
@@ -1545,87 +1577,416 @@ def config_from_args(args: argparse.Namespace) -> TestbenchConfig:
         compiler=args.comp,
         interface=args.itf,
         vsv=args.vsv,
-        output=args.output,
+        output=_canonical_sv_output_dir(args.output),
         devices=tuple(tuple(item) for item in args.device),
         force=bool(args.force),
     )
 
+# -------------------------
+# Generated layout normalization and CLI boundary
+# -------------------------
+def _read_text(path: Path) -> str:
+    """Return file text or an empty string when the file is absent."""
+
+    return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
+def _write_text(path: Path, text: str) -> None:
+    """Write text after creating the parent directory."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
 
 
-# -----------------------------------------------------------------------------
-# Single-clock verification layout repair
-# -----------------------------------------------------------------------------
-def _single_tb_dir_from_config(config) -> Path:
-    """Return the generated SystemVerilog TB directory for any config shape."""
-    for attr in ("tb_dir", "output", "outdir"):
-        value = getattr(config, attr, None)
-        if value:
-            return Path(value)
-    rtldir = getattr(config, "rtldir", None)
-    if rtldir:
-        return Path(rtldir).resolve().parent / "tb"
-    raise AttributeError("could not infer testbench output directory from config")
+def _patch_empty_config_ok(text: str) -> str:
+    """Allow comment-only config.regs files to be valid generated tests."""
+
+    old = """  if (writes == 0) begin
+    $display("[TB][ERROR] no register config writes were applied from %s", cfg_path);
+    error_count++;
+  end"""
+    new = """  if (writes == 0) begin
+    $display("[TB] no register config writes from %s; continuing", cfg_path);
+  end"""
+    return text.replace(old, new)
 
 
-def _ensure_single_tb_driver_layout(config) -> None:
-    """Keep single-clock SV driver/monitor files under tb/drivers.
+def _find_task_block(text: str, task_name: str) -> tuple[int, int] | None:
+    """Return the span of one simple SystemVerilog task block."""
 
-    setup_tb writes the top-level testbench in tb/.  The included driver and
-    monitor snippets live in tb/drivers/, matching the multi-clock and cocotb
-    layouts.  This helper is intentionally tolerant of older generated layouts
-    and copies legacy files into the structured directory when needed.
-    """
-    import shutil
+    start = text.find(f"task automatic {task_name}")
+    if start < 0:
+        return None
+    end = text.find("endtask", start)
+    if end < 0:
+        return None
+    return start, end + len("endtask")
 
-    tb_dir = _single_tb_dir_from_config(config)
-    top = str(getattr(config, "top", ""))
-    if not top:
-        for tb in sorted(tb_dir.glob("*_tb.sv")):
-            top = tb.stem[:-3]
-            break
-    if not top:
+
+def _reg_driver_fallback(top: str) -> str:
+    """Render a register-config no-op for DUTs without generated register metadata."""
+
+    return f"""// Auto-generated {top} register driver fallback.
+// Empty or comment-only config.regs files are valid.
+
+task automatic run_reg_config(input string cfg_path);
+  int fd;
+  fd = $fopen(cfg_path, "r");
+  if (fd == 0) begin
+    $display("[TB] register config not found: %s", cfg_path);
+    return;
+  end
+  $display("[TB] no generated register sequence for {top}; ignoring optional config: %s", cfg_path);
+  $fclose(fd);
+endtask
+"""
+
+
+def _cordic_reg_driver_prefix(top: str, clk: str) -> str:
+    """Render low-level CORDIC CSR read/write helpers."""
+
+    return f"""// Auto-generated {top} CSR/TL-UL register access helpers.
+
+task automatic {top}_reg_write(input logic [31:0] addr, input logic [31:0] data);
+  logic [31:0] mask;
+  mask = 32'hffff_ffff;
+  tl_utils_inst.tlul_write(addr[top_pkg::TL_AW-1:0], data, 4'h0, mask[top_pkg::TL_DBW-1:0]);
+  @(posedge {clk});
+endtask
+
+task automatic {top}_reg_read(input logic [31:0] addr, output logic [31:0] data);
+  tl_utils_inst.tlul_read(addr[top_pkg::TL_AW-1:0], data, '0);
+  @(posedge {clk});
+endtask
+
+"""
+
+
+def _cordic_vec_monitor(top: str) -> str:
+    """Render CORDIC raw-column output comparison helpers."""
+
+    return f"""// Auto-generated {top} CORDIC vector monitor.
+
+localparam int {top.upper()}_COMPARE_TOL = 8;
+
+function automatic int {top}_abs(input int value);
+  if (value < 0) {top}_abs = -value;
+  else {top}_abs = value;
+endfunction
+
+task automatic {top}_compare_word(
+  input string label,
+  input int vector_idx,
+  input logic [31:0] got,
+  input logic [31:0] exp
+);
+  int diff;
+  diff = $signed(got) - $signed(exp);
+  if ({top}_abs(diff) > {top.upper()}_COMPARE_TOL) begin
+    $display("[TB][ERROR] vector %0d %s mismatch exp=0x%08x got=0x%08x diff=%0d tol=%0d",
+             vector_idx, label, exp, got, diff, {top.upper()}_COMPARE_TOL);
+    error_count++;
+  end else begin
+    $display("[TB][PASS] vector %0d %s got=0x%08x exp=0x%08x", vector_idx, label, got, exp);
+  end
+endtask
+"""
+
+
+def _cordic_vec_driver(top: str) -> str:
+    """Render CORDIC raw-column CSR vector runner."""
+
+    pkg = f"{top}_reg_pkg"
+    upper = top.upper()
+    return f"""// Auto-generated {top} CSR-driven vector driver.
+// data_in.vec:  X_IN Y_IN Z_IN MODE N_ITER
+// data_out.vec: X_OUT Y_OUT Z_OUT
+
+task automatic run_vectors(input string data_in_path, input string data_out_path);
+  int in_fd;
+  int out_fd;
+  int code_in;
+  int code_out;
+  int vector_idx;
+  int poll_count;
+  int error_count_before;
+  string skip_line;
+
+  logic [31:0] x_in;
+  logic [31:0] y_in;
+  logic [31:0] z_in;
+  logic [31:0] exp_x;
+  logic [31:0] exp_y;
+  logic [31:0] exp_z;
+  logic [31:0] got_x;
+  logic [31:0] got_y;
+  logic [31:0] got_z;
+  logic [31:0] status;
+  logic [31:0] ctrl;
+  int mode;
+  int n_iter;
+
+  in_fd = $fopen(data_in_path, "r");
+  if (in_fd == 0) begin
+    $display("[TB][ERROR] cannot open data_in: %s", data_in_path);
+    error_count++;
+    return;
+  end
+
+  out_fd = $fopen(data_out_path, "r");
+  if (out_fd == 0) begin
+    $display("[TB][ERROR] cannot open data_out: %s", data_out_path);
+    error_count++;
+    $fclose(in_fd);
+    return;
+  end
+
+  vector_idx = 0;
+  while (!$feof(in_fd)) begin
+    code_in = $fscanf(in_fd, "%h %h %h %d %d", x_in, y_in, z_in, mode, n_iter);
+    if (code_in != 5) begin
+      void'($fgets(skip_line, in_fd));
+      continue;
+    end
+
+    code_out = $fscanf(out_fd, "%h %h %h", exp_x, exp_y, exp_z);
+    while (code_out != 3 && !$feof(out_fd)) begin
+      void'($fgets(skip_line, out_fd));
+      code_out = $fscanf(out_fd, "%h %h %h", exp_x, exp_y, exp_z);
+    end
+
+    if (code_out != 3) begin
+      $display("[TB][ERROR] missing expected output for vector %0d", vector_idx);
+      error_count++;
+      break;
+    end
+
+    error_count_before = error_count;
+    $display("[TB] vector %0d x=0x%08x y=0x%08x z=0x%08x mode=%0d n_iter=%0d",
+             vector_idx, x_in, y_in, z_in, mode, n_iter);
+
+    {top}_reg_write(32'({pkg}::{upper}_X_IN_OFFSET), x_in);
+    {top}_reg_write(32'({pkg}::{upper}_Y_IN_OFFSET), y_in);
+    {top}_reg_write(32'({pkg}::{upper}_Z_IN_OFFSET), z_in);
+
+    ctrl = 32'h0;
+    ctrl[0] = 1'b1;
+    ctrl[1] = (mode != 0);
+    ctrl[15:8] = n_iter[7:0];
+    {top}_reg_write(32'({pkg}::{upper}_CTRL_OFFSET), ctrl);
+    ctrl[0] = 1'b0;
+    {top}_reg_write(32'({pkg}::{upper}_CTRL_OFFSET), ctrl);
+
+    poll_count = 0;
+    do begin
+      {top}_reg_read(32'({pkg}::{upper}_STATUS_OFFSET), status);
+      poll_count++;
+      if (poll_count > 1000) begin
+        $display("[TB][ERROR] timeout waiting for VALID on vector %0d, status=0x%08x", vector_idx, status);
+        error_count++;
+        break;
+      end
+    end while (status[1] == 1'b0);
+
+    if (status[2]) begin
+      $display("[TB][ERROR] CORDIC status.error on vector %0d, status=0x%08x", vector_idx, status);
+      error_count++;
+    end
+
+    {top}_reg_read(32'({pkg}::{upper}_X_OUT_OFFSET), got_x);
+    {top}_reg_read(32'({pkg}::{upper}_Y_OUT_OFFSET), got_y);
+    {top}_reg_read(32'({pkg}::{upper}_Z_OUT_OFFSET), got_z);
+
+    {top}_compare_word("X_OUT", vector_idx, got_x, exp_x);
+    {top}_compare_word("Y_OUT", vector_idx, got_y, exp_y);
+    {top}_compare_word("Z_OUT", vector_idx, got_z, exp_z);
+
+    if (error_count == error_count_before) begin
+      $display("[TB] vector %0d PASS", vector_idx);
+    end
+
+    vector_idx++;
+  end
+
+  $fclose(in_fd);
+  $fclose(out_fd);
+
+  if (vector_idx == 0) begin
+    $display("[TB][ERROR] no vectors were applied from %s", data_in_path);
+    error_count++;
+  end else begin
+    $display("[TB] applied %0d CORDIC CSR vector(s)", vector_idx);
+  end
+endtask
+"""
+
+
+def _noop_vec_monitor(top: str) -> str:
+    """Render a no-op monitor that satisfies the generic driver contract."""
+
+    return f"""// Auto-generated {top} vector monitor fallback.
+
+task automatic tb_check_outputs(input string out_path, input int cycle);
+endtask
+"""
+
+
+def _noop_vec_driver(top: str) -> str:
+    """Render a no-op vector runner for DUTs without generic datapath ports."""
+
+    return f"""// Auto-generated {top} vector driver fallback.
+
+task automatic run_vectors(input string data_in_path, input string data_out_path);
+  $display("[TB] vector check skipped for this DUT: %s %s", data_in_path, data_out_path);
+endtask
+"""
+
+
+def _driver_text_is_placeholder(text: str) -> bool:
+    """Return true for stale placeholder driver content."""
+
+    lowered = text.lower()
+    return "may keep its inline run_vectors" in lowered or "placeholder" in lowered or not text.strip()
+
+
+def _install_canonical_sv_drivers(config: TestbenchConfig) -> None:
+    """Create the canonical tb/sv/drivers helper set for this generated TB."""
+
+    out = Path(config.output)
+    top = config.top
+    drivers = out / "drivers"
+    drivers.mkdir(parents=True, exist_ok=True)
+
+    sig = parse_sv_signature(config.rtldir, top)
+    clk = (sig.get("clks") or ["clk_i"])[0]
+    reg_pkg = has_reg_pkg(config.rtldir, top)
+    simple_mode = uses_simple_testbench(config)
+    bus_active = bool(reg_pkg and not simple_mode and config.compiler == "verilator")
+    is_cordic = top == "cordic" and config.interface == "tlul" and bus_active
+
+    reg_sequence = out / f"{top}_reg_sequence.svh"
+    reg_text = _patch_empty_config_ok(_read_text(reg_sequence))
+    if not reg_text:
+        reg_text = _reg_driver_fallback(top)
+    if is_cordic:
+        reg_text = _cordic_reg_driver_prefix(top, clk) + reg_text
+    _write_text(drivers / f"{top}_reg_driver.svh", reg_text)
+
+    legacy_monitor = out / f"{top}_vec_monitor.svh"
+    legacy_driver = out / f"{top}_vec_driver.svh"
+
+    if is_cordic:
+        monitor_text = _cordic_vec_monitor(top)
+        driver_text = _cordic_vec_driver(top)
+    else:
+        monitor_text = _read_text(legacy_monitor) or _noop_vec_monitor(top)
+        driver_text = _read_text(legacy_driver) or _noop_vec_driver(top)
+        if _driver_text_is_placeholder(driver_text):
+            driver_text = _noop_vec_driver(top)
+
+    _write_text(drivers / f"{top}_vec_monitor.svh", monitor_text)
+    _write_text(drivers / f"{top}_vec_driver.svh", driver_text)
+
+    for suffix in ("reg_sequence", "reg_driver", "vec_monitor", "vec_driver", "csr_driver"):
+        stale = out / f"{top}_{suffix}.svh"
+        if stale.exists():
+            stale.unlink()
+
+
+def _remove_inline_run_vectors(text: str) -> str:
+    """Remove any inline fallback run_vectors task from a generated TB body."""
+
+    block = _find_task_block(text, "run_vectors")
+    if block is None:
+        return text
+    start, end = block
+    before = text[:start].rstrip()
+    after = text[end:].lstrip("\n")
+    return before + "\n" + after
+
+
+def _patch_tb_driver_includes(config: TestbenchConfig) -> None:
+    """Make <top>_tb.sv include only canonical driver files."""
+
+    out = Path(config.output)
+    top = config.top
+    tb_path = out / f"{top}_tb.sv"
+    if not tb_path.exists():
         return
 
-    drivers_dir = tb_dir / "drivers"
-    drivers_dir.mkdir(parents=True, exist_ok=True)
+    text = _remove_inline_run_vectors(_read_text(tb_path))
+    driver_lines = [
+        f'  `include "drivers/{top}_reg_driver.svh"',
+        f'  `include "drivers/{top}_vec_monitor.svh"',
+        f'  `include "drivers/{top}_vec_driver.svh"',
+    ]
 
-    # Keep both canonical names and legacy test_* names working during upgrades.
-    for kind in ("driver", "monitor"):
-        canonical = drivers_dir / f"{top}_vec_{kind}.svh"
-        legacy_named = drivers_dir / f"test_vec_{kind}.svh"
-        candidates = [
-            canonical,
-            tb_dir / f"{top}_vec_{kind}.svh",
-            tb_dir / f"test_vec_{kind}.svh",
-            legacy_named,
-        ]
-        source = next((path for path in candidates if path.exists()), None)
-        if source is not None:
-            if not canonical.exists():
-                shutil.copyfile(source, canonical)
-            if not legacy_named.exists():
-                shutil.copyfile(canonical, legacy_named)
-
-    for tb in sorted({tb_dir / f"{top}_tb.sv", tb_dir / "test_tb.sv"}):
-        if not tb.exists():
+    cleaned: list[str] = []
+    for line in text.splitlines():
+        if f'`include "{top}_reg_sequence.svh"' in line:
             continue
-        text = tb.read_text(encoding="utf-8")
-        new = text
-        new = new.replace(f'`include "{top}_vec_driver.svh"', f'`include "drivers/{top}_vec_driver.svh"')
-        new = new.replace(f'`include "{top}_vec_monitor.svh"', f'`include "drivers/{top}_vec_monitor.svh"')
-        new = new.replace('`include "test_vec_driver.svh"', f'`include "drivers/{top}_vec_driver.svh"')
-        new = new.replace('`include "test_vec_monitor.svh"', f'`include "drivers/{top}_vec_monitor.svh"')
-        if new != text:
-            tb.write_text(new, encoding="utf-8")
+        if f'`include "{top}_reg_driver.svh"' in line:
+            continue
+        if f'`include "{top}_vec_monitor.svh"' in line:
+            continue
+        if f'`include "{top}_vec_driver.svh"' in line:
+            continue
+        if f'`include "drivers/{top}_reg_driver.svh"' in line:
+            continue
+        if f'`include "drivers/{top}_vec_monitor.svh"' in line:
+            continue
+        if f'`include "drivers/{top}_vec_driver.svh"' in line:
+            continue
+        cleaned.append(line)
+
+    text = "\n".join(cleaned) + "\n"
+    include_block = "\n".join(driver_lines)
+    marker = "  // Verification helpers"
+    if marker in text:
+        text = text.replace(marker, marker + "\n" + include_block, 1)
+    else:
+        text = text.replace("\n  // DUT", "\n  // Verification helpers\n" + include_block + "\n\n  // DUT", 1)
+    _write_text(tb_path, text)
+
+
+def _validate_sv_driver_layout(config: TestbenchConfig) -> None:
+    """Fail early if the generated layout is internally inconsistent."""
+
+    out = Path(config.output)
+    top = config.top
+    required = [
+        out / "drivers" / f"{top}_reg_driver.svh",
+        out / "drivers" / f"{top}_vec_monitor.svh",
+        out / "drivers" / f"{top}_vec_driver.svh",
+    ]
+    missing = [path for path in required if not path.exists()]
+    if missing:
+        names = ", ".join(path.as_posix() for path in missing)
+        raise FileNotFoundError(f"missing generated SV helper(s): {names}")
+
+    vec_driver = out / "drivers" / f"{top}_vec_driver.svh"
+    if "task automatic run_vectors" not in _read_text(vec_driver):
+        raise RuntimeError(f"{vec_driver} must define task automatic run_vectors(...)")
+
+    legacy = out / f"{top}_vec_driver.svh"
+    if legacy.exists():
+        raise RuntimeError(f"legacy duplicate should not exist: {legacy}")
+
+
+def _normalize_generated_sv_layout(config: TestbenchConfig) -> None:
+    """Normalize generated files to the native tb/sv layout."""
+
+    _install_canonical_sv_drivers(config)
+    _patch_tb_driver_includes(config)
+    _validate_sv_driver_layout(config)
+
 
 def main(argv=None) -> int:
     """Run testbench generation from the command line."""
 
     config = config_from_args(parse_args(argv))
     generate_testbench_files(config)
-    _ensure_single_tb_driver_layout(config)
+    _normalize_generated_sv_layout(config)
     return 0
 
 

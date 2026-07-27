@@ -1,3 +1,7 @@
+BACKEND_DIR ?= $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+FLEXSOC_BACKEND_DIR ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+TB_SV_DIR ?= $(TBDIR)/sv
+TESTS_DIR ?= $(TBDIR)/tests
 CLOCK_MODE ?= single
 MULTICLOCK ?= 0
 # FlexSoC backend flow Makefile
@@ -88,6 +92,8 @@ endif
 # Waveform viewer defaults. Override with WAVE_VIEWER=gtkwave or SURFER=/path/to/surfer.
 OUTROOT     ?= $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)
 RUN_DIR     ?= $(OUTROOT)
+TB_DIR ?= $(RUN_DIR)/tb
+SV_TB_DIR := $(TB_DIR)/sv
 
 # -----------------------------------------------------------------------------
 # Derived directories
@@ -335,7 +341,7 @@ endef
 PHONY_TARGETS :=
 PHONY_TARGETS += help help_ip help_soc help_doc help_fsm
 PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_corners signoff_corners
-PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist flist_split driver fetch hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi notes_multi setup_model_multi tests_gen_multi test_gen_multi setup_tb_multi setup_cocotb_multi multiclock_scaffold
+PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist flist_split driver fetch hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi notes_multi setup_model_multi tests_gen_multi test_gen_multi setup_tb_multi setup_cocotb_multi multiclock_scaffold regmap_py
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
 PHONY_TARGETS += lint lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier
 PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests
@@ -440,7 +446,7 @@ MULTICLOCK_ARGS = \
 hjson_multi: setup ## Generate multi-clock HJSON register templates
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[hjson_multi]$(RESET) $(BLUE)generate multi-clock HJSON regmaps$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit hjson
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit hjson --tb-dir $(TB_SV_DIR)
 
 multiclock_scaffold: hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi setup_model_multi tests_gen_multi setup_tb_multi setup_cocotb_multi notes_multi ## Bootstrap the decomposed multi-clock IP scaffold
 
@@ -483,22 +489,22 @@ doc_multi: setup ## Generate docs for selected multi-clock regmap HJSON files
 rtl_stub_multi: setup ## Generate multi-clock RTL core and wrapper from existing reg RTL
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[rtl_stub_multi]$(RESET) $(BLUE)generate core from regmaps and wrapper from core$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit rtl
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit rtl --tb-dir $(TB_SV_DIR)
 
 top_from_core_multi: ## Regenerate multi-clock top wrapper from edited core ports
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[top_from_core_multi]$(RESET) $(BLUE)refresh wrapper from core ports$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit top
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit top --tb-dir $(TB_SV_DIR)
 
 sdc_multi: setup ## Generate multi-clock IP timing constraints
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[sdc_multi]$(RESET) $(BLUE)generate multi-clock IP SDC$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit sdc
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit sdc --tb-dir $(TB_SV_DIR)
 
 notes_multi: setup ## Generate local multi-clock scaffold notes
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[notes_multi]$(RESET) $(BLUE)write multi-clock scaffold notes$(RESET)"
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit notes
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit notes --tb-dir $(TB_SV_DIR)
 
 hjson: setup ## Generate an HJSON register template
 	@printf "%b\n" "$(ORANGE)[hjson]$(RESET) $(BLUE)generate register template$(RESET)"
@@ -702,6 +708,7 @@ slang_hier: flist_split ## Print hierarchy with slang-hier
 # ============================================================================
 ##@ Simulation
 setup_tb: setup flist ## Generate a SystemVerilog testbench scaffold
+	@mkdir -p $(TB_SV_DIR)
 	@printf "%b\n" "$(ORANGE)[setup_tb]$(RESET) $(BLUE)generate SystemVerilog testbench$(RESET)"
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
@@ -738,7 +745,6 @@ setup_tb: setup flist ## Generate a SystemVerilog testbench scaffold
 			-vsv $(VSV) \
 			-o $(TBDIR); \
 	fi
-
 setup_cocotb: setup flist ## Generate a cocotb scaffold
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
@@ -763,7 +769,7 @@ setup_model_multi: setup ## Generate multi-clock Python model scaffold
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[setup_model_multi]$(RESET) $(BLUE)generate multi-clock model scaffold$(RESET)"
 	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit model
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit model --tb-dir $(TB_SV_DIR)
 
 tests_gen: setup ## Generate all vector tests from the editable model
 	$(call _require_var,TOP)
@@ -810,16 +816,17 @@ test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_N
 	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP)_multiclock.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
 
 setup_tb_multi: setup ## Generate a multi-clock SystemVerilog testbench scaffold
+	@mkdir -p $(TB_SV_DIR)
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[setup_tb_multi]$(RESET) $(BLUE)generate multi-clock SystemVerilog testbench$(RESET)"
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit tb
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit tb --tb-dir $(TB_SV_DIR)
 
 setup_cocotb_multi: setup ## Generate a multi-clock cocotb scaffold
 	$(call _require_var,TOP)
 	@printf "%b\n" "$(ORANGE)[setup_cocotb_multi]$(RESET) $(BLUE)generate multi-clock cocotb scaffold$(RESET)"
 	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit cocotb
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit cocotb --tb-dir $(TB_DIR)
 
 
 _require_test_vectors:
@@ -848,6 +855,11 @@ tests: ## List generated vector tests without regenerating them
 		echo "  no tests found; run: fx tests_gen or fx tests_gen_multi"; \
 	fi
 
+regmap_py: setup ## Generate model/regmap_<top>.py from RTL register package
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(MODELDIR)
+	$(Q)TOP="$(TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" $(PYTHON) -m flexsoc.backend.gen_model_regmap
+
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv) ## Compile the current testbench
 sim:     $(if $(filter v,$(VSV)),sim_v,sim_sv) ## Run simulation
 
@@ -859,8 +871,8 @@ sim_tests: ## Run every generated SystemVerilog vector test
 		echo "Run: fx tests_gen or fx tests_gen_multi"; \
 		exit 1; \
 	fi; \
-	if [ ! -f "$(TBDIR)/$(TESTBENCH).sv" ]; then \
-		echo "ERROR: SystemVerilog testbench not found: $(TBDIR)/$(TESTBENCH).sv"; \
+	if [ ! -f "$(TB_SV_DIR)/$(TESTBENCH).sv" ]; then \
+		echo "ERROR: SystemVerilog testbench not found: $(TB_SV_DIR)/$(TESTBENCH).sv"; \
 		echo "Run: fx setup_tb --force or fx setup_tb_multi --force"; \
 		exit 1; \
 	fi; \
@@ -883,13 +895,13 @@ ifeq ($(COMPILER),iverilog)
 	$(Q)$(MKDIR) -p $(SIMDIR) $(LOGDIR)
 	$(Q)iverilog $(IVERILOG_FLAGS) \
 		-o $(SIMDIR)/$(TESTBENCH).vvp \
-		$(TBDIR)/$(TESTBENCH).sv \
+		$(TB_SV_DIR)/$(TESTBENCH).sv \
 		> $(LOGDIR)/$(TOP)_compile.log 2>&1
 else
 	$(Q)$(MKDIR) -p $(SIMDIR)/$(COMPILER) $(LOGDIR)
-	$(Q)verilator $(VERILATOR_FLAGS) \
+	$(Q)verilator $(VERILATOR_FLAGS) -I$(TB_SV_DIR) -I$(TB_SV_DIR)/drivers \
 		$(RTLDIR)/$(TOP).v \
-		$(TBDIR)/$(TESTBENCH).sv \
+		$(TB_SV_DIR)/$(TESTBENCH).sv \
 		--top-module $(TESTBENCH) \
 		> $(LOGDIR)/$(TOP)_compile.log 2>&1
 endif
@@ -911,13 +923,14 @@ ifeq ($(COMPILER),iverilog)
 	$(Q)$(MKDIR) -p $(SIMDIR) $(VERIFY_LOGDIR)
 	$(Q)iverilog $(IVERILOG_FLAGS) \
 		-o $(SIMDIR)/$(TESTBENCH).vvp \
-		$(TBDIR)/$(TESTBENCH).sv \
+		$(TB_SV_DIR)/$(TESTBENCH).sv \
 		> $(SV_COMPILE_LOG) 2>&1
 else
 	$(Q)$(MKDIR) -p $(SIMDIR)/$(COMPILER) $(VERIFY_LOGDIR)
 	$(Q)verilator $(VERILATOR_FLAGS) \
+	  -I$(TB_DIR) -I$(SV_TB_DIR) \
 		$(RTL_FILELISTS) \
-		$(TBDIR)/$(TESTBENCH).sv \
+		$(TB_SV_DIR)/$(TESTBENCH).sv \
 		--top-module $(TESTBENCH) \
 		> $(SV_COMPILE_LOG) 2>&1
 endif
@@ -1043,7 +1056,7 @@ view_presyn_sv: ## Open pre-synthesis graph from SV
 tb_save: ## Save testbench regression artifacts
 	$(Q)$(MKDIR) -p $(REGRESSIONDIR) $(REGRESSIONDIR)/$(TBDIR) $(REGRESSIONDIR)/$(SIMDIR)
 	@echo "\n$(ORANGE)Save testbench file...\n$(RESET)"
-	$(Q)$(CP) $(TBDIR)/$(TOP)_tb.sv $(REGRESSIONDIR)/$(TBDIR)/$(TOP)_$(OUTNAME)_tb.sv
+	$(Q)$(CP) $(TB_SV_DIR)/$(TOP)_tb.sv $(REGRESSIONDIR)/$(TBDIR)/$(TOP)_$(OUTNAME)_tb.sv
 	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.vcd $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd
 	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.gtkw $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw
 
@@ -1127,8 +1140,8 @@ compile_syn: syn ## Compile post-synthesis simulation
 		echo "Hint: check outputs under: $(SYNDIR)"; \
 		exit 2; \
 	fi
-	@if [ ! -f "$(TBDIR)/$(TESTBENCH).sv" ]; then \
-		echo "ERROR: missing testbench file: $(TBDIR)/$(TESTBENCH).sv"; \
+	@if [ ! -f "$(TB_SV_DIR)/$(TESTBENCH).sv" ]; then \
+		echo "ERROR: missing testbench file: $(TB_SV_DIR)/$(TESTBENCH).sv"; \
 		echo "Hint: run: make -C flow setup_tb WORKSPACE=... TOP=... RUN_ID=..."; \
 		exit 2; \
 	fi
@@ -1137,7 +1150,7 @@ compile_syn: syn ## Compile post-synthesis simulation
 		$(IVERILOG_FLAGS) \
 		-o $(SIMDIR)/$(TOP)_syn_tb.vvp \
 		$(PRIM) \
-		$(TBDIR)/$(TESTBENCH).sv \
+		$(TB_SV_DIR)/$(TESTBENCH).sv \
 		> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
 
 sim_syn: compile_syn ## Run post-synthesis simulation
@@ -1835,3 +1848,6 @@ clean_all: ## Remove all generated run outputs
 	@true
 
 .PHONY:
+
+
+.PHONY: regmap_py
