@@ -12,7 +12,7 @@ PYTEST ?= pytest
 LINT_PATHS ?= src/flexsoc/api.py src/flexsoc/backend tests
 MAKEFLAGS += --no-print-directory
 
-.PHONY: help install sync dev lint fix test test-e2e check clean clean-py clean-build clean-all venv
+.PHONY: help install sync dev lint fix check clean clean-py clean-build clean-all venv
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nflexsoc ✨\n"} \
@@ -40,12 +40,6 @@ fix: ## Run Ruff with --fix
 	@echo ">> Running Ruff --fix"
 	@$(UV) run --no-sync $(RUFF) check --fix $(LINT_PATHS)
 
-test: ## Run pytest
-	$(UV) run --no-sync $(PYTEST) -q
-
-test-e2e: ## Run opt-in real end-to-end fx/tool flow tests
-	FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_FX="$(UV) run --no-sync fx" $(UV) run --no-sync $(PYTEST) -q -m e2e tests/test_e2e_fx.py
-
 check: lint test ## Run lint and tests
 
 ##@ Cleanup
@@ -69,3 +63,25 @@ clean-build: ## Remove local package/build outputs
 clean-all: clean ## Remove workspace artifacts too
 	@echo ">> Removing workspace artifacts"
 	@rm -rf workspace
+
+# -----------------------------------------------------------------------------
+# Tests
+# -----------------------------------------------------------------------------
+# `make test` is the one-command local regression. It keeps pytest output visible
+# so the E2E debug prints look like running the `fx` flow by hand.
+.PHONY: test test-api test-e2e test-e2e-live
+
+PYTEST ?= uv run --no-sync pytest
+FLEXSOC_E2E_FX ?= uv run --no-sync fx
+FLEXSOC_E2E_LIVE ?= 0
+
+test: test-api test-e2e
+
+test-api:
+	$(PYTEST) -s tests/test_api.py
+
+test-e2e:
+	FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_LIVE=$(FLEXSOC_E2E_LIVE) FLEXSOC_E2E_FX="$(FLEXSOC_E2E_FX)" $(PYTEST) -s -m e2e tests/test_e2e_fx.py
+
+test-e2e-live:
+	$(MAKE) test-e2e FLEXSOC_E2E_LIVE=1
