@@ -14,7 +14,6 @@ from .api import DEFAULT_SETTINGS, TARGETS, FlexSoC, FlexSoCConfig
 try:  # Keep the entry point understandable if the new CLI deps are not installed yet.
     import click
     import typer
-    from rich import box
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
@@ -284,16 +283,31 @@ Use `fx commands` to list every backend Make target.
             values["FORCE"] = "1"
         return values
 
-    def _run(client: FlexSoC, targets: tuple[str, ...], *, sets: tuple[str, ...], tool: str | None, force: bool, dry_run: bool, script: bool, capture: bool, live: bool, as_json: bool, info: bool) -> int:
+    def _run(
+        client: FlexSoC,
+        targets: tuple[str, ...],
+        *,
+        sets: tuple[str, ...],
+        tool: str | None,
+        force: bool,
+        dry_run: bool,
+        script: bool,
+        capture: bool,
+        live: bool,
+        as_json: bool,
+        info: bool,
+    ) -> int:
         """Run, preview, or describe requested targets."""
 
         if info:
             _print_info(client, targets, as_json)
             return 0
+
         try:
             values = _overrides(sets, tool, force)
             if live:
                 values["LIVE"] = "1"
+
             result = client.run(
                 *targets,
                 check=False,
@@ -305,19 +319,30 @@ Use `fx commands` to list every backend Make target.
         except (ValueError, RuntimeError, subprocess.CalledProcessError, typer.BadParameter) as exc:
             error_console.print(f"[red]{exc}[/red]")
             return getattr(exc, "returncode", 2) or 2
+
+        items = list(result)
+
         if dry_run:
-            text = "\n".join(item.shell_line() for item in result)
-            print("#!/usr/bin/env bash\nset -euo pipefail\n" + text if script else text)
-        elif as_json:
-            data = [item.to_dict() for item in result]
+            text = "\n".join(item.shell_line() for item in items)
+            if script:
+                print("#!/usr/bin/env bash\nset -euo pipefail\n" + text)
+            else:
+                print(text)
+            return 0
+
+        if as_json:
+            data = [item.to_dict() for item in items]
             print(json.dumps(data[0] if len(data) == 1 else data, indent=2))
         elif capture:
-            print("".join(item.stdout or "" for item in result), end="")
+            print("".join(item.stdout or "" for item in items), end="")
         else:
-            for item in result:
-                if item.log_path:
-                    console.print(f"[bold bright_cyan]{item.command.target}[/bold bright_cyan] log: {item.log_path}")
-        failed = [item for item in result if not item.ok]
+            for item in items:
+                log_path = getattr(item, "log_path", None)
+                if log_path:
+                    target = getattr(getattr(item, "command", None), "target", "target")
+                    console.print(f"[bold bright_cyan]{target}[/bold bright_cyan] log: {log_path}")
+
+        failed = [item for item in items if not item.ok]
         return failed[0].returncode if failed else 0
 
     def _shell(root: Path, workdir: Path | None) -> int:
