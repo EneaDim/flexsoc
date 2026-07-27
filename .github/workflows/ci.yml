@@ -86,8 +86,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          uv run --no-sync python --version
-          uv run --no-sync python -c "import typer, hjson; print('uv imports OK')"
+          unset VIRTUAL_ENV || true
+          uv sync
+          uv run python --version
+          uv run python -c "import typer, hjson; print('uv imports OK')"
 
       - name: Run CLI smoke
         run: |
