@@ -1303,8 +1303,6 @@ def cocotb_sv_text(top: str) -> str:
 def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     """Render a cocotb Makefile for the multi-clock wrapper."""
 
-    common_f = rtl_dir / "rtl_common.f"
-    ip_f = rtl_dir / "rtl_ip.f"
     return dedent(f"""\
     SIM ?= verilator
     TOPLEVEL_LANG ?= verilog

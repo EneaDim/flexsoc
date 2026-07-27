@@ -1578,7 +1578,6 @@ def _ensure_single_tb_driver_layout(config) -> None:
     and copies legacy files into the structured directory when needed.
     """
     import shutil
-    from pathlib import Path
 
     tb_dir = _single_tb_dir_from_config(config)
     top = str(getattr(config, "top", ""))

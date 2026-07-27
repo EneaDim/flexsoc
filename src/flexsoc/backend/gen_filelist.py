@@ -6,7 +6,7 @@ import argparse
 import re
 from pathlib import Path
 
-IP_NAME_MAP = {"uart_master": "uart", "uart_master": "uart"}
+IP_NAME_MAP = {"uart_master": "uart"}
 COMMON_RE = re.compile(r"/hw/ips/(pkgs|prim|prim_opentitan|tlul)/")
 
 
