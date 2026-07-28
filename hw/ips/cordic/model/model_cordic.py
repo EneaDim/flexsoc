@@ -1,33 +1,9 @@
-"""Generate CORDIC CSR-driven FlexSoC vector tests.
+"""Generate CORDIC reference vectors through the software-visible CSR interface.
 
-Generated test layout:
-
-    tb/tests/<TEST_NAME>/
-      config.regs
-      data_in.vec
-      data_out.vec
-
-Vector format:
-
-    data_in.vec:
-      <CYCLE> @write <REG_OR_ADDR> <DATA> [MASK]
-
-    data_out.vec:
-      <CYCLE> @read <REG_OR_ADDR> <EXPECTED> [MASK]
-
-The generator provides the FlexSoC base tests:
-
-    smoke
-    corners
-    random
-    reconfig
-
-and keeps the previous CORDIC-focused tests available:
-
-    smoke_zero
-    rotate_45deg
-    quadrant_sweep
-    random_small
+CORDIC has no functional data pins at the top level: operands, control, status,
+and results are all software-visible CSRs.  Register layout and serialization
+come exclusively from ``regmap_cordic.py``; this file owns only behavioral
+stimulus and expected CORDIC results.
 """
 
 from __future__ import annotations
@@ -39,9 +15,11 @@ import random
 from dataclasses import replace
 from pathlib import Path
 
-from cordic_fixed_model import CordicFormat, CordicInput, hex32, make_input, rotate_fixed
-from regmap_cordic import addr as reg_addr, names as reg_names
+from cordic_fixed_model import CordicFormat, CordicInput, make_input, rotate_fixed
+import regmap_cordic as regmap
 
+
+CSR = regmap.PRIMARY
 
 BASE_TEST_ORDER = (
     "smoke",
@@ -58,12 +36,7 @@ CORDIC_TEST_ORDER = (
 )
 
 DEFAULT_TEST_ORDER = BASE_TEST_ORDER + CORDIC_TEST_ORDER
-
-TEST_ALIASES = {
-    "all": "all",
-    "*": "all",
-}
-
+TEST_ALIASES = {"all": "all", "*": "all"}
 
 
 def _make_sample(
@@ -75,7 +48,7 @@ def _make_sample(
     mode: int = 0,
     n_iter: int | None = None,
 ) -> CordicInput:
-    """Build one CORDIC input, overriding n_iter when requested."""
+    """Build one CORDIC input, overriding ``n_iter`` when requested."""
 
     try:
         if n_iter is None:
@@ -108,8 +81,13 @@ def _random_samples(fmt: CordicFormat, *, count: int, seed: int) -> list[CordicI
     ]
 
 
-def builtin_tests(fmt: CordicFormat, *, random_count: int, seed: int) -> dict[str, list[CordicInput]]:
-    """Return all built-in CORDIC CSR-driven vector tests."""
+def builtin_tests(
+    fmt: CordicFormat,
+    *,
+    random_count: int,
+    seed: int,
+) -> dict[str, list[CordicInput]]:
+    """Return all built-in CORDIC CSR-driven scenarios."""
 
     random_vectors = _random_samples(fmt, count=random_count, seed=seed)
 
@@ -117,13 +95,11 @@ def builtin_tests(fmt: CordicFormat, *, random_count: int, seed: int) -> dict[st
         _make_sample(0.0, 0.0, 0.0, fmt, mode=0),
         _make_sample(0.25, 0.0, 0.0, fmt, mode=0),
     ]
-
     rotate_45deg = [
         _make_sample(0.25, 0.0, math.pi / 4.0, fmt, mode=0),
         _make_sample(0.25, 0.0, -math.pi / 4.0, fmt, mode=0),
         _make_sample(0.125, 0.125, math.pi / 4.0, fmt, mode=0),
     ]
-
     quadrant_sweep = [
         _make_sample(0.25, 0.0, 0.0, fmt, mode=0),
         _make_sample(0.25, 0.0, math.pi / 2.0, fmt, mode=0),
@@ -131,7 +107,6 @@ def builtin_tests(fmt: CordicFormat, *, random_count: int, seed: int) -> dict[st
         _make_sample(0.25, 0.0, 3.0 * math.pi / 4.0, fmt, mode=0),
         _make_sample(0.25, 0.0, -3.0 * math.pi / 4.0, fmt, mode=0),
     ]
-
     corners = [
         _make_sample(0.0, 0.0, 0.0, fmt, mode=0),
         _make_sample(0.25, 0.0, math.pi / 2.0, fmt, mode=0),
@@ -139,7 +114,6 @@ def builtin_tests(fmt: CordicFormat, *, random_count: int, seed: int) -> dict[st
         _make_sample(0.25, 0.0, 3.0 * math.pi / 4.0, fmt, mode=0),
         _make_sample(0.25, 0.0, -3.0 * math.pi / 4.0, fmt, mode=0),
     ]
-
     reconfig = [
         _make_sample(0.25, 0.0, math.pi / 8.0, fmt, mode=0, n_iter=4),
         _make_sample(0.25, 0.0, math.pi / 8.0, fmt, mode=0, n_iter=8),
@@ -159,91 +133,81 @@ def builtin_tests(fmt: CordicFormat, *, random_count: int, seed: int) -> dict[st
     }
 
 
-def ctrl_value(sample: CordicInput, *, start: bool) -> int:
-    """Encode CORDIC CTRL: START, MODE, and N_ITER."""
-
-    start_bit = 1 if start else 0
-    mode_bit = (int(sample.mode) & 0x1) << 1
-    n_iter = (int(sample.n_iter) & 0xFF) << 8
-    return n_iter | mode_bit | start_bit
-
-
-def csr_hex(value: int) -> str:
-    """Format one CSR word with an explicit base prefix."""
-
-    return f"0x{hex32(value)}"
-
 def write_config(test_dir: Path) -> None:
-    """Write optional initial CSR configuration for one test."""
+    """Write the empty initial configuration used by CSR-vector tests."""
 
-    lines = [
-        "# CORDIC tests drive CSRs from data_in.vec.",
-        "# Format for optional setup rows:",
-        "#   <REG_OR_ADDR> <DATA> [MASK] [WAIT_CYCLES] [NOTE]",
-        "# This file may intentionally contain comments only.",
-        "",
+    regmap.write_config(test_dir / "config.regs", [])
+
+
+def input_rows(base_cycle: int, sample: CordicInput) -> list[str]:
+    """Program one operation exclusively through HJSON-derived CSR objects."""
+
+    control = {
+        "MODE": int(sample.mode),
+        "SOFT_RST": 0,
+        "N_ITER": int(sample.n_iter),
+    }
+    return [
+        CSR.X_IN.vector_write(base_cycle + 0, VALUE=int(sample.x)),
+        CSR.Y_IN.vector_write(base_cycle + 1, VALUE=int(sample.y)),
+        CSR.Z_IN.vector_write(base_cycle + 2, VALUE=int(sample.z)),
+        CSR.CTRL.vector_write(base_cycle + 3, START=1, **control),
+        CSR.CTRL.vector_write(base_cycle + 4, START=0, **control),
     ]
-    (test_dir / "config.regs").write_text("\n".join(lines), encoding="utf-8")
+
+
+def output_rows(read_cycle: int, sample: CordicInput, fmt: CordicFormat) -> list[str]:
+    """Check completion status and software-visible result CSRs."""
+
+    expected = rotate_fixed(sample, fmt)
+    return [
+        CSR.STATUS.vector_read(read_cycle, BUSY=0, VALID=1, ERROR=0),
+        CSR.X_OUT.vector_read(read_cycle, VALUE=int(expected.x)),
+        CSR.Y_OUT.vector_read(read_cycle, VALUE=int(expected.y)),
+        CSR.Z_OUT.vector_read(read_cycle, VALUE=int(expected.z)),
+    ]
 
 
 def write_test(test_dir: Path, samples: list[CordicInput], fmt: CordicFormat) -> None:
-    """Write one FlexSoC vector-test directory."""
+    """Write one FlexSoC CSR-driven vector-test directory."""
 
     test_dir.mkdir(parents=True, exist_ok=True)
     write_config(test_dir)
 
-    data_in_lines: list[str] = [
-        "# Auto-generated CORDIC register input vectors.",
-        "# format: <cycle> @write <reg_or_addr> <data> [mask]",
+    data_in_lines = [
+        "# CORDIC CSR stimulus generated from the behavioral model.",
+        "# format: <cycle> @write <clock.reg> <data> [mask]",
     ]
-    data_out_lines: list[str] = [
-        "# Auto-generated CORDIC register expected-output vectors.",
-        "# format: <cycle> @read <reg_or_addr> <expected> [mask]",
+    data_out_lines = [
+        "# CORDIC CSR checks generated from the behavioral model.",
+        "# format: <cycle> @read <clock.reg> <expected> [mask]",
+        CSR.CFG.vector_read(
+            0,
+            DATA_WIDTH=fmt.data_width,
+            FRAC_WIDTH=fmt.data_frac_bits,
+            MAX_ITER=fmt.max_iter,
+        ),
     ]
-
-    for name in reg_names():
-        addr = reg_addr(name)
-        data_in_lines.append(f"# map {name} 0x{addr:02x}")
-        data_out_lines.append(f"# map {name} 0x{addr:02x}")
-
-    data_in_lines.append("")
-    data_out_lines.append("")
 
     for index, sample in enumerate(samples):
         base_cycle = index * 80
         read_cycle = base_cycle + 40
-        expected = rotate_fixed(sample, fmt)
+        data_in_lines.extend(input_rows(base_cycle, sample))
+        data_out_lines.extend(output_rows(read_cycle, sample, fmt))
 
-        data_in_lines.extend(
-            [
-                f"{base_cycle + 0} @write X_IN {csr_hex(sample.x)}",
-                f"{base_cycle + 1} @write Y_IN {csr_hex(sample.y)}",
-                f"{base_cycle + 2} @write Z_IN {csr_hex(sample.z)}",
-                f"{base_cycle + 3} @write CTRL {csr_hex(ctrl_value(sample, start=True))}",
-                f"{base_cycle + 4} @write CTRL {csr_hex(ctrl_value(sample, start=False))}",
-                "",
-            ]
-        )
-
-        data_out_lines.extend(
-            [
-                f"{read_cycle} @read X_OUT {csr_hex(expected.x)} 0xffffffff",
-                f"{read_cycle} @read Y_OUT {csr_hex(expected.y)} 0xffffffff",
-                f"{read_cycle} @read Z_OUT {csr_hex(expected.z)} 0xffffffff",
-                "",
-            ]
-        )
-
-    (test_dir / "data_in.vec").write_text("\n".join(data_in_lines), encoding="utf-8")
-    (test_dir / "data_out.vec").write_text("\n".join(data_out_lines), encoding="utf-8")
+    (test_dir / "data_in.vec").write_text("\n".join(data_in_lines) + "\n", encoding="utf-8")
+    (test_dir / "data_out.vec").write_text("\n".join(data_out_lines) + "\n", encoding="utf-8")
 
     old_expected = test_dir / "expected.json"
     if old_expected.exists():
         old_expected.unlink()
 
 
-def selected_tests(args: argparse.Namespace, tests: dict[str, list[CordicInput]]) -> dict[str, list[CordicInput]]:
-    """Resolve fx/tests_gen selection semantics."""
+def selected_tests(
+    args: argparse.Namespace,
+    tests: dict[str, list[CordicInput]],
+) -> dict[str, list[CordicInput]]:
+    """Resolve ``fx tests_gen`` / ``fx test_gen`` selection semantics."""
 
     env_test = os.environ.get("TEST_NAME", "").strip()
     requested = (args.test or env_test).strip()
@@ -252,16 +216,14 @@ def selected_tests(args: argparse.Namespace, tests: dict[str, list[CordicInput]]
         return {name: tests[name] for name in DEFAULT_TEST_ORDER}
 
     requested = TEST_ALIASES.get(requested, requested)
-
     if requested not in tests:
         available = ", ".join(DEFAULT_TEST_ORDER)
         raise SystemExit(f"unknown TEST_NAME={requested!r}; available: {available}")
-
     return {requested: tests[requested]}
 
 
 def main() -> int:
-    """CLI entry point used by fx tests_gen/test_gen."""
+    """CLI entry point used by ``fx tests_gen`` / ``fx test_gen``."""
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--tests-dir", type=Path, default=Path("../tb/tests"))
@@ -273,11 +235,9 @@ def main() -> int:
 
     fmt = CordicFormat()
     tests = builtin_tests(fmt, random_count=args.random_count, seed=args.seed)
-
     for name, samples in selected_tests(args, tests).items():
         write_test(args.tests_dir / name, samples, fmt)
         print(f"generated {args.tests_dir / name}")
-
     return 0
 
 
