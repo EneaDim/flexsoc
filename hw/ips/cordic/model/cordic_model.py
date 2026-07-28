@@ -1,4 +1,4 @@
-"""Fixed-point CORDIC model matching the CSR-visible RTL contract.
+"""Behavioral CORDIC model matching the CSR-visible RTL contract.
 
 The RTL exposes a TL-UL peripheral with these visible formats:
 

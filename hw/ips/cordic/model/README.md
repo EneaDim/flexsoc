@@ -1,11 +1,12 @@
-# CORDIC workspace model
+# CORDIC model
 
-This directory is the editable workspace model for the CORDIC existing-IP flow.
+The CORDIC verification collateral follows the standard FlexSoC three-file split:
 
-- `cordic_float_model.py`: readable mathematical reference.
-- `cordic_fixed_model.py`: RTL-like fixed-point model using the CORDIC CSR formats.
-- `model_cordic.py`: generator used by `fx tests_gen` and `fx test_gen`.
-- `regmap_cordic.py`: small Python mirror of the CORDIC CSR map.
+- `cordic_model.py`: canonical RTL-like fixed-point behavioral model used by the tests.
+- `cordic_regmap.py`: generated CSR metadata/API derived from `cordic.hjson`.
+- `cordic_tests.py`: editable test catalogue and vector generator.
 
-Generated tests use the standard FlexSoC layout: `config.regs`, `data_in.vec`,
-and `data_out.vec`.
+`cordic_float_model.py` is kept as an optional high-level mathematical reference. It is useful for analysis and cross-checks, but the generated RTL-facing expectations come from `cordic_model.py` so they match the fixed-point implementation.
+
+`fx regmap_py --force` refreshes only `cordic_regmap.py`. `fx tests_gen` executes
+`cordic_tests.py`, which imports the canonical behavioral model and the regmap.

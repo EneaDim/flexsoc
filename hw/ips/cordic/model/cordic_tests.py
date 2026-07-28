@@ -1,9 +1,8 @@
-"""Generate CORDIC reference vectors through the software-visible CSR interface.
+"""CORDIC test catalogue and vector generator.
 
 CORDIC has no functional data pins at the top level: operands, control, status,
-and results are all software-visible CSRs.  Register layout and serialization
-come exclusively from ``regmap_cordic.py``; this file owns only behavioral
-stimulus and expected CORDIC results.
+and results are all software-visible CSRs. Test scenarios live here; behavioral
+results come from ``cordic_model.py`` and CSR layout from ``cordic_regmap.py``.
 """
 
 from __future__ import annotations
@@ -12,11 +11,10 @@ import argparse
 import math
 import os
 import random
-from dataclasses import replace
 from pathlib import Path
 
-from cordic_fixed_model import CordicFormat, CordicInput, make_input, rotate_fixed
-import regmap_cordic as regmap
+from cordic_model import CordicFormat, CordicInput, make_input, rotate_fixed
+import cordic_regmap as regmap
 
 
 CSR = regmap.PRIMARY
@@ -48,21 +46,9 @@ def _make_sample(
     mode: int = 0,
     n_iter: int | None = None,
 ) -> CordicInput:
-    """Build one CORDIC input, overriding ``n_iter`` when requested."""
+    """Build one CORDIC input from real-valued stimulus."""
 
-    try:
-        if n_iter is None:
-            return make_input(x, y, z, fmt, mode=mode)
-        return make_input(x, y, z, fmt, mode=mode, n_iter=n_iter)
-    except TypeError:
-        sample = make_input(x, y, z, fmt, mode=mode)
-        if n_iter is None:
-            return sample
-        try:
-            return replace(sample, n_iter=n_iter)
-        except TypeError:
-            sample.n_iter = n_iter
-            return sample
+    return make_input(x, y, z, fmt, mode=mode, n_iter=n_iter)
 
 
 def _random_samples(fmt: CordicFormat, *, count: int, seed: int) -> list[CordicInput]:

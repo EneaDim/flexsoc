@@ -2,7 +2,7 @@
 
 HJSON source(s): cordic.hjson.
 Regenerate with ``fx regmap_py --force``. Behavioral code belongs in
-``model_cordic.py``.
+``cordic_model.py`` and test scenarios belong in ``cordic_tests.py``.
 """
 from __future__ import annotations
 
@@ -239,10 +239,10 @@ DOMAINS: dict[str, RegisterDomain] = {
                 reset=0x00000000,
                 mask=0xffffffff,
                 fields=(
-                    Field(name='BUSY', lsb=0, msb=0, swaccess='ro', hwaccess='hrw', reset=None),
-                    Field(name='VALID', lsb=1, msb=1, swaccess='ro', hwaccess='hrw', reset=None),
-                    Field(name='ERROR', lsb=2, msb=2, swaccess='ro', hwaccess='hrw', reset=None),
-                    Field(name='RSVD', lsb=3, msb=31, swaccess='ro', hwaccess='hrw', reset=None),
+                    Field(name='BUSY', lsb=0, msb=0, swaccess='ro', hwaccess='hrw', reset=0),
+                    Field(name='VALID', lsb=1, msb=1, swaccess='ro', hwaccess='hrw', reset=0),
+                    Field(name='ERROR', lsb=2, msb=2, swaccess='ro', hwaccess='hrw', reset=0),
+                    Field(name='RSVD', lsb=3, msb=31, swaccess='ro', hwaccess='hrw', reset=0),
                 ),
             ),
             Register(
@@ -282,7 +282,7 @@ DOMAINS: dict[str, RegisterDomain] = {
                 reset=0x00000000,
                 mask=0xffffffff,
                 fields=(
-                    Field(name='VALUE', lsb=0, msb=31, swaccess='ro', hwaccess='hrw', reset=None),
+                    Field(name='VALUE', lsb=0, msb=31, swaccess='ro', hwaccess='hrw', reset=0),
                 ),
             ),
             Register(
@@ -292,7 +292,7 @@ DOMAINS: dict[str, RegisterDomain] = {
                 reset=0x00000000,
                 mask=0xffffffff,
                 fields=(
-                    Field(name='VALUE', lsb=0, msb=31, swaccess='ro', hwaccess='hrw', reset=None),
+                    Field(name='VALUE', lsb=0, msb=31, swaccess='ro', hwaccess='hrw', reset=0),
                 ),
             ),
             Register(
@@ -302,7 +302,7 @@ DOMAINS: dict[str, RegisterDomain] = {
                 reset=0x00000000,
                 mask=0xffffffff,
                 fields=(
-                    Field(name='VALUE', lsb=0, msb=31, swaccess='ro', hwaccess='hrw', reset=None),
+                    Field(name='VALUE', lsb=0, msb=31, swaccess='ro', hwaccess='hrw', reset=0),
                 ),
             ),
             Register(
@@ -312,10 +312,10 @@ DOMAINS: dict[str, RegisterDomain] = {
                 reset=0x00000000,
                 mask=0xffffffff,
                 fields=(
-                    Field(name='DATA_WIDTH', lsb=0, msb=7, swaccess='ro', hwaccess='hrw', reset=None),
-                    Field(name='FRAC_WIDTH', lsb=8, msb=15, swaccess='ro', hwaccess='hrw', reset=None),
-                    Field(name='MAX_ITER', lsb=16, msb=23, swaccess='ro', hwaccess='hrw', reset=None),
-                    Field(name='RSVD', lsb=24, msb=31, swaccess='ro', hwaccess='hrw', reset=None),
+                    Field(name='DATA_WIDTH', lsb=0, msb=7, swaccess='ro', hwaccess='hrw', reset=0),
+                    Field(name='FRAC_WIDTH', lsb=8, msb=15, swaccess='ro', hwaccess='hrw', reset=0),
+                    Field(name='MAX_ITER', lsb=16, msb=23, swaccess='ro', hwaccess='hrw', reset=0),
+                    Field(name='RSVD', lsb=24, msb=31, swaccess='ro', hwaccess='hrw', reset=0),
                 ),
             ),
         ),
