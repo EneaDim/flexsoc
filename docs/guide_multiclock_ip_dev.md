@@ -1,12 +1,8 @@
 # Multi-clock IP development guide
 
-This guide uses the same high-level target names as the single-clock flow. Set
-`CLOCK_MODE=multi` once, then run the usual `hjson`, `reg`, `doc`, `rtl_stub`,
-`top_from_core`, `setup_model`, `tests_gen`, `setup_tb`, and `setup_cocotb`
-targets.
-
-The explicit `_multi` target names remain available, but they are no longer the
-preferred daily workflow.
+The multi-clock flow uses the same high-level `fx` commands as the single-clock
+flow. Set `CLOCK_MODE=multi`; FlexSoC routes the applicable commands to the
+multi-clock backend.
 
 ## 1. Configure the run
 
@@ -14,66 +10,44 @@ preferred daily workflow.
 fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart CLOCK_MODE=multi
 ```
 
-The selected `TOP` is the verification top. The SystemVerilog and cocotb
-testbenches instantiate `tri_stream_dsp`, not `tri_stream_dsp_core`. To verify a
-core directly, set `TOP=tri_stream_dsp_core` explicitly.
-
-## 2. Create multi-regmap HJSON
+## 2. Create the run and HJSON maps
 
 ```bash
 fx setup --force
 fx hjson --force
 ```
 
-This creates multiple register maps, for example:
+A multi-clock design can generate multiple HJSON register maps, for example:
 
 ```text
 data/tri_stream_dsp_cfg.hjson
 data/tri_stream_dsp_dsp.hjson
 ```
 
-Edit the HJSON files as the register interface evolves.
-
 ## 3. Generate register RTL and docs
 
-All regmaps:
+All selected maps:
 
 ```bash
 fx reg doc --force
 ```
 
-One regmap only:
+The explicit multi-clock targets remain available when one domain must be
+selected directly:
 
 ```bash
-fx reg doc --set REGMAP=cfg
-fx reg doc --set REGMAP=dsp
+fx reg_multi doc_multi --set REGMAP=cfg
+fx reg_multi doc_multi --set REGMAP=dsp
 ```
 
-This lets you update one domain without regenerating unrelated collateral.
-
-## 4. Generate RTL scaffold
+## 4. Generate and edit RTL
 
 ```bash
 fx rtl_stub --force
 ```
 
-This creates:
-
-```text
-rtl/tri_stream_dsp_core.sv
-rtl/tri_stream_dsp.sv
-```
-
-The wrapper instantiates the generated regblocks and the editable core. The core
-contains the clock-domain logic, CDC examples, and datapath scaffold.
-
-Edit:
-
-```text
-rtl/tri_stream_dsp_core.sv
-```
-
-If you change core ports, refresh only the wrapper:
+Edit the generated core. If its ports change and the wrapper remains generated
+collateral:
 
 ```bash
 fx top_from_core --force
@@ -81,16 +55,9 @@ fx top_from_core --force
 
 ## 5. Filelists and lint
 
-Run lint before modelling and verification:
-
 ```bash
 fx flist --force
 fx lint
-```
-
-Focused lint:
-
-```bash
 fx lint_latch
 fx lint_width
 fx lint_unconnected
@@ -98,60 +65,41 @@ fx lint_undriven
 fx lint_unused
 ```
 
-The general lint log is cleanly named:
-
-```text
-logs/lint/tri_stream_dsp_lint_all.log
-```
-
-## 6. Model scaffold
+## 6. Bootstrap the multi-clock model
 
 ```bash
 fx setup_model --force
 ```
 
-This creates:
+With `CLOCK_MODE=multi`, this generates the editable multi-clock model:
 
 ```text
 model/model_tri_stream_dsp_multiclock.py
-model/regmap_tri_stream_dsp.py
 ```
 
-The model file is editable and owns the behaviour, clock-domain assumptions, and
-test catalog. The generated `regmap_*.py` helper keeps register names, offsets,
-and helper functions near the model so a regmap change can be reflected without
-manual duplication.
+The current multi-clock scaffold owns its register configuration directly in
+that model. It is a separate implementation from the single-clock
+`regmap_<top>.py` object API described in the single-clock and existing-IP
+guides.
 
-Recommended workflow after changing HJSON:
+Treat `setup_model --force` as a reset of the editable multi-clock model. After
+customizing it, update the model deliberately when HJSON register names or
+semantics change rather than blindly regenerating it.
 
-```bash
-fx reg doc --force
-fx setup_model --force
-```
-
-Then update the behavioural model and tests as needed.
-
-## 7. Generate vector tests from the model
-
-All model-defined tests:
+## 7. Generate vector tests
 
 ```bash
 fx tests_gen
+fx tests
 ```
 
-One test only:
+One test:
 
 ```bash
 fx test_gen --set TEST_NAME=my_case
 ```
 
-List tests:
-
-```bash
-fx tests
-```
-
-Generated tests live under:
+Generated files use the same common layout:
 
 ```text
 tb/tests/<TEST_NAME>/
@@ -160,78 +108,40 @@ tb/tests/<TEST_NAME>/
 └── data_out.vec
 ```
 
-## 8. Register writes and register checks
-
-Multi-clock tests can write multiple regmaps using qualified names:
+Register names in `config.regs` are domain-qualified, for example:
 
 ```text
-cfg.CTRL 0x00000000
 cfg.GAIN 0x00000001
+dsp.DSP_CTRL 0x00000000
 cfg.CTRL 0x00000001
-dsp.MODE 0x00000000
 ```
 
-Use register reads/checks for status-style verification where appropriate, for
-example checking that a status bit or result register has been updated after a
-transaction. Keep these checks in the model-generated test data so both SV and
-cocotb use the same expected values.
-
-## 9. Generate verification scaffold
+## 8. Generate verification infrastructure
 
 ```bash
 fx setup_tb --force
 fx setup_cocotb --force
 ```
 
-The structure is intentionally aligned with the single-clock flow:
+The multi-clock testbench includes the required domain-specific clock/reset and
+register-interface handling. Behavioral expectations remain in the generated
+vector tests.
 
-```text
-tb/
-├── include_tri_stream_dsp_tb.sv
-├── tri_stream_dsp_tb.sv
-├── drivers/
-│   ├── tri_stream_dsp_tlul_driver.svh
-│   ├── tri_stream_dsp_vec_driver.svh
-│   └── tri_stream_dsp_vec_monitor.svh
-├── tests/
-└── cocotb/
-    ├── Makefile
-    ├── tri_stream_dsp_cocotb_tb.sv
-    ├── tri_stream_dsp_multiclock_test.py
-    └── drivers/
-        ├── reg_driver.py
-        ├── vec_driver.py
-        └── vec_monitor.py
-```
-
-The cocotb wrapper instantiates the top-level DUT and exposes scalar proxy
-signals for TL-UL fields so cocotb does not need to drive packed struct fields
-directly.
-
-## 10. Run verification
-
-Single test:
-
-```bash
-fx sim --set TEST_NAME=mac_smoke
-fx cocotb --set TEST_NAME=mac_smoke
-```
-
-All generated tests:
+## 9. Run verification
 
 ```bash
 fx sim_tests
 fx cocotb_tests
 ```
 
-Waveforms:
+One selected test:
 
 ```bash
-fx view --set TEST_NAME=mac_smoke
-fx view_cocotb --set TEST_NAME=mac_smoke
+fx sim --set TEST_NAME=mac_smoke
+fx cocotb --set TEST_NAME=mac_smoke
 ```
 
-## 11. SDC and signoff
+## 10. Constraints and signoff
 
 Generate the multi-clock SDC scaffold:
 
@@ -239,13 +149,13 @@ Generate the multi-clock SDC scaffold:
 fx sdc_multi --force
 ```
 
-Then run signoff:
+Then run:
 
 ```bash
 fx syn sdf sta power --force
 ```
 
-Corner targets are also available:
+Corner-oriented targets are also available:
 
 ```bash
 fx sta_corners
@@ -253,7 +163,7 @@ fx power_corners
 fx signoff_corners
 ```
 
-## 12. Full flow
+## 11. Complete flow
 
 ```bash
 fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart CLOCK_MODE=multi
@@ -266,6 +176,7 @@ fx flist --force
 fx lint
 fx setup_model --force
 fx tests_gen
+fx tests
 fx setup_tb --force
 fx setup_cocotb --force
 fx sim_tests
@@ -273,3 +184,14 @@ fx cocotb_tests
 fx sdc_multi --force
 fx syn sdf sta power --force
 ```
+
+## 12. E2E regression
+
+The generated single-clock and multi-clock flows are exercised together by:
+
+```bash
+pytest -s tests/test_e2e_fx.py::test_fx_full_flow_debug --no-signoff
+```
+
+The test runs in an isolated `/tmp/flexsoc-full-e2e-...` workspace. Remove
+`--no-signoff` to include synthesis/signoff.

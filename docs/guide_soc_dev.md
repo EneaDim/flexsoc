@@ -1,30 +1,13 @@
 # SoC development guide
 
-The SoC flow builds on the same IP flow. Develop and validate IPs first, then
-integrate them into a SoC top.
+The SoC flow builds on validated IP source. Develop and verify IPs first, then
+load them into a SoC run and add top-level integration.
 
-## 1. IP-first strategy
+## 1. Validate IPs before integration
 
-For each IP:
-
-```bash
-fx settings TOP=<ip> RUN_TOP=<ip> RUN_ID=dev HOST=uart CLOCK_MODE=single
-fx setup hjson reg doc rtl_stub top_from_core --force
-fx flist lint
-fx setup_model --force
-fx tests_gen
-fx setup_tb setup_cocotb --force
-fx sim_tests
-fx cocotb_tests
-```
-
-For multi-clock IPs, use:
-
-```bash
-fx settings TOP=<ip> RUN_TOP=<ip> RUN_ID=dev HOST=uart CLOCK_MODE=multi
-```
-
-and then the same target names.
+For a generated IP, follow the single-clock or multi-clock development guide.
+For a reusable IP already stored under `hw/ips/<top>/`, follow the existing-IP
+guide so custom top/model collateral is preserved.
 
 ## 2. Configure the SoC run
 
@@ -32,20 +15,22 @@ and then the same target names.
 fx settings TOP=soc RUN_TOP=soc RUN_ID=dev HOST=uart CLOCK_MODE=single
 ```
 
-The SoC can integrate single-clock and multi-clock IP collateral, but the SoC top
-has its own top-level integration, filelists, constraints, and verification.
+The SoC has its own top-level RTL, filelists, constraints, verification, and
+signoff state.
 
-## 3. Load or prepare IPs
+## 3. Load reusable IPs
 
-Use the SoC/IP loading targets for the project state you are working with:
+Use the IP-loading targets required by the SoC configuration. A direct IP load
+uses:
 
 ```bash
 fx ip_load --force
 ```
 
-Then inspect the generated SoC layout and filelists before moving to lint.
+When `RUN_TOP` differs from the loaded IP `TOP`, `ip_load` stages the IP below
+the SoC run's `ips/` directory rather than replacing the SoC run itself.
 
-## 4. Filelists and lint before verification
+## 4. Generate filelists and lint
 
 ```bash
 fx flist --force
@@ -57,10 +42,12 @@ fx lint_undriven
 fx lint_unused
 ```
 
-Run lint before modelling or verification so structural integration problems are
-caught early.
+Resolve structural integration problems before building verification around the
+SoC top.
 
-## 5. Model-driven SoC verification
+## 5. Model-driven verification
+
+If the SoC uses the generated single-clock model flow:
 
 ```bash
 fx setup_model --force
@@ -68,7 +55,18 @@ fx tests_gen
 fx tests
 ```
 
-The model creates vector tests under:
+After the behavioral model is customized, do not use `setup_model --force` for
+an HJSON-only update. Refresh generated CSR metadata with:
+
+```bash
+fx reg doc --force
+fx regmap_py --force
+```
+
+The model can combine top-level direct ports and CSR transactions in the same
+scenario.
+
+Generated tests live under:
 
 ```text
 tb/tests/<TEST_NAME>/
@@ -77,23 +75,14 @@ tb/tests/<TEST_NAME>/
 └── data_out.vec
 ```
 
-Use `test_gen` to create or rewrite one test:
-
-```bash
-fx test_gen --set TEST_NAME=my_soc_case
-```
-
-## 6. Verification scaffold
+## 6. Verification infrastructure
 
 ```bash
 fx setup_tb --force
 fx setup_cocotb --force
 ```
 
-The scaffold creates drivers, monitors, and top-level testbench infrastructure.
-It does not define the test vectors.
-
-## 7. Run tests
+Run all generated tests:
 
 ```bash
 fx sim_tests
@@ -107,7 +96,7 @@ fx sim --set TEST_NAME=smoke
 fx cocotb --set TEST_NAME=smoke
 ```
 
-## 8. Host/software flow
+## 7. Host/software flow
 
 For UART-hosted SoC flows, use the SoC host targets when applicable:
 
@@ -118,13 +107,13 @@ fx soc_build_sw
 fx soc_run
 ```
 
-## 9. Signoff
+## 8. Signoff
 
-The SoC has its own top-level constraints. Do not blindly copy an IP SDC into the
-SoC signoff run.
+The SoC owns its top-level timing and physical assumptions. Do not reuse an IP
+constraint file blindly at SoC level.
 
 ```bash
 fx syn sdf sta power --force
 ```
 
-Use `--live` when you want full tool logs on the terminal.
+Add `--live` when full tool logs are needed in the terminal.

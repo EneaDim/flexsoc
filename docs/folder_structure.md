@@ -1,64 +1,99 @@
 # Folder structure
 
-FlexSoC keeps generated files inside a run directory:
+FlexSoC separates versioned source IPs from generated run workspaces.
+
+## Source IPs
+
+Reusable IP source lives under:
 
 ```text
-workspace/runs/<TOP>/<RUN_ID>/
+hw/ips/<top>/
 ```
 
-For example:
+An existing IP can carry its own:
 
 ```text
-workspace/runs/test/dev/
-workspace/runs/tri_stream_dsp/dev/
+hw/ips/<top>/
+├── data/      # HJSON source register maps
+├── doc/       # register documentation
+├── model/     # behavioral model + generated regmap helper
+├── rtl/       # RTL implementation/top/filelists
+├── tb/        # vector tests and verification collateral
+├── syn/       # synthesis collateral
+└── signoff/   # signoff collateral
 ```
 
-## Run directory
+`fx ip_load` copies this source collateral into a run workspace.
+
+## Run workspaces
+
+The default workspace root is `workspace/`, but commands can select another root
+with `--workdir`.
 
 ```text
-workspace/runs/<TOP>/<RUN_ID>/
+<WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
+```
+
+Examples:
+
+```text
+workspace/runs/uart/dev/
+/tmp/flexsoc-uart-e2e-XXXXXX/runs/uart/dev/
+```
+
+A typical run contains:
+
+```text
+runs/<RUN_TOP>/<RUN_ID>/
 ├── data/          # HJSON register descriptions
 ├── doc/           # generated register documentation
-├── logs/          # compact logs, lint logs, verification logs, signoff logs
-├── model/         # editable Python model and generated regmap helpers
-├── pnr_openroad/  # SDC and physical/signoff collateral
-├── rtl/           # generated register RTL, core, wrapper, filelists
+├── logs/          # lint, verification, synthesis, signoff logs
+├── model/         # behavioral model + generated CSR helper
+├── pnr_openroad/  # physical-design collateral
+├── rtl/           # register RTL, implementation, wrappers, filelists
+├── signoff/       # STA/power/SDF collateral
 ├── sim/           # simulation outputs and waveforms
-└── tb/            # verification scaffold and vector tests
+├── syn/           # synthesis collateral/results
+└── tb/            # vector tests and SV/cocotb infrastructure
 ```
 
-## RTL
+## Model ownership
 
-```text
-rtl/
-├── <top>.sv             # top wrapper; this is what the TB instantiates
-├── <top>_core.sv        # user-editable core logic
-├── rtl_common.f         # common packages/primitives/filelist
-└── rtl_ip.f             # generated IP-local RTL/filelist
-```
-
-For multi-clock designs, the wrapper also instantiates the generated regblocks,
-for example:
-
-```text
-rtl/<top>_cfg_reg_top.sv
-rtl/<top>_dsp_reg_top.sv
-rtl/<top>_core.sv
-rtl/<top>.sv
-```
-
-## Model
+Single-clock model directory:
 
 ```text
 model/
-├── model_<top>.py              # editable single-clock model
-├── model_<top>_multiclock.py   # editable multi-clock model
-└── regmap_<top>.py             # generated helper for register names/paths
+├── model_<top>.py   # editable behavioral model
+└── regmap_<top>.py  # generated from HJSON
 ```
 
-`setup_model` creates the editable model scaffold and the generated regmap
-helper. The model is then run by `tests_gen` or `test_gen` to create vector
-files.
+`model_<top>.py` owns:
+
+- behavioral scenarios;
+- functional input stimulus;
+- functional output expectations;
+- the decision of which CSR fields to write/read and when.
+
+`regmap_<top>.py` owns:
+
+- register/domain names;
+- offsets and reset values;
+- fields and access metadata;
+- encoding and masks;
+- `config.regs` serialization;
+- CSR `@write` / `@read` vector serialization.
+
+Refresh the generated CSR helper only:
+
+```bash
+fx regmap_py --force
+```
+
+`fx setup_model --force` rewrites both files and should be treated as a scaffold
+reset after the model has been customized.
+
+The current multi-clock scaffold uses an editable
+`model_<top>_multiclock.py`; see the dedicated multi-clock guide for that flow.
 
 ## Vector tests
 
@@ -69,28 +104,33 @@ tb/tests/<TEST_NAME>/
 └── data_out.vec
 ```
 
-These files are generated from the model. SystemVerilog and cocotb consume these
-files only; they do not import the model during simulation.
+Semantics:
+
+- `config.regs`: initial CSR configuration;
+- `data_in.vec`: direct input drives and/or CSR `@write` operations;
+- `data_out.vec`: direct output checks and/or CSR `@read` expectations.
+
+Both SystemVerilog and cocotb consume these files; simulation does not import
+the behavioral model.
 
 ## SystemVerilog testbench
 
-Single-clock and multi-clock flows use the same layout. The reusable
-SystemVerilog driver and monitor files live under `tb/drivers/`:
-
 ```text
 tb/
-├── include_<top>_tb.sv
-├── <top>_tb.sv
-├── drivers/
-│   ├── <top>_vec_driver.svh
-│   ├── <top>_vec_monitor.svh
-│   └── <top>_tlul_driver.svh      # only when the generated TB needs TL-UL access
+├── sv/
+│   ├── <top>_tb.sv
+│   ├── include_<top>_tb.sv
+│   └── drivers/
+│       ├── <top>_reg_driver.svh
+│       ├── <top>_vec_driver.svh
+│       └── <top>_vec_monitor.svh
+├── cocotb/
 └── tests/
     └── <TEST_NAME>/
 ```
 
-The testbench instantiates `<top>`, not `<top>_core`. To test the core directly,
-set `TOP=<top>_core` explicitly.
+Exact generated filenames can vary by flow, but the ownership is stable:
+verification infrastructure is generated separately from behavioral vectors.
 
 ## cocotb
 
@@ -106,26 +146,28 @@ tb/cocotb/
     └── vec_monitor.py
 ```
 
-For multi-clock TL-UL designs, the cocotb wrapper exposes scalar proxy signals
-instead of asking cocotb to drive packed struct fields directly.
-
 ## Logs
 
 ```text
 logs/
 ├── lint/
-│   ├── <top>_lint_all.log
-│   ├── <top>_lint_width_ip.log
-│   └── raw/
-├── signoff/
-│   ├── <top>_sdf.log
-│   ├── <top>_sta_ss_setup.log
-│   └── <top>_power_tt.log
-└── verification/
-    ├── <top>_sv_compile_<TEST_NAME>.log
-    ├── <top>_sv_sim_<TEST_NAME>.log
-    └── <top>_cocotb_<TEST_NAME>.log
+├── verification/
+└── signoff/
 ```
 
-The terminal shows compact progress by default. Use `--live` for full tool
-output.
+The terminal shows compact progress by default. Add `--live` to an `fx` command
+when full tool output is required.
+
+## E2E workspace policy
+
+`tests/test_e2e_fx.py` never uses the repository `workspace/` tree. It creates
+isolated directories under `/tmp`:
+
+```text
+/tmp/flexsoc-full-e2e-XXXXXX/
+/tmp/flexsoc-cordic-e2e-XXXXXX/
+/tmp/flexsoc-uart-e2e-XXXXXX/
+```
+
+Successful directories are deleted. Failed directories are retained for
+debugging.

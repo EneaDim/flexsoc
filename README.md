@@ -19,35 +19,38 @@ without manually wiring the same scaffolding every time.
 ## What FlexSoC gives you
 
 - 🧩 **IP development flow**  
-  Create a run folder, generate HJSON register maps, register RTL,
-  documentation, RTL stubs, top wrappers, filelists, and verification scaffolds.
+  Generate HJSON register maps, register RTL, documentation, editable RTL
+  scaffolds, wrappers, filelists, and verification infrastructure.
+
+- ♻️ **Existing-IP flow**  
+  Load an IP from `hw/ips/<top>/` into an isolated run, preserve its custom RTL
+  top and behavioral model, regenerate derived register collateral, and run the
+  same lint, verification, synthesis, and signoff stages.
 
 - 🔍 **Lint flow**  
   Run full lint or focused diagnostics for latch, width, unconnected, undriven,
-  and unused issues. Long tool output goes to logs; the terminal stays readable.
+  and unused issues. Detailed tool output is written to logs.
 
 - ✅ **Model-driven verification**  
-  `setup_model` creates an editable Python model. The model generates vector
-  tests under `tb/tests/<TEST_NAME>/`. SystemVerilog and cocotb consume the same
-  generated files: `config.regs`, `data_in.vec`, and `data_out.vec`.
+  The editable Python model owns test behavior. It can combine direct port
+  stimulus/checks with CSR writes/reads generated from the HJSON register map.
+  SystemVerilog and cocotb consume the same generated vector tests.
 
-- 🧪 **SystemVerilog and cocotb testbenches**  
-  Generate ordered verification structure with `tb/drivers/` and
-  `tb/cocotb/drivers/`. Testbenches are generated for the selected top module,
-  not for the core unless you explicitly set `TOP=<name>_core`.
+- 🧪 **Shared vector tests**  
+  Every test is materialized as `config.regs`, `data_in.vec`, and
+  `data_out.vec`, so the expected behavior is visible and simulator-independent.
 
 - ⏱️ **Single-clock and multi-clock IPs**  
-  Use the same command names for both flows. Set `CLOCK_MODE=single` or
-  `CLOCK_MODE=multi`, then run `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`,
-  `fx setup_model`, `fx setup_tb`, and `fx setup_cocotb`.
+  The high-level command names stay consistent; `CLOCK_MODE` selects the
+  appropriate backend flow.
 
 - 🏗️ **Implementation and signoff**  
-  Run synthesis, SDF generation, static timing analysis, and power analysis with
-  Yosys, OpenSTA, and signoff-oriented scripts.
+  Run synthesis, SDF generation, static timing analysis, and power analysis
+  through the same CLI.
 
 - 🌐 **SoC-oriented development**  
-  Stage reusable IPs, build SoC layouts, prepare host-based flows, and keep IP
-  and SoC collateral organized under a common workspace.
+  Stage reusable IPs and integrate them into SoC runs while keeping source IP
+  collateral separate from generated run artifacts.
 
 ## Tools used
 
@@ -55,16 +58,13 @@ FlexSoC orchestrates common open-source RTL and implementation tools instead of
 hiding them:
 
 - `slang`, `sv2v`, and `verible` for SystemVerilog handling;
-- `verilator` for lint and fast simulation;
+- `verilator` for lint and simulation;
 - `cocotb` for Python-driven verification;
 - `yosys` for synthesis;
 - `OpenSTA` for timing and power analysis;
-- `OpenROAD` for physical-design oriented collateral.
+- `OpenROAD` for physical-design-oriented collateral.
 
 ## Install
-
-Use `uv` once to create/sync the environment, then activate it and run `fx`
-directly:
 
 ```bash
 uv sync
@@ -73,7 +73,10 @@ fx --help
 fx commands
 ```
 
-## Single-clock quick flow
+## 🚀 Generated single-clock IP
+
+Use this flow when FlexSoC owns the initial HJSON, RTL scaffold, top wrapper, and
+model scaffold:
 
 ```bash
 fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart CLOCK_MODE=single
@@ -93,14 +96,55 @@ fx tests
 
 fx setup_tb --force
 fx setup_cocotb --force
-
 fx sim_tests
 fx cocotb_tests
 
 fx syn sdf sta power --force
 ```
 
-## Multi-clock quick flow
+`setup_model --force` is a bootstrap/reset operation: it rewrites both
+`model_<top>.py` and `regmap_<top>.py`. After the model has been customized, do
+not use `--force` unless you intentionally want to replace it.
+
+When only the HJSON changes, refresh the generated CSR helper without touching
+the model:
+
+```bash
+fx reg doc --force
+fx regmap_py --force
+```
+
+## ♻️ Existing IP
+
+An existing IP is loaded from `hw/ips/<top>/`. Its RTL top and behavioral model
+are source collateral and may be custom, so the standard existing-IP flow does
+not regenerate them.
+
+```bash
+fx settings TOP=uart RUN_TOP=uart RUN_ID=dev HOST=uart CLOCK_MODE=single
+fx setup --force
+fx ip_load --force
+
+fx reg doc --force
+fx flist --force
+fx lint
+
+fx regmap_py --force
+fx tests_gen --force
+fx tests
+fx setup_tb --force
+fx setup_cocotb --force
+fx sim_tests
+fx cocotb_tests
+```
+
+The standard existing-IP flow intentionally skips `hjson`, `rtl_stub`,
+`top_from_core`, and `setup_model`.
+
+See [Existing IP development](docs/guide_existing_ip_dev.md) for the complete
+ownership rules and flow.
+
+## ⏱️ Multi-clock IP
 
 ```bash
 fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart CLOCK_MODE=multi
@@ -110,17 +154,14 @@ fx hjson --force
 fx reg doc --force
 fx rtl_stub --force
 fx top_from_core --force
-
 fx flist --force
 fx lint
 
 fx setup_model --force
 fx tests_gen
 fx tests
-
 fx setup_tb --force
 fx setup_cocotb --force
-
 fx sim_tests
 fx cocotb_tests
 
@@ -128,96 +169,83 @@ fx sdc_multi --force
 fx syn sdf sta power --force
 ```
 
-## Verification model
+## Verification ownership
 
-The verification flow has clear ownership:
-
-```text
-setup_model        -> create editable model/model_<top>.py and regmap helpers
-tests_gen/test_gen -> generate tb/tests/<TEST_NAME>/ from the model
-setup_tb           -> generate SystemVerilog testbench, drivers, monitor
-setup_cocotb       -> generate cocotb scaffold, drivers, monitor
-sim/cocotb         -> run generated vector tests only
-```
-
-Generated tests are plain files:
+The single-clock model flow has a strict split:
 
 ```text
-tb/tests/<TEST_NAME>/
-├── config.regs
-├── data_in.vec
-└── data_out.vec
+HJSON
+  └── fx regmap_py --force
+        └── model/regmap_<top>.py      generated; do not hand-edit
+
+behavior / scenarios
+  └── model/model_<top>.py             editable
+        └── fx tests_gen
+              └── tb/tests/<TEST_NAME>/
+                  ├── config.regs
+                  ├── data_in.vec
+                  └── data_out.vec
 ```
 
-Generate all tests:
+`model_<top>.py` can mix both verification transports:
 
-```bash
-fx tests_gen
-```
+- direct DUT inputs and output checks;
+- CSR `@write` stimulus and CSR `@read` checks.
 
-Generate or rewrite one test:
-
-```bash
-fx test_gen --set TEST_NAME=my_case
-```
-
-Run one test:
-
-```bash
-fx sim --set TEST_NAME=my_case
-fx cocotb --set TEST_NAME=my_case
-```
-
-Run all generated tests:
-
-```bash
-fx sim_tests
-fx cocotb_tests
-```
+The generated `regmap_<top>.py` owns register names, offsets, fields, reset
+values, access information, encoding, masks, and vector serialization. The
+behavioral model should use those generated objects rather than duplicate CSR
+layout information.
 
 ## Project layout
 
-Most generated work lives under `workspace/runs/<TOP>/<RUN_ID>/`:
+By default, run artifacts live under:
 
 ```text
-workspace/runs/<TOP>/<RUN_ID>/
-├── data/        # HJSON register descriptions
-├── doc/         # generated register documentation
-├── model/       # editable Python model and regmap helpers
-├── rtl/         # generated RTL, core, wrapper, filelists
-├── tb/          # SystemVerilog testbench, drivers, vector tests, cocotb
-├── sim/         # simulation outputs and waveforms
-├── logs/        # lint, verification, signoff, and command logs
-└── pnr_openroad/# timing constraints and implementation collateral
+workspace/runs/<RUN_TOP>/<RUN_ID>/
+├── data/         # HJSON register descriptions
+├── doc/          # generated register documentation
+├── model/        # editable model + generated CSR regmap
+├── rtl/          # register RTL, core/top, filelists
+├── tb/           # SV/cocotb infrastructure and vector tests
+├── sim/          # simulation outputs
+├── logs/         # lint, verification, synthesis, signoff logs
+├── syn/          # synthesis collateral/results
+├── signoff/      # STA/power/SDF collateral
+└── pnr_openroad/ # physical-design collateral
 ```
+
+A different workspace root can be selected with `--workdir`.
 
 ## Documentation
 
-Start here:
+- [Quickstart](docs/quickstart.md) — minimal command sequences and ownership rules.
+- [Single-clock IP development](docs/guide_ip_dev.md) — generated IP workflow.
+- [Existing IP development](docs/guide_existing_ip_dev.md) — preserve custom RTL/model collateral.
+- [Multi-clock IP development](docs/guide_multiclock_ip_dev.md) — multi-clock workflow.
+- [SoC development](docs/guide_soc_dev.md) — IP integration into SoC runs.
+- [Folder structure](docs/folder_structure.md) — source and generated file ownership.
 
-- [Quickstart](docs/quickstart.md) — practical command sequence.
-- [Folder structure](docs/folder_structure.md) — generated folders and files.
-- [IP development guide](docs/guide_ip_dev.md) — single-clock IP workflow.
-- [Multi-clock IP guide](docs/guide_multiclock_ip_dev.md) — multi-clock workflow.
-- [SoC development guide](docs/guide_soc_dev.md) — SoC-oriented workflow.
+## 🧪 End-to-end regression
 
-## End-to-end regression
-
-The full practical regression lives in `tests/test_e2e_fx.py` and is opt-in
-because it runs external EDA tools and can take time:
+The E2E suite runs real `fx` commands and external EDA tools:
 
 ```bash
-FLEXSOC_RUN_E2E=1 pytest -s tests/test_e2e_fx.py
+pytest -s tests/test_e2e_fx.py
 ```
 
-To print full tool output while debugging:
+Skip synthesis/signoff while iterating on frontend and verification stages:
 
 ```bash
-FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_LIVE=1 pytest -s tests/test_e2e_fx.py
+pytest -s tests/test_e2e_fx.py --no-signoff
 ```
 
-To skip signoff while iterating on the frontend/verification flow:
+Stream full `fx` tool output:
 
 ```bash
-FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_SKIP_SIGNOFF=1 pytest -s tests/test_e2e_fx.py
+FLEXSOC_E2E_LIVE=1 pytest -s tests/test_e2e_fx.py --no-signoff
 ```
+
+All E2E runs use isolated workspaces under `/tmp`. Successful temporary
+workspaces are removed automatically; a failed workspace is retained and its
+path is printed for debugging.
