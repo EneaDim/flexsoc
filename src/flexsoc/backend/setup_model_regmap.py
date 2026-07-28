@@ -3,9 +3,9 @@
 
 This module owns all HJSON/reggen-derived model metadata. ``fx setup_model``
 calls :func:`generate` directly while ``fx regmap_py`` uses this module as its
-standalone entry point. The generated ``regmap_<top>.py`` contains only reusable
-CSR structure and serialization helpers; behavioral stimulus and checks belong
-in ``model_<top>.py``.
+standalone entry point. The generated ``<top>_regmap.py`` contains only reusable
+CSR structure and serialization helpers; behavioral code belongs in
+``<top>_model.py`` and test scenarios belong in ``<top>_tests.py``.
 """
 from __future__ import annotations
 
@@ -201,7 +201,7 @@ def _domain_literal(registers: list[RegisterSpec]) -> str:
 
 
 def _emit_python(top: str, sources: list[Path], registers: list[RegisterSpec]) -> str:
-    """Render the dependency-free ``regmap_<top>.py`` helper."""
+    """Render the dependency-free ``<top>_regmap.py`` helper."""
 
     primary_domain = registers[0].domain
     template = dedent(
@@ -210,7 +210,7 @@ def _emit_python(top: str, sources: list[Path], registers: list[RegisterSpec]) -
 
         HJSON source(s): __SOURCE_NAMES__.
         Regenerate with ``fx regmap_py --force``. Behavioral code belongs in
-        ``model___TOP__.py``.
+        ``__TOP___model.py`` and test scenarios belong in ``__TOP___tests.py``.
         """
         from __future__ import annotations
 
@@ -474,10 +474,10 @@ def generate(
     multi: bool = False,
     force: bool = False,
 ) -> Path:
-    """Generate only ``regmap_<top>.py`` from HJSON."""
+    """Generate only ``<top>_regmap.py`` from HJSON."""
 
     model_dir.mkdir(parents=True, exist_ok=True)
-    out_path = model_dir / f"regmap_{top}.py"
+    out_path = model_dir / f"{top}_regmap.py"
     if out_path.exists() and not force:
         return out_path
 
@@ -490,7 +490,7 @@ def generate(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate model/regmap_<top>.py from HJSON.")
+    parser = argparse.ArgumentParser(description="Generate model/<top>_regmap.py from HJSON.")
     parser.add_argument("--top", required=True)
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--model-dir", required=True)

@@ -770,27 +770,27 @@ setup_model_multi: setup ## Generate multi-clock Python model scaffold
 	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit model --tb-dir $(TB_SV_DIR)
 
-tests_gen: setup ## Generate all vector tests from the editable model
+tests_gen: setup ## Generate all vector tests from the editable test catalogue
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[tests_gen]$(RESET) $(BLUE)generate vector tests from model_$(TOP).py$(RESET)"
-	@if [ ! -f "$(MODELDIR)/model_$(TOP).py" ]; then \
-		echo "ERROR: missing model scaffold: $(MODELDIR)/model_$(TOP).py"; \
+	@printf "%b\n" "$(ORANGE)[tests_gen]$(RESET) $(BLUE)generate vector tests from $(TOP)_tests.py$(RESET)"
+	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
+		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
 		echo "Run: fx setup_model --force"; \
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP).py --tests-dir $(TEST_ROOT)
+	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
 
-test_gen: setup ## Generate one vector test selected by TEST_NAME from the editable model
+test_gen: setup ## Generate one vector test selected by TEST_NAME from the editable test catalogue
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[test_gen]$(RESET) $(BLUE)generate TEST_NAME=$(TEST_NAME) from model_$(TOP).py$(RESET)"
-	@if [ ! -f "$(MODELDIR)/model_$(TOP).py" ]; then \
-		echo "ERROR: missing model scaffold: $(MODELDIR)/model_$(TOP).py"; \
+	@printf "%b\n" "$(ORANGE)[test_gen]$(RESET) $(BLUE)generate TEST_NAME=$(TEST_NAME) from $(TOP)_tests.py$(RESET)"
+	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
+		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
 		echo "Run: fx setup_model --force"; \
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP).py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
+	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
 
 tests_gen_multi: setup ## Generate all multi-clock vector tests from the editable model
 	$(call _require_var,TOP)
@@ -854,7 +854,7 @@ tests: ## List generated vector tests without regenerating them
 		echo "  no tests found; run: fx tests_gen or fx tests_gen_multi"; \
 	fi
 
-regmap_py: setup ## Regenerate model/regmap_<top>.py from HJSON
+regmap_py: setup ## Regenerate model/<top>_regmap.py from HJSON
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(MODELDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_model_regmap --top $(TOP) --data-dir $(DATADIR) --model-dir $(MODELDIR) --force
