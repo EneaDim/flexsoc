@@ -2,7 +2,7 @@
 
 HJSON source(s): uart.hjson.
 Regenerate with ``fx regmap_py --force``. Behavioral code belongs in
-``model_uart.py``.
+``uart_model.py`` and test scenarios belong in ``uart_tests.py``.
 """
 from __future__ import annotations
 
@@ -241,12 +241,12 @@ DOMAINS: dict[str, RegisterDomain] = {
                 reset=0x0000003c,
                 mask=0x0000003f,
                 fields=(
-                    Field(name='TXFULL', lsb=0, msb=0, swaccess='ro', hwaccess='hrw', reset=None),
-                    Field(name='RXFULL', lsb=1, msb=1, swaccess='ro', hwaccess='hrw', reset=None),
-                    Field(name='TXEMPTY', lsb=2, msb=2, swaccess='ro', hwaccess='hrw', reset=True),
-                    Field(name='TXIDLE', lsb=3, msb=3, swaccess='ro', hwaccess='hrw', reset=True),
-                    Field(name='RXIDLE', lsb=4, msb=4, swaccess='ro', hwaccess='hrw', reset=True),
-                    Field(name='RXEMPTY', lsb=5, msb=5, swaccess='ro', hwaccess='hrw', reset=True),
+                    Field(name='TXFULL', lsb=0, msb=0, swaccess='ro', hwaccess='hrw', reset=0),
+                    Field(name='RXFULL', lsb=1, msb=1, swaccess='ro', hwaccess='hrw', reset=0),
+                    Field(name='TXEMPTY', lsb=2, msb=2, swaccess='ro', hwaccess='hrw', reset=1),
+                    Field(name='TXIDLE', lsb=3, msb=3, swaccess='ro', hwaccess='hrw', reset=1),
+                    Field(name='RXIDLE', lsb=4, msb=4, swaccess='ro', hwaccess='hrw', reset=1),
+                    Field(name='RXEMPTY', lsb=5, msb=5, swaccess='ro', hwaccess='hrw', reset=1),
                 ),
             ),
             Register(
