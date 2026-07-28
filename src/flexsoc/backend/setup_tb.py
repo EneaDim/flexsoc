@@ -793,6 +793,9 @@ def render_sv_vec_monitor(top: str, outputs: Sequence[str]) -> str:
     Supported rows:
       <cycle> <signal> <expected> [<signal> <expected> ...]
       <cycle> @read <reg_or_addr> <expected> [mask]
+      <valid_signal> <signal> <expected> [<signal> <expected> ...]
+
+    The event-driven form consumes one row whenever ``valid_signal`` is high.
     """
 
     checks = ["  if (1'b0) begin\n    known = 1'b0;\n  end"]
@@ -806,7 +809,9 @@ def render_sv_vec_monitor(top: str, outputs: Sequence[str]) -> str:
     checks_text = "\n".join(checks)
 
     return f"""// Auto-generated vector monitor for {top}.
-// data_out.vec supports both signal checks and register reads.
+// data_out.vec supports fixed-cycle checks, guarded-valid checks and register reads.
+
+int tb_guarded_output_next;
 
 function automatic bit tb_vec_is_dec_char(input byte ch);
   return ch >= 8'h30 && ch <= 8'h39;
@@ -952,6 +957,8 @@ function automatic int tb_last_output_cycle(input string out_path);
   int code;
   int last_cycle;
   logic [31:0] cycle_value;
+  logic [31:0] guard_value;
+  bit guard_known;
   string line;
   string cycle_raw;
   string t0;
@@ -976,6 +983,9 @@ function automatic int tb_last_output_cycle(input string out_path);
 
     if (code < 3) continue;
     if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") continue;
+
+    guard_value = tb_read_output(cycle_raw, guard_known);
+    if (guard_known) continue;
     if (!tb_parse_u32(cycle_raw, cycle_value)) continue;
 
     if (int'(cycle_value) > last_cycle) last_cycle = int'(cycle_value);
@@ -985,11 +995,49 @@ function automatic int tb_last_output_cycle(input string out_path);
   return last_cycle;
 endfunction
 
+function automatic int tb_guarded_output_count(input string out_path);
+  int fd;
+  int code;
+  int count;
+  logic [31:0] ignored;
+  bit known;
+  string line;
+  string first;
+  string t0;
+  string t1;
+  string t2;
+  string t3;
+  string t4;
+  string t5;
+  string t6;
+  string t7;
+
+  count = 0;
+  fd = $fopen(out_path, "r");
+  if (fd == 0) return 0;
+
+  while (!$feof(fd)) begin
+    line = "";
+    void'($fgets(line, fd));
+    tb_tokenize9(line, code, first, t0, t1, t2, t3, t4, t5, t6, t7);
+    if (code < 3) continue;
+    if (first.len() > 0 && first.substr(0, 0) == "#") continue;
+    ignored = tb_read_output(first, known);
+    if (known) count++;
+  end
+
+  $fclose(fd);
+  return count;
+endfunction
+
 task automatic tb_check_outputs(input string out_path, input int cycle);
   int fd;
   int code;
   int expected_cycle;
+  int guarded_index;
   logic [31:0] expected_cycle_value;
+  logic [31:0] guard_value;
+  bit guard_known;
   string cycle_raw;
   string line;
   string t0;
@@ -1003,6 +1051,7 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
 
   fd = $fopen(out_path, "r");
   if (fd == 0) return;
+  guarded_index = 0;
 
   while (!$feof(fd)) begin
     line = "";
@@ -1012,6 +1061,20 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
     if (code < 3) continue;
     if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") continue;
     if (t0.len() > 0 && t0.substr(0, 0) == "#") continue;
+
+    guard_value = tb_read_output(cycle_raw, guard_known);
+    if (guard_known) begin
+      if (guarded_index == tb_guarded_output_next && guard_value[0] === 1'b1) begin
+        tb_check_signal_one(cycle, t0, t1);
+        if (code >= 5) tb_check_signal_one(cycle, t2, t3);
+        if (code >= 7) tb_check_signal_one(cycle, t4, t5);
+        if (code >= 9) tb_check_signal_one(cycle, t6, t7);
+        tb_guarded_output_next++;
+      end
+      guarded_index++;
+      continue;
+    end
+
     if (!tb_parse_u32(cycle_raw, expected_cycle_value)) continue;
 
     expected_cycle = int'(expected_cycle_value);
@@ -1141,6 +1204,8 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   int now_cycle;
   int current_cycle;
   int apply_start;
+  int guarded_total;
+  int guarded_deadline;
   bit cycle_open;
   logic [31:0] cycle_value;
   string cycle_raw;
@@ -1158,7 +1223,9 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   current_cycle = -1;
   cycle_open = 1'b0;
   apply_start = tb_vector_apply_count;
+  tb_guarded_output_next = 0;
   final_cycle = tb_last_output_cycle(data_out_path);
+  guarded_total = tb_guarded_output_count(data_out_path);
 
   fd = $fopen(data_in_path, "r");
   if (fd == 0) begin
@@ -1230,8 +1297,15 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   if (final_cycle < now_cycle + 8) begin
     final_cycle = now_cycle + 8;
   end
+  guarded_deadline = now_cycle + 4096;
 
-  while (now_cycle < final_cycle) begin
+  while (now_cycle < final_cycle || tb_guarded_output_next < guarded_total) begin
+    if (tb_guarded_output_next < guarded_total && now_cycle >= guarded_deadline) begin
+      error_count++;
+      $display("[TB][ERROR] timed out waiting for guarded output row %0d/%0d",
+               tb_guarded_output_next + 1, guarded_total);
+      break;
+    end
     tb_step(data_out_path, now_cycle);
   end
 
