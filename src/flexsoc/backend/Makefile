@@ -754,15 +754,14 @@ setup_cocotb: setup flist ## Generate a cocotb scaffold
 		--clk clk_i --rst rst_ni --rst-active low --period-ns 10 \
 		--sim $(COMPILER)
 
-setup_model: setup ## Generate/update the editable model scaffold
+setup_model: setup ## Generate/update Python model and CSR regmap scaffolds
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_model $(OVERWRITE) \
 		--top $(TOP) \
 		--output-dir $(MODELDIR) \
-		--hjson $(DATADIR)/$(TOP).hjson \
+		--data-dir $(DATADIR) \
 		--rtl-dir $(RTLDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_model_helpers --top $(TOP) --data-dir $(DATADIR) --model-dir $(MODELDIR) $(OVERWRITE)
 
 
 setup_model_multi: setup ## Generate multi-clock Python model scaffold
@@ -855,10 +854,10 @@ tests: ## List generated vector tests without regenerating them
 		echo "  no tests found; run: fx tests_gen or fx tests_gen_multi"; \
 	fi
 
-regmap_py: setup ## Generate model/regmap_<top>.py from RTL register package
+regmap_py: setup ## Regenerate model/regmap_<top>.py from HJSON
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(MODELDIR)
-	$(Q)TOP="$(TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" $(PYTHON) -m flexsoc.backend.gen_model_regmap
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_model_regmap --top $(TOP) --data-dir $(DATADIR) --model-dir $(MODELDIR) --force
 
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv) ## Compile the current testbench
 sim:     $(if $(filter v,$(VSV)),sim_v,sim_sv) ## Run simulation
