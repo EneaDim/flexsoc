@@ -1352,6 +1352,10 @@ ip_save: ## Save run artifacts back to hw/ips
 			if [ -e "$$x" ]; then cp -a "$$x" "$$dst_ip"/; fi; \
 		done; \
 	done; \
+	find "$$dst_ip" -type d \( -name sim_build -o -name __pycache__ \) \
+		-prune -exec rm -rf {} +; \
+	find "$$dst_ip" -type f \( -name results.xml -o -name '*.vcd' -o -name '*.pyc' \) \
+		-delete; \
 	echo "Saved IP from $$src_run to $$dst_ip"
 
 # ============================================================================
