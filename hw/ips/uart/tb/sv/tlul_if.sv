@@ -8,10 +8,10 @@ interface tlul_if (
   import tlul_pkg::*;
 
   // Host to Device
-  tl_h2d_t h2d /*verilator public*/;
+  tl_h2d_t h2d /* simulator public*/;
 
   // Device to Host
-  tl_d2h_t d2h /*verilator public*/;
+  tl_d2h_t d2h /* simulator public*/;
 
   // Modport for driver (testbench)
   modport drv (
