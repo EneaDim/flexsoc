@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 import os
+import shutil
 import subprocess
-from typing import Iterable
+import tempfile
+from typing import Iterable, Iterator
 
 import pytest
 
@@ -44,10 +47,16 @@ def _print_step(args: Iterable[str]) -> None:
     print("\n>>> fx " + " ".join(args), flush=True)
 
 
-def _recent_logs(top: str, run_id: str, limit: int = 8) -> list[Path]:
+def _recent_logs(
+    top: str,
+    run_id: str,
+    limit: int = 8,
+    *,
+    workspace: Path,
+) -> list[Path]:
     """Return the most recently modified log files for one run."""
 
-    log_root = REPO_ROOT / "workspace" / "runs" / top / run_id / "logs"
+    log_root = workspace / "runs" / top / run_id / "logs"
     if not log_root.exists():
         return []
 
@@ -55,10 +64,15 @@ def _recent_logs(top: str, run_id: str, limit: int = 8) -> list[Path]:
     return sorted(logs, key=lambda path: path.stat().st_mtime)[-limit:]
 
 
-def _dump_recent_logs(top: str, run_id: str) -> None:
+def _dump_recent_logs(
+    top: str,
+    run_id: str,
+    *,
+    workspace: Path,
+) -> None:
     """Print recent log paths and the tail of the latest log after a failure."""
 
-    logs = _recent_logs(top, run_id)
+    logs = _recent_logs(top, run_id, workspace=workspace)
 
     print(f"\n[debug] recent logs for TOP={top} RUN_ID={run_id}:", flush=True)
     if not logs:
@@ -81,10 +95,18 @@ def _dump_recent_logs(top: str, run_id: str) -> None:
         print(line, flush=True)
 
 
-def _run_fx(args: list[str], *, top: str | None = None, run_id: str = DEFAULT_RUN_ID) -> None:
+def _run_fx(
+    args: list[str],
+    *,
+    top: str | None = None,
+    run_id: str = DEFAULT_RUN_ID,
+    workspace: Path,
+) -> None:
     """Run one fx command and dump useful logs if it fails."""
 
     full_args = list(args)
+
+    full_args.extend(["--workdir", str(workspace)])
 
     if _live() and full_args and full_args[0] != "settings" and "--live" not in full_args:
         full_args.append("--live")
@@ -96,12 +118,19 @@ def _run_fx(args: list[str], *, top: str | None = None, run_id: str = DEFAULT_RU
         return
 
     if top is not None:
-        _dump_recent_logs(top, run_id)
+        _dump_recent_logs(top, run_id, workspace=workspace)
 
     pytest.fail(f"fx {' '.join(full_args)} failed with exit code {completed.returncode}")
 
 
-def _settings(top: str, *, clock_mode: str, run_id: str = DEFAULT_RUN_ID, host: str = DEFAULT_HOST) -> None:
+def _settings(
+    top: str,
+    *,
+    clock_mode: str,
+    run_id: str = DEFAULT_RUN_ID,
+    host: str = DEFAULT_HOST,
+    workspace: Path,
+) -> None:
     """Select one run configuration before launching flow targets."""
 
     _run_fx(
@@ -112,8 +141,23 @@ def _settings(top: str, *, clock_mode: str, run_id: str = DEFAULT_RUN_ID, host: 
             f"RUN_ID={run_id}",
             f"HOST={host}",
             f"CLOCK_MODE={clock_mode}",
-        ]
+        ],
+        workspace=workspace,
     )
+
+
+@contextmanager
+def _temporary_workspace(prefix: str) -> Iterator[Path]:
+    """Create one isolated /tmp workspace and retain it only after failures."""
+
+    workspace = Path(tempfile.mkdtemp(prefix=prefix, dir="/tmp"))
+    try:
+        yield workspace
+    except BaseException:
+        print(f"[debug] retained failed workspace: {workspace}", flush=True)
+        raise
+    else:
+        shutil.rmtree(workspace, ignore_errors=True)
 
 
 # -----------------------------------------------------------------------------
@@ -121,73 +165,102 @@ def _settings(top: str, *, clock_mode: str, run_id: str = DEFAULT_RUN_ID, host: 
 # -----------------------------------------------------------------------------
 
 
-def _run_generated_rtl_flow(top: str, *, run_id: str = DEFAULT_RUN_ID) -> None:
+def _run_generated_rtl_flow(
+    top: str,
+    *,
+    run_id: str = DEFAULT_RUN_ID,
+    workspace: Path,
+) -> None:
     """Generate the normal editable RTL/model flow for generated examples."""
 
-    _run_fx(["setup", "--force"], top=top, run_id=run_id)
-    _run_fx(["hjson", "--force"], top=top, run_id=run_id)
-    _run_fx(["reg", "doc", "--force"], top=top, run_id=run_id)
-    _run_fx(["rtl_stub", "--force"], top=top, run_id=run_id)
-    _run_fx(["top_from_core", "--force"], top=top, run_id=run_id)
-    _run_fx(["flist", "--force"], top=top, run_id=run_id)
+    _run_fx(["setup", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["hjson", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["reg", "doc", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["rtl_stub", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["top_from_core", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["flist", "--force"], top=top, run_id=run_id, workspace=workspace)
 
 
-def _run_lint_suite(top: str, *, run_id: str = DEFAULT_RUN_ID) -> None:
+def _run_lint_suite(
+    top: str,
+    *,
+    run_id: str = DEFAULT_RUN_ID,
+    workspace: Path,
+) -> None:
     """Run lint and focused lint diagnostics."""
 
-    _run_fx(["lint"], top=top, run_id=run_id)
-    _run_fx(["lint_latch"], top=top, run_id=run_id)
-    _run_fx(["lint_width"], top=top, run_id=run_id)
-    _run_fx(["lint_unconnected"], top=top, run_id=run_id)
-    _run_fx(["lint_undriven"], top=top, run_id=run_id)
-    _run_fx(["lint_unused"], top=top, run_id=run_id)
+    _run_fx(["lint"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["lint_latch"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["lint_width"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["lint_unconnected"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["lint_undriven"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["lint_unused"], top=top, run_id=run_id, workspace=workspace)
 
 
-def _run_generated_model_and_tests(top: str, *, run_id: str = DEFAULT_RUN_ID) -> None:
+def _run_generated_model_and_tests(
+    top: str,
+    *,
+    run_id: str = DEFAULT_RUN_ID,
+    workspace: Path,
+) -> None:
     """Generate model, tests, SV/cocotb testbenches, and run verification."""
 
-    _run_fx(["setup_model", "--force"], top=top, run_id=run_id)
-    _run_fx(["tests_gen"], top=top, run_id=run_id)
-    _run_fx(["tests"], top=top, run_id=run_id)
-    _run_fx(["setup_tb", "--force"], top=top, run_id=run_id)
-    _run_fx(["setup_cocotb", "--force"], top=top, run_id=run_id)
-    _run_fx(["sim_tests"], top=top, run_id=run_id)
-    _run_fx(["cocotb_tests"], top=top, run_id=run_id)
+    _run_fx(["setup_model", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["tests_gen"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["tests"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["setup_tb", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["setup_cocotb", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["sim_tests"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["cocotb_tests"], top=top, run_id=run_id, workspace=workspace)
 
 
-def _run_loaded_ip_tests(top: str, *, run_id: str = DEFAULT_RUN_ID) -> None:
-    """Run verification for an IP loaded from hw/ips without regenerating sources.
+def _run_loaded_ip_tests(
+    top: str,
+    *,
+    run_id: str = DEFAULT_RUN_ID,
+    workspace: Path,
+) -> None:
+    """Run an existing IP through the flow without regenerating IP RTL/model.
 
-    This flow intentionally does not call:
-      - hjson
-      - reg doc
-      - rtl_stub
-      - top_from_core
-      - setup_model
+    The loaded HJSON, RTL top/core, and behavioral model are source artifacts.
+    Register RTL/documentation may be regenerated from HJSON, but the existing
+    top wrapper and model are preserved intentionally.
     """
 
-    _run_fx(["setup", "--force"], top=top, run_id=run_id)
-    _run_fx(["ip_load", "--force"], top=top, run_id=run_id)
-    _run_fx(["flist", "--force"], top=top, run_id=run_id)
+    _run_fx(["setup", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["ip_load", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["reg", "doc", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["flist", "--force"], top=top, run_id=run_id, workspace=workspace)
 
-    _run_lint_suite(top, run_id=run_id)
+    _run_lint_suite(top, run_id=run_id, workspace=workspace)
 
-    _run_fx(["regmap_py", "--force"], top=top, run_id=run_id)
-    _run_fx(["tests_gen", "--force"], top=top, run_id=run_id)
-    _run_fx(["tests"], top=top, run_id=run_id)
-    _run_fx(["setup_tb", "--force"], top=top, run_id=run_id)
-    _run_fx(["setup_cocotb", "--force"], top=top, run_id=run_id)
-    _run_fx(["sim_tests"], top=top, run_id=run_id)
-    _run_fx(["cocotb_tests"], top=top, run_id=run_id)
+    _run_fx(["regmap_py", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["tests_gen", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["tests"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["setup_tb", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["setup_cocotb", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["sim_tests"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["cocotb_tests"], top=top, run_id=run_id, workspace=workspace)
 
 
-def _run_signoff(top: str, *, run_id: str = DEFAULT_RUN_ID, multi_clock: bool = False) -> None:
+def _run_signoff(
+    top: str,
+    *,
+    run_id: str = DEFAULT_RUN_ID,
+    multi_clock: bool = False,
+    workspace: Path,
+) -> None:
     """Run synthesis/signoff targets."""
 
     if multi_clock:
-        _run_fx(["sdc_multi", "--force"], top=top, run_id=run_id)
+        _run_fx(["sdc_multi", "--force"], top=top, run_id=run_id, workspace=workspace)
 
-    _run_fx(["syn", "sdf", "sta", "power", "--force"], top=top, run_id=run_id)
+    _run_fx(
+        ["syn", "sdf", "sta", "power", "--force"],
+        top=top,
+        run_id=run_id,
+        workspace=workspace,
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -195,7 +268,7 @@ def _run_signoff(top: str, *, run_id: str = DEFAULT_RUN_ID, multi_clock: bool = 
 # -----------------------------------------------------------------------------
 
 
-def _run_single_clock_flow(*, run_signoff: bool) -> None:
+def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     """Run the generated single-clock example flow."""
 
     top = os.environ.get("FLEXSOC_SINGLE_TOP", "test")
@@ -204,18 +277,18 @@ def _run_single_clock_flow(*, run_signoff: bool) -> None:
 
     _print_section(f"single-clock generated flow: TOP={top} RUN_ID={run_id}")
 
-    _settings(top, clock_mode="single", run_id=run_id, host=host)
-    _run_generated_rtl_flow(top, run_id=run_id)
-    _run_lint_suite(top, run_id=run_id)
-    _run_generated_model_and_tests(top, run_id=run_id)
+    _settings(top, clock_mode="single", run_id=run_id, host=host, workspace=workspace)
+    _run_generated_rtl_flow(top, run_id=run_id, workspace=workspace)
+    _run_lint_suite(top, run_id=run_id, workspace=workspace)
+    _run_generated_model_and_tests(top, run_id=run_id, workspace=workspace)
 
     if run_signoff:
-        _run_signoff(top, run_id=run_id, multi_clock=False)
+        _run_signoff(top, run_id=run_id, multi_clock=False, workspace=workspace)
     else:
         print("\n>>> skip signoff because --no-signoff was passed", flush=True)
 
 
-def _run_multi_clock_flow(*, run_signoff: bool) -> None:
+def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     """Run the generated multi-clock example flow."""
 
     top = os.environ.get("FLEXSOC_MULTI_TOP", "tri_stream_dsp")
@@ -224,18 +297,18 @@ def _run_multi_clock_flow(*, run_signoff: bool) -> None:
 
     _print_section(f"multi-clock generated flow: TOP={top} RUN_ID={run_id}")
 
-    _settings(top, clock_mode="multi", run_id=run_id, host=host)
-    _run_generated_rtl_flow(top, run_id=run_id)
-    _run_lint_suite(top, run_id=run_id)
-    _run_generated_model_and_tests(top, run_id=run_id)
+    _settings(top, clock_mode="multi", run_id=run_id, host=host, workspace=workspace)
+    _run_generated_rtl_flow(top, run_id=run_id, workspace=workspace)
+    _run_lint_suite(top, run_id=run_id, workspace=workspace)
+    _run_generated_model_and_tests(top, run_id=run_id, workspace=workspace)
 
     if run_signoff:
-        _run_signoff(top, run_id=run_id, multi_clock=True)
+        _run_signoff(top, run_id=run_id, multi_clock=True, workspace=workspace)
     else:
         print("\n>>> skip signoff because --no-signoff was passed", flush=True)
 
 
-def _run_cordic_ip_load_flow(*, run_signoff: bool) -> None:
+def _run_cordic_ip_load_flow(*, run_signoff: bool, workspace: Path) -> None:
     """Run the CORDIC ip_load-backed flow."""
 
     top = os.environ.get("FLEXSOC_CORDIC_TOP", "cordic")
@@ -244,11 +317,36 @@ def _run_cordic_ip_load_flow(*, run_signoff: bool) -> None:
 
     _print_section(f"CORDIC ip_load flow: TOP={top} RUN_ID={run_id}")
 
-    _settings(top, clock_mode="single", run_id=run_id, host=host)
-    _run_loaded_ip_tests(top, run_id=run_id)
+    _settings(top, clock_mode="single", run_id=run_id, host=host, workspace=workspace)
+    _run_loaded_ip_tests(top, run_id=run_id, workspace=workspace)
 
     if run_signoff:
-        _run_signoff(top, run_id=run_id, multi_clock=False)
+        _run_signoff(top, run_id=run_id, multi_clock=False, workspace=workspace)
+    else:
+        print("\n>>> skip signoff because --no-signoff was passed", flush=True)
+
+
+def _run_uart_ip_load_flow(*, run_signoff: bool, workspace: Path) -> None:
+    """Run the UART existing-IP flow entirely in a temporary workspace."""
+
+    top = os.environ.get("FLEXSOC_UART_TOP", "uart")
+    run_id = os.environ.get("FLEXSOC_UART_RUN_ID", DEFAULT_RUN_ID)
+    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
+
+    _print_section(f"UART ip_load flow: TOP={top} RUN_ID={run_id}")
+    print(f"workspace: {workspace}", flush=True)
+
+    _settings(
+        top,
+        clock_mode="single",
+        run_id=run_id,
+        host=host,
+        workspace=workspace,
+    )
+    _run_loaded_ip_tests(top, run_id=run_id, workspace=workspace)
+
+    if run_signoff:
+        _run_signoff(top, run_id=run_id, multi_clock=False, workspace=workspace)
     else:
         print("\n>>> skip signoff because --no-signoff was passed", flush=True)
 
@@ -260,32 +358,54 @@ def _run_cordic_ip_load_flow(*, run_signoff: bool) -> None:
 
 @pytest.mark.e2e
 def test_fx_full_flow_debug(request: pytest.FixtureRequest) -> None:
-    """Run the generated single-clock and multi-clock FlexSoC flows."""
+    """Run generated single- and multi-clock flows in an isolated /tmp workspace."""
 
     run_signoff = _run_signoff_enabled(request)
 
-    _print_section("FlexSoC generated full-flow regression")
-    print(f"repo: {REPO_ROOT}", flush=True)
-    print(f"live output: {_live()}", flush=True)
-    print(f"signoff: {run_signoff}", flush=True)
+    with _temporary_workspace("flexsoc-full-e2e-") as workspace:
+        _print_section("FlexSoC generated full-flow regression")
+        print(f"repo: {REPO_ROOT}", flush=True)
+        print(f"workspace: {workspace}", flush=True)
+        print(f"live output: {_live()}", flush=True)
+        print(f"signoff: {run_signoff}", flush=True)
 
-    _run_single_clock_flow(run_signoff=run_signoff)
-    _run_multi_clock_flow(run_signoff=run_signoff)
+        _run_single_clock_flow(run_signoff=run_signoff, workspace=workspace)
+        _run_multi_clock_flow(run_signoff=run_signoff, workspace=workspace)
 
-    _print_section("FlexSoC generated full-flow regression passed")
+        _print_section("FlexSoC generated full-flow regression passed")
 
 
 @pytest.mark.e2e
 def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
-    """Run CORDIC through ip_load without regenerating editable IP sources."""
+    """Run CORDIC as an existing IP in an isolated /tmp workspace."""
 
     run_signoff = _run_signoff_enabled(request)
 
-    _print_section("FlexSoC CORDIC ip_load regression")
-    print(f"repo: {REPO_ROOT}", flush=True)
-    print(f"live output: {_live()}", flush=True)
-    print(f"signoff: {run_signoff}", flush=True)
+    with _temporary_workspace("flexsoc-cordic-e2e-") as workspace:
+        _print_section("FlexSoC CORDIC ip_load regression")
+        print(f"repo: {REPO_ROOT}", flush=True)
+        print(f"workspace: {workspace}", flush=True)
+        print(f"live output: {_live()}", flush=True)
+        print(f"signoff: {run_signoff}", flush=True)
 
-    _run_cordic_ip_load_flow(run_signoff=run_signoff)
+        _run_cordic_ip_load_flow(run_signoff=run_signoff, workspace=workspace)
 
-    _print_section("FlexSoC CORDIC ip_load regression passed")
+        _print_section("FlexSoC CORDIC ip_load regression passed")
+
+
+@pytest.mark.e2e
+def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
+    """Run UART as an existing IP in an isolated /tmp workspace."""
+
+    run_signoff = _run_signoff_enabled(request)
+
+    with _temporary_workspace("flexsoc-uart-e2e-") as workspace:
+        _print_section("FlexSoC UART ip_load regression")
+        print(f"repo: {REPO_ROOT}", flush=True)
+        print(f"workspace: {workspace}", flush=True)
+        print(f"live output: {_live()}", flush=True)
+        print(f"signoff: {run_signoff}", flush=True)
+
+        _run_uart_ip_load_flow(run_signoff=run_signoff, workspace=workspace)
+
+        _print_section("FlexSoC UART ip_load regression passed")
