@@ -6,7 +6,7 @@ The multi-clock flow mirrors the single-clock flow:
 * reg_multi/doc_multi run regtool on only the selected or changed regmaps.
 * rtl_stub_multi creates an editable core and a wrapper from the core ports.
 * top_from_core_multi refreshes only the wrapper after the core signature changes.
-* setup_model_multi writes the reference model and generated vector tests.
+* setup_model_multi writes behavioral model, generated CSR regmap, and test catalogue.
 * setup_tb_multi/setup_cocotb_multi write verification scaffolds that consume vectors.
 """
 
@@ -17,6 +17,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
+
+from .setup_model_regmap import generate as generate_model_regmap
 
 
 # ---------------------------------------------------------------------------
@@ -645,137 +647,265 @@ def wrapper_from_core(top: str, rtl_dir: Path) -> str:
 # ---------------------------------------------------------------------------
 
 def model_text(top: str) -> str:
-    """Render the editable Python model/test generator."""
+    """Render the editable multi-clock behavioral model."""
 
     return dedent(f'''\
-    #!/usr/bin/env python3
-    """Reference model and vector generator for the {top} multi-clock scaffold.
+    """Editable behavioral reference model for {top}.
 
-    Edit the functions in this file as the RTL changes. Running the file rewrites
-    tb/tests/<name>/config.regs, data_in.vec and data_out.vec. Simulation and
-    cocotb consume only those generated files.
+    This module models the DSP transaction performed by the generated
+    multi-clock RTL scaffold. Test selection, vector serialization and CSR
+    layout live in ``{top}_tests.py`` and ``{top}_regmap.py``.
+
+    Multi-clock completion is event-driven: the generated verification
+    infrastructure consumes expected outputs when ``dsp_valid_o`` asserts,
+    rather than assuming one absolute latency across unrelated clocks.
     """
 
     from __future__ import annotations
 
-    from pathlib import Path
+    from dataclasses import dataclass
 
-    ROOT = Path(__file__).resolve().parents[1] / "tb" / "tests"
-    TESTS = ("mac_smoke", "absdiff", "energy")
+
+    @dataclass(frozen=True)
+    class DspConfig:
+        """Behavioral controls that affect one DSP transaction."""
+
+        gain: int = 0
+        op: int = 0
+        saturate: bool = False
+        threshold: int = 0
+
+
+    @dataclass(frozen=True)
+    class DspInput:
+        """One accepted RX-domain payload."""
+
+        sample: int
+        coeff: int
+
+
+    @dataclass(frozen=True)
+    class DspOutput:
+        """Expected DSP-domain result for one accepted payload."""
+
+        result: int
+        above_threshold: bool
+        overflow: bool
 
 
     def i16(value: int) -> int:
         """Convert a value to signed 16-bit."""
+
         value &= 0xFFFF
         return value - 0x10000 if value & 0x8000 else value
 
 
     def u32(value: int) -> int:
         """Convert a value to unsigned 32-bit."""
-        return value & 0xFFFFFFFF
+
+        return value & 0xFFFF_FFFF
 
 
-    def compute(sample: int, coeff: int, gain: int, op: int, saturate: bool) -> tuple[int, bool]:
-        """Mirror the default RTL DSP operation for one transaction."""
-        sample = i16(sample)
-        coeff = i16(coeff)
-        gain = i16(gain)
-        if op == 1:
-            raw = abs(sample - coeff)
-        elif op == 2:
-            raw = sample * sample + coeff * coeff
-        else:
-            raw = sample * coeff + gain
-        overflow = raw > 0x7FFFFFFF or raw < -0x80000000
-        if saturate and raw > 0x7FFFFFFF:
-            raw = 0x7FFFFFFF
-        elif saturate and raw < -0x80000000:
-            raw = -0x80000000
-        return u32(raw), overflow
+    class ReferenceModel:
+        """Behavioral model of the generated DSP datapath."""
+
+        def reset(self) -> None:
+            """Reset model-owned state.
+
+            The starter DSP is transaction-level and stateless, so there is
+            nothing to clear. Stateful specializations can extend this method.
+            """
+
+            pass
+
+        def compute(self, inputs: DspInput, config: DspConfig) -> DspOutput:
+            """Return the DSP result associated with one accepted RX payload."""
+
+            sample = i16(inputs.sample)
+            coeff = i16(inputs.coeff)
+            gain = i16(config.gain)
+
+            if config.op == 1:
+                raw = abs(sample - coeff)
+            elif config.op == 2:
+                raw = sample * sample + coeff * coeff
+            else:
+                raw = sample * coeff + gain
+
+            overflow = raw > 0x7FFF_FFFF or raw < -0x8000_0000
+            if config.saturate and raw > 0x7FFF_FFFF:
+                raw = 0x7FFF_FFFF
+            elif config.saturate and raw < -0x8000_0000:
+                raw = -0x8000_0000
+
+            result = u32(raw)
+            return DspOutput(
+                result=result,
+                above_threshold=result > (config.threshold & 0xFFFF_FFFF),
+                overflow=overflow,
+            )
+    ''')
 
 
-    def write_lines(path: Path, lines: list[str]) -> None:
-        """Write a generated test file."""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+def tests_text(top: str) -> str:
+    """Render the editable multi-clock test catalogue/vector generator."""
+
+    return dedent(f'''\
+    """Editable multi-clock test catalogue and vector generator for {top}.
+
+    Each scenario owns three explicit sections:
+
+    * ``config`` -> initial domain-qualified CSR writes in ``config.regs``;
+    * ``data_in`` -> RX-domain functional transactions;
+    * ``data_out`` -> DSP-domain expectations consumed when ``dsp_valid_o`` is high.
+
+    Add or change scenarios here without modifying ``{top}_model.py``. CSR
+    names, fields, offsets and masks come only from ``{top}_regmap.py`` and can
+    be refreshed independently with ``fx regmap_py --force``.
+    """
+
+    from __future__ import annotations
+
+    import argparse
+    from dataclasses import dataclass
+    from pathlib import Path
+
+    import {top}_model as model
+    import {top}_regmap as regmap
 
 
-    def write_test(name: str, cfg: dict[str, int], rows: list[tuple[int, int]], root: str | Path = ROOT) -> None:
-        """Generate one multi-clock vector test directory."""
+    TOP = {top!r}
+    TESTS = ("mac_smoke", "absdiff", "energy")
+    CFG = regmap.domain("cfg")
+    DSP = regmap.domain("dsp")
+
+
+    @dataclass(frozen=True)
+    class TestCase:
+        """Configuration plus ordered RX inputs for one scenario."""
+
+        config: model.DspConfig
+        inputs: tuple[model.DspInput, ...]
+
+
+    def config_rows(config: model.DspConfig) -> list[str]:
+        """Serialize initial cfg/dsp-domain CSRs through the generated regmap."""
+
+        return [
+            CFG.GAIN.write(VALUE=int(config.gain) & 0xFFFF),
+            DSP.DSP_CTRL.write(OP=int(config.op), SATURATE=int(config.saturate)),
+            DSP.THRESHOLD.write(VALUE=int(config.threshold) & 0xFFFF_FFFF),
+            # Enable last so synchronized controls and multi-bit gain are stable
+            # before RX/DSP traffic starts.
+            CFG.CTRL.write(ENABLE=1, SOFT_RESET=0, CLK_GATE_EN=0),
+        ]
+
+
+    def input_rows(step: int, inputs: model.DspInput) -> list[str]:
+        """Serialize one ordered RX-domain input transaction."""
+
+        return [
+            f"{{step}} rx_sample_i 0x{{inputs.sample & 0xFFFF:04x}}",
+            f"{{step}} rx_coeff_i 0x{{inputs.coeff & 0xFFFF:04x}}",
+            f"{{step}} rx_valid_i 0x1",
+        ]
+
+
+    def output_rows(step: int, expected: model.DspOutput) -> list[str]:
+        """Serialize one DSP-domain expectation.
+
+        ``step`` records transaction order only. The multi-clock SV/cocotb
+        monitors wait for ``dsp_valid_o`` before consuming the next expected row.
+        """
+
+        return [
+            f"{{step}} dsp_result_o 0x{{expected.result:08x}}",
+            f"{{step}} dsp_valid_o 0x1",
+            f"{{step}} dsp_above_threshold_o 0x{{int(expected.above_threshold)}}",
+            f"{{step}} dsp_overflow_o 0x{{int(expected.overflow)}}",
+        ]
+
+
+    def scenario(name: str) -> TestCase:
+        """Return one built-in multi-clock scenario."""
+
+        if name == "absdiff":
+            return TestCase(
+                config=model.DspConfig(gain=0, op=1, saturate=False, threshold=4),
+                inputs=(model.DspInput(9, 4), model.DspInput(-2, 8)),
+            )
+        if name == "energy":
+            return TestCase(
+                config=model.DspConfig(gain=0, op=2, saturate=False, threshold=0x20),
+                inputs=(model.DspInput(3, 4), model.DspInput(5, 12)),
+            )
+        if name == "mac_smoke":
+            return TestCase(
+                config=model.DspConfig(gain=1, op=0, saturate=False, threshold=0x10),
+                inputs=(
+                    model.DspInput(3, 4),
+                    model.DspInput(7, 2),
+                    model.DspInput(-3, 5),
+                ),
+            )
+        raise ValueError(f"unknown test {{name!r}}; choose one of {{TESTS}}")
+
+
+    def write_test(root: str | Path, name: str) -> None:
+        """Generate ``config.regs``, ``data_in.vec`` and ``data_out.vec``."""
+
+        case = scenario(name)
+        reference = model.ReferenceModel()
         out = Path(root) / name
-        ctrl = cfg.get("ctrl", 0x1)
-        gain = cfg.get("gain", 0)
-        dsp_ctrl = cfg.get("dsp_ctrl", 0)
-        threshold = cfg.get("threshold", 0)
-        write_lines(out / "config.regs", [
-            "# format: <regmap>.<REG> <VALUE>",
-            "# Multi-clock note: write cfg.GAIN while cfg.CTRL.ENABLE is still low.",
-            "# The final cfg.CTRL row enables the RX/DSP domains after config is stable.",
-            f"cfg.GAIN 0x{{gain & 0xFFFFFFFF:08x}}",
-            f"dsp.DSP_CTRL 0x{{dsp_ctrl:08x}}",
-            f"dsp.THRESHOLD 0x{{threshold:08x}}",
-            f"cfg.CTRL 0x{{ctrl:08x}}",
-        ])
+        out.mkdir(parents=True, exist_ok=True)
+
+        regmap.write_config(out / "config.regs", config_rows(case.config))
 
         data_in = [
             "# format: <STEP> <SIGNAL> <VALUE>",
-            "# STEP is an input transaction index for this multi-clock scaffold.",
+            "# STEP is RX transaction order, not an absolute clock cycle.",
         ]
         data_out = [
             "# format: <STEP> <SIGNAL> <VALUE>",
-            "# STEP is an output transaction index; async domains are checked by order.",
+            "# Expected rows are consumed in order when dsp_valid_o asserts.",
         ]
-        op = dsp_ctrl & 0x3
-        saturate = bool(dsp_ctrl & 0x4)
-        for step, (sample, coeff) in enumerate(rows):
-            data_in += [
-                f"{{step}} rx_sample_i 0x{{sample & 0xFFFF:04x}}",
-                f"{{step}} rx_coeff_i 0x{{coeff & 0xFFFF:04x}}",
-                f"{{step}} rx_valid_i 0x1",
-            ]
-            result, overflow = compute(sample, coeff, gain, op, saturate)
-            data_out += [
-                f"{{step}} dsp_result_o 0x{{result:08x}}",
-                f"{{step}} dsp_valid_o 0x1",
-                f"{{step}} dsp_overflow_o 0x{{int(overflow)}}",
-            ]
-        write_lines(out / "data_in.vec", data_in)
-        write_lines(out / "data_out.vec", data_out)
+        for step, inputs in enumerate(case.inputs):
+            expected = reference.compute(inputs, case.config)
+            data_in.extend(input_rows(step, inputs))
+            data_out.extend(output_rows(step, expected))
+
+        (out / "data_in.vec").write_text("\\n".join(data_in) + "\\n", encoding="utf-8")
+        (out / "data_out.vec").write_text("\\n".join(data_out) + "\\n", encoding="utf-8")
 
 
-    def scenario(name: str) -> tuple[dict[str, int], list[tuple[int, int]]]:
-        """Return register config and input rows for one named test.
+    def write_all_tests(
+        root: str | Path,
+        tests: list[str] | tuple[str, ...] | None = None,
+    ) -> None:
+        """Generate requested tests, or the complete catalogue when omitted."""
 
-        Add new tests here. Unknown ad-hoc TEST_NAME values fall back to the
-        mac_smoke pattern, which makes it easy to create a new folder first and
-        then refine the model behavior.
-        """
-        if name == "absdiff":
-            return {{"ctrl": 0x1, "gain": 0, "dsp_ctrl": 0x1, "threshold": 0x4}}, [(9, 4), (-2, 8)]
-        if name == "energy":
-            return {{"ctrl": 0x1, "gain": 0, "dsp_ctrl": 0x2, "threshold": 0x20}}, [(3, 4), (5, 12)]
-        return {{"ctrl": 0x1, "gain": 1, "dsp_ctrl": 0x0, "threshold": 0x10}}, [(3, 4), (7, 2), (-3, 5)]
-
-
-    def write_named_test(root: str | Path, name: str) -> None:
-        """Generate exactly one TEST_NAME folder from scenario()."""
-        cfg, rows = scenario(name)
-        write_test(name, cfg, rows, root)
-
-
-    def write_all_tests(root: str | Path = ROOT, tests: list[str] | tuple[str, ...] | None = None) -> None:
-        """Generate requested tests, or the full TESTS catalogue when omitted."""
         for name in (tests or TESTS):
-            write_named_test(root, name)
+            write_test(root, name)
 
 
     def main() -> int:
-        """Command-line entry point used by tests_gen_multi/test_gen_multi."""
-        import argparse
-        parser = argparse.ArgumentParser(description="Generate multi-clock vector tests from the editable model.")
-        parser.add_argument("--tests-dir", default=str(ROOT))
-        parser.add_argument("--test", action="append", default=[], help="Generate only this TEST_NAME. May be repeated.")
-        parser.add_argument("--list", action="store_true", help="Print the TESTS catalogue and exit.")
+        """CLI entry point used by ``tests_gen_multi`` / ``test_gen_multi``."""
+
+        parser = argparse.ArgumentParser(
+            description="Generate multi-clock vector tests from the editable test catalogue."
+        )
+        parser.add_argument("--tests-dir", default="../tb/tests")
+        parser.add_argument(
+            "--test",
+            action="append",
+            default=[],
+            help="Generate only this TEST_NAME. May be repeated.",
+        )
+        parser.add_argument(
+            "--list",
+            action="store_true",
+            help="Print the TESTS catalogue and exit.",
+        )
         args = parser.parse_args()
         if args.list:
             for test in TESTS:
@@ -788,7 +918,6 @@ def model_text(top: str) -> str:
     if __name__ == "__main__":
         raise SystemExit(main())
     ''')
-
 
 # ---------------------------------------------------------------------------
 # SystemVerilog verification scaffold
@@ -1005,8 +1134,11 @@ def sv_monitor_text(top: str) -> str:
           code = $sscanf(line, "%d %s %h", step, sig, value);
           if (code == 3 && sig == "dsp_result_o") begin
             exp_result[exp_count] = value;
+            exp_above_threshold[exp_count] = 1'b0;
             exp_overflow[exp_count] = 1'b0;
             exp_count++;
+          end else if (code == 3 && sig == "dsp_above_threshold_o" && exp_count > 0) begin
+            exp_above_threshold[exp_count - 1] = value[0];
           end else if (code == 3 && sig == "dsp_overflow_o" && exp_count > 0) begin
             exp_overflow[exp_count - 1] = value[0];
           end
@@ -1025,6 +1157,10 @@ def sv_monitor_text(top: str) -> str:
           if (dsp_valid_o) begin
             if ($unsigned(dsp_result_o) !== exp_result[got_count]) begin
               $display("[TB][ERROR] result[%0d] got=0x%08x exp=0x%08x", got_count, $unsigned(dsp_result_o), exp_result[got_count]);
+              errors++;
+            end
+            if (dsp_above_threshold_o !== exp_above_threshold[got_count]) begin
+              $display("[TB][ERROR] above_threshold[%0d] got=%0d exp=%0d", got_count, dsp_above_threshold_o, exp_above_threshold[got_count]);
               errors++;
             end
             if (dsp_overflow_o !== exp_overflow[got_count]) begin
@@ -1084,6 +1220,7 @@ def sv_tb_text(top: str, testbench: str) -> str:
       integer errors;
 
       logic [31:0] exp_result [0:1023];
+      logic        exp_above_threshold [0:1023];
       logic        exp_overflow [0:1023];
       integer exp_count;
       integer got_count;
@@ -1549,7 +1686,9 @@ def cocotb_monitor_py_text(top: str) -> str:
             _, sig, value = parts[:3]
             value = int(value, 0)
             if sig == \"dsp_result_o\":
-                out.append({\"result\": value, \"overflow\": 0})
+                out.append({\"result\": value, \"above_threshold\": 0, \"overflow\": 0})
+            elif sig == \"dsp_above_threshold_o\" and out:
+                out[-1][\"above_threshold\"] = value & 1
             elif sig == \"dsp_overflow_o\" and out:
                 out[-1][\"overflow\"] = value & 1
         return out
@@ -1564,8 +1703,10 @@ def cocotb_monitor_py_text(top: str) -> str:
             await ReadOnly()
             if bool(dut.dsp_valid_o.value):
                 result = int(dut.dsp_result_o.value) & 0xFFFFFFFF
+                above_threshold = int(dut.dsp_above_threshold_o.value) & 1
                 overflow = int(dut.dsp_overflow_o.value) & 1
                 assert result == expected[got][\"result\"], f\"result[{got}] got=0x{result:08x} exp=0x{expected[got]['result']:08x}\"
+                assert above_threshold == expected[got][\"above_threshold\"], f\"above_threshold[{got}] got={above_threshold} exp={expected[got]['above_threshold']}\"
                 assert overflow == expected[got][\"overflow\"], f\"overflow[{got}] got={overflow} exp={expected[got]['overflow']}\"
                 got += 1
             timeout += 1
@@ -1682,7 +1823,9 @@ def notes_text(top: str, domains: tuple[str, ...], regmaps: tuple[str, ...]) -> 
     - Run `fx rtl_stub_multi --force` when generated RTL must be recreated from existing reg RTL.
     - Edit `rtl/{top}_core.sv` for the design logic.
     - Run `fx top_from_core_multi --force` after changing core ports.
-    - Edit `model/model_{top}_multiclock.py`, then run `fx tests_gen_multi` or `fx test_gen_multi --set TEST_NAME=<name>` to regenerate vectors.
+    - Edit `model/{top}_model.py` for behavioral changes.
+    - Edit `model/{top}_tests.py` to add scenarios, then run `fx tests_gen_multi` or `fx test_gen_multi --set TEST_NAME=<name>`.
+    - Run `fx regmap_py --force` after HJSON-only changes to refresh `model/{top}_regmap.py` without touching model/tests.
     - Edit `tb/drivers/{top}_tlul_driver.svh` for top-level TL-UL config writes.
     - Edit `tb/drivers/{top}_vec_driver.svh` and `tb/drivers/{top}_vec_monitor.svh` for SV verification behavior.
     - Edit `tb/cocotb/drivers/reg_driver.py`, `vec_driver.py`, and `vec_monitor.py` for cocotb behavior.
@@ -1714,12 +1857,24 @@ def emit_top(args: argparse.Namespace) -> None:
 
 
 def emit_model(args: argparse.Namespace) -> None:
-    """Generate the editable Python model/test generator."""
+    """Generate behavioral model, HJSON-derived regmap, and test catalogue."""
 
-    path = args.model_dir / f"model_{args.top}_multiclock.py"
-    wrote = write_file(path, model_text(args.top), args.force)
-    if wrote:
-        path.chmod(0o755)
+    regmap_path = generate_model_regmap(
+        args.top,
+        args.data_dir,
+        args.model_dir,
+        multi=True,
+        force=args.force,
+    )
+    model_path = args.model_dir / f"{args.top}_model.py"
+    tests_path = args.model_dir / f"{args.top}_tests.py"
+    write_file(model_path, model_text(args.top), args.force)
+    wrote_tests = write_file(tests_path, tests_text(args.top), args.force)
+    if wrote_tests:
+        tests_path.chmod(0o755)
+    print(f"Model:  {model_path}")
+    print(f"Regmap: {regmap_path}")
+    print(f"Tests:  {tests_path}")
 
 
 
@@ -1782,6 +1937,7 @@ def remove_stale(args: argparse.Namespace) -> None:
         args.rtl_dir / f"{args.top}_core_multiclock.sv",
         args.signoff_dir / f"{args.top}_multiclock.sdc",
         args.rtl_dir / f"{args.top}_multiclock.sdc",
+        args.model_dir / f"model_{args.top}_multiclock.py",
     ):
         if old.exists():
             old.unlink()

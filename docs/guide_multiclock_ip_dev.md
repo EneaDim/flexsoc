@@ -71,20 +71,32 @@ fx lint_unused
 fx setup_model --force
 ```
 
-With `CLOCK_MODE=multi`, this generates the editable multi-clock model:
+With `CLOCK_MODE=multi`, this generates the same three model-side artifacts
+used by the single-clock flow:
 
 ```text
-model/model_tri_stream_dsp_multiclock.py
+model/
+├── tri_stream_dsp_model.py
+├── tri_stream_dsp_regmap.py
+└── tri_stream_dsp_tests.py
 ```
 
-The current multi-clock scaffold owns its register configuration directly in
-that model. It is a separate implementation from the single-clock
-`regmap_<top>.py` object API described in the single-clock and existing-IP
-guides.
+Ownership is explicit:
 
-Treat `setup_model --force` as a reset of the editable multi-clock model. After
-customizing it, update the model deliberately when HJSON register names or
-semantics change rather than blindly regenerating it.
+- `*_model.py` contains behavioral/reference-model logic only;
+- `*_regmap.py` is generated from all `data/<top>_*.hjson` maps and exposes
+  domain-qualified CSR objects such as `regmap.domain("cfg").CTRL`;
+- `*_tests.py` owns the test catalogue and generates `config.regs`,
+  `data_in.vec`, and `data_out.vec`.
+
+After an HJSON-only change, refresh just the CSR helper:
+
+```bash
+fx regmap_py --force
+```
+
+`setup_model --force` rewrites all three scaffold files and should be treated as
+an intentional reset after model/tests have been customized.
 
 ## 7. Generate vector tests
 
@@ -108,7 +120,7 @@ tb/tests/<TEST_NAME>/
 └── data_out.vec
 ```
 
-Register names in `config.regs` are domain-qualified, for example:
+The generated test catalogue uses the CSR object API, while serialized register names in `config.regs` remain domain-qualified, for example:
 
 ```text
 cfg.GAIN 0x00000001
@@ -123,9 +135,7 @@ fx setup_tb --force
 fx setup_cocotb --force
 ```
 
-The multi-clock testbench includes the required domain-specific clock/reset and
-register-interface handling. Behavioral expectations remain in the generated
-vector tests.
+The multi-clock testbench includes domain-specific clock/reset and register-interface handling. Expected DSP transactions are consumed when `dsp_valid_o` asserts, so asynchronous domains are checked by transaction order rather than one global cycle count.
 
 ## 9. Run verification
 

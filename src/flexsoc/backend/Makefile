@@ -764,9 +764,9 @@ setup_model: setup ## Generate/update Python model and CSR regmap scaffolds
 		--rtl-dir $(RTLDIR)
 
 
-setup_model_multi: setup ## Generate multi-clock Python model scaffold
+setup_model_multi: setup ## Generate multi-clock model, CSR regmap, and test scaffolds
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[setup_model_multi]$(RESET) $(BLUE)generate multi-clock model scaffold$(RESET)"
+	@printf "%b\n" "$(ORANGE)[setup_model_multi]$(RESET) $(BLUE)generate multi-clock model, CSR regmap, and test scaffolds$(RESET)"
 	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit model --tb-dir $(TB_SV_DIR)
 
@@ -792,27 +792,27 @@ test_gen: setup ## Generate one vector test selected by TEST_NAME from the edita
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
 	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
 
-tests_gen_multi: setup ## Generate all multi-clock vector tests from the editable model
+tests_gen_multi: setup ## Generate all multi-clock vector tests from the editable test catalogue
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[tests_gen_multi]$(RESET) $(BLUE)generate vector tests from model_$(TOP)_multiclock.py$(RESET)"
-	@if [ ! -f "$(MODELDIR)/model_$(TOP)_multiclock.py" ]; then \
-		echo "ERROR: missing model scaffold: $(MODELDIR)/model_$(TOP)_multiclock.py"; \
+	@printf "%b\n" "$(ORANGE)[tests_gen_multi]$(RESET) $(BLUE)generate vector tests from $(TOP)_tests.py$(RESET)"
+	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
+		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
 		echo "Run: fx setup_model_multi --force"; \
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP)_multiclock.py --tests-dir $(TEST_ROOT)
+	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
 
-test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_NAME
+test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_NAME from the editable test catalogue
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[test_gen_multi]$(RESET) $(BLUE)generate TEST_NAME=$(TEST_NAME) from model_$(TOP)_multiclock.py$(RESET)"
-	@if [ ! -f "$(MODELDIR)/model_$(TOP)_multiclock.py" ]; then \
-		echo "ERROR: missing model scaffold: $(MODELDIR)/model_$(TOP)_multiclock.py"; \
+	@printf "%b\n" "$(ORANGE)[test_gen_multi]$(RESET) $(BLUE)generate TEST_NAME=$(TEST_NAME) from $(TOP)_tests.py$(RESET)"
+	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
+		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
 		echo "Run: fx setup_model_multi --force"; \
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)$(PYTHON) $(MODELDIR)/model_$(TOP)_multiclock.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
+	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
 
 setup_tb_multi: setup ## Generate a multi-clock SystemVerilog testbench scaffold
 	@mkdir -p $(TB_SV_DIR)
@@ -857,7 +857,7 @@ tests: ## List generated vector tests without regenerating them
 regmap_py: setup ## Regenerate model/<top>_regmap.py from HJSON
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(MODELDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_model_regmap --top $(TOP) --data-dir $(DATADIR) --model-dir $(MODELDIR) --force
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_model_regmap --top $(TOP) --data-dir $(DATADIR) --model-dir $(MODELDIR) $(if $(filter multi multiclock,$(CLOCK_MODE)),--multi,) --force
 
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv) ## Compile the current testbench
 sim:     $(if $(filter v,$(VSV)),sim_v,sim_sv) ## Run simulation

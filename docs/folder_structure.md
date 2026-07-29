@@ -59,22 +59,25 @@ runs/<RUN_TOP>/<RUN_ID>/
 
 ## Model ownership
 
-Single-clock model directory:
+Single- and multi-clock model directories use the same ownership split:
 
 ```text
 model/
-├── model_<top>.py   # editable behavioral model
-└── regmap_<top>.py  # generated from HJSON
+├── <top>_model.py   # editable behavioral/reference model
+├── <top>_regmap.py  # generated from one or more HJSON maps
+└── <top>_tests.py   # editable test catalogue + vector generation
 ```
 
-`model_<top>.py` owns:
+`<top>_model.py` owns the behavioral transformation/state only.
+
+`<top>_tests.py` owns:
 
 - behavioral scenarios;
 - functional input stimulus;
 - functional output expectations;
 - the decision of which CSR fields to write/read and when.
 
-`regmap_<top>.py` owns:
+`<top>_regmap.py` owns:
 
 - register/domain names;
 - offsets and reset values;
@@ -89,11 +92,9 @@ Refresh the generated CSR helper only:
 fx regmap_py --force
 ```
 
-`fx setup_model --force` rewrites both files and should be treated as a scaffold
-reset after the model has been customized.
-
-The current multi-clock scaffold uses an editable
-`model_<top>_multiclock.py`; see the dedicated multi-clock guide for that flow.
+`fx setup_model --force` rewrites all three files and should be treated as a scaffold
+reset after the model or test catalogue has been customized. In multi-clock mode,
+`<top>_regmap.py` combines the generated domain maps from `data/<top>_*.hjson`.
 
 ## Vector tests
 
