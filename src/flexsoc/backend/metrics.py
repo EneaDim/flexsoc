@@ -58,33 +58,145 @@ def marked_section(text: str, start: str, end: str) -> str:
     return text.split(start, 1)[1].split(end, 1)[0]
 
 
-def collect_lint(top: str, run_dir: Path) -> dict[str, Any] | None:
-    """Collect diagnostics from the latest lint-suite outputs."""
+def collect_lint_tool(top: str, run_dir: Path, tool: str) -> dict[str, Any] | None:
+    """Collect one lint backend from its tool-specific logs."""
 
     log_dir = run_dir / "logs" / "lint"
-    full_log = log_dir / f"{top}_lint_all.log"
-    raw_log = log_dir / "raw" / f"{top}_lint_all_raw.log"
+    full_log = log_dir / f"{top}_lint_{tool}_all.log"
+    raw_log = log_dir / "raw" / f"{top}_lint_{tool}_all_raw.log"
     if not full_log.is_file():
         return None
 
     text = read_text(full_log)
-    command = read_text(raw_log).splitlines()[0] if raw_log.is_file() else ""
-    tool = "slang" if "slang" in command else "verilator" if "verilator" in command else "unknown"
-
     diagnostics: dict[str, int] = {}
     for kind in LINT_KINDS:
-        path = log_dir / f"{top}_lint_{kind}_all.log"
+        path = log_dir / f"{top}_lint_{tool}_{kind}_all.log"
         kind_text = read_text(path) if path.is_file() else ""
         diagnostics[kind] = 0 if kind_text.startswith("No ") else line_count(path)
 
     warnings = len(re.findall(r"(?:%Warning-|\bwarning:)", text, flags=re.IGNORECASE))
     errors = len(re.findall(r"(?:%Error-|\berror:)", text, flags=re.IGNORECASE))
+    command = read_text(raw_log).splitlines()[0] if raw_log.is_file() else ""
     return {
-        "tool": tool,
+        "status": "pass" if errors == 0 else "fail",
         "errors": errors,
         "warnings": warnings,
         "diagnostics": diagnostics,
+        "command": command,
         "log": relative(full_log, run_dir),
+    }
+
+
+def collect_lint(top: str, run_dir: Path) -> dict[str, Any] | None:
+    """Collect Slang and Verilator lint independently, in execution order."""
+
+    tools: dict[str, Any] = {}
+    for tool in ("slang", "verilator"):
+        data = collect_lint_tool(top, run_dir, tool)
+        if data is not None:
+            tools[tool] = data
+    if not tools:
+        return None
+    return {
+        "order": ["slang", "verilator"],
+        "status": "pass" if len(tools) == 2 and all(item["status"] == "pass" for item in tools.values()) else "partial",
+        "tools": tools,
+    }
+
+
+def parse_coverage_summary(path: Path) -> dict[str, Any]:
+    """Parse legacy/plain FlexSoC coverage scope totals."""
+
+    scopes: dict[str, Any] = {}
+    if not path.is_file():
+        return scopes
+    for line in read_text(path).splitlines():
+        match = re.match(
+            r"^\s*([A-Za-z_]+)\s+(\d+)(?:/|\s+)(\d+)\s+([0-9.]+)%\s*$",
+            line,
+        )
+        if not match:
+            continue
+        name, hit, total, percent = match.groups()
+        scopes[name] = {"hit": int(hit), "total": int(total), "percent": float(percent)}
+    return scopes
+
+
+def parse_coverage_matrix(path: Path) -> dict[str, Any]:
+    """Read the machine-readable scope-by-type coverage matrix."""
+
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(data, dict) or not isinstance(data.get("scopes"), dict):
+        return {}
+    return data
+
+
+
+def collect_regression(top: str, run_dir: Path) -> dict[str, Any] | None:
+    """Collect generated regression execution and coverage data."""
+
+    test_root = run_dir / "dv" / "functional" / "tests"
+    log_root = run_dir / "logs" / "dv" / "functional" / "regression"
+    coverage_dir = run_dir / "dv" / "functional" / "coverage"
+    tests = sorted(path.name for path in test_root.iterdir() if path.is_dir()) if test_root.is_dir() else []
+    backends: dict[str, Any] = {}
+    patterns = {
+        "sv": (f"{top}_sv_sim_*.log", f"{top}_sv_sim_"),
+        "cocotb": (f"{top}_cocotb_*.log", f"{top}_cocotb_"),
+    }
+    for backend, (pattern, prefix) in patterns.items():
+        backend_dir = log_root / backend
+        logs = sorted(backend_dir.glob(pattern)) if backend_dir.is_dir() else []
+        logged_tests = sorted(
+            path.stem[len(prefix):] for path in logs if path.stem.startswith(prefix)
+        )
+        backends[backend] = {
+            "tests_logged": len(logs),
+            "logged_tests": logged_tests,
+            "missing_tests": sorted(set(tests) - set(logged_tests)),
+            "extra_tests": sorted(set(logged_tests) - set(tests)),
+            "logs": [relative(path, run_dir) for path in logs],
+        }
+
+    summary = coverage_dir / "summary.txt"
+    summary_json = coverage_dir / "summary.json"
+    coverage_matrix = parse_coverage_matrix(summary_json)
+    matrix_scopes = coverage_matrix.get("scopes", {}) if coverage_matrix else {}
+    coverage = {
+        scope: values.get("total", {})
+        for scope, values in matrix_scopes.items()
+        if isinstance(values, dict) and isinstance(values.get("total"), dict)
+    }
+    if not coverage:
+        coverage = parse_coverage_summary(summary)
+    expected = len(tests)
+    regression_ok = bool(
+        expected
+        and all(not data["missing_tests"] for data in backends.values())
+        and (coverage_dir / "merged.dat").is_file()
+        and coverage
+    )
+    if not tests and not any(data["logs"] for data in backends.values()) and not coverage:
+        return None
+    return {
+        "status": "pass" if regression_ok else "partial",
+        "tests": tests,
+        "test_count": expected,
+        "backends": backends,
+        "coverage": coverage,
+        "coverage_matrix": coverage_matrix,
+        "coverage_summary": relative(summary, run_dir) if summary.is_file() else None,
+        "coverage_summary_json": relative(summary_json, run_dir) if summary_json.is_file() else None,
+        "coverage_merged": (
+            relative(coverage_dir / "merged.dat", run_dir)
+            if (coverage_dir / "merged.dat").is_file()
+            else None
+        ),
     }
 
 
@@ -305,19 +417,230 @@ def collect_power_estimate(top: str, run_dir: Path) -> dict[str, Any] | None:
     return result
 
 
-def collect_metrics(top: str, run_dir: Path) -> dict[str, Any]:
-    """Collect the metrics currently available in a run."""
+def status_word(path: Path, log: Path | None = None) -> str:
+    """Return pass/fail/error/unknown from a tool status file or log."""
 
-    metrics: dict[str, Any] = {"schema_version": 2, "top": top}
+    texts: list[str] = []
+    if path.is_file():
+        texts.append(read_text(path))
+    if log is not None and log.is_file():
+        texts.append(read_text(log))
+    text = "\n".join(texts)
+    if re.search(r"\bPASS(?:ED)?\b|DONE \(PASS", text, flags=re.IGNORECASE):
+        return "pass"
+    if re.search(r"DONE \(FAIL|\bFAIL(?:ED)?\b", text, flags=re.IGNORECASE):
+        return "fail"
+    if re.search(r"DONE \(ERROR|\bERROR\b", text, flags=re.IGNORECASE):
+        return "error"
+    return "unknown"
+
+
+def formal_stage(run_dir: Path, workdir: Path, log: Path) -> dict[str, Any] | None:
+    """Collect one SBY task including its persisted status and traces."""
+
+    status = workdir / "status"
+    if not status.is_file() and not log.is_file() and not workdir.is_dir():
+        return None
+    traces = sorted(
+        path
+        for path in workdir.rglob("trace*")
+        if path.is_file() and path.suffix in {".vcd", ".yw", ".v", ".smtc"}
+    ) if workdir.is_dir() else []
+    elapsed = None
+    if log.is_file():
+        elapsed = last_number(r"Elapsed clock time .*?\((\d+)\)", read_text(log), int)
+    result: dict[str, Any] = {
+        "status": status_word(status, log),
+        "workdir": relative(workdir, run_dir) if workdir.exists() else None,
+        "log": relative(log, run_dir) if log.is_file() else None,
+        "trace_count": len(traces),
+    }
+    if elapsed is not None:
+        result["elapsed_s"] = elapsed
+    if traces:
+        result["traces"] = [relative(path, run_dir) for path in traces[:8]]
+    return result
+
+
+def collect_formal(top: str, run_dir: Path) -> dict[str, Any] | None:
+    """Collect CSR and authored-property BMC/prove/cover status."""
+
+    formal = run_dir / "dv" / "formal" / "runs"
+    logs = run_dir / "logs" / "dv" / "formal"
+    specs = {
+        "csr": {
+            "bmc": (formal / "csr" / "prove" / f"{top}_csr_bmc", logs / "csr" / f"{top}_bmc.log"),
+            "prove": (formal / "csr" / "prove" / f"{top}_csr_prove", logs / "csr" / f"{top}_prove.log"),
+            "cover": (formal / "csr" / "cover" / f"{top}_csr_cover", logs / "csr" / f"{top}_cover.log"),
+        },
+        "properties": {
+            "bmc": (formal / "properties" / "prove" / f"{top}_bmc", logs / "properties" / f"{top}_bmc.log"),
+            "prove": (formal / "properties" / "prove" / f"{top}_prove", logs / "properties" / f"{top}_prove.log"),
+            "cover": (formal / "properties" / "cover" / f"{top}_cover", logs / "properties" / f"{top}_cover.log"),
+        },
+    }
+    result: dict[str, Any] = {}
+    for suite, stages in specs.items():
+        suite_data: dict[str, Any] = {}
+        for name, (workdir, log) in stages.items():
+            data = formal_stage(run_dir, workdir, log)
+            if data is not None:
+                suite_data[name] = data
+        if suite_data:
+            result[suite] = suite_data
+    if not result:
+        return None
+    statuses = [stage.get("status") for suite in result.values() for stage in suite.values()]
+    by_stage: dict[str, Any] = {}
+    for stage_name in ("bmc", "prove", "cover"):
+        stage_statuses = [
+            result.get(suite, {}).get(stage_name, {}).get("status")
+            for suite in ("csr", "properties")
+        ]
+        by_stage[stage_name] = {
+            "passed": sum(item == "pass" for item in stage_statuses),
+            "total": 2,
+        }
+    result["summary"] = {
+        "passed": sum(item == "pass" for item in statuses),
+        "observed": len(statuses),
+        "total": 6,
+        "elapsed_s": sum(
+            int(stage.get("elapsed_s", 0))
+            for suite in result.values()
+            if isinstance(suite, dict)
+            for stage in suite.values()
+            if isinstance(stage, dict) and "status" in stage
+        ),
+        "traces": sum(
+            int(stage.get("trace_count", 0))
+            for suite in result.values()
+            if isinstance(suite, dict)
+            for stage in suite.values()
+            if isinstance(stage, dict) and "status" in stage
+        ),
+        "stages": by_stage,
+    }
+    result["status"] = "pass" if len(statuses) == 6 and all(item == "pass" for item in statuses) else "partial"
+    return result
+
+
+def collect_equivalence(top: str, run_dir: Path) -> dict[str, Any] | None:
+    """Collect the RTL-vs-synthesis EQY result."""
+
+    log = run_dir / "logs" / "dv" / "formal" / "equivalence" / f"{top}_rtl_vs_syn.log"
+    result_dir = run_dir / "dv" / "formal" / "equivalence" / "rtl_vs_syn" / f"{top}_rtl_vs_syn"
+    if not log.is_file() and not result_dir.exists():
+        return None
+    status_path = result_dir / "status"
+    status = status_word(status_path, log)
+    if status == "unknown" and log.is_file():
+        text = read_text(log)
+        status = "fail" if re.search(r"\b(?:ERROR|FAIL)\b", text, flags=re.IGNORECASE) else "pass"
+    return {
+        "status": status,
+        "log": relative(log, run_dir) if log.is_file() else None,
+        "result_dir": relative(result_dir, run_dir) if result_dir.exists() else None,
+    }
+
+
+def collect_sdf(top: str, run_dir: Path) -> dict[str, Any] | None:
+    """Collect generated SDF files and their sizes."""
+
+    sdf_dir = run_dir / "signoff" / "sdf"
+    files = sorted(sdf_dir.glob(f"{top}_*.sdf")) if sdf_dir.is_dir() else []
+    if not files:
+        return None
+    corners: dict[str, Any] = {}
+    prefix = f"{top}_"
+    for path in files:
+        corner = path.stem[len(prefix):] if path.stem.startswith(prefix) else path.stem
+        corners[corner] = {"bytes": path.stat().st_size, "path": relative(path, run_dir)}
+    return {"status": "pass", "count": len(files), "corners": corners}
+
+
+def verification_summary(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Summarize functional coverage, formal closure, and RTL equivalence."""
+
+    result: dict[str, Any] = {}
+    regression = metrics.get("regression")
+    if isinstance(regression, dict):
+        coverage = regression.get("coverage", {})
+        result["functional"] = {
+            "status": regression.get("status", "unknown"),
+            "tests": regression.get("test_count", 0),
+            "coverage_all": coverage.get("all"),
+            "coverage_design": coverage.get("design"),
+            "coverage_matrix": regression.get("coverage_matrix", {}),
+        }
+
+    formal = metrics.get("formal")
+    if isinstance(formal, dict):
+        result["formal"] = {
+            "status": formal.get("status", "unknown"),
+            **formal.get("summary", {}),
+        }
+
+    equivalence = metrics.get("equivalence")
+    if isinstance(equivalence, dict):
+        result["equivalence"] = {"status": equivalence.get("status", "unknown")}
+
+    return result
+
+
+def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Summarize whether the current run contains every standard closure stage."""
+
+    stages: dict[str, str] = {}
+    lint = metrics.get("lint")
+    stages["lint"] = str(lint.get("status")) if isinstance(lint, dict) else "missing"
+    regression = metrics.get("regression")
+    stages["regression"] = str(regression.get("status")) if isinstance(regression, dict) else "missing"
+    formal = metrics.get("formal")
+    stages["formal"] = str(formal.get("status")) if isinstance(formal, dict) else "missing"
+    synthesis = metrics.get("synthesis")
+    synthesis_ok = (
+        isinstance(synthesis, dict)
+        and int(synthesis.get("errors", 0)) == 0
+        and bool(synthesis.get("netlist"))
+    )
+    stages["synthesis"] = "pass" if synthesis_ok else "missing"
+    equiv = metrics.get("equivalence")
+    stages["equivalence"] = str(equiv.get("status")) if isinstance(equiv, dict) else "missing"
+    sdf = metrics.get("sdf")
+    stages["sdf"] = str(sdf.get("status")) if isinstance(sdf, dict) else "missing"
+    stages["sta"] = "pass" if metrics.get("sta") else "missing"
+    stages["power"] = "pass" if metrics.get("power_estimate") else "missing"
+    return {
+        "order": ["lint", "regression", "formal", "synthesis", "equivalence", "sdf", "sta", "power"],
+        "stages": stages,
+        "complete": all(status == "pass" for status in stages.values()),
+    }
+
+
+def collect_metrics(top: str, run_dir: Path) -> dict[str, Any]:
+    """Collect functional, formal, synthesis, and signoff status for one run."""
+
+    metrics: dict[str, Any] = {"schema_version": 5, "top": top}
     for name, collector in (
         ("lint", collect_lint),
+        ("regression", collect_regression),
+        ("formal", collect_formal),
         ("synthesis", collect_synthesis),
+        ("equivalence", collect_equivalence),
+        ("sdf", collect_sdf),
         ("sta", collect_sta),
         ("power_estimate", collect_power_estimate),
     ):
         data = collector(top, run_dir)
         if data is not None:
             metrics[name] = data
+    synthesis = metrics.get("synthesis")
+    if isinstance(synthesis, dict):
+        netlist = run_dir / "syn" / f"{top}_synth.v"
+        synthesis["netlist"] = relative(netlist, run_dir) if netlist.is_file() else None
+    metrics["verification"] = verification_summary(metrics)
+    metrics["closure"] = closure_status(metrics)
     return metrics
 
 
@@ -337,141 +660,298 @@ def timing_color(value: float) -> str:
     return "green" if value >= 0 else "red"
 
 
+def coverage_markup(record: dict[str, Any]) -> str:
+    """Render one coverage record without turning coverage into a gate."""
+
+    total = int(record.get("total", 0) or 0)
+    hit = int(record.get("hit", 0) or 0)
+    if total == 0:
+        return "[dim]-[/dim]"
+    percent = float(record.get("percent", 0.0) or 0.0)
+    color = "green" if percent >= 100.0 else "red" if percent <= 0.0 else "yellow"
+    return f"[{color}]{hit}/{total}  {percent:.2f}%[/{color}]"
+
+
+def coverage_matrix_table(matrix: dict[str, Any]) -> Table | None:
+    """Return a readable scope-by-type functional coverage table."""
+
+    scopes = matrix.get("scopes") if isinstance(matrix, dict) else None
+    if not isinstance(scopes, dict) or not scopes:
+        return None
+    types = matrix.get("types", [])
+    if not isinstance(types, list):
+        types = []
+
+    table = Table(box=None, pad_edge=False, header_style="bold cyan")
+    table.add_column("Scope", style="cyan", no_wrap=True)
+    table.add_column("Type", no_wrap=True)
+    table.add_column("Covered", justify="right")
+    table.add_column("Total", justify="right")
+    table.add_column("Coverage", justify="right")
+    for scope in ("design", "registers", "common", "other", "all"):
+        values = scopes.get(scope)
+        if not isinstance(values, dict):
+            continue
+        by_type = values.get("types", {})
+        if not isinstance(by_type, dict):
+            by_type = {}
+        for index, kind in enumerate(types):
+            record = by_type.get(kind, {})
+            if not isinstance(record, dict):
+                record = {}
+            total = int(record.get("total", 0) or 0)
+            hit = int(record.get("hit", 0) or 0)
+            percent = float(record.get("percent", 0.0) or 0.0)
+            pct = "-" if total == 0 else f"{percent:.2f}%"
+            color = "dim" if total == 0 else "green" if percent >= 100.0 else "red" if percent <= 0.0 else "yellow"
+            table.add_row(
+                scope if index == 0 else "",
+                str(kind),
+                str(hit),
+                str(total),
+                f"[{color}]{pct}[/{color}]",
+            )
+        total_record = values.get("total", {})
+        if isinstance(total_record, dict):
+            total = int(total_record.get("total", 0) or 0)
+            hit = int(total_record.get("hit", 0) or 0)
+            percent = float(total_record.get("percent", 0.0) or 0.0)
+            pct = "-" if total == 0 else f"{percent:.2f}%"
+            color = "dim" if total == 0 else "green" if percent >= 100.0 else "red" if percent <= 0.0 else "yellow"
+            table.add_row(
+                "" if types else scope,
+                "[bold]TOTAL[/bold]",
+                f"[bold]{hit}[/bold]",
+                f"[bold]{total}[/bold]",
+                f"[bold {color}]{pct}[/bold {color}]",
+            )
+    return table
+
+
 def metric_table() -> Table:
     """Return one compact two-column metrics table."""
 
     table = Table(show_header=False, box=None, pad_edge=False)
-    table.add_column("Metric", style="dim", no_wrap=True)
+    table.add_column("Metric", style="cyan", no_wrap=True)
     table.add_column("Value")
     return table
 
 
+def status_markup(status: str) -> str:
+    """Return a compact colored status label."""
+
+    colors = {
+        "pass": "bold green",
+        "fail": "bold red",
+        "error": "bold red",
+        "partial": "bold yellow",
+        "missing": "bold dim",
+        "unknown": "bold yellow",
+    }
+    color = colors.get(status, "yellow")
+    return f"[{color}]{status.upper()}[/{color}]"
+
+
 def show_metrics(path: Path) -> None:
-    """Print one aligned colored summary of metrics.json."""
+    """Print a colored end-of-run closure summary from metrics.json."""
 
     if not path.is_file():
         raise FileNotFoundError(f"metrics file not found: {path}; run: fx metrics")
 
     data = json.loads(path.read_text(encoding="utf-8"))
     console = Console()
-    console.print(f"[bold cyan]FlexSoC metrics[/bold cyan] — {data.get('top', 'unknown')}")
+    console.print(f"[bold cyan]FlexSoC run check — {data.get('top', 'unknown')}[/bold cyan]")
+
+    closure = data.get("closure", {})
+    if closure:
+        console.print("\n[bold cyan]Closure[/bold cyan]")
+        table = Table(box=None, pad_edge=False, header_style="bold cyan")
+        table.add_column("Stage")
+        table.add_column("Status")
+        for name in closure.get("order", []):
+            status = str(closure.get("stages", {}).get(name, "missing"))
+            table.add_row(name, status_markup(status))
+        console.print(table)
+        overall = "PASS" if closure.get("complete") else "INCOMPLETE"
+        color = "green" if closure.get("complete") else "yellow"
+        console.print(f"[cyan]Standard closure[/cyan]: [bold {color}]{overall}[/bold {color}]")
+
+    verification = data.get("verification", {})
+    if verification:
+        console.print("\n[bold cyan]Verification summary[/bold cyan]")
+        table = metric_table()
+        functional = verification.get("functional", {})
+        if functional:
+            table.add_row("Functional regression", status_markup(str(functional.get("status", "unknown"))))
+            for label, key in (("Functional coverage", "coverage_all"), ("Design coverage", "coverage_design")):
+                coverage = functional.get(key)
+                if coverage:
+                    table.add_row(label, f"{coverage['hit']}/{coverage['total']}  {coverage['percent']:.2f}%")
+        formal_summary = verification.get("formal", {})
+        if formal_summary:
+            table.add_row(
+                "Formal stages",
+                f"{formal_summary.get('passed', 0)}/{formal_summary.get('total', 6)}  "
+                + status_markup(
+                    "pass"
+                    if formal_summary.get("passed", 0) == formal_summary.get("total", 6)
+                    else "partial"
+                ),
+            )
+            for stage in ("bmc", "prove", "cover"):
+                values = formal_summary.get("stages", {}).get(stage, {})
+                table.add_row(
+                    f"Formal {stage.upper()}",
+                    f"{values.get('passed', 0)}/{values.get('total', 2)}  "
+                    + status_markup(
+                        "pass"
+                        if values.get("passed", 0) == values.get("total", 2)
+                        else "partial"
+                    ),
+                )
+        equivalence = verification.get("equivalence", {})
+        if equivalence:
+            table.add_row("RTL ↔ synthesis", status_markup(str(equivalence.get("status", "unknown"))))
+        console.print(table)
 
     lint = data.get("lint")
     if lint:
-        console.print("\n[bold]Lint[/bold]")
+        console.print("\n[bold cyan]Lint[/bold cyan]  [cyan]Slang → Verilator[/cyan]")
+        table = Table(box=None, pad_edge=False, header_style="bold cyan")
+        table.add_column("Tool")
+        table.add_column("Status")
+        table.add_column("Errors", justify="right")
+        table.add_column("Warnings", justify="right")
+        table.add_column("Latch", justify="right")
+        table.add_column("Width", justify="right")
+        table.add_column("Unused", justify="right")
+        for tool in lint.get("order", []):
+            values = lint.get("tools", {}).get(tool)
+            if not values:
+                table.add_row(tool, status_markup("missing"), "-", "-", "-", "-", "-")
+                continue
+            diag = values.get("diagnostics", {})
+            table.add_row(
+                tool,
+                status_markup(str(values.get("status", "unknown"))),
+                str(values.get("errors", 0)),
+                str(values.get("warnings", 0)),
+                str(diag.get("latch", 0)),
+                str(diag.get("width", 0)),
+                str(diag.get("unused", 0)),
+            )
+        console.print(table)
+
+    regression = data.get("regression")
+    if regression:
+        console.print("\n[bold cyan]Functional regression[/bold cyan]")
         table = metric_table()
-        errors = int(lint.get("errors", 0))
-        warnings = int(lint.get("warnings", 0))
-        table.add_row("Tool", str(lint.get("tool", "unknown")))
-        table.add_row("Errors", f"[{count_color(errors, error=True)}]{errors}[/]")
-        table.add_row("Warnings", f"[{count_color(warnings)}]{warnings}[/]")
-        for name, count in lint.get("diagnostics", {}).items():
-            if count:
-                table.add_row(name.replace("_", " ").title(), f"[yellow]{count}[/yellow]")
+        table.add_row("Status", status_markup(str(regression.get("status", "unknown"))))
+        table.add_row("Generated tests", str(regression.get("test_count", 0)))
+        for backend, values in regression.get("backends", {}).items():
+            table.add_row(f"{backend} logs", str(values.get("tests_logged", 0)))
+        all_cov = regression.get("coverage", {}).get("all")
+        if all_cov:
+            table.add_row("Coverage all", f"{all_cov['hit']}/{all_cov['total']}  {all_cov['percent']:.2f}%")
+        design_cov = regression.get("coverage", {}).get("design")
+        if design_cov:
+            table.add_row("Coverage design", f"{design_cov['hit']}/{design_cov['total']}  {design_cov['percent']:.2f}%")
+        console.print(table)
+
+        matrix_table = coverage_matrix_table(regression.get("coverage_matrix", {}))
+        if matrix_table is not None:
+            console.print("\n[bold cyan]Functional coverage — scope × type[/bold cyan]")
+            console.print(matrix_table)
+
+    formal = data.get("formal")
+    if formal:
+        console.print("\n[bold cyan]Formal[/bold cyan]")
+        table = Table(box=None, pad_edge=False, header_style="bold cyan")
+        table.add_column("Suite")
+        table.add_column("Stage")
+        table.add_column("Status")
+        table.add_column("Time", justify="right")
+        table.add_column("Traces", justify="right")
+        for suite in ("csr", "properties"):
+            for stage in ("bmc", "prove", "cover"):
+                values = formal.get(suite, {}).get(stage)
+                if not values:
+                    table.add_row(suite, stage, status_markup("missing"), "-", "-")
+                    continue
+                elapsed = values.get("elapsed_s")
+                table.add_row(
+                    suite,
+                    stage,
+                    status_markup(str(values.get("status", "unknown"))),
+                    "-" if elapsed is None else f"{elapsed}s",
+                    str(values.get("trace_count", 0)),
+                )
         console.print(table)
 
     synthesis = data.get("synthesis")
     if synthesis:
-        console.print("\n[bold]Synthesis[/bold]")
+        console.print("\n[bold cyan]Synthesis[/bold cyan]")
         table = metric_table()
-        errors = int(synthesis.get("errors", 0))
-        warnings = int(synthesis.get("warnings", 0))
         table.add_row("Strategy", str(synthesis.get("strategy", "unknown")))
-        for label, key in (
-            ("Wires", "wires"),
-            ("Wire bits", "wire_bits"),
-            ("Public wires", "public_wires"),
-            ("Public wire bits", "public_wire_bits"),
-            ("Ports", "ports"),
-            ("Port bits", "port_bits"),
-            ("Cells", "cells"),
-        ):
+        table.add_row("Netlist", str(synthesis.get("netlist", "missing")))
+        for label, key in (("Cells", "cells"), ("Area", "area"), ("Sequential area", "sequential_area")):
             if key in synthesis:
                 table.add_row(label, str(synthesis[key]))
-        total_area = float(synthesis.get("area", 0.0) or 0.0)
-        if total_area:
-            table.add_row("Area", f"{total_area:.3f} liberty")
-        if "sequential_area" in synthesis:
-            sequential_area = float(synthesis["sequential_area"])
-            pct = synthesis.get("sequential_area_pct")
-            value = f"{sequential_area:.3f} liberty"
-            if pct is not None:
-                value += f" ({float(pct):.2f}%)"
-            table.add_row("Sequential area", value)
-            if total_area >= sequential_area:
-                combinational_area = total_area - sequential_area
-                combinational_pct = 100.0 * combinational_area / total_area if total_area else 0.0
-                table.add_row(
-                    "Combinational area",
-                    f"{combinational_area:.3f} liberty ({combinational_pct:.2f}%)",
-                )
-        cell_types = synthesis.get("cell_types", {})
-        if cell_types:
-            table.add_row("Cell types", str(len(cell_types)))
+        errors = int(synthesis.get("errors", 0))
+        warnings = int(synthesis.get("warnings", 0))
         table.add_row("Errors", f"[{count_color(errors, error=True)}]{errors}[/]")
         table.add_row("Warnings", f"[{count_color(warnings)}]{warnings}[/]")
         console.print(table)
 
-        if cell_types:
-            ranked = sorted(
-                cell_types.items(),
-                key=lambda item: float(item[1].get("area", 0.0)),
-                reverse=True,
-            )[:8]
-            console.print("[bold]Top cell types by area[/bold]")
-            cells = Table(box=None, pad_edge=False)
-            cells.add_column("Cell type")
-            cells.add_column("Count", justify="right")
-            cells.add_column("Area", justify="right")
-            cells.add_column("Area %", justify="right")
-            for cell_type, values in ranked:
-                cell_area = float(values.get("area", 0.0))
-                pct = 100.0 * cell_area / total_area if total_area else 0.0
-                cells.add_row(
-                    cell_type,
-                    str(values.get("count", "-")),
-                    f"{cell_area:.3f}",
-                    f"{pct:.2f}%",
-                )
-            console.print(cells)
+    equiv = data.get("equivalence")
+    if equiv:
+        console.print("\n[bold cyan]RTL ↔ synthesis equivalence[/bold cyan]")
+        table = metric_table()
+        table.add_row("Status", status_markup(str(equiv.get("status", "unknown"))))
+        table.add_row("Log", str(equiv.get("log", "-")))
+        console.print(table)
+
+    sdf = data.get("sdf")
+    if sdf:
+        console.print("\n[bold cyan]SDF[/bold cyan]")
+        table = Table(box=None, pad_edge=False, header_style="bold cyan")
+        table.add_column("Corner")
+        table.add_column("Bytes", justify="right")
+        table.add_column("Artifact")
+        for corner, values in sdf.get("corners", {}).items():
+            table.add_row(corner, str(values.get("bytes", 0)), str(values.get("path", "-")))
+        console.print(table)
 
     sta = data.get("sta")
     if sta:
-        console.print("\n[bold]STA[/bold]")
-        table = Table(box=None, pad_edge=False)
+        console.print("\n[bold cyan]STA[/bold cyan]")
+        table = Table(box=None, pad_edge=False, header_style="bold cyan")
         table.add_column("Corner")
         table.add_column("Mode")
         table.add_column("WNS", justify="right")
         table.add_column("TNS", justify="right")
-        table.add_column("Reported viol.", justify="right")
-        table.add_column("Unconstrained", justify="right")
+        table.add_column("Viol.", justify="right")
+        table.add_column("Unconstr.", justify="right")
         for corner, modes in sta.items():
             for mode, values in modes.items():
                 wns = values.get("wns")
                 tns = values.get("tns")
                 wns_text = "-" if wns is None else f"[{timing_color(float(wns))}]{wns}[/]"
                 tns_text = "-" if tns is None else f"[{timing_color(float(tns))}]{tns}[/]"
-                violating = int(values.get("reported_violating_paths", 0))
-                unconstrained = int(values.get("reported_unconstrained_paths", 0))
                 table.add_row(
                     corner,
                     mode,
                     wns_text,
                     tns_text,
-                    f"[{count_color(violating)}]{violating}[/]",
-                    f"[{count_color(unconstrained)}]{unconstrained}[/]",
+                    str(values.get("reported_violating_paths", 0)),
+                    str(values.get("reported_unconstrained_paths", 0)),
                 )
         console.print(table)
 
     power = data.get("power_estimate")
     if power:
-        activity = power.get("activity_transitions_per_cycle", "-")
-        duty = power.get("duty", "-")
-        console.print(
-            f"\n[bold]Power estimate[/bold]  "
-            f"activity={activity} transitions/cycle  duty={duty}"
-        )
-        table = Table(box=None, pad_edge=False)
+        console.print("\n[bold cyan]Power estimate[/bold cyan]")
+        table = Table(box=None, pad_edge=False, header_style="bold cyan")
         table.add_column("Corner")
         table.add_column("Total W", justify="right")
         table.add_column("Internal W", justify="right")

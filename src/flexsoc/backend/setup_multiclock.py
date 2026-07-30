@@ -1441,22 +1441,28 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     return dedent(f"""\
     SIM ?= verilator
     TOPLEVEL_LANG ?= verilog
-    TOPLEVEL = {top}_cocotb_tb
-    MODULE = {top}_multiclock_test
-    EXTRA_ARGS += -f $(PWD)/../../rtl/rtl_common.f
-    EXTRA_ARGS += -f $(PWD)/../../rtl/rtl_ip.f
+    COCOTB_TOPLEVEL = {top}_cocotb_tb
+    COCOTB_TEST_MODULES = {top}_multiclock_test
+    EXTRA_ARGS += -f $(PWD)/../../../../rtl/rtl_common.f
+    EXTRA_ARGS += -f $(PWD)/../../../../rtl/rtl_ip.f
     VERILOG_SOURCES += $(PWD)/{top}_cocotb_tb.sv
-    EXTRA_ARGS += --top-module $(TOPLEVEL)
     EXTRA_ARGS += -Wno-fatal
     export TEST_NAME ?= mac_smoke
     SEED ?= 1
     HDL_COVERAGE ?= 0
     COVERAGE_FILE ?= $(abspath ../../coverage/cocotb/$(TEST_NAME).dat)
+
+    # FlexSoC reserves COVERAGE for HDL coverage. Cocotb 2.x also treats
+    # COVERAGE as deprecated Python user-code coverage, so clear the legacy
+    # cocotb variable while HDL_COVERAGE carries the Verilator setting.
+    override COVERAGE :=
+    unexport COVERAGE
+
     ifeq ($(SIM),verilator)
-      PLUSARGS += +verilator+seed+$(SEED)
+      COCOTB_PLUSARGS += +verilator+seed+$(SEED)
       ifeq ($(HDL_COVERAGE),1)
         EXTRA_ARGS += --coverage
-        PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
+        COCOTB_PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
       endif
     endif
     export FLEXSOC_SEED := $(SEED)

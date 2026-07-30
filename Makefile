@@ -24,11 +24,11 @@ help: ## Show this help
 		'  make lock                              Resolve and write uv.lock' \
 		'  make sync                              Install exactly the locked Python environment' \
 		'  make doctor                            Check Python lock and local EDA tools' \
-		'  make check                             Run Ruff + default E2E regression' \
-		'  make test                              Run E2E + Verilator/Slang lint + Slang AST, no signoff' \
-		'  make test SIGNOFF=1                    Include synthesis/signoff stages' \
+		'  make check                             Run Ruff + full E2E closure' \
+		'  make test                              Run full E2E incl. formal/syn/equiv/SDF/STA/power' \
+		'  make test-smoke                        Run E2E without formal/synthesis/signoff' \
 		'  make test E2E_ROOT=~/flexsoc-e2e       Choose where E2E workspaces are created' \
-		'  make test SIGNOFF=1 E2E_ROOT=~/fx-e2e  Combine signoff and custom workspace root' \
+		'  make test SIGNOFF=0 E2E_ROOT=~/fx-e2e  Explicitly skip signoff for a custom run' \
 		'  make test-live                         Stream fx subprocess output live' \
 		'  make test-api                          Run fast Python/API tests only' \
 		'  uv run fx --help                       Show hardware-flow targets' \
@@ -61,24 +61,27 @@ fix: ## Run Ruff with --fix
 	@echo ">> Running Ruff --fix"
 	@$(UV) run --no-sync $(RUFF) check --fix $(LINT_PATHS)
 
-check: lint test ## Run Ruff + default E2E regression
+check: lint test ## Run Ruff + full E2E closure
 
 ##@ Tests
-# E2E is the default test surface. Signoff is opt-in so the normal developer
-# loop stays fast, while the workspace root can be moved outside /tmp when a
-# run should be inspected or retained on a larger filesystem.
-.PHONY: test test-live test-api
+# E2E is the default test surface. Full formal/synthesis/signoff closure is on
+# by default; SIGNOFF=0 is an explicit fast smoke/debug opt-out. The workspace
+# root can be moved outside /tmp when a run should be inspected or retained.
+.PHONY: test test-smoke test-live test-api
 
 FLEXSOC_E2E_FX ?= $(UV) run --no-sync fx
 FLEXSOC_E2E_LIVE ?= 0
 E2E_ROOT ?= /tmp
-SIGNOFF ?= 0
+SIGNOFF ?= 1
 E2E_SIGNOFF_ARG := $(if $(filter 1 true yes on,$(SIGNOFF)),,--no-signoff)
 
-test: ## Run E2E incl. Verilator/Slang lint + Slang AST (SIGNOFF=0, E2E_ROOT=/tmp)
+test: ## Run full E2E closure (SIGNOFF=1 by default, E2E_ROOT=/tmp)
 	FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_LIVE=$(FLEXSOC_E2E_LIVE) FLEXSOC_E2E_FX="$(FLEXSOC_E2E_FX)" $(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_SIGNOFF_ARG) --e2e-root "$(E2E_ROOT)"
 
-test-live: ## Run the E2E regression with live fx output
+test-smoke: ## Run E2E without formal/synthesis/signoff
+	$(MAKE) test SIGNOFF=0 E2E_ROOT="$(E2E_ROOT)"
+
+test-live: ## Run the full E2E closure with live fx output
 	$(MAKE) test FLEXSOC_E2E_LIVE=1 SIGNOFF=$(SIGNOFF) E2E_ROOT="$(E2E_ROOT)"
 
 test-api: ## Run fast Python/API tests only

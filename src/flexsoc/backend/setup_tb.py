@@ -1100,13 +1100,14 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
 endtask
 """
 
-def render_sv_vec_driver(top: str, clk: str, inputs: Sequence[str], outputs: Sequence[str]) -> str:
+def render_sv_vec_driver(top: str, clk: str, rst: str, inputs: Sequence[str], outputs: Sequence[str]) -> str:
     """Render generic input-vector drive tasks from data_in.vec.
 
     Supported rows:
       <cycle> <signal> <value> [<signal> <value> ...]
       <cycle> @write <reg_or_addr> <data> [mask]
       <cycle> @cfg <path>
+      <cycle> @reset <cycles>
     """
 
     drives = ["  if (1'b0) begin\n    tb_vector_apply_count = tb_vector_apply_count;\n  end"]
@@ -1121,7 +1122,7 @@ def render_sv_vec_driver(top: str, clk: str, inputs: Sequence[str], outputs: Seq
     drives_text = "\n".join(drives)
 
     return f"""// Auto-generated vector driver for {top}.
-// data_in.vec supports signal drives, @write register operations, and @cfg.
+// data_in.vec supports signal drives, @write, @cfg, and @reset.
 
 int tb_vector_apply_count;
 
@@ -1163,6 +1164,15 @@ task automatic tb_step(input string data_out_path, inout int now_cycle);
   @(posedge {clk}); #1;
   now_cycle++;
   tb_check_outputs(data_out_path, now_cycle);
+endtask
+
+task automatic tb_apply_reset(input int cycles, input string data_out_path, inout int now_cycle);
+  int i;
+  {rst} = 1'b0;
+  for (i = 0; i < cycles; i++) tb_step(data_out_path, now_cycle);
+  @(negedge {clk}); #1;
+  {rst} = 1'b1;
+  tb_vector_apply_count++;
 endtask
 
 task automatic tb_finish_cycle(input string data_out_path, inout int now_cycle, inout bit cycle_open);
@@ -1208,6 +1218,7 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   int guarded_deadline;
   bit cycle_open;
   logic [31:0] cycle_value;
+  logic [31:0] reset_cycles;
   string cycle_raw;
   string line;
   string t0;
@@ -1255,6 +1266,16 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
       $display("[TB][CFG] cycle=%0d path=%s", cycle, t1);
       run_reg_config(t1);
       tb_vector_apply_count++;
+      continue;
+    end
+
+    if (t0 == "@reset" || t0 == "reset") begin
+      tb_finish_cycle(data_out_path, now_cycle, cycle_open);
+      tb_wait_before_drive(cycle, data_out_path, now_cycle);
+      current_cycle = -1;
+      if (!tb_parse_u32(t1, reset_cycles) || reset_cycles == 0) reset_cycles = 2;
+      $display("[TB][RESET] cycle=%0d cycles=%0d", cycle, reset_cycles);
+      tb_apply_reset(int'(reset_cycles), data_out_path, now_cycle);
       continue;
     end
 
@@ -1357,6 +1378,7 @@ def write_sv_verification_helpers(
     ensure_dir(out)
 
     clk = (sig.get("clks") or ["clk_i"])[0]
+    rst = (sig.get("rsts") or ["rst_ni"])[0]
     config_registers = _register_entries(hjson_path)
     lookup_registers = _register_lookup_entries(hjson_path)
     inputs, outputs = _simple_datapath_ports(sig)
@@ -1375,7 +1397,7 @@ def write_sv_verification_helpers(
 
     if bus_active or (inputs and outputs):
         files[stale_vec_files[0]] = render_sv_vec_monitor(top, outputs)
-        files[stale_vec_files[1]] = render_sv_vec_driver(top, clk, inputs, outputs)
+        files[stale_vec_files[1]] = render_sv_vec_driver(top, clk, rst, inputs, outputs)
     else:
         for stale in stale_vec_files:
             if stale.exists():
@@ -1868,19 +1890,13 @@ def render_testbench(top: str,
         lines.append("    forever #(CLK_PERIOD / 2) " + f"{c} = ~{c};")
         lines.append("  end\n")
 
-    # VCD
-    lines.append("  // Dump VCD")
-    lines.append("  string vcd_path;")
+    # Waveform path is supplied per test by the Makefile. Verilator selects
+    # FST at compile time; other simulators keep the portable VCD fallback.
+    lines.append("  string wave_path;")
     lines.append("  initial begin")
-    lines.append('    if (!$value$plusargs("VCD=%s", vcd_path)) begin')
-    lines.append("      `ifndef SYN")
-    lines.append('        vcd_path = "";')
-    lines.append("      `else")
-    lines.append('        vcd_path = "";')
-    lines.append("      `endif")
-    lines.append("    end")
-    lines.append('    $display("[TB] dumpfile = %s", vcd_path);')
-    lines.append("    $dumpfile(vcd_path);")
+    lines.append('    if (!$value$plusargs("WAVE=%s", wave_path)) wave_path = "";')
+    lines.append('    $display("[TB] dumpfile = %s", wave_path);')
+    lines.append("    $dumpfile(wave_path);")
     lines.append(f"    $dumpvars(0, {top}_tb);")
     lines.append("  end\n")
 
@@ -2010,19 +2026,13 @@ def render_simple_testbench(top: str,
         lines.append(f"    forever #(CLK_PERIOD/2) {c} = ~{c};")
         lines.append("  end\n")
 
-    # VCD
-    lines.append("  // Dump VCD")
-    lines.append("  string vcd_path;")
+    # Waveform path is supplied per test by the Makefile. Verilator selects
+    # FST at compile time; other simulators keep the portable VCD fallback.
+    lines.append("  string wave_path;")
     lines.append("  initial begin")
-    lines.append('    if (!$value$plusargs("VCD=%s", vcd_path)) begin')
-    lines.append("      `ifndef SYN")
-    lines.append('        vcd_path = "";')
-    lines.append("      `else")
-    lines.append('        vcd_path = "";')
-    lines.append("      `endif")
-    lines.append("    end")
-    lines.append('    $display("[TB] dumpfile = %s", vcd_path);')
-    lines.append("    $dumpfile(vcd_path);")
+    lines.append('    if (!$value$plusargs("WAVE=%s", wave_path)) wave_path = "";')
+    lines.append('    $display("[TB] dumpfile = %s", wave_path);')
+    lines.append("    $dumpfile(wave_path);")
     lines.append(f"    $dumpvars(0, {top}_tb);")
     lines.append("  end\n")
     # UART HOST TASK
@@ -2382,7 +2392,7 @@ def _cordic_vec_monitor(top: str) -> str:
 def _cordic_vec_driver(top: str) -> str:
     """Compatibility wrapper: use the generic signal/register vector driver."""
 
-    return render_sv_vec_driver(top, "clk_i", [], [])
+    return render_sv_vec_driver(top, "clk_i", "rst_ni", [], [])
 
 def _noop_vec_monitor(top: str) -> str:
     """Render a no-op monitor that satisfies the generic driver contract."""

@@ -95,6 +95,18 @@ RUN_DIR     ?= $(OUTROOT)
 DV_DIR ?= $(RUN_DIR)/dv
 FUNCTIONALDIR ?= $(DV_DIR)/functional
 FORMALDIR ?= $(DV_DIR)/formal
+FORMAL_CSR_DIR ?= $(FORMALDIR)/csr
+FORMAL_CSR_PROVE_DIR ?= $(FORMAL_CSR_DIR)/prove
+FORMAL_CSR_COVER_DIR ?= $(FORMAL_CSR_DIR)/cover
+FORMAL_PROPERTIES_DIR ?= $(FORMALDIR)/properties
+FORMAL_PROVE_PROPERTIES_DIR ?= $(FORMAL_PROPERTIES_DIR)/prove
+FORMAL_COVER_PROPERTIES_DIR ?= $(FORMAL_PROPERTIES_DIR)/cover
+FORMAL_RUN_DIR ?= $(FORMALDIR)/runs
+FORMAL_PROVE_DIR ?= $(FORMAL_RUN_DIR)/properties/prove
+FORMAL_COVER_DIR ?= $(FORMAL_RUN_DIR)/properties/cover
+FORMAL_CSR_PROVE_RUN_DIR ?= $(FORMAL_RUN_DIR)/csr/prove
+FORMAL_CSR_COVER_RUN_DIR ?= $(FORMAL_RUN_DIR)/csr/cover
+EQUIVDIR ?= $(FORMALDIR)/equivalence/rtl_vs_syn
 TB_DIR ?= $(FUNCTIONALDIR)/tb
 SV_TB_DIR := $(TB_DIR)/sv
 
@@ -104,11 +116,20 @@ SV_TB_DIR := $(TB_DIR)/sv
 LOGDIR         ?= $(OUTROOT)/logs
 VERIFY_LOGDIR  ?= $(LOGDIR)/dv/functional
 COVERAGEDIR    ?= $(FUNCTIONALDIR)/coverage
+COVERAGE_SUMMARY_JSON ?= $(COVERAGEDIR)/summary.json
 COVERAGE_ANNOTATEDDIR ?= $(COVERAGEDIR)/annotated
 COVERAGE_DETAIL_LIMIT ?= 0
 COVERAGE_LOGDIR ?= $(VERIFY_LOGDIR)/coverage
 COVERAGE_DETAIL_LOG ?= $(COVERAGE_LOGDIR)/$(TOP)_coverage_detail.log
 REGRESSION_LOGDIR ?= $(VERIFY_LOGDIR)/regression
+FORMAL_LOGDIR ?= $(abspath $(LOGDIR)/dv/formal)
+FORMAL_BMC_LOG ?= $(FORMAL_LOGDIR)/properties/$(TOP)_bmc.log
+FORMAL_PROVE_LOG ?= $(FORMAL_LOGDIR)/properties/$(TOP)_prove.log
+FORMAL_COVER_LOG ?= $(FORMAL_LOGDIR)/properties/$(TOP)_cover.log
+FORMAL_CSR_BMC_LOG ?= $(FORMAL_LOGDIR)/csr/$(TOP)_bmc.log
+FORMAL_CSR_PROVE_LOG ?= $(FORMAL_LOGDIR)/csr/$(TOP)_prove.log
+FORMAL_CSR_COVER_LOG ?= $(FORMAL_LOGDIR)/csr/$(TOP)_cover.log
+EQUIV_LOG ?= $(FORMAL_LOGDIR)/equivalence/$(TOP)_rtl_vs_syn.log
 SYNTH_LOGDIR   ?= $(LOGDIR)/synthesis
 SIGNOFF_LOGDIR ?= $(LOGDIR)/signoff
 SV_COMPILE_LOG ?= $(VERIFY_LOGDIR)/$(TOP)_sv_compile_$(TEST_NAME).log
@@ -176,6 +197,8 @@ VERILATOR_RUNTIME_ARGS = +verilator+seed+$(SEED) $(if $(filter 1,$(COVERAGE)),+v
 # -----------------------------------------------------------------------------
 PYTHON          ?= python3
 YOSYS           ?= yosys
+SBY             ?= sby
+EQY             ?= eqy
 STA             ?= sta
 SV2V            ?= sv2v
 LINTER          ?= verilator
@@ -239,7 +262,7 @@ IVERILOG_FLAGS  := -g2012 -v -I$(INC_PKGS) -I$(INC_PRIM) -I$(RTLDIR) \
                    -I$(TBDIR) -I$(PDK_ROOT)/verilog -I$(SYNDIR)
 
 VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) \
-                   --trace \
+                   --trace-fst --trace-structs \
                    +incdir+$(RTLDIR) +incdir+$(TBDIR) +incdir+$(MODELDIR) \
                    +incdir+$(INC_PRIM) \
                    +incdir+$(INC_PKGS) \
@@ -249,7 +272,8 @@ VERILATOR_FLAGS := -Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILE
 TESTBENCH       ?= $(TOP)_tb
 TESTBENCHES     := $(wildcard $(TBDIR)/*.sv)
 VSV             ?= sv
-VCD_FILE        ?= $(SIMDIR)/$(TESTBENCH).vcd
+WAVE_EXT        ?= $(if $(filter verilator,$(COMPILER)),fst,vcd)
+WAVE_FILE       ?= $(SIMDIR)/$(TESTBENCH)_$(TEST_NAME).$(WAVE_EXT)
 VCD_SYN_FILE    ?= $(POST_SYN_SIMDIR)/$(TOP)_syn_tb.vcd
 SDF_FILE        ?= $(SIGNOFFDIR)/sdf/$(TOP)_ss.sdf
 
@@ -271,6 +295,16 @@ FCLK						?= 32
 CLK_PERIOD      ?= 20
 TARGET_SYN      ?= asic
 TARGET_OPT      ?= area
+FORMAL_DEPTH ?= 20
+FORMAL_BMC_DEPTH ?= 30
+FORMAL_BMC_APPEND ?= 5
+FORMAL_BMC_ENGINE ?= smtbmc bitwuzla
+FORMAL_PROVE_ENGINE ?= abc pdr
+FORMAL_COVER_ENGINE ?= btor btormc
+FORMAL_MULTICLOCK_ARG = $(if $(filter multi multiclock,$(CLOCK_MODE)),--multiclock,)
+EQY_SAT_DEPTH ?= 5
+EQY_DEPTH ?= 20
+EQY_ENGINE ?= abc pdr
 POWER_ACTIVITY  ?= 0.1
 POWER_DUTY      ?= 0.5
 PATH_VIEW_FILE  ?= $(TOP)_sta.violators
@@ -364,23 +398,23 @@ endef
 # Consolidated phony declarations, grouped in file order.
 PHONY_TARGETS :=
 PHONY_TARGETS += help help_ip help_soc help_doc help_fsm
-PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_estimate_corners signoff_corners metrics manifest
+PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_estimate_corners signoff_corners metrics manifest manifest_show check
 PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist driver fetch hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi notes_multi setup_model_multi tests_gen_multi test_gen_multi setup_tb_multi setup_cocotb_multi multiclock_scaffold regmap_py
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
-PHONY_TARGETS += lint lint_suite lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier slang_ast slang_flist
+PHONY_TARGETS += lint lint_slang lint_verilator lint_slang_suite lint_verilator_suite lint_suite lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier slang_ast slang_flist
 PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests regression coverage coverage_detail
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
 PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
+PHONY_TARGETS += _formal_scaffold setup_formal setup_formal_prove setup_formal_cover formal_bmc formal_prove formal_cover setup_formal_csr_prove setup_formal_csr_cover formal_csr_bmc formal_csr_prove formal_csr_cover formal_csr formal setup_equiv equiv
 PHONY_TARGETS += setup_signoff compile_syn sim_syn sta sdf power_estimate sta_violators path_view
 PHONY_TARGETS += setup_pnr pnr pnr_gui
-PHONY_TARGETS += metrics manifest check
 PHONY_TARGETS += ip_load ip_save
 PHONY_TARGETS += soc_vendor_deps fsoc_init fsoc xbar xbar_init xbar_build soc soc_stage_tops soc_flist soc_flow soc_uart_gen soc_ibex_gen
 PHONY_TARGETS += sw_soc soc_prepare soc_build_sw soc_sim soc_run soc_run_only soc_view
 PHONY_TARGETS += fsm_init fsm_setup fsm_example_load fsm_gen fsm_plot fsm_flow fsm_install fsm2rtl
 PHONY_TARGETS += soc_uart_tutorial soc_ibex_fetch soc_ibex_tutorial full_tutorial fsm_tutorial ip_tutorial soc_pless
-PHONY_TARGETS += deps deps-soc
-PHONY_TARGETS += clean-pyc clean_doc clean_log clean_rtl clean_sim clean_cocotb clean_syn clean_signoff clean_meta clean_pnr
+PHONY_TARGETS += deps
+PHONY_TARGETS += clean-pyc clean_doc clean_log clean_rtl clean_sim clean_cocotb clean_formal clean_syn clean_signoff clean_meta clean_pnr
 PHONY_TARGETS += clean_fsm clean_fsm_all clean_agent clean_fsoc clean_soc clean_sw clean_vendor clean_subdir clean clean_all
 
 .PHONY: $(PHONY_TARGETS)
@@ -420,6 +454,11 @@ setup: ## Create the run directory tree
 		$(SYNDIR) \
 		$(SIGNOFFDIR) \
 		$(SIGNOFFDIR)/sdf \
+		$(FORMAL_CSR_PROVE_DIR) \
+		$(FORMAL_CSR_COVER_DIR) \
+		$(FORMAL_PROVE_PROPERTIES_DIR) \
+		$(FORMAL_COVER_PROPERTIES_DIR) \
+		$(EQUIVDIR) \
 		$(METADIR) \
 		$(MODELDIR) \
 		$(DOCDIR) \
@@ -541,7 +580,7 @@ doc: ## Generate register documentation
 	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
 	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
-rtl_stub: ## Generate RTL core and aligned top wrapper
+rtl_stub: ## Generate RTL core and top wrapper
 	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) --hjson-file $(DATADIR)/$(TOP).hjson --interface $(REG_ITF) --output-dir $(RTLDIR)
 
 top_from_core: ## Regenerate $(TOP).sv from edited $(TOP)_core.sv
@@ -589,9 +628,39 @@ driver: ## Generate C driver files from HJSON
 fetch: ## Fetch or update a vendored dependency
 	$(Q)$(PYTHON) $(VENDOR_TOOL) --update $(REPO_ROOT)/vendor/$(VENDOR).vendor.hjson
 
-ip_flow: reg doc lint sim syn sdf sta sta_violators power_estimate view ## Run the standard IP flow
-ip_flow_noreg: flist lint sim syn sdf sta sta_violators power_estimate view ## Run IP flow without regenerating registers
-ip_flow_all: ip_start syn sdf sta sta_violators power_estimate view pnr pnr_gui ## Run full IP flow including PnR
+ip_flow: reg doc ## Run regression through formal/synthesis/signoff, then report the run
+	@$(BACKEND_MAKE) lint_suite
+	@$(BACKEND_MAKE) regression
+	@$(BACKEND_MAKE) coverage_detail
+	@if [ "$(CLOCK_MODE)" = "multi" ] || [ "$(CLOCK_MODE)" = "multiclock" ]; then $(BACKEND_MAKE) sdc_multi; fi
+	@$(BACKEND_MAKE) formal
+	@$(BACKEND_MAKE) syn
+	@$(BACKEND_MAKE) equiv
+	@$(BACKEND_MAKE) sdf
+	@$(BACKEND_MAKE) sta
+	@$(BACKEND_MAKE) power_estimate
+	@$(BACKEND_MAKE) manifest
+	@$(BACKEND_MAKE) manifest_show
+	-@$(BACKEND_MAKE) metrics
+	-@$(BACKEND_MAKE) check
+
+ip_flow_noreg: flist ## Run the standard closure without regenerating registers
+	@$(BACKEND_MAKE) lint_suite
+	@$(BACKEND_MAKE) regression
+	@$(BACKEND_MAKE) coverage_detail
+	@if [ "$(CLOCK_MODE)" = "multi" ] || [ "$(CLOCK_MODE)" = "multiclock" ]; then $(BACKEND_MAKE) sdc_multi; fi
+	@$(BACKEND_MAKE) formal
+	@$(BACKEND_MAKE) syn
+	@$(BACKEND_MAKE) equiv
+	@$(BACKEND_MAKE) sdf
+	@$(BACKEND_MAKE) sta
+	@$(BACKEND_MAKE) power_estimate
+	@$(BACKEND_MAKE) manifest
+	@$(BACKEND_MAKE) manifest_show
+	-@$(BACKEND_MAKE) metrics
+	-@$(BACKEND_MAKE) check
+
+ip_flow_all: ip_flow pnr pnr_gui ## Run the standard IP flow plus PnR
 
 # ============================================================================
 # 5. Linting
@@ -602,13 +671,13 @@ SLANG ?= slang
 SLANG_HIER ?= slang-hier
 VERILATOR ?= verilator
 
-LINT_TOOL ?= auto
+LINT_TOOL ?= both
 LINT_PART ?= ip
 LINT_LOGDIR ?= $(LOGDIR)/lint
-LINT_RAW_LOG ?= $(LINT_LOGDIR)/raw/$(TOP)_lint_$(LINT_KIND)_raw.log
-LINT_FULL_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(if $(filter all,$(LINT_KIND)),all,$(LINT_KIND)_all).log
-LINT_COMMON_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_KIND)_common.log
-LINT_IP_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_KIND)_ip.log
+LINT_RAW_LOG ?= $(LINT_LOGDIR)/raw/$(TOP)_lint_$(LINT_TOOL)_$(LINT_KIND)_raw.log
+LINT_FULL_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_TOOL)_$(if $(filter all,$(LINT_KIND)),all,$(LINT_KIND)_all).log
+LINT_COMMON_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_TOOL)_$(LINT_KIND)_common.log
+LINT_IP_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_TOOL)_$(LINT_KIND)_ip.log
 
 VERILATOR_LINT_BASE ?= --lint-only --sv -Wno-fatal
 VERILATOR_FOCUSED_OFF ?= -Wno-DECLFILENAME -Wno-PINMISSING -Wno-PINCONNECTEMPTY -Wno-PINNOCONNECT -Wno-UNDRIVEN -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-WIDTH -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-LATCH
@@ -637,41 +706,74 @@ SLANG_FLAGS_width := -Wwidth-trunc -Wwidth-expand -Wport-width-trunc -Wport-widt
 SLANG_FLAGS_unconnected := -Wunconnected-input-port -Wunconnected-output-port -Wunconnected-inout-port -Wempty-input-connection -Wempty-output-connection -Wempty-inout-connection
 SLANG_FLAGS_unused := -Wunused-def -Wunused-net -Wunused-port -Wunused-variable -Wunused-parameter -Wunused-typedef -Wunused-import
 
-LINT_ARGS = TOP="$(TOP)" HOST="$(HOST)" FORCE="$(FORCE)" RUN_ID="$(RUN_ID)" RUN_TOP="$(RUN_TOP)" WORKSPACE="$(WORKSPACE)" LINT_TOOL="$(LINT_TOOL)" LINT_PART="$(LINT_PART)"
+LINT_ARGS = TOP="$(TOP)" HOST="$(HOST)" FORCE="$(FORCE)" RUN_ID="$(RUN_ID)" RUN_TOP="$(RUN_TOP)" WORKSPACE="$(WORKSPACE)" LINT_PART="$(LINT_PART)"
 
 # Compatibility aliases used by compile_v/compile_sv prerequisites.
 lint_v lint_sv: lint
 
-lint: flist ## Run HDL lint checks
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) \
-		LINT_KIND=all LINT_PATTERN="$(LINT_PATTERN_all)" \
-		LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_all)" \
-		LINT_SLANG_FLAGS="$(SLANG_FLAGS_all)"
+lint: flist ## Run Slang lint first, then Verilator lint
+	@set -eu; \
+	tools="$(LINT_TOOL)"; \
+	case "$$tools" in auto|both) tools="slang verilator" ;; slang|verilator) ;; *) echo "Unsupported LINT_TOOL=$$tools. Use both, slang, or verilator."; exit 2 ;; esac; \
+	for tool in $$tools; do \
+		$(BACKEND_MAKE) _lint_run $(LINT_ARGS) LINT_TOOL="$$tool" \
+			LINT_KIND=all LINT_PATTERN="$(LINT_PATTERN_all)" \
+			LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_all)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_all)"; \
+	done
 
-lint_suite: flist ## Run the complete HDL lint diagnostic suite
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=all LINT_PATTERN="$(LINT_PATTERN_all)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_all)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_all)"
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=latch LINT_PATTERN="$(LINT_PATTERN_latch)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_latch)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_latch)"
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=undriven LINT_PATTERN="$(LINT_PATTERN_undriven)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_undriven)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_undriven)"
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=width LINT_PATTERN="$(LINT_PATTERN_width)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_width)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_width)"
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=unconnected LINT_PATTERN="$(LINT_PATTERN_unconnected)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_unconnected)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_unconnected)"
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=unused LINT_PATTERN="$(LINT_PATTERN_unused)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_unused)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_unused)"
+lint_slang: flist ## Run Slang HDL lint
+	@$(BACKEND_MAKE) _lint_run $(LINT_ARGS) LINT_TOOL=slang LINT_KIND=all LINT_PATTERN="$(LINT_PATTERN_all)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_all)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_all)"
+
+lint_verilator: flist ## Run Verilator HDL lint
+	@$(BACKEND_MAKE) _lint_run $(LINT_ARGS) LINT_TOOL=verilator LINT_KIND=all LINT_PATTERN="$(LINT_PATTERN_all)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_all)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_all)"
+
+lint_slang_suite: flist ## Run the full Slang lint suite
+	@set -eu; \
+	for kind in all latch undriven width unconnected unused; do \
+		case "$$kind" in \
+			all) pattern='$(LINT_PATTERN_all)'; vflags='$(VERILATOR_FLAGS_all)'; sflags='$(SLANG_FLAGS_all)' ;; \
+			latch) pattern='$(LINT_PATTERN_latch)'; vflags='$(VERILATOR_FLAGS_latch)'; sflags='$(SLANG_FLAGS_latch)' ;; \
+			undriven) pattern='$(LINT_PATTERN_undriven)'; vflags='$(VERILATOR_FLAGS_undriven)'; sflags='$(SLANG_FLAGS_undriven)' ;; \
+			width) pattern='$(LINT_PATTERN_width)'; vflags='$(VERILATOR_FLAGS_width)'; sflags='$(SLANG_FLAGS_width)' ;; \
+			unconnected) pattern='$(LINT_PATTERN_unconnected)'; vflags='$(VERILATOR_FLAGS_unconnected)'; sflags='$(SLANG_FLAGS_unconnected)' ;; \
+			unused) pattern='$(LINT_PATTERN_unused)'; vflags='$(VERILATOR_FLAGS_unused)'; sflags='$(SLANG_FLAGS_unused)' ;; \
+		esac; \
+		$(BACKEND_MAKE) _lint_run $(LINT_ARGS) LINT_TOOL=slang LINT_KIND="$$kind" LINT_PATTERN="$$pattern" LINT_VERILATOR_FLAGS="$$vflags" LINT_SLANG_FLAGS="$$sflags"; \
+	done
+
+lint_verilator_suite: flist ## Run the full Verilator lint suite
+	@set -eu; \
+	for kind in all latch undriven width unconnected unused; do \
+		case "$$kind" in \
+			all) pattern='$(LINT_PATTERN_all)'; vflags='$(VERILATOR_FLAGS_all)'; sflags='$(SLANG_FLAGS_all)' ;; \
+			latch) pattern='$(LINT_PATTERN_latch)'; vflags='$(VERILATOR_FLAGS_latch)'; sflags='$(SLANG_FLAGS_latch)' ;; \
+			undriven) pattern='$(LINT_PATTERN_undriven)'; vflags='$(VERILATOR_FLAGS_undriven)'; sflags='$(SLANG_FLAGS_undriven)' ;; \
+			width) pattern='$(LINT_PATTERN_width)'; vflags='$(VERILATOR_FLAGS_width)'; sflags='$(SLANG_FLAGS_width)' ;; \
+			unconnected) pattern='$(LINT_PATTERN_unconnected)'; vflags='$(VERILATOR_FLAGS_unconnected)'; sflags='$(SLANG_FLAGS_unconnected)' ;; \
+			unused) pattern='$(LINT_PATTERN_unused)'; vflags='$(VERILATOR_FLAGS_unused)'; sflags='$(SLANG_FLAGS_unused)' ;; \
+		esac; \
+		$(BACKEND_MAKE) _lint_run $(LINT_ARGS) LINT_TOOL=verilator LINT_KIND="$$kind" LINT_PATTERN="$$pattern" LINT_VERILATOR_FLAGS="$$vflags" LINT_SLANG_FLAGS="$$sflags"; \
+	done
+
+lint_suite: flist ## Run the full Slang suite first, then the full Verilator suite
+	@$(BACKEND_MAKE) lint_slang_suite $(LINT_ARGS)
+	@$(BACKEND_MAKE) lint_verilator_suite $(LINT_ARGS)
 
 lint_latch lint_undriven lint_width lint_unconnected lint_unused: lint_%: flist
-	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) \
-		LINT_KIND="$*" LINT_PATTERN="$(LINT_PATTERN_$*)" \
-		LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_$*)" \
-		LINT_SLANG_FLAGS="$(SLANG_FLAGS_$*)"
+	@set -eu; \
+	tools="$(LINT_TOOL)"; \
+	case "$$tools" in auto|both) tools="slang verilator" ;; slang|verilator) ;; *) echo "Unsupported LINT_TOOL=$$tools. Use both, slang, or verilator."; exit 2 ;; esac; \
+	for tool in $$tools; do \
+		$(BACKEND_MAKE) _lint_run $(LINT_ARGS) LINT_TOOL="$$tool" \
+			LINT_KIND="$*" LINT_PATTERN="$(LINT_PATTERN_$*)" \
+			LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_$*)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_$*)"; \
+	done
 
 _lint_run:
-	@label="lint$(if $(filter-out all,$(LINT_KIND)),_$(LINT_KIND),)"; printf "%b\n" "$(ORANGE)[$$label]$(RESET) $(BLUE)$(TOP) part=$(LINT_PART)$(RESET)"
+	@label="lint_$(LINT_TOOL)$(if $(filter-out all,$(LINT_KIND)),_$(LINT_KIND),)"; printf "%b\n" "$(ORANGE)[$$label]$(RESET) $(BLUE)$(TOP) part=$(LINT_PART)$(RESET)"
 	@mkdir -p $(LINT_LOGDIR) $(LINT_LOGDIR)/raw
 	@if [ ! -f "$(RTL_COMMON_LIST)" ] || [ ! -f "$(RTL_IP_LIST)" ]; then echo "missing filelists. Run: fx flist"; exit 2; fi
 	@tool="$(LINT_TOOL)"; \
-	if [ "$$tool" = "auto" ]; then \
-		if command -v "$(VERILATOR)" >/dev/null 2>&1; then tool="verilator"; \
-		elif [ -x "$(SLANG)" ] || command -v slang >/dev/null 2>&1; then tool="slang"; \
-		else echo "No lint backend found. Run: make install-slang or install verilator"; exit 2; fi; \
-	fi; \
 	if [ "$$tool" = "verilator" ]; then \
 		extra="$(LINT_VERILATOR_FLAGS)"; \
 		if [ "$(LINT_KIND)" != "all" ]; then extra="$(VERILATOR_FOCUSED_OFF) $$extra"; fi; \
@@ -680,7 +782,7 @@ _lint_run:
 		if [ -x "$(SLANG)" ]; then slang_cmd="$(SLANG)"; elif command -v slang >/dev/null 2>&1; then slang_cmd="slang"; else echo "slang not found. Run: make install-slang"; exit 2; fi; \
 		cmd="$$slang_cmd $(SLANG_LINT_BASE) $(LINT_SLANG_FLAGS) -f $(RTL_COMMON_LIST) -f $(RTL_IP_LIST)"; \
 	else \
-		echo "Unsupported LINT_TOOL=$$tool. Use auto, verilator, or slang."; exit 2; \
+		echo "Unsupported LINT_TOOL=$$tool. Use slang or verilator."; exit 2; \
 	fi; \
 	printf "%b\n" "$(BLUE)raw: $(LINT_RAW_LOG)$(RESET)"; \
 	status_file="$(LINT_RAW_LOG).status"; rm -f "$$status_file"; \
@@ -840,25 +942,29 @@ setup_model_multi: setup ## Generate multi-clock model, CSR regmap, and test sca
 	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit model --tb-dir $(TB_SV_DIR)
 
-tests_gen: setup ## Generate all vector tests from the editable test catalogue
+tests_gen: setup ## Generate editable tests plus machine-owned coverage stimulus
 	$(call _require_var,TOP)
-	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
-		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
-		echo "Run: fx setup_model --force"; \
+	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ] || [ ! -f "$(MODELDIR)/$(TOP)_regmap_tests.py" ]; then \
+		echo "ERROR: missing model test scaffold; run: fx setup_model"; \
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
 	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
+	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_regmap_tests.py --tests-dir $(TEST_ROOT)
 
-test_gen: setup ## Generate one vector test selected by TEST_NAME from the editable test catalogue
+test_gen: setup ## Generate TEST_NAME plus the machine-owned coverage stimulus
 	$(call _require_var,TOP)
-	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
-		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
-		echo "Run: fx setup_model --force"; \
+	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ] || [ ! -f "$(MODELDIR)/$(TOP)_regmap_tests.py" ]; then \
+		echo "ERROR: missing model test scaffold; run: fx setup_model"; \
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
+	@if [ "$(TEST_NAME)" = "auto_toggle" ]; then \
+		$(PYTHON) $(MODELDIR)/$(TOP)_regmap_tests.py --tests-dir $(TEST_ROOT) --test auto_toggle; \
+	else \
+		FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME); \
+		$(PYTHON) $(MODELDIR)/$(TOP)_regmap_tests.py --tests-dir $(TEST_ROOT); \
+	fi
 
 tests_gen_multi: setup ## Generate all multi-clock vector tests from the editable test catalogue
 	$(call _require_var,TOP)
@@ -972,11 +1078,11 @@ endif
 sim_v: compile_v _require_test_vectors ## Run Verilog simulation
 	@printf "%b\n" "$(ORANGE)[sim_v]$(RESET) $(BLUE)run Verilog simulation$(RESET)"
 ifeq ($(COMPILER),iverilog)
-	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
+	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +WAVE=$(WAVE_FILE) $(SIM_PLUSARGS) \
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 else
 	$(Q)if [ "$(COVERAGE)" = "1" ]; then $(MKDIR) -p "$(dir $(SV_COVERAGE_FILE))"; fi
-	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) $(SIM_PLUSARGS) $(VERILATOR_RUNTIME_ARGS) \
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +WAVE=$(WAVE_FILE) $(SIM_PLUSARGS) $(VERILATOR_RUNTIME_ARGS) \
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
@@ -1003,11 +1109,11 @@ sim_sv: compile_sv _require_test_vectors ## Run SystemVerilog simulation
 	@printf "%b\n" "$(ORANGE)[sim_sv]$(RESET) $(BLUE)run SystemVerilog test TEST_NAME=$(TEST_NAME)$(RESET)"
 	@printf "%b\n" "$(BLUE)log: $(SV_SIM_LOG)$(RESET)"
 ifeq ($(COMPILER),iverilog)
-	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
+	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +WAVE=$(WAVE_FILE) $(SIM_PLUSARGS) \
 		> $(SV_SIM_LOG) 2>&1
 else
 	$(Q)if [ "$(COVERAGE)" = "1" ]; then $(MKDIR) -p "$(dir $(SV_COVERAGE_FILE))"; fi
-	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) $(SIM_PLUSARGS) $(VERILATOR_RUNTIME_ARGS) \
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +WAVE=$(WAVE_FILE) $(SIM_PLUSARGS) $(VERILATOR_RUNTIME_ARGS) \
 		> $(SV_SIM_LOG) 2>&1
 endif
 
@@ -1028,9 +1134,9 @@ cocotb: _require_test_vectors ## Run one cocotb vector test selected by TEST_NAM
 	@printf "%b\n" "$(BLUE)log: $(COCOTB_LOG)$(RESET)"
 	$(Q)if [ "$(COVERAGE)" = "1" ] && [ "$(COMPILER)" = "verilator" ]; then $(MKDIR) -p "$(dir $(COCOTB_COVERAGE_FILE))"; fi
 	$(Q)if [ "$(LIVE)" = "1" ]; then \
-		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVES=$(COCOTB_WAVES) 2>&1 | tee $(COCOTB_LOG); \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVE_FILE="$(WAVE_FILE)" WAVES=$(COCOTB_WAVES) 2>&1 | tee $(COCOTB_LOG); \
 	else \
-		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVES=$(COCOTB_WAVES) > $(COCOTB_LOG) 2>&1; \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVE_FILE="$(WAVE_FILE)" WAVES=$(COCOTB_WAVES) > $(COCOTB_LOG) 2>&1; \
 	fi
 
 
@@ -1062,11 +1168,15 @@ cocotb_tests: ## Run every generated cocotb vector test
 regression: ## Run every generated test on each selected backend and collect coverage
 	@set -u; \
 	case "$(CLOCK_MODE)" in \
-		multi|multiclock) gen_target=tests_gen_multi ;; \
-		*) gen_target=tests_gen ;; \
+		multi|multiclock) gen_target=tests_gen_multi; tb_target=setup_tb_multi; cocotb_target=setup_cocotb_multi ;; \
+		*) gen_target=tests_gen; tb_target=setup_tb; cocotb_target=setup_cocotb ;; \
 	esac; \
 	rm -rf "$(TEST_ROOT)" "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
 	mkdir -p "$(TEST_ROOT)" "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
+	$(BACKEND_MAKE) $$tb_target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" FORCE=1; \
+	case " $(REGRESSION_BACKENDS) " in *" cocotb "*) \
+		$(BACKEND_MAKE) $$cocotb_target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" FORCE=1 ;; \
+	esac; \
 	$(BACKEND_MAKE) $$gen_target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" SEED="$(SEED)"; \
 	tests=""; \
 	for dir in "$(TEST_ROOT)"/*; do \
@@ -1091,6 +1201,7 @@ regression: ## Run every generated test on each selected backend and collect cov
 			printf '\n$(ORANGE)[regression]$(RESET) $(BLUE)backend=%s test=%s$(RESET)\n' "$$backend" "$$test"; \
 			if $(BACKEND_MAKE) $$target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" \
 				CLOCK_MODE="$(CLOCK_MODE)" COMPILER="$(COMPILER)" TEST_NAME="$$test" SEED="$$test_seed" COVERAGE=1 \
+				WAVE_FILE="$(SIMDIR)/$(TESTBENCH)_$${backend}_$${test}.$(WAVE_EXT)" \
 				VERIFY_LOGDIR="$(REGRESSION_LOGDIR)/$$backend"; then \
 				printf '$(GREEN)  PASS$(RESET) %s/%s\n' "$$backend" "$$test"; \
 			else \
@@ -1136,9 +1247,11 @@ coverage: ## Merge Verilator coverage and print a scoped summary
 		--annotated-dir "$$tmp" \
 		--ip-filelist "$(RTLDIR)/rtl_ip.f" \
 		--common-filelist "$(RTLDIR)/rtl_common.f" \
-		--output "$(COVERAGEDIR)/summary.txt"; \
+		--output "$(COVERAGEDIR)/summary.txt" \
+		--json-output "$(COVERAGE_SUMMARY_JSON)"; \
 	printf '%b\n' "$(GREEN)[coverage] merged$(RESET) $(BLUE)$(COVERAGEDIR)/merged.dat$(RESET)"; \
-	printf '%b\n' "$(BLUE)summary: $(COVERAGEDIR)/summary.txt$(RESET)"
+	printf '%b\n' "$(BLUE)summary: $(COVERAGEDIR)/summary.txt$(RESET)"; \
+	printf '%b\n' "$(BLUE)summary json: $(COVERAGE_SUMMARY_JSON)$(RESET)"
 
 
 coverage_detail: coverage ## Write uncovered authored-RTL coverage points to a log
@@ -1207,7 +1320,7 @@ view_presyn_v: sv2v ## Open pre-synthesis graph from Verilog
 
 view_presyn_sv: ## Open pre-synthesis graph from SV
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
-	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
+	$(Q)$(YOSYS) -p "\
 	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
 		-f rtl/rtl_common.f -f rtl/rtl_ip.f --top $(TOP) ; \
 	prep -top $(TOP); select -clear; select -module $(MODULE) ; \
@@ -1220,11 +1333,11 @@ view_presyn_sv: ## Open pre-synthesis graph from SV
 tb_save: ## Save selected testbench and waveform artifacts
 	$(Q)$(MKDIR) -p $(TB_SAVEDIR)/tb $(TB_SAVEDIR)/sim
 	$(Q)$(CP) $(TB_SV_DIR)/$(TOP)_tb.sv $(TB_SAVEDIR)/tb/$(TOP)_$(OUTNAME)_tb.sv
-	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.vcd $(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.vcd
+	$(Q)$(CP) $(WAVE_FILE) $(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.$(WAVE_EXT)
 	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.gtkw $(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.gtkw
 
 tb_view: ## Open saved testbench waveform
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.vcd \
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.$(WAVE_EXT) \
 		$(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.gtkw &
 
 # ============================================================================
@@ -1236,7 +1349,7 @@ setup_sdc: setup ## Generate timing constraints
 	$(Q)$(MKDIR) -p $(ORSDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_sdc $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc
 
-setup_syn: setup_sdc ## Generate Yosys synthesis scripts
+setup_syn: setup_sdc flist ## Generate Yosys synthesis scripts
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SYNDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_syn \
@@ -1258,12 +1371,12 @@ syn_v: setup_syn ## Run Verilog synthesis
 syn_sv: setup_syn ## Run SystemVerilog synthesis
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
 	@printf "%b\n" "$(BLUE)log: $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log$(RESET)"
-	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
+	$(Q)$(YOSYS) -s $(SYNDIR)/synth_sv.ys > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
 	$(Q)$(GREP) -Ei '^(Warning:|%Warning-|.*:[0-9]+(:[0-9]+)?:[[:space:]]*warning:)' $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
 	$(Q)$(GREP) -Ei '^(ERROR:|%Error-|.*:[0-9]+(:[0-9]+)?:[[:space:]]*error:)' $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
 yosys-vgen: ## Convert SV to Verilog with Yosys
-	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
+	$(Q)$(YOSYS) -p "\
 	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
 		-f rtl/rtl_common.f -f rtl/rtl_ip.f \
 		--top $(TOP); \
@@ -1275,6 +1388,175 @@ yosys-vgen: ## Convert SV to Verilog with Yosys
 # Legacy extension point kept explicit. Implement conversion here if SV2V is required.
 sv2v: ## Convert SV to Verilog with sv2v
 	@true
+
+# ============================================================================
+# Formal verification: authored properties and RTL-vs-synthesis equivalence
+# ============================================================================
+##@ Formal verification
+FORMAL_PROVE_CONFIG ?= $(FORMAL_PROVE_DIR)/$(TOP)_prove.sby
+FORMAL_COVER_CONFIG ?= $(FORMAL_COVER_DIR)/$(TOP)_cover.sby
+EQY_CONFIG ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn.eqy
+EQY_SKY130_CLOCK_GATE_MODEL ?= $(EQUIVDIR)/sky130_clock_gates_formal.v
+EQY_RESULT_DIR ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn
+
+FORMAL_CSR_PROVE_AUTO ?= $(FORMAL_CSR_PROVE_DIR)/$(TOP)_csr_auto_prove.sv
+FORMAL_CSR_COVER_AUTO ?= $(FORMAL_CSR_COVER_DIR)/$(TOP)_csr_auto_cover.sv
+FORMAL_CSR_PROVE_CONFIG ?= $(FORMAL_CSR_PROVE_RUN_DIR)/$(TOP)_csr_prove.sby
+FORMAL_CSR_COVER_CONFIG ?= $(FORMAL_CSR_COVER_RUN_DIR)/$(TOP)_csr_cover.sby
+
+_formal_scaffold:
+	$(call _require_var,TOP)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal scaffold --top $(TOP) --formal-dir $(FORMALDIR) >/dev/null
+	@printf "%b\n" "$(GREEN)[formal]$(RESET) $(FORMALDIR) clock=$(CLOCK_MODE)"
+
+setup_formal: _formal_scaffold ## Prepare CSR formal and any authored design-property configurations
+	@$(BACKEND_MAKE) setup_formal_csr_prove
+	@$(BACKEND_MAKE) setup_formal_csr_cover
+	@if find "$(FORMAL_PROVE_PROPERTIES_DIR)" -maxdepth 1 -type f -name '*.sv' -print -quit | grep -q .; then \
+		$(BACKEND_MAKE) setup_formal_prove; \
+	else \
+		printf "%b\n" "$(ORANGE)[formal]$(RESET) design prove: not authored"; \
+	fi
+	@if find "$(FORMAL_COVER_PROPERTIES_DIR)" -maxdepth 1 -type f -name '*.sv' -print -quit | grep -q .; then \
+		$(BACKEND_MAKE) setup_formal_cover; \
+	else \
+		printf "%b\n" "$(ORANGE)[formal]$(RESET) design cover: not authored"; \
+	fi
+	@printf "%b\n" "$(GREEN)[formal]$(RESET) setup complete"
+
+setup_formal_csr_prove: flist ## Generate shared CSR BMC/prove configuration
+	$(call _require_var,TOP)
+	$(Q)rm -rf $(FORMAL_CSR_DIR)/generated
+	$(Q)$(MKDIR) -p $(FORMAL_CSR_PROVE_DIR) $(FORMAL_CSR_PROVE_RUN_DIR) $(dir $(FORMAL_CSR_PROVE_LOG))
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal csr \
+		--top $(TOP) $(RTL_FILELIST_ARGS) \
+		--properties-dir $(FORMAL_CSR_PROVE_DIR) --mode prove \
+		--engine "$(FORMAL_PROVE_ENGINE)" --depth $(FORMAL_DEPTH) \
+		--bmc-engine "$(FORMAL_BMC_ENGINE)" --bmc-depth $(FORMAL_BMC_DEPTH) --bmc-append $(FORMAL_BMC_APPEND) $(FORMAL_MULTICLOCK_ARG) \
+		--generated $(FORMAL_CSR_PROVE_AUTO) --output $(FORMAL_CSR_PROVE_CONFIG) >/dev/null
+	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_CSR_PROVE_CONFIG)$(RESET)"
+
+formal_csr_bmc: setup_formal_csr_prove ## Bounded-check automatic CSR assertions before proof
+	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
+	@printf "%b\n" "$(BLUE)log: $(FORMAL_CSR_BMC_LOG)$(RESET)"
+	@cd "$(FORMAL_CSR_PROVE_RUN_DIR)" && \
+		"$(SBY)" -f -d "$(TOP)_csr_bmc" "$(notdir $(FORMAL_CSR_PROVE_CONFIG))" bmc > "$(FORMAL_CSR_BMC_LOG)" 2>&1 || { \
+			status=$$?; cat "$(FORMAL_CSR_BMC_LOG)"; \
+			find "$(TOP)_csr_bmc" -type f \
+				\( -name 'trace*.vcd' -o -name 'trace*.yw' -o -name 'trace*.v' -o -name 'trace*.smtc' \) \
+				-print 2>/dev/null | sed 's#^#[counterexample] #'; \
+			exit $$status; \
+		}
+
+formal_csr_prove: setup_formal_csr_prove ## Prove automatic CSR semantics with SymbiYosys
+	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
+	@printf "%b\n" "$(BLUE)log: $(FORMAL_CSR_PROVE_LOG)$(RESET)"
+	@cd "$(FORMAL_CSR_PROVE_RUN_DIR)" && \
+		"$(SBY)" -f -d "$(TOP)_csr_prove" "$(notdir $(FORMAL_CSR_PROVE_CONFIG))" prove > "$(FORMAL_CSR_PROVE_LOG)" 2>&1 || { \
+			status=$$?; cat "$(FORMAL_CSR_PROVE_LOG)"; exit $$status; \
+		}
+
+setup_formal_csr_cover: flist ## Generate automatic CSR cover configuration
+	$(call _require_var,TOP)
+	$(Q)rm -rf $(FORMAL_CSR_DIR)/generated
+	$(Q)$(MKDIR) -p $(FORMAL_CSR_COVER_DIR) $(FORMAL_CSR_COVER_RUN_DIR) $(dir $(FORMAL_CSR_COVER_LOG))
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal csr \
+		--top $(TOP) $(RTL_FILELIST_ARGS) \
+		--properties-dir $(FORMAL_CSR_COVER_DIR) --mode cover \
+		--engine "$(FORMAL_COVER_ENGINE)" --depth $(FORMAL_DEPTH) $(FORMAL_MULTICLOCK_ARG) \
+		--generated $(FORMAL_CSR_COVER_AUTO) --output $(FORMAL_CSR_COVER_CONFIG) >/dev/null
+	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_CSR_COVER_CONFIG)$(RESET)"
+
+formal_csr_cover: setup_formal_csr_cover ## Cover every software-writable CSR primitive
+	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
+	@printf "%b\n" "$(BLUE)log: $(FORMAL_CSR_COVER_LOG)$(RESET)"
+	@cd "$(FORMAL_CSR_COVER_RUN_DIR)" && \
+		"$(SBY)" -f "$(notdir $(FORMAL_CSR_COVER_CONFIG))" > "$(FORMAL_CSR_COVER_LOG)" 2>&1 || { \
+			status=$$?; cat "$(FORMAL_CSR_COVER_LOG)"; exit $$status; \
+		}
+
+formal_csr: setup_formal_csr_prove setup_formal_csr_cover ## Run CSR BMC, prove, then cover
+	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_bmc
+	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_prove
+	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_cover
+
+formal: setup_formal ## Run all formal stages fail-fast: BMC, prove, cover
+	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_bmc
+	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_bmc
+	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_prove
+	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_prove
+	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_cover
+	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_cover
+
+setup_formal_prove: _formal_scaffold flist ## Generate shared design BMC/prove configuration
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(FORMAL_PROVE_DIR) $(dir $(FORMAL_PROVE_LOG))
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal properties \
+		--top $(TOP) $(RTL_FILELIST_ARGS) \
+		--properties-dir $(FORMAL_PROVE_PROPERTIES_DIR) \
+		--mode prove --engine "$(FORMAL_PROVE_ENGINE)" --depth $(FORMAL_DEPTH) \
+		--bmc-engine "$(FORMAL_BMC_ENGINE)" --bmc-depth $(FORMAL_BMC_DEPTH) --bmc-append $(FORMAL_BMC_APPEND) $(FORMAL_MULTICLOCK_ARG) \
+		--output $(FORMAL_PROVE_CONFIG) >/dev/null
+	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_PROVE_CONFIG)$(RESET)"
+
+formal_bmc: setup_formal_prove ## Bounded-check authored assertions before proof
+	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
+	@printf "%b\n" "$(BLUE)log: $(FORMAL_BMC_LOG)$(RESET)"
+	@cd "$(FORMAL_PROVE_DIR)" && \
+		"$(SBY)" -f -d "$(TOP)_bmc" "$(notdir $(FORMAL_PROVE_CONFIG))" bmc > "$(FORMAL_BMC_LOG)" 2>&1 || { \
+			status=$$?; cat "$(FORMAL_BMC_LOG)"; \
+			find "$(TOP)_bmc" -type f \
+				\( -name 'trace*.vcd' -o -name 'trace*.yw' -o -name 'trace*.v' -o -name 'trace*.smtc' \) \
+				-print 2>/dev/null | sed 's#^#[counterexample] #'; \
+			exit $$status; \
+		}
+
+formal_prove: setup_formal_prove ## Prove authored SystemVerilog properties with SymbiYosys
+	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
+	@printf "%b\n" "$(BLUE)log: $(FORMAL_PROVE_LOG)$(RESET)"
+	@cd "$(FORMAL_PROVE_DIR)" && \
+		"$(SBY)" -f -d "$(TOP)_prove" "$(notdir $(FORMAL_PROVE_CONFIG))" prove > "$(FORMAL_PROVE_LOG)" 2>&1 || { \
+			status=$$?; cat "$(FORMAL_PROVE_LOG)"; exit $$status; \
+		}
+
+setup_formal_cover: _formal_scaffold flist ## Generate SymbiYosys cover configuration for authored cover properties
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(FORMAL_COVER_DIR) $(dir $(FORMAL_COVER_LOG))
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal properties \
+		--top $(TOP) $(RTL_FILELIST_ARGS) \
+		--properties-dir $(FORMAL_COVER_PROPERTIES_DIR) \
+		--mode cover --engine "$(FORMAL_COVER_ENGINE)" --depth $(FORMAL_DEPTH) $(FORMAL_MULTICLOCK_ARG) \
+		--output $(FORMAL_COVER_CONFIG) >/dev/null
+	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_COVER_CONFIG)$(RESET)"
+
+formal_cover: setup_formal_cover ## Reach authored cover properties with SymbiYosys
+	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
+	@printf "%b\n" "$(BLUE)log: $(FORMAL_COVER_LOG)$(RESET)"
+	@cd "$(FORMAL_COVER_DIR)" && \
+		"$(SBY)" -f "$(notdir $(FORMAL_COVER_CONFIG))" > "$(FORMAL_COVER_LOG)" 2>&1 || { \
+			status=$$?; cat "$(FORMAL_COVER_LOG)"; exit $$status; \
+		}
+
+setup_equiv: flist ## Generate EQY RTL-vs-post-synthesis equivalence configuration
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(EQUIVDIR) $(dir $(EQUIV_LOG))
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal equivalence \
+		--top $(TOP) $(RTL_FILELIST_ARGS) \
+		--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
+		--sky130-clock-gate-model $(EQY_SKY130_CLOCK_GATE_MODEL) \
+		--engine "$(EQY_ENGINE)" --depth $(EQY_DEPTH) --sat-depth $(EQY_SAT_DEPTH) \
+		--output $(EQY_CONFIG) >/dev/null
+	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(EQY_CONFIG)$(RESET)"
+
+equiv: setup_equiv ## Prove RTL equivalent to the mapped post-synthesis netlist with EQY
+	@command -v "$(EQY)" >/dev/null 2>&1 || { echo "ERROR: EQY executable not found: $(EQY)"; exit 2; }
+	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found for EQY SBY fallback: $(SBY)"; exit 2; }
+	@printf "%b\n" "$(BLUE)log: $(EQUIV_LOG)$(RESET)"
+	@$(RM) -rf "$(EQY_RESULT_DIR)"
+	@cd "$(EQUIVDIR)" && \
+		"$(EQY)" -f "$(notdir $(EQY_CONFIG))" > "$(EQUIV_LOG)" 2>&1 || { \
+			status=$$?; cat "$(EQUIV_LOG)"; exit $$status; \
+		}
 
 # ============================================================================
 # 9. Gate-level simulation and signoff analysis
@@ -1383,7 +1665,7 @@ path_view: ## Build interactive STA path view
 # 10. Run metadata
 # ============================================================================
 ##@ Run metadata
-metrics: setup ## Collect available lint, synthesis, STA, and power metrics
+metrics: setup ## Collect functional, formal, synthesis, equivalence, SDF, STA, and power metrics
 	$(Q)$(PYTHON) -m flexsoc.backend.metrics \
 		--top $(TOP) \
 		--run-dir $(OUTROOT) \
@@ -1397,7 +1679,10 @@ manifest: setup ## Collect the automatic run identity and tool manifest
 		--repo-root $(REPO_ROOT) \
 		--output $(MANIFEST_JSON)
 
-check: setup ## Print the current metrics summary; informational only
+manifest_show: ## Show the current run manifest in a colored terminal view
+	$(Q)$(PYTHON) -m flexsoc.backend.manifest --show $(MANIFEST_JSON)
+
+check: setup ## Show the complete functional/formal/synthesis/signoff run status
 	$(Q)$(PYTHON) -m flexsoc.backend.metrics --show $(METRICS_JSON)
 
 # ============================================================================
@@ -1918,17 +2203,24 @@ soc_pless: ## Run the tiny SoC tutorial flow
 # 16. Dependencies
 # ============================================================================
 ##@ Dependencies
-deps: ## Install IP development dependencies
-	sudo apt install -y make python3 python3-pip
-	sed -i 's/\r$$//' $(TOOLSROOT)/deps.sh
-	bash $(TOOLSROOT)/deps.sh ip
-	pip install -r requirements.txt
+DEPS_MODE ?= user
+DEPS_PROFILE ?= base
+DEPS_JOBS ?= 2
 
-deps-soc: ## Install SoC development dependencies
-	bash $(TOOLSROOT)/deps.sh soc
-	echo
-	export PATH=$$PATH:/tools/riscv32/bin
-	printf "%s\n" "export PATH=/tools/riscv32/bin" >> ~/.bashrc
+deps-bootstrap: ## Check/install prerequisites for DEPS_PROFILE=base|impl|riscv
+	bash $(TOOLSROOT)/deps.sh bootstrap --$(DEPS_MODE) --profile $(DEPS_PROFILE)
+
+deps: ## Install pinned dependency profile (base|impl|riscv)
+	bash $(TOOLSROOT)/deps.sh install --$(DEPS_MODE) --profile $(DEPS_PROFILE) --jobs $(DEPS_JOBS)
+
+deps-doctor: ## Verify the selected pinned dependency profile
+	bash $(TOOLSROOT)/deps.sh doctor --$(DEPS_MODE) --profile $(DEPS_PROFILE)
+
+deps-versions: ## Show pinned tool versions and source revisions
+	bash $(TOOLSROOT)/deps.sh versions
+
+deps-env: ## Print shell exports for the pinned toolchain
+	bash $(TOOLSROOT)/deps.sh env --$(DEPS_MODE)
 
 # ============================================================================
 # 17. Clean targets
@@ -1951,15 +2243,18 @@ clean_rtl: ## Remove generated RTL
 
 clean_sim: ## Remove simulation and verification outputs
 	$(Q)$(RM) $(SIMDIR)/*.vvp
-	$(Q)$(RM) $(SIMDIR)/*.vcd
+	$(Q)$(RM) $(SIMDIR)/*.vcd $(SIMDIR)/*.fst
 	$(Q)$(RM) -r $(SIMDIR)/verilator
 	$(Q)$(RM) -r $(VERIFYDIR)
 
 clean_cocotb: ## Remove cocotb outputs
-	$(Q)$(RM) $(TBDIR)/cocotb/*.vcd
+	$(Q)$(RM) $(TBDIR)/cocotb/*.vcd $(TBDIR)/cocotb/*.fst
 	$(Q)$(RM) $(TBDIR)/cocotb/sim_build
 	$(Q)$(RM) $(TBDIR)/cocotb/__py*
 	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb clean
+
+clean_formal: ## Remove formal proof/equivalence outputs and logs
+	$(Q)$(RM) -rf $(FORMALDIR) $(FORMAL_LOGDIR)
 
 clean_syn: ## Remove synthesis outputs
 	$(Q)$(RM) -rf $(SYNDIR)/*

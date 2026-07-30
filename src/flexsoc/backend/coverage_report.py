@@ -20,6 +20,7 @@ POINT_RE = re.compile(
 )
 REGISTER_RE = re.compile(r".+_reg_(?:pkg|top)\.sv$")
 SCOPES = ("design", "registers", "common", "other", "all")
+TYPE_ORDER = ("line", "toggle", "branch", "expr", "fsm_state", "fsm_arc", "covergroup", "user")
 
 
 @dataclass(frozen=True)
@@ -131,18 +132,32 @@ def _color(percent: float, total: int) -> str:
     return YELLOW
 
 
-def _summary_lines(
+def coverage_record(points: list[CoveragePoint]) -> dict[str, float | int]:
+    """Return a JSON-friendly covered/total/percent record."""
+
+    covered, total, percent = coverage_counts(points)
+    return {"hit": covered, "total": total, "percent": percent}
+
+
+def coverage_types(points: list[CoveragePoint]) -> list[str]:
+    """Return stable coverage-type ordering, preserving future Verilator kinds."""
+
+    present = {point.kind for point in points}
+    ordered = [kind for kind in TYPE_ORDER if kind in present]
+    ordered.extend(sorted(present - set(TYPE_ORDER)))
+    return ordered
+
+
+def coverage_summary_data(
     points: list[CoveragePoint],
     *,
     ip_files: set[str],
     common_files: set[str],
-) -> list[str]:
-    lines = [
-        "Coverage summary",
-        "",
-        f"{'Scope':<12} {'Covered':>9} {'Total':>9} {'Coverage':>10}",
-        "-" * 44,
-    ]
+) -> dict[str, object]:
+    """Build scope totals plus a scope-by-type coverage matrix."""
+
+    kinds = coverage_types(points)
+    scopes: dict[str, object] = {}
     for scope in SCOPES:
         selected = scoped_points(
             points,
@@ -150,30 +165,54 @@ def _summary_lines(
             ip_files=ip_files,
             common_files=common_files,
         )
-        covered, total, percent = coverage_counts(selected)
-        lines.append(f"{scope:<12} {covered:>9} {total:>9} {percent:>9.2f}%")
+        scopes[scope] = {
+            "total": coverage_record(selected),
+            "types": {
+                kind: coverage_record([point for point in selected if point.kind == kind])
+                for kind in kinds
+            },
+        }
+    return {"schema_version": 1, "types": kinds, "scopes": scopes}
 
-    design = scoped_points(
-        points,
-        "design",
-        ip_files=ip_files,
-        common_files=common_files,
-    )
-    kinds = sorted({point.kind for point in design})
-    if design and kinds:
-        lines.extend(
-            [
-                "",
-                "Design coverage by type",
-                "",
-                f"{'Type':<16} {'Covered':>9} {'Total':>9} {'Coverage':>10}",
-                "-" * 48,
-            ]
+
+def _summary_lines(
+    points: list[CoveragePoint],
+    *,
+    ip_files: set[str],
+    common_files: set[str],
+) -> list[str]:
+    data = coverage_summary_data(points, ip_files=ip_files, common_files=common_files)
+    scopes = data["scopes"]
+    kinds = data["types"]
+    lines = [
+        "Coverage by scope",
+        "",
+        f"{'Scope':<12} {'Covered':>9} {'Total':>9} {'Coverage':>10}",
+        "-" * 44,
+    ]
+    for scope in SCOPES:
+        record = scopes[scope]["total"]
+        lines.append(
+            f"{scope:<12} {record['hit']:>9} {record['total']:>9} {record['percent']:>9.2f}%"
         )
-        for kind in kinds:
-            selected = [point for point in design if point.kind == kind]
-            covered, total, percent = coverage_counts(selected)
-            lines.append(f"{kind:<16} {covered:>9} {total:>9} {percent:>9.2f}%")
+
+    lines.extend(
+        [
+            "",
+            "Coverage by scope and type",
+            "",
+            f"{'Scope':<12} {'Type':<16} {'Covered':>9} {'Total':>9} {'Coverage':>10}",
+            "-" * 61,
+        ]
+    )
+    for scope in SCOPES:
+        for index, kind in enumerate(kinds):
+            record = scopes[scope]["types"][kind]
+            scope_label = scope if index == 0 else ""
+            percent = "-" if record["total"] == 0 else f"{record['percent']:.2f}%"
+            lines.append(
+                f"{scope_label:<12} {kind:<16} {record['hit']:>9} {record['total']:>9} {percent:>10}"
+            )
 
     return lines
 
@@ -184,12 +223,19 @@ def write_summary(
     ip_files: set[str],
     common_files: set[str],
     output: Path,
+    json_output: Path | None = None,
 ) -> None:
-    """Write a plain summary and print the same table with coverage colors."""
+    """Write human and machine-readable coverage summaries."""
 
     lines = _summary_lines(points, ip_files=ip_files, common_files=common_files)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if json_output is not None:
+        import json
+
+        data = coverage_summary_data(points, ip_files=ip_files, common_files=common_files)
+        json_output.parent.mkdir(parents=True, exist_ok=True)
+        json_output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     print(f"\n{BLUE}Coverage{RESET}")
     for line in lines:
@@ -279,6 +325,7 @@ def parse_args() -> argparse.Namespace:
     summary = sub.add_parser("summary")
     common_args(summary)
     summary.add_argument("--output", type=Path, required=True)
+    summary.add_argument("--json-output", type=Path)
 
     detail = sub.add_parser("detail")
     common_args(detail)
@@ -309,6 +356,7 @@ def main() -> int:
             ip_files=ip_files,
             common_files=common_files,
             output=args.output,
+            json_output=args.json_output,
         )
         return 0
 

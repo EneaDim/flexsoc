@@ -227,8 +227,8 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         TOPLEVEL_LANG     ?= verilog
 
         PWD               := $(shell pwd)
-        TOPLEVEL          = {cfg.top}_tb
-        MODULE            = {cfg.top}_tb
+        COCOTB_TOPLEVEL   = {cfg.top}_tb
+        COCOTB_TEST_MODULES = {cfg.top}_tb
 
         ifneq ($(filter clean veryclean distclean,$(MAKECMDGOALS)),)
           SIM := icarus
@@ -247,7 +247,7 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         {render_source_block(sources)}
 
         COMPILE_ARGS += --sv --timing
-        COMPILE_ARGS += --trace --trace-fst --trace-structs
+        COMPILE_ARGS += --trace-fst --trace-structs
         export WAVES ?= 1
         COMPILE_ARGS += -Wno-WIDTHEXPAND
         COMPILE_ARGS += -Wno-WIDTHTRUNC
@@ -267,12 +267,21 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         SEED ?= 1
         HDL_COVERAGE ?= 0
         COVERAGE_FILE ?= $(abspath ../../coverage/cocotb/$(TEST_NAME).dat)
+        WAVE_EXT ?= $(if $(filter verilator,$(SIM)),fst,vcd)
+        WAVE_FILE ?= $(abspath ../../sim/rtl/{cfg.top}_tb_cocotb_$(TEST_NAME).$(WAVE_EXT))
+        COCOTB_PLUSARGS += +WAVE=$(WAVE_FILE)
+
+        # FlexSoC reserves COVERAGE for HDL coverage. Cocotb 2.x also treats
+        # COVERAGE as deprecated Python user-code coverage, so clear the legacy
+        # cocotb variable while HDL_COVERAGE carries the Verilator setting.
+        override COVERAGE :=
+        unexport COVERAGE
 
         ifeq ($(SIM),verilator)
-        PLUSARGS += +verilator+seed+$(SEED)
+        COCOTB_PLUSARGS += +verilator+seed+$(SEED)
         ifeq ($(HDL_COVERAGE),1)
         COMPILE_ARGS += --coverage
-        PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
+        COCOTB_PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
         endif
         endif
 
@@ -481,7 +490,7 @@ def _clock(dut, clk=None):
 
 async def _cycle(clk):
     await RisingEdge(clk)
-    await Timer(1, units="ps")
+    await Timer(1, unit="ps")
 
 
 def _drive_idle(dut):
@@ -789,6 +798,7 @@ from cocotb.triggers import FallingEdge, RisingEdge, Timer
 from drivers.reg_driver import WRITE_TOKENS, parse_u32
 
 CONFIG_TOKENS = {"@cfg", "cfg", "@config", "config"}
+RESET_TOKENS = {"@reset", "reset"}
 _SIGNAL_RE = re.compile(r"^[@A-Za-z_][A-Za-z0-9_./:-]*$")
 
 
@@ -831,6 +841,12 @@ def load_vectors(path=None):
             rows.append((cycle, [("@write", parts[2], parse_u32(parts[3]), parse_u32(mask))]))
             continue
 
+        if command in RESET_TOKENS:
+            if len(parts) != 3:
+                raise ValueError(f"{path}:{lineno}: @reset format is: cycle @reset cycles")
+            rows.append((cycle, [("@reset", parse_u32(parts[2]))]))
+            continue
+
         if (len(parts) - 1) % 2 != 0:
             raise ValueError(f"{path}:{lineno}: expected cycle followed by signal/value pairs")
 
@@ -855,8 +871,11 @@ async def _drive_one(dut, name, value):
     if not hasattr(dut, name):
         raise AssertionError(f"unknown input vector signal: {name}")
 
-    getattr(dut, name).value = value
-    dut._log.info("drive %s <= 0x%08x", name, int(value) & 0xFFFFFFFF)
+    signal = getattr(dut, name)
+    width = len(signal)
+    value = int(value) & ((1 << width) - 1)
+    signal.value = value
+    dut._log.info("drive %s <= 0x%x", name, value)
     return True
 
 
@@ -867,6 +886,7 @@ async def drive_vectors(
     monitor=None,
     config_runner=None,
     register_writer=None,
+    reset_runner=None,
 ):
     now = -1
     applied = 0
@@ -882,9 +902,18 @@ async def drive_vectors(
                 await monitor.check(now)
 
         await FallingEdge(clk)
-        await Timer(1, units="ps")
+        await Timer(1, unit="ps")
 
         dut._log.info("vector cycle=%d", cycle)
+
+        if pairs[0][0] in RESET_TOKENS:
+            if reset_runner is None:
+                raise AssertionError("@reset row requested but no reset_runner was provided")
+            cycles = max(1, int(pairs[0][1]))
+            await reset_runner(cycles)
+            applied += 1
+            now = cycle + cycles - 1
+            continue
 
         for item in pairs:
             name = item[0]
@@ -908,7 +937,7 @@ async def drive_vectors(
                 applied += 1
 
         await RisingEdge(clk)
-        await Timer(1, units="ps")
+        await Timer(1, unit="ps")
         now = cycle
 
         if monitor is not None:
@@ -958,22 +987,21 @@ from drivers.vec_driver import drive_vectors, load_vectors
 from drivers.vec_monitor import LatencyMonitor
 
 
-async def reset_dut(dut):
-    cocotb.start_soon(Clock(dut.clk_i, 10, units="ns").start())
-
+async def apply_reset(dut, cycles=2):
     if hasattr(dut, "rst_ni"):
         dut.rst_ni.value = 0
-    await Timer(25, units="ns")
-    await RisingEdge(dut.clk_i)
+    for _ in range(max(1, int(cycles))):
+        await RisingEdge(dut.clk_i)
     if hasattr(dut, "rst_ni"):
         dut.rst_ni.value = 1
-    await RisingEdge(dut.clk_i)
-    await Timer(1, units="ns")
+    await Timer(1, unit="ns")
 
 
 @cocotb.test()
 async def {top}_generated_test(dut):
-    await reset_dut(dut)
+    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
+    await apply_reset(dut)
+    await RisingEdge(dut.clk_i)
     await init_register_bus(dut, dut.clk_i)
 
     test_name = os.environ.get("TEST_NAME", "smoke")
@@ -1000,6 +1028,9 @@ async def {top}_generated_test(dut):
     async def do_read(reg):
         return await read_register(dut, reg, regmap=regmap, clk=dut.clk_i)
 
+    async def do_reset(cycles):
+        await apply_reset(dut, cycles)
+
     await apply_config(cfg_path)
 
     await drive_vectors(
@@ -1009,6 +1040,7 @@ async def {top}_generated_test(dut):
         LatencyMonitor(dut, data_out, register_reader=do_read),
         config_runner=apply_config,
         register_writer=do_write,
+        reset_runner=do_reset,
     )
 """
 
@@ -1070,8 +1102,11 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
           assign tl_o_d_data   = tl_o.d_data;
           assign tl_o_d_error  = tl_o.d_error;
           assign tl_o_a_ready  = tl_o.a_ready;
+          string wave_path;
           initial begin
-            $dumpfile("{cfg.top}_tb.vcd");
+            if (!$value$plusargs("WAVE=%s", wave_path)) wave_path = "{cfg.top}_tb.fst";
+            $display("[TB] dumpfile = %s", wave_path);
+            $dumpfile(wave_path);
             $dumpvars(0, {cfg.top}_tb);
             #1;
           end
@@ -1226,8 +1261,11 @@ module {top}_tb;
   assign tl_o_a_ready  = tl_o.a_ready;
 
   // Wave dump for local debug.
+  string wave_path;
   initial begin
-    $dumpfile("{top}_tb.vcd");
+    if (!$value$plusargs("WAVE=%s", wave_path)) wave_path = "{top}_tb.fst";
+    $display("[TB] dumpfile = %s", wave_path);
+    $dumpfile(wave_path);
     $dumpvars(0, {top}_tb);
     #1;
   end

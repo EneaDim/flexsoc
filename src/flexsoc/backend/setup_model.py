@@ -1,10 +1,11 @@
 """Generate the single-clock Python model scaffold.
 
-``setup_model`` creates three independent files in ``dv/functional/model/``:
+``setup_model`` creates four files in ``dv/functional/model/``:
 
 * ``<top>_model.py``: editable behavioral reference model for the RTL;
 * ``<top>_regmap.py``: generated CSR metadata/API derived from HJSON;
-* ``<top>_tests.py``: editable test catalogue and vector generator.
+* ``<top>_tests.py``: editable functional test catalogue;
+* ``<top>_regmap_tests.py``: generated CSR/input toggle tests.
 
 The split is intentional. Behavioral changes belong in the model, register-layout
 changes are refreshed with ``fx regmap_py --force``, and new verification
@@ -550,6 +551,95 @@ def _tests_text(top: str) -> str:
     )
 
 
+def _regmap_tests_text(top: str) -> str:
+    """Render the generated regmap/input toggle test."""
+
+    return dedent(
+        f'''\
+        """Generated FlexSoC coverage stimulus for {top}.
+
+        This file is machine-owned. It reads the current generated regmap at
+        runtime, so HJSON/regmap changes are reflected by the next ``tests_gen``.
+        """
+        from __future__ import annotations
+
+        import argparse
+        from pathlib import Path
+
+        import {top}_model as model
+        import {top}_regmap as regmap
+
+
+        TOP = {top!r}
+        TEST = "auto_toggle"
+
+
+        def stimulus() -> list[str]:
+            rows: list[str] = []
+            cycle = 0
+
+            for domain in regmap.DOMAINS.values():
+                for register in domain.writable:
+                    for value in (0xFF, 0x00, 0xFF, 0x00):
+                        rows.append(register.vector_write(cycle, value, mask=0xF))
+                        cycle += 4
+
+            for value in (0xFFFF_FFFF, 0x0000_0000, 0xFFFF_FFFF, 0x0000_0000):
+                if model.INPUTS:
+                    pairs = " ".join(f"{{name}} 0x{{value:08x}}" for name in model.INPUTS)
+                    rows.append(f"{{cycle}} {{pairs}}")
+                    cycle += 4
+
+            rows.append(f"{{cycle}} @reset 2")
+            return rows
+
+
+        def write_test(root: str | Path) -> None:
+            folder = Path(root) / TEST
+            folder.mkdir(parents=True, exist_ok=True)
+            regmap.write_config(folder / "config.regs", [])
+            (folder / "data_in.vec").write_text(
+                "# Generated CSR/input toggle stimulus.\\n"
+                + "\\n".join(stimulus())
+                + "\\n",
+                encoding="utf-8",
+            )
+            (folder / "data_out.vec").write_text(
+                "# Coverage stimulus intentionally has no functional checks.\\n",
+                encoding="utf-8",
+            )
+
+
+        def main() -> int:
+            parser = argparse.ArgumentParser(description="Generate FlexSoC automatic coverage vectors.")
+            parser.add_argument("--tests-dir", default="../tests")
+            parser.add_argument("--test", action="append", default=[])
+            args = parser.parse_args()
+            unknown = [name for name in args.test if name != TEST]
+            if unknown:
+                raise SystemExit(f"unknown automatic test(s): {{', '.join(unknown)}}")
+            write_test(args.tests_dir)
+            return 0
+
+
+        if __name__ == "__main__":
+            raise SystemExit(main())
+        '''
+    )
+
+
+def write_regmap_tests(top: str, output: Path) -> Path:
+    """Regenerate machine-owned coverage stimulus."""
+
+    output.mkdir(parents=True, exist_ok=True)
+    path = output / f"{top}_regmap_tests.py"
+    path.write_text(_regmap_tests_text(top), encoding="utf-8")
+    legacy = output / f"{top}_auto_tests.py"
+    if legacy.exists():
+        legacy.unlink()
+    return path
+
+
 def _write_text(path: Path, text: str, *, force: bool) -> Path:
     """Write one generated scaffold, preserving it unless ``force`` is set."""
 
@@ -622,6 +712,7 @@ def main(argv: list[str] | None = None) -> int:
         force=args.force,
     )
     write_tests(args.top, output_dir, force=args.force)
+    write_regmap_tests(args.top, output_dir)
 
     return 0
 

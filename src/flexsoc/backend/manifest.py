@@ -12,6 +12,9 @@ from importlib import metadata
 from pathlib import Path
 from typing import Sequence
 
+from rich.console import Console
+from rich.table import Table
+
 from flexsoc.doctor import collect as collect_environment
 
 
@@ -69,7 +72,7 @@ def collect_manifest(
     }
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "run": {
             "top": top,
             "run_top": run_top,
@@ -82,28 +85,85 @@ def collect_manifest(
         "environment": {
             "flexsoc": _flexsoc_version(repo_root),
             "python": platform.python_version(),
+            "platform": platform.platform(),
+            "machine": platform.machine(),
             "uv_lock_sha256": _file_sha256(repo_root / "uv.lock"),
+            "toolchain_lock_sha256": _file_sha256(repo_root / "src" / "flexsoc" / "backend" / "toolchain.lock"),
         },
         "tools": tools,
     }
+
+
+def show_manifest(path: Path) -> None:
+    """Render one run manifest as a compact colored terminal report."""
+
+    if not path.is_file():
+        raise FileNotFoundError(f"manifest file not found: {path}; run: fx manifest")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    console = Console()
+    run = data.get("run", {})
+    console.print(
+        f"[bold cyan]FlexSoC manifest[/bold cyan] — "
+        f"{run.get('top', 'unknown')} / {run.get('run_id', 'unknown')}"
+    )
+
+    identity = Table(show_header=False, box=None, pad_edge=False)
+    identity.add_column("Field", style="dim")
+    identity.add_column("Value")
+    identity.add_row("RUN_TOP", str(run.get("run_top", "-")))
+    identity.add_row("Git commit", str(data.get("git", {}).get("commit") or "unavailable"))
+    dirty = data.get("git", {}).get("dirty")
+    dirty_text = "unknown" if dirty is None else ("dirty" if dirty else "clean")
+    dirty_color = "yellow" if dirty else "green"
+    identity.add_row("Git tree", f"[{dirty_color}]{dirty_text}[/{dirty_color}]")
+    env = data.get("environment", {})
+    identity.add_row("FlexSoC", str(env.get("flexsoc", "unknown")))
+    identity.add_row("Python", str(env.get("python", "unknown")))
+    identity.add_row("Platform", str(env.get("platform", "unknown")))
+    identity.add_row("Machine", str(env.get("machine", "unknown")))
+    identity.add_row("uv.lock", str(env.get("uv_lock_sha256") or "missing"))
+    identity.add_row("toolchain.lock", str(env.get("toolchain_lock_sha256") or "missing"))
+    console.print(identity)
+
+    tools = data.get("tools", {})
+    if tools:
+        console.print("\n[bold cyan]Resolved tools[/bold cyan]")
+        table = Table(box=None, pad_edge=False)
+        table.add_column("Executable", style="bright_cyan")
+        table.add_column("Version")
+        for executable, version in sorted(tools.items()):
+            table.add_row(executable, str(version))
+        console.print(table)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse the manifest collector command line."""
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--top", required=True)
-    parser.add_argument("--run-top", required=True)
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--repo-root", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    return parser.parse_args(argv)
+    parser.add_argument("--top")
+    parser.add_argument("--run-top")
+    parser.add_argument("--run-id")
+    parser.add_argument("--repo-root", type=Path)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--show", type=Path)
+    args = parser.parse_args(argv)
+    if args.show is None and not all((args.top, args.run_top, args.run_id, args.repo_root, args.output)):
+        parser.error("collection requires --top, --run-top, --run-id, --repo-root, and --output")
+    return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Write the compact run manifest."""
 
     args = parse_args(argv)
+    if args.show is not None:
+        try:
+            show_manifest(args.show)
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            print(f"ERROR: {exc}")
+            return 2
+        return 0
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
     data = collect_manifest(
         top=args.top,

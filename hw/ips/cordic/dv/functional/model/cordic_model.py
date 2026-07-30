@@ -16,6 +16,11 @@ import math
 from dataclasses import dataclass
 
 
+TOP = "cordic"
+INPUTS: tuple[str, ...] = ()
+OUTPUTS: tuple[str, ...] = ()
+
+
 @dataclass(frozen=True)
 class CordicFormat:
     """RTL-visible CORDIC fixed-point formats."""

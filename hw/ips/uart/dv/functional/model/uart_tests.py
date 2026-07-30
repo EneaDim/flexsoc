@@ -11,15 +11,12 @@ import argparse
 import random
 from pathlib import Path
 
-from uart_model import BIT_CYCLES, NCO, uart_frame
+from uart_model import BIT_CYCLES, INPUTS, NCO, OUTPUTS, uart_frame
 import uart_regmap as regmap
 
 
 CSR = regmap.PRIMARY
 TESTS = ("smoke", "corners", "random", "reconfig")
-INPUTS = ("cio_rx_i",)
-OUTPUTS = ("cio_tx_o", "cio_tx_en_o")
-
 
 def hx(value: int) -> str:
     """Format one vector value as a 32-bit hexadecimal word."""

@@ -48,6 +48,10 @@ else:
         "--project-root",
         "--workdir",
         "--tool",
+        "--user",
+        "--system",
+        "--profile",
+        "--jobs",
         "--reset",
         "--force",
         "--overwrite",
@@ -122,16 +126,16 @@ Use `fx commands` to list every backend Make target.
                     ("fx setup_tb setup_cocotb --force", "Generate SystemVerilog and cocotb runners."),
                     ("fx sim --set TEST_NAME=smoke --force", "Run one SystemVerilog vector test by name."),
                     ("fx cocotb --set TEST_NAME=smoke --force", "Run one cocotb vector test by name."),
-                    ("fx sim_tests", "Run all generated SystemVerilog tests for this IP."),
-                    ("fx cocotb_tests", "Run all generated cocotb tests for this IP."),
+                    ("fx regression", "Run all generated tests on SystemVerilog and cocotb backends with coverage."),
                 ],
             ),
             section(
                 "IP development",
                 [
                     ("fx setup hjson reg doc rtl_stub lint --force", "Create a fresh IP workspace and run lint."),
-                    ("fx setup_model setup_tb setup_cocotb sim cocotb --force", "Generate and run model-driven verification."),
-                    ("fx syn sdf sta power_estimate --force", "Run synthesis, timing and estimated-power checks."),
+                    ("fx setup_model regression --force", "Generate the model and run the full SV+cocotb regression."),
+                    ("fx ip_flow --force", "Run lint, regression, formal, synthesis/equivalence, SDF, STA, power, then reports."),
+                    ("fx manifest_show", "Show the saved run identity and tool versions in color."),
                 ],
             ),
             section(
@@ -155,6 +159,9 @@ Use `fx commands` to list every backend Make target.
                 "Useful options",
                 [
                     ("--set KEY=VALUE", "Override one Make/config variable for this command."),
+                    ("--user / --system", "Select rootless user or shared/system dependency mode."),
+                    ("--profile base|impl|riscv", "Select the dependency profile."),
+                    ("--jobs N", "Set parallel jobs for dependency builds."),
                     ("--force", "Overwrite generated files where supported."),
                     ("--dry-run", "Print the Make command without executing it."),
                     ("--info", "Describe selected targets instead of running them."),
@@ -412,6 +419,22 @@ Use `fx commands` to list every backend Make target.
             str | None,
             typer.Option("--tool", help="Shortcut for LINT_TOOL=VALUE.", rich_help_panel="Target options"),
         ] = None,
+        deps_user: Annotated[
+            bool,
+            typer.Option("--user", help="Use rootless user dependency mode.", rich_help_panel="Dependency tooling"),
+        ] = False,
+        deps_system: Annotated[
+            bool,
+            typer.Option("--system", help="Use shared/system dependency mode.", rich_help_panel="Dependency tooling"),
+        ] = False,
+        deps_profile: Annotated[
+            str | None,
+            typer.Option("--profile", help="Dependency profile: base, impl, or riscv.", rich_help_panel="Dependency tooling"),
+        ] = None,
+        deps_jobs: Annotated[
+            int | None,
+            typer.Option("--jobs", help="Parallel dependency build jobs.", rich_help_panel="Dependency tooling"),
+        ] = None,
         reset: Annotated[
             bool,
             typer.Option("--reset", help="Reset settings before applying updates.", rich_help_panel="Settings and overrides"),
@@ -449,6 +472,26 @@ Use `fx commands` to list every backend Make target.
 
         root = (project_root or Path.cwd()).resolve()
         args, set_args, unset_args = tuple(items or ()), tuple(sets or ()), tuple(unsets or ())
+        if deps_user and deps_system:
+            raise click.BadParameter("choose only one of --user or --system")
+        if deps_profile is not None and deps_profile not in {"base", "impl", "riscv"}:
+            raise click.BadParameter("--profile must be base, impl, or riscv")
+        if deps_jobs is not None and deps_jobs < 1:
+            raise click.BadParameter("--jobs must be a positive integer")
+        if deps_user or deps_system or deps_profile is not None or deps_jobs is not None:
+            dep_targets = {"deps-bootstrap", "deps", "deps-doctor", "deps-versions", "deps-env"}
+            if not args or any(arg not in dep_targets for arg in args):
+                raise click.BadParameter("--user/--system/--profile/--jobs are only valid for dependency targets")
+            dep_sets = []
+            if deps_user:
+                dep_sets.append("DEPS_MODE=user")
+            if deps_system:
+                dep_sets.append("DEPS_MODE=system")
+            if deps_profile is not None:
+                dep_sets.append(f"DEPS_PROFILE={deps_profile}")
+            if deps_jobs is not None:
+                dep_sets.append(f"DEPS_JOBS={deps_jobs}")
+            set_args = (*set_args, *dep_sets)
         client = FlexSoC(FlexSoCConfig(root, workdir), **_read_settings(root))
         if not args:
             _guide()

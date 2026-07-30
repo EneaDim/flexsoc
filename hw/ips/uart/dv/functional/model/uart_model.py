@@ -8,6 +8,11 @@ formatting belong to ``uart_tests.py``.
 from __future__ import annotations
 
 
+TOP = "uart"
+INPUTS = ("cio_rx_i",)
+OUTPUTS = ("cio_tx_o", "cio_tx_en_o")
+
+
 # uart_core accumulates CTRL.NCO every clk_i cycle and uart_tx/uart_rx divide
 # tick_baud_x16 by 16. NCO=0x8000 therefore gives an exact 32-clock bit cell.
 NCO = 0x8000

@@ -46,6 +46,17 @@ SIM = (
 )
 VIEW = (*COMMON, "WAVE_VIEWER", "SURFER_BACKEND")
 SYN = (*COMMON, "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV")
+FORMAL = (
+    *COMMON,
+    "SBY",
+    "FORMAL_DEPTH",
+    "FORMAL_BMC_DEPTH",
+    "FORMAL_BMC_APPEND",
+    "FORMAL_BMC_ENGINE",
+    "FORMAL_PROVE_ENGINE",
+    "FORMAL_COVER_ENGINE",
+)
+EQUIV = (*SYN, "SBY", "EQY", "LIB_SYN", "EQY_SAT_DEPTH", "EQY_DEPTH", "EQY_ENGINE")
 SIGNOFF = (*COMMON, "LIBS", "POWER_ACTIVITY", "POWER_DUTY", "PATH_VIEW_FILE", "NPATHS")
 PNR = (*COMMON, "ORS", "ORS_TECH")
 IP_LOAD = (*COMMON, "IP_NAME")
@@ -53,6 +64,7 @@ SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
 FSM = (*BASE, "FSM", "FORCE")
 TUTORIAL = ("TUTORIAL_WS", "TUTORIAL_RUN_ID", *COMMON)
 CLEAN = (*BASE, "RUN_TOP")
+DEPS = ("DEPS_MODE", "DEPS_PROFILE", "DEPS_JOBS")
 
 
 # ---------------------------------------------------------------------------
@@ -94,11 +106,15 @@ TARGETS: dict[str, TargetSpec] = {
     "driver": ("IP flow", "Generate C driver files from HJSON", IP_DEV),
     "fetch": ("IP flow", "Fetch or update a vendored dependency", FETCH),
     "ip_start": ("IP flow", "Bootstrap a complete IP run", IP_FULL),
-    "ip_flow": ("IP flow", "Run the standard IP flow", IP_FULL),
-    "ip_flow_noreg": ("IP flow", "Run IP flow without regenerating registers", IP_DEV),
+    "ip_flow": ("IP flow", "Run regression, formal, synthesis, signoff, and final reports", IP_FULL),
+    "ip_flow_noreg": ("IP flow", "Run full closure without regenerating registers", IP_DEV),
     "ip_flow_all": ("IP flow", "Run full IP flow including PnR", IP_FULL),
-    "lint": ("Linting", "Run HDL lint checks", LINT),
-    "lint_suite": ("Linting", "Run the complete HDL lint diagnostic suite", LINT),
+    "lint": ("Linting", "Run Slang lint first, then Verilator lint", LINT),
+    "lint_slang": ("Linting", "Run Slang HDL lint", LINT),
+    "lint_verilator": ("Linting", "Run Verilator HDL lint", LINT),
+    "lint_slang_suite": ("Linting", "Run the full Slang lint suite", LINT),
+    "lint_verilator_suite": ("Linting", "Run the full Verilator lint suite", LINT),
+    "lint_suite": ("Linting", "Run full Slang suite, then full Verilator suite", LINT),
     "lint_v": ("Linting", "Run Verilog lint checks", LINT),
     "lint_sv": ("Linting", "Run SystemVerilog lint checks", LINT),
     "lint_latch": ("Linting", "Run latch-focused HDL lint diagnostics", LINT),
@@ -145,6 +161,21 @@ TARGETS: dict[str, TargetSpec] = {
     "syn_sv": ("Synthesis", "Run SystemVerilog synthesis", SYN),
     "yosys-vgen": ("Synthesis", "Convert SV to Verilog with Yosys", SYN),
     "sv2v": ("Synthesis", "Convert SV to Verilog with sv2v", SYN),
+    "setup_formal": ("DV formal", "Prepare CSR formal and any authored design-property configurations", FORMAL),
+    "setup_formal_csr_prove": ("DV formal", "Generate shared CSR BMC/prove configuration", FORMAL),
+    "setup_formal_csr_cover": ("DV formal", "Generate automatic CSR cover configuration", FORMAL),
+    "formal_csr_bmc": ("DV formal", "Bounded-check automatic CSR assertions", FORMAL),
+    "formal_csr_prove": ("DV formal", "Prove automatic CSR semantics with SymbiYosys", FORMAL),
+    "formal_csr_cover": ("DV formal", "Reach automatic CSR cover points with SymbiYosys", FORMAL),
+    "formal_csr": ("DV formal", "Run CSR BMC, prove, then cover", FORMAL),
+    "formal": ("DV formal", "Run all formal stages BMC, prove, then cover", FORMAL),
+    "setup_formal_prove": ("DV formal", "Generate shared design BMC/prove configuration", FORMAL),
+    "setup_formal_cover": ("DV formal", "Generate authored-property cover configuration", FORMAL),
+    "formal_bmc": ("DV formal", "Bounded-check authored design assertions", FORMAL),
+    "formal_prove": ("DV formal", "Prove authored properties with SymbiYosys", FORMAL),
+    "formal_cover": ("DV formal", "Reach authored cover properties with SymbiYosys", FORMAL),
+    "setup_equiv": ("DV formal", "Generate RTL-vs-post-synthesis EQY configuration", EQUIV),
+    "equiv": ("DV formal", "Prove RTL equivalent to the post-synthesis netlist with EQY", EQUIV),
     "setup_signoff": ("Signoff", "Generate signoff scripts", SIGNOFF),
     "compile_syn": ("Signoff", "Compile post-synthesis simulation", SIGNOFF),
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
@@ -153,9 +184,10 @@ TARGETS: dict[str, TargetSpec] = {
     "power_estimate": ("Signoff", "Estimate power using global switching activity", SIGNOFF),
     "sta_violators": ("Signoff", "Report timing violators", SIGNOFF),
     "path_view": ("Signoff", "Build interactive STA path view", SIGNOFF),
-    "metrics": ("Run metadata", "Collect available run metrics into meta/metrics.json", COMMON),
+    "metrics": ("Run metadata", "Collect functional/formal/synthesis/signoff metrics", COMMON),
     "manifest": ("Run metadata", "Collect automatic run identity into meta/manifest.json", COMMON),
-    "check": ("Run metadata", "Print current run metrics; informational only", COMMON),
+    "manifest_show": ("Run metadata", "Show the current run manifest in color", COMMON),
+    "check": ("Run metadata", "Show complete current run closure status and metrics", COMMON),
     "setup_pnr": ("Place and route", "Generate OpenROAD config", PNR),
     "pnr": ("Place and route", "Run OpenROAD place and route", PNR),
     "pnr_gui": ("Place and route", "Open OpenROAD GUI", PNR),
@@ -199,14 +231,18 @@ TARGETS: dict[str, TargetSpec] = {
     "fsm_tutorial": ("Tutorials", "Run the FSM tutorial flow", TUTORIAL),
     "ip_tutorial": ("Tutorials", "Run the IP tutorial flow", TUTORIAL),
     "soc_pless": ("Tutorials", "Run the tiny SoC tutorial flow", TUTORIAL),
-    "deps": ("Dependencies", "Install IP development dependencies", NONE),
-    "deps-soc": ("Dependencies", "Install SoC development dependencies", NONE),
+    "deps-bootstrap": ("Dependencies", "Check/install prerequisites for a dependency profile", DEPS),
+    "deps": ("Dependencies", "Install pinned base, impl, or riscv profile", DEPS),
+    "deps-doctor": ("Dependencies", "Verify the selected pinned dependency profile", DEPS),
+    "deps-versions": ("Dependencies", "Show pinned tool versions and revisions", NONE),
+    "deps-env": ("Dependencies", "Print shell exports for the pinned toolchain", DEPS),
     "clean-pyc": ("Cleanup", "Remove Python caches", CLEAN),
     "clean_doc": ("Cleanup", "Remove generated docs", CLEAN),
     "clean_log": ("Cleanup", "Remove logs", CLEAN),
     "clean_rtl": ("Cleanup", "Remove generated RTL", CLEAN),
     "clean_sim": ("Cleanup", "Remove simulation outputs", CLEAN),
     "clean_cocotb": ("Cleanup", "Remove cocotb outputs", CLEAN),
+    "clean_formal": ("Cleanup", "Remove formal proof and equivalence outputs", CLEAN),
     "clean_syn": ("Cleanup", "Remove synthesis outputs", CLEAN),
     "clean_signoff": ("Cleanup", "Remove signoff outputs", CLEAN),
     "clean_meta": ("Cleanup", "Remove run metadata", CLEAN),
