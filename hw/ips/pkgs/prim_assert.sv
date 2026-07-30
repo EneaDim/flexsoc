@@ -101,6 +101,8 @@
 
 `ifdef VERILATOR
  `include "prim_assert_dummy_macros.svh"
+`elsif __slang__
+ `include "prim_assert_dummy_macros.svh"
 `elsif SYNTHESIS
  `include "prim_assert_dummy_macros.svh"
 `elsif YOSYS
