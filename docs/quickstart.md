@@ -64,7 +64,7 @@ fx cocotb_tests
 Continue to implementation/signoff when needed:
 
 ```bash
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
 After `<top>_model.py` or `<top>_tests.py` has been customized, do not use
@@ -128,7 +128,7 @@ fx sim_tests
 fx cocotb_tests
 
 fx sdc_multi --force
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
 `CLOCK_MODE=multi` keeps the same high-level model/regmap/tests ownership but
@@ -169,7 +169,7 @@ Default output is compact. Add `--live` to stream full tool output:
 
 ```bash
 fx sim_tests --live
-fx syn sdf sta power --force --live
+fx syn sdf sta power_estimate --force --live
 ```
 
 Logs are organized under `logs/lint`, `logs/verification`, `logs/synthesis`, and

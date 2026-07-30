@@ -323,16 +323,20 @@ For a larger propagation matrix, see
 ## 13. 🏗️ Synthesis and signoff
 
 ```bash
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
-Synthesis logs are under `logs/synthesis/`; SDF/STA/power logs are under
+Synthesis logs are under `logs/synthesis/`; SDF/STA/power-estimate logs are under
 `logs/signoff/`.
+
+`power_estimate` is intentionally a heuristic estimate, not workload-driven power.
+It applies a global switching activity (`POWER_ACTIVITY=0.1` transitions per clock
+cycle) and duty (`POWER_DUTY=0.5`) unless overridden with `--set`.
 
 Use `--live` when full tool output is useful in the terminal:
 
 ```bash
-fx syn sdf sta power --force --live
+fx syn sdf sta power_estimate --force --live
 ```
 
 ## 14. 🧪 E2E regression

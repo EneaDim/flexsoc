@@ -191,7 +191,7 @@ and generated TB infrastructure are refreshed.
 ## 9. 🏗️ Synthesis/signoff regression
 
 ```bash
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
 This allows a reusable IP to be validated through the same frontend,

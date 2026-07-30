@@ -152,8 +152,8 @@ The same run can continue into:
 
 - Yosys synthesis;
 - SDF generation;
-- OpenSTA timing and power analysis;
-- corner-oriented STA/power targets;
+- OpenSTA timing analysis and explicit global-activity power estimates;
+- corner-oriented STA plus explicit `power_estimate` targets;
 - OpenROAD-oriented PnR collateral and runs.
 
 Logs are separated by responsibility:
@@ -219,7 +219,7 @@ edit <top>.hjson
     ├── fx lint_suite
     ├── fx sim_tests
     ├── fx cocotb_tests
-    └── fx syn sdf sta power --force   # when implementation/signoff must be rechecked
+    └── fx syn sdf sta power_estimate --force   # when implementation/signoff must be rechecked
 ```
 
 The important distinction is between **authored source** and **derived
@@ -243,7 +243,7 @@ flow. Depending on the target, the current backend integrates tools including:
 - **lowRISC reggen** for HJSON register collateral;
 - **Yosys** and its Slang frontend for synthesis;
 - **sv2v** where Verilog conversion is useful;
-- **OpenSTA** for static timing and power-oriented analysis;
+- **OpenSTA** for static timing and global-activity power estimates;
 - **OpenROAD** for physical-design-oriented flows.
 
 FlexSoC's job is to keep the project representation and assumptions consistent
@@ -279,7 +279,7 @@ fx setup_cocotb --force
 fx sim_tests
 fx cocotb_tests
 
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
 `setup_model --force` is a bootstrap/reset operation. Once `<top>_model.py` and

@@ -178,14 +178,14 @@ fx sdc_multi --force
 Then run:
 
 ```bash
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
 Corner-oriented targets:
 
 ```bash
 fx sta_corners
-fx power_corners
+fx power_estimate_corners
 fx signoff_corners
 ```
 
@@ -211,7 +211,7 @@ fx setup_cocotb --force
 fx sim_tests
 fx cocotb_tests
 fx sdc_multi --force
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
 ## 11. 🧪 E2E regression

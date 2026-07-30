@@ -115,7 +115,7 @@ behavioral reference, vector tests, and two verification frontends.
 Continue to implementation/signoff when required:
 
 ```bash
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
 ## 4. 🧾 Change scenario: the register map changes
@@ -156,7 +156,7 @@ fx cocotb_tests
 If the register change affects implementation or timing, continue with:
 
 ```bash
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
 The important property is that `<top>_model.py` and `<top>_tests.py` are not
@@ -286,7 +286,7 @@ Slang            -> elaboration, hierarchy, filelist, optional lint/analysis
 Verilator        -> lint and SV simulation
 cocotb           -> Python-driven simulation
 Yosys + Slang    -> synthesis
-OpenSTA          -> timing/power-oriented analysis
+OpenSTA          -> timing analysis / global-activity power estimates
 OpenROAD         -> physical-design flow
 ```
 
@@ -313,7 +313,7 @@ Examples:
 | Core ports | generated wrapper if still owned by flow; TB scaffolds | lint + verification |
 | Behavioral model | `tests_gen` | sim + cocotb |
 | Test catalogue only | `tests_gen` | selected/all vector tests |
-| Timing constraints | SDC/signoff collateral | STA/power/PnR-related stages |
+| Timing constraints | SDC/signoff collateral | STA/power-estimate/PnR-related stages |
 | Reusable IP update | reload/stage the IP in the consumer run | consumer hierarchy + verification/signoff |
 
 That selective propagation is the central workflow FlexSoC is designed to

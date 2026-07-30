@@ -150,7 +150,7 @@ actual clocking, integration paths, external assumptions, and system timing
 budget.
 
 ```bash
-fx syn sdf sta power --force
+fx syn sdf sta power_estimate --force
 ```
 
 OpenROAD-oriented PnR can be run when required by the project.
