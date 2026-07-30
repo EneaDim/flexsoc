@@ -8,7 +8,7 @@
 UV ?= uv
 PYTHON ?= python3
 RUFF ?= ruff
-PYTEST ?= pytest
+PYTEST ?= $(UV) run --no-sync pytest
 LINT_PATHS ?= src/flexsoc/api.py src/flexsoc/backend tests
 MAKEFLAGS += --no-print-directory
 
@@ -17,8 +17,20 @@ MAKEFLAGS += --no-print-directory
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nflexsoc ✨\n"} \
 		/^##@/ {printf "\n%s\n", substr($$0, 5); next} \
-		/^[A-Za-z0-9_.%-]+:.*##/ {gsub(/^ +/, "", $$2); printf "  %-14s %s\n", $$1, $$2} \
+		/^[A-Za-z0-9_.%-]+:.*##/ {gsub(/^ +/, "", $$2); printf "  %-16s %s\n", $$1, $$2} \
 		END {printf "\n"}' $(lastword $(MAKEFILE_LIST))
+	@printf '%s\n' \
+		'Common workflows' \
+		'  make sync                              Install/update the local environment' \
+		'  make check                             Run Ruff + default E2E regression' \
+		'  make test                              Run E2E + Verilator/Slang lint + Slang AST, no signoff' \
+		'  make test SIGNOFF=1                    Include synthesis/signoff stages' \
+		'  make test E2E_ROOT=~/flexsoc-e2e       Choose where E2E workspaces are created' \
+		'  make test SIGNOFF=1 E2E_ROOT=~/fx-e2e  Combine signoff and custom workspace root' \
+		'  make test-live                         Stream fx subprocess output live' \
+		'  make test-api                          Run fast Python/API tests only' \
+		'  uv run fx --help                       Show hardware-flow targets' \
+		''
 
 ##@ Setup
 install: sync ## Sync the local environment
@@ -40,7 +52,28 @@ fix: ## Run Ruff with --fix
 	@echo ">> Running Ruff --fix"
 	@$(UV) run --no-sync $(RUFF) check --fix $(LINT_PATHS)
 
-check: lint test ## Run lint and tests
+check: lint test ## Run Ruff + default E2E regression
+
+##@ Tests
+# E2E is the default test surface. Signoff is opt-in so the normal developer
+# loop stays fast, while the workspace root can be moved outside /tmp when a
+# run should be inspected or retained on a larger filesystem.
+.PHONY: test test-live test-api
+
+FLEXSOC_E2E_FX ?= $(UV) run --no-sync fx
+FLEXSOC_E2E_LIVE ?= 0
+E2E_ROOT ?= /tmp
+SIGNOFF ?= 0
+E2E_SIGNOFF_ARG := $(if $(filter 1 true yes on,$(SIGNOFF)),,--no-signoff)
+
+test: ## Run E2E incl. Verilator/Slang lint + Slang AST (SIGNOFF=0, E2E_ROOT=/tmp)
+	FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_LIVE=$(FLEXSOC_E2E_LIVE) FLEXSOC_E2E_FX="$(FLEXSOC_E2E_FX)" $(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_SIGNOFF_ARG) --e2e-root "$(E2E_ROOT)"
+
+test-live: ## Run the E2E regression with live fx output
+	$(MAKE) test FLEXSOC_E2E_LIVE=1 SIGNOFF=$(SIGNOFF) E2E_ROOT="$(E2E_ROOT)"
+
+test-api: ## Run fast Python/API tests only
+	$(PYTEST) -s tests/test_api.py
 
 ##@ Cleanup
 clean: clean-py clean-build ## Remove Python caches and build artifacts
@@ -63,25 +96,3 @@ clean-build: ## Remove local package/build outputs
 clean-all: clean ## Remove workspace artifacts too
 	@echo ">> Removing workspace artifacts"
 	@rm -rf workspace
-
-# -----------------------------------------------------------------------------
-# Tests
-# -----------------------------------------------------------------------------
-# `make test` is the one-command local regression. It keeps pytest output visible
-# so the E2E debug prints look like running the `fx` flow by hand.
-.PHONY: test test-api test-e2e test-e2e-live
-
-PYTEST ?= uv run --no-sync pytest
-FLEXSOC_E2E_FX ?= uv run --no-sync fx
-FLEXSOC_E2E_LIVE ?= 0
-
-test: test-api test-e2e
-
-test-api:
-	$(PYTEST) -s tests/test_api.py
-
-test-e2e:
-	FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_LIVE=$(FLEXSOC_E2E_LIVE) FLEXSOC_E2E_FX="$(FLEXSOC_E2E_FX)" $(PYTEST) -s -m e2e tests/test_e2e_fx.py
-
-test-e2e-live:
-	$(MAKE) test-e2e FLEXSOC_E2E_LIVE=1

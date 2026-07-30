@@ -196,14 +196,46 @@ def _run_lint_suite(
     run_id: str = DEFAULT_RUN_ID,
     workspace: Path,
 ) -> None:
-    """Run lint and focused lint diagnostics."""
+    """Run the complete lint suite with both supported frontends."""
 
-    _run_fx(["lint"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["lint_latch"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["lint_width"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["lint_unconnected"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["lint_undriven"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["lint_unused"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["lint_suite", "--set", "LINT_TOOL=verilator"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["lint_suite", "--set", "LINT_TOOL=slang"], top=top, run_id=run_id, workspace=workspace)
+
+
+def _run_slang_ast(
+    top: str,
+    *,
+    run_id: str = DEFAULT_RUN_ID,
+    workspace: Path,
+) -> None:
+    """Generate and validate the Slang AST for the active run hierarchy."""
+
+    rtl_dir = workspace / "runs" / top / run_id / "rtl"
+    search_roots = (
+        REPO_ROOT / "hw" / "ips" / "pkgs",
+        REPO_ROOT / "hw" / "ips" / "prim",
+        REPO_ROOT / "hw" / "ips" / "prim_opentitan",
+        REPO_ROOT / "hw" / "ips" / "tlul",
+    )
+    search_args = " ".join(f"--search-root {path}" for path in search_roots)
+
+    _run_fx(
+        [
+            "slang_ast",
+            "--set",
+            f"SLANG_ROOT={rtl_dir}",
+            "--set",
+            f"SLANG_TOP_FILE={rtl_dir / f'{top}.sv'}",
+            "--set",
+            f"SLANG_SEARCH_ARGS={search_args}",
+        ],
+        top=top,
+        run_id=run_id,
+        workspace=workspace,
+    )
+
+    ast = workspace / "runs" / top / run_id / "analysis" / "slang" / f"{top}_ast.json"
+    assert ast.is_file() and ast.stat().st_size > 0, f"missing or empty Slang AST: {ast}"
 
 
 def _run_generated_model_and_tests(
@@ -242,6 +274,7 @@ def _run_loaded_ip_tests(
     _run_fx(["flist", "--force"], top=top, run_id=run_id, workspace=workspace)
 
     _run_lint_suite(top, run_id=run_id, workspace=workspace)
+    _run_slang_ast(top, run_id=run_id, workspace=workspace)
 
     _run_fx(["regmap_py", "--force"], top=top, run_id=run_id, workspace=workspace)
     _run_fx(["tests_gen", "--force"], top=top, run_id=run_id, workspace=workspace)
@@ -289,6 +322,7 @@ def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     _settings(top, clock_mode="single", run_id=run_id, host=host, workspace=workspace)
     _run_generated_rtl_flow(top, run_id=run_id, workspace=workspace)
     _run_lint_suite(top, run_id=run_id, workspace=workspace)
+    _run_slang_ast(top, run_id=run_id, workspace=workspace)
     _run_generated_model_and_tests(top, run_id=run_id, workspace=workspace)
 
     if run_signoff:
@@ -309,6 +343,7 @@ def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     _settings(top, clock_mode="multi", run_id=run_id, host=host, workspace=workspace)
     _run_generated_rtl_flow(top, run_id=run_id, workspace=workspace)
     _run_lint_suite(top, run_id=run_id, workspace=workspace)
+    _run_slang_ast(top, run_id=run_id, workspace=workspace)
     _run_generated_model_and_tests(top, run_id=run_id, workspace=workspace)
 
     if run_signoff:
