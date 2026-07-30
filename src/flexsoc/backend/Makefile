@@ -708,6 +708,7 @@ SLANG_ROOT ?= $(REPO_ROOT)
 SLANG_TOP_FILE ?= $(RTLDIR)/$(TOP).sv
 SLANG_TOP ?=
 SLANG_ARGS ?=
+SLANG_SEARCH_ARGS ?=
 SLANG_OUTDIR ?= $(OUTROOT)/analysis/slang
 SLANG_HIER_LOG ?= $(SLANG_OUTDIR)/$(TOP)_hier.txt
 SLANG_AST_JSON ?= $(SLANG_OUTDIR)/$(TOP)_ast.json
@@ -720,6 +721,7 @@ slang_hier: ## Generate hierarchy text with slang-hier from a top file and recur
 	$(Q)$(PYTHON) -m flexsoc.backend.slang_tools hier \
 		--slang-hier "$(SLANG_HIER)" \
 		--root "$(SLANG_ROOT)" \
+		$(SLANG_SEARCH_ARGS) \
 		--top-file "$(SLANG_TOP_FILE)" \
 		$(SLANG_TOP_ARG) \
 		--extra-args "$(SLANG_ARGS)" \
@@ -729,6 +731,7 @@ slang_ast: ## Generate Slang AST JSON from a top file and recursive root
 	$(Q)$(PYTHON) -m flexsoc.backend.slang_tools ast \
 		--slang "$(SLANG)" \
 		--root "$(SLANG_ROOT)" \
+		$(SLANG_SEARCH_ARGS) \
 		--top-file "$(SLANG_TOP_FILE)" \
 		$(SLANG_TOP_ARG) \
 		$(SLANG_SCOPE_ARG) \
@@ -739,6 +742,7 @@ slang_flist: ## Generate a trimmed topological RTL filelist with Slang
 	$(Q)$(PYTHON) -m flexsoc.backend.slang_tools flist \
 		--slang "$(SLANG)" \
 		--root "$(SLANG_ROOT)" \
+		$(SLANG_SEARCH_ARGS) \
 		--top-file "$(SLANG_TOP_FILE)" \
 		$(SLANG_TOP_ARG) \
 		--extra-args "$(SLANG_ARGS)" \
