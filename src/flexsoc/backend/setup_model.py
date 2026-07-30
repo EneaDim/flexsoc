@@ -592,23 +592,20 @@ def main(argv: list[str] | None = None) -> int:
             if legacy_path.exists():
                 legacy_path.unlink()
 
-    regmap_path = generate_regmap(
+    generate_regmap(
         args.top,
         Path(args.data_dir),
         output_dir,
         force=args.force,
     )
-    model_path = write_model(
+    write_model(
         args.top,
         output_dir,
         Path(args.rtl_dir) if args.rtl_dir else None,
         force=args.force,
     )
-    tests_path = write_tests(args.top, output_dir, force=args.force)
+    write_tests(args.top, output_dir, force=args.force)
 
-    print(f"Model:  {model_path.resolve()}")
-    print(f"Regmap: {regmap_path.resolve()}")
-    print(f"Tests:  {tests_path.resolve()}")
     return 0
 
 

@@ -1256,7 +1256,6 @@ def main() -> None:
 
     cfg = config_from_args(parse_args())
     written = write_cocotb_scaffold(cfg)
-    print(f"Generated {len(written)} files in: {cfg.output.resolve()}")
 
 
 if __name__ == "__main__":

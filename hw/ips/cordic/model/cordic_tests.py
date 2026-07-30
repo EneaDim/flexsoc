@@ -223,7 +223,6 @@ def main() -> int:
     tests = builtin_tests(fmt, random_count=args.random_count, seed=args.seed)
     for name, samples in selected_tests(args, tests).items():
         write_test(args.tests_dir / name, samples, fmt)
-        print(f"generated {args.tests_dir / name}")
     return 0
 
 

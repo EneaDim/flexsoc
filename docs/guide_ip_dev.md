@@ -270,6 +270,9 @@ fx view_cocotb --set TEST_NAME=smoke
 fx syn sdf sta power --force
 ```
 
+Synthesis logs are written under `logs/synthesis/`; SDF, STA, and power logs
+are written under `logs/signoff/`.
+
 Use `--live` only when full tool output is useful:
 
 ```bash

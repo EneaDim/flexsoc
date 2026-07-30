@@ -316,9 +316,7 @@ def main() -> None:
         run_id=args.run_id,
         host=args.host,
     )
-    sw_dir, modules = write_soc_software(config)
-    print(f"Generated SoC software under: {sw_dir}")
-    print(f"Modules: {', '.join(modules)}")
+    write_soc_software(config)
 
 
 if __name__ == "__main__":

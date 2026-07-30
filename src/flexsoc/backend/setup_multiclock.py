@@ -51,10 +51,8 @@ def write_file(path: Path, text: str, force: bool) -> bool:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not force:
-        print(f"skip {path} (exists; use --force to overwrite)")
         return False
     path.write_text(text.rstrip() + "\n", encoding="utf-8")
-    print(path)
     return True
 
 
@@ -1859,7 +1857,7 @@ def emit_top(args: argparse.Namespace) -> None:
 def emit_model(args: argparse.Namespace) -> None:
     """Generate behavioral model, HJSON-derived regmap, and test catalogue."""
 
-    regmap_path = generate_model_regmap(
+    generate_model_regmap(
         args.top,
         args.data_dir,
         args.model_dir,
@@ -1869,12 +1867,8 @@ def emit_model(args: argparse.Namespace) -> None:
     model_path = args.model_dir / f"{args.top}_model.py"
     tests_path = args.model_dir / f"{args.top}_tests.py"
     write_file(model_path, model_text(args.top), args.force)
-    wrote_tests = write_file(tests_path, tests_text(args.top), args.force)
-    if wrote_tests:
+    if write_file(tests_path, tests_text(args.top), args.force):
         tests_path.chmod(0o755)
-    print(f"Model:  {model_path}")
-    print(f"Regmap: {regmap_path}")
-    print(f"Tests:  {tests_path}")
 
 
 
@@ -1888,7 +1882,6 @@ def emit_tb(args: argparse.Namespace) -> None:
     ):
         if stale.exists():
             stale.unlink()
-            print(f"removed stale {stale}")
     write_file(args.tb_dir / f"include_{args.top}_tb.sv", sv_include_text(args.top), args.force)
     write_file(drivers / f"{args.top}_tlul_driver.svh", sv_driver_text(args.top), args.force)
     write_file(drivers / f"{args.top}_vec_driver.svh", sv_vec_driver_text(args.top), args.force)
@@ -1907,7 +1900,6 @@ def emit_cocotb(args: argparse.Namespace) -> None:
     ):
         if stale.exists():
             stale.unlink()
-            print(f"removed stale {stale}")
     write_file(out / "Makefile", cocotb_makefile_text(args.top, args.rtl_dir), args.force)
     write_file(out / f"{args.top}_cocotb_tb.sv", cocotb_sv_text(args.top), args.force)
     write_file(drivers / "__init__.py", "", True)
@@ -1941,7 +1933,6 @@ def remove_stale(args: argparse.Namespace) -> None:
     ):
         if old.exists():
             old.unlink()
-            print(f"removed stale {old}")
 
 
 # ---------------------------------------------------------------------------

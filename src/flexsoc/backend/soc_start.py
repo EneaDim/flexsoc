@@ -166,14 +166,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     config = SoCStartConfig(Path(args.workspace), args.run_top, args.run_id)
     try:
-        rtl_list = initialize_soc_run(config)
+        initialize_soc_run(config)
     except (FileNotFoundError, ValueError) as exc:
         raise SystemExit(f"ERROR: {exc}") from exc
 
-    ips = loaded_ips(config.ips_dir)
-    print(f"Initialized SoC run: {config.run_dir}")
-    print(f"Loaded IPs: {', '.join(ip.name for ip in ips)}")
-    print(f"RTL IP filelist: {rtl_list}")
     return 0
 
 

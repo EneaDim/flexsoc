@@ -153,6 +153,7 @@ tb/cocotb/
 logs/
 ├── lint/
 ├── verification/
+├── synthesis/
 └── signoff/
 ```
 

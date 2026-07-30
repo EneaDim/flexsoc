@@ -100,6 +100,7 @@ SV_TB_DIR := $(TB_DIR)/sv
 # -----------------------------------------------------------------------------
 LOGDIR         ?= $(OUTROOT)/logs
 VERIFY_LOGDIR  ?= $(LOGDIR)/verification
+SYNTH_LOGDIR   ?= $(LOGDIR)/synthesis
 SIGNOFF_LOGDIR ?= $(LOGDIR)/signoff
 SV_COMPILE_LOG ?= $(VERIFY_LOGDIR)/$(TOP)_sv_compile_$(TEST_NAME).log
 SV_SIM_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_sv_sim_$(TEST_NAME).log
@@ -380,12 +381,14 @@ help_fsm: help ## Show FSM-flow help
 # ============================================================================
 ##@ Setup
 setup: ## Create the run directory tree
-	@if [ "$(LIVE)" = "1" ]; then printf "%b\n" "$(ORANGE)[setup]$(RESET) $(BLUE)create run directories$(RESET)"; fi
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_ID)
 	$(Q)$(MKDIR) -p \
 		$(LOGDIR) \
+		$(VERIFY_LOGDIR) \
+		$(SYNTH_LOGDIR) \
+		$(SIGNOFF_LOGDIR) \
 		$(RTLDIR) \
 		$(TBDIR) \
 		$(SIMDIR) \
@@ -405,7 +408,6 @@ soc_cfg: ## Render SoC configuration variables
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
-	@echo "[soc_cfg.mk] HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)"
 	$(Q)$(MKDIR) -p $(OUTROOT)
 	$(Q)$(PYTHON) -m flexsoc.backend.soc_cfg \
 		--workspace $(WORKSPACE) \
@@ -418,7 +420,6 @@ soc_start: flist ## Initialize a SoC run from loaded IPs
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
-	@echo "\n$(ORANGE)Initializing SoC run from loaded IP bundles...\n$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.soc_start \
 		--workspace $(WORKSPACE) \
 		--run-top $(RUN_TOP) \
@@ -445,7 +446,6 @@ MULTICLOCK_ARGS = \
 
 hjson_multi: setup ## Generate multi-clock HJSON register templates
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[hjson_multi]$(RESET) $(BLUE)generate multi-clock HJSON regmaps$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit hjson --tb-dir $(TB_SV_DIR)
 
 multiclock_scaffold: hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi setup_model_multi tests_gen_multi setup_tb_multi setup_cocotb_multi notes_multi ## Bootstrap the decomposed multi-clock IP scaffold
@@ -460,9 +460,8 @@ reg_multi: setup ## Generate register RTL for selected multi-clock regmap HJSON 
 		top_sv="$(RTLDIR)/$${base}_reg_top.sv"; \
 		if [ ! -f "$$file" ]; then echo "ERROR: missing $$file"; exit 2; fi; \
 		if [ "$(FLEXSOC_FORCE)" = "0" ] && [ -f "$$pkg" ] && [ -f "$$top_sv" ] && [ "$$pkg" -nt "$$file" ] && [ "$$top_sv" -nt "$$file" ]; then \
-			echo "[reg_multi] skip $$base (up to date)"; \
+			:; \
 		else \
-			echo "[reg_multi] $$file"; \
 			$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) "$$file"; \
 		fi; \
 	done
@@ -478,9 +477,8 @@ doc_multi: setup ## Generate docs for selected multi-clock regmap HJSON files
 		if_doc="$(DOCDIR)/$${base}_interfaces.md"; \
 		if [ ! -f "$$file" ]; then echo "ERROR: missing $$file"; exit 2; fi; \
 		if [ "$(FLEXSOC_FORCE)" = "0" ] && [ -f "$$main_doc" ] && [ -f "$$if_doc" ] && [ "$$main_doc" -nt "$$file" ] && [ "$$if_doc" -nt "$$file" ]; then \
-			echo "[doc_multi] skip $$base (up to date)"; \
+			:; \
 		else \
-			echo "[doc_multi] $$file"; \
 			$(PYTHON) $(REGTOOL) -d -o "$$main_doc" "$$file"; \
 			$(PYTHON) $(REGTOOL) --interfaces -o "$$if_doc" "$$file"; \
 		fi; \
@@ -488,26 +486,21 @@ doc_multi: setup ## Generate docs for selected multi-clock regmap HJSON files
 
 rtl_stub_multi: setup ## Generate multi-clock RTL core and wrapper from existing reg RTL
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[rtl_stub_multi]$(RESET) $(BLUE)generate core from regmaps and wrapper from core$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit rtl --tb-dir $(TB_SV_DIR)
 
 top_from_core_multi: ## Regenerate multi-clock top wrapper from edited core ports
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[top_from_core_multi]$(RESET) $(BLUE)refresh wrapper from core ports$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit top --tb-dir $(TB_SV_DIR)
 
 sdc_multi: setup ## Generate multi-clock IP timing constraints
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[sdc_multi]$(RESET) $(BLUE)generate multi-clock IP SDC$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit sdc --tb-dir $(TB_SV_DIR)
 
 notes_multi: setup ## Generate local multi-clock scaffold notes
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[notes_multi]$(RESET) $(BLUE)write multi-clock scaffold notes$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit notes --tb-dir $(TB_SV_DIR)
 
 hjson: setup ## Generate an HJSON register template
-	@printf "%b\n" "$(ORANGE)[hjson]$(RESET) $(BLUE)generate register template$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
 
 hjson_gen: hjson ## Compatibility alias for HJSON generation
@@ -515,17 +508,14 @@ hjson_gen: hjson ## Compatibility alias for HJSON generation
 
 reg: ## Generate register RTL from HJSON
 	@$(MKDIR) -p $(RTLDIR)
-	@printf "%b\n" "$(ORANGE)[reg]$(RESET) $(BLUE)generate register RTL from HJSON$(RESET)"
 	$(Q)$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
 
 doc: ## Generate register documentation
 	@$(MKDIR) -p $(DOCDIR)
-	@printf "%b\n" "$(ORANGE)[doc]$(RESET) $(BLUE)generate register documentation$(RESET)"
 	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
 	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
 
 rtl_stub: ## Generate RTL core and aligned top wrapper
-	@printf "%b\n" "$(ORANGE)[rtl_stub]$(RESET) $(BLUE)generate core and top wrapper$(RESET)"
 	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) --hjson-file $(DATADIR)/$(TOP).hjson --interface $(REG_ITF) --output-dir $(RTLDIR)
 
 top_from_core: ## Regenerate $(TOP).sv from edited $(TOP)_core.sv
@@ -541,7 +531,6 @@ RTL_FILELIST_ARGS = --filelist $(RTL_COMMON_LIST) --filelist $(RTL_IP_LIST)
 FLIST_LOG ?= $(LOGDIR)/$(TOP)_flist.log
 
 flist: setup ## Generate clean common/IP RTL filelists
-	@if [ "$(LIVE)" = "1" ]; then printf "%b\n" "$(ORANGE)[flist]$(RESET) $(BLUE)write rtl_common.f + rtl_ip.f$(RESET)"; fi
 	@$(MKDIR) -p $(LOGDIR)
 	@log="$(FLIST_LOG)"; status_file="$$log.status"; rm -f "$$status_file"; \
 	if [ "$(LIVE)" = "1" ]; then \
@@ -709,7 +698,6 @@ slang_hier: flist_split ## Print hierarchy with slang-hier
 ##@ Simulation
 setup_tb: setup flist ## Generate a SystemVerilog testbench scaffold
 	@mkdir -p $(TB_SV_DIR)
-	@printf "%b\n" "$(ORANGE)[setup_tb]$(RESET) $(BLUE)generate SystemVerilog testbench$(RESET)"
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR) $(SYNDIR) $(RTLDIR)
 	@if [ "$(TOP)" = "soc" ]; then \
@@ -766,13 +754,11 @@ setup_model: setup ## Generate/update Python model and CSR regmap scaffolds
 
 setup_model_multi: setup ## Generate multi-clock model, CSR regmap, and test scaffolds
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[setup_model_multi]$(RESET) $(BLUE)generate multi-clock model, CSR regmap, and test scaffolds$(RESET)"
 	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit model --tb-dir $(TB_SV_DIR)
 
 tests_gen: setup ## Generate all vector tests from the editable test catalogue
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[tests_gen]$(RESET) $(BLUE)generate vector tests from $(TOP)_tests.py$(RESET)"
 	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
 		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
 		echo "Run: fx setup_model --force"; \
@@ -783,7 +769,6 @@ tests_gen: setup ## Generate all vector tests from the editable test catalogue
 
 test_gen: setup ## Generate one vector test selected by TEST_NAME from the editable test catalogue
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[test_gen]$(RESET) $(BLUE)generate TEST_NAME=$(TEST_NAME) from $(TOP)_tests.py$(RESET)"
 	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
 		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
 		echo "Run: fx setup_model --force"; \
@@ -794,7 +779,6 @@ test_gen: setup ## Generate one vector test selected by TEST_NAME from the edita
 
 tests_gen_multi: setup ## Generate all multi-clock vector tests from the editable test catalogue
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[tests_gen_multi]$(RESET) $(BLUE)generate vector tests from $(TOP)_tests.py$(RESET)"
 	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
 		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
 		echo "Run: fx setup_model_multi --force"; \
@@ -805,7 +789,6 @@ tests_gen_multi: setup ## Generate all multi-clock vector tests from the editabl
 
 test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_NAME from the editable test catalogue
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[test_gen_multi]$(RESET) $(BLUE)generate TEST_NAME=$(TEST_NAME) from $(TOP)_tests.py$(RESET)"
 	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
 		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
 		echo "Run: fx setup_model_multi --force"; \
@@ -817,13 +800,11 @@ test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_N
 setup_tb_multi: setup ## Generate a multi-clock SystemVerilog testbench scaffold
 	@mkdir -p $(TB_SV_DIR)
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[setup_tb_multi]$(RESET) $(BLUE)generate multi-clock SystemVerilog testbench$(RESET)"
 	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit tb --tb-dir $(TB_SV_DIR)
 
 setup_cocotb_multi: setup ## Generate a multi-clock cocotb scaffold
 	$(call _require_var,TOP)
-	@printf "%b\n" "$(ORANGE)[setup_cocotb_multi]$(RESET) $(BLUE)generate multi-clock cocotb scaffold$(RESET)"
 	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit cocotb --tb-dir $(TB_DIR)
 
@@ -1033,34 +1014,30 @@ plot_postsyn: ## Open post-synthesis graph
 view_presyn: $(if $(filter v,$(VSV)),view_presyn_v,view_presyn_sv) ## Open pre-synthesis graph
 
 view_presyn_v: sv2v ## Open pre-synthesis graph from Verilog
-	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@echo "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
 	$(Q)$(YOSYS) -p 'prep -top $(TOP); select -module $(MODULE); show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn' \
-		$(RTLDIR)/$(TOP).v > $(LOGDIR)/$(TOP)_presyn.log 2>&1
+		$(RTLDIR)/$(TOP).v > $(SYNTH_LOGDIR)/$(TOP)_presyn.log 2>&1
 	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot 2>/dev/null &
 
 view_presyn_sv: ## Open pre-synthesis graph from SV
-	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@echo "\n$(ORANGE)View netlist with Yosys...\n$(RESET)"
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
 	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
 		-f rtl/rtl_common.f -f rtl/rtl_ip.f --top $(TOP) ; \
 	prep -top $(TOP); select -clear; select -module $(MODULE) ; \
 	show -width -format dot -prefix $(SYNDIR)/plots/$(TOP)_presyn" \
-		> $(LOGDIR)/$(TOP)_presyn.log 2>&1
+		> $(SYNTH_LOGDIR)/$(TOP)_presyn.log 2>&1
 	$(Q)xdot $(SYNDIR)/plots/$(TOP)_presyn.dot 2>/dev/null &
 
 # Signoff
 
 tb_save: ## Save testbench regression artifacts
 	$(Q)$(MKDIR) -p $(REGRESSIONDIR) $(REGRESSIONDIR)/$(TBDIR) $(REGRESSIONDIR)/$(SIMDIR)
-	@echo "\n$(ORANGE)Save testbench file...\n$(RESET)"
 	$(Q)$(CP) $(TB_SV_DIR)/$(TOP)_tb.sv $(REGRESSIONDIR)/$(TBDIR)/$(TOP)_$(OUTNAME)_tb.sv
 	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.vcd $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd
 	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.gtkw $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw
 
 tb_view: ## Open saved testbench waveform
-	@echo "\n$(ORANGE)Viewing...\n$(RESET)"
 	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd \
 		$(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw &
 
@@ -1086,21 +1063,20 @@ setup_syn: setup_sdc ## Generate Yosys synthesis scripts
 syn: $(if $(filter v,$(VSV)),syn_v,syn_sv) ## Run synthesis
 
 syn_v: setup_syn ## Run Verilog synthesis
-	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@printf "%b\n" "$(ORANGE)[syn]$(RESET) $(BLUE)run synthesis with Yosys$(RESET)"
-	$(Q)$(YOSYS) $(SYNDIR)/synth.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
-	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
-	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
+	@printf "%b\n" "$(BLUE)log: $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log$(RESET)"
+	$(Q)$(YOSYS) $(SYNDIR)/synth.ys > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
+	$(Q)$(GREP) -i "warning" $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	$(Q)$(GREP) -i "error" $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
 syn_sv: setup_syn ## Run SystemVerilog synthesis
-	$(Q)$(MKDIR) -p $(SYNDIR)/plots
-	@printf "%b\n" "$(ORANGE)[syn]$(RESET) $(BLUE)run synthesis with Yosys$(RESET)"
-	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
-	$(Q)$(GREP) -i "warning" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
-	$(Q)$(GREP) -i "error" $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
+	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
+	@printf "%b\n" "$(BLUE)log: $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log$(RESET)"
+	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
+	$(Q)$(GREP) -i "warning" $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	$(Q)$(GREP) -i "error" $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
 yosys-vgen: ## Convert SV to Verilog with Yosys
-	@echo "\n$(ORANGE)Verilog generation with Yosys...\n$(RESET)"
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
 	read_slang -I ips/pkgs -I ips/prim -I ips/prim_opentitan -I ips/tlul -D SYNTHESIS --ignore-assertions \
 		-f rtl/rtl_common.f -f rtl/rtl_ip.f \
@@ -1132,8 +1108,7 @@ setup_signoff: setup_sdc ## Generate signoff scripts
 SYN_NETLIST ?= $(SYNDIR)/$(TOP)_synth.v
 
 compile_syn: syn ## Compile post-synthesis simulation
-	@echo "\n$(ORANGE)Compiling synthesis...\n$(RESET)"
-	$(Q)$(MKDIR) -p $(SIMDIR) $(LOGDIR)
+	$(Q)$(MKDIR) -p $(SIMDIR) $(SYNTH_LOGDIR)
 	@if [ ! -f "$(SYN_NETLIST)" ]; then \
 		echo "ERROR: missing synthesized netlist: $(SYN_NETLIST)"; \
 		echo "Hint: check outputs under: $(SYNDIR)"; \
@@ -1150,12 +1125,11 @@ compile_syn: syn ## Compile post-synthesis simulation
 		-o $(SIMDIR)/$(TOP)_syn_tb.vvp \
 		$(PRIM) \
 		$(TB_SV_DIR)/$(TESTBENCH).sv \
-		> $(LOGDIR)/$(TOP)_compile_syn.log 2>&1
+		> $(SYNTH_LOGDIR)/$(TOP)_compile_syn.log 2>&1
 
 sim_syn: compile_syn ## Run post-synthesis simulation
-	@echo "\n$(ORANGE)Simulating synthesis...\n$(RESET)"
 	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose +VCD=$(VCD_SYN_FILE) +SDF=$(SDF_FILE) \
-		> $(LOGDIR)/$(TOP)_syn_sim.log 2>&1
+		> $(SYNTH_LOGDIR)/$(TOP)_syn_sim.log 2>&1
 
 
 
@@ -1196,7 +1170,6 @@ signoff_corners: sdf sta_corners power_corners ## Run SDF plus complete multi-co
 sta: sta_corners ## Run STA for every corner and setup/hold mode
 
 sdf: setup_signoff ## Write SDF timing files
-	@printf "%b\n" "$(ORANGE)[sdf]$(RESET) $(BLUE)write SDF timing files$(RESET)"
 	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf $(SIGNOFF_LOGDIR)
 	@printf "%b\n" "$(BLUE)log: $(SIGNOFF_LOGDIR)/$(TOP)_sdf.log$(RESET)"
 	$(Q)if [ "$(LIVE)" = "1" ]; then \
@@ -1208,12 +1181,10 @@ sdf: setup_signoff ## Write SDF timing files
 power: power_corners ## Run power analysis for every configured corner
 
 sta_violators: setup_signoff ## Report timing violators
-	@echo "\n$(ORANGE)Static Timing Analysis only timing violators...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(SIGNOFF_LOGDIR)
 	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta_violators.tcl > $(SIGNOFF_LOGDIR)/$(TOP)_sta.violators
 
 path_view: ## Build interactive STA path view
-	@echo "\n$(ORANGE)Path view generation of STA report...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/path_view
 	$(Q)$(PYTHON) $(UTILDIR)/interactiveReport.py -i $(LOGDIR)/$(PATH_VIEW_FILE) -s $(UTILDIR)/default.svg -t opensta -n $(NPATHS)
 
@@ -1228,7 +1199,6 @@ setup_pnr: ## Generate OpenROAD config
 		--platform $(ORS_TECH) $(RTL_FILELIST_ARGS) --output-dir $(ORSDIR)
 
 pnr: setup_pnr ## Run OpenROAD place and route
-	@echo "\n$(ORANGE)Doing Place&Route...\n$(RESET)"
 	$(Q)$(MKDIR) -p $(OR_LOGDIR)
 	$(Q)$(MKDIR) -p $(OR_WORKDIR)
 	@log="$(OR_LOGDIR)/$(TOP)_pnr.log"; \
@@ -1273,20 +1243,13 @@ ip_load: ## Load an IP into a run workspace
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
-	@echo "\n$(ORANGE)Loading IP\n$(RESET)"
 	@set -eu; \
 	src_ip="$(REPO_ROOT)/hw/ips/$(TOP)"; \
 	load_name="$(TOP)"; \
 	if [ -n "$${LOAD_AS:-}" ]; then load_name="$$LOAD_AS"; fi; \
 	test -d "$$src_ip" || { echo "ERROR: missing source IP directory: $$src_ip"; exit 2; }; \
-	echo "TOP=$(TOP)"; \
-	echo "RUN_TOP=$(RUN_TOP)"; \
-	echo "RUN_ID=$(RUN_ID)"; \
-	echo "LOAD_AS=$${LOAD_AS:-}"; \
-	echo "Effective load name=$$load_name"; \
 	if [ "$(RUN_TOP)" = "$(TOP)" ]; then \
 		dst_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
-		echo "Mode: standalone"; \
 		mkdir -p "$$dst_dir"; \
 		for sub in rtl tb data doc drivers py model fsms lint syn signoff pnr_openroad sim ips; do \
 			if [ -d "$$src_ip/$$sub" ]; then \
@@ -1301,13 +1264,11 @@ ip_load: ## Load an IP into a run workspace
 		done; \
 	else \
 		dst_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/ips/$$load_name"; \
-		echo "Mode: integration"; \
 		mkdir -p "$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/ips"; \
 		rm -rf "$$dst_dir"; \
 		mkdir -p "$$dst_dir"; \
 		cp -a "$$src_ip"/. "$$dst_dir"/; \
 	fi; \
-	echo "Loaded IP from $$src_ip to $$dst_dir"; \
 	$(MAKE) -f $(BACKEND_MAKEFILE) flist HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 
@@ -1316,7 +1277,6 @@ ip_save: ## Save run artifacts back to hw/ips
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
-	@echo "\n$(ORANGE)Saving IP\n$(RESET)"
 	@set -eu; \
 	src_run="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
 	dst_ip="$(REPO_ROOT)/hw/ips/$(TOP)"; \
@@ -1355,8 +1315,7 @@ ip_save: ## Save run artifacts back to hw/ips
 	find "$$dst_ip" -type d \( -name sim_build -o -name __pycache__ \) \
 		-prune -exec rm -rf {} +; \
 	find "$$dst_ip" -type f \( -name results.xml -o -name '*.vcd' -o -name '*.pyc' \) \
-		-delete; \
-	echo "Saved IP from $$src_run to $$dst_ip"
+		-delete
 
 # ============================================================================
 # 12. SoC, FuseSoC, XBAR and software flow
@@ -1389,7 +1348,6 @@ soc_vendor_deps: ## Fetch pinned lowRISC dependencies required by SoC simulation
 	done
 
 fsoc_init: ## Initialize FuseSoC metadata
-	@echo "\n$(ORANGE)FuseSoC setup (run-local core generation)...\n$(RESET)"
 	$(call _require_soc_run_vars)
 	@set -eu; \
 	run_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
@@ -1433,7 +1391,6 @@ fsoc: ## Generate FuseSoC core file
 # XBAR generation
 xbar: xbar_init xbar_build ## Generate crossbar artifacts
 xbar_init: soc_cfg ## Generate crossbar input config
-	@echo "\n$(ORANGE)XBAR init (HOST=$(HOST)) ...\n$(RESET)"
 	$(call _require_soc_run_vars)
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR)
 	@cfg_args="$$( $(PYTHON) -m flexsoc.backend.soc_cfg \
@@ -1445,7 +1402,6 @@ xbar_init: soc_cfg ## Generate crossbar input config
 		--format args )"; \
 	$(PYTHON) -m flexsoc.backend.xbar_init $$cfg_args --output $(DATADIR)/xbar_main.hjson
 xbar_build: ## Run tlgen for crossbar RTL
-	@echo "\n$(ORANGE)XBAR build ...\n$(RESET)"
 	$(call _require_soc_run_vars)
 	$(Q)$(MKDIR) -p $(DATADIR)/autogen $(RTLDIR)
 	$(Q)$(PYTHON) $(UTILROOT)/tlgen.py -t $(DATADIR)/xbar_main.hjson -o $(DATADIR)/autogen
@@ -1468,7 +1424,6 @@ xbar_build: ## Run tlgen for crossbar RTL
 # - loaded IPs live under $(OUTROOT)/ips/<ip>/rtl/<ip>.sv
 # - stage only the top wrapper <ip>.sv into $(RTLDIR)
 soc_stage_tops: ## Stage SoC top-level files
-	@echo "\n$(ORANGE)Staging loaded IP top RTL wrappers into run rtl/ ...\n$(RESET)"
 	$(call _require_soc_run_vars)
 	$(Q)$(MKDIR) -p $(RTLDIR)
 	@set -eu; \
@@ -1493,7 +1448,6 @@ soc_stage_tops: ## Stage SoC top-level files
 	fi
 # SoC RTL generation
 soc: soc_stage_tops ## Generate SoC RTL
-	@echo "\n$(ORANGE)SoC RTL generation (HOST=$(HOST)) ...\n$(RESET)"
 	$(call _require_soc_run_vars)
 	$(Q)$(MKDIR) -p $(DATADIR) $(RTLDIR) $(TBDIR) $(SIMDIR)
 	@cfg_args="$$( $(PYTHON) -m flexsoc.backend.soc_cfg \
@@ -1505,7 +1459,6 @@ soc: soc_stage_tops ## Generate SoC RTL
 		--format args )"; \
 	$(PYTHON) -m flexsoc.backend.soc_gen $$cfg_args -o $(RTLDIR)/soc.sv
 soc_flist: ## Generate SoC filelist
-	@echo "\n$(ORANGE)Generating SoC filelist ...\n$(RESET)"
 	$(call _require_soc_run_vars)
 	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist \
 		--soc \
@@ -1537,7 +1490,6 @@ sw_soc: ## Generate SoC software scaffold
 		--host $(HOST)
 soc_prepare: soc_sim ## Prepare SoC build directory
 	$(call _require_soc_run_vars)
-	@echo "$(ORANGE)[soc_prepare] SoC simulator ready (HOST=$(HOST)).$(RESET)"
 	$(Q)$(MKDIR) -p $(OUTROOT)/sim
 
 soc_build_sw: soc_prepare sw_soc ## Build SoC software
@@ -1545,17 +1497,14 @@ soc_build_sw: soc_prepare sw_soc ## Build SoC software
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
 	$(call _require_var,HOST)
-	@echo "$(ORANGE)[soc_build_sw] compile software ...$(RESET)"
 	$(Q)$(MAKE) --no-print-dir -C $(OUTROOT)/sw
 # Simulation / run
 soc_sim: TARGET := sim
 soc_sim: FUSESOC_TOOL := verilator
 soc_sim: soc_vendor_deps xbar soc fsoc_init fsoc ## Build SoC simulator
 	$(call _require_soc_run_vars)
-	@echo "$(ORANGE)SoC simulation model ready (HOST=$(HOST)).$(RESET)"
 soc_run: ## Run SoC simulation
 	$(call _require_soc_run_vars)
-	@echo "\n$(ORANGE)[soc_run] run simulator only (HOST=$(HOST)) ...\n$(RESET)"
 	@if [ ! -x "$(SOC_SIM_EXE)" ]; then \
 		echo "ERROR: missing simulation model: $(SOC_SIM_EXE)"; \
 		echo "Run: make soc_prepare HOST=$(HOST) WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)"; \
@@ -1626,7 +1575,6 @@ fsm_example_load: fsm_init ## Load the FSM example inputs
 	$(call _require_fsm)
 	$(Q)$(CP) "$(FSMGEN_DIR)/examples/fsm_example.txt" "$(FSM_INPUT_DIR)/$(FSM).txt"
 	$(Q)$(CP) "$(FSMGEN_DIR)/examples/fsm_example.csv" "$(FSM_INPUT_DIR)/$(FSM).csv"
-	@echo "\n$(ORANGE)Loaded FSM example into $(FSM_INPUT_DIR) as $(FSM)\n$(RESET)"
 
 fsm_gen: fsm_init ## Generate FSM RTL
 	$(call _require_fsm)
@@ -1649,7 +1597,6 @@ fsm_install: fsm_init ## Install FSM artifacts into the IP run
 	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM)_pkg.sv" "$(RTLDIR)/"
 	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM).gtkw" "$(SIMDIR)/" || true
 	$(Q)$(CP) "$(FSM_OUTPUT_DIR)/$(FSM)_tb.sv" "$(TBDIR)/"
-	@echo "\n$(ORANGE)Installed FSM $(FSM) artifacts into IP run directories\n$(RESET)"
 
 # Backwards-compatible name used by fsm_tutorial in the original flow.
 fsm2rtl: fsm_install ## Alias for FSM RTL installation
@@ -1673,7 +1620,7 @@ soc_ibex_tutorial: RUN_ID ?= dev
 soc_ibex_tutorial: TOP ?= soc
 
 soc_uart_tutorial: ## Run UART-host SoC tutorial
-	@echo "\n$(ORANGE)Loading IPs for UART-host SoC tutorial ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_uart_tutorial]$(RESET) $(BLUE)load tutorial IPs$(RESET)"
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart_master LOAD_AS=uart
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
@@ -1681,28 +1628,28 @@ soc_uart_tutorial: ## Run UART-host SoC tutorial
 	$(Q)$(BACKEND_MAKE) soc_run HOST=uart SOC_CFG_MODE=builtin \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 soc_ibex_fetch: ## Fetch Ibex tutorial dependencies
-	@echo "\n$(ORANGE)Fetch lowRISC IPs ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_fetch]$(RESET) $(BLUE)fetch lowRISC IPs$(RESET)"
 	$(Q)$(BACKEND_MAKE) fetch VENDOR=lowrisc_ip
-	@echo "\n$(ORANGE)Fetch Ibex ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_fetch]$(RESET) $(BLUE)fetch Ibex$(RESET)"
 	$(Q)$(BACKEND_MAKE) fetch VENDOR=lowrisc_ibex
 soc_ibex_tutorial: soc_ibex_fetch ## Run Ibex-host SoC tutorial
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 1/8: load uart ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_tutorial]$(RESET) $(BLUE)step 1/8: load uart$(RESET)"
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=uart
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 2/8: load gpio ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_tutorial]$(RESET) $(BLUE)step 2/8: load gpio$(RESET)"
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=gpio
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 3/8: load rv_timer ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_tutorial]$(RESET) $(BLUE)step 3/8: load rv_timer$(RESET)"
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=rv_timer
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 4/8: load pwm ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_tutorial]$(RESET) $(BLUE)step 4/8: load pwm$(RESET)"
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=pwm
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 5/8: load spi_host ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_tutorial]$(RESET) $(BLUE)step 5/8: load spi_host$(RESET)"
 	$(Q)$(BACKEND_MAKE) ip_load WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=spi_host
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 6/8: generate xbar + soc ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_tutorial]$(RESET) $(BLUE)step 6/8: generate xbar + soc$(RESET)"
 	$(Q)$(BACKEND_MAKE) xbar soc HOST=ibex SOC_CFG_MODE=builtin \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 7/8: build sim model + software ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_tutorial]$(RESET) $(BLUE)step 7/8: build sim model + software$(RESET)"
 	$(Q)$(BACKEND_MAKE) soc_build_sw HOST=ibex \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID)
-	@echo "\n$(ORANGE)[soc_ibex_tutorial] step 8/8: run simulation ...\n$(RESET)"
+	@printf "%b\n" "$(ORANGE)[soc_ibex_tutorial]$(RESET) $(BLUE)step 8/8: run simulation$(RESET)"
 	$(Q)$(BACKEND_MAKE) soc_run HOST=ibex SOC_CFG_MODE=builtin \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 
@@ -1728,7 +1675,6 @@ ip_tutorial: ## Run the IP tutorial flow
 	$(Q)$(BACKEND_MAKE) ip_load \
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-	@echo "\n$(ORANGE)Run the IP flow ...\n$(RESET)"
 	$(Q)$(BACKEND_MAKE) flist sim syn sdf sta sta_violators power view \
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
@@ -1746,14 +1692,12 @@ soc_pless: ## Run the tiny SoC tutorial flow
 # ============================================================================
 ##@ Dependencies
 deps: ## Install IP development dependencies
-	@echo "\n$(ORANGE)Installing dependencies for IP development ...\n$(RESET)"
 	sudo apt install -y make python3 python3-pip
 	sed -i 's/\r$$//' $(TOOLSROOT)/deps.sh
 	bash $(TOOLSROOT)/deps.sh ip
 	pip install -r requirements.txt
 
 deps-soc: ## Install SoC development dependencies
-	@echo "\n$(ORANGE)Installing dependencies for SoC integration ...\n$(RESET)"
 	bash $(TOOLSROOT)/deps.sh soc
 	echo
 	export PATH=$$PATH:/tools/riscv32/bin
@@ -1819,7 +1763,6 @@ clean_fsoc: ## Remove FuseSoC build outputs
 	$(Q)$(RM) build
 
 clean_soc: ## Remove SoC build outputs
-	@echo "\n$(ORANGE)Cleaning SoC ...\n$(RESET)"
 	$(Q)$(RM) build trace_core_00000000.log uart0.log sim.fst* sw/*.elf sw/*.o sw/*.csv tb/top_verilator.* soc.core xbar_main.hjson $(TOPDIR)
 
 clean_sw: ## Clean SoC software outputs
@@ -1841,7 +1784,6 @@ clean: clean-pyc clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr
 	$(Q)$(CLEAR)
 
 clean_all: ## Remove all generated run outputs
-	@echo "Cleaning generated FlexSoC outputs..."
 	@rm -rf $(WORKSPACE)/runs/$(TOP)/$(RUN_ID)
 	@rm -rf $(WORKSPACE)/runs/$(TOP)/default
 	@find $(WORKSPACE)/runs/$(TOP) -maxdepth 1 -type d -empty -delete 2>/dev/null || true

@@ -483,9 +483,6 @@ def generate(
 
     sources, registers = _collect(top, data_dir, multi)
     out_path.write_text(_emit_python(top, sources, registers), encoding="utf-8")
-    print(f"[regmap_py] source: {', '.join(str(path) for path in sources)}")
-    print(f"[regmap_py] wrote:   {out_path}")
-    print("[regmap_py] registers: " + ", ".join(register.path for register in registers))
     return out_path
 
 

@@ -207,9 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     """Run the driver generator CLI."""
 
     args = parse_args(argv)
-    header, source = generate_driver(args.hjson_file, args.output_dir, args.base_address)
-    print(f"Updated header: {header}")
-    print(f"Generated source file: {source}")
+    generate_driver(args.hjson_file, args.output_dir, args.base_address)
     return 0
 
 

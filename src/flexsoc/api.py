@@ -504,24 +504,26 @@ class FlexSoC:
                 )
                 assert log_path is not None
                 log_path.write_text((done.stdout or "") + (done.stderr or ""), encoding="utf-8")
-            elif live:
-                assert log_path is not None
-                done = self._run_live(command, log_path)
             else:
-                group, description, _ = TARGETS.get(command.target, ("Target", "Run target", ()))
+                _, description, _ = TARGETS.get(command.target, ("Target", "Run target", ()))
                 orange, blue, green, red, reset = "\033[38;5;214m", "\033[94m", "\033[92m", "\033[91m", "\033[0m"
                 print(f"{orange}→ {command.target}{reset}: {blue}{description}{reset}", flush=True)
-                done = subprocess.run(
-                    command.argv,
-                    cwd=command.cwd,
-                    env=command.env,
-                    check=False,
-                    text=True,
-                )
+                print(f"{orange}[{command.target}]{reset} {blue}{description}{reset}", flush=True)
+                if live:
+                    assert log_path is not None
+                    done = self._run_live(command, log_path)
+                else:
+                    done = subprocess.run(
+                        command.argv,
+                        cwd=command.cwd,
+                        env=command.env,
+                        check=False,
+                        text=True,
+                    )
                 ok = done.returncode == 0
                 status = f"{green}✓{reset}" if ok else f"{red}✗{reset}"
                 suffix = "done" if ok else f"failed ({done.returncode})"
-                print(f"{status} {orange}{command.target}{reset}: {suffix}", flush=True)
+                print(f"{status} {orange}{command.target}{reset}: {blue}{suffix}{reset}", flush=True)
 
             result = FlexSoCResult(
                 command,
