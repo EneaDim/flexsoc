@@ -12,7 +12,7 @@ PYTEST ?= $(UV) run --no-sync pytest
 LINT_PATHS ?= src/flexsoc/api.py src/flexsoc/backend tests
 MAKEFLAGS += --no-print-directory
 
-.PHONY: help install sync dev lint fix check clean clean-py clean-build clean-all venv
+.PHONY: help install lock sync dev doctor lint fix check clean clean-py clean-build clean-all venv
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nflexsoc ✨\n"} \
@@ -21,7 +21,9 @@ help: ## Show this help
 		END {printf "\n"}' $(lastword $(MAKEFILE_LIST))
 	@printf '%s\n' \
 		'Common workflows' \
-		'  make sync                              Install/update the local environment' \
+		'  make lock                              Resolve and write uv.lock' \
+		'  make sync                              Install exactly the locked Python environment' \
+		'  make doctor                            Check Python lock and local EDA tools' \
 		'  make check                             Run Ruff + default E2E regression' \
 		'  make test                              Run E2E + Verilator/Slang lint + Slang AST, no signoff' \
 		'  make test SIGNOFF=1                    Include synthesis/signoff stages' \
@@ -35,8 +37,15 @@ help: ## Show this help
 ##@ Setup
 install: sync ## Sync the local environment
 
-sync: ## Install the editable package and every Python dependency
-	$(UV) sync
+lock: ## Resolve Python dependencies and write uv.lock
+	$(UV) lock
+
+sync: ## Install exactly the Python environment recorded in uv.lock
+	@test -f uv.lock || { echo "ERROR: uv.lock missing. Run: make lock"; exit 2; }
+	$(UV) sync --locked
+
+doctor: ## Check Python lock and local EDA tools
+	PYTHONPATH=src $(PYTHON) -m flexsoc.doctor
 
 venv: sync ## Create or update the local uv virtualenv
 
