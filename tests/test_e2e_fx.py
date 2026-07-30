@@ -33,6 +33,15 @@ def _run_signoff_enabled(request: pytest.FixtureRequest) -> bool:
     return not bool(request.config.getoption("--no-signoff"))
 
 
+def _e2e_root(request: pytest.FixtureRequest) -> Path:
+    """Return the base directory used for isolated E2E workspaces."""
+
+    configured = request.config.getoption("--e2e-root") or os.environ.get("FLEXSOC_E2E_ROOT") or "/tmp"
+    root = Path(configured).expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def _print_section(title: str) -> None:
     """Print a large readable section header for pytest -s runs."""
 
@@ -147,10 +156,10 @@ def _settings(
 
 
 @contextmanager
-def _temporary_workspace(prefix: str) -> Iterator[Path]:
-    """Create one isolated /tmp workspace and retain it only after failures."""
+def _temporary_workspace(prefix: str, *, root: Path) -> Iterator[Path]:
+    """Create one isolated workspace and retain it only after failures."""
 
-    workspace = Path(tempfile.mkdtemp(prefix=prefix, dir="/tmp"))
+    workspace = Path(tempfile.mkdtemp(prefix=prefix, dir=root))
     try:
         yield workspace
     except BaseException:
@@ -358,11 +367,11 @@ def _run_uart_ip_load_flow(*, run_signoff: bool, workspace: Path) -> None:
 
 @pytest.mark.e2e
 def test_fx_full_flow_debug(request: pytest.FixtureRequest) -> None:
-    """Run generated single- and multi-clock flows in an isolated /tmp workspace."""
+    """Run generated single- and multi-clock flows in an isolated workspace."""
 
     run_signoff = _run_signoff_enabled(request)
 
-    with _temporary_workspace("flexsoc-full-e2e-") as workspace:
+    with _temporary_workspace("flexsoc-full-e2e-", root=_e2e_root(request)) as workspace:
         _print_section("FlexSoC generated full-flow regression")
         print(f"repo: {REPO_ROOT}", flush=True)
         print(f"workspace: {workspace}", flush=True)
@@ -377,11 +386,11 @@ def test_fx_full_flow_debug(request: pytest.FixtureRequest) -> None:
 
 @pytest.mark.e2e
 def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
-    """Run CORDIC as an existing IP in an isolated /tmp workspace."""
+    """Run CORDIC as an existing IP in an isolated workspace."""
 
     run_signoff = _run_signoff_enabled(request)
 
-    with _temporary_workspace("flexsoc-cordic-e2e-") as workspace:
+    with _temporary_workspace("flexsoc-cordic-e2e-", root=_e2e_root(request)) as workspace:
         _print_section("FlexSoC CORDIC ip_load regression")
         print(f"repo: {REPO_ROOT}", flush=True)
         print(f"workspace: {workspace}", flush=True)
@@ -395,11 +404,11 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
 
 @pytest.mark.e2e
 def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
-    """Run UART as an existing IP in an isolated /tmp workspace."""
+    """Run UART as an existing IP in an isolated workspace."""
 
     run_signoff = _run_signoff_enabled(request)
 
-    with _temporary_workspace("flexsoc-uart-e2e-") as workspace:
+    with _temporary_workspace("flexsoc-uart-e2e-", root=_e2e_root(request)) as workspace:
         _print_section("FlexSoC UART ip_load regression")
         print(f"repo: {REPO_ROOT}", flush=True)
         print(f"workspace: {workspace}", flush=True)

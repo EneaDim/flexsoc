@@ -12,3 +12,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Skip synthesis/signoff targets in FlexSoC E2E tests.",
     )
+    parser.addoption(
+        "--e2e-root",
+        default=None,
+        help="Base directory for isolated FlexSoC E2E workspaces (default: /tmp).",
+    )
