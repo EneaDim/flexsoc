@@ -13,7 +13,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Sequence
 
-from .setup_tb import TEST_NAMES, _candidate_hjson_path, _register_entries
+from .setup_tb import _candidate_hjson_path, _register_entries
 
 
 @dataclass(frozen=True, slots=True)
@@ -1255,7 +1255,7 @@ def main() -> None:
     """Run the cocotb scaffold generator from the command line."""
 
     cfg = config_from_args(parse_args())
-    written = write_cocotb_scaffold(cfg)
+    write_cocotb_scaffold(cfg)
 
 
 if __name__ == "__main__":
