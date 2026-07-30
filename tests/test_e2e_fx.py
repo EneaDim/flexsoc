@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
+import json
 import os
 import shutil
 import subprocess
@@ -238,6 +239,40 @@ def _run_slang_ast(
     assert ast.is_file() and ast.stat().st_size > 0, f"missing or empty Slang AST: {ast}"
 
 
+
+def _run_metrics(
+    top: str,
+    *,
+    run_id: str = DEFAULT_RUN_ID,
+    expect_signoff: bool,
+    workspace: Path,
+) -> None:
+    """Collect and validate the run-level metrics summary."""
+
+    _run_fx(["metrics"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["manifest"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["check"], top=top, run_id=run_id, workspace=workspace)
+
+    path = workspace / "runs" / top / run_id / "meta" / "metrics.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+
+    assert data["schema_version"] == 2
+    assert data["top"] == top
+    assert "lint" in data
+
+    manifest_path = workspace / "runs" / top / run_id / "meta" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == 1
+    assert manifest["run"] == {"top": top, "run_top": top, "run_id": run_id}
+    assert "python" in manifest["environment"]
+    assert "flexsoc" in manifest["environment"]
+    assert isinstance(manifest["tools"], dict)
+    if expect_signoff:
+        assert "synthesis" in data
+        assert "sta" in data
+        assert "power_estimate" in data
+        assert data["power_estimate"]["analysis"] == "estimate"
+
 def _run_generated_model_and_tests(
     top: str,
     *,
@@ -248,6 +283,9 @@ def _run_generated_model_and_tests(
 
     _run_fx(["setup_model", "--force"], top=top, run_id=run_id, workspace=workspace)
     _run_fx(["tests_gen"], top=top, run_id=run_id, workspace=workspace)
+    test_root = workspace / "runs" / top / run_id / "tb" / "tests"
+    for test in ("smoke", "corners", "random_seed_1", "random_seed_2", "reconfig"):
+        assert (test_root / test).is_dir()
     _run_fx(["tests"], top=top, run_id=run_id, workspace=workspace)
     _run_fx(["setup_tb", "--force"], top=top, run_id=run_id, workspace=workspace)
     _run_fx(["setup_cocotb", "--force"], top=top, run_id=run_id, workspace=workspace)
@@ -285,6 +323,31 @@ def _run_loaded_ip_tests(
     _run_fx(["cocotb_tests"], top=top, run_id=run_id, workspace=workspace)
 
 
+def _run_regression_smoke(
+    top: str,
+    *,
+    run_id: str = DEFAULT_RUN_ID,
+    workspace: Path,
+) -> None:
+    """Exercise the full generated SV regression and native Verilator coverage."""
+
+    _run_fx(
+        [
+            "regression",
+            "--set",
+            "REGRESSION_BACKENDS=sv",
+        ],
+        top=top,
+        run_id=run_id,
+        workspace=workspace,
+    )
+    coverage = workspace / "runs" / top / run_id / "verification" / "coverage"
+    assert (coverage / "merged.dat").is_file()
+    assert (coverage / "summary.txt").is_file()
+    _run_fx(["coverage_detail"], top=top, run_id=run_id, workspace=workspace)
+    assert (coverage / "annotated").is_dir()
+
+
 def _run_signoff(
     top: str,
     *,
@@ -298,7 +361,7 @@ def _run_signoff(
         _run_fx(["sdc_multi", "--force"], top=top, run_id=run_id, workspace=workspace)
 
     _run_fx(
-        ["syn", "sdf", "sta", "power", "--force"],
+        ["syn", "sdf", "sta", "power_estimate", "--force"],
         top=top,
         run_id=run_id,
         workspace=workspace,
@@ -324,11 +387,14 @@ def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     _run_lint_suite(top, run_id=run_id, workspace=workspace)
     _run_slang_ast(top, run_id=run_id, workspace=workspace)
     _run_generated_model_and_tests(top, run_id=run_id, workspace=workspace)
+    _run_regression_smoke(top, run_id=run_id, workspace=workspace)
 
     if run_signoff:
         _run_signoff(top, run_id=run_id, multi_clock=False, workspace=workspace)
     else:
         print("\n>>> skip signoff because --no-signoff was passed", flush=True)
+
+    _run_metrics(top, run_id=run_id, expect_signoff=run_signoff, workspace=workspace)
 
 
 def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
@@ -351,6 +417,8 @@ def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     else:
         print("\n>>> skip signoff because --no-signoff was passed", flush=True)
 
+    _run_metrics(top, run_id=run_id, expect_signoff=run_signoff, workspace=workspace)
+
 
 def _run_cordic_ip_load_flow(*, run_signoff: bool, workspace: Path) -> None:
     """Run the CORDIC ip_load-backed flow."""
@@ -368,6 +436,8 @@ def _run_cordic_ip_load_flow(*, run_signoff: bool, workspace: Path) -> None:
         _run_signoff(top, run_id=run_id, multi_clock=False, workspace=workspace)
     else:
         print("\n>>> skip signoff because --no-signoff was passed", flush=True)
+
+    _run_metrics(top, run_id=run_id, expect_signoff=run_signoff, workspace=workspace)
 
 
 def _run_uart_ip_load_flow(*, run_signoff: bool, workspace: Path) -> None:
@@ -393,6 +463,8 @@ def _run_uart_ip_load_flow(*, run_signoff: bool, workspace: Path) -> None:
         _run_signoff(top, run_id=run_id, multi_clock=False, workspace=workspace)
     else:
         print("\n>>> skip signoff because --no-signoff was passed", flush=True)
+
+    _run_metrics(top, run_id=run_id, expect_signoff=run_signoff, workspace=workspace)
 
 
 # -----------------------------------------------------------------------------

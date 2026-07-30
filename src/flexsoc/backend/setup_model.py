@@ -214,7 +214,13 @@ def _tests_text(top: str) -> str:
 
         TOP = {top!r}
         CSR = regmap.PRIMARY
-        TESTS = ("smoke", "corners", "random", "reconfig")
+        RANDOM_SEEDS = (1, 2)
+        TESTS = (
+            "smoke",
+            "corners",
+            *(f"random_seed_{{seed}}" for seed in RANDOM_SEEDS),
+            "reconfig",
+        )
         INPUTS = model.INPUTS
         OUTPUTS = model.OUTPUTS
 
@@ -416,11 +422,11 @@ def _tests_text(top: str) -> str:
             return TestCase(config=config, data_in=data_in, data_out=data_out)
 
 
-        def random_test() -> TestCase:
-            """Deterministic functional stimulus plus CSR transport coverage."""
+        def random_test(seed: int) -> TestCase:
+            """Deterministic random stimulus for one explicit seed."""
 
             reference = model.ReferenceModel()
-            rng = random.Random(f"{{TOP}}:random")
+            rng = random.Random(f"{{TOP}}:random:{{seed}}")
             config = csr_config()
             data_in: list[str] = []
             data_out: list[str] = []
@@ -455,12 +461,18 @@ def _tests_text(top: str) -> str:
 
 
         def test_case(test: str) -> TestCase:
-            """Build one named scenario."""
+            """Build one named scenario, including explicit random seeds."""
+
+            if test.startswith("random_seed_"):
+                try:
+                    seed = int(test.removeprefix("random_seed_"))
+                except ValueError as exc:
+                    raise ValueError(f"invalid random test name {{test!r}}") from exc
+                return random_test(seed)
 
             scenarios = {{
                 "smoke": smoke_test,
                 "corners": corners_test,
-                "random": random_test,
                 "reconfig": reconfig_test,
             }}
             try:
@@ -477,13 +489,18 @@ def _tests_text(top: str) -> str:
             folder.mkdir(parents=True, exist_ok=True)
             regmap.write_config(folder / "config.regs", case.config)
 
+            seed_note = (
+                f" random_seed={{test.removeprefix('random_seed_')}}"
+                if test.startswith("random_seed_")
+                else ""
+            )
             data_in = [
-                f"# {{TOP}}/{{test}} input stimulus: ports + CSR writes.",
+                f"# {{TOP}}/{{test}}{{seed_note}} input stimulus: ports + CSR writes.",
                 "# <cycle> <signal> <value> or <cycle> @write <reg> <value> [mask]",
                 *case.data_in,
             ]
             data_out = [
-                f"# {{TOP}}/{{test}} output checks: ports + CSR reads.",
+                f"# {{TOP}}/{{test}}{{seed_note}} output checks: ports + CSR reads.",
                 "# fixed: <cycle> <signal> <expected> or <cycle> @read <reg> <expected> [mask]",
                 "# valid: <valid_signal> <signal> <expected> [<signal> <expected> ...]",
                 *case.data_out,

@@ -20,7 +20,8 @@ class STAConfig:
     sdcdir: Path | None = None
     simdir: Path | None = None
     liberty: list[Path] = field(default_factory=list)
-    activity_pct: float = 10.0
+    power_activity: float = 0.1
+    power_duty: float = 0.5
 
 
 def optional_path(value: str | None) -> Path | None:
@@ -45,7 +46,8 @@ def parse_args(argv: Sequence[str]) -> STAConfig:
     parser.add_argument("--constraints-dir", dest="sdcdir", help="Directory containing the generated SDC file.")
     parser.add_argument("--simulation-dir", dest="simdir", help="Directory containing simulation activity data.")
     parser.add_argument("--liberty", dest="liberty", action="append", default=[], help="Liberty file; repeat or comma-separate values.")
-    parser.add_argument("--activity-pct", dest="activity_pct", type=float, default=10.0, help="Global activity percentage for power reports.")
+    parser.add_argument("--power-activity", type=float, default=0.1, help="Estimated transitions per clock cycle for power analysis.")
+    parser.add_argument("--power-duty", type=float, default=0.5, help="Estimated probability that a signal is high for power analysis.")
     ns, _unknown = parser.parse_known_args(list(argv))
 
     top = ns.top or os.environ.get("TOP")
@@ -55,6 +57,11 @@ def parse_args(argv: Sequence[str]) -> STAConfig:
     if not out:
         parser.error("missing output dir (use --output-dir or set OUTPUT_DIR)")
 
+    if ns.power_activity < 0.0:
+        parser.error("--power-activity must be >= 0")
+    if not 0.0 <= ns.power_duty <= 1.0:
+        parser.error("--power-duty must be between 0 and 1")
+
     return STAConfig(
         top=str(top),
         output_dir=Path(out).resolve(),
@@ -62,7 +69,8 @@ def parse_args(argv: Sequence[str]) -> STAConfig:
         sdcdir=optional_path(ns.sdcdir),
         simdir=optional_path(ns.simdir),
         liberty=split_liberties(ns.liberty),
-        activity_pct=float(ns.activity_pct),
+        power_activity=float(ns.power_activity),
+        power_duty=float(ns.power_duty),
     )
 
 
@@ -92,7 +100,7 @@ def render_init_opensta(config: STAConfig) -> str:
     ]
     if config.liberty:
         entries = " ".join("{" + liberty_corner(lib) + " " + lib.resolve().as_posix() + "}" for lib in config.liberty)
-        fallback = config.liberty[0].resolve().as_posix()
+        fallback = next((lib for lib in config.liberty if liberty_corner(lib) == "tt"), config.liberty[0])
         lines += [
             f"set liberty_files {{{entries}}}",
             'set selected_lib ""',
@@ -100,7 +108,11 @@ def render_init_opensta(config: STAConfig) -> str:
             '  lassign $item corner path',
             '  if {$corner == $sta_corner} {set selected_lib $path}',
             '}',
-            f'if {{$selected_lib == ""}} {{set selected_lib "{fallback}"}}',
+            'if {$selected_lib == "" && $sta_corner != "default"} {',
+            '  puts stderr "ERROR: no Liberty configured for corner=$sta_corner"',
+            '  exit 2',
+            '}',
+            f'if {{$selected_lib == ""}} {{set selected_lib "{fallback.resolve().as_posix()}"}}',
             'puts "corner=$sta_corner liberty=$selected_lib"',
             'read_liberty $selected_lib',
         ]
@@ -121,6 +133,7 @@ def render_init_opensta(config: STAConfig) -> str:
         lines.append('puts "WARNING: no --sdcdir provided; skipping read_sdc"')
     return "\n".join(lines)
 
+
 def render_sta_tcl(config: STAConfig) -> str:
     """Render a corner/mode aware OpenSTA timing report script."""
 
@@ -138,9 +151,13 @@ def render_sta_tcl(config: STAConfig) -> str:
             'report_checks -path_delay $delay_type -fields {slew cap input_pins nets fanout} -digits 3 -group_count $sta_groups -endpoint_count $sta_paths -sort_by_slack',
             'report_tns',
             'report_wns',
+            'puts "=== flexsoc unconstrained paths ==="',
+            'report_checks -unconstrained -path_delay $delay_type -group_count $sta_groups -endpoint_count $sta_paths',
+            'puts "=== flexsoc unconstrained paths end ==="',
             "",
         ]
     )
+
 
 def render_sta_violators_tcl(config: STAConfig) -> str:
     """Render a focused OpenSTA timing violators report script."""
@@ -159,32 +176,39 @@ def render_sta_violators_tcl(config: STAConfig) -> str:
 
 
 def render_write_sdf_tcl(config: STAConfig) -> str:
-    """Render a compact SDF export script with common corner filenames."""
+    """Render one SDF export for the Liberty selected by STA_CORNER."""
 
     sdf_dir = (config.output_dir / "sdf").resolve()
-    paths = [sdf_dir / f"{config.top}_{corner}.sdf" for corner in ("tt", "ss", "ff")]
-    lines = [render_init_opensta(config), "", 'puts "=== Write SDF ==="']
-    for path in paths:
-        lines += [f'puts "write_sdf -divider . -include_typ {path.as_posix()}"', f"write_sdf -divider . -include_typ {path.as_posix()}"]
-    return "\n".join(lines) + "\n"
+    return "\n".join(
+        [
+            render_init_opensta(config),
+            "",
+            'puts "=== Write SDF ==="',
+            f'set sdf_file [file join {tcl_quote(sdf_dir)} "{config.top}_${{sta_corner}}.sdf"]',
+            'puts "corner=$sta_corner sdf=$sdf_file"',
+            'write_sdf -divider . -include_typ $sdf_file',
+            "",
+        ]
+    )
 
 
-def render_power_tcl(config: STAConfig) -> str:
-    """Render a corner-aware OpenSTA power script using global activity."""
+def render_power_estimate_tcl(config: STAConfig) -> str:
+    """Render a corner-aware OpenSTA power estimate using global activity."""
 
     return "\n".join(
         [
             render_init_opensta(config),
             "",
-            'puts "=== Power analysis ==="',
+            'puts "=== Estimated power analysis ==="',
+            f'puts "analysis=estimate activity_source=global activity={config.power_activity} transitions_per_cycle duty={config.power_duty}"',
             'puts "corner=$sta_corner"',
-            f'puts "set_power_activity -global -activity {config.activity_pct}"',
-            f"set_power_activity -global -activity {config.activity_pct}",
+            f"set_power_activity -global -activity {config.power_activity} -duty {config.power_duty}",
             'puts "report_power"',
             "report_power",
             "",
         ]
     )
+
 
 def write_text(path: Path, content: str) -> Path:
     """Write UTF-8 text and return the written path."""
@@ -202,7 +226,7 @@ def write_signoff_scripts(config: STAConfig) -> list[Path]:
         write_text(config.output_dir / "sta.tcl", render_sta_tcl(config)),
         write_text(config.output_dir / "sta_violators.tcl", render_sta_violators_tcl(config)),
         write_text(config.output_dir / "write_sdf.tcl", render_write_sdf_tcl(config)),
-        write_text(config.output_dir / "power.tcl", render_power_tcl(config)),
+        write_text(config.output_dir / "power_estimate.tcl", render_power_estimate_tcl(config)),
     ]
 
 

@@ -41,7 +41,7 @@ if _MISSING:  # pragma: no cover - exercised only in incomplete envs.
 else:
     console = Console()
     error_console = Console(stderr=True)
-    PSEUDO_COMMANDS = ("settings", "commands", "shell")
+    PSEUDO_COMMANDS = ("settings", "commands", "doctor", "shell")
     OPTION_WORDS = (
         "--set",
         "--unset",
@@ -110,6 +110,7 @@ Use `fx commands` to list every backend Make target.
                 [
                     ("fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart", "Save the default IP/run configuration."),
                     ("fx commands", "List every backend target exposed by the Makefile."),
+                    ("fx doctor", "Check the Python lock and local EDA toolchain."),
                     ("fx tests", "Show generated verification tests for the current IP."),
                     ("fx shell", "Open the interactive prompt with target completion."),
                 ],
@@ -130,7 +131,7 @@ Use `fx commands` to list every backend Make target.
                 [
                     ("fx setup hjson reg doc rtl_stub lint --force", "Create a fresh IP workspace and run lint."),
                     ("fx setup_model setup_tb setup_cocotb sim cocotb --force", "Generate and run model-driven verification."),
-                    ("fx syn sdf sta power --force", "Run synthesis and signoff checks."),
+                    ("fx syn sdf sta power_estimate --force", "Run synthesis, timing and estimated-power checks."),
                 ],
             ),
             section(
@@ -458,6 +459,10 @@ Use `fx commands` to list every backend Make target.
         if args[0] == "settings":
             _settings(root, args[1:], set_args, unset_args, reset, as_json)
             return
+        if args[0] == "doctor":
+            from .doctor import run as run_doctor
+
+            raise typer.Exit(run_doctor(root, as_json=as_json))
         if args[0] == "shell":
             raise typer.Exit(_shell(root, workdir))
         raise typer.Exit(_run(client, args, sets=set_args, tool=tool, force=force, dry_run=dry_run, script=script, capture=capture, live=live, as_json=as_json, info=info))

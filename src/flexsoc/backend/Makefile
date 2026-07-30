@@ -17,7 +17,7 @@ MULTICLOCK ?= 0
 #   5. testbench/model setup and simulation
 #   6. waveform/netlist viewing and regression artifacts
 #   7. synthesis
-#   8. signoff: SDF, STA, power, path analysis
+#   8. signoff: SDF, STA, estimated power, path analysis
 #   9. OpenROAD place & route
 #  10. IP load/save
 #  11. SoC/FuseSoC/XBAR/software flow
@@ -100,6 +100,11 @@ SV_TB_DIR := $(TB_DIR)/sv
 # -----------------------------------------------------------------------------
 LOGDIR         ?= $(OUTROOT)/logs
 VERIFY_LOGDIR  ?= $(LOGDIR)/verification
+VERIFYDIR      ?= $(OUTROOT)/verification
+COVERAGEDIR    ?= $(VERIFYDIR)/coverage
+COVERAGE_ANNOTATEDDIR ?= $(COVERAGEDIR)/annotated
+COVERAGE_DETAIL_LIMIT ?= 200
+REGRESSION_LOGDIR ?= $(VERIFY_LOGDIR)/regression
 SYNTH_LOGDIR   ?= $(LOGDIR)/synthesis
 SIGNOFF_LOGDIR ?= $(LOGDIR)/signoff
 SV_COMPILE_LOG ?= $(VERIFY_LOGDIR)/$(TOP)_sv_compile_$(TEST_NAME).log
@@ -110,6 +115,9 @@ TBDIR          ?= $(OUTROOT)/tb
 SIMDIR         ?= $(OUTROOT)/sim
 SYNDIR         ?= $(OUTROOT)/syn
 SIGNOFFDIR     ?= $(OUTROOT)/signoff
+METADIR        ?= $(OUTROOT)/meta
+METRICS_JSON   ?= $(METADIR)/metrics.json
+MANIFEST_JSON  ?= $(METADIR)/manifest.json
 MODELDIR       ?= $(OUTROOT)/model
 UTILOUT        ?= $(OUTROOT)/util
 UTILDIR        ?= $(UTILOUT)
@@ -123,7 +131,7 @@ FSMWORKDIR     ?= $(FSMDIR)/$(FSM)
 FSM_INPUT_DIR  ?= $(FSMWORKDIR)/inputs
 FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
 ORSDIR         ?= $(OR_WORKDIR)
-REGRESSIONDIR  ?= $(OUTROOT)/regression
+TB_SAVEDIR     ?= $(VERIFYDIR)/saved
 TEST_NAMES     ?= smoke corners random reconfig
 MULTICLOCK_DOMAINS ?= cfg,rx,dsp
 MULTICLOCK_REGMAPS ?= cfg,dsp
@@ -140,6 +148,9 @@ STA_MODES          ?= setup hold
 STA_PATHS          ?= 100
 STA_GROUPS         ?= 20
 TEST_NAME      ?= smoke
+SEED           ?= 1
+REGRESSION_BACKENDS ?= sv cocotb
+COVERAGE       ?= 0
 TEST_ROOT      ?= $(TBDIR)/tests
 TESTDIR        ?= $(TEST_ROOT)/$(TEST_NAME)
 REGCFG         ?= $(TESTDIR)/config.regs
@@ -149,6 +160,9 @@ SIM_TEST_SEL   := +TEST_NAME=$(TEST_NAME)
 SIM_TEST_FILES := +TEST_ROOT=$(TEST_ROOT) +CFG=$(REGCFG) +DATA_IN=$(DATA_IN) +DATA_OUT=$(DATA_OUT)
 SIM_PLUSARGS   ?= $(SIM_TEST_SEL) $(SIM_TEST_FILES)
 COCOTB_WAVES   ?= 1
+SV_COVERAGE_FILE ?= $(COVERAGEDIR)/sv/$(TEST_NAME).dat
+COCOTB_COVERAGE_FILE ?= $(COVERAGEDIR)/cocotb/$(TEST_NAME).dat
+VERILATOR_RUNTIME_ARGS = +verilator+seed+$(SEED) $(if $(filter 1,$(COVERAGE)),+verilator+coverage+file+$(SV_COVERAGE_FILE),)
 
 # -----------------------------------------------------------------------------
 # Toolchain
@@ -159,6 +173,7 @@ STA             ?= sta
 SV2V            ?= sv2v
 LINTER          ?= verilator
 COMPILER        ?= verilator
+VERILATOR_COVERAGE ?= verilator_coverage
 FUSESOC         ?= fusesoc
 VIEWER          ?= gtkwave
 VIEWER_FLAGS    ?= --dark --rcvar 'fontname_signals Monospace 17' --rcvar 'fontname_waves Monospace 17' --giga
@@ -249,7 +264,8 @@ FCLK						?= 32
 CLK_PERIOD      ?= 20
 TARGET_SYN      ?= asic
 TARGET_OPT      ?= area
-ACTIVITY        ?= 10
+POWER_ACTIVITY  ?= 0.1
+POWER_DUTY      ?= 0.5
 PATH_VIEW_FILE  ?= $(TOP)_sta.violators
 NPATHS          ?= 20
 
@@ -341,22 +357,23 @@ endef
 # Consolidated phony declarations, grouped in file order.
 PHONY_TARGETS :=
 PHONY_TARGETS += help help_ip help_soc help_doc help_fsm
-PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_corners signoff_corners
+PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_estimate_corners signoff_corners metrics manifest
 PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist driver fetch hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi notes_multi setup_model_multi tests_gen_multi test_gen_multi setup_tb_multi setup_cocotb_multi multiclock_scaffold regmap_py
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
 PHONY_TARGETS += lint lint_suite lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier slang_ast slang_flist
-PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests
+PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests regression coverage coverage_detail
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
 PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
-PHONY_TARGETS += setup_signoff compile_syn sim_syn sta sdf power sta_violators path_view
+PHONY_TARGETS += setup_signoff compile_syn sim_syn sta sdf power_estimate sta_violators path_view
 PHONY_TARGETS += setup_pnr pnr pnr_gui
+PHONY_TARGETS += metrics manifest check
 PHONY_TARGETS += ip_load ip_save
 PHONY_TARGETS += soc_vendor_deps fsoc_init fsoc xbar xbar_init xbar_build soc soc_stage_tops soc_flist soc_flow soc_uart_gen soc_ibex_gen
 PHONY_TARGETS += sw_soc soc_prepare soc_build_sw soc_sim soc_run soc_run_only soc_view
 PHONY_TARGETS += fsm_init fsm_setup fsm_example_load fsm_gen fsm_plot fsm_flow fsm_install fsm2rtl
 PHONY_TARGETS += soc_uart_tutorial soc_ibex_fetch soc_ibex_tutorial full_tutorial fsm_tutorial ip_tutorial soc_pless
 PHONY_TARGETS += deps deps-soc
-PHONY_TARGETS += clean-pyc clean_doc clean_log clean_rtl clean_sim clean_cocotb clean_syn clean_signoff clean_pnr
+PHONY_TARGETS += clean-pyc clean_doc clean_log clean_rtl clean_sim clean_cocotb clean_syn clean_signoff clean_meta clean_pnr
 PHONY_TARGETS += clean_fsm clean_fsm_all clean_agent clean_fsoc clean_soc clean_sw clean_vendor clean_subdir clean clean_all
 
 .PHONY: $(PHONY_TARGETS)
@@ -395,6 +412,7 @@ setup: ## Create the run directory tree
 		$(SYNDIR) \
 		$(SIGNOFFDIR) \
 		$(SIGNOFFDIR)/sdf \
+		$(METADIR) \
 		$(MODELDIR) \
 		$(DOCDIR) \
 		$(DATADIR) \
@@ -563,9 +581,9 @@ driver: ## Generate C driver files from HJSON
 fetch: ## Fetch or update a vendored dependency
 	$(Q)$(PYTHON) $(VENDOR_TOOL) --update $(REPO_ROOT)/vendor/$(VENDOR).vendor.hjson
 
-ip_flow: reg doc lint sim syn sdf sta sta_violators power view ## Run the standard IP flow
-ip_flow_noreg: flist lint sim syn sdf sta sta_violators power view ## Run IP flow without regenerating registers
-ip_flow_all: ip_start syn sdf sta sta_violators power view pnr pnr_gui ## Run full IP flow including PnR
+ip_flow: reg doc lint sim syn sdf sta sta_violators power_estimate view ## Run the standard IP flow
+ip_flow_noreg: flist lint sim syn sdf sta sta_violators power_estimate view ## Run IP flow without regenerating registers
+ip_flow_all: ip_start syn sdf sta sta_violators power_estimate view pnr pnr_gui ## Run full IP flow including PnR
 
 # ============================================================================
 # 5. Linting
@@ -822,7 +840,7 @@ tests_gen: setup ## Generate all vector tests from the editable test catalogue
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
+	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
 
 test_gen: setup ## Generate one vector test selected by TEST_NAME from the editable test catalogue
 	$(call _require_var,TOP)
@@ -832,7 +850,7 @@ test_gen: setup ## Generate one vector test selected by TEST_NAME from the edita
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
+	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
 
 tests_gen_multi: setup ## Generate all multi-clock vector tests from the editable test catalogue
 	$(call _require_var,TOP)
@@ -842,7 +860,7 @@ tests_gen_multi: setup ## Generate all multi-clock vector tests from the editabl
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
+	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
 
 test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_NAME from the editable test catalogue
 	$(call _require_var,TOP)
@@ -852,7 +870,7 @@ test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_N
 		exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
+	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
 
 setup_tb_multi: setup ## Generate a multi-clock SystemVerilog testbench scaffold
 	@mkdir -p $(TB_SV_DIR)
@@ -936,7 +954,7 @@ ifeq ($(COMPILER),iverilog)
 		> $(LOGDIR)/$(TOP)_compile.log 2>&1
 else
 	$(Q)$(MKDIR) -p $(SIMDIR)/$(COMPILER) $(LOGDIR)
-	$(Q)verilator $(VERILATOR_FLAGS) -I$(TB_SV_DIR) -I$(TB_SV_DIR)/drivers \
+	$(Q)verilator $(VERILATOR_FLAGS) $(if $(filter 1,$(COVERAGE)),--coverage,) -I$(TB_SV_DIR) -I$(TB_SV_DIR)/drivers \
 		$(RTLDIR)/$(TOP).v \
 		$(TB_SV_DIR)/$(TESTBENCH).sv \
 		--top-module $(TESTBENCH) \
@@ -949,7 +967,8 @@ ifeq ($(COMPILER),iverilog)
 	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 else
-	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
+	$(Q)if [ "$(COVERAGE)" = "1" ]; then $(MKDIR) -p "$(dir $(SV_COVERAGE_FILE))"; fi
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) $(SIM_PLUSARGS) $(VERILATOR_RUNTIME_ARGS) \
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
@@ -964,7 +983,7 @@ ifeq ($(COMPILER),iverilog)
 		> $(SV_COMPILE_LOG) 2>&1
 else
 	$(Q)$(MKDIR) -p $(SIMDIR)/$(COMPILER) $(VERIFY_LOGDIR)
-	$(Q)verilator $(VERILATOR_FLAGS) \
+	$(Q)verilator $(VERILATOR_FLAGS) $(if $(filter 1,$(COVERAGE)),--coverage,) \
 	  -I$(TB_DIR) -I$(SV_TB_DIR) \
 		$(RTL_FILELISTS) \
 		$(TB_SV_DIR)/$(TESTBENCH).sv \
@@ -979,7 +998,8 @@ ifeq ($(COMPILER),iverilog)
 	$(Q)vvp $(SIMDIR)/$(TESTBENCH).vvp +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
 		> $(SV_SIM_LOG) 2>&1
 else
-	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) $(SIM_PLUSARGS) \
+	$(Q)if [ "$(COVERAGE)" = "1" ]; then $(MKDIR) -p "$(dir $(SV_COVERAGE_FILE))"; fi
+	$(Q)$(SIMDIR)/$(COMPILER)/V$(TESTBENCH) +VCD=$(VCD_FILE) $(SIM_PLUSARGS) $(VERILATOR_RUNTIME_ARGS) \
 		> $(SV_SIM_LOG) 2>&1
 endif
 
@@ -996,12 +1016,13 @@ cocotb: _require_test_vectors ## Run one cocotb vector test selected by TEST_NAM
 		echo "Run uv sync from the repository root, then retry."; \
 		exit 1; \
 	}
-	@printf "%b\n" "$(ORANGE)[cocotb]$(RESET) $(BLUE)run cocotb test TEST_NAME=$(TEST_NAME)$(RESET)"
+	@printf "%b\n" "$(ORANGE)[cocotb]$(RESET) $(BLUE)run cocotb test TEST_NAME=$(TEST_NAME) SEED=$(SEED)$(RESET)"
 	@printf "%b\n" "$(BLUE)log: $(COCOTB_LOG)$(RESET)"
+	$(Q)if [ "$(COVERAGE)" = "1" ] && [ "$(COMPILER)" = "verilator" ]; then $(MKDIR) -p "$(dir $(COCOTB_COVERAGE_FILE))"; fi
 	$(Q)if [ "$(LIVE)" = "1" ]; then \
-		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" WAVES=$(COCOTB_WAVES) 2>&1 | tee $(COCOTB_LOG); \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVES=$(COCOTB_WAVES) 2>&1 | tee $(COCOTB_LOG); \
 	else \
-		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" WAVES=$(COCOTB_WAVES) > $(COCOTB_LOG) 2>&1; \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVES=$(COCOTB_WAVES) > $(COCOTB_LOG) 2>&1; \
 	fi
 
 
@@ -1029,6 +1050,96 @@ cocotb_tests: ## Run every generated cocotb vector test
 		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
 		exit 1; \
 	fi
+
+regression: ## Run every generated test on each selected backend and collect coverage
+	@set -u; \
+	case "$(CLOCK_MODE)" in \
+		multi|multiclock) gen_target=tests_gen_multi ;; \
+		*) gen_target=tests_gen ;; \
+	esac; \
+	rm -rf "$(TEST_ROOT)" "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
+	mkdir -p "$(TEST_ROOT)" "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
+	$(BACKEND_MAKE) $$gen_target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" SEED="$(SEED)"; \
+	tests=""; \
+	for dir in "$(TEST_ROOT)"/*; do \
+		[ -d "$$dir" ] || continue; \
+		tests="$$tests $$(basename "$$dir")"; \
+	done; \
+	if [ -z "$$tests" ]; then \
+		echo "ERROR: regression generated no tests in $(TEST_ROOT)"; \
+		exit 2; \
+	fi; \
+	total=0; failed=0; \
+	for backend in $(REGRESSION_BACKENDS); do \
+		case "$$backend" in \
+			sv) target=sim ;; \
+			cocotb) target=cocotb ;; \
+			*) echo "ERROR: unsupported regression backend: $$backend (use sv or cocotb)"; exit 2 ;; \
+		esac; \
+		for test in $$tests; do \
+			total=$$((total + 1)); \
+			test_seed="$(SEED)"; \
+			case "$$test" in random_seed_*) test_seed=$${test#random_seed_} ;; esac; \
+			printf '\n$(ORANGE)[regression]$(RESET) $(BLUE)backend=%s test=%s$(RESET)\n' "$$backend" "$$test"; \
+			if $(BACKEND_MAKE) $$target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" \
+				CLOCK_MODE="$(CLOCK_MODE)" COMPILER="$(COMPILER)" TEST_NAME="$$test" SEED="$$test_seed" COVERAGE=1 \
+				VERIFY_LOGDIR="$(REGRESSION_LOGDIR)/$$backend"; then \
+				printf '$(GREEN)  PASS$(RESET) %s/%s\n' "$$backend" "$$test"; \
+			else \
+				failed=$$((failed + 1)); \
+				printf '$(RED)  FAIL$(RESET) %s/%s\n' "$$backend" "$$test"; \
+			fi; \
+		done; \
+	done; \
+	coverage_failed=0; \
+	if [ "$(COMPILER)" = "verilator" ]; then \
+		if ! $(BACKEND_MAKE) coverage TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)"; then \
+			coverage_failed=1; \
+		fi; \
+	else \
+		printf '$(ORANGE)[regression]$(RESET) coverage skipped: COMPILER=$(COMPILER)\n'; \
+	fi; \
+	printf '\n$(BLUE)[regression] total=%s failed=%s$(RESET)\n' "$$total" "$$failed"; \
+	if [ "$$failed" -ne 0 ] || [ "$$coverage_failed" -ne 0 ]; then exit 1; fi
+
+coverage: ## Merge and report existing Verilator coverage data
+	@set -eu; \
+	if ! command -v "$(VERILATOR_COVERAGE)" >/dev/null 2>&1; then \
+		echo "ERROR: verilator_coverage not found"; \
+		exit 2; \
+	fi; \
+	files=$$(find "$(COVERAGEDIR)" -type f -name '*.dat' ! -name 'merged.dat' 2>/dev/null | sort); \
+	if [ -z "$$files" ]; then \
+		echo "ERROR: no Verilator coverage data in $(COVERAGEDIR)"; \
+		echo "Run: fx regression"; \
+		exit 2; \
+	fi; \
+	mkdir -p "$(COVERAGEDIR)"; \
+	$(VERILATOR_COVERAGE) --write "$(COVERAGEDIR)/merged.dat" $$files; \
+	if ! $(VERILATOR_COVERAGE) --report summary "$(COVERAGEDIR)/merged.dat" > "$(COVERAGEDIR)/summary.txt" 2>&1; then \
+		$(VERILATOR_COVERAGE) "$(COVERAGEDIR)/merged.dat" > "$(COVERAGEDIR)/summary.txt"; \
+	fi; \
+	printf '\n%b\n' "$(BLUE)Coverage$(RESET)"; \
+	awk 'BEGIN { green="\033[32m"; yellow="\033[33m"; red="\033[31m"; reset="\033[0m" } \
+		match($$0, /[0-9]+([.][0-9]+)?%/) { pct=substr($$0, RSTART, RLENGTH-1)+0; color=(pct >= 100 ? green : (pct <= 0 ? red : yellow)); print color $$0 reset; next } \
+		{ print }' "$(COVERAGEDIR)/summary.txt"; \
+	printf '%b\n' "$(GREEN)[coverage] merged$(RESET) $(BLUE)$(COVERAGEDIR)/merged.dat$(RESET)"; \
+	printf '%b\n' "$(BLUE)summary: $(COVERAGEDIR)/summary.txt$(RESET)"
+
+
+coverage_detail: coverage ## Show exactly which Verilator coverage points were not hit
+	@set -eu; \
+	rm -rf "$(COVERAGE_ANNOTATEDDIR)"; \
+	mkdir -p "$(COVERAGE_ANNOTATEDDIR)"; \
+	$(VERILATOR_COVERAGE) \
+		--annotate "$(COVERAGE_ANNOTATEDDIR)" \
+		--annotate-all \
+		--annotate-points \
+		--annotate-min 1 \
+		"$(COVERAGEDIR)/merged.dat"; \
+	$(PYTHON) "$(TOOLSROOT)/coverage_report.py" \
+		--annotated-dir "$(COVERAGE_ANNOTATEDDIR)" \
+		--limit "$(COVERAGE_DETAIL_LIMIT)"
 
 # ============================================================================
 # 7. Viewing, waveform inspection and regression artifacts
@@ -1088,15 +1199,15 @@ view_presyn_sv: ## Open pre-synthesis graph from SV
 
 # Signoff
 
-tb_save: ## Save testbench regression artifacts
-	$(Q)$(MKDIR) -p $(REGRESSIONDIR) $(REGRESSIONDIR)/$(TBDIR) $(REGRESSIONDIR)/$(SIMDIR)
-	$(Q)$(CP) $(TB_SV_DIR)/$(TOP)_tb.sv $(REGRESSIONDIR)/$(TBDIR)/$(TOP)_$(OUTNAME)_tb.sv
-	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.vcd $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd
-	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.gtkw $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw
+tb_save: ## Save selected testbench and waveform artifacts
+	$(Q)$(MKDIR) -p $(TB_SAVEDIR)/tb $(TB_SAVEDIR)/sim
+	$(Q)$(CP) $(TB_SV_DIR)/$(TOP)_tb.sv $(TB_SAVEDIR)/tb/$(TOP)_$(OUTNAME)_tb.sv
+	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.vcd $(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.vcd
+	$(Q)$(CP) $(SIMDIR)/$(TOP)_tb.gtkw $(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.gtkw
 
 tb_view: ## Open saved testbench waveform
-	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.vcd \
-		$(REGRESSIONDIR)/$(SIMDIR)/$(TOP)_$(OUTNAME)_tb.gtkw &
+	$(Q)$(VIEWER) $(VIEWER_FLAGS) $(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.vcd \
+		$(TB_SAVEDIR)/sim/$(TOP)_$(OUTNAME)_tb.gtkw &
 
 # ============================================================================
 # 8. Synthesis and netlist generation
@@ -1123,15 +1234,15 @@ syn_v: setup_syn ## Run Verilog synthesis
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
 	@printf "%b\n" "$(BLUE)log: $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log$(RESET)"
 	$(Q)$(YOSYS) $(SYNDIR)/synth.ys > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
-	$(Q)$(GREP) -i "warning" $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
-	$(Q)$(GREP) -i "error" $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
+	$(Q)$(GREP) -Ei '^(Warning:|%Warning-|.*:[0-9]+(:[0-9]+)?:[[:space:]]*warning:)' $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	$(Q)$(GREP) -Ei '^(ERROR:|%Error-|.*:[0-9]+(:[0-9]+)?:[[:space:]]*error:)' $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
 syn_sv: setup_syn ## Run SystemVerilog synthesis
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
 	@printf "%b\n" "$(BLUE)log: $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log$(RESET)"
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -s $(SYNDIR)/synth_sv.ys > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
-	$(Q)$(GREP) -i "warning" $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
-	$(Q)$(GREP) -i "error" $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
+	$(Q)$(GREP) -Ei '^(Warning:|%Warning-|.*:[0-9]+(:[0-9]+)?:[[:space:]]*warning:)' $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
+	$(Q)$(GREP) -Ei '^(ERROR:|%Error-|.*:[0-9]+(:[0-9]+)?:[[:space:]]*error:)' $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
 yosys-vgen: ## Convert SV to Verilog with Yosys
 	$(Q)$(YOSYS) -m /usr/local/share/yosys/plugins/slang.so -p "\
@@ -1149,7 +1260,7 @@ sv2v: ## Convert SV to Verilog with sv2v
 
 # ============================================================================
 # 9. Gate-level simulation and signoff analysis
-# SDF, STA, violator extraction, power and path-view reports.
+# SDF, STA, violator extraction, estimated power and path-view reports.
 # ============================================================================
 ##@ Signoff
 setup_signoff: setup_sdc ## Generate signoff scripts
@@ -1159,7 +1270,7 @@ setup_signoff: setup_sdc ## Generate signoff scripts
 		--top $(TOP) \
 		--constraints-dir $(ORSDIR) --synthesis-dir $(SYNDIR) --simulation-dir $(SIMDIR) \
 		$(foreach lib,$(LIBS),--liberty $(lib)) \
-		--activity-pct $(ACTIVITY) \
+		--power-activity $(POWER_ACTIVITY) --power-duty $(POWER_DUTY) \
 		--output-dir $(SIGNOFFDIR)
 
 SYN_NETLIST ?= $(SYNDIR)/$(TOP)_synth.v
@@ -1207,35 +1318,40 @@ sta_corners: setup_signoff ## Run STA for every configured corner and setup/hold
 	done; \
 	exit $$failed
 
-power_corners: setup_signoff ## Run power analysis for every configured corner
+power_estimate_corners: setup_signoff ## Estimate power for every configured corner using global activity
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SIGNOFF_LOGDIR)
 	@set -eu; failed=0; \
 	for corner in $(SIGNOFF_CORNERS); do \
-		log="$(SIGNOFF_LOGDIR)/$(TOP)_power_$${corner}.log"; \
-		printf "%b\n" "$(ORANGE)[power]$(RESET) $(BLUE)corner=$$corner log=$$log$(RESET)"; \
+		log="$(SIGNOFF_LOGDIR)/$(TOP)_power_estimate_$${corner}.log"; \
+		printf "%b\n" "$(ORANGE)[power_estimate]$(RESET) $(BLUE)corner=$$corner activity=$(POWER_ACTIVITY) duty=$(POWER_DUTY) log=$$log$(RESET)"; \
 		if [ "$(LIVE)" = "1" ]; then \
-			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl 2>&1 | tee '"$$log"; \
+			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/power_estimate.tcl 2>&1 | tee '"$$log"; \
 		else \
-			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFFDIR)/power.tcl > "$$log" 2>&1; \
+			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFFDIR)/power_estimate.tcl > "$$log" 2>&1; \
 		fi || failed=1; \
 	done; \
 	exit $$failed
 
-signoff_corners: sdf sta_corners power_corners ## Run SDF plus complete multi-corner signoff
+signoff_corners: sdf sta_corners power_estimate_corners ## Run SDF, multi-corner STA and estimated power
 
 sta: sta_corners ## Run STA for every corner and setup/hold mode
 
-sdf: setup_signoff ## Write SDF timing files
+sdf: setup_signoff ## Write one SDF timing file per configured corner
 	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf $(SIGNOFF_LOGDIR)
-	@printf "%b\n" "$(BLUE)log: $(SIGNOFF_LOGDIR)/$(TOP)_sdf.log$(RESET)"
-	$(Q)if [ "$(LIVE)" = "1" ]; then \
-		bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl 2>&1 | tee $(SIGNOFF_LOGDIR)/$(TOP)_sdf.log'; \
-	else \
-		$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > $(SIGNOFF_LOGDIR)/$(TOP)_sdf.log 2>&1; \
-	fi
+	@set -eu; failed=0; \
+	for corner in $(SIGNOFF_CORNERS); do \
+		log="$(SIGNOFF_LOGDIR)/$(TOP)_sdf_$${corner}.log"; \
+		printf "%b\n" "$(ORANGE)[sdf]$(RESET) $(BLUE)corner=$$corner log=$$log$(RESET)"; \
+		if [ "$(LIVE)" = "1" ]; then \
+			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl 2>&1 | tee '"$$log"; \
+		else \
+			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > "$$log" 2>&1; \
+		fi || failed=1; \
+	done; \
+	exit $$failed
 
-power: power_corners ## Run power analysis for every configured corner
+power_estimate: power_estimate_corners ## Estimate power for every configured corner using global activity
 
 sta_violators: setup_signoff ## Report timing violators
 	$(Q)$(MKDIR) -p $(SIGNOFF_LOGDIR)
@@ -1246,7 +1362,28 @@ path_view: ## Build interactive STA path view
 	$(Q)$(PYTHON) $(UTILDIR)/interactiveReport.py -i $(LOGDIR)/$(PATH_VIEW_FILE) -s $(UTILDIR)/default.svg -t opensta -n $(NPATHS)
 
 # ============================================================================
-# 10. OpenROAD place and route
+# 10. Run metadata
+# ============================================================================
+##@ Run metadata
+metrics: setup ## Collect available lint, synthesis, STA, and power metrics
+	$(Q)$(PYTHON) -m flexsoc.backend.metrics \
+		--top $(TOP) \
+		--run-dir $(OUTROOT) \
+		--output $(METRICS_JSON)
+
+manifest: setup ## Collect the automatic run identity and tool manifest
+	$(Q)$(PYTHON) -m flexsoc.backend.manifest \
+		--top $(TOP) \
+		--run-top $(RUN_TOP) \
+		--run-id $(RUN_ID) \
+		--repo-root $(REPO_ROOT) \
+		--output $(MANIFEST_JSON)
+
+check: setup ## Print the current metrics summary; informational only
+	$(Q)$(PYTHON) -m flexsoc.backend.metrics --show $(METRICS_JSON)
+
+# ============================================================================
+# 11. OpenROAD place and route
 # ============================================================================
 ##@ Place and route
 setup_pnr: ## Generate OpenROAD config
@@ -1292,7 +1429,7 @@ pnr_gui: setup_pnr ## Open OpenROAD GUI
 		DESIGN_CONFIG="$$cfg" 2>/dev/null &
 
 # ============================================================================
-# 11. IP load/save
+# 12. IP load/save
 # ============================================================================
 ##@ IP load/save
 ip_load: ## Load an IP into a run workspace
@@ -1375,7 +1512,7 @@ ip_save: ## Save run artifacts back to hw/ips
 		-delete
 
 # ============================================================================
-# 12. SoC, FuseSoC, XBAR and software flow
+# 13. SoC, FuseSoC, XBAR and software flow
 # ============================================================================
 ##@ SoC flow
 PRJ           ?= flexsoc
@@ -1621,7 +1758,7 @@ soc_view: ## Open SoC waveform
 soc_run_only: soc_run ## Alias for SoC simulation run
 
 # ============================================================================
-# 13. FSM flow
+# 14. FSM flow
 # ============================================================================
 ##@ FSM flow
 fsm_init: ## Create FSM workspace directories
@@ -1662,7 +1799,7 @@ fsm_install: fsm_init ## Install FSM artifacts into the IP run
 fsm2rtl: fsm_install ## Alias for FSM RTL installation
 
 # ============================================================================
-# 14. Tutorial and composed flows
+# 15. Tutorial and composed flows
 # ============================================================================
 ##@ Tutorials
 # Tutorial defaults
@@ -1735,7 +1872,7 @@ ip_tutorial: ## Run the IP tutorial flow
 	$(Q)$(BACKEND_MAKE) ip_load \
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-	$(Q)$(BACKEND_MAKE) flist sim syn sdf sta sta_violators power view \
+	$(Q)$(BACKEND_MAKE) flist sim syn sdf sta sta_violators power_estimate view \
 		TOP=$(TOP) RUN_TOP=$(TOP) \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 
@@ -1743,12 +1880,12 @@ soc_pless: ## Run the tiny SoC tutorial flow
 	$(Q)$(BACKEND_MAKE) ip_load \
 		TOP=tiny-soc RUN_TOP=tiny-soc \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
-	$(Q)$(BACKEND_MAKE) flist sim syn sdf sta power view \
+	$(Q)$(BACKEND_MAKE) flist sim syn sdf sta power_estimate view \
 		TOP=soc RUN_TOP=tiny-soc \
 		WORKSPACE=$(TUTORIAL_WS) RUN_ID=$(TUTORIAL_RUN_ID)
 
 # ============================================================================
-# 15. Dependencies
+# 16. Dependencies
 # ============================================================================
 ##@ Dependencies
 deps: ## Install IP development dependencies
@@ -1764,7 +1901,7 @@ deps-soc: ## Install SoC development dependencies
 	printf "%s\n" "export PATH=/tools/riscv32/bin" >> ~/.bashrc
 
 # ============================================================================
-# 16. Clean targets
+# 17. Clean targets
 # ============================================================================
 ##@ Cleanup
 clean-pyc: ## Remove Python caches
@@ -1782,10 +1919,11 @@ clean_log: ## Remove logs
 clean_rtl: ## Remove generated RTL
 	$(Q)$(RM) $(RTLDIR)/*.v
 
-clean_sim: ## Remove simulation outputs
+clean_sim: ## Remove simulation and verification outputs
 	$(Q)$(RM) $(SIMDIR)/*.vvp
 	$(Q)$(RM) $(SIMDIR)/*.vcd
 	$(Q)$(RM) -r $(SIMDIR)/verilator
+	$(Q)$(RM) -r $(VERIFYDIR)
 
 clean_cocotb: ## Remove cocotb outputs
 	$(Q)$(RM) $(TBDIR)/cocotb/*.vcd
@@ -1799,6 +1937,9 @@ clean_syn: ## Remove synthesis outputs
 clean_signoff: ## Remove signoff outputs
 	$(Q)$(RM) $(SIGNOFFDIR)/sdf/*
 	$(Q)$(RM) $(SIGNOFFDIR)/*.sdc
+
+clean_meta: ## Remove run metadata
+	$(Q)$(RM) -rf $(METADIR)/*
 
 clean_pnr: ## Remove PnR outputs
 	$(Q)$(RM) -rf $(ORSDIR)/*
@@ -1838,7 +1979,7 @@ clean_subdir: ## Clean helper subdirectories
 	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) clean
 	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) setup
 
-clean: clean-pyc clean_log clean_rtl clean_sim clean_syn clean_signoff clean_pnr clean_subdir clean_fsoc clean_soc clean_fsm ## Clean generated flow outputs
+clean: clean-pyc clean_log clean_rtl clean_sim clean_syn clean_signoff clean_meta clean_pnr clean_subdir clean_fsoc clean_soc clean_fsm ## Clean generated flow outputs
 	$(Q)$(FIND) . -type f \( -name '*~' -o -name '*.swp' \) -exec $(RM) -f {} + > /dev/null 2>&1
 	$(Q)$(FIND) . -type d -name '__pycache__' -exec $(RM) {} + > /dev/null 2>&1
 	$(Q)$(CLEAR)

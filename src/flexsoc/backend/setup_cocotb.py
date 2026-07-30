@@ -264,8 +264,20 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         COMPILE_ARGS += {includes}
         export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
         TEST_NAME ?= smoke
+        SEED ?= 1
+        COVERAGE ?= 0
+        COVERAGE_FILE ?= $(abspath ../../verification/coverage/cocotb/$(TEST_NAME).dat)
+
+        ifeq ($(SIM),verilator)
+        PLUSARGS += +verilator+seed+$(SEED)
+        ifeq ($(COVERAGE),1)
+        COMPILE_ARGS += --coverage
+        PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
+        endif
+        endif
 
         export TEST_NAME
+        export FLEXSOC_SEED := $(SEED)
         export REG_CONFIG ?= $(abspath ../tests/$(TEST_NAME)/config.regs)
         export DATA_IN  ?= $(abspath ../tests/$(TEST_NAME)/data_in.vec)
         export DATA_OUT ?= $(abspath ../tests/$(TEST_NAME)/data_out.vec)

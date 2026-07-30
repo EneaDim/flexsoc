@@ -28,10 +28,25 @@ IP_DEV = (*BASE, "REG_ITF", "FORCE")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
 IP_FULL = (*COMMON, "REG_ITF", "LINT_TOOL", "LINT_PART", "TARGET_SYN", "TARGET_OPT")
 LINT = (*COMMON, "LINT_TOOL", "LINT_PART", "VSV")
-SIM = (*COMMON, "TESTBENCH", "TEST_NAMES", "TEST_NAME", "REGCFG", "DATA_IN", "DATA_OUT", "VSV", "COMPILER", "COCOTB_WAVES")
+SIM = (
+    *COMMON,
+    "TESTBENCH",
+    "TEST_NAMES",
+    "TEST_NAME",
+    "REGCFG",
+    "DATA_IN",
+    "DATA_OUT",
+    "VSV",
+    "COMPILER",
+    "COCOTB_WAVES",
+    "SEED",
+    "REGRESSION_BACKENDS",
+    "COVERAGE",
+    "COVERAGE_DETAIL_LIMIT",
+)
 VIEW = (*COMMON, "WAVE_VIEWER", "SURFER_BACKEND")
 SYN = (*COMMON, "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV")
-SIGNOFF = (*COMMON, "LIBS", "ACTIVITY", "PATH_VIEW_FILE", "NPATHS")
+SIGNOFF = (*COMMON, "LIBS", "POWER_ACTIVITY", "POWER_DUTY", "PATH_VIEW_FILE", "NPATHS")
 PNR = (*COMMON, "ORS", "ORS_TECH")
 IP_LOAD = (*COMMON, "IP_NAME")
 SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
@@ -67,8 +82,8 @@ TARGETS: dict[str, TargetSpec] = {
     "setup_cocotb_multi": ("Multi-clock", "Generate a multi-clock cocotb scaffold", SIM),
     "multiclock_scaffold": ("Multi-clock", "Bootstrap the decomposed multi-clock IP scaffold", IP_DEV),
     "sta_corners": ("Signoff", "Run STA setup/hold for each configured corner", SIGNOFF),
-    "power_corners": ("Signoff", "Run power analysis for each configured corner", SIGNOFF),
-    "signoff_corners": ("Signoff", "Run SDF plus multi-corner STA and power", SIGNOFF),
+    "power_estimate_corners": ("Signoff", "Estimate power for each corner using global activity", SIGNOFF),
+    "signoff_corners": ("Signoff", "Run SDF, multi-corner STA and estimated power", SIGNOFF),
     "hjson": ("IP flow", "Generate an HJSON register template", IP_DEV),
     "hjson_gen": ("IP flow", "Compatibility alias for HJSON generation", IP_DEV),
     "reg": ("IP flow", "Generate register RTL from HJSON", IP_DEV),
@@ -111,6 +126,9 @@ TARGETS: dict[str, TargetSpec] = {
     "sim_tests": ("Simulation", "Run every generated SystemVerilog vector test", SIM),
     "cocotb": ("Simulation", "Run cocotb tests", SIM),
     "cocotb_tests": ("Simulation", "Run every generated cocotb vector test", SIM),
+    "regression": ("Simulation", "Run all tests on selected backends with Verilator coverage", SIM),
+    "coverage": ("Simulation", "Merge and report existing Verilator coverage data", SIM),
+    "coverage_detail": ("Simulation", "Show uncovered Verilator coverage points", SIM),
     "view": ("Viewing", "Open latest waveform", VIEW),
     "view_cocotb": ("Viewing", "Open latest cocotb waveform", VIEW),
     "view_syn": ("Viewing", "Reserved synthesis waveform viewer target", VIEW),
@@ -132,9 +150,12 @@ TARGETS: dict[str, TargetSpec] = {
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
     "sta": ("Signoff", "Run static timing analysis", SIGNOFF),
     "sdf": ("Signoff", "Write SDF timing files", SIGNOFF),
-    "power": ("Signoff", "Run power analysis", SIGNOFF),
+    "power_estimate": ("Signoff", "Estimate power using global switching activity", SIGNOFF),
     "sta_violators": ("Signoff", "Report timing violators", SIGNOFF),
     "path_view": ("Signoff", "Build interactive STA path view", SIGNOFF),
+    "metrics": ("Run metadata", "Collect available run metrics into meta/metrics.json", COMMON),
+    "manifest": ("Run metadata", "Collect automatic run identity into meta/manifest.json", COMMON),
+    "check": ("Run metadata", "Print current run metrics; informational only", COMMON),
     "setup_pnr": ("Place and route", "Generate OpenROAD config", PNR),
     "pnr": ("Place and route", "Run OpenROAD place and route", PNR),
     "pnr_gui": ("Place and route", "Open OpenROAD GUI", PNR),
@@ -188,6 +209,7 @@ TARGETS: dict[str, TargetSpec] = {
     "clean_cocotb": ("Cleanup", "Remove cocotb outputs", CLEAN),
     "clean_syn": ("Cleanup", "Remove synthesis outputs", CLEAN),
     "clean_signoff": ("Cleanup", "Remove signoff outputs", CLEAN),
+    "clean_meta": ("Cleanup", "Remove run metadata", CLEAN),
     "clean_pnr": ("Cleanup", "Remove PnR outputs", CLEAN),
     "clean_fsm": ("Cleanup", "Clean FSM generator outputs", CLEAN),
     "clean_fsm_all": ("Cleanup", "Deep-clean FSM generator outputs", CLEAN),

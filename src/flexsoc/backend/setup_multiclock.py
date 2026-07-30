@@ -1449,6 +1449,17 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     EXTRA_ARGS += --top-module $(TOPLEVEL)
     EXTRA_ARGS += -Wno-fatal
     export TEST_NAME ?= mac_smoke
+    SEED ?= 1
+    COVERAGE ?= 0
+    COVERAGE_FILE ?= $(abspath ../../verification/coverage/cocotb/$(TEST_NAME).dat)
+    ifeq ($(SIM),verilator)
+      PLUSARGS += +verilator+seed+$(SEED)
+      ifeq ($(COVERAGE),1)
+        EXTRA_ARGS += --coverage
+        PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
+      endif
+    endif
+    export FLEXSOC_SEED := $(SEED)
     export CFG ?= ../tests/$(TEST_NAME)/config.regs
     export DATA_IN ?= ../tests/$(TEST_NAME)/data_in.vec
     export DATA_OUT ?= ../tests/$(TEST_NAME)/data_out.vec
