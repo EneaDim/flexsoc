@@ -342,9 +342,9 @@ endef
 PHONY_TARGETS :=
 PHONY_TARGETS += help help_ip help_soc help_doc help_fsm
 PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_corners signoff_corners
-PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist flist_split driver fetch hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi notes_multi setup_model_multi tests_gen_multi test_gen_multi setup_tb_multi setup_cocotb_multi multiclock_scaffold regmap_py
+PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist driver fetch hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi notes_multi setup_model_multi tests_gen_multi test_gen_multi setup_tb_multi setup_cocotb_multi multiclock_scaffold regmap_py
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
-PHONY_TARGETS += lint lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier
+PHONY_TARGETS += lint lint_suite lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier slang_ast slang_flist
 PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
 PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
@@ -529,21 +529,32 @@ RTL_IP_LIST ?= $(RTLDIR)/rtl_ip.f
 RTL_FILELISTS = -f $(RTL_COMMON_LIST) -f $(RTL_IP_LIST)
 RTL_FILELIST_ARGS = --filelist $(RTL_COMMON_LIST) --filelist $(RTL_IP_LIST)
 FLIST_LOG ?= $(LOGDIR)/$(TOP)_flist.log
+FLIST_ROOT ?= $(REPO_ROOT)
+FLIST_TOP_FILE ?= $(RTLDIR)/$(TOP).sv
+FLIST_COMMON_ARGS = \
+	--common-root "$(INC_PKGS)" \
+	--common-root "$(INC_PRIM)" \
+	--common-root "$(INC_PRIM_OT)" \
+	--common-root "$(INC_TLUL)"
+FLIST_SEARCH_ARGS = \
+	--search-root "$(INC_PKGS)" \
+	--search-root "$(INC_PRIM)" \
+	--search-root "$(INC_PRIM_OT)" \
+	--search-root "$(INC_TLUL)"
+FLIST_CMD = $(PYTHON) -m flexsoc.backend.slang_tools flist --slang "$(SLANG)" --root "$(FLIST_ROOT)" $(FLIST_SEARCH_ARGS) --top-file "$(FLIST_TOP_FILE)" --top "$(TOP)" --extra-args "$(SLANG_ARGS)" --common-out "$(RTL_COMMON_LIST)" --ip-out "$(RTL_IP_LIST)" $(FLIST_COMMON_ARGS)
 
-flist: setup ## Generate clean common/IP RTL filelists
+flist: setup ## Generate Slang-ordered common/IP RTL filelists
 	@$(MKDIR) -p $(LOGDIR)
 	@log="$(FLIST_LOG)"; status_file="$$log.status"; rm -f "$$status_file"; \
 	if [ "$(LIVE)" = "1" ]; then \
-		{ $(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --common-out $(RTL_COMMON_LIST) --ip-out $(RTL_IP_LIST) --ips-root $(IPS_ROOT) --rtldir $(RTLDIR); echo $$? > "$$status_file"; } 2>&1 | tee "$$log"; \
+		{ $(FLIST_CMD); echo $$? > "$$status_file"; } 2>&1 | tee "$$log"; \
 		status=$$(cat "$$status_file"); rm -f "$$status_file"; \
 	else \
-		$(PYTHON) -m flexsoc.backend.gen_filelist --top $(TOP) --common-out $(RTL_COMMON_LIST) --ip-out $(RTL_IP_LIST) --ips-root $(IPS_ROOT) --rtldir $(RTLDIR) > "$$log" 2>&1; status=$$?; \
+		$(FLIST_CMD) > "$$log" 2>&1; status=$$?; \
 	fi; \
 	if [ $$status -ne 0 ]; then echo "[flist] failed. log: $$log"; [ "$(LIVE)" = "1" ] || cat "$$log"; exit $$status; fi; \
 	[ -s "$$log" ] || rm -f "$$log"
 	@rm -f $(RTLDIR)/rtl_list.f $(RTLDIR)/rtl_lint.f
-
-flist_split: flist ## Compatibility alias for clean common/IP filelists
 
 driver: ## Generate C driver files from HJSON
 	$(Q)$(PYTHON) $(REGTOOL) -D -o $(DRIVERDIR)/$(TOP).h $(DATADIR)/$(TOP).hjson
@@ -575,7 +586,7 @@ LINT_IP_LOG ?= $(LINT_LOGDIR)/$(TOP)_lint_$(LINT_KIND)_ip.log
 
 VERILATOR_LINT_BASE ?= --lint-only --sv -Wno-fatal
 VERILATOR_FOCUSED_OFF ?= -Wno-DECLFILENAME -Wno-PINMISSING -Wno-PINCONNECTEMPTY -Wno-PINNOCONNECT -Wno-UNDRIVEN -Wno-UNUSEDSIGNAL -Wno-UNUSEDPARAM -Wno-WIDTH -Wno-WIDTHEXPAND -Wno-WIDTHTRUNC -Wno-LATCH
-SLANG_LINT_BASE ?= --lint-only --single-unit --top $(TOP) -DSYNTHESIS --diag-hierarchy never
+SLANG_LINT_BASE ?= --lint-only --single-unit --top $(TOP) -DSYNTHESIS --diag-abs-paths --diag-hierarchy never
 
 LINT_KINDS := latch undriven width unconnected unused
 
@@ -605,20 +616,28 @@ LINT_ARGS = TOP="$(TOP)" HOST="$(HOST)" FORCE="$(FORCE)" RUN_ID="$(RUN_ID)" RUN_
 # Compatibility aliases used by compile_v/compile_sv prerequisites.
 lint_v lint_sv: lint
 
-lint: flist_split ## Run HDL lint checks
+lint: flist ## Run HDL lint checks
 	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) \
 		LINT_KIND=all LINT_PATTERN="$(LINT_PATTERN_all)" \
 		LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_all)" \
 		LINT_SLANG_FLAGS="$(SLANG_FLAGS_all)"
 
-lint_latch lint_undriven lint_width lint_unconnected lint_unused: lint_%: flist_split
+lint_suite: flist ## Run the complete HDL lint diagnostic suite
+	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=all LINT_PATTERN="$(LINT_PATTERN_all)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_all)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_all)"
+	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=latch LINT_PATTERN="$(LINT_PATTERN_latch)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_latch)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_latch)"
+	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=undriven LINT_PATTERN="$(LINT_PATTERN_undriven)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_undriven)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_undriven)"
+	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=width LINT_PATTERN="$(LINT_PATTERN_width)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_width)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_width)"
+	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=unconnected LINT_PATTERN="$(LINT_PATTERN_unconnected)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_unconnected)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_unconnected)"
+	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) LINT_KIND=unused LINT_PATTERN="$(LINT_PATTERN_unused)" LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_unused)" LINT_SLANG_FLAGS="$(SLANG_FLAGS_unused)"
+
+lint_latch lint_undriven lint_width lint_unconnected lint_unused: lint_%: flist
 	@$(MAKE) -f $(lastword $(MAKEFILE_LIST)) _lint_run $(LINT_ARGS) \
 		LINT_KIND="$*" LINT_PATTERN="$(LINT_PATTERN_$*)" \
 		LINT_VERILATOR_FLAGS="$(VERILATOR_FLAGS_$*)" \
 		LINT_SLANG_FLAGS="$(SLANG_FLAGS_$*)"
 
 _lint_run:
-	@printf "%b\n" "$(ORANGE)[lint]$(RESET) $(BLUE)$(TOP) kind=$(LINT_KIND) part=$(LINT_PART)$(RESET)"
+	@label="lint$(if $(filter-out all,$(LINT_KIND)),_$(LINT_KIND),)"; printf "%b\n" "$(ORANGE)[$$label]$(RESET) $(BLUE)$(TOP) part=$(LINT_PART)$(RESET)"
 	@mkdir -p $(LINT_LOGDIR) $(LINT_LOGDIR)/raw
 	@if [ ! -f "$(RTL_COMMON_LIST)" ] || [ ! -f "$(RTL_IP_LIST)" ]; then echo "missing filelists. Run: fx flist"; exit 2; fi
 	@tool="$(LINT_TOOL)"; \
@@ -685,12 +704,46 @@ _lint_run:
 		printf "%b\n" "$(BLUE)raw: $(LINT_RAW_LOG)$(RESET)"; \
 	fi
 
-SLANG_HIER_LOG ?= $(LOGDIR)/$(TOP)_hier.txt
+SLANG_ROOT ?= $(REPO_ROOT)
+SLANG_TOP_FILE ?= $(RTLDIR)/$(TOP).sv
+SLANG_TOP ?=
+SLANG_ARGS ?=
+SLANG_OUTDIR ?= $(OUTROOT)/analysis/slang
+SLANG_HIER_LOG ?= $(SLANG_OUTDIR)/$(TOP)_hier.txt
+SLANG_AST_JSON ?= $(SLANG_OUTDIR)/$(TOP)_ast.json
+SLANG_AST_SCOPE ?=
+SLANG_FLIST_OUT ?= $(RTLDIR)/rtl_slang.f
+SLANG_TOP_ARG = $(if $(strip $(SLANG_TOP)),--top $(SLANG_TOP),)
+SLANG_SCOPE_ARG = $(if $(strip $(SLANG_AST_SCOPE)),--scope $(SLANG_AST_SCOPE),)
 
-slang_hier: flist_split ## Print hierarchy with slang-hier
-	@mkdir -p $(LOGDIR)
-	@if [ ! -x "$(SLANG_HIER)" ]; then echo "slang-hier not found. Run: make install-slang"; exit 2; fi
-	$(Q)$(SLANG_HIER) --top $(TOP) -DSYNTHESIS $(RTL_FILELISTS) > $(SLANG_HIER_LOG)
+slang_hier: ## Generate hierarchy text with slang-hier from a top file and recursive root
+	$(Q)$(PYTHON) -m flexsoc.backend.slang_tools hier \
+		--slang-hier "$(SLANG_HIER)" \
+		--root "$(SLANG_ROOT)" \
+		--top-file "$(SLANG_TOP_FILE)" \
+		$(SLANG_TOP_ARG) \
+		--extra-args "$(SLANG_ARGS)" \
+		--output "$(SLANG_HIER_LOG)"
+
+slang_ast: ## Generate Slang AST JSON from a top file and recursive root
+	$(Q)$(PYTHON) -m flexsoc.backend.slang_tools ast \
+		--slang "$(SLANG)" \
+		--root "$(SLANG_ROOT)" \
+		--top-file "$(SLANG_TOP_FILE)" \
+		$(SLANG_TOP_ARG) \
+		$(SLANG_SCOPE_ARG) \
+		--extra-args "$(SLANG_ARGS)" \
+		--json-out "$(SLANG_AST_JSON)"
+
+slang_flist: ## Generate a trimmed topological RTL filelist with Slang
+	$(Q)$(PYTHON) -m flexsoc.backend.slang_tools flist \
+		--slang "$(SLANG)" \
+		--root "$(SLANG_ROOT)" \
+		--top-file "$(SLANG_TOP_FILE)" \
+		$(SLANG_TOP_ARG) \
+		--extra-args "$(SLANG_ARGS)" \
+		--synthesis \
+		--output "$(SLANG_FLIST_OUT)"
 
 # ============================================================================
 # 6. Testbench/model setup and simulation
@@ -869,7 +922,7 @@ sim_tests: ## Run every generated SystemVerilog vector test
 		exit 1; \
 	fi
 
-compile_v: flist_split ## Compile Verilog simulation
+compile_v: flist ## Compile Verilog simulation
 	@printf "%b\n" "$(ORANGE)[compile_v]$(RESET) $(BLUE)compile Verilog testbench$(RESET)"
 ifeq ($(COMPILER),iverilog)
 	$(Q)$(MKDIR) -p $(SIMDIR) $(LOGDIR)
@@ -896,7 +949,7 @@ else
 		> $(LOGDIR)/$(TOP)_sim.log 2>&1
 endif
 
-compile_sv: flist_split ## Compile SystemVerilog simulation
+compile_sv: flist ## Compile SystemVerilog simulation
 	@printf "%b\n" "$(ORANGE)[compile_sv]$(RESET) $(BLUE)compile SystemVerilog testbench$(RESET)"
 	@printf "%b\n" "$(BLUE)log: $(SV_COMPILE_LOG)$(RESET)"
 ifeq ($(COMPILER),iverilog)
@@ -1458,16 +1511,19 @@ soc: soc_stage_tops ## Generate SoC RTL
 		--default-host $(HOST) \
 		--format args )"; \
 	$(PYTHON) -m flexsoc.backend.soc_gen $$cfg_args -o $(RTLDIR)/soc.sv
-soc_flist: ## Generate SoC filelist
+soc_flist: ## Generate Slang-ordered SoC common/IP filelists
 	$(call _require_soc_run_vars)
-	$(Q)$(PYTHON) -m flexsoc.backend.gen_filelist \
-		--soc \
-		--workspace $(WORKSPACE) \
-		--run-top $(RUN_TOP) \
-		--run-id $(RUN_ID) \
+	$(Q)$(PYTHON) -m flexsoc.backend.slang_tools flist \
+		--slang "$(SLANG)" \
+		--root "$(REPO_ROOT)" \
+		$(if $(wildcard $(OUTROOT)/ips),--search-root "$(OUTROOT)/ips",) \
+		$(FLIST_SEARCH_ARGS) \
+		--top-file "$(RTLDIR)/soc.sv" \
 		--top soc \
-		--common-out $(RTL_COMMON_LIST) \
-		--ip-out $(RTL_IP_LIST)
+		--extra-args "$(SLANG_ARGS)" \
+		--common-out "$(RTL_COMMON_LIST)" \
+		--ip-out "$(RTL_IP_LIST)" \
+		$(FLIST_COMMON_ARGS)
 	@rm -f $(RTLDIR)/rtl_list.f $(RTLDIR)/rtl_lint.f
 soc_flow: xbar soc soc_flist ## Generate crossbar, SoC RTL and filelist
 # Host-specific wrappers
