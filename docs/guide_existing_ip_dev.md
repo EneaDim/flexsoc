@@ -1,19 +1,19 @@
-# Existing IP development guide
+# ♻️ Existing IP development and reuse guide
 
-Use this flow when the IP already exists under:
+An existing IP is a **reusable, versioned source block** stored under:
 
 ```text
 hw/ips/<top>/
 ```
 
-An existing IP may contain a custom top wrapper, RTL organization, behavioral
-model, generated CSR helper, test vectors, and verification collateral. The
-standard flow preserves those source artifacts and regenerates only the parts
-that are explicitly derived.
+The purpose of this flow is not to regenerate a mature IP from scratch. It is to
+preserve its authored implementation/model/tests, regression-test it with the
+same open-source flow, and make it easy to stage into a larger SoC or system.
 
-## 1. Source versus run copy
+## 1. 📚 Source library versus run copy
 
-`ip_load` copies the IP into the selected run:
+The versioned source lives under `hw/ips/<top>/`. `ip_load` copies it into an
+isolated run:
 
 ```text
 hw/ips/<top>/
@@ -23,10 +23,13 @@ hw/ips/<top>/
 <WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
 ```
 
-Edit and version the source IP under `hw/ips/<top>/`. Treat the loaded run as a
-working copy used by the flow.
+The run is disposable working state. The source IP is the reusable artifact.
 
-## 2. Configure and load
+When `RUN_TOP == TOP`, the IP is being regression-tested standalone. When a
+larger `RUN_TOP` owns the run, the IP can be staged below that system instead of
+replacing the system run.
+
+## 2. ⚙️ Configure and load standalone
 
 UART example:
 
@@ -44,9 +47,9 @@ fx setup --force
 fx ip_load --force
 ```
 
-## 3. Preserve source-owned collateral
+## 3. 🛡️ Preserve source-owned collateral
 
-The standard existing-IP flow does **not** run:
+The standard existing-IP regression does **not** run:
 
 ```text
 hjson
@@ -55,74 +58,85 @@ top_from_core
 setup_model
 ```
 
-Reasons:
+Those commands can overwrite authored intent.
 
-- the HJSON already exists in the IP;
-- RTL may be hand-written rather than generated;
-- the top wrapper may contain deliberate adaptation or integration logic;
-- the behavioral model may contain IP-specific scenarios and reference checks.
+An existing IP may deliberately own:
 
-Run these generation commands only when you explicitly intend to replace the
-corresponding source artifact.
+- its HJSON register specification;
+- hand-written/custom RTL organization;
+- a custom top wrapper;
+- `<top>_model.py`;
+- `<top>_tests.py`;
+- IP-specific verification and implementation collateral.
 
-## 4. Regenerate register-derived collateral
+Regenerate one of those only when replacement is intentional.
 
-The HJSON remains the register-map source of truth. Regenerate register RTL and
-documentation in the loaded run with:
+## 4. 🧾 Regenerate register-derived collateral
+
+HJSON remains the register-map source of truth. In the loaded run:
 
 ```bash
 fx reg doc --force
-```
-
-Refresh only the model-side CSR API with:
-
-```bash
 fx regmap_py --force
 ```
 
-This rewrites:
+This refreshes derived register RTL/docs and:
 
 ```text
-model/regmap_<top>.py
+model/<top>_regmap.py
 ```
 
-and preserves:
+while preserving:
 
 ```text
-model/model_<top>.py
+model/<top>_model.py
+model/<top>_tests.py
 ```
 
-The model should therefore obtain register names, fields, masks, access modes,
-and serialization from `regmap_<top>.py` instead of hardcoding the HJSON
-layout.
+Model/test code should obtain register names, fields, masks, access modes, and
+serialization from `<top>_regmap.py` rather than hardcoding HJSON layout.
 
-## 5. Regenerate filelists and lint
+## 5. 🧭 Resolve the loaded hierarchy
 
 ```bash
 fx flist --force
-fx lint
-fx lint_latch
-fx lint_width
-fx lint_unconnected
-fx lint_undriven
-fx lint_unused
 ```
 
-## 6. Model patterns
+Slang elaborates the loaded top, trims unreachable sources, and regenerates:
 
-### Mixed port + CSR IP
+```text
+rtl/rtl_common.f
+rtl/rtl_ip.f
+```
 
-UART is a mixed-interface example:
+Shared FlexSoC infrastructure stays in the common file; the reachable IP/run
+hierarchy stays in the IP file. Downstream lint/simulation/synthesis all consume
+this same representation.
 
-- `cio_rx_i` is driven directly;
-- `cio_tx_o` and `cio_tx_en_o` are checked directly;
-- `CTRL`, FIFO data, FIFO status, and `RDATA` are accessed through generated CSR
-  objects.
+## 6. 🔍 Lint
 
-Typical model code:
+```bash
+fx lint_suite
+```
+
+Choose the frontend if needed:
+
+```bash
+fx lint_suite --set LINT_TOOL=verilator
+fx lint_suite --set LINT_TOOL=slang
+```
+
+Focused diagnostics are still available individually.
+
+## 7. 🧪 Verification patterns
+
+### 📡 Mixed pins + CSR: UART
+
+A reusable UART can configure/control itself through CSRs while serial traffic
+uses functional pins. Its test catalogue can therefore combine rows such as:
 
 ```python
-import regmap_uart as regmap
+import uart_regmap as regmap
 
 CSR = regmap.PRIMARY
 
@@ -134,16 +148,19 @@ rows_in = [
 rows_out = [
     check(16, "cio_tx_o", 1),
     CSR.STATUS.vector_read(400, TXIDLE=1, RXIDLE=1),
-    CSR.RDATA.vector_read(400, RDATA=0x5A),
 ]
 ```
 
-### CSR-only IP
+### 🧮 CSR-only: CORDIC
 
-CORDIC has no functional data pins at the top level. Operands and results are
-entirely software-visible:
+A CSR-driven block can express the entire transaction through generated register
+objects:
 
 ```python
+import cordic_regmap as regmap
+
+CSR = regmap.PRIMARY
+
 CSR.X_IN.vector_write(cycle, VALUE=x)
 CSR.Y_IN.vector_write(cycle, VALUE=y)
 CSR.Z_IN.vector_write(cycle, VALUE=z)
@@ -153,33 +170,57 @@ CSR.STATUS.vector_read(read_cycle, BUSY=0, VALID=1, ERROR=0)
 CSR.X_OUT.vector_read(read_cycle, VALUE=expected_x)
 ```
 
-Both patterns use the same model/regmap contract.
+Different IPs can have different behavioral models while sharing the same
+project contract: model behavior, generated regmap, test catalogue, materialized
+vectors.
 
-## 7. Regenerate vectors and testbench infrastructure
+## 8. 🔁 Regenerate vectors and infrastructure
 
 ```bash
 fx tests_gen --force
 fx tests
 fx setup_tb --force
 fx setup_cocotb --force
-```
-
-Then run:
-
-```bash
 fx sim_tests
 fx cocotb_tests
 ```
 
-## 8. Synthesis and signoff
+The loaded source model/test catalogue remains untouched; only derived vectors
+and generated TB infrastructure are refreshed.
+
+## 9. 🏗️ Synthesis/signoff regression
 
 ```bash
 fx syn sdf sta power --force
 ```
 
-## 9. Standard existing-IP regression
+This allows a reusable IP to be validated through the same frontend,
+verification, and implementation stack as a newly generated IP.
 
-The regression sequence is intentionally:
+## 10. 🔗 Reuse the IP in a larger SoC
+
+The important next step is composition, not copying code manually.
+
+A SoC run can stage validated IP source below its own run tree. The SoC then owns:
+
+- top-level integration RTL;
+- the system hierarchy/filelist;
+- host/software integration;
+- top-level constraints;
+- SoC verification;
+- system-level synthesis/signoff assumptions.
+
+The IP continues to own its internal implementation and source collateral.
+See [SoC development](guide_soc_dev.md).
+
+## 11. 💾 Save authored changes deliberately
+
+If development in a run intentionally changes reusable source collateral, use
+the IP save flow deliberately rather than treating all run artifacts as source.
+`ip_save` filters transient simulation/cache outputs while preserving authored
+IP collateral.
+
+## 12. ✅ Standard standalone regression
 
 ```text
 settings
@@ -187,25 +228,26 @@ setup
 ip_load
 reg + doc
 flist
-lint + focused lint
+lint_suite
 regmap_py
 tests_gen + tests
 setup_tb + setup_cocotb
 sim_tests + cocotb_tests
-synthesis/signoff
+synthesis/signoff as needed
 ```
 
-It deliberately preserves the loaded top wrapper and behavioral model.
+The central rule is preservation: derived collateral can be refreshed, authored
+IP intent is not silently replaced.
 
-## 10. Isolated E2E tests
-
-The repository contains existing-IP regressions for CORDIC and UART:
+## 13. 🧪 E2E regressions
 
 ```bash
 pytest -s tests/test_e2e_fx.py::test_fx_cordic_ip_load_debug --no-signoff
 pytest -s tests/test_e2e_fx.py::test_fx_uart_ip_load_debug --no-signoff
 ```
 
-Every E2E test runs under an isolated `/tmp/flexsoc-...` workspace. Successful
-runs are removed automatically. Failed workspaces are retained and printed so
-logs and generated collateral can be inspected directly.
+Use a custom E2E base when desired:
+
+```bash
+pytest -s tests/test_e2e_fx.py --e2e-root ~/flexsoc-e2e --no-signoff
+```

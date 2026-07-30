@@ -1,30 +1,44 @@
-# Quickstart
+# 🚀 Quickstart
 
-This page is the shortest practical path through FlexSoC.
+This page is the shortest practical path through FlexSoC. For why the flow is
+structured this way, read [Project lifecycle and change propagation](project_lifecycle.md).
 
-## Install
+## 📦 Install
 
 ```bash
 uv sync
 source .venv/bin/activate
 fx --help
+fx commands
 ```
 
-## Core ownership rule
+## 🧭 Core ownership rule
 
 ```text
-HJSON                  -> generated register RTL/docs + regmap_<top>.py
-RTL core/top            -> hardware implementation
-model_<top>.py          -> behavioral scenarios and expected results
-regmap_<top>.py         -> generated CSR metadata/API
-model                   -> config.regs + data_in.vec + data_out.vec
-SV/cocotb testbenches   -> consume the generated vectors
+HJSON
+  ├── generated register RTL/docs
+  └── <top>_regmap.py
+
+RTL core/top
+  └── hardware implementation
+
+<top>_model.py
+  └── behavioral/reference model
+
+<top>_tests.py
+  └── scenarios + vector generation
+        ├── config.regs
+        ├── data_in.vec
+        └── data_out.vec
+
+rtl_common.f + rtl_ip.f
+  └── Slang-resolved hierarchy consumed by lint/sim/synthesis
 ```
 
-Do not duplicate register offsets or field positions in the behavioral model.
-Use the generated CSR objects from `regmap_<top>.py`.
+Do not duplicate register offsets or field positions in model/test code. Use
+the generated objects from `<top>_regmap.py`.
 
-## 🚀 Generated single-clock IP
+## 🧱 Generated single-clock IP
 
 ```bash
 fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart CLOCK_MODE=single
@@ -34,11 +48,12 @@ fx hjson --force
 fx reg doc --force
 fx rtl_stub --force
 fx top_from_core --force
+
 fx flist --force
-fx lint
+fx lint_suite
 
 fx setup_model --force
-fx tests_gen
+fx tests_gen --force
 fx tests
 fx setup_tb --force
 fx setup_cocotb --force
@@ -46,8 +61,15 @@ fx sim_tests
 fx cocotb_tests
 ```
 
-Use `setup_model --force` only to create or intentionally reset the editable
-model scaffold. After editing the model, refresh an HJSON change with:
+Continue to implementation/signoff when needed:
+
+```bash
+fx syn sdf sta power --force
+```
+
+After `<top>_model.py` or `<top>_tests.py` has been customized, do not use
+`setup_model --force` for a routine HJSON change. Refresh only the derived CSR
+collateral:
 
 ```bash
 fx reg doc --force
@@ -55,9 +77,9 @@ fx regmap_py --force
 fx tests_gen --force
 ```
 
-`regmap_py` rewrites only `model/regmap_<top>.py`.
+`regmap_py` rewrites only `model/<top>_regmap.py`.
 
-## ♻️ Existing IP
+## ♻️ Existing/reusable IP
 
 For an IP already stored under `hw/ips/<top>/`:
 
@@ -68,12 +90,7 @@ fx ip_load --force
 
 fx reg doc --force
 fx flist --force
-fx lint
-fx lint_latch
-fx lint_width
-fx lint_unconnected
-fx lint_undriven
-fx lint_unused
+fx lint_suite
 
 fx regmap_py --force
 fx tests_gen --force
@@ -84,16 +101,9 @@ fx sim_tests
 fx cocotb_tests
 ```
 
-Do not run these as part of the standard existing-IP regression:
-
-```text
-hjson
-rtl_stub
-top_from_core
-setup_model
-```
-
-They can replace source collateral that the existing IP intentionally owns.
+The standard existing-IP regression does not regenerate source-owned HJSON,
+RTL/top, or behavioral model/test scaffolds. Its purpose is to preserve a
+validated block so it can be regression-tested and reused in larger systems.
 See [Existing IP development](guide_existing_ip_dev.md).
 
 ## ⏱️ Multi-clock IP
@@ -107,10 +117,10 @@ fx reg doc --force
 fx rtl_stub --force
 fx top_from_core --force
 fx flist --force
-fx lint
+fx lint_suite
 
 fx setup_model --force
-fx tests_gen
+fx tests_gen --force
 fx tests
 fx setup_tb --force
 fx setup_cocotb --force
@@ -121,12 +131,28 @@ fx sdc_multi --force
 fx syn sdf sta power --force
 ```
 
-`CLOCK_MODE=multi` routes the generic model/testbench commands to the multi-clock
-backend. See [Multi-clock IP development](guide_multiclock_ip_dev.md).
+`CLOCK_MODE=multi` keeps the same high-level model/regmap/tests ownership but
+uses domain-aware/event-driven verification and multi-clock constraints.
 
-## Vector-test format
+## 🔍 Lint backend
 
-Each test is a directory:
+```bash
+fx lint_suite --set LINT_TOOL=verilator
+fx lint_suite --set LINT_TOOL=slang
+```
+
+## 🧠 Slang analysis utilities
+
+```bash
+fx slang_hier --set SLANG_TOP_FILE=/path/top.sv --set SLANG_ROOT=/path/rtl
+fx slang_ast --set SLANG_TOP_FILE=/path/top.sv --set SLANG_ROOT=/path/rtl
+fx slang_flist --set SLANG_TOP_FILE=/path/top.sv --set SLANG_ROOT=/path/rtl
+```
+
+The canonical project flow uses `fx flist`, which emits `rtl_common.f` and
+`rtl_ip.f` for downstream tools.
+
+## 🧪 Vector-test format
 
 ```text
 tb/tests/<TEST_NAME>/
@@ -135,35 +161,31 @@ tb/tests/<TEST_NAME>/
 └── data_out.vec  # direct output checks and/or CSR @read rows
 ```
 
-A model may use ports, CSRs, or both in the same test.
+Both SystemVerilog and cocotb consume the same materialized vectors.
 
-## Debug output
+## 🪵 Debug output
 
-Default output is compact. Add `--live` to an `fx` command to stream full tool
-output:
+Default output is compact. Add `--live` to stream full tool output:
 
 ```bash
 fx sim_tests --live
 fx syn sdf sta power --force --live
 ```
 
-## 🧪 E2E regression
+Logs are organized under `logs/lint`, `logs/verification`, `logs/synthesis`, and
+`logs/signoff`.
+
+## ✅ E2E regression
 
 ```bash
 pytest -s tests/test_e2e_fx.py
-```
-
-Without signoff:
-
-```bash
 pytest -s tests/test_e2e_fx.py --no-signoff
 ```
 
-With live tool output:
+Default E2E workspaces are under `/tmp`. Select another base with:
 
 ```bash
-FLEXSOC_E2E_LIVE=1 pytest -s tests/test_e2e_fx.py --no-signoff
+pytest -s tests/test_e2e_fx.py --e2e-root ~/flexsoc-e2e
 ```
 
-The E2E suite never uses the repository `workspace/` directory. Each test runs
-under `/tmp`; failed workspaces are retained for inspection.
+or `FLEXSOC_E2E_ROOT`.

@@ -1,78 +1,80 @@
-# Multi-clock IP development guide
+# ⏱️ Multi-clock IP development guide
 
-The multi-clock flow uses the same high-level `fx` commands as the single-clock
-flow. Set `CLOCK_MODE=multi`; FlexSoC routes the applicable commands to the
-multi-clock backend.
+The multi-clock flow keeps the same high-level ownership as the single-clock
+flow while changing the parts that genuinely depend on clock domains: register
+maps, synchronization, verification timing, constraints, and signoff.
 
-## 1. Configure the run
+Set `CLOCK_MODE=multi`; generic `fx` commands route to the multi-clock backend.
+
+## 1. ⚙️ Configure the run
 
 ```bash
 fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart CLOCK_MODE=multi
 ```
 
-## 2. Create the run and HJSON maps
+## 2. 🧾 Create the run and register-domain specifications
 
 ```bash
 fx setup --force
 fx hjson --force
 ```
 
-A multi-clock design can generate multiple HJSON register maps, for example:
+A multi-clock design can own multiple HJSON maps, for example:
 
 ```text
 data/tri_stream_dsp_cfg.hjson
 data/tri_stream_dsp_dsp.hjson
 ```
 
-## 3. Generate register RTL and docs
-
-All selected maps:
+Generate derived register RTL/docs:
 
 ```bash
 fx reg doc --force
 ```
 
-The explicit multi-clock targets remain available when one domain must be
-selected directly:
+Select one domain explicitly when needed:
 
 ```bash
 fx reg_multi doc_multi --set REGMAP=cfg
 fx reg_multi doc_multi --set REGMAP=dsp
 ```
 
-## 4. Generate and edit RTL
+## 3. 🛠️ Generate and edit RTL
 
 ```bash
 fx rtl_stub --force
 ```
 
-Edit the generated core. If its ports change and the wrapper remains generated
-collateral:
+Edit the core. If the core ports change while the wrapper is still generated:
 
 ```bash
 fx top_from_core --force
 ```
 
-## 5. Filelists and lint
+## 4. 🧭 Resolve hierarchy and lint
 
 ```bash
 fx flist --force
-fx lint
-fx lint_latch
-fx lint_width
-fx lint_unconnected
-fx lint_undriven
-fx lint_unused
+fx lint_suite
 ```
 
-## 6. Bootstrap the multi-clock model
+The same Slang-backed `rtl_common.f` / `rtl_ip.f` contract is used as in the
+single-clock flow.
+
+Choose lint backend when needed:
+
+```bash
+fx lint_suite --set LINT_TOOL=slang
+fx lint_suite --set LINT_TOOL=verilator
+```
+
+## 5. 🧠 Bootstrap model/regmap/tests
 
 ```bash
 fx setup_model --force
 ```
 
-With `CLOCK_MODE=multi`, this generates the same three model-side artifacts
-used by the single-clock flow:
+The model directory uses the same canonical split:
 
 ```text
 model/
@@ -81,37 +83,58 @@ model/
 └── tri_stream_dsp_tests.py
 ```
 
-Ownership is explicit:
+Ownership:
 
-- `*_model.py` contains behavioral/reference-model logic only;
-- `*_regmap.py` is generated from all `data/<top>_*.hjson` maps and exposes
-  domain-qualified CSR objects such as `regmap.domain("cfg").CTRL`;
-- `*_tests.py` owns the test catalogue and generates `config.regs`,
-  `data_in.vec`, and `data_out.vec`.
+- `*_model.py`: editable behavioral/reference model;
+- `*_regmap.py`: generated from all selected HJSON domains;
+- `*_tests.py`: editable scenario/vector generation.
 
-After an HJSON-only change, refresh just the CSR helper:
+The generated regmap exposes domain-qualified objects such as:
 
-```bash
-fx regmap_py --force
+```python
+CFG = regmap.domain("cfg")
+DSP = regmap.domain("dsp")
 ```
 
-`setup_model --force` rewrites all three scaffold files and should be treated as
-an intentional reset after model/tests have been customized.
-
-## 7. Generate vector tests
+After an HJSON-only change:
 
 ```bash
-fx tests_gen
+fx reg doc --force
+fx regmap_py --force
+fx tests_gen --force
+```
+
+Do not reset model/tests unless their behavior actually changes.
+
+## 6. ⏱️ Multi-clock verification timing
+
+A multi-clock test must not pretend unrelated domains share one global cycle
+count. The generated flow therefore keeps transaction order explicit and can
+consume expected outputs when a domain-specific valid signal asserts.
+
+For the generated DSP example, expected DSP rows are consumed when:
+
+```text
+dsp_valid_o == 1
+```
+
+That preserves the same test ownership as single-clock designs while matching
+the real timing model of asynchronous domains.
+
+## 7. 🧪 Generate vector tests
+
+```bash
+fx tests_gen --force
 fx tests
 ```
 
-One test:
+One selected scenario:
 
 ```bash
 fx test_gen --set TEST_NAME=my_case
 ```
 
-Generated files use the same common layout:
+Each scenario still materializes as:
 
 ```text
 tb/tests/<TEST_NAME>/
@@ -120,7 +143,7 @@ tb/tests/<TEST_NAME>/
 └── data_out.vec
 ```
 
-The generated test catalogue uses the CSR object API, while serialized register names in `config.regs` remain domain-qualified, for example:
+Serialized CSR paths remain domain-qualified, for example:
 
 ```text
 cfg.GAIN 0x00000001
@@ -128,32 +151,25 @@ dsp.DSP_CTRL 0x00000000
 cfg.CTRL 0x00000001
 ```
 
-## 8. Generate verification infrastructure
+## 8. ✅ Generate and run verification
 
 ```bash
 fx setup_tb --force
 fx setup_cocotb --force
-```
-
-The multi-clock testbench includes domain-specific clock/reset and register-interface handling. Expected DSP transactions are consumed when `dsp_valid_o` asserts, so asynchronous domains are checked by transaction order rather than one global cycle count.
-
-## 9. Run verification
-
-```bash
 fx sim_tests
 fx cocotb_tests
 ```
 
-One selected test:
+One test:
 
 ```bash
 fx sim --set TEST_NAME=mac_smoke
 fx cocotb --set TEST_NAME=mac_smoke
 ```
 
-## 10. Constraints and signoff
+## 9. 🏗️ Multi-clock constraints and signoff
 
-Generate the multi-clock SDC scaffold:
+Generate the timing-constraint scaffold:
 
 ```bash
 fx sdc_multi --force
@@ -165,7 +181,7 @@ Then run:
 fx syn sdf sta power --force
 ```
 
-Corner-oriented targets are also available:
+Corner-oriented targets:
 
 ```bash
 fx sta_corners
@@ -173,7 +189,10 @@ fx power_corners
 fx signoff_corners
 ```
 
-## 11. Complete flow
+Clock-domain changes can affect synchronization logic, constraints, and timing,
+so this is a good example of change propagation extending beyond RTL simulation.
+
+## 10. 🔄 Complete development flow
 
 ```bash
 fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart CLOCK_MODE=multi
@@ -183,9 +202,9 @@ fx reg doc --force
 fx rtl_stub --force
 fx top_from_core --force
 fx flist --force
-fx lint
+fx lint_suite
 fx setup_model --force
-fx tests_gen
+fx tests_gen --force
 fx tests
 fx setup_tb --force
 fx setup_cocotb --force
@@ -195,13 +214,16 @@ fx sdc_multi --force
 fx syn sdf sta power --force
 ```
 
-## 12. E2E regression
-
-The generated single-clock and multi-clock flows are exercised together by:
+## 11. 🧪 E2E regression
 
 ```bash
 pytest -s tests/test_e2e_fx.py::test_fx_full_flow_debug --no-signoff
 ```
 
-The test runs in an isolated `/tmp/flexsoc-full-e2e-...` workspace. Remove
-`--no-signoff` to include synthesis/signoff.
+Use another workspace base if desired:
+
+```bash
+pytest -s tests/test_e2e_fx.py::test_fx_full_flow_debug \
+  --no-signoff \
+  --e2e-root ~/flexsoc-e2e
+```
