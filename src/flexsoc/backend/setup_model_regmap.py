@@ -487,7 +487,7 @@ def generate(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate model/<top>_regmap.py from HJSON.")
+    parser = argparse.ArgumentParser(description="Generate dv/functional/model/<top>_regmap.py from HJSON.")
     parser.add_argument("--top", required=True)
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--model-dir", required=True)

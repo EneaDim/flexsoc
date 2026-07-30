@@ -77,7 +77,7 @@ fx setup_model --force
 The model directory uses the same canonical split:
 
 ```text
-model/
+dv/functional/model/
 ├── tri_stream_dsp_model.py
 ├── tri_stream_dsp_regmap.py
 └── tri_stream_dsp_tests.py
@@ -137,7 +137,7 @@ fx test_gen --set TEST_NAME=my_case
 Each scenario still materializes as:
 
 ```text
-tb/tests/<TEST_NAME>/
+dv/functional/tests/<TEST_NAME>/
 ├── config.regs
 ├── data_in.vec
 └── data_out.vec

@@ -47,7 +47,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate cocotb scaffolding from RTL sources")
     parser.add_argument("--top", required=True, help="Top module name without extension.")
     parser.add_argument("--itf", required=True, choices=["reg_iface", "tlul"], help="Register interface.")
-    parser.add_argument("--output", default="tb/cocotb", help="Output directory.")
+    parser.add_argument("--output", default="dv/functional/tb/cocotb", help="Output directory.")
     parser.add_argument("--vsv", choices=["sv", "v"], default="sv", help="RTL language mode.")
     parser.add_argument("--rtl-dir", default="rtl", help="RTL source directory.")
     parser.add_argument("--ips-root", default=None, help="IP root used for include discovery.")
@@ -258,19 +258,19 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         COMPILE_ARGS      += -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DUNIT_DELAY=#1
         VERILOG_SOURCES   += ../../verilog/primitives.v
         VERILOG_SOURCES   += ../../verilog/sky130_fd_sc_hd.v
-        VERILOG_SOURCES   += ../../syn/{cfg.top}_synth.v
+        VERILOG_SOURCES   += ../../../../syn/{cfg.top}_synth.v
         endif
 
         COMPILE_ARGS += {includes}
         export COCOTB_RESULTS_FILE ?= $(abspath results.xml)
         TEST_NAME ?= smoke
         SEED ?= 1
-        COVERAGE ?= 0
-        COVERAGE_FILE ?= $(abspath ../../verification/coverage/cocotb/$(TEST_NAME).dat)
+        HDL_COVERAGE ?= 0
+        COVERAGE_FILE ?= $(abspath ../../coverage/cocotb/$(TEST_NAME).dat)
 
         ifeq ($(SIM),verilator)
         PLUSARGS += +verilator+seed+$(SEED)
-        ifeq ($(COVERAGE),1)
+        ifeq ($(HDL_COVERAGE),1)
         COMPILE_ARGS += --coverage
         PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
         endif
@@ -278,9 +278,10 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
 
         export TEST_NAME
         export FLEXSOC_SEED := $(SEED)
-        export REG_CONFIG ?= $(abspath ../tests/$(TEST_NAME)/config.regs)
-        export DATA_IN  ?= $(abspath ../tests/$(TEST_NAME)/data_in.vec)
-        export DATA_OUT ?= $(abspath ../tests/$(TEST_NAME)/data_out.vec)
+        export COCOTB_RANDOM_SEED := $(SEED)
+        export REG_CONFIG ?= $(abspath ../../tests/$(TEST_NAME)/config.regs)
+        export DATA_IN  ?= $(abspath ../../tests/$(TEST_NAME)/data_in.vec)
+        export DATA_OUT ?= $(abspath ../../tests/$(TEST_NAME)/data_out.vec)
         export PYTHONPATH := $(PWD):$(PYTHONPATH)
         VERILOG_SOURCES += {(out_dir / f"{cfg.top}_tb.sv").resolve()}
 

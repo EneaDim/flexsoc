@@ -892,7 +892,7 @@ def tests_text(top: str) -> str:
         parser = argparse.ArgumentParser(
             description="Generate multi-clock vector tests from the editable test catalogue."
         )
-        parser.add_argument("--tests-dir", default="../tb/tests")
+        parser.add_argument("--tests-dir", default="../tests")
         parser.add_argument(
             "--test",
             action="append",
@@ -1266,9 +1266,9 @@ def sv_tb_text(top: str, testbench: str) -> str:
         dsp_rst_ni = 1'b0;
         apply_defaults();
 
-        if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "tb/tests/mac_smoke/config.regs";
-        if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "tb/tests/mac_smoke/data_in.vec";
-        if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "tb/tests/mac_smoke/data_out.vec";
+        if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "dv/functional/tests/mac_smoke/config.regs";
+        if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "dv/functional/tests/mac_smoke/data_in.vec";
+        if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "dv/functional/tests/mac_smoke/data_out.vec";
         if (!$value$plusargs("VCD=%s", vcd_path)) vcd_path = "{testbench}.vcd";
         if (vcd_path != "") begin
           $display("[TB] dumpfile = %s", vcd_path);
@@ -1450,19 +1450,20 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     EXTRA_ARGS += -Wno-fatal
     export TEST_NAME ?= mac_smoke
     SEED ?= 1
-    COVERAGE ?= 0
-    COVERAGE_FILE ?= $(abspath ../../verification/coverage/cocotb/$(TEST_NAME).dat)
+    HDL_COVERAGE ?= 0
+    COVERAGE_FILE ?= $(abspath ../../coverage/cocotb/$(TEST_NAME).dat)
     ifeq ($(SIM),verilator)
       PLUSARGS += +verilator+seed+$(SEED)
-      ifeq ($(COVERAGE),1)
+      ifeq ($(HDL_COVERAGE),1)
         EXTRA_ARGS += --coverage
         PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
       endif
     endif
     export FLEXSOC_SEED := $(SEED)
-    export CFG ?= ../tests/$(TEST_NAME)/config.regs
-    export DATA_IN ?= ../tests/$(TEST_NAME)/data_in.vec
-    export DATA_OUT ?= ../tests/$(TEST_NAME)/data_out.vec
+    export COCOTB_RANDOM_SEED := $(SEED)
+    export CFG ?= ../../tests/$(TEST_NAME)/config.regs
+    export DATA_IN ?= ../../tests/$(TEST_NAME)/data_in.vec
+    export DATA_OUT ?= ../../tests/$(TEST_NAME)/data_out.vec
     include $(shell cocotb-config --makefiles)/Makefile.sim
     """)
 
@@ -1832,12 +1833,12 @@ def notes_text(top: str, domains: tuple[str, ...], regmaps: tuple[str, ...]) -> 
     - Run `fx rtl_stub_multi --force` when generated RTL must be recreated from existing reg RTL.
     - Edit `rtl/{top}_core.sv` for the design logic.
     - Run `fx top_from_core_multi --force` after changing core ports.
-    - Edit `model/{top}_model.py` for behavioral changes.
-    - Edit `model/{top}_tests.py` to add scenarios, then run `fx tests_gen_multi` or `fx test_gen_multi --set TEST_NAME=<name>`.
-    - Run `fx regmap_py --force` after HJSON-only changes to refresh `model/{top}_regmap.py` without touching model/tests.
-    - Edit `tb/drivers/{top}_tlul_driver.svh` for top-level TL-UL config writes.
-    - Edit `tb/drivers/{top}_vec_driver.svh` and `tb/drivers/{top}_vec_monitor.svh` for SV verification behavior.
-    - Edit `tb/cocotb/drivers/reg_driver.py`, `vec_driver.py`, and `vec_monitor.py` for cocotb behavior.
+    - Edit `dv/functional/model/{top}_model.py` for behavioral changes.
+    - Edit `dv/functional/model/{top}_tests.py` to add scenarios, then run `fx tests_gen_multi` or `fx test_gen_multi --set TEST_NAME=<name>`.
+    - Run `fx regmap_py --force` after HJSON-only changes to refresh `dv/functional/model/{top}_regmap.py` without touching model/tests.
+    - Edit `dv/functional/tb/sv/drivers/{top}_tlul_driver.svh` for top-level TL-UL config writes.
+    - Edit `dv/functional/tb/sv/drivers/{top}_vec_driver.svh` and `dv/functional/tb/sv/drivers/{top}_vec_monitor.svh` for SV verification behavior.
+    - Edit `dv/functional/tb/cocotb/drivers/reg_driver.py`, `vec_driver.py`, and `vec_monitor.py` for cocotb behavior.
     """)
 
 

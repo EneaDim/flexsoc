@@ -1,6 +1,6 @@
 """Generate the single-clock Python model scaffold.
 
-``setup_model`` creates three independent files in ``model/``:
+``setup_model`` creates three independent files in ``dv/functional/model/``:
 
 * ``<top>_model.py``: editable behavioral reference model for the RTL;
 * ``<top>_regmap.py``: generated CSR metadata/API derived from HJSON;
@@ -523,7 +523,7 @@ def _tests_text(top: str) -> str:
             parser = argparse.ArgumentParser(
                 description="Generate FlexSoC vectors from the editable test catalogue."
             )
-            parser.add_argument("--tests-dir", default="../tb/tests")
+            parser.add_argument("--tests-dir", default="../tests")
             parser.add_argument(
                 "--test",
                 action="append",
@@ -592,7 +592,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Generate behavioral model, CSR regmap, and test scaffolds."
     )
     parser.add_argument("--top", required=True)
-    parser.add_argument("--output-dir", default="model")
+    parser.add_argument("--output-dir", default="dv/functional/model")
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--rtl-dir", default=None)
     parser.add_argument("--force", action="store_true")

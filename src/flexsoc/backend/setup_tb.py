@@ -2161,13 +2161,12 @@ def _canonical_sv_output_dir(output: str | Path) -> Path:
 
     FlexSoC keeps generated verification artifacts split as:
 
-      tb/sv      SystemVerilog testbench and SV drivers
-      tb/tests   generated vector tests
-      tb/cocotb  cocotb scaffold
+      dv/functional/tb/sv      SystemVerilog testbench and SV drivers
+      dv/functional/tests      generated vector tests
+      dv/functional/tb/cocotb  cocotb scaffold
 
-    Older callers may still pass ``--output tb``.  Treat that as the testbench
-    root and write SV files into ``tb/sv``.  If the caller already passes
-    ``tb/sv``, keep it unchanged.
+    The output argument names the testbench root.  SystemVerilog files live
+    in its ``sv`` child unless the caller already passes that directory.
     """
 
     out = Path(output)
@@ -2272,7 +2271,7 @@ def parse_args(argv=None):
     p.add_argument("-comp", "--comp", "--compiler", dest="comp", required=True, choices=["iverilog", "verilator"], help="Simulator/compiler")
     p.add_argument("-itf", "--itf", "--bus", dest="itf", required=True, choices=["tlul", "reg_iface"], help="Register interface wiring")
     p.add_argument("-vsv", "--vsv", default="sv", choices=["sv", "v"], help="DUT source extension used by Verilator include")
-    p.add_argument("-o", "--output", default="tb", help="Output directory for generated files")
+    p.add_argument("-o", "--output", default="dv/functional/tb", help="Output directory for generated files")
     p.add_argument("-f", "--force", action="store_true", help="Overwrite existing files")
     return p.parse_args(argv)
 

@@ -1,7 +1,7 @@
 BACKEND_DIR ?= $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 FLEXSOC_BACKEND_DIR ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 TB_SV_DIR ?= $(TBDIR)/sv
-TESTS_DIR ?= $(TBDIR)/tests
+TESTS_DIR ?= $(FUNCTIONALDIR)/tests
 CLOCK_MODE ?= single
 MULTICLOCK ?= 0
 # FlexSoC backend flow Makefile
@@ -92,18 +92,22 @@ endif
 # Waveform viewer defaults. Override with WAVE_VIEWER=gtkwave or SURFER=/path/to/surfer.
 OUTROOT     ?= $(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)
 RUN_DIR     ?= $(OUTROOT)
-TB_DIR ?= $(RUN_DIR)/tb
+DV_DIR ?= $(RUN_DIR)/dv
+FUNCTIONALDIR ?= $(DV_DIR)/functional
+FORMALDIR ?= $(DV_DIR)/formal
+TB_DIR ?= $(FUNCTIONALDIR)/tb
 SV_TB_DIR := $(TB_DIR)/sv
 
 # -----------------------------------------------------------------------------
 # Derived directories
 # -----------------------------------------------------------------------------
 LOGDIR         ?= $(OUTROOT)/logs
-VERIFY_LOGDIR  ?= $(LOGDIR)/verification
-VERIFYDIR      ?= $(OUTROOT)/verification
-COVERAGEDIR    ?= $(VERIFYDIR)/coverage
+VERIFY_LOGDIR  ?= $(LOGDIR)/dv/functional
+COVERAGEDIR    ?= $(FUNCTIONALDIR)/coverage
 COVERAGE_ANNOTATEDDIR ?= $(COVERAGEDIR)/annotated
-COVERAGE_DETAIL_LIMIT ?= 200
+COVERAGE_DETAIL_LIMIT ?= 0
+COVERAGE_LOGDIR ?= $(VERIFY_LOGDIR)/coverage
+COVERAGE_DETAIL_LOG ?= $(COVERAGE_LOGDIR)/$(TOP)_coverage_detail.log
 REGRESSION_LOGDIR ?= $(VERIFY_LOGDIR)/regression
 SYNTH_LOGDIR   ?= $(LOGDIR)/synthesis
 SIGNOFF_LOGDIR ?= $(LOGDIR)/signoff
@@ -111,14 +115,17 @@ SV_COMPILE_LOG ?= $(VERIFY_LOGDIR)/$(TOP)_sv_compile_$(TEST_NAME).log
 SV_SIM_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_sv_sim_$(TEST_NAME).log
 COCOTB_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_cocotb_$(TEST_NAME).log
 RTLDIR         ?= $(OUTROOT)/rtl
-TBDIR          ?= $(OUTROOT)/tb
-SIMDIR         ?= $(OUTROOT)/sim
+TBDIR          ?= $(FUNCTIONALDIR)/tb
+SIMROOT        ?= $(FUNCTIONALDIR)/sim
+SIMDIR         ?= $(SIMROOT)/rtl
+POST_SYN_SIMDIR ?= $(SIMROOT)/post_syn
+POST_LAYOUT_SIMDIR ?= $(SIMROOT)/post_layout
 SYNDIR         ?= $(OUTROOT)/syn
 SIGNOFFDIR     ?= $(OUTROOT)/signoff
 METADIR        ?= $(OUTROOT)/meta
 METRICS_JSON   ?= $(METADIR)/metrics.json
 MANIFEST_JSON  ?= $(METADIR)/manifest.json
-MODELDIR       ?= $(OUTROOT)/model
+MODELDIR       ?= $(FUNCTIONALDIR)/model
 UTILOUT        ?= $(OUTROOT)/util
 UTILDIR        ?= $(UTILOUT)
 DOCDIR         ?= $(OUTROOT)/doc
@@ -131,7 +138,7 @@ FSMWORKDIR     ?= $(FSMDIR)/$(FSM)
 FSM_INPUT_DIR  ?= $(FSMWORKDIR)/inputs
 FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
 ORSDIR         ?= $(OR_WORKDIR)
-TB_SAVEDIR     ?= $(VERIFYDIR)/saved
+TB_SAVEDIR     ?= $(FUNCTIONALDIR)/saved
 TEST_NAMES     ?= smoke corners random reconfig
 MULTICLOCK_DOMAINS ?= cfg,rx,dsp
 MULTICLOCK_REGMAPS ?= cfg,dsp
@@ -151,7 +158,7 @@ TEST_NAME      ?= smoke
 SEED           ?= 1
 REGRESSION_BACKENDS ?= sv cocotb
 COVERAGE       ?= 0
-TEST_ROOT      ?= $(TBDIR)/tests
+TEST_ROOT      ?= $(FUNCTIONALDIR)/tests
 TESTDIR        ?= $(TEST_ROOT)/$(TEST_NAME)
 REGCFG         ?= $(TESTDIR)/config.regs
 DATA_IN        ?= $(TESTDIR)/data_in.vec
@@ -243,7 +250,7 @@ TESTBENCH       ?= $(TOP)_tb
 TESTBENCHES     := $(wildcard $(TBDIR)/*.sv)
 VSV             ?= sv
 VCD_FILE        ?= $(SIMDIR)/$(TESTBENCH).vcd
-VCD_SYN_FILE    ?= $(SIMDIR)/$(TOP)_syn_tb.vcd
+VCD_SYN_FILE    ?= $(POST_SYN_SIMDIR)/$(TOP)_syn_tb.vcd
 SDF_FILE        ?= $(SIGNOFFDIR)/sdf/$(TOP)_ss.sdf
 
 # -----------------------------------------------------------------------------
@@ -408,6 +415,7 @@ setup: ## Create the run directory tree
 		$(SIGNOFF_LOGDIR) \
 		$(RTLDIR) \
 		$(TBDIR) \
+		$(TEST_ROOT) \
 		$(SIMDIR) \
 		$(SYNDIR) \
 		$(SIGNOFFDIR) \
@@ -768,7 +776,7 @@ slang_flist: ## Generate a trimmed topological RTL filelist with Slang
 		--output "$(SLANG_FLIST_OUT)"
 
 # ============================================================================
-# 6. Testbench/model setup and simulation
+# 6. Functional design verification
 # ============================================================================
 ##@ Simulation
 setup_tb: setup flist ## Generate a SystemVerilog testbench scaffold
@@ -910,7 +918,7 @@ tests: ## List generated vector tests without regenerating them
 		echo "  no tests found; run: fx tests_gen or fx tests_gen_multi"; \
 	fi
 
-regmap_py: setup ## Regenerate model/<top>_regmap.py from HJSON
+regmap_py: setup ## Regenerate dv/functional/model/<top>_regmap.py from HJSON
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(MODELDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_model_regmap --top $(TOP) --data-dir $(DATADIR) --model-dir $(MODELDIR) $(if $(filter multi multiclock,$(CLOCK_MODE)),--multi,) --force
@@ -1020,9 +1028,9 @@ cocotb: _require_test_vectors ## Run one cocotb vector test selected by TEST_NAM
 	@printf "%b\n" "$(BLUE)log: $(COCOTB_LOG)$(RESET)"
 	$(Q)if [ "$(COVERAGE)" = "1" ] && [ "$(COMPILER)" = "verilator" ]; then $(MKDIR) -p "$(dir $(COCOTB_COVERAGE_FILE))"; fi
 	$(Q)if [ "$(LIVE)" = "1" ]; then \
-		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVES=$(COCOTB_WAVES) 2>&1 | tee $(COCOTB_LOG); \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVES=$(COCOTB_WAVES) 2>&1 | tee $(COCOTB_LOG); \
 	else \
-		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVES=$(COCOTB_WAVES) > $(COCOTB_LOG) 2>&1; \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVES=$(COCOTB_WAVES) > $(COCOTB_LOG) 2>&1; \
 	fi
 
 
@@ -1102,7 +1110,7 @@ regression: ## Run every generated test on each selected backend and collect cov
 	printf '\n$(BLUE)[regression] total=%s failed=%s$(RESET)\n' "$$total" "$$failed"; \
 	if [ "$$failed" -ne 0 ] || [ "$$coverage_failed" -ne 0 ]; then exit 1; fi
 
-coverage: ## Merge and report existing Verilator coverage data
+coverage: ## Merge Verilator coverage and print a scoped summary
 	@set -eu; \
 	if ! command -v "$(VERILATOR_COVERAGE)" >/dev/null 2>&1; then \
 		echo "ERROR: verilator_coverage not found"; \
@@ -1116,30 +1124,40 @@ coverage: ## Merge and report existing Verilator coverage data
 	fi; \
 	mkdir -p "$(COVERAGEDIR)"; \
 	$(VERILATOR_COVERAGE) --write "$(COVERAGEDIR)/merged.dat" $$files; \
-	if ! $(VERILATOR_COVERAGE) --report summary "$(COVERAGEDIR)/merged.dat" > "$(COVERAGEDIR)/summary.txt" 2>&1; then \
-		$(VERILATOR_COVERAGE) "$(COVERAGEDIR)/merged.dat" > "$(COVERAGEDIR)/summary.txt"; \
-	fi; \
-	printf '\n%b\n' "$(BLUE)Coverage$(RESET)"; \
-	awk 'BEGIN { green="\033[32m"; yellow="\033[33m"; red="\033[31m"; reset="\033[0m" } \
-		match($$0, /[0-9]+([.][0-9]+)?%/) { pct=substr($$0, RSTART, RLENGTH-1)+0; color=(pct >= 100 ? green : (pct <= 0 ? red : yellow)); print color $$0 reset; next } \
-		{ print }' "$(COVERAGEDIR)/summary.txt"; \
+	tmp=$$(mktemp -d "$(COVERAGEDIR)/.summary.XXXXXX"); \
+	trap 'rm -rf "$$tmp"' EXIT INT TERM; \
+	$(VERILATOR_COVERAGE) \
+		--annotate "$$tmp" \
+		--annotate-all \
+		--annotate-points \
+		--annotate-min 1 \
+		"$(COVERAGEDIR)/merged.dat" >/dev/null; \
+	$(PYTHON) "$(TOOLSROOT)/coverage_report.py" summary \
+		--annotated-dir "$$tmp" \
+		--ip-filelist "$(RTLDIR)/rtl_ip.f" \
+		--common-filelist "$(RTLDIR)/rtl_common.f" \
+		--output "$(COVERAGEDIR)/summary.txt"; \
 	printf '%b\n' "$(GREEN)[coverage] merged$(RESET) $(BLUE)$(COVERAGEDIR)/merged.dat$(RESET)"; \
 	printf '%b\n' "$(BLUE)summary: $(COVERAGEDIR)/summary.txt$(RESET)"
 
 
-coverage_detail: coverage ## Show exactly which Verilator coverage points were not hit
+coverage_detail: coverage ## Write uncovered authored-RTL coverage points to a log
 	@set -eu; \
 	rm -rf "$(COVERAGE_ANNOTATEDDIR)"; \
-	mkdir -p "$(COVERAGE_ANNOTATEDDIR)"; \
+	mkdir -p "$(COVERAGE_ANNOTATEDDIR)" "$(COVERAGE_LOGDIR)"; \
 	$(VERILATOR_COVERAGE) \
 		--annotate "$(COVERAGE_ANNOTATEDDIR)" \
 		--annotate-all \
 		--annotate-points \
 		--annotate-min 1 \
-		"$(COVERAGEDIR)/merged.dat"; \
-	$(PYTHON) "$(TOOLSROOT)/coverage_report.py" \
+		"$(COVERAGEDIR)/merged.dat" >/dev/null; \
+	$(PYTHON) "$(TOOLSROOT)/coverage_report.py" detail \
 		--annotated-dir "$(COVERAGE_ANNOTATEDDIR)" \
-		--limit "$(COVERAGE_DETAIL_LIMIT)"
+		--ip-filelist "$(RTLDIR)/rtl_ip.f" \
+		--common-filelist "$(RTLDIR)/rtl_common.f" \
+		--scope design \
+		--limit "$(COVERAGE_DETAIL_LIMIT)" \
+		--output "$(COVERAGE_DETAIL_LOG)"
 
 # ============================================================================
 # 7. Viewing, waveform inspection and regression artifacts
@@ -1276,7 +1294,7 @@ setup_signoff: setup_sdc ## Generate signoff scripts
 SYN_NETLIST ?= $(SYNDIR)/$(TOP)_synth.v
 
 compile_syn: syn ## Compile post-synthesis simulation
-	$(Q)$(MKDIR) -p $(SIMDIR) $(SYNTH_LOGDIR)
+	$(Q)$(MKDIR) -p $(POST_SYN_SIMDIR) $(SYNTH_LOGDIR)
 	@if [ ! -f "$(SYN_NETLIST)" ]; then \
 		echo "ERROR: missing synthesized netlist: $(SYN_NETLIST)"; \
 		echo "Hint: check outputs under: $(SYNDIR)"; \
@@ -1290,13 +1308,13 @@ compile_syn: syn ## Compile post-synthesis simulation
 	$(Q)iverilog -g2012 -v -gspecify -DSIM -DSYN \
 		-s $(TESTBENCH) \
 		$(IVERILOG_FLAGS) \
-		-o $(SIMDIR)/$(TOP)_syn_tb.vvp \
+		-o $(POST_SYN_SIMDIR)/$(TOP)_syn_tb.vvp \
 		$(PRIM) \
 		$(TB_SV_DIR)/$(TESTBENCH).sv \
 		> $(SYNTH_LOGDIR)/$(TOP)_compile_syn.log 2>&1
 
 sim_syn: compile_syn ## Run post-synthesis simulation
-	$(Q)vvp $(SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose +VCD=$(VCD_SYN_FILE) +SDF=$(SDF_FILE) \
+	$(Q)vvp $(POST_SYN_SIMDIR)/$(TOP)_syn_tb.vvp -sdf-verbose +VCD=$(VCD_SYN_FILE) +SDF=$(SDF_FILE) \
 		> $(SYNTH_LOGDIR)/$(TOP)_syn_sim.log 2>&1
 
 
@@ -1445,7 +1463,7 @@ ip_load: ## Load an IP into a run workspace
 	if [ "$(RUN_TOP)" = "$(TOP)" ]; then \
 		dst_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
 		mkdir -p "$$dst_dir"; \
-		for sub in rtl tb data doc drivers py model fsms lint syn signoff pnr_openroad sim ips; do \
+		for sub in rtl dv data doc drivers py fsms lint syn signoff pnr_openroad ips; do \
 			if [ -d "$$src_ip/$$sub" ]; then \
 				rm -rf "$$dst_dir/$$sub"; \
 				cp -a "$$src_ip/$$sub" "$$dst_dir/$$sub"; \
@@ -1476,12 +1494,30 @@ ip_save: ## Save run artifacts back to hw/ips
 	dst_ip="$(REPO_ROOT)/hw/ips/$(TOP)"; \
 	test -d "$$src_run" || { echo "ERROR: missing run directory: $$src_run"; exit 2; }; \
 	mkdir -p "$$dst_ip"; \
-	for sub in rtl tb data doc drivers py model fsms lint syn; do \
+	for sub in rtl data doc drivers py fsms lint syn; do \
 		if [ -d "$$src_run/$$sub" ]; then \
 			rm -rf "$$dst_ip/$$sub"; \
 			cp -a "$$src_run/$$sub" "$$dst_ip/$$sub"; \
 		fi; \
 	done; \
+	rm -rf "$$dst_ip/dv"; \
+	if [ -d "$$src_run/dv/functional" ]; then \
+		mkdir -p "$$dst_ip/dv/functional"; \
+		for sub in model tests tb; do \
+			if [ -d "$$src_run/dv/functional/$$sub" ]; then \
+				cp -a "$$src_run/dv/functional/$$sub" "$$dst_ip/dv/functional/$$sub"; \
+			fi; \
+		done; \
+		if [ -d "$$src_run/dv/functional/sim/rtl" ]; then \
+			mkdir -p "$$dst_ip/dv/functional/sim/rtl"; \
+			find "$$src_run/dv/functional/sim/rtl" -maxdepth 1 -type f -name '*.gtkw' \
+				-exec cp -a {} "$$dst_ip/dv/functional/sim/rtl"/ \; ; \
+		fi; \
+	fi; \
+	if [ -d "$$src_run/dv/formal/properties" ]; then \
+		mkdir -p "$$dst_ip/dv/formal"; \
+		cp -a "$$src_run/dv/formal/properties" "$$dst_ip/dv/formal/properties"; \
+	fi; \
 	if [ -d "$$src_run/signoff" ]; then \
 		rm -rf "$$dst_ip/signoff"; \
 		mkdir -p "$$dst_ip/signoff"; \
@@ -1494,12 +1530,6 @@ ip_save: ## Save run artifacts back to hw/ips
 		mkdir -p "$$dst_ip/pnr_openroad"; \
 		find "$$src_run/pnr_openroad" -maxdepth 1 -type f \
 			-exec cp -a {} "$$dst_ip/pnr_openroad"/ \; ; \
-	fi; \
-	if [ -d "$$src_run/sim" ]; then \
-		rm -rf "$$dst_ip/sim"; \
-		mkdir -p "$$dst_ip/sim"; \
-		find "$$src_run/sim" -maxdepth 1 -type f -name '*.gtkw' \
-			-exec cp -a {} "$$dst_ip/sim"/ \; ; \
 	fi; \
 	for f in manifest.json run.yaml report.json *.core; do \
 		for x in "$$src_run"/$$f; do \
@@ -1687,7 +1717,7 @@ sw_soc: ## Generate SoC software scaffold
 		--host $(HOST)
 soc_prepare: soc_sim ## Prepare SoC build directory
 	$(call _require_soc_run_vars)
-	$(Q)$(MKDIR) -p $(OUTROOT)/sim
+	$(Q)$(MKDIR) -p $(SIMDIR)
 
 soc_build_sw: soc_prepare sw_soc ## Build SoC software
 	$(call _require_var,WORKSPACE)
@@ -1718,7 +1748,7 @@ soc_run: ## Run SoC simulation
 		exit 2; \
 	fi; \
 	rc=0; \
-	cd "$(OUTROOT)/sim"; \
+	cd "$(SIMDIR)"; \
 	echo "SIM_TIMEOUT=$${SIM_TIMEOUT:-20}s"; \
 	timeout --foreground -s INT -k 5s $${SIM_TIMEOUT:-20}s \
 		"$(SOC_SIM_EXE)" \
@@ -1734,7 +1764,7 @@ soc_view: ## Open SoC waveform
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
 	@set -eu; \
-	simdir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/sim"; \
+	simdir="$(SIMDIR)"; \
 	fst="$$simdir/sim.fst"; \
 	gtkw=""; \
 	for f in "$$simdir"/*.gtkw; do \

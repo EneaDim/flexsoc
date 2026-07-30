@@ -83,14 +83,14 @@ fx regmap_py --force
 This refreshes derived register RTL/docs and:
 
 ```text
-model/<top>_regmap.py
+dv/functional/model/<top>_regmap.py
 ```
 
 while preserving:
 
 ```text
-model/<top>_model.py
-model/<top>_tests.py
+dv/functional/model/<top>_model.py
+dv/functional/model/<top>_tests.py
 ```
 
 Model/test code should obtain register names, fields, masks, access modes, and

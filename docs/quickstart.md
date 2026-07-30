@@ -77,7 +77,7 @@ fx regmap_py --force
 fx tests_gen --force
 ```
 
-`regmap_py` rewrites only `model/<top>_regmap.py`.
+`regmap_py` rewrites only `dv/functional/model/<top>_regmap.py`.
 
 ## ♻️ Existing/reusable IP
 
@@ -155,7 +155,7 @@ The canonical project flow uses `fx flist`, which emits `rtl_common.f` and
 ## 🧪 Vector-test format
 
 ```text
-tb/tests/<TEST_NAME>/
+dv/functional/tests/<TEST_NAME>/
 ├── config.regs   # initial CSR configuration
 ├── data_in.vec   # direct input drives and/or CSR @write rows
 └── data_out.vec  # direct output checks and/or CSR @read rows
@@ -172,7 +172,7 @@ fx sim_tests --live
 fx syn sdf sta power_estimate --force --live
 ```
 
-Logs are organized under `logs/lint`, `logs/verification`, `logs/synthesis`, and
+Logs are organized under `logs/lint`, `logs/dv/functional`, `logs/synthesis`, and
 `logs/signoff`.
 
 ## ✅ E2E regression

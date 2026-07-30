@@ -1,285 +1,194 @@
-# 🗂️ Folder structure and ownership
+# FlexSoC folder structure
 
-FlexSoC separates **versioned reusable source** from **generated/working run
-state**. This boundary is central to safe regeneration and IP reuse.
+FlexSoC separates reusable design sources from run outputs. Design verification
+collateral lives under `dv/`; static structural analysis lives under `analysis/`.
 
-## ♻️ Reusable source IP library
-
-Versioned IP source lives under:
+## Reusable IP
 
 ```text
 hw/ips/<top>/
+├── data/                 # HJSON and other design source metadata
+├── doc/                  # retained documentation
+├── rtl/                  # reusable RTL
+├── dv/
+│   ├── functional/
+│   │   ├── model/        # reference model, generated regmap API, test catalogue
+│   │   ├── tests/        # retained vector tests when intentionally saved
+│   │   ├── tb/           # retained SV/cocotb testbench collateral
+│   │   └── sim/
+│   │       └── rtl/      # retained simulation configuration such as .gtkw
+│   └── formal/
+│       └── properties/   # authored formal properties when present
+├── syn/                  # retained synthesis collateral
+├── signoff/              # retained signoff collateral
+├── pnr_openroad/         # retained implementation configuration/results
+└── qualification/        # future selected release evidence
 ```
 
-A mature IP can contain:
+Run-only databases are not reusable IP sources. Coverage databases, simulator
+scratch, generated proof traces, transient waveforms, `results.xml`, and Python
+cache files therefore stay out of `hw/ips/<top>/`.
+
+## Run workspace
 
 ```text
-hw/ips/<top>/
-├── data/      # HJSON source register maps
-├── doc/       # source/retained documentation
-├── model/     # behavioral model + generated regmap + test catalogue
-├── qualification/  # retained qualification evidence for released IPs
-├── rtl/       # RTL implementation/top
-├── tb/        # source verification collateral where intentionally retained
-├── syn/       # retained synthesis collateral when relevant
-└── signoff/   # retained signoff collateral when relevant
+workspace/runs/<top>/<run_id>/
+├── data/
+├── doc/
+├── rtl/
+├── dv/
+│   ├── functional/
+│   │   ├── model/
+│   │   │   ├── <top>_model.py
+│   │   │   ├── <top>_regmap.py
+│   │   │   └── <top>_tests.py
+│   │   ├── tests/
+│   │   │   └── <TEST_NAME>/
+│   │   │       ├── config.regs
+│   │   │       ├── data_in.vec
+│   │   │       └── data_out.vec
+│   │   ├── tb/
+│   │   │   ├── sv/
+│   │   │   └── cocotb/
+│   │   ├── sim/
+│   │   │   ├── rtl/
+│   │   │   ├── post_syn/
+│   │   │   └── post_layout/        # created only when that flow exists
+│   │   ├── coverage/
+│   │   │   ├── sv/
+│   │   │   ├── cocotb/
+│   │   │   ├── merged.dat
+│   │   │   ├── summary.txt
+│   │   │   └── annotated/
+│   │   └── saved/                  # intentionally saved functional artifacts
+│   └── formal/                     # created only by formal flows
+│       ├── csr/
+│       │   ├── generated/
+│       │   ├── prove/
+│       │   └── cover/
+│       ├── properties/
+│       │   ├── prove/
+│       │   └── cover/
+│       └── equivalence/
+│           └── rtl_vs_syn/
+├── analysis/
+│   ├── slang/
+│   ├── cdc/                        # future structural CDC analysis
+│   └── rdc/                        # future structural RDC analysis
+├── syn/
+├── signoff/
+├── pnr_openroad/
+├── logs/
+│   ├── dv/functional/
+│   ├── lint/
+│   ├── synthesis/
+│   └── signoff/
+└── meta/
+    ├── manifest.json
+    └── metrics.json
 ```
 
-`fx ip_load` copies source collateral into a run workspace. The source tree is
-what can later be reused in a SoC/system.
+Directories that belong to future flows are not created as empty placeholders.
+For example `dv/formal/`, `sim/post_layout/`, `analysis/cdc/`, and
+`analysis/rdc/` appear only after the corresponding flow runs.
 
-## 🏃 Run workspaces
+## Functional verification ownership
 
-The default workspace root is `workspace/`, but every command can target another
-root with `--workdir`.
+The functional branch separates four different concepts:
+
+- `model/` describes expected behavior and test intent;
+- `tests/` contains concrete generated or retained test vectors;
+- `tb/` contains the machinery that drives and observes the DUT;
+- `sim/` contains simulator outputs for a specific representation of the DUT.
+
+RTL, post-synthesis, and post-layout simulations therefore share the same test
+intent and testbench structure while keeping their scratch/results separate.
+
+## Formal verification ownership
+
+Formal verification is separate from functional simulation:
+
+- `formal/csr/` is generated from register semantics;
+- `formal/properties/` is for authored design properties;
+- `formal/equivalence/` contains RTL/netlist equivalence runs.
+
+Formal `prove` results and formal `cover` reachability are not numerically merged
+with simulation code coverage. They are separate verification-closure signals.
+
+## Static analysis
+
+`analysis/` is not under `dv/`. Slang hierarchy/AST, CDC, and RDC consume static
+or structural representations rather than functional stimulus or formal proof
+runs. Keeping them separate makes that boundary explicit.
+
+## Generated model and tests
+
+`fx setup_model` creates:
 
 ```text
-<WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
+dv/functional/model/
+├── <top>_model.py
+├── <top>_regmap.py
+└── <top>_tests.py
 ```
 
-Examples:
-
-```text
-workspace/runs/uart/dev/
-/tmp/flexsoc-uart-e2e-XXXXXX/runs/uart/dev/
-~/projects/runs/soc/dev/
-```
-
-A typical run contains:
-
-```text
-runs/<RUN_TOP>/<RUN_ID>/
-├── analysis/      # Slang AST/hierarchy and other analysis outputs
-├── data/          # HJSON register specifications
-├── doc/           # generated register documentation
-├── logs/          # tool logs grouped by responsibility
-├── meta/          # machine-readable run state: metrics + manifest
-├── model/         # behavioral model, generated regmap, test catalogue
-├── pnr_openroad/  # physical-design collateral
-├── rtl/           # RTL implementation + canonical filelists
-├── signoff/       # SDF/STA/power collateral
-├── sim/           # simulation outputs and waveforms
-├── syn/           # synthesis scripts/results
-├── tb/            # vectors + SV/cocotb infrastructure
-└── verification/  # regression/coverage artifacts, not tool logs
-```
-
-Coverage artifacts stay together under:
-
-```text
-verification/coverage/
-├── sv/            # per-test Verilator coverage data
-├── cocotb/        # per-test cocotb/Verilator coverage data
-├── merged.dat     # merged regression coverage
-├── summary.txt    # raw Verilator summary
-└── annotated/     # source annotations generated by `fx coverage_detail`
-```
-
-## 🧠 Model ownership
-
-Single- and multi-clock flows use the same split:
-
-```text
-model/
-├── <top>_model.py   # authored behavioral/reference model
-├── <top>_regmap.py  # generated from one or more HJSON maps
-└── <top>_tests.py   # authored scenario catalogue + vector generation
-```
-
-### 🧠 `<top>_model.py`
-
-Owns behavioral transformation and model-owned state. A simple pipeline can
-also declare a transaction latency used by tests.
-
-### 🧾 `<top>_regmap.py`
-
-Owns generated register/domain metadata:
-
-- register/domain names;
-- offsets and reset values;
-- field positions and access modes;
-- encoding and masks;
-- `config.regs` serialization;
-- CSR `@write` / `@read` serialization.
-
-Refresh it independently with:
+`<top>_model.py` and `<top>_tests.py` become authored collateral once customized.
+`<top>_regmap.py` remains derived from HJSON and is refreshed with:
 
 ```bash
 fx regmap_py --force
 ```
 
-### 🧪 `<top>_tests.py`
-
-Owns:
-
-- test catalogue/scenarios;
-- initial CSR configuration;
-- functional input stimulus;
-- functional output expectations;
-- CSR write/read timing;
-- fixed-latency or valid-driven check policy.
-
-`fx setup_model --force` rewrites all three files and should be treated as an
-intentional scaffold reset after model/test customization.
-
-## 🧭 Canonical RTL filelists
-
-`fx flist` uses Slang hierarchy elaboration and produces:
+`fx tests_gen` materializes the test catalogue under:
 
 ```text
-rtl/
-├── rtl_common.f
-└── rtl_ip.f
+dv/functional/tests/<TEST_NAME>/
 ```
 
-`rtl_common.f` contains reachable shared FlexSoC infrastructure such as
-packages/primitives/TL-UL. `rtl_ip.f` contains reachable IP/run sources.
+## Generated testbenches
 
-The split is project ownership; the ordering/reachability comes from Slang.
-These command files include required `+incdir+...` entries and are consumed by
-lint, simulation, and synthesis.
-
-## 🧪 Vector tests
+SystemVerilog collateral lives in:
 
 ```text
-tb/tests/<TEST_NAME>/
-├── config.regs
-├── data_in.vec
-└── data_out.vec
+dv/functional/tb/sv/
 ```
 
-Semantics:
-
-- `config.regs`: initial CSR configuration;
-- `data_in.vec`: direct input drives and/or CSR `@write` operations;
-- `data_out.vec`: direct output checks and/or CSR `@read` expectations.
-
-Both SystemVerilog and cocotb consume these files; simulators do not import the
-behavioral model directly.
-
-## 🧰 Generated verification infrastructure
-
-Typical SystemVerilog layout:
+and cocotb collateral in:
 
 ```text
-tb/sv/
-├── <top>_tb.sv
-├── include_<top>_tb.sv
-└── drivers/
-    ├── <top>_reg_driver.svh
-    ├── <top>_vec_driver.svh
-    └── <top>_vec_monitor.svh
+dv/functional/tb/cocotb/
 ```
 
-Typical cocotb layout:
+Both consume the same `dv/functional/tests/<TEST_NAME>/` vectors.
+
+## Regression and coverage
+
+`fx regression` runs the complete generated test catalogue on the selected
+functional backends. Verilator coverage is collected under:
 
 ```text
-tb/cocotb/
-├── Makefile
-├── <top>_cocotb_tb.sv
-├── <top>_test.py
-└── drivers/
-    ├── __init__.py
-    ├── reg_driver.py
-    ├── vec_driver.py
-    └── vec_monitor.py
+dv/functional/coverage/
 ```
 
-Exact names can vary by flow; ownership stays stable: infrastructure is derived,
-behavioral expectations live in the model/test/vector layer.
+Use:
 
-
-## 🎯 Regression and coverage
-
-`fx regression` regenerates the current test catalogue, then runs **every test**
-on each selected backend. Directed tests run once; random tests are normal named
-tests whose seed is explicit in the test name. The default single-clock scaffold
-shows the pattern with `random_seed_1` and `random_seed_2`. Add more seeds by
-adding more named random tests to `<top>_tests.py`.
-
-```text
-verification/
-├── coverage/
-│   ├── sv/<TEST_NAME>.dat
-│   ├── cocotb/<TEST_NAME>.dat
-│   ├── merged.dat
-│   └── summary.txt
-└── saved/          # explicit `tb_save` snapshots only
-
-logs/verification/regression/
-├── sv/
-└── cocotb/
+```bash
+fx coverage
+fx coverage_detail
 ```
 
-The default regression uses both `sv` and `cocotb`. Override only the backend
-selection when useful, for example `fx regression --set REGRESSION_BACKENDS=sv`.
-A failure does not stop the remaining tests: the regression runs the full list,
-prints each PASS/FAIL, merges any Verilator coverage produced, and returns nonzero
-at the end if one or more tests failed.
+for the summary and uncovered-point views respectively. Coverage databases are
+run artifacts and are never copied into reusable IP sources by `fx ip_save`.
 
-Verilator coverage is collected natively and merged with `verilator_coverage`;
-FlexSoC does not define a second coverage format.
+## Logs and metadata
 
-## 🪵 Logs
-
-```text
-logs/
-├── lint/
-├── verification/
-├── synthesis/
-└── signoff/
-```
-
-The terminal shows compact progress by default. Add `--live` when full tool
-output is required.
-
-## 📊 Run metadata
-
-Cross-tool machine-readable state lives in one dedicated directory:
+Tool logs stay under `logs/` so every flow has one predictable diagnostic root.
+Cross-flow machine-readable run state stays under `meta/`:
 
 ```text
 meta/
-├── metrics.json
-└── manifest.json
+├── manifest.json
+└── metrics.json
 ```
 
-`fx metrics` collects metrics that are already available in the run. `fx manifest`
-records the run identity, Git state, Python/FlexSoC version, lock hash, and the
-versions of EDA tools that are present. Both files are generated automatically;
-the user does not maintain another project configuration. A future
-`checklist.json` will live in the same directory rather than being scattered
-across the run root.
-
-Run metadata is transient project state and is **not** copied back by
-`fx ip_save`. When IP qualification/release is implemented, the selected
-release evidence will be retained under `hw/ips/<top>/qualification/` instead.
-
-## 🔗 SoC staging
-
-When an IP is loaded into a larger `RUN_TOP`, reusable source can be staged
-below the SoC run rather than replacing it. The system then resolves one
-reachable hierarchy across top-level RTL plus staged IPs.
-
-The source/run separation is what allows the same IP to be tested standalone
-and reused in multiple larger systems.
-
-## 🧪 E2E workspace policy
-
-`tests/test_e2e_fx.py` never uses the repository `workspace/` tree. By default it
-creates isolated directories under `/tmp`:
-
-```text
-/tmp/flexsoc-full-e2e-XXXXXX/
-/tmp/flexsoc-cordic-e2e-XXXXXX/
-/tmp/flexsoc-uart-e2e-XXXXXX/
-```
-
-Select another base directory with either:
-
-```bash
-pytest -s tests/test_e2e_fx.py --e2e-root /path/to/e2e
-FLEXSOC_E2E_ROOT=/path/to/e2e pytest -s tests/test_e2e_fx.py
-```
-
-Successful directories are deleted. Failed directories are retained for
-inspection.
+Neither directory is a second source of design intent.

@@ -113,7 +113,7 @@ the terminal stays compact.
 Single- and multi-clock model workspaces use the same ownership contract:
 
 ```text
-model/
+dv/functional/model/
 ├── <top>_model.py   # editable behavioral/reference model
 ├── <top>_regmap.py  # generated from HJSON; do not hand-edit
 └── <top>_tests.py   # editable scenarios + vector generation
@@ -128,7 +128,7 @@ behavioral code.
 Every generated scenario becomes explicit files:
 
 ```text
-tb/tests/<TEST_NAME>/
+dv/functional/tests/<TEST_NAME>/
 ├── config.regs
 ├── data_in.vec
 └── data_out.vec
@@ -160,8 +160,8 @@ Logs are separated by responsibility:
 
 ```text
 logs/
+├── dv/functional/
 ├── lint/
-├── verification/
 ├── synthesis/
 └── signoff/
 ```
@@ -313,11 +313,9 @@ A run normally looks like:
 <WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
 ├── data/          # HJSON register specifications
 ├── doc/           # generated register documentation
-├── model/         # behavioral model, generated regmap, test catalogue
+├── dv/            # functional/formal design verification collateral
 ├── rtl/           # RTL implementation and Slang-ordered filelists
-├── tb/            # vector tests + SV/cocotb infrastructure
-├── sim/           # simulation outputs
-├── logs/          # lint / verification / synthesis / signoff
+├── logs/          # lint / DV / synthesis / signoff
 ├── syn/           # synthesis collateral/results
 ├── signoff/       # SDF / STA / power collateral
 └── pnr_openroad/  # physical-design collateral

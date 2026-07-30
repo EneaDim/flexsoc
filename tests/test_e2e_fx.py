@@ -283,7 +283,7 @@ def _run_generated_model_and_tests(
 
     _run_fx(["setup_model", "--force"], top=top, run_id=run_id, workspace=workspace)
     _run_fx(["tests_gen"], top=top, run_id=run_id, workspace=workspace)
-    test_root = workspace / "runs" / top / run_id / "tb" / "tests"
+    test_root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
     for test in ("smoke", "corners", "random_seed_1", "random_seed_2", "reconfig"):
         assert (test_root / test).is_dir()
     _run_fx(["tests"], top=top, run_id=run_id, workspace=workspace)
@@ -341,11 +341,25 @@ def _run_regression_smoke(
         run_id=run_id,
         workspace=workspace,
     )
-    coverage = workspace / "runs" / top / run_id / "verification" / "coverage"
+    coverage = workspace / "runs" / top / run_id / "dv" / "functional" / "coverage"
     assert (coverage / "merged.dat").is_file()
-    assert (coverage / "summary.txt").is_file()
+    summary = coverage / "summary.txt"
+    assert summary.is_file()
+    assert "Coverage summary" in summary.read_text(encoding="utf-8")
     _run_fx(["coverage_detail"], top=top, run_id=run_id, workspace=workspace)
     assert (coverage / "annotated").is_dir()
+    detail_log = (
+        workspace
+        / "runs"
+        / top
+        / run_id
+        / "logs"
+        / "dv"
+        / "functional"
+        / "coverage"
+        / f"{top}_coverage_detail.log"
+    )
+    assert detail_log.is_file()
 
 
 def _run_signoff(

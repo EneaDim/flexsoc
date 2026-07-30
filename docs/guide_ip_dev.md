@@ -141,7 +141,7 @@ fx setup_model --force
 This creates the canonical three-file split:
 
 ```text
-model/
+dv/functional/model/
 ├── test_model.py
 ├── test_regmap.py
 └── test_tests.py
@@ -231,7 +231,7 @@ fx tests
 Each scenario becomes:
 
 ```text
-tb/tests/<TEST_NAME>/
+dv/functional/tests/<TEST_NAME>/
 ├── config.regs
 ├── data_in.vec
 └── data_out.vec
@@ -281,7 +281,7 @@ fx view --set TEST_NAME=smoke
 fx view_cocotb --set TEST_NAME=smoke
 ```
 
-Verification logs live under `logs/verification/`.
+Verification logs live under `logs/dv/functional/`.
 
 ## 12. 🔄 Iterate after changes
 
