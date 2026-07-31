@@ -153,6 +153,16 @@ def _settings(
     )
 
 
+def _run_preflight(*, workspace: Path) -> None:
+    """Validate the CLI/toolchain and show the active technology before the flow."""
+
+    _print_section("Preflight — environment")
+    _run_fx(["doctor"], workspace=workspace)
+    _print_section("Preflight — PDK")
+    _run_fx(["pdk", "info", os.environ.get("FLEXSOC_PDK", "sky130")], workspace=workspace)
+
+
+
 @contextmanager
 def _temporary_workspace(prefix: str, *, root: Path) -> Iterator[Path]:
     """Create one isolated workspace and retain it only after failures."""
@@ -525,7 +535,7 @@ def _run_signoff_stages(
     run_id: str,
     clock_mode: str,
     workspace: Path,
-) -> None:
+) -> bool:
     """Run synthesis/equivalence/signoff as individually visible targets."""
 
     if clock_mode == "multi":
@@ -535,6 +545,7 @@ def _run_signoff_stages(
     _print_section(f"Formal setup — {clock_mode} clock")
     _run_fx(["setup_formal", "--force"], top=top, run_id=run_id, workspace=workspace)
     _run_formal_stages(top, run_id=run_id, workspace=workspace)
+    equivalence_ok = True
     for title, target in (
         ("Synthesis", "syn"),
         ("RTL ↔ synthesis equivalence", "eqy"),
@@ -543,16 +554,13 @@ def _run_signoff_stages(
         ("Power estimate", "power_estimate"),
     ):
         _print_section(title)
-        # Equivalence is a closure metric, not a prerequisite for independent
-        # signoff analyses. A timeout / unresolved EQY partition must remain
-        # visible in metrics without preventing SDF, STA and power from running.
-        _run_fx(
-            [target, "--force"],
-            top=top,
-            run_id=run_id,
-            workspace=workspace,
+        ok = _run_fx(
+            [target, "--force"], top=top, run_id=run_id, workspace=workspace,
             required=target != "eqy",
         )
+        if target == "eqy":
+            equivalence_ok = ok
+    return equivalence_ok
 
 
 def _run_reports(top: str, *, run_id: str, workspace: Path) -> None:
@@ -563,8 +571,8 @@ def _run_reports(top: str, *, run_id: str, workspace: Path) -> None:
     _run_fx(["manifest_show"], top=top, run_id=run_id, workspace=workspace)
 
     _print_section("Metrics and verification summary — informational")
-    _run_fx(["metrics"], top=top, run_id=run_id, workspace=workspace, required=False)
-    _run_fx(["check"], top=top, run_id=run_id, workspace=workspace, required=False)
+    _run_fx(["metrics"], top=top, run_id=run_id, workspace=workspace)
+    _run_fx(["check"], top=top, run_id=run_id, workspace=workspace)
 
 
 def _run_visible_flow(
@@ -580,9 +588,12 @@ def _run_visible_flow(
     _run_lint_stages(top, run_id=run_id, workspace=workspace)
     _run_slang_ast(top, run_id=run_id, workspace=workspace)
     _run_regression(top, run_id=run_id, workspace=workspace)
+    equivalence_ok = True
     if run_signoff:
-        _run_signoff_stages(top, run_id=run_id, clock_mode=clock_mode, workspace=workspace)
+        equivalence_ok = _run_signoff_stages(top, run_id=run_id, clock_mode=clock_mode, workspace=workspace)
     _run_reports(top, run_id=run_id, workspace=workspace)
+    if not equivalence_ok:
+        pytest.fail("EQY equivalence did not close; all independent sign-off stages and reports were still completed")
 
 
 # -----------------------------------------------------------------------------
@@ -599,6 +610,8 @@ def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
 
     _print_section(f"Single-clock generated flow — TOP={top} RUN_ID={run_id}")
     _settings(top, clock_mode="single", run_id=run_id, host=host, workspace=workspace)
+    _run_preflight(workspace=workspace)
+    _print_section("Generate RTL / model")
     _run_generated_rtl_flow(top, run_id=run_id, workspace=workspace)
     _author_generated_design_properties(
         top, run_id=run_id, clock_mode="single", workspace=workspace
@@ -625,6 +638,8 @@ def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
 
     _print_section(f"Multi-clock generated flow — TOP={top} RUN_ID={run_id}")
     _settings(top, clock_mode="multi", run_id=run_id, host=host, workspace=workspace)
+    _run_preflight(workspace=workspace)
+    _print_section("Generate multi-clock RTL / model")
     _run_multiclock_rtl_flow(top, run_id=run_id, workspace=workspace)
     _author_generated_design_properties(
         top, run_id=run_id, clock_mode="multi", workspace=workspace
@@ -655,6 +670,8 @@ def _run_loaded_ip_flow(
     _print_section(f"{top.upper()} ip_load flow — TOP={top} RUN_ID={run_id}")
     with _protect_ip_sources(top) as snapshot:
         _settings(top, clock_mode="single", run_id=run_id, host=host, workspace=workspace)
+        _run_preflight(workspace=workspace)
+        _print_section("Load saved IP")
         _run_loaded_ip_setup(top, run_id=run_id, workspace=workspace, snapshot=snapshot)
         _run_visible_flow(
             top,

@@ -248,17 +248,37 @@ Use `fx commands` to list every backend Make target.
         console.print(table)
 
     def _print_settings(values: Mapping[str, str], as_json: bool) -> None:
-        """Print current settings."""
+        """Print settings grouped by the flow phase they control."""
 
         if as_json:
             print(json.dumps(dict(values), indent=2))
             return
-        table = Table(title="FlexSoC settings", show_header=False)
-        table.add_column("Key", style="cyan", no_wrap=True)
-        table.add_column("Value")
-        for key, value in sorted(values.items()):
-            table.add_row(key, value)
-        console.print(table)
+        groups = (
+            ("Run", ("TOP", "RUN_TOP", "RUN_ID", "CLOCK_MODE", "HOST")),
+            ("Technology", ("PDK", "PDK_ROOT")),
+            ("Verification", ("REG_ITF", "COMPILER", "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE")),
+            ("Paths", ("WORKSPACE", "RUN_ROOT", "SYN_DIR", "EQUIV_DIR", "PNR_DIR")),
+        )
+        shown: set[str] = set()
+        console.print("[bold orange1]FlexSoC settings[/bold orange1]")
+        for title, keys in groups:
+            rows = [(key, values[key]) for key in keys if key in values]
+            if not rows:
+                continue
+            console.print(f"[bold bright_cyan]{title}[/bold bright_cyan]")
+            table = Table(show_header=False, box=None, pad_edge=False)
+            table.add_column("Key", style="grey70", no_wrap=True)
+            table.add_column("Value", style="white")
+            for key, value in rows:
+                shown.add(key); table.add_row(key, value)
+            console.print(table)
+        extra = [(key, value) for key, value in sorted(values.items()) if key not in shown]
+        if extra:
+            console.print("[bold bright_cyan]Advanced[/bold bright_cyan]")
+            table = Table(show_header=False, box=None, pad_edge=False)
+            table.add_column("Key", style="grey70", no_wrap=True); table.add_column("Value", style="white")
+            for key, value in extra: table.add_row(key, value)
+            console.print(table)
 
     def _print_info(client: FlexSoC, targets: tuple[str, ...], as_json: bool) -> None:
         """Print metadata for selected targets."""
@@ -275,7 +295,7 @@ Use `fx commands` to list every backend Make target.
     # Command handlers
     # -----------------------------------------------------------------------
 
-    def _settings(root: Path, items: tuple[str, ...], sets: tuple[str, ...], unsets: tuple[str, ...], reset: bool, as_json: bool) -> None:
+    def _settings(root: Path, workdir: Path | None, items: tuple[str, ...], sets: tuple[str, ...], unsets: tuple[str, ...], reset: bool, as_json: bool) -> None:
         """Show or update persistent project settings plus derived run roots."""
 
         from .run_layout import layout_from_values
@@ -290,6 +310,8 @@ Use `fx commands` to list every backend Make target.
         if reset or unsets or sets or items:
             _write_settings(root, values)
         display = dict(values)
+        if workdir is not None:
+            display["WORKSPACE"] = str(workdir.expanduser().resolve())
         layout = layout_from_values(root, display)
         display["RUN_ROOT"] = str(layout.run_root)
         display["SYN_DIR"] = str(layout.syn_dir)
@@ -357,23 +379,20 @@ Use `fx commands` to list every backend Make target.
                 print(json_text(data))
             else:
                 views = data["views"]
-                console.print(Panel.fit(
-                    f"[bold bright_cyan]{data['title']}[/bold bright_cyan]\n"
-                    f"node: {data['node']}\n"
-                    f"class: {data['classification']}\n"
-                    f"OpenROAD platform: {data['orfs_platform']}\n"
-                    f"source: {data['source_url']}\n"
-                    f"fetch provider: {data['fetch_provider']}\n"
-                    + (f"fetched revision: {data.get('fetch', {}).get('revision')}\n" if data.get('fetch', {}).get('revision') else "")
-                    + f"local root: {views['root']}\n"
-                    f"digital views: {'ready' if views['usable'] else 'not ready'}\n"
-                    f"functional Verilog: {'ready (' + str(len(views['verilog_models'])) + ')' if views['verilog_models'] else 'missing'}\n"
-                    + (f"formal EQY adapter: {'ready' if data.get('formal_adapter') else 'missing'}\n" if data.get('formal_adapter_required') else "formal EQY adapter: not required\n")
-                    + f"legacy repo PDK: {'ignored (' + str(data['legacy_root']) + ')' if data.get('legacy_present') else 'none'}\n"
-                    f"note: {data['note']}",
-                    title="PDK profile",
-                    border_style="orange1",
-                ))
+                console.print(f"[bold orange1]PDK profile[/bold orange1] · [bold bright_cyan]{data['title']}[/bold bright_cyan]")
+                for title, rows in (
+                    ("Identity", (("Name", canonical), ("Node", data["node"]), ("Class", data["classification"]), ("OpenROAD platform", data["orfs_platform"]))),
+                    ("Source / installation", (("Provider", data["fetch_provider"]), ("Source", data["source_url"]), ("Revision", data.get("fetch", {}).get("revision") or "-"), ("Root", views["root"]), ("Status", "ready" if views["usable"] else "not ready"))),
+                    ("Digital views", (("Liberty typical", views.get("liberty_typ") or "missing"), ("Liberty slow", views.get("liberty_slow") or "-"), ("Liberty fast", views.get("liberty_fast") or "-"), ("Functional Verilog", f"{len(views['verilog_models'])} model(s)" if views["verilog_models"] else "missing"))),
+                ):
+                    console.print(f"[bold bright_cyan]{title}[/bold bright_cyan]")
+                    table = Table(show_header=False, box=None, pad_edge=False)
+                    table.add_column("Field", style="grey70", no_wrap=True); table.add_column("Value", style="white")
+                    for key, value in rows: table.add_row(str(key), str(value))
+                    console.print(table)
+                if data.get("formal_adapter_required"):
+                    console.print(f"[grey70]Formal adapter:[/grey70] [white]{data.get('formal_adapter') or 'missing'}[/white]")
+                console.print(f"[grey70]{data['note']}[/grey70]")
             return 0
 
         install = Path(pdk_root).expanduser().resolve() if pdk_root else Path(data["views"]["root"])
@@ -859,7 +878,7 @@ Use `fx commands` to list every backend Make target.
             _print_commands(client, as_json)
             return
         if args[0] == "settings":
-            _settings(root, args[1:], set_args, unset_args, reset, as_json)
+            _settings(root, workdir, args[1:], set_args, unset_args, reset, as_json)
             return
         if args[0] == "doctor":
             from .doctor import run as run_doctor

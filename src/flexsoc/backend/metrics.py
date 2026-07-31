@@ -582,6 +582,22 @@ def _eqy_partition_summary(result_dir: Path, log: Path) -> dict[str, Any]:
     return {**counts, "total": total, "percent": percent}
 
 
+def eqy_solver_stats(log: Path) -> dict[str, dict[str, int]]:
+    """Count EQY strategy attempts and which strategies actually proved partitions."""
+
+    text = read_text(log) if log.is_file() else ""
+    names = re.findall(r"Running strategy '([^']+)' on '[^']+'", text)
+    stats = {name: {"attempts": names.count(name), "proved": 0, "unproved": 0, "errors": 0} for name in dict.fromkeys(names)}
+    for field, pattern in (
+        ("proved", r"Proved equivalence of partition '[^']+' using strategy '([^']+)'"),
+        ("unproved", r"Could not prove equivalence of partition '[^']+' using strategy '([^']+)'"),
+        ("errors", r"Execution of strategy '([^']+)' on partition '[^']+' encountered an error"),
+    ):
+        for name in re.findall(pattern, text):
+            stats.setdefault(name, {"attempts": 0, "proved": 0, "unproved": 0, "errors": 0})[field] += 1
+    return stats
+
+
 def collect_equivalence(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
     """Collect sign-off EQY closure for the selected PDK."""
 
@@ -606,6 +622,7 @@ def collect_equivalence(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | N
     return {
         "status": status,
         "partitions": partitions,
+        "strategies": eqy_solver_stats(log),
         "log": relative(log, run_dir) if log.is_file() else None,
         "result_dir": relative(result_dir, run_dir) if result_dir.exists() else None,
     }
@@ -660,6 +677,7 @@ def signoff_summary(metrics: dict[str, Any]) -> dict[str, Any]:
         result["equivalence"] = {
             "status": equivalence.get("status", "unknown"),
             **equivalence.get("partitions", {}),
+            "strategies": equivalence.get("strategies", {}),
         }
 
     sdf = metrics.get("sdf")
@@ -756,17 +774,15 @@ def collect_metrics(
 
 
 def count_color(value: int, *, error: bool = False) -> str:
-    """Color zero counts green and non-zero counts by severity."""
+    """Use the shared cyan/orange palette for diagnostic counts."""
 
-    if value == 0:
-        return "green"
-    return "red" if error else "yellow"
+    return "bright_cyan" if value == 0 else "orange1"
 
 
 def timing_color(value: float) -> str:
     """Color timing slack by sign without applying a quality policy."""
 
-    return "green" if value >= 0 else "red"
+    return "bright_cyan" if value >= 0 else "orange1"
 
 
 def coverage_markup(record: dict[str, Any]) -> str:
@@ -775,9 +791,9 @@ def coverage_markup(record: dict[str, Any]) -> str:
     total = int(record.get("total", 0) or 0)
     hit = int(record.get("hit", 0) or 0)
     if total == 0:
-        return "[grey58]-[/grey58]"
+        return "[grey70]-[/grey70]"
     percent = float(record.get("percent", 0.0) or 0.0)
-    return f"[orange3]{hit}/{total}  {percent:.2f}%[/orange3]"
+    return f"[orange1]{hit}/{total}  {percent:.2f}%[/orange1]"
 
 
 def _coverage_column_record(values: dict[str, Any], column: str) -> dict[str, Any]:
@@ -833,7 +849,7 @@ def metric_table() -> Table:
     """Return one compact two-column metrics table."""
 
     table = Table(show_header=False, box=None, pad_edge=False)
-    table.add_column("Metric", style="cyan", no_wrap=True)
+    table.add_column("Metric", style="bright_cyan", no_wrap=True)
     table.add_column("Value")
     return table
 
@@ -842,14 +858,14 @@ def status_markup(status: str) -> str:
     """Return a compact colored status label."""
 
     colors = {
-        "pass": "bold green",
-        "fail": "bold red",
-        "error": "bold red",
-        "partial": "bold yellow",
-        "missing": "bold dim",
-        "unknown": "bold yellow",
+        "pass": "bold bright_cyan",
+        "fail": "bold orange1",
+        "error": "bold orange1",
+        "partial": "bold orange1",
+        "missing": "bold grey70",
+        "unknown": "bold grey70",
     }
-    color = colors.get(status, "yellow")
+    color = colors.get(status, "grey70")
     return f"[{color}]{status.upper()}[/{color}]"
 
 
@@ -861,7 +877,7 @@ def show_metrics(path: Path) -> None:
 
     data = json.loads(path.read_text(encoding="utf-8"))
     console = Console()
-    console.print(f"[bold cyan]FlexSoC run check — {data.get('top', 'unknown')}[/bold cyan]")
+    console.print(f"[bold orange1]FlexSoC run check[/bold orange1] · [bold bright_cyan]{data.get('top', 'unknown')}[/bold bright_cyan]")
 
     closure = data.get("closure", {})
     if closure:
@@ -874,8 +890,8 @@ def show_metrics(path: Path) -> None:
             table.add_row(name, status_markup(status))
         console.print(table)
         overall = "PASS" if closure.get("complete") else "INCOMPLETE"
-        color = "green" if closure.get("complete") else "yellow"
-        console.print(f"[cyan]Standard closure[/cyan]: [bold {color}]{overall}[/bold {color}]")
+        color = "bright_cyan" if closure.get("complete") else "orange1"
+        console.print(f"[grey70]Standard closure:[/grey70] [bold {color}]{overall}[/bold {color}]")
 
     verification = data.get("verification", {})
     if verification:
@@ -1037,6 +1053,8 @@ def show_metrics(path: Path) -> None:
             table.add_row("Engine errors", str(partitions.get("errors", 0)))
             table.add_row("Timeouts", str(partitions.get("timeouts", 0)))
             table.add_row("Unknown", str(partitions.get("unknown", 0)))
+        for name, values in equiv.get("strategies", {}).items():
+            table.add_row(f"Strategy {name}", f"{values.get('proved', 0)}/{values.get('attempts', 0)} proven")
         table.add_row("Log", str(equiv.get("log", "-")))
         console.print(table)
 

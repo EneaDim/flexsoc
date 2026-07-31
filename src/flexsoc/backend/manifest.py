@@ -116,63 +116,52 @@ def collect_manifest(
 
 
 def show_manifest(path: Path) -> None:
-    """Render one run manifest as a compact colored terminal report."""
+    """Render run identity, artifacts, environment, and tools in flow order."""
 
     if not path.is_file():
         raise FileNotFoundError(f"manifest file not found: {path}; run: fx manifest")
     data = json.loads(path.read_text(encoding="utf-8"))
-    console = Console()
-    run = data.get("run", {})
-    console.print(
-        f"[bold cyan]FlexSoC manifest[/bold cyan] — "
-        f"{run.get('top', 'unknown')} / {run.get('run_id', 'unknown')}"
-    )
+    console = Console(); run = data.get("run", {}); env = data.get("environment", {})
+    console.print(f"[bold orange1]FlexSoC manifest[/bold orange1] · [bold bright_cyan]{run.get('top', 'unknown')} / {run.get('run_id', 'unknown')}[/bold bright_cyan]")
 
-    identity = Table(show_header=False, box=None, pad_edge=False)
-    identity.add_column("Field", style="dim")
-    identity.add_column("Value")
-    identity.add_row("RUN_TOP", str(run.get("run_top", "-")))
-    if run.get("pdk"):
-        identity.add_row("PDK", str(run.get("pdk")))
+    def section(title: str, rows: list[tuple[str, object]]) -> None:
+        console.print(f"\n[bold bright_cyan]{title}[/bold bright_cyan]")
+        table = Table(show_header=False, box=None, pad_edge=False)
+        table.add_column("Field", style="grey70", no_wrap=True); table.add_column("Value", style="white")
+        for key, value in rows: table.add_row(key, str(value))
+        console.print(table)
+
+    dirty = data.get("git", {}).get("dirty")
+    section("Run", [("TOP", run.get("top", "-")), ("RUN_TOP", run.get("run_top", "-")), ("RUN_ID", run.get("run_id", "-")), ("PDK", run.get("pdk") or "-"), ("RUN_ROOT", run.get("run_root") or "-")])
+    section("Source / environment", [("Git commit", data.get("git", {}).get("commit") or "unavailable"), ("Git tree", "unknown" if dirty is None else ("dirty" if dirty else "clean")), ("FlexSoC", env.get("flexsoc", "unknown")), ("Python", env.get("python", "unknown")), ("Platform", env.get("platform", "unknown")), ("Machine", env.get("machine", "unknown")), ("uv.lock SHA256", env.get("uv_lock_sha256") or "missing"), ("toolchain.lock SHA256", env.get("toolchain_lock_sha256") or "missing")])
+
     artifacts = run.get("artifacts")
     if isinstance(artifacts, dict):
-        identity.add_row("Synthesis", str(artifacts.get("synthesis", "-")))
-        identity.add_row("Equivalence", str(artifacts.get("equivalence", "-")))
-    identity.add_row("Git commit", str(data.get("git", {}).get("commit") or "unavailable"))
-    dirty = data.get("git", {}).get("dirty")
-    dirty_text = "unknown" if dirty is None else ("dirty" if dirty else "clean")
-    dirty_color = "yellow" if dirty else "green"
-    identity.add_row("Git tree", f"[{dirty_color}]{dirty_text}[/{dirty_color}]")
-    env = data.get("environment", {})
-    identity.add_row("FlexSoC", str(env.get("flexsoc", "unknown")))
-    identity.add_row("Python", str(env.get("python", "unknown")))
-    identity.add_row("Platform", str(env.get("platform", "unknown")))
-    identity.add_row("Machine", str(env.get("machine", "unknown")))
-    identity.add_row("uv.lock", str(env.get("uv_lock_sha256") or "missing"))
-    identity.add_row("toolchain.lock", str(env.get("toolchain_lock_sha256") or "missing"))
-    console.print(identity)
+        section("Artifacts", [(name.replace("_", " ").title(), value) for name, value in artifacts.items()])
 
     tools = data.get("tools", {})
     if tools:
-        console.print("\n[bold cyan]Resolved tools[/bold cyan]")
-        table = Table(box=None, pad_edge=False)
-        table.add_column("Executable", style="bright_cyan")
-        table.add_column("Version")
-        for executable, value in sorted(tools.items()):
-            if isinstance(value, dict):
-                version = value.get("version", "unknown")
-                lock_match = value.get("lock_match")
-                locked = value.get("locked_version")
-                suffix = ""
-                if lock_match is False and locked:
-                    suffix = f"  [dim](lock {locked})[/dim]"
-                elif lock_match is True and locked:
-                    suffix = f"  [dim](locked {locked})[/dim]"
-                table.add_row(executable, f"{version}{suffix}")
-            else:
-                # Backward-compatible rendering for schema_version <= 2.
-                table.add_row(executable, str(value))
-        console.print(table)
+        groups = (
+            ("RTL / lint", {"slang", "verilator", "slang-hier"}),
+            ("Formal / equivalence", {"yosys", "sby", "eqy", "bitwuzla", "boolector", "btormc", "btorsim"}),
+            ("Simulation / debug", {"iverilog", "gtkwave", "surfer", "sv2v", "netlistsvg"}),
+            ("Implementation / sign-off", {"sta", "openroad", "klayout"}),
+            ("Environment", {"uv"}),
+        )
+        for title, names in groups:
+            rows = [(name, tools[name]) for name in sorted(names) if name in tools]
+            if not rows: continue
+            console.print(f"\n[bold bright_cyan]{title} tools[/bold bright_cyan]")
+            table = Table(box=None, pad_edge=False, header_style="bold grey70")
+            table.add_column("Executable", style="white"); table.add_column("Version", style="grey70"); table.add_column("Lock", style="grey70")
+            for executable, value in rows:
+                if isinstance(value, dict):
+                    lock_match = value.get("lock_match"); locked = value.get("locked_version")
+                    lock = "match" if lock_match is True else (f"tested {locked}" if lock_match is False and locked else "-")
+                    table.add_row(executable, str(value.get("version", "unknown")), lock)
+                else:
+                    table.add_row(executable, str(value), "-")
+            console.print(table)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

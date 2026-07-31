@@ -39,6 +39,7 @@ IP_DEV = (*BASE, "REG_ITF", "FORCE")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
 IP_FULL = (*COMMON, "REG_ITF", "LINT_TOOL", "LINT_PART", "TARGET_SYN", "TARGET_OPT")
 LINT = (*COMMON, "LINT_TOOL", "LINT_PART", "VSV")
+SLANG = (*LINT, "SLANG_ROOT", "SLANG_TOP_FILE", "SLANG_TOP", "SLANG_ARGS", "SLANG_SEARCH_ARGS", "SLANG_AST_SCOPE")
 SIM = (
     *COMMON,
     "TESTBENCH",
@@ -182,9 +183,9 @@ TARGETS: dict[str, TargetSpec] = {
     "lint_unconnected": ("Linting", "Run unconnected-port HDL lint diagnostics", LINT),
     "lint_unused": ("Linting", "Run unused-object HDL lint diagnostics", LINT),
     "_lint_run": ("Linting", "Internal lint dispatcher", LINT),
-    "slang_hier": ("Linting", "Generate hierarchy text with slang-hier", LINT),
-    "slang_ast": ("Linting", "Generate Slang AST JSON", LINT),
-    "slang_flist": ("Linting", "Generate a trimmed topological RTL filelist with Slang", LINT),
+    "slang_hier": ("Linting", "Generate hierarchy text with slang-hier", SLANG),
+    "slang_ast": ("Linting", "Generate Slang AST JSON", SLANG),
+    "slang_flist": ("Linting", "Generate a trimmed topological RTL filelist with Slang", SLANG),
     "setup_tb": ("DV functional", "Generate a SystemVerilog testbench scaffold", SIM),
     "setup_cocotb": ("DV functional", "Generate a cocotb scaffold", SIM),
     "setup_model": ("DV functional", "Generate Python model, CSR regmap, and test scaffolds", SIM),
@@ -787,6 +788,27 @@ class FlexSoC:
                 status = f"{green}✓{reset}" if ok else f"{red}✗{reset}"
                 suffix = "done" if ok else f"failed ({done.returncode})"
                 print(f"{status} {orange}{command.target}{reset}: {blue}{suffix}{reset}", flush=True)
+                if ok and command.target == "eqy":
+                    from .backend.metrics import eqy_solver_stats
+
+                    stats = eqy_solver_stats(Path(command.values["EQUIV_LOG"]))
+                    if stats:
+                        summary = " · ".join(
+                            f"{name} {row['proved']}/{row['attempts']} proven"
+                            + (f", {row['errors']} error(s)" if row["errors"] else "")
+                            for name, row in stats.items()
+                        )
+                        winners = ", ".join(
+                            f"{name} ({row['proved']})"
+                            for name, row in stats.items()
+                            if row["proved"]
+                        )
+                        print(f"{orange}[eqy]{reset} {blue}strategies:{reset} {summary}", flush=True)
+                        if winners:
+                            print(
+                                f"{orange}[eqy]{reset} {blue}successful solver/strategy:{reset} {winners}",
+                                flush=True,
+                            )
 
             result = FlexSoCResult(
                 command,

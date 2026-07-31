@@ -10,6 +10,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from rich.console import Console
+from rich.table import Table
+
 TOOLS = (
     ("uv", "uv", ("--version",), True, None),
     ("Slang", "slang", ("--version",), True, "SLANG"),
@@ -218,54 +221,60 @@ def collect(root: Path) -> dict[str, object]:
 
 
 def run(root: Path, *, as_json: bool = False) -> int:
-    """Print the environment status and return non-zero for missing essentials."""
+    """Print environment checks grouped by the flow phase that consumes them."""
 
     data = collect(root)
     if as_json:
         print(json.dumps(data, indent=2))
         return 0 if data["ok"] else 2
 
-    python = data["python"]
-    print("FlexSoC doctor")
-    print(f"  {'✓' if python['ok'] else '✗'} Python      {python['version']}  {python['executable']}")
+    console = Console()
+    console.print("[bold orange1]FlexSoC doctor[/bold orange1]")
+    project = Table(show_header=False, box=None, pad_edge=False)
+    project.add_column("Check", style="grey70", no_wrap=True); project.add_column("Value", style="white")
+    python = data["python"]; uv_lock = data["uv_lock"]; toolchain = data["toolchain_lock"]
+    project.add_row("Python", f"{python['version']} · {python['executable']}")
+    project.add_row("uv.lock", str(uv_lock["path"]) if uv_lock["ok"] else "missing")
+    project.add_row("toolchain.lock", f"v{toolchain.get('lock_version') or '?'} · {toolchain['path']}" if toolchain["ok"] else "missing")
+    console.print(project)
 
-    uv_lock = data["uv_lock"]
-    if uv_lock["ok"]:
-        print(f"  ✓ uv.lock     {uv_lock['path']}")
-    else:
-        print("  ✗ uv.lock     missing — run: make lock")
-
-    toolchain = data["toolchain_lock"]
-    if toolchain["ok"]:
-        print(f"  ✓ toolchain   lock v{toolchain.get('lock_version') or '?'}  {toolchain['path']}")
-    else:
-        print("  ✗ toolchain   missing src/flexsoc/backend/toolchain.lock")
-
-    print("\nTools")
-    for tool in data["tools"]:
-        found = bool(tool["found"])
-        version_ok = bool(tool.get("version_ok", True))
-        lock_match = tool.get("lock_match")
-        if found and version_ok:
-            mark = "✓" if lock_match is not False else "≈"
-        else:
-            mark = "✗" if tool["required"] else "·"
-        detail = str(tool["version"]) if found else "not found"
-        minimum = tool.get("minimum_version")
-        locked = tool.get("locked_version")
-        if found and not version_ok and minimum:
-            detail += f" — need >= {minimum}"
-        elif found and lock_match is False and locked:
-            detail += f" — compatible; lock {locked} recommended"
-        elif found and lock_match is True and locked:
-            detail += f" — lock {locked}"
-        role = "required" if tool["required"] else "optional"
-        print(f"  {mark} {tool['name']:<16} {detail}  [{role}]")
+    groups = (
+        ("RTL / lint", {"slang", "verilator", "slang-hier"}),
+        ("Formal / equivalence", {"yosys", "sby", "eqy", "bitwuzla", "boolector", "btormc", "btorsim"}),
+        ("Simulation / debug", {"iverilog", "gtkwave", "surfer", "sv2v", "netlistsvg"}),
+        ("Implementation / sign-off", {"sta", "openroad", "klayout"}),
+        ("Environment", {"uv"}),
+    )
+    by_exe = {tool["executable"]: tool for tool in data["tools"]}
+    for title, executables in groups:
+        rows = [by_exe[name] for name in executables if name in by_exe]
+        if not rows:
+            continue
+        console.print(f"\n[bold bright_cyan]{title}[/bold bright_cyan]")
+        table = Table(box=None, pad_edge=False, header_style="bold grey70")
+        table.add_column("Status"); table.add_column("Tool", style="white"); table.add_column("Version / note", style="grey70"); table.add_column("Role", style="grey70")
+        for tool in sorted(rows, key=lambda item: str(item["name"])):
+            found = bool(tool["found"]); version_ok = bool(tool.get("version_ok", True)); lock_match = tool.get("lock_match")
+            if found and version_ok and lock_match is not False:
+                mark = "[bright_cyan]OK[/bright_cyan]"
+            elif found and version_ok:
+                mark = "[orange1]COMPAT[/orange1]"
+            elif tool["required"]:
+                mark = "[orange1]MISSING[/orange1]"
+            else:
+                mark = "[grey70]optional[/grey70]"
+            detail = str(tool["version"]) if found else "not found"
+            if found and not version_ok and tool.get("minimum_version"):
+                detail += f" · need >= {tool['minimum_version']}"
+            elif found and lock_match is False and tool.get("locked_version"):
+                detail += f" · tested {tool['locked_version']}"
+            table.add_row(mark, str(tool["name"]), detail, "required" if tool["required"] else "optional")
+        console.print(table)
 
     if data["ok"]:
-        print("\nEnvironment: PASS")
+        console.print("\n[bold bright_cyan]Environment: PASS[/bold bright_cyan]")
         return 0
-    print("\nEnvironment: FAIL")
+    console.print("\n[bold orange1]Environment: FAIL[/bold orange1]")
     return 2
 
 

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from flexsoc import FlexSoC, FlexSoCConfig
 from flexsoc.api import NATIVE_TARGETS
+from flexsoc.backend.metrics import eqy_solver_stats
 from flexsoc.cli import app
 
 
@@ -54,6 +55,38 @@ def test_api_builds_ordered_commands_and_overrides(tmp_path: Path) -> None:
     assert "post_syn" in gate.argv
     assert gate.values["WAVE_FORMAT"] == "fst"
 
+
+
+def test_slang_targets_forward_explicit_analysis_roots(tmp_path: Path) -> None:
+    """Slang analysis overrides must reach Make instead of falling back to REPO_ROOT."""
+
+    rtl = tmp_path / "run" / "rtl"
+    top_file = rtl / "demo.sv"
+    search = tmp_path / "shared"
+    command = FlexSoC(FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws")).command(
+        "slang_ast", SLANG_ROOT=rtl, SLANG_TOP_FILE=top_file, SLANG_SEARCH_ARGS=f"--search-root {search}"
+    )
+    joined = " ".join(command.argv)
+    assert f"SLANG_ROOT={rtl}" in joined
+    assert f"SLANG_TOP_FILE={top_file}" in joined
+    assert f"SLANG_SEARCH_ARGS=--search-root {search}" in joined
+
+
+def test_eqy_solver_stats_reports_the_strategy_that_closes_partitions(tmp_path: Path) -> None:
+    log = tmp_path / "eqy.log"
+    log.write_text(
+        "Running strategy 'sat' on 'demo.out.0'..\n"
+        "Could not prove equivalence of partition 'demo.out.0' using strategy 'sat'\n"
+        "Running strategy 'pdr' on 'demo.out.0'..\n"
+        "Proved equivalence of partition 'demo.out.0' using strategy 'pdr'\n"
+        "Running strategy 'pdr' on 'demo.out.1'..\n"
+        "Proved equivalence of partition 'demo.out.1' using strategy 'pdr'\n",
+        encoding="utf-8",
+    )
+    assert eqy_solver_stats(log) == {
+        "sat": {"attempts": 1, "proved": 0, "unproved": 1, "errors": 0},
+        "pdr": {"attempts": 2, "proved": 2, "unproved": 0, "errors": 0},
+    }
 
 
 def test_rtl_make_commands_do_not_leak_pdk_libs_into_verilator(tmp_path: Path) -> None:
