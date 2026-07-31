@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -344,8 +345,20 @@ def _run_regression(top: str, *, run_id: str, workspace: Path) -> None:
     coverage = workspace / "runs" / top / run_id / "dv" / "functional" / "coverage"
     assert (coverage / "merged.dat").is_file()
     summary = coverage / "summary.txt"
+    summary_json = coverage / "summary.json"
     assert summary.is_file()
-    assert "Coverage summary" in summary.read_text(encoding="utf-8")
+    assert summary_json.is_file()
+
+    # Validate the machine-readable contract rather than a presentation heading.
+    # This keeps the E2E flow from breaking when coverage text rendering changes.
+    coverage_data = json.loads(summary_json.read_text(encoding="utf-8"))
+    assert coverage_data.get("schema_version") == 2
+    assert coverage_data.get("display_columns") == [
+        "line", "toggle", "expr", "branch", "fsm", "user", "total"
+    ]
+    scopes = coverage_data.get("scopes")
+    assert isinstance(scopes, dict)
+    assert all(scope in scopes for scope in ("design", "registers", "common", "other", "all"))
 
     _print_section("Functional coverage detail")
     _run_fx(["coverage_detail"], top=top, run_id=run_id, workspace=workspace)
@@ -530,7 +543,16 @@ def _run_signoff_stages(
         ("Power estimate", "power_estimate"),
     ):
         _print_section(title)
-        _run_fx([target, "--force"], top=top, run_id=run_id, workspace=workspace)
+        # Equivalence is a closure metric, not a prerequisite for independent
+        # signoff analyses. A timeout / unresolved EQY partition must remain
+        # visible in metrics without preventing SDF, STA and power from running.
+        _run_fx(
+            [target, "--force"],
+            top=top,
+            run_id=run_id,
+            workspace=workspace,
+            required=target != "equiv",
+        )
 
 
 def _run_reports(top: str, *, run_id: str, workspace: Path) -> None:

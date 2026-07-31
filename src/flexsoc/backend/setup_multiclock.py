@@ -1461,7 +1461,7 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     ifeq ($(SIM),verilator)
       COCOTB_PLUSARGS += +verilator+seed+$(SEED)
       ifeq ($(HDL_COVERAGE),1)
-        EXTRA_ARGS += --coverage
+        EXTRA_ARGS += --coverage-line --coverage-toggle --coverage-expr --coverage-fsm --coverage-user
         COCOTB_PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
       endif
     endif

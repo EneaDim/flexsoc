@@ -280,7 +280,7 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         ifeq ($(SIM),verilator)
         COCOTB_PLUSARGS += +verilator+seed+$(SEED)
         ifeq ($(HDL_COVERAGE),1)
-        COMPILE_ARGS += --coverage
+        COMPILE_ARGS += --coverage-line --coverage-toggle --coverage-expr --coverage-fsm --coverage-user
         COCOTB_PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
         endif
         endif

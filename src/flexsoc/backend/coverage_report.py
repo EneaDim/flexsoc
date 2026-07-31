@@ -9,10 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 RESET = "\033[0m"
-RED = "\033[31m"
-YELLOW = "\033[33m"
-GREEN = "\033[32m"
-BLUE = "\033[34m"
+WHITE = "\033[97m"
+GRAY = "\033[90m"
+ORANGE = "\033[38;5;208m"
+BOLD = "\033[1m"
 
 ANNOTATION_RE = re.compile(r"^(?P<status>[ %~+-])(?P<hits>\d+)\s+(?P<body>.*)$")
 POINT_RE = re.compile(
@@ -20,7 +20,16 @@ POINT_RE = re.compile(
 )
 REGISTER_RE = re.compile(r".+_reg_(?:pkg|top)\.sv$")
 SCOPES = ("design", "registers", "common", "other", "all")
-TYPE_ORDER = ("line", "toggle", "branch", "expr", "fsm_state", "fsm_arc", "covergroup", "user")
+TYPE_ORDER = ("line", "toggle", "expr", "branch", "fsm_state", "fsm_arc", "covergroup", "user")
+DISPLAY_COLUMNS = ("line", "toggle", "expr", "branch", "fsm", "user", "total")
+DISPLAY_TYPE_GROUPS = {
+    "line": ("line",),
+    "toggle": ("toggle",),
+    "expr": ("expr",),
+    "branch": ("branch",),
+    "fsm": ("fsm_state", "fsm_arc"),
+    "user": ("user", "covergroup"),
+}
 
 
 @dataclass(frozen=True)
@@ -122,14 +131,37 @@ def coverage_counts(points: list[CoveragePoint]) -> tuple[int, int, float]:
     return covered, total, percent
 
 
-def _color(percent: float, total: int) -> str:
-    if total == 0:
-        return BLUE
-    if percent >= 100.0:
-        return GREEN
-    if percent <= 0.0:
-        return RED
-    return YELLOW
+def _coverage_cell(text: str) -> str:
+    """Render one coverage cell with the neutral white/gray/orange palette."""
+
+    if text == "-":
+        return f"{GRAY}{text}{RESET}"
+    return f"{ORANGE}{text}{RESET}"
+
+
+def _render_summary_line(line: str) -> str:
+    """Render one summary line without applying pass/fail semantics to coverage."""
+
+    if not line:
+        return line
+    if line == "Functional coverage — scope × type":
+        return f"{BOLD}{WHITE}{line}{RESET}"
+    if line.startswith("Scope") or set(line) == {"-"}:
+        return f"{GRAY}{line}{RESET}"
+    if line.startswith("fsm ="):
+        return f"{GRAY}{line}{RESET}"
+
+    parts = line.split()
+    if parts and parts[0] in SCOPES and len(parts) == 1 + len(DISPLAY_COLUMNS):
+        scope, *cells = parts
+        width = 10
+        rendered = f"{WHITE}{scope:<12}{RESET}"
+        rendered += "".join(
+            f"{_coverage_cell(cell):>{width + len(_coverage_cell(cell)) - len(cell)}}"
+            for cell in cells
+        )
+        return rendered
+    return line
 
 
 def coverage_record(points: list[CoveragePoint]) -> dict[str, float | int]:
@@ -154,7 +186,7 @@ def coverage_summary_data(
     ip_files: set[str],
     common_files: set[str],
 ) -> dict[str, object]:
-    """Build scope totals plus a scope-by-type coverage matrix."""
+    """Build raw coverage data plus the stable scope-by-type display matrix."""
 
     kinds = coverage_types(points)
     scopes: dict[str, object] = {}
@@ -165,14 +197,28 @@ def coverage_summary_data(
             ip_files=ip_files,
             common_files=common_files,
         )
-        scopes[scope] = {
-            "total": coverage_record(selected),
-            "types": {
-                kind: coverage_record([point for point in selected if point.kind == kind])
-                for kind in kinds
-            },
+        raw_types = {
+            kind: coverage_record([point for point in selected if point.kind == kind])
+            for kind in kinds
         }
-    return {"schema_version": 1, "types": kinds, "scopes": scopes}
+        columns = {
+            column: coverage_record(
+                [point for point in selected if point.kind in DISPLAY_TYPE_GROUPS[column]]
+            )
+            for column in DISPLAY_TYPE_GROUPS
+        }
+        columns["total"] = coverage_record(selected)
+        scopes[scope] = {
+            "total": columns["total"],
+            "types": raw_types,
+            "columns": columns,
+        }
+    return {
+        "schema_version": 2,
+        "types": kinds,
+        "display_columns": list(DISPLAY_COLUMNS),
+        "scopes": scopes,
+    }
 
 
 def _summary_lines(
@@ -183,37 +229,29 @@ def _summary_lines(
 ) -> list[str]:
     data = coverage_summary_data(points, ip_files=ip_files, common_files=common_files)
     scopes = data["scopes"]
-    kinds = data["types"]
+    columns = data["display_columns"]
+
+    width = 10
     lines = [
-        "Coverage by scope",
+        "Functional coverage — scope × type",
         "",
-        f"{'Scope':<12} {'Covered':>9} {'Total':>9} {'Coverage':>10}",
-        "-" * 44,
+        f"{'Scope':<12}" + "".join(f"{column:>{width}}" for column in columns),
+        "-" * (12 + width * len(columns)),
     ]
     for scope in SCOPES:
-        record = scopes[scope]["total"]
-        lines.append(
-            f"{scope:<12} {record['hit']:>9} {record['total']:>9} {record['percent']:>9.2f}%"
-        )
+        values = scopes[scope]["columns"]
+        cells = []
+        for column in columns:
+            record = values[column]
+            cells.append("-" if record["total"] == 0 else f"{record['percent']:.2f}%")
+        lines.append(f"{scope:<12}" + "".join(f"{cell:>{width}}" for cell in cells))
 
     lines.extend(
         [
             "",
-            "Coverage by scope and type",
-            "",
-            f"{'Scope':<12} {'Type':<16} {'Covered':>9} {'Total':>9} {'Coverage':>10}",
-            "-" * 61,
+            "fsm = fsm_state + fsm_arc; user = user + covergroup",
         ]
     )
-    for scope in SCOPES:
-        for index, kind in enumerate(kinds):
-            record = scopes[scope]["types"][kind]
-            scope_label = scope if index == 0 else ""
-            percent = "-" if record["total"] == 0 else f"{record['percent']:.2f}%"
-            lines.append(
-                f"{scope_label:<12} {kind:<16} {record['hit']:>9} {record['total']:>9} {percent:>10}"
-            )
-
     return lines
 
 
@@ -237,16 +275,9 @@ def write_summary(
         json_output.parent.mkdir(parents=True, exist_ok=True)
         json_output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    print(f"\n{BLUE}Coverage{RESET}")
+    print(f"\n{BOLD}{WHITE}Coverage{RESET}")
     for line in lines:
-        match = re.search(r"(\d+(?:\.\d+)?)%$", line)
-        if not match:
-            print(line)
-            continue
-        percent = float(match.group(1))
-        total_match = re.search(r"\s(\d+)\s+\d+(?:\.\d+)?%$", line)
-        total = int(total_match.group(1)) if total_match else 0
-        print(_color(percent, total) + line + RESET)
+        print(_render_summary_line(line))
 
 
 def _shorten(text: str, width: int) -> str:
@@ -368,9 +399,9 @@ def main() -> int:
         limit=args.limit,
         output=args.output,
     )
-    print(f"{BLUE}[coverage_detail]{RESET} scope={args.scope} uncovered={missing}")
-    print(f"{BLUE}log: {args.output}{RESET}")
-    print(f"{BLUE}annotated: {args.annotated_dir}{RESET}")
+    print(f"{ORANGE}[coverage_detail]{RESET} {WHITE}scope={args.scope}{RESET} {GRAY}uncovered={missing}{RESET}")
+    print(f"{GRAY}log:{RESET} {WHITE}{args.output}{RESET}")
+    print(f"{GRAY}annotated:{RESET} {WHITE}{args.annotated_dir}{RESET}")
     return 0
 
 

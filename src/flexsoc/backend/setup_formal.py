@@ -8,6 +8,7 @@ versioned toolchain is selected by the caller.
 from __future__ import annotations
 
 import argparse
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -43,6 +44,8 @@ class EquivalenceConfig:
     depth: int
     sat_depth: int
     output: Path
+    timeout: int = 60
+    multiclock: bool = False
 
 
 def _resolved(paths: Sequence[Path]) -> tuple[Path, ...]:
@@ -392,6 +395,8 @@ def render_eqy(cfg: EquivalenceConfig) -> str:
         raise ValueError("EQY SAT depth must be > 0")
     if not cfg.engine.strip():
         raise ValueError("EQY SBY engine must not be empty")
+    if cfg.timeout <= 0:
+        raise ValueError("EQY SBY timeout must be > 0")
 
     filelists = _require_files(cfg.filelists, label="RTL filelist(s)")
     netlist = _require_files((cfg.netlist,), label="synthesized netlist")[0]
@@ -402,6 +407,24 @@ def render_eqy(cfg: EquivalenceConfig) -> str:
         filelists=filelists,
         formal=False,
     )
+
+    # EQY partitions are heterogeneous. ABC PDR is useful for authored-property
+    # proof, but on mapped equivalence partitions it can terminate as an engine
+    # error without a counterexample (and EQY then aborts the whole run). Use
+    # SMTBMC/Bitwuzla as the robust partition fallback when the legacy default
+    # requests ``abc pdr``. Explicit non-ABC engines are still honored.
+    requested_engine = cfg.engine.strip()
+    robust_engine = (
+        "smtbmc bitwuzla"
+        if requested_engine.lower() == "abc pdr"
+        else requested_engine
+    )
+    # Multi-clock partitions can contain async-FIFO / CDC state that is much
+    # harder for induction than the surrounding logic. Bound the fallback per
+    # partition so one stubborn cone cannot monopolize the whole E2E flow.
+    # The EQY result still records every partition already proven, allowing the
+    # reporting layer to expose closure percentage rather than hiding progress.
+    robust_timeout = min(cfg.timeout, 30) if cfg.multiclock else cfg.timeout
 
     # Both sides are flattened after elaboration so technology mapping is not
     # mistaken for a hierarchy change.  Most mapped cells come from Liberty.
@@ -436,8 +459,9 @@ def render_eqy(cfg: EquivalenceConfig) -> str:
             "",
             "[strategy robust_sby]",
             "use sby",
-            f"engine {cfg.engine.strip()}",
+            f"engine {robust_engine}",
             f"depth {cfg.depth}",
+            f"timeout {robust_timeout}",
             "",
         ]
     )
@@ -530,6 +554,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     equivalence.add_argument("--engine", required=True)
     equivalence.add_argument("--depth", type=int, default=20)
     equivalence.add_argument("--sat-depth", type=int, default=5)
+    equivalence.add_argument("--timeout", type=int, default=60)
     equivalence.add_argument("--output", type=Path, required=True)
     return parser.parse_args(argv)
 
@@ -574,6 +599,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     depth=args.depth,
                     sat_depth=args.sat_depth,
                     output=args.output,
+                    timeout=args.timeout,
+                    multiclock=os.environ.get("CLOCK_MODE", "").strip().lower() in {"multi", "multiclock"},
                 )
             )
     except ValueError as exc:

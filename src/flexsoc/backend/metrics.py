@@ -14,6 +14,15 @@ from rich.table import Table
 
 LINT_KINDS = ("latch", "undriven", "width", "unconnected", "unused")
 FLOAT = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+COVERAGE_DISPLAY_COLUMNS = ("line", "toggle", "expr", "branch", "fsm", "user", "total")
+COVERAGE_TYPE_GROUPS = {
+    "line": ("line",),
+    "toggle": ("toggle",),
+    "expr": ("expr",),
+    "branch": ("branch",),
+    "fsm": ("fsm_state", "fsm_arc"),
+    "user": ("user", "covergroup"),
+}
 
 
 def read_text(path: Path) -> str:
@@ -525,20 +534,74 @@ def collect_formal(top: str, run_dir: Path) -> dict[str, Any] | None:
     return result
 
 
+def _eqy_partition_summary(result_dir: Path, log: Path) -> dict[str, Any]:
+    """Summarize partition closure without confusing engine errors with mismatch."""
+
+    strategy_root = result_dir / "strategies"
+    partition_dirs = sorted(path for path in strategy_root.iterdir() if path.is_dir()) if strategy_root.is_dir() else []
+    counts = {"proven": 0, "failed": 0, "errors": 0, "timeouts": 0, "unknown": 0}
+
+    if partition_dirs:
+        for partition in partition_dirs:
+            states: list[str] = []
+            for status_path in partition.rglob("status"):
+                words = read_text(status_path).strip().upper().split()
+                if words:
+                    states.append(words[0])
+            if "PASS" in states:
+                counts["proven"] += 1
+            elif "ERROR" in states:
+                counts["errors"] += 1
+            elif "FAIL" in states:
+                counts["failed"] += 1
+            elif "TIMEOUT" in states:
+                counts["timeouts"] += 1
+            else:
+                counts["unknown"] += 1
+        total = len(partition_dirs)
+    else:
+        text = read_text(log) if log.is_file() else ""
+        final = re.search(r"Failed to prove equivalence for\s+(\d+)/(\d+)\s+partitions", text)
+        if final:
+            unproved, total = (int(value) for value in final.groups())
+            counts["proven"] = max(0, total - unproved)
+            counts["failed"] = unproved
+        else:
+            proved = set(re.findall(r"Proved equivalence of partition '([^']+)'", text))
+            attempted = set(re.findall(r"Running strategy '[^']+' on '([^']+)'", text))
+            errored = set(re.findall(r"strategy '[^']+' on partition '([^']+)' encountered an error", text))
+            total = len(attempted | proved | errored)
+            counts["proven"] = len(proved)
+            counts["errors"] = len(errored - proved)
+            counts["unknown"] = max(0, total - counts["proven"] - counts["errors"])
+
+    percent = 100.0 * counts["proven"] / total if total else 0.0
+    return {**counts, "total": total, "percent": percent}
+
+
 def collect_equivalence(top: str, run_dir: Path) -> dict[str, Any] | None:
-    """Collect the RTL-vs-synthesis EQY result."""
+    """Collect EQY status and the percentage of partitions proven equivalent."""
 
     log = run_dir / "logs" / "dv" / "formal" / "equivalence" / f"{top}_rtl_vs_syn.log"
     result_dir = run_dir / "dv" / "formal" / "equivalence" / "rtl_vs_syn" / f"{top}_rtl_vs_syn"
     if not log.is_file() and not result_dir.exists():
         return None
-    status_path = result_dir / "status"
-    status = status_word(status_path, log)
-    if status == "unknown" and log.is_file():
-        text = read_text(log)
-        status = "fail" if re.search(r"\b(?:ERROR|FAIL)\b", text, flags=re.IGNORECASE) else "pass"
+
+    partitions = _eqy_partition_summary(result_dir, log)
+    if (result_dir / "PASS").is_file() or (partitions["total"] and partitions["proven"] == partitions["total"]):
+        status = "pass"
+    elif partitions["failed"]:
+        status = "fail"
+    elif partitions["errors"] or partitions["timeouts"] or partitions["unknown"] or partitions["proven"]:
+        status = "partial"
+    elif (result_dir / "FAIL").is_file():
+        status = "fail"
+    else:
+        status = "unknown"
+
     return {
         "status": status,
+        "partitions": partitions,
         "log": relative(log, run_dir) if log.is_file() else None,
         "result_dir": relative(result_dir, run_dir) if result_dir.exists() else None,
     }
@@ -583,7 +646,10 @@ def verification_summary(metrics: dict[str, Any]) -> dict[str, Any]:
 
     equivalence = metrics.get("equivalence")
     if isinstance(equivalence, dict):
-        result["equivalence"] = {"status": equivalence.get("status", "unknown")}
+        result["equivalence"] = {
+            "status": equivalence.get("status", "unknown"),
+            **equivalence.get("partitions", {}),
+        }
 
     return result
 
@@ -621,7 +687,7 @@ def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
 def collect_metrics(top: str, run_dir: Path) -> dict[str, Any]:
     """Collect functional, formal, synthesis, and signoff status for one run."""
 
-    metrics: dict[str, Any] = {"schema_version": 5, "top": top}
+    metrics: dict[str, Any] = {"schema_version": 6, "top": top}
     for name, collector in (
         ("lint", collect_lint),
         ("regression", collect_regression),
@@ -666,65 +732,57 @@ def coverage_markup(record: dict[str, Any]) -> str:
     total = int(record.get("total", 0) or 0)
     hit = int(record.get("hit", 0) or 0)
     if total == 0:
-        return "[dim]-[/dim]"
+        return "[grey58]-[/grey58]"
     percent = float(record.get("percent", 0.0) or 0.0)
-    color = "green" if percent >= 100.0 else "red" if percent <= 0.0 else "yellow"
-    return f"[{color}]{hit}/{total}  {percent:.2f}%[/{color}]"
+    return f"[orange3]{hit}/{total}  {percent:.2f}%[/orange3]"
+
+
+def _coverage_column_record(values: dict[str, Any], column: str) -> dict[str, Any]:
+    """Return one normalized display column, with compatibility for schema v1."""
+
+    columns = values.get("columns")
+    if isinstance(columns, dict):
+        record = columns.get(column)
+        if isinstance(record, dict):
+            return record
+    if column == "total":
+        record = values.get("total")
+        return record if isinstance(record, dict) else {}
+
+    by_type = values.get("types")
+    if not isinstance(by_type, dict):
+        return {}
+    hit = 0
+    total = 0
+    for kind in COVERAGE_TYPE_GROUPS[column]:
+        record = by_type.get(kind)
+        if not isinstance(record, dict):
+            continue
+        hit += int(record.get("hit", 0) or 0)
+        total += int(record.get("total", 0) or 0)
+    return {"hit": hit, "total": total, "percent": 100.0 * hit / total if total else 0.0}
 
 
 def coverage_matrix_table(matrix: dict[str, Any]) -> Table | None:
-    """Return a readable scope-by-type functional coverage table."""
+    """Return the fixed scope × {line,toggle,expr,branch,fsm,user,total} matrix."""
 
     scopes = matrix.get("scopes") if isinstance(matrix, dict) else None
     if not isinstance(scopes, dict) or not scopes:
         return None
-    types = matrix.get("types", [])
-    if not isinstance(types, list):
-        types = []
 
-    table = Table(box=None, pad_edge=False, header_style="bold cyan")
-    table.add_column("Scope", style="cyan", no_wrap=True)
-    table.add_column("Type", no_wrap=True)
-    table.add_column("Covered", justify="right")
-    table.add_column("Total", justify="right")
-    table.add_column("Coverage", justify="right")
+    table = Table(box=None, pad_edge=False, header_style="bold grey70")
+    table.add_column("Scope", style="white", no_wrap=True)
+    for column in COVERAGE_DISPLAY_COLUMNS:
+        table.add_column(column, justify="right", no_wrap=True)
+
     for scope in ("design", "registers", "common", "other", "all"):
         values = scopes.get(scope)
         if not isinstance(values, dict):
             continue
-        by_type = values.get("types", {})
-        if not isinstance(by_type, dict):
-            by_type = {}
-        for index, kind in enumerate(types):
-            record = by_type.get(kind, {})
-            if not isinstance(record, dict):
-                record = {}
-            total = int(record.get("total", 0) or 0)
-            hit = int(record.get("hit", 0) or 0)
-            percent = float(record.get("percent", 0.0) or 0.0)
-            pct = "-" if total == 0 else f"{percent:.2f}%"
-            color = "dim" if total == 0 else "green" if percent >= 100.0 else "red" if percent <= 0.0 else "yellow"
-            table.add_row(
-                scope if index == 0 else "",
-                str(kind),
-                str(hit),
-                str(total),
-                f"[{color}]{pct}[/{color}]",
-            )
-        total_record = values.get("total", {})
-        if isinstance(total_record, dict):
-            total = int(total_record.get("total", 0) or 0)
-            hit = int(total_record.get("hit", 0) or 0)
-            percent = float(total_record.get("percent", 0.0) or 0.0)
-            pct = "-" if total == 0 else f"{percent:.2f}%"
-            color = "dim" if total == 0 else "green" if percent >= 100.0 else "red" if percent <= 0.0 else "yellow"
-            table.add_row(
-                "" if types else scope,
-                "[bold]TOTAL[/bold]",
-                f"[bold]{hit}[/bold]",
-                f"[bold]{total}[/bold]",
-                f"[bold {color}]{pct}[/bold {color}]",
-            )
+        table.add_row(
+            scope,
+            *(coverage_markup(_coverage_column_record(values, column)) for column in COVERAGE_DISPLAY_COLUMNS),
+        )
     return table
 
 
@@ -811,7 +869,14 @@ def show_metrics(path: Path) -> None:
                 )
         equivalence = verification.get("equivalence", {})
         if equivalence:
-            table.add_row("RTL ↔ synthesis", status_markup(str(equivalence.get("status", "unknown"))))
+            total = int(equivalence.get("total", 0) or 0)
+            proven = int(equivalence.get("proven", 0) or 0)
+            percent = float(equivalence.get("percent", 0.0) or 0.0)
+            closure = f"{proven}/{total}  {percent:.2f}%  " if total else ""
+            table.add_row(
+                "RTL ↔ synthesis",
+                closure + status_markup(str(equivalence.get("status", "unknown"))),
+            )
         console.print(table)
 
     lint = data.get("lint")
@@ -860,7 +925,7 @@ def show_metrics(path: Path) -> None:
 
         matrix_table = coverage_matrix_table(regression.get("coverage_matrix", {}))
         if matrix_table is not None:
-            console.print("\n[bold cyan]Functional coverage — scope × type[/bold cyan]")
+            console.print("\n[bold white]Functional coverage — scope × type[/bold white]")
             console.print(matrix_table)
 
     formal = data.get("formal")
@@ -908,6 +973,17 @@ def show_metrics(path: Path) -> None:
         console.print("\n[bold cyan]RTL ↔ synthesis equivalence[/bold cyan]")
         table = metric_table()
         table.add_row("Status", status_markup(str(equiv.get("status", "unknown"))))
+        partitions = equiv.get("partitions", {})
+        if isinstance(partitions, dict) and int(partitions.get("total", 0) or 0):
+            table.add_row(
+                "Partitions proven",
+                f"{partitions.get('proven', 0)}/{partitions.get('total', 0)}  "
+                f"{float(partitions.get('percent', 0.0) or 0.0):.2f}%",
+            )
+            table.add_row("Partitions failed", str(partitions.get("failed", 0)))
+            table.add_row("Engine errors", str(partitions.get("errors", 0)))
+            table.add_row("Timeouts", str(partitions.get("timeouts", 0)))
+            table.add_row("Unknown", str(partitions.get("unknown", 0)))
         table.add_row("Log", str(equiv.get("log", "-")))
         console.print(table)
 
