@@ -251,41 +251,116 @@ vectors empty.
 ## 10. 🧰 Generate verification infrastructure
 
 ```bash
-fx setup_tb --force
-fx setup_cocotb --force
+fx setup_tb setup_cocotb --force
 ```
 
-These targets generate transport/infrastructure only. They do not own expected
-behavior; SystemVerilog and cocotb both consume the same vector-test directories.
+These targets generate execution infrastructure only. Expected behavior remains
+owned by `<top>_model.py` and `<top>_tests.py`; both SystemVerilog and cocotb
+consume the same materialized vectors.
 
-## 11. ✅ Run verification
+Regenerate the TB infrastructure after a DUT port change. A pure behavioral
+change normally needs new vectors, not a new testbench scaffold.
 
-One test:
+## 11. ✅ Functional verification and coverage
+
+Run one selected test while debugging:
 
 ```bash
 fx sim --set TEST_NAME=smoke
 fx cocotb --set TEST_NAME=smoke
 ```
 
-All generated tests:
+For normal closure, use the complete generated catalogue:
 
 ```bash
-fx sim_tests
-fx cocotb_tests
+fx regression
+fx coverage_detail
 ```
 
-Waveforms:
+`regression` runs every generated scenario on the selected SystemVerilog and
+cocotb backends and merges Verilator coverage. The main report is intentionally
+read as a matrix:
+
+```text
+Scope          line   toggle   expr   branch   fsm   user   total
+design          ...     ...     ...      ...    ...    ...     ...
+registers       ...     ...     ...      ...    ...    ...     ...
+common          ...     ...     ...      ...    ...    ...     ...
+other           ...     ...     ...      ...    ...    ...     ...
+all             ...     ...     ...      ...    ...    ...     ...
+```
+
+The scopes answer **where** coverage came from; the columns answer **what type**
+of structural/code coverage Verilator measured. `coverage_detail` keeps the
+uncovered authored-RTL points available for inspection rather than reducing the
+run to one global percentage.
+
+Waveforms remain available when debugging individual tests:
 
 ```bash
 fx view --set TEST_NAME=smoke
 fx view_cocotb --set TEST_NAME=smoke
 ```
 
-Verification logs live under `logs/dv/functional/`.
+Functional logs live under `logs/dv/functional/`.
 
-## 12. 🔄 Iterate after changes
+## 12. 🧠 Formal verification
 
-### 🧾 HJSON-only structural change
+Functional regression and code coverage do not replace proof. FlexSoC keeps
+formal closure under `dv/formal/` and divides it into two sources of intent.
+
+### 🧾 Automatic CSR semantics
+
+CSR formal collateral is generated from the register implementation semantics.
+The generated SystemVerilog binds checker modules onto the reggen primitives
+(`prim_subreg`, `prim_subreg_arb`, `prim_subreg_ext`) instead of modifying the
+DUT RTL.
+
+The two generated intents are deliberately different:
+
+- **assertions** check register update/reset/write-enable/data semantics and are
+  used by BMC/PROVE;
+- **cover statements** ask whether software-writable register activity is
+  reachable and are used by COVER.
+
+```text
+BMC   → shallow assertion checking / counterexample search
+PROVE → proof of the generated + authored assertions
+COVER → reachability of generated + authored cover goals
+```
+
+So a generated `bind` is only the attachment mechanism. Whether the attached
+property is a proof obligation or a reachability goal depends on whether that
+formal source contains `assert` or `cover`.
+
+### ✍️ Authored design properties
+
+Design-specific assertions and covers belong under the formal properties branch
+and are kept separate from generated CSR checks.
+
+Run the complete formal stage with:
+
+```bash
+fx formal
+```
+
+or individual stages while debugging:
+
+```bash
+fx formal_csr_bmc
+fx formal_csr_prove
+fx formal_csr_cover
+fx formal_bmc
+fx formal_prove
+fx formal_cover
+```
+
+Formal status is **not** added to Verilator coverage percentages. It is a
+separate closure axis in `metrics.json` / `fx check`.
+
+## 13. 🔄 Iterate after changes
+
+### 🧾 HJSON / register-map change
 
 ```bash
 fx reg doc --force
@@ -293,61 +368,159 @@ fx regmap_py --force
 fx tests_gen --force
 fx flist --force
 fx lint_suite
-fx sim_tests
-fx cocotb_tests
+fx regression
+fx coverage_detail
+fx formal
 ```
 
-Do not reset `<top>_model.py` or `<top>_tests.py` unless their behavior must
-actually change.
+The formal rerun matters because automatic CSR assertions/covers are derived
+from the same register semantics as the RTL and Python regmap API.
 
-### 🛠️ RTL implementation change
+Do not reset `<top>_model.py` or `<top>_tests.py` unless their authored behavior
+actually needs to change.
 
-Usually:
+### 🛠️ RTL behavior change
 
 ```bash
 fx flist --force      # when hierarchy/dependencies changed
 fx lint_suite
 fx tests_gen --force  # when expected behavior/scenarios changed
-fx sim_tests
-fx cocotb_tests
+fx regression
+fx coverage_detail
+fx formal
 ```
+
+If the RTL changed, synthesis and EQY closure are stale even when regression is
+still green.
 
 ### 🔌 Port/interface change
 
-Refresh the generated wrapper only if it is still flow-owned, update model/test
-code, regenerate TB infrastructure, then rerun lint and verification.
+A port edit has a wider blast radius:
 
-For a larger propagation matrix, see
+```text
+core port list
+  ├── generated wrapper, if still flow-owned
+  ├── model/test transaction shape
+  ├── SV/cocotb testbench wiring
+  ├── authored formal signal references/binds
+  └── constraints, when clock/reset/I/O timing changed
+```
+
+Typical propagation:
+
+```bash
+fx top_from_core --force      # only if wrapper is still generated
+fx tests_gen --force
+fx setup_tb setup_cocotb --force
+fx flist --force
+fx lint_suite
+fx regression
+fx formal
+```
+
+For the complete change-impact matrix, see
 [Project lifecycle and change propagation](project_lifecycle.md).
 
-## 13. 🏗️ Synthesis and signoff
+## 14. 🏗️ Synthesis and RTL ↔ synthesis equivalence
+
+Synthesize first:
 
 ```bash
-fx syn sdf sta power_estimate --force
+fx syn --force
 ```
 
-Synthesis logs are under `logs/synthesis/`; SDF/STA/power-estimate logs are under
-`logs/signoff/`.
-
-`power_estimate` is intentionally a heuristic estimate, not workload-driven power.
-It applies a global switching activity (`POWER_ACTIVITY=0.1` transitions per clock
-cycle) and duty (`POWER_DUTY=0.5`) unless overridden with `--set`.
-
-Use `--live` when full tool output is useful in the terminal:
+Then prove that the mapped netlist still represents the RTL behavior:
 
 ```bash
-fx syn sdf sta power_estimate --force --live
+fx equiv --force
 ```
 
-## 14. 🧪 E2E regression
+`fx equiv` uses EQY and reports closure by partition. The useful result is not a
+single boolean only; FlexSoC keeps apart:
+
+- proven partitions and percentage;
+- real failed partitions;
+- solver/engine errors;
+- timeouts;
+- unknown/incomplete partitions.
+
+This distinction is especially useful when a solver cannot close one partition:
+a partial EQY percentage is not the same thing as a demonstrated functional
+mismatch.
+
+Synthesis logs live under `logs/synthesis/`; EQY logs/results live under the
+formal equivalence branch.
+
+## 15. 📐 SDF, STA, power, and implementation signoff
+
+After synthesis/equivalence:
 
 ```bash
-pytest -s tests/test_e2e_fx.py::test_fx_full_flow_debug --no-signoff
+fx sdf sta power_estimate --force
 ```
 
-Include synthesis/signoff by removing `--no-signoff`. E2E workspaces default to
-`/tmp`, or select another base with:
+`power_estimate` is intentionally a heuristic estimate, not workload-driven
+power. It applies global switching activity (`POWER_ACTIVITY=0.1` transitions
+per clock cycle) and duty (`POWER_DUTY=0.5`) unless overridden with `--set`.
+
+The current implementation/signoff chain is therefore:
+
+```text
+RTL
+ ↓
+synthesis
+ ↓
+EQY equivalence
+ ↓
+SDF / post-synthesis representation
+ ↓
+STA + power
+ ↓
+PnR / post-layout closure as the physical flow is extended
+```
+
+Use `--live` when full tool output is useful:
 
 ```bash
-pytest -s tests/test_e2e_fx.py --e2e-root ~/flexsoc-e2e
+fx formal --live
+fx syn equiv sdf sta power_estimate --force --live
 ```
+
+## 16. 📊 Consolidated run status
+
+After the closure stages:
+
+```bash
+fx manifest metrics check --force
+```
+
+The reporting intentionally keeps separate:
+
+```text
+functional regression + code coverage
+formal BMC / PROVE / COVER
+EQY partition closure
+synthesis statistics
+SDF / STA / power
+```
+
+That gives one project status without pretending that all verification evidence
+has the same semantics.
+
+## 17. 🧪 E2E regression
+
+Run the complete single-clock project path with:
+
+```bash
+make test E2E_ROOT=work
+```
+
+or directly:
+
+```bash
+pytest -s tests/test_e2e_fx.py --e2e-root work
+```
+
+Use `--no-signoff` while iterating on frontend/DV-only changes. With signoff
+enabled, the single-clock E2E continues through formal, synthesis, EQY, SDF,
+STA, power, and metrics.

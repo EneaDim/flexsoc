@@ -1,13 +1,15 @@
 # 🚀 Quickstart
 
-This page is the shortest practical path through FlexSoC. For why the flow is
-structured this way, read [Project lifecycle and change propagation](project_lifecycle.md).
+This page is the shortest practical path through the current FlexSoC IP flow.
+For the engineering reasoning behind selective regeneration, read
+[Project lifecycle and change propagation](project_lifecycle.md).
 
 ## 📦 Install
 
 ```bash
 uv sync
 source .venv/bin/activate
+fx doctor
 fx --help
 fx commands
 ```
@@ -17,7 +19,8 @@ fx commands
 ```text
 HJSON
   ├── generated register RTL/docs
-  └── <top>_regmap.py
+  ├── generated <top>_regmap.py
+  └── generated CSR formal semantics
 
 RTL core/top
   └── hardware implementation
@@ -32,42 +35,60 @@ RTL core/top
         └── data_out.vec
 
 rtl_common.f + rtl_ip.f
-  └── Slang-resolved hierarchy consumed by lint/sim/synthesis
+  └── Slang-resolved hierarchy used by lint / sim / formal / synthesis
 ```
 
-Do not duplicate register offsets or field positions in model/test code. Use
-the generated objects from `<top>_regmap.py`.
+Do not duplicate register offsets or field positions in model/test code. Use the
+generated objects from `<top>_regmap.py`.
 
 ## 🧱 Generated single-clock IP
 
 ```bash
 fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart CLOCK_MODE=single
 
+# Specification + RTL
 fx setup --force
 fx hjson --force
 fx reg doc --force
 fx rtl_stub --force
 fx top_from_core --force
-
 fx flist --force
 fx lint_suite
 
+# Functional DV
 fx setup_model --force
 fx tests_gen --force
-fx tests
-fx setup_tb --force
-fx setup_cocotb --force
-fx sim_tests
-fx cocotb_tests
+fx setup_tb setup_cocotb --force
+fx regression
+fx coverage_detail
+
+# Formal DV
+fx formal
+
+# Implementation + equivalence + signoff
+fx syn --force
+fx equiv --force
+fx sdf sta power_estimate --force
+
+# Consolidated closure
+fx manifest metrics check --force
 ```
 
-Continue to implementation/signoff when needed:
+Functional coverage is reported as a scope × type matrix:
 
-```bash
-fx syn sdf sta power_estimate --force
+```text
+Scope          line   toggle   expr   branch   fsm   user   total
+design          ...     ...     ...      ...    ...    ...     ...
+registers       ...     ...     ...      ...    ...    ...     ...
+common          ...     ...     ...      ...    ...    ...     ...
+other           ...     ...     ...      ...    ...    ...     ...
+all             ...     ...     ...      ...    ...    ...     ...
 ```
 
-After `<top>_model.py` or `<top>_tests.py` has been customized, do not use
+Formal proof and EQY partition closure stay separate from these code-coverage
+percentages.
+
+After `<top>_model.py` or `<top>_tests.py` has been customized, do **not** use
 `setup_model --force` for a routine HJSON change. Refresh only the derived CSR
 collateral:
 
@@ -75,36 +96,9 @@ collateral:
 fx reg doc --force
 fx regmap_py --force
 fx tests_gen --force
+fx regression
+fx formal
 ```
-
-`regmap_py` rewrites only `dv/functional/model/<top>_regmap.py`.
-
-## ♻️ Existing/reusable IP
-
-For an IP already stored under `hw/ips/<top>/`:
-
-```bash
-fx settings TOP=uart RUN_TOP=uart RUN_ID=dev HOST=uart CLOCK_MODE=single
-fx setup --force
-fx ip_load --force
-
-fx reg doc --force
-fx flist --force
-fx lint_suite
-
-fx regmap_py --force
-fx tests_gen --force
-fx tests
-fx setup_tb --force
-fx setup_cocotb --force
-fx sim_tests
-fx cocotb_tests
-```
-
-The standard existing-IP regression does not regenerate source-owned HJSON,
-RTL/top, or behavioral model/test scaffolds. Its purpose is to preserve a
-validated block so it can be regression-tested and reused in larger systems.
-See [Existing IP development](guide_existing_ip_dev.md).
 
 ## ⏱️ Multi-clock IP
 
@@ -121,20 +115,55 @@ fx lint_suite
 
 fx setup_model --force
 fx tests_gen --force
-fx tests
-fx setup_tb --force
-fx setup_cocotb --force
-fx sim_tests
-fx cocotb_tests
+fx setup_tb setup_cocotb --force
+fx regression
+fx coverage_detail
+fx formal
 
 fx sdc_multi --force
-fx syn sdf sta power_estimate --force
+fx syn --force
+fx equiv --force
+fx sdf sta power_estimate --force
+fx metrics check --force
 ```
 
-`CLOCK_MODE=multi` keeps the same high-level model/regmap/tests ownership but
-uses domain-aware/event-driven verification and multi-clock constraints.
+`CLOCK_MODE=multi` preserves the model/regmap/tests ownership contract but uses
+multi-domain register maps, event/domain-aware verification, multi-clock timing
+constraints, and multi-clock formal/equivalence assumptions.
 
-## 🔍 Lint backend
+> 🌐 **Next step:** CDC and RDC structural analysis will be added as explicit
+> multi-clock/reset closure stages. They will remain separate from functional
+> coverage and formal/EQY percentages.
+
+## ♻️ Existing/reusable IP
+
+For an IP already stored under `hw/ips/<top>/`:
+
+```bash
+fx settings TOP=uart RUN_TOP=uart RUN_ID=dev HOST=uart CLOCK_MODE=single
+fx setup --force
+fx ip_load --force
+
+fx reg doc --force
+fx regmap_py --force
+fx flist --force
+fx lint_suite
+
+fx tests_gen --force
+fx setup_tb setup_cocotb --force
+fx regression
+fx coverage_detail
+fx formal
+fx syn --force
+fx equiv --force
+fx sdf sta power_estimate --force
+```
+
+The existing-IP flow preserves source-owned HJSON, RTL/top, model, tests, and
+properties unless replacement is intentional. See
+[Existing IP development](guide_existing_ip_dev.md).
+
+## 🔍 Lint backends
 
 ```bash
 fx lint_suite --set LINT_TOOL=verilator
@@ -149,7 +178,7 @@ fx slang_ast --set SLANG_TOP_FILE=/path/top.sv --set SLANG_ROOT=/path/rtl
 fx slang_flist --set SLANG_TOP_FILE=/path/top.sv --set SLANG_ROOT=/path/rtl
 ```
 
-The canonical project flow uses `fx flist`, which emits `rtl_common.f` and
+The canonical project flow still uses `fx flist`, which emits `rtl_common.f` and
 `rtl_ip.f` for downstream tools.
 
 ## 🧪 Vector-test format
@@ -163,29 +192,58 @@ dv/functional/tests/<TEST_NAME>/
 
 Both SystemVerilog and cocotb consume the same materialized vectors.
 
-## 🪵 Debug output
+## 🔁 Equivalence checking
 
-Default output is compact. Add `--live` to stream full tool output:
+EQY compares the RTL representation against the mapped post-synthesis netlist:
 
 ```bash
-fx sim_tests --live
-fx syn sdf sta power_estimate --force --live
+fx syn --force
+fx equiv --force
 ```
 
-Logs are organized under `logs/lint`, `logs/dv/functional`, `logs/synthesis`, and
-`logs/signoff`.
+The report distinguishes:
+
+- partitions proven equivalent;
+- real failed partitions;
+- solver/engine errors;
+- timeouts;
+- unknown/incomplete partitions.
+
+A partial percentage is therefore diagnostic closure information, not functional
+coverage and not automatically a demonstrated RTL mismatch.
+
+## 🪵 Debug output
+
+Default output stays compact. Add `--live` where full tool output is useful:
+
+```bash
+fx regression --live
+fx formal --live
+fx syn equiv sdf sta power_estimate --force --live
+```
+
+Logs are grouped under `logs/lint`, `logs/dv/functional`, `logs/dv/formal`,
+`logs/synthesis`, and `logs/signoff`.
 
 ## ✅ E2E regression
 
-```bash
-pytest -s tests/test_e2e_fx.py
-pytest -s tests/test_e2e_fx.py --no-signoff
-```
-
-Default E2E workspaces are under `/tmp`. Select another base with:
+The project test entry point is:
 
 ```bash
-pytest -s tests/test_e2e_fx.py --e2e-root ~/flexsoc-e2e
+make test E2E_ROOT=work
 ```
 
-or `FLEXSOC_E2E_ROOT`.
+or directly:
+
+```bash
+pytest -s tests/test_e2e_fx.py --e2e-root work
+```
+
+Skip implementation/signoff while iterating on frontend-only changes with:
+
+```bash
+pytest -s tests/test_e2e_fx.py --no-signoff --e2e-root work
+```
+
+Successful temporary workspaces are removed; failed ones are retained for
+debugging.

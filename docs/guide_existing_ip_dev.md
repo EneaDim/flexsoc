@@ -174,28 +174,38 @@ Different IPs can have different behavioral models while sharing the same
 project contract: model behavior, generated regmap, test catalogue, materialized
 vectors.
 
-## 8. 🔁 Regenerate vectors and infrastructure
+## 8. 🔁 Regenerate vectors and verification infrastructure
 
 ```bash
 fx tests_gen --force
 fx tests
-fx setup_tb --force
-fx setup_cocotb --force
-fx sim_tests
-fx cocotb_tests
+fx setup_tb setup_cocotb --force
+fx regression
+fx coverage_detail
 ```
 
-The loaded source model/test catalogue remains untouched; only derived vectors
-and generated TB infrastructure are refreshed.
+The loaded source model/test catalogue remains untouched; only derived vectors,
+generated TB infrastructure, coverage databases, and reports are refreshed.
 
-## 9. 🏗️ Synthesis/signoff regression
+The same scope × type coverage matrix is used for new and reusable IPs, so
+requalification does not invent a different verification metric.
+
+## 9. 🧠 Formal, synthesis, equivalence, and signoff regression
+
+A reusable IP should be requalified through the same closure layers as a newly
+generated block:
 
 ```bash
-fx syn sdf sta power_estimate --force
+fx formal
+fx syn --force
+fx equiv --force
+fx sdf sta power_estimate --force
+fx metrics check --force
 ```
 
-This allows a reusable IP to be validated through the same frontend,
-verification, and implementation stack as a newly generated IP.
+Formal BMC/PROVE/COVER and EQY partition closure remain separate from functional
+code coverage. This is especially useful when a toolchain upgrade changes
+solver or synthesis behavior without changing the source IP.
 
 ## 10. 🔗 Reuse the IP in a larger SoC
 
@@ -227,13 +237,15 @@ settings
 setup
 ip_load
 reg + doc
+regmap_py
 flist
 lint_suite
-regmap_py
 tests_gen + tests
 setup_tb + setup_cocotb
-sim_tests + cocotb_tests
-synthesis/signoff as needed
+regression + coverage_detail
+formal
+synthesis → EQY → SDF / STA / power
+metrics + check
 ```
 
 The central rule is preservation: derived collateral can be refreshed, authored

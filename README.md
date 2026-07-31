@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/open-IP-SoC-logo.png" alt="FlexSoC — Open IP SoC" width="520"/>
+  <img src="assets/open-IP-SoC-logo.png" alt="FlexSoC — Open IP SoC" width="440"/>
 </p>
 
 # ⚡ FlexSoC
@@ -24,15 +24,23 @@ checks without rebuilding the project flow by hand.
 Digital-design work spans several interfaces at once:
 
 ```text
-specification
+specification / HJSON
     ↓
-register maps ──→ register RTL / docs / software-visible metadata
+register RTL + model CSR API + automatic CSR formal
     ↓
-RTL hierarchy ──→ ordered filelists ──→ lint / simulation / synthesis
+RTL hierarchy ──→ Slang filelists ──→ lint / structural analysis
     ↓
-reference model ──→ reusable test vectors ──→ SV + cocotb
+Design Verification
+    ├── functional: SV + cocotb + Verilator coverage
+    ├── formal: BMC / PROVE / COVER with SymbiYosys
+    └── CDC / RDC structural analysis                         [planned]
     ↓
-constraints ──→ synthesis / SDF / STA / power / PnR
+synthesis ──→ EQY RTL ↔ netlist equivalence
+    ↓
+Design Signoff
+    ├── SDF / post-synthesis simulation
+    ├── STA / power
+    └── PnR / post-layout closure
     ↓
 validated IP ──→ reusable source block ──→ larger SoC/system
 ```
@@ -143,10 +151,33 @@ domains.
 ### 7. ⏱️ Single-clock and multi-clock development
 
 `CLOCK_MODE=single` and `CLOCK_MODE=multi` keep the high-level command vocabulary
-consistent while selecting the appropriate register, RTL, model, testbench, and
-constraint behavior underneath.
+consistent while selecting the appropriate register, RTL, model, testbench,
+formal, and constraint behavior underneath.
 
-### 8. 🏗️ Synthesis, timing, power, and PnR
+Multi-clock closure will also grow explicit **CDC** and **RDC** structural
+analysis. These are intentionally separate from functional coverage and formal
+proof percentages.
+
+### 8. 🧪 Verification and closure are explicit
+
+FlexSoC keeps three verification questions separate:
+
+```text
+functional DV     did the generated scenarios behave as expected?
+                  + how much RTL structure was exercised?
+
+formal DV         were assertions proven and cover goals reached?
+
+EQY equivalence   did synthesis preserve the RTL behavior partition by partition?
+```
+
+`fx regression` runs the generated catalogue on SystemVerilog and cocotb and
+reports Verilator coverage as a scope × type matrix (`line`, `toggle`, `expr`,
+`branch`, `fsm`, `user`, `total`). `fx formal` runs CSR and authored-property
+BMC/PROVE/COVER. After synthesis, `fx equiv` compares RTL against the mapped
+netlist with EQY and reports partition closure separately from code coverage.
+
+### 9. 🏗️ Synthesis, equivalence, timing, power, and PnR
 
 The same run can continue into:
 
@@ -166,7 +197,7 @@ logs/
 └── signoff/
 ```
 
-### 9. ♻️ Reusable existing IPs
+### 10. ♻️ Reusable existing IPs
 
 `hw/ips/<top>/` is the versioned library of reusable IP source collateral.
 Existing IP support is not a separate end goal: it lets a validated block keep
@@ -175,13 +206,13 @@ unchanged into a larger SoC or system.
 
 This is the bridge from **IP development** to **IP reuse**.
 
-### 10. 🔗 SoC composition
+### 11. 🔗 SoC composition
 
 SoC runs stage reusable IPs, generate top-level integration collateral, build a
 Slang-resolved SoC filelist, and own their own top-level verification,
 constraints, software, and signoff assumptions.
 
-### 11. 🧭 Analysis and debug utilities
+### 12. 🧭 Analysis and debug utilities
 
 Slang-backed analysis targets can inspect an arbitrary hierarchy from a top file
 and search root:
@@ -217,9 +248,13 @@ edit <top>.hjson
     │
     ├── fx flist --force
     ├── fx lint_suite
-    ├── fx sim_tests
-    ├── fx cocotb_tests
-    └── fx syn sdf sta power_estimate --force   # when implementation/signoff must be rechecked
+    ├── fx regression
+    ├── fx coverage_detail
+    ├── fx formal
+    └── if hardware changed:
+           fx syn --force
+           fx equiv --force
+           fx sdf sta power_estimate --force
 ```
 
 The important distinction is between **authored source** and **derived
@@ -242,6 +277,8 @@ flow. Depending on the target, the current backend integrates tools including:
 - **cocotb** for Python-driven verification over the same generated vectors;
 - **lowRISC reggen** for HJSON register collateral;
 - **Yosys** and its Slang frontend for synthesis;
+- **SymbiYosys** for CSR and authored-property BMC/PROVE/COVER;
+- **EQY** for RTL-to-post-synthesis equivalence partitioning and proof;
 - **sv2v** where Verilog conversion is useful;
 - **OpenSTA** for static timing and global-activity power estimates;
 - **OpenROAD** for physical-design-oriented flows.
@@ -274,12 +311,15 @@ fx lint_suite
 
 fx setup_model --force
 fx tests_gen --force
-fx setup_tb --force
-fx setup_cocotb --force
-fx sim_tests
-fx cocotb_tests
+fx setup_tb setup_cocotb --force
+fx regression
+fx coverage_detail
+fx formal
 
-fx syn sdf sta power_estimate --force
+fx syn --force
+fx equiv --force
+fx sdf sta power_estimate --force
+fx metrics check --force
 ```
 
 `setup_model --force` is a bootstrap/reset operation. Once `<top>_model.py` and
@@ -313,7 +353,8 @@ A run normally looks like:
 <WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
 ├── data/          # HJSON register specifications
 ├── doc/           # generated register documentation
-├── dv/            # functional/formal design verification collateral
+├── dv/            # functional DV, formal proof, RTL↔synthesis equivalence
+├── analysis/      # Slang analysis; CDC/RDC next-step structural closure
 ├── rtl/           # RTL implementation and Slang-ordered filelists
 ├── logs/          # lint / DV / synthesis / signoff
 ├── syn/           # synthesis collateral/results

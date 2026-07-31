@@ -151,23 +151,102 @@ dsp.DSP_CTRL 0x00000000
 cfg.CTRL 0x00000001
 ```
 
-## 8. ✅ Generate and run verification
+## 8. ✅ Functional verification and coverage
+
+Generate both execution backends:
 
 ```bash
-fx setup_tb --force
-fx setup_cocotb --force
-fx sim_tests
-fx cocotb_tests
+fx setup_tb setup_cocotb --force
 ```
 
-One test:
+Debug one test when needed:
 
 ```bash
 fx sim --set TEST_NAME=mac_smoke
 fx cocotb --set TEST_NAME=mac_smoke
 ```
 
-## 9. 🏗️ Multi-clock constraints and signoff
+For normal closure, run the complete catalogue and merged coverage:
+
+```bash
+fx regression
+fx coverage_detail
+```
+
+The report uses the same scope × type matrix as single-clock designs:
+
+```text
+Scope          line   toggle   expr   branch   fsm   user   total
+design          ...     ...     ...      ...    ...    ...     ...
+registers       ...     ...     ...      ...    ...    ...     ...
+common          ...     ...     ...      ...    ...    ...     ...
+other           ...     ...     ...      ...    ...    ...     ...
+all             ...     ...     ...      ...    ...    ...     ...
+```
+
+The difference is in timing semantics: expected transactions are consumed by
+the relevant domain/event rather than pretending every interface shares one
+cycle counter.
+
+## 9. 🧠 Multi-clock formal verification
+
+The formal structure is intentionally the same as for a single-clock IP:
+
+```text
+automatic CSR properties
+  ├── BMC
+  ├── PROVE
+  └── COVER
+
+authored design properties
+  ├── BMC
+  ├── PROVE
+  └── COVER
+```
+
+Run:
+
+```bash
+fx formal
+```
+
+Clock-domain architecture makes assumptions more important. Assertions that
+cross domains should model synchronization/protocol semantics deliberately
+rather than assuming simultaneous edges on unrelated clocks.
+
+Formal proof status remains separate from functional code coverage.
+
+## 10. 🌐 CDC and RDC — next structural closure step
+
+Multi-clock verification is incomplete if the project only checks functional
+vectors and timing. FlexSoC therefore reserves explicit analysis ownership for:
+
+```text
+analysis/cdc/   # clock-domain crossing analysis
+analysis/rdc/   # reset-domain crossing analysis
+```
+
+These targets are **planned, not implemented yet**. The intended implementation
+layer is structural/static analysis using Slang/Yosys plus FlexSoC Python rules,
+with the methodology informed by Accellera CDC/RDC guidance.
+
+They will sit in the flow as a separate closure axis:
+
+```text
+hierarchy / lint
+      ↓
+CDC + RDC                    [planned]
+      ↓
+functional regression
+      ↓
+formal proof
+      ↓
+synthesis / EQY / timing
+```
+
+CDC/RDC findings will not be folded into Verilator coverage percentages.
+
+## 11. 📐 Multi-clock constraints
 
 Generate the timing-constraint scaffold:
 
@@ -175,13 +254,61 @@ Generate the timing-constraint scaffold:
 fx sdc_multi --force
 ```
 
-Then run:
+A clock-domain change must trigger a constraint review. In a real project,
+inspect at least:
+
+- primary clocks and periods;
+- asynchronous clock relationships;
+- generated clocks, when present;
+- reset behavior and recovery/removal assumptions;
+- input/output delays when the IP boundary owns them;
+- synchronizer/async-FIFO exceptions only when architecturally justified.
+
+Constraints are authored design intent once customized; do not blindly overwrite
+project-specific timing policy.
+
+## 12. 🏗️ Synthesis and EQY equivalence
+
+Run synthesis first:
 
 ```bash
-fx syn sdf sta power_estimate --force
+fx syn --force
 ```
 
-Corner-oriented targets:
+Then compare RTL against the mapped netlist:
+
+```bash
+fx equiv --force
+```
+
+EQY can be more expensive for multi-clock designs even when the RTL is small.
+Async FIFOs, synchronizer state, and independently clocked state can create a
+few difficult equivalence partitions.
+
+FlexSoC therefore reports partition closure explicitly:
+
+```text
+proven / total / percent
+failed
+engine errors
+timeouts
+unknown
+```
+
+A timeout or incomplete partition is **not** silently converted to PASS, but it
+also should not be confused with a proven RTL/netlist mismatch. The E2E flow can
+continue into SDF/STA/power so the rest of implementation closure remains
+visible while the difficult partition is investigated.
+
+## 13. 📊 SDF, STA, and power
+
+Run:
+
+```bash
+fx sdf sta power_estimate --force
+```
+
+Corner-oriented targets remain available:
 
 ```bash
 fx sta_corners
@@ -189,13 +316,60 @@ fx power_estimate_corners
 fx signoff_corners
 ```
 
-Clock-domain changes can affect synchronization logic, constraints, and timing,
-so this is a good example of change propagation extending beyond RTL simulation.
+A multi-clock timing review must be read per clock relationship and per
+setup/hold mode; a global “timing passed” label is only useful after those
+relationships are correctly constrained.
 
-## 10. 🔄 Complete development flow
+## 14. 🔄 Change propagation in a multi-clock IP
+
+### Add or remove a clock/reset domain
+
+```bash
+fx reg doc --force             # if domain register ownership changed
+fx regmap_py --force
+fx top_from_core --force       # only while wrapper is generated
+fx flist --force
+fx lint_suite
+fx tests_gen --force
+fx setup_tb setup_cocotb --force
+fx regression
+fx coverage_detail
+fx formal
+fx sdc_multi --force
+fx syn --force
+fx equiv --force
+fx sdf sta power_estimate --force
+```
+
+When CDC/RDC targets land, they belong in this propagation path immediately
+after hierarchy/lint.
+
+### Move a CSR block between domains
+
+This affects more than HJSON naming. Recheck:
+
+- generated register RTL/domain bindings;
+- generated Python regmap domain objects;
+- transaction/test timing;
+- automatic CSR formal semantics;
+- synchronization around HW/SW-visible state;
+- SDC clock ownership;
+- synthesis/EQY/timing closure.
+
+### Change async FIFO or synchronizer implementation
+
+Rerun functional regression, formal, synthesis, and EQY even if the external
+interface did not change. When available, CDC analysis should become mandatory
+for this class of edit.
+
+For the complete project-wide matrix, see
+[Project lifecycle and change propagation](project_lifecycle.md).
+
+## 15. 🔄 Complete development flow
 
 ```bash
 fx settings TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart CLOCK_MODE=multi
+
 fx setup --force
 fx hjson --force
 fx reg doc --force
@@ -203,27 +377,36 @@ fx rtl_stub --force
 fx top_from_core --force
 fx flist --force
 fx lint_suite
+
 fx setup_model --force
 fx tests_gen --force
-fx tests
-fx setup_tb --force
-fx setup_cocotb --force
-fx sim_tests
-fx cocotb_tests
+fx setup_tb setup_cocotb --force
+fx regression
+fx coverage_detail
+fx formal
+
+# CDC / RDC will be inserted here when implemented.
 fx sdc_multi --force
-fx syn sdf sta power_estimate --force
+fx syn --force
+fx equiv --force
+fx sdf sta power_estimate --force
+fx metrics check --force
 ```
 
-## 11. 🧪 E2E regression
+## 16. 🧪 E2E regression
+
+Run the project suite with:
 
 ```bash
-pytest -s tests/test_e2e_fx.py::test_fx_full_flow_debug --no-signoff
+make test E2E_ROOT=work
 ```
 
-Use another workspace base if desired:
+or target pytest directly:
 
 ```bash
-pytest -s tests/test_e2e_fx.py::test_fx_full_flow_debug \
-  --no-signoff \
-  --e2e-root ~/flexsoc-e2e
+pytest -s tests/test_e2e_fx.py --e2e-root work
 ```
+
+The multi-clock E2E should expose every closure stage independently. A partial
+EQY result may retain the workspace for investigation, but it must not hide the
+SDF/STA/power results that follow.
