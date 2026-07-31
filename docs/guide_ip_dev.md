@@ -263,6 +263,10 @@ change normally needs new vectors, not a new testbench scaffold.
 
 ## 11. ✅ Functional verification and coverage
 
+For command semantics, result interpretation, waveform policy, and gate-level
+simulation, see [Design verification](design_verification.md).
+
+
 Run one selected test while debugging:
 
 ```bash
@@ -306,57 +310,65 @@ Functional logs live under `logs/dv/functional/`.
 
 ## 12. 🧠 Formal verification
 
-Functional regression and code coverage do not replace proof. FlexSoC keeps
-formal closure under `dv/formal/` and divides it into two sources of intent.
+FlexSoC keeps property checking under Formal DV; RTL-to-netlist equivalence is a technology-dependent sign-off stage.
+The detailed reference is [Design verification](design_verification.md).
 
 ### 🧾 Automatic CSR semantics
 
-CSR formal collateral is generated from the register implementation semantics.
-The generated SystemVerilog binds checker modules onto the reggen primitives
-(`prim_subreg`, `prim_subreg_arb`, `prim_subreg_ext`) instead of modifying the
-DUT RTL.
+Generated checkers are bound into reggen primitives without modifying the DUT.
+`assert` statements are proof obligations; `cover` statements are reachability
+goals.
 
-The two generated intents are deliberately different:
-
-- **assertions** check register update/reset/write-enable/data semantics and are
-  used by BMC/PROVE;
-- **cover statements** ask whether software-writable register activity is
-  reachable and are used by COVER.
-
-```text
-BMC   → shallow assertion checking / counterexample search
-PROVE → proof of the generated + authored assertions
-COVER → reachability of generated + authored cover goals
-```
-
-So a generated `bind` is only the attachment mechanism. Whether the attached
-property is a proof obligation or a reachability goal depends on whether that
-formal source contains `assert` or `cover`.
-
-### ✍️ Authored design properties
-
-Design-specific assertions and covers belong under the formal properties branch
-and are kept separate from generated CSR checks.
-
-Run the complete formal stage with:
+Run the complete property suite:
 
 ```bash
 fx formal
 ```
 
-or individual stages while debugging:
+Or isolate generated CSR semantics:
 
 ```bash
 fx formal_csr_bmc
 fx formal_csr_prove
 fx formal_csr_cover
+```
+
+### ✍️ Authored design properties
+
+Project-specific assertions/covers remain separate from automatic CSR checks:
+
+```bash
 fx formal_bmc
 fx formal_prove
 fx formal_cover
 ```
 
-Formal status is **not** added to Verilator coverage percentages. It is a
-separate closure axis in `metrics.json` / `fx check`.
+Use BMC first for fast counterexample discovery, PROVE for stronger closure, and
+COVER for reachability. None of these results are functional code coverage.
+
+### 🔁 Sign-off: RTL ↔ synthesis equivalence
+
+Equivalence is a technology-dependent sign-off stage with a synthesis prerequisite. After creating
+the mapped netlist:
+
+```bash
+fx syn --force
+fx setup_eqy --force      # optional: inspect generated EQY configuration
+fx eqy --force
+```
+
+EQY reports proven, failed, error, timeout, and unknown partitions separately.
+For a non-PASS partition, start from the unified diagnosis:
+
+```bash
+fx eqy_debug
+fx eqy_debug [partition]
+fx eqy_debug --wave [partition]
+fx eqy_debug --wave [partition] induction
+fx eqy_debug --files [partition]
+```
+
+`eqy_debug` summarizes closure, identifies the failing strategy, analyzes the first gold/gate VCD divergence, and runs a non-destructive reset-state probe. `--wave` and `--files` keep waveform and raw-artifact access under the same command.
 
 ## 13. 🔄 Iterate after changes
 
@@ -421,39 +433,22 @@ fx formal
 For the complete change-impact matrix, see
 [Project lifecycle and change propagation](project_lifecycle.md).
 
-## 14. 🏗️ Synthesis and RTL ↔ synthesis equivalence
+## 14. 🏗️ Synthesis and implementation handoff
 
-Synthesize first:
+Synthesis creates the mapped implementation consumed by sign-off equivalence,
+gate-level simulation, timing, power, and later PnR:
 
 ```bash
 fx syn --force
 ```
 
-Then prove that the mapped netlist still represents the RTL behavior:
-
-```bash
-fx equiv --force
-```
-
-`fx equiv` uses EQY and reports closure by partition. The useful result is not a
-single boolean only; FlexSoC keeps apart:
-
-- proven partitions and percentage;
-- real failed partitions;
-- solver/engine errors;
-- timeouts;
-- unknown/incomplete partitions.
-
-This distinction is especially useful when a solver cannot close one partition:
-a partial EQY percentage is not the same thing as a demonstrated functional
-mismatch.
-
-Synthesis logs live under `logs/synthesis/`; EQY logs/results live under the
-formal equivalence branch.
+The EQY proof itself belongs to Formal DV and is documented in section 12.
+Synthesis logs remain under `logs/synthesis/`; EQY results remain under
+`signoff/equivalence/<pdk>/rtl_vs_syn/`.
 
 ## 15. 📐 SDF, STA, power, and implementation signoff
 
-After synthesis/equivalence:
+After synthesis/sign-off equivalence:
 
 ```bash
 fx sdf sta power_estimate --force
@@ -483,7 +478,7 @@ Use `--live` when full tool output is useful:
 
 ```bash
 fx formal --live
-fx syn equiv sdf sta power_estimate --force --live
+fx syn eqy sdf sta power_estimate --force --live
 ```
 
 ## 16. 📊 Consolidated run status

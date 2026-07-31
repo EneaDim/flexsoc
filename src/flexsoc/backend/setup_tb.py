@@ -1495,9 +1495,13 @@ def render_verilator_include(top: str, rtldir: str | Path, syndir: str | Path,
 
     inc.append("`else")
 
-    # prims: includi solo il basename, e metti le loro dir in +incdir
+    # Legacy Make/Verilator flow includes primitive models here. Python-native
+    # GLS defines FLEXSOC_GLS_EXTERNAL_MODELS and supplies the active PDK models
+    # explicitly, which makes a regenerated TB portable across PDK profiles.
+    inc.append("  `ifndef FLEXSOC_GLS_EXTERNAL_MODELS")
     for p in prims:
-        inc.append(f'  `include "{Path(p).name}"')
+        inc.append(f'    `include "{Path(p).name}"')
+    inc.append("  `endif")
 
     # synth netlist: includi solo nome, assume +incdir+syndir nel comando
     inc.append(f'  `include "{top}_synth.v"')
@@ -1890,26 +1894,40 @@ def render_testbench(top: str,
         lines.append("    forever #(CLK_PERIOD / 2) " + f"{c} = ~{c};")
         lines.append("  end\n")
 
-    # Waveform path is supplied per test by the Makefile. Verilator selects
-    # FST at compile time; other simulators keep the portable VCD fallback.
+    # Waveform *path* is simulator-independent. The runtime selects the
+    # encoding (FST by default in FlexSoC, VCD on request). Accept the old
+    # +VCD plusarg as a compatibility fallback, but never invent a cwd-local
+    # filename: an empty path means no dump.
     lines.append("  string wave_path;")
     lines.append("  initial begin")
-    lines.append('    if (!$value$plusargs("WAVE=%s", wave_path)) wave_path = "";')
-    lines.append('    $display("[TB] dumpfile = %s", wave_path);')
-    lines.append("    $dumpfile(wave_path);")
-    lines.append(f"    $dumpvars(0, {top}_tb);")
+    lines.append('    if (!$value$plusargs("WAVE=%s", wave_path)) begin')
+    lines.append('      if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";')
+    lines.append("    end")
+    lines.append('    if (wave_path != "") begin')
+    lines.append('      $display("[TB] dumpfile = %s", wave_path);')
+    lines.append("      $dumpfile(wave_path);")
+    lines.append(f"      $dumpvars(0, {top}_tb);")
+    lines.append("    end")
     lines.append("  end\n")
 
-    # SDF annotate (disabled for Verilator)
+    # SDF exists only in gate-level builds; RTL simulators never parse it.
     lines.append("  // SDF backannotation")
-    lines.append("  `ifndef VERILATOR")
+    lines.append("  `ifdef FLEXSOC_ENABLE_SDF")
     lines.append("    string sdf_path;")
     lines.append("    initial begin")
-    lines.append('      if (!$value$plusargs("SDF=%s", sdf_path)) begin')
-    lines.append('        sdf_path = "";')
+    lines.append('      if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";')
+    lines.append('      if (sdf_path != "") begin')
+    lines.append('        `ifdef FLEXSOC_SDF_MIN')
+    lines.append('          $display("[TB] sdf = %s (MINIMUM)", sdf_path);')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MINIMUM");')
+    lines.append('        `elsif FLEXSOC_SDF_TYP')
+    lines.append('          $display("[TB] sdf = %s (TYPICAL)", sdf_path);')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "TYPICAL");')
+    lines.append('        `else')
+    lines.append('          $display("[TB] sdf = %s (MAXIMUM)", sdf_path);')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MAXIMUM");')
+    lines.append('        `endif')
     lines.append("      end")
-    lines.append('      $display("[TB] sdf = %s", sdf_path);')
-    lines.append(f'      $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MAXIMUM");')
     lines.append("    end")
     lines.append("  `endif\n")
 
@@ -2026,15 +2044,37 @@ def render_simple_testbench(top: str,
         lines.append(f"    forever #(CLK_PERIOD/2) {c} = ~{c};")
         lines.append("  end\n")
 
-    # Waveform path is supplied per test by the Makefile. Verilator selects
-    # FST at compile time; other simulators keep the portable VCD fallback.
+    # Runtime-selected FST/VCD path; never fall back to a cwd-local dump.
     lines.append("  string wave_path;")
     lines.append("  initial begin")
-    lines.append('    if (!$value$plusargs("WAVE=%s", wave_path)) wave_path = "";')
-    lines.append('    $display("[TB] dumpfile = %s", wave_path);')
-    lines.append("    $dumpfile(wave_path);")
-    lines.append(f"    $dumpvars(0, {top}_tb);")
+    lines.append('    if (!$value$plusargs("WAVE=%s", wave_path)) begin')
+    lines.append('      if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";')
+    lines.append("    end")
+    lines.append('    if (wave_path != "") begin')
+    lines.append('      $display("[TB] dumpfile = %s", wave_path);')
+    lines.append("      $dumpfile(wave_path);")
+    lines.append(f"      $dumpvars(0, {top}_tb);")
+    lines.append("    end")
     lines.append("  end\n")
+    lines.append("  // Optional SDF backannotation for post-synthesis/post-PnR GLS")
+    lines.append("  `ifdef FLEXSOC_ENABLE_SDF")
+    lines.append("    string sdf_path;")
+    lines.append("    initial begin")
+    lines.append('      if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";')
+    lines.append('      if (sdf_path != "") begin')
+    lines.append('        `ifdef FLEXSOC_SDF_MIN')
+    lines.append('          $display("[TB] sdf = %s (MINIMUM)", sdf_path);')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MINIMUM");')
+    lines.append('        `elsif FLEXSOC_SDF_TYP')
+    lines.append('          $display("[TB] sdf = %s (TYPICAL)", sdf_path);')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "TYPICAL");')
+    lines.append('        `else')
+    lines.append('          $display("[TB] sdf = %s (MAXIMUM)", sdf_path);')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MAXIMUM");')
+    lines.append('        `endif')
+    lines.append("      end")
+    lines.append("    end")
+    lines.append("  `endif\n")
     # UART HOST TASK
     if top == 'soc':
         lines.append("  // UART HOST TASKS")

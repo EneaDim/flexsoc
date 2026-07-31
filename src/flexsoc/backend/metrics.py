@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any, Sequence
 
 from rich.console import Console
 from rich.table import Table
+
+from flexsoc.run_layout import pdk_run_layout
 
 
 LINT_KINDS = ("latch", "undriven", "width", "unconnected", "unused")
@@ -297,10 +300,10 @@ def yosys_statistics(top: str, text: str) -> dict[str, Any]:
     return stats
 
 
-def collect_synthesis(top: str, run_dir: Path) -> dict[str, Any] | None:
-    """Collect useful statistics from the latest Yosys synthesis log."""
+def collect_synthesis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
+    """Collect useful statistics from the selected PDK synthesis log."""
 
-    log_dir = run_dir / "logs" / "synthesis"
+    log_dir = pdk_run_layout(run_dir, pdk=pdk, top=top).synthesis_log_dir
     log = latest(tuple(log_dir.glob(f"{top}_synth_opt_*.log")))
     if log is None:
         return None
@@ -318,10 +321,10 @@ def collect_synthesis(top: str, run_dir: Path) -> dict[str, Any] | None:
     return data
 
 
-def collect_sta(top: str, run_dir: Path) -> dict[str, Any] | None:
-    """Collect timing summary metrics for every available OpenSTA scenario."""
+def collect_sta(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
+    """Collect timing summary metrics for the selected PDK."""
 
-    log_dir = run_dir / "logs" / "signoff"
+    log_dir = pdk_run_layout(run_dir, pdk=pdk, top=top).sta_log_dir
     prefix = f"{top}_sta_"
     scenarios: dict[str, dict[str, Any]] = {}
 
@@ -358,10 +361,10 @@ def collect_sta(top: str, run_dir: Path) -> dict[str, Any] | None:
     return scenarios or None
 
 
-def collect_power_estimate(top: str, run_dir: Path) -> dict[str, Any] | None:
-    """Collect global-activity power estimates for every available corner."""
+def collect_power_estimate(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
+    """Collect global-activity power estimates for the selected PDK."""
 
-    log_dir = run_dir / "logs" / "signoff"
+    log_dir = pdk_run_layout(run_dir, pdk=pdk, top=top).power_log_dir
     prefix = f"{top}_power_estimate_"
     corners: dict[str, Any] = {}
     activity: float | None = None
@@ -579,11 +582,12 @@ def _eqy_partition_summary(result_dir: Path, log: Path) -> dict[str, Any]:
     return {**counts, "total": total, "percent": percent}
 
 
-def collect_equivalence(top: str, run_dir: Path) -> dict[str, Any] | None:
-    """Collect EQY status and the percentage of partitions proven equivalent."""
+def collect_equivalence(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
+    """Collect sign-off EQY closure for the selected PDK."""
 
-    log = run_dir / "logs" / "dv" / "formal" / "equivalence" / f"{top}_rtl_vs_syn.log"
-    result_dir = run_dir / "dv" / "formal" / "equivalence" / "rtl_vs_syn" / f"{top}_rtl_vs_syn"
+    layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
+    log = layout.equivalence_log
+    result_dir = layout.equivalence_dir / f"{top}_rtl_vs_syn"
     if not log.is_file() and not result_dir.exists():
         return None
 
@@ -607,10 +611,10 @@ def collect_equivalence(top: str, run_dir: Path) -> dict[str, Any] | None:
     }
 
 
-def collect_sdf(top: str, run_dir: Path) -> dict[str, Any] | None:
-    """Collect generated SDF files and their sizes."""
+def collect_sdf(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
+    """Collect generated SDF files for the selected PDK."""
 
-    sdf_dir = run_dir / "signoff" / "sdf"
+    sdf_dir = pdk_run_layout(run_dir, pdk=pdk, top=top).sdf_dir
     files = sorted(sdf_dir.glob(f"{top}_*.sdf")) if sdf_dir.is_dir() else []
     if not files:
         return None
@@ -623,7 +627,7 @@ def collect_sdf(top: str, run_dir: Path) -> dict[str, Any] | None:
 
 
 def verification_summary(metrics: dict[str, Any]) -> dict[str, Any]:
-    """Summarize functional coverage, formal closure, and RTL equivalence."""
+    """Summarize PDK-independent functional and property-formal verification."""
 
     result: dict[str, Any] = {}
     regression = metrics.get("regression")
@@ -644,6 +648,13 @@ def verification_summary(metrics: dict[str, Any]) -> dict[str, Any]:
             **formal.get("summary", {}),
         }
 
+    return result
+
+
+def signoff_summary(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Summarize technology-dependent sign-off for the selected PDK."""
+
+    result: dict[str, Any] = {}
     equivalence = metrics.get("equivalence")
     if isinstance(equivalence, dict):
         result["equivalence"] = {
@@ -651,6 +662,13 @@ def verification_summary(metrics: dict[str, Any]) -> dict[str, Any]:
             **equivalence.get("partitions", {}),
         }
 
+    sdf = metrics.get("sdf")
+    if isinstance(sdf, dict):
+        result["sdf"] = {"status": sdf.get("status", "unknown"), "count": sdf.get("count", 0)}
+    if metrics.get("sta"):
+        result["sta"] = {"status": "pass"}
+    if metrics.get("power_estimate"):
+        result["power"] = {"status": "pass"}
     return result
 
 
@@ -684,31 +702,56 @@ def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def collect_metrics(top: str, run_dir: Path) -> dict[str, Any]:
-    """Collect functional, formal, synthesis, and signoff status for one run."""
+def collect_metrics(
+    top: str,
+    run_dir: Path,
+    *,
+    pdk: str | None = None,
+) -> dict[str, Any]:
+    """Collect one logical run plus the selected PDK-scoped implementation."""
 
-    metrics: dict[str, Any] = {"schema_version": 6, "top": top}
+    selected_pdk = pdk or "sky130"
+    layout = pdk_run_layout(run_dir, pdk=selected_pdk, top=top)
+    metrics: dict[str, Any] = {
+        "schema_version": 8,
+        "top": top,
+        "run_root": str(run_dir.resolve()),
+        "technology": {
+            "pdk": selected_pdk,
+            "artifacts": layout.as_dict(),
+        },
+    }
+
+    # PDK-independent closure is shared by every implementation branch.
     for name, collector in (
         ("lint", collect_lint),
         ("regression", collect_regression),
         ("formal", collect_formal),
+    ):
+        data = collector(top, run_dir)
+        if data is not None:
+            metrics[name] = data
+
+    # Technology-dependent implementation/sign-off is selected by PDK.
+    for name, collector in (
         ("synthesis", collect_synthesis),
         ("equivalence", collect_equivalence),
         ("sdf", collect_sdf),
         ("sta", collect_sta),
         ("power_estimate", collect_power_estimate),
     ):
-        data = collector(top, run_dir)
+        data = collector(top, run_dir, selected_pdk)
         if data is not None:
             metrics[name] = data
+
     synthesis = metrics.get("synthesis")
     if isinstance(synthesis, dict):
-        netlist = run_dir / "syn" / f"{top}_synth.v"
+        netlist = layout.syn_dir / f"{top}_synth.v"
         synthesis["netlist"] = relative(netlist, run_dir) if netlist.is_file() else None
     metrics["verification"] = verification_summary(metrics)
+    metrics["signoff"] = signoff_summary(metrics)
     metrics["closure"] = closure_status(metrics)
     return metrics
-
 
 
 
@@ -867,7 +910,13 @@ def show_metrics(path: Path) -> None:
                         else "partial"
                     ),
                 )
-        equivalence = verification.get("equivalence", {})
+        console.print(table)
+
+    signoff = data.get("signoff", {})
+    if signoff:
+        console.print("\n[bold cyan]Sign-off summary[/bold cyan]")
+        table = metric_table()
+        equivalence = signoff.get("equivalence", {})
         if equivalence:
             total = int(equivalence.get("total", 0) or 0)
             proven = int(equivalence.get("proven", 0) or 0)
@@ -877,6 +926,10 @@ def show_metrics(path: Path) -> None:
                 "RTL ↔ synthesis",
                 closure + status_markup(str(equivalence.get("status", "unknown"))),
             )
+        for label, key in (("SDF", "sdf"), ("STA", "sta"), ("Power", "power")):
+            stage = signoff.get(key, {})
+            if stage:
+                table.add_row(label, status_markup(str(stage.get("status", "unknown"))))
         console.print(table)
 
     lint = data.get("lint")
@@ -1070,9 +1123,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
         return 0
 
+    pdk = os.environ.get("FLEXSOC_PDK") or None
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
-        json.dumps(collect_metrics(args.top, args.run_dir), indent=2) + "\n",
+        json.dumps(
+            collect_metrics(args.top, args.run_dir, pdk=pdk),
+            indent=2,
+        ) + "\n",
         encoding="utf-8",
     )
     print(f"[metrics] output: {args.output}")

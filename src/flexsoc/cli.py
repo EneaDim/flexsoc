@@ -41,7 +41,7 @@ if _MISSING:  # pragma: no cover - exercised only in incomplete envs.
 else:
     console = Console()
     error_console = Console(stderr=True)
-    PSEUDO_COMMANDS = ("settings", "commands", "doctor", "shell")
+    PSEUDO_COMMANDS = ("settings", "commands", "doctor", "pdk", "eqy_debug", "shell")
     OPTION_WORDS = (
         "--set",
         "--unset",
@@ -115,6 +115,8 @@ Use `fx commands` to list every backend Make target.
                     ("fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart", "Save the default IP/run configuration."),
                     ("fx commands", "List every backend target exposed by the Makefile."),
                     ("fx doctor", "Check the Python lock and local EDA toolchain."),
+                    ("fx pdk list", "List real/open, predictive, and reference PDK profiles."),
+                    ("fx pdk use sky130", "Activate one locally usable PDK for synthesis, GLS, EQY and PnR."),
                     ("fx tests", "Show generated verification tests for the current IP."),
                     ("fx shell", "Open the interactive prompt with target completion."),
                 ],
@@ -127,6 +129,9 @@ Use `fx commands` to list every backend Make target.
                     ("fx sim --set TEST_NAME=smoke --force", "Run one SystemVerilog vector test by name."),
                     ("fx cocotb --set TEST_NAME=smoke --force", "Run one cocotb vector test by name."),
                     ("fx regression", "Run all generated tests on SystemVerilog and cocotb backends with coverage."),
+                    ("fx eqy_debug [partition]", "Explain EQY closure, counterexample, and reset-state diagnosis."),
+                    ("fx eqy_debug --wave [partition]", "Open the selected counterexample waveform."),
+                    ("fx eqy_debug --files [partition]", "List raw EQY/SBY artifacts for the selected partition."),
                 ],
             ),
             section(
@@ -134,7 +139,7 @@ Use `fx commands` to list every backend Make target.
                 [
                     ("fx setup hjson reg doc rtl_stub lint --force", "Create a fresh IP workspace and run lint."),
                     ("fx setup_model regression --force", "Generate the model and run the full SV+cocotb regression."),
-                    ("fx ip_flow --force", "Run lint, regression, formal, synthesis/equivalence, SDF, STA, power, then reports."),
+                    ("fx ip_flow --force", "Run lint, regression, property formal, synthesis, sign-off equivalence, SDF, STA, power, then reports."),
                     ("fx manifest_show", "Show the saved run identity and tool versions in color."),
                 ],
             ),
@@ -271,15 +276,369 @@ Use `fx commands` to list every backend Make target.
     # -----------------------------------------------------------------------
 
     def _settings(root: Path, items: tuple[str, ...], sets: tuple[str, ...], unsets: tuple[str, ...], reset: bool, as_json: bool) -> None:
-        """Show or update persistent project settings."""
+        """Show or update persistent project settings plus derived run roots."""
+
+        from .run_layout import layout_from_values
 
         values = dict(DEFAULT_SETTINGS if reset else _read_settings(root))
         for key in unsets:
             values.pop(key.upper(), None)
-        values.update(_assignments((*items, *sets)))
+        updates = _assignments((*items, *sets))
+        if "PDK" in updates and "PDK_ROOT" not in updates:
+            values.pop("PDK_ROOT", None)
+        values.update(updates)
         if reset or unsets or sets or items:
             _write_settings(root, values)
-        _print_settings(values, as_json)
+        display = dict(values)
+        layout = layout_from_values(root, display)
+        display["RUN_ROOT"] = str(layout.run_root)
+        display["SYN_DIR"] = str(layout.syn_dir)
+        display["EQUIV_DIR"] = str(layout.equivalence_dir)
+        display["PNR_DIR"] = str(layout.pnr_dir)
+        _print_settings(display, as_json)
+
+    def _pdk(
+        root: Path,
+        args: tuple[str, ...],
+        sets: tuple[str, ...],
+        *,
+        force: bool,
+        as_json: bool,
+    ) -> int:
+        """List, inspect, fetch, or activate a PDK profile."""
+
+        from .pdk import describe, discover_views, fetch, json_text, list_data, make_overrides, normalize_name
+
+        action = args[0] if args else "list"
+        name = args[1] if len(args) > 1 else None
+        extra = _assignments(sets)
+        pdk_root = extra.get("PDK_ROOT")
+
+        if action == "list":
+            data = list_data(root)
+            if as_json:
+                print(json_text(data))
+                return 0
+            table = Table(title="FlexSoC PDK catalogue")
+            table.add_column("PDK", style="bright_cyan", no_wrap=True)
+            table.add_column("Node", no_wrap=True)
+            table.add_column("Class")
+            table.add_column("ORFS", no_wrap=True)
+            table.add_column("Local")
+            for item in data:
+                views = item["views"]
+                state = "ready" if views["usable"] else ("fetched" if Path(views["root"]).exists() else "-")
+                table.add_row(str(item["name"]), str(item["node"]), str(item["classification"]), str(item["orfs_platform"]), state)
+            console.print(table)
+            return 0
+
+        if action not in {"info", "fetch", "use"}:
+            raise typer.BadParameter("pdk action must be list, info, fetch, or use")
+        if not name:
+            raise typer.BadParameter(f"fx pdk {action} requires a PDK name")
+        canonical = normalize_name(name)
+
+        if action == "fetch":
+            path = fetch(root, canonical, force=force, version=extra.get("PDK_VERSION"))
+            data = describe(root, canonical, path)
+            if as_json:
+                print(json_text(data))
+            else:
+                console.print(f"[bold orange1]PDK fetched[/bold orange1]: [bright_cyan]{canonical}[/bright_cyan]")
+                console.print(f"[white]path[/white]: {path}")
+                ready = bool(data["views"]["usable"])
+                state = "ready for digital flow" if ready else "source fetched; digital Liberty/Verilog views still need preparation"
+                console.print(f"[white]status[/white]: {state}")
+            return 0
+
+        data = describe(root, canonical, pdk_root)
+        if action == "info":
+            if as_json:
+                print(json_text(data))
+            else:
+                views = data["views"]
+                console.print(Panel.fit(
+                    f"[bold bright_cyan]{data['title']}[/bold bright_cyan]\n"
+                    f"node: {data['node']}\n"
+                    f"class: {data['classification']}\n"
+                    f"OpenROAD platform: {data['orfs_platform']}\n"
+                    f"source: {data['source_url']}\n"
+                    f"fetch provider: {data['fetch_provider']}\n"
+                    + (f"fetched revision: {data.get('fetch', {}).get('revision')}\n" if data.get('fetch', {}).get('revision') else "")
+                    + f"local root: {views['root']}\n"
+                    f"digital views: {'ready' if views['usable'] else 'not ready'}\n"
+                    f"functional Verilog: {'ready (' + str(len(views['verilog_models'])) + ')' if views['verilog_models'] else 'missing'}\n"
+                    + (f"formal EQY adapter: {'ready' if data.get('formal_adapter') else 'missing'}\n" if data.get('formal_adapter_required') else "formal EQY adapter: not required\n")
+                    + f"legacy repo PDK: {'ignored (' + str(data['legacy_root']) + ')' if data.get('legacy_present') else 'none'}\n"
+                    f"note: {data['note']}",
+                    title="PDK profile",
+                    border_style="orange1",
+                ))
+            return 0
+
+        install = Path(pdk_root).expanduser().resolve() if pdk_root else Path(data["views"]["root"])
+        views = discover_views(install, canonical)
+        if not views.usable:
+            raise typer.BadParameter(
+                f"PDK {canonical} is not ready for digital flow under {install}; "
+                "need at least a typical Liberty and functional gate-level Verilog model"
+            )
+        current = _read_settings(root)
+        current.update({"PDK": canonical, "PDK_ROOT": str(install)})
+        _write_settings(root, current)
+        derived = make_overrides(root, canonical, install)
+        if as_json:
+            print(json_text({"active": canonical, "settings": current, "derived": derived}))
+        else:
+            console.print(f"[bold orange1]PDK active[/bold orange1]: [bright_cyan]{canonical}[/bright_cyan]")
+            console.print(f"[white]root[/white]: {install}")
+            console.print(f"[white]Liberty[/white]: {derived.get('LIB_SYN', '-')}")
+            console.print(f"[white]OpenROAD[/white]: {derived.get('ORS_TECH', '-')}")
+            console.print("[grey70]Regenerate setup_tb/setup_tb_multi before gate-level simulation after changing PDK.[/grey70]")
+        return 0
+
+
+
+    def _eqy_debug(
+        root: Path,
+        workdir: Path | None,
+        args: tuple[str, ...],
+        sets: tuple[str, ...],
+        *,
+        as_json: bool,
+    ) -> int:
+        """Explain one EQY failure; expensive probes target only the selected partition."""
+
+        from .backend.eqy_debug import (
+            choose_trace, discover_result_dir, explain_counterexample, open_wave,
+            run_reset_normalized_diagnostic, run_synthesis_boundary_diagnostics,
+            scan, select,
+        )
+
+        settings = _read_settings(root)
+        settings.update(_assignments(sets))
+        top = settings.get("TOP", "test")
+        run_top = settings.get("RUN_TOP") or top
+        run_id = settings.get("RUN_ID", "default")
+        pdk = settings.get("PDK", DEFAULT_SETTINGS["PDK"])
+        workspace = (workdir or Path(settings.get("WORKSPACE", root / "workspace"))).expanduser().resolve()
+
+        values = list(args)
+        action = "show"
+        if values and values[0] in {"--wave", "wave", "open"}:
+            action = "wave"; values.pop(0)
+        elif values and values[0] in {"--files", "files"}:
+            action = "files"; values.pop(0)
+        partition = values.pop(0) if values else None
+        trace_kind = values.pop(0) if values else "auto"
+        if values:
+            error_console.print("[red]eqy_debug accepts at most one partition and one trace kind[/red]")
+            return 2
+
+        try:
+            result_dir = discover_result_dir(root, workspace, top=top, run_top=run_top, run_id=run_id, pdk=pdk)
+            rows = scan(result_dir)
+        except (FileNotFoundError, ValueError) as exc:
+            error_console.print(f"[red]{exc}[/red]")
+            return 2
+
+        total = len(rows)
+        passed = sum(row.status == "PASS" for row in rows)
+        closure = 100.0 * passed / total if total else 0.0
+        non_pass = tuple(row for row in rows if row.status != "PASS")
+        if not non_pass:
+            payload = {"pdk": pdk, "result_dir": str(result_dir), "passed": passed, "total": total, "closure_pct": closure}
+            if as_json:
+                print(json.dumps(payload, indent=2))
+            else:
+                console.print(Panel.fit(
+                    f"PDK: [white]{pdk}[/white]\n[green]{passed}/{total} partitions proven · {closure:.2f}%[/green]\n[green]EQY PASS[/green]",
+                    title="EQY debug", border_style="green",
+                ))
+            return 0
+
+        try:
+            item = select(rows, partition)
+        except ValueError as exc:
+            if partition is not None:
+                error_console.print(f"[red]{exc}[/red]"); return 2
+            if as_json:
+                print(json.dumps({"pdk": pdk, "passed": passed, "total": total, "closure_pct": closure,
+                                  "counterexamples": [entry.to_dict() for entry in non_pass]}, indent=2))
+            else:
+                table = Table(title=f"EQY debug · {passed}/{total} PASS · {closure:.2f}%",
+                              header_style="bold grey70", border_style="grey50")
+                table.add_column("Partition", style="white"); table.add_column("Status"); table.add_column("Strategy", style="grey70")
+                max_rows = 24
+                for entry in non_pass[:max_rows]:
+                    strategy = entry.failing_strategy
+                    color = "red" if entry.status == "FAIL" else "orange1"
+                    table.add_row(entry.partition, f"[{color}]{entry.status}[/{color}]", strategy.name if strategy else "-")
+                console.print(table)
+                hidden = len(non_pass) - max_rows
+                if hidden > 0:
+                    console.print(
+                        f"[grey70]Showing {max_rows}/{len(non_pass)} non-PASS partitions; "
+                        f"{hidden} omitted. Use[/grey70] [white]fx eqy_debug --json[/white] [grey70]for the complete list.[/grey70]"
+                    )
+                console.print("[grey70]Select one:[/grey70] [white]fx eqy_debug <partition>[/white]")
+            return 0
+
+        strategy = item.failing_strategy
+        if strategy is None:
+            error_console.print(f"[red]partition {item.partition} has no failing strategy[/red]"); return 2
+        if action == "files":
+            files = (*strategy.traces, *strategy.logs)
+            if as_json:
+                print(json.dumps({"partition": item.partition, "strategy": strategy.name,
+                                  "directory": str(strategy.directory), "files": [str(path) for path in files]}, indent=2))
+            else:
+                console.print(f"[orange1]{item.partition}[/orange1] · [white]{strategy.name}[/white]")
+                console.print(f"[grey70]directory:[/grey70] [white]{strategy.directory}[/white]")
+                for path in files: console.print(f"  [white]{path}[/white]")
+            return 0
+        if action == "wave":
+            try:
+                trace = choose_trace(strategy, trace_kind)
+                viewer = settings.get("WAVE_VIEWER", "gtkwave")
+                session, _ = open_wave(trace, item.partition, viewer=viewer)
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                error_console.print(f"[red]{exc}[/red]"); return 2
+            if as_json:
+                print(json.dumps({"partition": item.partition, "trace": str(trace), "viewer": viewer,
+                                  "session": str(session) if session else None}, indent=2))
+            else:
+                console.print(f"[orange1][eqy_debug][/orange1] waveform · [white]{item.partition}[/white]")
+                console.print(f"[grey70]trace:[/grey70] [white]{trace}[/white]")
+                console.print(f"[grey70]viewer:[/grey70] [white]{viewer}[/white]")
+            return 0
+
+        try:
+            explanation = explain_counterexample(item)
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            error_console.print(f"[red]{exc}[/red]"); return 2
+
+        if not as_json:
+            console.print(Panel.fit(
+                f"PDK: [white]{pdk}[/white]\n[white]{passed}/{total} partitions proven[/white] · [orange1]{closure:.2f}%[/orange1]\n"
+                f"partition: [white]{item.partition}[/white]\nstatus: [red]{item.status}[/red] · strategy: [white]{strategy.name}[/white]",
+                title="EQY debug", border_style="orange1",
+            ))
+            failure = explanation.get("failure") or {}; divergence = explanation.get("first_divergence")
+            facts = Table(title="Counterexample", header_style="bold grey70", border_style="grey50")
+            facts.add_column("Field", style="grey70"); facts.add_column("Value", style="white")
+            phase = failure.get("phase") or "unknown"; step = failure.get("step")
+            facts.add_row("Proof", phase + (f" · step {step}" if step is not None else ""))
+            facts.add_row("Class", str(explanation.get("classification", "unclassified")))
+            if divergence:
+                facts.add_row("First divergence", f"t={divergence.get('time')}")
+                facts.add_row("Gold", f"{divergence.get('gold_signal')} = {divergence.get('gold')}")
+                facts.add_row("Gate", f"{divergence.get('gate_signal')} = {divergence.get('gate')}")
+                if divergence.get("gold_x_signal"):
+                    facts.add_row("X masks", f"gold={divergence.get('gold_x')} · gate={divergence.get('gate_x')}")
+            console.print(facts)
+
+        clock = settings.get("EQY_CLOCK", "clk_i").strip() or "clk_i"
+        reset = settings.get("EQY_RESET", "rst_ni").strip() or "rst_ni"
+        reset_active = settings.get("EQY_RESET_ACTIVE", "low").strip().lower() or "low"
+        try: reset_cycles = int(settings.get("EQY_RESET_CYCLES", "1"))
+        except ValueError: reset_cycles = 1
+        eqy = str(settings.get("EQY", "eqy"))
+
+        if not as_json:
+            console.print(f"[bold orange1][eqy_debug][/bold orange1] reset-state probe · [bright_cyan]{item.partition}[/bright_cyan]")
+        try:
+            reset_probe = run_reset_normalized_diagnostic(
+                result_dir, partition=item.partition, clock=clock, reset=reset,
+                reset_active=reset_active, reset_cycles=reset_cycles, eqy=eqy,
+            )
+        except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
+            reset_probe = {"valid": False, "error": str(exc)}
+        if not as_json:
+            if reset_probe.get("valid"):
+                status = str(reset_probe.get("status", "UNKNOWN"))
+                color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
+                cached = " · cached" if reset_probe.get("cached") else ""
+                console.print(f"  [{color}]{status}[/{color}]{cached}")
+            else:
+                console.print("  [orange1]INCONCLUSIVE[/orange1]")
+
+        synthesis_probe: dict[str, object] | None = None
+        if reset_probe.get("valid") and reset_probe.get("status") != "PASS":
+            from .run_layout import pdk_run_layout, run_root
+            layout = pdk_run_layout(run_root(workspace, run_top=run_top, run_id=run_id), pdk=pdk, top=top)
+            def progress(stage: str) -> None:
+                if not as_json:
+                    labels = {
+                        "generic": "generic synthesis",
+                        "dffmap": "after dfflibmap",
+                        "abc": "after ABC",
+                        "clean": "after final cleanup",
+                    }
+                    console.print(f"[bold orange1][eqy_debug][/bold orange1] {labels.get(stage, stage)} · [bright_cyan]{item.partition}[/bright_cyan]")
+            synthesis_probe = run_synthesis_boundary_diagnostics(
+                result_dir, top=top, syn_dir=layout.syn_dir, partition=item.partition,
+                eqy=eqy, progress=progress,
+            )
+            if not as_json:
+                for stage_name in ("generic", "dffmap", "abc", "clean"):
+                    stage = (synthesis_probe.get("stages") or {}).get(stage_name, {})
+                    if stage.get("valid"):
+                        status = str(stage.get("status", "UNKNOWN")); color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
+                        cached = " · cached" if stage.get("cached") else ""
+                        console.print(f"  [{color}]{status}[/{color}]{cached}")
+
+        payload = {"pdk": pdk, "result_dir": str(result_dir), "passed": passed, "total": total,
+                   "closure_pct": closure, "counterexample": explanation,
+                   "reset_probe": reset_probe, "synthesis_probe": synthesis_probe}
+        if as_json:
+            print(json.dumps(payload, indent=2)); return 0
+
+        probe = Table(title="Targeted probes", header_style="bold grey70", border_style="grey50")
+        probe.add_column("Boundary", style="white"); probe.add_column("Selected partition", style="white")
+        probe.add_row("mapped baseline", f"[red]{item.status}[/red]")
+        if reset_probe.get("valid"):
+            rs = str(reset_probe.get("status", "UNKNOWN")); rc = "green" if rs == "PASS" else "red" if rs == "FAIL" else "orange1"
+            probe.add_row("after reset", f"[{rc}]{rs}[/{rc}]")
+        else: probe.add_row("after reset", "[orange1]inconclusive[/orange1]")
+        stages = (synthesis_probe or {}).get("stages", {}) if synthesis_probe else {}
+        for key, label in (
+            ("generic", "generic synthesis"),
+            ("dffmap", "after dfflibmap"),
+            ("abc", "after ABC"),
+            ("clean", "after final cleanup"),
+        ):
+            stage = stages.get(key, {}) if isinstance(stages, dict) else {}
+            if stage.get("valid"):
+                ss = str(stage.get("status", "UNKNOWN")); sc = "green" if ss == "PASS" else "red" if ss == "FAIL" else "orange1"
+                probe.add_row(label, f"[{sc}]{ss}[/{sc}]")
+            elif stage.get("missing"): probe.add_row(label, "[grey70]checkpoint missing[/grey70]")
+        console.print(probe)
+
+        if reset_probe.get("status") == "PASS":
+            console.print("[orange1]Diagnosis:[/orange1] [white]mismatch disappears after deterministic reset initialization.[/white]")
+        elif synthesis_probe:
+            generic = stages.get("generic", {}) if isinstance(stages, dict) else {}
+            dffmap = stages.get("dffmap", {}) if isinstance(stages, dict) else {}
+            abc = stages.get("abc", {}) if isinstance(stages, dict) else {}
+            clean = stages.get("clean", {}) if isinstance(stages, dict) else {}
+            if any(stage.get("missing") for stage in (generic, dffmap, abc, clean)):
+                console.print("[orange1]Diagnosis:[/orange1] [white]synthesis checkpoints missing; run `fx syn --force`, `fx eqy --force`, then `fx eqy_debug`.[/white]")
+            elif generic.get("status") != "PASS":
+                console.print("[orange1]Diagnosis:[/orange1] [white]mismatch already exists after generic Yosys synthesis, before technology mapping.[/white]")
+            elif dffmap.get("status") != "PASS":
+                console.print("[orange1]Diagnosis:[/orange1] [white]generic synthesis passes; mismatch appears across dfflibmap/sequential mapping.[/white]")
+            elif abc.get("status") != "PASS":
+                console.print("[orange1]Diagnosis:[/orange1] [white]dfflibmap passes; mismatch is introduced by ABC combinational technology mapping.[/white]")
+            elif clean.get("status") != "PASS":
+                console.print("[orange1]Diagnosis:[/orange1] [white]ABC mapping passes but the cleanup checkpoint fails. Because cleanup is function-preserving, suspect loss of EQY match-points/names rather than a logic change; keep public names during final cleanup.[/white]")
+            else:
+                console.print("[orange1]Diagnosis:[/orange1] [white]all RTLIL checkpoints pass; mismatch appears only after final Verilog serialization/readback in the EQY gate flow.[/white]")
+        else:
+            console.print("[orange1]Diagnosis:[/orange1] [white]reset probe inconclusive; inspect its log before synthesis-boundary attribution.[/white]")
+        console.print(f"[grey70]Waveform:[/grey70] [white]fx eqy_debug --wave {item.partition}[/white]")
+        console.print(f"[grey70]Artifacts:[/grey70] [white]fx eqy_debug --files {item.partition}[/white]")
+        return 0
 
     def _overrides(sets: tuple[str, ...], tool: str | None, force: bool) -> dict[str, str]:
         """Collect one-shot Make-variable overrides."""
@@ -506,6 +865,10 @@ Use `fx commands` to list every backend Make target.
             from .doctor import run as run_doctor
 
             raise typer.Exit(run_doctor(root, as_json=as_json))
+        if args[0] == "pdk":
+            raise typer.Exit(_pdk(root, args[1:], set_args, force=force, as_json=as_json))
+        if args[0] == "eqy_debug":
+            raise typer.Exit(_eqy_debug(root, workdir, args[1:], set_args, as_json=as_json))
         if args[0] == "shell":
             raise typer.Exit(_shell(root, workdir))
         raise typer.Exit(_run(client, args, sets=set_args, tool=tool, force=force, dry_run=dry_run, script=script, capture=capture, live=live, as_json=as_json, info=info))
@@ -519,6 +882,12 @@ Use `fx commands` to list every backend Make target.
         """Run the fx command-line interface."""
 
         args = list(sys.argv[1:] if argv is None else argv)
+        if "eqy_debug" in args:
+            index = args.index("eqy_debug")
+            args[index + 1:] = [
+                token[2:] if token in {"--wave", "--files"} else token
+                for token in args[index + 1:]
+            ]
         if args in (["-h"], ["--help"]):
             _guide()
             return 0

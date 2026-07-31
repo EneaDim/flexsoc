@@ -106,7 +106,6 @@ FORMAL_PROVE_DIR ?= $(FORMAL_RUN_DIR)/properties/prove
 FORMAL_COVER_DIR ?= $(FORMAL_RUN_DIR)/properties/cover
 FORMAL_CSR_PROVE_RUN_DIR ?= $(FORMAL_RUN_DIR)/csr/prove
 FORMAL_CSR_COVER_RUN_DIR ?= $(FORMAL_RUN_DIR)/csr/cover
-EQUIVDIR ?= $(FORMALDIR)/equivalence/rtl_vs_syn
 TB_DIR ?= $(FUNCTIONALDIR)/tb
 SV_TB_DIR := $(TB_DIR)/sv
 
@@ -129,9 +128,11 @@ FORMAL_COVER_LOG ?= $(FORMAL_LOGDIR)/properties/$(TOP)_cover.log
 FORMAL_CSR_BMC_LOG ?= $(FORMAL_LOGDIR)/csr/$(TOP)_bmc.log
 FORMAL_CSR_PROVE_LOG ?= $(FORMAL_LOGDIR)/csr/$(TOP)_prove.log
 FORMAL_CSR_COVER_LOG ?= $(FORMAL_LOGDIR)/csr/$(TOP)_cover.log
-EQUIV_LOG ?= $(FORMAL_LOGDIR)/equivalence/$(TOP)_rtl_vs_syn.log
-SYNTH_LOGDIR   ?= $(LOGDIR)/synthesis
-SIGNOFF_LOGDIR ?= $(LOGDIR)/signoff
+SYNTH_LOGDIR   ?= $(LOGDIR)/synthesis/$(PDK)
+EQUIV_LOG      ?= $(LOGDIR)/signoff/equivalence/$(PDK)/$(TOP)_rtl_vs_syn.log
+STA_LOGDIR     ?= $(LOGDIR)/signoff/sta/$(PDK)
+POWER_LOGDIR   ?= $(LOGDIR)/signoff/power/$(PDK)
+SDF_LOGDIR     ?= $(LOGDIR)/signoff/sdf/$(PDK)
 SV_COMPILE_LOG ?= $(VERIFY_LOGDIR)/$(TOP)_sv_compile_$(TEST_NAME).log
 SV_SIM_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_sv_sim_$(TEST_NAME).log
 COCOTB_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_cocotb_$(TEST_NAME).log
@@ -139,11 +140,17 @@ RTLDIR         ?= $(OUTROOT)/rtl
 TBDIR          ?= $(FUNCTIONALDIR)/tb
 SIMROOT        ?= $(FUNCTIONALDIR)/sim
 SIMDIR         ?= $(SIMROOT)/rtl
-POST_SYN_SIMDIR ?= $(SIMROOT)/post_syn
-POST_LAYOUT_SIMDIR ?= $(SIMROOT)/post_layout
-SYNDIR         ?= $(OUTROOT)/syn
+POST_SYN_SIMDIR ?= $(SIMROOT)/post_syn/$(PDK)
+POST_LAYOUT_SIMDIR ?= $(SIMROOT)/post_pnr/$(PDK)
+CONSTRAINTSDIR ?= $(OUTROOT)/constraints
+SYNDIR         ?= $(OUTROOT)/syn/$(PDK)
 SIGNOFFDIR     ?= $(OUTROOT)/signoff
-METADIR        ?= $(OUTROOT)/meta
+EQUIVDIR       ?= $(SIGNOFFDIR)/equivalence/$(PDK)/rtl_vs_syn
+SIGNOFF_STA_DIR ?= $(SIGNOFFDIR)/sta/$(PDK)
+SIGNOFF_POWER_DIR ?= $(SIGNOFFDIR)/power/$(PDK)
+SIGNOFF_SDF_DIR ?= $(SIGNOFFDIR)/sdf/$(PDK)
+SIGNOFF_PATH_VIEW_DIR ?= $(SIGNOFFDIR)/path_view/$(PDK)
+METADIR        ?= $(OUTROOT)/meta/$(PDK)
 METRICS_JSON   ?= $(METADIR)/metrics.json
 MANIFEST_JSON  ?= $(METADIR)/manifest.json
 MODELDIR       ?= $(FUNCTIONALDIR)/model
@@ -158,7 +165,7 @@ FSMDIR         ?= $(OUTROOT)/fsms
 FSMWORKDIR     ?= $(FSMDIR)/$(FSM)
 FSM_INPUT_DIR  ?= $(FSMWORKDIR)/inputs
 FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
-ORSDIR         ?= $(OR_WORKDIR)
+ORSDIR         ?= $(OUTROOT)/pnr_openroad/$(PDK)
 TB_SAVEDIR     ?= $(FUNCTIONALDIR)/saved
 TEST_NAMES     ?= smoke corners random reconfig
 MULTICLOCK_DOMAINS ?= cfg,rx,dsp
@@ -275,7 +282,7 @@ VSV             ?= sv
 WAVE_EXT        ?= $(if $(filter verilator,$(COMPILER)),fst,vcd)
 WAVE_FILE       ?= $(SIMDIR)/$(TESTBENCH)_$(TEST_NAME).$(WAVE_EXT)
 VCD_SYN_FILE    ?= $(POST_SYN_SIMDIR)/$(TOP)_syn_tb.vcd
-SDF_FILE        ?= $(SIGNOFFDIR)/sdf/$(TOP)_ss.sdf
+SDF_FILE        ?= $(SIGNOFF_SDF_DIR)/$(TOP)_ss.sdf
 
 # -----------------------------------------------------------------------------
 # Synthesis / signoff
@@ -303,8 +310,8 @@ FORMAL_PROVE_ENGINE ?= abc pdr
 FORMAL_COVER_ENGINE ?= btor btormc
 FORMAL_MULTICLOCK_ARG = $(if $(filter multi multiclock,$(CLOCK_MODE)),--multiclock,)
 EQY_SAT_DEPTH ?= 5
-EQY_DEPTH ?= 20
-EQY_ENGINE ?= abc pdr
+EQY_DEPTH ?= 2
+EQY_ENGINE ?= abc pdr -rfi
 POWER_ACTIVITY  ?= 0.1
 POWER_DUTY      ?= 0.5
 PATH_VIEW_FILE  ?= $(TOP)_sta.violators
@@ -336,8 +343,8 @@ SOC_CFG_MK := $(OUTROOT)/soc_config.mk
 -include $(SOC_CFG_MK)
 
 # OpenROAD run-local layout
-OR_WORKDIR  := $(abspath $(OUTROOT))/pnr_openroad
-OR_LOGDIR   := $(abspath $(LOGDIR))
+OR_WORKDIR  ?= $(abspath $(OUTROOT))/pnr_openroad/$(PDK)
+OR_LOGDIR   ?= $(abspath $(LOGDIR))/pnr/$(PDK)
 OR_CFG_MK   := $(abspath $(ORSDIR))/config.mk
 OR_MAKEFILE := $(ORS)/Makefile
 
@@ -405,8 +412,8 @@ PHONY_TARGETS += lint lint_slang lint_verilator lint_slang_suite lint_verilator_
 PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests regression coverage coverage_detail
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
 PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
-PHONY_TARGETS += _formal_scaffold setup_formal setup_formal_prove setup_formal_cover formal_bmc formal_prove formal_cover setup_formal_csr_prove setup_formal_csr_cover formal_csr_bmc formal_csr_prove formal_csr_cover formal_csr formal setup_equiv equiv
-PHONY_TARGETS += setup_signoff compile_syn sim_syn sta sdf power_estimate sta_violators path_view
+PHONY_TARGETS += _formal_scaffold setup_formal setup_formal_prove setup_formal_cover formal_bmc formal_prove formal_cover setup_formal_csr_prove setup_formal_csr_cover formal_csr_bmc formal_csr_prove formal_csr_cover formal_csr formal
+PHONY_TARGETS += setup_eqy eqy setup_signoff compile_syn sim_syn sta sdf power_estimate sta_violators path_view
 PHONY_TARGETS += setup_pnr pnr pnr_gui
 PHONY_TARGETS += ip_load ip_save
 PHONY_TARGETS += soc_vendor_deps fsoc_init fsoc xbar xbar_init xbar_build soc soc_stage_tops soc_flist soc_flow soc_uart_gen soc_ibex_gen
@@ -445,29 +452,23 @@ setup: ## Create the run directory tree
 	$(Q)$(MKDIR) -p \
 		$(LOGDIR) \
 		$(VERIFY_LOGDIR) \
-		$(SYNTH_LOGDIR) \
-		$(SIGNOFF_LOGDIR) \
 		$(RTLDIR) \
 		$(TBDIR) \
 		$(TEST_ROOT) \
 		$(SIMDIR) \
-		$(SYNDIR) \
+		$(CONSTRAINTSDIR) \
 		$(SIGNOFFDIR) \
-		$(SIGNOFFDIR)/sdf \
 		$(FORMAL_CSR_PROVE_DIR) \
 		$(FORMAL_CSR_COVER_DIR) \
 		$(FORMAL_PROVE_PROPERTIES_DIR) \
 		$(FORMAL_COVER_PROPERTIES_DIR) \
-		$(EQUIVDIR) \
-		$(METADIR) \
 		$(MODELDIR) \
 		$(DOCDIR) \
 		$(DATADIR) \
 		$(DRIVERDIR) \
 		$(LINTDIR) \
 		$(PYDIR) \
-		$(FSMDIR) \
-		$(ORSDIR)
+		$(FSMDIR)
 
 soc_cfg: ## Render SoC configuration variables
 	$(call _require_var,WORKSPACE)
@@ -502,7 +503,7 @@ MULTICLOCK_ARGS = \
 	--rtl-dir $(RTLDIR) \
 	--data-dir $(DATADIR) \
 	--signoff-dir $(SIGNOFFDIR) \
-	--constraints-dir $(ORSDIR) \
+	--constraints-dir $(CONSTRAINTSDIR) \
 	--model-dir $(MODELDIR) \
 	--tb-dir $(TBDIR) \
 	--testbench $(TESTBENCH) \
@@ -635,7 +636,7 @@ ip_flow: reg doc ## Run regression through formal/synthesis/signoff, then report
 	@if [ "$(CLOCK_MODE)" = "multi" ] || [ "$(CLOCK_MODE)" = "multiclock" ]; then $(BACKEND_MAKE) sdc_multi; fi
 	@$(BACKEND_MAKE) formal
 	@$(BACKEND_MAKE) syn
-	@$(BACKEND_MAKE) equiv
+	@$(BACKEND_MAKE) eqy
 	@$(BACKEND_MAKE) sdf
 	@$(BACKEND_MAKE) sta
 	@$(BACKEND_MAKE) power_estimate
@@ -651,7 +652,7 @@ ip_flow_noreg: flist ## Run the standard closure without regenerating registers
 	@if [ "$(CLOCK_MODE)" = "multi" ] || [ "$(CLOCK_MODE)" = "multiclock" ]; then $(BACKEND_MAKE) sdc_multi; fi
 	@$(BACKEND_MAKE) formal
 	@$(BACKEND_MAKE) syn
-	@$(BACKEND_MAKE) equiv
+	@$(BACKEND_MAKE) eqy
 	@$(BACKEND_MAKE) sdf
 	@$(BACKEND_MAKE) sta
 	@$(BACKEND_MAKE) power_estimate
@@ -1346,14 +1347,14 @@ tb_view: ## Open saved testbench waveform
 ##@ Synthesis
 setup_sdc: setup ## Generate timing constraints
 	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(ORSDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_sdc $(TOP) $(CLK_PERIOD) -o $(ORSDIR)/$(TOP).sdc
+	$(Q)$(MKDIR) -p $(CONSTRAINTSDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_sdc $(TOP) $(CLK_PERIOD) -o $(CONSTRAINTSDIR)/$(TOP).sdc
 
 setup_syn: setup_sdc flist ## Generate Yosys synthesis scripts
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SYNDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_syn \
-		-top $(TOP) -topdir $(RTLDIR) -sdcdir $(ORSDIR) \
+		-top $(TOP) -topdir $(RTLDIR) -sdcdir $(CONSTRAINTSDIR) \
 		$(RTL_FILELIST_ARGS) \
 		-liberty $(LIB_SYN) -clk $(CLK_PERIOD) \
 		-target $(TARGET_SYN) -opt $(TARGET_OPT) \
@@ -1390,15 +1391,11 @@ sv2v: ## Convert SV to Verilog with sv2v
 	@true
 
 # ============================================================================
-# Formal verification: authored properties and RTL-vs-synthesis equivalence
+# Formal verification: authored CSR and design properties
 # ============================================================================
 ##@ Formal verification
 FORMAL_PROVE_CONFIG ?= $(FORMAL_PROVE_DIR)/$(TOP)_prove.sby
 FORMAL_COVER_CONFIG ?= $(FORMAL_COVER_DIR)/$(TOP)_cover.sby
-EQY_CONFIG ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn.eqy
-EQY_SKY130_CLOCK_GATE_MODEL ?= $(EQUIVDIR)/sky130_clock_gates_formal.v
-EQY_RESULT_DIR ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn
-
 FORMAL_CSR_PROVE_AUTO ?= $(FORMAL_CSR_PROVE_DIR)/$(TOP)_csr_auto_prove.sv
 FORMAL_CSR_COVER_AUTO ?= $(FORMAL_CSR_COVER_DIR)/$(TOP)_csr_auto_cover.sv
 FORMAL_CSR_PROVE_CONFIG ?= $(FORMAL_CSR_PROVE_RUN_DIR)/$(TOP)_csr_prove.sby
@@ -1537,41 +1534,53 @@ formal_cover: setup_formal_cover ## Reach authored cover properties with SymbiYo
 			status=$$?; cat "$(FORMAL_COVER_LOG)"; exit $$status; \
 		}
 
-setup_equiv: flist ## Generate EQY RTL-vs-post-synthesis equivalence configuration
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(EQUIVDIR) $(dir $(EQUIV_LOG))
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal equivalence \
-		--top $(TOP) $(RTL_FILELIST_ARGS) \
-		--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
-		--sky130-clock-gate-model $(EQY_SKY130_CLOCK_GATE_MODEL) \
-		--engine "$(EQY_ENGINE)" --depth $(EQY_DEPTH) --sat-depth $(EQY_SAT_DEPTH) \
-		--output $(EQY_CONFIG) >/dev/null
-	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(EQY_CONFIG)$(RESET)"
-
-equiv: setup_equiv ## Prove RTL equivalent to the mapped post-synthesis netlist with EQY
-	@command -v "$(EQY)" >/dev/null 2>&1 || { echo "ERROR: EQY executable not found: $(EQY)"; exit 2; }
-	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found for EQY SBY fallback: $(SBY)"; exit 2; }
-	@printf "%b\n" "$(BLUE)log: $(EQUIV_LOG)$(RESET)"
-	@$(RM) -rf "$(EQY_RESULT_DIR)"
-	@cd "$(EQUIVDIR)" && \
-		"$(EQY)" -f "$(notdir $(EQY_CONFIG))" > "$(EQUIV_LOG)" 2>&1 || { \
-			status=$$?; cat "$(EQUIV_LOG)"; exit $$status; \
-		}
-
 # ============================================================================
 # 9. Gate-level simulation and signoff analysis
 # SDF, STA, violator extraction, estimated power and path-view reports.
 # ============================================================================
 ##@ Signoff
-setup_signoff: setup_sdc ## Generate signoff scripts
+EQY_CONFIG ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn.eqy
+EQY_SKY130_CLOCK_GATE_MODEL ?= $(EQUIVDIR)/sky130_clock_gates_formal.v
+EQY_RESULT_DIR ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn
+
+setup_eqy: flist ## Generate EQY RTL-vs-post-synthesis equivalence configuration
 	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(SIGNOFFDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff \
+	$(Q)$(MKDIR) -p $(EQUIVDIR) $(dir $(EQUIV_LOG))
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff eqy \
+		--top $(TOP) $(RTL_FILELIST_ARGS) \
+		--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
+		$(foreach model,$(PRIM),--cell-model $(model)) \
+		$(if $(FORMAL_PDK_PROC),--formal-pdk-proc "$(FORMAL_PDK_PROC)") \
+		--sky130-clock-gate-model $(EQY_SKY130_CLOCK_GATE_MODEL) \
+		--engine "$(EQY_ENGINE)" --depth $(EQY_DEPTH) --sat-depth $(EQY_SAT_DEPTH) \
+		--output $(EQY_CONFIG) >/dev/null
+	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(EQY_CONFIG)$(RESET)"
+
+eqy: setup_eqy ## Prove RTL equivalent to the mapped post-synthesis netlist with EQY
+	@command -v "$(EQY)" >/dev/null 2>&1 || { echo "ERROR: EQY executable not found: $(EQY)"; exit 2; }
+	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found for EQY SBY fallback: $(SBY)"; exit 2; }
+	@printf "%b\n" "$(ORANGE)[eqy]$(RESET) PDK=$(PDK) · RTL -> mapped synthesis"
+	@printf "%b\n" "$(BLUE)log: $(EQUIV_LOG)$(RESET)"
+	@$(RM) -rf "$(EQY_RESULT_DIR)"
+	@cd "$(EQUIVDIR)" && { \
+		"$(EQY)" -f "$(notdir $(EQY_CONFIG))" > "$(EQUIV_LOG)" 2>&1; status=$$?; \
+		if [ $$status -eq 0 ]; then \
+			printf "%b\n" "$(GREEN)[eqy] PASS$(RESET)"; \
+		else \
+			cat "$(EQUIV_LOG)"; printf "%b\n" "$(RED)[eqy] FAIL$(RESET)"; exit $$status; \
+		fi; \
+	}
+
+
+setup_signoff: setup_sdc ## Generate PDK-scoped STA, SDF, and power scripts
+	$(call _require_var,TOP)
+	$(Q)$(MKDIR) -p $(SIGNOFF_STA_DIR) $(SIGNOFF_POWER_DIR) $(SIGNOFF_SDF_DIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff analysis \
 		--top $(TOP) \
-		--constraints-dir $(ORSDIR) --synthesis-dir $(SYNDIR) --simulation-dir $(SIMDIR) \
+		--constraints-dir $(CONSTRAINTSDIR) --synthesis-dir $(SYNDIR) --simulation-dir $(SIMDIR) \
+		--sta-dir $(SIGNOFF_STA_DIR) --power-dir $(SIGNOFF_POWER_DIR) --sdf-dir $(SIGNOFF_SDF_DIR) \
 		$(foreach lib,$(LIBS),--liberty $(lib)) \
-		--power-activity $(POWER_ACTIVITY) --power-duty $(POWER_DUTY) \
-		--output-dir $(SIGNOFFDIR)
+		--power-activity $(POWER_ACTIVITY) --power-duty $(POWER_DUTY)
 
 SYN_NETLIST ?= $(SYNDIR)/$(TOP)_synth.v
 
@@ -1603,16 +1612,16 @@ sim_syn: compile_syn ## Run post-synthesis simulation
 
 sta_corners: setup_signoff ## Run STA for every configured corner and setup/hold mode
 	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(SIGNOFF_LOGDIR)
+	$(Q)$(MKDIR) -p $(STA_LOGDIR)
 	@set -eu; failed=0; \
 	for corner in $(SIGNOFF_CORNERS); do \
 		for mode in $(STA_MODES); do \
-			log="$(SIGNOFF_LOGDIR)/$(TOP)_sta_$${corner}_$${mode}.log"; \
+			log="$(STA_LOGDIR)/$(TOP)_sta_$${corner}_$${mode}.log"; \
 			printf "%b\n" "$(ORANGE)[sta]$(RESET) $(BLUE)corner=$$corner mode=$$mode log=$$log$(RESET)"; \
 			if [ "$(LIVE)" = "1" ]; then \
-				STA_CORNER="$$corner" STA_MODE="$$mode" STA_PATHS="$(STA_PATHS)" STA_GROUPS="$(STA_GROUPS)" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl 2>&1 | tee '"$$log"; \
+				STA_CORNER="$$corner" STA_MODE="$$mode" STA_PATHS="$(STA_PATHS)" STA_GROUPS="$(STA_GROUPS)" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFF_STA_DIR)/sta.tcl 2>&1 | tee '"$$log"; \
 			else \
-				STA_CORNER="$$corner" STA_MODE="$$mode" STA_PATHS="$(STA_PATHS)" STA_GROUPS="$(STA_GROUPS)" $(STA) -exit -no_init $(SIGNOFFDIR)/sta.tcl > "$$log" 2>&1; \
+				STA_CORNER="$$corner" STA_MODE="$$mode" STA_PATHS="$(STA_PATHS)" STA_GROUPS="$(STA_GROUPS)" $(STA) -exit -no_init $(SIGNOFF_STA_DIR)/sta.tcl > "$$log" 2>&1; \
 			fi || failed=1; \
 		done; \
 	done; \
@@ -1620,15 +1629,15 @@ sta_corners: setup_signoff ## Run STA for every configured corner and setup/hold
 
 power_estimate_corners: setup_signoff ## Estimate power for every configured corner using global activity
 	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(SIGNOFF_LOGDIR)
+	$(Q)$(MKDIR) -p $(POWER_LOGDIR)
 	@set -eu; failed=0; \
 	for corner in $(SIGNOFF_CORNERS); do \
-		log="$(SIGNOFF_LOGDIR)/$(TOP)_power_estimate_$${corner}.log"; \
+		log="$(POWER_LOGDIR)/$(TOP)_power_estimate_$${corner}.log"; \
 		printf "%b\n" "$(ORANGE)[power_estimate]$(RESET) $(BLUE)corner=$$corner activity=$(POWER_ACTIVITY) duty=$(POWER_DUTY) log=$$log$(RESET)"; \
 		if [ "$(LIVE)" = "1" ]; then \
-			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/power_estimate.tcl 2>&1 | tee '"$$log"; \
+			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFF_POWER_DIR)/power_estimate.tcl 2>&1 | tee '"$$log"; \
 		else \
-			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFFDIR)/power_estimate.tcl > "$$log" 2>&1; \
+			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFF_POWER_DIR)/power_estimate.tcl > "$$log" 2>&1; \
 		fi || failed=1; \
 	done; \
 	exit $$failed
@@ -1638,15 +1647,15 @@ signoff_corners: sdf sta_corners power_estimate_corners ## Run SDF, multi-corner
 sta: sta_corners ## Run STA for every corner and setup/hold mode
 
 sdf: setup_signoff ## Write one SDF timing file per configured corner
-	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/sdf $(SIGNOFF_LOGDIR)
+	$(Q)$(MKDIR) -p $(SIGNOFF_SDF_DIR) $(SDF_LOGDIR)
 	@set -eu; failed=0; \
 	for corner in $(SIGNOFF_CORNERS); do \
-		log="$(SIGNOFF_LOGDIR)/$(TOP)_sdf_$${corner}.log"; \
+		log="$(SDF_LOGDIR)/$(TOP)_sdf_$${corner}.log"; \
 		printf "%b\n" "$(ORANGE)[sdf]$(RESET) $(BLUE)corner=$$corner log=$$log$(RESET)"; \
 		if [ "$(LIVE)" = "1" ]; then \
-			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl 2>&1 | tee '"$$log"; \
+			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFF_SDF_DIR)/write_sdf.tcl 2>&1 | tee '"$$log"; \
 		else \
-			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFFDIR)/write_sdf.tcl > "$$log" 2>&1; \
+			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFF_SDF_DIR)/write_sdf.tcl > "$$log" 2>&1; \
 		fi || failed=1; \
 	done; \
 	exit $$failed
@@ -1654,18 +1663,18 @@ sdf: setup_signoff ## Write one SDF timing file per configured corner
 power_estimate: power_estimate_corners ## Estimate power for every configured corner using global activity
 
 sta_violators: setup_signoff ## Report timing violators
-	$(Q)$(MKDIR) -p $(SIGNOFF_LOGDIR)
-	$(Q)$(STA) -exit -no_init $(SIGNOFFDIR)/sta_violators.tcl > $(SIGNOFF_LOGDIR)/$(TOP)_sta.violators
+	$(Q)$(MKDIR) -p $(STA_LOGDIR)
+	$(Q)$(STA) -exit -no_init $(SIGNOFF_STA_DIR)/sta_violators.tcl > $(STA_LOGDIR)/$(TOP)_sta.violators
 
-path_view: ## Build interactive STA path view
-	$(Q)$(MKDIR) -p $(SIGNOFFDIR)/path_view
-	$(Q)$(PYTHON) $(UTILDIR)/interactiveReport.py -i $(LOGDIR)/$(PATH_VIEW_FILE) -s $(UTILDIR)/default.svg -t opensta -n $(NPATHS)
+path_view: ## Build interactive STA path view for the selected PDK
+	$(Q)$(MKDIR) -p $(SIGNOFF_PATH_VIEW_DIR)
+	$(Q)cd $(SIGNOFF_PATH_VIEW_DIR) && $(PYTHON) $(UTILDIR)/interactiveReport.py -i $(STA_LOGDIR)/$(PATH_VIEW_FILE) -s $(UTILDIR)/default.svg -t opensta -n $(NPATHS)
 
 # ============================================================================
 # 10. Run metadata
 # ============================================================================
 ##@ Run metadata
-metrics: setup ## Collect functional, formal, synthesis, equivalence, SDF, STA, and power metrics
+metrics: setup ## Collect verification, implementation, and sign-off metrics for the selected PDK
 	$(Q)$(PYTHON) -m flexsoc.backend.metrics \
 		--top $(TOP) \
 		--run-dir $(OUTROOT) \
@@ -1693,7 +1702,8 @@ setup_pnr: ## Generate OpenROAD config
 	$(Q)$(MKDIR) -p $(ORSDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_pnr --top $(TOP) \
 		--synthesis-strategy $(TARGET_OPT) --clock-period $(CLK_PERIOD) \
-		--platform $(ORS_TECH) $(RTL_FILELIST_ARGS) --output-dir $(ORSDIR)
+		--platform $(ORS_TECH) --sdc-file $(CONSTRAINTSDIR)/$(TOP).sdc \
+		$(RTL_FILELIST_ARGS) --output-dir $(ORSDIR)
 
 pnr: setup_pnr ## Run OpenROAD place and route
 	$(Q)$(MKDIR) -p $(OR_LOGDIR)
@@ -2253,25 +2263,21 @@ clean_cocotb: ## Remove cocotb outputs
 	$(Q)$(RM) $(TBDIR)/cocotb/__py*
 	$(Q)$(MAKE) --no-print-dir -C $(TBDIR)/cocotb clean
 
-clean_formal: ## Remove formal proof/equivalence outputs and logs
+clean_formal: ## Remove PDK-independent property-formal outputs and logs
 	$(Q)$(RM) -rf $(FORMALDIR) $(FORMAL_LOGDIR)
 
-clean_syn: ## Remove synthesis outputs
-	$(Q)$(RM) -rf $(SYNDIR)/*
+clean_syn: ## Remove synthesis outputs for the selected PDK
+	$(Q)$(RM) -rf $(SYNDIR) $(SYNTH_LOGDIR)
 
-clean_signoff: ## Remove signoff outputs
-	$(Q)$(RM) $(SIGNOFFDIR)/sdf/*
-	$(Q)$(RM) $(SIGNOFFDIR)/*.sdc
+clean_signoff: ## Remove signoff outputs for the selected PDK
+	$(Q)$(RM) -rf $(SIGNOFFDIR)/equivalence/$(PDK) $(SIGNOFF_STA_DIR) $(SIGNOFF_POWER_DIR) $(SIGNOFF_SDF_DIR) $(SIGNOFF_PATH_VIEW_DIR)
+	$(Q)$(RM) -rf $(dir $(EQUIV_LOG)) $(STA_LOGDIR) $(POWER_LOGDIR) $(SDF_LOGDIR)
 
 clean_meta: ## Remove run metadata
 	$(Q)$(RM) -rf $(METADIR)/*
 
-clean_pnr: ## Remove PnR outputs
-	$(Q)$(RM) -rf $(ORSDIR)/*
-	$(Q)$(RM) -rf $(ORS_LOGS)
-	$(Q)$(RM) -rf $(ORS_REPORTS)
-	$(Q)$(RM) -rf $(ORS_RESULTS)
-	$(Q)$(RM) -rf $(ORS_OBJECTS)
+clean_pnr: ## Remove PnR outputs for the selected PDK
+	$(Q)$(RM) -rf $(ORSDIR) $(OR_LOGDIR)
 
 clean_fsm: ## Clean FSM generator outputs
 	$(Q)$(MAKE) --no-print-dir -C $(FSMGEN_DIR) clean

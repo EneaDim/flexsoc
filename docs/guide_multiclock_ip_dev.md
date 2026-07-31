@@ -153,6 +153,10 @@ cfg.CTRL 0x00000001
 
 ## 8. ✅ Functional verification and coverage
 
+For the canonical DV command/reference model, see
+[Design verification](design_verification.md).
+
+
 Generate both execution backends:
 
 ```bash
@@ -190,31 +194,59 @@ cycle counter.
 
 ## 9. 🧠 Multi-clock formal verification
 
-The formal structure is intentionally the same as for a single-clock IP:
+Multi-clock Formal DV remains property checking: automatic CSR properties and
+authored design properties. RTL-to-post-synthesis equivalence is a separate
+technology-dependent sign-off stage. See [Design verification](design_verification.md)
+for property-formal semantics and [Design sign-off](design_signoff.md) for EQY.
+
+### 🧾 Property formal
 
 ```text
-automatic CSR properties
-  ├── BMC
-  ├── PROVE
-  └── COVER
-
-authored design properties
-  ├── BMC
-  ├── PROVE
-  └── COVER
+automatic CSR properties     authored design properties
+  ├── BMC                      ├── BMC
+  ├── PROVE                    ├── PROVE
+  └── COVER                    └── COVER
 ```
 
-Run:
+Run all configured property stages:
 
 ```bash
 fx formal
 ```
 
-Clock-domain architecture makes assumptions more important. Assertions that
-cross domains should model synchronization/protocol semantics deliberately
-rather than assuming simultaneous edges on unrelated clocks.
+Clock-domain architecture makes assumptions more important. Cross-domain
+assertions must model synchronization/protocol semantics deliberately rather
+than assuming simultaneous edges on unrelated clocks.
 
-Formal proof status remains separate from functional code coverage.
+### 🔁 Multi-clock sign-off equivalence
+
+After synthesis:
+
+```bash
+fx setup_eqy --force
+fx eqy --force
+```
+
+`setup_signoff.py` owns EQY generation; `setup_multiclock.py` owns the multi-clock
+RTL/model/TB scaffold. `CLOCK_MODE=multi` selects the multi-clock EQY profile.
+
+Small multi-clock RTL can still create difficult partitions because async FIFOs,
+synchronizers, gated clocks, and independently updated state increase the formal
+state space. EQY therefore reports closure as proven/failed/error/timeout/unknown
+rather than hiding everything behind one boolean.
+
+Debug a non-PASS partition with the same unified flow used by single-clock IPs:
+
+```bash
+fx eqy_debug
+fx eqy_debug [partition]
+fx eqy_debug --wave [partition]
+fx eqy_debug --wave [partition] induction
+```
+
+The report separates a concrete mismatch from timeout/engine closure and reads the available EQY trace before you change strategies.
+
+Formal proof and EQY closure remain separate from functional code coverage.
 
 ## 10. 🌐 CDC and RDC — next structural closure step
 
@@ -267,38 +299,17 @@ inspect at least:
 Constraints are authored design intent once customized; do not blindly overwrite
 project-specific timing policy.
 
-## 12. 🏗️ Synthesis and EQY equivalence
+## 12. 🏗️ Synthesis and sign-off-equivalence prerequisite
 
-Run synthesis first:
+Generate the mapped netlist:
 
 ```bash
 fx syn --force
 ```
 
-Then compare RTL against the mapped netlist:
-
-```bash
-fx equiv --force
-```
-
-EQY can be more expensive for multi-clock designs even when the RTL is small.
-Async FIFOs, synchronizer state, and independently clocked state can create a
-few difficult equivalence partitions.
-
-FlexSoC therefore reports partition closure explicitly:
-
-```text
-proven / total / percent
-failed
-engine errors
-timeouts
-unknown
-```
-
-A timeout or incomplete partition is **not** silently converted to PASS, but it
-also should not be confused with a proven RTL/netlist mismatch. The E2E flow can
-continue into SDF/STA/power so the rest of implementation closure remains
-visible while the difficult partition is investigated.
+The resulting implementation feeds sign-off equivalence (`fx eqy`), GLS,
+STA, power, and physical implementation. EQY configuration/debug is documented
+in section 9 rather than treated as a separate verification branch.
 
 ## 13. 📊 SDF, STA, and power
 
@@ -337,7 +348,7 @@ fx coverage_detail
 fx formal
 fx sdc_multi --force
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 ```
 
@@ -388,7 +399,7 @@ fx formal
 # CDC / RDC will be inserted here when implemented.
 fx sdc_multi --force
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 fx metrics check --force
 ```
@@ -410,3 +421,59 @@ pytest -s tests/test_e2e_fx.py --e2e-root work
 The multi-clock E2E should expose every closure stage independently. A partial
 EQY result may retain the workspace for investigation, but it must not hide the
 SDF/STA/power results that follow.
+
+## 11. 🧭 Planned N-clock backend unification
+
+The current `CLOCK_MODE=multi` / `*_multi` scaffold is transitional. The intended
+backend architecture is **N-clock**, not a separate single-clock versus multi-clock
+product flow.
+
+The canonical configuration will describe the design clocking once:
+
+```text
+N_CLOCKS = 1, 2, 3, ...
+
+ClockConfig
+├── domains[]
+│   ├── name
+│   ├── clock port
+│   ├── reset port
+│   ├── reset polarity
+│   └── period
+└── relationships[]
+    ├── synchronous
+    ├── asynchronous
+    └── generated/derived
+```
+
+`N_CLOCKS=1` is the ordinary single-clock case. Values greater than one do not select a
+new backend; the same setup scripts consume the same `ClockConfig` and generate the
+required N-domain behavior.
+
+Planned ownership:
+
+```text
+setup_sdc.py       → N clocks, periods, clock groups and relationships
+setup_tb.py        → N clocks/resets in the SV runner
+setup_cocotb.py    → N clock/reset coroutines
+setup_formal.py    → property-formal clock semantics
+setup_signoff.py   → EQY/sign-off clock semantics
+```
+
+The long-term CLI therefore removes special targets such as `setup_tb_multi`,
+`setup_cocotb_multi`, `sdc_multi`, and `setup_eqy_multi`. Users call the ordinary
+command and provide clock configuration.
+
+For the scaffold generators only, keep two internal implementation paths during the
+transition:
+
+```text
+N_CLOCKS == 1  → existing single-clock RTL/model scaffold
+N_CLOCKS > 1   → N-domain RTL/model scaffold
+```
+
+Both paths remain inside the same owning script. This preserves the current stable
+single-clock scaffold while the generic N-clock generator is developed. Do not assume
+that every pair of clocks is asynchronous solely because `N_CLOCKS > 1`; explicit clock
+relationships are required for correct SDC, formal, CDC and RDC analysis.
+

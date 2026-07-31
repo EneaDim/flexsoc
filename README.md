@@ -35,12 +35,15 @@ Design Verification
     ├── formal: BMC / PROVE / COVER with SymbiYosys
     └── CDC / RDC structural analysis                         [planned]
     ↓
-synthesis ──→ EQY RTL ↔ netlist equivalence
+Implementation
+    ├── syn/<pdk>
+    └── pnr_openroad/<pdk>
     ↓
 Design Signoff
-    ├── SDF / post-synthesis simulation
-    ├── STA / power
-    └── PnR / post-layout closure
+    ├── equivalence/<pdk>: EQY RTL ↔ post-synthesis netlist
+    ├── post-synthesis / post-PnR GLS
+    ├── SDF / STA
+    └── power
     ↓
 validated IP ──→ reusable source block ──→ larger SoC/system
 ```
@@ -160,24 +163,25 @@ proof percentages.
 
 ### 8. 🧪 Verification and closure are explicit
 
-FlexSoC keeps three verification questions separate:
+FlexSoC keeps the DV branches explicit:
 
 ```text
-functional DV     did the generated scenarios behave as expected?
-                  + how much RTL structure was exercised?
+functional DV       scenarios + RTL simulation + code coverage
+formal DV           CSR/design properties: BMC / PROVE / COVER
+CDC / RDC           structural domain verification                 [planned]
 
-formal DV         were assertions proven and cover goals reached?
-
-EQY equivalence   did synthesis preserve the RTL behavior partition by partition?
+signoff equivalence RTL ↔ mapped netlist proof with EQY
 ```
 
 `fx regression` runs the generated catalogue on SystemVerilog and cocotb and
 reports Verilator coverage as a scope × type matrix (`line`, `toggle`, `expr`,
 `branch`, `fsm`, `user`, `total`). `fx formal` runs CSR and authored-property
-BMC/PROVE/COVER. After synthesis, `fx equiv` compares RTL against the mapped
-netlist with EQY and reports partition closure separately from code coverage.
+BMC/PROVE/COVER. After synthesis, `fx eqy` runs the sign-off equivalence branch
+and reports EQY partition closure separately from code coverage. Failed EQY partitions are diagnosed with the unified `fx eqy_debug` command; waveform and raw artifacts are available as options of the same debugger.
 
-### 9. 🏗️ Synthesis, equivalence, timing, power, and PnR
+See [Design verification](docs/design_verification.md) for RTL/property verification and [Design sign-off](docs/design_signoff.md) for PDK-scoped synthesis handoff, EQY, GLS, STA, SDF, power, and counterexample debug.
+
+### 9. 🏗️ Synthesis, timing, power, and PnR
 
 The same run can continue into:
 
@@ -253,7 +257,7 @@ edit <top>.hjson
     ├── fx formal
     └── if hardware changed:
            fx syn --force
-           fx equiv --force
+           fx eqy --force
            fx sdf sta power_estimate --force
 ```
 
@@ -317,7 +321,7 @@ fx coverage_detail
 fx formal
 
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 fx metrics check --force
 ```
@@ -353,12 +357,12 @@ A run normally looks like:
 <WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
 ├── data/          # HJSON register specifications
 ├── doc/           # generated register documentation
-├── dv/            # functional DV, formal proof, RTL↔synthesis equivalence
+├── dv/            # functional DV and PDK-independent property formal
 ├── analysis/      # Slang analysis; CDC/RDC next-step structural closure
 ├── rtl/           # RTL implementation and Slang-ordered filelists
 ├── logs/          # lint / DV / synthesis / signoff
 ├── syn/           # synthesis collateral/results
-├── signoff/       # SDF / STA / power collateral
+├── signoff/       # equivalence / SDF / STA / power, each scoped by PDK
 └── pnr_openroad/  # physical-design collateral
 ```
 

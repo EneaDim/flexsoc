@@ -7,6 +7,7 @@ CLI, and Makefile can share one backend implementation.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -111,17 +112,19 @@ def abc_script_delay(clk_ns: float) -> str:
     )
 
 
-def render_abc_constraints(driving_cell: str = "sky130_fd_sc_hd__buf_1", load: float = 10.0) -> str:
-    """Render ABC constraints shared by area and delay mappings."""
+def render_abc_constraints(driving_cell: str = "", load: float = 10.0) -> str:
+    """Render technology-neutral ABC constraints.
 
-    return "\n".join(
-        [
-            "# ABC constraint file (edit BUF_X1/load for your tech)",
-            f"set_driving_cell {driving_cell}",
-            f"set_load {load} [all_outputs]",
-            "",
-        ]
-    )
+    ``driving_cell`` is supplied by the active PDK profile.  When a profile
+    does not declare one, keep only the output load instead of silently using
+    a SKY130 cell in a different technology.
+    """
+
+    lines: list[str] = []
+    if driving_cell.strip():
+        lines.append(f"set_driving_cell {driving_cell.strip()}")
+    lines.append(f"set_load {load:g}")
+    return "\n".join(lines) + "\n"
 
 
 def _abc_script_name(opt: str) -> str | None:
@@ -131,11 +134,9 @@ def _abc_script_name(opt: str) -> str | None:
 
 
 def _abc_constraint_arg(cfg: SynthesisConfig) -> str:
-    """Return the optional ABC constraint argument for ASIC scripts."""
+    """Return the ABC timing-constraint file generated for the active PDK."""
 
-    if cfg.sdcdir is None:
-        return ""
-    return f"\n    -constr {pjoin(cfg.sdcdir, cfg.top + '.sdc')} \\"
+    return f"\n    -constr {pjoin(cfg.output, 'abc.constr')}"
 
 
 def render_abc_command(cfg: SynthesisConfig, script_name: str | None) -> str:
@@ -162,14 +163,20 @@ def _asic_tail(cfg: SynthesisConfig, script_name: str | None) -> list[str]:
 
     return [
         "",
+        "# technology-boundary checkpoints used by equivalence diagnostics",
+        f"write_rtlil {pjoin(cfg.output, cfg.top + '_generic.il')}",
+        "",
         "# map internal register types to the ones from the cell library",
         f"dfflibmap -liberty {cfg.liberty.as_posix()}",
+        f"write_rtlil {pjoin(cfg.output, cfg.top + '_dffmap.il')}",
         "",
         "# map logic to the selected cell library",
         render_abc_command(cfg, script_name),
+        f"write_rtlil {pjoin(cfg.output, cfg.top + '_abc.il')}",
         "",
-        "# Clean",
-        "opt_clean -purge",
+        "# Clean while preserving public/internal names used by EQY matching and debug",
+        "opt_clean",
+        f"write_rtlil {pjoin(cfg.output, cfg.top + '_clean.il')}",
         "",
         "# Basic stats of std cells and area",
         f"stat -liberty {cfg.liberty.as_posix()}",
@@ -299,7 +306,12 @@ def generate_synthesis_scripts(cfg: SynthesisConfig) -> tuple[Path, ...]:
         elif cfg.opt == "delay":
             written.append(write_text(cfg.output / "delay.abc", abc_script_delay(cfg.clk_period_ns)))
         if cfg.opt in {"area", "delay"}:
-            written.append(write_text(cfg.output / "abc.constr", render_abc_constraints()))
+            written.append(
+                write_text(
+                    cfg.output / "abc.constr",
+                    render_abc_constraints(os.environ.get("FLEXSOC_DRIVING_CELL", "")),
+                )
+            )
         written.append(write_text(cfg.output / "synth.ys", yosys_synth_asic_verilog(cfg.top, cfg.topdir, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output)))
         written.append(write_text(cfg.output / "synth_sv.ys", yosys_synth_asic_slang(cfg.top, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output, cfg.filelists)))
     elif cfg.target == "xilinx":

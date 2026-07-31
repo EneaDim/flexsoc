@@ -247,7 +247,13 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         {render_source_block(sources)}
 
         COMPILE_ARGS += --sv --timing
+        WAVE_FORMAT ?= fst
+        ifeq ($(WAVE_FORMAT),vcd)
+        COMPILE_ARGS += --trace-vcd --trace-structs
+        else
         COMPILE_ARGS += --trace-fst --trace-structs
+        export IVERILOG_DUMPER := fst
+        endif
         export WAVES ?= 1
         COMPILE_ARGS += -Wno-WIDTHEXPAND
         COMPILE_ARGS += -Wno-WIDTHTRUNC
@@ -255,10 +261,25 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
 
         else
         SIM_BUILD         ?= sim_build/gl
-        COMPILE_ARGS      += -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DUNIT_DELAY=#1
-        VERILOG_SOURCES   += ../../verilog/primitives.v
-        VERILOG_SOURCES   += ../../verilog/sky130_fd_sc_hd.v
-        VERILOG_SOURCES   += ../../../../syn/{cfg.top}_synth.v
+        TIMING_MODE       ?= max
+        SDF_FILE          ?=
+        COMPILE_ARGS      += -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DUNIT_DELAY=#1 -gspecify -T$(TIMING_MODE)
+        COMPILE_ARGS      += -DFLEXSOC_ENABLE_SDF
+        ifeq ($(TIMING_MODE),min)
+        COMPILE_ARGS      += -DFLEXSOC_SDF_MIN
+        else ifeq ($(TIMING_MODE),typ)
+        COMPILE_ARGS      += -DFLEXSOC_SDF_TYP
+        else
+        COMPILE_ARGS      += -DFLEXSOC_SDF_MAX
+        endif
+        ifneq ($(strip $(SDF_FILE)),)
+        COCOTB_PLUSARGS   += +SDF=$(abspath $(SDF_FILE))
+        endif
+        PDK               ?= sky130
+        GLS_MODELS        ?=
+        GLS_NETLIST       ?= ../../../../syn/$(PDK)/{cfg.top}_synth.v
+        VERILOG_SOURCES   += $(GLS_MODELS)
+        VERILOG_SOURCES   += $(GLS_NETLIST)
         endif
 
         COMPILE_ARGS += {includes}
@@ -267,7 +288,8 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         SEED ?= 1
         HDL_COVERAGE ?= 0
         COVERAGE_FILE ?= $(abspath ../../coverage/cocotb/$(TEST_NAME).dat)
-        WAVE_EXT ?= $(if $(filter verilator,$(SIM)),fst,vcd)
+        WAVE_FORMAT ?= fst
+        WAVE_EXT ?= $(WAVE_FORMAT)
         WAVE_FILE ?= $(abspath ../../sim/rtl/{cfg.top}_tb_cocotb_$(TEST_NAME).$(WAVE_EXT))
         COCOTB_PLUSARGS += +WAVE=$(WAVE_FILE)
 
@@ -1104,12 +1126,31 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
           assign tl_o_a_ready  = tl_o.a_ready;
           string wave_path;
           initial begin
-            if (!$value$plusargs("WAVE=%s", wave_path)) wave_path = "{cfg.top}_tb.fst";
-            $display("[TB] dumpfile = %s", wave_path);
-            $dumpfile(wave_path);
-            $dumpvars(0, {cfg.top}_tb);
+            if (!$value$plusargs("WAVE=%s", wave_path)) begin
+              if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
+            end
+            if (wave_path != "") begin
+              $display("[TB] dumpfile = %s", wave_path);
+              $dumpfile(wave_path);
+              $dumpvars(0, {cfg.top}_tb);
+            end
             #1;
           end
+          `ifdef FLEXSOC_ENABLE_SDF
+            string sdf_path;
+            initial begin
+              if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+              if (sdf_path != "") begin
+                `ifdef FLEXSOC_SDF_MIN
+                  $sdf_annotate(sdf_path, u_{cfg.top}, , , "MINIMUM");
+                `elsif FLEXSOC_SDF_TYP
+                  $sdf_annotate(sdf_path, u_{cfg.top}, , , "TYPICAL");
+                `else
+                  $sdf_annotate(sdf_path, u_{cfg.top}, , , "MAXIMUM");
+                `endif
+              end
+            end
+          `endif
           {cfg.top} u_{cfg.top} (
             .{cfg.clk}({cfg.clk}),
             .{cfg.rst}({cfg.rst}),
@@ -1263,12 +1304,33 @@ module {top}_tb;
   // Wave dump for local debug.
   string wave_path;
   initial begin
-    if (!$value$plusargs("WAVE=%s", wave_path)) wave_path = "{top}_tb.fst";
-    $display("[TB] dumpfile = %s", wave_path);
-    $dumpfile(wave_path);
-    $dumpvars(0, {top}_tb);
+    if (!$value$plusargs("WAVE=%s", wave_path)) begin
+      if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
+    end
+    if (wave_path != "") begin
+      $display("[TB] dumpfile = %s", wave_path);
+      $dumpfile(wave_path);
+      $dumpvars(0, {top}_tb);
+    end
     #1;
   end
+
+  // Optional SDF backannotation for gate-level runs only.
+  `ifdef FLEXSOC_ENABLE_SDF
+    string sdf_path;
+    initial begin
+      if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+      if (sdf_path != "") begin
+        `ifdef FLEXSOC_SDF_MIN
+          $sdf_annotate(sdf_path, u_{top}, , , "MINIMUM");
+        `elsif FLEXSOC_SDF_TYP
+          $sdf_annotate(sdf_path, u_{top}, , , "TYPICAL");
+        `else
+          $sdf_annotate(sdf_path, u_{top}, , , "MAXIMUM");
+        `endif
+      end
+    end
+  `endif
 
   // Device under test.
   {top} u_{top} (

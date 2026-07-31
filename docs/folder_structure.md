@@ -1,188 +1,195 @@
 # 🗂️ FlexSoC folder structure
 
-FlexSoC keeps **reusable source**, **generated collateral**, **run results**, and
-**tool orchestration** deliberately separate. That separation is what makes it
-possible to regenerate one layer without accidentally overwriting authored
-intent somewhere else.
+FlexSoC separates **reusable source**, **logical run state**, and
+**technology-dependent implementation results**. The PDK name appears only at
+the leaf where an artifact actually depends on that technology.
 
-> 🔑 **Rule of thumb:** `hw/ips/<top>/` is reusable design source;
-> `<WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/` is disposable run state;
-> `src/flexsoc/backend/` is the orchestration implementation behind `fx`.
+> 🔑 **Rule:** describe the flow first, then the PDK. Use `syn/sky130`, not
+> `tech/sky130/syn`.
 
-## 📚 Reusable IP source
+## 1. 📚 Reusable IP source
 
 ```text
 hw/ips/<top>/
-├── data/                 # HJSON and other design source metadata
+├── data/                 # HJSON and source metadata
 ├── doc/                  # retained documentation
 ├── rtl/                  # reusable RTL
 ├── dv/
-│   ├── functional/
-│   │   ├── model/        # model, generated regmap API, test catalogue
-│   │   ├── tests/        # retained vectors when intentionally versioned
-│   │   ├── tb/           # retained SV/cocotb verification collateral
-│   │   └── sim/
-│   │       └── rtl/      # retained simulation configuration, e.g. .gtkw
-│   └── formal/
-│       └── properties/   # authored assertions/covers when intentionally saved
-├── syn/                  # retained synthesis collateral when source-owned
-├── signoff/              # retained signoff collateral when source-owned
-├── pnr_openroad/         # retained physical-design configuration/results
-└── qualification/        # future selected release/qualification evidence
+│   ├── functional/       # retained model/tests/TB when intentionally saved
+│   └── formal/           # authored assertions/covers
+├── syn/                  # optional retained synthesis collateral
+├── signoff/              # optional retained sign-off collateral
+├── pnr_openroad/         # optional retained physical-design collateral
+└── qualification/        # future selected release evidence
 ```
 
-Run-only databases are not reusable IP source. Coverage databases, simulator
-scratch, generated proof traces, transient waveforms, `results.xml`, caches, and
-one-off logs stay out of `hw/ips/<top>/`.
+Run-only databases, waveforms, coverage databases, proof traces, simulator
+scratch and temporary tool outputs do not belong in reusable IP source.
 
-## 🧪 Generated run workspace
+## 2. 🧪 Generated run workspace
 
-A normal run is isolated by `RUN_TOP` and `RUN_ID`:
+One logical run is selected by `RUN_TOP` and `RUN_ID`:
 
 ```text
 <WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
 ├── data/
-│   └── <top>.hjson               # or one HJSON per register domain
-├── doc/                          # generated register documentation
+├── doc/
 ├── rtl/
-│   ├── <top>.sv
-│   ├── <top>_core.sv
-│   ├── rtl_common.f              # shared reachable infrastructure
-│   └── rtl_ip.f                  # reachable IP/run hierarchy
+├── constraints/
+├── lint/
 ├── dv/
 │   ├── functional/
 │   │   ├── model/
-│   │   │   ├── <top>_model.py
-│   │   │   ├── <top>_regmap.py
-│   │   │   └── <top>_tests.py
 │   │   ├── tests/
-│   │   │   └── <TEST_NAME>/
-│   │   │       ├── config.regs
-│   │   │       ├── data_in.vec
-│   │   │       └── data_out.vec
 │   │   ├── tb/
-│   │   │   ├── sv/
-│   │   │   └── cocotb/
 │   │   ├── sim/
 │   │   │   ├── rtl/
 │   │   │   ├── post_syn/
-│   │   │   └── post_layout/      # only when that flow exists
-│   │   ├── coverage/
-│   │   │   ├── sv/
-│   │   │   ├── cocotb/
-│   │   │   ├── merged.dat
-│   │   │   ├── summary.txt
-│   │   │   ├── summary.json
-│   │   │   └── annotated/
-│   │   └── saved/                # deliberately retained functional artifacts
+│   │   │   │   ├── ihp-sg13g2/
+│   │   │   │   └── sky130/
+│   │   │   └── post_pnr/
+│   │   │       ├── ihp-sg13g2/
+│   │   │       └── sky130/
+│   │   └── coverage/
 │   └── formal/
 │       ├── csr/
-│       │   ├── generated/        # generated CSR properties/bind collateral
-│       │   ├── prove/            # SymbiYosys proof work/results
-│       │   └── cover/            # SymbiYosys reachability work/results
 │       ├── properties/
-│       │   ├── prove/            # authored assertions + BMC/proof work/results
-│       │   └── cover/            # authored covers + reachability work/results
-│       └── equivalence/
-│           └── rtl_vs_syn/       # EQY RTL ↔ mapped-netlist closure
+│       └── runs/
 ├── analysis/
-│   ├── slang/                    # AST/hierarchy/debug artifacts
-│   ├── cdc/                      # planned structural CDC analysis
-│   └── rdc/                      # planned structural RDC analysis
-├── syn/                          # synthesis scripts/netlists/results
+│   ├── slang/
+│   ├── cdc/                         # planned
+│   └── rdc/                         # planned
+├── syn/
+│   ├── ihp-sg13g2/
+│   └── sky130/
+├── pnr_openroad/
+│   ├── ihp-sg13g2/
+│   └── sky130/
 ├── signoff/
-│   ├── sdf/                      # timing back-annotation files
-│   └── ...                       # STA / power scripts and reports
-├── pnr_openroad/                 # physical-design workspace/collateral
+│   ├── equivalence/
+│   │   ├── ihp-sg13g2/rtl_vs_syn/
+│   │   └── sky130/rtl_vs_syn/
+│   ├── sta/
+│   │   ├── ihp-sg13g2/
+│   │   └── sky130/
+│   ├── power/
+│   │   ├── ihp-sg13g2/
+│   │   └── sky130/
+│   └── sdf/
+│       ├── ihp-sg13g2/
+│       └── sky130/
 ├── logs/
-│   ├── dv/
-│   │   ├── functional/
-│   │   └── formal/
-│   ├── lint/
-│   ├── synthesis/
+│   ├── dv/                           # shared RTL/property-formal logs
+│   ├── synthesis/<pdk>/
+│   ├── pnr/<pdk>/
 │   └── signoff/
+│       ├── equivalence/<pdk>/
+│       ├── sta/<pdk>/
+│       ├── power/<pdk>/
+│       └── sdf/<pdk>/
 └── meta/
-    ├── manifest.json
-    └── metrics.json
+    ├── ihp-sg13g2/
+    │   ├── manifest.json
+    │   └── metrics.json
+    └── sky130/
+        ├── manifest.json
+        └── metrics.json
 ```
 
-Directories for optional or future flows are created only when needed. For
-example, `analysis/cdc/`, `analysis/rdc/`, and `sim/post_layout/` should not be
-empty placeholders in every run.
+The hierarchy answers two different questions in a stable order:
 
-## 🧪 Design-verification ownership
+1. **What flow produced this artifact?** `syn`, `equivalence`, `sta`, `power`, …
+2. **Which PDK produced this implementation?** `sky130`, `ihp-sg13g2`, …
 
-FlexSoC treats verification as three different closure axes rather than one
-number.
+There is deliberately no parallel `tech/<pdk>/...` tree.
 
-### 🟠 Functional verification
+## 3. 🟠 Functional DV ownership
 
 ```text
 dv/functional/
 ├── model/       # expected behavior + generated CSR API + test catalogue
-├── tests/       # materialized reusable stimulus/expectations
-├── tb/          # SV and cocotb execution infrastructure
-├── sim/         # simulator outputs per DUT representation
-└── coverage/    # Verilator code/toggle/expression/branch/FSM/user coverage
+├── tests/       # materialized simulator-independent vectors
+├── tb/          # SystemVerilog and cocotb infrastructure
+├── sim/
+│   ├── rtl/             # PDK-independent RTL simulation
+│   ├── post_syn/<pdk>/  # mapped-netlist GLS
+│   └── post_pnr/<pdk>/  # final-netlist/SDF GLS
+└── coverage/    # Verilator line/toggle/expr/branch/FSM/user coverage
 ```
 
-`fx regression` runs the generated catalogue on both SystemVerilog and cocotb
-backends and merges Verilator coverage. The human and machine-readable reports
-use the same scope × type model:
+`fx regression` and RTL coverage never consume a PDK. Only gate-level
+simulation leaves are technology dependent.
 
-```text
-Scope          line   toggle   expr   branch   fsm   user   total
-design          ...     ...     ...      ...    ...    ...     ...
-registers       ...     ...     ...      ...    ...    ...     ...
-common          ...     ...     ...      ...    ...    ...     ...
-other           ...     ...     ...      ...    ...    ...     ...
-all             ...     ...     ...      ...    ...    ...     ...
-```
+See [Design verification](design_verification.md).
 
-`summary.txt` is for people; `summary.json` is the stable machine-readable
-contract consumed by metrics/reporting.
-
-### 🧠 Formal verification
+## 4. 🧠 Property-formal ownership
 
 ```text
 dv/formal/
-├── csr/          # automatically generated register semantic checks
-└── properties/   # authored design assertions and cover properties
+├── csr/          # generated CSR semantic assertions/covers
+├── properties/   # authored design assertions/covers
+└── runs/          # BMC / PROVE / COVER workdirs
 ```
 
-Formal closure has different semantics from code coverage:
+This branch is PDK-independent. RTL ↔ mapped-netlist equivalence is **not**
+stored here; it belongs to `signoff/equivalence/<pdk>/`.
 
-- **BMC** finds shallow assertion failures quickly;
-- **PROVE** attempts unbounded/inductive proof;
-- **COVER** checks whether interesting states/sequences are reachable.
-
-These results are kept as proof/reachability status and are **not added to code
-coverage percentages**.
-
-### 🔁 RTL ↔ synthesis equivalence
+## 5. ✅ Sign-off ownership
 
 ```text
-dv/formal/equivalence/rtl_vs_syn/
+signoff/
+├── equivalence/<pdk>/rtl_vs_syn/
+├── sta/<pdk>/
+├── power/<pdk>/
+└── sdf/<pdk>/
 ```
 
-`fx equiv` uses EQY to compare RTL against the mapped post-synthesis netlist.
-The useful closure metric is the number and percentage of EQY partitions proven
-equivalent, with failures, engine errors, timeouts, and unknown partitions kept
-separate.
+- `equivalence` owns EQY configuration, partitions, strategies and traces;
+- `sta` owns OpenSTA timing scripts/reports;
+- `power` owns power-estimate scripts/reports;
+- `sdf` owns SDF generation and timing files.
 
-Equivalence is downstream of synthesis: a netlist change invalidates the EQY
-result even when the functional vectors did not change.
+See [Design sign-off](design_signoff.md).
 
-### 🌐 CDC / RDC analysis — next step
+## 6. 🏗️ Synthesis and PnR ownership
 
-CDC and RDC are intentionally modeled under `analysis/`, not under functional
-coverage. They are planned structural/static analyses for multi-clock and reset
-architectures and will complement simulation, formal proof, and equivalence
-rather than being folded into any of those percentages.
+Mapped synthesis:
 
-## 🧠 Generated model and tests
+```text
+syn/<pdk>/
+├── synth*.ys
+├── <top>_synth.v
+└── plots/
+```
 
-`fx setup_model` creates the bootstrap split:
+OpenROAD:
+
+```text
+pnr_openroad/<pdk>/
+├── config.mk
+├── results/
+├── objects/
+└── reports/
+```
+
+Changing the active PDK selects a different local subdirectory; it never
+requires copying or archiving the previous implementation.
+
+## 7. 📐 Constraints
+
+Logical clock/timing intent is kept once per run:
+
+```text
+constraints/
+└── <top>.sdc
+```
+
+The selected synthesis/sign-off/PnR implementation consumes these constraints.
+PDK-specific derived timing results remain under the corresponding PDK leaf.
+
+## 8. 🧠 Generated model and tests
+
+`fx setup_model` creates:
 
 ```text
 dv/functional/model/
@@ -198,35 +205,37 @@ Ownership after bootstrap:
 - `<top>_tests.py` — authored scenarios and vector-generation policy.
 
 `fx tests_gen --force` materializes those scenarios under
-`dv/functional/tests/<TEST_NAME>/` without changing the authored model.
+`dv/functional/tests/<TEST_NAME>/`.
 
-## 🧰 Backend implementation map
+## 9. 🧰 Backend implementation map
 
-`src/flexsoc/backend/` contains the Python implementation behind the stable
-Make/`fx` target surface. The files are intentionally split by responsibility.
+`src/flexsoc/backend/` contains the implementation behind the stable `fx` / Make
+target surface.
 
 | File | Responsibility |
 | --- | --- |
-| `common.py` | Shared filesystem, source-ordering, and backend helper functions. |
+| `common.py` | Shared filesystem, source-ordering and backend helpers. |
 | `hjson_gen.py` | Starter HJSON/register specification generation. |
-| `driver_gen.py` | Small software driver helpers derived from register metadata. |
+| `driver_gen.py` | Software-driver helpers derived from register metadata. |
 | `rtl_stub_gen.py` | Starter RTL core and wrapper generation. |
-| `top_from_core.py` | Refresh a still-generated top wrapper after core-port changes. |
-| `slang_tools.py` | Slang hierarchy, AST, reachability, and ordered filelist utilities. |
+| `top_from_core.py` | Refresh a generated top wrapper after core-port changes. |
+| `slang_tools.py` | Slang hierarchy, AST, reachability and ordered filelists. |
 | `setup_model.py` | Single-clock behavioral model/test scaffold bootstrap. |
 | `setup_model_regmap.py` | Generated Python CSR/regmap API from HJSON. |
 | `setup_multiclock.py` | Multi-clock HJSON/RTL/model/TB scaffold generation. |
 | `setup_tb.py` | SystemVerilog vector-testbench generation. |
-| `setup_cocotb.py` | cocotb runner/scaffold generation and Verilator integration. |
-| `coverage_report.py` | Coverage merge/report normalization, scope × type summary, detail output. |
-| `setup_formal.py` | SymbiYosys CSR/property configs and EQY equivalence configuration. |
-| `setup_sdc.py` | Single-clock timing-constraint generation. |
-| `setup_syn.py` | Yosys synthesis-script generation. |
-| `setup_signoff.py` | OpenSTA SDF, STA, and power-estimate script generation. |
+| `setup_cocotb.py` | cocotb scaffold and Verilator integration. |
+| `coverage_report.py` | Coverage merge, normalization and scope × type reporting. |
+| `setup_formal.py` | PDK-independent SymbiYosys CSR/property BMC/PROVE/COVER configs. |
+| `setup_sdc.py` | Logical timing-constraint generation. |
+| `setup_syn.py` | Yosys mapped-synthesis script generation. |
+| `setup_signoff.py` | EQY equivalence plus OpenSTA STA/SDF/power configuration. |
+| `post_sim.py` | PDK-scoped post-synthesis/post-PnR Icarus GLS orchestration. |
+| `eqy_debug.py` | EQY result scanning, trace analysis, reset-state probe, and waveform sessions. |
 | `setup_pnr.py` | OpenROAD-flow-scripts configuration generation. |
-| `metrics.py` | Machine-readable run metrics and human `fx check` reporting. |
-| `manifest.py` | Run identity/tool/version manifest collection. |
-| `setup_fsoc.py` | FuseSoC core-file generation from ordered RTL. |
+| `metrics.py` | Shared DV + selected-PDK implementation closure metrics. |
+| `manifest.py` | Run/tool/PDK identity manifest. |
+| `setup_fsoc.py` | FuseSoC core generation from ordered RTL. |
 | `soc_cfg.py` | Resolve SoC host/device configuration. |
 | `soc_start.py` | Stage reusable IP bundles into a SoC run. |
 | `soc_gen.py` | SoC top RTL/FuseSoC/Verilator-wrapper generation. |
@@ -234,12 +243,12 @@ Make/`fx` target surface. The files are intentionally split by responsibility.
 | `xbar_init.py` | OpenTitan-style crossbar configuration generation. |
 | `__init__.py` | Backend package marker/documentation. |
 
-Two non-Python files complete the backend surface:
+Non-Python backend surface:
 
 | File | Responsibility |
 | --- | --- |
 | `Makefile` | Stable target vocabulary and orchestration entry point used by `fx`. |
-| `deps.sh` | Shell-side dependency bootstrap/install helper used by the backend. |
+| `deps.sh` | Dependency bootstrap/install helper. |
 | `toolchain.lock` | Reproducible external-tool revision/version contract. |
 
 The intended layering is:
@@ -247,24 +256,38 @@ The intended layering is:
 ```text
 fx CLI
   ↓
-Make target                 stable, readable user surface
+Make target                 stable user-facing vocabulary
   ↓
-Python backend flow         project semantics / generators / reporting
+Python backend flow         orchestration / project semantics
   ↓
 EDA tool adapter            Slang / Verilator / Yosys / SBY / EQY / OpenSTA / ...
   ↓
-executor                    local today; scheduler backends can sit below later
+executor                    local today; scheduler backend later
 ```
 
-## 🪵 Logs and metadata
+## 10. 🪵 Logs and metadata
 
-Logs are grouped by responsibility so failures are diagnosable without searching
-the whole workspace. Cross-flow machine-readable state stays under `meta/`:
+PDK-independent logs stay shared. Technology-dependent logs put the flow first
+and PDK second:
 
 ```text
-meta/
-├── manifest.json    # run identity and tool versions
-└── metrics.json     # lint / DV / formal / equivalence / implementation closure
+logs/
+├── dv/...
+├── synthesis/<pdk>/
+├── pnr/<pdk>/
+└── signoff/
+    ├── equivalence/<pdk>/
+    ├── sta/<pdk>/
+    ├── power/<pdk>/
+    └── sdf/<pdk>/
 ```
 
-Neither logs nor metadata are a second source of design intent.
+Machine-readable closure is similarly scoped:
+
+```text
+meta/<pdk>/
+├── manifest.json
+└── metrics.json
+```
+
+Neither logs nor metadata are a source of design intent.

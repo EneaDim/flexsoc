@@ -387,9 +387,9 @@ doctor() {
     local out tool
     for tool in $(profile_tools); do
         case "$tool" in
-            verilator) require_marker VERILATOR verilator; out=$(verilator --version); contains "$out" "0b8c36974" verilator ;;
+            verilator) require_marker VERILATOR verilator; out=$(verilator --version); contains "$out" "${VERILATOR_VERSION}" verilator ;;
             slang) require_marker SLANG slang; out=$(slang --version); contains "$out" "11.0.0" slang; command -v slang-hier >/dev/null ;;
-            iverilog) require_marker IVERILOG iverilog; out=$(iverilog -V 2>&1); contains "$out" "version 13.0" iverilog ;;
+            iverilog) require_marker IVERILOG iverilog; out=$(iverilog -V 2>&1); contains "$out" "version ${IVERILOG_VERSION}" iverilog ;;
             yosys) require_marker YOSYS yosys; out=$(yosys -V); contains "$out" "Yosys 0.67" yosys; yosys -qp 'help read_slang' ;;
             sby) require_marker SBY sby; out=$(sby --version); contains "$out" "0.67" sby ;;
             eqy) require_marker EQY eqy; out=$(eqy --version); contains "$out" "0.67" eqy ;;
@@ -419,7 +419,8 @@ versions() {
         printf '    %-12s %-14s %s\n' "${key,,}" "$(version_var "$key")" "$(source_id "$key")"
     done
     printf '    %-12s %-14s %s\n' boost-build "$(version_var BOOST)" "$(source_id BOOST)"
-    echo '  [impl]  not locked yet: OpenROAD, KLayout/physical implementation stack'
+    printf '  [impl]  %-12s %-24s %s\n' openroad "${OPENROAD_VERSION:-unlocked}" "${OPENROAD_REF_PREFIX:-external}"
+    echo '          KLayout/physical implementation installer not locked yet'
     echo '  [riscv] not locked yet: RISC-V GNU toolchain'
 }
 

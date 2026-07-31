@@ -1,14 +1,12 @@
-"""Generate SymbiYosys property and EQY synthesis-equivalence configurations.
+"""Generate SymbiYosys property-verification configurations.
 
-The module intentionally keeps formal intent separate from execution.  It emits
-plain ``.sby``/``.eqy`` files that the Make surface can run with whichever
-versioned toolchain is selected by the caller.
+This module owns PDK-independent BMC/PROVE/COVER intent. Technology-dependent
+RTL-to-netlist equivalence belongs to :mod:`flexsoc.backend.setup_signoff`.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -28,23 +26,6 @@ class PropertyFormalConfig:
     bmc_engine: str = "smtbmc bitwuzla"
     bmc_depth: int = 30
     bmc_append: int = 5
-    multiclock: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class EquivalenceConfig:
-    """Inputs required to compare RTL against a synthesized gate netlist."""
-
-    top: str
-    filelists: tuple[Path, ...]
-    netlist: Path
-    liberty: Path
-    sky130_clock_gate_model: Path
-    engine: str
-    depth: int
-    sat_depth: int
-    output: Path
-    timeout: int = 60
     multiclock: bool = False
 
 
@@ -113,43 +94,6 @@ def _read_slang_command(
     options.extend(str(path) for path in extra_sources)
     options.append(f"--top {top}")
     return "read_slang " + " ".join(options)
-
-
-def render_sky130_clock_gate_model() -> str:
-    """Render formal-compatible models for SKY130 integrated clock gates.
-
-    SKY130 Liberty describes these cells with state tables/internal state rather
-    than a plain output ``function``.  Yosys therefore cannot import them as
-    functional modules via ``read_liberty``.  The equations below mirror the
-    official functional Verilog models while avoiding UDPs, which keeps the
-    EQY gate design fully symbolic instead of blackboxing the clock gates.
-    """
-
-    def dlclkp(name: str) -> str:
-        return f"""module {name} (output wire GCLK, input wire GATE, input wire CLK);
-  reg gate_latched;
-  always @ (CLK or GATE) begin
-    if (!CLK)
-      gate_latched <= GATE;
-  end
-  assign GCLK = CLK & gate_latched;
-endmodule"""
-
-    def sdlclkp(name: str) -> str:
-        return f"""module {name} (output wire GCLK, input wire SCE, input wire GATE, input wire CLK);
-  reg gate_latched;
-  always @ (CLK or GATE or SCE) begin
-    if (!CLK)
-      gate_latched <= (GATE | SCE);
-  end
-  assign GCLK = CLK & gate_latched;
-endmodule"""
-
-    modules = [
-        *(dlclkp(f"sky130_fd_sc_hd__dlclkp_{drive}") for drive in (1, 2, 4)),
-        *(sdlclkp(f"sky130_fd_sc_hd__sdlclkp_{drive}") for drive in (1, 2, 4)),
-    ]
-    return "\n\n".join(modules) + "\n"
 
 
 def render_csr_properties(mode: str) -> str:
@@ -386,87 +330,6 @@ def render_sby(cfg: PropertyFormalConfig, generated_sources: Sequence[Path] = ()
     )
 
 
-def render_eqy(cfg: EquivalenceConfig) -> str:
-    """Render EQY config for RTL-versus-post-synthesis equivalence."""
-
-    if cfg.depth <= 0:
-        raise ValueError("EQY SBY depth must be > 0")
-    if cfg.sat_depth <= 0:
-        raise ValueError("EQY SAT depth must be > 0")
-    if not cfg.engine.strip():
-        raise ValueError("EQY SBY engine must not be empty")
-    if cfg.timeout <= 0:
-        raise ValueError("EQY SBY timeout must be > 0")
-
-    filelists = _require_files(cfg.filelists, label="RTL filelist(s)")
-    netlist = _require_files((cfg.netlist,), label="synthesized netlist")[0]
-    liberty = _require_files((cfg.liberty,), label="Liberty file")[0]
-    clock_gate_model = cfg.sky130_clock_gate_model.expanduser().resolve()
-    gold_read = _read_slang_command(
-        top=cfg.top,
-        filelists=filelists,
-        formal=False,
-    )
-
-    # EQY partitions are heterogeneous. ABC PDR is useful for authored-property
-    # proof, but on mapped equivalence partitions it can terminate as an engine
-    # error without a counterexample (and EQY then aborts the whole run). Use
-    # SMTBMC/Bitwuzla as the robust partition fallback when the legacy default
-    # requests ``abc pdr``. Explicit non-ABC engines are still honored.
-    requested_engine = cfg.engine.strip()
-    robust_engine = (
-        "smtbmc bitwuzla"
-        if requested_engine.lower() == "abc pdr"
-        else requested_engine
-    )
-    # Multi-clock partitions can contain async-FIFO / CDC state that is much
-    # harder for induction than the surrounding logic. Bound the fallback per
-    # partition so one stubborn cone cannot monopolize the whole E2E flow.
-    # The EQY result still records every partition already proven, allowing the
-    # reporting layer to expose closure percentage rather than hiding progress.
-    robust_timeout = min(cfg.timeout, 30) if cfg.multiclock else cfg.timeout
-
-    # Both sides are flattened after elaboration so technology mapping is not
-    # mistaken for a hierarchy change.  Most mapped cells come from Liberty.
-    # SKY130 integrated clock gates are the exception: their Liberty entries use
-    # state tables and have no plain output function, so Yosys cannot model them.
-    # Import the rest with -ignore_miss_func, then overlay formal-compatible
-    # clock-gate models before reading the synthesized netlist.
-    return "\n".join(
-        [
-            "[options]",
-            "splitnets on",
-            "",
-            "[gold]",
-            gold_read,
-            f"prep -top {cfg.top}",
-            "flatten",
-            "memory_map",
-            "opt_clean",
-            "",
-            "[gate]",
-            f"read_liberty -ignore_miss_func {liberty}",
-            f"read_verilog {clock_gate_model}",
-            f"read_verilog {netlist}",
-            f"prep -top {cfg.top}",
-            "flatten",
-            "memory_map",
-            "opt_clean",
-            "",
-            "[strategy quick_sat]",
-            "use sat",
-            f"depth {cfg.sat_depth}",
-            "",
-            "[strategy robust_sby]",
-            "use sby",
-            f"engine {robust_engine}",
-            f"depth {cfg.depth}",
-            f"timeout {robust_timeout}",
-            "",
-        ]
-    )
-
-
 def write_config(path: Path, text: str) -> Path:
     """Write one generated formal configuration."""
 
@@ -491,13 +354,6 @@ def generate_csr_config(cfg: PropertyFormalConfig, generated: Path) -> Path:
     return generate_property_config(cfg, (source,))
 
 
-def generate_equivalence_config(cfg: EquivalenceConfig) -> Path:
-    """Generate SKY130 compatibility models and one EQY config."""
-
-    write_config(cfg.sky130_clock_gate_model, render_sky130_clock_gate_model())
-    return write_config(cfg.output, render_eqy(cfg))
-
-
 def _add_common_filelists(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--filelist",
@@ -511,7 +367,7 @@ def _add_common_filelists(parser: argparse.ArgumentParser) -> None:
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse the small generator CLI used by the backend Makefile."""
 
-    parser = argparse.ArgumentParser(description="Generate SBY/EQY formal configurations.")
+    parser = argparse.ArgumentParser(description="Generate SymbiYosys property-formal configurations.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     properties = subparsers.add_parser("properties", help="Generate an authored-property SBY config.")
@@ -545,22 +401,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     scaffold.add_argument("--top", required=True)
     scaffold.add_argument("--formal-dir", type=Path, required=True)
 
-    equivalence = subparsers.add_parser("equivalence", help="Generate RTL-vs-synthesis EQY config.")
-    equivalence.add_argument("--top", required=True)
-    _add_common_filelists(equivalence)
-    equivalence.add_argument("--netlist", type=Path, required=True)
-    equivalence.add_argument("--liberty", type=Path, required=True)
-    equivalence.add_argument("--sky130-clock-gate-model", type=Path, required=True)
-    equivalence.add_argument("--engine", required=True)
-    equivalence.add_argument("--depth", type=int, default=20)
-    equivalence.add_argument("--sat-depth", type=int, default=5)
-    equivalence.add_argument("--timeout", type=int, default=60)
-    equivalence.add_argument("--output", type=Path, required=True)
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Generate the requested formal configuration."""
+    """Generate the requested property-formal configuration."""
 
     args = parse_args(argv)
     try:
@@ -568,41 +413,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             paths = generate_scaffold(args.top, args.formal_dir)
             print("\n".join(str(path) for path in paths))
             return 0
-        if args.command in {"properties", "csr"}:
-            cfg = PropertyFormalConfig(
-                top=args.top,
-                filelists=tuple(args.filelist),
-                properties_dir=args.properties_dir,
-                mode=args.mode,
-                engine=args.engine,
-                depth=args.depth,
-                output=args.output,
-                bmc_engine=args.bmc_engine,
-                bmc_depth=args.bmc_depth,
-                bmc_append=args.bmc_append,
-                multiclock=args.multiclock,
-            )
-            path = (
-                generate_csr_config(cfg, args.generated)
-                if args.command == "csr"
-                else generate_property_config(cfg)
-            )
-        else:
-            path = generate_equivalence_config(
-                EquivalenceConfig(
-                    top=args.top,
-                    filelists=tuple(args.filelist),
-                    netlist=args.netlist,
-                    liberty=args.liberty,
-                    sky130_clock_gate_model=args.sky130_clock_gate_model,
-                    engine=args.engine,
-                    depth=args.depth,
-                    sat_depth=args.sat_depth,
-                    output=args.output,
-                    timeout=args.timeout,
-                    multiclock=os.environ.get("CLOCK_MODE", "").strip().lower() in {"multi", "multiclock"},
-                )
-            )
+
+        cfg = PropertyFormalConfig(
+            top=args.top,
+            filelists=tuple(args.filelist),
+            properties_dir=args.properties_dir,
+            mode=args.mode,
+            engine=args.engine,
+            depth=args.depth,
+            output=args.output,
+            bmc_engine=args.bmc_engine,
+            bmc_depth=args.bmc_depth,
+            bmc_append=args.bmc_append,
+            multiclock=args.multiclock,
+        )
+        path = (
+            generate_csr_config(cfg, args.generated)
+            if args.command == "csr"
+            else generate_property_config(cfg)
+        )
     except ValueError as exc:
         parser = argparse.ArgumentParser(prog="python -m flexsoc.backend.setup_formal")
         parser.error(str(exc))

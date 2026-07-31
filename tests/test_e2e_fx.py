@@ -537,7 +537,7 @@ def _run_signoff_stages(
     _run_formal_stages(top, run_id=run_id, workspace=workspace)
     for title, target in (
         ("Synthesis", "syn"),
-        ("RTL ↔ synthesis equivalence", "equiv"),
+        ("RTL ↔ synthesis equivalence", "eqy"),
         ("SDF", "sdf"),
         ("STA", "sta"),
         ("Power estimate", "power_estimate"),
@@ -551,7 +551,7 @@ def _run_signoff_stages(
             top=top,
             run_id=run_id,
             workspace=workspace,
-            required=target != "equiv",
+            required=target != "eqy",
         )
 
 

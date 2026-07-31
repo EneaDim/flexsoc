@@ -30,7 +30,7 @@ RTL core / wrapper / generated register RTL
         │       ├── RTL simulation
         │       ├── cocotb simulation
         │       ├── functional coverage
-        │       ├── formal properties
+        │       ├── formal property verification
         │       └── synthesis
         │
         └── interface + clock/reset architecture
@@ -49,7 +49,7 @@ behavioral model + test catalogue
 
 synthesized mapped netlist
         │
-        ├── EQY RTL ↔ synthesis equivalence
+        ├── sign-off equivalence: EQY RTL ↔ synthesis
         ├── SDF
         ├── post-synthesis simulation
         ├── STA
@@ -58,7 +58,10 @@ synthesized mapped netlist
 ```
 
 This graph is the practical meaning of orchestration: the dependency edges
-should live in repeatable targets, not in somebody's shell history.
+should live in repeatable targets, not in somebody's shell history. Property
+checking belongs to Design Verification; RTL-to-netlist EQY belongs to Design
+sign-off because it closes a concrete synthesized implementation. See
+[Design verification](design_verification.md) and [Design sign-off](design_signoff.md).
 
 ## 2. ✍️ Authored source vs generated collateral
 
@@ -151,7 +154,7 @@ fx coverage_detail
 
 fx formal
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 fx metrics check --force
 ```
@@ -199,7 +202,7 @@ fx formal
 
 # Re-close implementation if the hardware representation changed.
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 fx metrics check --force
 ```
@@ -238,7 +241,7 @@ fx coverage_detail
 fx formal
 
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 ```
 
@@ -278,7 +281,7 @@ still pass:
 
 ```bash
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 ```
 
@@ -301,7 +304,7 @@ fx tests_gen --force
 fx regression
 fx formal
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sta power_estimate --force
 ```
 
@@ -355,7 +358,7 @@ fx coverage_detail
 fx formal
 fx sdc_multi --force
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 ```
 
@@ -421,7 +424,7 @@ If the constraints affect synthesis optimization in the selected flow, rerun:
 
 ```bash
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 ```
 
@@ -440,7 +443,7 @@ fx regression
 fx coverage_detail
 fx formal
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 fx manifest metrics check --force
 ```

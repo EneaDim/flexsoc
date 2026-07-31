@@ -1,16 +1,18 @@
 # FlexSoC native toolchain lock. Each managed tool is pinned independently.
-LOCK_VERSION=2
+LOCK_VERSION=3
 
 # base -----------------------------------------------------------------------
-VERILATOR_VERSION=5.043-devel
+VERILATOR_VERSION=5.050
+VERILATOR_MIN_VERSION=5.050
 VERILATOR_REPO=https://github.com/verilator/verilator.git
-VERILATOR_REF=0b8c3697403aefd7830cfc7292880c4448454710
+VERILATOR_REF=848d926ebd4addacacd294dc84e35d9d4ae8078c
 
 SLANG_VERSION=11.0.0
 SLANG_REPO=https://github.com/MikePopoloski/slang.git
 SLANG_REF=7ddf4059f79eff508dd486eb42fd650cdf320d52
 
 IVERILOG_VERSION=13.0
+IVERILOG_MIN_VERSION=12.0
 IVERILOG_URL=https://codeload.github.com/steveicarus/iverilog/tar.gz/v13_0
 IVERILOG_SHA256=c897bbfa9848688982c6d5c30529fc29d68df0b9ff22ffa73bad89db73a7ce49
 IVERILOG_ARCHIVE=tar.gz
@@ -67,7 +69,16 @@ NETLISTSVG_REPO=https://github.com/nturley/netlistsvg.git
 NETLISTSVG_REF=d3518f1b5c996a876b72a1a984bb39d3572c47dc
 
 # impl -----------------------------------------------------------------------
-# OpenROAD/KLayout are intentionally not pinned yet.
+# OpenROAD does not publish a modern stable release line comparable to Icarus
+# or Verilator.  Record the exact FlexSoC-tested external baseline here; the
+# managed impl installer remains a separate follow-up because OpenROAD brings a
+# much larger dependency surface than the base profile.
+OPENROAD_VERSION=v2.0-26328-gd6e98657f1
+OPENROAD_REPO=https://github.com/The-OpenROAD-Project/OpenROAD.git
+OPENROAD_REF_PREFIX=d6e98657f1
+OPENROAD_INSTALL_MODE=external
+
+# KLayout is intentionally not pinned yet.
 
 # riscv ----------------------------------------------------------------------
 # RISC-V GNU toolchain is intentionally not pinned yet.

@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from flexsoc import FlexSoC, FlexSoCConfig
+from flexsoc.api import NATIVE_TARGETS
 from flexsoc.cli import app
 
 
@@ -25,9 +26,13 @@ def _makefile_targets() -> set[str]:
 
 
 def test_api_catalog_matches_makefile_targets() -> None:
-    """The API exposes every callable backend target."""
+    """The API covers public Make targets plus intentional Python-native ones."""
 
-    assert set(FlexSoC(project_root=ROOT).target_names()) == _makefile_targets()
+    api = set(FlexSoC(project_root=ROOT).target_names())
+    make = _makefile_targets() - {"_formal_scaffold"}
+    api_only = {"deps-bootstrap", "deps-doctor", "deps-versions", "deps-env"} | (set(NATIVE_TARGETS) - make)
+    assert make <= api
+    assert api - make == api_only
 
 
 def test_api_builds_ordered_commands_and_overrides(tmp_path: Path) -> None:
@@ -42,6 +47,31 @@ def test_api_builds_ordered_commands_and_overrides(tmp_path: Path) -> None:
     assert "RUN_ID=r1" in first.argv
     assert f"WORKSPACE={tmp_path / 'ws'}" in first.argv
 
+    gate = fx.command("sim_post_syn", TOP="cordic")
+    legacy_alias = fx.command("sim_syn", TOP="cordic")
+    assert gate.argv[1:4] == ("-m", "flexsoc.backend.post_sim", "--action")
+    assert legacy_alias.argv[1:4] == ("-m", "flexsoc.backend.post_sim", "--action")
+    assert "post_syn" in gate.argv
+    assert gate.values["WAVE_FORMAT"] == "fst"
+
+
+
+def test_rtl_make_commands_do_not_leak_pdk_libs_into_verilator(tmp_path: Path) -> None:
+    """Technology libraries are scoped to technology-dependent Make targets."""
+
+    pdk = tmp_path / ".flexsoc" / "pdks" / "sky130"
+    (pdk / "lib").mkdir(parents=True)
+    (pdk / "verilog").mkdir(parents=True)
+    (pdk / "lib" / "sky130_fd_sc_hd__tt_025C_1v80.lib").write_text("library(test) {}\n")
+    (pdk / "verilog" / "sky130_fd_sc_hd.v").write_text("module sky130_fd_sc_hd__buf_1; endmodule\n")
+
+    fx = FlexSoC(FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws"), TOP="demo")
+    rtl = fx.command("compile_sv")
+    syn = fx.command("syn")
+
+    assert not any(arg.startswith("LIBS=") or arg.startswith("LIB_SYN=") for arg in rtl.argv)
+    assert any(arg.startswith("LIB_SYN=") for arg in syn.argv)
+    assert "CLOCK_MODE=" in " ".join(rtl.argv)
 
 def test_api_dry_run_does_not_spawn_processes(monkeypatch, tmp_path: Path) -> None:
     """Dry-run returns previews only."""
@@ -75,9 +105,110 @@ def test_cli_help_settings_commands_and_dry_run(capsys, monkeypatch, tmp_path: P
     names = {item["name"] for item in json.loads(capsys.readouterr().out)}
     assert {"lint_latch", "lint_width", "top_from_core", "ip_load", "soc_run", "clean_all"} <= names
 
+    assert app(["pdk", "list", "--json"]) == 0
+    pdk_rows = json.loads(capsys.readouterr().out)
+    assert {"sky130", "gf180mcu", "ihp-sg13g2", "asap7", "nangate45"} <= {row["name"] for row in pdk_rows}
+
     assert app(["lint_width", "syn", "--dry-run", "--set", "LINT_PART=all"]) == 0
     out = capsys.readouterr().out
     assert " lint_width " in out
     assert " syn " in out
     assert "TOP=cordic" in out
     assert "LINT_PART=all" in out
+
+
+def test_technology_targets_are_isolated_by_pdk(tmp_path: Path) -> None:
+    """PDK names appear locally under each technology-dependent flow branch."""
+
+    for name in ("sky130", "ihp-sg13g2"):
+        pdk = tmp_path / ".flexsoc" / "pdks" / name
+        (pdk / "lib").mkdir(parents=True)
+        (pdk / "verilog").mkdir(parents=True)
+        (pdk / "lib" / f"{name}_tt.lib").write_text("library(test) {}\n")
+        (pdk / "verilog" / f"{name}.v").write_text("module cell; endmodule\n")
+
+    fx = FlexSoC(
+        FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws"),
+        TOP="demo",
+        RUN_TOP="demo",
+        RUN_ID="r1",
+        PDK="sky130",
+    )
+    rtl = fx.command("regression")
+    sky_syn = fx.command("syn")
+    ihp_syn = fx.command("syn", PDK="ihp-sg13g2")
+    sky_eq = fx.command("eqy")
+
+    shared = tmp_path / "ws" / "runs" / "demo" / "r1"
+    assert not any("SYNDIR=" in arg for arg in rtl.argv)
+    assert f"SYNDIR={shared / 'syn' / 'sky130'}" in sky_syn.argv
+    assert f"EQUIVDIR={shared / 'signoff' / 'equivalence' / 'sky130' / 'rtl_vs_syn'}" in sky_eq.argv
+    assert any(
+        arg.startswith("PRIM=") and str(tmp_path / ".flexsoc" / "pdks" / "sky130" / "verilog" / "sky130.v") in arg
+        for arg in sky_eq.argv
+    )
+    assert f"SYNDIR={shared / 'syn' / 'ihp-sg13g2'}" in ihp_syn.argv
+    assert ihp_syn.values["PDK_ROOT"].endswith("/.flexsoc/pdks/ihp-sg13g2")
+
+
+def test_one_shot_pdk_switch_does_not_reuse_stale_root(tmp_path: Path) -> None:
+    """PDK override without PDK_ROOT resolves the new managed installation."""
+
+    sky = tmp_path / ".flexsoc" / "pdks" / "sky130"
+    ihp = tmp_path / ".flexsoc" / "pdks" / "ihp-sg13g2"
+    for root in (sky, ihp):
+        (root / "lib").mkdir(parents=True)
+        (root / "verilog").mkdir(parents=True)
+        (root / "lib" / "tt.lib").write_text("library(test) {}\n")
+        (root / "verilog" / "cells.v").write_text("module cell; endmodule\n")
+
+    fx = FlexSoC(
+        FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws"),
+        PDK="sky130",
+        PDK_ROOT=str(sky),
+    )
+    command = fx.command("syn", PDK="ihp-sg13g2")
+    assert command.values["PDK"] == "ihp-sg13g2"
+    assert command.values["PDK_ROOT"] == str(ihp.resolve())
+
+
+def test_equivalence_generator_belongs_to_setup_signoff() -> None:
+    """The Make surface routes EQY generation through the sign-off backend."""
+
+    text = BACKEND_MAKEFILE.read_text(encoding="utf-8")
+    block = text.split("setup_eqy:", 1)[1].split("\neqy:", 1)[0]
+    assert "flexsoc.backend.setup_signoff eqy" in block
+    assert "flexsoc.backend.setup_formal eqy" not in text
+
+
+def test_pdk_scoped_paths_keep_flow_before_technology(tmp_path: Path) -> None:
+    """Technology-dependent targets share one logical run and split only at local PDK leaves."""
+
+    for name in ("sky130", "ihp-sg13g2"):
+        root = tmp_path / ".flexsoc" / "pdks" / name
+        (root / "lib").mkdir(parents=True)
+        (root / "verilog").mkdir(parents=True)
+        (root / "lib" / "tt.lib").write_text("library(test) {}\n")
+        (root / "verilog" / "cells.v").write_text("module cell; endmodule\n")
+
+    fx = FlexSoC(
+        FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws"),
+        TOP="demo",
+        RUN_TOP="demo",
+        RUN_ID="r1",
+        PDK="sky130",
+    )
+    shared = tmp_path / "ws" / "runs" / "demo" / "r1"
+    for pdk in ("sky130", "ihp-sg13g2"):
+        values = fx.command("eqy", PDK=pdk).values
+        assert values["RUN_ROOT"] == str(shared)
+        assert values["SYNDIR"] == str(shared / "syn" / pdk)
+        assert values["EQUIVDIR"] == str(shared / "signoff" / "equivalence" / pdk / "rtl_vs_syn")
+        assert values["SIGNOFF_STA_DIR"] == str(shared / "signoff" / "sta" / pdk)
+        assert values["SIGNOFF_POWER_DIR"] == str(shared / "signoff" / "power" / pdk)
+        assert values["SIGNOFF_SDF_DIR"] == str(shared / "signoff" / "sdf" / pdk)
+        assert values["ORSDIR"] == str(shared / "pnr_openroad" / pdk)
+        assert values["POST_SYN_SIMDIR"] == str(shared / "dv" / "functional" / "sim" / "post_syn" / pdk)
+        assert values["POST_LAYOUT_SIMDIR"] == str(shared / "dv" / "functional" / "sim" / "post_pnr" / pdk)
+        assert values["METADIR"] == str(shared / "meta" / pdk)
+        assert "/tech/" not in "\n".join(values.values())

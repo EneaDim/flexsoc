@@ -63,7 +63,8 @@ def render_config(
     inc_dirs: list[Path],
     vfiles: list[Path],
     outdir: Path,
-    platform: str = "sky130hd",
+    platform: str,
+    sdc_file: Path,
     syn_strategy: str = "area",
     clk_period: int = 50,
 ) -> str:
@@ -86,7 +87,7 @@ def render_config(
 
         # Constraints / Frontend
         export SYNTH_HDL_FRONTEND = slang
-        export SDC_FILE           = {outdir / f'{top}.sdc'}
+        export SDC_FILE           = {sdc_file}
 
         # Strategy / timing knobs
         STRATEGY ?= {syn_strategy}
@@ -135,7 +136,8 @@ def write_config(
     top: str,
     filelists: list[Path],
     outdir: Path,
-    platform: str = "sky130hd",
+    platform: str,
+    sdc_file: Path,
     syn_strategy: str = "area",
     clk_period: int = 50,
 ) -> Path:
@@ -155,6 +157,7 @@ def write_config(
         vfiles=vfiles,
         outdir=outdir,
         platform=platform,
+        sdc_file=sdc_file.expanduser().resolve(),
         syn_strategy=syn_strategy,
         clk_period=clk_period,
     )
@@ -172,7 +175,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--top", required=True, help="Top module name")
     parser.add_argument("--synthesis-strategy", dest="syn_strategy", default="area", help="Synthesis strategy: none|area|delay")
     parser.add_argument("--clock-period", dest="clk_period", type=int, default=50, help="Clock period in ns")
-    parser.add_argument("--platform", default="sky130hd", help="Target platform")
+    parser.add_argument("--platform", required=True, help="Target OpenROAD platform from the active PDK profile")
+    parser.add_argument("--sdc-file", required=True, help="Logical run SDC consumed by the selected PDK implementation")
     parser.add_argument("--filelist", action="append", required=True, help="Path to a .f file. Repeat for common/IP lists.")
     parser.add_argument("--output-dir", dest="outdir", required=True, help="Output directory")
     return parser.parse_args(argv)
@@ -187,6 +191,7 @@ def main(argv: list[str] | None = None) -> int:
         filelists=[Path(value) for value in args.filelist],
         outdir=Path(args.outdir),
         platform=args.platform,
+        sdc_file=Path(args.sdc_file),
         syn_strategy=args.syn_strategy,
         clk_period=args.clk_period,
     )

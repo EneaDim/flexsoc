@@ -1184,6 +1184,9 @@ def sv_tb_text(top: str, testbench: str) -> str:
     return dedent(f"""\
     `timescale 1ns/1ps
     `include "include_{top}_tb.sv"
+    `ifdef SYN
+      `include "{top}_synth.v"
+    `endif
 
     module {testbench};
 
@@ -1214,7 +1217,8 @@ def sv_tb_text(top: str, testbench: str) -> str:
       string cfg_path;
       string data_in_path;
       string data_out_path;
-      string vcd_path;
+      string wave_path;
+      string sdf_path;
       integer errors;
 
       logic [31:0] exp_result [0:1023];
@@ -1269,12 +1273,30 @@ def sv_tb_text(top: str, testbench: str) -> str:
         if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "dv/functional/tests/mac_smoke/config.regs";
         if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "dv/functional/tests/mac_smoke/data_in.vec";
         if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "dv/functional/tests/mac_smoke/data_out.vec";
-        if (!$value$plusargs("VCD=%s", vcd_path)) vcd_path = "{testbench}.vcd";
-        if (vcd_path != "") begin
-          $display("[TB] dumpfile = %s", vcd_path);
-          $dumpfile(vcd_path);
+        if (!$value$plusargs("WAVE=%s", wave_path)) begin
+          if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
+        end
+        if (wave_path != "") begin
+          $display("[TB] dumpfile = %s", wave_path);
+          $dumpfile(wave_path);
           $dumpvars(0, {testbench});
         end
+
+        `ifdef FLEXSOC_ENABLE_SDF
+          if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+          if (sdf_path != "") begin
+            `ifdef FLEXSOC_SDF_MIN
+              $display("[TB] sdf = %s (MINIMUM)", sdf_path);
+              $sdf_annotate(sdf_path, u_dut, , , "MINIMUM");
+            `elsif FLEXSOC_SDF_TYP
+              $display("[TB] sdf = %s (TYPICAL)", sdf_path);
+              $sdf_annotate(sdf_path, u_dut, , , "TYPICAL");
+            `else
+              $display("[TB] sdf = %s (MAXIMUM)", sdf_path);
+              $sdf_annotate(sdf_path, u_dut, , , "MAXIMUM");
+            `endif
+          end
+        `endif
 
         repeat (5) @(posedge cfg_clk_i);
         cfg_rst_ni = 1'b1;

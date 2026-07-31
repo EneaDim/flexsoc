@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shlex
@@ -18,11 +19,21 @@ from typing import Any, Mapping
 
 PathLike = str | os.PathLike[str] | Path | None
 TargetSpec = tuple[str, str, tuple[str, ...]]
-DEFAULT_SETTINGS = {"TOP": "test", "HOST": "uart", "FORCE": "0", "RUN_ID": "default"}
+DEFAULT_SETTINGS = {
+    "TOP": "test",
+    "HOST": "uart",
+    "FORCE": "0",
+    "RUN_ID": "default",
+    "CLOCK_MODE": "single",
+    "PDK": "sky130",
+    "WAVE_FORMAT": "fst",
+    "GLS_SIMULATOR": "iverilog",
+    "TIMING_MODE": "max",
+}
 
 # Parameter bundles keep the target table compact; every value is still overrideable.
 NONE = ()
-BASE = ("TOP", "RUN_ID", "WORKSPACE")
+BASE = ("TOP", "RUN_ID", "WORKSPACE", "CLOCK_MODE")
 COMMON = (*BASE, "RUN_TOP", "FORCE")
 IP_DEV = (*BASE, "REG_ITF", "FORCE")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
@@ -43,9 +54,11 @@ SIM = (
     "REGRESSION_BACKENDS",
     "COVERAGE",
     "COVERAGE_DETAIL_LIMIT",
+    "WAVE_FORMAT",
+    "WAVE_FILE",
 )
 VIEW = (*COMMON, "WAVE_VIEWER", "SURFER_BACKEND")
-SYN = (*COMMON, "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV")
+SYN = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV", "LIB_SYN")
 FORMAL = (
     *COMMON,
     "SBY",
@@ -56,9 +69,55 @@ FORMAL = (
     "FORMAL_PROVE_ENGINE",
     "FORMAL_COVER_ENGINE",
 )
-EQUIV = (*SYN, "SBY", "EQY", "LIB_SYN", "EQY_SAT_DEPTH", "EQY_DEPTH", "EQY_ENGINE")
-SIGNOFF = (*COMMON, "LIBS", "POWER_ACTIVITY", "POWER_DUTY", "PATH_VIEW_FILE", "NPATHS")
-PNR = (*COMMON, "ORS", "ORS_TECH")
+EQUIV = (
+    *SYN,
+    "SBY",
+    "EQY",
+    "EQY_SAT_DEPTH",
+    "EQY_DEPTH",
+    "EQY_ENGINE",
+    "EQY_TIMEOUT",
+    "EQY_USE_SAT",
+    "EQY_SPLITNETS",
+    "EQY_USE_PDR",
+    "EQY_PDR_ENGINE",
+    "EQY_SMT_ENGINE",
+    "EQY_SMT_DEPTH",
+    "EQY_XPROP",
+    "PRIM",
+    "FORMAL_PDK_PROC",
+)
+SIGNOFF = (
+    *COMMON,
+    "PDK",
+    "PDK_ROOT",
+    "LIBS",
+    "LIB_SYN",
+    "PRIM",
+    "WAVE_FORMAT",
+    "WAVE_FILE",
+    "GLS_SIMULATOR",
+    "TIMING_MODE",
+    "SDF_FILE",
+    "SDF_CORNER",
+    "NETLIST",
+    "SPEF_FILE",
+    "PNR_SDC_FILE",
+    "POWER_ACTIVITY",
+    "POWER_DUTY",
+    "PATH_VIEW_FILE",
+    "NPATHS",
+)
+GATE_SIM = (
+    *SIGNOFF,
+    "TESTBENCH",
+    "TEST_NAME",
+    "TEST_ROOT",
+    "REGCFG",
+    "DATA_IN",
+    "DATA_OUT",
+)
+PNR = (*COMMON, "PDK", "PDK_ROOT", "ORS", "ORS_TECH")
 IP_LOAD = (*COMMON, "IP_NAME")
 SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
 FSM = (*BASE, "FSM", "FORCE")
@@ -174,11 +233,16 @@ TARGETS: dict[str, TargetSpec] = {
     "formal_bmc": ("DV formal", "Bounded-check authored design assertions", FORMAL),
     "formal_prove": ("DV formal", "Prove authored properties with SymbiYosys", FORMAL),
     "formal_cover": ("DV formal", "Reach authored cover properties with SymbiYosys", FORMAL),
-    "setup_equiv": ("DV formal", "Generate RTL-vs-post-synthesis EQY configuration", EQUIV),
-    "equiv": ("DV formal", "Prove RTL equivalent to the post-synthesis netlist with EQY", EQUIV),
+    "setup_eqy": ("Signoff", "Generate RTL-vs-post-synthesis EQY configuration", EQUIV),
+    "eqy": ("Signoff", "Prove RTL equivalent to the post-synthesis netlist with EQY", EQUIV),
     "setup_signoff": ("Signoff", "Generate signoff scripts", SIGNOFF),
     "compile_syn": ("Signoff", "Compile post-synthesis simulation", SIGNOFF),
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
+    "compile_post_syn": ("Gate simulation", "Compile post-synthesis gate-level simulation with Icarus", GATE_SIM),
+    "sim_post_syn": ("Gate simulation", "Run post-synthesis gate-level simulation with optional SDF", GATE_SIM),
+    "compile_post_pnr": ("Gate simulation", "Compile post-PnR gate-level simulation with Icarus", GATE_SIM),
+    "sdf_post_pnr": ("Gate simulation", "Export post-PnR SDF from final netlist, SDC and SPEF", GATE_SIM),
+    "sim_post_pnr": ("Gate simulation", "Run post-PnR gate-level simulation with optional SDF", GATE_SIM),
     "sta": ("Signoff", "Run static timing analysis", SIGNOFF),
     "sdf": ("Signoff", "Write SDF timing files", SIGNOFF),
     "power_estimate": ("Signoff", "Estimate power using global switching activity", SIGNOFF),
@@ -242,7 +306,7 @@ TARGETS: dict[str, TargetSpec] = {
     "clean_rtl": ("Cleanup", "Remove generated RTL", CLEAN),
     "clean_sim": ("Cleanup", "Remove simulation outputs", CLEAN),
     "clean_cocotb": ("Cleanup", "Remove cocotb outputs", CLEAN),
-    "clean_formal": ("Cleanup", "Remove formal proof and equivalence outputs", CLEAN),
+    "clean_formal": ("Cleanup", "Remove property-formal proof outputs", CLEAN),
     "clean_syn": ("Cleanup", "Remove synthesis outputs", CLEAN),
     "clean_signoff": ("Cleanup", "Remove signoff outputs", CLEAN),
     "clean_meta": ("Cleanup", "Remove run metadata", CLEAN),
@@ -401,6 +465,44 @@ MULTICLOCK_TARGET_ALIASES = {
 MULTICLOCK_TRUE_VALUES = {"1", "true", "yes", "on", "multi", "multiclock"}
 
 
+TECHNOLOGY_TARGETS = {
+    "setup_syn", "syn", "syn_v", "syn_sv",
+    "setup_eqy", "eqy",
+    "compile_syn", "sim_syn", "compile_post_syn", "sim_post_syn",
+    "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
+    "setup_signoff", "sta", "sdf", "power_estimate", "sta_violators",
+    "path_view", "sta_corners", "power_estimate_corners", "signoff_corners",
+    "setup_pnr", "pnr", "pnr_gui",
+    "metrics", "manifest", "manifest_show", "check",
+    "clean_syn", "clean_signoff", "clean_pnr", "clean_meta",
+}
+
+
+TECHNOLOGY_PATH_KEYS = {
+    "RUN_ROOT", "CONSTRAINTSDIR", "SYNDIR", "SYNTH_LOGDIR",
+    "EQUIVDIR", "EQUIV_LOG", "SIGNOFFDIR",
+    "SIGNOFF_STA_DIR", "SIGNOFF_POWER_DIR", "SIGNOFF_SDF_DIR", "SIGNOFF_PATH_VIEW_DIR",
+    "STA_LOGDIR", "POWER_LOGDIR", "SDF_LOGDIR",
+    "ORSDIR", "OR_WORKDIR", "OR_LOGDIR",
+    "POST_SYN_SIMDIR", "POST_LAYOUT_SIMDIR",
+    "METADIR", "METRICS_JSON", "MANIFEST_JSON", "COMMAND_LOGDIR",
+}
+
+
+NATIVE_TARGETS: dict[str, tuple[str, str]] = {
+    # Existing fx names are intentionally routed away from the legacy Make
+    # implementation, which is VCD/SKY130-specific. Direct `make compile_syn`
+    # remains available for compatibility while `fx` uses this backend.
+    "compile_syn": ("compile", "post_syn"),
+    "sim_syn": ("sim", "post_syn"),
+    "compile_post_syn": ("compile", "post_syn"),
+    "sim_post_syn": ("sim", "post_syn"),
+    "compile_post_pnr": ("compile", "post_pnr"),
+    "sdf_post_pnr": ("sdf", "post_pnr"),
+    "sim_post_pnr": ("sim", "post_pnr"),
+}
+
+
 def _is_multiclock_run(target: str, values: Mapping[str, Any], project_root: Path) -> bool:
     """Return true when generic targets should resolve to multi-clock targets."""
     for key in ("CLOCK_MODE", "MODE", "IP_MODE"):
@@ -515,17 +617,98 @@ class FlexSoC:
         return _target_object(_target(target))
 
     def values(self, overrides: Mapping[str, Any] | None = None) -> dict[str, str]:
-        """Merge defaults, workspace, and call overrides."""
+        """Merge defaults, discovered PDK views, workspace, and call overrides."""
 
-        return _upper({"WORKSPACE": self.workdir, **self.settings, **dict(overrides or {})})
+        call_overrides = _upper(dict(overrides or {}))
+        explicit = _upper({**DEFAULT_SETTINGS, **self.settings, **call_overrides})
+        if (
+            "PDK" in call_overrides
+            and "PDK_ROOT" not in call_overrides
+            and call_overrides["PDK"] != self.settings.get("PDK")
+        ):
+            # A one-shot PDK switch must not inherit the previously activated
+            # technology's absolute PDK_ROOT. Resolve the selected catalogue
+            # entry from its managed default root instead.
+            explicit.pop("PDK_ROOT", None)
+        pdk_values: dict[str, str] = {}
+        pdk_name = explicit.get("PDK", DEFAULT_SETTINGS["PDK"])
+        try:
+            from .pdk import make_overrides
+
+            pdk_values = make_overrides(
+                self.project_root,
+                pdk_name,
+                explicit.get("PDK_ROOT"),
+            )
+        except ValueError:
+            # Preserve target preview/help for a not-yet-fetched PDK. Commands
+            # that actually need technology views will fail at their tool
+            # boundary with the missing LIB/PRIM path instead of breaking lint.
+            pdk_values = {"PDK": pdk_name}
+
+        values = _upper({"WORKSPACE": self.workdir, **pdk_values, **explicit})
+        from .run_layout import pdk_make_paths
+
+        values.update(pdk_make_paths(self.project_root, values))
+        fmt = values.get("WAVE_FORMAT", "fst").lower()
+        if fmt not in {"fst", "vcd"}:
+            raise ValueError("WAVE_FORMAT must be 'fst' or 'vcd'")
+        values["WAVE_FORMAT"] = fmt
+        values.setdefault("WAVE_EXT", fmt)
+        # Make's packaged default is FST-only. Override it from the Python
+        # surface so WAVE_FORMAT=vcd genuinely changes Verilator's trace
+        # backend instead of merely changing the filename extension.
+        trace_flag = "--trace-fst" if fmt == "fst" else "--trace-vcd"
+        values.setdefault(
+            "VERILATOR_FLAGS",
+            "-Wall -Wno-fatal --binary --timing --Mdir $(SIMDIR)/$(COMPILER) "
+            f"{trace_flag} --trace-structs "
+            "+incdir+$(RTLDIR) +incdir+$(TBDIR) +incdir+$(MODELDIR) "
+            "+incdir+$(INC_PRIM) +incdir+$(INC_PKGS) +incdir+$(INC_PRIM_OT) +incdir+$(INC_TLUL)",
+        )
+        return values
 
     def command(self, target: str, **overrides: Any) -> FlexSoCCommand:
-        """Build one Make command without executing it."""
+        """Build one backend command without executing it."""
 
         name, values = _target(target), self.values(overrides)
-        make_target = _resolve_target_for_run(name, values, self.project_root)
-        argv = ("make", "-f", str(_backend_makefile()), make_target, *(f"{k}={v}" for k, v in values.items()))
-        return FlexSoCCommand(name, tuple(argv), self.project_root, self._env(), values)
+        if name in NATIVE_TARGETS:
+            action, stage = NATIVE_TARGETS[name]
+            argv = (
+                sys.executable,
+                "-m",
+                "flexsoc.backend.post_sim",
+                "--action",
+                action,
+                "--stage",
+                stage,
+                "--project-root",
+                str(self.project_root),
+                "--values-json",
+                json.dumps(values, sort_keys=True),
+            )
+        else:
+            make_target = _resolve_target_for_run(name, values, self.project_root)
+            # Only forward variables declared by this target.  In particular,
+            # never leak PDK variables such as LIBS into RTL simulation: the
+            # generated Verilator makefile uses the conventional LIBS variable
+            # for C++ linker inputs, so a Liberty file there is interpreted as
+            # a linker script.  Technology views belong only to technology
+            # dependent targets.
+            params = set(TARGETS[name][2])
+            make_values = {key: value for key, value in values.items() if key in params}
+            if name in TECHNOLOGY_TARGETS:
+                make_values.update(
+                    {key: value for key, value in values.items() if key in TECHNOLOGY_PATH_KEYS}
+                )
+            argv = (
+                "make",
+                "-f",
+                str(_backend_makefile()),
+                make_target,
+                *(f"{k}={v}" for k, v in make_values.items()),
+            )
+        return FlexSoCCommand(name, tuple(argv), self.project_root, self._env(values), values)
 
     def commands(self, *targets: str, **overrides: Any) -> tuple[FlexSoCCommand, ...]:
         """Build several Make commands in user order."""
@@ -549,6 +732,26 @@ class FlexSoC:
 
         results: list[FlexSoCResult] = []
         for command in commands:
+            if command.target in TECHNOLOGY_TARGETS:
+                pdk_root = (
+                    Path(command.values.get("PDK_ROOT", "")).expanduser()
+                    if command.values.get("PDK_ROOT")
+                    else None
+                )
+                if pdk_root is None or not pdk_root.is_dir() or not command.values.get("LIB_SYN"):
+                    pdk_name = command.values.get("PDK", DEFAULT_SETTINGS["PDK"])
+                    raise RuntimeError(
+                        f"target {command.target!r} requires an activated digital PDK; "
+                        f"{pdk_name!r} is not ready. Run `fx pdk fetch <pdk>` then "
+                        f"`fx pdk use <pdk>`."
+                    )
+                if not capture:
+                    print(
+                        f"\033[38;5;214m[technology]\033[0m "
+                        f"pdk={command.values.get('PDK')} "
+                        f"syn={command.values.get('SYNDIR')}",
+                        flush=True,
+                    )
             log_path = self._command_log_path(command) if capture or live else None
             if log_path:
                 log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -610,6 +813,8 @@ class FlexSoC:
         name = _safe_log_name(command.target)
         if command.target in {"sim", "sim_v", "sim_sv", "cocotb"} and values.get("TEST_NAME"):
             name = f"{name}_{_safe_log_name(values['TEST_NAME'])}"
+        if command.target in TECHNOLOGY_TARGETS and values.get("COMMAND_LOGDIR"):
+            return Path(values["COMMAND_LOGDIR"]) / f"{name}.log"
         return workspace / "runs" / run_top / run_id / "logs" / "commands" / f"{name}.log"
 
     def _run_live(self, command: FlexSoCCommand, log_path: Path) -> subprocess.CompletedProcess[str]:
@@ -630,12 +835,27 @@ class FlexSoC:
                 log.write(line)
             return subprocess.CompletedProcess(command.argv, proc.wait())
 
-    def _env(self) -> dict[str, str]:
-        """Prepend this checkout to PYTHONPATH."""
+    def _env(self, values: Mapping[str, str] | None = None) -> dict[str, str]:
+        """Prepend this checkout to PYTHONPATH and export flow abstractions."""
 
         env = os.environ.copy()
         extra = os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
         env["PYTHONPATH"] = str(self.project_root / "src") + extra
+        vals = values or {}
+        fmt = vals.get("WAVE_FORMAT", "fst").lower()
+        env["IVERILOG_DUMPER"] = "fst" if fmt == "fst" else "vcd"
+        env["WAVE_FORMAT"] = fmt
+        env["FLEXSOC_PDK"] = vals.get("PDK", "")
+        env["FLEXSOC_PDK_CLASS"] = vals.get("PDK_CLASS", "")
+        env["FLEXSOC_RUN_ROOT"] = vals.get("RUN_ROOT", "")
+        env["FLEXSOC_DRIVING_CELL"] = vals.get("DRIVING_CELL", "")
+        env["CLOCK_MODE"] = vals.get("CLOCK_MODE", "")
+        # setup_signoff consumes EQY debug/closure knobs directly from the
+        # environment so the generated sign-off config can evolve without
+        # Makefile-specific plumbing for every strategy option.
+        for key, value in vals.items():
+            if key.startswith("EQY_"):
+                env[key] = value
         return env
 
 

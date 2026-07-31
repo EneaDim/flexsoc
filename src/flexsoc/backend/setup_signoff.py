@@ -1,11 +1,19 @@
-"""Render OpenSTA signoff scripts for a FlexSoC run directory."""
+"""Generate FlexSoC design-signoff configurations.
+
+This module owns technology-dependent sign-off intent: RTL-to-mapped-netlist
+EQY equivalence plus OpenSTA timing, SDF, and power scripts.  Property formal
+(BMC/PROVE/COVER) deliberately remains in :mod:`setup_formal`.
+"""
 
 from __future__ import annotations
 
 import argparse
 import os
+import re
+import shutil
+import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Sequence
 
@@ -15,7 +23,9 @@ class STAConfig:
     """Configuration used to render OpenSTA timing, SDF, and power scripts."""
 
     top: str
-    output_dir: Path
+    sta_dir: Path
+    power_dir: Path
+    sdf_dir: Path
     syndir: Path | None = None
     sdcdir: Path | None = None
     simdir: Path | None = None
@@ -24,8 +34,35 @@ class STAConfig:
     power_duty: float = 0.5
 
 
+@dataclass(frozen=True, slots=True)
+class EquivalenceConfig:
+    """Inputs required to compare RTL against a synthesized gate netlist."""
+
+    top: str
+    filelists: tuple[Path, ...]
+    netlist: Path
+    liberty: Path
+    cell_models: tuple[Path, ...]
+    sky130_clock_gate_model: Path
+    engine: str
+    depth: int
+    sat_depth: int
+    output: Path
+    formal_cell_model: Path | None = None
+    formal_pdk_proc: Path | None = None
+    timeout: int = 60
+    multiclock: bool = False
+    splitnets: str = "off"
+    use_sat: bool = False
+    use_pdr: bool = False
+    pdr_engine: str = "abc pdr"
+    smt_engine: str = "smtbmc bitwuzla"
+    smt_depth: int = 5
+    xprop: str = "on"
+
+
 def optional_path(value: str | None) -> Path | None:
-    """Return a path for non-empty values and `None` for missing CLI inputs."""
+    """Return a path for non-empty values and ``None`` for missing CLI inputs."""
 
     return Path(value) if value else None
 
@@ -36,42 +73,287 @@ def split_liberties(values: Sequence[str]) -> list[Path]:
     return [Path(token.strip()) for item in values for token in str(item).split(",") if token.strip()]
 
 
-def parse_args(argv: Sequence[str]) -> STAConfig:
-    """Parse the command-line arguments used by the Make flow."""
+def _resolved(paths: Sequence[Path]) -> tuple[Path, ...]:
+    return tuple(path.expanduser().resolve() for path in paths)
 
-    parser = argparse.ArgumentParser(description="Generate OpenSTA signoff scripts.")
-    parser.add_argument("--top", required=False, help="Top module name.")
-    parser.add_argument("--output-dir", required=False, help="Output directory for generated signoff scripts.")
-    parser.add_argument("--synthesis-dir", dest="syndir", help="Directory containing the synthesized netlist.")
-    parser.add_argument("--constraints-dir", dest="sdcdir", help="Directory containing the generated SDC file.")
-    parser.add_argument("--simulation-dir", dest="simdir", help="Directory containing simulation activity data.")
-    parser.add_argument("--liberty", dest="liberty", action="append", default=[], help="Liberty file; repeat or comma-separate values.")
-    parser.add_argument("--power-activity", type=float, default=0.1, help="Estimated transitions per clock cycle for power analysis.")
-    parser.add_argument("--power-duty", type=float, default=0.5, help="Estimated probability that a signal is high for power analysis.")
-    ns, _unknown = parser.parse_known_args(list(argv))
 
-    top = ns.top or os.environ.get("TOP")
-    out = ns.output_dir or os.environ.get("OUTPUT_DIR") or os.environ.get("OUTDIR") or os.environ.get("SIGNOFFDIR")
-    if not top:
-        parser.error("missing top name (use --top or set TOP)")
-    if not out:
-        parser.error("missing output dir (use --output-dir or set OUTPUT_DIR)")
+def _require_files(paths: Sequence[Path], *, label: str) -> tuple[Path, ...]:
+    resolved = _resolved(paths)
+    missing = [path for path in resolved if not path.is_file()]
+    if missing:
+        rendered = "\n  ".join(str(path) for path in missing)
+        raise ValueError(f"missing {label}:\n  {rendered}")
+    return resolved
 
-    if ns.power_activity < 0.0:
-        parser.error("--power-activity must be >= 0")
-    if not 0.0 <= ns.power_duty <= 1.0:
-        parser.error("--power-duty must be between 0 and 1")
 
-    return STAConfig(
-        top=str(top),
-        output_dir=Path(out).resolve(),
-        syndir=optional_path(ns.syndir),
-        sdcdir=optional_path(ns.sdcdir),
-        simdir=optional_path(ns.simdir),
-        liberty=split_liberties(ns.liberty),
-        power_activity=float(ns.power_activity),
-        power_duty=float(ns.power_duty),
+def _netlist_ports(netlist: Path, top: str) -> tuple[str, ...]:
+    """Return top-level ports from a Yosys-style synthesized Verilog netlist."""
+
+    text = netlist.read_text(encoding="utf-8", errors="replace")
+    module = re.search(
+        rf"(?ms)^\s*module\s+{re.escape(top)}\s*\(.*?^\s*endmodule\b",
+        text,
     )
+    if module is None:
+        raise ValueError(f"cannot find top module {top!r} in synthesized netlist: {netlist}")
+
+    ports: list[str] = []
+    for decl in re.finditer(r"(?m)^\s*(?:input|output|inout)\b([^;]*);", module.group(0)):
+        body = re.sub(r"\[[^]]+\]", " ", decl.group(1))
+        body = re.sub(r"\b(?:wire|logic|reg|signed|unsigned)\b", " ", body)
+        for item in body.split(","):
+            tokens = item.split()
+            if not tokens:
+                continue
+            name = tokens[-1]
+            if name not in ports:
+                ports.append(name)
+
+    if not ports:
+        raise ValueError(f"cannot discover top-level ports in synthesized netlist: {netlist}")
+    return tuple(ports)
+
+
+def _eqy_match_sections(top: str, ports: Sequence[str]) -> list[str]:
+    """Match only the external contract, never synthesis-internal net names."""
+
+    return [
+        f"[match {top}]",
+        "nodefault",
+        *(f"gold-match {port}" for port in ports),
+        "",
+    ]
+
+
+def _read_slang_synthesis(top: str, filelists: Sequence[Path]) -> str:
+    """Render the canonical Slang/Yosys synthesis frontend for EQY gold RTL."""
+
+    options = ["-D SYNTHESIS", "--ignore-assertions"]
+    options.extend(f"-f {path}" for path in filelists)
+    options.append(f"--top {top}")
+    return "read_slang " + " ".join(options)
+
+
+def render_sky130_clock_gate_model() -> str:
+    """Render formal-compatible SKY130 integrated clock-gate models."""
+
+    def dlclkp(name: str) -> str:
+        return f"""module {name} (output wire GCLK, input wire GATE, input wire CLK);
+  reg gate_latched;
+  always @ (CLK or GATE) begin
+    if (!CLK)
+      gate_latched <= GATE;
+  end
+  assign GCLK = CLK & gate_latched;
+endmodule"""
+
+    def sdlclkp(name: str) -> str:
+        return f"""module {name} (output wire GCLK, input wire SCE, input wire GATE, input wire CLK);
+  reg gate_latched;
+  always @ (CLK or GATE or SCE) begin
+    if (!CLK)
+      gate_latched <= (GATE | SCE);
+  end
+  assign GCLK = CLK & gate_latched;
+endmodule"""
+
+    modules = [
+        *(dlclkp(f"sky130_fd_sc_hd__dlclkp_{drive}") for drive in (1, 2, 4)),
+        *(sdlclkp(f"sky130_fd_sc_hd__sdlclkp_{drive}") for drive in (1, 2, 4)),
+    ]
+    return "\n\n".join(modules) + "\n"
+
+
+def _gate_model_reads(
+    cfg: EquivalenceConfig,
+    *,
+    liberty: Path,
+    netlist: Path,
+    cell_models: Sequence[Path],
+) -> list[str]:
+    """Read functional cell models when safe, otherwise use Liberty fallback.
+
+    LibreLane's EQY flow uses functional standard-cell Verilog and a dedicated
+    SKY130 formal-PDK preprocessor.  FlexSoC follows that model when a prepared
+    model is available.  SKY130 falls back to Liberty if the external processor
+    is unavailable; other PDKs use their FUNCTIONAL Verilog models directly.
+    """
+
+    pdk = os.environ.get("FLEXSOC_PDK", "").strip().lower()
+    reads: list[str] = []
+    if cfg.formal_cell_model is not None:
+        reads.append(f"read_verilog -formal -sv {cfg.formal_cell_model}")
+    elif cell_models and pdk != "sky130":
+        rendered = " ".join(str(path) for path in cell_models)
+        reads.append(f"read_verilog -formal -sv -DFUNCTIONAL {rendered}")
+    else:
+        reads.append(f"read_liberty -ignore_miss_func {liberty}")
+        if pdk == "sky130":
+            reads.append(f"read_verilog -formal -sv {cfg.sky130_clock_gate_model.expanduser().resolve()}")
+    reads.append(f"read_verilog -formal -sv {netlist}")
+    return reads
+
+
+def _strategy_lines(cfg: EquivalenceConfig) -> list[str]:
+    """Render a fast single-clock baseline with bounded formal fallbacks."""
+
+    strategies: list[str] = []
+    if cfg.use_sat and not cfg.multiclock:
+        strategies.extend(["[strategy sat]", "use sat", f"depth {cfg.sat_depth}", ""])
+
+    common_sby = [f"timeout {cfg.timeout}", f"xprop {cfg.xprop}"]
+    if cfg.multiclock:
+        common_sby.append("option multiclock on")
+
+    if cfg.use_pdr:
+        strategies.extend(
+            ["[strategy pdr]", "use sby", f"engine {cfg.pdr_engine.strip()}", *common_sby, ""]
+        )
+
+    strategies.extend(
+        [
+            "[strategy smt]",
+            "use sby",
+            f"engine {cfg.smt_engine.strip()}",
+            f"depth {cfg.smt_depth}",
+            *common_sby,
+            "",
+        ]
+    )
+    return strategies
+
+
+def render_eqy(cfg: EquivalenceConfig) -> str:
+    """Render RTL-vs-synthesis EQY with symmetric formal normalization."""
+
+    if cfg.depth <= 0:
+        raise ValueError("EQY SBY depth must be > 0")
+    if cfg.sat_depth <= 0:
+        raise ValueError("EQY SAT depth must be > 0")
+    if cfg.smt_depth <= 0:
+        raise ValueError("EQY SMT depth must be > 0")
+    if cfg.timeout <= 0:
+        raise ValueError("EQY SBY timeout must be > 0")
+    if cfg.splitnets not in {"on", "off"}:
+        raise ValueError("EQY splitnets must be 'on' or 'off'")
+    if cfg.xprop not in {"on", "off"}:
+        raise ValueError("EQY xprop must be 'on' or 'off'")
+    if cfg.use_pdr and not cfg.pdr_engine.strip():
+        raise ValueError("EQY PDR engine must not be empty")
+    if not cfg.smt_engine.strip():
+        raise ValueError("EQY SMT engine must not be empty")
+
+    filelists = _require_files(cfg.filelists, label="RTL filelist(s)")
+    netlist = _require_files((cfg.netlist,), label="synthesized netlist")[0]
+    liberty = _require_files((cfg.liberty,), label="Liberty file")[0]
+    cell_models = _require_files(cfg.cell_models, label="functional cell model(s)") if cfg.cell_models else ()
+    ports = _netlist_ports(netlist, cfg.top)
+
+    return "\n".join(
+        [
+            "[options]",
+            f"splitnets {cfg.splitnets}",
+            "",
+            "[gold]",
+            _read_slang_synthesis(cfg.top, filelists),
+            "",
+            "[gate]",
+            *_gate_model_reads(cfg, liberty=liberty, netlist=netlist, cell_models=cell_models),
+            "",
+            "[script]",
+            f"hierarchy -check -top {cfg.top}",
+            "proc",
+            f"prep -top {cfg.top} -flatten",
+            "memory -nomap",
+            "async2sync",
+            "",
+            *_eqy_match_sections(cfg.top, ports),
+            *_strategy_lines(cfg),
+        ]
+    )
+
+
+def _formal_pdk_processor(cfg: EquivalenceConfig) -> str | None:
+    """Return an optional external functional-model preprocessor."""
+
+    if cfg.formal_pdk_proc is not None:
+        candidate = cfg.formal_pdk_proc.expanduser().resolve()
+        if not candidate.is_file():
+            raise ValueError(f"formal PDK processor not found: {candidate}")
+        return str(candidate)
+    override = os.environ.get("EQY_FORMAL_PDK_PROC", "").strip()
+    if override:
+        candidate = shutil.which(override) or (override if Path(override).is_file() else None)
+        if candidate is None:
+            raise ValueError(f"EQY_FORMAL_PDK_PROC not found: {override}")
+        return str(candidate)
+    return shutil.which("eqy.formal_pdk_proc")
+
+
+def _prepare_formal_cell_model(cfg: EquivalenceConfig) -> EquivalenceConfig:
+    """Prepare SKY130 functional Verilog without making LibreLane a dependency."""
+
+    pdk = os.environ.get("FLEXSOC_PDK", "").strip().lower()
+    if pdk != "sky130" or not cfg.cell_models:
+        return cfg
+
+    models = _require_files(cfg.cell_models, label="functional cell model(s)")
+    output = cfg.output.expanduser().resolve().parent / "formal_pdk.v"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    processor = _formal_pdk_processor(cfg)
+    if processor is None:
+        print(
+            "WARNING: SKY130 formal adapter missing; EQY will use Liberty cell semantics. "
+            "Run `fx pdk fetch sky130 --force` to install the pinned EQY adapter.",
+            file=sys.stderr,
+        )
+        return cfg
+    command = [processor, "--output", str(output), *(str(path) for path in models)]
+
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise ValueError(
+            f"formal PDK preprocessing failed ({result.returncode}): {' '.join(command)}"
+            + (f"\n{detail}" if detail else "")
+        )
+    if not output.is_file():
+        raise ValueError(f"formal PDK preprocessor did not create: {output}")
+    return replace(cfg, formal_cell_model=output)
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be one of 1/0, true/false, yes/no, on/off")
+
+
+def write_text(path: Path, content: str) -> Path:
+    """Write UTF-8 text and return the written path."""
+
+    path = path.expanduser().resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def generate_equivalence_config(cfg: EquivalenceConfig) -> Path:
+    """Generate optional PDK compatibility models and one EQY config."""
+
+    pdk = os.environ.get("FLEXSOC_PDK", "").strip().lower()
+    body = (
+        render_sky130_clock_gate_model()
+        if pdk == "sky130"
+        else "// No PDK-specific EQY compatibility model required.\n"
+    )
+    write_text(cfg.sky130_clock_gate_model, body)
+    prepared = _prepare_formal_cell_model(cfg)
+    return write_text(cfg.output, render_eqy(prepared))
 
 
 def liberty_corner(path: Path) -> str:
@@ -123,14 +405,14 @@ def render_init_opensta(config: STAConfig) -> str:
         netlist = (config.syndir / f"{config.top}_synth.v").resolve()
         lines += [f'puts "read_verilog {tcl_quote(netlist)}"', f"read_verilog {tcl_quote(netlist)}"]
     else:
-        lines.append('puts "WARNING: no --syndir provided; skipping read_verilog"')
+        lines.append('puts "WARNING: no --synthesis-dir provided; skipping read_verilog"')
 
     lines += [f'puts "link_design {config.top}"', f"link_design {config.top}"]
     if config.sdcdir:
         sdc = (config.sdcdir / f"{config.top}.sdc").resolve()
         lines += [f'puts "read_sdc {tcl_quote(sdc)}"', f"read_sdc {tcl_quote(sdc)}"]
     else:
-        lines.append('puts "WARNING: no --sdcdir provided; skipping read_sdc"')
+        lines.append('puts "WARNING: no --constraints-dir provided; skipping read_sdc"')
     return "\n".join(lines)
 
 
@@ -160,8 +442,6 @@ def render_sta_tcl(config: STAConfig) -> str:
 
 
 def render_sta_violators_tcl(config: STAConfig) -> str:
-    """Render a focused OpenSTA timing violators report script."""
-
     return "\n".join(
         [
             render_init_opensta(config),
@@ -176,15 +456,14 @@ def render_sta_violators_tcl(config: STAConfig) -> str:
 
 
 def render_write_sdf_tcl(config: STAConfig) -> str:
-    """Render one SDF export for the Liberty selected by STA_CORNER."""
+    """Render one SDF export into the PDK-specific SDF branch."""
 
-    sdf_dir = (config.output_dir / "sdf").resolve()
     return "\n".join(
         [
             render_init_opensta(config),
             "",
             'puts "=== Write SDF ==="',
-            f'set sdf_file [file join {tcl_quote(sdf_dir)} "{config.top}_${{sta_corner}}.sdf"]',
+            f'set sdf_file [file join {tcl_quote(config.sdf_dir.resolve())} "{config.top}_${{sta_corner}}.sdf"]',
             'puts "corner=$sta_corner sdf=$sdf_file"',
             'write_sdf -divider . -include_typ $sdf_file',
             "",
@@ -193,8 +472,6 @@ def render_write_sdf_tcl(config: STAConfig) -> str:
 
 
 def render_power_estimate_tcl(config: STAConfig) -> str:
-    """Render a corner-aware OpenSTA power estimate using global activity."""
-
     return "\n".join(
         [
             render_init_opensta(config),
@@ -210,32 +487,124 @@ def render_power_estimate_tcl(config: STAConfig) -> str:
     )
 
 
-def write_text(path: Path, content: str) -> Path:
-    """Write UTF-8 text and return the written path."""
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    return path
-
-
 def write_signoff_scripts(config: STAConfig) -> list[Path]:
-    """Write the OpenSTA script set and return the generated paths."""
+    """Write STA, power, and SDF scripts into function-first PDK directories."""
 
-    config.output_dir.mkdir(parents=True, exist_ok=True)
+    for directory in (config.sta_dir, config.power_dir, config.sdf_dir):
+        directory.mkdir(parents=True, exist_ok=True)
     return [
-        write_text(config.output_dir / "sta.tcl", render_sta_tcl(config)),
-        write_text(config.output_dir / "sta_violators.tcl", render_sta_violators_tcl(config)),
-        write_text(config.output_dir / "write_sdf.tcl", render_write_sdf_tcl(config)),
-        write_text(config.output_dir / "power_estimate.tcl", render_power_estimate_tcl(config)),
+        write_text(config.sta_dir / "sta.tcl", render_sta_tcl(config)),
+        write_text(config.sta_dir / "sta_violators.tcl", render_sta_violators_tcl(config)),
+        write_text(config.sdf_dir / "write_sdf.tcl", render_write_sdf_tcl(config)),
+        write_text(config.power_dir / "power_estimate.tcl", render_power_estimate_tcl(config)),
     ]
 
 
+def _add_equivalence_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--top", required=True)
+    parser.add_argument("--filelist", action="append", type=Path, required=True)
+    parser.add_argument("--netlist", type=Path, required=True)
+    parser.add_argument("--liberty", type=Path, required=True)
+    parser.add_argument("--cell-model", action="append", type=Path, default=[])
+    parser.add_argument("--formal-pdk-proc", type=Path)
+    parser.add_argument("--sky130-clock-gate-model", type=Path, required=True)
+    parser.add_argument("--engine", required=True)
+    parser.add_argument("--depth", type=int, default=20)
+    parser.add_argument("--sat-depth", type=int, default=5)
+    parser.add_argument("--timeout", type=int, default=60)
+    parser.add_argument("--output", type=Path, required=True)
+
+
+def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    """Parse the sign-off generator CLI."""
+
+    parser = argparse.ArgumentParser(description="Generate FlexSoC sign-off configurations.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    analysis = subparsers.add_parser("analysis", help="Generate OpenSTA STA/SDF/power scripts.")
+    analysis.add_argument("--top", required=True)
+    analysis.add_argument("--sta-dir", type=Path, required=True)
+    analysis.add_argument("--power-dir", type=Path, required=True)
+    analysis.add_argument("--sdf-dir", type=Path, required=True)
+    analysis.add_argument("--synthesis-dir", dest="syndir")
+    analysis.add_argument("--constraints-dir", dest="sdcdir")
+    analysis.add_argument("--simulation-dir", dest="simdir")
+    analysis.add_argument("--liberty", dest="liberty", action="append", default=[])
+    analysis.add_argument("--power-activity", type=float, default=0.1)
+    analysis.add_argument("--power-duty", type=float, default=0.5)
+
+    eqy = subparsers.add_parser("eqy", help="Generate RTL-vs-synthesis EQY config.")
+    _add_equivalence_args(eqy)
+    return parser.parse_args(list(argv))
+
+
+def _sta_config(args: argparse.Namespace) -> STAConfig:
+    if args.power_activity < 0.0:
+        raise ValueError("--power-activity must be >= 0")
+    if not 0.0 <= args.power_duty <= 1.0:
+        raise ValueError("--power-duty must be between 0 and 1")
+    return STAConfig(
+        top=args.top,
+        sta_dir=args.sta_dir.resolve(),
+        power_dir=args.power_dir.resolve(),
+        sdf_dir=args.sdf_dir.resolve(),
+        syndir=optional_path(args.syndir),
+        sdcdir=optional_path(args.sdcdir),
+        simdir=optional_path(args.simdir),
+        liberty=split_liberties(args.liberty),
+        power_activity=float(args.power_activity),
+        power_duty=float(args.power_duty),
+    )
+
+
+def _equivalence_config(args: argparse.Namespace) -> EquivalenceConfig:
+    multiclock = os.environ.get("CLOCK_MODE", "").strip().lower() in {"multi", "multiclock"}
+    timeout = int(os.environ.get("EQY_TIMEOUT", "30" if multiclock else str(args.timeout)))
+    splitnets = os.environ.get("EQY_SPLITNETS", "off").strip().lower()
+    use_sat = _env_bool("EQY_USE_SAT", not multiclock)
+    use_pdr = _env_bool("EQY_USE_PDR", True)
+    pdr_engine = os.environ.get("EQY_PDR_ENGINE", args.engine).strip() or "abc pdr"
+    smt_engine = os.environ.get("EQY_SMT_ENGINE", "smtbmc bitwuzla").strip()
+    smt_depth = int(os.environ.get("EQY_SMT_DEPTH", "5" if multiclock else "2"))
+    xprop = os.environ.get("EQY_XPROP", "on").strip().lower()
+    return EquivalenceConfig(
+        top=args.top,
+        filelists=tuple(args.filelist),
+        netlist=args.netlist,
+        liberty=args.liberty,
+        cell_models=tuple(args.cell_model),
+        formal_pdk_proc=args.formal_pdk_proc,
+        sky130_clock_gate_model=args.sky130_clock_gate_model,
+        engine=args.engine,
+        depth=args.depth,
+        sat_depth=args.sat_depth,
+        output=args.output,
+        timeout=timeout,
+        multiclock=multiclock,
+        splitnets=splitnets,
+        use_sat=use_sat,
+        use_pdr=use_pdr,
+        pdr_engine=pdr_engine,
+        smt_engine=smt_engine,
+        smt_depth=smt_depth,
+        xprop=xprop,
+    )
+
+
 def main(argv: Sequence[str]) -> int:
-    """Run the command-line entrypoint used by the Make flow."""
+    """Generate the requested sign-off configuration."""
 
-    write_signoff_scripts(parse_args(argv))
+    args = parse_args(argv)
+    try:
+        if args.command == "analysis":
+            for path in write_signoff_scripts(_sta_config(args)):
+                print(path)
+        else:
+            print(generate_equivalence_config(_equivalence_config(args)))
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     return 0
-
 
 
 if __name__ == "__main__":

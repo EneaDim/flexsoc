@@ -62,12 +62,16 @@ fx setup_tb setup_cocotb --force
 fx regression
 fx coverage_detail
 
-# Formal DV
+# Formal DV — property checking
 fx formal
 
-# Implementation + equivalence + signoff
+# Implementation prerequisite
 fx syn --force
-fx equiv --force
+
+# Sign-off — RTL ↔ post-synthesis equivalence
+fx eqy --force
+
+# Implementation signoff
 fx sdf sta power_estimate --force
 
 # Consolidated closure
@@ -122,14 +126,14 @@ fx formal
 
 fx sdc_multi --force
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 fx metrics check --force
 ```
 
 `CLOCK_MODE=multi` preserves the model/regmap/tests ownership contract but uses
 multi-domain register maps, event/domain-aware verification, multi-clock timing
-constraints, and multi-clock formal/equivalence assumptions.
+constraints, multi-clock formal assumptions, and sign-off equivalence assumptions.
 
 > 🌐 **Next step:** CDC and RDC structural analysis will be added as explicit
 > multi-clock/reset closure stages. They will remain separate from functional
@@ -155,7 +159,7 @@ fx regression
 fx coverage_detail
 fx formal
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 ```
 
@@ -192,25 +196,32 @@ dv/functional/tests/<TEST_NAME>/
 
 Both SystemVerilog and cocotb consume the same materialized vectors.
 
-## 🔁 Equivalence checking
+## ✅ Sign-off — equivalence checking
 
 EQY compares the RTL representation against the mapped post-synthesis netlist:
 
 ```bash
 fx syn --force
-fx equiv --force
+fx eqy --force
 ```
 
-The report distinguishes:
+The report distinguishes proven, failed, engine-error, timeout, and unknown
+partitions. A partial percentage is therefore diagnostic closure information,
+not functional coverage and not automatically a demonstrated RTL mismatch.
 
-- partitions proven equivalent;
-- real failed partitions;
-- solver/engine errors;
-- timeouts;
-- unknown/incomplete partitions.
+Diagnose failures without navigating the EQY directory manually:
 
-A partial percentage is therefore diagnostic closure information, not functional
-coverage and not automatically a demonstrated RTL mismatch.
+```bash
+fx eqy_debug
+fx eqy_debug [partition]
+fx eqy_debug --wave [partition]
+fx eqy_debug --files [partition]
+```
+
+Use `fx eqy_debug --files [partition]` when you need the raw EQY/SBY artifact inventory.
+
+See [Design verification](design_verification.md) for the DV structure and
+[Design sign-off](design_signoff.md) for synthesis-dependent closure.
 
 ## 🪵 Debug output
 
@@ -219,7 +230,7 @@ Default output stays compact. Add `--live` where full tool output is useful:
 ```bash
 fx regression --live
 fx formal --live
-fx syn equiv sdf sta power_estimate --force --live
+fx syn eqy sdf sta power_estimate --force --live
 ```
 
 Logs are grouped under `logs/lint`, `logs/dv/functional`, `logs/dv/formal`,

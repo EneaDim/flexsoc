@@ -190,7 +190,7 @@ generated TB infrastructure, coverage databases, and reports are refreshed.
 The same scope × type coverage matrix is used for new and reusable IPs, so
 requalification does not invent a different verification metric.
 
-## 9. 🧠 Formal, synthesis, equivalence, and signoff regression
+## 9. 🧠 Formal DV, synthesis, and signoff regression
 
 A reusable IP should be requalified through the same closure layers as a newly
 generated block:
@@ -198,14 +198,18 @@ generated block:
 ```bash
 fx formal
 fx syn --force
-fx equiv --force
+fx eqy --force
 fx sdf sta power_estimate --force
 fx metrics check --force
 ```
 
-Formal BMC/PROVE/COVER and EQY partition closure remain separate from functional
-code coverage. This is especially useful when a toolchain upgrade changes
-solver or synthesis behavior without changing the source IP.
+Formal DV contains property checking; post-synthesis EQY equivalence belongs to sign-off;
+the latter simply has a synthesis prerequisite. Both remain separate from
+functional code coverage. If EQY produces a non-PASS partition, run
+`fx eqy_debug` first; it combines closure, proof-phase, failing-step, and
+gold/gate trace analysis plus a non-destructive reset-state probe. Use
+`fx eqy_debug --files [partition]` only for the raw artifact inventory. See
+[Design verification](design_verification.md) and [Design sign-off](design_signoff.md).
 
 ## 10. 🔗 Reuse the IP in a larger SoC
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import tomllib
@@ -16,6 +17,7 @@ from rich.console import Console
 from rich.table import Table
 
 from flexsoc.doctor import collect as collect_environment
+from flexsoc.run_layout import pdk_run_layout
 
 
 def _git(root: Path, *args: str) -> str | None:
@@ -65,18 +67,36 @@ def collect_manifest(
     environment = collect_environment(repo_root)
     commit = _git(repo_root, "rev-parse", "HEAD")
     status = _git(repo_root, "status", "--porcelain")
+    pdk = os.environ.get("FLEXSOC_PDK") or None
+    run_root_value = os.environ.get("FLEXSOC_RUN_ROOT") or None
+    artifact_paths: dict[str, str] | None = None
+    if pdk and run_root_value:
+        artifact_paths = pdk_run_layout(Path(run_root_value), pdk=pdk, top=top).as_dict()
+
     tools = {
-        item["executable"]: item["version"]
+        item["executable"]: {
+            "version": item["version"],
+            "path": item["path"],
+            "version_ok": item.get("version_ok", True),
+            "lock_match": item.get("lock_match"),
+            "minimum_version": item.get("minimum_version"),
+            "locked_version": item.get("locked_version"),
+            "locked_ref": item.get("locked_ref"),
+            "install_mode": item.get("install_mode"),
+        }
         for item in environment["tools"]
         if item["found"]
     }
 
     return {
-        "schema_version": 2,
+        "schema_version": 5,
         "run": {
             "top": top,
             "run_top": run_top,
             "run_id": run_id,
+            "pdk": pdk,
+            "run_root": run_root_value,
+            "artifacts": artifact_paths,
         },
         "git": {
             "commit": commit,
@@ -90,6 +110,7 @@ def collect_manifest(
             "uv_lock_sha256": _file_sha256(repo_root / "uv.lock"),
             "toolchain_lock_sha256": _file_sha256(repo_root / "src" / "flexsoc" / "backend" / "toolchain.lock"),
         },
+        "toolchain": environment.get("toolchain_lock", {}),
         "tools": tools,
     }
 
@@ -111,6 +132,12 @@ def show_manifest(path: Path) -> None:
     identity.add_column("Field", style="dim")
     identity.add_column("Value")
     identity.add_row("RUN_TOP", str(run.get("run_top", "-")))
+    if run.get("pdk"):
+        identity.add_row("PDK", str(run.get("pdk")))
+    artifacts = run.get("artifacts")
+    if isinstance(artifacts, dict):
+        identity.add_row("Synthesis", str(artifacts.get("synthesis", "-")))
+        identity.add_row("Equivalence", str(artifacts.get("equivalence", "-")))
     identity.add_row("Git commit", str(data.get("git", {}).get("commit") or "unavailable"))
     dirty = data.get("git", {}).get("dirty")
     dirty_text = "unknown" if dirty is None else ("dirty" if dirty else "clean")
@@ -131,8 +158,20 @@ def show_manifest(path: Path) -> None:
         table = Table(box=None, pad_edge=False)
         table.add_column("Executable", style="bright_cyan")
         table.add_column("Version")
-        for executable, version in sorted(tools.items()):
-            table.add_row(executable, str(version))
+        for executable, value in sorted(tools.items()):
+            if isinstance(value, dict):
+                version = value.get("version", "unknown")
+                lock_match = value.get("lock_match")
+                locked = value.get("locked_version")
+                suffix = ""
+                if lock_match is False and locked:
+                    suffix = f"  [dim](lock {locked})[/dim]"
+                elif lock_match is True and locked:
+                    suffix = f"  [dim](locked {locked})[/dim]"
+                table.add_row(executable, f"{version}{suffix}")
+            else:
+                # Backward-compatible rendering for schema_version <= 2.
+                table.add_row(executable, str(value))
         console.print(table)
 
 
