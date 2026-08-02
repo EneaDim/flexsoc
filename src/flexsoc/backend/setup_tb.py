@@ -1590,7 +1590,7 @@ def render_tlul_utils() -> str:
 
     drv_if.h2d.d_ready   <= 1'b1;
     drv_if.h2d.a_valid   <= 1'b1;
-    drv_if.h2d.a_opcode  <= tlul_pkg::PutFullData;
+    drv_if.h2d.a_opcode  <= (mask == '1) ? tlul_pkg::PutFullData : tlul_pkg::PutPartialData;
     drv_if.h2d.a_param   <= 3'b000;
     drv_if.h2d.a_size    <= 2;
     drv_if.h2d.a_source  <= source;
@@ -1605,7 +1605,7 @@ def render_tlul_utils() -> str:
     do cycle(); while (!drv_if.d2h.d_valid);
 
     if (drv_if.d2h.d_error) begin
-      $display("[%0t] TLUL WRITE ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
+      $fatal(1, "[%0t] TLUL WRITE ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
     end else begin
       $display("[%0t] TLUL WRITE DONE: Addr = 0x%08x", $time, addr);
     end
@@ -1645,7 +1645,7 @@ def render_tlul_utils() -> str:
     data = drv_if.d2h.d_data;
 
     if (drv_if.d2h.d_error) begin
-      $display("[%0t] TLUL READ ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
+      $fatal(1, "[%0t] TLUL READ ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
     end else begin
       $display("[%0t] TLUL READ DONE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
     end

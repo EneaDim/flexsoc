@@ -596,6 +596,13 @@ def _regmap_tests_text(top: str, *, safe_controls: bool = False) -> str:
             return mask & 0xFFFF_FFFF
 
 
+        def _write_mask(register: regmap.Register) -> int:
+            """Return TL-UL byte enables covering the declared register width."""
+
+            byte_count = max(1, min(4, (register.mask.bit_length() + 7) // 8))
+            return (1 << byte_count) - 1
+
+
         def _safe_config_rows() -> list[str]:
             """Return the non-disruptive control baseline required by N-clock traffic.
 
@@ -636,8 +643,9 @@ def _regmap_tests_text(top: str, *, safe_controls: bool = False) -> str:
                     if not mask:
                         continue
                     base = register.reset & 0xFFFF_FFFF
+                    write_mask = _write_mask(register)
                     for value in (base ^ mask, base, base ^ mask, base):
-                        rows.append(register.vector_write(cycle, value, mask=mask))
+                        rows.append(register.vector_write(cycle, value, mask=write_mask))
                         cycle += 4
 
             for value in (0xFFFF_FFFF, 0x0000_0000, 0xFFFF_FFFF, 0x0000_0000):

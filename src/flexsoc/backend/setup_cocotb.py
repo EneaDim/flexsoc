@@ -549,6 +549,8 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
     addr = resolve_register(reg_or_addr, regmap)
     data = parse_u32(data)
     mask = parse_u32(mask) & 0xF
+    if not mask:
+        raise ValueError(f"TL-UL write mask is zero at addr=0x{addr:08x}")
 
     dut._log.info("reg write addr=0x%08x data=0x%08x mask=0x%x", addr, data, mask)
 
@@ -557,7 +559,7 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
 
     _get(dut, "tl_i_d_ready").value = 1
     _get(dut, "tl_i_a_valid").value = 1
-    _get(dut, "tl_i_a_opcode").value = 0  # PutFullData
+    _get(dut, "tl_i_a_opcode").value = 0 if mask == 0xF else 1  # PutFullData / PutPartialData
     _get(dut, "tl_i_a_param").value = 0
     _get(dut, "tl_i_a_size").value = 2
     _get(dut, "tl_i_a_source").value = 0

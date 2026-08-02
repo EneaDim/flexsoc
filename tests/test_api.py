@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 from flexsoc import FlexSoC, FlexSoCConfig
 from flexsoc.api import NATIVE_TARGETS
 from flexsoc.backend.hjson_gen import main as hjson_main
 from flexsoc.backend.metrics import eqy_solver_stats
-from flexsoc.backend.setup_cocotb import cocotb_py_text, cocotb_reg_driver_py_text
+from flexsoc.backend.setup_cocotb import (
+    cocotb_py_text,
+    cocotb_reg_driver_py_text,
+    render_reg_driver_py,
+)
+from flexsoc.backend.setup_model import _regmap_tests_text
 from flexsoc.backend.setup_sdc import render_clock_config_sdc
+from flexsoc.backend.setup_signoff import NetlistPort, render_formal_protocol_view
+from flexsoc.backend.setup_tb import render_tlul_utils
 from flexsoc.backend.setup_syn import config_from_args as synthesis_config_from_args, parse_args as parse_synthesis_args
 from flexsoc.cli import app
 from flexsoc.clocking import clock_config
@@ -203,6 +212,45 @@ def test_nclock_generators_use_clock_config_and_create_outputs(monkeypatch, tmp_
     compile(driver_text, "<reg_driver.py>", "exec")
 
 
+def test_auto_toggle_uses_tlul_byte_masks_and_protocol_opcodes(tmp_path: Path) -> None:
+    """CSR field masks must not be truncated into invalid TL-UL byte enables."""
+
+    model_dir = tmp_path / "model"
+    tests_dir = tmp_path / "tests"
+    model_dir.mkdir()
+    uart_model = ROOT / "hw" / "ips" / "uart" / "dv" / "functional" / "model"
+    for name in ("uart_model.py", "uart_regmap.py"):
+        (model_dir / name).write_bytes((uart_model / name).read_bytes())
+    helper = model_dir / "uart_regmap_tests.py"
+    helper.write_text(_regmap_tests_text("uart"), encoding="utf-8")
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(model_dir)
+    result = subprocess.run(
+        [sys.executable, str(helper), "--tests-dir", str(tests_dir), "--test", "auto_toggle"],
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    rows = [
+        line for line in (tests_dir / "auto_toggle" / "data_in.vec").read_text().splitlines()
+        if line and not line.startswith("#")
+    ]
+    assert rows[0] == "0 @write clk_i.CTRL 0xb48000f7 0x0000000f"
+
+    cocotb_driver = render_reg_driver_py()
+    assert "0 if mask == 0xF else 1  # PutFullData / PutPartialData" in cocotb_driver
+    assert "TL-UL write mask is zero" in cocotb_driver
+    compile(cocotb_driver, "<reg_driver.py>", "exec")
+
+    sv_driver = render_tlul_utils()
+    assert "(mask == '1) ? tlul_pkg::PutFullData : tlul_pkg::PutPartialData" in sv_driver
+    assert '$fatal(1, "[%0t] TLUL WRITE ERROR' in sv_driver
+    assert '$fatal(1, "[%0t] TLUL READ ERROR' in sv_driver
+
+
 def test_synthesis_uses_fastest_configured_clock(monkeypatch, tmp_path: Path) -> None:
     """ABC timing follows ClockConfig rather than a stale Make default."""
 
@@ -357,6 +405,21 @@ def test_equivalence_generator_belongs_to_setup_signoff() -> None:
     block = text.split("setup_eqy:", 1)[1].split("\neqy:", 1)[0]
     assert "flexsoc.backend.setup_signoff eqy" in block
     assert "flexsoc.backend.setup_formal eqy" not in text
+
+
+def test_eqy_formal_view_recognizes_primary_tlul_response() -> None:
+    """The canonical top-level tl_o receives protocol-aware EQY normalization."""
+
+    ports = (
+        NetlistPort("input", "clk_i"),
+        NetlistPort("input", "rst_ni"),
+        NetlistPort("input", "tl_i", "[108:0]"),
+        NetlistPort("output", "tl_o", "[65:0]"),
+    )
+    view = render_formal_protocol_view("cordic", ports)
+    assert "wire [65:0] tl_o__raw;" in view
+    assert "assign tl_o[65] = tl_o__raw[65];" in view
+    assert "assign tl_o[47:16] = (tl_o__raw[65] && !tl_o__raw[1])" in view
 
 
 def test_eqy_parallelizes_partitions_with_configurable_jobs(tmp_path: Path) -> None:
