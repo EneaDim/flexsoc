@@ -7,7 +7,10 @@ import ast
 import re
 import sys
 from pathlib import Path
+from textwrap import dedent
 from typing import Any
+
+from flexsoc.clocking import clock_config
 
 from .common import colorize, ensure_dir, safe_write_file
 from .top_from_core import render_top_from_core
@@ -188,6 +191,266 @@ def render_core(hj: Hjson) -> str:
     ]
     return "\n".join(lines) + "\n"
 
+def render_nclock_core(top: str) -> str:
+    """Render the editable N-clock core stub."""
+
+    return dedent(f"""\
+    // Editable N-clock RTL core for {top}.
+    //
+    // User edit point:
+    //   Keep this file as the main design surface. After changing ports, run
+    //   `fx top_from_core --force` to refresh rtl/{top}.sv.
+    //
+    // Register path rule from reggen:
+    //   - multi-field registers use .<field>.q/.d, e.g. ctrl.enable.q.
+    //   - single-field registers are flat, e.g. gain.q and result.d.
+
+    module {top}_core
+      import {top}_cfg_reg_pkg::*;
+      import {top}_dsp_reg_pkg::*;
+    (
+      input  logic                     cfg_clk_i,
+      input  logic                     cfg_rst_ni,
+      input  logic                     rx_clk_i,
+      input  logic                     rx_rst_ni,
+      input  logic                     dsp_clk_i,
+      input  logic                     dsp_rst_ni,
+      input  logic                     test_en_i,
+
+      input  {top}_cfg_reg2hw_t        cfg_reg2hw_i,
+      output {top}_cfg_hw2reg_t        cfg_hw2reg_o,
+      input  {top}_dsp_reg2hw_t        dsp_reg2hw_i,
+      output {top}_dsp_hw2reg_t        dsp_hw2reg_o,
+
+      input  logic                     rx_valid_i,
+      output logic                     rx_ready_o,
+      input  logic signed [15:0]       rx_sample_i,
+      input  logic signed [15:0]       rx_coeff_i,
+
+      output logic                     dsp_valid_o,
+      input  logic                     dsp_ready_i,
+      output logic signed [31:0]       dsp_result_o,
+      output logic                     dsp_above_threshold_o,
+      output logic                     dsp_overflow_o
+    );
+
+      localparam logic signed [63:0] I32_MAX = 64'sd2147483647;
+      localparam logic signed [63:0] I32_MIN = -64'sd2147483648;
+
+      // --------------------------------------------------------------------
+      // Register extraction
+      // --------------------------------------------------------------------
+      logic               cfg_enable;
+      logic               cfg_soft_reset;
+      logic               cfg_clk_gate_en;
+      logic signed [15:0] cfg_gain;
+      logic [1:0]         dsp_op;
+      logic               dsp_saturate;
+      logic [31:0]        dsp_threshold;
+
+      assign cfg_enable      = cfg_reg2hw_i.ctrl.enable.q;
+      assign cfg_soft_reset  = cfg_reg2hw_i.ctrl.soft_reset.q;
+      assign cfg_clk_gate_en = cfg_reg2hw_i.ctrl.clk_gate_en.q;
+      assign cfg_gain        = cfg_reg2hw_i.gain.q[15:0];
+      assign dsp_op          = dsp_reg2hw_i.dsp_ctrl.op.q;
+      assign dsp_saturate    = dsp_reg2hw_i.dsp_ctrl.saturate.q;
+      assign dsp_threshold   = dsp_reg2hw_i.threshold.q;
+
+      // --------------------------------------------------------------------
+      // Single-bit CDC controls
+      // --------------------------------------------------------------------
+      logic enable_rx;
+      logic enable_dsp;
+      logic soft_reset_dsp;
+      logic clk_gate_en_dsp;
+      logic signed [15:0] gain_dsp_q;
+
+      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_enable_rx_sync (
+        .clk_i  (rx_clk_i),
+        .rst_ni (rx_rst_ni),
+        .d_i    (cfg_enable),
+        .q_o    (enable_rx)
+      );
+
+      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_enable_dsp_sync (
+        .clk_i  (dsp_clk_i),
+        .rst_ni (dsp_rst_ni),
+        .d_i    (cfg_enable),
+        .q_o    (enable_dsp)
+      );
+
+      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_soft_reset_dsp_sync (
+        .clk_i  (dsp_clk_i),
+        .rst_ni (dsp_rst_ni),
+        .d_i    (cfg_soft_reset),
+        .q_o    (soft_reset_dsp)
+      );
+
+      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_clk_gate_en_dsp_sync (
+        .clk_i  (dsp_clk_i),
+        .rst_ni (dsp_rst_ni),
+        .d_i    (cfg_clk_gate_en),
+        .q_o    (clk_gate_en_dsp)
+      );
+
+      always_ff @(posedge dsp_clk_i or negedge dsp_rst_ni) begin
+        if (!dsp_rst_ni) begin
+          gain_dsp_q <= '0;
+        end else if (!enable_dsp) begin
+          // Safe scaffold policy: update multi-bit cfg while disabled.
+          gain_dsp_q <= cfg_gain;
+        end
+      end
+
+      // --------------------------------------------------------------------
+      // RX -> DSP async FIFO
+      // --------------------------------------------------------------------
+      logic        fifo_wready;
+      logic        fifo_rvalid;
+      logic        fifo_rready;
+      logic [31:0] fifo_wdata;
+      logic [31:0] fifo_rdata;
+      logic [3:0]  fifo_wdepth;
+      logic [3:0]  fifo_rdepth;
+
+      assign fifo_wdata  = {{rx_sample_i, rx_coeff_i}};
+      assign rx_ready_o  = enable_rx & fifo_wready;
+      assign fifo_rready = enable_dsp & fifo_rvalid & (!dsp_valid_o | dsp_ready_i);
+
+      prim_fifo_async #(
+        .Width(32),
+        .Depth(8),
+        .OutputZeroIfEmpty(1'b1),
+        .OutputZeroIfInvalid(1'b1)
+      ) u_rx_to_dsp_fifo (
+        .clk_wr_i  (rx_clk_i),
+        .rst_wr_ni (rx_rst_ni),
+        .wvalid_i  (rx_valid_i & rx_ready_o),
+        .wready_o  (fifo_wready),
+        .wdata_i   (fifo_wdata),
+        .wdepth_o  (fifo_wdepth),
+        .clk_rd_i  (dsp_clk_i),
+        .rst_rd_ni (dsp_rst_ni),
+        .rvalid_o  (fifo_rvalid),
+        .rready_i  (fifo_rready),
+        .rdata_o   (fifo_rdata),
+        .rdepth_o  (fifo_rdepth)
+      );
+
+      // --------------------------------------------------------------------
+      // DSP clock gate intent
+      // --------------------------------------------------------------------
+      // The scaffold keeps computation on dsp_clk_i for broad tool support and
+      // still instantiates prim_clk_gate so the intended enable is visible to
+      // lint/timing review. Replace this with a gated-clock implementation only
+      // after your constraints and gate-level checks are ready.
+      logic dsp_clk_gated;
+      logic dsp_clk_active;
+      assign dsp_clk_active = enable_dsp & (!clk_gate_en_dsp | fifo_rvalid | dsp_valid_o);
+
+      prim_clk_gate u_dsp_clk_gate (
+        .clk_i     (dsp_clk_i),
+        .en_i      (dsp_clk_active),
+        .test_en_i (test_en_i),
+        .clk_o     (dsp_clk_gated)
+      );
+
+      // --------------------------------------------------------------------
+      // Small DSP algorithm
+      // --------------------------------------------------------------------
+      logic signed [15:0] sample_d;
+      logic signed [15:0] coeff_d;
+      logic signed [63:0] sample_ext;
+      logic signed [63:0] coeff_ext;
+      logic signed [63:0] gain_ext;
+      logic signed [63:0] raw_result;
+      logic signed [31:0] clipped_result;
+      logic               overflow_d;
+      logic               above_threshold_d;
+
+      assign sample_d   = fifo_rdata[31:16];
+      assign coeff_d    = fifo_rdata[15:0];
+      assign sample_ext = {{{{48{{sample_d[15]}}}}, sample_d}};
+      assign coeff_ext  = {{{{48{{coeff_d[15]}}}}, coeff_d}};
+      assign gain_ext   = {{{{48{{gain_dsp_q[15]}}}}, gain_dsp_q}};
+
+      always_comb begin
+        unique case (dsp_op)
+          2'd1: raw_result = (sample_ext >= coeff_ext) ? sample_ext - coeff_ext : coeff_ext - sample_ext;
+          2'd2: raw_result = (sample_ext * sample_ext) + (coeff_ext * coeff_ext);
+          default: raw_result = (sample_ext * coeff_ext) + gain_ext;
+        endcase
+
+        overflow_d = (raw_result > I32_MAX) | (raw_result < I32_MIN);
+        if (dsp_saturate && raw_result > I32_MAX) begin
+          clipped_result = 32'sh7fff_ffff;
+        end else if (dsp_saturate && raw_result < I32_MIN) begin
+          clipped_result = -32'sh8000_0000;
+        end else begin
+          clipped_result = raw_result[31:0];
+        end
+        above_threshold_d = $unsigned(clipped_result) > dsp_threshold;
+      end
+
+      always_ff @(posedge dsp_clk_i or negedge dsp_rst_ni) begin
+        if (!dsp_rst_ni) begin
+          dsp_valid_o           <= 1'b0;
+          dsp_result_o          <= '0;
+          dsp_above_threshold_o <= 1'b0;
+          dsp_overflow_o        <= 1'b0;
+        end else if (soft_reset_dsp) begin
+          dsp_valid_o           <= 1'b0;
+          dsp_result_o          <= '0;
+          dsp_above_threshold_o <= 1'b0;
+          dsp_overflow_o        <= 1'b0;
+        end else if (fifo_rready) begin
+          dsp_valid_o           <= 1'b1;
+          dsp_result_o          <= clipped_result;
+          dsp_above_threshold_o <= above_threshold_d;
+          dsp_overflow_o        <= overflow_d;
+        end else if (dsp_ready_i) begin
+          dsp_valid_o <= 1'b0;
+        end
+      end
+
+      // --------------------------------------------------------------------
+      // HW -> register status/result
+      // --------------------------------------------------------------------
+      logic cfg_busy;
+      logic cfg_overflow;
+
+      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_busy_cfg_sync (
+        .clk_i  (cfg_clk_i),
+        .rst_ni (cfg_rst_ni),
+        .d_i    (dsp_valid_o),
+        .q_o    (cfg_busy)
+      );
+
+      prim_flop_2sync #(.Width(1), .ResetValue(1'b0)) u_overflow_cfg_sync (
+        .clk_i  (cfg_clk_i),
+        .rst_ni (cfg_rst_ni),
+        .d_i    (dsp_overflow_o),
+        .q_o    (cfg_overflow)
+      );
+
+      assign cfg_hw2reg_o.cfg_status.busy.d     = cfg_busy;
+      assign cfg_hw2reg_o.cfg_status.overflow.d = cfg_overflow;
+
+      assign dsp_hw2reg_o.result.d                     = dsp_result_o;
+      assign dsp_hw2reg_o.dsp_status.valid.d           = dsp_valid_o;
+      assign dsp_hw2reg_o.dsp_status.above_threshold.d = dsp_above_threshold_o;
+      assign dsp_hw2reg_o.dsp_status.fifo_empty.d      = ~fifo_rvalid;
+      assign dsp_hw2reg_o.dsp_status.overflow.d        = dsp_overflow_o;
+
+      // Debug visibility and lint quieting for intentionally unused scaffold nets.
+      logic unused_debug;
+      assign unused_debug = ^{{fifo_wdepth, fifo_rdepth, dsp_clk_gated}};
+
+    endmodule
+    """)
+
+
+
 
 def generate_rtl_stubs(hjson_path: str | Path, itf: str, outdir: str | Path, *, force: bool = False) -> tuple[Path, Path]:
     """Generate <top>_core.sv and an aligned <top>.sv wrapper."""
@@ -208,7 +471,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
 
     parser = argparse.ArgumentParser(description="Generate starter RTL core and top wrapper.")
-    parser.add_argument("--hjson-file", dest="hjson_path", required=True)
+    parser.add_argument("--top", help="Top name for N-clock scaffold generation.")
+    parser.add_argument("--hjson-file", dest="hjson_path")
     parser.add_argument("--interface", dest="itf", required=True)
     parser.add_argument("--output-dir", dest="outdir", default=".")
     parser.add_argument("-f", "--force", action="store_true", help="overwrite existing files")
@@ -220,7 +484,19 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         args = parse_args(argv)
-        generate_rtl_stubs(args.hjson_path, args.itf, args.outdir, force=args.force)
+        clocks = clock_config()
+        if clocks.multiclock:
+            top, out = (args.top or "").strip(), Path(args.outdir)
+            if not top:
+                raise ValueError("--top is required when N_CLOCKS > 1")
+            ensure_dir(out)
+            safe_write_file(out / f"{top}_core.sv", render_nclock_core(top), overwrite=args.force)
+            from .top_from_core import write_top_from_core
+            write_top_from_core(top, out, args.itf, force=args.force, clocks=clocks)
+        else:
+            if not args.hjson_path:
+                raise ValueError("--hjson-file is required when N_CLOCKS = 1")
+            generate_rtl_stubs(args.hjson_path, args.itf, args.outdir, force=args.force)
         return 0
     except Exception as err:
         print(colorize(f"Error: {err}"), file=sys.stderr)

@@ -11,7 +11,7 @@ import subprocess
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Sequence
 
 from flexsoc.run_layout import pdk_run_layout, run_root
 
@@ -23,6 +23,34 @@ _INTERESTING_WORDS = (
     "gold", "gate", "clk", "clock", "rst", "reset", "valid", "ready", "ack",
     "outstanding", "equiv", "trigger", "assert", "compare",
 )
+
+
+def describe_partition(partition: str) -> str | None:
+    """Decode flattened TL-UL response bits into protocol field names."""
+
+    match = re.fullmatch(r"(.+(?:_tl_o|\.tl_o))\.(\d+)", partition)
+    if not match:
+        return None
+    base, raw_bit = match.groups()
+    bit = int(raw_bit)
+    fields = (
+        (0, 0, "a_ready"),
+        (1, 1, "d_error"),
+        (2, 8, "d_user.data_intg"),
+        (9, 15, "d_user.rsp_intg"),
+        (16, 47, "d_data"),
+        (48, 48, "d_sink"),
+        (49, 56, "d_source"),
+        (57, 58, "d_size"),
+        (59, 61, "d_param"),
+        (62, 64, "d_opcode"),
+        (65, 65, "d_valid"),
+    )
+    for lo, hi, name in fields:
+        if lo <= bit <= hi:
+            suffix = f"[{bit - lo}]" if hi > lo else ""
+            return f"{base.rsplit('.', 1)[-1]}.{name}{suffix}"
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -786,6 +814,7 @@ def _inject_reset_initialization(
     reset: str,
     reset_active: str,
     reset_cycles: int,
+    domains: Sequence[tuple[str, str, str]] | None = None,
 ) -> str:
     """Inject reset initialization into the common or legacy EQY preprocessing.
 
@@ -795,27 +824,30 @@ def _inject_reset_initialization(
     remain supported for already-generated runs.
     """
 
-    if reset_active not in {"low", "high"}:
-        raise ValueError("reset_active must be 'low' or 'high'")
+    specs = tuple(domains or ((clock, reset, reset_active),))
     if reset_cycles <= 0:
         raise ValueError("reset_cycles must be > 0")
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", clock):
-        raise ValueError(f"invalid clock port name: {clock!r}")
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", reset):
-        raise ValueError(f"invalid reset port name: {reset!r}")
-
-    reset_opt = "-resetn" if reset_active == "low" else "-reset"
-    command = (
-        f"sim -clock {clock} {reset_opt} {reset} -rstlen {reset_cycles} "
-        f"-n {reset_cycles} -w"
-    )
+    commands: list[str] = []
+    for domain_clock, domain_reset, polarity in specs:
+        if polarity not in {"low", "high"}:
+            raise ValueError("reset polarity must be 'low' or 'high'")
+        for label, signal in (("clock", domain_clock), ("reset", domain_reset)):
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", signal):
+                raise ValueError(f"invalid {label} port name: {signal!r}")
+        reset_opt = "-resetn" if polarity == "low" else "-reset"
+        commands.append(
+            f"sim -clock {domain_clock} {reset_opt} {domain_reset} "
+            f"-rstlen {reset_cycles} -n {reset_cycles} -w"
+        )
     lines = source.splitlines()
 
-    # Preferred path: one shared formal-normalization script applied by EQY to
-    # both gold and gate. Insert after async2sync, i.e. after reset semantics are
-    # normalized but before matching/partitioning.
+    # Preferred path: one shared preprocessing script applied by EQY to both
+    # gold and gate. Single-clock configs end with async2sync; multi-clock
+    # configs leave event lowering to SBY after lowering memories to logic.
     section = ""
-    if any(line.strip() == "async2sync" for line in lines):
+    anchors = ("async2sync", "memory_map -formal", "memory -nomap")
+    present = next((anchor for anchor in anchors if any(line.strip() == anchor for line in lines)), None)
+    if present:
         out: list[str] = []
         inserted = False
         for line in lines:
@@ -823,8 +855,8 @@ def _inject_reset_initialization(
             if stripped.startswith("[") and stripped.endswith("]"):
                 section = stripped[1:-1].split()[0].lower()
             out.append(line)
-            if section == "script" and stripped == "async2sync" and not inserted:
-                out.extend(("uniquify", command))
+            if section == "script" and stripped == present and not inserted:
+                out.extend(("uniquify", *commands))
                 inserted = True
         if inserted:
             return "\n".join(out) + ("\n" if source.endswith("\n") else "")
@@ -841,12 +873,12 @@ def _inject_reset_initialization(
             section = stripped[1:-1].split()[0].lower()
         out.append(line)
         if section in {"gold", "gate"} and stripped.startswith("prep "):
-            out.extend(("uniquify", command))
+            out.extend(("uniquify", *commands))
             inserted_sides.add(section)
     missing = {"gold", "gate"} - inserted_sides
     if missing:
         raise ValueError(
-            "cannot inject reset initialization; missing shared async2sync or prep "
+            "cannot inject reset initialization; missing shared normalization anchor or prep "
             "command in EQY section(s): " + ", ".join(sorted(missing))
         )
     return "\n".join(out) + ("\n" if source.endswith("\n") else "")
@@ -860,6 +892,7 @@ def run_reset_normalized_diagnostic(
     reset_active: str = "low",
     reset_cycles: int = 1,
     eqy: str = "eqy",
+    domains: Sequence[tuple[str, str, str]] | None = None,
 ) -> dict[str, object]:
     """Replay EQY after initializing both sides through the real reset port."""
 
@@ -871,6 +904,7 @@ def run_reset_normalized_diagnostic(
         reset=reset,
         reset_active=reset_active,
         reset_cycles=reset_cycles,
+        domains=domains,
     )
     baseline = hashlib.sha256()
     for name in ("gold.il", "gate.il"):
@@ -888,6 +922,10 @@ def run_reset_normalized_diagnostic(
             "reset": reset,
             "reset_active": reset_active,
             "reset_cycles": reset_cycles,
+            "domains": [
+                {"clock": item[0], "reset": item[1], "polarity": item[2]}
+                for item in (domains or ((clock, reset, reset_active),))
+            ],
         }
     )
     return result

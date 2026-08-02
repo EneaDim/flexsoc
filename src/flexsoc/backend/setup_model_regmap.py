@@ -84,22 +84,16 @@ def _reggen_ip_block() -> Any:
     return IpBlock
 
 
-def _source_files(top: str, data_dir: Path, multi: bool) -> list[tuple[str, Path]]:
-    """Return ``(domain, HJSON)`` inputs in deterministic order."""
+def _source_files(top: str, data_dir: Path) -> list[tuple[str, Path]]:
+    """Discover one flat map or any number of named domain maps."""
 
-    if multi:
-        files = [
-            (path.stem[len(top) + 1 :] or "clk_i", path)
-            for path in sorted(data_dir.glob(f"{top}_*.hjson"))
-        ]
-        if not files:
-            raise SystemExit(f"no {top}_*.hjson files found under {data_dir}")
-        return files
-
+    named = sorted(data_dir.glob(f"{top}_*.hjson"))
+    if named:
+        return [(path.stem[len(top) + 1 :], path) for path in named]
     path = data_dir / f"{top}.hjson"
-    if not path.exists():
-        raise SystemExit(f"could not find HJSON regmap: {path}")
-    return [("clk_i", path)]
+    if path.exists():
+        return [("core", path)]
+    raise SystemExit(f"no HJSON register maps found for {top} under {data_dir}")
 
 
 def _field_spec(field: Any) -> FieldSpec:
@@ -114,7 +108,7 @@ def _field_spec(field: Any) -> FieldSpec:
     )
 
 
-def _collect(top: str, data_dir: Path, multi: bool) -> tuple[list[Path], list[RegisterSpec]]:
+def _collect(top: str, data_dir: Path) -> tuple[list[Path], list[RegisterSpec]]:
     """Load HJSON through reggen and return flattened software-visible CSRs."""
 
     IpBlock = _reggen_ip_block()
@@ -122,7 +116,7 @@ def _collect(top: str, data_dir: Path, multi: bool) -> tuple[list[Path], list[Re
     registers: list[RegisterSpec] = []
     seen_paths: set[str] = set()
 
-    for fallback_domain, source in _source_files(top, data_dir, multi):
+    for fallback_domain, source in _source_files(top, data_dir):
         try:
             block = IpBlock.from_path(str(source), [])
         except (RuntimeError, ValueError) as exc:
@@ -130,7 +124,7 @@ def _collect(top: str, data_dir: Path, multi: bool) -> tuple[list[Path], list[Re
 
         sources.append(source)
         primary_clock = getattr(getattr(block.clocking, "primary", None), "clock", None)
-        domain = fallback_domain if multi else str(primary_clock or fallback_domain)
+        domain = fallback_domain if source.stem != top else str(primary_clock or fallback_domain)
 
         for reg_block in block.reg_blocks.values():
             for register in reg_block.flat_regs:
@@ -471,7 +465,6 @@ def generate(
     data_dir: Path,
     model_dir: Path,
     *,
-    multi: bool = False,
     force: bool = False,
 ) -> Path:
     """Generate only ``<top>_regmap.py`` from HJSON."""
@@ -481,7 +474,7 @@ def generate(
     if out_path.exists() and not force:
         return out_path
 
-    sources, registers = _collect(top, data_dir, multi)
+    sources, registers = _collect(top, data_dir)
     out_path.write_text(_emit_python(top, sources, registers), encoding="utf-8")
     return out_path
 
@@ -491,7 +484,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--top", required=True)
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--model-dir", required=True)
-    parser.add_argument("--multi", action="store_true")
     parser.add_argument("--force", action="store_true")
     return parser.parse_args(argv)
 
@@ -502,7 +494,6 @@ def main(argv: list[str] | None = None) -> int:
         args.top,
         Path(args.data_dir),
         Path(args.model_dir),
-        multi=args.multi,
         force=args.force,
     )
     return 0

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import argparse
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from textwrap import dedent
 from typing import Sequence
+
+from flexsoc.clocking import ClockConfig, clock_config
 
 from .setup_tb import _candidate_hjson_path, _register_entries
 
@@ -33,6 +35,7 @@ class CocotbConfig:
     nbit: int = 32
     n_op: int = 10
     vsv: str = "sv"
+    force: bool = False
 
 
 def repo_root() -> Path:
@@ -63,6 +66,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--period-ns", type=float, default=10.0, help="Clock period in ns.")
     parser.add_argument("--nbit", type=int, default=32, help="Default random operand width.")
     parser.add_argument("--n-op", type=int, default=10, help="Default smoke loop iterations.")
+    parser.add_argument("-f", "--force", action="store_true", help="Overwrite generated files.")
     return parser.parse_args(argv)
 
 
@@ -83,6 +87,7 @@ def config_from_args(args: argparse.Namespace) -> CocotbConfig:
         nbit=args.nbit,
         n_op=args.n_op,
         vsv=args.vsv,
+        force=args.force,
     )
 
 
@@ -1363,12 +1368,513 @@ def write_cocotb_scaffold(config: CocotbConfig) -> list[Path]:
     if written is None:
         return sorted(path for path in Path(config.output).iterdir() if path.is_file())
     return written
+def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
+    """Render a cocotb wrapper with scalar TL-UL proxy signals.
+
+    Cocotb/Verilator exposes packed structs as LogicArrayObject values, so Python
+    cannot access cfg_tl_i.d_ready directly.  The wrapper keeps the real DUT
+    connected to TL-UL structs, but exposes scalar proxy signals for cocotb.
+    """
+
+    clock_decls = "\n".join(
+        f"  logic {domain.signal};\n  logic {domain.reset};" for domain in clocks.domains
+    )
+    clock_pins = ",\n".join(
+        f"    .{signal:<25}({signal})"
+        for domain in clocks.domains
+        for signal in (domain.signal, domain.reset)
+    )
+    return dedent(f"""\
+    `timescale 1ns/1ps
+
+    module {top}_cocotb_tb;
+      {clock_decls}
+      logic test_en_i;
+
+      tlul_pkg::tl_h2d_t cfg_tl_i;
+      tlul_pkg::tl_d2h_t cfg_tl_o;
+      tlul_pkg::tl_h2d_t dsp_tl_i;
+      tlul_pkg::tl_d2h_t dsp_tl_o;
+
+      logic        cfg_a_valid;
+      logic [2:0]  cfg_a_opcode;
+      logic [2:0]  cfg_a_param;
+      logic [1:0]  cfg_a_size;
+      logic [7:0]  cfg_a_source;
+      logic [31:0] cfg_a_address;
+      logic [3:0]  cfg_a_mask;
+      logic [31:0] cfg_a_data;
+      logic        cfg_d_ready;
+      logic        cfg_a_ready;
+      logic        cfg_d_valid;
+      logic [31:0] cfg_d_data;
+      logic        cfg_d_error;
+
+      logic        dsp_a_valid;
+      logic [2:0]  dsp_a_opcode;
+      logic [2:0]  dsp_a_param;
+      logic [1:0]  dsp_a_size;
+      logic [7:0]  dsp_a_source;
+      logic [31:0] dsp_a_address;
+      logic [3:0]  dsp_a_mask;
+      logic [31:0] dsp_a_data;
+      logic        dsp_d_ready;
+      logic        dsp_a_ready;
+      logic        dsp_d_valid;
+      logic [31:0] dsp_d_data;
+      logic        dsp_d_error;
+
+      logic rx_valid_i;
+      logic rx_ready_o;
+      logic signed [15:0] rx_sample_i;
+      logic signed [15:0] rx_coeff_i;
+      logic dsp_valid_o;
+      logic dsp_ready_i;
+      logic signed [31:0] dsp_result_o;
+      logic dsp_above_threshold_o;
+      logic dsp_overflow_o;
+
+      always_comb begin
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.a_valid   = cfg_a_valid;
+        cfg_tl_i.a_opcode  = tlul_pkg::tl_a_op_e'(cfg_a_opcode);
+        cfg_tl_i.a_param   = cfg_a_param;
+        cfg_tl_i.a_size    = cfg_a_size;
+        cfg_tl_i.a_source  = cfg_a_source;
+        cfg_tl_i.a_address = cfg_a_address;
+        cfg_tl_i.a_mask    = cfg_a_mask;
+        cfg_tl_i.a_data    = cfg_a_data;
+        cfg_tl_i.d_ready   = cfg_d_ready;
+
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i.a_valid   = dsp_a_valid;
+        dsp_tl_i.a_opcode  = tlul_pkg::tl_a_op_e'(dsp_a_opcode);
+        dsp_tl_i.a_param   = dsp_a_param;
+        dsp_tl_i.a_size    = dsp_a_size;
+        dsp_tl_i.a_source  = dsp_a_source;
+        dsp_tl_i.a_address = dsp_a_address;
+        dsp_tl_i.a_mask    = dsp_a_mask;
+        dsp_tl_i.a_data    = dsp_a_data;
+        dsp_tl_i.d_ready   = dsp_d_ready;
+      end
+
+      assign cfg_a_ready = cfg_tl_o.a_ready;
+      assign cfg_d_valid = cfg_tl_o.d_valid;
+      assign cfg_d_data  = cfg_tl_o.d_data;
+      assign cfg_d_error = cfg_tl_o.d_error;
+
+      assign dsp_a_ready = dsp_tl_o.a_ready;
+      assign dsp_d_valid = dsp_tl_o.d_valid;
+      assign dsp_d_data  = dsp_tl_o.d_data;
+      assign dsp_d_error = dsp_tl_o.d_error;
+
+      {top} u_dut (
+        {clock_pins},
+        .test_en_i             (test_en_i),
+        .cfg_tl_i              (cfg_tl_i),
+        .cfg_tl_o              (cfg_tl_o),
+        .dsp_tl_i              (dsp_tl_i),
+        .dsp_tl_o              (dsp_tl_o),
+        .rx_valid_i            (rx_valid_i),
+        .rx_ready_o            (rx_ready_o),
+        .rx_sample_i           (rx_sample_i),
+        .rx_coeff_i            (rx_coeff_i),
+        .dsp_valid_o           (dsp_valid_o),
+        .dsp_ready_i           (dsp_ready_i),
+        .dsp_result_o          (dsp_result_o),
+        .dsp_above_threshold_o (dsp_above_threshold_o),
+        .dsp_overflow_o        (dsp_overflow_o)
+      );
+    endmodule
+    """)
+def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
+    """Render a cocotb Makefile for the N-clock wrapper."""
+
+    return dedent(f"""\
+    SIM ?= verilator
+    TOPLEVEL_LANG ?= verilog
+    COCOTB_TOPLEVEL = {top}_cocotb_tb
+    COCOTB_TEST_MODULES = {top}_tb
+    EXTRA_ARGS += -f $(PWD)/../../../../rtl/rtl_common.f
+    EXTRA_ARGS += -f $(PWD)/../../../../rtl/rtl_ip.f
+    VERILOG_SOURCES += $(PWD)/{top}_cocotb_tb.sv
+    EXTRA_ARGS += -Wno-fatal
+    export TEST_NAME ?= mac_smoke
+    SEED ?= 1
+    HDL_COVERAGE ?= 0
+    COVERAGE_FILE ?= $(abspath ../../coverage/cocotb/$(TEST_NAME).dat)
+
+    # FlexSoC reserves COVERAGE for HDL coverage. Cocotb 2.x also treats
+    # COVERAGE as deprecated Python user-code coverage, so clear the legacy
+    # cocotb variable while HDL_COVERAGE carries the Verilator setting.
+    override COVERAGE :=
+    unexport COVERAGE
+
+    ifeq ($(SIM),verilator)
+      COCOTB_PLUSARGS += +verilator+seed+$(SEED)
+      ifeq ($(HDL_COVERAGE),1)
+        EXTRA_ARGS += --coverage-line --coverage-toggle --coverage-expr --coverage-fsm --coverage-user
+        COCOTB_PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
+      endif
+    endif
+    export FLEXSOC_SEED := $(SEED)
+    export COCOTB_RANDOM_SEED := $(SEED)
+    export CFG ?= ../../tests/$(TEST_NAME)/config.regs
+    export DATA_IN ?= ../../tests/$(TEST_NAME)/data_in.vec
+    export DATA_OUT ?= ../../tests/$(TEST_NAME)/data_out.vec
+    include $(shell cocotb-config --makefiles)/Makefile.sim
+    """)
+
+
+
+def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
+    """Render TL-UL helpers bound to the canonical clock/reset domains."""
+
+    clock_map = {domain.name: domain.signal for domain in clocks.domains}
+    reset_map = {domain.reset: domain.reset_polarity for domain in clocks.domains}
+    primary = clocks.domains[0].signal
+    settle = clocks.domains[-1].signal
+    text = dedent("""\
+    from __future__ import annotations
+
+    from pathlib import Path
+
+    from cocotb.triggers import FallingEdge, RisingEdge
+
+
+    CLOCKS = __CLOCK_MAP__
+    RESETS = __RESET_MAP__
+    PRIMARY_CLOCK = __PRIMARY_CLOCK__
+    SETTLE_CLOCK = __SETTLE_CLOCK__
+
+    ADDR = {
+        "cfg": {
+            "CTRL": 0x0,
+            "GAIN": 0x4,
+            "STATUS": 0x8,
+            "CFG_STATUS": 0x8,
+        },
+        "dsp": {
+            "DSP_CTRL": 0x0,
+            "THRESHOLD": 0x4,
+            "DSP_STATUS": 0x8,
+            "STATUS": 0x8,
+            "RESULT": 0xC,
+        },
+    }
+
+
+    def rows(path: str):
+        "Read non-comment config/vector rows."
+        for raw in Path(path).read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            yield line.split()
+
+
+    def _set_domain_defaults(dut, domain: str):
+        "Initialize scalar TL-UL proxy signals for one domain."
+        for name in ("a_valid", "a_opcode", "a_param", "a_size", "a_source", "a_address", "a_mask", "a_data"):
+            getattr(dut, f"{domain}_{name}").value = 0
+        getattr(dut, f"{domain}_d_ready").value = 1
+
+
+    def set_defaults(dut):
+        "Initialize top-level scalar IO and TL-UL proxy signals."
+        _set_domain_defaults(dut, "cfg")
+        _set_domain_defaults(dut, "dsp")
+        dut.rx_valid_i.value = 0
+        dut.rx_sample_i.value = 0
+        dut.rx_coeff_i.value = 0
+        dut.dsp_ready_i.value = 1
+        dut.test_en_i.value = 1
+
+
+    async def reset(dut):
+        "Apply every configured reset with its declared polarity."
+        for signal, polarity in RESETS.items():
+            getattr(dut, signal).value = int(polarity == "high")
+        for _ in range(5):
+            await RisingEdge(getattr(dut, PRIMARY_CLOCK))
+        for signal, polarity in RESETS.items():
+            getattr(dut, signal).value = int(polarity == "low")
+        for _ in range(8):
+            await RisingEdge(getattr(dut, PRIMARY_CLOCK))
+
+
+    async def _tlul_write(dut, domain: str, clk, addr: int, data: int):
+        "Issue one simple PutFullData write through scalar TL-UL proxies."
+        await FallingEdge(clk)
+        _set_domain_defaults(dut, domain)
+        getattr(dut, f"{domain}_a_valid").value = 1
+        getattr(dut, f"{domain}_a_opcode").value = 0
+        getattr(dut, f"{domain}_a_param").value = 0
+        getattr(dut, f"{domain}_a_size").value = 2
+        getattr(dut, f"{domain}_a_source").value = 0
+        getattr(dut, f"{domain}_a_address").value = addr & 0xFFFFFFFF
+        getattr(dut, f"{domain}_a_mask").value = 0xF
+        getattr(dut, f"{domain}_a_data").value = data & 0xFFFFFFFF
+        while not bool(getattr(dut, f"{domain}_a_ready").value):
+            await RisingEdge(clk)
+        await FallingEdge(clk)
+        getattr(dut, f"{domain}_a_valid").value = 0
+        while not bool(getattr(dut, f"{domain}_d_valid").value):
+            await RisingEdge(clk)
+        await FallingEdge(clk)
+        _set_domain_defaults(dut, domain)
+
+
+    async def _tlul_read(dut, domain: str, clk, addr: int) -> int:
+        "Issue one simple Get read through scalar TL-UL proxies."
+        await FallingEdge(clk)
+        _set_domain_defaults(dut, domain)
+        getattr(dut, f"{domain}_a_valid").value = 1
+        getattr(dut, f"{domain}_a_opcode").value = 4
+        getattr(dut, f"{domain}_a_param").value = 0
+        getattr(dut, f"{domain}_a_size").value = 2
+        getattr(dut, f"{domain}_a_source").value = 0
+        getattr(dut, f"{domain}_a_address").value = addr & 0xFFFFFFFF
+        getattr(dut, f"{domain}_a_mask").value = 0xF
+        while not bool(getattr(dut, f"{domain}_a_ready").value):
+            await RisingEdge(clk)
+        await FallingEdge(clk)
+        getattr(dut, f"{domain}_a_valid").value = 0
+        while not bool(getattr(dut, f"{domain}_d_valid").value):
+            await RisingEdge(clk)
+        data = int(getattr(dut, f"{domain}_d_data").value) & 0xFFFFFFFF
+        error = int(getattr(dut, f"{domain}_d_error").value)
+        await FallingEdge(clk)
+        _set_domain_defaults(dut, domain)
+        if error:
+            raise AssertionError(f"TL-UL read error on {domain} addr=0x{addr:08x}")
+        return data
+
+
+    def _decode_reg(name: str) -> tuple[str, int]:
+        "Resolve a generated config/check register name to domain and address."
+        clean = name[6:] if name.startswith("clk_i.") else name
+        if "." in clean:
+            domain, reg = clean.split(".", 1)
+        else:
+            domain, reg = "cfg", clean
+        reg = reg.upper()
+        try:
+            return domain, ADDR[domain][reg]
+        except KeyError as exc:
+            raise KeyError(f"unknown register {name!r}; update drivers/reg_driver.py") from exc
+
+
+    async def apply_reg(dut, name: str, value: int):
+        "Apply one config.regs row through the real top-level regblocks."
+        domain, addr = _decode_reg(name)
+        clk = getattr(dut, CLOCKS[domain])
+        await _tlul_write(dut, domain, clk, addr, value)
+
+
+    async def read_reg(dut, name: str) -> int:
+        "Read one register by generated model name, for simple status checks."
+        domain, addr = _decode_reg(name)
+        clk = getattr(dut, CLOCKS[domain])
+        return await _tlul_read(dut, domain, clk, addr)
+
+
+    async def expect_reg(dut, name: str, expected: int, mask: int = 0xFFFFFFFF):
+        "Read one register and assert its masked value."
+        got = await read_reg(dut, name)
+        if (got & mask) != (expected & mask):
+            raise AssertionError(
+                f"{name} got=0x{got & mask:08x} exp=0x{expected & mask:08x} mask=0x{mask:08x}"
+            )
+
+
+    async def apply_config(dut, path: str):
+        "Apply generated config rows and allow CDC synchronizers to settle."
+        for parts in rows(path):
+            if len(parts) >= 2:
+                await apply_reg(dut, parts[0], int(parts[1], 0))
+        for _ in range(8):
+            await RisingEdge(getattr(dut, SETTLE_CLOCK))
+    """)
+    return (text.replace("__CLOCK_MAP__", repr(clock_map))
+                .replace("__RESET_MAP__", repr(reset_map))
+                .replace("__PRIMARY_CLOCK__", repr(primary))
+                .replace("__SETTLE_CLOCK__", repr(settle)))
+def cocotb_vec_driver_py_text(top: str) -> str:
+    """Render cocotb input-vector driver helpers."""
+
+    return dedent("""\
+    from __future__ import annotations
+
+    from cocotb.triggers import FallingEdge, RisingEdge
+
+    from .reg_driver import rows
+
+
+    async def send_sample(dut, sample: int, coeff: int):
+        \"\"\"Send one RX-domain input transaction.\"\"\"
+        timeout = 0
+        while not bool(dut.rx_ready_o.value) and timeout < 64:
+            await RisingEdge(dut.rx_clk_i)
+            timeout += 1
+        assert bool(dut.rx_ready_o.value), \"rx_ready_o timeout\"
+        await FallingEdge(dut.rx_clk_i)
+        dut.rx_sample_i.value = sample & 0xFFFF
+        dut.rx_coeff_i.value = coeff & 0xFFFF
+        dut.rx_valid_i.value = 1
+        await FallingEdge(dut.rx_clk_i)
+        dut.rx_valid_i.value = 0
+
+
+    async def drive_inputs(dut, path: str):
+        \"\"\"Drive inputs from data_in.vec.\"\"\"
+        sample = 0
+        coeff = 0
+        for parts in rows(path):
+            if len(parts) < 3:
+                continue
+            _, sig, value = parts[:3]
+            value = int(value, 0)
+            if sig == \"rx_sample_i\":
+                sample = value
+            elif sig == \"rx_coeff_i\":
+                coeff = value
+            elif sig == \"rx_valid_i\" and value:
+                await send_sample(dut, sample, coeff)
+    """)
+
+
+def cocotb_monitor_py_text(top: str) -> str:
+    """Render cocotb output-vector monitor helpers."""
+
+    return dedent("""\
+    from __future__ import annotations
+
+    from cocotb.triggers import ReadOnly, RisingEdge
+
+    from .reg_driver import rows
+
+
+    def expected_outputs(path: str):
+        \"\"\"Load expected output transactions by order.\"\"\"
+        out = []
+        for parts in rows(path):
+            if len(parts) < 3:
+                continue
+            _, sig, value = parts[:3]
+            value = int(value, 0)
+            if sig == \"dsp_result_o\":
+                out.append({\"result\": value, \"above_threshold\": 0, \"overflow\": 0})
+            elif sig == \"dsp_above_threshold_o\" and out:
+                out[-1][\"above_threshold\"] = value & 1
+            elif sig == \"dsp_overflow_o\" and out:
+                out[-1][\"overflow\"] = value & 1
+        return out
+
+
+    async def check_outputs(dut, expected):
+        \"\"\"Check DSP outputs in transaction order.\"\"\"
+        got = 0
+        timeout = 0
+        while got < len(expected) and timeout < 4096:
+            await RisingEdge(dut.dsp_clk_i)
+            await ReadOnly()
+            if bool(dut.dsp_valid_o.value):
+                result = int(dut.dsp_result_o.value) & 0xFFFFFFFF
+                above_threshold = int(dut.dsp_above_threshold_o.value) & 1
+                overflow = int(dut.dsp_overflow_o.value) & 1
+                assert result == expected[got][\"result\"], f\"result[{got}] got=0x{result:08x} exp=0x{expected[got]['result']:08x}\"
+                assert above_threshold == expected[got][\"above_threshold\"], f\"above_threshold[{got}] got={above_threshold} exp={expected[got]['above_threshold']}\"
+                assert overflow == expected[got][\"overflow\"], f\"overflow[{got}] got={overflow} exp={expected[got]['overflow']}\"
+                got += 1
+            timeout += 1
+        assert got == len(expected), f\"observed {got}/{len(expected)} expected outputs\"
+    """)
+
+
+def cocotb_py_text(top: str, clocks: ClockConfig) -> str:
+    """Render the N-clock cocotb test entry point."""
+
+    starts = "\n".join(
+        f'    cocotb.start_soon(Clock(getattr(dut, {domain.signal!r}), {domain.period_ns:g}, units="ns").start())'
+        for domain in clocks.domains
+    )
+    template = dedent(f'''\
+    """cocotb test for the {top} N-clock scaffold."""
+
+    from __future__ import annotations
+
+    import os
+
+    import cocotb
+    from cocotb.clock import Clock
+
+    from drivers.reg_driver import apply_config, reset, set_defaults
+    from drivers.vec_driver import drive_inputs
+    from drivers.vec_monitor import check_outputs, expected_outputs
+
+
+    @cocotb.test()
+    async def vector_test(dut):
+        """Run one generated vector test selected by TEST_NAME."""
+    __CLOCK_STARTS__
+        set_defaults(dut)
+        await reset(dut)
+
+        test_name = os.environ.get("TEST_NAME", "mac_smoke")
+        cfg = os.environ.get("CFG", f"../tests/{{test_name}}/config.regs")
+        data_in = os.environ.get("DATA_IN", f"../tests/{{test_name}}/data_in.vec")
+        data_out = os.environ.get("DATA_OUT", f"../tests/{{test_name}}/data_out.vec")
+        await apply_config(dut, cfg)
+        expected = expected_outputs(data_out)
+        checker = cocotb.start_soon(check_outputs(dut, expected))
+        await drive_inputs(dut, data_in)
+        await checker
+    ''')
+    return template.replace("__CLOCK_STARTS__", starts)
+
+
+# ---------------------------------------------------------------------------
+# N-clock scaffold writer
+# ---------------------------------------------------------------------------
+
+
+def write_nclock_cocotb(cfg: CocotbConfig, clocks: ClockConfig) -> list[Path]:
+    """Write the generated N-clock cocotb scaffold."""
+
+    out, drivers = cfg.output, cfg.output / "drivers"
+    files = {
+        out / "Makefile": cocotb_makefile_text(cfg.top, cfg.rtl_dir),
+        out / f"{cfg.top}_cocotb_tb.sv": cocotb_sv_text(cfg.top, clocks),
+        drivers / "__init__.py": "",
+        drivers / "reg_driver.py": cocotb_reg_driver_py_text(cfg.top, clocks),
+        drivers / "vec_driver.py": cocotb_vec_driver_py_text(cfg.top),
+        drivers / "vec_monitor.py": cocotb_monitor_py_text(cfg.top),
+        out / f"{cfg.top}_tb.py": cocotb_py_text(cfg.top, clocks),
+    }
+    for path, text in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if cfg.force or not path.exists() or path.name == "__init__.py":
+            path.write_text(text.rstrip() + "\n", encoding="utf-8")
+    return list(files)
+
 
 def main() -> None:
     """Run the cocotb scaffold generator from the command line."""
 
-    cfg = config_from_args(parse_args())
-    write_cocotb_scaffold(cfg)
+    clocks = clock_config()
+    primary = clocks.domains[0]
+    cfg = replace(
+        config_from_args(parse_args()),
+        clk=primary.signal,
+        rst=primary.reset,
+        rst_active=primary.reset_polarity,
+        period_ns=primary.period_ns,
+    )
+    if clocks.multiclock:
+        write_nclock_cocotb(cfg, clocks)
+    else:
+        write_cocotb_scaffold(cfg)
 
 
 if __name__ == "__main__":

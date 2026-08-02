@@ -24,7 +24,7 @@ DEFAULT_SETTINGS = {
     "HOST": "uart",
     "FORCE": "0",
     "RUN_ID": "default",
-    "CLOCK_MODE": "single",
+    "N_CLOCKS": "1",
     "PDK": "sky130",
     "WAVE_FORMAT": "fst",
     "GLS_SIMULATOR": "iverilog",
@@ -33,7 +33,8 @@ DEFAULT_SETTINGS = {
 
 # Parameter bundles keep the target table compact; every value is still overrideable.
 NONE = ()
-BASE = ("TOP", "RUN_ID", "WORKSPACE", "CLOCK_MODE")
+CLOCKS = ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")
+BASE = ("TOP", "RUN_ID", "WORKSPACE", *CLOCKS)
 COMMON = (*BASE, "RUN_TOP", "FORCE")
 IP_DEV = (*BASE, "REG_ITF", "FORCE")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
@@ -78,6 +79,8 @@ EQUIV = (
     "EQY_DEPTH",
     "EQY_ENGINE",
     "EQY_TIMEOUT",
+    "EQY_QUICK_TIMEOUT",
+    "EQY_JOBS",
     "EQY_USE_SAT",
     "EQY_SPLITNETS",
     "EQY_USE_PDR",
@@ -85,6 +88,8 @@ EQUIV = (
     "EQY_SMT_ENGINE",
     "EQY_SMT_DEPTH",
     "EQY_XPROP",
+    "EQY_JOIN_OUTPUTS",
+    "EQY_STRATEGY_ORDER",
     "PRIM",
     "FORMAL_PDK_PROC",
 )
@@ -140,19 +145,6 @@ TARGETS: dict[str, TargetSpec] = {
     "setup": ("Setup", "Create the run directory tree", BASE),
     "soc_cfg": ("Setup", "Render SoC configuration variables", SOC),
     "soc_start": ("Setup", "Initialize a SoC run from loaded IPs", SOC),
-    "hjson_multi": ("Multi-clock", "Generate multi-clock HJSON register templates", IP_DEV),
-    "reg_multi": ("Multi-clock", "Generate selected or changed multi-clock register RTL", IP_DEV),
-    "doc_multi": ("Multi-clock", "Generate selected or changed multi-clock register docs", IP_DEV),
-    "rtl_stub_multi": ("Multi-clock", "Generate multi-clock RTL core and wrapper", IP_DEV),
-    "top_from_core_multi": ("Multi-clock", "Regenerate multi-clock wrapper from edited core ports", IP_DEV),
-    "sdc_multi": ("Multi-clock", "Generate multi-clock IP timing constraints", SYN),
-    "notes_multi": ("Multi-clock", "Generate local multi-clock scaffold notes", IP_DEV),
-    "setup_model_multi": ("Multi-clock", "Generate multi-clock model, CSR regmap, and test scaffolds", SIM),
-    "tests_gen_multi": ("Multi-clock", "Generate all multi-clock vector tests from <top>_tests.py", SIM),
-    "test_gen_multi": ("Multi-clock", "Generate one multi-clock vector test selected by TEST_NAME", SIM),
-    "setup_tb_multi": ("Multi-clock", "Generate a multi-clock SystemVerilog testbench scaffold", SIM),
-    "setup_cocotb_multi": ("Multi-clock", "Generate a multi-clock cocotb scaffold", SIM),
-    "multiclock_scaffold": ("Multi-clock", "Bootstrap the decomposed multi-clock IP scaffold", IP_DEV),
     "sta_corners": ("Signoff", "Run STA setup/hold for each configured corner", SIGNOFF),
     "power_estimate_corners": ("Signoff", "Estimate power for each corner using global activity", SIGNOFF),
     "signoff_corners": ("Signoff", "Run SDF, multi-corner STA and estimated power", SIGNOFF),
@@ -450,20 +442,6 @@ def _safe_log_name(value: str) -> str:
 
 
 
-MULTICLOCK_TARGET_ALIASES = {
-    "hjson": "hjson_multi",
-    "reg": "reg_multi",
-    "doc": "doc_multi",
-    "rtl_stub": "rtl_stub_multi",
-    "top_from_core": "top_from_core_multi",
-    "setup_model": "setup_model_multi",
-    "tests_gen": "tests_gen_multi",
-    "test_gen": "test_gen_multi",
-    "setup_tb": "setup_tb_multi",
-    "setup_cocotb": "setup_cocotb_multi",
-    "setup_sdc": "sdc_multi",
-}
-MULTICLOCK_TRUE_VALUES = {"1", "true", "yes", "on", "multi", "multiclock"}
 
 
 TECHNOLOGY_TARGETS = {
@@ -503,30 +481,6 @@ NATIVE_TARGETS: dict[str, tuple[str, str]] = {
     "sim_post_pnr": ("sim", "post_pnr"),
 }
 
-
-def _is_multiclock_run(target: str, values: Mapping[str, Any], project_root: Path) -> bool:
-    """Return true when generic targets should resolve to multi-clock targets."""
-    for key in ("CLOCK_MODE", "MODE", "IP_MODE"):
-        if str(values.get(key, "")).lower() in {"multi", "multiclock"}:
-            return True
-    for key in ("MULTICLOCK", "MULTI_CLOCK"):
-        if str(values.get(key, "")).lower() in MULTICLOCK_TRUE_VALUES:
-            return True
-    if target == "hjson":
-        return False
-    workspace = Path(values.get("WORKSPACE", project_root / "workspace"))
-    top = str(values.get("TOP", ""))
-    run_top = str(values.get("RUN_TOP") or top or "run")
-    run_id = str(values.get("RUN_ID", "default"))
-    data_dir = workspace / "runs" / run_top / run_id / "data"
-    return bool(top and any(data_dir.glob(f"{top}_*.hjson")))
-
-
-def _resolve_target_for_run(target: str, values: Mapping[str, Any], project_root: Path) -> str:
-    """Map a user-facing target to the Make target for this run."""
-    if target in MULTICLOCK_TARGET_ALIASES and _is_multiclock_run(target, values, project_root):
-        return MULTICLOCK_TARGET_ALIASES[target]
-    return target
 
 
 def _target(name: str) -> str:
@@ -622,6 +576,8 @@ class FlexSoC:
 
         call_overrides = _upper(dict(overrides or {}))
         explicit = _upper({**DEFAULT_SETTINGS, **self.settings, **call_overrides})
+        if {"N_CLOCKS", "CLOCK_DOMAINS"} & call_overrides.keys() and "CLOCK_RELATIONSHIPS" not in call_overrides:
+            explicit.pop("CLOCK_RELATIONSHIPS", None)
         if (
             "PDK" in call_overrides
             and "PDK_ROOT" not in call_overrides
@@ -648,8 +604,10 @@ class FlexSoC:
             pdk_values = {"PDK": pdk_name}
 
         values = _upper({"WORKSPACE": self.workdir, **pdk_values, **explicit})
+        from .clocking import clock_config
         from .run_layout import pdk_make_paths
 
+        values.update(clock_config(values).make_values())
         values.update(pdk_make_paths(self.project_root, values))
         fmt = values.get("WAVE_FORMAT", "fst").lower()
         if fmt not in {"fst", "vcd"}:
@@ -689,7 +647,6 @@ class FlexSoC:
                 json.dumps(values, sort_keys=True),
             )
         else:
-            make_target = _resolve_target_for_run(name, values, self.project_root)
             # Only forward variables declared by this target.  In particular,
             # never leak PDK variables such as LIBS into RTL simulation: the
             # generated Verilator makefile uses the conventional LIBS variable
@@ -706,7 +663,7 @@ class FlexSoC:
                 "make",
                 "-f",
                 str(_backend_makefile()),
-                make_target,
+                name,
                 *(f"{k}={v}" for k, v in make_values.items()),
             )
         return FlexSoCCommand(name, tuple(argv), self.project_root, self._env(values), values)
@@ -871,7 +828,8 @@ class FlexSoC:
         env["FLEXSOC_PDK_CLASS"] = vals.get("PDK_CLASS", "")
         env["FLEXSOC_RUN_ROOT"] = vals.get("RUN_ROOT", "")
         env["FLEXSOC_DRIVING_CELL"] = vals.get("DRIVING_CELL", "")
-        env["CLOCK_MODE"] = vals.get("CLOCK_MODE", "")
+        for key in ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS"):
+            env[key] = vals.get(key, "")
         # setup_signoff consumes EQY debug/closure knobs directly from the
         # environment so the generated sign-off config can evolve without
         # Makefile-specific plumbing for every strategy option.

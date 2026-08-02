@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+from flexsoc.clocking import clock_config
+
 
 @dataclass(frozen=True, slots=True)
 class PropertyFormalConfig:
@@ -380,7 +382,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     properties.add_argument("--bmc-engine", default="smtbmc bitwuzla")
     properties.add_argument("--bmc-depth", type=int, default=30)
     properties.add_argument("--bmc-append", type=int, default=5)
-    properties.add_argument("--multiclock", action="store_true")
     properties.add_argument("--output", type=Path, required=True)
 
     csr = subparsers.add_parser("csr", help="Generate automatic CSR formal checks.")
@@ -393,7 +394,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     csr.add_argument("--bmc-engine", default="smtbmc bitwuzla")
     csr.add_argument("--bmc-depth", type=int, default=30)
     csr.add_argument("--bmc-append", type=int, default=5)
-    csr.add_argument("--multiclock", action="store_true")
     csr.add_argument("--generated", type=Path, required=True)
     csr.add_argument("--output", type=Path, required=True)
 
@@ -425,7 +425,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             bmc_engine=args.bmc_engine,
             bmc_depth=args.bmc_depth,
             bmc_append=args.bmc_append,
-            multiclock=args.multiclock,
+            multiclock=clock_config().multiclock,
         )
         path = (
             generate_csr_config(cfg, args.generated)

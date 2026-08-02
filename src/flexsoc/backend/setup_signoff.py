@@ -17,6 +17,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Sequence
 
+from flexsoc.clocking import clock_config
+
 
 @dataclass
 class STAConfig:
@@ -32,6 +34,30 @@ class STAConfig:
     liberty: list[Path] = field(default_factory=list)
     power_activity: float = 0.1
     power_duty: float = 0.5
+
+
+@dataclass(frozen=True, slots=True)
+class NetlistPort:
+    """One simple top-level port recovered from a synthesized netlist."""
+
+    direction: str
+    name: str
+    packed_range: str = ""
+
+    @property
+    def width(self) -> int | None:
+        """Return a constant packed width, or ``None`` for symbolic ranges."""
+
+        if not self.packed_range:
+            return 1
+        match = re.fullmatch(r"\[\s*(-?\d+)\s*:\s*(-?\d+)\s*\]", self.packed_range)
+        return abs(int(match.group(1)) - int(match.group(2))) + 1 if match else None
+
+    def declaration(self) -> str:
+        """Render an ANSI-style wrapper declaration."""
+
+        packed = f" {self.packed_range}" if self.packed_range else ""
+        return f"{self.direction} wire{packed} {self.name}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +77,7 @@ class EquivalenceConfig:
     formal_cell_model: Path | None = None
     formal_pdk_proc: Path | None = None
     timeout: int = 60
+    quick_timeout: int = 5
     multiclock: bool = False
     splitnets: str = "off"
     use_sat: bool = False
@@ -59,6 +86,9 @@ class EquivalenceConfig:
     smt_engine: str = "smtbmc bitwuzla"
     smt_depth: int = 5
     xprop: str = "on"
+    formal_view: Path | None = None
+    join_outputs: bool = True
+    strategy_order: tuple[str, ...] = ()
 
 
 def optional_path(value: str | None) -> Path | None:
@@ -86,8 +116,8 @@ def _require_files(paths: Sequence[Path], *, label: str) -> tuple[Path, ...]:
     return resolved
 
 
-def _netlist_ports(netlist: Path, top: str) -> tuple[str, ...]:
-    """Return top-level ports from a Yosys-style synthesized Verilog netlist."""
+def _netlist_port_decls(netlist: Path, top: str) -> tuple[NetlistPort, ...]:
+    """Return simple top-level declarations from a Yosys Verilog netlist."""
 
     text = netlist.read_text(encoding="utf-8", errors="replace")
     module = re.search(
@@ -97,21 +127,92 @@ def _netlist_ports(netlist: Path, top: str) -> tuple[str, ...]:
     if module is None:
         raise ValueError(f"cannot find top module {top!r} in synthesized netlist: {netlist}")
 
-    ports: list[str] = []
-    for decl in re.finditer(r"(?m)^\s*(?:input|output|inout)\b([^;]*);", module.group(0)):
-        body = re.sub(r"\[[^]]+\]", " ", decl.group(1))
+    ports: list[NetlistPort] = []
+    for decl in re.finditer(r"\b(input|output|inout)\b([^;]*);", module.group(0)):
+        direction, body = decl.groups()
+        range_match = re.search(r"\[[^]]+\]", body)
+        packed_range = range_match.group(0) if range_match else ""
+        body = re.sub(r"\[[^]]+\]", " ", body)
         body = re.sub(r"\b(?:wire|logic|reg|signed|unsigned)\b", " ", body)
         for item in body.split(","):
             tokens = item.split()
-            if not tokens:
-                continue
-            name = tokens[-1]
-            if name not in ports:
-                ports.append(name)
+            if tokens and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", tokens[-1]):
+                port = NetlistPort(direction, tokens[-1], packed_range)
+                if port.name not in {known.name for known in ports}:
+                    ports.append(port)
 
     if not ports:
         raise ValueError(f"cannot discover top-level ports in synthesized netlist: {netlist}")
     return tuple(ports)
+
+
+def _netlist_ports(netlist: Path, top: str) -> tuple[str, ...]:
+    """Return top-level port names from a synthesized Verilog netlist."""
+
+    return tuple(port.name for port in _netlist_port_decls(netlist, top))
+
+
+def _tlul_response_ports(ports: Sequence[NetlistPort]) -> tuple[NetlistPort, ...]:
+    """Discover packed TL-UL device responses by public name and ABI width."""
+
+    return tuple(
+        port for port in ports
+        if port.direction == "output" and port.width == 66 and port.name.endswith("_tl_o")
+    )
+
+
+def render_formal_protocol_view(top: str, ports: Sequence[NetlistPort]) -> str:
+    """Render a symmetric formal view for protocol-defined don't-care outputs.
+
+    The functional RTL and synthesized netlist remain untouched.  The view only
+    canonicalizes TL-UL response fields outside their protocol care set: the
+    D-channel payload is ignored while ``d_valid`` is low, and ``d_data`` is
+    ignored for error responses.  Valid, successful read data is compared in
+    full.  Every matching TL-UL output receives the same treatment, independent
+    of clock count or register-window name.
+    """
+
+    responses = {port.name for port in _tlul_response_ports(ports)}
+    if not responses:
+        return ""
+    impl = f"{top}__eqy_impl"
+    lines = [
+        "// Auto-generated formal protocol view; not functional RTL.",
+        f"module {top} (",
+        *[f"  {port.declaration()}{',' if index + 1 < len(ports) else ''}" for index, port in enumerate(ports)],
+        ");",
+        "",
+    ]
+    for port in ports:
+        if port.name in responses:
+            lines.append(f"  wire [65:0] {port.name}__raw;")
+    lines.extend(("", f"  {impl} u_impl ("))
+    for index, port in enumerate(ports):
+        signal = f"{port.name}__raw" if port.name in responses else port.name
+        lines.append(f"    .{port.name} ({signal}){',' if index + 1 < len(ports) else ''}")
+    lines.extend(("  );", ""))
+    for name in sorted(responses):
+        raw = f"{name}__raw"
+        lines.extend((
+            f"  assign {name}[0] = {raw}[0]; // a_ready is always observable",
+            f"  assign {name}[65] = {raw}[65]; // d_valid is always observable",
+            f"  assign {name}[64:48] = {raw}[65] ? {raw}[64:48] : '0;",
+            f"  assign {name}[47:16] = ({raw}[65] && !{raw}[1]) ? {raw}[47:16] : '0;",
+            f"  assign {name}[15:1] = {raw}[65] ? {raw}[15:1] : '0;",
+            "",
+        ))
+    lines.append("endmodule")
+    return "\n".join(lines) + "\n"
+
+
+def _prepare_formal_protocol_view(cfg: EquivalenceConfig) -> EquivalenceConfig:
+    """Write a formal-only wrapper when the top exposes supported protocols."""
+
+    body = render_formal_protocol_view(cfg.top, _netlist_port_decls(cfg.netlist, cfg.top))
+    if not body:
+        return cfg
+    path = cfg.output.expanduser().resolve().parent / f"{cfg.top}_eqy_view.sv"
+    return replace(cfg, formal_view=write_text(path, body))
 
 
 def _eqy_match_sections(top: str, ports: Sequence[str]) -> list[str]:
@@ -123,6 +224,16 @@ def _eqy_match_sections(top: str, ports: Sequence[str]) -> list[str]:
         *(f"gold-match {port}" for port in ports),
         "",
     ]
+
+
+def _eqy_collect_sections(top: str, ports: Sequence[NetlistPort], *, enabled: bool) -> list[str]:
+    """Keep every top-level output bus in one equivalence partition."""
+
+    buses = [
+        port.name for port in ports
+        if enabled and port.direction == "output" and (port.width or 0) > 1
+    ]
+    return [f"[collect {top}]", *(f"join {name}" for name in buses), ""] if buses else []
 
 
 def _read_slang_synthesis(top: str, filelists: Sequence[Path]) -> str:
@@ -194,33 +305,62 @@ def _gate_model_reads(
     return reads
 
 
+def _resolved_strategy_order(cfg: EquivalenceConfig) -> tuple[str, ...]:
+    """Return the enabled proof order for this clock model."""
+
+    order = cfg.strategy_order or (("pdr", "smt") if cfg.multiclock else ("sat", "smt", "pdr"))
+    enabled = {
+        "sat": cfg.use_sat and not cfg.multiclock,
+        "smt": True,
+        "pdr": cfg.use_pdr,
+    }
+    return tuple(name for name in order if enabled[name])
+
+
 def _strategy_lines(cfg: EquivalenceConfig) -> list[str]:
-    """Render a fast single-clock baseline with bounded formal fallbacks."""
+    """Render the ordered portfolio; EQY advances only unresolved partitions."""
 
+    order = _resolved_strategy_order(cfg)
     strategies: list[str] = []
-    if cfg.use_sat and not cfg.multiclock:
-        strategies.extend(["[strategy sat]", "use sat", f"depth {cfg.sat_depth}", ""])
-
-    common_sby = [f"timeout {cfg.timeout}", f"xprop {cfg.xprop}"]
-    if cfg.multiclock:
-        common_sby.append("option multiclock on")
-
-    if cfg.use_pdr:
-        strategies.extend(
-            ["[strategy pdr]", "use sby", f"engine {cfg.pdr_engine.strip()}", *common_sby, ""]
-        )
-
-    strategies.extend(
-        [
-            "[strategy smt]",
-            "use sby",
-            f"engine {cfg.smt_engine.strip()}",
-            f"depth {cfg.smt_depth}",
-            *common_sby,
-            "",
-        ]
-    )
+    multiclock = ["option multiclock on"] if cfg.multiclock else []
+    for index, name in enumerate(order):
+        if name == "sat":
+            strategies.extend(["[strategy sat]", "use sat", f"depth {cfg.sat_depth}", ""])
+        elif name == "pdr":
+            strategies.extend([
+                "[strategy pdr]",
+                "use sby",
+                f"engine {cfg.pdr_engine.strip()}",
+                f"timeout {cfg.timeout}",
+                f"xprop {cfg.xprop}",
+                *multiclock,
+                "",
+            ])
+        else:
+            timeout = cfg.quick_timeout if "pdr" in order[index + 1:] else cfg.timeout
+            strategies.extend([
+                "[strategy smt]",
+                "use sby",
+                f"engine {cfg.smt_engine.strip()}",
+                f"depth {cfg.smt_depth}",
+                f"timeout {timeout}",
+                f"xprop {cfg.xprop}",
+                *multiclock,
+                "",
+            ])
     return strategies
+
+
+def _formal_view_lines(cfg: EquivalenceConfig) -> list[str]:
+    """Rename the implementation and read the optional symmetric formal view."""
+
+    if cfg.formal_view is None:
+        return []
+    view = _require_files((cfg.formal_view,), label="formal protocol view")[0]
+    return [
+        f"rename {cfg.top} {cfg.top}__eqy_impl",
+        f"read_verilog -formal -sv {view}",
+    ]
 
 
 def render_eqy(cfg: EquivalenceConfig) -> str:
@@ -234,20 +374,31 @@ def render_eqy(cfg: EquivalenceConfig) -> str:
         raise ValueError("EQY SMT depth must be > 0")
     if cfg.timeout <= 0:
         raise ValueError("EQY SBY timeout must be > 0")
+    if cfg.quick_timeout <= 0:
+        raise ValueError("EQY quick timeout must be > 0")
     if cfg.splitnets not in {"on", "off"}:
         raise ValueError("EQY splitnets must be 'on' or 'off'")
     if cfg.xprop not in {"on", "off"}:
         raise ValueError("EQY xprop must be 'on' or 'off'")
+    valid_strategies = {"sat", "smt", "pdr"}
+    if len(set(cfg.strategy_order)) != len(cfg.strategy_order):
+        raise ValueError("EQY strategy order must not contain duplicates")
+    invalid = set(cfg.strategy_order) - valid_strategies
+    if invalid:
+        raise ValueError(f"invalid EQY strategies: {', '.join(sorted(invalid))}")
     if cfg.use_pdr and not cfg.pdr_engine.strip():
         raise ValueError("EQY PDR engine must not be empty")
     if not cfg.smt_engine.strip():
         raise ValueError("EQY SMT engine must not be empty")
+    if not _resolved_strategy_order(cfg):
+        raise ValueError("EQY strategy order enables no strategies")
 
     filelists = _require_files(cfg.filelists, label="RTL filelist(s)")
     netlist = _require_files((cfg.netlist,), label="synthesized netlist")[0]
     liberty = _require_files((cfg.liberty,), label="Liberty file")[0]
     cell_models = _require_files(cfg.cell_models, label="functional cell model(s)") if cfg.cell_models else ()
-    ports = _netlist_ports(netlist, cfg.top)
+    port_decls = _netlist_port_decls(netlist, cfg.top)
+    ports = tuple(port.name for port in port_decls)
 
     return "\n".join(
         [
@@ -256,18 +407,22 @@ def render_eqy(cfg: EquivalenceConfig) -> str:
             "",
             "[gold]",
             _read_slang_synthesis(cfg.top, filelists),
+            *_formal_view_lines(cfg),
             "",
             "[gate]",
             *_gate_model_reads(cfg, liberty=liberty, netlist=netlist, cell_models=cell_models),
+            *_formal_view_lines(cfg),
             "",
             "[script]",
             f"hierarchy -check -top {cfg.top}",
             "proc",
             f"prep -top {cfg.top} -flatten",
             "memory -nomap",
-            "async2sync",
+            "memory_map -formal",
+            *([] if cfg.multiclock else ["async2sync"]),
             "",
             *_eqy_match_sections(cfg.top, ports),
+            *_eqy_collect_sections(cfg.top, port_decls, enabled=cfg.join_outputs),
             *_strategy_lines(cfg),
         ]
     )
@@ -352,7 +507,7 @@ def generate_equivalence_config(cfg: EquivalenceConfig) -> Path:
         else "// No PDK-specific EQY compatibility model required.\n"
     )
     write_text(cfg.sky130_clock_gate_model, body)
-    prepared = _prepare_formal_cell_model(cfg)
+    prepared = _prepare_formal_protocol_view(_prepare_formal_cell_model(cfg))
     return write_text(cfg.output, render_eqy(prepared))
 
 
@@ -558,8 +713,9 @@ def _sta_config(args: argparse.Namespace) -> STAConfig:
 
 
 def _equivalence_config(args: argparse.Namespace) -> EquivalenceConfig:
-    multiclock = os.environ.get("CLOCK_MODE", "").strip().lower() in {"multi", "multiclock"}
+    multiclock = clock_config().multiclock
     timeout = int(os.environ.get("EQY_TIMEOUT", "30" if multiclock else str(args.timeout)))
+    quick_timeout = int(os.environ.get("EQY_QUICK_TIMEOUT", "5"))
     splitnets = os.environ.get("EQY_SPLITNETS", "off").strip().lower()
     use_sat = _env_bool("EQY_USE_SAT", not multiclock)
     use_pdr = _env_bool("EQY_USE_PDR", True)
@@ -567,6 +723,11 @@ def _equivalence_config(args: argparse.Namespace) -> EquivalenceConfig:
     smt_engine = os.environ.get("EQY_SMT_ENGINE", "smtbmc bitwuzla").strip()
     smt_depth = int(os.environ.get("EQY_SMT_DEPTH", "5" if multiclock else "2"))
     xprop = os.environ.get("EQY_XPROP", "on").strip().lower()
+    join_outputs = _env_bool("EQY_JOIN_OUTPUTS", True)
+    raw_order = os.environ.get("EQY_STRATEGY_ORDER", "auto").strip().lower()
+    strategy_order = () if raw_order in {"", "auto"} else tuple(
+        token.strip() for token in raw_order.split(",") if token.strip()
+    )
     return EquivalenceConfig(
         top=args.top,
         filelists=tuple(args.filelist),
@@ -580,6 +741,7 @@ def _equivalence_config(args: argparse.Namespace) -> EquivalenceConfig:
         sat_depth=args.sat_depth,
         output=args.output,
         timeout=timeout,
+        quick_timeout=quick_timeout,
         multiclock=multiclock,
         splitnets=splitnets,
         use_sat=use_sat,
@@ -588,6 +750,8 @@ def _equivalence_config(args: argparse.Namespace) -> EquivalenceConfig:
         smt_engine=smt_engine,
         smt_depth=smt_depth,
         xprop=xprop,
+        join_outputs=join_outputs,
+        strategy_order=strategy_order,
     )
 
 

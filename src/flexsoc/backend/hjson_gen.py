@@ -5,6 +5,9 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from textwrap import dedent
+
+from flexsoc.clocking import clock_config
 
 try:
     from .common import colorize, ensure_dir, safe_write_file
@@ -160,6 +163,198 @@ def write_hjson(top: str, itf: str, output: str | Path = ".", *, force: bool = F
     safe_write_file(path, render_hjson(top, itf), overwrite=force)
     return path
 
+def cfg_hjson(top: str) -> str:
+    """Render the cfg-domain HJSON regmap."""
+
+    name = f"{top}_cfg"
+    return dedent(f"""\
+    {{
+      name:               "{name}",
+      human_name:         "{name}",
+      one_line_desc:      "Cfg-domain controls for the generated N-clock IP.",
+      one_paragraph_desc: "Global control and cfg-domain status registers for the generated N-clock scaffold.",
+      cip_id:             "1",
+      design_spec:        "",
+      dv_doc:             "",
+      hw_checklist:       "",
+      sw_checklist:       "",
+      revisions: [{{
+        version:            "1.0.0",
+        life_stage:         "L0",
+        design_stage:       "D0",
+        verification_stage: "V0",
+        commit_id:          "",
+        notes:              "Generated N-clock cfg regmap."
+      }}],
+      clocking: [{{ clock: "clk_i", reset: "rst_ni" }}],
+      bus_interfaces: [{{ protocol: "tlul", direction: "device" }}],
+      regwidth: "32",
+      registers: [
+        {{
+          name: "CTRL",
+          desc: "Global control written from the cfg clock domain.",
+          swaccess: "rw",
+          hwaccess: "hro",
+          fields: [
+            {{ bits: "0", name: "ENABLE", desc: "Enable RX input and DSP processing." }},
+            {{ bits: "1", name: "SOFT_RESET", desc: "Synchronous datapath clear request." }},
+            {{ bits: "2", name: "CLK_GATE_EN", desc: "Allow the DSP clock gate to close when idle." }}
+          ]
+        }},
+        {{
+          name: "GAIN",
+          desc: "Signed Q1.15 gain added by the DSP pipeline. Update while CTRL.ENABLE is low.",
+          swaccess: "rw",
+          hwaccess: "hro",
+          fields: [{{ bits: "15:0", name: "VALUE", desc: "DSP gain coefficient." }}]
+        }},
+        {{
+          name: "CFG_STATUS",
+          desc: "Cfg-domain view of datapath status synchronized back from the DSP domain.",
+          swaccess: "ro",
+          hwaccess: "hrw",
+          hwext: "true",
+          fields: [
+            {{ bits: "0", name: "BUSY", desc: "The DSP pipeline currently owns an output sample." }},
+            {{ bits: "1", name: "OVERFLOW", desc: "The latest result overflowed or saturated." }}
+          ]
+        }}
+      ]
+    }}
+    """)
+
+
+def dsp_hjson(top: str) -> str:
+    """Render the dsp-domain HJSON regmap."""
+
+    name = f"{top}_dsp"
+    return dedent(f"""\
+    {{
+      name:               "{name}",
+      human_name:         "{name}",
+      one_line_desc:      "DSP-domain controls and status for the generated N-clock IP.",
+      one_paragraph_desc: "Algorithm selection, threshold, result and live DSP status registers for the generated N-clock scaffold.",
+      cip_id:             "1",
+      design_spec:        "",
+      dv_doc:             "",
+      hw_checklist:       "",
+      sw_checklist:       "",
+      revisions: [{{
+        version:            "1.0.0",
+        life_stage:         "L0",
+        design_stage:       "D0",
+        verification_stage: "V0",
+        commit_id:          "",
+        notes:              "Generated N-clock dsp regmap."
+      }}],
+      clocking: [{{ clock: "clk_i", reset: "rst_ni" }}],
+      bus_interfaces: [{{ protocol: "tlul", direction: "device" }}],
+      regwidth: "32",
+      registers: [
+        {{
+          name: "DSP_CTRL",
+          desc: "DSP-domain algorithm control.",
+          swaccess: "rw",
+          hwaccess: "hro",
+          fields: [
+            {{ bits: "1:0", name: "OP", desc: "0=MAC plus gain, 1=absolute difference, 2=energy estimate." }},
+            {{ bits: "2", name: "SATURATE", desc: "Clamp overflowing results to signed 32-bit limits." }}
+          ]
+        }},
+        {{
+          name: "THRESHOLD",
+          desc: "Unsigned threshold compared with the DSP result.",
+          swaccess: "rw",
+          hwaccess: "hro",
+          fields: [{{ bits: "31:0", name: "VALUE", desc: "Result threshold." }}]
+        }},
+        {{
+          name: "RESULT",
+          desc: "Latest signed DSP result.",
+          swaccess: "ro",
+          hwaccess: "hrw",
+          hwext: "true",
+          fields: [{{ bits: "31:0", name: "VALUE", desc: "Latest output result." }}]
+        }},
+        {{
+          name: "DSP_STATUS",
+          desc: "DSP-domain live status.",
+          swaccess: "ro",
+          hwaccess: "hrw",
+          hwext: "true",
+          fields: [
+            {{ bits: "0", name: "VALID", desc: "RESULT contains a valid sample." }},
+            {{ bits: "1", name: "ABOVE_THRESHOLD", desc: "RESULT is greater than THRESHOLD." }},
+            {{ bits: "2", name: "FIFO_EMPTY", desc: "RX-to-DSP FIFO has no readable payload." }},
+            {{ bits: "3", name: "OVERFLOW", desc: "The latest operation overflowed before saturation." }}
+          ]
+        }}
+      ]
+    }}
+    """)
+
+
+def generic_hjson(top: str, regmap: str) -> str:
+    """Render a small generic HJSON for an extra domain regmap."""
+
+    name = f"{top}_{regmap}"
+    return dedent(f"""\
+    {{
+      name:               "{name}",
+      human_name:         "{name}",
+      one_line_desc:      "Generated {regmap}-domain control/status registers.",
+      one_paragraph_desc: "Starter control/status map for a generated N-clock domain.",
+      cip_id:             "1",
+      design_spec:        "",
+      dv_doc:             "",
+      hw_checklist:       "",
+      sw_checklist:       "",
+      revisions: [{{
+        version:            "1.0.0",
+        life_stage:         "L0",
+        design_stage:       "D0",
+        verification_stage: "V0",
+        commit_id:          "",
+        notes:              "Generated N-clock domain regmap."
+      }}],
+      clocking: [{{ clock: "clk_i", reset: "rst_ni" }}],
+      bus_interfaces: [{{ protocol: "tlul", direction: "device" }}],
+      regwidth: "32",
+      registers: [
+        {{
+          name: "CTRL",
+          desc: "Domain control.",
+          swaccess: "rw",
+          hwaccess: "hro",
+          fields: [{{ bits: "0", name: "ENABLE", desc: "Enable this domain." }}]
+        }},
+        {{
+          name: "STATUS",
+          desc: "Domain status.",
+          swaccess: "ro",
+          hwaccess: "hrw",
+          hwext: "true",
+          fields: [{{ bits: "0", name: "BUSY", desc: "Domain busy." }}]
+        }}
+      ]
+    }}
+    """)
+
+
+def render_nclock_hjson(top: str, regmap: str) -> str:
+    """Render one N-clock regmap by short name."""
+
+    if regmap == "cfg":
+        return cfg_hjson(top)
+    if regmap == "dsp":
+        return dsp_hjson(top)
+    return generic_hjson(top, regmap)
+
+
+# ---------------------------------------------------------------------------
+# RTL generation
+# ---------------------------------------------------------------------------
+
 
 def main(argv: list[str] | None = None) -> int:
     """Run the HJSON generator command line entrypoint."""
@@ -170,7 +365,15 @@ def main(argv: list[str] | None = None) -> int:
         if not top or not itf:
             print(colorize("Error: --top and --itf must be non-empty."), file=sys.stderr)
             return 2
-        write_hjson(top, itf, args.output, force=args.force)
+        clocks = clock_config()
+        if clocks.multiclock:
+            output = Path(args.output)
+            ensure_dir(output)
+            for regmap in ("cfg", "dsp"):
+                path = output / f"{top}_{regmap}.hjson"
+                safe_write_file(path, render_nclock_hjson(top, regmap), overwrite=args.force)
+        else:
+            write_hjson(top, itf, args.output, force=args.force)
         return 0
     except FileExistsError as err:
         print(colorize(f"Refusing to overwrite existing file: {err} (use --force)"), file=sys.stderr)

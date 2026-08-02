@@ -8,6 +8,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from flexsoc.clocking import ClockConfig, ClockDomain, clock_config
+
 from .common import colorize, safe_write_file
 
 
@@ -30,7 +32,7 @@ def _strip_comments(text: str) -> str:
 def _port_list(text: str) -> str:
     """Return the first module port list."""
 
-    match = re.search(r"module\s+\w+\s*(?:import\s+[^;]+;\s*)?\((.*?)\);", _strip_comments(text), re.S)
+    match = re.search(r"module\s+\w+\s*(?:import\s+[^;]+;\s*)*\((.*?)\);", _strip_comments(text), re.S)
     if not match:
         raise ValueError("could not parse core module header")
     return match.group(1)
@@ -116,7 +118,93 @@ def render_top_from_core(top: str, core_path: str | Path, itf: str = "tlul") -> 
     return "\n".join(lines) + "\n"
 
 
-def write_top_from_core(top: str, rtl_dir: str | Path, itf: str, *, force: bool = False) -> Path:
+_REG_PORT_RE = re.compile(r"^(?P<name>[A-Za-z_][A-Za-z0-9_]*)_(?P<kind>reg2hw_i|hw2reg_o)$")
+
+
+@dataclass(frozen=True, slots=True)
+class RegisterWindow:
+    """One discovered regtool interface and its clock domain."""
+
+    name: str
+    domain: ClockDomain
+
+    @property
+    def reset_ni(self) -> str:
+        return self.domain.reset if self.domain.reset_polarity == "low" else f"~{self.domain.reset}"
+
+
+def _register_windows(ports: list[Port], clocks: ClockConfig) -> tuple[RegisterWindow, ...]:
+    """Bind paired register ports to same-named clock domains."""
+
+    kinds: dict[str, set[str]] = {}
+    for port in ports:
+        match = _REG_PORT_RE.match(port.name)
+        if match:
+            kinds.setdefault(match["name"], set()).add(match["kind"])
+    domains, port_names = {item.name: item for item in clocks.domains}, {port.name for port in ports}
+    windows: list[RegisterWindow] = []
+    for name, found in kinds.items():
+        missing = {"reg2hw_i", "hw2reg_o"} - found
+        if missing:
+            raise ValueError(f"register window {name!r} is missing core port(s): {', '.join(sorted(missing))}")
+        domain = domains.get(name)
+        if domain is None:
+            raise ValueError(f"register window {name!r} requires a matching CLOCK_DOMAINS entry")
+        absent = [signal for signal in (domain.signal, domain.reset) if signal not in port_names]
+        if absent:
+            raise ValueError(f"register window {name!r} clock/reset port(s) missing from core: {', '.join(absent)}")
+        windows.append(RegisterWindow(name, domain))
+    return tuple(windows)
+
+
+def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig) -> str:
+    """Render a clock-count-neutral wrapper around one editable core."""
+
+    core = Path(core_path)
+    core = core / f"{top}_core.sv" if core.is_dir() else core
+    ports = parse_ports(core)
+    windows = _register_windows(ports, clocks)
+    hidden = {f"{window.name}_{kind}" for window in windows for kind in ("reg2hw_i", "hw2reg_o")}
+    exposed = [port for port in ports if port.name not in hidden]
+    declarations = [_format_port(port) for port in exposed]
+    declarations += [item for window in windows for item in (
+        f"  input  tlul_pkg::tl_h2d_t        {window.name}_tl_i",
+        f"  output tlul_pkg::tl_d2h_t        {window.name}_tl_o",
+    )]
+    devmode = "devmode_i" if any(port.name == "devmode_i" for port in exposed) else "1'b1"
+    lines = [
+        "// Auto-generated N-clock wrapper. Edit the core, then rerun fx top_from_core.",
+        f"module {top}",
+        *(f"  import {top}_{window.name}_reg_pkg::*;" for window in windows),
+        "(",
+        *[line + ("," if i + 1 < len(declarations) else "") for i, line in enumerate(declarations)],
+        ");", "",
+    ]
+    for window in windows:
+        name, domain = window.name, window.domain
+        lines += [
+            f"  {top}_{name}_reg2hw_t {name}_reg2hw;",
+            f"  {top}_{name}_hw2reg_t {name}_hw2reg;", "",
+            f"  {top}_{name}_reg_top u_{name}_reg_top (",
+            f"    .clk_i     ({domain.signal}),",
+            f"    .rst_ni    ({window.reset_ni}),",
+            f"    .tl_i      ({name}_tl_i),",
+            f"    .tl_o      ({name}_tl_o),",
+            f"    .reg2hw    ({name}_reg2hw),",
+            f"    .hw2reg    ({name}_hw2reg),",
+            f"    .devmode_i ({devmode})",
+            "  );", "",
+        ]
+    pins = []
+    for port in ports:
+        match = _REG_PORT_RE.match(port.name)
+        signal = f"{match['name']}_{match['kind'][:-2]}" if match else port.name
+        pins.append(f"    .{port.name:<22}({signal})")
+    lines += [f"  {top}_core u_core (", ",\n".join(pins), "  );", "", "endmodule", ""]
+    return "\n".join(lines)
+
+
+def write_top_from_core(top: str, rtl_dir: str | Path, itf: str, *, force: bool = False, clocks: ClockConfig | None = None) -> Path:
     """Write <top>.sv next to <top>_core.sv."""
 
     rtl = Path(rtl_dir)
@@ -124,7 +212,9 @@ def write_top_from_core(top: str, rtl_dir: str | Path, itf: str, *, force: bool 
     out = rtl / f"{top}.sv"
     if not core.exists():
         raise FileNotFoundError(core)
-    safe_write_file(out, render_top_from_core(top, core, itf), overwrite=force)
+    cfg = clocks or clock_config()
+    text = render_nclock_top(top, core, cfg) if cfg.multiclock else render_top_from_core(top, core, itf)
+    safe_write_file(out, text, overwrite=force)
     return out
 
 

@@ -145,7 +145,7 @@ def compile_command(project_root: Path, values: Mapping[str, str], stage: str, p
     if mode not in TIMING_MODES:
         raise ValueError("TIMING_MODE must be min, typ, or max")
     if not paths.tb.is_file():
-        raise ValueError(f"testbench not found: {paths.tb}; run setup_tb/setup_tb_multi first")
+        raise ValueError(f"testbench not found: {paths.tb}; run setup_tb first")
     if not paths.netlist.is_file():
         raise ValueError(f"gate-level netlist not found: {paths.netlist}")
 

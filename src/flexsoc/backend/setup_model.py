@@ -18,6 +18,8 @@ import re
 from pathlib import Path
 from textwrap import dedent
 
+from flexsoc.clocking import clock_config
+
 from .setup_model_regmap import generate as generate_regmap
 
 
@@ -627,6 +629,284 @@ def _regmap_tests_text(top: str) -> str:
         '''
     )
 
+def render_nclock_model(top: str) -> str:
+    """Render the editable N-clock behavioral model."""
+
+    return dedent(f'''\
+    """Editable behavioral reference model for {top}.
+
+    This module models the DSP transaction performed by the generated
+    N-clock RTL scaffold. Test selection, vector serialization and CSR
+    layout live in ``{top}_tests.py`` and ``{top}_regmap.py``.
+
+    N-clock completion is event-driven: the generated verification
+    infrastructure consumes expected outputs when ``dsp_valid_o`` asserts,
+    rather than assuming one absolute latency across unrelated clocks.
+    """
+
+    from __future__ import annotations
+
+    from dataclasses import dataclass
+
+
+    @dataclass(frozen=True)
+    class DspConfig:
+        """Behavioral controls that affect one DSP transaction."""
+
+        gain: int = 0
+        op: int = 0
+        saturate: bool = False
+        threshold: int = 0
+
+
+    @dataclass(frozen=True)
+    class DspInput:
+        """One accepted RX-domain payload."""
+
+        sample: int
+        coeff: int
+
+
+    @dataclass(frozen=True)
+    class DspOutput:
+        """Expected DSP-domain result for one accepted payload."""
+
+        result: int
+        above_threshold: bool
+        overflow: bool
+
+
+    def i16(value: int) -> int:
+        """Convert a value to signed 16-bit."""
+
+        value &= 0xFFFF
+        return value - 0x10000 if value & 0x8000 else value
+
+
+    def u32(value: int) -> int:
+        """Convert a value to unsigned 32-bit."""
+
+        return value & 0xFFFF_FFFF
+
+
+    class ReferenceModel:
+        """Behavioral model of the generated DSP datapath."""
+
+        def reset(self) -> None:
+            """Reset model-owned state.
+
+            The starter DSP is transaction-level and stateless, so there is
+            nothing to clear. Stateful specializations can extend this method.
+            """
+
+            pass
+
+        def compute(self, inputs: DspInput, config: DspConfig) -> DspOutput:
+            """Return the DSP result associated with one accepted RX payload."""
+
+            sample = i16(inputs.sample)
+            coeff = i16(inputs.coeff)
+            gain = i16(config.gain)
+
+            if config.op == 1:
+                raw = abs(sample - coeff)
+            elif config.op == 2:
+                raw = sample * sample + coeff * coeff
+            else:
+                raw = sample * coeff + gain
+
+            overflow = raw > 0x7FFF_FFFF or raw < -0x8000_0000
+            if config.saturate and raw > 0x7FFF_FFFF:
+                raw = 0x7FFF_FFFF
+            elif config.saturate and raw < -0x8000_0000:
+                raw = -0x8000_0000
+
+            result = u32(raw)
+            return DspOutput(
+                result=result,
+                above_threshold=result > (config.threshold & 0xFFFF_FFFF),
+                overflow=overflow,
+            )
+    ''')
+
+
+def render_nclock_tests(top: str) -> str:
+    """Render the editable N-clock test catalogue/vector generator."""
+
+    return dedent(f'''\
+    """Editable N-clock test catalogue and vector generator for {top}.
+
+    Each scenario owns three explicit sections:
+
+    * ``config`` -> initial domain-qualified CSR writes in ``config.regs``;
+    * ``data_in`` -> RX-domain functional transactions;
+    * ``data_out`` -> DSP-domain expectations consumed when ``dsp_valid_o`` is high.
+
+    Add or change scenarios here without modifying ``{top}_model.py``. CSR
+    names, fields, offsets and masks come only from ``{top}_regmap.py`` and can
+    be refreshed independently with ``fx regmap_py --force``.
+    """
+
+    from __future__ import annotations
+
+    import argparse
+    from dataclasses import dataclass
+    from pathlib import Path
+
+    import {top}_model as model
+    import {top}_regmap as regmap
+
+
+    TOP = {top!r}
+    TESTS = ("mac_smoke", "absdiff", "energy")
+    CFG = regmap.domain("cfg")
+    DSP = regmap.domain("dsp")
+
+
+    @dataclass(frozen=True)
+    class TestCase:
+        """Configuration plus ordered RX inputs for one scenario."""
+
+        config: model.DspConfig
+        inputs: tuple[model.DspInput, ...]
+
+
+    def config_rows(config: model.DspConfig) -> list[str]:
+        """Serialize initial cfg/dsp-domain CSRs through the generated regmap."""
+
+        return [
+            CFG.GAIN.write(VALUE=int(config.gain) & 0xFFFF),
+            DSP.DSP_CTRL.write(OP=int(config.op), SATURATE=int(config.saturate)),
+            DSP.THRESHOLD.write(VALUE=int(config.threshold) & 0xFFFF_FFFF),
+            # Enable last so synchronized controls and multi-bit gain are stable
+            # before RX/DSP traffic starts.
+            CFG.CTRL.write(ENABLE=1, SOFT_RESET=0, CLK_GATE_EN=0),
+        ]
+
+
+    def input_rows(step: int, inputs: model.DspInput) -> list[str]:
+        """Serialize one ordered RX-domain input transaction."""
+
+        return [
+            f"{{step}} rx_sample_i 0x{{inputs.sample & 0xFFFF:04x}}",
+            f"{{step}} rx_coeff_i 0x{{inputs.coeff & 0xFFFF:04x}}",
+            f"{{step}} rx_valid_i 0x1",
+        ]
+
+
+    def output_rows(step: int, expected: model.DspOutput) -> list[str]:
+        """Serialize one DSP-domain expectation.
+
+        ``step`` records transaction order only. The N-clock SV/cocotb
+        monitors wait for ``dsp_valid_o`` before consuming the next expected row.
+        """
+
+        return [
+            f"{{step}} dsp_result_o 0x{{expected.result:08x}}",
+            f"{{step}} dsp_valid_o 0x1",
+            f"{{step}} dsp_above_threshold_o 0x{{int(expected.above_threshold)}}",
+            f"{{step}} dsp_overflow_o 0x{{int(expected.overflow)}}",
+        ]
+
+
+    def scenario(name: str) -> TestCase:
+        """Return one built-in N-clock scenario."""
+
+        if name == "absdiff":
+            return TestCase(
+                config=model.DspConfig(gain=0, op=1, saturate=False, threshold=4),
+                inputs=(model.DspInput(9, 4), model.DspInput(-2, 8)),
+            )
+        if name == "energy":
+            return TestCase(
+                config=model.DspConfig(gain=0, op=2, saturate=False, threshold=0x20),
+                inputs=(model.DspInput(3, 4), model.DspInput(5, 12)),
+            )
+        if name == "mac_smoke":
+            return TestCase(
+                config=model.DspConfig(gain=1, op=0, saturate=False, threshold=0x10),
+                inputs=(
+                    model.DspInput(3, 4),
+                    model.DspInput(7, 2),
+                    model.DspInput(-3, 5),
+                ),
+            )
+        raise ValueError(f"unknown test {{name!r}}; choose one of {{TESTS}}")
+
+
+    def write_test(root: str | Path, name: str) -> None:
+        """Generate ``config.regs``, ``data_in.vec`` and ``data_out.vec``."""
+
+        case = scenario(name)
+        reference = model.ReferenceModel()
+        out = Path(root) / name
+        out.mkdir(parents=True, exist_ok=True)
+
+        regmap.write_config(out / "config.regs", config_rows(case.config))
+
+        data_in = [
+            "# format: <STEP> <SIGNAL> <VALUE>",
+            "# STEP is RX transaction order, not an absolute clock cycle.",
+        ]
+        data_out = [
+            "# format: <STEP> <SIGNAL> <VALUE>",
+            "# Expected rows are consumed in order when dsp_valid_o asserts.",
+        ]
+        for step, inputs in enumerate(case.inputs):
+            expected = reference.compute(inputs, case.config)
+            data_in.extend(input_rows(step, inputs))
+            data_out.extend(output_rows(step, expected))
+
+        (out / "data_in.vec").write_text("\\n".join(data_in) + "\\n", encoding="utf-8")
+        (out / "data_out.vec").write_text("\\n".join(data_out) + "\\n", encoding="utf-8")
+
+
+    def write_all_tests(
+        root: str | Path,
+        tests: list[str] | tuple[str, ...] | None = None,
+    ) -> None:
+        """Generate requested tests, or the complete catalogue when omitted."""
+
+        for name in (tests or TESTS):
+            write_test(root, name)
+
+
+    def main() -> int:
+        """CLI entry point used by the unified vector-test targets."""
+
+        parser = argparse.ArgumentParser(
+            description="Generate N-clock vector tests from the editable test catalogue."
+        )
+        parser.add_argument("--tests-dir", default="../tests")
+        parser.add_argument(
+            "--test",
+            action="append",
+            default=[],
+            help="Generate only this TEST_NAME. May be repeated.",
+        )
+        parser.add_argument(
+            "--list",
+            action="store_true",
+            help="Print the TESTS catalogue and exit.",
+        )
+        args = parser.parse_args()
+        if args.list:
+            for test in TESTS:
+                print(test)
+            return 0
+        write_all_tests(args.tests_dir, args.test or None)
+        return 0
+
+
+    if __name__ == "__main__":
+        raise SystemExit(main())
+    ''')
+
+# ---------------------------------------------------------------------------
+# SystemVerilog verification scaffold
+# ---------------------------------------------------------------------------
+
+
 
 def write_regmap_tests(top: str, output: Path) -> Path:
     """Regenerate machine-owned coverage stimulus."""
@@ -690,30 +970,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Generate the model owned by the active clock configuration."""
+
     args = parse_args(argv)
-    output_dir = Path(args.output_dir)
-
+    output = Path(args.output_dir)
     if args.force:
-        for legacy_name in (f"model_{args.top}.py", f"regmap_{args.top}.py"):
-            legacy_path = output_dir / legacy_name
-            if legacy_path.exists():
-                legacy_path.unlink()
+        for name in (f"model_{args.top}.py", f"regmap_{args.top}.py"):
+            path = output / name
+            if path.exists():
+                path.unlink()
 
-    generate_regmap(
-        args.top,
-        Path(args.data_dir),
-        output_dir,
-        force=args.force,
-    )
-    write_model(
-        args.top,
-        output_dir,
-        Path(args.rtl_dir) if args.rtl_dir else None,
-        force=args.force,
-    )
-    write_tests(args.top, output_dir, force=args.force)
-    write_regmap_tests(args.top, output_dir)
-
+    if clock_config().multiclock:
+        from .setup_model_regmap import generate as generate_model_regmap
+        generate_model_regmap(args.top, Path(args.data_dir), output, force=args.force)
+        _write_text(output / f"{args.top}_model.py", render_nclock_model(args.top), force=args.force)
+        tests = _write_text(output / f"{args.top}_tests.py", render_nclock_tests(args.top), force=args.force)
+        tests.chmod(0o755)
+    else:
+        generate_regmap(args.top, Path(args.data_dir), output, force=args.force)
+        write_model(args.top, output, Path(args.rtl_dir) if args.rtl_dir else None, force=args.force)
+        write_tests(args.top, output, force=args.force)
+        write_regmap_tests(args.top, output)
     return 0
 
 

@@ -12,7 +12,10 @@ import random
 import re
 from dataclasses import dataclass, replace
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Sequence
+
+from flexsoc.clocking import ClockConfig, clock_config
 
 from .common import ensure_dir, has_reg_pkg, parse_sv_signature, safe_write_file
 
@@ -2604,13 +2607,445 @@ def _normalize_generated_sv_layout(config: TestbenchConfig) -> None:
     _patch_tb_driver_includes(config)
     _validate_sv_driver_layout(config)
 
+def sv_include_text(top: str) -> str:
+    """Render a small include file matching the single-clock TB layout."""
+
+    guard = f"{top.upper()}_NCLOCK_TB_INCLUDE_SV".replace("-", "_")
+    return dedent(f"""\
+    `ifndef {guard}
+    `define {guard}
+
+    // N-clock TB include hook.
+    // The Makefile compiles rtl_common.f and rtl_ip.f explicitly, so this file
+    // is intentionally small. Keep local TB typedefs/macros here if needed.
+
+    `endif
+    """)
+
+
+
+def sv_driver_text(top: str) -> str:
+    """Render top-level TL-UL config-driver tasks."""
+
+    return dedent("""\
+      // Reset top-level scalar IO and both TL-UL register ports.
+      task automatic apply_defaults();
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.a_valid = 1'b0;
+        dsp_tl_i.a_valid = 1'b0;
+        cfg_tl_i.d_ready = 1'b1;
+        dsp_tl_i.d_ready = 1'b1;
+        rx_valid_i = 1'b0;
+        rx_sample_i = '0;
+        rx_coeff_i = '0;
+        dsp_ready_i = 1'b1;
+        test_en_i = 1'b1;
+      endtask
+
+      // Perform one cfg-domain TL-UL write into the generated cfg regblock.
+      task automatic cfg_write(input logic [31:0] addr, input logic [31:0] data);
+        @(negedge cfg_clk_i);
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.a_valid   = 1'b1;
+        cfg_tl_i.a_opcode  = tlul_pkg::PutFullData;
+        cfg_tl_i.a_param   = '0;
+        cfg_tl_i.a_size    = 3'd2;
+        cfg_tl_i.a_source  = '0;
+        cfg_tl_i.a_address = addr;
+        cfg_tl_i.a_mask    = 4'hf;
+        cfg_tl_i.a_data    = data;
+        cfg_tl_i.d_ready   = 1'b1;
+        do @(posedge cfg_clk_i); while (!cfg_tl_o.a_ready);
+        @(negedge cfg_clk_i);
+        cfg_tl_i.a_valid = 1'b0;
+        do @(posedge cfg_clk_i); while (!cfg_tl_o.d_valid);
+        @(negedge cfg_clk_i);
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.d_ready = 1'b1;
+      endtask
+
+      // Perform one dsp-domain TL-UL write into the generated dsp regblock.
+      task automatic dsp_write(input logic [31:0] addr, input logic [31:0] data);
+        @(negedge dsp_clk_i);
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i.a_valid   = 1'b1;
+        dsp_tl_i.a_opcode  = tlul_pkg::PutFullData;
+        dsp_tl_i.a_param   = '0;
+        dsp_tl_i.a_size    = 3'd2;
+        dsp_tl_i.a_source  = '0;
+        dsp_tl_i.a_address = addr;
+        dsp_tl_i.a_mask    = 4'hf;
+        dsp_tl_i.a_data    = data;
+        dsp_tl_i.d_ready   = 1'b1;
+        do @(posedge dsp_clk_i); while (!dsp_tl_o.a_ready);
+        @(negedge dsp_clk_i);
+        dsp_tl_i.a_valid = 1'b0;
+        do @(posedge dsp_clk_i); while (!dsp_tl_o.d_valid);
+        @(negedge dsp_clk_i);
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i.d_ready = 1'b1;
+      endtask
+
+      // Apply one generated config register write through the top-level regblocks.
+      task automatic apply_reg(input string reg_name, input logic [31:0] value);
+        if (reg_name == "cfg.CTRL") begin
+          cfg_write(32'h0000_0000, value);
+        end else if (reg_name == "cfg.GAIN") begin
+          cfg_write(32'h0000_0004, value);
+        end else if (reg_name == "dsp.DSP_CTRL") begin
+          dsp_write(32'h0000_0000, value);
+        end else if (reg_name == "dsp.THRESHOLD") begin
+          dsp_write(32'h0000_0004, value);
+        end else begin
+          $display("[TB][WARN] unknown config register: %s", reg_name);
+        end
+      endtask
+
+      // Load config.regs. cfg.CTRL should remain the final enable write.
+      task automatic load_config(input string path);
+        integer fd;
+        integer code;
+        string reg_name;
+        logic [31:0] value;
+        string line;
+        fd = $fopen(path, "r");
+        if (fd == 0) begin
+          $display("[TB][ERROR] config file not found: %s", path);
+          errors++;
+          return;
+        end
+        while (!$feof(fd)) begin
+          line = "";
+          void'($fgets(line, fd));
+          if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+          code = $sscanf(line, "%s %h", reg_name, value);
+          if (code == 2) begin
+            if (reg_name.len() > 6 && reg_name.substr(0, 5) == "clk_i.") reg_name = reg_name.substr(6, reg_name.len() - 1);
+            apply_reg(reg_name, value);
+          end
+        end
+        $fclose(fd);
+      endtask
+    """)
+
+
+def sv_vec_driver_text(top: str) -> str:
+    """Render top-level input-vector driver tasks."""
+
+    return dedent("""\
+      // Push one sample into the RX clock domain.
+      task automatic send_sample(input logic signed [15:0] sample, input logic signed [15:0] coeff);
+        integer timeout;
+        timeout = 0;
+        while (!rx_ready_o && timeout < 64) begin
+          @(posedge rx_clk_i);
+          timeout++;
+        end
+        if (!rx_ready_o) begin
+          $display("[TB][ERROR] rx_ready_o timeout");
+          errors++;
+          return;
+        end
+        @(negedge rx_clk_i);
+        rx_sample_i = sample;
+        rx_coeff_i  = coeff;
+        rx_valid_i  = 1'b1;
+        @(negedge rx_clk_i);
+        rx_valid_i  = 1'b0;
+      endtask
+
+      // Drive input transactions from data_in.vec.
+      task automatic run_inputs(input string path);
+        integer fd;
+        integer code;
+        integer step;
+        string sig;
+        logic [31:0] value;
+        string line;
+        logic signed [15:0] sample;
+        logic signed [15:0] coeff;
+        sample = '0;
+        coeff = '0;
+        fd = $fopen(path, "r");
+        if (fd == 0) begin
+          $display("[TB][ERROR] input file not found: %s", path);
+          errors++;
+          return;
+        end
+        while (!$feof(fd)) begin
+          line = "";
+          void'($fgets(line, fd));
+          if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+          code = $sscanf(line, "%d %s %h", step, sig, value);
+          if (code != 3) continue;
+          if (sig == "rx_sample_i") begin
+            sample = value[15:0];
+          end else if (sig == "rx_coeff_i") begin
+            coeff = value[15:0];
+          end else if (sig == "rx_valid_i" && value[0]) begin
+            send_sample(sample, coeff);
+          end
+        end
+        $fclose(fd);
+      endtask
+    """)
+
+def sv_monitor_text(top: str) -> str:
+    """Render output-vector monitor/checker tasks."""
+
+    return dedent("""\
+      // Load expected output transactions by order, not by absolute cycle.
+      task automatic load_expected(input string path);
+        integer fd;
+        integer code;
+        integer step;
+        string sig;
+        logic [31:0] value;
+        string line;
+        exp_count = 0;
+        fd = $fopen(path, "r");
+        if (fd == 0) begin
+          $display("[TB][ERROR] expected file not found: %s", path);
+          errors++;
+          return;
+        end
+        while (!$feof(fd)) begin
+          line = "";
+          void'($fgets(line, fd));
+          if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+          code = $sscanf(line, "%d %s %h", step, sig, value);
+          if (code == 3 && sig == "dsp_result_o") begin
+            exp_result[exp_count] = value;
+            exp_above_threshold[exp_count] = 1'b0;
+            exp_overflow[exp_count] = 1'b0;
+            exp_count++;
+          end else if (code == 3 && sig == "dsp_above_threshold_o" && exp_count > 0) begin
+            exp_above_threshold[exp_count - 1] = value[0];
+          end else if (code == 3 && sig == "dsp_overflow_o" && exp_count > 0) begin
+            exp_overflow[exp_count - 1] = value[0];
+          end
+        end
+        $fclose(fd);
+      endtask
+
+      // Compare each output transaction when the DSP domain produces it.
+      task automatic check_outputs();
+        integer timeout;
+        got_count = 0;
+        timeout = 0;
+        dsp_ready_i = 1'b1;
+        while (got_count < exp_count && timeout < 4096) begin
+          @(posedge dsp_clk_i);
+          if (dsp_valid_o) begin
+            if ($unsigned(dsp_result_o) !== exp_result[got_count]) begin
+              $display("[TB][ERROR] result[%0d] got=0x%08x exp=0x%08x", got_count, $unsigned(dsp_result_o), exp_result[got_count]);
+              errors++;
+            end
+            if (dsp_above_threshold_o !== exp_above_threshold[got_count]) begin
+              $display("[TB][ERROR] above_threshold[%0d] got=%0d exp=%0d", got_count, dsp_above_threshold_o, exp_above_threshold[got_count]);
+              errors++;
+            end
+            if (dsp_overflow_o !== exp_overflow[got_count]) begin
+              $display("[TB][ERROR] overflow[%0d] got=%0d exp=%0d", got_count, dsp_overflow_o, exp_overflow[got_count]);
+              errors++;
+            end
+            got_count++;
+          end
+          timeout++;
+        end
+        if (got_count != exp_count) begin
+          $display("[TB][ERROR] observed %0d/%0d expected outputs", got_count, exp_count);
+          errors++;
+        end
+      endtask
+    """)
+
+
+
+def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
+    """Render the starter N-clock SV testbench from ``ClockConfig``."""
+
+    clock_decls = "\n".join(
+        f"  logic {domain.signal};\n  logic {domain.reset};" for domain in clocks.domains
+    )
+    clock_drivers = "\n".join(
+        f"  always #{domain.period_ns / 2:g} {domain.signal} = ~{domain.signal};"
+        for domain in clocks.domains
+    )
+    clock_pins = ",\n".join(
+        f"    .{signal:<25}({signal})"
+        for domain in clocks.domains
+        for signal in (domain.signal, domain.reset)
+    )
+    clock_init = "\n".join(
+        [f"    {domain.signal} = 1'b0;" for domain in clocks.domains]
+        + [f"    {domain.reset} = 1'b{1 if domain.reset_polarity == 'high' else 0};" for domain in clocks.domains]
+    )
+    reset_release = "\n".join(
+        f"    {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};"
+        for domain in clocks.domains
+    )
+    primary = clocks.domains[0].signal
+    return dedent(f"""\
+    `timescale 1ns/1ps
+    `include "include_{top}_tb.sv"
+    `ifdef SYN
+      `include "{top}_synth.v"
+    `endif
+
+    module {testbench};
+
+      {clock_decls}
+      logic test_en_i;
+
+      tlul_pkg::tl_h2d_t cfg_tl_i;
+      tlul_pkg::tl_d2h_t cfg_tl_o;
+      tlul_pkg::tl_h2d_t dsp_tl_i;
+      tlul_pkg::tl_d2h_t dsp_tl_o;
+
+      logic rx_valid_i;
+      logic rx_ready_o;
+      logic signed [15:0] rx_sample_i;
+      logic signed [15:0] rx_coeff_i;
+      logic dsp_valid_o;
+      logic dsp_ready_i;
+      logic signed [31:0] dsp_result_o;
+      logic dsp_above_threshold_o;
+      logic dsp_overflow_o;
+
+      string cfg_path;
+      string data_in_path;
+      string data_out_path;
+      string wave_path;
+      string sdf_path;
+      integer errors;
+
+      logic [31:0] exp_result [0:1023];
+      logic        exp_above_threshold [0:1023];
+      logic        exp_overflow [0:1023];
+      integer exp_count;
+      integer got_count;
+
+      {clock_drivers}
+
+      {top} u_dut (
+        {clock_pins},
+        .test_en_i             (test_en_i),
+        .cfg_tl_i              (cfg_tl_i),
+        .cfg_tl_o              (cfg_tl_o),
+        .dsp_tl_i              (dsp_tl_i),
+        .dsp_tl_o              (dsp_tl_o),
+        .rx_valid_i            (rx_valid_i),
+        .rx_ready_o            (rx_ready_o),
+        .rx_sample_i           (rx_sample_i),
+        .rx_coeff_i            (rx_coeff_i),
+        .dsp_valid_o           (dsp_valid_o),
+        .dsp_ready_i           (dsp_ready_i),
+        .dsp_result_o          (dsp_result_o),
+        .dsp_above_threshold_o (dsp_above_threshold_o),
+        .dsp_overflow_o        (dsp_overflow_o)
+      );
+
+      // Verification helpers are split like the single-clock scaffold.
+      `include "drivers/{top}_tlul_driver.svh"
+      `include "drivers/{top}_vec_monitor.svh"
+      `include "drivers/{top}_vec_driver.svh"
+
+      initial begin
+        errors = 0;
+        {clock_init}
+        apply_defaults();
+
+        if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "dv/functional/tests/mac_smoke/config.regs";
+        if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "dv/functional/tests/mac_smoke/data_in.vec";
+        if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "dv/functional/tests/mac_smoke/data_out.vec";
+        if (!$value$plusargs("WAVE=%s", wave_path)) begin
+          if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
+        end
+        if (wave_path != "") begin
+          $display("[TB] dumpfile = %s", wave_path);
+          $dumpfile(wave_path);
+          $dumpvars(0, {testbench});
+        end
+
+        `ifdef FLEXSOC_ENABLE_SDF
+          if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+          if (sdf_path != "") begin
+            `ifdef FLEXSOC_SDF_MIN
+              $display("[TB] sdf = %s (MINIMUM)", sdf_path);
+              $sdf_annotate(sdf_path, u_dut, , , "MINIMUM");
+            `elsif FLEXSOC_SDF_TYP
+              $display("[TB] sdf = %s (TYPICAL)", sdf_path);
+              $sdf_annotate(sdf_path, u_dut, , , "TYPICAL");
+            `else
+              $display("[TB] sdf = %s (MAXIMUM)", sdf_path);
+              $sdf_annotate(sdf_path, u_dut, , , "MAXIMUM");
+            `endif
+          end
+        `endif
+
+        repeat (5) @(posedge {primary});
+        {reset_release}
+        repeat (8) @(posedge {primary});
+
+        load_config(cfg_path);
+        load_expected(data_out_path);
+        // Let cfg->rx/dsp synchronizers and gain sampling settle before traffic.
+        repeat (8) @(posedge dsp_clk_i);
+        fork
+          run_inputs(data_in_path);
+          check_outputs();
+        join
+
+        repeat (10) @(posedge dsp_clk_i);
+        if (errors == 0) begin
+          $display("[TB] PASS");
+          $finish;
+        end else begin
+          $display("[TB] FAIL errors=%0d", errors);
+          $fatal(1);
+        end
+      end
+
+    endmodule
+    """)
+
+# ---------------------------------------------------------------------------
+# cocotb scaffold
+
+# ---------------------------------------------------------------------------
+# cocotb scaffold
+# ---------------------------------------------------------------------------
+
+
+
+def generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, force: bool) -> None:
+    """Write the generated N-clock SV testbench and split drivers."""
+
+    drivers = output / "drivers"
+    drivers.mkdir(parents=True, exist_ok=True)
+    files = {
+        output / f"include_{top}_tb.sv": sv_include_text(top),
+        drivers / f"{top}_tlul_driver.svh": sv_driver_text(top),
+        drivers / f"{top}_vec_driver.svh": sv_vec_driver_text(top),
+        drivers / f"{top}_vec_monitor.svh": sv_monitor_text(top),
+        output / f"{top}_tb.sv": sv_tb_text(top, f"{top}_tb", clocks),
+    }
+    for path, text in files.items():
+        safe_write_file(path, text, overwrite=force)
+
 
 def main(argv=None) -> int:
     """Run testbench generation from the command line."""
 
     config = config_from_args(parse_args(argv))
-    generate_testbench_files(config)
-    _normalize_generated_sv_layout(config)
+    clocks = clock_config()
+    if clocks.multiclock:
+        generate_nclock_testbench(config.top, Path(config.output), clocks, force=config.force)
+    else:
+        generate_testbench_files(config)
+        _normalize_generated_sv_layout(config)
     return 0
 
 

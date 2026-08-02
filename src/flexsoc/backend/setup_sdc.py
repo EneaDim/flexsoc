@@ -6,7 +6,10 @@ The module is intentionally functional so the API layer can call it later.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+
+from flexsoc.clocking import ClockConfig, clock_config
 
 TEMPLATE = """current_design {top}
 
@@ -38,6 +41,44 @@ def render_sdc(top: str, clk_period: float, clk_name: str = "core_clock", clk_po
     )
 
 
+
+
+def render_clock_config_sdc(top: str, cfg: ClockConfig, clk_io_pct: float = 0.2) -> str:
+    """Render SDC from the canonical clock model without inventing relationships."""
+
+    by_name = {domain.name: domain for domain in cfg.domains}
+    generated = {rel.target: rel for rel in cfg.relationships if rel.kind == "generated"}
+    lines = [f"current_design {top}", ""]
+    for domain in cfg.domains:
+        rel = generated.get(domain.name)
+        if rel:
+            source = by_name[rel.source]
+            lines.append(
+                f"create_generated_clock -name {domain.name} -source [get_ports {source.signal}] "
+                f"-divide_by {rel.divide_by} [get_ports {domain.signal}]"
+            )
+        else:
+            lines.append(f"create_clock -name {domain.name} -period {domain.period_ns:g} [get_ports {domain.signal}]")
+    lines.append("")
+    for rel in cfg.relationships:
+        if rel.kind == "async":
+            lines.append(
+                f"set_clock_groups -asynchronous -group [get_clocks {rel.source}] -group [get_clocks {rel.target}]"
+            )
+        elif rel.kind == "sync":
+            lines.append(f"# synchronous relationship: {rel.source} <-> {rel.target}")
+    if cfg.n_clocks == 1:
+        domain = cfg.domains[0]
+        lines += [
+            "",
+            "set non_clock_inputs [all_inputs -no_clocks]",
+            f"set_input_delay [expr {domain.period_ns:g} * {clk_io_pct:g}] -clock {domain.name} $non_clock_inputs",
+            f"set_output_delay [expr {domain.period_ns:g} * {clk_io_pct:g}] -clock {domain.name} [all_outputs]",
+        ]
+    else:
+        lines += ["", "# Multi-clock IO delays are integration-specific and are intentionally not inferred."]
+    return "\n".join(lines) + "\n"
+
 def write_sdc(path: Path, text: str) -> Path:
     """Write SDC text to disk and return the resolved output path."""
 
@@ -64,7 +105,10 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parse_args(argv)
     out = Path(args.out) if args.out else Path(f"{args.top}.sdc")
-    text = render_sdc(args.top, args.clk_period, args.clk_name, args.clk_port_name, args.clk_io_pct)
+    if any(key in os.environ for key in ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")):
+        text = render_clock_config_sdc(args.top, clock_config(), args.clk_io_pct)
+    else:
+        text = render_sdc(args.top, args.clk_period, args.clk_name, args.clk_port_name, args.clk_io_pct)
     write_sdc(out, text)
     return 0
 

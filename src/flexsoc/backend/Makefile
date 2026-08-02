@@ -2,8 +2,9 @@ BACKEND_DIR ?= $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 FLEXSOC_BACKEND_DIR ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 TB_SV_DIR ?= $(TBDIR)/sv
 TESTS_DIR ?= $(FUNCTIONALDIR)/tests
-CLOCK_MODE ?= single
-MULTICLOCK ?= 0
+N_CLOCKS ?= 1
+CLOCK_DOMAINS ?=
+CLOCK_RELATIONSHIPS ?=
 # FlexSoC backend flow Makefile
 #
 # Canonical Make-backed flow entrypoint used by the Python API, CLI wrappers,
@@ -168,16 +169,7 @@ FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
 ORSDIR         ?= $(OUTROOT)/pnr_openroad/$(PDK)
 TB_SAVEDIR     ?= $(FUNCTIONALDIR)/saved
 TEST_NAMES     ?= smoke corners random reconfig
-MULTICLOCK_DOMAINS ?= cfg,rx,dsp
-MULTICLOCK_REGMAPS ?= cfg,dsp
-# Select one multi-clock regmap without touching the others:
-#   fx reg_multi doc_multi --set REGMAP=cfg
-# Leave REGMAP empty to process every name in MULTICLOCK_REGMAPS.
 REGMAP ?=
-comma := ,
-empty :=
-space := $(empty) $(empty)
-MULTICLOCK_SELECTED_REGMAPS = $(subst $(comma),$(space),$(if $(strip $(REGMAP)),$(REGMAP),$(MULTICLOCK_REGMAPS)))
 SIGNOFF_CORNERS    ?= ss tt ff
 STA_MODES          ?= setup hold
 STA_PATHS          ?= 100
@@ -308,10 +300,10 @@ FORMAL_BMC_APPEND ?= 5
 FORMAL_BMC_ENGINE ?= smtbmc bitwuzla
 FORMAL_PROVE_ENGINE ?= abc pdr
 FORMAL_COVER_ENGINE ?= btor btormc
-FORMAL_MULTICLOCK_ARG = $(if $(filter multi multiclock,$(CLOCK_MODE)),--multiclock,)
 EQY_SAT_DEPTH ?= 5
 EQY_DEPTH ?= 2
 EQY_ENGINE ?= abc pdr -rfi
+EQY_JOBS ?= 4
 POWER_ACTIVITY  ?= 0.1
 POWER_DUTY      ?= 0.5
 PATH_VIEW_FILE  ?= $(TOP)_sta.violators
@@ -406,7 +398,7 @@ endef
 PHONY_TARGETS :=
 PHONY_TARGETS += help help_ip help_soc help_doc help_fsm
 PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_estimate_corners signoff_corners metrics manifest manifest_show check
-PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist driver fetch hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi notes_multi setup_model_multi tests_gen_multi test_gen_multi setup_tb_multi setup_cocotb_multi multiclock_scaffold regmap_py
+PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist driver fetch regmap_py
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
 PHONY_TARGETS += lint lint_slang lint_verilator lint_slang_suite lint_verilator_suite lint_suite lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier slang_ast slang_flist
 PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests regression coverage coverage_detail
@@ -497,74 +489,6 @@ soc_start: flist ## Initialize a SoC run from loaded IPs
 ##@ IP flow
 
 
-MULTICLOCK_ARGS = \
-	--top $(TOP) \
-	--run-dir $(OUTROOT) \
-	--rtl-dir $(RTLDIR) \
-	--data-dir $(DATADIR) \
-	--signoff-dir $(SIGNOFFDIR) \
-	--constraints-dir $(CONSTRAINTSDIR) \
-	--model-dir $(MODELDIR) \
-	--tb-dir $(TBDIR) \
-	--testbench $(TESTBENCH) \
-	--domains "$(MULTICLOCK_DOMAINS)" \
-	--regmaps "$(MULTICLOCK_REGMAPS)"
-
-hjson_multi: setup ## Generate multi-clock HJSON register templates
-	$(call _require_var,TOP)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit hjson --tb-dir $(TB_SV_DIR)
-
-multiclock_scaffold: hjson_multi reg_multi doc_multi rtl_stub_multi top_from_core_multi sdc_multi setup_model_multi tests_gen_multi setup_tb_multi setup_cocotb_multi notes_multi ## Bootstrap the decomposed multi-clock IP scaffold
-
-reg_multi: setup ## Generate register RTL for selected multi-clock regmap HJSON files
-	$(call _require_var,TOP)
-	@set -eu; \
-	for map in $(MULTICLOCK_SELECTED_REGMAPS); do \
-		base="$(TOP)_$$map"; \
-		file="$(DATADIR)/$$base.hjson"; \
-		pkg="$(RTLDIR)/$${base}_reg_pkg.sv"; \
-		top_sv="$(RTLDIR)/$${base}_reg_top.sv"; \
-		if [ ! -f "$$file" ]; then echo "ERROR: missing $$file"; exit 2; fi; \
-		if [ "$(FLEXSOC_FORCE)" = "0" ] && [ -f "$$pkg" ] && [ -f "$$top_sv" ] && [ "$$pkg" -nt "$$file" ] && [ "$$top_sv" -nt "$$file" ]; then \
-			:; \
-		else \
-			$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) "$$file"; \
-		fi; \
-	done
-
-
-doc_multi: setup ## Generate docs for selected multi-clock regmap HJSON files
-	$(call _require_var,TOP)
-	@set -eu; \
-	for map in $(MULTICLOCK_SELECTED_REGMAPS); do \
-		base="$(TOP)_$$map"; \
-		file="$(DATADIR)/$$base.hjson"; \
-		main_doc="$(DOCDIR)/$$base.md"; \
-		if_doc="$(DOCDIR)/$${base}_interfaces.md"; \
-		if [ ! -f "$$file" ]; then echo "ERROR: missing $$file"; exit 2; fi; \
-		if [ "$(FLEXSOC_FORCE)" = "0" ] && [ -f "$$main_doc" ] && [ -f "$$if_doc" ] && [ "$$main_doc" -nt "$$file" ] && [ "$$if_doc" -nt "$$file" ]; then \
-			:; \
-		else \
-			$(PYTHON) $(REGTOOL) -d -o "$$main_doc" "$$file"; \
-			$(PYTHON) $(REGTOOL) --interfaces -o "$$if_doc" "$$file"; \
-		fi; \
-	done
-
-rtl_stub_multi: setup ## Generate multi-clock RTL core and wrapper from existing reg RTL
-	$(call _require_var,TOP)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit rtl --tb-dir $(TB_SV_DIR)
-
-top_from_core_multi: ## Regenerate multi-clock top wrapper from edited core ports
-	$(call _require_var,TOP)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit top --tb-dir $(TB_SV_DIR)
-
-sdc_multi: setup ## Generate multi-clock IP timing constraints
-	$(call _require_var,TOP)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit sdc --tb-dir $(TB_SV_DIR)
-
-notes_multi: setup ## Generate local multi-clock scaffold notes
-	$(call _require_var,TOP)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit notes --tb-dir $(TB_SV_DIR)
 
 hjson: setup ## Generate an HJSON register template
 	$(Q)$(PYTHON) -m flexsoc.backend.hjson_gen $(OVERWRITE) --top $(TOP) --interface $(REG_ITF) --output-dir $(DATADIR)
@@ -572,17 +496,30 @@ hjson: setup ## Generate an HJSON register template
 hjson_gen: hjson ## Compatibility alias for HJSON generation
 	@$(MKDIR) -p $(DATADIR)
 
-reg: ## Generate register RTL from HJSON
+reg: setup ## Generate register RTL for every generated register map
 	@$(MKDIR) -p $(RTLDIR)
-	$(Q)$(PYTHON) $(REGTOOL) -r -t $(RTLDIR) $(DATADIR)/$(TOP).hjson
+	@set -eu; found=0; \
+	for file in $(DATADIR)/$(TOP).hjson $(DATADIR)/$(TOP)_*.hjson; do \
+		[ -f "$$file" ] || continue; \
+		[ -z "$(REGMAP)" ] || [ "$$(basename "$$file" .hjson)" = "$(TOP)_$(REGMAP)" ] || continue; \
+		found=1; $(PYTHON) $(REGTOOL) -r -t $(RTLDIR) "$$file"; \
+	done; \
+	[ $$found -eq 1 ] || { echo "ERROR: no HJSON register maps found for $(TOP) under $(DATADIR)"; exit 2; }
 
-doc: ## Generate register documentation
+doc: setup ## Generate documentation for every generated register map
 	@$(MKDIR) -p $(DOCDIR)
-	$(Q)$(PYTHON) $(REGTOOL) -d -o $(DOCDIR)/$(TOP).md $(DATADIR)/$(TOP).hjson
-	$(Q)$(PYTHON) $(REGTOOL) --interfaces -o $(DOCDIR)/$(TOP)_interfaces.md $(DATADIR)/$(TOP).hjson
+	@set -eu; found=0; \
+	for file in $(DATADIR)/$(TOP).hjson $(DATADIR)/$(TOP)_*.hjson; do \
+		[ -f "$$file" ] || continue; \
+		base=$$(basename "$$file" .hjson); \
+		[ -z "$(REGMAP)" ] || [ "$$base" = "$(TOP)_$(REGMAP)" ] || continue; \
+		found=1; $(PYTHON) $(REGTOOL) -d -o "$(DOCDIR)/$$base.md" "$$file"; \
+		$(PYTHON) $(REGTOOL) --interfaces -o "$(DOCDIR)/$${base}_interfaces.md" "$$file"; \
+	done; \
+	[ $$found -eq 1 ] || { echo "ERROR: no HJSON register maps found for $(TOP) under $(DATADIR)"; exit 2; }
 
 rtl_stub: ## Generate RTL core and top wrapper
-	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) --hjson-file $(DATADIR)/$(TOP).hjson --interface $(REG_ITF) --output-dir $(RTLDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.rtl_stub_gen $(OVERWRITE) --top $(TOP) --hjson-file $(DATADIR)/$(TOP).hjson --interface $(REG_ITF) --output-dir $(RTLDIR)
 
 top_from_core: ## Regenerate $(TOP).sv from edited $(TOP)_core.sv
 	$(call _require_var,TOP)
@@ -633,7 +570,6 @@ ip_flow: reg doc ## Run regression through formal/synthesis/signoff, then report
 	@$(BACKEND_MAKE) lint_suite
 	@$(BACKEND_MAKE) regression
 	@$(BACKEND_MAKE) coverage_detail
-	@if [ "$(CLOCK_MODE)" = "multi" ] || [ "$(CLOCK_MODE)" = "multiclock" ]; then $(BACKEND_MAKE) sdc_multi; fi
 	@$(BACKEND_MAKE) formal
 	@$(BACKEND_MAKE) syn
 	@$(BACKEND_MAKE) eqy
@@ -649,7 +585,6 @@ ip_flow_noreg: flist ## Run the standard closure without regenerating registers
 	@$(BACKEND_MAKE) lint_suite
 	@$(BACKEND_MAKE) regression
 	@$(BACKEND_MAKE) coverage_detail
-	@if [ "$(CLOCK_MODE)" = "multi" ] || [ "$(CLOCK_MODE)" = "multiclock" ]; then $(BACKEND_MAKE) sdc_multi; fi
 	@$(BACKEND_MAKE) formal
 	@$(BACKEND_MAKE) syn
 	@$(BACKEND_MAKE) eqy
@@ -922,10 +857,9 @@ setup_tb: setup flist ## Generate a SystemVerilog testbench scaffold
 setup_cocotb: setup flist ## Generate a cocotb scaffold
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_cocotb \
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_cocotb $(OVERWRITE) \
 		--top $(TOP) --itf $(REG_ITF) \
 		--rtl-dir $(RTLDIR) --output $(TBDIR)/cocotb \
-		--clk clk_i --rst rst_ni --rst-active low --period-ns 10 \
 		--sim $(COMPILER)
 
 setup_model: setup ## Generate/update Python model and CSR regmap scaffolds
@@ -938,72 +872,33 @@ setup_model: setup ## Generate/update Python model and CSR regmap scaffolds
 		--rtl-dir $(RTLDIR)
 
 
-setup_model_multi: setup ## Generate multi-clock model, CSR regmap, and test scaffolds
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(MODELDIR) $(TEST_ROOT)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit model --tb-dir $(TB_SV_DIR)
-
 tests_gen: setup ## Generate editable tests plus machine-owned coverage stimulus
 	$(call _require_var,TOP)
-	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ] || [ ! -f "$(MODELDIR)/$(TOP)_regmap_tests.py" ]; then \
-		echo "ERROR: missing model test scaffold; run: fx setup_model"; \
-		exit 1; \
+	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
+		echo "ERROR: missing model test scaffold; run: fx setup_model"; exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
 	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
-	$(Q)$(PYTHON) $(MODELDIR)/$(TOP)_regmap_tests.py --tests-dir $(TEST_ROOT)
+	$(Q)if [ -f "$(MODELDIR)/$(TOP)_regmap_tests.py" ]; then $(PYTHON) "$(MODELDIR)/$(TOP)_regmap_tests.py" --tests-dir "$(TEST_ROOT)"; fi
 
 test_gen: setup ## Generate TEST_NAME plus the machine-owned coverage stimulus
 	$(call _require_var,TOP)
-	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ] || [ ! -f "$(MODELDIR)/$(TOP)_regmap_tests.py" ]; then \
-		echo "ERROR: missing model test scaffold; run: fx setup_model"; \
-		exit 1; \
+	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
+		echo "ERROR: missing model test scaffold; run: fx setup_model"; exit 1; \
 	fi
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	@if [ "$(TEST_NAME)" = "auto_toggle" ]; then \
-		$(PYTHON) $(MODELDIR)/$(TOP)_regmap_tests.py --tests-dir $(TEST_ROOT) --test auto_toggle; \
+	@if [ "$(TEST_NAME)" = "auto_toggle" ] && [ -f "$(MODELDIR)/$(TOP)_regmap_tests.py" ]; then \
+		$(PYTHON) "$(MODELDIR)/$(TOP)_regmap_tests.py" --tests-dir "$(TEST_ROOT)" --test auto_toggle; \
 	else \
-		FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME); \
-		$(PYTHON) $(MODELDIR)/$(TOP)_regmap_tests.py --tests-dir $(TEST_ROOT); \
+		FLEXSOC_SEED="$(SEED)" $(PYTHON) "$(MODELDIR)/$(TOP)_tests.py" --tests-dir "$(TEST_ROOT)" --test "$(TEST_NAME)"; \
+		if [ -f "$(MODELDIR)/$(TOP)_regmap_tests.py" ]; then $(PYTHON) "$(MODELDIR)/$(TOP)_regmap_tests.py" --tests-dir "$(TEST_ROOT)"; fi; \
 	fi
-
-tests_gen_multi: setup ## Generate all multi-clock vector tests from the editable test catalogue
-	$(call _require_var,TOP)
-	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
-		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
-		echo "Run: fx setup_model_multi --force"; \
-		exit 1; \
-	fi
-	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
-
-test_gen_multi: setup ## Generate one multi-clock vector test selected by TEST_NAME from the editable test catalogue
-	$(call _require_var,TOP)
-	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
-		echo "ERROR: missing test scaffold: $(MODELDIR)/$(TOP)_tests.py"; \
-		echo "Run: fx setup_model_multi --force"; \
-		exit 1; \
-	fi
-	$(Q)$(MKDIR) -p $(TEST_ROOT)
-	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT) --test $(TEST_NAME)
-
-setup_tb_multi: setup ## Generate a multi-clock SystemVerilog testbench scaffold
-	@mkdir -p $(TB_SV_DIR)
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(TBDIR) $(SIMDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit tb --tb-dir $(TB_SV_DIR)
-
-setup_cocotb_multi: setup ## Generate a multi-clock cocotb scaffold
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(TBDIR)/cocotb
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_multiclock $(OVERWRITE) $(MULTICLOCK_ARGS) --emit cocotb --tb-dir $(TB_DIR)
 
 
 _require_test_vectors:
 	@if [ ! -d "$(TEST_ROOT)/$(TEST_NAME)" ]; then \
 		echo "ERROR: missing vector test: $(TEST_ROOT)/$(TEST_NAME)"; \
 		echo "Run: fx tests_gen or fx test_gen --set TEST_NAME=$(TEST_NAME)"; \
-		echo "For multi-clock: fx tests_gen_multi or fx test_gen_multi --set TEST_NAME=$(TEST_NAME)"; \
 		exit 1; \
 	fi
 
@@ -1011,7 +906,7 @@ tests: ## List generated vector tests without regenerating them
 	@set -eu; \
 	printf '\n$(BLUE)Available vector tests in $(TEST_ROOT):$(RESET)\n'; \
 	if [ ! -d "$(TEST_ROOT)" ]; then \
-		echo "  no tests directory found; run: fx tests_gen or fx tests_gen_multi"; \
+		echo "  no tests directory found; run: fx tests_gen"; \
 		exit 0; \
 	fi; \
 	found=0; \
@@ -1022,13 +917,13 @@ tests: ## List generated vector tests without regenerating them
 		printf '  $(ORANGE)%s$(RESET)\n' "$$name"; \
 	done; \
 	if [ "$$found" -eq 0 ]; then \
-		echo "  no tests found; run: fx tests_gen or fx tests_gen_multi"; \
+		echo "  no tests found; run: fx tests_gen"; \
 	fi
 
 regmap_py: setup ## Regenerate dv/functional/model/<top>_regmap.py from HJSON
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(MODELDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_model_regmap --top $(TOP) --data-dir $(DATADIR) --model-dir $(MODELDIR) $(if $(filter multi multiclock,$(CLOCK_MODE)),--multi,) --force
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_model_regmap --top $(TOP) --data-dir $(DATADIR) --model-dir $(MODELDIR) --force
 
 compile: $(if $(filter v,$(VSV)),compile_v,compile_sv) ## Compile the current testbench
 sim:     $(if $(filter v,$(VSV)),sim_v,sim_sv) ## Run simulation
@@ -1038,12 +933,12 @@ sim_tests: ## Run every generated SystemVerilog vector test
 	@set -eu; \
 	if [ ! -d "$(TEST_ROOT)" ]; then \
 		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
-		echo "Run: fx tests_gen or fx tests_gen_multi"; \
+		echo "Run: fx tests_gen"; \
 		exit 1; \
 	fi; \
 	if [ ! -f "$(TB_SV_DIR)/$(TESTBENCH).sv" ]; then \
 		echo "ERROR: SystemVerilog testbench not found: $(TB_SV_DIR)/$(TESTBENCH).sv"; \
-		echo "Run: fx setup_tb --force or fx setup_tb_multi --force"; \
+		echo "Run: fx setup_tb --force"; \
 		exit 1; \
 	fi; \
 	found=0; \
@@ -1145,12 +1040,12 @@ cocotb_tests: ## Run every generated cocotb vector test
 	@set -eu; \
 	if [ ! -d "$(TEST_ROOT)" ]; then \
 		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
-		echo "Run: fx tests_gen or fx tests_gen_multi"; \
+		echo "Run: fx tests_gen"; \
 		exit 1; \
 	fi; \
 	if [ ! -f "$(TBDIR)/cocotb/Makefile" ]; then \
 		echo "ERROR: cocotb scaffold not found: $(TBDIR)/cocotb/Makefile"; \
-		echo "Run: fx setup_cocotb --force or fx setup_cocotb_multi --force"; \
+		echo "Run: fx setup_cocotb --force"; \
 		exit 1; \
 	fi; \
 	found=0; \
@@ -1168,10 +1063,7 @@ cocotb_tests: ## Run every generated cocotb vector test
 
 regression: ## Run every generated test on each selected backend and collect coverage
 	@set -u; \
-	case "$(CLOCK_MODE)" in \
-		multi|multiclock) gen_target=tests_gen_multi; tb_target=setup_tb_multi; cocotb_target=setup_cocotb_multi ;; \
-		*) gen_target=tests_gen; tb_target=setup_tb; cocotb_target=setup_cocotb ;; \
-	esac; \
+	gen_target=tests_gen; tb_target=setup_tb; cocotb_target=setup_cocotb; \
 	rm -rf "$(TEST_ROOT)" "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
 	mkdir -p "$(TEST_ROOT)" "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
 	$(BACKEND_MAKE) $$tb_target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" FORCE=1; \
@@ -1201,7 +1093,7 @@ regression: ## Run every generated test on each selected backend and collect cov
 			case "$$test" in random_seed_*) test_seed=$${test#random_seed_} ;; esac; \
 			printf '\n$(ORANGE)[regression]$(RESET) $(BLUE)backend=%s test=%s$(RESET)\n' "$$backend" "$$test"; \
 			if $(BACKEND_MAKE) $$target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" \
-				CLOCK_MODE="$(CLOCK_MODE)" COMPILER="$(COMPILER)" TEST_NAME="$$test" SEED="$$test_seed" COVERAGE=1 \
+				N_CLOCKS="$(N_CLOCKS)" CLOCK_DOMAINS="$(CLOCK_DOMAINS)" CLOCK_RELATIONSHIPS="$(CLOCK_RELATIONSHIPS)" COMPILER="$(COMPILER)" TEST_NAME="$$test" SEED="$$test_seed" COVERAGE=1 \
 				WAVE_FILE="$(SIMDIR)/$(TESTBENCH)_$${backend}_$${test}.$(WAVE_EXT)" \
 				VERIFY_LOGDIR="$(REGRESSION_LOGDIR)/$$backend"; then \
 				printf '$(GREEN)  PASS$(RESET) %s/%s\n' "$$backend" "$$test"; \
@@ -1404,7 +1296,7 @@ FORMAL_CSR_COVER_CONFIG ?= $(FORMAL_CSR_COVER_RUN_DIR)/$(TOP)_csr_cover.sby
 _formal_scaffold:
 	$(call _require_var,TOP)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal scaffold --top $(TOP) --formal-dir $(FORMALDIR) >/dev/null
-	@printf "%b\n" "$(GREEN)[formal]$(RESET) $(FORMALDIR) clock=$(CLOCK_MODE)"
+	@printf "%b\n" "$(GREEN)[formal]$(RESET) $(FORMALDIR) clocks=$(N_CLOCKS)"
 
 setup_formal: _formal_scaffold ## Prepare CSR formal and any authored design-property configurations
 	@$(BACKEND_MAKE) setup_formal_csr_prove
@@ -1429,7 +1321,7 @@ setup_formal_csr_prove: flist ## Generate shared CSR BMC/prove configuration
 		--top $(TOP) $(RTL_FILELIST_ARGS) \
 		--properties-dir $(FORMAL_CSR_PROVE_DIR) --mode prove \
 		--engine "$(FORMAL_PROVE_ENGINE)" --depth $(FORMAL_DEPTH) \
-		--bmc-engine "$(FORMAL_BMC_ENGINE)" --bmc-depth $(FORMAL_BMC_DEPTH) --bmc-append $(FORMAL_BMC_APPEND) $(FORMAL_MULTICLOCK_ARG) \
+		--bmc-engine "$(FORMAL_BMC_ENGINE)" --bmc-depth $(FORMAL_BMC_DEPTH) --bmc-append $(FORMAL_BMC_APPEND) \
 		--generated $(FORMAL_CSR_PROVE_AUTO) --output $(FORMAL_CSR_PROVE_CONFIG) >/dev/null
 	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_CSR_PROVE_CONFIG)$(RESET)"
 
@@ -1460,7 +1352,7 @@ setup_formal_csr_cover: flist ## Generate automatic CSR cover configuration
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal csr \
 		--top $(TOP) $(RTL_FILELIST_ARGS) \
 		--properties-dir $(FORMAL_CSR_COVER_DIR) --mode cover \
-		--engine "$(FORMAL_COVER_ENGINE)" --depth $(FORMAL_DEPTH) $(FORMAL_MULTICLOCK_ARG) \
+		--engine "$(FORMAL_COVER_ENGINE)" --depth $(FORMAL_DEPTH) \
 		--generated $(FORMAL_CSR_COVER_AUTO) --output $(FORMAL_CSR_COVER_CONFIG) >/dev/null
 	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_CSR_COVER_CONFIG)$(RESET)"
 
@@ -1492,7 +1384,7 @@ setup_formal_prove: _formal_scaffold flist ## Generate shared design BMC/prove c
 		--top $(TOP) $(RTL_FILELIST_ARGS) \
 		--properties-dir $(FORMAL_PROVE_PROPERTIES_DIR) \
 		--mode prove --engine "$(FORMAL_PROVE_ENGINE)" --depth $(FORMAL_DEPTH) \
-		--bmc-engine "$(FORMAL_BMC_ENGINE)" --bmc-depth $(FORMAL_BMC_DEPTH) --bmc-append $(FORMAL_BMC_APPEND) $(FORMAL_MULTICLOCK_ARG) \
+		--bmc-engine "$(FORMAL_BMC_ENGINE)" --bmc-depth $(FORMAL_BMC_DEPTH) --bmc-append $(FORMAL_BMC_APPEND) \
 		--output $(FORMAL_PROVE_CONFIG) >/dev/null
 	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_PROVE_CONFIG)$(RESET)"
 
@@ -1522,7 +1414,7 @@ setup_formal_cover: _formal_scaffold flist ## Generate SymbiYosys cover configur
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal properties \
 		--top $(TOP) $(RTL_FILELIST_ARGS) \
 		--properties-dir $(FORMAL_COVER_PROPERTIES_DIR) \
-		--mode cover --engine "$(FORMAL_COVER_ENGINE)" --depth $(FORMAL_DEPTH) $(FORMAL_MULTICLOCK_ARG) \
+		--mode cover --engine "$(FORMAL_COVER_ENGINE)" --depth $(FORMAL_DEPTH) \
 		--output $(FORMAL_COVER_CONFIG) >/dev/null
 	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_COVER_CONFIG)$(RESET)"
 
@@ -1559,11 +1451,11 @@ setup_eqy: flist ## Generate EQY RTL-vs-post-synthesis equivalence configuration
 eqy: setup_eqy ## Prove RTL equivalent to the mapped post-synthesis netlist with EQY
 	@command -v "$(EQY)" >/dev/null 2>&1 || { echo "ERROR: EQY executable not found: $(EQY)"; exit 2; }
 	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found for EQY SBY fallback: $(SBY)"; exit 2; }
-	@printf "%b\n" "$(ORANGE)[eqy]$(RESET) PDK=$(PDK) · RTL -> mapped synthesis"
+	@printf "%b\n" "$(ORANGE)[eqy]$(RESET) PDK=$(PDK) · RTL -> mapped synthesis · jobs=$(EQY_JOBS)"
 	@printf "%b\n" "$(BLUE)log: $(EQUIV_LOG)$(RESET)"
 	@$(RM) -rf "$(EQY_RESULT_DIR)"
 	@cd "$(EQUIVDIR)" && { \
-		"$(EQY)" -f "$(notdir $(EQY_CONFIG))" > "$(EQUIV_LOG)" 2>&1; status=$$?; \
+		"$(EQY)" -j "$(EQY_JOBS)" -f "$(notdir $(EQY_CONFIG))" > "$(EQUIV_LOG)" 2>&1; status=$$?; \
 		if [ $$status -eq 0 ]; then \
 			printf "%b\n" "$(GREEN)[eqy] PASS$(RESET)"; \
 		else \

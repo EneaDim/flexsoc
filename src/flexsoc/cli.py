@@ -144,13 +144,11 @@ Use `fx commands` to list every backend Make target.
                 ],
             ),
             section(
-                "Multi-clock IP",
+                "Clock domains",
                 [
-                    ("fx hjson_multi reg_multi doc_multi --force", "Create and build cfg/dsp register maps."),
-                    ("fx rtl_stub_multi --force", "Generate core from regmaps and wrapper from core."),
-                    ("fx top_from_core_multi --force", "Refresh the wrapper after editing core ports."),
-                    ("fx setup_model_multi setup_tb_multi setup_cocotb_multi --force", "Generate multi-clock model, vectors and runners."),
-                    ("fx multiclock_scaffold --force", "Run the decomposed multi-clock bootstrap."),
+                    ("fx settings N_CLOCKS=3 CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low", "Describe clock/reset domains once for every backend."),
+                    ("fx settings CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp", "Declare timing relationships explicitly; none are assumed."),
+                    ("fx hjson reg doc rtl_stub setup_model setup_tb setup_cocotb --force", "Use the same public targets for one or many clocks."),
                 ],
             ),
             section(
@@ -254,7 +252,8 @@ Use `fx commands` to list every backend Make target.
             print(json.dumps(dict(values), indent=2))
             return
         groups = (
-            ("Run", ("TOP", "RUN_TOP", "RUN_ID", "CLOCK_MODE", "HOST")),
+            ("Run", ("TOP", "RUN_TOP", "RUN_ID", "HOST")),
+            ("Clocking", ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")),
             ("Technology", ("PDK", "PDK_ROOT")),
             ("Verification", ("REG_ITF", "COMPILER", "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE")),
             ("Paths", ("WORKSPACE", "RUN_ROOT", "SYN_DIR", "EQUIV_DIR", "PNR_DIR")),
@@ -306,7 +305,16 @@ Use `fx commands` to list every backend Make target.
         updates = _assignments((*items, *sets))
         if "PDK" in updates and "PDK_ROOT" not in updates:
             values.pop("PDK_ROOT", None)
+        clock_updates = {"N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS"} & updates.keys()
+        for legacy in ("CLOCK_MODE", "MULTICLOCK", "MULTICLOCK_DOMAINS"):
+            values.pop(legacy, None)
+        if {"N_CLOCKS", "CLOCK_DOMAINS"} & updates.keys() and "CLOCK_RELATIONSHIPS" not in updates:
+            values.pop("CLOCK_RELATIONSHIPS", None)
         values.update(updates)
+        if clock_updates:
+            from .clocking import clock_config
+
+            values.update(clock_config(values).make_values())
         if reset or unsets or sets or items:
             _write_settings(root, values)
         display = dict(values)
@@ -413,7 +421,7 @@ Use `fx commands` to list every backend Make target.
             console.print(f"[white]root[/white]: {install}")
             console.print(f"[white]Liberty[/white]: {derived.get('LIB_SYN', '-')}")
             console.print(f"[white]OpenROAD[/white]: {derived.get('ORS_TECH', '-')}")
-            console.print("[grey70]Regenerate setup_tb/setup_tb_multi before gate-level simulation after changing PDK.[/grey70]")
+            console.print("[grey70]Regenerate setup_tb before gate-level simulation after changing PDK.[/grey70]")
         return 0
 
 
@@ -429,7 +437,7 @@ Use `fx commands` to list every backend Make target.
         """Explain one EQY failure; expensive probes target only the selected partition."""
 
         from .backend.eqy_debug import (
-            choose_trace, discover_result_dir, explain_counterexample, open_wave,
+            choose_trace, describe_partition, discover_result_dir, explain_counterexample, open_wave,
             run_reset_normalized_diagnostic, run_synthesis_boundary_diagnostics,
             scan, select,
         )
@@ -549,6 +557,9 @@ Use `fx commands` to list every backend Make target.
             phase = failure.get("phase") or "unknown"; step = failure.get("step")
             facts.add_row("Proof", phase + (f" · step {step}" if step is not None else ""))
             facts.add_row("Class", str(explanation.get("classification", "unclassified")))
+            decoded = describe_partition(item.partition)
+            if decoded:
+                facts.add_row("Signal", decoded)
             if divergence:
                 facts.add_row("First divergence", f"t={divergence.get('time')}")
                 facts.add_row("Gold", f"{divergence.get('gold_signal')} = {divergence.get('gold')}")
@@ -560,6 +571,17 @@ Use `fx commands` to list every backend Make target.
         clock = settings.get("EQY_CLOCK", "clk_i").strip() or "clk_i"
         reset = settings.get("EQY_RESET", "rst_ni").strip() or "rst_ni"
         reset_active = settings.get("EQY_RESET_ACTIVE", "low").strip().lower() or "low"
+        explicit_reset = any(key in settings for key in ("EQY_CLOCK", "EQY_RESET", "EQY_RESET_ACTIVE"))
+        reset_domains = None
+        if not explicit_reset:
+            try:
+                from .clocking import clock_config
+                reset_domains = tuple(
+                    (domain.signal, domain.reset, domain.reset_polarity)
+                    for domain in clock_config(settings).domains
+                )
+            except (TypeError, ValueError):
+                reset_domains = None
         try: reset_cycles = int(settings.get("EQY_RESET_CYCLES", "1"))
         except ValueError: reset_cycles = 1
         eqy = str(settings.get("EQY", "eqy"))
@@ -570,6 +592,7 @@ Use `fx commands` to list every backend Make target.
             reset_probe = run_reset_normalized_diagnostic(
                 result_dir, partition=item.partition, clock=clock, reset=reset,
                 reset_active=reset_active, reset_cycles=reset_cycles, eqy=eqy,
+                domains=reset_domains,
             )
         except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
             reset_probe = {"valid": False, "error": str(exc)}

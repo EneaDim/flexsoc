@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+from flexsoc.clocking import clock_config
+
 
 def _repo_root() -> Path:
     """Return the repository root used for generated synthesis paths."""
@@ -350,11 +352,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def config_from_args(args: argparse.Namespace) -> SynthesisConfig:
     """Convert parsed CLI arguments into a synthesis config."""
 
+    period = clock_config().fastest_period_ns if any(
+        key in os.environ for key in ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")
+    ) else args.clk
     return SynthesisConfig(
         top=args.top,
         topdir=args.topdir,
         target=args.target,
-        clk_period_ns=args.clk,
+        clk_period_ns=period,
         output=args.output,
         liberty=args.liberty,
         sdcdir=args.sdcdir,
