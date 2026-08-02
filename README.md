@@ -4,414 +4,194 @@
 
 # ⚡ FlexSoC
 
-FlexSoC is an open-source **digital-design orchestration framework** for speeding
-up ASIC IP and small-SoC development from one command-line interface: `fx`.
+FlexSoC is an open-source orchestration framework for developing digital ASIC IP
+and small SoCs through one command-line interface: `fx`.
 
-The value of FlexSoC is not one individual generator or EDA command. It is the
-layer that keeps **specifications, RTL, generated collateral, verification,
-filelists, constraints, logs, and external tools connected as the design
-changes**.
-
-A real hardware project rarely moves in a straight line. A register map changes,
-a port is added, a block becomes multi-clock, a test exposes a bug, or an IP is
-reused inside a larger SoC. Each change can invalidate several downstream
-artifacts. FlexSoC gives those dependencies an explicit workflow so the designer
-can regenerate what is derived, preserve what is authored, and rerun the right
-checks without rebuilding the project flow by hand.
-
-## 🚀 Why FlexSoC
-
-Digital-design work spans several interfaces at once:
+Its purpose is not to hide the EDA tools. Its purpose is to keep the design
+intent, generated collateral, verification environments, constraints,
+implementation data, reports, and logs synchronized while the IP evolves.
 
 ```text
-specification / HJSON
-    ↓
-register RTL + model CSR API + automatic CSR formal
-    ↓
-RTL hierarchy ──→ Slang filelists ──→ lint / structural analysis
-    ↓
-Design Verification
-    ├── functional: SV + cocotb + Verilator coverage
-    ├── formal: BMC / PROVE / COVER with SymbiYosys
-    └── CDC / RDC structural analysis                         [planned]
-    ↓
-Implementation
-    ├── syn/<pdk>
-    └── pnr_openroad/<pdk>
-    ↓
-Design Signoff
-    ├── equivalence/<pdk>: EQY RTL ↔ post-synthesis netlist
-    ├── post-synthesis / post-PnR GLS
-    ├── SDF / STA
-    └── power
-    ↓
-validated IP ──→ reusable source block ──→ larger SoC/system
+requirements and architecture
+        ↓
+CSR / register map + RTL interfaces + RTL behavior
+        ↓
+functional DV + property formal + CDC/RDC planning
+        ↓
+constraints + synthesis
+        ↓
+RTL ↔ synthesized-netlist equivalence
+        ↓
+post-synthesis SDF / GLS / STA / power estimate
+        ↓
+OpenROAD implementation
+        ↓
+post-layout timing / SDF / GLS / power / physical sign-off
+        ↓
+qualified reusable IP or SoC release
 ```
 
-Without an orchestration layer, the interfaces between those stages become
-project-specific shell scripts, copied filelists, duplicated register offsets,
-stale generated files, and different assumptions in each tool. FlexSoC turns
-those interfaces into named targets and explicit source/generated ownership.
+## Why FlexSoC
 
-The goal is simple: **spend time on architecture, RTL, verification, and design
-trade-offs instead of repeatedly wiring tools and collateral together.**
+A hardware change rarely affects only one file. Adding a status register can
+change HJSON, generated register RTL, the Python CSR API, model behavior, tests,
+formal properties, synthesis, and software-visible documentation. Adding a
+clock domain changes constraints, testbench timing, formal assumptions, CDC/RDC
+requirements, and implementation closure.
 
-> 💡 **FlexSoC is the glue layer:** open-source EDA tools stay visible and
-> replaceable, while the project structure, generated collateral, and hand-authored
-> design intent stay synchronized.
+FlexSoC makes those dependencies explicit:
 
-## 🧩 Core features
+- authored sources stay separate from generated collateral;
+- `N_CLOCKS`, `CLOCK_DOMAINS`, and `CLOCK_RELATIONSHIPS` describe clock intent once;
+- Slang resolves the reachable RTL hierarchy and produces ordered filelists;
+- the same vector tests can drive SystemVerilog and cocotb environments;
+- functional coverage, property proof, and RTL/netlist equivalence remain separate metrics;
+- synthesis, STA, SDF, power, and OpenROAD runs share one run identity;
+- failed runs retain logs and tool workspaces for diagnosis.
 
-### 1. 🗂️ Reproducible run workspaces
+The final goal is a repeatable path from an IP requirement to evidence that the
+implemented hardware still matches its specification and RTL intent.
 
-A design run is isolated by `RUN_TOP` and `RUN_ID`, with a predictable tree for
-register data, RTL, models, tests, simulation, synthesis, signoff, and logs.
-The workspace can live in the repository or anywhere else with `--workdir`.
+## Main capabilities
 
-### 2. 🧾 Register-map-driven collateral
+### IP definition and generation
 
-HJSON is the source of truth for software-visible registers. FlexSoC connects it
-to:
+- HJSON register specifications;
+- register RTL and documentation generation;
+- generated Python CSR/regmap API;
+- editable RTL core plus generated top wrapper;
+- single-clock and arbitrary N-clock configuration;
+- reusable IP loading and saving under `hw/ips/<top>/`.
 
-- generated register RTL;
-- register documentation;
-- model-side CSR objects and field encoding;
-- software driver generation where used;
-- single- or multi-domain register maps.
+### Design verification
 
-A register change therefore does not require copying offsets and masks into the
-model or tests. Regenerate the derived collateral instead.
+- editable Python reference model;
+- scenario-based vector generation;
+- SystemVerilog and cocotb execution;
+- Verilator code coverage;
+- automatic CSR formal checks;
+- authored assertions and covers through SymbiYosys;
+- waveform, log, and counterexample inspection.
 
-### 3. 🧱 RTL scaffold and hierarchy management
+### Implementation and sign-off
 
-FlexSoC can bootstrap editable RTL cores and wrappers for new IPs, refresh a
-generated wrapper after port changes, and preserve deliberately custom RTL for
-existing IPs.
-
-The canonical `fx flist` flow uses **Slang** to elaborate downward from the
-selected top, trim unreachable RTL, and topologically order the reachable
-sources. FlexSoC then preserves the useful project split:
-
-```text
-rtl_common.f   # shared packages, primitives and TL-UL infrastructure
-rtl_ip.f       # reachable IP/run hierarchy
-```
-
-Both are real command files, including the include paths required by downstream
-tools.
-
-### 4. 🔍 Selectable lint backend and focused diagnostics
-
-Run the complete suite:
-
-```bash
-fx lint_suite
-```
-
-or choose the frontend without changing the project flow:
-
-```bash
-fx lint_suite --set LINT_TOOL=verilator
-fx lint_suite --set LINT_TOOL=slang
-```
-
-Focused latch, width, unconnected, undriven, and unused diagnostics remain
-available as separate targets. Tool output is retained under `logs/lint/` while
-the terminal stays compact.
-
-### 5. 🧠 Behavioral model, CSR API, and tests are separate
-
-Single- and multi-clock model workspaces use the same ownership contract:
-
-```text
-dv/functional/model/
-├── <top>_model.py   # editable behavioral/reference model
-├── <top>_regmap.py  # generated from HJSON; do not hand-edit
-└── <top>_tests.py   # editable scenarios + vector generation
-```
-
-This matters during development: tests can grow without changing the reference
-model, and an HJSON-only change can refresh the CSR API without overwriting
-behavioral code.
-
-### 6. 🧪 Simulator-independent vector tests
-
-Every generated scenario becomes explicit files:
-
-```text
-dv/functional/tests/<TEST_NAME>/
-├── config.regs
-├── data_in.vec
-└── data_out.vec
-```
-
-The same vectors are consumed by the generated SystemVerilog and cocotb
-infrastructure. Tests can mix direct pins with CSR writes/reads. Single-clock
-flows can check outputs at a fixed model latency or on a named output-valid
-event; multi-clock flows can use event-driven completion across asynchronous
-domains.
-
-### 7. ⏱️ Single-clock and multi-clock development
-
-`CLOCK_MODE=single` and `CLOCK_MODE=multi` keep the high-level command vocabulary
-consistent while selecting the appropriate register, RTL, model, testbench,
-formal, and constraint behavior underneath.
-
-Multi-clock closure will also grow explicit **CDC** and **RDC** structural
-analysis. These are intentionally separate from functional coverage and formal
-proof percentages.
-
-### 8. 🧪 Verification and closure are explicit
-
-FlexSoC keeps the DV branches explicit:
-
-```text
-functional DV       scenarios + RTL simulation + code coverage
-formal DV           CSR/design properties: BMC / PROVE / COVER
-CDC / RDC           structural domain verification                 [planned]
-
-signoff equivalence RTL ↔ mapped netlist proof with EQY
-```
-
-`fx regression` runs the generated catalogue on SystemVerilog and cocotb and
-reports Verilator coverage as a scope × type matrix (`line`, `toggle`, `expr`,
-`branch`, `fsm`, `user`, `total`). `fx formal` runs CSR and authored-property
-BMC/PROVE/COVER. After synthesis, `fx eqy` runs the sign-off equivalence branch
-and reports EQY partition closure separately from code coverage. Failed EQY partitions are diagnosed with the unified `fx eqy_debug` command; waveform and raw artifacts are available as options of the same debugger.
-
-See [Design verification](docs/design_verification.md) for RTL/property verification and [Design sign-off](docs/design_signoff.md) for PDK-scoped synthesis handoff, EQY, GLS, STA, SDF, power, and counterexample debug.
-
-### 9. 🏗️ Synthesis, timing, power, and PnR
-
-The same run can continue into:
-
+- logical SDC generation;
 - Yosys synthesis;
+- EQY RTL-to-mapped-netlist equivalence;
+- post-synthesis and post-PnR gate-level simulation;
 - SDF generation;
-- OpenSTA timing analysis and explicit global-activity power estimates;
-- corner-oriented STA plus explicit `power_estimate` targets;
-- OpenROAD-oriented PnR collateral and runs.
+- OpenSTA timing and power estimation;
+- OpenROAD place and route;
+- consolidated metrics and run manifests.
 
-Logs are separated by responsibility:
+CDC/RDC analysis, DFT insertion, and final foundry physical verification are
+identified as explicit lifecycle gates. They are not treated as substitutes for
+functional verification or formal equivalence.
 
-```text
-logs/
-├── dv/functional/
-├── lint/
-├── synthesis/
-└── signoff/
-```
-
-### 10. ♻️ Reusable existing IPs
-
-`hw/ips/<top>/` is the versioned library of reusable IP source collateral.
-Existing IP support is not a separate end goal: it lets a validated block keep
-its custom RTL/model/tests, be regression-tested standalone, and then be staged
-unchanged into a larger SoC or system.
-
-This is the bridge from **IP development** to **IP reuse**.
-
-### 11. 🔗 SoC composition
-
-SoC runs stage reusable IPs, generate top-level integration collateral, build a
-Slang-resolved SoC filelist, and own their own top-level verification,
-constraints, software, and signoff assumptions.
-
-### 12. 🧭 Analysis and debug utilities
-
-Slang-backed analysis targets can inspect an arbitrary hierarchy from a top file
-and search root:
-
-```bash
-fx slang_hier --set SLANG_TOP_FILE=/path/top.sv --set SLANG_ROOT=/path/rtl
-fx slang_ast  --set SLANG_TOP_FILE=/path/top.sv --set SLANG_ROOT=/path/rtl
-fx slang_flist --set SLANG_TOP_FILE=/path/top.sv --set SLANG_ROOT=/path/rtl
-```
-
-These complement the canonical flow without replacing its `rtl_common.f` /
-`rtl_ip.f` outputs.
-
-## 🔄 The development loop
-
-FlexSoC is designed for iteration, not only first-time generation. For example,
-if a project changes its register map:
-
-```text
-edit <top>.hjson
-    │
-    ├── fx reg doc --force
-    │      ├── register RTL
-    │      └── register documentation
-    │
-    ├── fx regmap_py --force
-    │      └── <top>_regmap.py
-    │
-    ├── adapt RTL/model/tests only if semantics changed
-    │
-    ├── fx tests_gen --force
-    │      └── regenerated vector tests
-    │
-    ├── fx flist --force
-    ├── fx lint_suite
-    ├── fx regression
-    ├── fx coverage_detail
-    ├── fx formal
-    └── if hardware changed:
-           fx syn --force
-           fx eqy --force
-           fx sdf sta power_estimate --force
-```
-
-The important distinction is between **authored source** and **derived
-collateral**. FlexSoC makes that boundary explicit so a local change does not
-require blindly regenerating everything or accidentally overwriting custom
-work.
-
-See [Project lifecycle and change propagation](docs/project_lifecycle.md) for
-concrete change scenarios such as register-map edits, port changes, behavioral
-changes, and IP-to-SoC reuse.
-
-## 🛠️ Open-source toolchain integration
-
-FlexSoC orchestrates open-source tools rather than hiding them behind a closed
-flow. Depending on the target, the current backend integrates tools including:
-
-- **Slang** for hierarchy elaboration, dependency/filelist generation, AST and
-  hierarchy analysis, and optionally lint;
-- **Verilator** for lint and SystemVerilog simulation;
-- **cocotb** for Python-driven verification over the same generated vectors;
-- **lowRISC reggen** for HJSON register collateral;
-- **Yosys** and its Slang frontend for synthesis;
-- **SymbiYosys** for CSR and authored-property BMC/PROVE/COVER;
-- **EQY** for RTL-to-post-synthesis equivalence partitioning and proof;
-- **sv2v** where Verilog conversion is useful;
-- **OpenSTA** for static timing and global-activity power estimates;
-- **OpenROAD** for physical-design-oriented flows.
-
-FlexSoC's job is to keep the project representation and assumptions consistent
-between those tools.
-
-## 📦 Install
+## Install
 
 ```bash
 uv sync
 source .venv/bin/activate
+fx doctor
 fx --help
 fx commands
 ```
 
-## 🚀 Quick single-clock example
+## Minimal single-clock flow
 
 ```bash
-fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart CLOCK_MODE=single
+fx settings \
+  TOP=my_ip RUN_TOP=my_ip RUN_ID=dev HOST=uart \
+  N_CLOCKS=1 \
+  CLOCK_DOMAINS=core:clk_i:rst_ni:10:low \
+  CLOCK_RELATIONSHIPS=
 
 fx setup --force
-fx hjson --force
-fx reg doc --force
-fx rtl_stub --force
-fx top_from_core --force
-
-fx flist --force
+fx hjson reg doc rtl_stub top_from_core flist --force
 fx lint_suite
 
 fx setup_model --force
-fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tests_gen setup_tb setup_cocotb --force
 fx regression
 fx coverage_detail
 fx formal
 
-fx syn --force
+fx setup_sdc syn --force
 fx eqy --force
 fx sdf sta power_estimate --force
-fx metrics check --force
+fx manifest metrics check --force
 ```
 
-`setup_model --force` is a bootstrap/reset operation. Once `<top>_model.py` and
-`<top>_tests.py` contain authored work, use selective regeneration such as
-`regmap_py --force` for HJSON-only changes instead of resetting the whole model
-workspace.
+## Minimal N-clock configuration
 
-## ♻️ Existing IP and reuse
-
-A reusable IP lives under:
-
-```text
-hw/ips/<top>/
+```bash
+fx settings \
+  TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev HOST=uart \
+  N_CLOCKS=3 \
+  'CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low' \
+  'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 ```
 
-For standalone regression it is copied into an isolated run with `fx ip_load`.
-The standard existing-IP flow intentionally preserves source-owned HJSON, custom
-RTL/top, behavioral model, and tests while regenerating explicitly derived
-collateral such as register RTL/docs, filelists, and `<top>_regmap.py`.
+The command vocabulary remains the same for one or many clocks. Clock
+relationships are explicit; FlexSoC does not silently infer that every pair is
+asynchronous.
 
-When `RUN_TOP` is a larger SoC, the same source IP can be staged under that SoC
-run instead of replacing the run itself. See
-[Existing IP development](docs/guide_existing_ip_dev.md) and
-[SoC development](docs/guide_soc_dev.md).
+## Development principles
 
-## 🗂️ Project layout
+1. Edit the real source of truth.
+2. Regenerate only the derived boundary that became stale.
+3. Preserve authored RTL, model, tests, and properties.
+4. Rerun every quality gate whose assumptions changed.
+5. Treat `PASS`, coverage, proof closure, timing closure, and physical closure as different evidence.
+6. Release only from a reproducible run with retained configuration, logs, metrics, and manifests.
 
-A run normally looks like:
+## Documentation
+
+- [Quickstart](docs/quickstart.md) — the shortest runnable single-clock and N-clock workflows.
+- [Project lifecycle](docs/project_lifecycle.md) — the complete ASIC design, verification, implementation, sign-off, change-propagation, reuse, and release guide.
+- [Command reference](docs/command_reference.md) — every `fx` pseudo-command, backend target, option, variable, lifecycle role, and diagnostic workflow.
+
+## Run layout
+
+A run is isolated by `RUN_TOP` and `RUN_ID`:
 
 ```text
 <WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
-├── data/          # HJSON register specifications
-├── doc/           # generated register documentation
-├── dv/            # functional DV and PDK-independent property formal
-├── analysis/      # Slang analysis; CDC/RDC next-step structural closure
-├── rtl/           # RTL implementation and Slang-ordered filelists
-├── logs/          # lint / DV / synthesis / signoff
-├── syn/           # synthesis collateral/results
-├── signoff/       # equivalence / SDF / STA / power, each scoped by PDK
-└── pnr_openroad/  # physical-design collateral
+├── data/             # register specifications
+├── rtl/              # RTL and ordered filelists
+├── doc/              # generated register documentation
+├── dv/               # functional and property-formal collateral
+├── constraints/      # SDC
+├── syn/<pdk>/        # synthesized implementation
+├── pnr_openroad/<pdk>/
+├── signoff/          # equivalence, STA, SDF, power
+├── logs/
+└── meta/             # manifest and metrics
 ```
 
-See [Folder structure and ownership](docs/folder_structure.md) for the full
-source-versus-generated contract.
+## API and end-to-end regression
 
-## 📚 Documentation
+Run the public API/CLI contract tests:
 
-Read the docs by intent:
+```bash
+pytest -q tests/test_api.py
+```
 
-- [Quickstart](docs/quickstart.md) — shortest runnable paths.
-- [Project lifecycle and change propagation](docs/project_lifecycle.md) — how
-  changes propagate and which targets to rerun.
-- [Single-clock IP development](docs/guide_ip_dev.md) — detailed generated-IP
-  workflow.
-- [Existing IP development](docs/guide_existing_ip_dev.md) — preserve and
-  regression-test reusable source IPs.
-- [Multi-clock IP development](docs/guide_multiclock_ip_dev.md) — domain-specific
-  register, verification, and timing behavior.
-- [SoC development](docs/guide_soc_dev.md) — reuse validated IPs in larger
-  systems.
-- [Folder structure and ownership](docs/folder_structure.md) — where source,
-  generated collateral, logs, and run outputs belong.
-
-## 🧪 End-to-end regression
-
-Run the real command/tool regression:
+Run the complete generated flows:
 
 ```bash
 pytest -s tests/test_e2e_fx.py
 ```
 
-Skip synthesis/signoff while iterating on frontend or verification changes:
-
-```bash
-pytest -s tests/test_e2e_fx.py --no-signoff
-```
-
-Use another E2E workspace base when needed:
+Use a retained workspace while debugging:
 
 ```bash
 pytest -s tests/test_e2e_fx.py --e2e-root ~/flexsoc-e2e
 ```
 
-or:
+Skip implementation and sign-off for frontend-only iterations:
 
 ```bash
-FLEXSOC_E2E_ROOT=~/flexsoc-e2e pytest -s tests/test_e2e_fx.py
+pytest -s tests/test_e2e_fx.py --no-signoff --e2e-root ~/flexsoc-e2e
 ```
-
-Successful temporary workspaces are removed automatically. Failed workspaces
-are retained for debugging.
