@@ -1,10 +1,15 @@
-# UART model
+# UART verification model
 
-The UART verification model follows the standard FlexSoC three-file split:
+The built IP package keeps both editable sources and ready-to-run DV collateral:
 
-- `uart_model.py`: behavioral serial framing/timing reference.
-- `uart_regmap.py`: generated CSR metadata/API derived from `uart.hjson`.
-- `uart_tests.py`: editable test catalogue and vector generator.
+- `uart_model.py`: serial framing and timing reference;
+- `uart_regmap.py`: CSR API generated from `uart.hjson`;
+- `uart_tests.py`: editable functional catalogue;
+- `../tests/`: generated vector tests consumed by SV and cocotb testbenches.
 
-`fx regmap_py --force` refreshes only `uart_regmap.py`. `fx tests_gen` executes
-`uart_tests.py`, which imports both the behavioral model and the regmap.
+The shared catalogue is `smoke`, `corners`, `random_seed_1`, `random_seed_2`,
+`reconfig`, and `auto_toggle`. UART additionally provides `line_loopback`,
+`rx_fifo`, `noise_filter`, and `parity_reconfig`.
+
+`fx tests_gen` refreshes vectors in the active run. Use `fx regmap_py --force`
+to refresh only the generated CSR API.

@@ -19,22 +19,23 @@ import cordic_regmap as regmap
 
 CSR = regmap.PRIMARY
 
-BASE_TEST_ORDER = (
+SHARED_TESTS = (
     "smoke",
     "corners",
-    "random",
+    "random_seed_1",
+    "random_seed_2",
     "reconfig",
 )
 
-CORDIC_TEST_ORDER = (
+CUSTOM_TESTS = (
     "smoke_zero",
     "rotate_45deg",
     "quadrant_sweep",
     "random_small",
 )
 
-DEFAULT_TEST_ORDER = BASE_TEST_ORDER + CORDIC_TEST_ORDER
-TEST_ALIASES = {"all": "all", "*": "all"}
+TESTS = (*SHARED_TESTS, *CUSTOM_TESTS)
+TEST_ALIASES = {"all": "all", "*": "all", "random": "random_seed_1"}
 
 
 def _make_sample(
@@ -75,7 +76,9 @@ def builtin_tests(
 ) -> dict[str, list[CordicInput]]:
     """Return all built-in CORDIC CSR-driven scenarios."""
 
-    random_vectors = _random_samples(fmt, count=random_count, seed=seed)
+    random_seed_1 = _random_samples(fmt, count=random_count, seed=1)
+    random_seed_2 = _random_samples(fmt, count=random_count, seed=2)
+    random_small = _random_samples(fmt, count=random_count, seed=seed)
 
     smoke = [
         _make_sample(0.0, 0.0, 0.0, fmt, mode=0),
@@ -110,12 +113,13 @@ def builtin_tests(
     return {
         "smoke": smoke,
         "corners": corners,
-        "random": random_vectors,
+        "random_seed_1": random_seed_1,
+        "random_seed_2": random_seed_2,
         "reconfig": reconfig,
         "smoke_zero": smoke,
         "rotate_45deg": rotate_45deg,
         "quadrant_sweep": quadrant_sweep,
-        "random_small": random_vectors,
+        "random_small": random_small,
     }
 
 
@@ -199,11 +203,11 @@ def selected_tests(
     requested = (args.test or env_test).strip()
 
     if args.all or not requested or requested.lower() in {"all", "*"}:
-        return {name: tests[name] for name in DEFAULT_TEST_ORDER}
+        return {name: tests[name] for name in TESTS}
 
     requested = TEST_ALIASES.get(requested, requested)
     if requested not in tests:
-        available = ", ".join(DEFAULT_TEST_ORDER)
+        available = ", ".join(TESTS)
         raise SystemExit(f"unknown TEST_NAME={requested!r}; available: {available}")
     return {requested: tests[requested]}
 
@@ -217,7 +221,12 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="Generate all built-in tests")
     parser.add_argument("--random-count", type=int, default=8)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--list", action="store_true", help="Print the test catalogue")
     args = parser.parse_args()
+
+    if args.list:
+        print("\n".join(TESTS))
+        return 0
 
     fmt = CordicFormat()
     tests = builtin_tests(fmt, random_count=args.random_count, seed=args.seed)

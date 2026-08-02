@@ -16,7 +16,21 @@ import uart_regmap as regmap
 
 
 CSR = regmap.PRIMARY
-TESTS = ("smoke", "corners", "random", "reconfig")
+SHARED_TESTS = (
+    "smoke",
+    "corners",
+    "random_seed_1",
+    "random_seed_2",
+    "reconfig",
+)
+CUSTOM_TESTS = (
+    "line_loopback",
+    "rx_fifo",
+    "noise_filter",
+    "parity_reconfig",
+)
+TESTS = (*SHARED_TESTS, *CUSTOM_TESTS)
+TEST_ALIASES = {"random": "random_seed_1"}
 
 def hx(value: int) -> str:
     """Format one vector value as a 32-bit hexadecimal word."""
@@ -49,9 +63,9 @@ def config(test: str) -> list[str]:
     """
 
     ctrl = {"TX": 1, "RX": 1, "NCO": NCO}
-    if test == "reconfig":
+    if test in {"reconfig", "parity_reconfig"}:
         ctrl["SLPBK"] = 1
-    elif test == "random":
+    elif test.startswith("random_seed_") or test == "noise_filter":
         ctrl.update(NF=1, LLPBK=1)
     else:
         ctrl["LLPBK"] = 1
@@ -182,7 +196,7 @@ def corners_vectors() -> tuple[list[str], list[str]]:
     return data_in, data_out
 
 
-def random_vectors() -> tuple[list[str], list[str]]:
+def random_vectors(seed: int) -> tuple[list[str], list[str]]:
     """Receive deterministic pseudo-random bytes with the RTL noise filter on."""
 
     data_in = [
@@ -190,7 +204,8 @@ def random_vectors() -> tuple[list[str], list[str]]:
         CSR.CTRL.vector_write(4, TX=1, RX=1, NF=1, NCO=NCO),
     ]
 
-    rng = random.Random("uart:random:rx")
+    rng_key = "uart:random:rx" if seed == 1 else f"uart:random:rx:{seed}"
+    rng = random.Random(rng_key)
     good_bytes = [rng.getrandbits(8) for _ in range(4)]
     cycle = 32
     for byte in good_bytes:
@@ -282,14 +297,30 @@ def reconfig_vectors() -> tuple[list[str], list[str]]:
     return data_in, data_out
 
 
+def normalize_test(test: str) -> str:
+    """Map legacy names to the canonical shared catalogue."""
+
+    return TEST_ALIASES.get(test, test)
+
+
 def vectors(test: str) -> tuple[list[str], list[str]]:
     """Return data_in/data_out rows for one named UART scenario."""
+
+    test = normalize_test(test)
+    if test.startswith("random_seed_"):
+        try:
+            return random_vectors(int(test.removeprefix("random_seed_")))
+        except ValueError as exc:
+            raise ValueError(f"invalid UART random test {test!r}") from exc
 
     scenarios = {
         "smoke": smoke_vectors,
         "corners": corners_vectors,
-        "random": random_vectors,
         "reconfig": reconfig_vectors,
+        "line_loopback": smoke_vectors,
+        "rx_fifo": corners_vectors,
+        "noise_filter": lambda: random_vectors(0xA5),
+        "parity_reconfig": reconfig_vectors,
     }
     try:
         return scenarios[test]()
@@ -300,6 +331,7 @@ def vectors(test: str) -> tuple[list[str], list[str]]:
 def write_test(root: str | Path, test: str) -> None:
     """Write one complete UART vector-test directory."""
 
+    test = normalize_test(test)
     if test not in TESTS:
         raise ValueError(f"unknown UART test {test!r}; choose one of {TESTS}")
 

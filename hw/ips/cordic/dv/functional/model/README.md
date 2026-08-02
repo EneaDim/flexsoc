@@ -1,12 +1,16 @@
-# CORDIC model
+# CORDIC verification model
 
-The CORDIC verification collateral follows the standard FlexSoC three-file split:
+The built IP package keeps both editable sources and ready-to-run DV collateral:
 
-- `cordic_model.py`: canonical RTL-like fixed-point behavioral model used by the tests.
-- `cordic_regmap.py`: generated CSR metadata/API derived from `cordic.hjson`.
-- `cordic_tests.py`: editable test catalogue and vector generator.
+- `cordic_model.py`: fixed-point behavioral reference;
+- `cordic_regmap.py`: CSR API generated from `cordic.hjson`;
+- `cordic_tests.py`: editable functional catalogue;
+- `cordic_float_model.py`: optional mathematical cross-check;
+- `../tests/`: generated vector tests consumed by SV and cocotb testbenches.
 
-`cordic_float_model.py` is kept as an optional high-level mathematical reference. It is useful for analysis and cross-checks, but the generated RTL-facing expectations come from `cordic_model.py` so they match the fixed-point implementation.
+The shared catalogue is `smoke`, `corners`, `random_seed_1`, `random_seed_2`,
+`reconfig`, and `auto_toggle`. CORDIC additionally provides `smoke_zero`,
+`rotate_45deg`, `quadrant_sweep`, and `random_small`.
 
-`fx regmap_py --force` refreshes only `cordic_regmap.py`. `fx tests_gen` executes
-`cordic_tests.py`, which imports the canonical behavioral model and the regmap.
+`fx tests_gen` refreshes vectors in the active run. Use `fx regmap_py --force`
+to refresh only the generated CSR API.
