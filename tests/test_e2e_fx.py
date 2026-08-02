@@ -17,6 +17,9 @@ from rich.console import Console
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUN_ID = "dev"
 DEFAULT_HOST = "uart"
+SINGLE_CLOCK_DOMAINS = "core:clk_i:rst_ni:10:low"
+MULTI_CLOCK_DOMAINS = "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low"
+MULTI_CLOCK_RELATIONSHIPS = "async:cfg:rx,async:cfg:dsp,async:rx:dsp"
 RTL_SOURCE_SUFFIXES = {".sv", ".svh", ".v", ".vh"}
 CONSOLE = Console()
 
@@ -133,24 +136,21 @@ def _run_fx(
 def _settings(
     top: str,
     *,
-    clock_mode: str,
+    clock_domains: str,
+    clock_relationships: str = "",
     run_id: str = DEFAULT_RUN_ID,
     host: str = DEFAULT_HOST,
     workspace: Path,
 ) -> None:
-    """Select one run configuration before launching flow targets."""
+    """Select one canonical run/clock configuration before launching targets."""
 
-    _run_fx(
-        [
-            "settings",
-            f"TOP={top}",
-            f"RUN_TOP={top}",
-            f"RUN_ID={run_id}",
-            f"HOST={host}",
-            f"CLOCK_MODE={clock_mode}",
-        ],
-        workspace=workspace,
-    )
+    n_clocks = len([item for item in clock_domains.split(",") if item.strip()])
+    args = [
+        "settings", f"TOP={top}", f"RUN_TOP={top}", f"RUN_ID={run_id}", f"HOST={host}",
+        f"N_CLOCKS={n_clocks}", f"CLOCK_DOMAINS={clock_domains}",
+        f"CLOCK_RELATIONSHIPS={clock_relationships}",
+    ]
+    _run_fx(args, workspace=workspace)
 
 
 def _run_preflight(*, workspace: Path) -> None:
@@ -280,10 +280,14 @@ def _run_generated_rtl_flow(top: str, *, run_id: str, workspace: Path) -> None:
 
 
 def _run_multiclock_rtl_flow(top: str, *, run_id: str, workspace: Path) -> None:
-    """Generate the complete decomposed multi-clock scaffold and filelists."""
+    """Generate N-clock artifacts only through the generic public targets."""
 
-    _run_fx(["multiclock_scaffold", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["flist", "--force"], top=top, run_id=run_id, workspace=workspace)
+    for targets in (
+        ["setup", "--force"], ["hjson", "--force"], ["reg", "doc", "--force"],
+        ["rtl_stub", "--force"], ["top_from_core", "--force"], ["flist", "--force"],
+        ["setup_model", "--force"], ["setup_tb", "setup_cocotb", "--force"],
+    ):
+        _run_fx(targets, top=top, run_id=run_id, workspace=workspace)
 
 
 def _run_loaded_ip_setup(
@@ -538,9 +542,8 @@ def _run_signoff_stages(
 ) -> bool:
     """Run synthesis/equivalence/signoff as individually visible targets."""
 
-    if clock_mode == "multi":
-        _print_section("Multi-clock constraints")
-        _run_fx(["sdc_multi", "--force"], top=top, run_id=run_id, workspace=workspace)
+    _print_section("Timing constraints")
+    _run_fx(["setup_sdc", "--force"], top=top, run_id=run_id, workspace=workspace)
 
     _print_section(f"Formal setup — {clock_mode} clock")
     _run_fx(["setup_formal", "--force"], top=top, run_id=run_id, workspace=workspace)
@@ -609,7 +612,7 @@ def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
 
     _print_section(f"Single-clock generated flow — TOP={top} RUN_ID={run_id}")
-    _settings(top, clock_mode="single", run_id=run_id, host=host, workspace=workspace)
+    _settings(top, clock_domains=SINGLE_CLOCK_DOMAINS, run_id=run_id, host=host, workspace=workspace)
     _run_preflight(workspace=workspace)
     _print_section("Generate RTL / model")
     _run_generated_rtl_flow(top, run_id=run_id, workspace=workspace)
@@ -637,7 +640,7 @@ def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
 
     _print_section(f"Multi-clock generated flow — TOP={top} RUN_ID={run_id}")
-    _settings(top, clock_mode="multi", run_id=run_id, host=host, workspace=workspace)
+    _settings(top, clock_domains=MULTI_CLOCK_DOMAINS, clock_relationships=MULTI_CLOCK_RELATIONSHIPS, run_id=run_id, host=host, workspace=workspace)
     _run_preflight(workspace=workspace)
     _print_section("Generate multi-clock RTL / model")
     _run_multiclock_rtl_flow(top, run_id=run_id, workspace=workspace)
@@ -669,7 +672,7 @@ def _run_loaded_ip_flow(
 
     _print_section(f"{top.upper()} ip_load flow — TOP={top} RUN_ID={run_id}")
     with _protect_ip_sources(top) as snapshot:
-        _settings(top, clock_mode="single", run_id=run_id, host=host, workspace=workspace)
+        _settings(top, clock_domains=SINGLE_CLOCK_DOMAINS, run_id=run_id, host=host, workspace=workspace)
         _run_preflight(workspace=workspace)
         _print_section("Load saved IP")
         _run_loaded_ip_setup(top, run_id=run_id, workspace=workspace, snapshot=snapshot)

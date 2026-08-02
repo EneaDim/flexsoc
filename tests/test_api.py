@@ -8,8 +8,13 @@ from pathlib import Path
 
 from flexsoc import FlexSoC, FlexSoCConfig
 from flexsoc.api import NATIVE_TARGETS
+from flexsoc.backend.hjson_gen import main as hjson_main
 from flexsoc.backend.metrics import eqy_solver_stats
+from flexsoc.backend.setup_cocotb import cocotb_py_text, cocotb_reg_driver_py_text
+from flexsoc.backend.setup_sdc import render_clock_config_sdc
+from flexsoc.backend.setup_syn import config_from_args as synthesis_config_from_args, parse_args as parse_synthesis_args
 from flexsoc.cli import app
+from flexsoc.clocking import clock_config
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +39,54 @@ def test_api_catalog_matches_makefile_targets() -> None:
     api_only = {"deps-bootstrap", "deps-doctor", "deps-versions", "deps-env"} | (set(NATIVE_TARGETS) - make)
     assert make <= api
     assert api - make == api_only
+
+
+def test_backend_exposes_one_clock_count_neutral_pipeline() -> None:
+    """Public phases stay unified and legacy multi-clock routing is gone."""
+
+    text = BACKEND_MAKEFILE.read_text(encoding="utf-8")
+    assert "setup_multiclock" not in text
+    assert "CLOCK_MODE" not in text
+    assert "MULTICLOCK" not in text
+    assert not any(name.endswith("_multi") for name in _makefile_targets())
+    assert {
+        "hjson", "reg", "rtl_stub", "top_from_core", "setup_model", "tests_gen",
+        "setup_tb", "setup_cocotb", "setup_sdc", "setup_syn", "setup_formal",
+        "setup_eqy", "setup_signoff", "sta", "sdf", "power_estimate",
+    } <= _makefile_targets()
+
+
+def test_settings_clear_stale_relationships_when_clock_domains_change(capsys, monkeypatch, tmp_path: Path) -> None:
+    """Switching an existing project back to one clock cannot retain N-clock edges."""
+
+    monkeypatch.chdir(tmp_path)
+    multi = "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low"
+    relationships = "async:cfg:rx,async:cfg:dsp,async:rx:dsp"
+    assert app(["settings", "N_CLOCKS=3", f"CLOCK_DOMAINS={multi}", f"CLOCK_RELATIONSHIPS={relationships}"]) == 0
+    capsys.readouterr()
+    assert app(["settings", "N_CLOCKS=1", "CLOCK_DOMAINS=core:clk_i:rst_ni:10:low"]) == 0
+    values = json.loads((tmp_path / ".flexsoc" / "settings.json").read_text())
+    assert values["N_CLOCKS"] == "1"
+    assert values["CLOCK_RELATIONSHIPS"] == ""
+    assert "CLOCK_MODE" not in values
+
+
+def test_make_pipeline_dry_runs_with_canonical_clock_settings(tmp_path: Path) -> None:
+    """Every downstream phase resolves through the same public N-clock targets."""
+
+    domains = "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low"
+    command = [
+        "make", "-n", "-f", str(BACKEND_MAKEFILE),
+        "setup_model", "tests_gen", "setup_tb", "setup_cocotb", "setup_sdc",
+        "setup_syn", "setup_formal", "setup_eqy", "setup_signoff", "sta", "sdf", "power_estimate",
+        "TOP=demo", "RUN_TOP=demo", "RUN_ID=dev", f"WORKSPACE={tmp_path}",
+        "N_CLOCKS=3", f"CLOCK_DOMAINS={domains}", "CLOCK_RELATIONSHIPS=async:cfg:rx",
+    ]
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    assert result.returncode == 0, result.stderr
+    output = result.stdout + result.stderr
+    assert "setup_multiclock" not in output
+    assert "_multi" not in output
 
 
 def test_api_builds_ordered_commands_and_overrides(tmp_path: Path) -> None:
@@ -104,7 +157,99 @@ def test_rtl_make_commands_do_not_leak_pdk_libs_into_verilator(tmp_path: Path) -
 
     assert not any(arg.startswith("LIBS=") or arg.startswith("LIB_SYN=") for arg in rtl.argv)
     assert any(arg.startswith("LIB_SYN=") for arg in syn.argv)
-    assert "CLOCK_MODE=" in " ".join(rtl.argv)
+    assert "CLOCK_MODE" not in rtl.env
+    assert rtl.env["N_CLOCKS"] == "1"
+
+
+
+def test_clock_config_is_count_agnostic_and_relationships_are_explicit(tmp_path: Path) -> None:
+    """N-clock routing has no dual-clock special case and assumes no relationships."""
+
+    domains = ",".join(f"c{i}:clk{i}_i:rst{i}_ni:{10-i}:low" for i in range(4))
+    cfg = clock_config({"N_CLOCKS": 4, "CLOCK_DOMAINS": domains})
+    assert cfg.n_clocks == 4 and cfg.multiclock and cfg.relationships == ()
+
+    fx = FlexSoC(
+        FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws"),
+        TOP="demo", N_CLOCKS=4, CLOCK_DOMAINS=domains,
+    )
+    tb = fx.command("setup_tb")
+    sdc = fx.command("setup_sdc")
+    assert tb.argv[3] == "setup_tb"
+    assert sdc.argv[3] == "setup_sdc"
+    assert "CLOCK_MODE" not in tb.values
+    assert tb.env["CLOCK_DOMAINS"] == domains
+
+
+
+
+def test_nclock_generators_use_clock_config_and_create_outputs(monkeypatch, tmp_path: Path) -> None:
+    """Starter metadata and cocotb timing come from one canonical clock model."""
+
+    domains = "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low"
+    monkeypatch.setenv("N_CLOCKS", "3")
+    monkeypatch.setenv("CLOCK_DOMAINS", domains)
+    assert hjson_main(["--force", "--top", "demo", "--interface", "tlul", "--output-dir", str(tmp_path / "data")]) == 0
+    assert {path.name for path in (tmp_path / "data").glob("*.hjson")} == {"demo_cfg.hjson", "demo_dsp.hjson"}
+
+    clocks = clock_config({"N_CLOCKS": 3, "CLOCK_DOMAINS": domains})
+    test_text = cocotb_py_text("demo", clocks)
+    driver_text = cocotb_reg_driver_py_text("demo", clocks)
+    assert all(domain.signal in test_text for domain in clocks.domains)
+    assert all(domain.reset in driver_text for domain in clocks.domains)
+    assert 'int(polarity == "high")' in driver_text
+    assert 'int(polarity == "low")' in driver_text
+    compile(test_text, "<demo_tb.py>", "exec")
+    compile(driver_text, "<reg_driver.py>", "exec")
+
+
+def test_synthesis_uses_fastest_configured_clock(monkeypatch, tmp_path: Path) -> None:
+    """ABC timing follows ClockConfig rather than a stale Make default."""
+
+    monkeypatch.setenv("N_CLOCKS", "3")
+    monkeypatch.setenv(
+        "CLOCK_DOMAINS",
+        "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low",
+    )
+    args = parse_synthesis_args([
+        "--top", "demo", "--topdir", str(tmp_path), "--target", "asic",
+        "--liberty", str(tmp_path / "cells.lib"), "--clk", "20",
+    ])
+    assert synthesis_config_from_args(args).clk_period_ns == 6
+
+
+def test_clock_config_sdc_emits_only_declared_relationships() -> None:
+    cfg = clock_config({
+        "N_CLOCKS": 3,
+        "CLOCK_DOMAINS": "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:16:low",
+        "CLOCK_RELATIONSHIPS": "async:cfg:rx,generated:rx:dsp:2",
+    })
+    text = render_clock_config_sdc("demo", cfg)
+    assert "create_clock -name cfg -period 10 [get_ports cfg_clk_i]" in text
+    assert "create_clock -name rx -period 8 [get_ports rx_clk_i]" in text
+    assert "create_generated_clock -name dsp -source [get_ports rx_clk_i] -divide_by 2 [get_ports dsp_clk_i]" in text
+    assert "set_clock_groups -asynchronous -group [get_clocks cfg] -group [get_clocks rx]" in text
+    assert "cfg] -group [get_clocks dsp" not in text
+
+
+def test_clock_config_validates_count_and_relationship_endpoints() -> None:
+    """Clock count and relationship names fail early instead of creating wrong constraints."""
+
+    domains = "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low"
+    try:
+        clock_config({"N_CLOCKS": 3, "CLOCK_DOMAINS": domains})
+    except ValueError as exc:
+        assert "defines 2" in str(exc)
+    else:
+        raise AssertionError("N_CLOCKS mismatch was accepted")
+
+    try:
+        clock_config({"N_CLOCKS": 2, "CLOCK_DOMAINS": domains, "CLOCK_RELATIONSHIPS": "async:cfg:dsp"})
+    except ValueError as exc:
+        assert "endpoints" in str(exc)
+    else:
+        raise AssertionError("unknown relationship endpoint was accepted")
+
 
 def test_api_dry_run_does_not_spawn_processes(monkeypatch, tmp_path: Path) -> None:
     """Dry-run returns previews only."""
@@ -212,6 +357,23 @@ def test_equivalence_generator_belongs_to_setup_signoff() -> None:
     block = text.split("setup_eqy:", 1)[1].split("\neqy:", 1)[0]
     assert "flexsoc.backend.setup_signoff eqy" in block
     assert "flexsoc.backend.setup_formal eqy" not in text
+
+
+def test_eqy_parallelizes_partitions_with_configurable_jobs(tmp_path: Path) -> None:
+    """Independent EQY partitions run concurrently without hiding the knob."""
+
+    text = BACKEND_MAKEFILE.read_text(encoding="utf-8")
+    block = text.split("\neqy:", 1)[1].split("\n\n", 1)[0]
+    assert "EQY_JOBS ?= 4" in text
+    assert '"$(EQY)" -j "$(EQY_JOBS)" -f' in block
+    command = FlexSoC(FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws")).command(
+        "eqy", EQY_JOBS=8, EQY_JOIN_OUTPUTS=0, EQY_QUICK_TIMEOUT=3,
+        EQY_STRATEGY_ORDER="pdr,smt",
+    )
+    assert "EQY_JOBS=8" in command.argv
+    assert "EQY_JOIN_OUTPUTS=0" in command.argv
+    assert "EQY_QUICK_TIMEOUT=3" in command.argv
+    assert "EQY_STRATEGY_ORDER=pdr,smt" in command.argv
 
 
 def test_pdk_scoped_paths_keep_flow_before_technology(tmp_path: Path) -> None:
