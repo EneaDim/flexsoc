@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import subprocess
@@ -10,8 +11,10 @@ from pathlib import Path
 
 from flexsoc import FlexSoC, FlexSoCConfig
 from flexsoc.api import NATIVE_TARGETS
+from flexsoc.backend.eqy_debug import _replace_gate_netlist, synthesis_boundary_diagnosis
 from flexsoc.backend.hjson_gen import main as hjson_main
 from flexsoc.backend.metrics import eqy_solver_stats
+from flexsoc.backend.output import print_script, strip_ansi
 from flexsoc.backend.setup_cocotb import (
     cocotb_py_text,
     cocotb_reg_driver_py_text,
@@ -19,7 +22,7 @@ from flexsoc.backend.setup_cocotb import (
 )
 from flexsoc.backend.setup_model import _regmap_tests_text
 from flexsoc.backend.setup_sdc import render_clock_config_sdc
-from flexsoc.backend.setup_signoff import NetlistPort, render_formal_protocol_view
+from flexsoc.backend.setup_signoff import NetlistPort, main as signoff_main, render_formal_protocol_view
 from flexsoc.backend.setup_tb import render_tlul_utils
 from flexsoc.backend.setup_syn import config_from_args as synthesis_config_from_args, parse_args as parse_synthesis_args
 from flexsoc.cli import app
@@ -422,6 +425,45 @@ def test_eqy_formal_view_recognizes_primary_tlul_response() -> None:
     assert "assign tl_o[47:16] = (tl_o__raw[65] && !tl_o__raw[1])" in view
 
 
+def test_eqy_checkpoint_probe_preserves_protocol_wrapper(tmp_path: Path) -> None:
+    """Synthesis diagnostics replace the netlist, not the formal TL-UL view."""
+
+    checkpoint = tmp_path / "cordic_generic.il"
+    checkpoint.write_text("checkpoint\n", encoding="utf-8")
+    source = """[gate]
+read_verilog -formal -sv formal_pdk.v
+read_verilog -formal -sv cordic_synth.v
+rename cordic cordic__eqy_impl
+read_verilog -formal -sv cordic_eqy_view.sv
+
+[script]
+prep -top cordic
+"""
+    rewritten = _replace_gate_netlist(source, checkpoint)
+    assert "cordic_synth.v" not in rewritten
+    assert f"read_rtlil {checkpoint.resolve()}" in rewritten
+    assert "rename cordic cordic__eqy_impl" in rewritten
+    assert "read_verilog -formal -sv cordic_eqy_view.sv" in rewritten
+    assert rewritten.index(f"read_rtlil {checkpoint.resolve()}") < rewritten.index("rename cordic")
+
+
+def test_eqy_checkpoint_diagnosis_keeps_timeouts_inconclusive() -> None:
+    """A solver timeout must not be reported as a proven synthesis mismatch."""
+
+    assert synthesis_boundary_diagnosis({
+        "generic": {"status": "TIMEOUT"},
+        "dffmap": {"status": "FAIL"},
+        "abc": {"status": "FAIL"},
+        "clean": {"status": "FAIL"},
+    }) == "generic_inconclusive"
+    assert synthesis_boundary_diagnosis({
+        "generic": {"status": "PASS"},
+        "dffmap": {"status": "FAIL"},
+        "abc": {"status": "FAIL"},
+        "clean": {"status": "FAIL"},
+    }) == "dffmap_fail"
+
+
 def test_eqy_parallelizes_partitions_with_configurable_jobs(tmp_path: Path) -> None:
     """Independent EQY partitions run concurrently without hiding the knob."""
 
@@ -437,6 +479,55 @@ def test_eqy_parallelizes_partitions_with_configurable_jobs(tmp_path: Path) -> N
     assert "EQY_JOIN_OUTPUTS=0" in command.argv
     assert "EQY_QUICK_TIMEOUT=3" in command.argv
     assert "EQY_STRATEGY_ORDER=pdr,smt" in command.argv
+
+
+def test_generated_scripts_use_common_plain_and_colored_rendering(capsys, monkeypatch, tmp_path: Path) -> None:
+    """Script output is readable on terminals and remains ANSI-free in logs."""
+
+    script = tmp_path / "sta.tcl"
+    script.write_text("set corner ss\nreport_checks\n", encoding="utf-8")
+
+    plain = io.StringIO()
+    print_script(script, stream=plain, color=False)
+    assert plain.getvalue() == f"[script] {script.resolve()}\nset corner ss\nreport_checks\n"
+
+    colored = io.StringIO()
+    print_script(script, stream=colored, color=True)
+    assert "\x1b[" in colored.getvalue()
+    assert strip_ansi(colored.getvalue()).startswith(f"[script] {script.resolve()}\n")
+
+    monkeypatch.setenv("FLEXSOC_COLOR", "never")
+    assert signoff_main([
+        "analysis", "--top", "demo",
+        "--sta-dir", str(tmp_path / "sta"),
+        "--power-dir", str(tmp_path / "power"),
+        "--sdf-dir", str(tmp_path / "sdf"),
+    ]) == 0
+    output = capsys.readouterr().out
+    assert output.count("[script]") == 4
+    assert "=== Static timing analysis ===" in output
+    assert "=== Estimated power analysis ===" in output
+    assert "=== Write SDF ===" in output
+    assert "\x1b[" not in output
+
+
+def test_live_command_logs_strip_terminal_escapes(monkeypatch, tmp_path: Path) -> None:
+    """Live terminal color must never leak into persisted command logs."""
+
+    fx = FlexSoC(FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws"))
+    command = fx.command("setup")
+    command = type(command)(
+        command.target,
+        (sys.executable, "-c", 'print("\x1b[31mred\x1b[0m")'),
+        command.cwd,
+        command.env,
+        command.values,
+    )
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    log = tmp_path / "live.log"
+    result = fx._run_live(command, log)
+    assert result.returncode == 0
+    assert log.read_text(encoding="utf-8") == "red\n"
 
 
 def test_pdk_scoped_paths_keep_flow_before_technology(tmp_path: Path) -> None:

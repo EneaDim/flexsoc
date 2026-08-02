@@ -6,6 +6,8 @@ import argparse
 from pathlib import Path
 from textwrap import dedent
 
+from flexsoc.backend.output import print_script
+
 
 def unique_paths(paths: list[Path]) -> list[Path]:
     """Return paths in first-seen order while removing duplicates by string value."""
@@ -186,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     """Run the command line entrypoint."""
 
     args = parse_args(argv)
-    write_config(
+    path = write_config(
         top=args.top,
         filelists=[Path(value) for value in args.filelist],
         outdir=Path(args.outdir),
@@ -195,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         syn_strategy=args.syn_strategy,
         clk_period=args.clk_period,
     )
+    print_script(path)
     return 0
 
 

@@ -799,11 +799,21 @@ class FlexSoC:
     def _run_live(self, command: FlexSoCCommand, log_path: Path) -> subprocess.CompletedProcess[str]:
         """Run a command while teeing stdout/stderr to terminal and log."""
 
+        from .backend.output import strip_ansi
+
+        env = dict(command.env)
+        env["FLEXSOC_COLOR"] = (
+            "always"
+            if sys.stdout.isatty()
+            and os.environ.get("NO_COLOR") is None
+            and os.environ.get("TERM") != "dumb"
+            else "never"
+        )
         with log_path.open("w", encoding="utf-8") as log:
             proc = subprocess.Popen(
                 command.argv,
                 cwd=command.cwd,
-                env=command.env,
+                env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -811,7 +821,7 @@ class FlexSoC:
             assert proc.stdout is not None
             for line in proc.stdout:
                 sys.stdout.write(line)
-                log.write(line)
+                log.write(strip_ansi(line))
             return subprocess.CompletedProcess(command.argv, proc.wait())
 
     def _env(self, values: Mapping[str, str] | None = None) -> dict[str, str]:

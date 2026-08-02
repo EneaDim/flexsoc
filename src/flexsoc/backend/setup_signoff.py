@@ -17,6 +17,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Sequence
 
+from flexsoc.backend.output import print_script
 from flexsoc.clocking import clock_config
 
 
@@ -157,7 +158,9 @@ def _tlul_response_ports(ports: Sequence[NetlistPort]) -> tuple[NetlistPort, ...
 
     return tuple(
         port for port in ports
-        if port.direction == "output" and port.width == 66 and port.name.endswith("_tl_o")
+        if port.direction == "output"
+        and port.width == 66
+        and (port.name == "tl_o" or port.name.endswith("_tl_o"))
     )
 
 
@@ -762,7 +765,7 @@ def main(argv: Sequence[str]) -> int:
     try:
         if args.command == "analysis":
             for path in write_signoff_scripts(_sta_config(args)):
-                print(path)
+                print_script(path)
         else:
             print(generate_equivalence_config(_equivalence_config(args)))
     except ValueError as exc:

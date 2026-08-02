@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from flexsoc.backend.output import print_script
 from flexsoc.run_layout import layout_from_values
 
 
@@ -319,6 +320,7 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
         if stage != "post_pnr":
             raise ValueError("SDF export action is only valid for post_pnr")
         tcl, sdf = render_post_pnr_sdf_tcl(project_root, values, paths)
+        print_script(tcl)
         log = paths.sdf_log_dir / f"{values.get('TOP', 'test')}_post_pnr_sdf.log"
         rc = _run([values.get("STA", "sta"), "-exit", "-no_init", str(tcl)], cwd=project_root, log=log)
         if rc == 0:
