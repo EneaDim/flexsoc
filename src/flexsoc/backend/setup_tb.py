@@ -2624,11 +2624,20 @@ def sv_include_text(top: str) -> str:
 
 
 
-def sv_driver_text(top: str) -> str:
-    """Render top-level TL-UL config-driver tasks."""
+def sv_driver_text(top: str, clocks: ClockConfig) -> str:
+    """Render TL-UL access and reset tasks for the N-clock scaffold."""
 
-    return dedent("""\
-      // Reset top-level scalar IO and both TL-UL register ports.
+    resets = {domain.reset: domain.reset_polarity for domain in clocks.domains}
+    assert_reset = "\n".join(
+        f"    {name} = 1'b{1 if polarity == 'high' else 0};"
+        for name, polarity in resets.items()
+    )
+    release_reset = "\n".join(
+        f"    {name} = 1'b{0 if polarity == 'high' else 1};"
+        for name, polarity in resets.items()
+    )
+    primary = clocks.domains[0].signal
+    text = dedent("""\
       task automatic apply_defaults();
         cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
         dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
@@ -2643,19 +2652,26 @@ def sv_driver_text(top: str) -> str:
         test_en_i = 1'b1;
       endtask
 
-      // Perform one cfg-domain TL-UL write into the generated cfg regblock.
+      task automatic reset_dut(input integer cycles);
+__ASSERT_RESET__
+        repeat (cycles) @(posedge __PRIMARY_CLOCK__);
+__RELEASE_RESET__
+        apply_defaults();
+        repeat (8) @(posedge __PRIMARY_CLOCK__);
+      endtask
+
       task automatic cfg_write(input logic [31:0] addr, input logic [31:0] data);
         @(negedge cfg_clk_i);
         cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        cfg_tl_i.a_valid   = 1'b1;
-        cfg_tl_i.a_opcode  = tlul_pkg::PutFullData;
-        cfg_tl_i.a_param   = '0;
-        cfg_tl_i.a_size    = 3'd2;
-        cfg_tl_i.a_source  = '0;
+        cfg_tl_i.a_valid = 1'b1;
+        cfg_tl_i.a_opcode = tlul_pkg::PutFullData;
+        cfg_tl_i.a_param = '0;
+        cfg_tl_i.a_size = 3'd2;
+        cfg_tl_i.a_source = '0;
         cfg_tl_i.a_address = addr;
-        cfg_tl_i.a_mask    = 4'hf;
-        cfg_tl_i.a_data    = data;
-        cfg_tl_i.d_ready   = 1'b1;
+        cfg_tl_i.a_mask = 4'hf;
+        cfg_tl_i.a_data = data;
+        cfg_tl_i.d_ready = 1'b1;
         do @(posedge cfg_clk_i); while (!cfg_tl_o.a_ready);
         @(negedge cfg_clk_i);
         cfg_tl_i.a_valid = 1'b0;
@@ -2665,19 +2681,18 @@ def sv_driver_text(top: str) -> str:
         cfg_tl_i.d_ready = 1'b1;
       endtask
 
-      // Perform one dsp-domain TL-UL write into the generated dsp regblock.
       task automatic dsp_write(input logic [31:0] addr, input logic [31:0] data);
         @(negedge dsp_clk_i);
         dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        dsp_tl_i.a_valid   = 1'b1;
-        dsp_tl_i.a_opcode  = tlul_pkg::PutFullData;
-        dsp_tl_i.a_param   = '0;
-        dsp_tl_i.a_size    = 3'd2;
-        dsp_tl_i.a_source  = '0;
+        dsp_tl_i.a_valid = 1'b1;
+        dsp_tl_i.a_opcode = tlul_pkg::PutFullData;
+        dsp_tl_i.a_param = '0;
+        dsp_tl_i.a_size = 3'd2;
+        dsp_tl_i.a_source = '0;
         dsp_tl_i.a_address = addr;
-        dsp_tl_i.a_mask    = 4'hf;
-        dsp_tl_i.a_data    = data;
-        dsp_tl_i.d_ready   = 1'b1;
+        dsp_tl_i.a_mask = 4'hf;
+        dsp_tl_i.a_data = data;
+        dsp_tl_i.d_ready = 1'b1;
         do @(posedge dsp_clk_i); while (!dsp_tl_o.a_ready);
         @(negedge dsp_clk_i);
         dsp_tl_i.a_valid = 1'b0;
@@ -2687,27 +2702,104 @@ def sv_driver_text(top: str) -> str:
         dsp_tl_i.d_ready = 1'b1;
       endtask
 
-      // Apply one generated config register write through the top-level regblocks.
+      task automatic cfg_read(input logic [31:0] addr, output logic [31:0] data);
+        @(negedge cfg_clk_i);
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.a_valid = 1'b1;
+        cfg_tl_i.a_opcode = tlul_pkg::Get;
+        cfg_tl_i.a_param = '0;
+        cfg_tl_i.a_size = 3'd2;
+        cfg_tl_i.a_source = '0;
+        cfg_tl_i.a_address = addr;
+        cfg_tl_i.a_mask = 4'hf;
+        cfg_tl_i.d_ready = 1'b1;
+        do @(posedge cfg_clk_i); while (!cfg_tl_o.a_ready);
+        @(negedge cfg_clk_i);
+        cfg_tl_i.a_valid = 1'b0;
+        do @(posedge cfg_clk_i); while (!cfg_tl_o.d_valid);
+        data = cfg_tl_o.d_data;
+        if (cfg_tl_o.d_error) errors++;
+        @(negedge cfg_clk_i);
+        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        cfg_tl_i.d_ready = 1'b1;
+      endtask
+
+      task automatic dsp_read(input logic [31:0] addr, output logic [31:0] data);
+        @(negedge dsp_clk_i);
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i.a_valid = 1'b1;
+        dsp_tl_i.a_opcode = tlul_pkg::Get;
+        dsp_tl_i.a_param = '0;
+        dsp_tl_i.a_size = 3'd2;
+        dsp_tl_i.a_source = '0;
+        dsp_tl_i.a_address = addr;
+        dsp_tl_i.a_mask = 4'hf;
+        dsp_tl_i.d_ready = 1'b1;
+        do @(posedge dsp_clk_i); while (!dsp_tl_o.a_ready);
+        @(negedge dsp_clk_i);
+        dsp_tl_i.a_valid = 1'b0;
+        do @(posedge dsp_clk_i); while (!dsp_tl_o.d_valid);
+        data = dsp_tl_o.d_data;
+        if (dsp_tl_o.d_error) errors++;
+        @(negedge dsp_clk_i);
+        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
+        dsp_tl_i.d_ready = 1'b1;
+      endtask
+
       task automatic apply_reg(input string reg_name, input logic [31:0] value);
-        if (reg_name == "cfg.CTRL") begin
-          cfg_write(32'h0000_0000, value);
-        end else if (reg_name == "cfg.GAIN") begin
-          cfg_write(32'h0000_0004, value);
-        end else if (reg_name == "dsp.DSP_CTRL") begin
-          dsp_write(32'h0000_0000, value);
-        end else if (reg_name == "dsp.THRESHOLD") begin
-          dsp_write(32'h0000_0004, value);
-        end else begin
-          $display("[TB][WARN] unknown config register: %s", reg_name);
+        if (reg_name == "cfg.CTRL") cfg_write(32'h0, value);
+        else if (reg_name == "cfg.GAIN") cfg_write(32'h4, value);
+        else if (reg_name == "dsp.DSP_CTRL") dsp_write(32'h0, value);
+        else if (reg_name == "dsp.THRESHOLD") dsp_write(32'h4, value);
+        else $display("[TB][WARN] unknown config register: %s", reg_name);
+      endtask
+
+      task automatic read_reg(input string reg_name, output logic [31:0] value);
+        value = '0;
+        if (reg_name == "cfg.CTRL") cfg_read(32'h0, value);
+        else if (reg_name == "cfg.GAIN") cfg_read(32'h4, value);
+        else if (reg_name == "dsp.DSP_CTRL") dsp_read(32'h0, value);
+        else if (reg_name == "dsp.THRESHOLD") dsp_read(32'h4, value);
+        else begin
+          $display("[TB][WARN] unknown read register: %s", reg_name);
+          errors++;
         end
       endtask
 
-      // Load config.regs. cfg.CTRL should remain the final enable write.
+      task automatic apply_reg_masked(
+        input string reg_name,
+        input logic [31:0] value,
+        input logic [31:0] mask
+      );
+        logic [31:0] current;
+        logic [31:0] merged;
+        merged = value;
+        if (mask != 32'hffff_ffff) begin
+          read_reg(reg_name, current);
+          merged = (current & ~mask) | (value & mask);
+        end
+        apply_reg(reg_name, merged);
+      endtask
+
+      task automatic expect_reg(
+        input string reg_name,
+        input logic [31:0] expected,
+        input logic [31:0] mask
+      );
+        logic [31:0] got;
+        read_reg(reg_name, got);
+        if ((got & mask) !== (expected & mask)) begin
+          $display("[TB][ERROR] %s got=0x%08x exp=0x%08x mask=0x%08x", reg_name, got, expected, mask);
+          errors++;
+        end
+      endtask
+
       task automatic load_config(input string path);
         integer fd;
         integer code;
         string reg_name;
         logic [31:0] value;
+        logic [31:0] mask;
         string line;
         fd = $fopen(path, "r");
         if (fd == 0) begin
@@ -2721,20 +2813,25 @@ def sv_driver_text(top: str) -> str:
           if (line.len() == 0 || line.substr(0, 0) == "#") continue;
           code = $sscanf(line, "%s %h", reg_name, value);
           if (code == 2) begin
+            mask = 32'hffff_ffff;
+            if ($sscanf(line, "%s %h %h", reg_name, value, mask) != 3)
+              mask = 32'hffff_ffff;
             if (reg_name.len() > 6 && reg_name.substr(0, 5) == "clk_i.") reg_name = reg_name.substr(6, reg_name.len() - 1);
-            apply_reg(reg_name, value);
+            apply_reg_masked(reg_name, value, mask);
           end
         end
         $fclose(fd);
       endtask
     """)
+    return (text.replace("__ASSERT_RESET__", assert_reset)
+                .replace("__RELEASE_RESET__", release_reset)
+                .replace("__PRIMARY_CLOCK__", primary))
 
 
 def sv_vec_driver_text(top: str) -> str:
-    """Render top-level input-vector driver tasks."""
+    """Render N-clock vector commands, including CSR and reset actions."""
 
     return dedent("""\
-      // Push one sample into the RX clock domain.
       task automatic send_sample(input logic signed [15:0] sample, input logic signed [15:0] coeff);
         integer timeout;
         timeout = 0;
@@ -2749,19 +2846,21 @@ def sv_vec_driver_text(top: str) -> str:
         end
         @(negedge rx_clk_i);
         rx_sample_i = sample;
-        rx_coeff_i  = coeff;
-        rx_valid_i  = 1'b1;
+        rx_coeff_i = coeff;
+        rx_valid_i = 1'b1;
         @(negedge rx_clk_i);
-        rx_valid_i  = 1'b0;
+        rx_valid_i = 1'b0;
       endtask
 
-      // Drive input transactions from data_in.vec.
       task automatic run_inputs(input string path);
         integer fd;
         integer code;
         integer step;
-        string sig;
+        integer cycles;
+        string token;
+        string reg_name;
         logic [31:0] value;
+        logic [31:0] mask;
         string line;
         logic signed [15:0] sample;
         logic signed [15:0] coeff;
@@ -2777,14 +2876,34 @@ def sv_vec_driver_text(top: str) -> str:
           line = "";
           void'($fgets(line, fd));
           if (line.len() == 0 || line.substr(0, 0) == "#") continue;
-          code = $sscanf(line, "%d %s %h", step, sig, value);
-          if (code != 3) continue;
-          if (sig == "rx_sample_i") begin
-            sample = value[15:0];
-          end else if (sig == "rx_coeff_i") begin
-            coeff = value[15:0];
-          end else if (sig == "rx_valid_i" && value[0]) begin
-            send_sample(sample, coeff);
+          code = $sscanf(line, "%d %s", step, token);
+          if (code != 2) continue;
+          if (token == "@write" || token == "write") begin
+            code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
+            if (code == 4) begin
+              mask = 32'hffff_ffff;
+              if ($sscanf(line, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
+                mask = 32'hffff_ffff;
+              apply_reg_masked(reg_name, value, mask);
+              repeat (8) @(posedge dsp_clk_i);
+            end
+          end else if (token == "@read" || token == "read") begin
+            code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
+            if (code == 4) begin
+              mask = 32'hffff_ffff;
+              if ($sscanf(line, "%d %s %s %h %h", step, token, reg_name, value, mask) != 5)
+                mask = 32'hffff_ffff;
+              expect_reg(reg_name, value, mask);
+            end
+          end else if (token == "@reset" || token == "reset") begin
+            code = $sscanf(line, "%d %s %d", step, token, cycles);
+            if (code == 3) reset_dut(cycles);
+          end else begin
+            code = $sscanf(line, "%d %s %h", step, token, value);
+            if (code != 3) continue;
+            if (token == "rx_sample_i") sample = value[15:0];
+            else if (token == "rx_coeff_i") coeff = value[15:0];
+            else if (token == "rx_valid_i" && value[0]) send_sample(sample, coeff);
           end
         end
         $fclose(fd);
@@ -2836,7 +2955,8 @@ def sv_monitor_text(top: str) -> str:
         timeout = 0;
         dsp_ready_i = 1'b1;
         while (got_count < exp_count && timeout < 4096) begin
-          @(posedge dsp_clk_i);
+          // Sample halfway through the DSP cycle, after sequential updates.
+          @(negedge dsp_clk_i);
           if (dsp_valid_o) begin
             if ($unsigned(dsp_result_o) !== exp_result[got_count]) begin
               $display("[TB][ERROR] result[%0d] got=0x%08x exp=0x%08x", got_count, $unsigned(dsp_result_o), exp_result[got_count]);
@@ -2957,9 +3077,9 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
         {clock_init}
         apply_defaults();
 
-        if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "dv/functional/tests/mac_smoke/config.regs";
-        if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "dv/functional/tests/mac_smoke/data_in.vec";
-        if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "dv/functional/tests/mac_smoke/data_out.vec";
+        if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "dv/functional/tests/smoke/config.regs";
+        if (!$value$plusargs("DATA_IN=%s", data_in_path)) data_in_path = "dv/functional/tests/smoke/data_in.vec";
+        if (!$value$plusargs("DATA_OUT=%s", data_out_path)) data_out_path = "dv/functional/tests/smoke/data_out.vec";
         if (!$value$plusargs("WAVE=%s", wave_path)) begin
           if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
         end
@@ -3027,7 +3147,7 @@ def generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, fo
     drivers.mkdir(parents=True, exist_ok=True)
     files = {
         output / f"include_{top}_tb.sv": sv_include_text(top),
-        drivers / f"{top}_tlul_driver.svh": sv_driver_text(top),
+        drivers / f"{top}_tlul_driver.svh": sv_driver_text(top, clocks),
         drivers / f"{top}_vec_driver.svh": sv_vec_driver_text(top),
         drivers / f"{top}_vec_monitor.svh": sv_monitor_text(top),
         output / f"{top}_tb.sv": sv_tb_text(top, f"{top}_tb", clocks),

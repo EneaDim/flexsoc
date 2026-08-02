@@ -1499,7 +1499,7 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     EXTRA_ARGS += -f $(PWD)/../../../../rtl/rtl_ip.f
     VERILOG_SOURCES += $(PWD)/{top}_cocotb_tb.sv
     EXTRA_ARGS += -Wno-fatal
-    export TEST_NAME ?= mac_smoke
+    export TEST_NAME ?= smoke
     SEED ?= 1
     HDL_COVERAGE ?= 0
     COVERAGE_FILE ?= $(abspath ../../coverage/cocotb/$(TEST_NAME).dat)
@@ -1591,16 +1591,29 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
         dut.test_en_i.value = 1
 
 
-    async def reset(dut):
+    async def reset(dut, cycles: int = 5):
         "Apply every configured reset with its declared polarity."
+        set_defaults(dut)
         for signal, polarity in RESETS.items():
             getattr(dut, signal).value = int(polarity == "high")
-        for _ in range(5):
+        for _ in range(cycles):
             await RisingEdge(getattr(dut, PRIMARY_CLOCK))
         for signal, polarity in RESETS.items():
             getattr(dut, signal).value = int(polarity == "low")
+        set_defaults(dut)
         for _ in range(8):
             await RisingEdge(getattr(dut, PRIMARY_CLOCK))
+
+
+    async def _wait_high(dut, signal: str, clk, limit: int = 256):
+        "Wait for one TL-UL handshake without missing an already-high response."
+        for _ in range(limit):
+            if bool(getattr(dut, signal).value):
+                return
+            await RisingEdge(clk)
+        if bool(getattr(dut, signal).value):
+            return
+        raise TimeoutError(f"timeout waiting for {signal}")
 
 
     async def _tlul_write(dut, domain: str, clk, addr: int, data: int):
@@ -1615,12 +1628,10 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
         getattr(dut, f"{domain}_a_address").value = addr & 0xFFFFFFFF
         getattr(dut, f"{domain}_a_mask").value = 0xF
         getattr(dut, f"{domain}_a_data").value = data & 0xFFFFFFFF
-        while not bool(getattr(dut, f"{domain}_a_ready").value):
-            await RisingEdge(clk)
+        await _wait_high(dut, f"{domain}_a_ready", clk)
         await FallingEdge(clk)
         getattr(dut, f"{domain}_a_valid").value = 0
-        while not bool(getattr(dut, f"{domain}_d_valid").value):
-            await RisingEdge(clk)
+        await _wait_high(dut, f"{domain}_d_valid", clk)
         await FallingEdge(clk)
         _set_domain_defaults(dut, domain)
 
@@ -1636,12 +1647,10 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
         getattr(dut, f"{domain}_a_source").value = 0
         getattr(dut, f"{domain}_a_address").value = addr & 0xFFFFFFFF
         getattr(dut, f"{domain}_a_mask").value = 0xF
-        while not bool(getattr(dut, f"{domain}_a_ready").value):
-            await RisingEdge(clk)
+        await _wait_high(dut, f"{domain}_a_ready", clk)
         await FallingEdge(clk)
         getattr(dut, f"{domain}_a_valid").value = 0
-        while not bool(getattr(dut, f"{domain}_d_valid").value):
-            await RisingEdge(clk)
+        await _wait_high(dut, f"{domain}_d_valid", clk)
         data = int(getattr(dut, f"{domain}_d_data").value) & 0xFFFFFFFF
         error = int(getattr(dut, f"{domain}_d_error").value)
         await FallingEdge(clk)
@@ -1665,10 +1674,13 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
             raise KeyError(f"unknown register {name!r}; update drivers/reg_driver.py") from exc
 
 
-    async def apply_reg(dut, name: str, value: int):
-        "Apply one config.regs row through the real top-level regblocks."
+    async def apply_reg(dut, name: str, value: int, mask: int = 0xFFFFFFFF):
+        "Apply one config/vector register write, including a bit mask."
         domain, addr = _decode_reg(name)
         clk = getattr(dut, CLOCKS[domain])
+        if mask != 0xFFFFFFFF:
+            current = await _tlul_read(dut, domain, clk, addr)
+            value = (current & ~mask) | (value & mask)
         await _tlul_write(dut, domain, clk, addr, value)
 
 
@@ -1688,36 +1700,42 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
             )
 
 
+    async def settle(dut, cycles: int = 8):
+        "Allow synchronized controls to propagate into the datapath."
+        for _ in range(cycles):
+            await RisingEdge(getattr(dut, SETTLE_CLOCK))
+
+
     async def apply_config(dut, path: str):
         "Apply generated config rows and allow CDC synchronizers to settle."
         for parts in rows(path):
             if len(parts) >= 2:
-                await apply_reg(dut, parts[0], int(parts[1], 0))
-        for _ in range(8):
-            await RisingEdge(getattr(dut, SETTLE_CLOCK))
+                mask = int(parts[2], 0) if len(parts) >= 3 else 0xFFFFFFFF
+                await apply_reg(dut, parts[0], int(parts[1], 0), mask)
+        await settle(dut)
     """)
     return (text.replace("__CLOCK_MAP__", repr(clock_map))
                 .replace("__RESET_MAP__", repr(reset_map))
                 .replace("__PRIMARY_CLOCK__", repr(primary))
                 .replace("__SETTLE_CLOCK__", repr(settle)))
 def cocotb_vec_driver_py_text(top: str) -> str:
-    """Render cocotb input-vector driver helpers."""
+    """Render N-clock vector commands, including CSR and reset actions."""
 
     return dedent("""\
     from __future__ import annotations
 
     from cocotb.triggers import FallingEdge, RisingEdge
 
-    from .reg_driver import rows
+    from .reg_driver import apply_reg, expect_reg, reset, rows, settle
 
 
     async def send_sample(dut, sample: int, coeff: int):
-        \"\"\"Send one RX-domain input transaction.\"\"\"
+        "Send one RX-domain input transaction."
         timeout = 0
         while not bool(dut.rx_ready_o.value) and timeout < 64:
             await RisingEdge(dut.rx_clk_i)
             timeout += 1
-        assert bool(dut.rx_ready_o.value), \"rx_ready_o timeout\"
+        assert bool(dut.rx_ready_o.value), "rx_ready_o timeout"
         await FallingEdge(dut.rx_clk_i)
         dut.rx_sample_i.value = sample & 0xFFFF
         dut.rx_coeff_i.value = coeff & 0xFFFF
@@ -1727,19 +1745,33 @@ def cocotb_vec_driver_py_text(top: str) -> str:
 
 
     async def drive_inputs(dut, path: str):
-        \"\"\"Drive inputs from data_in.vec.\"\"\"
+        "Execute signal, CSR and reset commands from data_in.vec."
         sample = 0
         coeff = 0
         for parts in rows(path):
+            if len(parts) < 2:
+                continue
+            token = parts[1]
+            if token in {"@write", "write"} and len(parts) >= 4:
+                mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF
+                await apply_reg(dut, parts[2], int(parts[3], 0), mask)
+                await settle(dut)
+                continue
+            if token in {"@read", "read"} and len(parts) >= 4:
+                mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF
+                await expect_reg(dut, parts[2], int(parts[3], 0), mask)
+                continue
+            if token in {"@reset", "reset"} and len(parts) >= 3:
+                await reset(dut, int(parts[2], 0))
+                continue
             if len(parts) < 3:
                 continue
-            _, sig, value = parts[:3]
-            value = int(value, 0)
-            if sig == \"rx_sample_i\":
+            value = int(parts[2], 0)
+            if token == "rx_sample_i":
                 sample = value
-            elif sig == \"rx_coeff_i\":
+            elif token == "rx_coeff_i":
                 coeff = value
-            elif sig == \"rx_valid_i\" and value:
+            elif token == "rx_valid_i" and value:
                 await send_sample(dut, sample, coeff)
     """)
 
@@ -1821,7 +1853,7 @@ def cocotb_py_text(top: str, clocks: ClockConfig) -> str:
         set_defaults(dut)
         await reset(dut)
 
-        test_name = os.environ.get("TEST_NAME", "mac_smoke")
+        test_name = os.environ.get("TEST_NAME", "smoke")
         cfg = os.environ.get("CFG", f"../tests/{{test_name}}/config.regs")
         data_in = os.environ.get("DATA_IN", f"../tests/{{test_name}}/data_in.vec")
         data_out = os.environ.get("DATA_OUT", f"../tests/{{test_name}}/data_out.vec")

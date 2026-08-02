@@ -7,11 +7,14 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from typing import Iterable, Iterator
 
 import pytest
 from rich.console import Console
+
+from flexsoc.backend.setup_model import NCLOCK_DESIGN_TESTS, SHARED_VECTOR_TESTS
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +24,10 @@ SINGLE_CLOCK_DOMAINS = "core:clk_i:rst_ni:10:low"
 MULTI_CLOCK_DOMAINS = "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low"
 MULTI_CLOCK_RELATIONSHIPS = "async:cfg:rx,async:cfg:dsp,async:rx:dsp"
 RTL_SOURCE_SUFFIXES = {".sv", ".svh", ".v", ".vh"}
+SAVED_IP_CUSTOM_TESTS = {
+    "cordic": ("smoke_zero", "rotate_45deg", "quadrant_sweep", "random_small"),
+    "uart": ("line_loopback", "rx_fifo", "noise_filter", "parity_reconfig"),
+}
 CONSOLE = Console()
 
 
@@ -216,24 +223,62 @@ def _ip_protected_sources(top: str) -> tuple[Path, ...]:
 
 
 def _validate_ip_layout(top: str) -> None:
-    """Check that a saved IP follows the current load/verification layout."""
+    """Check one saved IP package and its editable functional-test catalogue."""
 
     root = REPO_ROOT / "hw" / "ips" / top
-    required = (
-        root / "rtl" / "rtl_common.f",
-        root / "rtl" / "rtl_ip.f",
-        root / "drivers",
-        root / "syn",
-        root / "signoff",
-        root / "pnr_openroad",
-        root / "dv" / "functional" / "model" / f"{top}_model.py",
-        root / "dv" / "functional" / "model" / f"{top}_regmap.py",
-        root / "dv" / "functional" / "model" / f"{top}_tests.py",
-        root / "dv" / "formal" / "properties" / "prove" / f"{top}_prove.sv",
-        root / "dv" / "formal" / "properties" / "cover" / f"{top}_cover.sv",
+    required_dirs = (
+        "data", "doc", "drivers", "rtl", "dv/functional/model",
+        "dv/functional/tests", "dv/functional/tb/sv", "dv/functional/tb/cocotb",
+        "dv/formal/properties/prove", "dv/formal/properties/cover",
+        "syn", "signoff", "pnr_openroad",
     )
-    missing = [path for path in required if not path.exists()]
+    required_files = (
+        f"data/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
+        f"drivers/{top}.c", f"drivers/{top}.h", f"rtl/{top}.sv",
+        f"rtl/{top}_core.sv", "rtl/rtl_common.f", "rtl/rtl_ip.f",
+        f"dv/functional/model/{top}_model.py",
+        f"dv/functional/model/{top}_regmap.py",
+        f"dv/functional/model/{top}_tests.py",
+        "dv/functional/model/README.md",
+        f"dv/formal/properties/prove/{top}_prove.sv",
+        f"dv/formal/properties/cover/{top}_cover.sv",
+        "syn/synth.ys", "syn/synth_sv.ys", "syn/abc.constr", "syn/area.abc",
+        "signoff/power.tcl", "signoff/sta.tcl",
+        "signoff/sta_violators.tcl", "signoff/write_sdf.tcl",
+        "pnr_openroad/config.mk", f"pnr_openroad/{top}.sdc",
+    )
+    missing = [
+        path for path in (
+            *(root / item for item in required_dirs),
+            *(root / item for item in required_files),
+        ) if not path.exists()
+    ]
     assert not missing, f"invalid {top} IP structure; missing: {missing}"
+
+    tests_file = root / "dv" / "functional" / "model" / f"{top}_tests.py"
+    completed = subprocess.run(
+        [sys.executable, str(tests_file), "--list"],
+        cwd=tests_file.parent,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    actual = tuple(line for line in completed.stdout.splitlines() if line)
+    expected = (*SHARED_VECTOR_TESTS[:-1], *SAVED_IP_CUSTOM_TESTS[top])
+    assert actual == expected, f"unexpected {top} source test catalogue: {actual}"
+
+    vectors = root / "dv" / "functional" / "tests"
+    vector_names = {path.name for path in vectors.iterdir() if path.is_dir()}
+    expected_vectors = {*SHARED_VECTOR_TESTS, *SAVED_IP_CUSTOM_TESTS[top]}
+    assert vector_names == expected_vectors, (
+        f"unexpected saved {top} vector catalogue: {sorted(vector_names)}"
+    )
+    for name in expected_vectors:
+        missing_vectors = [
+            file for file in ("config.regs", "data_in.vec", "data_out.vec")
+            if not (vectors / name / file).is_file()
+        ]
+        assert not missing_vectors, f"incomplete saved {top}/{name}: {missing_vectors}"
 
 
 @contextmanager
@@ -245,6 +290,22 @@ def _protect_ip_sources(top: str) -> Iterator[dict[Path, str]]:
     yield snapshot
     changed = [path for path, digest in snapshot.items() if _sha256(path) != digest]
     assert not changed, f"{top} source artifacts changed during ip_load E2E: {changed}"
+
+
+def _assert_loaded_ip_tests(top: str, run_id: str, workspace: Path) -> None:
+    """Require the six shared tests plus every saved-IP custom scenario."""
+
+    root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
+    expected = {*SHARED_VECTOR_TESTS, *SAVED_IP_CUSTOM_TESTS[top]}
+    actual = {path.name for path in root.iterdir() if path.is_dir()}
+    assert actual == expected, f"unexpected generated {top} tests: {sorted(actual)}"
+    for name in expected:
+        folder = root / name
+        missing = [
+            file for file in ("config.regs", "data_in.vec", "data_out.vec")
+            if not (folder / file).is_file()
+        ]
+        assert not missing, f"incomplete {top}/{name} vectors: {missing}"
 
 
 def _assert_loaded_sources_match(
@@ -285,7 +346,8 @@ def _run_multiclock_rtl_flow(top: str, *, run_id: str, workspace: Path) -> None:
     for targets in (
         ["setup", "--force"], ["hjson", "--force"], ["reg", "doc", "--force"],
         ["rtl_stub", "--force"], ["top_from_core", "--force"], ["flist", "--force"],
-        ["setup_model", "--force"], ["setup_tb", "setup_cocotb", "--force"],
+        ["setup_model", "--force"], ["tests_gen"],
+        ["setup_tb", "setup_cocotb", "--force"],
     ):
         _run_fx(targets, top=top, run_id=run_id, workspace=workspace)
 
@@ -628,7 +690,7 @@ def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     )
 
     test_root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
-    for test in ("smoke", "corners", "random_seed_1", "random_seed_2", "reconfig"):
+    for test in SHARED_VECTOR_TESTS:
         assert (test_root / test).is_dir()
 
 
@@ -647,6 +709,17 @@ def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     _author_generated_design_properties(
         top, run_id=run_id, clock_mode="multi", workspace=workspace
     )
+
+    test_root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
+    auto_dir = test_root / "auto_toggle"
+    auto_config = (auto_dir / "config.regs").read_text(encoding="utf-8")
+    auto_toggle = (auto_dir / "data_in.vec").read_text(encoding="utf-8")
+    auto_rows = [line for line in auto_toggle.splitlines() if line and not line.startswith("#")]
+    assert all("@reset" not in row for row in auto_rows)
+    assert "cfg.CTRL 0x00000001" in auto_config
+    assert "@write cfg.CTRL" not in auto_toggle
+    assert "@write cfg.GAIN" in auto_toggle
+
     _run_visible_flow(
         top,
         run_id=run_id,
@@ -655,8 +728,7 @@ def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
         workspace=workspace,
     )
 
-    test_root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
-    for test in ("mac_smoke", "absdiff", "energy"):
+    for test in (*SHARED_VECTOR_TESTS, *NCLOCK_DESIGN_TESTS):
         assert (test_root / test).is_dir()
 
 
@@ -684,6 +756,7 @@ def _run_loaded_ip_flow(
             workspace=workspace,
         )
         _assert_loaded_sources_match(top, run_id, workspace, snapshot)
+        _assert_loaded_ip_tests(top, run_id, workspace)
 
 
 # -----------------------------------------------------------------------------

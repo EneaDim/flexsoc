@@ -1,4 +1,4 @@
-"""Generate the single-clock Python model scaffold.
+"""Generate Python model, regmap, and functional-DV scaffolds.
 
 ``setup_model`` creates four files in ``dv/functional/model/``:
 
@@ -24,6 +24,15 @@ from .setup_model_regmap import generate as generate_regmap
 
 
 _IGNORED_PORTS = {"tl_i", "tl_o", "reg_req_i", "reg_rsp_o"}
+SHARED_SCENARIO_TESTS = (
+    "smoke",
+    "corners",
+    "random_seed_1",
+    "random_seed_2",
+    "reconfig",
+)
+SHARED_VECTOR_TESTS = (*SHARED_SCENARIO_TESTS, "auto_toggle")
+NCLOCK_DESIGN_TESTS = ("mac_smoke", "absdiff", "energy")
 
 
 def _ports(rtl_dir: Path | None, top: str) -> tuple[list[str], list[str]]:
@@ -217,13 +226,7 @@ def _tests_text(top: str) -> str:
 
         TOP = {top!r}
         CSR = regmap.PRIMARY
-        RANDOM_SEEDS = (1, 2)
-        TESTS = (
-            "smoke",
-            "corners",
-            *(f"random_seed_{{seed}}" for seed in RANDOM_SEEDS),
-            "reconfig",
-        )
+        TESTS = {SHARED_SCENARIO_TESTS!r}
         INPUTS = model.INPUTS
         OUTPUTS = model.OUTPUTS
 
@@ -553,8 +556,12 @@ def _tests_text(top: str) -> str:
     )
 
 
-def _regmap_tests_text(top: str) -> str:
-    """Render the generated regmap/input toggle test."""
+def _regmap_tests_text(top: str, *, safe_controls: bool = False) -> str:
+    """Render generated CSR/input toggle stimulus.
+
+    N-clock scaffolds avoid control registers whose writes may stop clocks or
+    reset the DUT before the test can restore them.
+    """
 
     return dedent(
         f'''\
@@ -574,6 +581,49 @@ def _regmap_tests_text(top: str) -> str:
 
         TOP = {top!r}
         TEST = "auto_toggle"
+        SAFE_CONTROLS = {safe_controls!r}
+
+
+        def _toggle_mask(register: regmap.Register) -> int:
+            """Return software-owned bits safe for repeated toggle writes."""
+
+            if SAFE_CONTROLS and register.name == "CTRL":
+                return 0
+            mask = 0
+            for field in register.fields:
+                if field.swaccess == "rw" and field.hwaccess == "hro":
+                    mask |= field.mask
+            return mask & 0xFFFF_FFFF
+
+
+        def _safe_config_rows() -> list[str]:
+            """Return the non-disruptive control baseline required by N-clock traffic.
+
+            The verification harness already resets the DUT before loading
+            ``config.regs``. Runtime reset commands would clear these controls
+            again, so the N-clock auto-toggle test establishes ENABLE here and
+            then leaves reset/clock-gating controls untouched.
+            """
+
+            if not SAFE_CONTROLS:
+                return []
+
+            rows: list[str] = []
+            for domain in regmap.DOMAINS.values():
+                for register in domain.writable:
+                    if register.name != "CTRL":
+                        continue
+                    field_names = {{field.name for field in register.fields}}
+                    values: dict[str, int] = {{}}
+                    if "ENABLE" in field_names:
+                        values["ENABLE"] = 1
+                    if "SOFT_RESET" in field_names:
+                        values["SOFT_RESET"] = 0
+                    if "CLK_GATE_EN" in field_names:
+                        values["CLK_GATE_EN"] = 0
+                    if values:
+                        rows.append(register.write(**values))
+            return rows
 
 
         def stimulus() -> list[str]:
@@ -582,24 +632,29 @@ def _regmap_tests_text(top: str) -> str:
 
             for domain in regmap.DOMAINS.values():
                 for register in domain.writable:
-                    for value in (0xFF, 0x00, 0xFF, 0x00):
-                        rows.append(register.vector_write(cycle, value, mask=0xF))
+                    mask = _toggle_mask(register)
+                    if not mask:
+                        continue
+                    base = register.reset & 0xFFFF_FFFF
+                    for value in (base ^ mask, base, base ^ mask, base):
+                        rows.append(register.vector_write(cycle, value, mask=mask))
                         cycle += 4
 
             for value in (0xFFFF_FFFF, 0x0000_0000, 0xFFFF_FFFF, 0x0000_0000):
+                for name in model.INPUTS:
+                    rows.append(f"{{cycle}} {{name}} 0x{{value:08x}}")
                 if model.INPUTS:
-                    pairs = " ".join(f"{{name}} 0x{{value:08x}}" for name in model.INPUTS)
-                    rows.append(f"{{cycle}} {{pairs}}")
                     cycle += 4
 
-            rows.append(f"{{cycle}} @reset 2")
+            if not SAFE_CONTROLS:
+                rows.append(f"{{cycle}} @reset 2")
             return rows
 
 
         def write_test(root: str | Path) -> None:
             folder = Path(root) / TEST
             folder.mkdir(parents=True, exist_ok=True)
-            regmap.write_config(folder / "config.regs", [])
+            regmap.write_config(folder / "config.regs", _safe_config_rows())
             (folder / "data_in.vec").write_text(
                 "# Generated CSR/input toggle stimulus.\\n"
                 + "\\n".join(stimulus())
@@ -647,6 +702,15 @@ def render_nclock_model(top: str) -> str:
     from __future__ import annotations
 
     from dataclasses import dataclass
+
+
+    INPUTS = ("rx_sample_i", "rx_coeff_i", "rx_valid_i")
+    OUTPUTS = (
+        "dsp_result_o",
+        "dsp_valid_o",
+        "dsp_above_threshold_o",
+        "dsp_overflow_o",
+    )
 
 
     @dataclass(frozen=True)
@@ -731,25 +795,20 @@ def render_nclock_model(top: str) -> str:
 
 
 def render_nclock_tests(top: str) -> str:
-    """Render the editable N-clock test catalogue/vector generator."""
+    """Render shared plus design-specific N-clock vector scenarios."""
 
     return dedent(f'''\
     """Editable N-clock test catalogue and vector generator for {top}.
 
-    Each scenario owns three explicit sections:
-
-    * ``config`` -> initial domain-qualified CSR writes in ``config.regs``;
-    * ``data_in`` -> RX-domain functional transactions;
-    * ``data_out`` -> DSP-domain expectations consumed when ``dsp_valid_o`` is high.
-
-    Add or change scenarios here without modifying ``{top}_model.py``. CSR
-    names, fields, offsets and masks come only from ``{top}_regmap.py`` and can
-    be refreshed independently with ``fx regmap_py --force``.
+    ``SHARED_TESTS`` mirrors the generated single-clock catalogue. The
+    N-clock scaffold keeps those names and semantics, then appends scenarios
+    that exercise the starter DSP architecture specifically.
     """
 
     from __future__ import annotations
 
     import argparse
+    import random
     from dataclasses import dataclass
     from pathlib import Path
 
@@ -758,29 +817,53 @@ def render_nclock_tests(top: str) -> str:
 
 
     TOP = {top!r}
-    TESTS = ("mac_smoke", "absdiff", "energy")
+    SHARED_TESTS = {SHARED_SCENARIO_TESTS!r}
+    DESIGN_TESTS = {NCLOCK_DESIGN_TESTS!r}
+    TESTS = (*SHARED_TESTS, *DESIGN_TESTS)
     CFG = regmap.domain("cfg")
     DSP = regmap.domain("dsp")
 
 
     @dataclass(frozen=True)
+    class Step:
+        """One optional runtime reconfiguration and/or RX transaction."""
+
+        inputs: model.DspInput | None = None
+        config: model.DspConfig | None = None
+
+
+    @dataclass(frozen=True)
     class TestCase:
-        """Configuration plus ordered RX inputs for one scenario."""
+        """Initial configuration and ordered actions for one scenario."""
 
         config: model.DspConfig
-        inputs: tuple[model.DspInput, ...]
+        steps: tuple[Step, ...]
 
 
     def config_rows(config: model.DspConfig) -> list[str]:
-        """Serialize initial cfg/dsp-domain CSRs through the generated regmap."""
+        """Serialize initial domain-qualified CSR writes."""
 
         return [
             CFG.GAIN.write(VALUE=int(config.gain) & 0xFFFF),
             DSP.DSP_CTRL.write(OP=int(config.op), SATURATE=int(config.saturate)),
             DSP.THRESHOLD.write(VALUE=int(config.threshold) & 0xFFFF_FFFF),
-            # Enable last so synchronized controls and multi-bit gain are stable
-            # before RX/DSP traffic starts.
             CFG.CTRL.write(ENABLE=1, SOFT_RESET=0, CLK_GATE_EN=0),
+        ]
+
+
+    def runtime_config_rows(step: int, config: model.DspConfig) -> list[str]:
+        """Write and read back one runtime configuration."""
+
+        gain = int(config.gain) & 0xFFFF
+        ctrl = int(config.op) | (int(config.saturate) << 2)
+        threshold = int(config.threshold) & 0xFFFF_FFFF
+        return [
+            CFG.GAIN.vector_write(step, gain),
+            DSP.DSP_CTRL.vector_write(step, ctrl),
+            DSP.THRESHOLD.vector_write(step, threshold),
+            CFG.GAIN.vector_read(step, gain),
+            DSP.DSP_CTRL.vector_read(step, ctrl),
+            DSP.THRESHOLD.vector_read(step, threshold),
         ]
 
 
@@ -795,11 +878,7 @@ def render_nclock_tests(top: str) -> str:
 
 
     def output_rows(step: int, expected: model.DspOutput) -> list[str]:
-        """Serialize one DSP-domain expectation.
-
-        ``step`` records transaction order only. The N-clock SV/cocotb
-        monitors wait for ``dsp_valid_o`` before consuming the next expected row.
-        """
+        """Serialize one DSP-domain expectation consumed on ``dsp_valid_o``."""
 
         return [
             f"{{step}} dsp_result_o 0x{{expected.result:08x}}",
@@ -809,29 +888,90 @@ def render_nclock_tests(top: str) -> str:
         ]
 
 
-    def scenario(name: str) -> TestCase:
-        """Return one built-in N-clock scenario."""
+    def random_case(seed: int) -> TestCase:
+        """Build deterministic random traffic for one explicit seed."""
 
-        if name == "absdiff":
-            return TestCase(
-                config=model.DspConfig(gain=0, op=1, saturate=False, threshold=4),
-                inputs=(model.DspInput(9, 4), model.DspInput(-2, 8)),
-            )
-        if name == "energy":
-            return TestCase(
-                config=model.DspConfig(gain=0, op=2, saturate=False, threshold=0x20),
-                inputs=(model.DspInput(3, 4), model.DspInput(5, 12)),
-            )
-        if name == "mac_smoke":
-            return TestCase(
-                config=model.DspConfig(gain=1, op=0, saturate=False, threshold=0x10),
-                inputs=(
-                    model.DspInput(3, 4),
-                    model.DspInput(7, 2),
-                    model.DspInput(-3, 5),
+        rng = random.Random(f"{{TOP}}:random:{{seed}}")
+        config = model.DspConfig(
+            gain=rng.randint(-8, 8),
+            op=rng.randrange(3),
+            saturate=bool(rng.randrange(2)),
+            threshold=rng.getrandbits(12),
+        )
+        steps = tuple(
+            Step(inputs=model.DspInput(rng.randint(-0x8000, 0x7FFF), rng.randint(-0x8000, 0x7FFF)))
+            for _ in range(4)
+        )
+        return TestCase(config=config, steps=(*steps, Step(config=config)))
+
+
+    def scenario(name: str) -> TestCase:
+        """Return one shared or design-specific N-clock scenario."""
+
+        if name.startswith("random_seed_"):
+            try:
+                return random_case(int(name.removeprefix("random_seed_")))
+            except ValueError as exc:
+                raise ValueError(f"invalid random test name {{name!r}}") from exc
+
+        smoke = model.DspConfig(gain=1, op=0, saturate=False, threshold=0x10)
+        scenarios = {{
+            "smoke": TestCase(
+                config=smoke,
+                steps=(Step(config=smoke), Step(inputs=model.DspInput(3, 4))),
+            ),
+            "corners": TestCase(
+                config=model.DspConfig(gain=1, op=0, saturate=True, threshold=0x7FFF_FFFF),
+                steps=tuple(
+                    Step(inputs=item)
+                    for item in (
+                        model.DspInput(0, 0),
+                        model.DspInput(0x7FFF, 1),
+                        model.DspInput(-0x8000, -1),
+                        model.DspInput(-1, 0x7FFF),
+                    )
                 ),
-            )
-        raise ValueError(f"unknown test {{name!r}}; choose one of {{TESTS}}")
+            ),
+            "reconfig": TestCase(
+                config=smoke,
+                steps=(
+                    Step(inputs=model.DspInput(3, 4)),
+                    Step(config=model.DspConfig(gain=0, op=1, threshold=4)),
+                    Step(inputs=model.DspInput(9, 4)),
+                    Step(config=model.DspConfig(gain=0, op=2, threshold=0x20)),
+                    Step(inputs=model.DspInput(3, 4)),
+                ),
+            ),
+            "mac_smoke": TestCase(
+                config=smoke,
+                steps=tuple(
+                    Step(inputs=item)
+                    for item in (
+                        model.DspInput(3, 4),
+                        model.DspInput(7, 2),
+                        model.DspInput(-3, 5),
+                    )
+                ),
+            ),
+            "absdiff": TestCase(
+                config=model.DspConfig(gain=0, op=1, threshold=4),
+                steps=(
+                    Step(inputs=model.DspInput(9, 4)),
+                    Step(inputs=model.DspInput(-2, 8)),
+                ),
+            ),
+            "energy": TestCase(
+                config=model.DspConfig(gain=0, op=2, threshold=0x20),
+                steps=(
+                    Step(inputs=model.DspInput(3, 4)),
+                    Step(inputs=model.DspInput(5, 12)),
+                ),
+            ),
+        }}
+        try:
+            return scenarios[name]
+        except KeyError as exc:
+            raise ValueError(f"unknown test {{name!r}}; choose one of {{TESTS}}") from exc
 
 
     def write_test(root: str | Path, name: str) -> None:
@@ -841,21 +981,25 @@ def render_nclock_tests(top: str) -> str:
         reference = model.ReferenceModel()
         out = Path(root) / name
         out.mkdir(parents=True, exist_ok=True)
-
         regmap.write_config(out / "config.regs", config_rows(case.config))
 
         data_in = [
             "# format: <STEP> <SIGNAL> <VALUE>",
-            "# STEP is RX transaction order, not an absolute clock cycle.",
+            "# runtime CSR: <STEP> @write/@read <DOMAIN.REG> <VALUE> [MASK]",
+            "# STEP records transaction order, not an absolute clock cycle.",
         ]
         data_out = [
             "# format: <STEP> <SIGNAL> <VALUE>",
             "# Expected rows are consumed in order when dsp_valid_o asserts.",
         ]
-        for step, inputs in enumerate(case.inputs):
-            expected = reference.compute(inputs, case.config)
-            data_in.extend(input_rows(step, inputs))
-            data_out.extend(output_rows(step, expected))
+        active = case.config
+        for step, action in enumerate(case.steps):
+            if action.config is not None:
+                active = action.config
+                data_in.extend(runtime_config_rows(step, active))
+            if action.inputs is not None:
+                data_in.extend(input_rows(step, action.inputs))
+                data_out.extend(output_rows(step, reference.compute(action.inputs, active)))
 
         (out / "data_in.vec").write_text("\\n".join(data_in) + "\\n", encoding="utf-8")
         (out / "data_out.vec").write_text("\\n".join(data_out) + "\\n", encoding="utf-8")
@@ -867,7 +1011,7 @@ def render_nclock_tests(top: str) -> str:
     ) -> None:
         """Generate requested tests, or the complete catalogue when omitted."""
 
-        for name in (tests or TESTS):
+        for name in tests or TESTS:
             write_test(root, name)
 
 
@@ -875,20 +1019,11 @@ def render_nclock_tests(top: str) -> str:
         """CLI entry point used by the unified vector-test targets."""
 
         parser = argparse.ArgumentParser(
-            description="Generate N-clock vector tests from the editable test catalogue."
+            description="Generate shared and N-clock-specific vector tests."
         )
         parser.add_argument("--tests-dir", default="../tests")
-        parser.add_argument(
-            "--test",
-            action="append",
-            default=[],
-            help="Generate only this TEST_NAME. May be repeated.",
-        )
-        parser.add_argument(
-            "--list",
-            action="store_true",
-            help="Print the TESTS catalogue and exit.",
-        )
+        parser.add_argument("--test", action="append", default=[])
+        parser.add_argument("--list", action="store_true")
         args = parser.parse_args()
         if args.list:
             for test in TESTS:
@@ -908,12 +1043,14 @@ def render_nclock_tests(top: str) -> str:
 
 
 
-def write_regmap_tests(top: str, output: Path) -> Path:
+def write_regmap_tests(
+    top: str, output: Path, *, safe_controls: bool = False
+) -> Path:
     """Regenerate machine-owned coverage stimulus."""
 
     output.mkdir(parents=True, exist_ok=True)
     path = output / f"{top}_regmap_tests.py"
-    path.write_text(_regmap_tests_text(top), encoding="utf-8")
+    path.write_text(_regmap_tests_text(top, safe_controls=safe_controls), encoding="utf-8")
     legacy = output / f"{top}_auto_tests.py"
     if legacy.exists():
         legacy.unlink()
@@ -980,7 +1117,8 @@ def main(argv: list[str] | None = None) -> int:
             if path.exists():
                 path.unlink()
 
-    if clock_config().multiclock:
+    clocks = clock_config()
+    if clocks.multiclock:
         from .setup_model_regmap import generate as generate_model_regmap
         generate_model_regmap(args.top, Path(args.data_dir), output, force=args.force)
         _write_text(output / f"{args.top}_model.py", render_nclock_model(args.top), force=args.force)
@@ -990,7 +1128,7 @@ def main(argv: list[str] | None = None) -> int:
         generate_regmap(args.top, Path(args.data_dir), output, force=args.force)
         write_model(args.top, output, Path(args.rtl_dir) if args.rtl_dir else None, force=args.force)
         write_tests(args.top, output, force=args.force)
-        write_regmap_tests(args.top, output)
+    write_regmap_tests(args.top, output, safe_controls=clocks.multiclock)
     return 0
 
 
