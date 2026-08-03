@@ -58,7 +58,7 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--dry-run` | Backend targets | Print the exact command without executing it. |
 | `--script` | With `--dry-run` | Render the preview as a strict Bash script. |
 | `--capture` | Backend targets | Capture stdout/stderr and save a per-command log. |
-| `--live` | Backend targets | Stream complete tool output while retaining the command log. |
+| `--live` | Backend targets | Stream complete tool output while retaining the command log. Generated script contents are rendered only in live mode; normal mode prints the script path without flooding the terminal. |
 | `--json` | Supported pseudo-commands and execution output | Emit machine-readable JSON. |
 | `--info` | Backend targets | Describe selected targets and accepted variables instead of running them. |
 
@@ -198,9 +198,91 @@ Generate the reference-model environment, vectors, testbenches, simulations, reg
 | `fx sim_tests` | Run every generated SystemVerilog vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx cocotb` | Run cocotb tests. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx cocotb_tests` | Run every generated cocotb vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx regression` | Run all tests on selected backends with Verilator coverage. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Composite target; use it for the standard ordered flow. |
+| `fx regression` | Regenerate and run every vector test on each selected backend, then merge Verilator coverage. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Composite target; use it for the standard ordered flow. |
 | `fx coverage` | Merge and report existing Verilator coverage data. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx coverage_detail` | Show uncovered Verilator coverage points. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
+
+
+#### Functional-simulation selection and artifacts
+
+Generate both environments before running a named test:
+
+```bash
+fx tests_gen setup_tb setup_cocotb --force
+fx tests
+```
+
+One SystemVerilog test:
+
+```bash
+WORKSPACE="$HOME/flexsoc-workspace"
+TOP=my_ip
+RUN_TOP=my_ip
+RUN_ID=dev
+RUN="$WORKSPACE/runs/$RUN_TOP/$RUN_ID"
+
+fx sim --live \
+  --workdir "$WORKSPACE" \
+  --set COMPILER=verilator \
+  --set TEST_NAME=smoke \
+  --set WAVE_FILE="$RUN/dv/functional/sim/rtl/${TOP}_tb_sv_smoke.fst"
+```
+
+The same test through cocotb:
+
+```bash
+fx cocotb --live \
+  --workdir "$WORKSPACE" \
+  --set COMPILER=verilator \
+  --set TEST_NAME=smoke \
+  --set COCOTB_WAVES=1 \
+  --set WAVE_FILE="$RUN/dv/functional/sim/rtl/${TOP}_tb_cocotb_smoke.fst"
+```
+
+`fx sim_tests` and `fx cocotb_tests` run every existing generated test for one
+backend. `fx regression` is stronger: it removes and regenerates the generated
+test/scaffold boundary, runs every test on every backend in
+`REGRESSION_BACKENDS`, and merges coverage when `COMPILER=verilator`.
+
+```bash
+fx regression --live --set 'REGRESSION_BACKENDS=sv cocotb'
+fx coverage_detail
+```
+
+Regression waveforms are written as:
+
+```text
+dv/functional/sim/rtl/<testbench>_<backend>_<test>.<fst|vcd>
+```
+
+Regression logs are written under:
+
+```text
+logs/dv/functional/regression/<backend>/
+```
+
+`TEST_NAME` selects one test for `sim`, `cocotb`, `test_gen`, and gate-simulation
+targets. It does not restrict `regression`; use a single-test target for a narrow
+debug loop.
+
+#### Deterministic waveform viewing
+
+`fx view` and `fx view_cocotb` are convenience discovery commands. To inspect a
+particular regression result, open its exact path:
+
+```bash
+find "$RUN/dv/functional/sim/rtl" \
+  -maxdepth 1 -type f \( -name '*.fst' -o -name '*.vcd' \) \
+  -printf '%f\n' | sort
+
+gtkwave "$RUN/dv/functional/sim/rtl/${TOP}_tb_sv_smoke.fst" &
+# or
+surfer "$RUN/dv/functional/sim/rtl/${TOP}_tb_cocotb_smoke.fst" &
+```
+
+Set `WAVE_FILE` during the simulation when a stable, scriptable artifact name is
+required. `COCOTB_WAVES=1` enables RTL cocotb dumping; post-synthesis cocotb GLS
+manages its waveform owner automatically.
 
 ### 3.6 Viewing
 
@@ -210,8 +292,8 @@ Inspect waveforms and saved simulation or synthesis views without changing desig
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx view` | Open latest waveform. | `WAVE_VIEWER`, `SURFER_BACKEND` | Use `--info` for accepted overrides. |
-| `fx view_cocotb` | Open latest cocotb waveform. | `WAVE_VIEWER`, `SURFER_BACKEND` | Use `--info` for accepted overrides. |
+| `fx view` | Open a waveform discovered in the default RTL simulation directory. | `WAVE_VIEWER`, `SURFER_BACKEND` | Convenience selection only; open an explicit regression path for deterministic test selection. |
+| `fx view_cocotb` | Open a waveform discovered under the cocotb scaffold. | `WAVE_VIEWER`, `SURFER_BACKEND` | Convenience target for default cocotb outputs; explicit `WAVE_FILE` plus a direct viewer command is authoritative. |
 | `fx view_syn` | Reserved synthesis waveform viewer target. | `WAVE_VIEWER`, `SURFER_BACKEND` | Reserved target; currently no implementation. |
 | `fx plot_postsyn` | Open post-synthesis graph. | `WAVE_VIEWER`, `SURFER_BACKEND` | Use `--info` for accepted overrides. |
 | `fx view_presyn` | Open pre-synthesis graph. | `WAVE_VIEWER`, `SURFER_BACKEND` | Use `--info` for accepted overrides. |
@@ -266,19 +348,19 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx sta_corners` | Run STA setup/hold for each configured corner. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
-| `fx power_estimate_corners` | Estimate power for each corner using global activity. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
-| `fx signoff_corners` | Run SDF, multi-corner STA and estimated power. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
+| `fx sta_corners` | Run STA setup/hold for each configured corner. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
+| `fx power_estimate_corners` | Estimate power for each corner using global activity. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
+| `fx signoff_corners` | Run SDF, multi-corner STA and estimated power. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
 | `fx setup_eqy` | Generate RTL-vs-post-synthesis EQY configuration. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx eqy` | Prove RTL equivalent to the post-synthesis netlist with EQY. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Use `--info` for accepted overrides. |
-| `fx setup_signoff` | Generate signoff scripts. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx compile_syn` | Compile post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx sim_syn` | Run post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx sdf` | Write SDF timing files. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx power_estimate` | Estimate power using global switching activity. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx sta_violators` | Report timing violators. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx path_view` | Build interactive STA path view. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx setup_signoff` | Generate signoff scripts. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx compile_syn` | Compile post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx sim_syn` | Run post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx sdf` | Write SDF timing files. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx power_estimate` | Estimate power using global switching activity. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx sta_violators` | Report timing violators. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx path_view` | Build interactive STA path view. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 
 ### 3.10 Gate simulation
 
@@ -288,11 +370,73 @@ Compile and run mapped or post-route gate-level simulations, optionally with SDF
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx compile_post_syn` | Compile post-synthesis gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sim_post_syn` | Run post-synthesis gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx compile_post_pnr` | Compile post-PnR gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sdf_post_pnr` | Export post-PnR SDF from final netlist, SDC and SPEF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sim_post_pnr` | Run post-PnR gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `TIMING_MODE`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx compile_post_syn` | Compile post-synthesis gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sim_post_syn` | Run post-synthesis gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx compile_post_pnr` | Compile post-PnR gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sdf_post_pnr` | Export post-PnR SDF from final netlist, SDC and SPEF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sim_post_pnr` | Run post-PnR gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+
+
+#### Post-synthesis timing modes
+
+Both `compile_post_syn` and `sim_post_syn` require Icarus. Select the driver with
+`GLS_BACKEND=sv|cocotb` and the timing behavior with:
+
+| `TIMING_MODE` | Cell-model behavior | SDF | Report model |
+| --- | --- | --- | --- |
+| `zero` | functional `#0`, `specify` disabled | forbidden | `functional-zero-delay` |
+| `unit` | functional uniform `#1`, `specify` disabled | forbidden | `functional-unit-delay` |
+| `min` | `specify` path delays, fastest corner | `<top>_ff.sdf` | `icarus-path-delay-only` |
+| `typ` | `specify` path delays, nominal corner | `<top>_tt.sdf` | `icarus-path-delay-only` |
+| `max` | `specify` path delays, slowest corner | `<top>_ss.sdf` | `icarus-path-delay-only` |
+
+`min/typ/max` execute `$sdf_annotate` against the generated DUT instance. The
+Icarus-compatible timing-model copy retains path delays but disables unsupported
+setup/hold, recovery/removal, pulse-width, and notifier checks. This is real SDF
+path-delay simulation, not full dynamic timing-check sign-off.
+
+Run one combination after setting the run identity and active PDK:
+
+```bash
+WORKSPACE="$HOME/flexsoc-workspace"
+TOP=my_ip
+RUN_TOP=my_ip
+RUN_ID=dev
+RUN="$WORKSPACE/runs/$RUN_TOP/$RUN_ID"
+PDK=sky130
+
+fx pdk use "$PDK"
+fx sim_post_syn --live \
+  --workdir "$WORKSPACE" \
+  --set GLS_BACKEND=sv \
+  --set TIMING_MODE=typ \
+  --set TEST_NAME=smoke \
+  --set SDF_STRICT=1 \
+  --set WAVE_FORMAT=fst \
+  --set WAVE_FILE="$RUN/dv/functional/sim/post_syn/$PDK/${TOP}_smoke_sv_typ.fst"
+```
+
+Artifacts:
+
+```text
+dv/functional/sim/post_syn/<pdk>/<testbench>_<backend>_<mode>.<fst|vcd>
+dv/functional/sim/post_syn/<pdk>/<top>_post_syn_<backend>_<mode>.json
+logs/dv/functional/post_syn/<pdk>/<top>_post_syn_<backend>_<mode>.log
+dv/functional/sim/post_syn/<pdk>/icarus_timing_models/manifest.json
+```
+
+The report records the selected netlist, SDF, waveform, log, timing model, and
+annotation diagnostics. `SDF_STRICT=1` is the qualification default: missing
+annotation markers and recognized SDF warnings/errors fail the run.
+`SDF_STRICT=0` is diagnostic only.
+
+Default report/log names do not include `TEST_NAME`; repeated manual tests with
+the same backend/mode overwrite them. Use a unique `WAVE_FILE` and archive the
+JSON/log immediately, or use the E2E matrix described below.
+
+Post-PnR targets use the same driver/timing concepts but consume a final netlist
+and corner-specific post-PnR SDF. `sdf_post_pnr` requires `TIMING_MODE=min|typ|max`
+and explicit or discovered final netlist, SDC, and SPEF inputs.
 
 ### 3.11 Place and route
 
@@ -460,10 +604,12 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `LIB_SYN` | Primary synthesis Liberty view. |
 | `PRIM` | Technology primitive/formal model input. |
 | `WAVE_FORMAT` | Waveform format: `fst` or `vcd`. |
-| `WAVE_FILE` | Explicit waveform input for viewers, power, or simulation. |
-| `GLS_SIMULATOR` | Gate-level simulator selection. |
-| `TIMING_MODE` | Timing analysis mode, commonly `max` or `min`. |
-| `SDF_FILE` | Explicit SDF file for gate simulation. |
+| `WAVE_FILE` | Explicit waveform path for simulation or analysis. Use a unique path per test/backend/mode when retaining a matrix. |
+| `GLS_SIMULATOR` | Gate-level simulator selection; current post-synthesis/post-PnR GLS requires `iverilog`. |
+| `GLS_BACKEND` | Gate-level driver: `sv` or `cocotb`; default `sv`. |
+| `TIMING_MODE` | Gate timing mode: `zero`, `unit`, `min`, `typ`, or `max`; default `zero`. Aliases `sdf_min`, `sdf_typ`, and `sdf_max` are accepted. |
+| `SDF_STRICT` | When true (default `1`), missing annotation evidence or recognized SDF warnings/errors fail the simulation report. |
+| `SDF_FILE` | Explicit SDF file for `min/typ/max` gate simulation. It is rejected in `zero/unit`; missing SDF is fatal in timed modes. |
 | `SDF_CORNER` | Selected SDF process/timing corner. |
 | `NETLIST` | Explicit mapped or final implementation netlist. |
 | `SPEF_FILE` | Extracted parasitic file for post-route analysis. |
@@ -493,9 +639,9 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `DATA_IN` | Stimulus data vector/input file. |
 | `DATA_OUT` | Expected-output vector file. |
 | `COMPILER` | Simulation compiler/backend selection. |
-| `COCOTB_WAVES` | Enable cocotb waveform dumping. |
+| `COCOTB_WAVES` | Enable RTL cocotb waveform dumping, normally `1`. Post-synthesis cocotb GLS selects one waveform owner internally. |
 | `SEED` | Random or regression seed. |
-| `REGRESSION_BACKENDS` | Simulation backends included in regression. |
+| `REGRESSION_BACKENDS` | Space-separated RTL regression backends, normally `sv cocotb`. |
 | `COVERAGE` | Enable or configure coverage collection. |
 | `COVERAGE_DETAIL_LIMIT` | Maximum uncovered items printed by detailed coverage. |
 | `WAVE_VIEWER` | Waveform viewer executable. |
@@ -543,7 +689,79 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 
 ---
 
-## 5. Command selection by change type
+## 5. End-to-end pytest qualification
+
+`tests/test_e2e_fx.py` keeps four visible tests while each test executes a
+configurable technology and post-synthesis matrix:
+
+```text
+test_fx_single_clock_flow_debug
+test_fx_multi_clock_flow_debug
+test_fx_cordic_ip_load_debug
+test_fx_uart_ip_load_debug
+```
+
+Default qualification:
+
+```text
+PDKs:       sky130, ihp-sg13g2
+GLS modes:  zero, unit, min, typ, max
+backends:   sv, cocotb
+GLS tests:  smoke, auto_toggle
+```
+
+Run the complete matrix and retain successful workspaces:
+
+```bash
+FLEXSOC_E2E_LIVE=1 \
+FLEXSOC_E2E_KEEP=1 \
+pytest -s -vv tests/test_e2e_fx.py \
+  --e2e-root "$HOME/flexsoc-e2e"
+```
+
+| Pytest option | Environment equivalent | Meaning |
+| --- | --- | --- |
+| `--e2e-root PATH` | `FLEXSOC_E2E_ROOT` | Base directory for isolated workspaces. |
+| `--e2e-pdks LIST` | `FLEXSOC_E2E_PDKS` | Comma-separated PDK matrix. |
+| `--e2e-gls-modes LIST` | `FLEXSOC_E2E_GLS_MODES` | Comma-separated subset of `zero,unit,min,typ,max`. |
+| `--e2e-gls-backends LIST` | `FLEXSOC_E2E_GLS_BACKENDS` | Comma-separated subset of `sv,cocotb`. |
+| `--e2e-gls-tests LIST` | `FLEXSOC_E2E_GLS_TESTS` | Named generated tests, or `all` by itself. |
+| `--no-post-syn-gls` | none | Keep synthesis/signoff but skip the GLS matrix. |
+| `--no-signoff` | none | Skip the technology-closure block. In the current E2E implementation this includes setup SDC, property formal, synthesis, EQY, SDF, STA, power, and GLS. |
+
+`FLEXSOC_E2E_LIVE=1` streams each `fx` target. `FLEXSOC_E2E_KEEP=1` preserves
+successful temporary workspaces so reports and waveforms can be inspected.
+
+A shorter two-PDK smoke qualification is:
+
+```bash
+FLEXSOC_E2E_LIVE=1 \
+FLEXSOC_E2E_KEEP=1 \
+pytest -s -vv tests/test_e2e_fx.py \
+  --e2e-root "$HOME/flexsoc-e2e-smoke" \
+  --e2e-gls-tests smoke \
+  --e2e-gls-modes zero,typ
+```
+
+Per PDK, archived GLS evidence is stored under:
+
+```text
+dv/functional/sim/post_syn/<pdk>/e2e_qualification/
+├── matrix.json
+├── reports/
+├── logs/
+└── waves/
+```
+
+For `min/typ/max`, the E2E assertion checks that the SDF has real delay records,
+matches the selected corner, was named by the annotation marker, produced no
+strict diagnostics, used the Icarus path-delay model, and generated a non-empty
+waveform. It deletes the source report before each combination to prevent stale
+PASS results.
+
+---
+
+## 6. Command selection by change type
 
 ### Add or change a CSR
 
@@ -562,6 +780,8 @@ fx tests_gen regression --force
 fx formal
 fx syn eqy --force
 fx sdf sta power_estimate --force
+fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
+fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=smoke
 ```
 
 ### Change top-level ports
@@ -570,6 +790,7 @@ fx sdf sta power_estimate --force
 fx top_from_core flist setup_tb setup_cocotb --force
 fx lint_suite regression formal
 fx syn eqy --force
+fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
 ```
 
 ### Change clock/reset domains
@@ -579,6 +800,8 @@ fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
 fx setup_tb setup_cocotb setup_formal setup_sdc setup_syn setup_eqy setup_signoff --force
 fx flist lint_suite regression formal
 fx syn eqy sdf sta power_estimate --force
+fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=unit --set TEST_NAME=smoke
+fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=smoke
 ```
 
 ### Diagnose a failed target
@@ -601,7 +824,7 @@ fx eqy_debug --files <partition>
 
 ---
 
-## 6. Production-use rules
+## 7. Production-use rules
 
 1. Persist stable run identity and clock intent; use one-shot overrides for experiments.
 2. Regenerate only machine-owned collateral and review every `--force` change.

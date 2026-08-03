@@ -58,7 +58,8 @@ WORKSPACE / RUN_TOP / RUN_ID / PDK
    └── ordered elaborated RTL hierarchy
 
 3. Design verification
-   ├── functional DV: model, scenarios, simulation, coverage
+   ├── functional DV: model, scenarios, shared vectors, SV/cocotb simulation
+   ├── regression: per-test logs, deterministic waveforms, coverage review
    ├── property formal: BMC, unbounded proof, cover
    └── CDC/RDC structural closure for multi-domain designs
 
@@ -71,7 +72,8 @@ WORKSPACE / RUN_TOP / RUN_ID / PDK
 5. Synthesis and post-synthesis sign-off
    ├── mapped netlist
    ├── RTL ↔ netlist equivalence
-   ├── post-synthesis SDF and optional GLS
+   ├── post-synthesis GLS on the same functional tests
+   ├── zero/unit-delay and SDF min/typ/max modes
    ├── pre-layout STA
    └── power estimate
 
@@ -396,8 +398,11 @@ rather than recreating the complete model workspace.
 
 ### 8.2 Scenario and vector generation
 
+Generate every declared scenario or one selected scenario:
+
 ```bash
 fx tests_gen --force
+fx test_gen --force --set TEST_NAME=smoke
 fx tests
 ```
 
@@ -410,30 +415,149 @@ dv/functional/tests/<TEST_NAME>/
 └── data_out.vec
 ```
 
-A scenario can combine direct pins with CSR writes and reads. Expected outputs
-should express protocol events or architectural latency, not simulator-specific
-delays.
+`config.regs` describes initial CSR configuration. `data_in.vec` contains timed
+pin activity, CSR writes, resets, and other commands. `data_out.vec` contains
+expected pin values and CSR reads. SystemVerilog, cocotb, post-synthesis GLS,
+and post-PnR GLS consume the same files; a backend-specific expectation does
+not belong in the vector set.
 
-### 8.3 Simulation infrastructure
+A scenario should express architectural events and declared latency. Avoid
+using zero-delay behavior as an implicit specification. In particular, tests
+that inspect live status after protocol activity should return the interface to
+an idle state, reset or drain transient state when required, and wait long
+enough for the configured protocol timing.
+
+### 8.3 Generate and run the RTL simulation environments
+
+Generate both drivers after changing ports, clocks, resets, vector syntax, or
+register interfaces:
 
 ```bash
 fx setup_tb setup_cocotb --force
-fx sim_tests
-fx cocotb_tests
 ```
 
-Or run the configured regression and coverage flow:
+Run one named test with the SystemVerilog driver:
 
 ```bash
-fx regression
+WORKDIR="$HOME/flexsoc-workspace"
+TOP=my_ip
+RUN_TOP=my_ip
+RUN_ID=dev
+RUN="$WORKDIR/runs/$RUN_TOP/$RUN_ID"
+WAVE="$RUN/dv/functional/sim/rtl/${TOP}_tb_sv_smoke.fst"
+
+fx sim --live \
+  --workdir "$WORKDIR" \
+  --set COMPILER=verilator \
+  --set TEST_NAME=smoke \
+  --set WAVE_FILE="$WAVE"
+```
+
+Run the same vectors with cocotb:
+
+```bash
+WAVE="$RUN/dv/functional/sim/rtl/${TOP}_tb_cocotb_smoke.fst"
+
+fx cocotb --live \
+  --workdir "$WORKDIR" \
+  --set COMPILER=verilator \
+  --set TEST_NAME=smoke \
+  --set COCOTB_WAVES=1 \
+  --set WAVE_FILE="$WAVE"
+```
+
+Run all generated tests on one backend:
+
+```bash
+fx sim_tests --live
+fx cocotb_tests --live
+```
+
+A single-test run is the fastest debug loop because it preserves a stable test
+name, log, seed, and waveform. Use it before rerunning the full regression.
+
+### 8.4 Regression semantics
+
+The normal dual-backend gate is:
+
+```bash
+fx regression --live \
+  --set COMPILER=verilator \
+  --set 'REGRESSION_BACKENDS=sv cocotb'
+
 fx coverage_detail
 ```
 
-SystemVerilog and cocotb consume the same generated vectors. Differences
-between the two backends are therefore useful diagnostics rather than separate
-test intent.
+`fx regression` deliberately performs a clean generated-DV run:
 
-### 8.4 Coverage and exit criteria
+1. removes the generated test directory, previous coverage data, and regression logs;
+2. regenerates the SystemVerilog and, when selected, cocotb scaffolds;
+3. regenerates every scenario from `<top>_tests.py`;
+4. runs every generated test on every selected backend;
+5. assigns `random_seed_<n>` tests seed `<n>` and uses `SEED` for the others;
+6. collects and merges coverage when `COMPILER=verilator`.
+
+The default backend set is `sv cocotb`. Restrict it only for diagnosis:
+
+```bash
+fx regression --live --set 'REGRESSION_BACKENDS=sv'
+fx regression --live --set 'REGRESSION_BACKENDS=cocotb'
+```
+
+A backend-only PASS is useful evidence, but release qualification should return
+to the configured full backend set. When `COMPILER` is not Verilator, the tests
+still run but the Verilator coverage stage is skipped explicitly.
+
+The default regression waveform name is deterministic:
+
+```text
+dv/functional/sim/rtl/<testbench>_<backend>_<test>.<fst|vcd>
+```
+
+Regression logs are separated by backend:
+
+```text
+logs/dv/functional/regression/sv/
+logs/dv/functional/regression/cocotb/
+```
+
+### 8.5 Inspect one waveform from a regression
+
+`fx view` is a convenience command for a waveform in the default RTL simulation
+directory. For a particular regression test, select the exact file rather than
+relying on viewer discovery:
+
+```bash
+RUN="$WORKDIR/runs/$RUN_TOP/$RUN_ID"
+
+find "$RUN/dv/functional/sim/rtl" \
+  -maxdepth 1 -type f \( -name '*.fst' -o -name '*.vcd' \) \
+  -printf '%f\n' | sort
+
+WAVE="$RUN/dv/functional/sim/rtl/${TOP}_tb_sv_smoke.fst"
+test -s "$WAVE"
+gtkwave "$WAVE" &
+```
+
+Use Surfer instead when configured:
+
+```bash
+surfer "$WAVE" &
+```
+
+For side-by-side driver comparison, open one viewer process per waveform:
+
+```bash
+gtkwave "$RUN/dv/functional/sim/rtl/${TOP}_tb_sv_smoke.fst" &
+gtkwave "$RUN/dv/functional/sim/rtl/${TOP}_tb_cocotb_smoke.fst" &
+```
+
+The top-level clock, reset, pins, and protocol buses are the most stable debug
+signals. Internal synthesized or generated names may change after regeneration.
+A waveform is evidence only when paired with the exact test vectors, backend,
+seed, log, and run settings that produced it.
+
+### 8.6 Coverage and exit criteria
 
 Code coverage is a review tool, not an automatic quality certificate. Inspect:
 
@@ -444,20 +568,32 @@ Code coverage is a review tool, not an automatic quality certificate. Inspect:
 - exclusions and unreachable logic.
 
 A production gate should combine coverage thresholds with scenario review,
-requirements traceability, assertions, and bug history.
+requirements traceability, assertions, and bug history. Coverage should be
+collected from representative tests; adding tests only to increase a percentage
+without exercising a requirement does not improve verification quality.
 
-### 8.5 Debug
+### 8.7 Functional debug order
+
+Use the smallest reproducible boundary:
 
 ```bash
-fx regression --live
-fx view
-fx view_cocotb
+fx tests
+fx test_gen --force --set TEST_NAME=<test>
+fx setup_tb setup_cocotb --force
+fx sim --live --set TEST_NAME=<test>
+fx cocotb --live --set TEST_NAME=<test>
 ```
 
-Logs live under `logs/dv/functional/`; waveforms and generated vectors remain in
-the run workspace.
+Then compare:
 
----
+1. the generated `config.regs`, `data_in.vec`, and `data_out.vec`;
+2. the first differing command or expected event;
+3. the first `X/Z`, timeout, or protocol error in each log;
+4. the exact waveform around that event;
+5. the authored model and RTL behavior that own the expectation.
+
+Only after the named test is understood should the full regression and coverage
+be rerun.
 
 ## 9. Property formal verification
 
@@ -705,21 +841,209 @@ first divergence is.
 ### 13.2 SDF and gate-level simulation
 
 SDF and STA are sibling consumers of the timing model; STA does not require SDF.
-SDF is primarily used to annotate delays into gate-level simulation.
+SDF is used to annotate delays into a gate-level simulation of the mapped
+netlist. GLS reuses the functional vector tests so that RTL and gate behavior
+are compared against the same scenario intent.
+
+Prepare the artifacts:
 
 ```bash
+fx setup_tb setup_cocotb --force
+fx syn --force
 fx sdf --force
-fx compile_post_syn --force
-fx sim_post_syn --force
 ```
+
+The post-synthesis simulator supports two drivers and five timing modes:
+
+| Setting | Meaning | SDF used | Expected timing model |
+| --- | --- | --- | --- |
+| `GLS_BACKEND=sv` | generated SystemVerilog driver | mode-dependent | Icarus |
+| `GLS_BACKEND=cocotb` | generated Python/cocotb driver | mode-dependent | Icarus |
+| `TIMING_MODE=zero` | functional cells with `#0` delay and no `specify` | no | `functional-zero-delay` |
+| `TIMING_MODE=unit` | functional cells with uniform `#1` delay | no | `functional-unit-delay` |
+| `TIMING_MODE=min` | fastest generated SDF corner | `<top>_ff.sdf` | `icarus-path-delay-only` |
+| `TIMING_MODE=typ` | nominal generated SDF corner | `<top>_tt.sdf` | `icarus-path-delay-only` |
+| `TIMING_MODE=max` | slowest generated SDF corner | `<top>_ss.sdf` | `icarus-path-delay-only` |
+
+`zero` and `unit` are useful gate-netlist checks, but they are not
+back-annotation. Back-annotation is requested only by `min`, `typ`, or `max`,
+where the generated testbench executes:
+
+```systemverilog
+$sdf_annotate(sdf_path, u_dut);
+```
+
+Run one selected test explicitly:
+
+```bash
+WORKDIR="$HOME/flexsoc-workspace"
+TOP=my_ip
+RUN_TOP=my_ip
+RUN_ID=dev
+RUN="$WORKDIR/runs/$RUN_TOP/$RUN_ID"
+PDK=sky130
+MODE=typ
+BACKEND=sv
+TEST=smoke
+WAVE="$RUN/dv/functional/sim/post_syn/$PDK/${TOP}_${TEST}_${BACKEND}_${MODE}.fst"
+
+fx sim_post_syn --live \
+  --workdir "$WORKDIR" \
+  --set GLS_BACKEND="$BACKEND" \
+  --set TIMING_MODE="$MODE" \
+  --set TEST_NAME="$TEST" \
+  --set SDF_STRICT=1 \
+  --set WAVE_FORMAT=fst \
+  --set WAVE_FILE="$WAVE"
+```
+
+`compile_post_syn` stops after compilation. `sim_post_syn` compiles, runs, and
+writes a machine-readable report. Missing SDF files are fatal in `min/typ/max`;
+providing an SDF in `zero/unit` is rejected rather than silently ignored.
+
+#### What Icarus back-annotation proves
+
+Icarus can exercise `specify` path delays but does not implement the complete
+SKY130/IHP timing-check behavior used for setup, hold, recovery/removal, pulse
+width, and notifier propagation. FlexSoC therefore stages an unmodified-module
+copy of the cell models under:
+
+```text
+dv/functional/sim/post_syn/<pdk>/icarus_timing_models/
+```
+
+The staged model retains path delays and removes unsupported timing-check calls.
+Its `manifest.json` records how many checks were removed and delayed inputs were
+bound. Reports identify this honestly as:
+
+```text
+timing_model = icarus-path-delay-only
+timing_checks = disabled-unsupported-by-icarus
+```
+
+This is real SDF path-delay back-annotation. It is not full dynamic timing
+sign-off. Full setup/hold and recovery/removal simulation requires a simulator
+that implements those timing checks; STA remains the primary timing-closure
+gate.
+
+#### Strict evidence and reports
+
+With the default `SDF_STRICT=1`, an SDF run passes only when:
+
+- the requested SDF exists and contains real delay records;
+- the testbench reports the `$sdf_annotate` request;
+- the simulation exits successfully;
+- the log contains no recognized SDF annotation error or warning;
+- the report and waveform are written successfully.
+
+The report is stored at:
+
+```text
+dv/functional/sim/post_syn/<pdk>/<top>_post_syn_<backend>_<mode>.json
+```
+
+Important fields are:
+
+```text
+status
+backend
+simulator
+timing_mode
+timing_model
+timing_checks
+netlist
+sdf
+wave
+log
+annotation.requested_marker
+annotation.markers
+annotation.warnings
+annotation.errors
+```
+
+`SDF_STRICT=0` is a diagnostic escape hatch only. A run that passes solely after
+disabling strict diagnostics is not qualified back-annotation evidence.
+
+The default report and log names are keyed by backend and timing mode, not by
+`TEST_NAME`; a later manual test with the same backend/mode replaces them. Give
+each test a unique `WAVE_FILE` and copy the report/log after each run, or use the
+E2E qualification matrix, which archives every combination.
+
+#### Manual post-synthesis matrix
+
+Start with one test and both drivers:
+
+```bash
+for mode in zero unit min typ max; do
+  for backend in sv cocotb; do
+    fx sim_post_syn --live \
+      --workdir "$WORKDIR" \
+      --set GLS_BACKEND="$backend" \
+      --set TIMING_MODE="$mode" \
+      --set TEST_NAME=smoke \
+      --set SDF_STRICT=1 \
+      --set WAVE_FILE="$RUN/dv/functional/sim/post_syn/$PDK/${TOP}_smoke_${backend}_${mode}.fst"
+  done
+done
+```
+
+Then repeat representative reconfiguration, random, protocol, and error tests.
+A test that is valid only at zero delay should be fixed or explicitly scoped; it
+must not be allowed to create false confidence in `unit` or SDF modes.
+
+#### View one post-synthesis waveform
+
+```bash
+find "$RUN/dv/functional/sim/post_syn/$PDK" \
+  -type f \( -name '*.fst' -o -name '*.vcd' \) \
+  -printf '%p\n' | sort
+
+gtkwave \
+  "$RUN/dv/functional/sim/post_syn/$PDK/${TOP}_smoke_sv_typ.fst" &
+```
+
+Compare SV and cocotb waveforms only after confirming they used the same vectors,
+netlist, cell models, timing mode, SDF, and seed. Absolute transaction times may
+differ because the drivers schedule work differently; the architectural command
+stream and checked results must agree.
+
+#### Automated E2E qualification
+
+The four E2E tests exercise generated single-clock and multi-clock scaffolds plus
+saved CORDIC and UART IPs. By default each flow runs post-synthesis qualification
+for `sky130` and `ihp-sg13g2`, both drivers, `zero/unit/min/typ/max`, and the
+`smoke` and `auto_toggle` tests:
+
+```bash
+FLEXSOC_E2E_LIVE=1 \
+FLEXSOC_E2E_KEEP=1 \
+pytest -s -vv tests/test_e2e_fx.py \
+  --e2e-root "$HOME/flexsoc-e2e"
+```
+
+The archived evidence is under:
+
+```text
+dv/functional/sim/post_syn/<pdk>/e2e_qualification/
+├── matrix.json
+├── reports/
+├── logs/
+└── waves/
+```
+
+For every SDF combination the E2E check validates the netlist, SDF payload,
+corner mapping, annotation marker, strict diagnostics, timing-model manifest,
+report fields, and non-empty waveform. This is the preferred repository-level
+proof that back-annotation is actually exercised across both technologies.
 
 Post-synthesis GLS can expose:
 
 - reset and initialization assumptions;
 - simulation/synthesis semantic differences;
-- timing-check behavior;
-- missing cell models;
-- testbench assumptions that were hidden at RTL.
+- incomplete cell-model support;
+- testbench timing assumptions hidden by zero-delay RTL;
+- corner-sensitive path-delay behavior;
+- differences between the SV and cocotb drivers.
 
 It does not replace equivalence or STA.
 
@@ -1052,11 +1376,12 @@ system-level verification.
 | Requirements ready | functions, states, interfaces, clocks, acceptance criteria | project review |
 | Design entry ready | HJSON/RTL coherent, hierarchy resolves | `fx reg doc top_from_core flist --force` |
 | Structural RTL clean | lint and elaboration accepted | `fx lint_suite` |
-| Functional DV clean | scenarios pass, coverage reviewed | `fx regression`, `fx coverage_detail` |
+| Functional DV clean | scenarios pass on selected SV/cocotb backends, named-test waves and coverage reviewed | `fx regression`, `fx coverage_detail` |
 | Property formal clean | BMC/prove/cover reviewed | `fx formal` |
 | CDC/RDC clean | crossings classified and waived intentionally | dedicated CDC/RDC stage |
 | Synthesis clean | mapped netlist and reports reviewed | `fx syn --force` |
 | Logical equivalence clean | all required EQY partitions proven | `fx eqy --force` |
+| Post-synthesis GLS clean | representative tests pass in zero/unit and strict SDF min/typ/max; reports and waves retained per PDK/backend | `fx sim_post_syn`, E2E matrix |
 | Pre-layout timing clean | constraints complete, setup/hold acceptable | `fx sta --force` |
 | Early power acceptable | estimate within architecture budget | `fx power_estimate --force` |
 | Implementation complete | routed design and extraction available | `fx pnr --force` |
@@ -1078,7 +1403,10 @@ system-level verification.
 │   │   ├── model/                model, generated regmap, scenarios
 │   │   ├── tests/                materialized vectors
 │   │   ├── tb/                   SV and cocotb infrastructure
-│   │   ├── sim/                  RTL/post-syn/post-PnR runs
+│   │   ├── sim/
+│   │   │   ├── rtl/              per-test RTL waveforms and simulator builds
+│   │   │   ├── post_syn/<pdk>/   gate simulations, reports, timing-model manifest
+│   │   │   └── post_pnr/<pdk>/   final-netlist gate simulations
 │   │   └── coverage/
 │   └── formal/
 │       ├── csr/
@@ -1093,6 +1421,10 @@ system-level verification.
 │   ├── sdf/<pdk>/
 │   └── power/<pdk>/
 ├── logs/
+│   └── dv/functional/
+│       ├── regression/<backend>/
+│       ├── post_syn/<pdk>/
+│       └── post_pnr/<pdk>/
 └── meta/<pdk>/                   manifest and metrics
 ```
 
