@@ -19,6 +19,7 @@ from flexsoc.backend.metrics import eqy_solver_stats
 from flexsoc.backend.output import print_script, strip_ansi
 from flexsoc.backend.post_sim import (
     GateSimPaths,
+    _normalize_cocotb_wave,
     cocotb_command,
     compile_command,
     resolve_paths,
@@ -33,10 +34,11 @@ from flexsoc.backend.setup_cocotb import (
     cocotb_reg_driver_py_text,
     cocotb_sv_text,
     render_makefile,
+    render_python_test,
     render_reg_driver_py,
     render_tlul_wrapper,
 )
-from flexsoc.backend.setup_model import _regmap_tests_text
+from flexsoc.backend.setup_model import _regmap_tests_text, _tests_text
 from flexsoc.backend.setup_sdc import render_clock_config_sdc
 from flexsoc.backend.setup_signoff import NetlistPort, main as signoff_main, render_formal_protocol_view
 from flexsoc.backend.setup_tb import render_testbench, render_tlul_interface
@@ -285,6 +287,14 @@ def test_generated_tlul_sv_driver_runs_vectors_without_verilator_classes(tmp_pat
     assert "tlul_utils" not in body
     assert "tlul_if tl_if" in body
     assert "tl_if.init();" in body
+    assert body.index("tl_if.init();") < body.index("initial reset pulse cycles")
+    assert "parameter int INITIAL_RESET_CYCLES = 5;" in body
+    assert "rst_ni = 1'b1;" in body
+    assert "rst_ni = 1'b0;" in body
+    assert body.index("rst_ni = 1'b1;") < body.index("rst_ni = 1'b0;")
+    assert "initial reset pulse cycles" in body
+    assert "repeat (INITIAL_RESET_CYCLES) @(posedge clk_i);" in body
+    assert body.count("@(negedge clk_i); #1;") >= 2
     assert "run_reg_config(cfg_path);" in body
     assert "run_vectors(data_in_path, data_out_path);" in body
     assert "tl_if.tlul_write" not in body  # calls live in the included reg sequence
@@ -316,6 +326,41 @@ def test_generated_tlul_gls_wrappers_are_package_free(tmp_path: Path) -> None:
     assert "logic [108:0] h2d" in interface
     assert "d2h[47:16]" in interface
 
+
+
+def test_cocotb_single_clock_initializes_bus_before_common_reset() -> None:
+    """Every cocotb test begins from initialized inputs and a safe reset edge."""
+
+    text = render_python_test("demo")
+    assert "reset_cycles = max(1" in text
+    assert text.index("await init_register_bus") < text.index("await apply_reset")
+    assert "from cocotb.triggers import FallingEdge, RisingEdge, Timer" in text
+    assert "await FallingEdge(dut.clk_i)" in text
+    assert "dut.rst_ni.value = 1" in text
+    assert "dut.rst_ni.value = 0" in text
+    assert text.index("dut.rst_ni.value = 1") < text.index("dut.rst_ni.value = 0")
+    assert "initial reset cycles=%d" in text
+
+
+def test_scaffold_transactions_preserve_reset_state_valid_low_check() -> None:
+    """Starter smoke checks reset-cleared payload while the valid output is low."""
+
+    text = _tests_text("demo")
+    assert "inputs = {name: value for name in INPUTS}" in text
+    assert 'name: (1 if name.lower().endswith("valid_i") else value)' not in text
+
+
+def test_cocotb_wave_is_normalized_to_requested_e2e_path(tmp_path: Path) -> None:
+    """Adopt cocotb's build-local dump when its plusarg is ignored."""
+
+    paths = _gate_sim_paths(tmp_path / "wave", sdf=False, cocotb=True)
+    build = paths.stage_dir / "cocotb_build"
+    build.mkdir(parents=True, exist_ok=True)
+    actual = build / "demo_tb.fst"
+    actual.write_bytes(b"FST")
+    assert _normalize_cocotb_wave(paths, {"WAVE_FORMAT": "fst"}) == paths.wave
+    assert paths.wave.read_bytes() == b"FST"
+    assert not actual.exists()
 
 def test_synthesis_uses_fastest_configured_clock(monkeypatch, tmp_path: Path) -> None:
     """ABC timing follows ClockConfig rather than a stale Make default."""
@@ -887,32 +932,54 @@ def test_gls_iverilog_uses_functional_models_and_portable_sv(tmp_path: Path) -> 
         sv_vec_driver_text("test"),
         sv_monitor_text("test"),
     ]
+    branches: list[tuple[str, str]] = []
     for source in sources:
+        assert source.count("`ifdef VERILATOR") == 1
+        assert source.count("`else") == 1
+        assert source.count("`endif") == 1
+        verilator_branch, portable_tail = source.split("`else", 1)
+        portable_branch = portable_tail.rsplit("`endif", 1)[0]
+        branches.append((verilator_branch, portable_branch))
+
+        # Both implementations keep the structured-loop portability changes.
         assert "continue;" not in source
         assert "break;" not in source
         assert "return;" not in source
         assert ".getc(" not in source
         assert "$fgets(line, fd)" not in source
-        assert 'line = $sformatf("%0s", line_buf);' not in source
-        assert ".len()" not in source
-        assert ".substr(" not in source
+
+        # Verilator handles native strings and uses them for RTL regression.
         if "$fgets(" in source:
-            assert "tb_line_t line_buf;" in source
-            assert "$fgets(line_buf, fd)" in source
-        assert "function automatic void tb_tokenize9" not in source
-        assert "function automatic void tb_cfg_tokenize9" not in source
-        for line in source.splitlines():
+            assert "string line;" in verilator_branch
+            assert 'line = $sformatf("%0s", line_buf);' in verilator_branch
+
+        # Icarus gate-level simulation retains the packed-token fallback.
+        assert 'line = $sformatf("%0s", line_buf);' not in portable_branch
+        assert ".len()" not in portable_branch
+        assert ".substr(" not in portable_branch
+        if "$fgets(" in portable_branch:
+            assert "tb_line_t line_buf;" in portable_branch
+            assert "$fgets(line_buf, fd)" in portable_branch
+        assert "function automatic void tb_tokenize9" not in portable_branch
+        assert "function automatic void tb_cfg_tokenize9" not in portable_branch
+        for line in portable_branch.splitlines():
             if line.lstrip().startswith("function automatic"):
                 assert "output " not in line
-    assert "typedef reg [8*FLEXSOC_TB_LINE_BYTES-1:0] tb_line_t;" in sources[0]
-    assert "typedef reg [8*FLEXSOC_TB_TOKEN_BYTES-1:0] tb_token_t;" in sources[0]
-    assert "task automatic tb_tokenize9" in sources[0]
-    assert "input tb_line_t line" in sources[0]
-    assert "output tb_token_t w0" in sources[0]
-    assert "function automatic logic [32:0] tb_parse_u32" in sources[0]
-    assert "function automatic logic [32:0] tb_parse_cfg_u32" in sources[0]
-    assert "input tb_token_t name" in sources[1]
-    assert "input tb_token_t reg_key" in sources[2]
+
+    reg_verilator, reg_icarus = branches[0]
+    assert "input string line" in reg_verilator
+    assert "output string w0" in reg_verilator
+    assert "typedef reg [8*FLEXSOC_TB_LINE_BYTES-1:0] tb_line_t;" in reg_icarus
+    assert "typedef reg [8*FLEXSOC_TB_TOKEN_BYTES-1:0] tb_token_t;" in reg_icarus
+    assert "task automatic tb_tokenize9" in reg_icarus
+    assert "input tb_line_t line" in reg_icarus
+    assert "output tb_token_t w0" in reg_icarus
+    assert "function automatic logic [32:0] tb_parse_u32" in reg_icarus
+    assert "function automatic logic [32:0] tb_parse_cfg_u32" in reg_icarus
+    assert "input string name" in branches[1][0]
+    assert "input tb_token_t name" in branches[1][1]
+    assert "input string reg_key" in branches[2][0]
+    assert "input tb_token_t reg_key" in branches[2][1]
 
     tlul = render_tlul_interface()
     assert "wait_d2h_high" in tlul

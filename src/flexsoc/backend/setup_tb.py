@@ -1575,6 +1575,25 @@ def _packed_reg_sequence(text: str) -> str:
     return text
 
 
+def _sv_parser_variants(verilator: str, icarus: str) -> str:
+    """Select the native string parser for Verilator and packed tokens for Icarus.
+
+    Verilator handles SystemVerilog strings reliably and is used by the RTL SV
+    regression. Icarus 12 needs the packed-token fallback used by gate-level
+    simulation. Keeping both implementations in the generated source prevents a
+    portability workaround for one simulator from silently disabling vectors in
+    the other.
+    """
+
+    return (
+        "`ifdef VERILATOR\n"
+        + verilator.rstrip()
+        + "\n`else\n"
+        + icarus.rstrip()
+        + "\n`endif\n"
+    )
+
+
 def render_sv_reg_sequence(
     top: str,
     interface: str,
@@ -1583,11 +1602,10 @@ def render_sv_reg_sequence(
     active: bool,
     registers: Sequence[dict[str, Any]] = (),
 ) -> str:
-    return _packed_reg_sequence(
-        _STRING_RENDER_SV_REG_SEQUENCE(
-            top, interface, clk, active=active, registers=registers
-        )
+    string_parser = _STRING_RENDER_SV_REG_SEQUENCE(
+        top, interface, clk, active=active, registers=registers
     )
+    return _sv_parser_variants(string_parser, _packed_reg_sequence(string_parser))
 
 
 def _packed_vec_monitor(text: str) -> str:
@@ -1626,7 +1644,8 @@ def _packed_vec_monitor(text: str) -> str:
 
 
 def render_sv_vec_monitor(top: str, outputs: Sequence[str]) -> str:
-    return _packed_vec_monitor(_STRING_RENDER_SV_VEC_MONITOR(top, outputs))
+    string_parser = _STRING_RENDER_SV_VEC_MONITOR(top, outputs)
+    return _sv_parser_variants(string_parser, _packed_vec_monitor(string_parser))
 
 
 def _packed_vec_driver(text: str) -> str:
@@ -1662,9 +1681,8 @@ def render_sv_vec_driver(
     inputs: Sequence[str],
     outputs: Sequence[str],
 ) -> str:
-    return _packed_vec_driver(
-        _STRING_RENDER_SV_VEC_DRIVER(top, clk, rst, inputs, outputs)
-    )
+    string_parser = _STRING_RENDER_SV_VEC_DRIVER(top, clk, rst, inputs, outputs)
+    return _sv_parser_variants(string_parser, _packed_vec_driver(string_parser))
 
 def _simple_datapath_ports(sig: dict[str, Any]) -> tuple[list[str], list[str]]:
     """Return generic data ports detected on the DUT."""
@@ -2212,6 +2230,7 @@ def render_testbench(top: str,
     lines.append(f"module {top}_tb;")
     lines.append("  // Parameters")
     lines.append(f"  parameter int CLK_PERIOD = {clk_period_ns}; // ns")
+    lines.append("  parameter int INITIAL_RESET_CYCLES = 5;")
     for name, val in params:
         lines.append(f"  parameter {name} = {val};")
     for name, val in lparams:
@@ -2312,22 +2331,28 @@ def render_testbench(top: str,
         # init inputs (skip the first, often a clock)
         for nm, _ in ports_in[1:]:
             lines.append(f"    {nm} = {_sv_input_default(nm)};")
-    # simple reset: first rst_ if present, else try second input heuristically
-    if rsts:
-        lines.append("    #(CLK_PERIOD);")
-        lines.append(f"    {rsts[0]} = 1'b1;")
-    else:
-        if len(ports_in) > 1 and "rst" in ports_in[1][0]:
-            lines.append("    #(CLK_PERIOD);")
-            lines.append(f"    {ports_in[1][0]} = 1'b1;")
-
-    lines.append("    #(CLK_PERIOD);")
-    lines.append('    $display("\\nRunning...\\n");')
-
     if interface == "tlul":
         lines.append("    tl_if.init();")
     elif compiler == "verilator" and interface == "reg_iface":
         lines.append("    reg_utils_inst = new(regif);")
+
+    # Every generated test starts from an initialized, race-free reset boundary.
+    reset_name = rsts[0] if rsts else (ports_in[1][0] if len(ports_in) > 1 and "rst" in ports_in[1][0] else "")
+    if reset_name:
+        lines.append(f"    {reset_name} = 1'b1;")
+        lines.append(f"    repeat (2) @(posedge {clks[0]});")
+        lines.append(f"    @(negedge {clks[0]}); #1;")
+        lines.append(f"    {reset_name} = 1'b0;")
+        lines.append('    $display("[TB] initial reset pulse cycles=%0d", INITIAL_RESET_CYCLES);')
+        lines.append(f"    repeat (INITIAL_RESET_CYCLES) @(posedge {clks[0]});")
+        lines.append(f"    @(negedge {clks[0]}); #1;")
+        lines.append(f"    {reset_name} = 1'b1;")
+        lines.append(f"    repeat (2) @(posedge {clks[0]});")
+    else:
+        lines.append("    #(CLK_PERIOD*2);")
+
+    lines.append('    $display("\\nRunning...\\n");')
+
     if interface == "tlul" or compiler == "verilator":
         lines.append("    #(CLK_PERIOD*10);")
         lines.append("    run_reg_config(cfg_path);")
@@ -3344,7 +3369,7 @@ _STRING_SV_VEC_DRIVER_TEXT = sv_vec_driver_text
 _STRING_SV_MONITOR_TEXT = sv_monitor_text
 
 
-def sv_driver_text(top: str, clocks: ClockConfig) -> str:
+def _packed_sv_driver_text(top: str, clocks: ClockConfig) -> str:
     text = _STRING_SV_DRIVER_TEXT(top, clocks)
     text = _PACKED_TOKEN_SUPPORT + "\n" + text
     text = text.replace("input string reg_name", "input tb_token_t reg_name")
@@ -3371,7 +3396,7 @@ def sv_driver_text(top: str, clocks: ClockConfig) -> str:
     return text
 
 
-def sv_vec_driver_text(top: str) -> str:
+def _packed_sv_vec_driver_text(top: str) -> str:
     text = _STRING_SV_VEC_DRIVER_TEXT(top)
     text = text.replace("  string token;", "  tb_token_t token;")
     text = text.replace("  string reg_name;", "  tb_token_t reg_name;")
@@ -3389,7 +3414,7 @@ def sv_vec_driver_text(top: str) -> str:
     return text
 
 
-def sv_monitor_text(top: str) -> str:
+def _packed_sv_monitor_text(top: str) -> str:
     text = _STRING_SV_MONITOR_TEXT(top)
     text = text.replace("  string sig;", "  tb_token_t sig;")
     text = text.replace("  string line;\n", "")
@@ -3404,6 +3429,34 @@ def sv_monitor_text(top: str) -> str:
     )
     text = text.replace("$sscanf(line,", "$sscanf(line_buf,")
     return text
+
+
+def sv_driver_text(top: str, clocks: ClockConfig) -> str:
+    """Render an N-clock driver with simulator-specific file parsing."""
+
+    return _sv_parser_variants(
+        _STRING_SV_DRIVER_TEXT(top, clocks),
+        _packed_sv_driver_text(top, clocks),
+    )
+
+
+def sv_vec_driver_text(top: str) -> str:
+    """Render N-clock vector input parsing for Verilator and Icarus."""
+
+    return _sv_parser_variants(
+        _STRING_SV_VEC_DRIVER_TEXT(top),
+        _packed_sv_vec_driver_text(top),
+    )
+
+
+def sv_monitor_text(top: str) -> str:
+    """Render N-clock expected-output parsing for Verilator and Icarus."""
+
+    return _sv_parser_variants(
+        _STRING_SV_MONITOR_TEXT(top),
+        _packed_sv_monitor_text(top),
+    )
+
 
 def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
     """Render the starter N-clock SV testbench from ``ClockConfig``."""
@@ -3422,7 +3475,11 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
     )
     clock_init = "\n".join(
         [f"    {domain.signal} = 1'b0;" for domain in clocks.domains]
-        + [f"    {domain.reset} = 1'b{1 if domain.reset_polarity == 'high' else 0};" for domain in clocks.domains]
+        + [f"    {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};" for domain in clocks.domains]
+    )
+    reset_assert = "\n".join(
+        f"    {domain.reset} = 1'b{1 if domain.reset_polarity == 'high' else 0};"
+        for domain in clocks.domains
     )
     reset_release = "\n".join(
         f"    {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};"
@@ -3463,6 +3520,7 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
       string wave_path;
       string sdf_path;
       integer errors;
+      localparam integer INITIAL_RESET_CYCLES = 5;
 
 {tlul_helpers}
 
@@ -3530,7 +3588,12 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
           end
         `endif
 
-        repeat (5) @(posedge {primary});
+        repeat (2) @(posedge {primary});
+        @(negedge {primary}); #1;
+        {reset_assert}
+        $display("[TB] initial reset pulse cycles=%0d", INITIAL_RESET_CYCLES);
+        repeat (INITIAL_RESET_CYCLES) @(posedge {primary});
+        @(negedge {primary}); #1;
         {reset_release}
         repeat (8) @(posedge {primary});
 

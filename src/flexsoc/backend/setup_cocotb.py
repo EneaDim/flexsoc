@@ -435,7 +435,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cocotb.triggers import RisingEdge, Timer
+from cocotb.triggers import FallingEdge, RisingEdge, Timer
 
 WRITE_TOKENS = {"@write", "write", "@reg_write", "reg_write"}
 READ_TOKENS = {"@read", "read", "@reg_read", "reg_read"}
@@ -1047,7 +1047,7 @@ from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, Timer
+from cocotb.triggers import FallingEdge, RisingEdge, Timer
 
 from drivers.reg_driver import (
     init_register_bus,
@@ -1060,25 +1060,36 @@ from drivers.vec_driver import drive_vectors, load_vectors
 from drivers.vec_monitor import LatencyMonitor
 
 
-async def apply_reset(dut, cycles=2):
+async def apply_reset(dut, cycles=5):
     for name in ("cio_rx_i", "uart_rx_i", "serial_rx_i"):
         if hasattr(dut, name):
             getattr(dut, name).value = 1
     if hasattr(dut, "rst_ni"):
+        dut.rst_ni.value = 1
+    for _ in range(2):
+        await RisingEdge(dut.clk_i)
+    await FallingEdge(dut.clk_i)
+    if hasattr(dut, "rst_ni"):
         dut.rst_ni.value = 0
     for _ in range(max(1, int(cycles))):
         await RisingEdge(dut.clk_i)
+    await FallingEdge(dut.clk_i)
     if hasattr(dut, "rst_ni"):
         dut.rst_ni.value = 1
+    for _ in range(2):
+        await RisingEdge(dut.clk_i)
     await Timer(1, unit="ns")
 
 
 @cocotb.test()
 async def {top}_generated_test(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
-    await apply_reset(dut)
-    await RisingEdge(dut.clk_i)
+    if hasattr(dut, "rst_ni"):
+        dut.rst_ni.value = 1
     await init_register_bus(dut, dut.clk_i)
+    reset_cycles = max(1, int(os.environ.get("INITIAL_RESET_CYCLES", "5")))
+    dut._log.info("initial reset cycles=%d", reset_cycles)
+    await apply_reset(dut, reset_cycles)
 
     test_name = os.environ.get("TEST_NAME", "smoke")
     test_root = Path(os.environ.get("TEST_ROOT", "tests"))
@@ -1510,17 +1521,24 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
 
 
     async def reset(dut, cycles: int = 5):
-        "Apply every configured reset with its declared polarity."
+        "Apply a real deassert-assert-deassert pulse to every configured reset."
         set_defaults(dut)
+        primary = getattr(dut, PRIMARY_CLOCK)
+        for signal, polarity in RESETS.items():
+            getattr(dut, signal).value = int(polarity == "low")
+        for _ in range(2):
+            await RisingEdge(primary)
+        await FallingEdge(primary)
         for signal, polarity in RESETS.items():
             getattr(dut, signal).value = int(polarity == "high")
-        for _ in range(cycles):
-            await RisingEdge(getattr(dut, PRIMARY_CLOCK))
+        for _ in range(max(1, int(cycles))):
+            await RisingEdge(primary)
+        await FallingEdge(primary)
         for signal, polarity in RESETS.items():
             getattr(dut, signal).value = int(polarity == "low")
         set_defaults(dut)
         for _ in range(8):
-            await RisingEdge(getattr(dut, PRIMARY_CLOCK))
+            await RisingEdge(primary)
 
 
     async def _wait_high(dut, signal: str, clk, limit: int = 256):
