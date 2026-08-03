@@ -43,20 +43,35 @@ def color_enabled(stream: TextIO | None = None) -> bool:
     return bool(getattr(stream, "isatty", lambda: False)())
 
 
-def print_script(path: Path, *, stream: TextIO | None = None, color: bool | None = None) -> None:
-    """Print one generated script with a common label and syntax rendering."""
+def print_script(
+    path: Path,
+    *,
+    stream: TextIO | None = None,
+    color: bool | None = None,
+    content: bool | None = None,
+) -> None:
+    """Print a generated-script label and, in live mode, its highlighted body."""
 
     stream = stream or sys.stdout
     path = path.expanduser().resolve()
-    text = path.read_text(encoding="utf-8", errors="replace")
+    show_content = (
+        os.environ.get("FLEXSOC_LIVE", "0").strip().lower() in {"1", "true", "yes", "on"}
+        if content is None
+        else content
+    )
     use_color = color_enabled(stream) if color is None else color
     if not use_color:
         print(f"[script] {path}", file=stream)
-        print(text, end="" if text.endswith("\n") else "\n", file=stream)
+        if show_content:
+            text = path.read_text(encoding="utf-8", errors="replace")
+            print(text, end="" if text.endswith("\n") else "\n", file=stream)
         return
 
     console = Console(file=stream, force_terminal=True, color_system="auto")
     console.print(Text.assemble(("[script]", "bold orange1"), " ", (str(path), "bright_cyan")))
+    if not show_content:
+        return
+    text = path.read_text(encoding="utf-8", errors="replace")
     console.print(
         Syntax(
             text,

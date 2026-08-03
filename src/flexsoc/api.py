@@ -28,7 +28,9 @@ DEFAULT_SETTINGS = {
     "PDK": "sky130",
     "WAVE_FORMAT": "fst",
     "GLS_SIMULATOR": "iverilog",
-    "TIMING_MODE": "max",
+    "GLS_BACKEND": "sv",
+    "TIMING_MODE": "zero",
+    "SDF_STRICT": "1",
 }
 
 # Parameter bundles keep the target table compact; every value is still overrideable.
@@ -103,7 +105,9 @@ SIGNOFF = (
     "WAVE_FORMAT",
     "WAVE_FILE",
     "GLS_SIMULATOR",
+    "GLS_BACKEND",
     "TIMING_MODE",
+    "SDF_STRICT",
     "SDF_FILE",
     "SDF_CORNER",
     "NETLIST",
@@ -802,6 +806,7 @@ class FlexSoC:
         from .backend.output import strip_ansi
 
         env = dict(command.env)
+        env["FLEXSOC_LIVE"] = "1"
         env["FLEXSOC_COLOR"] = (
             "always"
             if sys.stdout.isatty()
@@ -828,6 +833,7 @@ class FlexSoC:
         """Prepend this checkout to PYTHONPATH and export flow abstractions."""
 
         env = os.environ.copy()
+        env["FLEXSOC_LIVE"] = "0"
         extra = os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
         env["PYTHONPATH"] = str(self.project_root / "src") + extra
         vals = values or {}
