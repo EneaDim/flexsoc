@@ -89,3 +89,50 @@ The image builds the `base` profile from `src/flexsoc/backend/toolchain.lock`. `
 GTKWave 3.3 is configured explicitly with `--enable-gtk3`; the GTKWave upstream build instructions require GTK3 development packages for this source line. The same install must produce both `gtkwave` and `fst2vcd` under the managed prefix. CI power analysis calls the pinned `fst2vcd` automatically for FST traces; it never relies on `/usr/bin/fst2vcd` from the host.
 
 The host cleanup script removes only FlexSoC user-managed toolchain prefixes and build caches after a local Docker image has been verified against the current input hash. It cannot remove `/usr`, `/usr/local`, the repository virtual environment, or Docker data.
+
+## Resumable build checkpoints
+
+The toolchain build is intentionally split into three Docker stages:
+
+```text
+toolchain-prereqs
+    Ubuntu compiler and library prerequisites
+
+toolchain-installed
+    pinned EDA tools installed and exported as a local checkpoint image
+
+toolchain-verified
+    deps doctor executed against the installed checkpoint
+
+runtime
+    Python/uv environment added after the EDA doctor passes
+```
+
+`docker/scripts/build.sh` first loads `toolchain-installed` under a local
+`*-installed` tag and only then builds the verified runtime image. A failure in
+the doctor, Python environment, or later test layers therefore leaves a usable
+local checkpoint. Re-running the same command resumes from that checkpoint.
+
+The install stage also uses named BuildKit caches for:
+
+- downloaded archives and Git sources;
+- build trees;
+- the lock-specific installed prefix and completion markers;
+- apt archives and metadata;
+- the uv package cache.
+
+If compilation itself stops halfway through, completed tools remain marked in
+the prefix cache and are skipped on the next run. Do not use `--no-cache`,
+`docker builder prune`, or `docker buildx prune` while recovering a failed
+toolchain build unless intentionally discarding the checkpoint and caches.
+
+Inspect the retained checkpoint with:
+
+```bash
+docker/scripts/inspect.sh
+docker image ls | grep -- '-installed'
+```
+
+A checkpoint is not publishable and is not accepted by normal CI. Only the
+final image that passes `deps.sh doctor`, `docker/scripts/verify.sh`, and the
+requested E2E verification can be published and written to `image.lock`.

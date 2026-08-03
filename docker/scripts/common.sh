@@ -37,6 +37,10 @@ local_image_ref() {
   printf '%s:%s\n' "${LOCAL_IMAGE_REPOSITORY:-flexsoc-ci}" "$(image_tag)"
 }
 
+toolchain_checkpoint_ref() {
+  printf '%s:%s-installed\n' "${LOCAL_IMAGE_REPOSITORY:-flexsoc-ci}" "$(image_tag)"
+}
+
 github_slug() {
   local url slug
   url=$(git -C "$REPO_ROOT" config --get remote.origin.url 2>/dev/null || true)

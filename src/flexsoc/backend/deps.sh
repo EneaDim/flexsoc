@@ -101,7 +101,7 @@ BASE_PACKAGES=(
     autoconf automake bison build-essential ca-certificates cmake curl flex gawk git gperf
     graphviz haskell-stack help2man libbz2-dev libeigen3-dev libffi-dev libfl-dev libgmp-dev
     libgtk-3-dev libjudy-dev liblz4-dev liblzma-dev libmpfr-dev libreadline-dev libtool
-    libtool-bin m4 meson ninja-build nodejs npm perl pkg-config python3 swig tcl-dev tk-dev
+    libtool-bin m4 meson ninja-build nodejs npm perl pkg-config python3 python3-click swig tcl-dev tk-dev
     unzip xdot zlib1g-dev
 )
 
@@ -109,6 +109,8 @@ BASE_COMMANDS=(
     gcc g++ make autoconf automake bison flex gawk git gperf cmake curl help2man libtoolize
     m4 meson ninja node npm perl pkg-config python3 stack swig tclsh unzip dot xdot
 )
+BASE_PYTHON_MODULES=(click)
+
 BASE_LIB_PACKAGES=(
     libbz2-dev libeigen3-dev libffi-dev libfl-dev libgmp-dev libgtk-3-dev libjudy-dev
     liblz4-dev liblzma-dev libmpfr-dev libreadline-dev tcl-dev tk-dev zlib1g-dev
@@ -126,8 +128,11 @@ host_packages() { profile_ready; printf '%s\n' "${BASE_PACKAGES[@]}"; }
 
 check_prereqs() {
     profile_ready
-    local missing=() cmd pkg
+    local missing=() cmd pkg module
     for cmd in "${BASE_COMMANDS[@]}"; do command -v "$cmd" >/dev/null 2>&1 || missing+=("command:$cmd"); done
+    for module in "${BASE_PYTHON_MODULES[@]}"; do
+        python3 -c "import ${module}" >/dev/null 2>&1 || missing+=("python:${module}")
+    done
     if command -v dpkg-query >/dev/null 2>&1; then
         for pkg in "${BASE_LIB_PACKAGES[@]}"; do
             dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'install ok installed' || missing+=("package:$pkg")
