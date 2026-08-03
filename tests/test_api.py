@@ -40,7 +40,14 @@ from flexsoc.backend.setup_cocotb import (
 )
 from flexsoc.backend.setup_model import _regmap_tests_text, _tests_text
 from flexsoc.backend.setup_sdc import render_clock_config_sdc
-from flexsoc.backend.setup_signoff import NetlistPort, main as signoff_main, render_formal_protocol_view
+from flexsoc.backend.setup_signoff import (
+    EquivalenceConfig,
+    NetlistPort,
+    _gate_model_reads,
+    liberty_corner,
+    main as signoff_main,
+    render_formal_protocol_view,
+)
 from flexsoc.backend.setup_tb import render_testbench, render_tlul_interface
 from flexsoc.backend.setup_syn import config_from_args as synthesis_config_from_args, parse_args as parse_synthesis_args
 from flexsoc.cli import app
@@ -653,6 +660,76 @@ def test_live_command_logs_strip_terminal_escapes(monkeypatch, tmp_path: Path) -
     assert result.returncode == 0
     assert log.read_text(encoding="utf-8") == "red\n"
     assert command.env["FLEXSOC_LIVE"] == "0"
+
+def test_ihp_signoff_maps_native_corner_names() -> None:
+    """IHP slow/typ/fast Liberty names map onto the public ss/tt/ff modes."""
+
+    assert liberty_corner(Path("sg13g2_stdcell_slow_1p35V_125C.lib")) == "ss"
+    assert liberty_corner(Path("sg13g2_stdcell_typ_1p20V_25C.lib")) == "tt"
+    assert liberty_corner(Path("sg13g2_stdcell_fast_1p32V_m40C.lib")) == "ff"
+    assert liberty_corner(Path("nom_slow_1p08V_125C.lib")) == "ss"
+    assert liberty_corner(Path("nom_typ_1p20V_25C.lib")) == "tt"
+    assert liberty_corner(Path("nom_fast_1p32V_m40C.lib")) == "ff"
+
+
+def test_ihp_eqy_uses_discovered_liberty_not_aggregate_verilog(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Yosys must not parse IHP conditional specify blocks during EQY."""
+
+    monkeypatch.setenv("FLEXSOC_PDK", "ihp-sg13g2")
+    liberty = (
+        tmp_path
+        / "ihp-sg13g2"
+        / "libs.ref"
+        / "sg13g2_stdcell"
+        / "lib"
+        / "sg13g2_stdcell_typ_1p20V_25C.lib"
+    )
+    model = (
+        tmp_path
+        / "ihp-sg13g2"
+        / "libs.ref"
+        / "sg13g2_stdcell"
+        / "verilog"
+        / "sg13g2_stdcell.v"
+    )
+    netlist = tmp_path / "demo_synth.v"
+    filelist = tmp_path / "demo.f"
+    clock_gate = tmp_path / "unused_clock_gate.v"
+    output = tmp_path / "demo.eqy"
+    for path in (liberty, model):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    liberty.write_text("library(sg13g2) {}\n", encoding="utf-8")
+    model.write_text(
+        "specify if ((A == 1'b1)) (A => Y) = 0; endspecify\n",
+        encoding="utf-8",
+    )
+    netlist.write_text(
+        "module demo(input clk_i, output data_o); "
+        "assign data_o = clk_i; endmodule\n",
+        encoding="utf-8",
+    )
+    filelist.write_text("demo.sv\n", encoding="utf-8")
+    clock_gate.write_text("// unused for IHP\n", encoding="utf-8")
+    cfg = EquivalenceConfig(
+        top="demo",
+        filelists=(filelist,),
+        netlist=netlist,
+        liberty=liberty,
+        cell_models=(model,),
+        sky130_clock_gate_model=clock_gate,
+        engine="abc pdr",
+        depth=2,
+        sat_depth=2,
+        output=output,
+    )
+    reads = _gate_model_reads(
+        cfg, liberty=liberty, netlist=netlist, cell_models=(model,)
+    )
+    assert reads[0] == f"read_liberty -ignore_miss_func {liberty}"
+    assert not any(str(model) in line for line in reads)
+    assert reads[-1] == f"read_verilog -formal -sv {netlist}"
 
 
 def test_pdk_scoped_paths_keep_flow_before_technology(tmp_path: Path) -> None:

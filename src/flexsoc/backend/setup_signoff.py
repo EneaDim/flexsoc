@@ -297,6 +297,13 @@ def _gate_model_reads(
     reads: list[str] = []
     if cfg.formal_cell_model is not None:
         reads.append(f"read_verilog -formal -sv {cfg.formal_cell_model}")
+    elif pdk == "ihp-sg13g2":
+        # The official IHP aggregate Verilog model contains conditional specify
+        # paths that are accepted by event-driven simulators but not by the
+        # Yosys frontend used by EQY.  The selected Liberty view is discovered
+        # from the actual IHP PDK_ROOT and provides the formal cell semantics
+        # without depending on the PDK's nested filesystem layout.
+        reads.append(f"read_liberty -ignore_miss_func {liberty}")
     elif cell_models and pdk != "sky130":
         rendered = " ".join(str(path) for path in cell_models)
         reads.append(f"read_verilog -formal -sv -DFUNCTIONAL {rendered}")
@@ -518,9 +525,20 @@ def liberty_corner(path: Path) -> str:
     """Infer a short process corner name from a Liberty filename."""
 
     name = path.name.lower()
-    for corner in ("ss", "tt", "ff"):
-        if f"__{corner}_" in name or f"_{corner}_" in name or name.startswith(f"{corner}_"):
-            return corner
+    aliases = {
+        "ss": ("ss", "slow", "worst"),
+        "tt": ("tt", "typ", "typical"),
+        "ff": ("ff", "fast", "best"),
+    }
+    for corner, tokens in aliases.items():
+        for token in tokens:
+            if (
+                f"__{token}_" in name
+                or f"_{token}_" in name
+                or name.startswith(f"{token}_")
+                or name.startswith(f"nom_{token}_")
+            ):
+                return corner
     return path.stem
 
 
