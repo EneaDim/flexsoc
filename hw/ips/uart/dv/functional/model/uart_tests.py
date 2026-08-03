@@ -54,13 +54,8 @@ def check(cycle: int, signal: str, expected: int) -> str:
     return f"{cycle} {signal} {hx(expected)}"
 
 
-def config(test: str) -> list[str]:
-    """Return safe initial CSR writes for one UART scenario.
-
-    The generated testbench initializes ``cio_rx_i`` low before vectors start.
-    External-RX tests therefore start with line loopback enabled, keeping the
-    internal receiver idle-high until cycle 0 drives the real pin high.
-    """
+def ctrl_fields(test: str) -> dict[str, int]:
+    """Return the CTRL fields used by one UART scenario."""
 
     ctrl = {"TX": 1, "RX": 1, "NCO": NCO}
     if test in {"reconfig", "parity_reconfig"}:
@@ -69,9 +64,19 @@ def config(test: str) -> list[str]:
         ctrl.update(NF=1, LLPBK=1)
     else:
         ctrl["LLPBK"] = 1
+    return ctrl
+
+
+def config(test: str) -> list[str]:
+    """Return safe initial CSR writes for one UART scenario.
+
+    Generated testbenches hold asynchronous serial RX inputs idle-high before
+    reset. Tests that exercise the external RX path may still enable line
+    loopback so the transmitter follows the physical pin directly.
+    """
 
     return [
-        CSR.CTRL.write(**ctrl),
+        CSR.CTRL.write(**ctrl_fields(test)),
         CSR.FIFO_CTRL.write(RXRST=1, TXRST=1),
     ]
 
@@ -106,7 +111,18 @@ def smoke_vectors() -> tuple[list[str], list[str]]:
         data_out.append(check(cycle, "cio_tx_o", value))
         data_out.append(check(cycle, "cio_tx_en_o", 1))
 
-    cycle = 48
+    # The 8-cycle line-loopback pulses above are intentionally shorter than
+    # one UART bit cell. Reset the receiver state and restore configuration
+    # before inspecting live RX/FIFO status in unit-delay or SDF simulations.
+    data_in.extend(
+        [
+            "40 @reset 4",
+            CSR.CTRL.vector_write(48, **ctrl_fields("smoke")),
+            CSR.FIFO_CTRL.vector_write(52, RXRST=1, TXRST=1),
+        ]
+    )
+
+    cycle = 80
     data_out.extend(
         [
             CSR.CTRL.vector_read(

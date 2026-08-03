@@ -15,7 +15,7 @@ from typing import Sequence
 
 from flexsoc.clocking import ClockConfig, clock_config
 
-from .setup_tb import _candidate_hjson_path, _register_entries
+from .setup_tb import _candidate_hjson_path, _register_entries, render_packed_tlul_helpers
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +160,26 @@ def render_extra_port_declarations(info: dict[str, list]) -> str:
         decls.append(f"  {render_width(entry.get('width', 1))} {name};")
     return "\n".join(decls)
 
+def _serial_idle_high(name: str) -> bool:
+    """Return true for asynchronous serial receive pins that idle high."""
+
+    return name.lower() in {"cio_rx_i", "uart_rx_i", "serial_rx_i"}
+
+
+def render_extra_input_initializers(info: dict[str, list]) -> str:
+    """Initialize non-control DUT inputs before reset and configuration."""
+
+    control = set(info.get("clk", [])) | set(info.get("rst", [])) | {"tl_i", "tl_o"}
+    lines: list[str] = []
+    for entry in info.get("inputs", []):
+        name = entry.get("name", "")
+        if not name or name in control or name.startswith(("clk", "rst")) or "::" in name:
+            continue
+        value = "'1" if _serial_idle_high(name) else "'0"
+        lines.append(f"    {name} = {value};")
+    return "\n".join(lines)
+
+
 def read_filelist(path: Path) -> list[Path]:
     """Read an RTL filelist and return ordered source paths."""
 
@@ -217,6 +237,44 @@ def render_source_block(paths: Sequence[Path], var_name: str = "VERILOG_SOURCES"
     lines.append(f"  {paths[-1].resolve()}")
     return "\n".join(lines)
 
+def render_gls_make_block(default_netlist: str) -> str:
+    """Render one gate-level cocotb configuration shared by 1/N-clock TBs."""
+
+    return dedent(f"""\
+        SIM := icarus
+        SIM_BUILD ?= sim_build/gls
+        TIMING_MODE ?= zero
+        SDF_FILE ?=
+        GLS_MODELS ?=
+        GLS_NETLIST ?= {default_netlist}
+
+        VERILOG_SOURCES += $(GLS_MODELS)
+        VERILOG_SOURCES += $(GLS_NETLIST)
+        COMPILE_ARGS += -g2012 -DSIM -DSYN -DFLEXSOC_GLS_EXTERNAL_MODELS -DFLEXSOC_COCOTB_WAVE_OWNER
+
+        ifeq ($(TIMING_MODE),zero)
+        COMPILE_ARGS += -DFUNCTIONAL -DUNIT_DELAY=\\#0 -gno-specify
+        else ifeq ($(TIMING_MODE),unit)
+        COMPILE_ARGS += -DFUNCTIONAL -gno-specify -DUNIT_DELAY=\\#1
+        else ifneq ($(filter $(TIMING_MODE),min typ max),)
+        ifeq ($(strip $(SDF_FILE)),)
+        $(error SDF_FILE is required when TIMING_MODE=$(TIMING_MODE))
+        endif
+        COMPILE_ARGS += -gspecify -T$(TIMING_MODE) -DFLEXSOC_ENABLE_SDF
+        ifeq ($(TIMING_MODE),min)
+        COMPILE_ARGS += -DFLEXSOC_SDF_MIN
+        else ifeq ($(TIMING_MODE),typ)
+        COMPILE_ARGS += -DFLEXSOC_SDF_TYP
+        else
+        COMPILE_ARGS += -DFLEXSOC_SDF_MAX
+        endif
+        COCOTB_PLUSARGS += +SDF=$(abspath $(SDF_FILE))
+        else
+        $(error TIMING_MODE must be zero, unit, min, typ, or max)
+        endif
+        """)
+
+
 def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
     """Render the cocotb Makefile for RTL or gate-level simulation."""
 
@@ -225,6 +283,7 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
     rtl_dir = cfg.rtl_dir.resolve()
     include_dirs = [repo / "hw/ips/pkgs", repo / "hw/ips/prim", repo / "hw/ips/prim_opentitan", repo / "hw/ips/tlul"]
     includes = " ".join(f"-I{path}" for path in [rtl_dir, *include_dirs])
+    gate = render_gls_make_block(f"../../../../syn/$(PDK)/{cfg.top}_synth.v")
     return dedent(
         f"""\
         # Auto-generated Makefile
@@ -240,14 +299,9 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         endif
 
         ifeq ($(GATES),yes)
-          SIM := icarus
+        {gate}
         else
-          SIM ?= {cfg.simulator}
-        endif
-
-        SIM_BUILD         ?= sim_build/rtl
-
-        ifneq ($(GATES),yes)
+        SIM_BUILD ?= sim_build/rtl
 
         {render_source_block(sources)}
 
@@ -263,28 +317,6 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         COMPILE_ARGS += -Wno-WIDTHEXPAND
         COMPILE_ARGS += -Wno-WIDTHTRUNC
         COMPILE_ARGS += -Wno-UNOPTFLAT
-
-        else
-        SIM_BUILD         ?= sim_build/gl
-        TIMING_MODE       ?= max
-        SDF_FILE          ?=
-        COMPILE_ARGS      += -DFUNCTIONAL -DUSE_POWER_PINS -DSIM -DUNIT_DELAY=#1 -gspecify -T$(TIMING_MODE)
-        COMPILE_ARGS      += -DFLEXSOC_ENABLE_SDF
-        ifeq ($(TIMING_MODE),min)
-        COMPILE_ARGS      += -DFLEXSOC_SDF_MIN
-        else ifeq ($(TIMING_MODE),typ)
-        COMPILE_ARGS      += -DFLEXSOC_SDF_TYP
-        else
-        COMPILE_ARGS      += -DFLEXSOC_SDF_MAX
-        endif
-        ifneq ($(strip $(SDF_FILE)),)
-        COCOTB_PLUSARGS   += +SDF=$(abspath $(SDF_FILE))
-        endif
-        PDK               ?= sky130
-        GLS_MODELS        ?=
-        GLS_NETLIST       ?= ../../../../syn/$(PDK)/{cfg.top}_synth.v
-        VERILOG_SOURCES   += $(GLS_MODELS)
-        VERILOG_SOURCES   += $(GLS_NETLIST)
         endif
 
         COMPILE_ARGS += {includes}
@@ -297,10 +329,10 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         WAVE_EXT ?= $(WAVE_FORMAT)
         WAVE_FILE ?= $(abspath ../../sim/rtl/{cfg.top}_tb_cocotb_$(TEST_NAME).$(WAVE_EXT))
         COCOTB_PLUSARGS += +WAVE=$(WAVE_FILE)
+        ifeq ($(GATES),yes)
+        COCOTB_PLUSARGS += +dumpfile_path=$(WAVE_FILE)
+        endif
 
-        # FlexSoC reserves COVERAGE for HDL coverage. Cocotb 2.x also treats
-        # COVERAGE as deprecated Python user-code coverage, so clear the legacy
-        # cocotb variable while HDL_COVERAGE carries the Verilator setting.
         override COVERAGE :=
         unexport COVERAGE
 
@@ -315,9 +347,11 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         export TEST_NAME
         export FLEXSOC_SEED := $(SEED)
         export COCOTB_RANDOM_SEED := $(SEED)
-        export REG_CONFIG ?= $(abspath ../../tests/$(TEST_NAME)/config.regs)
-        export DATA_IN  ?= $(abspath ../../tests/$(TEST_NAME)/data_in.vec)
-        export DATA_OUT ?= $(abspath ../../tests/$(TEST_NAME)/data_out.vec)
+        export TEST_ROOT ?= $(abspath ../../tests)
+        export REG_CONFIG ?= $(TEST_ROOT)/$(TEST_NAME)/config.regs
+        export CFG ?= $(REG_CONFIG)
+        export DATA_IN  ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
+        export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
         export PYTHONPATH := $(PWD):$(PYTHONPATH)
         VERILOG_SOURCES += {(out_dir / f"{cfg.top}_tb.sv").resolve()}
 
@@ -520,6 +554,16 @@ async def _cycle(clk):
     await Timer(1, unit="ps")
 
 
+def _known_int(dut, name, context):
+    value = _get(dut, name).value
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise AssertionError(
+            f"{name} is X/Z while {context}; check reset and gate-level cell model mode"
+        ) from exc
+
+
 def _drive_idle(dut):
     _get(dut, "tl_i_a_valid").value = 0
     _get(dut, "tl_i_a_opcode").value = 4
@@ -568,7 +612,7 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
     _get(dut, "tl_i_a_data").value = data
 
     guard = 0
-    while int(_get(dut, "tl_o_a_ready").value) == 0:
+    while _known_int(dut, "tl_o_a_ready", f"waiting write a_ready addr=0x{addr:08x}") == 0:
         await _cycle(clk)
         guard += 1
         if guard > 1000:
@@ -578,13 +622,13 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
     _get(dut, "tl_i_a_valid").value = 0
 
     guard = 0
-    while int(_get(dut, "tl_o_d_valid").value) == 0:
+    while _known_int(dut, "tl_o_d_valid", f"waiting write d_valid addr=0x{addr:08x}") == 0:
         await _cycle(clk)
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting d_valid on write addr=0x{addr:08x}")
 
-    if int(_get(dut, "tl_o_d_error").value):
+    if _known_int(dut, "tl_o_d_error", f"checking write response addr=0x{addr:08x}"):
         raise AssertionError(f"TL-UL write error at addr=0x{addr:08x}")
 
     _drive_idle(dut)
@@ -614,7 +658,7 @@ async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
     _get(dut, "tl_i_a_data").value = 0
 
     guard = 0
-    while int(_get(dut, "tl_o_a_ready").value) == 0:
+    while _known_int(dut, "tl_o_a_ready", f"waiting read a_ready addr=0x{addr:08x}") == 0:
         await _cycle(clk)
         guard += 1
         if guard > 1000:
@@ -624,16 +668,16 @@ async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
     _get(dut, "tl_i_a_valid").value = 0
 
     guard = 0
-    while int(_get(dut, "tl_o_d_valid").value) == 0:
+    while _known_int(dut, "tl_o_d_valid", f"waiting read d_valid addr=0x{addr:08x}") == 0:
         await _cycle(clk)
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting d_valid on read addr=0x{addr:08x}")
 
-    if int(_get(dut, "tl_o_d_error").value):
+    if _known_int(dut, "tl_o_d_error", f"checking read response addr=0x{addr:08x}"):
         raise AssertionError(f"TL-UL read error at addr=0x{addr:08x}")
 
-    data = int(_get(dut, "tl_o_d_data").value) & 0xFFFFFFFF
+    data = _known_int(dut, "tl_o_d_data", f"reading response data addr=0x{addr:08x}") & 0xFFFFFFFF
     dut._log.info("reg read addr=0x%08x data=0x%08x", addr, data)
 
     _drive_idle(dut)
@@ -1017,6 +1061,9 @@ from drivers.vec_monitor import LatencyMonitor
 
 
 async def apply_reset(dut, cycles=2):
+    for name in ("cio_rx_i", "uart_rx_i", "serial_rx_i"):
+        if hasattr(dut, name):
+            getattr(dut, name).value = 1
     if hasattr(dut, "rst_ni"):
         dut.rst_ni.value = 0
     for _ in range(max(1, int(cycles))):
@@ -1074,10 +1121,12 @@ async def {top}_generated_test(dut):
 """
 
 def render_tlul_wrapper(cfg: CocotbConfig) -> str:
-    """Render the SystemVerilog wrapper used as the cocotb top-level."""
+    """Render a package-free TL-UL wrapper used by RTL and gate cocotb runs."""
 
     port_info = parse_top_ports(find_top_file(cfg.rtl_dir, cfg.top))
     extra_decls = render_extra_port_declarations(port_info)
+    extra_init = render_extra_input_initializers(port_info)
+    helpers = render_packed_tlul_helpers("  ")
     return dedent(
         f"""\
         `timescale 1ns/1ps
@@ -1085,61 +1134,52 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
           logic {cfg.clk};
           logic {cfg.rst};
         {extra_decls}
-          logic                       tl_i_a_valid;
-          tlul_pkg::tl_a_op_e         tl_i_a_opcode;
-          logic [2:0]                 tl_i_a_param;
-          logic [top_pkg::TL_SZW-1:0] tl_i_a_size;
-          logic [top_pkg::TL_AIW-1:0] tl_i_a_source;
-          logic [top_pkg::TL_AW-1:0]  tl_i_a_address;
-          logic [top_pkg::TL_DBW-1:0] tl_i_a_mask;
-          logic [top_pkg::TL_DW-1:0]  tl_i_a_data;
-          logic                       tl_i_d_ready;
-          logic                       tl_o_d_valid;
-          tlul_pkg::tl_d_op_e         tl_o_d_opcode;
-          logic [top_pkg::TL_DW-1:0]  tl_o_d_data;
-          logic                       tl_o_d_error;
-          logic                       tl_o_a_ready;
-          tlul_pkg::tl_h2d_t tl_i;
-          tlul_pkg::tl_d2h_t tl_o;
-          assign tl_i.a_valid   = tl_i_a_valid;
-          assign tl_i.a_opcode  = tl_i_a_opcode;
-          assign tl_i.a_param   = tl_i_a_param;
-          assign tl_i.a_size    = tl_i_a_size;
-          assign tl_i.a_source  = tl_i_a_source;
-          assign tl_i.a_address = tl_i_a_address;
-          assign tl_i.a_mask    = tl_i_a_mask;
-          assign tl_i.a_data    = tl_i_a_data;
-          assign tl_i.d_ready   = tl_i_d_ready;
-          logic [tlul_pkg::H2DCmdIntgWidth-1:0] cmd_intg_calc;
-          logic [tlul_pkg::DataIntgWidth-1:0]   data_intg_calc;
-          always_comb begin
-            /* verilator lint_off IMPLICITSTATIC */
-            tlul_pkg::tl_h2d_t t = '0;
-            /* verilator lint_on */
-            t.a_address         = tl_i_a_address;
-            t.a_opcode          = tl_i_a_opcode;
-            t.a_mask            = tl_i_a_mask;
-            t.a_user.instr_type = prim_mubi_pkg::MuBi4False;
-            cmd_intg_calc       = tlul_pkg::get_cmd_intg(t);
-            data_intg_calc      = tlul_pkg::get_data_intg(tl_i_a_data);
+          logic         tl_i_a_valid;
+          logic [2:0]   tl_i_a_opcode;
+          logic [2:0]   tl_i_a_param;
+          logic [1:0]   tl_i_a_size;
+          logic [7:0]   tl_i_a_source;
+          logic [31:0]  tl_i_a_address;
+          logic [3:0]   tl_i_a_mask;
+          logic [31:0]  tl_i_a_data;
+          logic         tl_i_d_ready;
+          logic         tl_o_d_valid;
+          logic [2:0]   tl_o_d_opcode;
+          logic [31:0]  tl_o_d_data;
+          logic         tl_o_d_error;
+          logic         tl_o_a_ready;
+          logic [108:0] tl_i;
+          logic [65:0]  tl_o;
+
+        {helpers}
+
+          initial begin
+        {extra_init}
           end
-          assign tl_i.a_user.instr_type = prim_mubi_pkg::MuBi4False;
-          assign tl_i.a_user.cmd_intg   = cmd_intg_calc;
-          assign tl_i.a_user.data_intg  = data_intg_calc;
-          assign tl_o_d_valid  = tl_o.d_valid;
-          assign tl_o_d_opcode = tl_o.d_opcode;
-          assign tl_o_d_data   = tl_o.d_data;
-          assign tl_o_d_error  = tl_o.d_error;
-          assign tl_o_a_ready  = tl_o.a_ready;
+
+          assign tl_i = flexsoc_tlul_h2d(
+            tl_i_a_valid, tl_i_a_opcode, tl_i_a_param, tl_i_a_size,
+            tl_i_a_source, tl_i_a_address, tl_i_a_mask, tl_i_a_data, tl_i_d_ready
+          );
+          assign tl_o_d_valid  = tl_o[65];
+          assign tl_o_d_opcode = tl_o[64:62];
+          assign tl_o_d_data   = tl_o[47:16];
+          assign tl_o_d_error  = tl_o[1];
+          assign tl_o_a_ready  = tl_o[0];
+
           string wave_path;
           initial begin
             if (!$value$plusargs("WAVE=%s", wave_path)) begin
               if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
             end
             if (wave_path != "") begin
-              $display("[TB] dumpfile = %s", wave_path);
-              $dumpfile(wave_path);
-              $dumpvars(0, {cfg.top}_tb);
+              `ifdef FLEXSOC_COCOTB_WAVE_OWNER
+                $display("[TB] dumpfile = %s owner=cocotb", wave_path);
+              `else
+                $display("[TB] dumpfile = %s owner=wrapper", wave_path);
+                $dumpfile(wave_path);
+                $dumpvars(0, {cfg.top}_tb);
+              `endif
             end
             #1;
           end
@@ -1149,11 +1189,14 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
               if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
               if (sdf_path != "") begin
                 `ifdef FLEXSOC_SDF_MIN
-                  $sdf_annotate(sdf_path, u_{cfg.top}, , , "MINIMUM");
+                  $display("[TB] sdf = %s scope=u_{cfg.top} mode=MINIMUM", sdf_path);
+                  $sdf_annotate(sdf_path, u_{cfg.top});
                 `elsif FLEXSOC_SDF_TYP
-                  $sdf_annotate(sdf_path, u_{cfg.top}, , , "TYPICAL");
+                  $display("[TB] sdf = %s scope=u_{cfg.top} mode=TYPICAL", sdf_path);
+                  $sdf_annotate(sdf_path, u_{cfg.top});
                 `else
-                  $sdf_annotate(sdf_path, u_{cfg.top}, , , "MAXIMUM");
+                  $display("[TB] sdf = %s scope=u_{cfg.top} mode=MAXIMUM", sdf_path);
+                  $sdf_annotate(sdf_path, u_{cfg.top});
                 `endif
               end
             end
@@ -1166,7 +1209,6 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
         endmodule
         """
     )
-
 
 def _write_cocotb_scaffold_impl(cfg: CocotbConfig) -> list[Path]:
     """Write the cocotb scaffold and return generated paths."""
@@ -1204,151 +1246,11 @@ def _generated_tlul_wrapper_path(config: CocotbConfig) -> Path:
     return Path(config.output) / f"{config.top}_tb.sv"
 
 
-def _extract_scalar_declarations_from_wrapper(text: str, clk: str, rst: str) -> str:
-    """Extract user scalar declarations from a previously generated wrapper."""
-
-    lines = text.splitlines()
-    scalars: list[str] = []
-    seen_clock_reset = False
-    for raw in lines:
-        line = raw.strip()
-        if not line:
-            continue
-        if re.fullmatch(rf"logic\s+{re.escape(clk)}\s*;", line) or re.fullmatch(rf"logic\s+{re.escape(rst)}\s*;", line):
-            seen_clock_reset = True
-            continue
-        if "tl_i_a_valid" in line:
-            break
-        if not seen_clock_reset:
-            continue
-        if line.startswith("logic ") and not line.startswith("logic                       tl_") and " tl_" not in line:
-            scalars.append(line)
-    if not scalars:
-        return "  // No extra scalar DUT ports detected."
-    return "\n".join(f"  {line}" for line in scalars)
-
-
 def _render_tlul_wrapper(config: CocotbConfig, previous_text: str) -> str:
-    """Render a readable TL-UL SystemVerilog wrapper using existing declarations."""
+    """Regenerate the canonical package-free TL-UL wrapper."""
 
-    top = config.top
-    clk = config.clk
-    rst = config.rst
-    scalar_decls = _extract_scalar_declarations_from_wrapper(previous_text, clk, rst)
-    return f"""`timescale 1ns/1ps
-
-// Auto-generated Cocotb TL-UL wrapper for {top}.
-// Edit setup_cocotb.py instead of this generated file.
-module {top}_tb;
-
-  // Clock and reset.
-  logic {clk};
-  logic {rst};
-
-  // Scalar DUT ports discovered from the RTL header.
-{scalar_decls}
-
-  // TL-UL request channel fields driven from Cocotb.
-  logic                       tl_i_a_valid;
-  tlul_pkg::tl_a_op_e         tl_i_a_opcode;
-  logic [2:0]                 tl_i_a_param;
-  logic [top_pkg::TL_SZW-1:0] tl_i_a_size;
-  logic [top_pkg::TL_AIW-1:0] tl_i_a_source;
-  logic [top_pkg::TL_AW-1:0]  tl_i_a_address;
-  logic [top_pkg::TL_DBW-1:0] tl_i_a_mask;
-  logic [top_pkg::TL_DW-1:0]  tl_i_a_data;
-  logic                       tl_i_d_ready;
-
-  // TL-UL response channel fields sampled by Cocotb.
-  logic                       tl_o_d_valid;
-  tlul_pkg::tl_d_op_e         tl_o_d_opcode;
-  logic [top_pkg::TL_DW-1:0]  tl_o_d_data;
-  logic                       tl_o_d_error;
-  logic                       tl_o_a_ready;
-
-  // Packed TL-UL buses connected to the DUT.
-  tlul_pkg::tl_h2d_t          tl_i;
-  tlul_pkg::tl_d2h_t          tl_o;
-
-  assign tl_i.a_valid   = tl_i_a_valid;
-  assign tl_i.a_opcode  = tl_i_a_opcode;
-  assign tl_i.a_param   = tl_i_a_param;
-  assign tl_i.a_size    = tl_i_a_size;
-  assign tl_i.a_source  = tl_i_a_source;
-  assign tl_i.a_address = tl_i_a_address;
-  assign tl_i.a_mask    = tl_i_a_mask;
-  assign tl_i.a_data    = tl_i_a_data;
-  assign tl_i.d_ready   = tl_i_d_ready;
-
-  // Generate TL-UL integrity sideband values from the unpacked fields.
-  logic [tlul_pkg::H2DCmdIntgWidth-1:0] cmd_intg_calc;
-  logic [tlul_pkg::DataIntgWidth-1:0]   data_intg_calc;
-
-  always_comb begin
-    /* verilator lint_off IMPLICITSTATIC */
-    tlul_pkg::tl_h2d_t t = '0;
-    /* verilator lint_on */
-
-    t.a_address         = tl_i_a_address;
-    t.a_opcode          = tl_i_a_opcode;
-    t.a_mask            = tl_i_a_mask;
-    t.a_user.instr_type = prim_mubi_pkg::MuBi4False;
-
-    cmd_intg_calc       = tlul_pkg::get_cmd_intg(t);
-    data_intg_calc      = tlul_pkg::get_data_intg(tl_i_a_data);
-  end
-
-  assign tl_i.a_user.instr_type = prim_mubi_pkg::MuBi4False;
-  assign tl_i.a_user.cmd_intg   = cmd_intg_calc;
-  assign tl_i.a_user.data_intg  = data_intg_calc;
-
-  assign tl_o_d_valid  = tl_o.d_valid;
-  assign tl_o_d_opcode = tl_o.d_opcode;
-  assign tl_o_d_data   = tl_o.d_data;
-  assign tl_o_d_error  = tl_o.d_error;
-  assign tl_o_a_ready  = tl_o.a_ready;
-
-  // Wave dump for local debug.
-  string wave_path;
-  initial begin
-    if (!$value$plusargs("WAVE=%s", wave_path)) begin
-      if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
-    end
-    if (wave_path != "") begin
-      $display("[TB] dumpfile = %s", wave_path);
-      $dumpfile(wave_path);
-      $dumpvars(0, {top}_tb);
-    end
-    #1;
-  end
-
-  // Optional SDF backannotation for gate-level runs only.
-  `ifdef FLEXSOC_ENABLE_SDF
-    string sdf_path;
-    initial begin
-      if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
-      if (sdf_path != "") begin
-        `ifdef FLEXSOC_SDF_MIN
-          $sdf_annotate(sdf_path, u_{top}, , , "MINIMUM");
-        `elsif FLEXSOC_SDF_TYP
-          $sdf_annotate(sdf_path, u_{top}, , , "TYPICAL");
-        `else
-          $sdf_annotate(sdf_path, u_{top}, , , "MAXIMUM");
-        `endif
-      end
-    end
-  `endif
-
-  // Device under test.
-  {top} u_{top} (
-    .{clk}({clk}),
-    .{rst}({rst}),
-    .*
-  );
-
-endmodule
-"""
-
+    del previous_text
+    return render_tlul_wrapper(config)
 
 def _format_generated_tlul_wrapper(config: CocotbConfig) -> None:
     """Post-format the generated TL-UL wrapper if the scaffold emitted one."""
@@ -1357,7 +1259,7 @@ def _format_generated_tlul_wrapper(config: CocotbConfig) -> None:
     if not path.exists():
         return
     text = path.read_text(encoding="utf-8")
-    if "tlul_pkg::tl_h2d_t" not in text or f"module {config.top}_tb" not in text:
+    if "tl_i_a_valid" not in text or f"module {config.top}_tb" not in text:
         return
     path.write_text(_render_tlul_wrapper(config, text), encoding="utf-8")
 
@@ -1371,12 +1273,7 @@ def write_cocotb_scaffold(config: CocotbConfig) -> list[Path]:
         return sorted(path for path in Path(config.output).iterdir() if path.is_file())
     return written
 def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
-    """Render a cocotb wrapper with scalar TL-UL proxy signals.
-
-    Cocotb/Verilator exposes packed structs as LogicArrayObject values, so Python
-    cannot access cfg_tl_i.d_ready directly.  The wrapper keeps the real DUT
-    connected to TL-UL structs, but exposes scalar proxy signals for cocotb.
-    """
+    """Render the package-free N-clock cocotb wrapper with two TL-UL proxies."""
 
     clock_decls = "\n".join(
         f"  logic {domain.signal};\n  logic {domain.reset};" for domain in clocks.domains
@@ -1386,6 +1283,7 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
         for domain in clocks.domains
         for signal in (domain.signal, domain.reset)
     )
+    helpers = render_packed_tlul_helpers("  ")
     return dedent(f"""\
     `timescale 1ns/1ps
 
@@ -1393,10 +1291,10 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
       {clock_decls}
       logic test_en_i;
 
-      tlul_pkg::tl_h2d_t cfg_tl_i;
-      tlul_pkg::tl_d2h_t cfg_tl_o;
-      tlul_pkg::tl_h2d_t dsp_tl_i;
-      tlul_pkg::tl_d2h_t dsp_tl_o;
+      logic [108:0] cfg_tl_i;
+      logic [65:0]  cfg_tl_o;
+      logic [108:0] dsp_tl_i;
+      logic [65:0]  dsp_tl_o;
 
       logic        cfg_a_valid;
       logic [2:0]  cfg_a_opcode;
@@ -1436,42 +1334,47 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
       logic dsp_above_threshold_o;
       logic dsp_overflow_o;
 
-      always_comb begin
-        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        cfg_tl_i.a_valid   = cfg_a_valid;
-        cfg_tl_i.a_opcode  = tlul_pkg::tl_a_op_e'(cfg_a_opcode);
-        cfg_tl_i.a_param   = cfg_a_param;
-        cfg_tl_i.a_size    = cfg_a_size;
-        cfg_tl_i.a_source  = cfg_a_source;
-        cfg_tl_i.a_address = cfg_a_address;
-        cfg_tl_i.a_mask    = cfg_a_mask;
-        cfg_tl_i.a_data    = cfg_a_data;
-        cfg_tl_i.d_ready   = cfg_d_ready;
+{helpers}
 
-        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        dsp_tl_i.a_valid   = dsp_a_valid;
-        dsp_tl_i.a_opcode  = tlul_pkg::tl_a_op_e'(dsp_a_opcode);
-        dsp_tl_i.a_param   = dsp_a_param;
-        dsp_tl_i.a_size    = dsp_a_size;
-        dsp_tl_i.a_source  = dsp_a_source;
-        dsp_tl_i.a_address = dsp_a_address;
-        dsp_tl_i.a_mask    = dsp_a_mask;
-        dsp_tl_i.a_data    = dsp_a_data;
-        dsp_tl_i.d_ready   = dsp_d_ready;
-      end
+      assign cfg_tl_i = flexsoc_tlul_h2d(
+        cfg_a_valid, cfg_a_opcode, cfg_a_param, cfg_a_size, cfg_a_source,
+        cfg_a_address, cfg_a_mask, cfg_a_data, cfg_d_ready
+      );
+      assign dsp_tl_i = flexsoc_tlul_h2d(
+        dsp_a_valid, dsp_a_opcode, dsp_a_param, dsp_a_size, dsp_a_source,
+        dsp_a_address, dsp_a_mask, dsp_a_data, dsp_d_ready
+      );
 
-      assign cfg_a_ready = cfg_tl_o.a_ready;
-      assign cfg_d_valid = cfg_tl_o.d_valid;
-      assign cfg_d_data  = cfg_tl_o.d_data;
-      assign cfg_d_error = cfg_tl_o.d_error;
+      assign cfg_a_ready = cfg_tl_o[0];
+      assign cfg_d_valid = cfg_tl_o[65];
+      assign cfg_d_data  = cfg_tl_o[47:16];
+      assign cfg_d_error = cfg_tl_o[1];
+      assign dsp_a_ready = dsp_tl_o[0];
+      assign dsp_d_valid = dsp_tl_o[65];
+      assign dsp_d_data  = dsp_tl_o[47:16];
+      assign dsp_d_error = dsp_tl_o[1];
 
-      assign dsp_a_ready = dsp_tl_o.a_ready;
-      assign dsp_d_valid = dsp_tl_o.d_valid;
-      assign dsp_d_data  = dsp_tl_o.d_data;
-      assign dsp_d_error = dsp_tl_o.d_error;
+      `ifdef FLEXSOC_ENABLE_SDF
+        string sdf_path;
+        initial begin
+          if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+          if (sdf_path != "") begin
+            `ifdef FLEXSOC_SDF_MIN
+              $display("[TB] sdf = %s scope=u_dut mode=MINIMUM", sdf_path);
+              $sdf_annotate(sdf_path, u_dut);
+            `elsif FLEXSOC_SDF_TYP
+              $display("[TB] sdf = %s scope=u_dut mode=TYPICAL", sdf_path);
+              $sdf_annotate(sdf_path, u_dut);
+            `else
+              $display("[TB] sdf = %s scope=u_dut mode=MAXIMUM", sdf_path);
+              $sdf_annotate(sdf_path, u_dut);
+            `endif
+          end
+        end
+      `endif
 
       {top} u_dut (
-        {clock_pins},
+{clock_pins},
         .test_en_i             (test_en_i),
         .cfg_tl_i              (cfg_tl_i),
         .cfg_tl_o              (cfg_tl_o),
@@ -1489,26 +1392,37 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
       );
     endmodule
     """)
+
 def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     """Render a cocotb Makefile for the N-clock wrapper."""
 
+    gate = render_gls_make_block(f"../../../../syn/$(PDK)/{top}_synth.v")
     return dedent(f"""\
     SIM ?= verilator
     TOPLEVEL_LANG ?= verilog
     COCOTB_TOPLEVEL = {top}_cocotb_tb
     COCOTB_TEST_MODULES = {top}_tb
+
+    ifeq ($(GATES),yes)
+    {gate}
+    else
+    SIM_BUILD ?= sim_build/rtl
     EXTRA_ARGS += -f $(PWD)/../../../../rtl/rtl_common.f
     EXTRA_ARGS += -f $(PWD)/../../../../rtl/rtl_ip.f
-    VERILOG_SOURCES += $(PWD)/{top}_cocotb_tb.sv
     EXTRA_ARGS += -Wno-fatal
+    endif
+
+    VERILOG_SOURCES += $(PWD)/{top}_cocotb_tb.sv
     export TEST_NAME ?= smoke
+    export TEST_ROOT ?= $(abspath ../../tests)
     SEED ?= 1
     HDL_COVERAGE ?= 0
     COVERAGE_FILE ?= $(abspath ../../coverage/cocotb/$(TEST_NAME).dat)
+    WAVE_FORMAT ?= fst
+    WAVE_EXT ?= $(WAVE_FORMAT)
+    WAVE_FILE ?= $(abspath ../../sim/rtl/{top}_tb_cocotb_$(TEST_NAME).$(WAVE_EXT))
+    COCOTB_PLUSARGS += +WAVE=$(WAVE_FILE)
 
-    # FlexSoC reserves COVERAGE for HDL coverage. Cocotb 2.x also treats
-    # COVERAGE as deprecated Python user-code coverage, so clear the legacy
-    # cocotb variable while HDL_COVERAGE carries the Verilator setting.
     override COVERAGE :=
     unexport COVERAGE
 
@@ -1521,11 +1435,13 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     endif
     export FLEXSOC_SEED := $(SEED)
     export COCOTB_RANDOM_SEED := $(SEED)
-    export CFG ?= ../../tests/$(TEST_NAME)/config.regs
-    export DATA_IN ?= ../../tests/$(TEST_NAME)/data_in.vec
-    export DATA_OUT ?= ../../tests/$(TEST_NAME)/data_out.vec
+    export CFG ?= $(TEST_ROOT)/$(TEST_NAME)/config.regs
+    export REG_CONFIG ?= $(CFG)
+    export DATA_IN ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
+    export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
     include $(shell cocotb-config --makefiles)/Makefile.sim
     """)
+
 
 
 

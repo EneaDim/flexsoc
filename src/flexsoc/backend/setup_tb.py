@@ -336,16 +336,16 @@ def render_sv_reg_sequence(
     if not active:
         return f"""// Auto-generated register helper for {top}.
 // This DUT has no generated register bus helper in the current testbench.
-function automatic bit tb_lookup_reg_addr(input string reg_key, output logic [31:0] addr);
-  addr = '0;
-  return 1'b0;
+function automatic logic [32:0] tb_lookup_reg_addr(input string reg_key);
+  return 33'b0;
 endfunction
 
-function automatic bit tb_parse_cfg_u32(input string raw, output logic [31:0] value);
+function automatic logic [32:0] tb_parse_cfg_u32(input string raw);
+  logic [31:0] value;
   int ok;
   value = '0;
   ok = $sscanf(raw, "%d", value);
-  return ok == 1;
+  return {{ok == 1, value}};
 endfunction
 
 task automatic tb_reg_write_key(
@@ -376,12 +376,12 @@ endtask
 """
 
     write_addr_call = (
-        "tl_utils_inst.tlul_write(addr[top_pkg::TL_AW-1:0], data, 4'h0, mask[top_pkg::TL_DBW-1:0]);"
+        "tl_if.tlul_write(addr[31:0], data, 8'h00, mask[3:0]);"
         if interface == "tlul"
         else f"reg_utils_inst.write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
     )
     read_addr_call = (
-        "tl_utils_inst.tlul_read(addr[top_pkg::TL_AW-1:0], data, '0);"
+        "tl_if.tlul_read(addr[31:0], data, 8'h00);"
         if interface == "tlul"
         else f"reg_utils_inst.read(addr[{top}_reg_pkg::AW-1:0], data);"
     )
@@ -399,7 +399,7 @@ endtask
             if not key or key in seen:
                 continue
             seen.add(key)
-            cases.append(f'    "{key}": begin addr = 32\'h{addr:08x}; return 1\'b1; end')
+            cases.append(f'    "{key}": begin addr = 32\'h{addr:08x}; found = 1\'b1; end')
 
     cases.append("    default: begin end")
     addr_cases = "\n".join(cases)
@@ -428,7 +428,7 @@ function automatic bit tb_cfg_is_all_dec(input string raw);
   if (raw.len() == 0) return 1'b0;
 
   for (i = 0; i < raw.len(); i++) begin
-    ch = raw.getc(i);
+    ch = raw[i];
     if (!tb_cfg_is_dec_char(ch)) return 1'b0;
   end
 
@@ -444,7 +444,7 @@ function automatic bit tb_cfg_is_bare_hex(input string raw);
   has_hex_alpha = 1'b0;
 
   for (i = 0; i < raw.len(); i++) begin
-    ch = raw.getc(i);
+    ch = raw[i];
 
     if (tb_cfg_is_dec_char(ch)) begin
       // decimal digit is also legal in hex
@@ -458,8 +458,9 @@ function automatic bit tb_cfg_is_bare_hex(input string raw);
   return has_hex_alpha;
 endfunction
 
-function automatic bit tb_parse_cfg_u32(input string raw, output logic [31:0] value);
+function automatic logic [32:0] tb_parse_cfg_u32(input string raw);
   string s;
+  logic [31:0] value;
   int ok;
 
   value = '0;
@@ -479,10 +480,10 @@ function automatic bit tb_parse_cfg_u32(input string raw, output logic [31:0] va
     $display("[TB][WARN] cannot parse u32 value: %s", raw);
   end
 
-  return ok == 1;
+  return {{ok == 1, value}};
 endfunction
 
-function automatic void tb_cfg_tokenize9(
+task automatic tb_cfg_tokenize9(
   input string line,
   output int count,
   output string w0,
@@ -508,24 +509,31 @@ function automatic void tb_cfg_tokenize9(
   n = line.len();
   i = 0;
 
-  while (i < n) begin
+  begin : tb_cfg_tokenize_done
     while (i < n) begin
-      ch = line.getc(i);
-      if (!(ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d)) break;
-      i++;
-    end
+      begin : tb_cfg_skip_ws
+        while (i < n) begin
+          ch = line[i];
+          if (!(ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d))
+            disable tb_cfg_skip_ws;
+          i++;
+        end
+      end
 
-    if (i >= n) break;
+      if (i >= n) disable tb_cfg_tokenize_done;
 
-    j = i;
+      j = i;
 
-    while (i < n) begin
-      ch = line.getc(i);
-      if (ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d) break;
-      i++;
-    end
+      begin : tb_cfg_scan_token
+        while (i < n) begin
+          ch = line[i];
+          if (ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d)
+            disable tb_cfg_scan_token;
+          i++;
+        end
+      end
 
-    tok = line.substr(j, i - 1);
+      tok = line.substr(j, i - 1);
 
     if (count == 0) w0 = tok;
     else if (count == 1) w1 = tok;
@@ -539,17 +547,30 @@ function automatic void tb_cfg_tokenize9(
 
     count++;
 
-    if (tok.len() > 0 && tok.substr(0, 0) == "#") return;
-    if (count >= 9) return;
+    if (tok.len() > 0 && tok.substr(0, 0) == "#") disable tb_cfg_tokenize_done;
+    if (count >= 9) disable tb_cfg_tokenize_done;
+    end
   end
-endfunction
+endtask
 
-function automatic bit tb_lookup_reg_addr(input string reg_key, output logic [31:0] addr);
+function automatic logic [32:0] tb_lookup_reg_addr(input string reg_key);
+  logic [31:0] addr;
+  logic [32:0] parsed;
+  bit found;
+
+  addr = '0;
+  found = 1'b0;
   case (reg_key)
 {addr_cases}
   endcase
 
-  return tb_parse_cfg_u32(reg_key, addr);
+  if (!found) begin
+    parsed = tb_parse_cfg_u32(reg_key);
+    found = parsed[32];
+    addr = parsed[31:0];
+  end
+
+  return {{found, addr}};
 endfunction
 
 task automatic tb_reg_write_addr(
@@ -576,18 +597,23 @@ task automatic tb_reg_write_key(
   output bit ok
 );
   logic [31:0] addr;
+  logic [32:0] lookup;
 
-  ok = 1'b0;
+  begin : tb_reg_write_key_body
+    ok = 1'b0;
+    lookup = tb_lookup_reg_addr(reg_key);
 
-  if (!tb_lookup_reg_addr(reg_key, addr)) begin
-    $display("[TB][ERROR] unknown register key/address: %s", reg_key);
-    error_count++;
-    return;
+    if (!lookup[32]) begin
+      $display("[TB][ERROR] unknown register key/address: %s", reg_key);
+      error_count++;
+      disable tb_reg_write_key_body;
+    end
+
+    addr = lookup[31:0];
+    $display("[TB][REG-WR] %s addr=0x%08x data=0x%08x mask=0x%08x", reg_key, addr, data, mask);
+    tb_reg_write_addr(addr, data, mask);
+    ok = 1'b1;
   end
-
-  $display("[TB][REG-WR] %s addr=0x%08x data=0x%08x mask=0x%08x", reg_key, addr, data, mask);
-  tb_reg_write_addr(addr, data, mask);
-  ok = 1'b1;
 endtask
 
 task automatic tb_reg_read_key(
@@ -596,19 +622,24 @@ task automatic tb_reg_read_key(
   output bit ok
 );
   logic [31:0] addr;
+  logic [32:0] lookup;
 
-  data = '0;
-  ok = 1'b0;
+  begin : tb_reg_read_key_body
+    data = '0;
+    ok = 1'b0;
+    lookup = tb_lookup_reg_addr(reg_key);
 
-  if (!tb_lookup_reg_addr(reg_key, addr)) begin
-    $display("[TB][ERROR] unknown register key/address: %s", reg_key);
-    error_count++;
-    return;
+    if (!lookup[32]) begin
+      $display("[TB][ERROR] unknown register key/address: %s", reg_key);
+      error_count++;
+      disable tb_reg_read_key_body;
+    end
+
+    addr = lookup[31:0];
+    tb_reg_read_addr(addr, data);
+    $display("[TB][REG-RD] %s addr=0x%08x data=0x%08x", reg_key, addr, data);
+    ok = 1'b1;
   end
-
-  tb_reg_read_addr(addr, data);
-  $display("[TB][REG-RD] %s addr=0x%08x data=0x%08x", reg_key, addr, data);
-  ok = 1'b1;
 endtask
 
 task automatic run_reg_config(input string cfg_path);
@@ -618,6 +649,7 @@ task automatic run_reg_config(input string cfg_path);
   int wait_cycles;
   logic [31:0] wait_value;
   string line;
+  reg [8*4096-1:0] line_buf;
   string t0;
   string t1;
   string t2;
@@ -633,26 +665,30 @@ task automatic run_reg_config(input string cfg_path);
   string wait_raw;
   logic [31:0] data;
   logic [31:0] mask;
+  logic [32:0] parsed;
   bit ok;
 
+  begin : run_reg_config_body
   fd = $fopen(cfg_path, "r");
   if (fd == 0) begin
     $display("[TB] register config not found: %s", cfg_path);
-    return;
+    disable run_reg_config_body;
   end
 
   writes = 0;
   $display("[TB] applying register config: %s", cfg_path);
 
-  while (!$feof(fd)) begin
+  while (!$feof(fd)) begin : tb_cfg_line_1
     line = "";
     tb_cfg_tokenize9(line, code, t0, t1, t2, t3, t4, t5, t6, t7, t8);
 
-    void'($fgets(line, fd));
+    line_buf = '0;
+    void'($fgets(line_buf, fd));
+    line = $sformatf("%0s", line_buf);
     tb_cfg_tokenize9(line, code, t0, t1, t2, t3, t4, t5, t6, t7, t8);
 
-    if (code < 1) continue;
-    if (t0.len() > 0 && t0.substr(0, 0) == "#") continue;
+    if (code < 1) disable tb_cfg_line_1;
+    if (t0.len() > 0 && t0.substr(0, 0) == "#") disable tb_cfg_line_1;
 
     reg_key = "";
     data_raw = "";
@@ -662,7 +698,7 @@ task automatic run_reg_config(input string cfg_path);
     if (t0 == "write" || t0 == "@write" || t0 == "reg_write" || t0 == "@reg_write") begin
       if (code < 3) begin
         $display("[TB][WARN] malformed config write row: %s", line);
-        continue;
+        disable tb_cfg_line_1;
       end
 
       reg_key = t1;
@@ -672,7 +708,7 @@ task automatic run_reg_config(input string cfg_path);
     end else begin
       if (code < 2) begin
         $display("[TB][WARN] malformed config row: %s", line);
-        continue;
+        disable tb_cfg_line_1;
       end
 
       reg_key = t0;
@@ -683,19 +719,24 @@ task automatic run_reg_config(input string cfg_path);
 
     if (data_raw.len() > 0 && data_raw.substr(0, 0) == "#") begin
       $display("[TB][WARN] malformed config row: %s", line);
-      continue;
+      disable tb_cfg_line_1;
     end
 
-    if (!tb_parse_cfg_u32(data_raw, data)) continue;
+    parsed = tb_parse_cfg_u32(data_raw);
+    if (!parsed[32]) disable tb_cfg_line_1;
+    data = parsed[31:0];
 
-    if (mask_raw.len() > 0 && mask_raw.substr(0, 0) != "#" && tb_parse_cfg_u32(mask_raw, mask)) begin
-      // explicit mask parsed
+    parsed = tb_parse_cfg_u32(mask_raw);
+    if (mask_raw.len() > 0 && mask_raw.substr(0, 0) != "#" && parsed[32]) begin
+      mask = parsed[31:0];
     end else begin
       mask = 32'hffff_ffff;
     end
 
     wait_cycles = 1;
-    if (wait_raw.len() > 0 && wait_raw.substr(0, 0) != "#" && tb_parse_cfg_u32(wait_raw, wait_value)) begin
+    parsed = tb_parse_cfg_u32(wait_raw);
+    if (wait_raw.len() > 0 && wait_raw.substr(0, 0) != "#" && parsed[32]) begin
+      wait_value = parsed[31:0];
       wait_cycles = int'(wait_value);
     end
 
@@ -710,6 +751,7 @@ task automatic run_reg_config(input string cfg_path);
   if (writes == 0) begin
     $display("[TB] no register config writes from %s; continuing", cfg_path);
   end
+  end
 endtask
 """
 
@@ -722,7 +764,7 @@ def _sv_output_expr(name: str) -> str:
 
 
 TOKENIZER = r"""
-function automatic void tb_tokenize9(
+task automatic tb_tokenize9(
   input string line,
   output int count,
   output string w0,
@@ -748,24 +790,31 @@ function automatic void tb_tokenize9(
   n = line.len();
   i = 0;
 
-  while (i < n) begin
+  begin : tb_tokenize_done
     while (i < n) begin
-      ch = line.getc(i);
-      if (!(ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d)) break;
-      i++;
-    end
+      begin : tb_skip_ws
+        while (i < n) begin
+          ch = line[i];
+          if (!(ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d))
+            disable tb_skip_ws;
+          i++;
+        end
+      end
 
-    if (i >= n) break;
+      if (i >= n) disable tb_tokenize_done;
 
-    j = i;
+      j = i;
 
-    while (i < n) begin
-      ch = line.getc(i);
-      if (ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d) break;
-      i++;
-    end
+      begin : tb_scan_token
+        while (i < n) begin
+          ch = line[i];
+          if (ch == 8'h20 || ch == 8'h09 || ch == 8'h0a || ch == 8'h0d)
+            disable tb_scan_token;
+          i++;
+        end
+      end
 
-    tok = line.substr(j, i - 1);
+      tok = line.substr(j, i - 1);
 
     if (count == 0) w0 = tok;
     else if (count == 1) w1 = tok;
@@ -780,14 +829,15 @@ function automatic void tb_tokenize9(
     count++;
 
     if (tok.len() > 0 && tok.substr(0, 0) == "#") begin
-      return;
+      disable tb_tokenize_done;
     end
 
     if (count >= 9) begin
-      return;
+      disable tb_tokenize_done;
+    end
     end
   end
-endfunction
+endtask
 """
 
 def render_sv_vec_monitor(top: str, outputs: Sequence[str]) -> str:
@@ -831,7 +881,7 @@ function automatic bit tb_vec_is_all_dec(input string raw);
   if (raw.len() == 0) return 1'b0;
 
   for (i = 0; i < raw.len(); i++) begin
-    ch = raw.getc(i);
+    ch = raw[i];
     if (!tb_vec_is_dec_char(ch)) return 1'b0;
   end
 
@@ -847,7 +897,7 @@ function automatic bit tb_vec_is_bare_hex(input string raw);
   has_hex_alpha = 1'b0;
 
   for (i = 0; i < raw.len(); i++) begin
-    ch = raw.getc(i);
+    ch = raw[i];
 
     if (tb_vec_is_dec_char(ch)) begin
       // decimal digit is also legal in hex
@@ -861,8 +911,9 @@ function automatic bit tb_vec_is_bare_hex(input string raw);
   return has_hex_alpha;
 endfunction
 
-function automatic bit tb_parse_u32(input string raw, output logic [31:0] value);
+function automatic logic [32:0] tb_parse_u32(input string raw);
   string s;
+  logic [31:0] value;
   int ok;
 
   value = '0;
@@ -882,11 +933,12 @@ function automatic bit tb_parse_u32(input string raw, output logic [31:0] value)
     $display("[TB][WARN] cannot parse vector value: %s", raw);
   end
 
-  return ok == 1;
+  return {{ok == 1, value}};
 endfunction
 {TOKENIZER}
-function automatic logic [31:0] tb_read_output(input string name, output bit known);
+function automatic logic [32:0] tb_read_output(input string name);
   logic [31:0] actual;
+  bit known;
 
   actual = '0;
   known = 1'b0;
@@ -896,30 +948,35 @@ function automatic logic [31:0] tb_read_output(input string name, output bit kno
     known = 1'b0;
   end
 
-  return actual;
+  return {{known, actual}};
 endfunction
 
 task automatic tb_check_signal_one(input int cycle, input string name, input string raw);
   logic [31:0] actual;
   logic [31:0] expected;
-  bit known;
+  logic [32:0] parsed;
+  logic [32:0] sampled;
 
-  if (name == "") return;
-  if (!tb_parse_u32(raw, expected)) return;
+  begin : tb_check_signal_one_body
+    if (name == "") disable tb_check_signal_one_body;
+    parsed = tb_parse_u32(raw);
+    if (!parsed[32]) disable tb_check_signal_one_body;
+    expected = parsed[31:0];
 
-  actual = tb_read_output(name, known);
+    sampled = tb_read_output(name);
+    if (!sampled[32]) begin
+      error_count++;
+      $display("[TB][ERROR] unknown expected-output vector signal: %s", name);
+      disable tb_check_signal_one_body;
+    end
+    actual = sampled[31:0];
 
-  if (!known) begin
-    error_count++;
-    $display("[TB][ERROR] unknown expected-output vector signal: %s", name);
-    return;
-  end
-
-  if (actual !== expected) begin
-    error_count++;
-    $display("[TB][FAIL] cycle=%0d %s actual=0x%08x expected=0x%08x", cycle, name, actual, expected);
-  end else begin
-    $display("[TB][PASS] cycle=%0d %s=0x%08x", cycle, name, actual);
+    if (actual !== expected) begin
+      error_count++;
+      $display("[TB][FAIL] cycle=%0d %s actual=0x%08x expected=0x%08x", cycle, name, actual, expected);
+    end else begin
+      $display("[TB][PASS] cycle=%0d %s=0x%08x", cycle, name, actual);
+    end
   end
 endtask
 
@@ -932,37 +989,43 @@ task automatic tb_check_read_one(
   logic [31:0] actual;
   logic [31:0] expected;
   logic [31:0] mask;
+  logic [32:0] parsed;
   bit ok;
 
-  if (!tb_parse_u32(expected_raw, expected)) return;
+  begin : tb_check_read_one_body
+    parsed = tb_parse_u32(expected_raw);
+    if (!parsed[32]) disable tb_check_read_one_body;
+    expected = parsed[31:0];
 
-  if (mask_raw.len() > 0 && tb_parse_u32(mask_raw, mask)) begin
-    // parsed explicit mask
-  end else begin
-    mask = 32'hffff_ffff;
-  end
+    parsed = tb_parse_u32(mask_raw);
+    if (mask_raw.len() > 0 && parsed[32]) begin
+      mask = parsed[31:0];
+    end else begin
+      mask = 32'hffff_ffff;
+    end
 
-  tb_reg_read_key(reg_key, actual, ok);
-  if (!ok) return;
+    tb_reg_read_key(reg_key, actual, ok);
+    if (!ok) disable tb_check_read_one_body;
 
-  if ((actual & mask) !== (expected & mask)) begin
-    error_count++;
-    $display("[TB][FAIL] cycle=%0d read %s actual=0x%08x expected=0x%08x mask=0x%08x",
-             cycle, reg_key, actual, expected, mask);
-  end else begin
-    $display("[TB][PASS] cycle=%0d read %s=0x%08x mask=0x%08x",
-             cycle, reg_key, actual, mask);
+    if ((actual & mask) !== (expected & mask)) begin
+      error_count++;
+      $display("[TB][FAIL] cycle=%0d read %s actual=0x%08x expected=0x%08x mask=0x%08x",
+               cycle, reg_key, actual, expected, mask);
+    end else begin
+      $display("[TB][PASS] cycle=%0d read %s=0x%08x mask=0x%08x",
+               cycle, reg_key, actual, mask);
+    end
   end
 endtask
 
-function automatic int tb_last_output_cycle(input string out_path);
+task automatic tb_last_output_cycle(input string out_path, output int last_cycle);
   int fd;
   int code;
-  int last_cycle;
   logic [31:0] cycle_value;
-  logic [31:0] guard_value;
-  bit guard_known;
+  logic [32:0] parsed;
+  logic [32:0] sampled;
   string line;
+  reg [8*4096-1:0] line_buf;
   string cycle_raw;
   string t0;
   string t1;
@@ -973,38 +1036,42 @@ function automatic int tb_last_output_cycle(input string out_path);
   string t6;
   string t7;
 
+  begin : tb_last_output_cycle_body
   last_cycle = -1;
   fd = $fopen(out_path, "r");
-  if (fd == 0) return -1;
+  if (fd == 0) disable tb_last_output_cycle_body;
 
-  while (!$feof(fd)) begin
+  while (!$feof(fd)) begin : tb_last_cycle_line
     line = "";
     tb_tokenize9(line, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
 
-    void'($fgets(line, fd));
+    line_buf = '0;
+    void'($fgets(line_buf, fd));
+    line = $sformatf("%0s", line_buf);
     tb_tokenize9(line, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
 
-    if (code < 3) continue;
-    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") continue;
+    if (code < 3) disable tb_last_cycle_line;
+    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") disable tb_last_cycle_line;
 
-    guard_value = tb_read_output(cycle_raw, guard_known);
-    if (guard_known) continue;
-    if (!tb_parse_u32(cycle_raw, cycle_value)) continue;
+    sampled = tb_read_output(cycle_raw);
+    if (sampled[32]) disable tb_last_cycle_line;
+    parsed = tb_parse_u32(cycle_raw);
+    if (!parsed[32]) disable tb_last_cycle_line;
+    cycle_value = parsed[31:0];
 
     if (int'(cycle_value) > last_cycle) last_cycle = int'(cycle_value);
   end
 
   $fclose(fd);
-  return last_cycle;
-endfunction
+  end
+endtask
 
-function automatic int tb_guarded_output_count(input string out_path);
+task automatic tb_guarded_output_count(input string out_path, output int count);
   int fd;
   int code;
-  int count;
-  logic [31:0] ignored;
-  bit known;
+  logic [32:0] sampled;
   string line;
+  reg [8*4096-1:0] line_buf;
   string first;
   string t0;
   string t1;
@@ -1015,23 +1082,26 @@ function automatic int tb_guarded_output_count(input string out_path);
   string t6;
   string t7;
 
+  begin : tb_guarded_output_count_body
   count = 0;
   fd = $fopen(out_path, "r");
-  if (fd == 0) return 0;
+  if (fd == 0) disable tb_guarded_output_count_body;
 
-  while (!$feof(fd)) begin
+  while (!$feof(fd)) begin : tb_guard_count_line
     line = "";
-    void'($fgets(line, fd));
+    line_buf = '0;
+    void'($fgets(line_buf, fd));
+    line = $sformatf("%0s", line_buf);
     tb_tokenize9(line, code, first, t0, t1, t2, t3, t4, t5, t6, t7);
-    if (code < 3) continue;
-    if (first.len() > 0 && first.substr(0, 0) == "#") continue;
-    ignored = tb_read_output(first, known);
-    if (known) count++;
+    if (code < 3) disable tb_guard_count_line;
+    if (first.len() > 0 && first.substr(0, 0) == "#") disable tb_guard_count_line;
+    sampled = tb_read_output(first);
+    if (sampled[32]) count++;
   end
 
   $fclose(fd);
-  return count;
-endfunction
+  end
+endtask
 
 task automatic tb_check_outputs(input string out_path, input int cycle);
   int fd;
@@ -1039,10 +1109,11 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
   int expected_cycle;
   int guarded_index;
   logic [31:0] expected_cycle_value;
-  logic [31:0] guard_value;
-  bit guard_known;
+  logic [32:0] parsed;
+  logic [32:0] sampled;
   string cycle_raw;
   string line;
+  reg [8*4096-1:0] line_buf;
   string t0;
   string t1;
   string t2;
@@ -1052,22 +1123,25 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
   string t6;
   string t7;
 
+  begin : tb_check_outputs_body
   fd = $fopen(out_path, "r");
-  if (fd == 0) return;
+  if (fd == 0) disable tb_check_outputs_body;
   guarded_index = 0;
 
-  while (!$feof(fd)) begin
+  while (!$feof(fd)) begin : tb_check_output_line
     line = "";
-    void'($fgets(line, fd));
+    line_buf = '0;
+    void'($fgets(line_buf, fd));
+    line = $sformatf("%0s", line_buf);
     tb_tokenize9(line, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
 
-    if (code < 3) continue;
-    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") continue;
-    if (t0.len() > 0 && t0.substr(0, 0) == "#") continue;
+    if (code < 3) disable tb_check_output_line;
+    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") disable tb_check_output_line;
+    if (t0.len() > 0 && t0.substr(0, 0) == "#") disable tb_check_output_line;
 
-    guard_value = tb_read_output(cycle_raw, guard_known);
-    if (guard_known) begin
-      if (guarded_index == tb_guarded_output_next && guard_value[0] === 1'b1) begin
+    sampled = tb_read_output(cycle_raw);
+    if (sampled[32]) begin
+      if (guarded_index == tb_guarded_output_next && sampled[0] === 1'b1) begin
         tb_check_signal_one(cycle, t0, t1);
         if (code >= 5) tb_check_signal_one(cycle, t2, t3);
         if (code >= 7) tb_check_signal_one(cycle, t4, t5);
@@ -1075,13 +1149,15 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
         tb_guarded_output_next++;
       end
       guarded_index++;
-      continue;
+      disable tb_check_output_line;
     end
 
-    if (!tb_parse_u32(cycle_raw, expected_cycle_value)) continue;
+    parsed = tb_parse_u32(cycle_raw);
+    if (!parsed[32]) disable tb_check_output_line;
+    expected_cycle_value = parsed[31:0];
 
     expected_cycle = int'(expected_cycle_value);
-    if (expected_cycle != cycle) continue;
+    if (expected_cycle != cycle) disable tb_check_output_line;
 
     if (t0 == "@read" || t0 == "read" || t0 == "@reg_read" || t0 == "reg_read") begin
       if (code < 4) begin
@@ -1090,7 +1166,7 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
       end else begin
         tb_check_read_one(cycle, t1, t2, t3);
       end
-      continue;
+      disable tb_check_output_line;
     end
 
     tb_check_signal_one(cycle, t0, t1);
@@ -1100,8 +1176,15 @@ task automatic tb_check_outputs(input string out_path, input int cycle);
   end
 
   $fclose(fd);
+  end
 endtask
 """
+
+def _sv_input_default(name: str) -> str:
+    """Return the reset-time default for a generated top-level input."""
+
+    return "'1" if name.lower() in {"cio_rx_i", "uart_rx_i", "serial_rx_i"} else "'0"
+
 
 def render_sv_vec_driver(top: str, clk: str, rst: str, inputs: Sequence[str], outputs: Sequence[str]) -> str:
     """Render generic input-vector drive tasks from data_in.vec.
@@ -1123,6 +1206,7 @@ def render_sv_vec_driver(top: str, clk: str, rst: str, inputs: Sequence[str], ou
             "  end"
         )
     drives_text = "\n".join(drives)
+    reset_defaults = "\n".join(f"  {name} = {_sv_input_default(name)};" for name in inputs)
 
     return f"""// Auto-generated vector driver for {top}.
 // data_in.vec supports signal drives, @write, @cfg, and @reset.
@@ -1139,28 +1223,38 @@ endtask
 
 task automatic tb_drive_raw(input string name, input string raw);
   logic [31:0] value;
+  logic [32:0] parsed;
 
-  if (name == "") return;
-  if (!tb_parse_u32(raw, value)) return;
-
-  tb_drive_input(name, value);
+  begin : tb_drive_raw_body
+    if (name == "") disable tb_drive_raw_body;
+    parsed = tb_parse_u32(raw);
+    if (!parsed[32]) disable tb_drive_raw_body;
+    value = parsed[31:0];
+    tb_drive_input(name, value);
+  end
 endtask
 
 task automatic tb_apply_reg_write(input string reg_key, input string data_raw, input string mask_raw);
   logic [31:0] data;
   logic [31:0] mask;
+  logic [32:0] parsed;
   bit ok;
 
-  if (!tb_parse_u32(data_raw, data)) return;
+  begin : tb_apply_reg_write_body
+    parsed = tb_parse_u32(data_raw);
+    if (!parsed[32]) disable tb_apply_reg_write_body;
+    data = parsed[31:0];
 
-  if (mask_raw.len() > 0 && tb_parse_u32(mask_raw, mask)) begin
-    // parsed explicit mask
-  end else begin
-    mask = 32'hffff_ffff;
+    parsed = tb_parse_u32(mask_raw);
+    if (mask_raw.len() > 0 && parsed[32]) begin
+      mask = parsed[31:0];
+    end else begin
+      mask = 32'hffff_ffff;
+    end
+
+    tb_reg_write_key(reg_key, data, mask, ok);
+    if (ok) tb_vector_apply_count++;
   end
-
-  tb_reg_write_key(reg_key, data, mask, ok);
-  if (ok) tb_vector_apply_count++;
 endtask
 
 task automatic tb_step(input string data_out_path, inout int now_cycle);
@@ -1171,6 +1265,7 @@ endtask
 
 task automatic tb_apply_reset(input int cycles, input string data_out_path, inout int now_cycle);
   int i;
+{reset_defaults}
   {rst} = 1'b0;
   for (i = 0; i < cycles; i++) tb_step(data_out_path, now_cycle);
   @(negedge {clk}); #1;
@@ -1222,8 +1317,10 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   bit cycle_open;
   logic [31:0] cycle_value;
   logic [31:0] reset_cycles;
+  logic [32:0] parsed;
   string cycle_raw;
   string line;
+  reg [8*4096-1:0] line_buf;
   string t0;
   string t1;
   string t2;
@@ -1238,27 +1335,32 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   cycle_open = 1'b0;
   apply_start = tb_vector_apply_count;
   tb_guarded_output_next = 0;
-  final_cycle = tb_last_output_cycle(data_out_path);
-  guarded_total = tb_guarded_output_count(data_out_path);
+  tb_last_output_cycle(data_out_path, final_cycle);
+  tb_guarded_output_count(data_out_path, guarded_total);
 
+  begin : run_vectors_body
   fd = $fopen(data_in_path, "r");
   if (fd == 0) begin
     $display("[TB][ERROR] input vector file not found: %s", data_in_path);
     error_count++;
-    return;
+    disable run_vectors_body;
   end
 
   $display("[TB] running vectors: in=%s out=%s", data_in_path, data_out_path);
 
-  while (!$feof(fd)) begin
+  while (!$feof(fd)) begin : tb_input_line
     line = "";
-    void'($fgets(line, fd));
+    line_buf = '0;
+    void'($fgets(line_buf, fd));
+    line = $sformatf("%0s", line_buf);
     tb_tokenize9(line, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);
 
-    if (code < 3) continue;
-    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") continue;
-    if (t0.len() > 0 && t0.substr(0, 0) == "#") continue;
-    if (!tb_parse_u32(cycle_raw, cycle_value)) continue;
+    if (code < 3) disable tb_input_line;
+    if (cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#") disable tb_input_line;
+    if (t0.len() > 0 && t0.substr(0, 0) == "#") disable tb_input_line;
+    parsed = tb_parse_u32(cycle_raw);
+    if (!parsed[32]) disable tb_input_line;
+    cycle_value = parsed[31:0];
 
     cycle = int'(cycle_value);
 
@@ -1269,24 +1371,26 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
       $display("[TB][CFG] cycle=%0d path=%s", cycle, t1);
       run_reg_config(t1);
       tb_vector_apply_count++;
-      continue;
+      disable tb_input_line;
     end
 
     if (t0 == "@reset" || t0 == "reset") begin
       tb_finish_cycle(data_out_path, now_cycle, cycle_open);
       tb_wait_before_drive(cycle, data_out_path, now_cycle);
       current_cycle = -1;
-      if (!tb_parse_u32(t1, reset_cycles) || reset_cycles == 0) reset_cycles = 2;
+      parsed = tb_parse_u32(t1);
+      reset_cycles = parsed[32] ? parsed[31:0] : 32'd2;
+      if (reset_cycles == 0) reset_cycles = 2;
       $display("[TB][RESET] cycle=%0d cycles=%0d", cycle, reset_cycles);
       tb_apply_reset(int'(reset_cycles), data_out_path, now_cycle);
-      continue;
+      disable tb_input_line;
     end
 
     if (t0 == "@write" || t0 == "write" || t0 == "@reg_write" || t0 == "reg_write") begin
       if (code < 4) begin
         error_count++;
         $display("[TB][ERROR] malformed @write row: %s", line);
-        continue;
+        disable tb_input_line;
       end
 
       tb_finish_cycle(data_out_path, now_cycle, cycle_open);
@@ -1294,13 +1398,13 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
       current_cycle = -1;
       $display("[TB][VEC-WR] cycle=%0d reg=%s", cycle, t1);
       tb_apply_reg_write(t1, t2, t3);
-      continue;
+      disable tb_input_line;
     end
 
     if ((code - 1) % 2 != 0) begin
       error_count++;
       $display("[TB][ERROR] malformed signal vector row: %s", line);
-      continue;
+      disable tb_input_line;
     end
 
     if (!cycle_open || cycle != current_cycle) begin
@@ -1323,22 +1427,244 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   end
   guarded_deadline = now_cycle + 4096;
 
-  while (now_cycle < final_cycle || tb_guarded_output_next < guarded_total) begin
-    if (tb_guarded_output_next < guarded_total && now_cycle >= guarded_deadline) begin
-      error_count++;
-      $display("[TB][ERROR] timed out waiting for guarded output row %0d/%0d",
-               tb_guarded_output_next + 1, guarded_total);
-      break;
-    end
+  while ((now_cycle < final_cycle || tb_guarded_output_next < guarded_total) &&
+         now_cycle < guarded_deadline) begin
     tb_step(data_out_path, now_cycle);
+  end
+  if (tb_guarded_output_next < guarded_total) begin
+    error_count++;
+    $display("[TB][ERROR] timed out waiting for guarded output row %0d/%0d",
+             tb_guarded_output_next + 1, guarded_total);
   end
 
   if (tb_vector_apply_count == apply_start) begin
     error_count++;
     $display("[TB][ERROR] no vector inputs or register writes were applied from %s", data_in_path);
   end
+  end
 endtask
 """
+
+
+# Icarus 12 cannot reliably index or coerce automatic SystemVerilog strings at
+# runtime. Keep file paths as strings, but parse file content through packed
+# vectors and classic $sscanf semantics.
+_STRING_RENDER_SV_REG_SEQUENCE = render_sv_reg_sequence
+_STRING_RENDER_SV_VEC_MONITOR = render_sv_vec_monitor
+_STRING_RENDER_SV_VEC_DRIVER = render_sv_vec_driver
+
+_PACKED_TOKEN_SUPPORT = r"""
+localparam integer FLEXSOC_TB_LINE_BYTES = 4096;
+localparam integer FLEXSOC_TB_TOKEN_BYTES = 256;
+typedef reg [8*FLEXSOC_TB_LINE_BYTES-1:0] tb_line_t;
+typedef reg [8*FLEXSOC_TB_TOKEN_BYTES-1:0] tb_token_t;
+
+function automatic bit tb_token_empty(input tb_token_t token);
+  return token == '0;
+endfunction
+
+function automatic bit tb_token_comment(input tb_token_t token);
+  tb_token_t ignored;
+  integer matched;
+  ignored = '0;
+  matched = $sscanf(token, "#%s", ignored);
+  return token == "#" || matched == 1;
+endfunction
+
+function automatic logic [32:0] tb_parse_u32(input tb_token_t raw);
+  logic [31:0] value;
+  integer ok;
+
+  value = '0;
+  ok = 0;
+  if (!tb_token_empty(raw) && !tb_token_comment(raw)) begin
+    ok = $sscanf(raw, "0x%h", value);
+    if (ok != 1) ok = $sscanf(raw, "0X%h", value);
+    if (ok != 1) ok = $sscanf(raw, "%d", value);
+    if (ok != 1) ok = $sscanf(raw, "%h", value);
+  end
+  return {ok == 1, value};
+endfunction
+
+task automatic tb_tokenize9(
+  input tb_line_t line,
+  output integer count,
+  output tb_token_t w0,
+  output tb_token_t w1,
+  output tb_token_t w2,
+  output tb_token_t w3,
+  output tb_token_t w4,
+  output tb_token_t w5,
+  output tb_token_t w6,
+  output tb_token_t w7,
+  output tb_token_t w8
+);
+  w0 = '0; w1 = '0; w2 = '0; w3 = '0; w4 = '0;
+  w5 = '0; w6 = '0; w7 = '0; w8 = '0;
+  count = $sscanf(line, "%s %s %s %s %s %s %s %s %s",
+                  w0, w1, w2, w3, w4, w5, w6, w7, w8);
+  if (count < 0) count = 0;
+endtask
+"""
+
+
+def _drop_sv_span(text: str, start: str, end: str) -> str:
+    """Drop one generated SV span, retaining the end marker."""
+
+    begin = text.find(start)
+    if begin < 0:
+        return text
+    finish = text.find(end, begin)
+    if finish < 0:
+        raise RuntimeError(f"cannot locate generated SV marker: {end}")
+    return text[:begin] + text[finish:]
+
+
+def _packed_reg_sequence(text: str) -> str:
+    text = _drop_sv_span(
+        text,
+        "function automatic bit tb_cfg_is_dec_char",
+        "function automatic logic [32:0] tb_lookup_reg_addr",
+    )
+    text = _PACKED_TOKEN_SUPPORT + "\n" + text
+    text = text.replace(
+        "function automatic logic [32:0] tb_parse_cfg_u32(input string raw);",
+        "function automatic logic [32:0] tb_parse_cfg_u32(input tb_token_t raw);",
+    )
+    # The active implementation was removed with the legacy string parser.
+    if "function automatic logic [32:0] tb_parse_cfg_u32" not in text:
+        anchor = "function automatic logic [32:0] tb_lookup_reg_addr"
+        text = text.replace(
+            anchor,
+            "function automatic logic [32:0] tb_parse_cfg_u32(input tb_token_t raw);\n"
+            "  return tb_parse_u32(raw);\n"
+            "endfunction\n\n" + anchor,
+            1,
+        )
+    else:
+        start = text.find("function automatic logic [32:0] tb_parse_cfg_u32")
+        end = text.find("endfunction", start) + len("endfunction")
+        text = text[:start] + (
+            "function automatic logic [32:0] tb_parse_cfg_u32(input tb_token_t raw);\n"
+            "  return tb_parse_u32(raw);\n"
+            "endfunction"
+        ) + text[end:]
+
+    text = text.replace("input string reg_key", "input tb_token_t reg_key")
+    text = text.replace("  string line;\n", "")
+    text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
+    for name in ("t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8",
+                 "reg_key", "data_raw", "mask_raw", "wait_raw"):
+        text = text.replace(f"  string {name};", f"  tb_token_t {name};")
+    text = text.replace("tb_cfg_tokenize9", "tb_tokenize9")
+    text = text.replace(
+        "    line = \"\";\n    tb_tokenize9(line, code, t0, t1, t2, t3, t4, t5, t6, t7, t8);\n\n",
+        "",
+    )
+    text = text.replace("    void'($fgets(line_buf, fd));\n    line = $sformatf(\"%0s\", line_buf);",
+                        "    code = $fgets(line_buf, fd);")
+    text = text.replace("tb_tokenize9(line,", "tb_tokenize9(line_buf,")
+    text = text.replace('t0.len() > 0 && t0.substr(0, 0) == "#"', "tb_token_comment(t0)")
+    text = text.replace('data_raw.len() > 0 && data_raw.substr(0, 0) == "#"', "tb_token_comment(data_raw)")
+    text = text.replace('mask_raw.len() > 0 && mask_raw.substr(0, 0) != "#"',
+                        "!tb_token_empty(mask_raw) && !tb_token_comment(mask_raw)")
+    text = text.replace('wait_raw.len() > 0 && wait_raw.substr(0, 0) != "#"',
+                        "!tb_token_empty(wait_raw) && !tb_token_comment(wait_raw)")
+    text = text.replace("malformed config write row: %s\", line", "malformed config write row: %0s\", line_buf")
+    text = text.replace("malformed config row: %s\", line", "malformed config row: %0s\", line_buf")
+    return text
+
+
+def render_sv_reg_sequence(
+    top: str,
+    interface: str,
+    clk: str,
+    *,
+    active: bool,
+    registers: Sequence[dict[str, Any]] = (),
+) -> str:
+    return _packed_reg_sequence(
+        _STRING_RENDER_SV_REG_SEQUENCE(
+            top, interface, clk, active=active, registers=registers
+        )
+    )
+
+
+def _packed_vec_monitor(text: str) -> str:
+    text = _drop_sv_span(
+        text,
+        "function automatic bit tb_vec_is_dec_char",
+        "function automatic logic [32:0] tb_read_output",
+    )
+    text = text.replace("input string name", "input tb_token_t name")
+    text = text.replace("input string raw", "input tb_token_t raw")
+    text = text.replace("input string reg_key", "input tb_token_t reg_key")
+    text = text.replace("input string expected_raw", "input tb_token_t expected_raw")
+    text = text.replace("input string mask_raw", "input tb_token_t mask_raw")
+    text = text.replace("  string line;\n", "")
+    text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
+    for name in ("cycle_raw", "first", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7"):
+        text = text.replace(f"  string {name};", f"  tb_token_t {name};")
+    text = text.replace("    line = \"\";\n", "")
+    text = text.replace("    void'($fgets(line_buf, fd));\n    line = $sformatf(\"%0s\", line_buf);",
+                        "    code = $fgets(line_buf, fd);")
+    text = text.replace("tb_tokenize9(line,", "tb_tokenize9(line_buf,")
+    text = text.replace(
+        "    tb_tokenize9(line_buf, code, cycle_raw, t0, t1, t2, t3, t4, t5, t6, t7);\n\n"
+        "    line_buf = '0;",
+        "    line_buf = '0;",
+    )
+    text = text.replace('name == ""', "tb_token_empty(name)")
+    text = text.replace('mask_raw.len() > 0', "!tb_token_empty(mask_raw)")
+    text = text.replace('cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#"',
+                        "tb_token_comment(cycle_raw)")
+    text = text.replace('first.len() > 0 && first.substr(0, 0) == "#"',
+                        "tb_token_comment(first)")
+    text = text.replace('t0.len() > 0 && t0.substr(0, 0) == "#"', "tb_token_comment(t0)")
+    text = text.replace("malformed @read row: %s\", line", "malformed @read row: %0s\", line_buf")
+    return text
+
+
+def render_sv_vec_monitor(top: str, outputs: Sequence[str]) -> str:
+    return _packed_vec_monitor(_STRING_RENDER_SV_VEC_MONITOR(top, outputs))
+
+
+def _packed_vec_driver(text: str) -> str:
+    text = text.replace("input string name", "input tb_token_t name")
+    text = text.replace("input string raw", "input tb_token_t raw")
+    text = text.replace("input string reg_key", "input tb_token_t reg_key")
+    text = text.replace("input string data_raw", "input tb_token_t data_raw")
+    text = text.replace("input string mask_raw", "input tb_token_t mask_raw")
+    for name in ("t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7"):
+        text = text.replace(f"  input string {name}", f"  input tb_token_t {name}")
+    text = text.replace("  string line;\n", "")
+    text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
+    for name in ("cycle_raw", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7"):
+        text = text.replace(f"  string {name};", f"  tb_token_t {name};")
+    text = text.replace("    line = \"\";\n", "")
+    text = text.replace("    void'($fgets(line_buf, fd));\n    line = $sformatf(\"%0s\", line_buf);",
+                        "    code = $fgets(line_buf, fd);")
+    text = text.replace("tb_tokenize9(line,", "tb_tokenize9(line_buf,")
+    text = text.replace('name == ""', "tb_token_empty(name)")
+    text = text.replace('mask_raw.len() > 0', "!tb_token_empty(mask_raw)")
+    text = text.replace('cycle_raw.len() > 0 && cycle_raw.substr(0, 0) == "#"',
+                        "tb_token_comment(cycle_raw)")
+    text = text.replace('t0.len() > 0 && t0.substr(0, 0) == "#"', "tb_token_comment(t0)")
+    text = text.replace("malformed @write row: %s\", line", "malformed @write row: %0s\", line_buf")
+    text = text.replace("malformed signal vector row: %s\", line", "malformed signal vector row: %0s\", line_buf")
+    return text
+
+
+def render_sv_vec_driver(
+    top: str,
+    clk: str,
+    rst: str,
+    inputs: Sequence[str],
+    outputs: Sequence[str],
+) -> str:
+    return _packed_vec_driver(
+        _STRING_RENDER_SV_VEC_DRIVER(top, clk, rst, inputs, outputs)
+    )
 
 def _simple_datapath_ports(sig: dict[str, Any]) -> tuple[list[str], list[str]]:
     """Return generic data ports detected on the DUT."""
@@ -1435,6 +1761,12 @@ class TestbenchConfig:
 def _logic_decl(name: str, width: Any, *, default_type: str = "logic") -> str:
     """Render a SystemVerilog declaration for a parsed port width."""
 
+    packed_tlul = {
+        "tlul_pkg::tl_h2d_t": "[108:0]",
+        "tlul_pkg::tl_d2h_t": "[65:0]",
+    }
+    if width in packed_tlul:
+        return f"  logic {packed_tlul[width]} {name};"
     if width == 1 or width == "1":
         return f"  logic {name};"
     if isinstance(width, str) and width.startswith("["):
@@ -1486,7 +1818,6 @@ def render_verilator_include(top: str, rtldir: str | Path, syndir: str | Path,
     # TLUL: assume +incdir+<ips_root>/pkgs e +incdir+<ips_root>/tlul
     if flag_reg_pkg and interface == "tlul":
         inc.append('  `include "tlul_pkg.sv"')
-        inc.append('  `include "tlul_utils.sv"')
         inc.append('  `include "tlul_if.sv"')
 
     if flag_reg_pkg and interface == "reg_iface":
@@ -1512,65 +1843,112 @@ def render_verilator_include(top: str, rtldir: str | Path, syndir: str | Path,
     inc.append("`endif")
     return "\n".join(inc) + "\n"
 
-def render_tlul_interface() -> str:
-    """Render the TL-UL SystemVerilog interface used by Verilator tests."""
+def render_packed_tlul_helpers(indent: str = "") -> str:
+    """Render package-free TL-UL packing and integrity helpers for GLS wrappers."""
 
-    return """`timescale 1ns/1ps
+    body = r"""
+localparam logic [2:0] FLEXSOC_TL_PUT_FULL    = 3'h0;
+localparam logic [2:0] FLEXSOC_TL_PUT_PARTIAL = 3'h1;
+localparam logic [2:0] FLEXSOC_TL_GET         = 3'h4;
+
+function automatic logic [6:0] flexsoc_tlul_data_intg(input logic [31:0] data_i);
+  logic [38:0] data_o;
+  begin
+    data_o = {7'b0, data_i};
+    data_o[32] = ^(data_o & 39'h002606BD25);
+    data_o[33] = ^(data_o & 39'h00DEBA8050);
+    data_o[34] = ^(data_o & 39'h00413D89AA);
+    data_o[35] = ^(data_o & 39'h0031234ED1);
+    data_o[36] = ^(data_o & 39'h00C2C1323B);
+    data_o[37] = ^(data_o & 39'h002DCC624C);
+    data_o[38] = ^(data_o & 39'h0098505586);
+    data_o = data_o ^ 39'h2A00000000;
+    flexsoc_tlul_data_intg = data_o[38:32];
+  end
+endfunction
+
+function automatic logic [6:0] flexsoc_tlul_cmd_intg(
+  input logic [2:0] opcode,
+  input logic [31:0] address,
+  input logic [3:0] mask
+);
+  logic [56:0] payload;
+  logic [63:0] data_o;
+  begin
+    payload = {14'b0, 4'h9, address, opcode, mask};
+    data_o = {7'b0, payload};
+    data_o[57] = ^(data_o & 64'h0103FFF800007FFF);
+    data_o[58] = ^(data_o & 64'h017C1FF801FF801F);
+    data_o[59] = ^(data_o & 64'h01BDE1F87E0781E1);
+    data_o[60] = ^(data_o & 64'h01DEEE3B8E388E22);
+    data_o[61] = ^(data_o & 64'h01EF76CDB2C93244);
+    data_o[62] = ^(data_o & 64'h01F7BB56D5525488);
+    data_o[63] = ^(data_o & 64'h01FBDDA769A46910);
+    data_o = data_o ^ 64'h5400000000000000;
+    flexsoc_tlul_cmd_intg = data_o[63:57];
+  end
+endfunction
+
+function automatic logic [108:0] flexsoc_tlul_h2d(
+  input logic valid,
+  input logic [2:0] opcode,
+  input logic [2:0] param,
+  input logic [1:0] size,
+  input logic [7:0] source,
+  input logic [31:0] address,
+  input logic [3:0] mask,
+  input logic [31:0] data,
+  input logic ready
+);
+  logic [108:0] value;
+  begin
+    value = '0;
+    value[108]     = valid;
+    value[107:105] = opcode;
+    value[104:102] = param;
+    value[101:100] = size;
+    value[99:92]   = source;
+    value[91:60]   = address;
+    value[59:56]   = mask;
+    value[55:24]   = data;
+    value[23:19]   = 5'b0;
+    value[18:15]   = 4'h9;
+    value[14:8]    = flexsoc_tlul_cmd_intg(opcode, address, mask);
+    value[7:1]     = flexsoc_tlul_data_intg(data);
+    value[0]       = ready;
+    flexsoc_tlul_h2d = value;
+  end
+endfunction
+""".strip("\n")
+    return "\n".join(indent + line if line else "" for line in body.splitlines())
+
+
+def render_tlul_interface() -> str:
+    """Render a package-free, simulator-neutral TL-UL interface and driver."""
+
+    helpers = render_packed_tlul_helpers("  ")
+    return f"""`timescale 1ns/1ps
 
 interface tlul_if (
-  input  logic clk_i,
-  input  logic rst_ni
+  input logic clk_i,
+  input logic rst_ni
 );
 
-  import tlul_pkg::*;
+  logic [108:0] h2d /* simulator public*/;
+  logic [65:0]  d2h /* simulator public*/;
 
-  // Host to Device
-  tl_h2d_t h2d /* simulator public*/;
+{helpers}
 
-  // Device to Host
-  tl_d2h_t d2h /* simulator public*/;
-
-  // Modport for driver (testbench)
-  modport drv (
-    output h2d,
-    input  d2h
-  );
-
-  // Modport for DUT
-  modport dut (
-    input  h2d,
-    output d2h
-  );
-
-endinterface
-"""
-
-def render_tlul_utils() -> str:
-    """Render simple TL-UL utility tasks for generated testbenches."""
-
-    return """class tlul_utils;
-
-  virtual tlul_if.drv drv_if;
-
-  function new(virtual tlul_if.drv drv_if);
-    this.drv_if = drv_if;
-  endfunction
+  modport drv (output h2d, input d2h);
+  modport dut (input h2d, output d2h);
 
   task automatic cycle();
-    @(posedge drv_if.clk_i);
+    @(posedge clk_i);
   endtask
 
   task automatic drive_idle();
-    drv_if.h2d.a_valid   <= 1'b0;
-    drv_if.h2d.a_opcode  <= tlul_pkg::Get;
-    drv_if.h2d.a_param   <= '0;
-    drv_if.h2d.a_size    <= '0;
-    drv_if.h2d.a_source  <= '0;
-    drv_if.h2d.a_address <= '0;
-    drv_if.h2d.a_mask    <= '0;
-    drv_if.h2d.a_data    <= '0;
-    drv_if.h2d.a_user    <= '0;
-    drv_if.h2d.d_ready   <= 1'b0;
+    h2d <= flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                            32'b0, 4'b0, 32'b0, 1'b1);
   endtask
 
   task automatic init();
@@ -1578,87 +1956,75 @@ def render_tlul_utils() -> str:
     cycle();
   endtask
 
-  task automatic tlul_write(input logic [top_pkg::TL_AW-1:0]  addr,
-                            input logic [top_pkg::TL_DW-1:0]  data,
-                            input logic [top_pkg::TL_AIW-1:0] source,
-                            input logic [top_pkg::TL_DBW-1:0] mask = '1);
-
-    $display("[%0t] TLUL WRITE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
-
-    drive_idle();
+  task automatic wait_d2h_high(input integer bit_index, input string signal_name);
+    integer guard;
+    guard = 0;
     cycle();
-
-    drv_if.h2d.d_ready   <= 1'b1;
-    drv_if.h2d.a_valid   <= 1'b1;
-    drv_if.h2d.a_opcode  <= (mask == '1) ? tlul_pkg::PutFullData : tlul_pkg::PutPartialData;
-    drv_if.h2d.a_param   <= 3'b000;
-    drv_if.h2d.a_size    <= 2;
-    drv_if.h2d.a_source  <= source;
-    drv_if.h2d.a_address <= addr;
-    drv_if.h2d.a_mask    <= mask;
-    drv_if.h2d.a_data    <= data;
-    drv_if.h2d.a_user    <= '0;
-
-    do cycle(); while (!drv_if.d2h.a_ready);
-    drv_if.h2d.a_valid <= 1'b0;
-
-    do cycle(); while (!drv_if.d2h.d_valid);
-
-    if (drv_if.d2h.d_error) begin
-      $fatal(1, "[%0t] TLUL WRITE ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
-    end else begin
-      $display("[%0t] TLUL WRITE DONE: Addr = 0x%08x", $time, addr);
+    while (d2h[bit_index] !== 1'b1) begin
+      if (d2h[bit_index] !== 1'b0)
+        $fatal(1, "[%0t] TLUL %s is X/Z; check reset and gate-level cell model mode",
+               $time, signal_name);
+      guard++;
+      if (guard > 1000)
+        $fatal(1, "[%0t] TLUL timeout waiting for %s", $time, signal_name);
+      cycle();
     end
+  endtask
 
+  task automatic tlul_write(
+    input logic [31:0] addr,
+    input logic [31:0] data,
+    input logic [7:0] source,
+    input logic [3:0] mask = 4'hf
+  );
+    logic [2:0] opcode;
+    $display("[%0t] TLUL WRITE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
+    opcode = (mask == 4'hf) ? FLEXSOC_TL_PUT_FULL : FLEXSOC_TL_PUT_PARTIAL;
+    drive_idle();
+    cycle();
+    h2d <= flexsoc_tlul_h2d(1'b1, opcode, 3'b0, 2'd2, source,
+                            addr, mask, data, 1'b1);
+    wait_d2h_high(0, "write a_ready");
+    h2d[108] <= 1'b0;
+    wait_d2h_high(65, "write d_valid");
+    if (d2h[1])
+      $fatal(1, "[%0t] TLUL WRITE ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
     cycle();
     drive_idle();
     cycle();
-
     #1;
   endtask
 
-  task automatic tlul_read(input  logic [top_pkg::TL_AW-1:0]  addr,
-                           output logic [top_pkg::TL_DW-1:0]  data,
-                           input  logic [top_pkg::TL_AIW-1:0] source);
-
+  task automatic tlul_read(
+    input logic [31:0] addr,
+    output logic [31:0] data,
+    input logic [7:0] source
+  );
     $display("[%0t] TLUL READ: Addr = 0x%08x", $time, addr);
     data = '0;
-
     drive_idle();
     cycle();
-
-    drv_if.h2d.d_ready   <= 1'b1;
-    drv_if.h2d.a_valid   <= 1'b1;
-    drv_if.h2d.a_opcode  <= tlul_pkg::Get;
-    drv_if.h2d.a_param   <= 3'b000;
-    drv_if.h2d.a_size    <= 2;
-    drv_if.h2d.a_source  <= source;
-    drv_if.h2d.a_address <= addr;
-    drv_if.h2d.a_mask    <= 4'b1111;
-    drv_if.h2d.a_data    <= '0;
-    drv_if.h2d.a_user    <= '0;
-
-    do cycle(); while (!drv_if.d2h.a_ready);
-    drv_if.h2d.a_valid <= 1'b0;
-
-    do cycle(); while (!drv_if.d2h.d_valid);
-    data = drv_if.d2h.d_data;
-
-    if (drv_if.d2h.d_error) begin
+    h2d <= flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_GET, 3'b0, 2'd2, source,
+                            addr, 4'hf, 32'b0, 1'b1);
+    wait_d2h_high(0, "read a_ready");
+    h2d[108] <= 1'b0;
+    wait_d2h_high(65, "read d_valid");
+    data = d2h[47:16];
+    if (d2h[1])
       $fatal(1, "[%0t] TLUL READ ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
-    end else begin
-      $display("[%0t] TLUL READ DONE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
-    end
-
     cycle();
     drive_idle();
     cycle();
-
     #1;
   endtask
 
-endclass
+endinterface
 """
+
+def render_tlul_utils() -> str:
+    """Retain a harmless compatibility file for older generated workspaces."""
+
+    return "// TL-UL tasks are defined in tlul_if.sv.\n"
 
 def render_reg_interface(top: str) -> str:
     """Render a generic register request/response SystemVerilog interface."""
@@ -1864,17 +2230,15 @@ def render_testbench(top: str,
         lines.append(_logic_decl(name, width, default_type=default))
 
     lines.append("\n  integer error_count;")
-    # Optional rdata reg for quick examples
-    lines.append(f"  logic [{top}_reg_pkg::DW-1:0] rdata;")
+    # TL-UL is fixed at 32 data bits; reg-interface mode keeps the generated package width.
+    lines.append("  logic [31:0] rdata;" if interface == "tlul" else f"  logic [{top}_reg_pkg::DW-1:0] rdata;")
 
-    # Interfaces (Verilator only)
-    if compiler == "verilator":
-        if interface == "tlul":
-            lines.append("  tlul_utils tl_utils_inst;")
-            lines.append("  tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));")
-        if interface == "reg_iface":
-            lines.append("  reg_utils reg_utils_inst;")
-            lines.append("  reg_if regif(.clk_i(clk_i), .rst_ni(rst_ni));")
+    # TL-UL uses procedural interface tasks in both RTL and gate simulation.
+    if interface == "tlul":
+        lines.append("  tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));")
+    elif compiler == "verilator" and interface == "reg_iface":
+        lines.append("  reg_utils reg_utils_inst;")
+        lines.append("  reg_if regif(.clk_i(clk_i), .rst_ni(rst_ni));")
 
     lines.append("\n  // Verification helpers")
     lines.append(f'  `include "{top}_reg_sequence.svh"')
@@ -1922,13 +2286,13 @@ def render_testbench(top: str,
     lines.append('      if (sdf_path != "") begin')
     lines.append('        `ifdef FLEXSOC_SDF_MIN')
     lines.append('          $display("[TB] sdf = %s (MINIMUM)", sdf_path);')
-    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MINIMUM");')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top});')
     lines.append('        `elsif FLEXSOC_SDF_TYP')
     lines.append('          $display("[TB] sdf = %s (TYPICAL)", sdf_path);')
-    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "TYPICAL");')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top});')
     lines.append('        `else')
     lines.append('          $display("[TB] sdf = %s (MAXIMUM)", sdf_path);')
-    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MAXIMUM");')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top});')
     lines.append('        `endif')
     lines.append("      end")
     lines.append("    end")
@@ -1947,7 +2311,7 @@ def render_testbench(top: str,
     if ports_in:
         # init inputs (skip the first, often a clock)
         for nm, _ in ports_in[1:]:
-            lines.append(f"    {nm} = '0;")
+            lines.append(f"    {nm} = {_sv_input_default(nm)};")
     # simple reset: first rst_ if present, else try second input heuristically
     if rsts:
         lines.append("    #(CLK_PERIOD);")
@@ -1960,11 +2324,11 @@ def render_testbench(top: str,
     lines.append("    #(CLK_PERIOD);")
     lines.append('    $display("\\nRunning...\\n");')
 
-    if compiler == "verilator":
-        if interface == "tlul":
-            lines.append("    tl_utils_inst = new(tl_if);")
-        if interface == "reg_iface":
-            lines.append("    reg_utils_inst = new(regif);")
+    if interface == "tlul":
+        lines.append("    tl_if.init();")
+    elif compiler == "verilator" and interface == "reg_iface":
+        lines.append("    reg_utils_inst = new(regif);")
+    if interface == "tlul" or compiler == "verilator":
         lines.append("    #(CLK_PERIOD*10);")
         lines.append("    run_reg_config(cfg_path);")
         lines.append("    run_vectors(data_in_path, data_out_path);")
@@ -2067,13 +2431,13 @@ def render_simple_testbench(top: str,
     lines.append('      if (sdf_path != "") begin')
     lines.append('        `ifdef FLEXSOC_SDF_MIN')
     lines.append('          $display("[TB] sdf = %s (MINIMUM)", sdf_path);')
-    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MINIMUM");')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top});')
     lines.append('        `elsif FLEXSOC_SDF_TYP')
     lines.append('          $display("[TB] sdf = %s (TYPICAL)", sdf_path);')
-    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "TYPICAL");')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top});')
     lines.append('        `else')
     lines.append('          $display("[TB] sdf = %s (MAXIMUM)", sdf_path);')
-    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top}, , , "MAXIMUM");')
+    lines.append(f'          $sdf_annotate(sdf_path, {top}_tb.u_{top});')
     lines.append('        `endif')
     lines.append("      end")
     lines.append("    end")
@@ -2188,15 +2552,18 @@ def uses_simple_testbench(config: TestbenchConfig) -> bool:
 
 
 def write_bus_helpers(config: TestbenchConfig, *, reg_pkg: bool, simple_mode: bool) -> list[Path]:
-    """Write optional Verilator bus helper files for full register testbenches."""
+    """Write bus helpers required by generated RTL and gate testbenches."""
 
-    if simple_mode or not reg_pkg or config.compiler != "verilator":
+    if simple_mode or not reg_pkg:
         return []
 
     outdir = Path(config.output)
     helpers = {
         "tlul": (("tlul_if.sv", render_tlul_interface()), ("tlul_utils.sv", render_tlul_utils())),
-        "reg_iface": (("reg_if.sv", render_reg_interface(config.top)), ("reg_utils.sv", render_reg_utils(config.top))),
+        "reg_iface": (
+            (("reg_if.sv", render_reg_interface(config.top)), ("reg_utils.sv", render_reg_utils(config.top)))
+            if config.compiler == "verilator" else ()
+        ),
     }.get(config.interface, ())
 
     written: list[Path] = []
@@ -2257,7 +2624,7 @@ def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
             config.interface,
             sig,
             hjson_path=hjson_path,
-            bus_active=(not simple_mode and config.compiler == "verilator"),
+            bus_active=(not simple_mode and (config.interface == "tlul" or config.compiler == "verilator")),
             force=True,
         )
     )
@@ -2396,13 +2763,15 @@ def _reg_driver_fallback(top: str) -> str:
 
 task automatic run_reg_config(input string cfg_path);
   int fd;
-  fd = $fopen(cfg_path, "r");
-  if (fd == 0) begin
-    $display("[TB] register config not found: %s", cfg_path);
-    return;
+  begin : run_reg_config_fallback_body
+    fd = $fopen(cfg_path, "r");
+    if (fd == 0) begin
+      $display("[TB] register config not found: %s", cfg_path);
+      disable run_reg_config_fallback_body;
+    end
+    $display("[TB] no generated register sequence for {top}; ignoring optional config: %s", cfg_path);
+    $fclose(fd);
   end
-  $display("[TB] no generated register sequence for {top}; ignoring optional config: %s", cfg_path);
-  $fclose(fd);
 endtask
 """
 
@@ -2625,7 +2994,7 @@ def sv_include_text(top: str) -> str:
 
 
 def sv_driver_text(top: str, clocks: ClockConfig) -> str:
-    """Render TL-UL access and reset tasks for the N-clock scaffold."""
+    """Render package-free TL-UL access and reset tasks for the N-clock scaffold."""
 
     resets = {domain.reset: domain.reset_polarity for domain in clocks.domains}
     assert_reset = "\n".join(
@@ -2639,12 +3008,10 @@ def sv_driver_text(top: str, clocks: ClockConfig) -> str:
     primary = clocks.domains[0].signal
     text = dedent("""\
       task automatic apply_defaults();
-        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        cfg_tl_i.a_valid = 1'b0;
-        dsp_tl_i.a_valid = 1'b0;
-        cfg_tl_i.d_ready = 1'b1;
-        dsp_tl_i.d_ready = 1'b1;
+        cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
+        dsp_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
         rx_valid_i = 1'b0;
         rx_sample_i = '0;
         rx_coeff_i = '0;
@@ -2662,88 +3029,60 @@ __RELEASE_RESET__
 
       task automatic cfg_write(input logic [31:0] addr, input logic [31:0] data);
         @(negedge cfg_clk_i);
-        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        cfg_tl_i.a_valid = 1'b1;
-        cfg_tl_i.a_opcode = tlul_pkg::PutFullData;
-        cfg_tl_i.a_param = '0;
-        cfg_tl_i.a_size = 3'd2;
-        cfg_tl_i.a_source = '0;
-        cfg_tl_i.a_address = addr;
-        cfg_tl_i.a_mask = 4'hf;
-        cfg_tl_i.a_data = data;
-        cfg_tl_i.d_ready = 1'b1;
-        do @(posedge cfg_clk_i); while (!cfg_tl_o.a_ready);
+        cfg_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_PUT_FULL, 3'b0, 2'd2, 8'b0,
+                                    addr, 4'hf, data, 1'b1);
+        do @(posedge cfg_clk_i); while (!cfg_tl_o[0]);
         @(negedge cfg_clk_i);
-        cfg_tl_i.a_valid = 1'b0;
-        do @(posedge cfg_clk_i); while (!cfg_tl_o.d_valid);
+        cfg_tl_i[108] = 1'b0;
+        do @(posedge cfg_clk_i); while (!cfg_tl_o[65]);
+        if (cfg_tl_o[1]) errors++;
         @(negedge cfg_clk_i);
-        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        cfg_tl_i.d_ready = 1'b1;
+        cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
       endtask
 
       task automatic dsp_write(input logic [31:0] addr, input logic [31:0] data);
         @(negedge dsp_clk_i);
-        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        dsp_tl_i.a_valid = 1'b1;
-        dsp_tl_i.a_opcode = tlul_pkg::PutFullData;
-        dsp_tl_i.a_param = '0;
-        dsp_tl_i.a_size = 3'd2;
-        dsp_tl_i.a_source = '0;
-        dsp_tl_i.a_address = addr;
-        dsp_tl_i.a_mask = 4'hf;
-        dsp_tl_i.a_data = data;
-        dsp_tl_i.d_ready = 1'b1;
-        do @(posedge dsp_clk_i); while (!dsp_tl_o.a_ready);
+        dsp_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_PUT_FULL, 3'b0, 2'd2, 8'b0,
+                                    addr, 4'hf, data, 1'b1);
+        do @(posedge dsp_clk_i); while (!dsp_tl_o[0]);
         @(negedge dsp_clk_i);
-        dsp_tl_i.a_valid = 1'b0;
-        do @(posedge dsp_clk_i); while (!dsp_tl_o.d_valid);
+        dsp_tl_i[108] = 1'b0;
+        do @(posedge dsp_clk_i); while (!dsp_tl_o[65]);
+        if (dsp_tl_o[1]) errors++;
         @(negedge dsp_clk_i);
-        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        dsp_tl_i.d_ready = 1'b1;
+        dsp_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
       endtask
 
       task automatic cfg_read(input logic [31:0] addr, output logic [31:0] data);
         @(negedge cfg_clk_i);
-        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        cfg_tl_i.a_valid = 1'b1;
-        cfg_tl_i.a_opcode = tlul_pkg::Get;
-        cfg_tl_i.a_param = '0;
-        cfg_tl_i.a_size = 3'd2;
-        cfg_tl_i.a_source = '0;
-        cfg_tl_i.a_address = addr;
-        cfg_tl_i.a_mask = 4'hf;
-        cfg_tl_i.d_ready = 1'b1;
-        do @(posedge cfg_clk_i); while (!cfg_tl_o.a_ready);
+        cfg_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    addr, 4'hf, 32'b0, 1'b1);
+        do @(posedge cfg_clk_i); while (!cfg_tl_o[0]);
         @(negedge cfg_clk_i);
-        cfg_tl_i.a_valid = 1'b0;
-        do @(posedge cfg_clk_i); while (!cfg_tl_o.d_valid);
-        data = cfg_tl_o.d_data;
-        if (cfg_tl_o.d_error) errors++;
+        cfg_tl_i[108] = 1'b0;
+        do @(posedge cfg_clk_i); while (!cfg_tl_o[65]);
+        data = cfg_tl_o[47:16];
+        if (cfg_tl_o[1]) errors++;
         @(negedge cfg_clk_i);
-        cfg_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        cfg_tl_i.d_ready = 1'b1;
+        cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
       endtask
 
       task automatic dsp_read(input logic [31:0] addr, output logic [31:0] data);
         @(negedge dsp_clk_i);
-        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        dsp_tl_i.a_valid = 1'b1;
-        dsp_tl_i.a_opcode = tlul_pkg::Get;
-        dsp_tl_i.a_param = '0;
-        dsp_tl_i.a_size = 3'd2;
-        dsp_tl_i.a_source = '0;
-        dsp_tl_i.a_address = addr;
-        dsp_tl_i.a_mask = 4'hf;
-        dsp_tl_i.d_ready = 1'b1;
-        do @(posedge dsp_clk_i); while (!dsp_tl_o.a_ready);
+        dsp_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    addr, 4'hf, 32'b0, 1'b1);
+        do @(posedge dsp_clk_i); while (!dsp_tl_o[0]);
         @(negedge dsp_clk_i);
-        dsp_tl_i.a_valid = 1'b0;
-        do @(posedge dsp_clk_i); while (!dsp_tl_o.d_valid);
-        data = dsp_tl_o.d_data;
-        if (dsp_tl_o.d_error) errors++;
+        dsp_tl_i[108] = 1'b0;
+        do @(posedge dsp_clk_i); while (!dsp_tl_o[65]);
+        data = dsp_tl_o[47:16];
+        if (dsp_tl_o[1]) errors++;
         @(negedge dsp_clk_i);
-        dsp_tl_i = tlul_pkg::TL_H2D_DEFAULT;
-        dsp_tl_i.d_ready = 1'b1;
+        dsp_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
+                                    32'b0, 4'b0, 32'b0, 1'b1);
       endtask
 
       task automatic apply_reg(input string reg_name, input logic [31:0] value);
@@ -2801,16 +3140,20 @@ __RELEASE_RESET__
         logic [31:0] value;
         logic [31:0] mask;
         string line;
+        reg [8*4096-1:0] line_buf;
+        begin : load_config_body
         fd = $fopen(path, "r");
         if (fd == 0) begin
           $display("[TB][ERROR] config file not found: %s", path);
           errors++;
-          return;
+          disable load_config_body;
         end
-        while (!$feof(fd)) begin
+        while (!$feof(fd)) begin : tb_nclk_cfg_line
           line = "";
-          void'($fgets(line, fd));
-          if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+          line_buf = '0;
+          void'($fgets(line_buf, fd));
+          line = $sformatf("%0s", line_buf);
+          if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_cfg_line;
           code = $sscanf(line, "%s %h", reg_name, value);
           if (code == 2) begin
             mask = 32'hffff_ffff;
@@ -2821,12 +3164,12 @@ __RELEASE_RESET__
           end
         end
         $fclose(fd);
+        end
       endtask
     """)
     return (text.replace("__ASSERT_RESET__", assert_reset)
                 .replace("__RELEASE_RESET__", release_reset)
                 .replace("__PRIMARY_CLOCK__", primary))
-
 
 def sv_vec_driver_text(top: str) -> str:
     """Render N-clock vector commands, including CSR and reset actions."""
@@ -2834,6 +3177,7 @@ def sv_vec_driver_text(top: str) -> str:
     return dedent("""\
       task automatic send_sample(input logic signed [15:0] sample, input logic signed [15:0] coeff);
         integer timeout;
+        begin : send_sample_body
         timeout = 0;
         while (!rx_ready_o && timeout < 64) begin
           @(posedge rx_clk_i);
@@ -2842,7 +3186,7 @@ def sv_vec_driver_text(top: str) -> str:
         if (!rx_ready_o) begin
           $display("[TB][ERROR] rx_ready_o timeout");
           errors++;
-          return;
+          disable send_sample_body;
         end
         @(negedge rx_clk_i);
         rx_sample_i = sample;
@@ -2850,6 +3194,7 @@ def sv_vec_driver_text(top: str) -> str:
         rx_valid_i = 1'b1;
         @(negedge rx_clk_i);
         rx_valid_i = 1'b0;
+        end
       endtask
 
       task automatic run_inputs(input string path);
@@ -2862,22 +3207,26 @@ def sv_vec_driver_text(top: str) -> str:
         logic [31:0] value;
         logic [31:0] mask;
         string line;
+        reg [8*4096-1:0] line_buf;
         logic signed [15:0] sample;
         logic signed [15:0] coeff;
+        begin : run_inputs_body
         sample = '0;
         coeff = '0;
         fd = $fopen(path, "r");
         if (fd == 0) begin
           $display("[TB][ERROR] input file not found: %s", path);
           errors++;
-          return;
+          disable run_inputs_body;
         end
-        while (!$feof(fd)) begin
+        while (!$feof(fd)) begin : tb_nclk_input_line
           line = "";
-          void'($fgets(line, fd));
-          if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+          line_buf = '0;
+          void'($fgets(line_buf, fd));
+          line = $sformatf("%0s", line_buf);
+          if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_input_line;
           code = $sscanf(line, "%d %s", step, token);
-          if (code != 2) continue;
+          if (code != 2) disable tb_nclk_input_line;
           if (token == "@write" || token == "write") begin
             code = $sscanf(line, "%d %s %s %h", step, token, reg_name, value);
             if (code == 4) begin
@@ -2900,13 +3249,14 @@ def sv_vec_driver_text(top: str) -> str:
             if (code == 3) reset_dut(cycles);
           end else begin
             code = $sscanf(line, "%d %s %h", step, token, value);
-            if (code != 3) continue;
+            if (code != 3) disable tb_nclk_input_line;
             if (token == "rx_sample_i") sample = value[15:0];
             else if (token == "rx_coeff_i") coeff = value[15:0];
             else if (token == "rx_valid_i" && value[0]) send_sample(sample, coeff);
           end
         end
         $fclose(fd);
+        end
       endtask
     """)
 
@@ -2922,17 +3272,21 @@ def sv_monitor_text(top: str) -> str:
         string sig;
         logic [31:0] value;
         string line;
+        reg [8*4096-1:0] line_buf;
+        begin : load_expected_body
         exp_count = 0;
         fd = $fopen(path, "r");
         if (fd == 0) begin
           $display("[TB][ERROR] expected file not found: %s", path);
           errors++;
-          return;
+          disable load_expected_body;
         end
-        while (!$feof(fd)) begin
+        while (!$feof(fd)) begin : tb_nclk_expected_line
           line = "";
-          void'($fgets(line, fd));
-          if (line.len() == 0 || line.substr(0, 0) == "#") continue;
+          line_buf = '0;
+          void'($fgets(line_buf, fd));
+          line = $sformatf("%0s", line_buf);
+          if (line.len() == 0 || line.substr(0, 0) == "#") disable tb_nclk_expected_line;
           code = $sscanf(line, "%d %s %h", step, sig, value);
           if (code == 3 && sig == "dsp_result_o") begin
             exp_result[exp_count] = value;
@@ -2946,6 +3300,7 @@ def sv_monitor_text(top: str) -> str:
           end
         end
         $fclose(fd);
+        end
       endtask
 
       // Compare each output transaction when the DSP domain produces it.
@@ -2983,6 +3338,73 @@ def sv_monitor_text(top: str) -> str:
 
 
 
+
+_STRING_SV_DRIVER_TEXT = sv_driver_text
+_STRING_SV_VEC_DRIVER_TEXT = sv_vec_driver_text
+_STRING_SV_MONITOR_TEXT = sv_monitor_text
+
+
+def sv_driver_text(top: str, clocks: ClockConfig) -> str:
+    text = _STRING_SV_DRIVER_TEXT(top, clocks)
+    text = _PACKED_TOKEN_SUPPORT + "\n" + text
+    text = text.replace("input string reg_name", "input tb_token_t reg_name")
+    text = text.replace("  string reg_name;", "  tb_token_t reg_name;")
+    text = text.replace("  string line;\n", "")
+    text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
+    text = text.replace("    line = \"\";\n", "")
+    text = text.replace(
+        "          void'($fgets(line_buf, fd));\n          line = $sformatf(\"%0s\", line_buf);\n"
+        "          if (line.len() == 0 || line.substr(0, 0) == \"#\") disable tb_nclk_cfg_line;\n"
+        "          code = $sscanf(line, \"%s %h\", reg_name, value);",
+        "          code = $fgets(line_buf, fd);\n"
+        "          code = $sscanf(line_buf, \"%s %h\", reg_name, value);",
+    )
+    text = text.replace("$sscanf(line,", "$sscanf(line_buf,")
+    text = text.replace(
+        '            if (reg_name.len() > 6 && reg_name.substr(0, 5) == "clk_i.") reg_name = reg_name.substr(6, reg_name.len() - 1);',
+        '            begin\n'
+        '              tb_token_t short_name;\n'
+        "              short_name = '0;\n"
+        '              if ($sscanf(reg_name, "clk_i.%s", short_name) == 1) reg_name = short_name;\n'
+        '            end',
+    )
+    return text
+
+
+def sv_vec_driver_text(top: str) -> str:
+    text = _STRING_SV_VEC_DRIVER_TEXT(top)
+    text = text.replace("  string token;", "  tb_token_t token;")
+    text = text.replace("  string reg_name;", "  tb_token_t reg_name;")
+    text = text.replace("  string line;\n", "")
+    text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
+    text = text.replace("    line = \"\";\n", "")
+    text = text.replace(
+        "    void'($fgets(line_buf, fd));\n    line = $sformatf(\"%0s\", line_buf);\n"
+        "    if (line.len() == 0 || line.substr(0, 0) == \"#\") disable tb_nclk_input_line;\n"
+        "    code = $sscanf(line, \"%d %s\", step, token);",
+        "    code = $fgets(line_buf, fd);\n"
+        "    code = $sscanf(line_buf, \"%d %s\", step, token);",
+    )
+    text = text.replace("$sscanf(line,", "$sscanf(line_buf,")
+    return text
+
+
+def sv_monitor_text(top: str) -> str:
+    text = _STRING_SV_MONITOR_TEXT(top)
+    text = text.replace("  string sig;", "  tb_token_t sig;")
+    text = text.replace("  string line;\n", "")
+    text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
+    text = text.replace("    line = \"\";\n", "")
+    text = text.replace(
+        "    void'($fgets(line_buf, fd));\n    line = $sformatf(\"%0s\", line_buf);\n"
+        "    if (line.len() == 0 || line.substr(0, 0) == \"#\") disable tb_nclk_expected_line;\n"
+        "    code = $sscanf(line, \"%d %s %h\", step, sig, value);",
+        "    code = $fgets(line_buf, fd);\n"
+        "    code = $sscanf(line_buf, \"%d %s %h\", step, sig, value);",
+    )
+    text = text.replace("$sscanf(line,", "$sscanf(line_buf,")
+    return text
+
 def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
     """Render the starter N-clock SV testbench from ``ClockConfig``."""
 
@@ -3007,6 +3429,7 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
         for domain in clocks.domains
     )
     primary = clocks.domains[0].signal
+    tlul_helpers = render_packed_tlul_helpers("  ")
     return dedent(f"""\
     `timescale 1ns/1ps
     `include "include_{top}_tb.sv"
@@ -3019,10 +3442,10 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
       {clock_decls}
       logic test_en_i;
 
-      tlul_pkg::tl_h2d_t cfg_tl_i;
-      tlul_pkg::tl_d2h_t cfg_tl_o;
-      tlul_pkg::tl_h2d_t dsp_tl_i;
-      tlul_pkg::tl_d2h_t dsp_tl_o;
+      logic [108:0] cfg_tl_i;
+      logic [65:0]  cfg_tl_o;
+      logic [108:0] dsp_tl_i;
+      logic [65:0]  dsp_tl_o;
 
       logic rx_valid_i;
       logic rx_ready_o;
@@ -3040,6 +3463,8 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
       string wave_path;
       string sdf_path;
       integer errors;
+
+{tlul_helpers}
 
       logic [31:0] exp_result [0:1023];
       logic        exp_above_threshold [0:1023];
@@ -3094,13 +3519,13 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
           if (sdf_path != "") begin
             `ifdef FLEXSOC_SDF_MIN
               $display("[TB] sdf = %s (MINIMUM)", sdf_path);
-              $sdf_annotate(sdf_path, u_dut, , , "MINIMUM");
+              $sdf_annotate(sdf_path, u_dut);
             `elsif FLEXSOC_SDF_TYP
               $display("[TB] sdf = %s (TYPICAL)", sdf_path);
-              $sdf_annotate(sdf_path, u_dut, , , "TYPICAL");
+              $sdf_annotate(sdf_path, u_dut);
             `else
               $display("[TB] sdf = %s (MAXIMUM)", sdf_path);
-              $sdf_annotate(sdf_path, u_dut, , , "MAXIMUM");
+              $sdf_annotate(sdf_path, u_dut);
             `endif
           end
         `endif

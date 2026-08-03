@@ -9,21 +9,37 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from flexsoc import FlexSoC, FlexSoCConfig
 from flexsoc.api import NATIVE_TARGETS
 from flexsoc.backend.eqy_debug import _replace_gate_netlist, synthesis_boundary_diagnosis
 from flexsoc.backend.hjson_gen import main as hjson_main
 from flexsoc.backend.metrics import eqy_solver_stats
 from flexsoc.backend.output import print_script, strip_ansi
+from flexsoc.backend.post_sim import (
+    GateSimPaths,
+    cocotb_command,
+    compile_command,
+    resolve_paths,
+    run_command,
+    run_environment,
+    sdf_annotation_summary,
+)
 from flexsoc.backend.setup_cocotb import (
+    CocotbConfig,
+    cocotb_makefile_text,
     cocotb_py_text,
     cocotb_reg_driver_py_text,
+    cocotb_sv_text,
+    render_makefile,
     render_reg_driver_py,
+    render_tlul_wrapper,
 )
 from flexsoc.backend.setup_model import _regmap_tests_text
 from flexsoc.backend.setup_sdc import render_clock_config_sdc
 from flexsoc.backend.setup_signoff import NetlistPort, main as signoff_main, render_formal_protocol_view
-from flexsoc.backend.setup_tb import render_tlul_utils
+from flexsoc.backend.setup_tb import render_testbench, render_tlul_interface
 from flexsoc.backend.setup_syn import config_from_args as synthesis_config_from_args, parse_args as parse_synthesis_args
 from flexsoc.cli import app
 from flexsoc.clocking import clock_config
@@ -248,10 +264,57 @@ def test_auto_toggle_uses_tlul_byte_masks_and_protocol_opcodes(tmp_path: Path) -
     assert "TL-UL write mask is zero" in cocotb_driver
     compile(cocotb_driver, "<reg_driver.py>", "exec")
 
-    sv_driver = render_tlul_utils()
-    assert "(mask == '1) ? tlul_pkg::PutFullData : tlul_pkg::PutPartialData" in sv_driver
+    sv_driver = render_tlul_interface()
+    assert "(mask == 4'hf) ? FLEXSOC_TL_PUT_FULL : FLEXSOC_TL_PUT_PARTIAL" in sv_driver
     assert '$fatal(1, "[%0t] TLUL WRITE ERROR' in sv_driver
     assert '$fatal(1, "[%0t] TLUL READ ERROR' in sv_driver
+
+
+def test_generated_tlul_sv_driver_runs_vectors_without_verilator_classes(tmp_path: Path) -> None:
+    """The SV GLS path uses the same generated vectors without class support."""
+
+    sig = {
+        "parameters": [],
+        "localparams": [],
+        "ports_in": [("clk_i", 1), ("rst_ni", 1), ("tl_i", "tlul_pkg::tl_h2d_t")],
+        "ports_out": [("tl_o", "tlul_pkg::tl_d2h_t")],
+        "clks": ["clk_i"],
+        "rsts": ["rst_ni"],
+    }
+    body = render_testbench("demo", 10, tmp_path, tmp_path, "tlul", "iverilog", "sv", sig)
+    assert "tlul_utils" not in body
+    assert "tlul_if tl_if" in body
+    assert "tl_if.init();" in body
+    assert "run_reg_config(cfg_path);" in body
+    assert "run_vectors(data_in_path, data_out_path);" in body
+    assert "tl_if.tlul_write" not in body  # calls live in the included reg sequence
+
+
+
+def test_generated_tlul_gls_wrappers_are_package_free(tmp_path: Path) -> None:
+    """Gate wrappers must not require RTL packages unsupported by Icarus."""
+
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    (rtl / "demo.sv").write_text(
+        "module demo(input logic clk_i, input logic rst_ni, "
+        "input tlul_pkg::tl_h2d_t tl_i, output tlul_pkg::tl_d2h_t tl_o); endmodule\n",
+        encoding="utf-8",
+    )
+    wrapper = render_tlul_wrapper(CocotbConfig(
+        top="demo", interface="tlul", output=tmp_path / "cocotb", rtl_dir=rtl
+    ))
+    interface = render_tlul_interface()
+    for source in (wrapper, interface):
+        assert "tlul_pkg::" not in source
+        assert "top_pkg::" not in source
+        assert "prim_mubi_pkg::" not in source
+        assert "flexsoc_tlul_cmd_intg" in source
+        assert "flexsoc_tlul_data_intg" in source
+    assert "logic [108:0] tl_i" in wrapper
+    assert "assign tl_o_d_data   = tl_o[47:16]" in wrapper
+    assert "logic [108:0] h2d" in interface
+    assert "d2h[47:16]" in interface
 
 
 def test_synthesis_uses_fastest_configured_clock(monkeypatch, tmp_path: Path) -> None:
@@ -489,10 +552,14 @@ def test_generated_scripts_use_common_plain_and_colored_rendering(capsys, monkey
 
     plain = io.StringIO()
     print_script(script, stream=plain, color=False)
-    assert plain.getvalue() == f"[script] {script.resolve()}\nset corner ss\nreport_checks\n"
+    assert plain.getvalue() == f"[script] {script.resolve()}\n"
+
+    live_plain = io.StringIO()
+    print_script(script, stream=live_plain, color=False, content=True)
+    assert live_plain.getvalue() == f"[script] {script.resolve()}\nset corner ss\nreport_checks\n"
 
     colored = io.StringIO()
-    print_script(script, stream=colored, color=True)
+    print_script(script, stream=colored, color=True, content=True)
     assert "\x1b[" in colored.getvalue()
     assert strip_ansi(colored.getvalue()).startswith(f"[script] {script.resolve()}\n")
 
@@ -505,10 +572,22 @@ def test_generated_scripts_use_common_plain_and_colored_rendering(capsys, monkey
     ]) == 0
     output = capsys.readouterr().out
     assert output.count("[script]") == 4
-    assert "=== Static timing analysis ===" in output
-    assert "=== Estimated power analysis ===" in output
-    assert "=== Write SDF ===" in output
+    assert "=== Static timing analysis ===" not in output
+    assert "=== Estimated power analysis ===" not in output
+    assert "=== Write SDF ===" not in output
     assert "\x1b[" not in output
+
+    monkeypatch.setenv("FLEXSOC_LIVE", "1")
+    assert signoff_main([
+        "analysis", "--top", "demo",
+        "--sta-dir", str(tmp_path / "live_sta"),
+        "--power-dir", str(tmp_path / "live_power"),
+        "--sdf-dir", str(tmp_path / "live_sdf"),
+    ]) == 0
+    live_output = capsys.readouterr().out
+    assert "=== Static timing analysis ===" in live_output
+    assert "=== Estimated power analysis ===" in live_output
+    assert "=== Write SDF ===" in live_output
 
 
 def test_live_command_logs_strip_terminal_escapes(monkeypatch, tmp_path: Path) -> None:
@@ -528,6 +607,7 @@ def test_live_command_logs_strip_terminal_escapes(monkeypatch, tmp_path: Path) -
     result = fx._run_live(command, log)
     assert result.returncode == 0
     assert log.read_text(encoding="utf-8") == "red\n"
+    assert command.env["FLEXSOC_LIVE"] == "0"
 
 
 def test_pdk_scoped_paths_keep_flow_before_technology(tmp_path: Path) -> None:
@@ -561,3 +641,367 @@ def test_pdk_scoped_paths_keep_flow_before_technology(tmp_path: Path) -> None:
         assert values["POST_LAYOUT_SIMDIR"] == str(shared / "dv" / "functional" / "sim" / "post_pnr" / pdk)
         assert values["METADIR"] == str(shared / "meta" / pdk)
         assert "/tech/" not in "\n".join(values.values())
+
+
+
+def _gate_sim_paths(tmp_path: Path, *, sdf: bool = False, cocotb: bool = False) -> GateSimPaths:
+    """Create a minimal resolved GLS tree for command-generation tests."""
+
+    run = tmp_path / "runs" / "demo" / "dev"
+    stage = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
+    tb_dir = run / "dv" / "functional" / "tb" / ("cocotb" if cocotb else "sv")
+    tb_dir.mkdir(parents=True)
+    tb = tb_dir / "demo_tb.sv"
+    tb.write_text("module demo_tb; endmodule\n", encoding="utf-8")
+    if not cocotb:
+        (tb_dir / "tlul_if.sv").write_text("interface tlul_if; endinterface\n", encoding="utf-8")
+    if cocotb:
+        (tb_dir / "Makefile").write_text("# generated\n", encoding="utf-8")
+    netlist = run / "syn" / "sky130" / "demo_synth.v"
+    netlist.parent.mkdir(parents=True)
+    netlist.write_text("module demo; endmodule\n", encoding="utf-8")
+    sdf_path = run / "signoff" / "sdf" / "sky130" / "demo_ss.sdf"
+    if sdf:
+        sdf_path.parent.mkdir(parents=True)
+        sdf_path.write_text("(DELAYFILE)\n", encoding="utf-8")
+    tests = run / "dv" / "functional" / "tests" / "auto_toggle"
+    tests.mkdir(parents=True)
+    for name in ("config.regs", "data_in.vec", "data_out.vec"):
+        (tests / name).write_text("# test\n", encoding="utf-8")
+    stage.mkdir(parents=True)
+    log = run / "logs" / "post_syn.log"
+    return GateSimPaths(
+        run,
+        run / "pnr_openroad" / "sky130",
+        run / "signoff" / "sdf" / "sky130",
+        run / "logs" / "signoff" / "sdf" / "sky130",
+        stage,
+        tb,
+        netlist,
+        sdf_path if sdf else None,
+        stage / "demo.fst",
+        stage / "demo.vvp",
+        log,
+        stage / "report.json",
+    )
+
+
+def test_gate_sim_timing_modes_are_explicit(tmp_path: Path) -> None:
+    """Zero/unit/SDF modes must not silently collapse into one another."""
+
+    model = tmp_path / "cells.v"
+    model.write_text("`define UNIT_DELAY #1\nmodule cell; endmodule\n", encoding="utf-8")
+    zero_paths = _gate_sim_paths(tmp_path)
+    base = {
+        "TOP": "demo",
+        "TESTBENCH": "demo_tb",
+        "GLS_BACKEND": "sv",
+        "GLS_SIMULATOR": "iverilog",
+        "PRIM": str(model),
+        "TEST_NAME": "auto_toggle",
+    }
+
+    zero = compile_command(ROOT, {**base, "TIMING_MODE": "zero"}, "post_syn", zero_paths)
+    assert "-gno-specify" in zero
+    assert "-DUNIT_DELAY=#0" in zero
+    assert "-gspecify" not in zero
+    assert not any("FLEXSOC_ENABLE_SDF" in arg for arg in zero)
+    assert str((zero_paths.tb.parent / "tlul_if.sv").resolve()) in zero
+    assert not any(path.name.endswith("_pkg.sv") for path in map(Path, zero))
+
+    unit = compile_command(ROOT, {**base, "TIMING_MODE": "unit"}, "post_syn", zero_paths)
+    assert "-DUNIT_DELAY=#1" in unit
+    assert "-gspecify" not in unit
+
+    sdf_paths = _gate_sim_paths(tmp_path / "sdf", sdf=True)
+    timed = compile_command(ROOT, {**base, "TIMING_MODE": "max"}, "post_syn", sdf_paths)
+    assert {"-gspecify", "-Tmax", "-DFLEXSOC_ENABLE_SDF", "-DFLEXSOC_SDF_MAX"} <= set(timed)
+
+    with pytest.raises(ValueError, match="requires an SDF file"):
+        compile_command(ROOT, {**base, "TIMING_MODE": "max"}, "post_syn", zero_paths)
+
+
+def test_sv_and_cocotb_gls_share_vectors_netlist_models_and_sdf(tmp_path: Path) -> None:
+    """Both GLS drivers consume the same source-of-truth artifacts."""
+
+    model = tmp_path / "cells.v"
+    model.write_text("module cell; endmodule\n", encoding="utf-8")
+    sv_paths = _gate_sim_paths(tmp_path / "sv", sdf=True)
+    co_paths = _gate_sim_paths(tmp_path / "co", sdf=True, cocotb=True)
+    common = {
+        "TOP": "demo",
+        "TESTBENCH": "demo_tb",
+        "GLS_SIMULATOR": "iverilog",
+        "TIMING_MODE": "max",
+        "PRIM": str(model),
+        "TEST_NAME": "auto_toggle",
+    }
+
+    sv = run_command({**common, "GLS_BACKEND": "sv"}, sv_paths)
+    assert "-fst" not in sv
+    assert run_environment({"WAVE_FORMAT": "fst"}) == {"IVERILOG_DUMPER": "fst"}
+    assert run_environment({"WAVE_FORMAT": "vcd"}) == {}
+    co = cocotb_command("sim", {**common, "GLS_BACKEND": "cocotb"}, co_paths)
+    for suffix in ("config.regs", "data_in.vec", "data_out.vec"):
+        assert any(arg.endswith(suffix) for arg in sv)
+        assert any(arg.endswith(suffix) for arg in co)
+    assert "-sdf-verbose" not in sv
+    assert f"+SDF={sv_paths.sdf}" in sv
+    assert f"SDF_FILE={co_paths.sdf}" in co
+    assert f"GLS_NETLIST={co_paths.netlist}" in co
+    assert f"GLS_MODELS={model.resolve()}" in co
+    assert "TIMING_MODE=max" in co
+    assert "WAVES=1" in co
+    assert "WAVES=" not in co
+    assert not any(arg.startswith("IVERILOG_DUMPER=") for arg in co)
+
+
+def test_generated_cocotb_gls_is_count_agnostic_and_sdf_capable(tmp_path: Path) -> None:
+    """Single-clock and N-clock cocotb wrappers expose the same GLS modes."""
+
+    cfg = CocotbConfig(
+        top="demo",
+        interface="tlul",
+        output=tmp_path / "tb" / "cocotb",
+        rtl_dir=tmp_path / "rtl",
+    )
+    single = render_makefile(cfg, [])
+    multi = cocotb_makefile_text("demo", tmp_path / "rtl")
+    for makefile in (single, multi):
+        assert "GLS_SUPPORT_SOURCES" not in makefile
+        assert "TIMING_MODE ?= zero" in makefile
+        assert "-DUNIT_DELAY=\\#1" in makefile
+        assert "SDF_FILE is required" in makefile
+        assert "SIM_ARGS += -sdf-verbose" not in makefile
+
+    clocks = clock_config({
+        "N_CLOCKS": "3",
+        "CLOCK_DOMAINS": "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low",
+    })
+    wrapper = cocotb_sv_text("demo", clocks)
+    assert wrapper.count("[TB] sdf =") == 3
+    assert "$sdf_annotate(sdf_path, u_dut);" in wrapper
+    assert '"MINIMUM"' not in next(line for line in wrapper.splitlines() if "$sdf_annotate" in line)
+    assert "tlul_pkg::" not in wrapper
+    assert "logic [108:0] cfg_tl_i" in wrapper
+    assert "flexsoc_tlul_h2d" in wrapper
+
+
+def test_post_pnr_sdf_paths_are_timing_mode_specific(tmp_path: Path) -> None:
+    """Post-layout min/typ/max exports cannot overwrite or reuse one another."""
+
+    run = tmp_path / "runs" / "demo" / "dev"
+    pnr = run / "pnr_openroad" / "sky130" / "results" / "sky130hd" / "demo" / "base"
+    pnr.mkdir(parents=True)
+    (pnr / "6_final.v").write_text("module demo; endmodule\n", encoding="utf-8")
+    common = {
+        "TOP": "demo",
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+        "WORKSPACE": str(tmp_path),
+        "PDK": "sky130",
+        "ORS_TECH": "sky130hd",
+        "GLS_BACKEND": "sv",
+    }
+    paths = {
+        mode: resolve_paths(ROOT, {**common, "TIMING_MODE": mode}, "post_pnr").sdf
+        for mode in ("min", "typ", "max")
+    }
+    assert len(set(paths.values())) == 3
+    assert paths["min"].name == "demo_post_pnr_min.sdf"
+    assert paths["typ"].name == "demo_post_pnr_typ.sdf"
+    assert paths["max"].name == "demo_post_pnr_max.sdf"
+
+
+def test_sdf_annotation_summary_detects_partial_or_failed_annotation() -> None:
+    """SDF reports distinguish an invoked annotation from warning/error cases."""
+
+    clean = sdf_annotation_summary(
+        "[TB] sdf = /tmp/demo.sdf scope=u_dut mode=MAXIMUM\nSDF annotation complete\n"
+    )
+    assert clean["requested_marker"] is True
+    assert clean["warnings"] == [] and clean["errors"] == []
+    assert clean["annotated_cells"] is None and clean["timing_checks"] is None
+
+    partial = sdf_annotation_summary(
+        "[TB] sdf = /tmp/demo.sdf scope=u_dut mode=MAXIMUM\n"
+        "SDF WARNING: unable to annotate timing check\n"
+    )
+    assert partial["warnings"]
+
+    failed = sdf_annotation_summary("SDF ERROR: instance not found\n")
+    assert failed["requested_marker"] is False
+    assert failed["errors"]
+
+
+def test_gate_sim_defaults_to_zero_delay_and_selectable_backend(tmp_path: Path) -> None:
+    """The public API exposes one post-sim command with explicit SV/cocotb selection."""
+
+    fx = FlexSoC(FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws"), TOP="demo")
+    default = fx.command("sim_post_syn")
+    cocotb = fx.command("sim_post_syn", GLS_BACKEND="cocotb", TIMING_MODE="unit")
+    assert default.values["GLS_BACKEND"] == "sv"
+    assert default.values["TIMING_MODE"] == "zero"
+    assert default.values["SDF_STRICT"] == "1"
+    assert cocotb.values["GLS_BACKEND"] == "cocotb"
+    assert cocotb.values["TIMING_MODE"] == "unit"
+
+
+def test_gls_iverilog_uses_functional_models_and_portable_sv(tmp_path: Path) -> None:
+    from flexsoc.backend.post_sim import TimingConfig, _compile_timing_args
+    from flexsoc.backend.setup_cocotb import CocotbConfig, render_makefile
+    from flexsoc.clocking import clock_config
+    from flexsoc.backend.setup_tb import (
+        render_sv_reg_sequence,
+        render_sv_vec_driver,
+        render_sv_vec_monitor,
+        render_tlul_interface,
+        sv_monitor_text,
+        sv_driver_text,
+        sv_vec_driver_text,
+    )
+
+    assert _compile_timing_args(TimingConfig("zero")) == [
+        "-DFUNCTIONAL",
+        "-DUNIT_DELAY=#0",
+        "-gno-specify",
+    ]
+    assert _compile_timing_args(TimingConfig("unit")) == [
+        "-DFUNCTIONAL",
+        "-gno-specify",
+        "-DUNIT_DELAY=#1",
+    ]
+    assert "-DFUNCTIONAL" not in _compile_timing_args(TimingConfig("max"))
+
+    makefile = render_makefile(CocotbConfig("uart", "tlul", tmp_path, rtl_dir=tmp_path), [])
+    assert "COMPILE_ARGS += -DFUNCTIONAL -DUNIT_DELAY=\\#0 -gno-specify" in makefile
+    assert "COMPILE_ARGS += -DFUNCTIONAL -gno-specify -DUNIT_DELAY=\\#1" in makefile
+    assert "-DFLEXSOC_COCOTB_WAVE_OWNER" in makefile
+    assert "COCOTB_PLUSARGS += +dumpfile_path=$(WAVE_FILE)" in makefile
+
+    sources = [
+        render_sv_reg_sequence("uart", "tlul", "clk_i", active=True, registers=[]),
+        render_sv_vec_monitor("uart", ["cio_tx_o"]),
+        render_sv_vec_driver("uart", "clk_i", "rst_ni", ["cio_rx_i"], ["cio_tx_o"]),
+        sv_driver_text("test", clock_config({"N_CLOCKS": "1"})),
+        sv_vec_driver_text("test"),
+        sv_monitor_text("test"),
+    ]
+    for source in sources:
+        assert "continue;" not in source
+        assert "break;" not in source
+        assert "return;" not in source
+        assert ".getc(" not in source
+        assert "$fgets(line, fd)" not in source
+        assert 'line = $sformatf("%0s", line_buf);' not in source
+        assert ".len()" not in source
+        assert ".substr(" not in source
+        if "$fgets(" in source:
+            assert "tb_line_t line_buf;" in source
+            assert "$fgets(line_buf, fd)" in source
+        assert "function automatic void tb_tokenize9" not in source
+        assert "function automatic void tb_cfg_tokenize9" not in source
+        for line in source.splitlines():
+            if line.lstrip().startswith("function automatic"):
+                assert "output " not in line
+    assert "typedef reg [8*FLEXSOC_TB_LINE_BYTES-1:0] tb_line_t;" in sources[0]
+    assert "typedef reg [8*FLEXSOC_TB_TOKEN_BYTES-1:0] tb_token_t;" in sources[0]
+    assert "task automatic tb_tokenize9" in sources[0]
+    assert "input tb_line_t line" in sources[0]
+    assert "output tb_token_t w0" in sources[0]
+    assert "function automatic logic [32:0] tb_parse_u32" in sources[0]
+    assert "function automatic logic [32:0] tb_parse_cfg_u32" in sources[0]
+    assert "input tb_token_t name" in sources[1]
+    assert "input tb_token_t reg_key" in sources[2]
+
+    tlul = render_tlul_interface()
+    assert "wait_d2h_high" in tlul
+    assert "is X/Z; check reset and gate-level cell model mode" in tlul
+
+
+def test_icarus_sdf_model_keeps_paths_and_disables_unsupported_checks(tmp_path: Path) -> None:
+    from flexsoc.backend.post_sim import _icarus_path_delay_model
+
+    source = """module ff(input CLK, D, output Q);
+  reg notifier;
+  wire CLK_delayed;
+  wire D_delayed;
+  udp d(Q, D_delayed, CLK_delayed, notifier);
+  specify
+    (posedge CLK => (Q : D)) = (1:2:3);
+    $width(posedge CLK, 1:2:3, 0, notifier);
+    $setuphold(posedge CLK, posedge D, 1:2:3, 1:2:3, notifier, , , CLK_delayed, D_delayed);
+  endspecify
+endmodule
+"""
+    rendered, stats = _icarus_path_delay_model(source)
+    assert "(posedge CLK => (Q : D))" in rendered
+    assert "$width" not in rendered
+    assert "$setuphold" not in rendered
+    assert "assign CLK_delayed = CLK;" in rendered
+    assert "assign D_delayed = D;" in rendered
+    assert "initial notifier = 1'b0;" in rendered
+    assert stats == {
+        "timing_checks_removed": 2,
+        "delayed_inputs_bound": 2,
+        "notifiers_initialized": 1,
+    }
+
+
+def test_generated_gls_defaults_serial_rx_high_and_has_one_sdf_call(tmp_path: Path) -> None:
+    from flexsoc.backend.setup_cocotb import CocotbConfig, render_tlul_wrapper
+    from flexsoc.backend.setup_tb import render_sv_vec_driver
+
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    (rtl / "uart.sv").write_text(
+        "module uart(input logic clk_i, input logic rst_ni, input logic cio_rx_i, "
+        "input logic [108:0] tl_i, output logic [65:0] tl_o); endmodule\n",
+        encoding="utf-8",
+    )
+    wrapper = render_tlul_wrapper(CocotbConfig("uart", "tlul", tmp_path, rtl_dir=rtl))
+    assert "cio_rx_i = '1;" in wrapper
+    assert wrapper.count("$sdf_annotate(sdf_path, u_uart);") == 3
+    assert "FLEXSOC_COCOTB_WAVE_OWNER" in wrapper
+    assert "owner=cocotb" in wrapper and "owner=wrapper" in wrapper
+
+    driver = render_sv_vec_driver("uart", "clk_i", "rst_ni", ["cio_rx_i"], [])
+    assert "cio_rx_i = '1;" in driver
+
+
+def test_uart_smoke_resets_before_live_status_checks(tmp_path: Path) -> None:
+    """Timing-mode smoke resets short line-loopback pulses before status reads."""
+
+    model_dir = ROOT / "hw" / "ips" / "uart" / "dv" / "functional" / "model"
+    helper = model_dir / "uart_tests.py"
+    tests_dir = tmp_path / "tests"
+    subprocess.run(
+        [sys.executable, str(helper), "--tests-dir", str(tests_dir), "--test", "smoke"],
+        cwd=model_dir,
+        check=True,
+    )
+    data_in = (tests_dir / "smoke" / "data_in.vec").read_text(encoding="utf-8")
+    data_out = (tests_dir / "smoke" / "data_out.vec").read_text(encoding="utf-8")
+    assert "40 @reset 4" in data_in
+    assert "48 @write clk_i.CTRL" in data_in
+    assert "52 @write clk_i.FIFO_CTRL" in data_in
+    assert "80 @read clk_i.STATUS" in data_out
+    assert "80 @read clk_i.FIFO_STATUS" in data_out
+
+
+def test_generated_icarus_sdf_calls_use_supported_two_argument_form(tmp_path: Path) -> None:
+    """Icarus path-delay wrappers avoid its ignored extended SDF arguments."""
+
+    from flexsoc.backend.setup_cocotb import CocotbConfig, render_tlul_wrapper
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    (rtl / "uart.sv").write_text(
+        "module uart(input logic clk_i, input logic rst_ni, input logic cio_rx_i, "
+        "input logic [108:0] tl_i, output logic [65:0] tl_o); endmodule\n",
+        encoding="utf-8",
+    )
+    cocotb_wrapper = render_tlul_wrapper(CocotbConfig("uart", "tlul", tmp_path, rtl_dir=rtl))
+    assert cocotb_wrapper.count("$sdf_annotate(sdf_path, u_uart);") == 3
+    assert ", , ," not in "\n".join(
+        line for line in cocotb_wrapper.splitlines() if "$sdf_annotate" in line
+    )
