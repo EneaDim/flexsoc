@@ -149,7 +149,8 @@ asynchronous.
 ## Documentation
 
 - [Quickstart](docs/quickstart.md) — the shortest runnable single-clock and N-clock workflows.
-- [Project lifecycle](docs/project_lifecycle.md) — the complete ASIC design, verification, implementation, sign-off, change-propagation, reuse, and release guide.
+- [Project lifecycle](docs/project_lifecycle.md) — the complete ASIC design, verification, implementation, sign-off, change-propagation, troubleshooting, reuse, and release guide.
+- [IP development guide](docs/ip_development_guide.md) — the detailed scaffold architecture, ownership boundaries, artifacts, rationale, failure recovery, GLS model policy, and activity-power flow.
 - [Command reference](docs/command_reference.md) — every `fx` pseudo-command, backend target, option, variable, lifecycle role, and diagnostic workflow.
 
 ## Run layout

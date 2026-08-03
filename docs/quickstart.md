@@ -2,7 +2,9 @@
 
 This is the shortest practical path through the current IP flow. The complete
 engineering rationale, quality gates, solver guidance, change workflows, and
-release policy are in [Project lifecycle](project_lifecycle.md). Exact syntax,
+release policy are in [Project lifecycle](project_lifecycle.md). The generated
+scaffold architecture, ownership rules, and detailed reasoning behind every
+stage are in [IP development guide](ip_development_guide.md). Exact syntax,
 options, variables, and the complete target catalogue are in
 [Command reference](command_reference.md).
 
