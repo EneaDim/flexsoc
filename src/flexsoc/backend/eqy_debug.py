@@ -11,7 +11,7 @@ import subprocess
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
 from flexsoc.run_layout import pdk_run_layout, run_root
 
@@ -931,19 +931,24 @@ def run_reset_normalized_diagnostic(
     return result
 
 def _replace_gate_netlist(source: str, checkpoint: Path) -> str:
-    """Point the generated EQY gate section at one RTLIL synthesis checkpoint."""
+    """Replace only the mapped design read while preserving any formal wrapper."""
 
     lines = source.splitlines()
     section = ""
     candidates: list[int] = []
+    implementation_rename: int | None = None
     for index, line in enumerate(lines):
         stripped = line.strip()
         if stripped.startswith("[") and stripped.endswith("]"):
             section = stripped[1:-1].split()[0].lower()
-        elif section == "gate" and stripped.startswith("read_verilog "):
+        elif section == "gate" and stripped.startswith(("read_verilog ", "read_rtlil ")):
             candidates.append(index)
+        elif section == "gate" and re.fullmatch(r"rename\s+\S+\s+\S+__eqy_impl", stripped):
+            implementation_rename = index
         elif section == "gate" and stripped.startswith("prep "):
             break
+    if implementation_rename is not None:
+        candidates = [index for index in candidates if index < implementation_rename]
     if not candidates:
         raise ValueError("cannot identify mapped netlist read in EQY [gate] section")
     checkpoint = checkpoint.expanduser().resolve()
@@ -951,6 +956,25 @@ def _replace_gate_netlist(source: str, checkpoint: Path) -> str:
     digest = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
     lines.append(f"# FlexSoC checkpoint_sha256 {digest}")
     return "\n".join(lines) + ("\n" if source.endswith("\n") else "")
+
+
+def synthesis_boundary_diagnosis(stages: Mapping[str, object]) -> str:
+    """Classify checkpoint results without turning UNKNOWN or TIMEOUT into mismatches."""
+
+    order = ("generic", "dffmap", "abc", "clean")
+    if any(
+        isinstance(stages.get(name), Mapping) and stages[name].get("missing")
+        for name in order
+    ):
+        return "missing"
+    for name in order:
+        stage = stages.get(name)
+        status = str(stage.get("status", "UNKNOWN")) if isinstance(stage, Mapping) else "UNKNOWN"
+        if status == "FAIL":
+            return f"{name}_fail"
+        if status != "PASS":
+            return f"{name}_inconclusive"
+    return "serialization"
 
 
 def run_synthesis_boundary_diagnostics(

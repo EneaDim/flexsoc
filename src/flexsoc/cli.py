@@ -439,7 +439,7 @@ Use `fx commands` to list every backend Make target.
         from .backend.eqy_debug import (
             choose_trace, describe_partition, discover_result_dir, explain_counterexample, open_wave,
             run_reset_normalized_diagnostic, run_synthesis_boundary_diagnostics,
-            scan, select,
+            scan, select, synthesis_boundary_diagnosis,
         )
 
         settings = _read_settings(root)
@@ -660,22 +660,20 @@ Use `fx commands` to list every backend Make target.
         if reset_probe.get("status") == "PASS":
             console.print("[orange1]Diagnosis:[/orange1] [white]mismatch disappears after deterministic reset initialization.[/white]")
         elif synthesis_probe:
-            generic = stages.get("generic", {}) if isinstance(stages, dict) else {}
-            dffmap = stages.get("dffmap", {}) if isinstance(stages, dict) else {}
-            abc = stages.get("abc", {}) if isinstance(stages, dict) else {}
-            clean = stages.get("clean", {}) if isinstance(stages, dict) else {}
-            if any(stage.get("missing") for stage in (generic, dffmap, abc, clean)):
-                console.print("[orange1]Diagnosis:[/orange1] [white]synthesis checkpoints missing; run `fx syn --force`, `fx eqy --force`, then `fx eqy_debug`.[/white]")
-            elif generic.get("status") != "PASS":
-                console.print("[orange1]Diagnosis:[/orange1] [white]mismatch already exists after generic Yosys synthesis, before technology mapping.[/white]")
-            elif dffmap.get("status") != "PASS":
-                console.print("[orange1]Diagnosis:[/orange1] [white]generic synthesis passes; mismatch appears across dfflibmap/sequential mapping.[/white]")
-            elif abc.get("status") != "PASS":
-                console.print("[orange1]Diagnosis:[/orange1] [white]dfflibmap passes; mismatch is introduced by ABC combinational technology mapping.[/white]")
-            elif clean.get("status") != "PASS":
-                console.print("[orange1]Diagnosis:[/orange1] [white]ABC mapping passes but the cleanup checkpoint fails. Because cleanup is function-preserving, suspect loss of EQY match-points/names rather than a logic change; keep public names during final cleanup.[/white]")
-            else:
-                console.print("[orange1]Diagnosis:[/orange1] [white]all RTLIL checkpoints pass; mismatch appears only after final Verilog serialization/readback in the EQY gate flow.[/white]")
+            diagnosis = synthesis_boundary_diagnosis(stages if isinstance(stages, dict) else {})
+            messages = {
+                "missing": "synthesis checkpoints missing; run `fx syn --force`, `fx eqy --force`, then `fx eqy_debug`.",
+                "generic_fail": "mismatch already exists after generic Yosys synthesis, before technology mapping.",
+                "dffmap_fail": "generic synthesis passes; mismatch appears across dfflibmap/sequential mapping.",
+                "abc_fail": "dfflibmap passes; mismatch is introduced by ABC combinational technology mapping.",
+                "clean_fail": "ABC mapping passes but the cleanup checkpoint fails. Because cleanup is function-preserving, suspect loss of EQY match-points/names rather than a logic change; keep public names during final cleanup.",
+                "serialization": "all RTLIL checkpoints pass; mismatch appears only after final Verilog serialization/readback in the EQY gate flow.",
+            }
+            message = messages.get(
+                diagnosis,
+                "synthesis-boundary probe is inconclusive; UNKNOWN and TIMEOUT are not evidence of a logic mismatch.",
+            )
+            console.print(f"[orange1]Diagnosis:[/orange1] [white]{message}[/white]")
         else:
             console.print("[orange1]Diagnosis:[/orange1] [white]reset probe inconclusive; inspect its log before synthesis-boundary attribution.[/white]")
         console.print(f"[grey70]Waveform:[/grey70] [white]fx eqy_debug --wave {item.partition}[/white]")
