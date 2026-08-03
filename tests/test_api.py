@@ -551,8 +551,12 @@ def test_eqy_formal_view_recognizes_primary_tlul_response() -> None:
     )
     view = render_formal_protocol_view("cordic", ports)
     assert "wire [65:0] tl_o__raw;" in view
-    assert "assign tl_o[65] = tl_o__raw[65];" in view
-    assert "assign tl_o[47:16] = (tl_o__raw[65] && !tl_o__raw[1])" in view
+    assert "output wire tl_o__flexsoc_eqy_a_ready" in view
+    assert "output wire [31:0] tl_o__flexsoc_eqy_d_data" in view
+    assert "assign tl_o__flexsoc_eqy_d_valid = tl_o__raw[65];" in view
+    assert "assign tl_o__flexsoc_eqy_d_data = (tl_o__raw[65] && !tl_o__raw[1])" in view
+    assert "output wire [65:0] tl_o" not in view
+    assert "assign tl_o = {" not in view
 
 
 def test_eqy_checkpoint_probe_preserves_protocol_wrapper(tmp_path: Path) -> None:
@@ -575,6 +579,27 @@ prep -top cordic
     assert "rename cordic cordic__eqy_impl" in rewritten
     assert "read_verilog -formal -sv cordic_eqy_view.sv" in rewritten
     assert rewritten.index(f"read_rtlil {checkpoint.resolve()}") < rewritten.index("rename cordic")
+
+
+def test_eqy_reset_diagnostic_replaces_generated_normalization() -> None:
+    """Diagnostic reset replay replaces, rather than duplicates, the normal block."""
+
+    from flexsoc.backend.eqy_debug import _inject_reset_initialization
+
+    source = """[script]
+prep -top demo -flatten
+async2sync
+# FlexSoC EQY reset normalization begin
+uniquify
+sim -clock clk_i -resetn rst_ni -rstlen 2 -n 2 -w
+# FlexSoC EQY reset normalization end
+"""
+    rewritten = _inject_reset_initialization(
+        source, clock="clk_i", reset="rst_ni", reset_active="low", reset_cycles=4
+    )
+    assert rewritten.count("FlexSoC EQY reset normalization begin") == 1
+    assert "-rstlen 2 -n 2" not in rewritten
+    assert "-rstlen 4 -n 4" in rewritten
 
 
 def test_eqy_checkpoint_diagnosis_keeps_timeouts_inconclusive() -> None:
@@ -600,15 +625,61 @@ def test_eqy_parallelizes_partitions_with_configurable_jobs(tmp_path: Path) -> N
     text = BACKEND_MAKEFILE.read_text(encoding="utf-8")
     block = text.split("\neqy:", 1)[1].split("\n\n", 1)[0]
     assert "EQY_JOBS ?= 4" in text
+    assert "EQY_ENGINE ?= abc pdr\n" in text
+    assert "abc pdr -rfi" not in text
     assert '"$(EQY)" -j "$(EQY_JOBS)" -f' in block
     command = FlexSoC(FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws")).command(
         "eqy", EQY_JOBS=8, EQY_JOIN_OUTPUTS=0, EQY_QUICK_TIMEOUT=3,
-        EQY_STRATEGY_ORDER="pdr,smt",
+        EQY_STRATEGY_ORDER="pdr,smt", EQY_RESET_NORMALIZE=1, EQY_RESET_CYCLES=3,
     )
     assert "EQY_JOBS=8" in command.argv
     assert "EQY_JOIN_OUTPUTS=0" in command.argv
     assert "EQY_QUICK_TIMEOUT=3" in command.argv
     assert "EQY_STRATEGY_ORDER=pdr,smt" in command.argv
+    assert "EQY_RESET_NORMALIZE=1" in command.argv
+    assert "EQY_RESET_CYCLES=3" in command.argv
+
+
+def test_eqy_tlul_witnesses_partition_protocol_fields(tmp_path: Path, monkeypatch) -> None:
+    """TL-UL outputs use bounded protocol witnesses and post-reset initialization."""
+
+    from flexsoc.backend.setup_signoff import EquivalenceConfig, generate_equivalence_config
+
+    rtl_f = tmp_path / "rtl.f"
+    netlist = tmp_path / "demo_synth.v"
+    liberty = tmp_path / "cells.lib"
+    clock_gate = tmp_path / "clock_gates.v"
+    config = tmp_path / "demo.eqy"
+    rtl_f.write_text("demo.sv\n", encoding="utf-8")
+    netlist.write_text(
+        "module demo(clk_i, rst_ni, tl_i, tl_o);\n"
+        "input clk_i;\ninput rst_ni;\ninput [108:0] tl_i;\noutput [65:0] tl_o;\n"
+        "assign tl_o = '0;\nendmodule\n",
+        encoding="utf-8",
+    )
+    liberty.write_text("library(test) {}\n", encoding="utf-8")
+    monkeypatch.setenv("FLEXSOC_PDK", "ihp-sg13g2")
+    generate_equivalence_config(EquivalenceConfig(
+        top="demo", filelists=(rtl_f,), netlist=netlist, liberty=liberty,
+        cell_models=(), sky130_clock_gate_model=clock_gate, engine="abc pdr",
+        depth=2, sat_depth=5, output=config, use_sat=True, use_pdr=True,
+        reset_normalize=True, reset_cycles=2,
+        reset_domains=(("clk_i", "rst_ni", "low"),),
+    ))
+    text = config.read_text(encoding="utf-8")
+    assert "gold-match tl_o\n" not in text
+    assert "gold-match tl_o__flexsoc_eqy_a_ready" in text
+    assert "gold-match tl_o__flexsoc_eqy_d_valid" in text
+    assert "gold-match tl_o__flexsoc_eqy_d_ctrl" in text
+    assert "gold-match tl_o__flexsoc_eqy_d_data" in text
+    assert "gold-match tl_o__flexsoc_eqy_d_meta" in text
+    assert "join tl_o__flexsoc_eqy_d_data" in text
+    assert "join tl_o\n" not in text
+    formal_view = (tmp_path / "demo_eqy_view.sv").read_text(encoding="utf-8")
+    assert "output wire [65:0] tl_o" not in formal_view
+    assert "wire [65:0] tl_o__raw;" in formal_view
+    assert "assign tl_o = {" not in formal_view
+    assert "sim -clock clk_i -resetn rst_ni -rstlen 2 -n 2 -w" in text
 
 
 def test_generated_scripts_use_common_plain_and_colored_rendering(capsys, monkeypatch, tmp_path: Path) -> None:
@@ -1111,6 +1182,11 @@ def test_gls_iverilog_uses_functional_models_and_portable_sv(tmp_path: Path) -> 
     assert "input tb_token_t name" in branches[1][1]
     assert "input string reg_key" in branches[2][0]
     assert "input tb_token_t reg_key" in branches[2][1]
+
+    nclock_driver = branches[3][1]
+    tokenizer = nclock_driver.split("task automatic tb_tokenize9", 1)[1].split("endtask", 1)[0]
+    assert '$sscanf(line, "%s %s %s %s %s %s %s %s %s"' in tokenizer
+    assert "$sscanf(line_buf," not in tokenizer
 
     tlul = render_tlul_interface()
     assert "wait_d2h_high" in tlul
@@ -1730,3 +1806,35 @@ def test_docker_only_workstation_scripts_are_guarded_and_system_scoped() -> None
     assert "repository .venv, /usr, /usr/local" in cleanup
     assert '"$DOCKER_DIR/scripts/preflight.sh"' in build
     assert "deps.sh doctor --system --profile base" in dockerfile
+
+def test_base_toolchain_declares_sby_python_runtime_dependency() -> None:
+    """SymbiYosys must not reach doctor without its click runtime module."""
+
+    deps = (ROOT / "src/flexsoc/backend/deps.sh").read_text(encoding="utf-8")
+    assert "python3-click" in deps
+    assert "BASE_PYTHON_MODULES=(click)" in deps
+    assert 'python3 -c "import ${module}"' in deps
+    assert 'missing+=("python:${module}")' in deps
+
+
+def test_docker_toolchain_build_has_resumable_install_checkpoint() -> None:
+    """Installation, doctor, and runtime must be separate recoverable stages."""
+
+    dockerfile = (ROOT / "docker/ci/Dockerfile").read_text(encoding="utf-8")
+    common = (ROOT / "docker/scripts/common.sh").read_text(encoding="utf-8")
+    build = (ROOT / "docker/scripts/build.sh").read_text(encoding="utf-8")
+
+    assert "AS toolchain-prereqs" in dockerfile
+    assert "AS toolchain-installed" in dockerfile
+    assert "AS toolchain-verified" in dockerfile
+    assert "AS runtime" in dockerfile
+    assert "id=flexsoc-toolchain-build" in dockerfile
+    assert "id=flexsoc-toolchain-prefix" in dockerfile
+    assert "sharing=locked" in dockerfile
+    assert "deps.sh install --system --profile base" in dockerfile
+    assert "deps.sh doctor --system --profile base" in dockerfile
+    assert dockerfile.index("AS toolchain-installed") < dockerfile.index("AS toolchain-verified")
+    assert "toolchain_checkpoint_ref" in common
+    assert "--target toolchain-installed" in build
+    assert "--target runtime" in build
+    assert "toolchain-checkpoint.env" in build

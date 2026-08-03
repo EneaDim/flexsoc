@@ -8,7 +8,9 @@ It combines the design theory with the practical `fx` workflow. The aim is not
 to prescribe one microarchitecture; it is to make every source of truth,
 derived artifact, quality gate, and handoff explicit enough for production use.
 The exhaustive syntax and lifecycle role of every command is maintained in the
-[FlexSoC command reference](command_reference.md).
+[FlexSoC command reference](command_reference.md). The generated scaffold
+architecture, file ownership, and stage-by-stage implementation reasoning are
+documented in [IP development guide](ip_development_guide.md).
 
 > **Core rule:** edit the design intent, regenerate the smallest derived
 > boundary, and rerun every gate whose assumptions changed.
@@ -226,6 +228,12 @@ domain where appropriate:
 <top>_dsp.hjson  ↔ dsp_reg2hw_i / dsp_hw2reg_o ↔ dsp clock domain
 ```
 
+> **When CSR development goes wrong:** inspect the HJSON first. Regenerate
+> `reg`, `doc`, and `regmap_py`; do not patch generated register RTL, Markdown,
+> or Python offsets independently. If a new field/window changes ports or
+> ownership, refresh `top_from_core`, `flist`, tests, and CSR formal before
+> continuing.
+
 ### 4.4 RTL core and top wrapper
 
 The RTL core owns the hardware behavior. The generated top wrapper owns
@@ -248,6 +256,12 @@ The core should make these aspects obvious:
 - assertions close to delicate control logic.
 
 ---
+
+> **When RTL entry goes wrong:** use `slang_hier`, the ordered filelists, and
+> `lint_suite` to decide whether the defect is authored RTL or a stale generated
+> wrapper. Repair the core for behavioral/structural defects; regenerate
+> `top_from_core` and `flist` for mechanical drift. Port changes also invalidate
+> both simulation harnesses.
 
 ## 5. Configure one or many clock domains
 
@@ -574,6 +588,12 @@ without exercising a requirement does not improve verification quality.
 
 ### 8.7 Functional debug order
 
+> **When functional DV goes wrong:** reduce to one named test and keep the
+> expectation backend-neutral. Compare vectors, model result, declared latency,
+> reset/configuration, and the first differing waveform event before rerunning
+> the complete regression. A failure on only SV or only cocotb normally points
+> to harness scheduling or sampling, not an alternate legal output.
+
 Use the smallest reproducible boundary:
 
 ```bash
@@ -658,6 +678,12 @@ legal environment behavior without hiding design bugs. Review:
 
 ---
 
+> **When formal goes wrong:** classify counterexample, unreachable cover,
+> timeout, and vacuous PASS separately. Repair RTL/property intent for a real
+> trace; change engine, depth, partitioning, or invariants for genuine
+> nonclosure. Assumptions are reviewed verification contracts, not a mechanism
+> for hiding illegal DUT behavior.
+
 ## 10. CDC and RDC closure
 
 A multi-clock simulation or proof does not replace structural CDC/RDC analysis.
@@ -722,6 +748,11 @@ fx setup_sdc --force
 
 ---
 
+> **When constraints go wrong:** missing clocks and unconstrained endpoints are
+> incomplete analysis, not passing timing. Correct the persistent clock model
+> and SDC source, regenerate every clock-derived scaffold, and review CDC/RDC
+> whenever domain relationships change. Keep exceptions narrow and owned.
+
 ## 12. Synthesis
 
 Synthesis transforms the RTL hierarchy into a technology-mapped logical
@@ -751,6 +782,11 @@ Review more than command success:
 - area and cell distribution;
 - critical-path estimates;
 - whether hierarchy and debug visibility remain appropriate.
+
+> **When synthesis goes wrong:** inspect the ordered hierarchy, generated script,
+> selected Liberty, inferred storage, and mapping statistics. Repair authored
+> RTL or synthesis intent rather than editing the mapped netlist. Every changed
+> synthesis result must return through RTL-to-netlist equivalence.
 
 ### DFT insertion point
 
@@ -838,6 +874,11 @@ fx eqy_debug --files <partition>
 A solver timeout is not proof of inequivalence. A counterexample with a concrete
 first divergence is.
 
+> **When equivalence goes wrong:** use `eqy_debug` to distinguish a concrete
+> mismatch from TIMEOUT, UNKNOWN, or engine error. A timeout is inconclusive; a
+> mismatch belongs to RTL/netlist/reset/X/cell-model ownership. Do not trade one
+> classification for another merely to obtain a green aggregate status.
+
 ### 13.2 SDF and gate-level simulation
 
 SDF and STA are sibling consumers of the timing model; STA does not require SDF.
@@ -924,6 +965,13 @@ clock edge, and checked after the same generated settling interval. A command
 row (`@write`, `@cfg`, or `@reset`) cannot share a cycle with another command or
 a direct signal drive. Newly generated scaffold vectors serialize every
 transaction on one line, while legacy one-signal-per-line files remain valid.
+
+> **When GLS goes wrong:** debug `zero` first, then `unit`, then SDF modes. A
+> `zero` failure points to netlist/model/reset/protocol compatibility; a
+> `unit`-only failure points to races, batching, sampling, or timescale
+> precision; an SDF-only failure points to corner generation, annotation, or
+> supported path-model behavior. Compare SV and cocotb only after confirming the
+> same vectors, clock/reset model, and resolved delay.
 
 #### What Icarus back-annotation proves
 
@@ -1106,6 +1154,11 @@ A clean report requires:
 - positive or accepted slack policy;
 - transition, capacitance, and fanout checks where supported.
 
+> **When STA goes wrong:** first verify clocks, linked top, path coverage, and
+> exceptions. Negative slack requires a design/constraint/mapping decision;
+> unconstrained endpoints require missing analysis coverage to be repaired. Do
+> not convert either condition into a broad waiver.
+
 ### 13.4 Power estimate
 
 ```bash
@@ -1130,6 +1183,12 @@ fx signoff_corners --force
 ```
 
 ---
+
+> **When power goes wrong:** keep vectorless and activity-based evidence
+> separate. Verify assumptions and Liberty data for `power_estimate`; verify
+> FST conversion, VCD DUT scope, and a nonzero OpenSTA annotation count for
+> activity power. Numeric power returned with zero annotated activities is not a
+> workload-based result.
 
 ## 14. Physical implementation with OpenROAD
 
@@ -1475,7 +1534,7 @@ the logical design.
 ---
 
 
-## Reproducible host and CI toolchains
+## 20. Reproducible host and CI toolchains
 
 FlexSoC has one authoritative EDA version set: `src/flexsoc/backend/toolchain.lock`. A rootless `fx deps` install places that lock under:
 
@@ -1499,7 +1558,9 @@ The container lifecycle is deliberately separate from normal source CI. A mainta
 
 This avoids mixing OSS CAD Suite revisions with FlexSoC-native revisions, prevents workstation/CI drift, and makes local Docker, CI, and native managed runs comparable. The manual-only image workflow is a fallback for maintainers, not a dependency of every push or pull request.
 
-### Evidence hierarchy for production sign-off
+## 21. Production-grade evidence and operating rules
+
+### 21.1 Evidence hierarchy for production sign-off
 
 The Icarus compatibility model is a generated run artifact, not a replacement PDK library and not a production sign-off authority. The original PDK files remain unchanged. FlexSoC derives a copy because Icarus does not implement all constructs used by the foundry-style cell views: unsupported timing checks are removed, `delayed_*` functional inputs are bound, unsupported edge-sensitive `ifnone` paths are omitted, and supported path arcs remain available for SDF qualification. This proves functional behavior and the subset of dynamic path delays that Icarus can execute.
 
@@ -1513,7 +1574,7 @@ Production timing closure must therefore use the following hierarchy:
 
 Until stages 3–5 are implemented and qualified for both PDKs, the project should describe the current result as reproducible open-source verification and path-delay qualification, not final production-grade sign-off.
 
-## 20. Production-grade operating rules
+### 21.2 Production-grade operating rules
 
 - Keep requirements, RTL, model, tests, and properties under review and version control.
 - Never hand-copy CSR offsets into model or test code.
@@ -1529,14 +1590,14 @@ Until stages 3–5 are implemented and qualified for both PDKs, the project shou
 The short runnable path is in [Quickstart](quickstart.md).
 
 
-## Activity-based power after GLS
+### 21.3 Activity-based power after GLS
 
 The vectorless `power_estimate` stage is useful before representative stimulus exists, but it is an assumption-based estimate. After the post-synthesis GLS matrix has produced a successful SDF-backed `min`, `typ`, or `max` trace, FlexSoC can use the actual switching activity of each vector test:
 
 ```text
 qualified GLS report + FST/VCD
         ↓ verify SDF annotation evidence
-VCD scoped to test_tb.u_dut
+VCD scoped automatically to test_tb/u_<TOP> or test_tb/u_dut
         ↓ OpenSTA read_vcd
 activity annotation report
         ↓ Liberty internal/switching/leakage models
@@ -1546,3 +1607,315 @@ per-corner report_power
 `fx power_analysis` selects one test. `fx power_analysis_all` analyzes all selected E2E tests; the default E2E flow uses the `typ`/SV trace for every GLS test, avoiding duplicate power calculations for equivalent SV and cocotb stimulus while still allowing explicit backend/mode matrices. OpenSTA uses `/` as the VCD hierarchy separator. FlexSoC therefore inspects the converted VCD, resolves the generated DUT scope automatically (`POWER_VCD_SCOPE=auto`), validates explicit scopes, and records both the requested and resolved scope in every report. The resolver understands the canonical single-clock `u_<TOP>` convention and the N-clock/cocotb `u_dut` convention; `POWER_DUT_INSTANCE` is only an optional hint. This prevents a syntactically valid `read_vcd` call from silently annotating zero activities because of a dotted or nonexistent hierarchy path. When the qualified trace is FST, FlexSoC calls `fst2vcd -f <input> -o <output>` automatically, validates the generated VCD, and retries through the converter's stdout interface only for compatibility with older wrappers. The conversion log is retained under `signoff/power/<pdk>/activity/captures`. `fx check` keeps vectorless power and post-GLS activity power separate so their assumptions cannot be confused.
 
 This is a stronger post-synthesis reference, not final silicon sign-off. Final power closure should repeat the activity flow on the post-route netlist with extracted SPEF, validated foundry Liberty power tables, representative operating windows, voltage/temperature corners, clock-tree activity, and rail/IR-drop analysis.
+## 22. Failure-driven lifecycle playbook
+
+The normal lifecycle is iterative. A failure is useful when it identifies the
+boundary that no longer matches its assumptions. FlexSoC should be used to
+reduce the failure to the earliest owned source, not to accumulate overrides at
+the final stage.
+
+The full generated architecture and scaffold rationale are documented in
+[IP development guide](ip_development_guide.md).
+
+### 22.1 Standard triage sequence
+
+For every failure:
+
+1. identify the first failing stage, not merely the last command that returned nonzero;
+2. confirm `WORKSPACE`, `RUN_TOP`, `RUN_ID`, `PDK`, and persistent clock settings;
+3. open the command log and generated tool script;
+4. verify the exact input artifact consumed by the stage;
+5. classify the failure;
+6. repair the earliest source or generator that owns it;
+7. regenerate the smallest stale boundary;
+8. rerun the smallest named reproducer;
+9. rerun all downstream gates whose assumptions changed;
+10. refresh manifest, metrics, and check before release.
+
+Useful classification:
+
+| Class | Examples | Correct response |
+| --- | --- | --- |
+| design mismatch | wrong output, assertion failure, EQY mismatch | repair requirement/model/RTL/property ownership |
+| stale generated boundary | old wrapper, filelist, testbench, SDC | regenerate the specific scaffold |
+| missing assumption | unconstrained path, illegal formal environment | add a narrow reviewed requirement/constraint/assumption |
+| tool/model compatibility | unsupported PDK construct, parser failure | create a declared compatibility adapter without editing the original authority |
+| timeout/nonclosure | EQY/formal engine cannot close | change proof strategy/resources; do not label it a mismatch |
+| archival failure | missing report, wave, or matrix entry | repair command/report handling and rerun the affected combination |
+
+### 22.2 CSR and register-map problems
+
+Common warning signs:
+
+- documentation, RTL, and tests disagree on a field;
+- a register reads the wrong reset value;
+- generated CSR formal fails;
+- a new window is absent from the top wrapper;
+- tests contain handwritten offsets or masks.
+
+Designer response:
+
+```bash
+# edit data/<top>*.hjson
+fx reg doc regmap_py --force
+fx top_from_core flist --force
+fx tests_gen --force
+fx formal_csr
+```
+
+Do not patch generated register RTL or Python metadata. If the HJSON itself is
+wrong, fixing downstream consumers separately creates several incompatible
+register maps.
+
+### 22.3 RTL and hierarchy problems
+
+Common warning signs:
+
+- a package/module is unresolved;
+- a port appears in the core but not the top;
+- lint finds a latch or width/sign ambiguity;
+- simulation, formal, and synthesis elaborate different hierarchies;
+- reset or clock ownership is not obvious.
+
+Designer response:
+
+```bash
+fx top_from_core --force
+fx flist --force
+fx slang_hier
+fx lint_suite --live
+```
+
+Repair authored RTL for real structural problems. Regenerate wrappers/filelists
+for mechanical drift. After the repair rerun regression, formal, synthesis, and
+downstream sign-off if behavior or state changed.
+
+### 22.4 Functional-DV problems
+
+Common warning signs:
+
+- expected value differs from RTL;
+- output appears at a different cycle;
+- SV and cocotb disagree;
+- CSR access times out;
+- coverage is high but a requirement has no scenario;
+- a test passes at RTL but not on the gate netlist.
+
+Designer/verification response:
+
+```bash
+fx tests
+fx test_gen --force --set TEST_NAME=<test>
+fx setup_tb setup_cocotb --force
+fx sim --live --set TEST_NAME=<test>
+fx cocotb --live --set TEST_NAME=<test>
+```
+
+Inspect the first failing vector, model result, declared latency, reset/config
+state, and waveform. Preserve one backend-neutral expectation. A backend-only
+special case is usually a harness scheduling defect, not a valid alternate
+architecture.
+
+### 22.5 Formal problems
+
+Common warning signs:
+
+- a short BMC counterexample;
+- prove times out;
+- cover is unreachable;
+- a property passes instantly but never activates.
+
+Designer response:
+
+```bash
+fx formal_bmc
+fx formal_prove
+fx formal_cover
+```
+
+A counterexample requires an RTL/property/requirement decision. A timeout is
+inconclusive and may require a smaller cone, stronger valid invariant, another
+engine, or additional resources. Add covers for property activation to prevent
+vacuous closure.
+
+### 22.6 Clock, reset, and constraint problems
+
+Common warning signs:
+
+- a clock is missing from STA;
+- a large endpoint set is unconstrained;
+- a false path is used to hide a real crossing;
+- simulation and STA use different periods;
+- changing a reset/domain breaks only one scaffold.
+
+Designer response:
+
+```bash
+fx settings
+fx setup_tb setup_cocotb setup_formal setup_sdc setup_syn setup_eqy setup_signoff --force
+```
+
+Review CDC/RDC explicitly whenever domain relationships change. An exception is
+an architectural statement and requires a narrow scope, rationale, and owner.
+
+### 22.7 Synthesis and equivalence problems
+
+Common synthesis signs:
+
+- unsupported RTL construct;
+- unexpected inferred memory/latch;
+- large area growth;
+- wrong technology cells;
+- mapped netlist is absent or stale.
+
+Common equivalence signs:
+
+- one partition reports a concrete mismatch;
+- every strategy times out;
+- black-box/reset/X modelling differs;
+- a technology primitive is missing from the formal view.
+
+Response:
+
+```bash
+fx setup_syn syn --force --live
+fx setup_eqy eqy --force --live
+fx eqy_debug
+fx eqy_debug <partition>
+```
+
+Keep mismatch, timeout, unknown, and engine error distinct. A synthesis PASS is
+not enough; equivalence must prove the representation change preserved logic.
+
+### 22.8 GLS problems
+
+Use the timing modes diagnostically:
+
+```text
+zero   mapped-netlist/model/reset/protocol smoke
+unit   race, ordering, delta-cycle, sampling, and model-precision smoke
+min    ff SDF path-delay qualification
+typ    tt SDF path-delay qualification
+max    ss SDF path-delay qualification
+```
+
+Recommended isolation order:
+
+```bash
+fx sim_post_syn --live --set GLS_BACKEND=sv     --set TIMING_MODE=zero --set TEST_NAME=smoke
+fx sim_post_syn --live --set GLS_BACKEND=sv     --set TIMING_MODE=unit --set TEST_NAME=smoke
+fx sim_post_syn --live --set GLS_BACKEND=cocotb --set TIMING_MODE=unit --set TEST_NAME=smoke
+fx sim_post_syn --live --set GLS_BACKEND=sv     --set TIMING_MODE=typ  --set TEST_NAME=smoke --set SDF_STRICT=1
+fx sim_post_syn --live --set GLS_BACKEND=cocotb --set TIMING_MODE=typ  --set TEST_NAME=smoke --set SDF_STRICT=1
+```
+
+If `zero` fails, repair the netlist/model/reset/protocol boundary before looking
+at SDF. If only `unit` fails, inspect atomic drive batching, sample phase,
+timescale precision, and the resolved uniform delay. If only SDF modes fail,
+inspect corner mapping, annotation evidence, and supported path-model behavior.
+
+The generated Icarus view is a compatibility adapter. Repair its generator or
+model-discovery logic when needed; never edit the original PDK library or the
+staged generated copy manually.
+
+### 22.9 STA and power problems
+
+For timing:
+
+```bash
+fx sta --live
+fx sta_violators
+```
+
+Treat unconstrained endpoints as incomplete analysis. Negative slack requires a
+constraint/architecture/mapping/physical decision; it should not be converted
+into a broad exception merely to obtain a green summary.
+
+For early power:
+
+```bash
+fx power_estimate --live
+```
+
+Review global activity, duty cycle, clocks, Liberty units/tables, and mapped
+netlist.
+
+For workload power:
+
+```bash
+fx power_analysis --live --set POWER_TEST_NAME=smoke
+fx power_analysis_all --live --set POWER_TEST_NAMES=all
+```
+
+A failed FST conversion, unresolved VCD hierarchy, or zero activity annotation
+means the workload was not applied. Numeric `report_power` output in that state
+must not be accepted as activity-based evidence.
+
+### 22.10 Release problems
+
+A run is not release-ready merely because `fx check` prints PASS. Review:
+
+- tool/PDK/image identity;
+- Git cleanliness and source revision;
+- warnings and waivers;
+- coverage and requirements traceability;
+- formal and EQY nonclosure classification;
+- unconstrained timing endpoints;
+- GLS matrix completeness;
+- workload relevance for activity power;
+- current post-synthesis versus post-route limitations;
+- immutable Docker digest and CI verification.
+
+Refresh evidence:
+
+```bash
+fx manifest
+fx metrics
+fx check
+```
+
+For Docker-authoritative releases:
+
+```bash
+docker/scripts/verify.sh
+FULL_E2E=1 docker/scripts/verify.sh
+docker/scripts/publish.sh
+docker/scripts/check-lock.sh
+```
+
+Normal CI should consume the committed digest and fail on an unpublished or
+stale lock rather than rebuilding the complete toolchain inside each job.
+
+## 23. Recovering a failed Docker toolchain build
+
+A Docker toolchain failure must be classified by stage.
+
+- A failure in `toolchain-prereqs` means an Ubuntu package or bootstrap problem.
+- A failure in `toolchain-installed` means one pinned tool failed to compile.
+  Retry without pruning: downloaded sources, build trees, installed tools, and
+  completion markers are retained in named BuildKit caches.
+- A failure in `toolchain-verified` means the binaries exist but a runtime
+  dependency, version check, or smoke command is incomplete. The local
+  `*-installed` checkpoint remains available and the retry starts after the
+  expensive compilation work.
+- A failure in `runtime` or `verify.sh` means the EDA checkpoint is already
+  valid; fix Python or project-level verification and rebuild.
+
+The designer should inspect the first failing stage and its command rather than
+pruning all Docker state. `docker/scripts/inspect.sh` reports the retained
+checkpoint. Builder pruning is appropriate only when intentionally invalidating
+the whole toolchain cache. A checkpoint never counts as release evidence: the
+final runtime image must still pass the managed doctor and complete E2E.
+## 24. Equivalence recovery for protocol outputs
+
+A timeout on a packed protocol response is not evidence of a logic mismatch. FlexSoC first canonicalizes protocol-defined don't-care fields and projects TL-UL `tl_o` into bounded formal witnesses. The packed response is internal to the formal wrapper and is not retained as a second public output; otherwise EQY would still generate raw bit partitions alongside the witnesses. Single-clock equivalence is initialized through the declared reset contract, so the default claim is equivalence after legal reset rather than equivalence from arbitrary uninitialized flop states.
+
+The designer should respond according to the evidence:
+
+- a witness `FAIL` with a concrete trace requires RTL/synthesis-boundary investigation;
+- a witness `TIMEOUT` remains inconclusive and should be replayed with `fx eqy_debug`;
+- an engine error with no trace is a tool/strategy failure, not a demonstrated RTL mismatch; use the stable `abc pdr` default before changing the design;
+- a reset-normalized PASS indicates an initialization-state problem, not permission to hide a functional mismatch;
+- multi-clock reset normalization remains opt-in and must follow an explicitly reviewed domain-reset sequence.
+
+Do not waive a whole `tl_o` bus because one solver timed out. Work at the field witness that failed, preserve the generated formal view, and archive the EQY configuration and diagnostic result with the run manifest.

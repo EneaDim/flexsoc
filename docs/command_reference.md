@@ -2,7 +2,7 @@
 
 This is the complete user-facing reference for the `fx` command line and every backend target currently exposed by FlexSoC. It follows the same lifecycle as [Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify it, synthesize it, prove equivalence, analyze timing and power, implement it, and collect release evidence.
 
-The reference explains what each command owns. It does not replace tool logs or the underlying EDA manuals. Use `fx <target> --info` and `fx commands --json` when a script needs the live metadata from the installed checkout.
+The reference explains what each command owns. The generated scaffold architecture and design reasoning are described in [IP development guide](ip_development_guide.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <target> --info` and `fx commands --json` when a script needs the live metadata from the installed checkout.
 
 > **Execution model:** `fx target_a target_b` launches separate backend targets in the order written. Make prerequisites inside each target remain fail-fast, but a failure in one explicitly listed top-level target does not suppress later targets. Use a composite target or shell `&&` when the top-level sequence itself must stop immediately.
 
@@ -917,7 +917,7 @@ fx eqy_debug --files <partition>
 See [Project lifecycle](project_lifecycle.md) for engineering rationale and [Quickstart](quickstart.md) for the shortest runnable flow.
 
 
-### `fx power_analysis` and `fx power_analysis_all`
+### 7.1 `fx power_analysis` and `fx power_analysis_all`
 
 `power_estimate` remains the vectorless reference based on one global activity and duty-cycle assumption. `power_analysis` is the activity-based counterpart: it accepts only a qualified `min`, `typ`, or `max` post-synthesis GLS result, converts its FST to VCD when necessary, checks the archived GLS report for successful `$sdf_annotate`, then runs OpenSTA `read_vcd`, `report_activity_annotation`, and `report_power` for every configured Liberty corner.
 
@@ -943,7 +943,335 @@ Relevant variables are `POWER_TEST_NAME`, `POWER_TEST_NAMES`, `POWER_GLS_BACKEND
 Gate simulations and activity-power runs are quiet by default. Without `--live`, detailed compiler, simulator, converter, and OpenSTA output is written to the command/stage logs; the terminal shows only the target status and log path. Pass `--live` to stream the full output.
 
 
-## Docker-only toolchain authority
+## 8. Failure-driven command playbook
+
+The target catalogue above answers “what command exists.” This section answers
+“what should I run next when the current stage does not close.” The complete
+scaffold architecture and ownership model are described in
+[IP development guide](ip_development_guide.md).
+
+### 8.1 Universal inspection sequence
+
+Before changing source or adding an override:
+
+```bash
+fx <target> --info
+fx <target> --dry-run --script
+fx <target> --live
+fx metrics
+fx check
+```
+
+Use the generated script and stage log as the exact execution record. The
+terminal summary is intentionally compact and may omit the first tool-level
+error when quiet mode is active.
+
+| Question | Command or artifact |
+| --- | --- |
+| Which variables can this target consume? | `fx <target> --info` |
+| What exact shell/tool command will run? | `fx <target> --dry-run --script` |
+| Where is the full output? | printed command-log path; pass `--live` to stream it |
+| Which run/PDK/tool versions produced the artifact? | `fx manifest`, `fx manifest_show` |
+| Which stage is the first incomplete gate? | `fx check` |
+| Is the target missing, failed, or stale? | command log, generated report, and `metrics.json` |
+
+### 8.2 Environment and PDK failures
+
+```bash
+fx doctor
+fx deps-doctor
+fx deps-status
+fx pdk info <pdk>
+fx pdk use <pdk>
+```
+
+| Symptom | Commands | Expected repair |
+| --- | --- | --- |
+| tool missing | `fx doctor`, `fx deps-status`, `type -a <tool>` | activate the pinned toolchain/image or rebuild it |
+| wrong tool version | `fx manifest_show`, `fx deps-versions` | qualify with the locked image; do not mix release evidence |
+| PDK view not found | `fx pdk info`, `fx settings --json` | correct `PDK`, `PDK_ROOT`, provider/version, and view path |
+| Docker/WSL resource failure | `docker/scripts/preflight.sh`, `docker system df -v` | lower jobs, free build cache, or increase WSL memory/swap |
+
+### 8.3 CSR and register collateral failures
+
+```bash
+fx hjson --force
+fx reg doc regmap_py --force
+fx top_from_core flist --force
+fx formal_csr
+```
+
+Use `hjson` only to bootstrap or intentionally replace the source specification.
+After normal HJSON edits, regenerate `reg`, `doc`, and `regmap_py`; do not rerun
+`setup_model --force` merely to refresh register metadata.
+
+| Failure | Inspect | Repair command |
+| --- | --- | --- |
+| HJSON syntax/access error | `data/*.hjson`, `reg` log | fix HJSON, then `fx reg doc regmap_py --force` |
+| stale CSR addresses in tests | generated `<top>_regmap.py` | remove handwritten constants, then `fx tests_gen --force` |
+| wrapper lacks a register window | core ports and generated top | `fx top_from_core flist --force` |
+| reset/access semantic mismatch | CSR formal counterexample | repair HJSON/RTL ownership, regenerate, rerun `fx formal_csr` |
+
+### 8.4 RTL and hierarchy failures
+
+```bash
+fx top_from_core --force
+fx flist --force
+fx slang_hier
+fx slang_ast
+fx lint_suite
+```
+
+Use `rtl_stub` only for bootstrap. Once the core is authored, regenerate the top
+wrapper from the core rather than regenerating the core.
+
+| Failure | Best first command | Next action |
+| --- | --- | --- |
+| unresolved module/package | `fx slang_hier`, inspect `rtl_common.f`/`rtl_ip.f` | fix source/include/package order and regenerate `flist` |
+| top port mismatch | `fx top_from_core --dry-run --script` | regenerate wrapper and both testbenches |
+| latch/width/sign warning | `fx lint_suite --live` | repair authored RTL; avoid broad warning suppression |
+| hierarchy differs between tools | compare generated filelists and tool scripts | make all stages consume the same ordered hierarchy |
+
+### 8.5 Functional-DV failures
+
+```bash
+fx tests
+fx test_gen --force --set TEST_NAME=<test>
+fx setup_tb setup_cocotb --force
+fx sim --live --set TEST_NAME=<test>
+fx cocotb --live --set TEST_NAME=<test>
+```
+
+Then rerun:
+
+```bash
+fx regression --set 'REGRESSION_BACKENDS=sv cocotb'
+fx coverage_detail
+```
+
+| Symptom | Inspect first | Typical repair |
+| --- | --- | --- |
+| wrong expected value | model, test catalogue, requirement | update the source that owns expected behavior, regenerate vectors |
+| wrong cycle/latency | model `LATENCY`, vector cycles, pipeline RTL | align architectural latency without backend-specific expectations |
+| SV only or cocotb only fails | atomic same-cycle batches, reset, sample phase | regenerate both harnesses and compare the first differing event |
+| CSR transaction timeout | generated regmap, protocol driver, reset/config | debug one named test with `--live` and wave |
+| regression PASS but coverage weak | `coverage_detail`, scenario catalogue | add requirement-driven scenarios or properties, not percentage-only stimulus |
+
+### 8.6 Formal failures
+
+```bash
+fx setup_formal --force
+fx formal_bmc
+fx formal_prove
+fx formal_cover
+```
+
+| Result | Command path |
+| --- | --- |
+| short counterexample | start with BMC log/wave and earliest property divergence |
+| unbounded proof timeout | simplify cone, add valid invariants, change engine/depth |
+| unreachable cover | review reset/state assumptions and add activation covers |
+| suspicious instant PASS | check vacuity and whether assumptions disable the property |
+
+### 8.7 SDC and synthesis failures
+
+```bash
+fx setup_sdc --force
+fx setup_syn --force
+fx syn --live
+```
+
+| Symptom | Inspect | Repair |
+| --- | --- | --- |
+| clock not found | settings, top port, generated SDC | correct persistent clock model and regenerate clock-derived scaffolds |
+| unsupported RTL construct | synthesis log and ordered filelist | rewrite/explicitly lower while preserving behavior |
+| unexpected area/cell count | synthesis statistics | review widths, inferred storage, sharing, and optimization strategy |
+| netlist stale/wrong PDK | run path, manifest, PDK-specific synthesis leaf | rerun with explicit `PDK`/`PDK_ROOT` and correct run identity |
+
+### 8.8 Equivalence failures
+
+```bash
+fx eqy --live
+fx eqy_debug
+fx eqy_debug <partition>
+fx eqy_debug --files <partition>
+fx eqy_debug --wave <partition>
+```
+
+Classify before acting:
+
+```text
+mismatch     concrete design/model difference
+TIMEOUT      solver nonclosure, not proof of mismatch
+UNKNOWN      engine/modelling result is inconclusive
+ERROR        generated configuration, source, or tool failure
+```
+
+Do not fix a timeout by changing RTL unless the proof cone reveals a real design
+problem. Do not call a mismatch a timeout merely because another strategy does
+not close.
+
+### 8.9 SDF and GLS failures
+
+Start with one named test:
+
+```bash
+fx sim_post_syn --live \
+  --set GLS_BACKEND=sv \
+  --set TIMING_MODE=zero \
+  --set TEST_NAME=smoke
+```
+
+Then isolate timing/harness behavior:
+
+```bash
+fx sim_post_syn --live --set GLS_BACKEND=sv     --set TIMING_MODE=unit --set TEST_NAME=smoke
+fx sim_post_syn --live --set GLS_BACKEND=cocotb --set TIMING_MODE=unit --set TEST_NAME=smoke
+fx sim_post_syn --live --set GLS_BACKEND=sv     --set TIMING_MODE=typ  --set TEST_NAME=smoke --set SDF_STRICT=1
+fx sim_post_syn --live --set GLS_BACKEND=cocotb --set TIMING_MODE=typ  --set TEST_NAME=smoke --set SDF_STRICT=1
+```
+
+| First failing mode | Primary suspicion |
+| --- | --- |
+| `zero` | missing cells/models, reset, netlist function, protocol/vector mismatch |
+| `unit` only | race, delta-cycle dependency, atomic batching, sampling, model precision |
+| `min/typ/max` only | SDF generation/corner mapping, annotation, supported path-model behavior |
+| one backend only | generated harness semantics rather than expected design behavior |
+
+`zero` and `unit` are diagnostic modes. `min`, `typ`, and `max` are the
+SDF-backed path-delay modes used for timing-oriented qualification.
+
+### 8.10 STA and power failures
+
+```bash
+fx sta --live
+fx sta_violators
+fx power_estimate --live
+fx power_analysis --live --set POWER_TEST_NAME=smoke
+fx power_analysis_all --live --set POWER_TEST_NAMES=all
+```
+
+| Failure | First checks |
+| --- | --- |
+| unconstrained paths | generated SDC, clocks, I/O delays, exceptions, linked top |
+| negative slack | mode/corner, constraints, architecture, mapping, path report |
+| vectorless power implausible | activity/duty, clocks, Liberty units/tables, netlist |
+| `fst2vcd` failure | conversion log and selected qualified FST |
+| VCD scope unresolved | VCD `$scope` tree; use `POWER_VCD_SCOPE=auto` |
+| zero annotated activities | resolved DUT hierarchy and VCD/netlist naming; reject returned default power |
+
+### 8.11 Release and CI failures
+
+```bash
+fx manifest
+fx metrics
+fx check
+
+docker/scripts/check-lock.sh
+docker/scripts/inspect.sh
+docker/scripts/run-ci.sh
+```
+
+A stale or unpublished `docker/ci/image.lock` is a release error. Normal CI
+pulls the recorded digest and intentionally does not rebuild the EDA toolchain.
+
+---
+
+## 9. Scaffold and artifact ownership map
+
+| Command | Main output | Editable? | Regenerate when |
+| --- | --- | --- | --- |
+| `setup` | run directory tree | no | new run identity/workspace |
+| `hjson` | `data/*.hjson` starter | yes after bootstrap | only when intentionally replacing the starter |
+| `reg` | generated register RTL/packages | no | HJSON/interface changes |
+| `doc` | generated register Markdown | no | HJSON changes |
+| `regmap_py` | generated Python CSR API | no | HJSON changes |
+| `rtl_stub` | starter core and top | core becomes authored | bootstrap only |
+| `top_from_core` | generated top wrapper | no | core ports/register windows/clocks change |
+| `flist` | ordered `rtl_common.f`, `rtl_ip.f` | no | hierarchy/include/package/source changes |
+| `setup_model` | model, regmap, tests, auto-toggle scaffold | model/tests yes; generated files no | bootstrap or deliberate reset of functional workspace |
+| `tests_gen` | `config.regs`, `data_in.vec`, `data_out.vec` | no | model/scenario/regmap changes |
+| `setup_tb` | SV harness | no | ports, clocks, protocol, vector grammar change |
+| `setup_cocotb` | cocotb harness/drivers | no | same owning changes as SV harness |
+| `setup_formal` | formal configs/wrappers | generated config no; authored properties yes | hierarchy, clock/reset, CSR, property integration changes |
+| `setup_sdc` | SDC scaffold | generated base no; reviewed project additions may be authored | clock/relationship/path-policy changes |
+| `setup_syn` | synthesis scripts | no | hierarchy, PDK, SDC, strategy changes |
+| `setup_eqy` | EQY configuration/adapters | no | RTL/netlist/reset/PDK/strategy changes |
+| `setup_signoff` | SDF/STA/power/GLS scripts | no | PDK, netlist, SDC, corners, sign-off policy changes |
+| `manifest` | `meta/<pdk>/manifest.json` | no | refresh at release/evidence collection |
+| `metrics` | `meta/<pdk>/metrics.json` | no | refresh after stages change |
+
+The detailed file-by-file reasoning is in
+[IP development guide](ip_development_guide.md).
+
+---
+
+## 10. Reference lifecycle command sequences
+
+### 10.1 New single-clock IP
+
+```bash
+fx settings \
+  TOP=my_ip RUN_TOP=my_ip RUN_ID=dev HOST=uart \
+  N_CLOCKS=1 \
+  CLOCK_DOMAINS=core:clk_i:rst_ni:10:low \
+  CLOCK_RELATIONSHIPS=
+
+fx setup hjson reg doc rtl_stub flist --force
+fx setup_model tests_gen setup_tb setup_cocotb --force
+fx lint_suite regression
+fx setup_formal formal --force
+fx setup_sdc setup_syn syn --force
+fx setup_eqy eqy --force
+fx setup_signoff sdf sta power_estimate --force
+fx manifest metrics check
+```
+
+### 10.2 Timing-oriented post-synthesis qualification
+
+```bash
+for mode in min typ max; do
+  for backend in sv cocotb; do
+    fx sim_post_syn \
+      --set GLS_BACKEND="$backend" \
+      --set TIMING_MODE="$mode" \
+      --set TEST_NAME=smoke \
+      --set SDF_STRICT=1
+  done
+done
+```
+
+Use `zero` before the loop for the fastest netlist/model diagnostic and `unit`
+when race or sampling behavior must be qualified.
+
+### 10.3 Full repository E2E qualification
+
+```bash
+FLEXSOC_E2E_LIVE=0 \
+FLEXSOC_E2E_KEEP=1 \
+pytest -s -vv tests/test_e2e_fx.py \
+  --e2e-root "$HOME/flexsoc-e2e" \
+  --e2e-gls-tests all
+```
+
+The full default matrix uses selected PDKs, all generated tests requested by the
+E2E option, both backends, and `zero/unit/min/typ/max`. Activity power uses the
+qualified SDF-backed traces and remains a separate closure item.
+
+### 10.4 Final evidence refresh
+
+```bash
+fx manifest
+fx metrics
+fx check
+```
+
+A PASS summary is the start of review, not the end: inspect warnings,
+unconstrained paths, coverage, waivers, tool/PDK identity, and the production
+sign-off limitations recorded in the lifecycle documents.
+
+
+## 11. Docker-only toolchain authority
 
 For a workstation that uses the container as the authoritative EDA environment:
 
@@ -965,3 +1293,45 @@ APPLY=1 docker/scripts/cleanup-managed-toolchain.sh
 ```
 
 Cleanup is guarded by the current Docker verification record and image ID. It removes only `~/.local/share/flexsoc/toolchains`, the stable FlexSoC toolchain symlink, and `~/.cache/flexsoc`; it preserves `.venv`, `/usr`, `/usr/local`, and Docker storage.
+
+## 12. Resumable Docker toolchain builds
+
+`docker/scripts/build.sh` performs two builds in sequence. It first materializes
+and tags the `toolchain-installed` stage, then continues to the verified
+`runtime` stage. This ordering is deliberate: an error in `deps doctor`, uv, or
+the project verification does not erase the expensive EDA installation.
+
+```bash
+FLEXSOC_JOBS=2 docker/scripts/build.sh
+docker/scripts/inspect.sh
+```
+
+A retry uses the retained `*-installed` image and the named BuildKit caches.
+The caches preserve downloads, Git sources, intermediate build trees, and the
+per-tool completion markers written by `deps.sh`. Avoid pruning the builder
+while recovering a failed build. The checkpoint is diagnostic only; publication
+still requires the final runtime image and both verification steps.
+
+The base profile requires the Python `click` module because SymbiYosys imports
+it at startup. On Ubuntu this dependency is supplied by `python3-click` and is
+checked before installation as `python:click`.
+## 13. EQY protocol partitioning and reset normalization
+
+For single-clock IPs, `fx eqy` now proves the normal post-reset hardware contract by default. The generated configuration initializes both gold and gate designs through the clock/reset declared in `CLOCK_DOMAINS` before partition proofs begin:
+
+```bash
+fx eqy --set EQY_RESET_NORMALIZE=1 --set EQY_RESET_CYCLES=2
+```
+
+Use `EQY_RESET_NORMALIZE=0` only when the design contract explicitly requires equivalence from arbitrary power-up state. Multi-clock runs keep normalization disabled by default because independent-domain reset sequencing must be reviewed rather than inferred.
+
+Packed 66-bit TL-UL response ports are not treated as one monolithic partition. The formal-only protocol view keeps the packed response internal and exposes only bounded witnesses for `a_ready`, `d_valid`, D-channel control, data, and metadata. This detail matters because EQY partitions every public output: exposing both the raw response and the witnesses would create duplicate raw bit partitions such as `cfg_tl_o.0` in addition to the intended field witnesses. The original RTL and mapped netlist are not edited. This preserves the TL-UL care set while making timeout diagnosis field-specific.
+
+The default PDR engine is `abc pdr`. `abc pdr -rfi` remains an explicit expert override, but it is not the default because some partitions can terminate with an engine error and no counterexample trace. An engine error is not a demonstrated mismatch; rerun the generated witness with the stable default or inspect it through `fx eqy_debug`.
+
+When EQY still does not close:
+
+1. inspect the partition names in the EQY log;
+2. distinguish `FAIL` from `timeout`;
+3. run `fx eqy_debug` on the first unresolved witness;
+4. do not increase timeouts until reset normalization, protocol care-set handling, and synthesis-boundary diagnostics have been checked.
