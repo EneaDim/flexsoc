@@ -144,7 +144,7 @@ def show_manifest(path: Path) -> None:
         groups = (
             ("RTL / lint", {"slang", "verilator", "slang-hier"}),
             ("Formal / equivalence", {"yosys", "sby", "eqy", "bitwuzla", "boolector", "btormc", "btorsim"}),
-            ("Simulation / debug", {"iverilog", "gtkwave", "surfer", "sv2v", "netlistsvg"}),
+            ("Simulation / debug", {"iverilog", "gtkwave", "fst2vcd", "surfer", "sv2v", "netlistsvg"}),
             ("Implementation / sign-off", {"sta", "openroad", "klayout"}),
             ("Environment", {"uv"}),
         )

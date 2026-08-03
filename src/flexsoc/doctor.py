@@ -28,6 +28,7 @@ TOOLS = (
     ("Icarus", "iverilog", ("-V",), False, "IVERILOG"),
     ("Slang hierarchy", "slang-hier", ("--version",), False, None),
     ("GTKWave", "gtkwave", ("--version",), False, "GTKWAVE"),
+    ("FST to VCD converter", "fst2vcd", ("--help",), True, None),
     ("Surfer", "surfer", ("--version",), False, "SURFER"),
     ("sv2v", "sv2v", ("--version",), False, "SV2V"),
     ("netlistsvg", "netlistsvg", ("--version",), False, "NETLISTSVG"),
@@ -241,7 +242,7 @@ def run(root: Path, *, as_json: bool = False) -> int:
     groups = (
         ("RTL / lint", {"slang", "verilator", "slang-hier"}),
         ("Formal / equivalence", {"yosys", "sby", "eqy", "bitwuzla", "boolector", "btormc", "btorsim"}),
-        ("Simulation / debug", {"iverilog", "gtkwave", "surfer", "sv2v", "netlistsvg"}),
+        ("Simulation / debug", {"iverilog", "gtkwave", "fst2vcd", "surfer", "sv2v", "netlistsvg"}),
         ("Implementation / sign-off", {"sta", "openroad", "klayout"}),
         ("Environment", {"uv"}),
     )

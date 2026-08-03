@@ -6,106 +6,49 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  PYTHONPATH: src
-  OSS_CAD_SUITE_URL: https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-07-28/oss-cad-suite-linux-x64-20250728.tgz
-
 jobs:
   test:
-    name: Python lint and full FlexSoC E2E
+    name: FlexSoC tests in locked container
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Install host packages
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends             build-essential             ca-certificates             curl             git             graphviz             libreadline-dev             pkg-config             tcl-dev             zlib1g-dev
+      - name: Validate immutable image lock
+        id: image
+        shell: bash
+        run: docker/scripts/check-lock.sh
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
         with:
-          python-version: '3.11'
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v4
+      - name: Pull locked image
+        run: docker pull "${{ steps.image.outputs.ref }}"
+
+      - name: Cache project PDK downloads
+        uses: actions/cache@v4
         with:
-          enable-cache: true
+          path: .flexsoc/pdks
+          key: flexsoc-pdks-${{ runner.os }}-${{ hashFiles('pdks/**', 'src/flexsoc/pdk.py') }}
+          restore-keys: |
+            flexsoc-pdks-${{ runner.os }}-
 
-      - name: Install OSS CAD Suite
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/eda"
-          curl -L "$OSS_CAD_SUITE_URL" -o /tmp/oss-cad-suite.tgz
-          tar -xzf /tmp/oss-cad-suite.tgz -C "$HOME/eda"
-          echo "$HOME/eda/oss-cad-suite/bin" >> "$GITHUB_PATH"
-
-      - name: Install Python dependencies
-        run: |
-          set -euo pipefail
-          unset VIRTUAL_ENV || true
-          uv sync
-          uv run python --version
-          uv run python -c "import typer, hjson; print('uv imports OK')"
-
-      - name: Check EDA tools
-        run: |
-          set -euo pipefail
-          export PATH="$HOME/eda/oss-cad-suite/bin:$PATH"
-
-          command -v verilator
-          command -v yosys
-          command -v sv2v || true
-          command -v iverilog || true
-          command -v gtkwave || true
-
-          # OpenROAD is useful for implementation-oriented targets, but some
-          # OSS CAD Suite archives do not include the standalone openroad app.
-          # Keep this check visible, but do not fail the CI when it is absent.
-          if command -v openroad >/dev/null 2>&1; then
-            command -v openroad
-            openroad -version || true
-          else
-            echo "::warning::openroad not found in OSS CAD Suite; skipping OpenROAD-only check"
-          fi
-
-          if command -v sta >/dev/null 2>&1; then
-            command -v sta
-            sta -version || true
-          elif command -v opensta >/dev/null 2>&1; then
-            command -v opensta
-            opensta -version || true
-          else
-            echo "::error::OpenSTA executable not found: expected sta or opensta"
-            exit 1
-          fi
-
-          verilator --version
-          yosys -V
-
-      - name: Ruff
-        run: |
-          set -euo pipefail
-          uv run ruff check .
-
-      - name: API tests
-        run: |
-          set -euo pipefail
-          export PATH="$HOME/eda/oss-cad-suite/bin:$PATH"
-          uv run pytest tests/test_api.py
-
-      - name: Full E2E flow
+      - name: Run lint, API tests, and E2E in the image
         env:
-          FLEXSOC_RUN_E2E: '1'
-        run: |
-          set -euo pipefail
-          export PATH="$HOME/eda/oss-cad-suite/bin:$PATH"
-          uv run pytest -s tests/test_e2e_fx.py
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+          FULL_E2E: "1"
+        run: docker/scripts/run-ci.sh "$IMAGE_REF"

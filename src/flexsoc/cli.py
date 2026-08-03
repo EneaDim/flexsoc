@@ -878,7 +878,7 @@ Use `fx commands` to list every backend Make target.
         if deps_jobs is not None and deps_jobs < 1:
             raise click.BadParameter("--jobs must be a positive integer")
         if deps_user or deps_system or deps_profile is not None or deps_jobs is not None:
-            dep_targets = {"deps-bootstrap", "deps", "deps-doctor", "deps-versions", "deps-env"}
+            dep_targets = {"deps-bootstrap", "deps", "deps-doctor", "deps-versions", "deps-env", "deps-status", "deps-prune"}
             if not args or any(arg not in dep_targets for arg in args):
                 raise click.BadParameter("--user/--system/--profile/--jobs are only valid for dependency targets")
             dep_sets = []

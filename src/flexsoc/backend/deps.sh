@@ -11,6 +11,8 @@ MODE=user
 PROFILE=base
 JOBS=${FLEXSOC_JOBS:-$(nproc 2>/dev/null || echo 2)}
 FORCE=0
+APPLY=0
+PRUNE_CACHE=0
 
 usage() {
     cat <<'TXT'
@@ -22,6 +24,8 @@ Commands:
   doctor                 Verify one installed profile
   env                    Print shell exports for the selected toolchain
   versions               Print locked versions grouped by profile
+  status                 Show managed prefixes, disk usage, and command duplicates
+  prune                  Remove obsolete managed prefixes; optionally remove build caches
 
 Options:
   --user                  Rootless toolchain under ~/.local/share/flexsoc (default)
@@ -29,6 +33,8 @@ Options:
   --profile base|impl|riscv
   --jobs N                Parallel build jobs
   --force                 Rebuild selected tools
+  --apply                 Apply prune operations (prune is dry-run by default)
+  --cache                 Also remove FlexSoC source/download build caches during prune
 
 Profiles:
   base    DV, synthesis, formal, STA and waveform/debug tooling
@@ -60,6 +66,8 @@ parse_options() {
             --profile) [[ $# -ge 2 ]] || die "--profile needs a value"; PROFILE=$2; shift ;;
             --jobs) [[ $# -ge 2 ]] || die "--jobs needs a value"; JOBS=$2; shift ;;
             --force) FORCE=1 ;;
+            --apply) APPLY=1 ;;
+            --cache) PRUNE_CACHE=1 ;;
             -h|--help) usage; exit 0 ;;
             *) die "unknown option: $1" ;;
         esac
@@ -78,6 +86,9 @@ paths() {
         CACHE=${FLEXSOC_CACHE_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/flexsoc}
     fi
     SRC="$CACHE/src"; DOWNLOADS="$CACHE/downloads"; MARKERS="$PREFIX/.flexsoc"
+    TOOLCHAINS_ROOT=$(dirname "$PREFIX")
+    if [[ "$MODE" == system ]]; then STABLE_LINK=/opt/flexsoc/toolchain
+    else STABLE_LINK=${XDG_DATA_HOME:-$HOME/.local/share}/flexsoc/toolchain; fi
 }
 
 as_root() {
@@ -315,9 +326,13 @@ install_opensta() {
 }
 
 install_gtkwave() {
-    installed GTKWAVE gtkwave && { info "gtkwave already installed"; return; }
-    local d; d=$(archive_source GTKWAVE gtkwave); info "build gtkwave $(version_var GTKWAVE)"
-    (cd "$d"; ./configure --prefix="$PREFIX"; make -j"$JOBS"; make install)
+    if installed GTKWAVE gtkwave && [[ -x "$PREFIX/bin/gtkwave" && -x "$PREFIX/bin/fst2vcd" ]]; then
+        info "gtkwave/fst2vcd already installed"; return
+    fi
+    local d; d=$(archive_source GTKWAVE gtkwave); info "build gtkwave $(version_var GTKWAVE) with GTK3"
+    (cd "$d"; ./configure --enable-gtk3 --prefix="$PREFIX"; make -j"$JOBS"; make install)
+    [[ -x "$PREFIX/bin/gtkwave" ]] || die "GTKWave install did not provide $PREFIX/bin/gtkwave"
+    [[ -x "$PREFIX/bin/fst2vcd" ]] || die "GTKWave install did not provide $PREFIX/bin/fst2vcd"
     mark_installed GTKWAVE gtkwave
 }
 
@@ -356,6 +371,11 @@ install_tools() {
     export LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     local tool; for tool in $(profile_tools); do "install_$tool"; done
     cp "$LOCK" "$PREFIX/toolchain.lock"; write_env
+    mkdir -p "$(dirname "$STABLE_LINK")"
+    if [[ -e "$STABLE_LINK" && ! -L "$STABLE_LINK" ]]; then
+        die "stable toolchain path exists and is not a symlink: $STABLE_LINK"
+    fi
+    ln -sfn "$PREFIX" "$STABLE_LINK"
     info "$PROFILE profile installed in $PREFIX"
     info "activate with: source $PREFIX/env.sh"
 }
@@ -396,7 +416,7 @@ doctor() {
             bitwuzla) require_marker BITWUZLA bitwuzla; out=$(bitwuzla --version); contains "$out" "0.9.1" bitwuzla ;;
             boolector) require_marker BOOLECTOR boolector; out=$(boolector --version 2>&1); contains "$out" "3.2.4" boolector; [[ -x "$PREFIX/bin/btormc" && -x "$PREFIX/bin/btorsim" ]] ;;
             opensta) require_marker CUDD cudd; require_marker OPENSTA opensta; out=$(sta -version 2>&1) ;;
-            gtkwave) require_marker GTKWAVE gtkwave; out=$(gtkwave --version 2>&1); contains "$out" "3.3.127" gtkwave ;;
+            gtkwave) require_marker GTKWAVE gtkwave; [[ -x "$PREFIX/bin/gtkwave" && -x "$PREFIX/bin/fst2vcd" ]]; out=$("$PREFIX/bin/gtkwave" --version 2>&1); contains "$out" "3.3.127" gtkwave ;;
             surfer) require_marker SURFER surfer; out=$(surfer --version 2>&1); contains "$out" "0.7.0" surfer ;;
             sv2v) require_marker SV2V sv2v; out=$(sv2v --version 2>&1); contains "$out" "0.0.13" sv2v ;;
             netlistsvg) require_marker NETLISTSVG netlistsvg; command -v netlistsvg >/dev/null; out="netlistsvg 1.0.2" ;;
@@ -408,6 +428,77 @@ doctor() {
 }
 
 
+
+command_candidates() {
+    local name=$1 item
+    while IFS= read -r item; do
+        [[ -n "$item" ]] && printf '%s\n' "$item"
+    done < <(type -a -P "$name" 2>/dev/null | awk '!seen[$0]++')
+}
+
+status() {
+    paths; profile_ready
+    echo "FlexSoC managed toolchain status"
+    echo "  mode:          $MODE"
+    echo "  lock id:       $TOOLCHAIN_ID"
+    echo "  current:       $PREFIX"
+    echo "  stable link:   $STABLE_LINK"
+    echo "  cache:         $CACHE"
+    [[ -d "$PREFIX" ]] && echo "  current size:  $(du -sh "$PREFIX" 2>/dev/null | awk '{print $1}')" || echo "  current size:  not installed"
+    [[ -d "$CACHE" ]] && echo "  cache size:    $(du -sh "$CACHE" 2>/dev/null | awk '{print $1}')" || echo "  cache size:    absent"
+    echo
+    echo "Managed prefixes:"
+    if [[ -d "$TOOLCHAINS_ROOT" ]]; then
+        find "$TOOLCHAINS_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | while read -r name; do
+            size=$(du -sh "$TOOLCHAINS_ROOT/$name" 2>/dev/null | awk '{print $1}')
+            marker=""; [[ "$name" == "$TOOLCHAIN_ID" ]] && marker=" current"
+            printf '  %-16s %8s%s\n' "$name" "${size:-?}" "$marker"
+        done
+    else
+        echo "  none"
+    fi
+    echo
+    echo "Command resolution (managed first, then other PATH candidates):"
+    local tool managed active candidates
+    for tool in verilator slang iverilog yosys sby eqy sta gtkwave fst2vcd; do
+        managed="$PREFIX/bin/$tool"
+        active=$(PATH="$PREFIX/bin:$PATH" command -v "$tool" 2>/dev/null || true)
+        printf '  %-10s managed=%s\n' "$tool" "${active:-missing}"
+        candidates=$(command_candidates "$tool" | grep -Fvx "$managed" || true)
+        if [[ -n "$candidates" ]]; then
+            while IFS= read -r item; do printf '             other=%s\n' "$item"; done <<<"$candidates"
+        fi
+    done
+}
+
+prune() {
+    paths; profile_ready
+    local targets=() dir
+    if [[ -d "$TOOLCHAINS_ROOT" ]]; then
+        while IFS= read -r dir; do
+            [[ "$dir" == "$PREFIX" ]] || targets+=("$dir")
+        done < <(find "$TOOLCHAINS_ROOT" -mindepth 1 -maxdepth 1 -type d -print | sort)
+    fi
+    echo "FlexSoC toolchain prune"
+    echo "  keep: $PREFIX"
+    if [[ ${#targets[@]} -eq 0 ]]; then echo "  obsolete prefixes: none"
+    else printf '  remove prefix: %s\n' "${targets[@]}"; fi
+    if [[ "$PRUNE_CACHE" == 1 ]]; then
+        echo "  remove cache: $CACHE/src $CACHE/downloads $CACHE/stack"
+    else
+        echo "  cache: kept (pass --cache to remove build sources/downloads)"
+    fi
+    if [[ "$APPLY" != 1 ]]; then
+        echo "DRY_RUN=1; pass --apply to remove the listed user-managed data"
+        return 0
+    fi
+    for dir in "${targets[@]}"; do rm -rf -- "$dir"; done
+    if [[ "$PRUNE_CACHE" == 1 ]]; then rm -rf -- "$CACHE/src" "$CACHE/downloads" "$CACHE/stack"; fi
+    mkdir -p "$(dirname "$STABLE_LINK")"
+    [[ ! -e "$STABLE_LINK" || -L "$STABLE_LINK" ]] || die "stable path is not a symlink: $STABLE_LINK"
+    [[ -d "$PREFIX" ]] && ln -sfn "$PREFIX" "$STABLE_LINK"
+    echo "PRUNE=OK"
+}
 
 print_env() { paths; emit_env; }
 
@@ -432,6 +523,8 @@ case "$COMMAND" in
     doctor) doctor ;;
     env) print_env ;;
     versions) versions ;;
+    status) status ;;
+    prune) prune ;;
     -h|--help|help) usage ;;
     *) die "unknown command: $COMMAND" ;;
 esac
