@@ -824,10 +824,16 @@ def _inject_reset_initialization(
     remain supported for already-generated runs.
     """
 
+    source = re.sub(
+        r"(?ms)^# FlexSoC EQY reset normalization begin\n.*?"
+        r"^# FlexSoC EQY reset normalization end\n?",
+        "",
+        source,
+    )
     specs = tuple(domains or ((clock, reset, reset_active),))
     if reset_cycles <= 0:
         raise ValueError("reset_cycles must be > 0")
-    commands: list[str] = []
+    commands: list[str] = ["# FlexSoC EQY reset normalization begin"]
     for domain_clock, domain_reset, polarity in specs:
         if polarity not in {"low", "high"}:
             raise ValueError("reset polarity must be 'low' or 'high'")
@@ -839,6 +845,7 @@ def _inject_reset_initialization(
             f"sim -clock {domain_clock} {reset_opt} {domain_reset} "
             f"-rstlen {reset_cycles} -n {reset_cycles} -w"
         )
+    commands.append("# FlexSoC EQY reset normalization end")
     lines = source.splitlines()
 
     # Preferred path: one shared preprocessing script applied by EQY to both

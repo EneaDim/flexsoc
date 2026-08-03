@@ -3371,7 +3371,6 @@ _STRING_SV_MONITOR_TEXT = sv_monitor_text
 
 def _packed_sv_driver_text(top: str, clocks: ClockConfig) -> str:
     text = _STRING_SV_DRIVER_TEXT(top, clocks)
-    text = _PACKED_TOKEN_SUPPORT + "\n" + text
     text = text.replace("input string reg_name", "input tb_token_t reg_name")
     text = text.replace("  string reg_name;", "  tb_token_t reg_name;")
     text = text.replace("  string line;\n", "")
@@ -3393,7 +3392,11 @@ def _packed_sv_driver_text(top: str, clocks: ClockConfig) -> str:
         '              if ($sscanf(reg_name, "clk_i.%s", short_name) == 1) reg_name = short_name;\n'
         '            end',
     )
-    return text
+    # Add the packed parser only after rewriting the generated task bodies.
+    # Otherwise broad compatibility replacements such as ``$sscanf(line,``
+    # also rewrite the parser's own formal argument to an out-of-scope
+    # ``line_buf`` identifier.
+    return _PACKED_TOKEN_SUPPORT + "\n" + text
 
 
 def _packed_sv_vec_driver_text(top: str) -> str:

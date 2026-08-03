@@ -90,6 +90,9 @@ class EquivalenceConfig:
     formal_view: Path | None = None
     join_outputs: bool = True
     strategy_order: tuple[str, ...] = ()
+    reset_normalize: bool = False
+    reset_cycles: int = 2
+    reset_domains: tuple[tuple[str, str, str], ...] = ()
 
 
 def optional_path(value: str | None) -> Path | None:
@@ -164,6 +167,32 @@ def _tlul_response_ports(ports: Sequence[NetlistPort]) -> tuple[NetlistPort, ...
     )
 
 
+def _tlul_contract_ports(ports: Sequence[NetlistPort]) -> tuple[NetlistPort, ...]:
+    """Return the formal contract ports used to partition TL-UL responses.
+
+    A packed 66-bit ``tl_o`` response is a poor monolithic EQY partition.  The
+    formal wrapper therefore exposes five canonical witness outputs per TL-UL
+    response.  They preserve the exact protocol care set while allowing EQY to
+    prove handshake, control, payload, and metadata in bounded-size partitions.
+    """
+
+    responses = {port.name for port in _tlul_response_ports(ports)}
+    contract: list[NetlistPort] = []
+    for port in ports:
+        if port.name not in responses:
+            contract.append(port)
+            continue
+        prefix = f"{port.name}__flexsoc_eqy"
+        contract.extend((
+            NetlistPort("output", f"{prefix}_a_ready"),
+            NetlistPort("output", f"{prefix}_d_valid"),
+            NetlistPort("output", f"{prefix}_d_ctrl", "[16:0]"),
+            NetlistPort("output", f"{prefix}_d_data", "[31:0]"),
+            NetlistPort("output", f"{prefix}_d_meta", "[14:0]"),
+        ))
+    return tuple(contract)
+
+
 def render_formal_protocol_view(top: str, ports: Sequence[NetlistPort]) -> str:
     """Render a symmetric formal view for protocol-defined don't-care outputs.
 
@@ -171,18 +200,34 @@ def render_formal_protocol_view(top: str, ports: Sequence[NetlistPort]) -> str:
     canonicalizes TL-UL response fields outside their protocol care set: the
     D-channel payload is ignored while ``d_valid`` is low, and ``d_data`` is
     ignored for error responses.  Valid, successful read data is compared in
-    full.  Every matching TL-UL output receives the same treatment, independent
-    of clock count or register-window name.
+    full.  Each packed response is also projected onto five formal-only witness
+    outputs so EQY does not have to solve one monolithic 66-bit partition.
+    The packed response remains internal to the wrapper: exposing it as a
+    public output would cause EQY to create duplicate raw bit partitions in
+    addition to the canonical witnesses.
     """
 
     responses = {port.name for port in _tlul_response_ports(ports)}
     if not responses:
         return ""
     impl = f"{top}__eqy_impl"
+    contract_ports = _tlul_contract_ports(ports)
+    witnesses = tuple(port for port in contract_ports if "__flexsoc_eqy_" in port.name)
+    # Do not expose the packed protocol response itself at the formal-view
+    # boundary.  EQY partitions every public output even when it is excluded
+    # from the explicit match list; retaining the raw 66-bit response would
+    # therefore recreate one bit partition per raw output alongside the
+    # canonical witnesses.  Both gold and gate instantiate the same wrapper,
+    # so the raw response can remain an internal wire while the externally
+    # visible contract consists only of the bounded protocol witnesses.
+    view_ports = tuple(port for port in ports if port.name not in responses) + witnesses
+    original_names = {port.name for port in ports}
+    if any(port.name in original_names for port in witnesses):
+        raise ValueError("formal TL-UL witness name collides with a design port")
     lines = [
         "// Auto-generated formal protocol view; not functional RTL.",
         f"module {top} (",
-        *[f"  {port.declaration()}{',' if index + 1 < len(ports) else ''}" for index, port in enumerate(ports)],
+        *[f"  {port.declaration()}{',' if index + 1 < len(view_ports) else ''}" for index, port in enumerate(view_ports)],
         ");",
         "",
     ]
@@ -196,12 +241,13 @@ def render_formal_protocol_view(top: str, ports: Sequence[NetlistPort]) -> str:
     lines.extend(("  );", ""))
     for name in sorted(responses):
         raw = f"{name}__raw"
+        prefix = f"{name}__flexsoc_eqy"
         lines.extend((
-            f"  assign {name}[0] = {raw}[0]; // a_ready is always observable",
-            f"  assign {name}[65] = {raw}[65]; // d_valid is always observable",
-            f"  assign {name}[64:48] = {raw}[65] ? {raw}[64:48] : '0;",
-            f"  assign {name}[47:16] = ({raw}[65] && !{raw}[1]) ? {raw}[47:16] : '0;",
-            f"  assign {name}[15:1] = {raw}[65] ? {raw}[15:1] : '0;",
+            f"  assign {prefix}_a_ready = {raw}[0];",
+            f"  assign {prefix}_d_valid = {raw}[65];",
+            f"  assign {prefix}_d_ctrl = {raw}[65] ? {raw}[64:48] : '0;",
+            f"  assign {prefix}_d_data = ({raw}[65] && !{raw}[1]) ? {raw}[47:16] : '0;",
+            f"  assign {prefix}_d_meta = {raw}[65] ? {raw}[15:1] : '0;",
             "",
         ))
     lines.append("endmodule")
@@ -218,13 +264,13 @@ def _prepare_formal_protocol_view(cfg: EquivalenceConfig) -> EquivalenceConfig:
     return replace(cfg, formal_view=write_text(path, body))
 
 
-def _eqy_match_sections(top: str, ports: Sequence[str]) -> list[str]:
-    """Match only the external contract, never synthesis-internal net names."""
+def _eqy_match_sections(top: str, ports: Sequence[NetlistPort]) -> list[str]:
+    """Match only the canonical external contract and formal witnesses."""
 
     return [
         f"[match {top}]",
         "nodefault",
-        *(f"gold-match {port}" for port in ports),
+        *(f"gold-match {port.name}" for port in ports),
         "",
     ]
 
@@ -373,6 +419,31 @@ def _formal_view_lines(cfg: EquivalenceConfig) -> list[str]:
     ]
 
 
+def _reset_normalization_lines(cfg: EquivalenceConfig) -> list[str]:
+    """Initialize both designs through their declared reset contract."""
+
+    if not cfg.reset_normalize:
+        return []
+    if cfg.reset_cycles <= 0:
+        raise ValueError("EQY reset cycles must be > 0")
+    if not cfg.reset_domains:
+        raise ValueError("EQY reset normalization requires at least one clock domain")
+    commands = ["# FlexSoC EQY reset normalization begin", "uniquify"]
+    for clock, reset, polarity in cfg.reset_domains:
+        for label, signal in (("clock", clock), ("reset", reset)):
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", signal):
+                raise ValueError(f"invalid EQY {label} port name: {signal!r}")
+        if polarity not in {"low", "high"}:
+            raise ValueError(f"invalid EQY reset polarity: {polarity!r}")
+        option = "-resetn" if polarity == "low" else "-reset"
+        commands.append(
+            f"sim -clock {clock} {option} {reset} "
+            f"-rstlen {cfg.reset_cycles} -n {cfg.reset_cycles} -w"
+        )
+    commands.append("# FlexSoC EQY reset normalization end")
+    return commands
+
+
 def render_eqy(cfg: EquivalenceConfig) -> str:
     """Render RTL-vs-synthesis EQY with symmetric formal normalization."""
 
@@ -402,13 +473,15 @@ def render_eqy(cfg: EquivalenceConfig) -> str:
         raise ValueError("EQY SMT engine must not be empty")
     if not _resolved_strategy_order(cfg):
         raise ValueError("EQY strategy order enables no strategies")
+    if cfg.reset_normalize and cfg.reset_cycles <= 0:
+        raise ValueError("EQY reset cycles must be > 0")
 
     filelists = _require_files(cfg.filelists, label="RTL filelist(s)")
     netlist = _require_files((cfg.netlist,), label="synthesized netlist")[0]
     liberty = _require_files((cfg.liberty,), label="Liberty file")[0]
     cell_models = _require_files(cfg.cell_models, label="functional cell model(s)") if cfg.cell_models else ()
     port_decls = _netlist_port_decls(netlist, cfg.top)
-    ports = tuple(port.name for port in port_decls)
+    contract_ports = _tlul_contract_ports(port_decls) if cfg.formal_view else port_decls
 
     return "\n".join(
         [
@@ -430,9 +503,10 @@ def render_eqy(cfg: EquivalenceConfig) -> str:
             "memory -nomap",
             "memory_map -formal",
             *([] if cfg.multiclock else ["async2sync"]),
+            *_reset_normalization_lines(cfg),
             "",
-            *_eqy_match_sections(cfg.top, ports),
-            *_eqy_collect_sections(cfg.top, port_decls, enabled=cfg.join_outputs),
+            *_eqy_match_sections(cfg.top, contract_ports),
+            *_eqy_collect_sections(cfg.top, contract_ports, enabled=cfg.join_outputs),
             *_strategy_lines(cfg),
         ]
     )
@@ -734,7 +808,8 @@ def _sta_config(args: argparse.Namespace) -> STAConfig:
 
 
 def _equivalence_config(args: argparse.Namespace) -> EquivalenceConfig:
-    multiclock = clock_config().multiclock
+    clocks = clock_config()
+    multiclock = clocks.multiclock
     timeout = int(os.environ.get("EQY_TIMEOUT", "30" if multiclock else str(args.timeout)))
     quick_timeout = int(os.environ.get("EQY_QUICK_TIMEOUT", "5"))
     splitnets = os.environ.get("EQY_SPLITNETS", "off").strip().lower()
@@ -745,6 +820,8 @@ def _equivalence_config(args: argparse.Namespace) -> EquivalenceConfig:
     smt_depth = int(os.environ.get("EQY_SMT_DEPTH", "5" if multiclock else "2"))
     xprop = os.environ.get("EQY_XPROP", "on").strip().lower()
     join_outputs = _env_bool("EQY_JOIN_OUTPUTS", True)
+    reset_normalize = _env_bool("EQY_RESET_NORMALIZE", not multiclock)
+    reset_cycles = int(os.environ.get("EQY_RESET_CYCLES", "2"))
     raw_order = os.environ.get("EQY_STRATEGY_ORDER", "auto").strip().lower()
     strategy_order = () if raw_order in {"", "auto"} else tuple(
         token.strip() for token in raw_order.split(",") if token.strip()
@@ -773,6 +850,12 @@ def _equivalence_config(args: argparse.Namespace) -> EquivalenceConfig:
         xprop=xprop,
         join_outputs=join_outputs,
         strategy_order=strategy_order,
+        reset_normalize=reset_normalize,
+        reset_cycles=reset_cycles,
+        reset_domains=tuple(
+            (domain.signal, domain.reset, domain.reset_polarity)
+            for domain in clocks.domains
+        ),
     )
 
 
