@@ -264,18 +264,27 @@ def _stdcell_verilog_models(root: Path, hint: str) -> tuple[Path, ...]:
     if not functional:
         return ()
 
+    # Some libraries split helper primitives/UDPs from the aggregate cell
+    # model. Keep those support views first so simulators elaborate the cell
+    # model with every referenced primitive already defined.
+    support = [
+        path
+        for path in functional
+        if path.name.lower() == "primitives.v"
+        or "udp" in path.stem.lower()
+    ]
     preferred_names = (
-        "primitives.v",
         f"{hint}.v",
         f"{hint}.functional.v",
         f"{hint}.no_tc.v",
     )
-    preferred = [
+    aggregate = [
         path
         for name in preferred_names
         for path in functional
         if path.name.lower() == name.lower()
     ]
+    preferred = support + aggregate
     return tuple(dict.fromkeys(preferred or functional))
 
 

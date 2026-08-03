@@ -30,7 +30,9 @@ DEFAULT_SETTINGS = {
     "GLS_SIMULATOR": "iverilog",
     "GLS_BACKEND": "sv",
     "TIMING_MODE": "zero",
+    "GLS_UNIT_DELAY": "1ps",
     "SDF_STRICT": "1",
+    "FST2VCD": "fst2vcd",
 }
 
 # Parameter bundles keep the target table compact; every value is still overrideable.
@@ -107,6 +109,7 @@ SIGNOFF = (
     "GLS_SIMULATOR",
     "GLS_BACKEND",
     "TIMING_MODE",
+    "GLS_UNIT_DELAY",
     "SDF_STRICT",
     "SDF_FILE",
     "SDF_CORNER",
@@ -115,6 +118,14 @@ SIGNOFF = (
     "PNR_SDC_FILE",
     "POWER_ACTIVITY",
     "POWER_DUTY",
+    "POWER_TEST_NAME",
+    "POWER_TEST_NAMES",
+    "POWER_GLS_BACKEND",
+    "POWER_GLS_BACKENDS",
+    "POWER_TIMING_MODE",
+    "POWER_TIMING_MODES",
+    "POWER_VCD_SCOPE",
+    "FST2VCD",
     "PATH_VIEW_FILE",
     "NPATHS",
 )
@@ -133,7 +144,7 @@ SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
 FSM = (*BASE, "FSM", "FORCE")
 TUTORIAL = ("TUTORIAL_WS", "TUTORIAL_RUN_ID", *COMMON)
 CLEAN = (*BASE, "RUN_TOP")
-DEPS = ("DEPS_MODE", "DEPS_PROFILE", "DEPS_JOBS")
+DEPS = ("DEPS_MODE", "DEPS_PROFILE", "DEPS_JOBS", "DEPS_PRUNE_APPLY", "DEPS_PRUNE_CACHE")
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +254,8 @@ TARGETS: dict[str, TargetSpec] = {
     "sta": ("Signoff", "Run static timing analysis", SIGNOFF),
     "sdf": ("Signoff", "Write SDF timing files", SIGNOFF),
     "power_estimate": ("Signoff", "Estimate power using global switching activity", SIGNOFF),
+    "power_analysis": ("Signoff", "Analyze power from one back-annotated GLS activity trace", SIGNOFF),
+    "power_analysis_all": ("Signoff", "Analyze power for every selected back-annotated GLS test", SIGNOFF),
     "sta_violators": ("Signoff", "Report timing violators", SIGNOFF),
     "path_view": ("Signoff", "Build interactive STA path view", SIGNOFF),
     "metrics": ("Run metadata", "Collect functional/formal/synthesis/signoff metrics", COMMON),
@@ -297,6 +310,8 @@ TARGETS: dict[str, TargetSpec] = {
     "deps-doctor": ("Dependencies", "Verify the selected pinned dependency profile", DEPS),
     "deps-versions": ("Dependencies", "Show pinned tool versions and revisions", NONE),
     "deps-env": ("Dependencies", "Print shell exports for the pinned toolchain", DEPS),
+    "deps-status": ("Dependencies", "Show managed toolchains, disk use, and command duplicates", DEPS),
+    "deps-prune": ("Dependencies", "Prune obsolete managed toolchains and optional build caches", DEPS),
     "clean-pyc": ("Cleanup", "Remove Python caches", CLEAN),
     "clean_doc": ("Cleanup", "Remove generated docs", CLEAN),
     "clean_log": ("Cleanup", "Remove logs", CLEAN),
@@ -453,7 +468,7 @@ TECHNOLOGY_TARGETS = {
     "setup_eqy", "eqy",
     "compile_syn", "sim_syn", "compile_post_syn", "sim_post_syn",
     "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
-    "setup_signoff", "sta", "sdf", "power_estimate", "sta_violators",
+    "setup_signoff", "sta", "sdf", "power_estimate", "power_analysis", "power_analysis_all", "sta_violators",
     "path_view", "sta_corners", "power_estimate_corners", "signoff_corners",
     "setup_pnr", "pnr", "pnr_gui",
     "metrics", "manifest", "manifest_show", "check",
@@ -485,6 +500,17 @@ NATIVE_TARGETS: dict[str, tuple[str, str]] = {
     "sim_post_pnr": ("sim", "post_pnr"),
 }
 
+
+POWER_ANALYSIS_TARGETS: dict[str, str] = {
+    "power_analysis": "single",
+    "power_analysis_all": "all",
+}
+
+QUIET_BY_DEFAULT_TARGETS = {
+    "compile_post_syn", "sim_post_syn",
+    "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
+    "power_analysis", "power_analysis_all",
+}
 
 
 def _target(name: str) -> str:
@@ -650,6 +676,18 @@ class FlexSoC:
                 "--values-json",
                 json.dumps(values, sort_keys=True),
             )
+        elif name in POWER_ANALYSIS_TARGETS:
+            argv = (
+                sys.executable,
+                "-m",
+                "flexsoc.backend.power_analysis",
+                "--action",
+                POWER_ANALYSIS_TARGETS[name],
+                "--project-root",
+                str(self.project_root),
+                "--values-json",
+                json.dumps(values, sort_keys=True),
+            )
         else:
             # Only forward variables declared by this target.  In particular,
             # never leak PDK variables such as LIBS into RTL simulation: the
@@ -714,7 +752,8 @@ class FlexSoC:
                         f"syn={command.values.get('SYNDIR')}",
                         flush=True,
                     )
-            log_path = self._command_log_path(command) if capture or live else None
+            quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not live
+            log_path = self._command_log_path(command) if capture or live or quiet else None
             if log_path:
                 log_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -737,6 +776,23 @@ class FlexSoC:
                 if live:
                     assert log_path is not None
                     done = self._run_live(command, log_path)
+                elif quiet:
+                    from .backend.output import strip_ansi
+
+                    assert log_path is not None
+                    done = subprocess.run(
+                        command.argv,
+                        cwd=command.cwd,
+                        env=command.env,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                    )
+                    log_path.write_text(
+                        strip_ansi((done.stdout or "") + (done.stderr or "")),
+                        encoding="utf-8",
+                    )
+                    print(f"log: {log_path}", flush=True)
                 else:
                     done = subprocess.run(
                         command.argv,

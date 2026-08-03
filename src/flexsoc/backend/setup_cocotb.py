@@ -244,6 +244,7 @@ def render_gls_make_block(default_netlist: str) -> str:
         SIM := icarus
         SIM_BUILD ?= sim_build/gls
         TIMING_MODE ?= zero
+        GLS_UNIT_DELAY_DEFINE ?= 1
         SDF_FILE ?=
         GLS_MODELS ?=
         GLS_NETLIST ?= {default_netlist}
@@ -255,7 +256,7 @@ def render_gls_make_block(default_netlist: str) -> str:
         ifeq ($(TIMING_MODE),zero)
         COMPILE_ARGS += -DFUNCTIONAL -DUNIT_DELAY=\\#0 -gno-specify
         else ifeq ($(TIMING_MODE),unit)
-        COMPILE_ARGS += -DFUNCTIONAL -gno-specify -DUNIT_DELAY=\\#1
+        COMPILE_ARGS += -DFUNCTIONAL -gno-specify -DUNIT_DELAY=\\#$(GLS_UNIT_DELAY_DEFINE)
         else ifneq ($(filter $(TIMING_MODE),min typ max),)
         ifeq ($(strip $(SDF_FILE)),)
         $(error SDF_FILE is required when TIMING_MODE=$(TIMING_MODE))
@@ -554,6 +555,13 @@ async def _cycle(clk):
     await Timer(1, unit="ps")
 
 
+async def _response_sample_phase(clk):
+    """Sample a TL-UL response after unit-delay combinational paths settle."""
+
+    await FallingEdge(clk)
+    await Timer(1, unit="ps")
+
+
 def _known_int(dut, name, context):
     value = _get(dut, name).value
     try:
@@ -628,6 +636,7 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
         if guard > 1000:
             raise TimeoutError(f"timeout waiting d_valid on write addr=0x{addr:08x}")
 
+    await _response_sample_phase(clk)
     if _known_int(dut, "tl_o_d_error", f"checking write response addr=0x{addr:08x}"):
         raise AssertionError(f"TL-UL write error at addr=0x{addr:08x}")
 
@@ -674,6 +683,7 @@ async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
         if guard > 1000:
             raise TimeoutError(f"timeout waiting d_valid on read addr=0x{addr:08x}")
 
+    await _response_sample_phase(clk)
     if _known_int(dut, "tl_o_d_error", f"checking read response addr=0x{addr:08x}"):
         raise AssertionError(f"TL-UL read error at addr=0x{addr:08x}")
 
@@ -935,6 +945,32 @@ def load_vectors(path=None):
     return rows
 
 
+def _coalesce_rows(rows):
+    # Return deterministic atomic vector batches grouped by logical cycle.
+    # Multiple signal rows with the same cycle are one transaction and are
+    # driven together. Commands consume simulator time and therefore cannot be
+    # mixed with signal drives or another command on the same logical cycle.
+
+    ordered = sorted(enumerate(rows), key=lambda item: (item[1][0], item[0]))
+    grouped = []
+    for _, (cycle, pairs) in ordered:
+        if grouped and grouped[-1][0] == cycle:
+            grouped[-1][1].extend(pairs)
+        else:
+            grouped.append([cycle, list(pairs)])
+
+    special_tokens = CONFIG_TOKENS | WRITE_TOKENS | RESET_TOKENS
+    result = []
+    for cycle, pairs in grouped:
+        special = [item for item in pairs if item and item[0] in special_tokens]
+        if special and (len(special) != 1 or len(pairs) != 1):
+            raise ValueError(
+                f"cycle {cycle}: commands cannot share a cycle with another command or signal drive"
+            )
+        result.append((cycle, pairs))
+    return result
+
+
 async def _advance(clk, count=1):
     for _ in range(max(0, int(count))):
         await RisingEdge(clk)
@@ -964,7 +1000,7 @@ async def drive_vectors(
     now = -1
     applied = 0
 
-    for cycle, pairs in sorted(rows, key=lambda item: item[0]):
+    for cycle, pairs in _coalesce_rows(rows):
         if not pairs:
             continue
 
@@ -1010,7 +1046,7 @@ async def drive_vectors(
                 applied += 1
 
         await RisingEdge(clk)
-        await Timer(1, unit="ps")
+        await Timer(1, unit="ns")
         now = cycle
 
         if monitor is not None:
@@ -1587,9 +1623,9 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
         await FallingEdge(clk)
         getattr(dut, f"{domain}_a_valid").value = 0
         await _wait_high(dut, f"{domain}_d_valid", clk)
+        await FallingEdge(clk)
         data = int(getattr(dut, f"{domain}_d_data").value) & 0xFFFFFFFF
         error = int(getattr(dut, f"{domain}_d_error").value)
-        await FallingEdge(clk)
         _set_domain_defaults(dut, domain)
         if error:
             raise AssertionError(f"TL-UL read error on {domain} addr=0x{addr:08x}")

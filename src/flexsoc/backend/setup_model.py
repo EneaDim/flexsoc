@@ -303,13 +303,17 @@ def _tests_text(top: str) -> str:
 
             inputs = {{name: value for name in INPUTS}}
             outputs = reference.compute(inputs)
-            data_in = [drive(drive_cycle, name, item) for name, item in inputs.items()]
+            input_pairs = " ".join(
+                f"{{name}} {{hx(item)}}" for name, item in inputs.items()
+            )
+            data_in = [f"{{drive_cycle}} {{input_pairs}}"] if input_pairs else []
             check_cycle = drive_cycle + model.LATENCY
-            data_out = [
-                check(check_cycle, name, outputs[name])
+            output_pairs = " ".join(
+                f"{{name}} {{hx(outputs[name])}}"
                 for name in OUTPUTS
                 if name in outputs
-            ]
+            )
+            data_out = [f"{{check_cycle}} {{output_pairs}}"] if output_pairs else []
             return data_in, data_out
 
 
@@ -328,7 +332,10 @@ def _tests_text(top: str) -> str:
 
             inputs = {{name: value for name in INPUTS}}
             outputs = reference.compute(inputs)
-            data_in = [drive(drive_cycle, name, item) for name, item in inputs.items()]
+            input_pairs = " ".join(
+                f"{{name}} {{hx(item)}}" for name, item in inputs.items()
+            )
+            data_in = [f"{{drive_cycle}} {{input_pairs}}"] if input_pairs else []
             checks = {{name: value for name, value in outputs.items() if name != valid_signal}}
             data_out = [check_when_valid(valid_signal, checks)] if checks else []
             return data_in, data_out

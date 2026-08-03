@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from decimal import Decimal, ROUND_CEILING
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -95,47 +96,92 @@ def _split_paths(value: str | None) -> tuple[Path, ...]:
 
 _TIMING_CHECK = re.compile(
     r"^\s*\$(?:setuphold|setup|hold|recovery|removal|recrem|width|period|skew|timeskew|fullskew|nochange)\b",
-    re.I,
+    re.I | re.M,
 )
-_DELAYED_WIRE = re.compile(r"^(?P<indent>\s*)wire\s+(?P<body>[^;]*_delayed[^;]*)\s*;\s*$")
+_DELAYED_WIRE = re.compile(
+    r"^(?P<indent>\s*)wire\s+(?P<body>[^;]*(?:_delayed|delayed_)[^;]*)\s*;\s*$"
+)
 _NOTIFIER_REG = re.compile(r"^(?P<indent>\s*)reg\s+(?P<body>[^;]*notifier[^;]*)\s*;\s*$", re.I)
+_IFNONE_PATH = re.compile(r"^\s*ifnone\b", re.I)
+_IHP_DELAY_INSTANCE = re.compile(
+    r"^(?P<indent>\s*)(?P<kind>and|or|not|buf|xor|xnor|nand|nor|"
+    r"bufif0|bufif1|notif0|notif1|tranif0|tranif1|rtranif0|rtranif1|"
+    r"ihp_[A-Za-z_][A-Za-z0-9_]*)\s*(?P<tail>\()"
+)
 
 
-def _icarus_path_delay_model(text: str) -> tuple[str, dict[str, int]]:
-    """Remove unsupported timing checks while retaining specify path delays.
+def _delayed_input(name: str) -> str | None:
+    """Return the real input represented by a PDK delayed-net spelling."""
 
-    SKY130 sequential timing models feed UDPs from *_delayed nets driven by
-    $setuphold/$recrem checks. Icarus supports specify path delays but not
-    those timing checks, so bind delayed inputs directly and hold notifiers
-    inactive. This is intentionally path-delay-only, not full timing sign-off.
+    if name.startswith("delayed_"):
+        return name[len("delayed_") :]
+    if name.endswith("_delayed"):
+        return name[: -len("_delayed")]
+    return None
+
+
+def _icarus_path_delay_model(
+    text: str,
+    *,
+    remove_ifnone: bool = False,
+    inject_unit_delay: bool = False,
+) -> tuple[str, dict[str, int]]:
+    """Render an Icarus-compatible cell model while retaining usable paths.
+
+    SKY130 uses ``*_delayed`` nets, while IHP uses ``delayed_*`` nets and a
+    separate UDP support file. Icarus supports ordinary specify path delays but
+    not timing checks or edge-sensitive ``ifnone`` paths. Bind delayed inputs
+    directly, hold notifiers inactive and, for IHP, remove only unsupported
+    ``ifnone`` path clauses. Optional ``UNIT_DELAY`` injection gives IHP a real
+    zero/unit functional model without modifying the installed PDK.
     """
 
     out: list[str] = [
-        "// FlexSoC Icarus compatibility: SDF path delays enabled; timing checks disabled."
+        "// FlexSoC Icarus compatibility: delayed inputs bound; timing checks disabled."
     ]
+    if inject_unit_delay:
+        out += ["`ifndef UNIT_DELAY", "`define UNIT_DELAY", "`endif"]
     checks = 0
     delayed = 0
     notifiers = 0
-    skipping = False
+    ifnone_paths = 0
+    skipping_check = False
+    skipping_ifnone = False
     for line in text.splitlines():
-        stripped = line.lstrip()
-        if not skipping and _TIMING_CHECK.match(line):
+        if not skipping_check and _TIMING_CHECK.match(line):
             checks += 1
-            skipping = ";" not in line
+            skipping_check = ";" not in line
             continue
-        if skipping:
+        if skipping_check:
             if ";" in line:
-                skipping = False
+                skipping_check = False
             continue
+        if remove_ifnone and not skipping_ifnone and _IFNONE_PATH.match(line):
+            ifnone_paths += 1
+            skipping_ifnone = ";" not in line
+            continue
+        if skipping_ifnone:
+            if ";" in line:
+                skipping_ifnone = False
+            continue
+
+        if inject_unit_delay:
+            match = _IHP_DELAY_INSTANCE.match(line)
+            if match:
+                line = (
+                    f"{match.group('indent')}{match.group('kind')} `UNIT_DELAY "
+                    f"{line[match.end('kind'):].lstrip()}"
+                )
         out.append(line)
+
         match = _DELAYED_WIRE.match(line)
         if match:
-            body = match.group("body")
-            names = re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*_delayed)\b", body)
-            for name in dict.fromkeys(names):
-                base = name[: -len("_delayed")]
-                out.append(f"{match.group('indent')}assign {name} = {base};")
-                delayed += 1
+            identifiers = re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", match.group("body"))
+            for name in dict.fromkeys(identifiers):
+                base = _delayed_input(name)
+                if base:
+                    out.append(f"{match.group('indent')}assign {name} = {base};")
+                    delayed += 1
         match = _NOTIFIER_REG.match(line)
         if match:
             identifiers = re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", match.group("body"))
@@ -147,36 +193,63 @@ def _icarus_path_delay_model(text: str) -> tuple[str, dict[str, int]]:
         "timing_checks_removed": checks,
         "delayed_inputs_bound": delayed,
         "notifiers_initialized": notifiers,
+        "ifnone_paths_removed": ifnone_paths,
     }
 
 
 def _simulation_models(values: Mapping[str, str], paths: GateSimPaths, timing: TimingConfig) -> tuple[Path, ...]:
-    """Resolve common cell models and stage Icarus SDF-compatible views."""
+    """Resolve cell models and stage PDK-specific Icarus compatibility views."""
 
     models = tuple(path for path in _split_paths(values.get("PRIM")) if path.is_file())
-    if not timing.uses_sdf or not _truth(values.get("SDF_ICARUS_PATH_ONLY", "1")):
+    pdk = values.get("PDK", "").strip().lower()
+    path_only = timing.uses_sdf and _truth(values.get("SDF_ICARUS_PATH_ONLY", "1"))
+    ihp = pdk == "ihp-sg13g2"
+    if not path_only and not ihp:
         return models
+
     target_dir = paths.stage_dir / "icarus_timing_models"
     target_dir.mkdir(parents=True, exist_ok=True)
     resolved: list[Path] = []
-    summary = {"timing_checks_removed": 0, "delayed_inputs_bound": 0, "notifiers_initialized": 0}
+    summary = {
+        "timing_checks_removed": 0,
+        "delayed_inputs_bound": 0,
+        "notifiers_initialized": 0,
+        "ifnone_paths_removed": 0,
+    }
     for source in models:
         text = source.read_text(encoding="utf-8", errors="replace")
-        if "_delayed" not in text and not _TIMING_CHECK.search(text):
+        needs_delayed_binding = "_delayed" in text or "delayed_" in text
+        needs_timing_cleanup = bool(_TIMING_CHECK.search(text))
+        needs_ihp_cleanup = ihp and (needs_delayed_binding or "ifnone" in text.lower())
+        if not path_only and not needs_ihp_cleanup:
             resolved.append(source)
             continue
-        rendered, stats = _icarus_path_delay_model(text)
+        if path_only and not (needs_delayed_binding or needs_timing_cleanup or needs_ihp_cleanup):
+            resolved.append(source)
+            continue
+        rendered, stats = _icarus_path_delay_model(
+            text,
+            remove_ifnone=ihp,
+            inject_unit_delay=ihp and not timing.uses_sdf,
+        )
         target = target_dir / source.name
         target.write_text(rendered, encoding="utf-8")
         resolved.append(target.resolve())
         for key, value in stats.items():
             summary[key] += value
+
+    mode = "path-delay-only" if timing.uses_sdf else "functional-zero-unit"
     manifest = target_dir / "manifest.json"
-    manifest.write_text(json.dumps({"mode": "path-delay-only", **summary}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    manifest.write_text(
+        json.dumps({"mode": mode, "pdk": pdk, **summary}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    label = "icarus_sdf=path-delay-only" if timing.uses_sdf else "icarus_model=ihp-functional"
     print(
-        "[gate-sim] icarus_sdf=path-delay-only "
+        f"[gate-sim] {label} "
         f"checks_removed={summary['timing_checks_removed']} "
-        f"delayed_inputs_bound={summary['delayed_inputs_bound']}",
+        f"delayed_inputs_bound={summary['delayed_inputs_bound']} "
+        f"ifnone_paths_removed={summary['ifnone_paths_removed']}",
         flush=True,
     )
     return tuple(resolved)
@@ -316,11 +389,136 @@ def resolve_paths(project_root: Path, values: Mapping[str, str], stage: str) -> 
     )
 
 
-def _compile_timing_args(timing: TimingConfig) -> list[str]:
+_DELAY_LITERAL = re.compile(r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:fs|ps|ns|us|ms|s)$", re.I)
+_TIMESCALE = re.compile(
+    r"`timescale\s+(?P<unit>[0-9]+(?:\.[0-9]+)?\s*(?:fs|ps|ns|us|ms|s))"
+    r"\s*/\s*(?P<precision>[0-9]+(?:\.[0-9]+)?\s*(?:fs|ps|ns|us|ms|s))",
+    re.I,
+)
+_TIME_FACTORS = {
+    "s": Decimal("1"),
+    "ms": Decimal("1e-3"),
+    "us": Decimal("1e-6"),
+    "ns": Decimal("1e-9"),
+    "ps": Decimal("1e-12"),
+    "fs": Decimal("1e-15"),
+}
+
+
+@dataclass(frozen=True)
+class UnitDelayResolution:
+    requested: str
+    effective: str
+    define: str
+    model_timeunit: str
+    model_precision: str
+
+
+def _unit_delay_literal(values: Mapping[str, str] | None = None) -> str:
+    """Return the requested physical delay for uniform unit-delay GLS."""
+
+    raw = str((values or {}).get("GLS_UNIT_DELAY", "1ps")).strip()
+    if raw.startswith("#"):
+        raw = raw[1:].strip()
+    if not _DELAY_LITERAL.fullmatch(raw):
+        raise ValueError(
+            "GLS_UNIT_DELAY must be an explicit non-negative time literal "
+            "such as 1ps, 10ps, or 1ns"
+        )
+    return raw.lower()
+
+
+def _time_seconds(literal: str) -> Decimal:
+    match = re.fullmatch(
+        r"(?P<value>[0-9]+(?:\.[0-9]+)?)(?P<unit>fs|ps|ns|us|ms|s)",
+        literal.replace(" ", ""),
+        re.I,
+    )
+    if not match:
+        raise ValueError(f"invalid time literal: {literal}")
+    return Decimal(match.group("value")) * _TIME_FACTORS[match.group("unit").lower()]
+
+
+def _format_decimal(value: Decimal) -> str:
+    text = format(value.normalize(), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _format_time(seconds: Decimal) -> str:
+    for unit in ("s", "ms", "us", "ns", "ps", "fs"):
+        factor = _TIME_FACTORS[unit]
+        value = seconds / factor
+        if value == value.to_integral_value():
+            return f"{_format_decimal(value)}{unit}"
+    return f"{_format_decimal(seconds / _TIME_FACTORS['fs'])}fs"
+
+
+def _unit_delay_resolution(
+    values: Mapping[str, str] | None, models: Sequence[Path]
+) -> UnitDelayResolution:
+    """Resolve one suffix-free Icarus delay representable by every model.
+
+    Icarus accepts numeric primitive/UDP delays such as ``#0.01`` much more
+    consistently than SystemVerilog time literals such as ``#1ps``.  The
+    numeric value is interpreted in each model's ``timescale`` time unit, so
+    all participating models must share a unit.  The requested physical delay
+    is rounded up to the coarsest model precision, preventing a nominal unit
+    delay from quantizing to zero.
+    """
+
+    requested_literal = _unit_delay_literal(values)
+    requested = _time_seconds(requested_literal)
+    timeunits: set[Decimal] = set()
+    precisions: list[Decimal] = []
+    for path in models:
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for match in _TIMESCALE.finditer(text):
+            timeunits.add(_time_seconds(match.group("unit")))
+            precisions.append(_time_seconds(match.group("precision")))
+    if not timeunits:
+        timeunits = {_TIME_FACTORS["ns"]}
+        precisions = [_TIME_FACTORS["ps"]]
+    if len(timeunits) != 1:
+        rendered = ", ".join(sorted(_format_time(value) for value in timeunits))
+        raise ValueError(
+            "TIMING_MODE=unit requires one common model time unit; "
+            f"found: {rendered}"
+        )
+    timeunit = next(iter(timeunits))
+    precision = max(precisions or [_TIME_FACTORS["ps"]])
+    if requested == 0:
+        effective = Decimal(0)
+    else:
+        ticks = (requested / precision).to_integral_value(rounding=ROUND_CEILING)
+        effective = ticks * precision
+    scalar = effective / timeunit
+    return UnitDelayResolution(
+        requested=requested_literal,
+        effective=_format_time(effective),
+        define=_format_decimal(scalar),
+        model_timeunit=_format_time(timeunit),
+        model_precision=_format_time(precision),
+    )
+
+
+def _compile_timing_args(
+    timing: TimingConfig,
+    values: Mapping[str, str] | None = None,
+    models: Sequence[Path] = (),
+) -> list[str]:
     if timing.mode == "zero":
         return ["-DFUNCTIONAL", "-DUNIT_DELAY=#0", "-gno-specify"]
     if timing.mode == "unit":
-        return ["-DFUNCTIONAL", "-gno-specify", "-DUNIT_DELAY=#1"]
+        delay = _unit_delay_resolution(values, models)
+        return [
+            "-DFUNCTIONAL",
+            "-gno-specify",
+            f"-DUNIT_DELAY=#{delay.define}",
+        ]
     define = {"min": "FLEXSOC_SDF_MIN", "typ": "FLEXSOC_SDF_TYP", "max": "FLEXSOC_SDF_MAX"}[timing.mode]
     return ["-gspecify", f"-T{timing.mode}", "-DFLEXSOC_ENABLE_SDF", f"-D{define}"]
 
@@ -374,7 +572,7 @@ def compile_command(project_root: Path, values: Mapping[str, str], stage: str, p
         "-DSIM",
         "-DSYN",
         "-DFLEXSOC_GLS_EXTERNAL_MODELS",
-        *_compile_timing_args(timing),
+        *_compile_timing_args(timing, values, models),
         "-s",
         values.get("TESTBENCH", f"{top}_tb"),
     ]
@@ -474,7 +672,9 @@ def cocotb_command(action: str, values: Mapping[str, str], paths: GateSimPaths) 
         raise ValueError(f"cocotb Makefile not found: {tb_dir / 'Makefile'}; run setup_cocotb first")
 
     inputs = resolve_test_inputs(values, paths)
-    models = " ".join(str(path) for path in _simulation_models(values, paths, timing))
+    model_paths = _simulation_models(values, paths, timing)
+    models = " ".join(str(path) for path in model_paths)
+    unit_delay = _unit_delay_resolution(values, model_paths) if timing.unit_delay else None
     target = "compile" if action == "compile" else "sim"
     command = [
         "make",
@@ -489,6 +689,7 @@ def cocotb_command(action: str, values: Mapping[str, str], paths: GateSimPaths) 
         f"GLS_NETLIST={paths.netlist}",
         f"GLS_MODELS={models}",
         f"TIMING_MODE={timing.mode}",
+        f"GLS_UNIT_DELAY_DEFINE={unit_delay.define if unit_delay else 0}",
         f"SDF_FILE={paths.sdf or ''}",
         f"WAVE_FORMAT={values.get('WAVE_FORMAT', 'fst')}",
         f"WAVE_FILE={paths.wave}",
@@ -620,11 +821,32 @@ def sdf_annotation_summary(text: str) -> dict[str, object]:
     }
 
 
+
+def _normalize_cocotb_wave(paths: GateSimPaths, values: Mapping[str, str]) -> Path | None:
+    """Move cocotb/Icarus' build-local dump to the requested FlexSoC path."""
+
+    if paths.wave.is_file() and paths.wave.stat().st_size:
+        return paths.wave
+    extension = values.get("WAVE_FORMAT", "fst").strip().lower() or "fst"
+    build = paths.stage_dir / "cocotb_build"
+    candidates = [
+        path for path in build.glob(f"*.{extension}")
+        if path.is_file() and path.stat().st_size
+    ]
+    if len(candidates) != 1:
+        return None
+    paths.wave.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(candidates[0]), str(paths.wave))
+    print(f"[gate-sim] cocotb wave normalized: {paths.wave}", flush=True)
+    return paths.wave
+
 def _write_report(
     paths: GateSimPaths,
     values: Mapping[str, str],
     stage: str,
     rc: int,
+    *,
+    phase: str = "run",
 ) -> tuple[int, dict[str, object]]:
     timing = timing_config(values)
     text = paths.log.read_text(encoding="utf-8", errors="replace") if paths.log.is_file() else ""
@@ -642,13 +864,25 @@ def _write_report(
             )
             final_rc = 2
 
+    unit_delay = (
+        _unit_delay_resolution(values, _split_paths(values.get("PRIM")))
+        if timing.unit_delay
+        else None
+    )
     report: dict[str, object] = {
         "status": "pass" if final_rc == 0 else "fail",
         "returncode": final_rc,
+        "phase": phase,
         "stage": stage,
         "backend": _driver(values),
+        "test_name": values.get("TEST_NAME", "smoke"),
         "simulator": values.get("GLS_SIMULATOR", "iverilog"),
         "timing_mode": timing.mode,
+        "unit_delay": unit_delay.effective if unit_delay else None,
+        "unit_delay_requested": unit_delay.requested if unit_delay else None,
+        "unit_delay_define": unit_delay.define if unit_delay else None,
+        "unit_delay_model_timeunit": unit_delay.model_timeunit if unit_delay else None,
+        "unit_delay_model_precision": unit_delay.model_precision if unit_delay else None,
         "timing_model": (
             "icarus-path-delay-only"
             if timing.uses_sdf and _truth(values.get("SDF_ICARUS_PATH_ONLY", "1"))
@@ -688,7 +922,12 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
         compile_cmd = compile_command(project_root, values, stage, paths)
         compile_log = paths.log.with_name(paths.log.stem + "_compile.log")
         rc = _run(compile_cmd, cwd=project_root, log=compile_log)
-        if rc or action == "compile":
+        if rc:
+            paths.log.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(compile_log, paths.log)
+            rc, _ = _write_report(paths, values, stage, rc, phase="compile")
+            return rc
+        if action == "compile":
             return rc
         paths.wave.parent.mkdir(parents=True, exist_ok=True)
         rc = _run(
@@ -703,6 +942,8 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
         rc = _run(command, cwd=project_root, log=log)
         if action == "compile":
             return rc
+        if rc == 0:
+            _normalize_cocotb_wave(paths, values)
 
     rc, report = _write_report(paths, values, stage, rc)
     print(

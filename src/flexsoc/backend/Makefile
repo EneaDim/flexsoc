@@ -412,7 +412,7 @@ PHONY_TARGETS += soc_vendor_deps fsoc_init fsoc xbar xbar_init xbar_build soc so
 PHONY_TARGETS += sw_soc soc_prepare soc_build_sw soc_sim soc_run soc_run_only soc_view
 PHONY_TARGETS += fsm_init fsm_setup fsm_example_load fsm_gen fsm_plot fsm_flow fsm_install fsm2rtl
 PHONY_TARGETS += soc_uart_tutorial soc_ibex_fetch soc_ibex_tutorial full_tutorial fsm_tutorial ip_tutorial soc_pless
-PHONY_TARGETS += deps
+PHONY_TARGETS += deps-bootstrap deps deps-doctor deps-versions deps-env deps-status deps-prune
 PHONY_TARGETS += clean-pyc clean_doc clean_log clean_rtl clean_sim clean_cocotb clean_formal clean_syn clean_signoff clean_meta clean_pnr
 PHONY_TARGETS += clean_fsm clean_fsm_all clean_agent clean_fsoc clean_soc clean_sw clean_vendor clean_subdir clean clean_all
 
@@ -1583,7 +1583,7 @@ manifest: setup ## Collect the automatic run identity and tool manifest
 manifest_show: ## Show the current run manifest in a colored terminal view
 	$(Q)$(PYTHON) -m flexsoc.backend.manifest --show $(MANIFEST_JSON)
 
-check: setup ## Show the complete functional/formal/synthesis/signoff run status
+check: metrics ## Refresh and show the complete functional/formal/synthesis/signoff run status
 	$(Q)$(PYTHON) -m flexsoc.backend.metrics --show $(METRICS_JSON)
 
 # ============================================================================
@@ -2108,6 +2108,8 @@ soc_pless: ## Run the tiny SoC tutorial flow
 DEPS_MODE ?= user
 DEPS_PROFILE ?= base
 DEPS_JOBS ?= 2
+DEPS_PRUNE_APPLY ?= 0
+DEPS_PRUNE_CACHE ?= 0
 
 deps-bootstrap: ## Check/install prerequisites for DEPS_PROFILE=base|impl|riscv
 	bash $(TOOLSROOT)/deps.sh bootstrap --$(DEPS_MODE) --profile $(DEPS_PROFILE)
@@ -2123,6 +2125,14 @@ deps-versions: ## Show pinned tool versions and source revisions
 
 deps-env: ## Print shell exports for the pinned toolchain
 	bash $(TOOLSROOT)/deps.sh env --$(DEPS_MODE)
+
+deps-status: ## Show managed toolchain paths, sizes, and command duplicates
+	bash $(TOOLSROOT)/deps.sh status --$(DEPS_MODE) --profile $(DEPS_PROFILE)
+
+deps-prune: ## Dry-run/apply removal of obsolete managed prefixes and optional build caches
+	bash $(TOOLSROOT)/deps.sh prune --$(DEPS_MODE) --profile $(DEPS_PROFILE) \
+		$(if $(filter 1 true yes,$(DEPS_PRUNE_APPLY)),--apply,) \
+		$(if $(filter 1 true yes,$(DEPS_PRUNE_CACHE)),--cache,)
 
 # ============================================================================
 # 17. Clean targets

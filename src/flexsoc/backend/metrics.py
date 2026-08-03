@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from flexsoc.run_layout import pdk_run_layout
@@ -643,6 +644,215 @@ def collect_sdf(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
     return {"status": "pass", "count": len(files), "corners": corners}
 
 
+def _json_object(path: Path) -> dict[str, Any]:
+    """Read one JSON object, returning an empty mapping for invalid artifacts."""
+
+    if not path.is_file():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _gls_group(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize one subset of archived GLS qualification records."""
+
+    total = len(records)
+    passed = sum(record.get("status") == "pass" for record in records)
+    failed = sum(record.get("status") == "fail" for record in records)
+    missing = sum(record.get("status") == "missing" for record in records)
+    if total and passed == total:
+        status = "pass"
+    elif failed:
+        status = "fail"
+    elif missing or total:
+        status = "partial"
+    else:
+        status = "missing"
+    return {
+        "status": status,
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "missing": missing,
+    }
+
+
+def _matrix_failure_map(values: Sequence[object]) -> dict[str, str]:
+    """Split ``<stem>: <reason>`` failure rows written by the E2E matrix."""
+
+    result: dict[str, str] = {}
+    for value in values:
+        row = str(value)
+        stem, separator, reason = row.partition(": ")
+        if separator and stem:
+            result[stem] = reason
+    return result
+
+
+def _gls_report_reason(
+    report: dict[str, Any],
+    *,
+    mode: str,
+    report_path: Path,
+    wave_path: Path,
+    matrix_reason: str | None,
+) -> str | None:
+    """Return the first concrete reason one GLS combination is not qualified."""
+
+    if not report_path.is_file():
+        return matrix_reason or "qualification report missing"
+    if not report:
+        return matrix_reason or "qualification report is not valid JSON"
+    if str(report.get("status", "unknown")) != "pass":
+        phase = str(report.get("phase", "simulation"))
+        return f"{phase} failed returncode={report.get('returncode', '?')}"
+    if matrix_reason:
+        return matrix_reason
+    if not wave_path.is_file() or wave_path.stat().st_size == 0:
+        return "waveform missing or empty"
+    if mode in {"min", "typ", "max"}:
+        annotation = report.get("annotation")
+        if not isinstance(annotation, dict) or not annotation.get("requested_marker"):
+            return "SDF annotation marker missing"
+        errors = annotation.get("errors") or []
+        warnings = annotation.get("warnings") or []
+        if errors:
+            return f"SDF annotation error: {errors[0]}"
+        if warnings:
+            return f"SDF annotation warning: {warnings[0]}"
+        if report.get("timing_model") != "icarus-path-delay-only":
+            return f"unexpected timing model={report.get('timing_model', 'missing')}"
+    return None
+
+
+def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
+    """Collect the archived E2E post-synthesis GLS/back-annotation matrix."""
+
+    layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
+    qualification = layout.post_syn_sim_dir / "e2e_qualification"
+    matrix_path = qualification / "matrix.json"
+    report_dir = qualification / "reports"
+    matrix = _json_object(matrix_path)
+    discovered_reports = sorted(report_dir.glob("*.json")) if report_dir.is_dir() else []
+    if not matrix and not discovered_reports:
+        return None
+
+    tests = [str(value) for value in matrix.get("tests", [])]
+    backends = [str(value) for value in matrix.get("backends", [])]
+    modes = [str(value) for value in matrix.get("timing_modes", [])]
+    failure_map = _matrix_failure_map(matrix.get("failures", []))
+
+    expected: list[tuple[str, str, str, str]] = []
+    if tests and backends and modes:
+        for mode in modes:
+            for test_name in tests:
+                for backend in backends:
+                    stem = f"{top}_{pdk}_{test_name}_{backend}_{mode}"
+                    expected.append((stem, test_name, backend, mode))
+    else:
+        prefix = f"{top}_{pdk}_"
+        known_backends = ("cocotb", "sv")
+        known_modes = ("zero", "unit", "min", "typ", "max")
+        for path in discovered_reports:
+            stem = path.stem
+            if not stem.startswith(prefix):
+                continue
+            tail = stem[len(prefix):]
+            parsed = None
+            for mode in known_modes:
+                for backend in known_backends:
+                    suffix = f"_{backend}_{mode}"
+                    if tail.endswith(suffix):
+                        parsed = (tail[: -len(suffix)], backend, mode)
+                        break
+                if parsed:
+                    break
+            if parsed:
+                test_name, backend, mode = parsed
+                expected.append((stem, test_name, backend, mode))
+        tests = sorted({item[1] for item in expected})
+        backends = sorted({item[2] for item in expected})
+        modes = [mode for mode in ("zero", "unit", "min", "typ", "max") if any(item[3] == mode for item in expected)]
+
+    records: list[dict[str, Any]] = []
+    for stem, test_name, backend, mode in expected:
+        report_path = report_dir / f"{stem}.json"
+        log_path = qualification / "logs" / f"{stem}.log"
+        wave_path = qualification / "waves" / f"{stem}.fst"
+        report = _json_object(report_path)
+        reason = _gls_report_reason(
+            report,
+            mode=mode,
+            report_path=report_path,
+            wave_path=wave_path,
+            matrix_reason=failure_map.get(stem),
+        )
+        status = "missing" if not report_path.is_file() else ("fail" if reason else "pass")
+        records.append(
+            {
+                "stem": stem,
+                "test": test_name,
+                "backend": backend,
+                "timing_mode": mode,
+                "status": status,
+                "reason": reason,
+                "report": relative(report_path, run_dir) if report_path.is_file() else None,
+                "log": relative(log_path, run_dir) if log_path.is_file() else None,
+                "wave": relative(wave_path, run_dir) if wave_path.is_file() else None,
+            }
+        )
+
+    summary = _gls_group(records)
+    by_backend = {
+        backend: _gls_group([record for record in records if record["backend"] == backend])
+        for backend in backends
+    }
+    by_mode = {
+        mode: _gls_group([record for record in records if record["timing_mode"] == mode])
+        for mode in modes
+    }
+    by_test = {
+        test_name: _gls_group([record for record in records if record["test"] == test_name])
+        for test_name in tests
+    }
+    failures = [record for record in records if record["status"] != "pass"]
+    return {
+        **summary,
+        "pdk": pdk,
+        "tests": tests,
+        "backends": backends,
+        "timing_modes": modes,
+        "sdf_strict": bool(matrix.get("sdf_strict", True)),
+        "qualification": relative(qualification, run_dir),
+        "matrix": relative(matrix_path, run_dir) if matrix_path.is_file() else None,
+        "by_backend": by_backend,
+        "by_mode": by_mode,
+        "by_test": by_test,
+        "records": records,
+        "failures": failures,
+    }
+
+
+
+def collect_power_analysis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
+    """Collect activity-based power analysis driven by qualified GLS traces."""
+
+    path = pdk_run_layout(run_dir, pdk=pdk, top=top).power_dir / "activity" / "summary.json"
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("reports"), list):
+        return None
+    data["summary"] = relative(path, run_dir)
+    return data
+
+
 def verification_summary(metrics: dict[str, Any]) -> dict[str, Any]:
     """Summarize PDK-independent functional and property-formal verification."""
 
@@ -687,6 +897,22 @@ def signoff_summary(metrics: dict[str, Any]) -> dict[str, Any]:
         result["sta"] = {"status": "pass"}
     if metrics.get("power_estimate"):
         result["power"] = {"status": "pass"}
+    power_activity = metrics.get("power_analysis")
+    if isinstance(power_activity, dict):
+        result["power_activity"] = {
+            "status": power_activity.get("status", "unknown"),
+            "passed": power_activity.get("passed", 0),
+            "total": power_activity.get("total", 0),
+        }
+    gls = metrics.get("post_syn_gls")
+    if isinstance(gls, dict):
+        result["post_syn_gls"] = {
+            "status": gls.get("status", "unknown"),
+            "passed": gls.get("passed", 0),
+            "total": gls.get("total", 0),
+            "failed": gls.get("failed", 0),
+            "missing": gls.get("missing", 0),
+        }
     return result
 
 
@@ -713,8 +939,17 @@ def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
     stages["sdf"] = str(sdf.get("status")) if isinstance(sdf, dict) else "missing"
     stages["sta"] = "pass" if metrics.get("sta") else "missing"
     stages["power"] = "pass" if metrics.get("power_estimate") else "missing"
+    order = ["lint", "regression", "formal", "synthesis", "equivalence", "sdf", "sta", "power"]
+    gls = metrics.get("post_syn_gls")
+    if isinstance(gls, dict):
+        stages["post_syn_gls"] = str(gls.get("status", "unknown"))
+        order.append("post_syn_gls")
+    power_activity = metrics.get("power_analysis")
+    if isinstance(power_activity, dict):
+        stages["power_activity"] = str(power_activity.get("status", "unknown"))
+        order.append("power_activity")
     return {
-        "order": ["lint", "regression", "formal", "synthesis", "equivalence", "sdf", "sta", "power"],
+        "order": order,
         "stages": stages,
         "complete": all(status == "pass" for status in stages.values()),
     }
@@ -731,7 +966,7 @@ def collect_metrics(
     selected_pdk = pdk or "sky130"
     layout = pdk_run_layout(run_dir, pdk=selected_pdk, top=top)
     metrics: dict[str, Any] = {
-        "schema_version": 8,
+        "schema_version": 10,
         "top": top,
         "run_root": str(run_dir.resolve()),
         "technology": {
@@ -755,8 +990,10 @@ def collect_metrics(
         ("synthesis", collect_synthesis),
         ("equivalence", collect_equivalence),
         ("sdf", collect_sdf),
+        ("post_syn_gls", collect_post_syn_gls),
         ("sta", collect_sta),
         ("power_estimate", collect_power_estimate),
+        ("power_analysis", collect_power_analysis),
     ):
         data = collector(top, run_dir, selected_pdk)
         if data is not None:
@@ -774,15 +1011,15 @@ def collect_metrics(
 
 
 def count_color(value: int, *, error: bool = False) -> str:
-    """Use the shared cyan/orange palette for diagnostic counts."""
+    """Use green/yellow/red consistently for diagnostic counts."""
 
-    return "bright_cyan" if value == 0 else "orange1"
+    return "green" if value == 0 else ("red" if error else "yellow")
 
 
 def timing_color(value: float) -> str:
     """Color timing slack by sign without applying a quality policy."""
 
-    return "bright_cyan" if value >= 0 else "orange1"
+    return "green" if value >= 0 else "red"
 
 
 def coverage_markup(record: dict[str, Any]) -> str:
@@ -793,7 +1030,8 @@ def coverage_markup(record: dict[str, Any]) -> str:
     if total == 0:
         return "[grey70]-[/grey70]"
     percent = float(record.get("percent", 0.0) or 0.0)
-    return f"[orange1]{hit}/{total}  {percent:.2f}%[/orange1]"
+    color = "green" if percent >= 100.0 else "yellow"
+    return f"[{color}]{hit}/{total}  {percent:.2f}%[/{color}]"
 
 
 def _coverage_column_record(values: dict[str, Any], column: str) -> dict[str, Any]:
@@ -849,7 +1087,7 @@ def metric_table() -> Table:
     """Return one compact two-column metrics table."""
 
     table = Table(show_header=False, box=None, pad_edge=False)
-    table.add_column("Metric", style="bright_cyan", no_wrap=True)
+    table.add_column("Metric", style="cyan", no_wrap=True)
     table.add_column("Value")
     return table
 
@@ -858,10 +1096,10 @@ def status_markup(status: str) -> str:
     """Return a compact colored status label."""
 
     colors = {
-        "pass": "bold bright_cyan",
-        "fail": "bold orange1",
-        "error": "bold orange1",
-        "partial": "bold orange1",
+        "pass": "bold green",
+        "fail": "bold red",
+        "error": "bold red",
+        "partial": "bold yellow",
         "missing": "bold grey70",
         "unknown": "bold grey70",
     }
@@ -877,7 +1115,7 @@ def show_metrics(path: Path) -> None:
 
     data = json.loads(path.read_text(encoding="utf-8"))
     console = Console()
-    console.print(f"[bold orange1]FlexSoC run check[/bold orange1] · [bold bright_cyan]{data.get('top', 'unknown')}[/bold bright_cyan]")
+    console.print(f"[bold cyan]FlexSoC run check[/bold cyan] · [bold white]{data.get('top', 'unknown')}[/bold white]")
 
     closure = data.get("closure", {})
     if closure:
@@ -890,7 +1128,7 @@ def show_metrics(path: Path) -> None:
             table.add_row(name, status_markup(status))
         console.print(table)
         overall = "PASS" if closure.get("complete") else "INCOMPLETE"
-        color = "bright_cyan" if closure.get("complete") else "orange1"
+        color = "green" if closure.get("complete") else "red"
         console.print(f"[grey70]Standard closure:[/grey70] [bold {color}]{overall}[/bold {color}]")
 
     verification = data.get("verification", {})
@@ -942,10 +1180,24 @@ def show_metrics(path: Path) -> None:
                 "RTL ↔ synthesis",
                 closure + status_markup(str(equivalence.get("status", "unknown"))),
             )
-        for label, key in (("SDF", "sdf"), ("STA", "sta"), ("Power", "power")):
+        for label, key in (("SDF", "sdf"), ("STA", "sta"), ("Power estimate", "power")):
             stage = signoff.get(key, {})
             if stage:
                 table.add_row(label, status_markup(str(stage.get("status", "unknown"))))
+        gls_summary = signoff.get("post_syn_gls", {})
+        if gls_summary:
+            table.add_row(
+                "Post-synthesis GLS",
+                f"{gls_summary.get('passed', 0)}/{gls_summary.get('total', 0)}  "
+                + status_markup(str(gls_summary.get("status", "unknown"))),
+            )
+        activity_summary = signoff.get("power_activity", {})
+        if activity_summary:
+            table.add_row(
+                "Activity power",
+                f"{activity_summary.get('passed', 0)}/{activity_summary.get('total', 0)}  "
+                + status_markup(str(activity_summary.get("status", "unknown"))),
+            )
         console.print(table)
 
     lint = data.get("lint")
@@ -994,7 +1246,7 @@ def show_metrics(path: Path) -> None:
 
         matrix_table = coverage_matrix_table(regression.get("coverage_matrix", {}))
         if matrix_table is not None:
-            console.print("\n[bold white]Functional coverage — scope × type[/bold white]")
+            console.print("\n[bold cyan]Functional coverage — scope × type[/bold cyan]")
             console.print(matrix_table)
 
     formal = data.get("formal")
@@ -1067,6 +1319,106 @@ def show_metrics(path: Path) -> None:
         table.add_column("Artifact")
         for corner, values in sdf.get("corners", {}).items():
             table.add_row(corner, str(values.get("bytes", 0)), str(values.get("path", "-")))
+        console.print(table)
+
+    gls = data.get("post_syn_gls")
+    if gls:
+        pdk = data.get("technology", {}).get("pdk", gls.get("pdk", "unknown"))
+        console.print(f"\n[bold cyan]Post-synthesis GLS[/bold cyan] · [bold white]{escape(str(pdk))}[/bold white]")
+        table = metric_table()
+        table.add_row("Status", status_markup(str(gls.get("status", "unknown"))))
+        table.add_row(
+            "Matrix",
+            f"{gls.get('passed', 0)}/{gls.get('total', 0)} passed · "
+            f"{gls.get('failed', 0)} failed · {gls.get('missing', 0)} missing",
+        )
+        table.add_row("Tests", ", ".join(str(value) for value in gls.get("tests", [])) or "-")
+        table.add_row("Backends", ", ".join(str(value) for value in gls.get("backends", [])) or "-")
+        table.add_row("Timing modes", ", ".join(str(value) for value in gls.get("timing_modes", [])) or "-")
+        table.add_row("SDF strict", "yes" if gls.get("sdf_strict") else "no")
+        table.add_row("Qualification", str(gls.get("qualification", "-")))
+        table.add_row("Matrix JSON", str(gls.get("matrix", "-")))
+        console.print(table)
+
+        records = gls.get("records", [])
+        backends = [str(value) for value in gls.get("backends", [])]
+        modes = [str(value) for value in gls.get("timing_modes", [])]
+        if records and backends and modes:
+            matrix = Table(box=None, pad_edge=False, header_style="bold cyan")
+            matrix.add_column("Mode", style="white", no_wrap=True)
+            for backend in backends:
+                matrix.add_column(backend, justify="right", no_wrap=True)
+            matrix.add_column("Total", justify="right", no_wrap=True)
+            for mode in modes:
+                row = [record for record in records if record.get("timing_mode") == mode]
+                cells = []
+                for backend in backends:
+                    group = _gls_group([record for record in row if record.get("backend") == backend])
+                    cells.append(
+                        f"{group['passed']}/{group['total']} "
+                        + status_markup(str(group["status"]))
+                    )
+                total = _gls_group(row)
+                matrix.add_row(
+                    mode,
+                    *cells,
+                    f"{total['passed']}/{total['total']} " + status_markup(str(total["status"])),
+                )
+            console.print("\n[bold cyan]GLS qualification matrix[/bold cyan]")
+            console.print(matrix)
+
+        failures = gls.get("failures", [])
+        if failures:
+            console.print("\n[bold red]GLS failures[/bold red]")
+            for record in failures[:8]:
+                evidence = record.get("log") or record.get("report") or record.get("wave") or "-"
+                console.print(
+                    f"[bold red]FAIL[/bold red] [white]{escape(str(record.get('stem', 'unknown')))}[/white]"
+                )
+                console.print(f"  [grey70]reason:[/grey70] {escape(str(record.get('reason') or 'not qualified'))}")
+                console.print(f"  [grey70]evidence:[/grey70] {escape(str(evidence))}")
+            remaining = len(failures) - 8
+            if remaining > 0:
+                console.print(f"[grey70]... {remaining} additional GLS failure(s); inspect matrix JSON.[/grey70]")
+
+
+    power_activity = data.get("power_analysis")
+    if power_activity:
+        console.print("\n[bold cyan]Post-GLS activity power[/bold cyan]")
+        summary = metric_table()
+        summary.add_row("Status", status_markup(str(power_activity.get("status", "unknown"))))
+        summary.add_row(
+            "Analyses",
+            f"{power_activity.get('passed', 0)}/{power_activity.get('total', 0)} passed · "
+            f"{power_activity.get('failed', 0)} failed",
+        )
+        summary.add_row("Summary JSON", str(power_activity.get("summary", "-")))
+        console.print(summary)
+        table = Table(box=None, pad_edge=False, header_style="bold cyan")
+        table.add_column("Test")
+        table.add_column("Backend")
+        table.add_column("GLS")
+        table.add_column("Corner")
+        table.add_column("Annotated", justify="right")
+        table.add_column("Total W", justify="right")
+        table.add_column("Status")
+        for report in power_activity.get("reports", []):
+            corners = report.get("corners", {}) if isinstance(report, dict) else {}
+            if not corners:
+                table.add_row(
+                    str(report.get("test", "-")), str(report.get("backend", "-")),
+                    str(report.get("timing_mode", "-")), "-", "-", "-",
+                    status_markup(str(report.get("status", "fail"))),
+                )
+                continue
+            for corner, values in corners.items():
+                table.add_row(
+                    str(report.get("test", "-")), str(report.get("backend", "-")),
+                    str(report.get("timing_mode", "-")), str(corner),
+                    str(values.get("activity_annotation_count", "-")),
+                    str(values.get("total_w", "-")),
+                    status_markup(str(values.get("status", "unknown"))),
+                )
         console.print(table)
 
     sta = data.get("sta")

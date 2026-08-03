@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 import hashlib
 import json
@@ -24,11 +25,29 @@ SINGLE_CLOCK_DOMAINS = "core:clk_i:rst_ni:10:low"
 MULTI_CLOCK_DOMAINS = "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low"
 MULTI_CLOCK_RELATIONSHIPS = "async:cfg:rx,async:cfg:dsp,async:rx:dsp"
 RTL_SOURCE_SUFFIXES = {".sv", ".svh", ".v", ".vh"}
+DEFAULT_E2E_PDKS = ("sky130", "ihp-sg13g2")
+DEFAULT_GLS_MODES = ("zero", "unit", "min", "typ", "max")
+DEFAULT_GLS_BACKENDS = ("sv", "cocotb")
+DEFAULT_GLS_TESTS = ("smoke", "auto_toggle")
+SDF_GLS_MODES = {"min", "typ", "max"}
+
 SAVED_IP_CUSTOM_TESTS = {
     "cordic": ("smoke_zero", "rotate_45deg", "quadrant_sweep", "random_small"),
     "uart": ("line_loopback", "rx_fifo", "noise_filter", "parity_reconfig"),
 }
 CONSOLE = Console()
+
+
+@dataclass(frozen=True, slots=True)
+class E2EPlan:
+    """Technology and post-synthesis qualification matrix for one E2E test."""
+
+    run_signoff: bool
+    run_post_syn: bool
+    pdks: tuple[str, ...]
+    gls_modes: tuple[str, ...]
+    gls_backends: tuple[str, ...]
+    gls_tests: tuple[str, ...]
 
 
 # -----------------------------------------------------------------------------
@@ -48,6 +67,60 @@ def _run_signoff_enabled(request: pytest.FixtureRequest) -> bool:
     return not bool(request.config.getoption("--no-signoff"))
 
 
+def _csv_option(
+    request: pytest.FixtureRequest,
+    option: str,
+    environment: str,
+    default: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Resolve one comma-separated pytest/environment E2E option."""
+
+    raw = request.config.getoption(option) or os.environ.get(environment, "")
+    values = tuple(item.strip() for item in str(raw).split(",") if item.strip())
+    return values or default
+
+
+def _e2e_plan(request: pytest.FixtureRequest) -> E2EPlan:
+    """Build and validate the full technology/GLS matrix for one E2E test."""
+
+    from flexsoc.pdk import normalize_name
+
+    run_signoff = _run_signoff_enabled(request)
+    pdks = tuple(
+        dict.fromkeys(
+            normalize_name(name)
+            for name in _csv_option(
+                request, "e2e_pdks", "FLEXSOC_E2E_PDKS", DEFAULT_E2E_PDKS
+            )
+        )
+    )
+    modes = _csv_option(
+        request, "e2e_gls_modes", "FLEXSOC_E2E_GLS_MODES", DEFAULT_GLS_MODES
+    )
+    invalid_modes = sorted(set(modes) - set(DEFAULT_GLS_MODES))
+    if invalid_modes:
+        raise pytest.UsageError(f"unsupported E2E GLS timing modes: {invalid_modes}")
+
+    backends = _csv_option(
+        request,
+        "e2e_gls_backends",
+        "FLEXSOC_E2E_GLS_BACKENDS",
+        DEFAULT_GLS_BACKENDS,
+    )
+    invalid_backends = sorted(set(backends) - set(DEFAULT_GLS_BACKENDS))
+    if invalid_backends:
+        raise pytest.UsageError(f"unsupported E2E GLS backends: {invalid_backends}")
+
+    tests = _csv_option(
+        request, "e2e_gls_tests", "FLEXSOC_E2E_GLS_TESTS", DEFAULT_GLS_TESTS
+    )
+    if "all" in tests and tests != ("all",):
+        raise pytest.UsageError("E2E GLS test selector 'all' cannot be combined with names")
+
+    run_post_syn = run_signoff and not bool(request.config.getoption("--no-post-syn-gls"))
+    return E2EPlan(run_signoff, run_post_syn, pdks, modes, backends, tests)
+
+
 def _e2e_root(request: pytest.FixtureRequest) -> Path:
     """Return the base directory used for isolated E2E workspaces."""
 
@@ -64,13 +137,18 @@ def _print_section(title: str) -> None:
     CONSOLE.rule(f"[bold cyan]{title}[/bold cyan]")
 
 
-def _print_context(*, workspace: Path, signoff: bool) -> None:
-    """Print the common E2E run context consistently."""
+def _print_context(*, workspace: Path, plan: E2EPlan) -> None:
+    """Print the common E2E run context and qualification matrix."""
 
     CONSOLE.print(f"[bold]repo:[/bold] {REPO_ROOT}")
     CONSOLE.print(f"[bold]workspace:[/bold] {workspace}")
     CONSOLE.print(f"[bold]live output:[/bold] {_live()}")
-    CONSOLE.print(f"[bold]signoff:[/bold] {signoff}")
+    CONSOLE.print(f"[bold]signoff:[/bold] {plan.run_signoff}")
+    CONSOLE.print(f"[bold]post-synthesis GLS:[/bold] {plan.run_post_syn}")
+    CONSOLE.print(f"[bold]PDKs:[/bold] {', '.join(plan.pdks)}")
+    CONSOLE.print(f"[bold]GLS modes:[/bold] {', '.join(plan.gls_modes)}")
+    CONSOLE.print(f"[bold]GLS backends:[/bold] {', '.join(plan.gls_backends)}")
+    CONSOLE.print(f"[bold]GLS tests:[/bold] {', '.join(plan.gls_tests)}")
 
 
 def _print_step(args: Iterable[str]) -> None:
@@ -147,9 +225,10 @@ def _settings(
     clock_relationships: str = "",
     run_id: str = DEFAULT_RUN_ID,
     host: str = DEFAULT_HOST,
+    pdk: str | None = None,
     workspace: Path,
 ) -> None:
-    """Select one canonical run/clock configuration before launching targets."""
+    """Select one canonical run/clock/technology configuration."""
 
     n_clocks = len([item for item in clock_domains.split(",") if item.strip()])
     args = [
@@ -157,17 +236,37 @@ def _settings(
         f"N_CLOCKS={n_clocks}", f"CLOCK_DOMAINS={clock_domains}",
         f"CLOCK_RELATIONSHIPS={clock_relationships}",
     ]
+    if pdk:
+        args.append(f"PDK={pdk}")
     _run_fx(args, workspace=workspace)
 
 
-def _run_preflight(*, workspace: Path) -> None:
-    """Validate the CLI/toolchain and show the active technology before the flow."""
+def _run_preflight(*, pdk: str, workspace: Path) -> None:
+    """Validate the CLI/toolchain and activate one usable digital PDK."""
 
     _print_section("Preflight — environment")
     _run_fx(["doctor"], workspace=workspace)
-    _print_section("Preflight — PDK")
-    _run_fx(["pdk", "info", os.environ.get("FLEXSOC_PDK", "sky130")], workspace=workspace)
+    _print_section(f"Preflight — PDK {pdk}")
+    _run_fx(["pdk", "use", pdk], workspace=workspace)
+    _run_fx(["pdk", "info", pdk], workspace=workspace)
 
+
+
+@contextmanager
+def _preserve_project_settings() -> Iterator[None]:
+    """Restore project-local settings after an E2E technology matrix."""
+
+    path = REPO_ROOT / ".flexsoc" / "settings.json"
+    existed = path.is_file()
+    original = path.read_bytes() if existed else b""
+    try:
+        yield
+    finally:
+        if existed:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(original)
+        else:
+            path.unlink(missing_ok=True)
 
 
 @contextmanager
@@ -181,7 +280,12 @@ def _temporary_workspace(prefix: str, *, root: Path) -> Iterator[Path]:
         CONSOLE.print(f"[bold yellow][debug] retained failed workspace:[/bold yellow] {workspace}")
         raise
     else:
-        shutil.rmtree(workspace, ignore_errors=True)
+        if os.environ.get("FLEXSOC_E2E_KEEP") == "1":
+            CONSOLE.print(
+                f"[bold green][debug] retained successful workspace:[/bold green] {workspace}"
+            )
+        else:
+            shutil.rmtree(workspace, ignore_errors=True)
 
 
 def _sha256(path: Path) -> str:
@@ -628,6 +732,218 @@ def _run_signoff_stages(
     return equivalence_ok
 
 
+def _selected_gls_tests(
+    top: str, run_id: str, workspace: Path, requested: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Resolve named or all generated vector tests for post-synthesis GLS."""
+
+    root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
+    available = tuple(sorted(path.name for path in root.iterdir() if path.is_dir()))
+    if requested == ("all",):
+        return available
+    missing = sorted(set(requested) - set(available))
+    assert not missing, f"post-synthesis tests missing for {top}: {missing}"
+    return requested
+
+
+def _assert_sdf_payload(path: Path) -> None:
+    """Require a non-empty SDF containing real delay records."""
+
+    assert path.is_file() and path.stat().st_size > 0, f"missing or empty SDF: {path}"
+    text = path.read_text(encoding="utf-8", errors="replace")
+    assert "(DELAYFILE" in text, f"invalid SDF header: {path}"
+    assert "(CELL" in text, f"SDF contains no CELL records: {path}"
+    assert any(token in text for token in ("(IOPATH", "(INTERCONNECT", "(PORT")), (
+        f"SDF contains no path/interconnect/port delays: {path}"
+    )
+
+
+def _assert_post_syn_report(
+    path: Path,
+    *,
+    top: str,
+    pdk: str,
+    backend: str,
+    mode: str,
+    wave: Path,
+) -> dict[str, object]:
+    """Validate one GLS report and prove that requested SDF was exercised."""
+
+    assert path.is_file(), f"missing post-synthesis report: {path}"
+    report = json.loads(path.read_text(encoding="utf-8"))
+    assert report.get("status") == "pass", f"post-synthesis report failed: {path}"
+    assert report.get("stage") == "post_syn"
+    assert report.get("backend") == backend
+    assert report.get("timing_mode") == mode
+
+    netlist = Path(str(report.get("netlist", ""))).resolve()
+    assert netlist.is_file() and netlist.stat().st_size > 0, f"missing netlist: {netlist}"
+    assert pdk in netlist.parts, f"netlist is not scoped to PDK={pdk}: {netlist}"
+
+    reported_wave = Path(str(report.get("wave", ""))).resolve()
+    assert reported_wave == wave.resolve(), (
+        f"unexpected waveform path: report={reported_wave} requested={wave.resolve()}"
+    )
+    assert wave.is_file() and wave.stat().st_size > 0, f"missing or empty waveform: {wave}"
+
+    if mode in SDF_GLS_MODES:
+        sdf = Path(str(report.get("sdf", ""))).resolve()
+        _assert_sdf_payload(sdf)
+        assert pdk in sdf.parts, f"SDF is not scoped to PDK={pdk}: {sdf}"
+        expected_corner = {"min": "ff", "typ": "tt", "max": "ss"}[mode]
+        assert sdf.name == f"{top}_{expected_corner}.sdf", (
+            f"unexpected SDF corner for mode={mode}: {sdf}"
+        )
+        assert report.get("timing_model") == "icarus-path-delay-only"
+        assert report.get("timing_checks") == "disabled-unsupported-by-icarus"
+        model_manifest = path.parent / "icarus_timing_models" / "manifest.json"
+        assert model_manifest.is_file(), f"missing Icarus timing-model manifest: {model_manifest}"
+        model_data = json.loads(model_manifest.read_text(encoding="utf-8"))
+        assert model_data.get("mode") == "path-delay-only"
+        annotation = report.get("annotation")
+        assert isinstance(annotation, dict), f"missing annotation evidence: {path}"
+        assert annotation.get("requested_marker") is True, f"$sdf_annotate marker missing: {path}"
+        assert annotation.get("warnings") == [], f"SDF warnings found: {annotation.get('warnings')}"
+        assert annotation.get("errors") == [], f"SDF errors found: {annotation.get('errors')}"
+        markers = annotation.get("markers") or []
+        assert any(sdf.name in str(marker) for marker in markers), (
+            f"annotation marker does not identify {sdf.name}: {markers}"
+        )
+    else:
+        assert report.get("sdf") is None
+        assert report.get("annotation") is None
+        expected = "functional-unit-delay" if mode == "unit" else "functional-zero-delay"
+        assert report.get("timing_model") == expected
+    return report
+
+
+def _run_post_syn_gate_matrix(
+    top: str,
+    *,
+    run_id: str,
+    pdk: str,
+    plan: E2EPlan,
+    workspace: Path,
+) -> list[str]:
+    """Run and archive the complete post-synthesis qualification matrix."""
+
+    from flexsoc.run_layout import pdk_run_layout, run_root
+
+    _print_section(f"Post-synthesis GLS/back-annotation — PDK={pdk}")
+    _run_fx(["setup_tb", "setup_cocotb", "--force"], top=top, run_id=run_id, workspace=workspace)
+    selected_tests = _selected_gls_tests(top, run_id, workspace, plan.gls_tests)
+    layout = pdk_run_layout(
+        run_root(workspace, run_top=top, run_id=run_id), pdk=pdk, top=top
+    )
+    qualification = layout.post_syn_sim_dir / "e2e_qualification"
+    failures: list[str] = []
+
+    for mode in plan.gls_modes:
+        for test_name in selected_tests:
+            for backend in plan.gls_backends:
+                stem = f"{top}_{pdk}_{test_name}_{backend}_{mode}"
+                wave = qualification / "waves" / f"{stem}.fst"
+                report_copy = qualification / "reports" / f"{stem}.json"
+                log_copy = qualification / "logs" / f"{stem}.log"
+                wave.parent.mkdir(parents=True, exist_ok=True)
+                report_copy.parent.mkdir(parents=True, exist_ok=True)
+                log_copy.parent.mkdir(parents=True, exist_ok=True)
+
+                source_report = layout.post_syn_sim_dir / f"{top}_post_syn_{backend}_{mode}.json"
+                source_report.unlink(missing_ok=True)
+                ok = _run_fx(
+                    [
+                        "sim_post_syn",
+                        "--set", f"GLS_BACKEND={backend}",
+                        "--set", f"TIMING_MODE={mode}",
+                        "--set", f"TEST_NAME={test_name}",
+                        "--set", "SDF_STRICT=1",
+                        "--set", "WAVE_FORMAT=fst",
+                        "--set", f"WAVE_FILE={wave}",
+                    ],
+                    top=top,
+                    run_id=run_id,
+                    workspace=workspace,
+                    required=False,
+                )
+                if source_report.is_file():
+                    shutil.copy2(source_report, report_copy)
+                    try:
+                        payload = json.loads(source_report.read_text(encoding="utf-8"))
+                        source_log = Path(str(payload.get("log", "")))
+                        if source_log.is_file():
+                            shutil.copy2(source_log, log_copy)
+                    except (OSError, ValueError, TypeError):
+                        pass
+
+                try:
+                    assert ok, f"fx sim_post_syn failed for {stem}"
+                    _assert_post_syn_report(
+                        source_report,
+                        top=top,
+                        pdk=pdk,
+                        backend=backend,
+                        mode=mode,
+                        wave=wave,
+                    )
+                except AssertionError as exc:
+                    failures.append(f"{stem}: {exc}")
+                    CONSOLE.print(f"[bold red][GLS FAIL][/bold red] {stem}: {exc}")
+                else:
+                    CONSOLE.print(f"[bold green][GLS PASS][/bold green] {stem}")
+
+    manifest = qualification / "matrix.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "top": top,
+                "run_id": run_id,
+                "pdk": pdk,
+                "tests": list(selected_tests),
+                "backends": list(plan.gls_backends),
+                "timing_modes": list(plan.gls_modes),
+                "sdf_strict": True,
+                "failures": failures,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    sdf_modes = [mode for mode in plan.gls_modes if mode in SDF_GLS_MODES]
+    if sdf_modes and selected_tests:
+        power_mode = "typ" if "typ" in sdf_modes else sdf_modes[0]
+        power_backend = "sv" if "sv" in plan.gls_backends else plan.gls_backends[0]
+        _print_section(
+            f"Post-GLS activity power — PDK={pdk} backend={power_backend} mode={power_mode}"
+        )
+        ok = _run_fx(
+            [
+                "power_analysis_all",
+                "--set", f"POWER_TEST_NAMES={','.join(selected_tests)}",
+                "--set", f"POWER_GLS_BACKEND={power_backend}",
+                "--set", f"POWER_TIMING_MODE={power_mode}",
+            ],
+            top=top,
+            run_id=run_id,
+            workspace=workspace,
+            required=False,
+        )
+        if not ok:
+            failures.append(
+                f"{top}/{pdk}: post-GLS activity power failed "
+                f"for backend={power_backend} mode={power_mode}"
+            )
+    else:
+        CONSOLE.print(
+            "[yellow][power-analysis] skipped: E2E matrix contains no min/typ/max GLS mode[/yellow]"
+        )
+
+    return failures
+
+
 def _run_reports(top: str, *, run_id: str, workspace: Path) -> None:
     """Render end-of-run reports without turning metrics/check into flow gates."""
 
@@ -645,20 +961,50 @@ def _run_visible_flow(
     *,
     run_id: str,
     clock_mode: str,
-    run_signoff: bool,
+    clock_domains: str,
+    clock_relationships: str,
+    host: str,
+    plan: E2EPlan,
     workspace: Path,
 ) -> None:
-    """Run every public stage individually so the E2E log mirrors the pipeline."""
+    """Run common verification once, then complete sign-off for every PDK."""
 
     _run_lint_stages(top, run_id=run_id, workspace=workspace)
     _run_slang_ast(top, run_id=run_id, workspace=workspace)
     _run_regression(top, run_id=run_id, workspace=workspace)
-    equivalence_ok = True
-    if run_signoff:
-        equivalence_ok = _run_signoff_stages(top, run_id=run_id, clock_mode=clock_mode, workspace=workspace)
-    _run_reports(top, run_id=run_id, workspace=workspace)
-    if not equivalence_ok:
-        pytest.fail("EQY equivalence did not close; all independent sign-off stages and reports were still completed")
+
+    if not plan.run_signoff:
+        _run_reports(top, run_id=run_id, workspace=workspace)
+        return
+
+    failures: list[str] = []
+    for pdk in plan.pdks:
+        _print_section(f"Technology flow — PDK={pdk}")
+        _settings(
+            top,
+            clock_domains=clock_domains,
+            clock_relationships=clock_relationships,
+            run_id=run_id,
+            host=host,
+            pdk=pdk,
+            workspace=workspace,
+        )
+        _run_preflight(pdk=pdk, workspace=workspace)
+        equivalence_ok = _run_signoff_stages(
+            top, run_id=run_id, clock_mode=clock_mode, workspace=workspace
+        )
+        if plan.run_post_syn:
+            failures.extend(
+                _run_post_syn_gate_matrix(
+                    top, run_id=run_id, pdk=pdk, plan=plan, workspace=workspace
+                )
+            )
+        _run_reports(top, run_id=run_id, workspace=workspace)
+        if not equivalence_ok:
+            failures.append(f"{top}/{pdk}: EQY equivalence did not close")
+
+    if failures:
+        pytest.fail("E2E technology matrix failures:\n  - " + "\n  - ".join(failures))
 
 
 # -----------------------------------------------------------------------------
@@ -666,7 +1012,7 @@ def _run_visible_flow(
 # -----------------------------------------------------------------------------
 
 
-def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
+def _run_single_clock_flow(*, plan: E2EPlan, workspace: Path) -> None:
     """Run the generated single-clock example target-by-target."""
 
     top = os.environ.get("FLEXSOC_SINGLE_TOP", "test")
@@ -674,8 +1020,15 @@ def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
 
     _print_section(f"Single-clock generated flow — TOP={top} RUN_ID={run_id}")
-    _settings(top, clock_domains=SINGLE_CLOCK_DOMAINS, run_id=run_id, host=host, workspace=workspace)
-    _run_preflight(workspace=workspace)
+    _settings(
+        top,
+        clock_domains=SINGLE_CLOCK_DOMAINS,
+        run_id=run_id,
+        host=host,
+        pdk=plan.pdks[0],
+        workspace=workspace,
+    )
+    _run_preflight(pdk=plan.pdks[0], workspace=workspace)
     _print_section("Generate RTL / model")
     _run_generated_rtl_flow(top, run_id=run_id, workspace=workspace)
     _author_generated_design_properties(
@@ -685,7 +1038,10 @@ def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
         top,
         run_id=run_id,
         clock_mode="single",
-        run_signoff=run_signoff,
+        clock_domains=SINGLE_CLOCK_DOMAINS,
+        clock_relationships="",
+        host=host,
+        plan=plan,
         workspace=workspace,
     )
 
@@ -694,7 +1050,7 @@ def _run_single_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
         assert (test_root / test).is_dir()
 
 
-def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
+def _run_multi_clock_flow(*, plan: E2EPlan, workspace: Path) -> None:
     """Run the generated multi-clock example target-by-target."""
 
     top = os.environ.get("FLEXSOC_MULTI_TOP", "tri_stream_dsp")
@@ -702,8 +1058,16 @@ def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
     host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
 
     _print_section(f"Multi-clock generated flow — TOP={top} RUN_ID={run_id}")
-    _settings(top, clock_domains=MULTI_CLOCK_DOMAINS, clock_relationships=MULTI_CLOCK_RELATIONSHIPS, run_id=run_id, host=host, workspace=workspace)
-    _run_preflight(workspace=workspace)
+    _settings(
+        top,
+        clock_domains=MULTI_CLOCK_DOMAINS,
+        clock_relationships=MULTI_CLOCK_RELATIONSHIPS,
+        run_id=run_id,
+        host=host,
+        pdk=plan.pdks[0],
+        workspace=workspace,
+    )
+    _run_preflight(pdk=plan.pdks[0], workspace=workspace)
     _print_section("Generate multi-clock RTL / model")
     _run_multiclock_rtl_flow(top, run_id=run_id, workspace=workspace)
     _author_generated_design_properties(
@@ -724,7 +1088,10 @@ def _run_multi_clock_flow(*, run_signoff: bool, workspace: Path) -> None:
         top,
         run_id=run_id,
         clock_mode="multi",
-        run_signoff=run_signoff,
+        clock_domains=MULTI_CLOCK_DOMAINS,
+        clock_relationships=MULTI_CLOCK_RELATIONSHIPS,
+        host=host,
+        plan=plan,
         workspace=workspace,
     )
 
@@ -737,22 +1104,32 @@ def _run_loaded_ip_flow(
     *,
     run_id: str,
     host: str,
-    run_signoff: bool,
+    plan: E2EPlan,
     workspace: Path,
 ) -> None:
     """Run one saved IP without touching HJSON, RTL source, or functional model."""
 
     _print_section(f"{top.upper()} ip_load flow — TOP={top} RUN_ID={run_id}")
     with _protect_ip_sources(top) as snapshot:
-        _settings(top, clock_domains=SINGLE_CLOCK_DOMAINS, run_id=run_id, host=host, workspace=workspace)
-        _run_preflight(workspace=workspace)
+        _settings(
+            top,
+            clock_domains=SINGLE_CLOCK_DOMAINS,
+            run_id=run_id,
+            host=host,
+            pdk=plan.pdks[0],
+            workspace=workspace,
+        )
+        _run_preflight(pdk=plan.pdks[0], workspace=workspace)
         _print_section("Load saved IP")
         _run_loaded_ip_setup(top, run_id=run_id, workspace=workspace, snapshot=snapshot)
         _run_visible_flow(
             top,
             run_id=run_id,
             clock_mode="single",
-            run_signoff=run_signoff,
+            clock_domains=SINGLE_CLOCK_DOMAINS,
+            clock_relationships="",
+            host=host,
+            plan=plan,
             workspace=workspace,
         )
         _assert_loaded_sources_match(top, run_id, workspace, snapshot)
@@ -766,41 +1143,47 @@ def _run_loaded_ip_flow(
 
 @pytest.mark.e2e
 def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
-    """Run the generated single-clock flow in its own isolated workspace."""
+    """Run the generated single-clock flow across the complete PDK matrix."""
 
-    run_signoff = _run_signoff_enabled(request)
-    with _temporary_workspace("flexsoc-single-e2e-", root=_e2e_root(request)) as workspace:
+    plan = _e2e_plan(request)
+    with _preserve_project_settings(), _temporary_workspace(
+        "flexsoc-single-e2e-", root=_e2e_root(request)
+    ) as workspace:
         _print_section("FlexSoC single-clock E2E")
-        _print_context(workspace=workspace, signoff=run_signoff)
-        _run_single_clock_flow(run_signoff=run_signoff, workspace=workspace)
+        _print_context(workspace=workspace, plan=plan)
+        _run_single_clock_flow(plan=plan, workspace=workspace)
         _print_section("FlexSoC single-clock E2E passed")
 
 
 @pytest.mark.e2e
 def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
-    """Run the generated multi-clock flow independently from single-clock."""
+    """Run the generated multi-clock flow across the complete PDK matrix."""
 
-    run_signoff = _run_signoff_enabled(request)
-    with _temporary_workspace("flexsoc-multiclock-e2e-", root=_e2e_root(request)) as workspace:
+    plan = _e2e_plan(request)
+    with _preserve_project_settings(), _temporary_workspace(
+        "flexsoc-multiclock-e2e-", root=_e2e_root(request)
+    ) as workspace:
         _print_section("FlexSoC multi-clock E2E")
-        _print_context(workspace=workspace, signoff=run_signoff)
-        _run_multi_clock_flow(run_signoff=run_signoff, workspace=workspace)
+        _print_context(workspace=workspace, plan=plan)
+        _run_multi_clock_flow(plan=plan, workspace=workspace)
         _print_section("FlexSoC multi-clock E2E passed")
 
 
 @pytest.mark.e2e
 def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
-    """Run CORDIC as an existing IP in an isolated workspace."""
+    """Run CORDIC across both technology and post-synthesis matrices."""
 
-    run_signoff = _run_signoff_enabled(request)
-    with _temporary_workspace("flexsoc-cordic-e2e-", root=_e2e_root(request)) as workspace:
+    plan = _e2e_plan(request)
+    with _preserve_project_settings(), _temporary_workspace(
+        "flexsoc-cordic-e2e-", root=_e2e_root(request)
+    ) as workspace:
         _print_section("FlexSoC CORDIC ip_load E2E")
-        _print_context(workspace=workspace, signoff=run_signoff)
+        _print_context(workspace=workspace, plan=plan)
         _run_loaded_ip_flow(
             os.environ.get("FLEXSOC_CORDIC_TOP", "cordic"),
             run_id=os.environ.get("FLEXSOC_CORDIC_RUN_ID", DEFAULT_RUN_ID),
             host=os.environ.get("FLEXSOC_HOST", DEFAULT_HOST),
-            run_signoff=run_signoff,
+            plan=plan,
             workspace=workspace,
         )
         _print_section("FlexSoC CORDIC ip_load E2E passed")
@@ -808,17 +1191,19 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
 
 @pytest.mark.e2e
 def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
-    """Run UART as an existing IP in an isolated workspace."""
+    """Run UART across both technology and post-synthesis matrices."""
 
-    run_signoff = _run_signoff_enabled(request)
-    with _temporary_workspace("flexsoc-uart-e2e-", root=_e2e_root(request)) as workspace:
+    plan = _e2e_plan(request)
+    with _preserve_project_settings(), _temporary_workspace(
+        "flexsoc-uart-e2e-", root=_e2e_root(request)
+    ) as workspace:
         _print_section("FlexSoC UART ip_load E2E")
-        _print_context(workspace=workspace, signoff=run_signoff)
+        _print_context(workspace=workspace, plan=plan)
         _run_loaded_ip_flow(
             os.environ.get("FLEXSOC_UART_TOP", "uart"),
             run_id=os.environ.get("FLEXSOC_UART_RUN_ID", DEFAULT_RUN_ID),
             host=os.environ.get("FLEXSOC_HOST", DEFAULT_HOST),
-            run_signoff=run_signoff,
+            plan=plan,
             workspace=workspace,
         )
         _print_section("FlexSoC UART ip_load E2E passed")
