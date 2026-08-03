@@ -12,10 +12,17 @@ from pathlib import Path
 import pytest
 
 from flexsoc import FlexSoC, FlexSoCConfig
-from flexsoc.api import NATIVE_TARGETS
+from flexsoc.api import NATIVE_TARGETS, POWER_ANALYSIS_TARGETS
 from flexsoc.backend.eqy_debug import _replace_gate_netlist, synthesis_boundary_diagnosis
 from flexsoc.backend.hjson_gen import main as hjson_main
-from flexsoc.backend.metrics import eqy_solver_stats
+from flexsoc.backend.metrics import collect_metrics, collect_post_syn_gls, eqy_solver_stats, show_metrics
+from flexsoc.backend.power_analysis import (
+    ActivitySpec,
+    _activity_count,
+    _activity_vcd,
+    discover_specs,
+    render_power_activity_tcl,
+)
 from flexsoc.backend.output import print_script, strip_ansi
 from flexsoc.backend.post_sim import (
     GateSimPaths,
@@ -73,7 +80,7 @@ def test_api_catalog_matches_makefile_targets() -> None:
 
     api = set(FlexSoC(project_root=ROOT).target_names())
     make = _makefile_targets() - {"_formal_scaffold"}
-    api_only = {"deps-bootstrap", "deps-doctor", "deps-versions", "deps-env"} | (set(NATIVE_TARGETS) - make)
+    api_only = (set(NATIVE_TARGETS) | set(POWER_ANALYSIS_TARGETS)) - make
     assert make <= api
     assert api - make == api_only
 
@@ -271,6 +278,14 @@ def test_auto_toggle_uses_tlul_byte_masks_and_protocol_opcodes(tmp_path: Path) -
     cocotb_driver = render_reg_driver_py()
     assert "0 if mask == 0xF else 1  # PutFullData / PutPartialData" in cocotb_driver
     assert "TL-UL write mask is zero" in cocotb_driver
+    assert "async def _response_sample_phase(clk):" in cocotb_driver
+    assert cocotb_driver.count("await _response_sample_phase(clk)") == 2
+    assert cocotb_driver.index("await _response_sample_phase(clk)") < cocotb_driver.index(
+        'checking write response addr=0x{addr:08x}'
+    )
+    assert cocotb_driver.rindex("await _response_sample_phase(clk)") < cocotb_driver.index(
+        'reading response data addr=0x{addr:08x}'
+    )
     compile(cocotb_driver, "<reg_driver.py>", "exec")
 
     sv_driver = render_tlul_interface()
@@ -812,7 +827,7 @@ def test_gate_sim_timing_modes_are_explicit(tmp_path: Path) -> None:
     """Zero/unit/SDF modes must not silently collapse into one another."""
 
     model = tmp_path / "cells.v"
-    model.write_text("`define UNIT_DELAY #1\nmodule cell; endmodule\n", encoding="utf-8")
+    model.write_text("`timescale 1ns/1ps\nmodule cell; endmodule\n", encoding="utf-8")
     zero_paths = _gate_sim_paths(tmp_path)
     base = {
         "TOP": "demo",
@@ -832,7 +847,7 @@ def test_gate_sim_timing_modes_are_explicit(tmp_path: Path) -> None:
     assert not any(path.name.endswith("_pkg.sv") for path in map(Path, zero))
 
     unit = compile_command(ROOT, {**base, "TIMING_MODE": "unit"}, "post_syn", zero_paths)
-    assert "-DUNIT_DELAY=#1" in unit
+    assert "-DUNIT_DELAY=#0.001" in unit
     assert "-gspecify" not in unit
 
     sdf_paths = _gate_sim_paths(tmp_path / "sdf", sdf=True)
@@ -873,9 +888,34 @@ def test_sv_and_cocotb_gls_share_vectors_netlist_models_and_sdf(tmp_path: Path) 
     assert f"GLS_NETLIST={co_paths.netlist}" in co
     assert f"GLS_MODELS={model.resolve()}" in co
     assert "TIMING_MODE=max" in co
+    assert "GLS_UNIT_DELAY_DEFINE=0" in co
     assert "WAVES=1" in co
     assert "WAVES=" not in co
     assert not any(arg.startswith("IVERILOG_DUMPER=") for arg in co)
+
+
+def test_cocotb_unit_delay_is_model_precision_normalized(tmp_path: Path) -> None:
+    """The cocotb backend receives the same suffix-free model delay as SV."""
+
+    model = tmp_path / "ihp_cells.v"
+    model.write_text("`timescale 1ns/10ps\nmodule cell; endmodule\n", encoding="utf-8")
+    paths = _gate_sim_paths(tmp_path / "co_unit", cocotb=True)
+    command = cocotb_command(
+        "sim",
+        {
+            "TOP": "demo",
+            "TESTBENCH": "demo_tb",
+            "GLS_BACKEND": "cocotb",
+            "GLS_SIMULATOR": "iverilog",
+            "TIMING_MODE": "unit",
+            "GLS_UNIT_DELAY": "1ps",
+            "PRIM": str(model),
+            "TEST_NAME": "smoke",
+        },
+        paths,
+    )
+    assert "GLS_UNIT_DELAY_DEFINE=0.01" in command
+    assert not any("1ps" in arg for arg in command)
 
 
 def test_generated_cocotb_gls_is_count_agnostic_and_sdf_capable(tmp_path: Path) -> None:
@@ -892,7 +932,8 @@ def test_generated_cocotb_gls_is_count_agnostic_and_sdf_capable(tmp_path: Path) 
     for makefile in (single, multi):
         assert "GLS_SUPPORT_SOURCES" not in makefile
         assert "TIMING_MODE ?= zero" in makefile
-        assert "-DUNIT_DELAY=\\#1" in makefile
+        assert "GLS_UNIT_DELAY_DEFINE ?= 1" in makefile
+        assert "-DUNIT_DELAY=\\#$(GLS_UNIT_DELAY_DEFINE)" in makefile
         assert "SDF_FILE is required" in makefile
         assert "SIM_ARGS += -sdf-verbose" not in makefile
 
@@ -988,16 +1029,29 @@ def test_gls_iverilog_uses_functional_models_and_portable_sv(tmp_path: Path) -> 
         "-DUNIT_DELAY=#0",
         "-gno-specify",
     ]
-    assert _compile_timing_args(TimingConfig("unit")) == [
+    ns_model = tmp_path / "ns_model.v"
+    ns_model.write_text("`timescale 1ns/1ps\nmodule cell; endmodule\n", encoding="utf-8")
+    ihp_model = tmp_path / "ihp_model.v"
+    ihp_model.write_text("`timescale 1ns/10ps\nmodule cell2; endmodule\n", encoding="utf-8")
+    assert _compile_timing_args(TimingConfig("unit"), models=(ns_model,)) == [
         "-DFUNCTIONAL",
         "-gno-specify",
-        "-DUNIT_DELAY=#1",
+        "-DUNIT_DELAY=#0.001",
     ]
+    assert _compile_timing_args(
+        TimingConfig("unit"), {"GLS_UNIT_DELAY": "1ps"}, (ihp_model,)
+    )[-1] == "-DUNIT_DELAY=#0.01"
+    assert _compile_timing_args(
+        TimingConfig("unit"), {"GLS_UNIT_DELAY": "15ps"}, (ihp_model,)
+    )[-1] == "-DUNIT_DELAY=#0.02"
+    with pytest.raises(ValueError, match="explicit non-negative time literal"):
+        _compile_timing_args(TimingConfig("unit"), {"GLS_UNIT_DELAY": "1"}, (ns_model,))
     assert "-DFUNCTIONAL" not in _compile_timing_args(TimingConfig("max"))
 
     makefile = render_makefile(CocotbConfig("uart", "tlul", tmp_path, rtl_dir=tmp_path), [])
     assert "COMPILE_ARGS += -DFUNCTIONAL -DUNIT_DELAY=\\#0 -gno-specify" in makefile
-    assert "COMPILE_ARGS += -DFUNCTIONAL -gno-specify -DUNIT_DELAY=\\#1" in makefile
+    assert "GLS_UNIT_DELAY_DEFINE ?= 1" in makefile
+    assert "COMPILE_ARGS += -DFUNCTIONAL -gno-specify -DUNIT_DELAY=\\#$(GLS_UNIT_DELAY_DEFINE)" in makefile
     assert "-DFLEXSOC_COCOTB_WAVE_OWNER" in makefile
     assert "COCOTB_PLUSARGS += +dumpfile_path=$(WAVE_FILE)" in makefile
 
@@ -1089,7 +1143,70 @@ endmodule
         "timing_checks_removed": 2,
         "delayed_inputs_bound": 2,
         "notifiers_initialized": 1,
+        "ifnone_paths_removed": 0,
     }
+
+
+def test_ihp_gls_discovers_udp_and_sanitizes_delayed_inputs(tmp_path: Path) -> None:
+    """IHP GLS includes its UDP support and derives an Icarus-compatible view."""
+
+    from flexsoc.backend.post_sim import _icarus_path_delay_model
+    from flexsoc.pdk import discover_views
+
+    verilog = (
+        tmp_path
+        / "ihp-sg13g2"
+        / "libs.ref"
+        / "sg13g2_stdcell"
+        / "verilog"
+    )
+    lib = verilog.parent / "lib"
+    verilog.mkdir(parents=True)
+    lib.mkdir()
+    udp = verilog / "sg13g2_udp.v"
+    cells = verilog / "sg13g2_stdcell.v"
+    udp.write_text("primitive ihp_mux2 (q, a, b, s); endprimitive\n", encoding="utf-8")
+    cells.write_text("module sg13g2_mux2_1; endmodule\n", encoding="utf-8")
+    (lib / "sg13g2_stdcell_typ_1p20V_25C.lib").write_text("library(x) {}\n", encoding="utf-8")
+
+    views = discover_views(tmp_path, "ihp-sg13g2")
+    assert views.verilog_models == (udp.resolve(), cells.resolve())
+
+    source = """module ff(input CLK, D, RESET_B, output Q);
+  reg notifier;
+  wire delayed_D, delayed_RESET_B, delayed_CLK;
+  ihp_dff_r (Q, notifier, delayed_CLK, delayed_D, delayed_RESET_B, 1'b0);
+  specify
+    ifnone
+      (posedge CLK => (Q : D)) = (1:2:3);
+    (posedge CLK => (Q : D)) = (1:2:3);
+    $setuphold(posedge CLK, posedge D, 1:2:3, 1:2:3, notifier, , , delayed_CLK, delayed_D);
+  endspecify
+endmodule
+"""
+    rendered, stats = _icarus_path_delay_model(
+        source, remove_ifnone=True, inject_unit_delay=True
+    )
+    assert "assign delayed_CLK = CLK;" in rendered
+    assert "assign delayed_D = D;" in rendered
+    assert "assign delayed_RESET_B = RESET_B;" in rendered
+    assert "ihp_dff_r `UNIT_DELAY (" in rendered
+    assert "ifnone" not in rendered
+    assert "$setuphold" not in rendered
+    assert "(posedge CLK => (Q : D))" in rendered
+    assert stats == {
+        "timing_checks_removed": 1,
+        "delayed_inputs_bound": 3,
+        "notifiers_initialized": 1,
+        "ifnone_paths_removed": 1,
+    }
+
+    functional, functional_stats = _icarus_path_delay_model(
+        source, remove_ifnone=True, inject_unit_delay=True
+    )
+    assert "ifnone" not in functional
+    assert "ihp_dff_r `UNIT_DELAY (" in functional
+    assert functional_stats["ifnone_paths_removed"] == 1
 
 
 def test_generated_gls_defaults_serial_rx_high_and_has_one_sdf_call(tmp_path: Path) -> None:
@@ -1149,3 +1266,467 @@ def test_generated_icarus_sdf_calls_use_supported_two_argument_form(tmp_path: Pa
     assert ", , ," not in "\n".join(
         line for line in cocotb_wrapper.splitlines() if "$sdf_annotate" in line
     )
+
+
+def _write_gls_qualification(
+    run_dir: Path,
+    *,
+    top: str = "demo",
+    pdk: str = "ihp-sg13g2",
+    failing_stem: str | None = None,
+) -> Path:
+    """Create a small archived E2E GLS matrix for metrics/check tests."""
+
+    qualification = run_dir / "dv" / "functional" / "sim" / "post_syn" / pdk / "e2e_qualification"
+    for name in ("reports", "logs", "waves"):
+        (qualification / name).mkdir(parents=True, exist_ok=True)
+    tests = ["smoke", "auto_toggle"]
+    backends = ["sv", "cocotb"]
+    modes = ["zero", "typ"]
+    failures = []
+    for mode in modes:
+        for test_name in tests:
+            for backend in backends:
+                stem = f"{top}_{pdk}_{test_name}_{backend}_{mode}"
+                status = "fail" if stem == failing_stem else "pass"
+                report = {
+                    "status": status,
+                    "returncode": 238 if status == "fail" else 0,
+                    "phase": "compile" if status == "fail" else "run",
+                    "backend": backend,
+                    "timing_mode": mode,
+                    "timing_model": "icarus-path-delay-only" if mode == "typ" else "functional-zero-delay",
+                    "annotation": (
+                        {"requested_marker": True, "warnings": [], "errors": []}
+                        if mode == "typ"
+                        else None
+                    ),
+                }
+                (qualification / "reports" / f"{stem}.json").write_text(json.dumps(report), encoding="utf-8")
+                (qualification / "logs" / f"{stem}.log").write_text("gate simulation\n", encoding="utf-8")
+                (qualification / "waves" / f"{stem}.fst").write_bytes(b"FST")
+                if status == "fail":
+                    failures.append(f"{stem}: fx sim_post_syn failed for {stem}")
+    (qualification / "matrix.json").write_text(
+        json.dumps(
+            {
+                "top": top,
+                "run_id": "dev",
+                "pdk": pdk,
+                "tests": tests,
+                "backends": backends,
+                "timing_modes": modes,
+                "sdf_strict": True,
+                "failures": failures,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return qualification
+
+
+def test_metrics_collects_and_summarizes_archived_gls_matrix(tmp_path: Path) -> None:
+    """The selected PDK GLS matrix is machine-readable and closure-visible."""
+
+    run_dir = tmp_path / "runs" / "demo" / "dev"
+    _write_gls_qualification(run_dir)
+    gls = collect_post_syn_gls("demo", run_dir, "ihp-sg13g2")
+    assert gls is not None
+    assert gls["status"] == "pass"
+    assert gls["passed"] == gls["total"] == 8
+    assert gls["by_backend"]["sv"]["passed"] == 4
+    assert gls["by_mode"]["typ"]["passed"] == 4
+
+    metrics = collect_metrics("demo", run_dir, pdk="ihp-sg13g2")
+    assert metrics["schema_version"] == 10
+    assert metrics["post_syn_gls"]["status"] == "pass"
+    assert metrics["closure"]["stages"]["post_syn_gls"] == "pass"
+    assert metrics["closure"]["order"][-1] == "post_syn_gls"
+
+
+def test_check_prints_compact_gls_failure_summary(capsys, tmp_path: Path) -> None:
+    """Check surfaces the failing IHP combination and evidence path."""
+
+    run_dir = tmp_path / "runs" / "demo" / "dev"
+    stem = "demo_ihp-sg13g2_smoke_cocotb_typ"
+    _write_gls_qualification(run_dir, failing_stem=stem)
+    metrics = collect_metrics("demo", run_dir, pdk="ihp-sg13g2")
+    output = tmp_path / "metrics.json"
+    output.write_text(json.dumps(metrics), encoding="utf-8")
+    show_metrics(output)
+    rendered = capsys.readouterr().out
+    assert "Post-synthesis GLS" in rendered
+    assert "7/8 passed" in rendered
+    assert stem in rendered
+    assert "compile failed returncode=238" in rendered
+
+
+def test_check_target_refreshes_metrics_before_display() -> None:
+    """A manual ``fx check`` cannot display stale pre-GLS metrics."""
+
+    text = BACKEND_MAKEFILE.read_text(encoding="utf-8")
+    assert "check: metrics ## Refresh and show" in text
+
+
+
+def test_power_analysis_target_is_native_and_technology_scoped(tmp_path: Path) -> None:
+    """Power analysis receives the complete PDK/run values without Make quoting."""
+
+    fx = FlexSoC(project_root=ROOT, workdir=tmp_path)
+    command = fx.command(
+        "power_analysis",
+        TOP="demo",
+        PDK="sky130",
+        POWER_TEST_NAME="smoke",
+        POWER_GLS_BACKEND="sv",
+        POWER_TIMING_MODE="typ",
+    )
+    assert command.argv[1:3] == ("-m", "flexsoc.backend.power_analysis")
+    assert "--action" in command.argv and "single" in command.argv
+
+
+def test_power_activity_tcl_uses_qualified_vcd_and_scope(tmp_path: Path) -> None:
+    """OpenSTA power consumes a GLS VCD and reports annotation before power."""
+
+    files = {name: tmp_path / name for name in ("tt.lib", "demo.v", "demo.sdc", "smoke.vcd", "gls.json")}
+    for path in files.values():
+        path.write_text("x\n", encoding="utf-8")
+    text = render_power_activity_tcl(
+        top="demo",
+        liberty=files["tt.lib"],
+        netlist=files["demo.v"],
+        sdc=files["demo.sdc"],
+        vcd=files["smoke.vcd"],
+        scope="test_tb/u_dut",
+        source_report=files["gls.json"],
+    )
+    assert "read_vcd -scope test_tb/u_dut" in text
+    assert "report_activity_annotation" in text
+    assert "report_power" in text
+    assert "activity_source=post_syn_gls_vcd" in text
+
+
+
+
+def test_power_vcd_scope_resolution_uses_generated_instance_conventions(tmp_path: Path) -> None:
+    """Auto scope supports canonical u_<TOP> and wrapper u_dut conventions."""
+
+    from flexsoc.backend.power_analysis import _resolve_vcd_scope, _vcd_scopes
+
+    canonical = tmp_path / "canonical.vcd"
+    canonical.write_text(
+        """$date now $end
+$scope module test_tb $end
+$scope module tb_helper $end
+$upscope $end
+$scope module u_test $end
+$var wire 1 ! clk_i $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+0!
+""",
+        encoding="utf-8",
+    )
+    assert _vcd_scopes(canonical) == (
+        "test_tb", "test_tb/tb_helper", "test_tb/u_test"
+    )
+    assert _resolve_vcd_scope(canonical, requested="auto", top="test")[0] == "test_tb/u_test"
+    assert _resolve_vcd_scope(
+        canonical, requested="auto", top="test", dut_instance="u_dut"
+    )[0] == "test_tb/u_test"
+
+    wrapper = tmp_path / "wrapper.vcd"
+    wrapper.write_text(
+        """$scope module test_tb $end
+$scope module u_dut $end
+$var wire 1 ! clk_i $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+""",
+        encoding="utf-8",
+    )
+    assert _resolve_vcd_scope(wrapper, requested="auto", top="test")[0] == "test_tb/u_dut"
+    assert _resolve_vcd_scope(
+        wrapper, requested="test_tb.u_dut", top="test"
+    )[0] == "test_tb/u_dut"
+
+
+def test_power_vcd_scope_resolution_rejects_unknown_scope(tmp_path: Path) -> None:
+    """A wrong explicit scope fails before OpenSTA can silently annotate zero pins."""
+
+    from flexsoc.backend.power_analysis import _resolve_vcd_scope
+
+    vcd = tmp_path / "trace.vcd"
+    vcd.write_text(
+        "$scope module test_tb $end\n$enddefinitions $end\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="OpenSTA scope levels use '/'"):
+        _resolve_vcd_scope(vcd, requested="missing.scope", top="test")
+
+
+def test_metrics_collects_activity_power_and_check_uses_consistent_status_colors(capsys, tmp_path: Path) -> None:
+    """Activity power is closure-visible and PASS/FAIL use green/red consistently."""
+
+    run_dir = tmp_path / "runs" / "demo" / "dev"
+    root = run_dir / "signoff" / "power" / "ihp-sg13g2" / "activity"
+    root.mkdir(parents=True)
+    (root / "summary.json").write_text(
+        json.dumps(
+            {
+                "status": "pass", "passed": 1, "failed": 0, "total": 1,
+                "reports": [
+                    {
+                        "status": "pass", "test": "smoke", "backend": "sv",
+                        "timing_mode": "typ",
+                        "corners": {"tt": {"status": "pass", "total_w": 0.001}},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    metrics = collect_metrics("demo", run_dir, pdk="ihp-sg13g2")
+    assert metrics["schema_version"] == 10
+    assert metrics["power_analysis"]["status"] == "pass"
+    assert metrics["closure"]["stages"]["power_activity"] == "pass"
+    assert metrics["closure"]["order"][-2:] == ["post_syn_gls", "power_activity"] or metrics["closure"]["order"][-1:] == ["power_activity"]
+    output = tmp_path / "metrics.json"
+    output.write_text(json.dumps(metrics), encoding="utf-8")
+    show_metrics(output)
+    rendered = capsys.readouterr().out
+    assert "Post-GLS activity power" in rendered
+    assert "Activity power" in rendered
+
+
+def test_power_activity_count_rejects_explicit_zero_annotation() -> None:
+    """OpenSTA activity evidence is parsed without requiring one exact release format."""
+
+    assert _activity_count("Annotated 173 pin activities") == 173
+    assert _activity_count("Annotated 0 activities") == 0
+    assert _activity_count("report_activity_annotation output without summary") is None
+
+
+def test_post_sim_report_records_test_name() -> None:
+    """A gate report identifies the vector scenario that produced its activity."""
+
+    text = (ROOT / "src/flexsoc/backend/post_sim.py").read_text(encoding="utf-8")
+    assert '"test_name": values.get("TEST_NAME", "smoke")' in text
+
+
+def test_gls_and_power_targets_are_quiet_without_live() -> None:
+    """Heavy event-driven output is captured unless the user explicitly selects --live."""
+
+    from flexsoc.api import QUIET_BY_DEFAULT_TARGETS
+
+    assert {"sim_post_syn", "sim_post_pnr", "power_analysis", "power_analysis_all"} <= QUIET_BY_DEFAULT_TARGETS
+
+
+
+def test_nonlive_gls_stream_is_captured_to_command_log(monkeypatch, capsys, tmp_path: Path) -> None:
+    """Default GLS output stays out of the terminal and remains available in a log."""
+
+    pdk_root = tmp_path / "pdk"
+    pdk_root.mkdir()
+    log_dir = tmp_path / "logs"
+    fx = FlexSoC(FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws"))
+    base = fx.command("setup")
+    command = type(base)(
+        "sim_post_syn",
+        (sys.executable, "-c", 'print("very noisy simulator output")'),
+        tmp_path,
+        base.env,
+        {
+            **base.values,
+            "PDK": "demo",
+            "PDK_ROOT": str(pdk_root),
+            "LIB_SYN": str(tmp_path / "demo.lib"),
+            "SYNDIR": str(tmp_path / "syn"),
+            "COMMAND_LOGDIR": str(log_dir),
+        },
+    )
+    monkeypatch.setattr(fx, "commands", lambda *targets, **overrides: (command,))
+    results = fx.run("sim_post_syn", check=False)
+    assert results[0].returncode == 0
+    rendered = capsys.readouterr().out
+    assert "very noisy simulator output" not in rendered
+    assert "log:" in rendered
+    assert (log_dir / "sim_post_syn.log").read_text(encoding="utf-8") == "very noisy simulator output\n"
+
+
+def test_generated_vector_backends_share_atomic_cycle_semantics(tmp_path: Path) -> None:
+    """SV and cocotb must drive every same-cycle signal as one atomic batch."""
+
+    from flexsoc.backend.setup_cocotb import render_vec_driver_py
+    from flexsoc.backend.setup_model import _tests_text
+    from flexsoc.backend.setup_tb import render_sv_vec_driver
+
+    cocotb_driver = render_vec_driver_py()
+    assert "def _coalesce_rows(rows):" in cocotb_driver
+    assert "for cycle, pairs in _coalesce_rows(rows):" in cocotb_driver
+    assert "commands cannot share a cycle" in cocotb_driver
+    assert 'await Timer(1, unit="ns")' in cocotb_driver
+
+    sv_driver = render_sv_vec_driver("demo", "clk_i", "rst_ni", ["a_i", "b_i"], ["y_o"])
+    assert "cycle_open" in sv_driver
+    assert "tb_drive_signal_pairs" in sv_driver
+    assert "@(negedge clk_i); #1;" in sv_driver
+
+    generated = _tests_text("demo")
+    assert 'input_pairs = " ".join(' in generated
+    assert 'data_in = [f"{drive_cycle} {input_pairs}"] if input_pairs else []' in generated
+    assert 'output_pairs = " ".join(' in generated
+
+
+def test_fst2vcd_is_required_and_automatic_for_activity_power(tmp_path: Path) -> None:
+    """FST conversion uses GTKWave's documented input/output interface."""
+
+    from flexsoc.doctor import TOOLS
+
+    rows = {executable: required for _, executable, _, required, _ in TOOLS}
+    assert rows["fst2vcd"] is True
+    converter = tmp_path / "fst2vcd"
+    converter.write_text(
+        "#!/bin/sh\n"
+        "set -eu\n"
+        "test \"$1\" = -f\n"
+        "test \"$3\" = -o\n"
+        "cat >\"$4\" <<'VCD'\n"
+        "$date now $end\n"
+        "$scope module test_tb $end\n"
+        "$var wire 1 ! clk $end\n"
+        "$upscope $end\n"
+        "$enddefinitions $end\n"
+        "#0\n0!\n"
+        "VCD\n",
+        encoding="utf-8",
+    )
+    converter.chmod(0o755)
+    wave = tmp_path / "trace.fst"
+    wave.write_bytes(b"FST")
+    spec = ActivitySpec("test", "ihp-sg13g2", "smoke", "sv", "typ", tmp_path / "report.json", wave)
+
+    vcd, log, method = _activity_vcd(
+        spec, {"FST2VCD": str(converter)}, tmp_path / "captures"
+    )
+
+    assert method == "named-output"
+    assert log is not None and "-f" in log.read_text() and "-o" in log.read_text()
+    assert "$enddefinitions" in vcd.read_text()
+
+
+def test_fst2vcd_stdout_fallback_is_supported(tmp_path: Path) -> None:
+    """Older converter wrappers that emit only stdout remain usable."""
+
+    converter = tmp_path / "fst2vcd"
+    converter.write_text(
+        "#!/bin/sh\n"
+        "set -eu\n"
+        "if [ \"${1:-}\" = -f ]; then exit 2; fi\n"
+        "cat <<'VCD'\n"
+        "$date now $end\n"
+        "$scope module test_tb $end\n"
+        "$var wire 1 ! clk $end\n"
+        "$upscope $end\n"
+        "$enddefinitions $end\n"
+        "#0\n0!\n"
+        "VCD\n",
+        encoding="utf-8",
+    )
+    converter.chmod(0o755)
+    wave = tmp_path / "trace.fst"
+    wave.write_bytes(b"FST")
+    spec = ActivitySpec("test", "sky130", "smoke", "sv", "typ", tmp_path / "report.json", wave)
+
+    vcd, log, method = _activity_vcd(
+        spec, {"FST2VCD": str(converter)}, tmp_path / "captures"
+    )
+
+    assert method == "stdout"
+    assert log is not None and "retry=stdout" in log.read_text()
+    assert "$enddefinitions" in vcd.read_text()
+
+
+def test_managed_toolchain_has_status_prune_and_stable_link_contract() -> None:
+    """Managed installs stay versioned, inspectable, and safely prunable."""
+
+    deps = (ROOT / "src/flexsoc/backend/deps.sh").read_text(encoding="utf-8")
+    make = BACKEND_MAKEFILE.read_text(encoding="utf-8")
+    assert "status                 Show managed prefixes" in deps
+    assert "prune                  Remove obsolete managed prefixes" in deps
+    assert "STABLE_LINK=${XDG_DATA_HOME:-$HOME/.local/share}/flexsoc/toolchain" in deps
+    assert "DRY_RUN=1; pass --apply" in deps
+    assert "deps-status:" in make
+    assert "deps-prune:" in make
+
+
+def test_ci_uses_preverified_locked_container_image() -> None:
+    """Normal CI pulls an immutable digest and never builds the EDA image."""
+
+    dockerfile = (ROOT / "docker/ci/Dockerfile").read_text(encoding="utf-8")
+    ignore = (ROOT / "docker/ci/Dockerfile.dockerignore").read_text(encoding="utf-8")
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    image = (ROOT / ".github/workflows/toolchain-image.yml").read_text(encoding="utf-8")
+    common = (ROOT / "docker/scripts/common.sh").read_text(encoding="utf-8")
+    publish = (ROOT / "docker/scripts/publish.sh").read_text(encoding="utf-8")
+    assert not (ROOT / ".dockerignore").exists()
+    assert "deps.sh install --system --profile base" in dockerfile
+    assert "uv sync --frozen --no-install-project" in dockerfile
+    assert "docker/.state" in ignore
+    assert "docker/scripts/check-lock.sh" in ci
+    assert "docker pull" in ci
+    assert "buildx build" not in ci
+    assert "docker/build-push-action" not in ci
+    assert "workflow_dispatch" in image
+    assert "push:" not in image.split("permissions:", 1)[0]
+    assert "validate_lock" in common
+    assert "docker buildx imagetools inspect" in publish
+    assert "Commit %s before pushing source changes" in publish
+
+
+def test_docker_release_scripts_require_build_verify_publish_order() -> None:
+    """The local image must be verified before publishing and locking a digest."""
+
+    build = (ROOT / "docker/scripts/build.sh").read_text(encoding="utf-8")
+    verify = (ROOT / "docker/scripts/verify.sh").read_text(encoding="utf-8")
+    run_ci = (ROOT / "docker/scripts/run-ci.sh").read_text(encoding="utf-8")
+    lock = (ROOT / "docker/ci/image.lock").read_text(encoding="utf-8")
+    assert "--metadata-file" in build
+    assert "verified.env" in verify
+    assert "fx deps-doctor" in run_ci
+    assert "pytest -q tests/test_api.py" in run_ci
+    assert "inputs_sha256=" in lock
+    assert "tag=toolchain-" in lock
+
+
+
+def test_gtkwave_managed_build_is_explicitly_gtk3_and_prefix_local() -> None:
+    """GTKWave must not auto-select GTK2 or satisfy fst2vcd from the host."""
+
+    deps = (ROOT / "src/flexsoc/backend/deps.sh").read_text(encoding="utf-8")
+    assert './configure --enable-gtk3 --prefix="$PREFIX"' in deps
+    assert '[[ -x "$PREFIX/bin/fst2vcd" ]]' in deps
+    assert '"$PREFIX/bin/gtkwave" --version' in deps
+
+
+def test_docker_only_workstation_scripts_are_guarded_and_system_scoped() -> None:
+    """Host inventory ignores managed prefixes and cleanup requires a verified image."""
+
+    inventory = (ROOT / "docker/scripts/system-inventory.sh").read_text(encoding="utf-8")
+    preflight = (ROOT / "docker/scripts/preflight.sh").read_text(encoding="utf-8")
+    cleanup = (ROOT / "docker/scripts/cleanup-managed-toolchain.sh").read_text(encoding="utf-8")
+    build = (ROOT / "docker/scripts/build.sh").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "docker/ci/Dockerfile").read_text(encoding="utf-8")
+
+    assert 'managed_root="${XDG_DATA_HOME:-$HOME/.local/share}/flexsoc"' in inventory
+    assert "FlexSoC managed prefixes and the repository .venv are deliberately excluded" in inventory
+    assert "docker system df" in preflight
+    assert "RECOMMENDED_DOCKER_MEMORY_GB" in preflight
+    assert '[[ -f "$verified" ]]' in cleanup
+    assert "Refusing cleanup: Docker verification record is stale" in cleanup
+    assert "repository .venv, /usr, /usr/local" in cleanup
+    assert '"$DOCKER_DIR/scripts/preflight.sh"' in build
+    assert "deps.sh doctor --system --profile base" in dockerfile

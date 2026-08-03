@@ -860,13 +860,30 @@ The post-synthesis simulator supports two drivers and five timing modes:
 | `GLS_BACKEND=sv` | generated SystemVerilog driver | mode-dependent | Icarus |
 | `GLS_BACKEND=cocotb` | generated Python/cocotb driver | mode-dependent | Icarus |
 | `TIMING_MODE=zero` | functional cells with `#0` delay and no `specify` | no | `functional-zero-delay` |
-| `TIMING_MODE=unit` | functional cells with uniform `#1` delay | no | `functional-unit-delay` |
+| `TIMING_MODE=unit` | functional cells with uniform requested `GLS_UNIT_DELAY` (`1ps` by default), normalized to model precision | no | `functional-unit-delay` |
 | `TIMING_MODE=min` | fastest generated SDF corner | `<top>_ff.sdf` | `icarus-path-delay-only` |
 | `TIMING_MODE=typ` | nominal generated SDF corner | `<top>_tt.sdf` | `icarus-path-delay-only` |
 | `TIMING_MODE=max` | slowest generated SDF corner | `<top>_ss.sdf` | `icarus-path-delay-only` |
 
 `zero` and `unit` are useful gate-netlist checks, but they are not
-back-annotation. Back-annotation is requested only by `min`, `typ`, or `max`,
+back-annotation. `zero` provides the quickest proof that the mapped netlist,
+cell models, reset, protocol drivers, and vector expectations still agree.
+`unit` deliberately adds one uniform representable primitive delay and is most
+valuable for finding race, ordering, and sampling assumptions shared by the SV
+and cocotb backends. These modes are diagnostic qualification modes, not PVT
+corners. For normal timing-oriented work use `typ` first and then `min`/`max`,
+which correspond to the generated `tt`, `ff`, and `ss` SDF views. The full E2E
+matrix keeps all five modes because a failure in `zero` or `unit` is usually
+faster to diagnose than the same issue hidden inside an SDF run.
+
+The default requested unit delay is `1ps`. FlexSoC reads the selected model
+`timescale` directives, rounds the request up to their coarsest representable
+precision, and passes Icarus a suffix-free numeric delay. For example, an IHP
+model declared as `1ns/10ps` receives `#0.01`, while a `1ns/1ps` model receives
+`#0.001`. SV and cocotb use the same resolved value. This exposes ordering and
+race problems without inventing a nanosecond-per-cell critical path;
+`GLS_UNIT_DELAY` remains explicit and overrideable. Back-annotation
+is requested only by `min`, `typ`, or `max`,
 where the generated testbench executes:
 
 ```systemverilog
@@ -900,6 +917,13 @@ fx sim_post_syn --live \
 `compile_post_syn` stops after compilation. `sim_post_syn` compiles, runs, and
 writes a machine-readable report. Missing SDF files are fatal in `min/typ/max`;
 providing an SDF in `zero/unit` is rejected rather than silently ignored.
+
+SV and cocotb use the same vector-cycle contract. All signal rows with the same
+cycle are coalesced into one atomic batch, driven together before the active
+clock edge, and checked after the same generated settling interval. A command
+row (`@write`, `@cfg`, or `@reset`) cannot share a cycle with another command or
+a direct signal drive. Newly generated scaffold vectors serialize every
+transaction on one line, while legacy one-signal-per-line files remain valid.
 
 #### What Icarus back-annotation proves
 
@@ -1035,6 +1059,22 @@ For every SDF combination the E2E check validates the netlist, SDF payload,
 corner mapping, annotation marker, strict diagnostics, timing-model manifest,
 report fields, and non-empty waveform. This is the preferred repository-level
 proof that back-annotation is actually exercised across both technologies.
+
+The final human-readable result is shown by `fx check`, not by the run identity
+manifest. `fx check` refreshes `metrics.json`, reads the selected PDK's archived
+qualification matrix, and prints compact totals by backend and timing mode:
+
+```bash
+fx check \
+  --workdir "$WORKDIR" \
+  --set PDK=ihp-sg13g2
+```
+
+When a combination fails, the check output names the exact
+`<top>_<pdk>_<test>_<backend>_<mode>` stem, the first failure reason, and the
+archived report/log/waveform path. This is the fastest way to distinguish a
+missing run, a simulator failure, an SDF annotation failure, and a waveform
+archival failure without reading the complete `--live` transcript.
 
 Post-synthesis GLS can expose:
 
@@ -1434,6 +1474,45 @@ the logical design.
 
 ---
 
+
+## Reproducible host and CI toolchains
+
+FlexSoC has one authoritative EDA version set: `src/flexsoc/backend/toolchain.lock`. A rootless `fx deps` install places that lock under:
+
+```text
+~/.local/share/flexsoc/toolchains/<lock-id>/
+```
+
+and updates the stable symlink:
+
+```text
+~/.local/share/flexsoc/toolchain
+```
+
+The source and download trees used to build the tools are separate caches under `~/.cache/flexsoc`; they are not required after installation. `fx deps-status` reports current and obsolete prefixes, their size, and other executables visible on the host. `fx deps-prune` is a dry-run unless `DEPS_PRUNE_APPLY=1` is supplied, and it never removes `/usr`, `/usr/local`, distribution packages, or arbitrary OSS CAD Suite directories.
+
+For a clean workstation, keep the current managed prefix, remove old FlexSoC lock prefixes and build caches, and delete any unrelated standalone EDA bundle only after confirming ownership and PATH resolution. Removing Debian/Ubuntu packages wholesale is not recommended because many are build dependencies shared by the managed toolchain and other software.
+
+The same lock is built by `docker/ci/Dockerfile` under `/opt/flexsoc/toolchain`. The image also contains the Python dependency environment from `uv.lock`. Docker assets are grouped under `docker/ci` and `docker/scripts`; GitHub workflow entry points remain under `.github/workflows` only because GitHub requires that location.
+
+The container lifecycle is deliberately separate from normal source CI. A maintainer builds the content-addressed image locally, verifies tool discovery and repository tests inside it, optionally runs the full E2E suite, publishes the already-verified image, and commits the resulting `docker/ci/image.lock`. That lock records the image-input hash and an immutable GHCR digest. Normal CI validates the lock and pulls only that digest; it never falls back to building the EDA toolchain. A stale or unpublished lock is therefore a release error rather than an invitation for each CI job to spend hours compiling tools.
+
+This avoids mixing OSS CAD Suite revisions with FlexSoC-native revisions, prevents workstation/CI drift, and makes local Docker, CI, and native managed runs comparable. The manual-only image workflow is a fallback for maintainers, not a dependency of every push or pull request.
+
+### Evidence hierarchy for production sign-off
+
+The Icarus compatibility model is a generated run artifact, not a replacement PDK library and not a production sign-off authority. The original PDK files remain unchanged. FlexSoC derives a copy because Icarus does not implement all constructs used by the foundry-style cell views: unsupported timing checks are removed, `delayed_*` functional inputs are bound, unsupported edge-sensitive `ifnone` paths are omitted, and supported path arcs remain available for SDF qualification. This proves functional behavior and the subset of dynamic path delays that Icarus can execute.
+
+Production timing closure must therefore use the following hierarchy:
+
+1. **Logical correctness:** RTL regression, formal, synthesis, and RTL-to-netlist equivalence.
+2. **Compatibility GLS:** Icarus on the derived model for broad functional and supported path-delay regression.
+3. **Authoritative static timing:** unmodified Liberty, SDC, post-route SPEF, and all required modes/corners in OpenSTA.
+4. **Original-model dynamic qualification:** a separately qualified simulator capable of consuming the unmodified PDK Verilog/specify/SDF timing checks.
+5. **Physical sign-off:** extraction completeness, DRC/LVS, antenna, IR drop, EM, and correlation against the selected foundry/PDK reference flow.
+
+Until stages 3–5 are implemented and qualified for both PDKs, the project should describe the current result as reproducible open-source verification and path-delay qualification, not final production-grade sign-off.
+
 ## 20. Production-grade operating rules
 
 - Keep requirements, RTL, model, tests, and properties under review and version control.
@@ -1448,3 +1527,22 @@ the logical design.
 - Release from a clean, reproducible run rather than a developer's temporary directory.
 
 The short runnable path is in [Quickstart](quickstart.md).
+
+
+## Activity-based power after GLS
+
+The vectorless `power_estimate` stage is useful before representative stimulus exists, but it is an assumption-based estimate. After the post-synthesis GLS matrix has produced a successful SDF-backed `min`, `typ`, or `max` trace, FlexSoC can use the actual switching activity of each vector test:
+
+```text
+qualified GLS report + FST/VCD
+        ↓ verify SDF annotation evidence
+VCD scoped to test_tb.u_dut
+        ↓ OpenSTA read_vcd
+activity annotation report
+        ↓ Liberty internal/switching/leakage models
+per-corner report_power
+```
+
+`fx power_analysis` selects one test. `fx power_analysis_all` analyzes all selected E2E tests; the default E2E flow uses the `typ`/SV trace for every GLS test, avoiding duplicate power calculations for equivalent SV and cocotb stimulus while still allowing explicit backend/mode matrices. OpenSTA uses `/` as the VCD hierarchy separator. FlexSoC therefore inspects the converted VCD, resolves the generated DUT scope automatically (`POWER_VCD_SCOPE=auto`), validates explicit scopes, and records both the requested and resolved scope in every report. The resolver understands the canonical single-clock `u_<TOP>` convention and the N-clock/cocotb `u_dut` convention; `POWER_DUT_INSTANCE` is only an optional hint. This prevents a syntactically valid `read_vcd` call from silently annotating zero activities because of a dotted or nonexistent hierarchy path. When the qualified trace is FST, FlexSoC calls `fst2vcd -f <input> -o <output>` automatically, validates the generated VCD, and retries through the converter's stdout interface only for compatibility with older wrappers. The conversion log is retained under `signoff/power/<pdk>/activity/captures`. `fx check` keeps vectorless power and post-GLS activity power separate so their assumptions cannot be confused.
+
+This is a stronger post-synthesis reference, not final silicon sign-off. Final power closure should repeat the activity flow on the post-route netlist with extracted SPEF, validated foundry Liberty power tables, representative operating windows, voltage/temperature corners, clock-tree activity, and rail/IR-drop analysis.

@@ -112,7 +112,77 @@ Prepare and inspect the pinned toolchain before running design targets.
 | `fx deps` | Install pinned base, impl, or riscv profile. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Use `--info` for accepted overrides. |
 | `fx deps-doctor` | Verify the selected pinned dependency profile. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Use `--info` for accepted overrides. |
 | `fx deps-versions` | Show pinned tool versions and revisions. | Common run/clock settings only | Use `--info` for accepted overrides. |
-| `fx deps-env` | Print shell exports for the pinned toolchain. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Use `--info` for accepted overrides. |
+| `fx deps-env` | Print shell exports for the pinned toolchain. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_JOBS` | Prefer `eval "$(fx deps-env)"`; installs also maintain the stable `~/.local/share/flexsoc/toolchain` symlink. |
+| `fx deps-status` | Show current/obsolete managed prefixes, disk use, and duplicate command candidates. | `DEPS_MODE`, `DEPS_PROFILE` | Read-only; it does not remove system packages. |
+| `fx deps-prune` | Preview or remove obsolete managed prefixes and optional build caches. | `DEPS_MODE`, `DEPS_PROFILE`, `DEPS_PRUNE_APPLY`, `DEPS_PRUNE_CACHE` | Dry-run by default; only FlexSoC-managed directories are eligible. |
+
+#### One clean host toolchain
+
+`fx deps` deliberately installs the exact lock under a versioned user prefix even when another `verilator`, `yosys`, or `iverilog` exists in `/usr/bin` or an OSS CAD Suite directory. It never overwrites those installations. Activate the managed prefix with:
+
+```bash
+eval "$(fx deps-env)"
+```
+
+Inspect duplicates and disk usage before deleting anything:
+
+```bash
+fx deps-status
+```
+
+Remove only obsolete FlexSoC prefixes, preserving the current lock:
+
+```bash
+fx deps-prune
+fx deps-prune --set DEPS_PRUNE_APPLY=1
+```
+
+After a successful install, source/download build caches can also be removed without deleting installed tools:
+
+```bash
+fx deps-prune \
+  --set DEPS_PRUNE_APPLY=1 \
+  --set DEPS_PRUNE_CACHE=1
+```
+
+Do not uninstall distribution packages merely because a managed executable has the same name. Many are build prerequisites or dependencies shared by unrelated software. Remove a system/standalone EDA distribution only after `fx deps-status`, `type -a <tool>`, and a package-manager ownership check identify it as an independent copy.
+
+#### Docker and CI
+
+All container implementation files are grouped under `docker/`; only the GitHub workflow entry points remain under `.github/workflows/`, which is the directory GitHub requires for workflow discovery. The image definition is `docker/ci/Dockerfile`, its Dockerfile-specific ignore file is `docker/ci/Dockerfile.dockerignore`, and release operations are implemented by `docker/scripts/`.
+
+Normal `.github/workflows/ci.yml` never builds the EDA image. It validates `docker/ci/image.lock`, pulls the exact `repository@sha256:...` digest, and executes `docker/scripts/run-ci.sh`. If the lock is missing, stale, or still marked `UNPUBLISHED`, CI fails with an actionable error instead of compiling Verilator, Slang, Yosys, and the other tools again.
+
+Use the local release sequence before pushing a toolchain-image change:
+
+```bash
+docker/scripts/build.sh
+docker/scripts/verify.sh
+# Optional full qualification:
+FULL_E2E=1 docker/scripts/verify.sh
+
+docker/scripts/inspect.sh
+
+export GHCR_USER=<github-user>
+read -rsp 'GHCR token: ' GHCR_TOKEN; echo
+export GHCR_TOKEN
+docker/scripts/publish.sh
+unset GHCR_TOKEN
+
+docker/scripts/check-lock.sh
+git add docker/ci/image.lock
+```
+
+`publish.sh` refuses to push an image that was not verified from the current image inputs. After publishing, it resolves the registry digest, rewrites `docker/ci/image.lock`, pulls the digest-pinned image, and repeats the non-E2E verification. `.github/workflows/toolchain-image.yml` is manual-only and provides the same build/verify/publish sequence as a maintainer fallback; it is not part of normal CI.
+
+Run the committed image locally with:
+
+```bash
+docker/scripts/run-ci.sh
+FULL_E2E=1 docker/scripts/run-ci.sh
+```
+
+See `docker/README.md` for the directory layout and complete operating procedure.
 
 ### 3.2 Setup
 
@@ -385,7 +455,7 @@ Both `compile_post_syn` and `sim_post_syn` require Icarus. Select the driver wit
 | `TIMING_MODE` | Cell-model behavior | SDF | Report model |
 | --- | --- | --- | --- |
 | `zero` | functional `#0`, `specify` disabled | forbidden | `functional-zero-delay` |
-| `unit` | functional uniform `#1`, `specify` disabled | forbidden | `functional-unit-delay` |
+| `unit` | uniform requested `GLS_UNIT_DELAY`, normalized to cell-model precision; `specify` disabled | forbidden | `functional-unit-delay` |
 | `min` | `specify` path delays, fastest corner | `<top>_ff.sdf` | `icarus-path-delay-only` |
 | `typ` | `specify` path delays, nominal corner | `<top>_tt.sdf` | `icarus-path-delay-only` |
 | `max` | `specify` path delays, slowest corner | `<top>_ss.sdf` | `icarus-path-delay-only` |
@@ -394,6 +464,15 @@ Both `compile_post_syn` and `sim_post_syn` require Icarus. Select the driver wit
 Icarus-compatible timing-model copy retains path delays but disables unsupported
 setup/hold, recovery/removal, pulse-width, and notifier checks. This is real SDF
 path-delay simulation, not full dynamic timing-check sign-off.
+
+For practical sign-off work, start with `typ`, then run `min` and `max`; these
+map respectively to the nominal, fastest (`ff`), and slowest (`ss`) generated
+SDF views. `zero` is a fast netlist/elaboration and reset/protocol smoke test.
+`unit` is an artificial uniform-delay stress test that exposes race,
+ordering, and backend-sampling assumptions. Neither `zero` nor `unit` is a
+technology corner or a production timing result. Keeping them in the full E2E
+qualification is useful because they diagnose model/backend problems earlier,
+but a focused sign-off rerun may select only `min,typ,max`.
 
 Run one combination after setting the run identity and active PDK:
 
@@ -461,7 +540,7 @@ Consolidate run identity, metrics, and closure status for review and release.
 | `fx metrics` | Collect functional/formal/synthesis/signoff metrics. | Common run/clock settings only | Use `--info` for accepted overrides. |
 | `fx manifest` | Collect automatic run identity into meta/manifest.json. | Common run/clock settings only | Use `--info` for accepted overrides. |
 | `fx manifest_show` | Show the current run manifest in color. | Common run/clock settings only | Use `--info` for accepted overrides. |
-| `fx check` | Show complete current run closure status and metrics. | Common run/clock settings only | Use `--info` for accepted overrides. |
+| `fx check` | Refresh metrics, then show complete closure for the selected PDK, including the archived post-synthesis GLS matrix when present. | `PDK` plus common run/clock settings | Prints compact PASS/FAIL/MISSING totals by timing mode and backend, followed by the first failing combinations and evidence paths. |
 
 ### 3.13 IP load/save
 
@@ -608,6 +687,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `GLS_SIMULATOR` | Gate-level simulator selection; current post-synthesis/post-PnR GLS requires `iverilog`. |
 | `GLS_BACKEND` | Gate-level driver: `sv` or `cocotb`; default `sv`. |
 | `TIMING_MODE` | Gate timing mode: `zero`, `unit`, `min`, `typ`, or `max`; default `zero`. Aliases `sdf_min`, `sdf_typ`, and `sdf_max` are accepted. |
+| `GLS_UNIT_DELAY` | Requested physical primitive delay used only by `TIMING_MODE=unit`; default `1ps`. FlexSoC rounds it up to the coarsest precision declared by the selected cell models and passes Icarus a suffix-free numeric delay. Real technology timing uses `min/typ/max` SDF. |
 | `SDF_STRICT` | When true (default `1`), missing annotation evidence or recognized SDF warnings/errors fail the simulation report. |
 | `SDF_FILE` | Explicit SDF file for `min/typ/max` gate simulation. It is rejected in `zero/unit`; missing SDF is fatal in timed modes. |
 | `SDF_CORNER` | Selected SDF process/timing corner. |
@@ -835,3 +915,53 @@ fx eqy_debug --files <partition>
 7. Use `fx commands --json` in automation instead of scraping terminal tables.
 
 See [Project lifecycle](project_lifecycle.md) for engineering rationale and [Quickstart](quickstart.md) for the shortest runnable flow.
+
+
+### `fx power_analysis` and `fx power_analysis_all`
+
+`power_estimate` remains the vectorless reference based on one global activity and duty-cycle assumption. `power_analysis` is the activity-based counterpart: it accepts only a qualified `min`, `typ`, or `max` post-synthesis GLS result, converts its FST to VCD when necessary, checks the archived GLS report for successful `$sdf_annotate`, then runs OpenSTA `read_vcd`, `report_activity_annotation`, and `report_power` for every configured Liberty corner.
+
+Analyze one test:
+
+```bash
+fx power_analysis \
+  --set POWER_TEST_NAME=smoke \
+  --set POWER_GLS_BACKEND=sv \
+  --set POWER_TIMING_MODE=typ
+```
+
+Analyze every test listed in the E2E GLS matrix:
+
+```bash
+fx power_analysis_all \
+  --set POWER_GLS_BACKEND=sv \
+  --set POWER_TIMING_MODE=typ
+```
+
+Relevant variables are `POWER_TEST_NAME`, `POWER_TEST_NAMES`, `POWER_GLS_BACKEND(S)`, `POWER_TIMING_MODE(S)`, `POWER_VCD_SCOPE` (default `auto`), `POWER_DUT_INSTANCE` (default `auto`), and `FST2VCD`. FlexSoC reads the VCD hierarchy and resolves the generated DUT scope automatically. It recognizes both generated conventions: canonical single-clock testbenches use `u_<TOP>` (for example `test_tb/u_test`) while N-clock and cocotb wrappers use `u_dut`. `POWER_DUT_INSTANCE` is an optional hint, not a mandatory fixed name. Explicit OpenSTA scopes use `/` between hierarchy levels, for example `test_tb/u_test`; the legacy dotted spelling `test_tb.u_dut` is normalized after validation. A missing scope fails before OpenSTA instead of silently producing zero annotated activities. `fst2vcd` is a required tool in `fx doctor` and the managed GTKWave installation; FlexSoC invokes it automatically whenever the selected qualified waveform is FST. The converter is called through its documented `-f <input> -o <output>` interface, the resulting VCD is validated before OpenSTA is launched, and a stdout conversion fallback is retained for older wrappers. Conversion diagnostics are stored next to the generated VCD under `activity/captures`. `zero` and `unit` are rejected because activity power is deliberately tied to a back-annotated GLS run. Results are written under `signoff/power/<pdk>/activity`, logs under `logs/signoff/power/<pdk>/activity`, and summarized by `fx check`.
+
+Gate simulations and activity-power runs are quiet by default. Without `--live`, detailed compiler, simulator, converter, and OpenSTA output is written to the command/stage logs; the terminal shows only the target status and log path. Pass `--live` to stream the full output.
+
+
+## Docker-only toolchain authority
+
+For a workstation that uses the container as the authoritative EDA environment:
+
+```bash
+docker/scripts/system-inventory.sh
+docker/scripts/preflight.sh
+FLEXSOC_JOBS=2 docker/scripts/build.sh
+docker/scripts/verify.sh
+FULL_E2E=1 docker/scripts/verify.sh
+```
+
+`system-inventory.sh` excludes `~/.local/share/flexsoc` and reports host executables while excluding FlexSoC managed prefixes and the repository virtual environment. Presence on the host is a compatibility fallback, not proof that the versions match `toolchain.lock`. `preflight.sh` reports WSL detection, Docker-visible memory, repository free space, Docker root, and `docker system df` before a long source build.
+
+After the image has been verified, preview and then remove the redundant user-managed native toolchain:
+
+```bash
+docker/scripts/cleanup-managed-toolchain.sh
+APPLY=1 docker/scripts/cleanup-managed-toolchain.sh
+```
+
+Cleanup is guarded by the current Docker verification record and image ID. It removes only `~/.local/share/flexsoc/toolchains`, the stable FlexSoC toolchain symlink, and `~/.cache/flexsoc`; it preserves `.venv`, `/usr`, `/usr/local`, and Docker storage.
