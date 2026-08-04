@@ -1906,6 +1906,20 @@ pruning all Docker state. `docker/scripts/inspect.sh` reports the retained
 checkpoint. Builder pruning is appropriate only when intentionally invalidating
 the whole toolchain cache. A checkpoint never counts as release evidence: the
 final runtime image must still pass the managed doctor and complete E2E.
+
+A doctor-only version-reporting failure must be repaired above the checkpoint,
+not by discarding it. SymbiYosys and EQY are installed with release strings
+from `toolchain.lock` rather than relying on `git describe` in shallow detached
+checkouts. If a legacy checkpoint prints only `SBY` or `EQY`, rerun the build:
+FlexSoC reinstalls only the affected launcher/plugin files and resumes at doctor
+while retaining the compiled EDA prefix.
+
+GTKWave requires a graphical GTK environment for normal startup, but the Docker
+doctor is intentionally headless. It validates the lock-bound source marker,
+the install-time version receipt, both managed executables (`gtkwave` and
+`fst2vcd`), and the viewer's shared-library resolution. Do not add a fake
+`DISPLAY` or X server merely to query a version: a GUI initialization failure
+is not evidence that the installed binaries or FST conversion path are broken.
 ## 24. Equivalence recovery for protocol outputs
 
 A timeout on a packed protocol response is not evidence of a logic mismatch. FlexSoC first canonicalizes protocol-defined don't-care fields and projects TL-UL `tl_o` into bounded formal witnesses. The packed response is internal to the formal wrapper and is not retained as a second public output; otherwise EQY would still generate raw bit partitions alongside the witnesses. Single-clock equivalence is initialized through the declared reset contract, so the default claim is equivalence after legal reset rather than equivalence from arbitrary uninitialized flop states.

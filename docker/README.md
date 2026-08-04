@@ -136,3 +136,21 @@ docker image ls | grep -- '-installed'
 A checkpoint is not publishable and is not accepted by normal CI. Only the
 final image that passes `deps.sh doctor`, `docker/scripts/verify.sh`, and the
 requested E2E verification can be published and written to `image.lock`.
+
+### Doctor-only repairs
+
+A doctor failure does not invalidate the installed checkpoint. SymbiYosys and
+EQY derive their displayed releases from Git metadata, while the pinned Docker
+checkouts are intentionally shallow and detached. FlexSoC passes the locked
+`SBY v<version>` and `EQY v<version>` strings explicitly during installation
+and repairs older checkpoints whose launchers report only `SBY` or `EQY`.
+Re-run `docker/scripts/build.sh`: the compiled EDA tools remain cached and only
+the affected launcher/plugin install plus the verification/runtime stages are
+updated.
+
+GTKWave must also be checked without starting its GUI. A normal GTKWave launch,
+including its version path on this pinned line, can initialize GTK and fail when
+Docker has no `DISPLAY`. The installer writes the locked version to
+`.flexsoc/gtkwave.version`; doctor verifies that receipt and source marker,
+requires the managed `gtkwave` and `fst2vcd` executables, and rejects missing
+shared libraries through `ldd`. No Xvfb or host display forwarding is required.

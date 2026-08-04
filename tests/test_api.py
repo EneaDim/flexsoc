@@ -1785,7 +1785,19 @@ def test_gtkwave_managed_build_is_explicitly_gtk3_and_prefix_local() -> None:
     deps = (ROOT / "src/flexsoc/backend/deps.sh").read_text(encoding="utf-8")
     assert './configure --enable-gtk3 --prefix="$PREFIX"' in deps
     assert '[[ -x "$PREFIX/bin/fst2vcd" ]]' in deps
-    assert '"$PREFIX/bin/gtkwave" --version' in deps
+    assert 'write_gtkwave_version_receipt' in deps
+    assert '"$MARKERS/gtkwave.version"' in deps
+
+
+def test_gtkwave_doctor_is_headless_and_checks_dynamic_linkage() -> None:
+    """The container doctor must not initialize GTK merely to read a version."""
+
+    deps = (ROOT / "src/flexsoc/backend/deps.sh").read_text(encoding="utf-8")
+    assert '"$PREFIX/bin/gtkwave" --version' not in deps
+    assert 'out=$(cat "$MARKERS/gtkwave.version")' in deps
+    assert 'ldd "$PREFIX/bin/gtkwave"' in deps
+    assert '[[ "$linkage" != *"not found"* ]]' in deps
+    assert 'headless receipt; shared libraries resolved' in deps
 
 
 def test_docker_only_workstation_scripts_are_guarded_and_system_scoped() -> None:
@@ -1838,3 +1850,23 @@ def test_docker_toolchain_build_has_resumable_install_checkpoint() -> None:
     assert "--target toolchain-installed" in build
     assert "--target runtime" in build
     assert "toolchain-checkpoint.env" in build
+
+def test_sby_install_has_deterministic_release_version_and_self_repair() -> None:
+    """A shallow pinned checkout must not install a bare ``SBY`` version string."""
+
+    deps = (ROOT / "src/flexsoc/backend/deps.sh").read_text(encoding="utf-8")
+    assert 'expected="SBY v$(version_var SBY)"' in deps
+    assert 'YOSYS_RELEASE_VERSION="$expected"' in deps
+    assert 'info "repair sby release string:' in deps
+    assert 'contains "$out" "$expected" sby' in deps
+
+
+def test_eqy_install_has_deterministic_release_version_and_self_repair() -> None:
+    """A shallow pinned checkout must not install a bare ``EQY`` version string."""
+
+    deps = (ROOT / "src/flexsoc/backend/deps.sh").read_text(encoding="utf-8")
+    assert 'expected="EQY v$(version_var EQY)"' in deps
+    assert 'YOSYS_CONFIG="$PREFIX/bin/yosys-config" YOSYS_RELEASE_VERSION="$expected"' in deps
+    assert 'info "repair eqy release string:' in deps
+    assert 'contains "$out" "$expected" eqy' in deps
+

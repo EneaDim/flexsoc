@@ -151,6 +151,27 @@ manifest form one evidence set.
 
 ---
 
+### 2.8 Recovering a Docker doctor failure
+
+The `toolchain-installed` image is a recovery boundary, not a disposable
+intermediate. If doctor fails after installation, preserve the checkpoint and
+fix only the runtime or validation defect.
+
+SBY and EQY version reporting are representative cases. Upstream normally
+derives each release string from Git description metadata, but FlexSoC uses
+shallow, detached, content-pinned checkouts. The installer therefore injects
+the versions from `toolchain.lock`. Legacy launchers that print only `SBY` or
+`EQY` are repaired in place on the next build; Verilator, Slang, Icarus, Yosys,
+solvers, OpenSTA, and GTKWave are not rebuilt.
+
+GTKWave is handled differently from ordinary CLI tools during doctor. Starting
+its main executable initializes GTK and can fail in a headless container even
+when the installation is correct. FlexSoC therefore records the locked GTKWave
+version at install time, checks the source marker and prefix-local `gtkwave` and
+`fst2vcd` executables, and verifies that the viewer has no unresolved shared
+libraries. The doctor does not require `DISPLAY` and does not weaken the
+provenance check.
+
 ## 3. Phase 0 — environment, toolchain, and PDK
 
 Before generating an IP, establish the execution authority.

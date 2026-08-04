@@ -271,16 +271,39 @@ install_yosys() {
 }
 
 install_sby() {
-    installed SBY sby && { info "sby already installed"; return; }
-    local d; d=$(checkout SBY sby); prepare_git_source "$d"; info "install sby $(version_var SBY)"
-    make -C "$d" install PREFIX="$PREFIX"; mark_installed SBY sby
+    local d out expected
+    expected="SBY v$(version_var SBY)"
+    if installed SBY sby; then
+        out=$(sby --version 2>&1 || true)
+        if [[ "$out" == *"$expected"* ]]; then
+            info "sby already installed"
+            return
+        fi
+        info "repair sby release string: ${out:-missing} -> $expected"
+    fi
+    d=$(checkout SBY sby); prepare_git_source "$d"; info "install sby $(version_var SBY)"
+    make -C "$d" install PREFIX="$PREFIX" YOSYS_RELEASE_VERSION="$expected"
+    out=$(sby --version 2>&1)
+    contains "$out" "$expected" sby
+    mark_installed SBY sby
 }
 
 install_eqy() {
-    installed EQY eqy && { info "eqy already installed"; return; }
-    local d; d=$(checkout EQY eqy); prepare_git_source "$d"; info "build eqy $(version_var EQY)"
-    PATH="$PREFIX/bin:$PATH" make -C "$d" -j"$JOBS" YOSYS_CONFIG="$PREFIX/bin/yosys-config"
-    PATH="$PREFIX/bin:$PATH" make -C "$d" install PREFIX="$PREFIX" YOSYS_CONFIG="$PREFIX/bin/yosys-config"
+    local d out expected
+    expected="EQY v$(version_var EQY)"
+    if installed EQY eqy; then
+        out=$(eqy --version 2>&1 || true)
+        if [[ "$out" == *"$expected"* ]]; then
+            info "eqy already installed"
+            return
+        fi
+        info "repair eqy release string: ${out:-missing} -> $expected"
+    fi
+    d=$(checkout EQY eqy); prepare_git_source "$d"; info "build eqy $(version_var EQY)"
+    PATH="$PREFIX/bin:$PATH" make -C "$d" -j"$JOBS"         YOSYS_CONFIG="$PREFIX/bin/yosys-config" YOSYS_RELEASE_VERSION="$expected"
+    PATH="$PREFIX/bin:$PATH" make -C "$d" install PREFIX="$PREFIX"         YOSYS_CONFIG="$PREFIX/bin/yosys-config" YOSYS_RELEASE_VERSION="$expected"
+    out=$(eqy --version 2>&1)
+    contains "$out" "$expected" eqy
     mark_installed EQY eqy
 }
 
@@ -330,8 +353,14 @@ install_opensta() {
     mark_installed OPENSTA opensta
 }
 
+write_gtkwave_version_receipt() {
+    mkdir -p "$MARKERS"
+    printf '%s\n' "$(version_var GTKWAVE)" > "$MARKERS/gtkwave.version"
+}
+
 install_gtkwave() {
     if installed GTKWAVE gtkwave && [[ -x "$PREFIX/bin/gtkwave" && -x "$PREFIX/bin/fst2vcd" ]]; then
+        write_gtkwave_version_receipt
         info "gtkwave/fst2vcd already installed"; return
     fi
     local d; d=$(archive_source GTKWAVE gtkwave); info "build gtkwave $(version_var GTKWAVE) with GTK3"
@@ -339,6 +368,7 @@ install_gtkwave() {
     [[ -x "$PREFIX/bin/gtkwave" ]] || die "GTKWave install did not provide $PREFIX/bin/gtkwave"
     [[ -x "$PREFIX/bin/fst2vcd" ]] || die "GTKWave install did not provide $PREFIX/bin/fst2vcd"
     mark_installed GTKWAVE gtkwave
+    write_gtkwave_version_receipt
 }
 
 install_surfer() {
@@ -409,7 +439,7 @@ first_line() { sed -n '/./{p;q;}' <<<"$1"; }
 doctor() {
     paths; profile_ready; export PATH="$PREFIX/bin:$PATH"
     export LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    local out tool
+    local out tool linkage
     for tool in $(profile_tools); do
         case "$tool" in
             verilator) require_marker VERILATOR verilator; out=$(verilator --version); contains "$out" "${VERILATOR_VERSION}" verilator ;;
@@ -421,7 +451,16 @@ doctor() {
             bitwuzla) require_marker BITWUZLA bitwuzla; out=$(bitwuzla --version); contains "$out" "0.9.1" bitwuzla ;;
             boolector) require_marker BOOLECTOR boolector; out=$(boolector --version 2>&1); contains "$out" "3.2.4" boolector; [[ -x "$PREFIX/bin/btormc" && -x "$PREFIX/bin/btorsim" ]] ;;
             opensta) require_marker CUDD cudd; require_marker OPENSTA opensta; out=$(sta -version 2>&1) ;;
-            gtkwave) require_marker GTKWAVE gtkwave; [[ -x "$PREFIX/bin/gtkwave" && -x "$PREFIX/bin/fst2vcd" ]]; out=$("$PREFIX/bin/gtkwave" --version 2>&1); contains "$out" "3.3.127" gtkwave ;;
+            gtkwave)
+                require_marker GTKWAVE gtkwave
+                [[ -x "$PREFIX/bin/gtkwave" && -x "$PREFIX/bin/fst2vcd" ]] || die "GTKWave install is incomplete in $PREFIX/bin"
+                [[ -f "$MARKERS/gtkwave.version" ]] || die "GTKWave version receipt is missing from $PREFIX"
+                out=$(cat "$MARKERS/gtkwave.version")
+                [[ "$out" == "$(version_var GTKWAVE)" ]] || die "gtkwave version receipt mismatch: $out"
+                linkage=$(ldd "$PREFIX/bin/gtkwave" 2>&1) || die "gtkwave shared-library inspection failed: $linkage"
+                [[ "$linkage" != *"not found"* ]] || die "gtkwave has unresolved shared libraries: $linkage"
+                out="GTKWave $(version_var GTKWAVE) (headless receipt; shared libraries resolved)"
+                ;;
             surfer) require_marker SURFER surfer; out=$(surfer --version 2>&1); contains "$out" "0.7.0" surfer ;;
             sv2v) require_marker SV2V sv2v; out=$(sv2v --version 2>&1); contains "$out" "0.0.13" sv2v ;;
             netlistsvg) require_marker NETLISTSVG netlistsvg; command -v netlistsvg >/dev/null; out="netlistsvg 1.0.2" ;;

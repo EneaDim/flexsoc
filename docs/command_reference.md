@@ -1315,6 +1315,22 @@ still requires the final runtime image and both verification steps.
 The base profile requires the Python `click` module because SymbiYosys imports
 it at startup. On Ubuntu this dependency is supplied by `python3-click` and is
 checked before installation as `python:click`.
+
+The SBY and EQY launcher versions are deterministic as well. Their upstream
+Makefiles normally derive the release from Git description metadata, which is
+not available in shallow detached checkouts without reachable tags. FlexSoC
+passes `YOSYS_RELEASE_VERSION="SBY v<locked-version>"` and
+`YOSYS_RELEASE_VERSION="EQY v<locked-version>"` during installation. If an
+older checkpoint reports only `SBY` or `EQY`, the next
+`docker/scripts/build.sh` repairs the affected launcher/plugin install and
+resumes at doctor without recompiling the remaining EDA tools.
+
+GTKWave is a graphical GTK application, so `deps doctor` never launches
+`gtkwave --version` inside a headless Docker build. The installer writes a
+lock-derived `gtkwave.version` receipt beside the source marker. Doctor checks
+that receipt, requires both prefix-local `gtkwave` and `fst2vcd`, and runs
+`ldd` on the viewer to reject unresolved shared libraries. This validates the
+pinned installation without requiring `DISPLAY`, Xvfb, or host GUI access.
 ## 13. EQY protocol partitioning and reset normalization
 
 For single-clock IPs, `fx eqy` now proves the normal post-reset hardware contract by default. The generated configuration initializes both gold and gate designs through the clock/reset declared in `CLOCK_DOMAINS` before partition proofs begin:
