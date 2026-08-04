@@ -22,7 +22,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUN_ID = "dev"
 DEFAULT_HOST = "uart"
 SINGLE_CLOCK_DOMAINS = "core:clk_i:rst_ni:10:low"
-MULTI_CLOCK_DOMAINS = "cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low"
+# Functional GLS qualification uses portable periods; STA remains the speed gate.
+MULTI_CLOCK_DOMAINS = "cfg:cfg_clk_i:cfg_rst_ni:20:low,rx:rx_clk_i:rx_rst_ni:16:low,dsp:dsp_clk_i:dsp_rst_ni:12:low"
 MULTI_CLOCK_RELATIONSHIPS = "async:cfg:rx,async:cfg:dsp,async:rx:dsp"
 RTL_SOURCE_SUFFIXES = {".sv", ".svh", ".v", ".vh"}
 DEFAULT_E2E_PDKS = ("sky130", "ihp-sg13g2")
@@ -232,7 +233,7 @@ def _settings(
 
     n_clocks = len([item for item in clock_domains.split(",") if item.strip()])
     args = [
-        "settings", f"TOP={top}", f"RUN_TOP={top}", f"RUN_ID={run_id}", f"HOST={host}",
+        "settings", "--reset", f"TOP={top}", f"RUN_TOP={top}", f"RUN_ID={run_id}", f"HOST={host}",
         f"N_CLOCKS={n_clocks}", f"CLOCK_DOMAINS={clock_domains}",
         f"CLOCK_RELATIONSHIPS={clock_relationships}",
     ]

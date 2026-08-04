@@ -904,9 +904,12 @@ class FlexSoC:
         env["FLEXSOC_DRIVING_CELL"] = vals.get("DRIVING_CELL", "")
         for key in ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS"):
             env[key] = vals.get(key, "")
-        # setup_signoff consumes EQY debug/closure knobs directly from the
-        # environment so the generated sign-off config can evolve without
-        # Makefile-specific plumbing for every strategy option.
+        # EQY closure knobs are project settings, not ambient process state.
+        # Remove inherited EQY_* values first so a stale shell export cannot
+        # silently replace the configured SAT -> SMTBMC -> PDR portfolio.
+        for key in tuple(env):
+            if key.startswith("EQY_"):
+                env.pop(key)
         for key, value in vals.items():
             if key.startswith("EQY_"):
                 env[key] = value

@@ -551,9 +551,9 @@ def test_eqy_formal_view_recognizes_primary_tlul_response() -> None:
     )
     view = render_formal_protocol_view("cordic", ports)
     assert "wire [65:0] tl_o__raw;" in view
-    assert "output wire tl_o__flexsoc_eqy_a_ready" in view
+    assert "output wire [1:0] tl_o__flexsoc_eqy_handshake" in view
     assert "output wire [31:0] tl_o__flexsoc_eqy_d_data" in view
-    assert "assign tl_o__flexsoc_eqy_d_valid = tl_o__raw[65];" in view
+    assert "assign tl_o__flexsoc_eqy_handshake = {tl_o__raw[65], tl_o__raw[0]};" in view
     assert "assign tl_o__flexsoc_eqy_d_data = (tl_o__raw[65] && !tl_o__raw[1])" in view
     assert "output wire [65:0] tl_o" not in view
     assert "assign tl_o = {" not in view
@@ -619,6 +619,25 @@ def test_eqy_checkpoint_diagnosis_keeps_timeouts_inconclusive() -> None:
     }) == "dffmap_fail"
 
 
+def test_eqy_command_isolates_ambient_strategy_overrides(tmp_path: Path, monkeypatch) -> None:
+    """Only explicit project/command EQY settings may change the proof portfolio."""
+
+    monkeypatch.setenv("EQY_STRATEGY_ORDER", "pdr")
+    client = FlexSoC(FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws"))
+    default = client.command(
+        "eqy", N_CLOCKS=1, CLOCK_DOMAINS="core:clk_i:rst_ni:10:low"
+    )
+    assert "EQY_STRATEGY_ORDER" not in default.env
+
+    explicit = client.command(
+        "eqy",
+        N_CLOCKS=1,
+        CLOCK_DOMAINS="core:clk_i:rst_ni:10:low",
+        EQY_STRATEGY_ORDER="pdr,smt",
+    )
+    assert explicit.env["EQY_STRATEGY_ORDER"] == "pdr,smt"
+
+
 def test_eqy_parallelizes_partitions_with_configurable_jobs(tmp_path: Path) -> None:
     """Independent EQY partitions run concurrently without hiding the knob."""
 
@@ -668,18 +687,49 @@ def test_eqy_tlul_witnesses_partition_protocol_fields(tmp_path: Path, monkeypatc
     ))
     text = config.read_text(encoding="utf-8")
     assert "gold-match tl_o\n" not in text
-    assert "gold-match tl_o__flexsoc_eqy_a_ready" in text
-    assert "gold-match tl_o__flexsoc_eqy_d_valid" in text
+    assert "gold-match tl_o__flexsoc_eqy_handshake" in text
+    assert "gold-match tl_o__flexsoc_eqy_a_ready" not in text
+    assert "gold-match tl_o__flexsoc_eqy_d_valid" not in text
     assert "gold-match tl_o__flexsoc_eqy_d_ctrl" in text
     assert "gold-match tl_o__flexsoc_eqy_d_data" in text
     assert "gold-match tl_o__flexsoc_eqy_d_meta" in text
+    assert "join tl_o__flexsoc_eqy_handshake" in text
     assert "join tl_o__flexsoc_eqy_d_data" in text
     assert "join tl_o\n" not in text
     formal_view = (tmp_path / "demo_eqy_view.sv").read_text(encoding="utf-8")
     assert "output wire [65:0] tl_o" not in formal_view
     assert "wire [65:0] tl_o__raw;" in formal_view
+    assert "assign tl_o__flexsoc_eqy_handshake = {tl_o__raw[65], tl_o__raw[0]};" in formal_view
     assert "assign tl_o = {" not in formal_view
     assert "sim -clock clk_i -resetn rst_ni -rstlen 2 -n 2 -w" in text
+
+
+def test_eqy_single_clock_prefers_pdr_before_inductive_smt(tmp_path: Path) -> None:
+    """A failed SMT induction must not prevent PDR from closing reachable-state equivalence."""
+
+    from flexsoc.backend.setup_signoff import EquivalenceConfig, render_eqy
+
+    rtl_f = tmp_path / "rtl.f"
+    netlist = tmp_path / "demo_synth.v"
+    liberty = tmp_path / "cells.lib"
+    clock_gate = tmp_path / "clock_gates.v"
+    rtl_f.write_text("demo.sv\n", encoding="utf-8")
+    netlist.write_text(
+        "module demo(input clk_i, input rst_ni, output data_o);\n"
+        "assign data_o = clk_i;\n"
+        "endmodule\n",
+        encoding="utf-8",
+    )
+    liberty.write_text("library(test) {}\n", encoding="utf-8")
+    clock_gate.write_text("// unused\n", encoding="utf-8")
+    text = render_eqy(EquivalenceConfig(
+        top="demo", filelists=(rtl_f,), netlist=netlist, liberty=liberty,
+        cell_models=(), sky130_clock_gate_model=clock_gate, engine="abc pdr",
+        depth=2, sat_depth=5, output=tmp_path / "demo.eqy",
+        use_sat=True, use_pdr=True,
+    ))
+    assert text.index("[strategy sat]") < text.index("[strategy pdr]")
+    assert text.index("[strategy pdr]") < text.index("[strategy smt]")
 
 
 def test_generated_scripts_use_common_plain_and_colored_rendering(capsys, monkeypatch, tmp_path: Path) -> None:

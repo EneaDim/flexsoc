@@ -184,8 +184,7 @@ def _tlul_contract_ports(ports: Sequence[NetlistPort]) -> tuple[NetlistPort, ...
             continue
         prefix = f"{port.name}__flexsoc_eqy"
         contract.extend((
-            NetlistPort("output", f"{prefix}_a_ready"),
-            NetlistPort("output", f"{prefix}_d_valid"),
+            NetlistPort("output", f"{prefix}_handshake", "[1:0]"),
             NetlistPort("output", f"{prefix}_d_ctrl", "[16:0]"),
             NetlistPort("output", f"{prefix}_d_data", "[31:0]"),
             NetlistPort("output", f"{prefix}_d_meta", "[14:0]"),
@@ -243,8 +242,7 @@ def render_formal_protocol_view(top: str, ports: Sequence[NetlistPort]) -> str:
         raw = f"{name}__raw"
         prefix = f"{name}__flexsoc_eqy"
         lines.extend((
-            f"  assign {prefix}_a_ready = {raw}[0];",
-            f"  assign {prefix}_d_valid = {raw}[65];",
+            f"  assign {prefix}_handshake = {{{raw}[65], {raw}[0]}};",
             f"  assign {prefix}_d_ctrl = {raw}[65] ? {raw}[64:48] : '0;",
             f"  assign {prefix}_d_data = ({raw}[65] && !{raw}[1]) ? {raw}[47:16] : '0;",
             f"  assign {prefix}_d_meta = {raw}[65] ? {raw}[15:1] : '0;",
@@ -364,7 +362,7 @@ def _gate_model_reads(
 def _resolved_strategy_order(cfg: EquivalenceConfig) -> tuple[str, ...]:
     """Return the enabled proof order for this clock model."""
 
-    order = cfg.strategy_order or (("pdr", "smt") if cfg.multiclock else ("sat", "smt", "pdr"))
+    order = cfg.strategy_order or (("pdr", "smt") if cfg.multiclock else ("sat", "pdr", "smt"))
     enabled = {
         "sat": cfg.use_sat and not cfg.multiclock,
         "smt": True,
