@@ -54,6 +54,10 @@ RUN bash ./toolchain/deps.sh doctor --system --profile base
 
 FROM toolchain-verified AS runtime
 
+# The external toolchain-installed named context breaks ARG inheritance from
+# toolchain-prereqs, so declare the runtime build argument in this stage too.
+ARG UV_VERSION=0.10.0
+
 RUN --mount=type=cache,id=flexsoc-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=flexsoc-apt-lists,target=/var/lib/apt/lists,sharing=locked \
     apt-get update \
