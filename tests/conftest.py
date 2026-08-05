@@ -18,41 +18,26 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Base directory for isolated FlexSoC E2E workspaces (default: /tmp).",
     )
     parser.addoption(
-        "--e2e-pdks",
-        dest="e2e_pdks",
-        default=None,
-        help=(
-            "Comma-separated PDK matrix for every FlexSoC E2E flow "
-            "(default: sky130,ihp-sg13g2)."
-        ),
-    )
-    parser.addoption(
         "--e2e-gls-modes",
         dest="e2e_gls_modes",
         default=None,
         help=(
-            "Comma-separated post-synthesis GLS timing modes "
-            "(default: zero,unit,min,typ,max)."
+            "Single post-synthesis GLS timing mode for one linear E2E run "
+            "(default: typ). Use the CI matrix for additional modes."
         ),
     )
     parser.addoption(
         "--e2e-gls-backends",
         dest="e2e_gls_backends",
         default=None,
-        help="Comma-separated GLS drivers (default: sv,cocotb).",
-    )
-    parser.addoption(
-        "--e2e-gls-tests",
-        dest="e2e_gls_tests",
-        default=None,
         help=(
-            "Comma-separated vector tests used for post-synthesis qualification "
-            "(default: smoke,auto_toggle; use all for every generated test)."
+            "Single GLS backend for one linear E2E run (default: sv). "
+            "Use the CI matrix for cocotb."
         ),
     )
     parser.addoption(
         "--no-post-syn-gls",
         action="store_true",
         default=False,
-        help="Skip the post-synthesis SV+cocotb GLS/back-annotation matrix.",
+        help="Skip the explicit post-synthesis GLS/back-annotation command sequence.",
     )

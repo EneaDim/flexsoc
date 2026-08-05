@@ -6,14 +6,13 @@ from pathlib import Path
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
-import sys
 import tempfile
-from typing import Iterable, Iterator
+from typing import Iterator
 
 import pytest
-from rich.console import Console
 
 from flexsoc.backend.setup_model import NCLOCK_DESIGN_TESTS, SHARED_VECTOR_TESTS
 
@@ -22,181 +21,75 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUN_ID = "dev"
 DEFAULT_HOST = "uart"
 SINGLE_CLOCK_DOMAINS = "core:clk_i:rst_ni:10:low"
-# Functional GLS qualification uses portable periods; STA remains the speed gate.
-MULTI_CLOCK_DOMAINS = "cfg:cfg_clk_i:cfg_rst_ni:20:low,rx:rx_clk_i:rx_rst_ni:16:low,dsp:dsp_clk_i:dsp_rst_ni:12:low"
+MULTI_CLOCK_DOMAINS = (
+    "cfg:cfg_clk_i:cfg_rst_ni:20:low,"
+    "rx:rx_clk_i:rx_rst_ni:16:low,"
+    "dsp:dsp_clk_i:dsp_rst_ni:12:low"
+)
 MULTI_CLOCK_RELATIONSHIPS = "async:cfg:rx,async:cfg:dsp,async:rx:dsp"
 RTL_SOURCE_SUFFIXES = {".sv", ".svh", ".v", ".vh"}
-DEFAULT_E2E_PDKS = ("sky130", "ihp-sg13g2")
-DEFAULT_GLS_MODES = ("zero", "unit", "min", "typ", "max")
-DEFAULT_GLS_BACKENDS = ("sv", "cocotb")
-DEFAULT_GLS_TESTS = ("smoke", "auto_toggle")
 SDF_GLS_MODES = {"min", "typ", "max"}
-
 SAVED_IP_CUSTOM_TESTS = {
     "cordic": ("smoke_zero", "rotate_45deg", "quadrant_sweep", "random_small"),
     "uart": ("line_loopback", "rx_fifo", "noise_filter", "parity_reconfig"),
 }
-# Raw Make-style settings exported by an interactive shell must not override the
-# isolated workspace configuration selected by each E2E flow.
 AMBIENT_FX_SETTING_KEYS = (
     "TOP", "RUN_TOP", "RUN_ID", "HOST", "WORKSPACE", "RUN_ROOT", "PDK",
     "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS", "CLK_PERIOD", "FORCE",
     "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE", "FST2VCD", "GLS_BACKEND",
     "GLS_UNIT_DELAY", "SDF_STRICT", "SYN_DIR", "EQUIV_DIR", "PNR_DIR",
 )
-CONSOLE = Console()
 
 
 @dataclass(frozen=True, slots=True)
-class E2EPlan:
-    """Technology and post-synthesis qualification matrix for one E2E test."""
+class E2EConfig:
+    """GLS controls shared by both mandatory technology branches."""
 
     run_signoff: bool
     run_post_syn: bool
-    pdks: tuple[str, ...]
-    gls_modes: tuple[str, ...]
-    gls_backends: tuple[str, ...]
-    gls_tests: tuple[str, ...]
+    gls_mode: str
+    gls_backend: str
 
 
-# -----------------------------------------------------------------------------
-# Small command helpers
-# -----------------------------------------------------------------------------
-
-
-def _live() -> bool:
-    """Return True when fx should stream full tool output with --live."""
-
-    return os.environ.get("FLEXSOC_E2E_LIVE") == "1" or os.environ.get("FLEXSOC_FULL_FLOW_LIVE") == "1"
-
-
-def _run_signoff_enabled(request: pytest.FixtureRequest) -> bool:
-    """Return True unless pytest was launched with --no-signoff."""
-
-    return not bool(request.config.getoption("--no-signoff"))
-
-
-def _csv_option(
+def _one_value(
     request: pytest.FixtureRequest,
     option: str,
     environment: str,
-    default: tuple[str, ...],
-) -> tuple[str, ...]:
-    """Resolve one comma-separated pytest/environment E2E option."""
+    default: str,
+) -> str:
+    """Resolve one scalar E2E option and reject hidden comma-separated sweeps."""
 
-    raw = request.config.getoption(option) or os.environ.get(environment, "")
-    values = tuple(item.strip() for item in str(raw).split(",") if item.strip())
-    return values or default
-
-
-def _e2e_plan(request: pytest.FixtureRequest) -> E2EPlan:
-    """Build and validate the full technology/GLS matrix for one E2E test."""
-
-    from flexsoc.pdk import normalize_name
-
-    run_signoff = _run_signoff_enabled(request)
-    pdks = tuple(
-        dict.fromkeys(
-            normalize_name(name)
-            for name in _csv_option(
-                request, "e2e_pdks", "FLEXSOC_E2E_PDKS", DEFAULT_E2E_PDKS
-            )
+    raw = str(request.config.getoption(option) or os.environ.get(environment, default))
+    values = [value.strip() for value in raw.split(",") if value.strip()]
+    if len(values) != 1:
+        raise pytest.UsageError(
+            f"{option} accepts exactly one value per pytest run; use the CI matrix "
+            "to run multiple configurations"
         )
-    )
-    modes = _csv_option(
-        request, "e2e_gls_modes", "FLEXSOC_E2E_GLS_MODES", DEFAULT_GLS_MODES
-    )
-    invalid_modes = sorted(set(modes) - set(DEFAULT_GLS_MODES))
-    if invalid_modes:
-        raise pytest.UsageError(f"unsupported E2E GLS timing modes: {invalid_modes}")
+    return values[0]
 
-    backends = _csv_option(
-        request,
-        "e2e_gls_backends",
-        "FLEXSOC_E2E_GLS_BACKENDS",
-        DEFAULT_GLS_BACKENDS,
-    )
-    invalid_backends = sorted(set(backends) - set(DEFAULT_GLS_BACKENDS))
-    if invalid_backends:
-        raise pytest.UsageError(f"unsupported E2E GLS backends: {invalid_backends}")
 
-    tests = _csv_option(
-        request, "e2e_gls_tests", "FLEXSOC_E2E_GLS_TESTS", DEFAULT_GLS_TESTS
-    )
-    if "all" in tests and tests != ("all",):
-        raise pytest.UsageError("E2E GLS test selector 'all' cannot be combined with names")
+def _e2e_config(request: pytest.FixtureRequest) -> E2EConfig:
+    """Return GLS controls; every full E2E always runs SKY130 then IHP."""
 
+    mode = _one_value(request, "e2e_gls_modes", "FLEXSOC_E2E_GLS_MODES", "typ")
+    backend = _one_value(request, "e2e_gls_backends", "FLEXSOC_E2E_GLS_BACKENDS", "sv")
+    if mode not in {"zero", "unit", "min", "typ", "max"}:
+        raise pytest.UsageError(f"unsupported E2E GLS timing mode: {mode}")
+    if backend not in {"sv", "cocotb"}:
+        raise pytest.UsageError(f"unsupported E2E GLS backend: {backend}")
+    run_signoff = not bool(request.config.getoption("--no-signoff"))
     run_post_syn = run_signoff and not bool(request.config.getoption("--no-post-syn-gls"))
-    return E2EPlan(run_signoff, run_post_syn, pdks, modes, backends, tests)
+    return E2EConfig(run_signoff, run_post_syn, mode, backend)
 
 
 def _e2e_root(request: pytest.FixtureRequest) -> Path:
     """Return the base directory used for isolated E2E workspaces."""
 
-    configured = request.config.getoption("--e2e-root") or os.environ.get("FLEXSOC_E2E_ROOT") or "/tmp"
-    root = Path(configured).expanduser().resolve()
+    configured = request.config.getoption("--e2e-root") or os.environ.get("FLEXSOC_E2E_ROOT")
+    root = Path(configured or "/tmp").expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     return root
-
-
-def _print_section(title: str) -> None:
-    """Print one consistent section header for pytest -s runs."""
-
-    CONSOLE.print()
-    CONSOLE.rule(f"[bold cyan]{title}[/bold cyan]")
-
-
-def _print_context(*, workspace: Path, plan: E2EPlan) -> None:
-    """Print the common E2E run context and qualification matrix."""
-
-    CONSOLE.print(f"[bold]repo:[/bold] {REPO_ROOT}")
-    CONSOLE.print(f"[bold]workspace:[/bold] {workspace}")
-    CONSOLE.print(f"[bold]live output:[/bold] {_live()}")
-    CONSOLE.print(f"[bold]signoff:[/bold] {plan.run_signoff}")
-    CONSOLE.print(f"[bold]post-synthesis GLS:[/bold] {plan.run_post_syn}")
-    CONSOLE.print(f"[bold]PDKs:[/bold] {', '.join(plan.pdks)}")
-    CONSOLE.print(f"[bold]GLS modes:[/bold] {', '.join(plan.gls_modes)}")
-    CONSOLE.print(f"[bold]GLS backends:[/bold] {', '.join(plan.gls_backends)}")
-    CONSOLE.print(f"[bold]GLS tests:[/bold] {', '.join(plan.gls_tests)}")
-
-
-def _print_step(args: Iterable[str]) -> None:
-    """Print one fx command before executing it."""
-
-    CONSOLE.print()
-    CONSOLE.print(f"[bold bright_cyan]>>>[/bold bright_cyan] [bold]fx {' '.join(args)}[/bold]")
-
-
-def _recent_logs(top: str, run_id: str, limit: int = 8, *, workspace: Path) -> list[Path]:
-    """Return the most recently modified log files for one run."""
-
-    log_root = workspace / "runs" / top / run_id / "logs"
-    if not log_root.exists():
-        return []
-    logs = [path for path in log_root.rglob("*") if path.is_file()]
-    return sorted(logs, key=lambda path: path.stat().st_mtime)[-limit:]
-
-
-def _dump_recent_logs(top: str, run_id: str, *, workspace: Path) -> None:
-    """Print recent log paths and the tail of the latest log after a failure."""
-
-    logs = _recent_logs(top, run_id, workspace=workspace)
-    CONSOLE.print(f"\n[bold yellow][debug] recent logs for TOP={top} RUN_ID={run_id}[/bold yellow]")
-    if not logs:
-        CONSOLE.print("[dim][debug] no logs found[/dim]")
-        return
-    for log in logs:
-        CONSOLE.print(f"  {log}")
-
-    latest = logs[-1]
-    CONSOLE.print(f"\n[bold yellow][debug] tail -120 {latest}[/bold yellow]")
-    try:
-        lines = latest.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError as exc:
-        CONSOLE.print(f"[red][debug] could not read {latest}: {exc}[/red]")
-        return
-    for line in lines[-120:]:
-        print(line, flush=True)
 
 
 def _fx_subprocess_env() -> dict[str, str]:
@@ -208,85 +101,68 @@ def _fx_subprocess_env() -> dict[str, str]:
     return environment
 
 
-def _run_fx_process(full_args: list[str]) -> subprocess.CompletedProcess[bytes]:
-    """Execute one already-expanded fx command with isolated settings variables."""
+def _recent_logs(top: str, run_id: str, workspace: Path, limit: int = 8) -> list[Path]:
+    """Return the most recently modified logs for one run."""
 
-    _print_step(full_args)
-    return subprocess.run(
-        ["fx", *full_args],
+    root = workspace / "runs" / top / run_id / "logs"
+    if not root.exists():
+        return []
+    logs = [path for path in root.rglob("*") if path.is_file()]
+    return sorted(logs, key=lambda path: path.stat().st_mtime)[-limit:]
+
+
+def _dump_recent_logs(top: str, run_id: str, workspace: Path) -> None:
+    """Print recent log paths and the tail of the newest log after a failure."""
+
+    logs = _recent_logs(top, run_id, workspace)
+    print(f"\n[debug] recent logs for TOP={top} RUN_ID={run_id}", flush=True)
+    if not logs:
+        print("[debug] no logs found", flush=True)
+        return
+    for log in logs:
+        print(f"  {log}", flush=True)
+    latest = logs[-1]
+    print(f"\n[debug] tail -120 {latest}", flush=True)
+    try:
+        lines = latest.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        print(f"[debug] could not read {latest}: {exc}", flush=True)
+        return
+    for line in lines[-120:]:
+        print(line, flush=True)
+
+
+def _run(
+    command: str,
+    *,
+    workspace: Path,
+    top: str | None = None,
+    run_id: str = DEFAULT_RUN_ID,
+    required: bool = True,
+) -> bool:
+    """Print and execute exactly one complete command written in the test body."""
+
+    print(f"\n>>> {command}", flush=True)
+    completed = subprocess.run(
+        shlex.split(command),
         cwd=REPO_ROOT,
         check=False,
         env=_fx_subprocess_env(),
     )
-
-
-def _run_fx(
-    args: list[str],
-    *,
-    top: str | None = None,
-    run_id: str = DEFAULT_RUN_ID,
-    workspace: Path,
-    required: bool = True,
-) -> bool:
-    """Run one fx target using the workspace settings selected by _settings()."""
-
-    workspace = workspace.resolve()
-    full_args = [*args, "--workdir", str(workspace)]
-    is_settings = bool(args) and args[0] == "settings"
-
-    if _live() and not is_settings and "--live" not in full_args:
-        full_args.append("--live")
-
-    completed = _run_fx_process(full_args)
     if completed.returncode == 0:
         return True
-
     if top is not None:
-        _dump_recent_logs(top, run_id, workspace=workspace)
-    message = f"fx {' '.join(full_args)} failed with exit code {completed.returncode}"
+        _dump_recent_logs(top, run_id, workspace)
+    message = f"{command} failed with exit code {completed.returncode}"
     if required:
         pytest.fail(message)
-    CONSOLE.print(f"[bold yellow][report] non-blocking: {message}[/bold yellow]")
+    print(f"[non-blocking] {message}", flush=True)
     return False
-
-
-def _settings(
-    top: str,
-    *,
-    clock_domains: str,
-    clock_relationships: str = "",
-    run_id: str = DEFAULT_RUN_ID,
-    host: str = DEFAULT_HOST,
-    pdk: str | None = None,
-    workspace: Path,
-) -> None:
-    """Select one canonical run/clock/technology configuration."""
-
-    n_clocks = len([item for item in clock_domains.split(",") if item.strip()])
-    args = [
-        "settings", "--reset", f"TOP={top}", f"RUN_TOP={top}", f"RUN_ID={run_id}", f"HOST={host}",
-        f"N_CLOCKS={n_clocks}", f"CLOCK_DOMAINS={clock_domains}",
-        f"CLOCK_RELATIONSHIPS={clock_relationships}",
-    ]
-    if pdk:
-        args.append(f"PDK={pdk}")
-    _run_fx(args, workspace=workspace.resolve())
-
-
-def _run_preflight(*, pdk: str, workspace: Path) -> None:
-    """Validate the CLI/toolchain and activate one usable digital PDK."""
-
-    _print_section("Preflight — environment")
-    _run_fx(["doctor"], workspace=workspace)
-    _print_section(f"Preflight — PDK {pdk}")
-    _run_fx(["pdk", "use", pdk], workspace=workspace)
-    _run_fx(["pdk", "info", pdk], workspace=workspace)
-
 
 
 @contextmanager
 def _preserve_project_settings() -> Iterator[None]:
-    """Restore project-local settings after an E2E technology matrix."""
+    """Restore project-local settings after an E2E run."""
 
     path = REPO_ROOT / ".flexsoc" / "settings.json"
     existed = path.is_file()
@@ -302,20 +178,18 @@ def _preserve_project_settings() -> Iterator[None]:
 
 
 @contextmanager
-def _temporary_workspace(prefix: str, *, root: Path) -> Iterator[Path]:
+def _temporary_workspace(prefix: str, root: Path) -> Iterator[Path]:
     """Create one isolated workspace and retain it only after failures."""
 
     workspace = Path(tempfile.mkdtemp(prefix=prefix, dir=root))
     try:
         yield workspace
     except BaseException:
-        CONSOLE.print(f"[bold yellow][debug] retained failed workspace:[/bold yellow] {workspace}")
+        print(f"[debug] retained failed workspace: {workspace}", flush=True)
         raise
     else:
         if os.environ.get("FLEXSOC_E2E_KEEP") == "1":
-            CONSOLE.print(
-                f"[bold green][debug] retained successful workspace:[/bold green] {workspace}"
-            )
+            print(f"[debug] retained successful workspace: {workspace}", flush=True)
         else:
             shutil.rmtree(workspace, ignore_errors=True)
 
@@ -324,11 +198,6 @@ def _sha256(path: Path) -> str:
     """Hash one source artifact used by an ip_load regression."""
 
     return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-# -----------------------------------------------------------------------------
-# Saved-IP integrity
-# -----------------------------------------------------------------------------
 
 
 def _ip_protected_sources(top: str) -> tuple[Path, ...]:
@@ -356,12 +225,12 @@ def _ip_protected_sources(top: str) -> tuple[Path, ...]:
         )
     )
     if not protected:
-        raise AssertionError(f"invalid {top} source layout: no protected HJSON/RTL/model files")
+        raise AssertionError(f"invalid {top} source layout: no protected sources")
     return tuple(protected)
 
 
 def _validate_ip_layout(top: str) -> None:
-    """Check one saved IP package and its editable functional-test catalogue."""
+    """Check one saved IP package without launching a hidden subprocess."""
 
     root = REPO_ROOT / "hw" / "ips" / top
     required_dirs = (
@@ -384,79 +253,45 @@ def _validate_ip_layout(top: str) -> None:
         "pnr_openroad/config.mk", f"pnr_openroad/{top}.sdc",
     )
     missing = [
-        path for path in (
+        path
+        for path in (
             *(root / item for item in required_dirs),
             *(root / item for item in required_files),
-        ) if not path.exists()
+        )
+        if not path.exists()
     ]
     assert not missing, f"invalid {top} IP structure; missing: {missing}"
-    legacy_signoff = [
-        root / "signoff" / name
-        for name in ("power.tcl", "sta.tcl", "sta_violators.tcl", "write_sdf.tcl")
-        if (root / "signoff" / name).exists()
-    ]
-    transient = [root / name for name in ("manifest.json", "report.json", "run.yaml") if (root / name).exists()]
-    assert not legacy_signoff, f"legacy generated signoff files remain in {top}: {legacy_signoff}"
-    assert not transient, f"transient run metadata remains in {top}: {transient}"
-
-    tests_file = root / "dv" / "functional" / "model" / f"{top}_tests.py"
-    completed = subprocess.run(
-        [sys.executable, str(tests_file), "--list"],
-        cwd=tests_file.parent,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    actual = tuple(line for line in completed.stdout.splitlines() if line)
-    expected = (*SHARED_VECTOR_TESTS[:-1], *SAVED_IP_CUSTOM_TESTS[top])
-    assert actual == expected, f"unexpected {top} source test catalogue: {actual}"
-
-    vectors = root / "dv" / "functional" / "tests"
-    vector_names = {path.name for path in vectors.iterdir() if path.is_dir()}
-    expected_vectors = {*SHARED_VECTOR_TESTS, *SAVED_IP_CUSTOM_TESTS[top]}
-    assert vector_names == expected_vectors, (
-        f"unexpected saved {top} vector catalogue: {sorted(vector_names)}"
-    )
-    for name in expected_vectors:
-        missing_vectors = [
-            file for file in ("config.regs", "data_in.vec", "data_out.vec")
-            if not (vectors / name / file).is_file()
-        ]
-        assert not missing_vectors, f"incomplete saved {top}/{name}: {missing_vectors}"
-
-
-def _eqy_profile_files(root: Path, top: str, pdk: str) -> tuple[Path, Path]:
-    """Return the normal run/package EQY config and formal-view paths."""
-
-    directory = root / "signoff" / "equivalence" / pdk / "rtl_vs_syn"
-    return directory / f"{top}_rtl_vs_syn.eqy", directory / f"{top}_eqy_view.sv"
+    vector_names = {
+        path.name for path in (root / "dv" / "functional" / "tests").iterdir()
+        if path.is_dir()
+    }
+    expected = {*SHARED_VECTOR_TESTS, *SAVED_IP_CUSTOM_TESTS[top]}
+    assert vector_names == expected, f"unexpected saved {top} vectors: {sorted(vector_names)}"
 
 
 @contextmanager
 def _protect_ip_sources(top: str) -> Iterator[dict[Path, str]]:
-    """Fail if ip_load changes saved authored HJSON, RTL, or model files."""
+    """Fail if ip_load/ip_save changes the repository-owned IP package."""
 
     _validate_ip_layout(top)
+    root = REPO_ROOT / "hw" / "ips" / top
     snapshot = {path: _sha256(path) for path in _ip_protected_sources(top)}
+    package_snapshot = {
+        path.relative_to(root): _sha256(path)
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+    }
     yield snapshot
     changed = [path for path, digest in snapshot.items() if _sha256(path) != digest]
+    current_package = {
+        path.relative_to(root): _sha256(path)
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"
+    }
+    assert current_package == package_snapshot, (
+        f"{top} package changed during E2E; ip_save must use IP_LIBRARY_ROOT"
+    )
     assert not changed, f"{top} source artifacts changed during ip_load E2E: {changed}"
-
-
-def _assert_loaded_ip_tests(top: str, run_id: str, workspace: Path) -> None:
-    """Require the six shared tests plus every saved-IP custom scenario."""
-
-    root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
-    expected = {*SHARED_VECTOR_TESTS, *SAVED_IP_CUSTOM_TESTS[top]}
-    actual = {path.name for path in root.iterdir() if path.is_dir()}
-    assert actual == expected, f"unexpected generated {top} tests: {sorted(actual)}"
-    for name in expected:
-        folder = root / name
-        missing = [
-            file for file in ("config.regs", "data_in.vec", "data_out.vec")
-            if not (folder / file).is_file()
-        ]
-        assert not missing, f"incomplete {top}/{name} vectors: {missing}"
 
 
 def _assert_loaded_sources_match(
@@ -471,352 +306,96 @@ def _assert_loaded_sources_match(
         loaded = run_root / source.relative_to(source_root)
         if not loaded.is_file() or _sha256(loaded) != digest:
             changed.append(loaded)
-    assert not changed, f"{top} loaded authored HJSON/RTL/model changed: {changed}"
+    assert not changed, f"{top} loaded authored sources changed: {changed}"
 
 
-# -----------------------------------------------------------------------------
-# Flow preparation
-# -----------------------------------------------------------------------------
+def _assert_loaded_ip_tests(top: str, run_id: str, workspace: Path) -> None:
+    """Require the shared tests plus every saved-IP custom scenario."""
+
+    root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
+    expected = {*SHARED_VECTOR_TESTS, *SAVED_IP_CUSTOM_TESTS[top]}
+    actual = {path.name for path in root.iterdir() if path.is_dir()}
+    assert actual == expected, f"unexpected generated {top} tests: {sorted(actual)}"
+    for name in expected:
+        missing = [
+            file
+            for file in ("config.regs", "data_in.vec", "data_out.vec")
+            if not (root / name / file).is_file()
+        ]
+        assert not missing, f"incomplete {top}/{name} vectors: {missing}"
 
 
-def _run_generated_rtl_flow(top: str, *, run_id: str, workspace: Path) -> None:
-    """Generate the normal editable RTL/model flow for generated examples."""
+def _seed_stale_tb_scaffold(run: Path) -> tuple[Path, Path]:
+    """Plant stale files that complete setup must remove from both backends."""
 
-    _run_fx(["setup", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["hjson", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["reg", "doc", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["rtl_stub", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["top_from_core", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["flist", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["setup_model", "--force"], top=top, run_id=run_id, workspace=workspace)
+    sv = run / "dv" / "functional" / "tb" / "sv" / "stale_loaded_ip.marker"
+    cocotb = run / "dv" / "functional" / "tb" / "cocotb" / "stale_loaded_ip.marker"
+    sv.write_text("stale\n", encoding="utf-8")
+    cocotb.write_text("stale\n", encoding="utf-8")
+    return sv, cocotb
 
 
-def _run_multiclock_rtl_flow(top: str, *, run_id: str, workspace: Path) -> None:
-    """Generate N-clock artifacts only through the generic public targets."""
-
-    for targets in (
-        ["setup", "--force"], ["hjson", "--force"], ["reg", "doc", "--force"],
-        ["rtl_stub", "--force"], ["top_from_core", "--force"], ["flist", "--force"],
-        ["setup_model", "--force"], ["tests_gen"],
-        ["setup_tb", "setup_cocotb", "--force"],
-    ):
-        _run_fx(targets, top=top, run_id=run_id, workspace=workspace)
-
-
-def _run_loaded_ip_setup(
-    top: str,
-    *,
-    run_id: str,
-    workspace: Path,
-    snapshot: dict[Path, str],
+def _assert_tb_scaffolds_recreated(
+    markers: tuple[Path, Path], run: Path, top: str
 ) -> None:
-    """Load one saved IP and refresh only machine-owned derived collateral."""
+    """Require both setup commands to replace their complete generated trees."""
 
-    _run_fx(["setup", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["ip_load", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _assert_loaded_sources_match(top, run_id, workspace, snapshot)
-
-    # setup_model is a bootstrap/reset command: it owns editable model and test
-    # scaffolds and must never run after ip_load.  Refresh only deterministic
-    # artifacts derived from the saved HJSON/RTL.  The common regression flow
-    # later regenerates test vectors and SV/cocotb harnesses.
-    _run_fx(["regmap_py", "--force"], top=top, run_id=run_id, workspace=workspace)
-    model_dir = workspace / "runs" / top / run_id / "dv" / "functional" / "model"
-    regmap = model_dir / f"{top}_regmap.py"
-    regmap_tests = model_dir / f"{top}_regmap_tests.py"
-    assert regmap.is_file(), f"missing regenerated {top} CSR regmap: {regmap}"
-    assert regmap_tests.is_file(), (
-        f"missing regenerated {top} machine-owned CSR test generator: {regmap_tests}"
+    assert not any(path.exists() for path in markers), (
+        f"stale loaded-IP scaffold survived setup: {markers}"
     )
-    _run_fx(["flist", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _assert_loaded_sources_match(top, run_id, workspace, snapshot)
-
-
-# -----------------------------------------------------------------------------
-# Individual verification / signoff stages
-# -----------------------------------------------------------------------------
-
-
-def _run_lint_stages(top: str, *, run_id: str, workspace: Path) -> None:
-    """Run Slang first and Verilator second as separately visible targets."""
-
-    _print_section("Lint — Slang")
-    _run_fx(["lint_slang_suite"], top=top, run_id=run_id, workspace=workspace)
-    _print_section("Lint — Verilator")
-    _run_fx(["lint_verilator_suite"], top=top, run_id=run_id, workspace=workspace)
-
-
-def _run_slang_ast(top: str, *, run_id: str, workspace: Path) -> None:
-    """Generate and validate the Slang AST for the active run hierarchy."""
-
-    _print_section("Slang AST")
-    rtl_dir = workspace / "runs" / top / run_id / "rtl"
-    search_roots = (
-        REPO_ROOT / "hw" / "ips" / "pkgs",
-        REPO_ROOT / "hw" / "ips" / "prim",
-        REPO_ROOT / "hw" / "ips" / "prim_opentitan",
-        REPO_ROOT / "hw" / "ips" / "tlul",
+    required = (
+        run / "dv" / "functional" / "tb" / "sv" / f"{top}_tb.sv",
+        run / "dv" / "functional" / "tb" / "sv" / "tlul_if.sv",
+        run / "dv" / "functional" / "tb" / "sv" / "drivers" /
+        f"{top}_vec_driver.svh",
+        run / "dv" / "functional" / "tb" / "cocotb" / f"{top}_tb.py",
+        run / "dv" / "functional" / "tb" / "cocotb" / f"{top}_tb.sv",
+        run / "dv" / "functional" / "tb" / "cocotb" / "drivers" /
+        "vec_driver.py",
     )
-    search_args = " ".join(f"--search-root {path}" for path in search_roots)
-    _run_fx(
-        [
-            "slang_ast",
-            "--set",
-            f"SLANG_ROOT={rtl_dir}",
-            "--set",
-            f"SLANG_TOP_FILE={rtl_dir / f'{top}.sv'}",
-            "--set",
-            f"SLANG_SEARCH_ARGS={search_args}",
-        ],
-        top=top,
-        run_id=run_id,
-        workspace=workspace,
-    )
-    ast = workspace / "runs" / top / run_id / "analysis" / "slang" / f"{top}_ast.json"
-    assert ast.is_file() and ast.stat().st_size > 0, f"missing or empty Slang AST: {ast}"
+    missing = [path for path in required if not path.is_file()]
+    assert not missing, f"incomplete regenerated {top} testbench scaffold: {missing}"
 
 
-def _run_regression(top: str, *, run_id: str, workspace: Path) -> None:
-    """Run combined SV+cocotb regression and expose functional coverage."""
+def _assert_reset_driver_parity(run: Path, top: str, *, multiclock: bool) -> None:
+    """Require SV and cocotb drivers to accept the same named reset grammar."""
 
-    _print_section("Functional regression")
-    _run_fx(["regression"], top=top, run_id=run_id, workspace=workspace)
-    coverage = workspace / "runs" / top / run_id / "dv" / "functional" / "coverage"
+    sv = (
+        run / "dv" / "functional" / "tb" / "sv" / "drivers" /
+        f"{top}_vec_driver.svh"
+    ).read_text(encoding="utf-8")
+    cocotb = (
+        run / "dv" / "functional" / "tb" / "cocotb" / "drivers" /
+        "vec_driver.py"
+    ).read_text(encoding="utf-8")
+    assert "@reset" in sv
+    assert "[TB][RESET]" in sv
+    assert "unknown reset selector" in sv
+    assert "@reset" in cocotb
+    assert "unknown reset selector" in cocotb
+    if multiclock:
+        assert "reset_selector" in sv
+        assert "await reset(dut, selector" in cocotb
+    else:
+        assert "tb_apply_reset" in sv
+        assert "reset_selector =" in sv
+        assert "_default_reset_runner" in cocotb
+        assert "_selected_reset_domains" in cocotb
+
+
+def _assert_coverage_outputs(coverage: Path) -> None:
+    """Validate functional coverage artifacts."""
+
     assert (coverage / "merged.dat").is_file()
     summary = coverage / "summary.txt"
     summary_json = coverage / "summary.json"
     assert summary.is_file()
     assert summary_json.is_file()
-
-    # Validate the machine-readable contract rather than a presentation heading.
-    # This keeps the E2E flow from breaking when coverage text rendering changes.
-    coverage_data = json.loads(summary_json.read_text(encoding="utf-8"))
-    assert coverage_data.get("schema_version") == 2
-    assert coverage_data.get("display_columns") == [
+    data = json.loads(summary_json.read_text(encoding="utf-8"))
+    assert data.get("schema_version") == 2
+    assert data.get("display_columns") == [
         "line", "toggle", "expr", "branch", "fsm", "user", "total"
     ]
-    scopes = coverage_data.get("scopes")
-    assert isinstance(scopes, dict)
-    assert all(scope in scopes for scope in ("design", "registers", "common", "other", "all"))
-
-    _print_section("Functional coverage detail")
-    _run_fx(["coverage_detail"], top=top, run_id=run_id, workspace=workspace)
-    assert (coverage / "annotated").is_dir()
-
-
-def _author_generated_design_properties(
-    top: str, *, run_id: str, clock_mode: str, workspace: Path
-) -> None:
-    """Write E2E-owned design properties, mirroring a real user-authored formal layer."""
-
-    root = workspace / "runs" / top / run_id / "dv" / "formal" / "properties"
-    prove = root / "prove" / f"{top}_prove.sv"
-    cover = root / "cover" / f"{top}_cover.sv"
-    prove.parent.mkdir(parents=True, exist_ok=True)
-    cover.parent.mkdir(parents=True, exist_ok=True)
-
-    if clock_mode == "multi":
-        prove.write_text(
-            f"""// E2E-authored multi-clock design assertions for {top}_core.
-module {top}_e2e_prove (
-  input logic dsp_clk_i, dsp_rst_ni,
-  input logic enable_rx, fifo_wready, rx_ready_o,
-  input logic enable_dsp, fifo_rvalid, dsp_valid_o, dsp_ready_i, fifo_rready,
-  input logic clk_gate_en_dsp, dsp_clk_active, soft_reset_dsp,
-  input logic signed [31:0] dsp_result_o,
-  input logic dsp_above_threshold_o, dsp_overflow_o
-);
-  logic past_valid = 1'b0;
-
-  always_comb begin
-    assert (rx_ready_o == (enable_rx & fifo_wready));
-    assert (fifo_rready == (enable_dsp & fifo_rvalid & (!dsp_valid_o | dsp_ready_i)));
-    assert (dsp_clk_active == (enable_dsp & (!clk_gate_en_dsp | fifo_rvalid | dsp_valid_o)));
-  end
-
-  always_ff @(posedge dsp_clk_i) begin
-    if (past_valid && (!$past(dsp_rst_ni) || $past(soft_reset_dsp))) begin
-      assert (!dsp_valid_o);
-      assert (dsp_result_o == '0);
-      assert (!dsp_above_threshold_o);
-      assert (!dsp_overflow_o);
-    end
-    past_valid <= 1'b1;
-  end
-endmodule
-
-bind {top}_core {top}_e2e_prove {top}_e2e_prove_i (
-  .dsp_clk_i(dsp_clk_i), .dsp_rst_ni(dsp_rst_ni),
-  .enable_rx(enable_rx), .fifo_wready(fifo_wready), .rx_ready_o(rx_ready_o),
-  .enable_dsp(enable_dsp), .fifo_rvalid(fifo_rvalid), .dsp_valid_o(dsp_valid_o),
-  .dsp_ready_i(dsp_ready_i), .fifo_rready(fifo_rready),
-  .clk_gate_en_dsp(clk_gate_en_dsp), .dsp_clk_active(dsp_clk_active),
-  .soft_reset_dsp(soft_reset_dsp), .dsp_result_o(dsp_result_o),
-  .dsp_above_threshold_o(dsp_above_threshold_o), .dsp_overflow_o(dsp_overflow_o)
-);
-""",
-            encoding="utf-8",
-        )
-        cover.write_text(
-            f"""// E2E-authored multi-clock design covers for {top}_core.
-module {top}_e2e_cover (
-  input logic cfg_clk_i, cfg_rst_ni, cfg_enable,
-  input logic rx_clk_i, rx_rst_ni, rx_valid_i, rx_ready_o,
-  input logic dsp_clk_i, dsp_rst_ni, fifo_rvalid, dsp_valid_o, dsp_ready_i
-);
-  always_ff @(posedge cfg_clk_i) if (cfg_rst_ni) cover (cfg_enable);
-  always_ff @(posedge rx_clk_i) if (rx_rst_ni) cover (rx_valid_i && rx_ready_o);
-  always_ff @(posedge dsp_clk_i) if (dsp_rst_ni) begin
-    cover (fifo_rvalid);
-    cover (dsp_valid_o);
-    cover (dsp_valid_o && dsp_ready_i);
-  end
-endmodule
-
-bind {top}_core {top}_e2e_cover {top}_e2e_cover_i (
-  .cfg_clk_i(cfg_clk_i), .cfg_rst_ni(cfg_rst_ni), .cfg_enable(cfg_enable),
-  .rx_clk_i(rx_clk_i), .rx_rst_ni(rx_rst_ni), .rx_valid_i(rx_valid_i), .rx_ready_o(rx_ready_o),
-  .dsp_clk_i(dsp_clk_i), .dsp_rst_ni(dsp_rst_ni), .fifo_rvalid(fifo_rvalid),
-  .dsp_valid_o(dsp_valid_o), .dsp_ready_i(dsp_ready_i)
-);
-""",
-            encoding="utf-8",
-        )
-        return
-
-    prove.write_text(
-        f"""// E2E-authored single-clock design assertions for {top}_core.
-module {top}_e2e_prove (
-  input logic clk_i, rst_ni,
-  input logic [31:0] data_o, pipe_q1,
-  input logic valid_o, valid_q1
-);
-  logic past_valid = 1'b0;
-
-  always_comb begin
-    assert (data_o == pipe_q1);
-    assert (valid_o == valid_q1);
-  end
-
-  always_ff @(posedge clk_i) begin
-    if (past_valid && !$past(rst_ni)) begin
-      assert (data_o == '0);
-      assert (!valid_o);
-    end
-    past_valid <= 1'b1;
-  end
-endmodule
-
-bind {top}_core {top}_e2e_prove {top}_e2e_prove_i (
-  .clk_i(clk_i), .rst_ni(rst_ni), .data_o(data_o), .pipe_q1(pipe_q1),
-  .valid_o(valid_o), .valid_q1(valid_q1)
-);
-""",
-        encoding="utf-8",
-    )
-    cover.write_text(
-        f"""// E2E-authored single-clock design covers for {top}_core.
-module {top}_e2e_cover (
-  input logic clk_i, rst_ni, valid_i, valid_o,
-  input logic [31:0] data_o
-);
-  logic past_valid = 1'b0;
-
-  always_ff @(posedge clk_i) begin
-    if (rst_ni) begin
-      cover (valid_i);
-      cover (valid_o);
-      cover (valid_o && |data_o);
-      if (past_valid) cover (valid_i && !$past(valid_i));
-    end
-    past_valid <= 1'b1;
-  end
-endmodule
-
-bind {top}_core {top}_e2e_cover {top}_e2e_cover_i (
-  .clk_i(clk_i), .rst_ni(rst_ni), .valid_i(valid_i),
-  .valid_o(valid_o), .data_o(data_o)
-);
-""",
-        encoding="utf-8",
-    )
-
-
-def _run_formal_stages(top: str, *, run_id: str, workspace: Path) -> None:
-    """Run every formal target explicitly in BMC → PROVE → COVER order."""
-
-    stages = (
-        ("Formal BMC — CSR", "formal_csr_bmc"),
-        ("Formal BMC — design properties", "formal_bmc"),
-        ("Formal PROVE — CSR", "formal_csr_prove"),
-        ("Formal PROVE — design properties", "formal_prove"),
-        ("Formal COVER — CSR", "formal_csr_cover"),
-        ("Formal COVER — design properties", "formal_cover"),
-    )
-    for title, target in stages:
-        _print_section(title)
-        _run_fx([target, "--force"], top=top, run_id=run_id, workspace=workspace)
-
-
-def _run_signoff_stages(
-    top: str,
-    *,
-    run_id: str,
-    clock_mode: str,
-    workspace: Path,
-    preserve_eqy: bool = False,
-) -> bool:
-    """Run synthesis/equivalence/signoff as individually visible targets."""
-
-    _print_section("Timing constraints")
-    _run_fx(["setup_sdc", "--force"], top=top, run_id=run_id, workspace=workspace)
-
-    _print_section(f"Formal setup — {clock_mode} clock")
-    _run_fx(["setup_formal", "--force"], top=top, run_id=run_id, workspace=workspace)
-    _run_formal_stages(top, run_id=run_id, workspace=workspace)
-    equivalence_ok = True
-    for title, target in (
-        ("Synthesis", "syn"),
-        ("RTL ↔ synthesis equivalence", "eqy"),
-        ("SDF", "sdf"),
-        ("STA", "sta"),
-        ("Power estimate", "power_estimate"),
-    ):
-        _print_section(title)
-        args = [target] if target == "eqy" and preserve_eqy else [target, "--force"]
-        ok = _run_fx(
-            args, top=top, run_id=run_id, workspace=workspace,
-            required=target != "eqy",
-        )
-        if target == "eqy":
-            equivalence_ok = ok
-    return equivalence_ok
-
-
-def _selected_gls_tests(
-    top: str, run_id: str, workspace: Path, requested: tuple[str, ...]
-) -> tuple[str, ...]:
-    """Resolve named or all generated vector tests for post-synthesis GLS."""
-
-    root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
-    available = tuple(sorted(path.name for path in root.iterdir() if path.is_dir()))
-    if requested == ("all",):
-        return available
-    missing = sorted(set(requested) - set(available))
-    assert not missing, f"post-synthesis tests missing for {top}: {missing}"
-    return requested
-
-
-def _assert_sdf_payload(path: Path) -> None:
-    """Require a non-empty SDF containing real delay records."""
-
-    assert path.is_file() and path.stat().st_size > 0, f"missing or empty SDF: {path}"
-    text = path.read_text(encoding="utf-8", errors="replace")
-    assert "(DELAYFILE" in text, f"invalid SDF header: {path}"
-    assert "(CELL" in text, f"SDF contains no CELL records: {path}"
-    assert any(token in text for token in ("(IOPATH", "(INTERCONNECT", "(PORT")), (
-        f"SDF contains no path/interconnect/port delays: {path}"
-    )
 
 
 def _assert_post_syn_report(
@@ -824,467 +403,4463 @@ def _assert_post_syn_report(
     *,
     top: str,
     pdk: str,
+    test: str,
     backend: str,
     mode: str,
     wave: Path,
-) -> dict[str, object]:
-    """Validate one GLS report and prove that requested SDF was exercised."""
+) -> None:
+    """Validate one post-synthesis GLS report and its requested waveform."""
 
     assert path.is_file(), f"missing post-synthesis report: {path}"
     report = json.loads(path.read_text(encoding="utf-8"))
     assert report.get("status") == "pass", f"post-synthesis report failed: {path}"
     assert report.get("stage") == "post_syn"
+    assert report.get("top") == top
+    assert report.get("pdk") == pdk
+    assert report.get("test_name") == test
     assert report.get("backend") == backend
     assert report.get("timing_mode") == mode
-
+    assert Path(str(report.get("wave", ""))).resolve() == wave.resolve()
+    assert wave.is_file() and wave.stat().st_size > 0, f"missing waveform: {wave}"
     netlist = Path(str(report.get("netlist", ""))).resolve()
-    assert netlist.is_file() and netlist.stat().st_size > 0, f"missing netlist: {netlist}"
-    assert pdk in netlist.parts, f"netlist is not scoped to PDK={pdk}: {netlist}"
-
-    reported_wave = Path(str(report.get("wave", ""))).resolve()
-    assert reported_wave == wave.resolve(), (
-        f"unexpected waveform path: report={reported_wave} requested={wave.resolve()}"
-    )
-    assert wave.is_file() and wave.stat().st_size > 0, f"missing or empty waveform: {wave}"
-
+    assert netlist.is_file() and pdk in netlist.parts, f"invalid netlist: {netlist}"
     if mode in SDF_GLS_MODES:
         sdf = Path(str(report.get("sdf", ""))).resolve()
-        _assert_sdf_payload(sdf)
-        assert pdk in sdf.parts, f"SDF is not scoped to PDK={pdk}: {sdf}"
-        expected_corner = {"min": "ff", "typ": "tt", "max": "ss"}[mode]
-        assert sdf.name == f"{top}_{expected_corner}.sdf", (
-            f"unexpected SDF corner for mode={mode}: {sdf}"
-        )
-        assert report.get("timing_model") == "icarus-path-delay-only"
-        assert report.get("timing_checks") == "disabled-unsupported-by-icarus"
-        model_manifest = path.parent / "icarus_timing_models" / "manifest.json"
-        assert model_manifest.is_file(), f"missing Icarus timing-model manifest: {model_manifest}"
-        model_data = json.loads(model_manifest.read_text(encoding="utf-8"))
-        assert model_data.get("mode") == "path-delay-only"
+        assert sdf.is_file() and sdf.stat().st_size > 0, f"missing SDF: {sdf}"
+        assert pdk in sdf.parts
         annotation = report.get("annotation")
-        assert isinstance(annotation, dict), f"missing annotation evidence: {path}"
-        assert annotation.get("requested_marker") is True, f"$sdf_annotate marker missing: {path}"
-        assert annotation.get("warnings") == [], f"SDF warnings found: {annotation.get('warnings')}"
-        assert annotation.get("errors") == [], f"SDF errors found: {annotation.get('errors')}"
-        markers = annotation.get("markers") or []
-        assert any(sdf.name in str(marker) for marker in markers), (
-            f"annotation marker does not identify {sdf.name}: {markers}"
-        )
+        assert isinstance(annotation, dict), f"missing SDF annotation evidence: {path}"
+        assert annotation.get("requested_marker") is True
+        assert annotation.get("warnings") == []
+        assert annotation.get("errors") == []
     else:
         assert report.get("sdf") is None
         assert report.get("annotation") is None
-        expected = "functional-unit-delay" if mode == "unit" else "functional-zero-delay"
-        assert report.get("timing_model") == expected
-    return report
 
 
-def _run_post_syn_gate_matrix(
-    top: str,
-    *,
-    run_id: str,
-    pdk: str,
-    plan: E2EPlan,
-    workspace: Path,
-) -> list[str]:
-    """Run and archive the complete post-synthesis qualification matrix."""
+def _slang_values(top: str, run: Path) -> tuple[str, str, str]:
+    """Return quoted Slang overrides; this helper does not execute commands."""
 
-    from flexsoc.run_layout import pdk_run_layout, run_root
-
-    _print_section(f"Post-synthesis GLS/back-annotation — PDK={pdk}")
-    _run_fx(["setup_tb", "setup_cocotb", "--force"], top=top, run_id=run_id, workspace=workspace)
-    selected_tests = _selected_gls_tests(top, run_id, workspace, plan.gls_tests)
-    layout = pdk_run_layout(
-        run_root(workspace, run_top=top, run_id=run_id), pdk=pdk, top=top
+    rtl = run / "rtl"
+    roots = (
+        REPO_ROOT / "hw" / "ips" / "pkgs",
+        REPO_ROOT / "hw" / "ips" / "prim",
+        REPO_ROOT / "hw" / "ips" / "prim_opentitan",
+        REPO_ROOT / "hw" / "ips" / "tlul",
     )
-    qualification = layout.post_syn_sim_dir / "e2e_qualification"
-    failures: list[str] = []
-
-    for mode in plan.gls_modes:
-        for test_name in selected_tests:
-            for backend in plan.gls_backends:
-                stem = f"{top}_{pdk}_{test_name}_{backend}_{mode}"
-                wave = qualification / "waves" / f"{stem}.fst"
-                report_copy = qualification / "reports" / f"{stem}.json"
-                log_copy = qualification / "logs" / f"{stem}.log"
-                wave.parent.mkdir(parents=True, exist_ok=True)
-                report_copy.parent.mkdir(parents=True, exist_ok=True)
-                log_copy.parent.mkdir(parents=True, exist_ok=True)
-
-                source_report = layout.post_syn_sim_dir / f"{top}_post_syn_{backend}_{mode}.json"
-                source_report.unlink(missing_ok=True)
-                ok = _run_fx(
-                    [
-                        "sim_post_syn",
-                        "--set", f"GLS_BACKEND={backend}",
-                        "--set", f"TIMING_MODE={mode}",
-                        "--set", f"TEST_NAME={test_name}",
-                        "--set", "SDF_STRICT=1",
-                        "--set", "WAVE_FORMAT=fst",
-                        "--set", f"WAVE_FILE={wave}",
-                    ],
-                    top=top,
-                    run_id=run_id,
-                    workspace=workspace,
-                    required=False,
-                )
-                if source_report.is_file():
-                    shutil.copy2(source_report, report_copy)
-                    try:
-                        payload = json.loads(source_report.read_text(encoding="utf-8"))
-                        source_log = Path(str(payload.get("log", "")))
-                        if source_log.is_file():
-                            shutil.copy2(source_log, log_copy)
-                    except (OSError, ValueError, TypeError):
-                        pass
-
-                try:
-                    assert ok, f"fx sim_post_syn failed for {stem}"
-                    _assert_post_syn_report(
-                        source_report,
-                        top=top,
-                        pdk=pdk,
-                        backend=backend,
-                        mode=mode,
-                        wave=wave,
-                    )
-                except AssertionError as exc:
-                    failures.append(f"{stem}: {exc}")
-                    CONSOLE.print(f"[bold red][GLS FAIL][/bold red] {stem}: {exc}")
-                else:
-                    CONSOLE.print(f"[bold green][GLS PASS][/bold green] {stem}")
-
-    manifest = qualification / "matrix.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "top": top,
-                "run_id": run_id,
-                "pdk": pdk,
-                "tests": list(selected_tests),
-                "backends": list(plan.gls_backends),
-                "timing_modes": list(plan.gls_modes),
-                "sdf_strict": True,
-                "failures": failures,
-            },
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
+    search = " ".join(f"--search-root {path}" for path in roots)
+    return (
+        shlex.quote(f"SLANG_ROOT={rtl}"),
+        shlex.quote(f"SLANG_TOP_FILE={rtl / f'{top}.sv'}"),
+        shlex.quote(f"SLANG_SEARCH_ARGS={search}"),
     )
 
-    sdf_modes = [mode for mode in plan.gls_modes if mode in SDF_GLS_MODES]
-    if sdf_modes and selected_tests:
-        power_mode = "typ" if "typ" in sdf_modes else sdf_modes[0]
-        power_backend = "sv" if "sv" in plan.gls_backends else plan.gls_backends[0]
-        _print_section(
-            f"Post-GLS activity power — PDK={pdk} backend={power_backend} mode={power_mode}"
-        )
-        ok = _run_fx(
-            [
-                "power_analysis_all",
-                "--set", f"POWER_TEST_NAMES={','.join(selected_tests)}",
-                "--set", f"POWER_GLS_BACKEND={power_backend}",
-                "--set", f"POWER_TIMING_MODE={power_mode}",
-            ],
-            top=top,
-            run_id=run_id,
-            workspace=workspace,
-            required=False,
-        )
-        if not ok:
-            failures.append(
-                f"{top}/{pdk}: post-GLS activity power failed "
-                f"for backend={power_backend} mode={power_mode}"
-            )
-    else:
-        CONSOLE.print(
-            "[yellow][power-analysis] skipped: E2E matrix contains no min/typ/max GLS mode[/yellow]"
-        )
 
-    return failures
+def _assert_ast(top: str, run: Path) -> None:
+    """Require the Slang AST generated by the visible command."""
+
+    ast = run / "analysis" / "slang" / f"{top}_ast.json"
+    assert ast.is_file() and ast.stat().st_size > 0, f"missing or empty Slang AST: {ast}"
+
+def _assert_design_formal_sources(top: str, run: Path) -> None:
+    """Require real designer-owned prove and cover sources."""
+
+    prove = run / "dv" / "formal" / "properties" / "prove" / f"{top}_prove.sv"
+    cover = run / "dv" / "formal" / "properties" / "cover" / f"{top}_cover.sv"
+    assert prove.is_file() and prove.stat().st_size > 0, f"missing formal prove scaffold: {prove}"
+    assert cover.is_file() and cover.stat().st_size > 0, f"missing formal cover scaffold: {cover}"
 
 
-def _run_reports(top: str, *, run_id: str, workspace: Path) -> None:
-    """Render end-of-run reports without turning metrics/check into flow gates."""
+def _assert_technology_closure(top: str, run: Path, pdk: str) -> None:
+    """Require one isolated technology branch without inspecting saved IP sources."""
 
-    _print_section("Run manifest")
-    _run_fx(["manifest"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["manifest_show"], top=top, run_id=run_id, workspace=workspace)
+    assert (run / "syn" / pdk / f"{top}_synth.v").is_file()
+    assert (run / "signoff" / "equivalence" / pdk / "rtl_vs_syn").is_dir()
+    assert (run / "signoff" / "sdf" / pdk).is_dir()
+    assert (run / "signoff" / "sta" / pdk).is_dir()
+    assert (run / "signoff" / "power" / pdk).is_dir()
+    assert (run / "meta" / pdk / "manifest.json").is_file()
+    assert (run / "meta" / pdk / "metrics.json").is_file()
 
-    _print_section("Metrics and verification summary — informational")
-    _run_fx(["metrics"], top=top, run_id=run_id, workspace=workspace)
-    _run_fx(["check"], top=top, run_id=run_id, workspace=workspace)
 
-
-def _run_visible_flow(
-    top: str,
-    *,
-    run_id: str,
-    clock_mode: str,
-    clock_domains: str,
-    clock_relationships: str,
-    host: str,
-    plan: E2EPlan,
-    workspace: Path,
-    preserve_eqy: bool = False,
-    active_pdk: str | None = None,
+def _assert_saved_signoff_scripts(
+    library_root: Path, top: str, pdk: str, *, activity_count: int
 ) -> None:
-    """Run common verification once, selecting settings only when the PDK changes."""
+    """Require a Tcl-only, technology-scoped saved sign-off package."""
 
-    _run_lint_stages(top, run_id=run_id, workspace=workspace)
-    _run_slang_ast(top, run_id=run_id, workspace=workspace)
-    _run_regression(top, run_id=run_id, workspace=workspace)
-
-    if not plan.run_signoff:
-        _run_reports(top, run_id=run_id, workspace=workspace)
-        return
-
-    failures: list[str] = []
-    for pdk in plan.pdks:
-        _print_section(f"Technology flow — PDK={pdk}")
-        if pdk != active_pdk:
-            _settings(
-                top,
-                clock_domains=clock_domains,
-                clock_relationships=clock_relationships,
-                run_id=run_id,
-                host=host,
-                pdk=pdk,
-                workspace=workspace,
-            )
-            active_pdk = pdk
-        _run_preflight(pdk=pdk, workspace=workspace)
-        equivalence_ok = _run_signoff_stages(
-            top, run_id=run_id, clock_mode=clock_mode, workspace=workspace,
-            preserve_eqy=preserve_eqy,
-        )
-        if plan.run_post_syn:
-            failures.extend(
-                _run_post_syn_gate_matrix(
-                    top, run_id=run_id, pdk=pdk, plan=plan, workspace=workspace
-                )
-            )
-        _run_reports(top, run_id=run_id, workspace=workspace)
-        if not equivalence_ok:
-            failures.append(f"{top}/{pdk}: EQY equivalence did not close")
-
-    if failures:
-        pytest.fail("E2E technology matrix failures:\n  - " + "\n  - ".join(failures))
-
-
-# -----------------------------------------------------------------------------
-# Complete flows
-# -----------------------------------------------------------------------------
-
-
-def _run_single_clock_flow(*, plan: E2EPlan, workspace: Path) -> None:
-    """Run the generated single-clock example target-by-target."""
-
-    top = os.environ.get("FLEXSOC_SINGLE_TOP", "test")
-    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
-    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
-
-    _print_section(f"Single-clock generated flow — TOP={top} RUN_ID={run_id}")
-    _settings(
-        top,
-        clock_domains=SINGLE_CLOCK_DOMAINS,
-        run_id=run_id,
-        host=host,
-        pdk=plan.pdks[0],
-        workspace=workspace,
+    signoff = library_root / top / "signoff"
+    assert {path.name for path in (signoff / "sta" / pdk).glob("*.tcl")} == {
+        "sta.tcl", "sta_violators.tcl",
+    }
+    assert {path.name for path in (signoff / "sdf" / pdk).glob("*.tcl")} == {
+        "write_sdf.tcl",
+    }
+    assert {path.name for path in (signoff / "power" / pdk).glob("*.tcl")} == {
+        "power_estimate.tcl",
+    }
+    activity = sorted((signoff / "power" / pdk / "activity" / "scripts").glob("*.tcl"))
+    assert len(activity) == activity_count, (
+        f"expected {activity_count} saved activity-power scripts for {pdk}, got {len(activity)}"
     )
-    _run_preflight(pdk=plan.pdks[0], workspace=workspace)
-    _print_section("Generate RTL / model")
-    _run_generated_rtl_flow(top, run_id=run_id, workspace=workspace)
-    _author_generated_design_properties(
-        top, run_id=run_id, clock_mode="single", workspace=workspace
-    )
-    _run_visible_flow(
-        top,
-        run_id=run_id,
-        clock_mode="single",
-        clock_domains=SINGLE_CLOCK_DOMAINS,
-        clock_relationships="",
-        host=host,
-        plan=plan,
-        workspace=workspace,
-        active_pdk=plan.pdks[0],
-    )
-
-    test_root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
-    for test in SHARED_VECTOR_TESTS:
-        assert (test_root / test).is_dir()
+    saved = [
+        path for stage in ("sta", "sdf", "power")
+        for path in (signoff / stage / pdk).rglob("*") if path.is_file()
+    ]
+    assert saved and all(path.suffix == ".tcl" for path in saved)
 
 
-def _run_multi_clock_flow(*, plan: E2EPlan, workspace: Path) -> None:
-    """Run the generated multi-clock example target-by-target."""
-
-    top = os.environ.get("FLEXSOC_MULTI_TOP", "tri_stream_dsp")
-    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
-    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
-
-    _print_section(f"Multi-clock generated flow — TOP={top} RUN_ID={run_id}")
-    _settings(
-        top,
-        clock_domains=MULTI_CLOCK_DOMAINS,
-        clock_relationships=MULTI_CLOCK_RELATIONSHIPS,
-        run_id=run_id,
-        host=host,
-        pdk=plan.pdks[0],
-        workspace=workspace,
-    )
-    _run_preflight(pdk=plan.pdks[0], workspace=workspace)
-    _print_section("Generate multi-clock RTL / model")
-    _run_multiclock_rtl_flow(top, run_id=run_id, workspace=workspace)
-    _author_generated_design_properties(
-        top, run_id=run_id, clock_mode="multi", workspace=workspace
-    )
-
-    test_root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
-    auto_dir = test_root / "auto_toggle"
-    auto_config = (auto_dir / "config.regs").read_text(encoding="utf-8")
-    auto_toggle = (auto_dir / "data_in.vec").read_text(encoding="utf-8")
-    auto_rows = [line for line in auto_toggle.splitlines() if line and not line.startswith("#")]
-    assert all("@reset" not in row for row in auto_rows)
-    assert "cfg.CTRL 0x00000001" in auto_config
-    assert "@write cfg.CTRL" not in auto_toggle
-    assert "@write cfg.GAIN" in auto_toggle
-
-    _run_visible_flow(
-        top,
-        run_id=run_id,
-        clock_mode="multi",
-        clock_domains=MULTI_CLOCK_DOMAINS,
-        clock_relationships=MULTI_CLOCK_RELATIONSHIPS,
-        host=host,
-        plan=plan,
-        workspace=workspace,
-        active_pdk=plan.pdks[0],
-    )
-
-    for test in (*SHARED_VECTOR_TESTS, *NCLOCK_DESIGN_TESTS):
-        assert (test_root / test).is_dir()
-
-
-def _run_loaded_ip_flow(
-    top: str,
-    *,
-    run_id: str,
-    host: str,
-    plan: E2EPlan,
-    workspace: Path,
-) -> None:
-    """Run one saved IP without touching HJSON, RTL source, or functional model."""
-
-    _print_section(f"{top.upper()} ip_load flow — TOP={top} RUN_ID={run_id}")
-    with _protect_ip_sources(top) as snapshot:
-        _settings(
-            top,
-            clock_domains=SINGLE_CLOCK_DOMAINS,
-            run_id=run_id,
-            host=host,
-            pdk=plan.pdks[0],
-            workspace=workspace,
-        )
-        _run_preflight(pdk=plan.pdks[0], workspace=workspace)
-        _print_section("Load saved IP")
-        _run_loaded_ip_setup(top, run_id=run_id, workspace=workspace, snapshot=snapshot)
-        run_root = workspace / "runs" / top / run_id
-        profiles: dict[Path, str] = {}
-        for pdk in plan.pdks:
-            for path in _eqy_profile_files(run_root, top, pdk):
-                assert path.is_file(), (
-                    f"missing saved {top}/{pdk} EQY profile: {path}; "
-                    "generate, tune, and persist it with fx ip_save"
-                )
-                profiles[path] = _sha256(path)
-        _run_visible_flow(
-            top,
-            run_id=run_id,
-            clock_mode="single",
-            clock_domains=SINGLE_CLOCK_DOMAINS,
-            clock_relationships="",
-            host=host,
-            plan=plan,
-            workspace=workspace,
-            preserve_eqy=True,
-            active_pdk=plan.pdks[0],
-        )
-        changed_profiles = [path for path, digest in profiles.items() if _sha256(path) != digest]
-        assert not changed_profiles, f"loaded EQY profiles were regenerated: {changed_profiles}"
-        _assert_loaded_sources_match(top, run_id, workspace, snapshot)
-        _assert_loaded_ip_tests(top, run_id, workspace)
-
-
-# -----------------------------------------------------------------------------
-# E2E tests
-# -----------------------------------------------------------------------------
-
+# Every test below contains its complete ordered sequence of one-command fx invocations.
 
 @pytest.mark.e2e
 def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
-    """Run the generated single-clock flow across the complete PDK matrix."""
+    """Run one shared logical flow, then SKY130 and IHP sign-off branches."""
 
-    plan = _e2e_plan(request)
+    config = _e2e_config(request)
+    top = os.environ.get("FLEXSOC_SINGLE_TOP", "test")
+    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
+    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
+    n_clocks = 1
+    clock_domains = SINGLE_CLOCK_DOMAINS
+    clock_relationships = ""
+
     with _preserve_project_settings(), _temporary_workspace(
-        "flexsoc-single-e2e-", root=_e2e_root(request)
+        "flexsoc-single-e2e-", _e2e_root(request)
     ) as workspace:
-        _print_section("FlexSoC single-clock E2E")
-        _print_context(workspace=workspace, plan=plan)
-        _run_single_clock_flow(plan=plan, workspace=workspace)
-        _print_section("FlexSoC single-clock E2E passed")
+        workdir = shlex.quote(str(workspace))
+        run = workspace / "runs" / top / run_id
+        slang_root, slang_top, slang_search = _slang_values(top, run)
+        _run(
+            (
+                f"uv run --no-sync fx settings --reset TOP={top} RUN_TOP={top} "
+                f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} "
+                f"CLOCK_DOMAINS={clock_domains} "
+                f"CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}"
+            ),
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx doctor --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx setup --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx hjson --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx reg --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx doc --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx rtl_stub --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx top_from_core --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx flist --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx setup_model --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx tests_gen --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx tests --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _assert_reset_driver_parity(run, top, multiclock=False)
+        _run(
+            f"uv run --no-sync fx lint_slang_suite --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            (
+                f"uv run --no-sync fx slang_hier --set {slang_root} "
+                f"--set {slang_top} --set {slang_search} --workdir {workdir}"
+            ),
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            (
+                f"uv run --no-sync fx slang_ast --set {slang_root} "
+                f"--set {slang_top} --set {slang_search} --workdir {workdir}"
+            ),
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _assert_ast(top, run)
+        _run(
+            f"uv run --no-sync fx regression --no-setup --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx coverage --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx coverage_detail --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
 
+        if config.run_signoff:
+            _run(
+                f"uv run --no-sync fx setup_formal --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_design_formal_sources(top, run)
+            _run(
+                f"uv run --no-sync fx setup_formal_csr_prove --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_formal_prove --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_csr_bmc --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_bmc --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_csr_prove --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_prove --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_formal_csr_cover --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_formal_cover --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_csr_cover --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_cover --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_sdc --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+
+            # sky130: rerun only technology-bound synthesis/sign-off stages.
+            _run(
+                f"uv run --no-sync fx pdk use sky130 --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx settings --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx pdk info sky130 --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_syn --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx syn --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx sdf --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            if config.run_post_syn:
+                sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
+                sky130_wave_smoke = sky130_post_syn / (
+                    f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_smoke_arg = shlex.quote(str(sky130_wave_smoke))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_smoke_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="smoke",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=smoke "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_corners = sky130_post_syn / (
+                    f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_corners_arg = shlex.quote(str(sky130_wave_corners))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_corners_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_corners_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_corners_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="corners",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=corners "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_random_seed_1 = sky130_post_syn / (
+                    f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_random_seed_1_arg = shlex.quote(str(sky130_wave_random_seed_1))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_1_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_1_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="random_seed_1",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=random_seed_1 "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_random_seed_2 = sky130_post_syn / (
+                    f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_random_seed_2_arg = shlex.quote(str(sky130_wave_random_seed_2))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_2_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_2_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="random_seed_2",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=random_seed_2 "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_reconfig = sky130_post_syn / (
+                    f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_reconfig_arg = shlex.quote(str(sky130_wave_reconfig))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_reconfig_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_reconfig_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="reconfig",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=reconfig "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_auto_toggle = sky130_post_syn / (
+                    f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_auto_toggle_arg = shlex.quote(str(sky130_wave_auto_toggle))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_auto_toggle_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_auto_toggle_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="auto_toggle",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=auto_toggle "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+            _run(
+                f"uv run --no-sync fx manifest --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx manifest_show --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx metrics --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx check --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_technology_closure(top, run, "sky130")
+
+            # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
+            _run(
+                f"uv run --no-sync fx pdk use ihp-sg13g2 --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx settings --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx pdk info ihp-sg13g2 --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_syn --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx syn --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx sdf --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            if config.run_post_syn:
+                ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
+                ihp_sg13g2_wave_smoke = ihp_sg13g2_post_syn / (
+                    f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_smoke))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_smoke_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="smoke",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=smoke "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
+                    f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_corners_arg = shlex.quote(str(ihp_sg13g2_wave_corners))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_corners_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_corners_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_corners_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="corners",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=corners "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
+                    f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_random_seed_1_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_1))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_1_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_1_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="random_seed_1",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=random_seed_1 "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
+                    f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_random_seed_2_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_2))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_2_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_2_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="random_seed_2",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=random_seed_2 "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
+                    f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_reconfig))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_reconfig_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_reconfig_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="reconfig",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=reconfig "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
+                    f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_auto_toggle_arg = shlex.quote(str(ihp_sg13g2_wave_auto_toggle))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_auto_toggle_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_auto_toggle_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="auto_toggle",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=auto_toggle "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+            _run(
+                f"uv run --no-sync fx manifest --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx manifest_show --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx metrics --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx check --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_technology_closure(top, run, "ihp-sg13g2")
+        test_root = run / "dv" / "functional" / "tests"
+        for test_name in SHARED_VECTOR_TESTS:
+            assert (test_root / test_name).is_dir()
 
 @pytest.mark.e2e
 def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
-    """Run the generated multi-clock flow across the complete PDK matrix."""
+    """Run one N-clock logical flow, then SKY130 and IHP sign-off branches."""
 
-    plan = _e2e_plan(request)
+    config = _e2e_config(request)
+    top = os.environ.get("FLEXSOC_MULTI_TOP", "tri_stream_dsp")
+    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
+    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
+    n_clocks = 3
+    clock_domains = MULTI_CLOCK_DOMAINS
+    clock_relationships = MULTI_CLOCK_RELATIONSHIPS
+
     with _preserve_project_settings(), _temporary_workspace(
-        "flexsoc-multiclock-e2e-", root=_e2e_root(request)
+        "flexsoc-multiclock-e2e-", _e2e_root(request)
     ) as workspace:
-        _print_section("FlexSoC multi-clock E2E")
-        _print_context(workspace=workspace, plan=plan)
-        _run_multi_clock_flow(plan=plan, workspace=workspace)
-        _print_section("FlexSoC multi-clock E2E passed")
+        workdir = shlex.quote(str(workspace))
+        run = workspace / "runs" / top / run_id
+        slang_root, slang_top, slang_search = _slang_values(top, run)
+        _run(
+            (
+                f"uv run --no-sync fx settings --reset TOP={top} RUN_TOP={top} "
+                f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} "
+                f"CLOCK_DOMAINS={clock_domains} "
+                f"CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}"
+            ),
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx doctor --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx setup --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx hjson --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx reg --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx doc --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx rtl_stub --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx top_from_core --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx flist --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx setup_model --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx tests_gen --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx tests --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _assert_reset_driver_parity(run, top, multiclock=True)
+        _run(
+            f"uv run --no-sync fx lint_slang_suite --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            (
+                f"uv run --no-sync fx slang_hier --set {slang_root} "
+                f"--set {slang_top} --set {slang_search} --workdir {workdir}"
+            ),
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            (
+                f"uv run --no-sync fx slang_ast --set {slang_root} "
+                f"--set {slang_top} --set {slang_search} --workdir {workdir}"
+            ),
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _assert_ast(top, run)
+        test_root = run / "dv" / "functional" / "tests"
+        auto_config = (test_root / "auto_toggle" / "config.regs").read_text(encoding="utf-8")
+        auto_toggle = (test_root / "auto_toggle" / "data_in.vec").read_text(encoding="utf-8")
+        rows = [line for line in auto_toggle.splitlines() if line and not line.startswith("#")]
+        assert all("@reset" not in row for row in rows)
+        assert "cfg.CTRL 0x00000001" in auto_config
+        assert "@write cfg.CTRL" not in auto_toggle
+        assert "@write cfg.GAIN" in auto_toggle
+        _run(
+            f"uv run --no-sync fx regression --no-setup --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx coverage --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx coverage_detail --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
 
+        if config.run_signoff:
+            _run(
+                f"uv run --no-sync fx setup_formal --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_design_formal_sources(top, run)
+            _run(
+                f"uv run --no-sync fx setup_formal_csr_prove --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_formal_prove --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_csr_bmc --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_bmc --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_csr_prove --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_prove --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_formal_csr_cover --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_formal_cover --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_csr_cover --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx formal_cover --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_sdc --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+
+            # sky130: rerun only technology-bound synthesis/sign-off stages.
+            _run(
+                f"uv run --no-sync fx pdk use sky130 --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx settings --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx pdk info sky130 --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_syn --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx syn --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx sdf --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            if config.run_post_syn:
+                sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
+                sky130_wave_smoke = sky130_post_syn / (
+                    f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_smoke_arg = shlex.quote(str(sky130_wave_smoke))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_smoke_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="smoke",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=smoke "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_corners = sky130_post_syn / (
+                    f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_corners_arg = shlex.quote(str(sky130_wave_corners))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_corners_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_corners_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_corners_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="corners",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=corners "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_random_seed_1 = sky130_post_syn / (
+                    f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_random_seed_1_arg = shlex.quote(str(sky130_wave_random_seed_1))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_1_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_1_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="random_seed_1",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=random_seed_1 "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_random_seed_2 = sky130_post_syn / (
+                    f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_random_seed_2_arg = shlex.quote(str(sky130_wave_random_seed_2))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_2_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_2_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="random_seed_2",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=random_seed_2 "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_reconfig = sky130_post_syn / (
+                    f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_reconfig_arg = shlex.quote(str(sky130_wave_reconfig))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_reconfig_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_reconfig_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="reconfig",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=reconfig "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_auto_toggle = sky130_post_syn / (
+                    f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_auto_toggle_arg = shlex.quote(str(sky130_wave_auto_toggle))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_auto_toggle_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_auto_toggle_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="auto_toggle",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=auto_toggle "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_mac_smoke = sky130_post_syn / (
+                    f"{top}_mac_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_mac_smoke_arg = shlex.quote(str(sky130_wave_mac_smoke))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=mac_smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_mac_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=mac_smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_mac_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_mac_smoke_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="mac_smoke",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_mac_smoke,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=mac_smoke "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_absdiff = sky130_post_syn / (
+                    f"{top}_absdiff_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_absdiff_arg = shlex.quote(str(sky130_wave_absdiff))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=absdiff --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_absdiff_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=absdiff --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_absdiff_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_absdiff_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="absdiff",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_absdiff,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=absdiff "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                sky130_wave_energy = sky130_post_syn / (
+                    f"{top}_energy_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                sky130_wave_energy_arg = shlex.quote(str(sky130_wave_energy))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=energy --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_energy_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=energy --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_energy_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    sky130_post_syn / (
+                        f"{top}_post_syn_energy_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="sky130", test="energy",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_energy,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=energy "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+            _run(
+                f"uv run --no-sync fx manifest --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx manifest_show --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx metrics --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx check --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_technology_closure(top, run, "sky130")
+
+            # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
+            _run(
+                f"uv run --no-sync fx pdk use ihp-sg13g2 --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx settings --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx pdk info ihp-sg13g2 --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_syn --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx syn --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx sdf --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            if config.run_post_syn:
+                ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
+                ihp_sg13g2_wave_smoke = ihp_sg13g2_post_syn / (
+                    f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_smoke))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_smoke_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="smoke",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=smoke "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
+                    f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_corners_arg = shlex.quote(str(ihp_sg13g2_wave_corners))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_corners_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_corners_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_corners_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="corners",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=corners "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
+                    f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_random_seed_1_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_1))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_1_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_1_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="random_seed_1",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=random_seed_1 "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
+                    f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_random_seed_2_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_2))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_2_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_2_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="random_seed_2",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=random_seed_2 "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
+                    f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_reconfig))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_reconfig_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_reconfig_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="reconfig",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=reconfig "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
+                    f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_auto_toggle_arg = shlex.quote(str(ihp_sg13g2_wave_auto_toggle))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_auto_toggle_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_auto_toggle_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="auto_toggle",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=auto_toggle "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_mac_smoke = ihp_sg13g2_post_syn / (
+                    f"{top}_mac_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_mac_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_mac_smoke))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=mac_smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_mac_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=mac_smoke --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_mac_smoke_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_mac_smoke_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="mac_smoke",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_mac_smoke,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=mac_smoke "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_absdiff = ihp_sg13g2_post_syn / (
+                    f"{top}_absdiff_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_absdiff_arg = shlex.quote(str(ihp_sg13g2_wave_absdiff))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=absdiff --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_absdiff_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=absdiff --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_absdiff_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_absdiff_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="absdiff",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_absdiff,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=absdiff "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                ihp_sg13g2_wave_energy = ihp_sg13g2_post_syn / (
+                    f"{top}_energy_{config.gls_backend}_{config.gls_mode}.fst"
+                )
+                ihp_sg13g2_wave_energy_arg = shlex.quote(str(ihp_sg13g2_wave_energy))
+                _run(
+                    (
+                        f"uv run --no-sync fx compile_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=energy --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_energy_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx sim_post_syn --no-setup "
+                        f"--set GLS_BACKEND={config.gls_backend} "
+                        f"--set TIMING_MODE={config.gls_mode} "
+                        f"--set TEST_NAME=energy --set SDF_STRICT=1 "
+                        f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_energy_arg} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_post_syn_report(
+                    ihp_sg13g2_post_syn / (
+                        f"{top}_post_syn_energy_{config.gls_backend}_"
+                        f"{config.gls_mode}.json"
+                    ),
+                    top=top, pdk="ihp-sg13g2", test="energy",
+                    backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_energy,
+                )
+                _run(
+                    (
+                        f"uv run --no-sync fx power_analysis "
+                        f"--set POWER_TEST_NAME=energy "
+                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                        f"--set POWER_TIMING_MODE={config.gls_mode} "
+                        f"--workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+            _run(
+                f"uv run --no-sync fx manifest --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx manifest_show --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx metrics --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx check --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_technology_closure(top, run, "ihp-sg13g2")
+        test_root = run / "dv" / "functional" / "tests"
+        for test_name in (*SHARED_VECTOR_TESTS, *NCLOCK_DESIGN_TESTS):
+            assert (test_root / test_name).is_dir()
 
 @pytest.mark.e2e
 def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
-    """Run CORDIC across both technology and post-synthesis matrices."""
+    """Load CORDIC once and qualify the unchanged IP on SKY130 and IHP."""
 
-    plan = _e2e_plan(request)
+    config = _e2e_config(request)
+    top = os.environ.get("FLEXSOC_CORDIC_TOP", "cordic")
+    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
+    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
+    n_clocks = 1
+    clock_domains = SINGLE_CLOCK_DOMAINS
+    clock_relationships = ""
+
     with _preserve_project_settings(), _temporary_workspace(
-        "flexsoc-cordic-e2e-", root=_e2e_root(request)
+        "flexsoc-cordic-e2e-", _e2e_root(request)
     ) as workspace:
-        _print_section("FlexSoC CORDIC ip_load E2E")
-        _print_context(workspace=workspace, plan=plan)
-        _run_loaded_ip_flow(
-            os.environ.get("FLEXSOC_CORDIC_TOP", "cordic"),
-            run_id=os.environ.get("FLEXSOC_CORDIC_RUN_ID", DEFAULT_RUN_ID),
-            host=os.environ.get("FLEXSOC_HOST", DEFAULT_HOST),
-            plan=plan,
-            workspace=workspace,
-        )
-        _print_section("FlexSoC CORDIC ip_load E2E passed")
+        workdir = shlex.quote(str(workspace))
+        run = workspace / "runs" / top / run_id
+        saved_library = workspace / "saved_ip_library"
+        saved_library_arg = shlex.quote(str(saved_library))
+        slang_root, slang_top, slang_search = _slang_values(top, run)
+        with _protect_ip_sources("cordic") as source_snapshot:
+            _run(
+                (
+                    f"uv run --no-sync fx settings --reset TOP={top} RUN_TOP={top} "
+                    f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} "
+                    f"CLOCK_DOMAINS={clock_domains} "
+                    f"CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}"
+                ),
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx doctor --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx ip_load --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(
+                f"uv run --no-sync fx regmap_py --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx tests_gen --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            stale_tb_markers = _seed_stale_tb_scaffold(run)
+            _run(
+                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_tb_scaffolds_recreated(stale_tb_markers, run, top)
+            _assert_reset_driver_parity(run, top, multiclock=False)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(
+                f"uv run --no-sync fx tests --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx lint_slang_suite --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                (
+                    f"uv run --no-sync fx slang_hier --set {slang_root} "
+                    f"--set {slang_top} --set {slang_search} --workdir {workdir}"
+                ),
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                (
+                    f"uv run --no-sync fx slang_ast --set {slang_root} "
+                    f"--set {slang_top} --set {slang_search} --workdir {workdir}"
+                ),
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_ast(top, run)
+            _run(
+                f"uv run --no-sync fx regression --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(
+                f"uv run --no-sync fx coverage --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx coverage_detail --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
 
+            if config.run_signoff:
+                _assert_design_formal_sources(top, run)
+                _run(
+                    f"uv run --no-sync fx setup_formal_csr_prove --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_formal_prove --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_csr_bmc --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_bmc --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_csr_prove --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_prove --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_formal_csr_cover --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_formal_cover --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_csr_cover --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_cover --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_sdc --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+
+                # sky130: rerun only technology-bound synthesis/sign-off stages.
+                _run(
+                    f"uv run --no-sync fx pdk use sky130 --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx settings --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx pdk info sky130 --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_syn --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx syn --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx sdf --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                if config.run_post_syn:
+                    sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
+                    sky130_wave_smoke = sky130_post_syn / (
+                        f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_smoke_arg = shlex.quote(str(sky130_wave_smoke))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_smoke_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="smoke",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=smoke "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_corners = sky130_post_syn / (
+                        f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_corners_arg = shlex.quote(str(sky130_wave_corners))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_corners_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_corners_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_corners_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="corners",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=corners "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_random_seed_1 = sky130_post_syn / (
+                        f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_random_seed_1_arg = shlex.quote(str(sky130_wave_random_seed_1))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_1_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_1_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_seed_1",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_seed_1 "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_random_seed_2 = sky130_post_syn / (
+                        f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_random_seed_2_arg = shlex.quote(str(sky130_wave_random_seed_2))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_2_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_2_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_seed_2",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_seed_2 "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_reconfig = sky130_post_syn / (
+                        f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_reconfig_arg = shlex.quote(str(sky130_wave_reconfig))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=reconfig "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_auto_toggle = sky130_post_syn / (
+                        f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_auto_toggle_arg = shlex.quote(str(sky130_wave_auto_toggle))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_auto_toggle_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_auto_toggle_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="auto_toggle",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=auto_toggle "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_smoke_zero = sky130_post_syn / (
+                        f"{top}_smoke_zero_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_smoke_zero_arg = shlex.quote(str(sky130_wave_smoke_zero))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke_zero --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_zero_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke_zero --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_zero_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_smoke_zero_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="smoke_zero",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke_zero,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=smoke_zero "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_rotate_45deg = sky130_post_syn / (
+                        f"{top}_rotate_45deg_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_rotate_45deg_arg = shlex.quote(str(sky130_wave_rotate_45deg))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=rotate_45deg --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_rotate_45deg_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=rotate_45deg --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_rotate_45deg_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_rotate_45deg_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="rotate_45deg",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_rotate_45deg,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=rotate_45deg "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_quadrant_sweep = sky130_post_syn / (
+                        f"{top}_quadrant_sweep_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_quadrant_sweep_arg = shlex.quote(str(sky130_wave_quadrant_sweep))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=quadrant_sweep --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_quadrant_sweep_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=quadrant_sweep --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_quadrant_sweep_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_quadrant_sweep_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="quadrant_sweep",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_quadrant_sweep,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=quadrant_sweep "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_random_small = sky130_post_syn / (
+                        f"{top}_random_small_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_random_small_arg = shlex.quote(str(sky130_wave_random_small))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_small --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_small_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_small --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_small_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_small_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_small",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_small,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_small "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                _run(
+                    f"uv run --no-sync fx manifest --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx manifest_show --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx metrics --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx check --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_technology_closure(top, run, "sky130")
+                _run(
+                    (
+                        f"uv run --no-sync fx ip_save --set IP_NAME={top} "
+                        f"--set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_saved_signoff_scripts(
+                    saved_library, top, "sky130", activity_count=30
+                )
+
+                # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
+                _run(
+                    f"uv run --no-sync fx pdk use ihp-sg13g2 --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx settings --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx pdk info ihp-sg13g2 --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_syn --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx syn --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx sdf --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                if config.run_post_syn:
+                    ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
+                    ihp_sg13g2_wave_smoke = ihp_sg13g2_post_syn / (
+                        f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_smoke))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_smoke_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="smoke",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=smoke "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
+                        f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_corners_arg = shlex.quote(str(ihp_sg13g2_wave_corners))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_corners_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_corners_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_corners_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="corners",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=corners "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
+                        f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_random_seed_1_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_1))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_1_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_1_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_seed_1",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_seed_1 "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
+                        f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_random_seed_2_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_2))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_2_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_2_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_seed_2",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_seed_2 "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
+                        f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_reconfig))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=reconfig "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
+                        f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_auto_toggle_arg = shlex.quote(str(ihp_sg13g2_wave_auto_toggle))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_auto_toggle_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_auto_toggle_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="auto_toggle",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=auto_toggle "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_smoke_zero = ihp_sg13g2_post_syn / (
+                        f"{top}_smoke_zero_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_smoke_zero_arg = shlex.quote(str(ihp_sg13g2_wave_smoke_zero))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke_zero --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_zero_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke_zero --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_zero_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_smoke_zero_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="smoke_zero",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke_zero,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=smoke_zero "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_rotate_45deg = ihp_sg13g2_post_syn / (
+                        f"{top}_rotate_45deg_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_rotate_45deg_arg = shlex.quote(str(ihp_sg13g2_wave_rotate_45deg))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=rotate_45deg --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_rotate_45deg_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=rotate_45deg --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_rotate_45deg_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_rotate_45deg_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="rotate_45deg",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_rotate_45deg,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=rotate_45deg "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_quadrant_sweep = ihp_sg13g2_post_syn / (
+                        f"{top}_quadrant_sweep_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_quadrant_sweep_arg = shlex.quote(str(ihp_sg13g2_wave_quadrant_sweep))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=quadrant_sweep --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_quadrant_sweep_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=quadrant_sweep --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_quadrant_sweep_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_quadrant_sweep_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="quadrant_sweep",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_quadrant_sweep,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=quadrant_sweep "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_random_small = ihp_sg13g2_post_syn / (
+                        f"{top}_random_small_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_random_small_arg = shlex.quote(str(ihp_sg13g2_wave_random_small))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_small --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_small_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_small --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_small_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_small_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_small",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_small,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_small "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                _run(
+                    f"uv run --no-sync fx manifest --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx manifest_show --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx metrics --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx check --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_technology_closure(top, run, "ihp-sg13g2")
+                _run(
+                    (
+                        f"uv run --no-sync fx ip_save --set IP_NAME={top} "
+                        f"--set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_saved_signoff_scripts(
+                    saved_library, top, "ihp-sg13g2", activity_count=30
+                )
+            _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
 
 @pytest.mark.e2e
 def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
-    """Run UART across both technology and post-synthesis matrices."""
+    """Load UART once and qualify the unchanged IP on SKY130 and IHP."""
 
-    plan = _e2e_plan(request)
+    config = _e2e_config(request)
+    top = os.environ.get("FLEXSOC_UART_TOP", "uart")
+    run_id = os.environ.get("FLEXSOC_RUN_ID", DEFAULT_RUN_ID)
+    host = os.environ.get("FLEXSOC_HOST", DEFAULT_HOST)
+    n_clocks = 1
+    clock_domains = SINGLE_CLOCK_DOMAINS
+    clock_relationships = ""
+
     with _preserve_project_settings(), _temporary_workspace(
-        "flexsoc-uart-e2e-", root=_e2e_root(request)
+        "flexsoc-uart-e2e-", _e2e_root(request)
     ) as workspace:
-        _print_section("FlexSoC UART ip_load E2E")
-        _print_context(workspace=workspace, plan=plan)
-        _run_loaded_ip_flow(
-            os.environ.get("FLEXSOC_UART_TOP", "uart"),
-            run_id=os.environ.get("FLEXSOC_UART_RUN_ID", DEFAULT_RUN_ID),
-            host=os.environ.get("FLEXSOC_HOST", DEFAULT_HOST),
-            plan=plan,
-            workspace=workspace,
-        )
-        _print_section("FlexSoC UART ip_load E2E passed")
+        workdir = shlex.quote(str(workspace))
+        run = workspace / "runs" / top / run_id
+        saved_library = workspace / "saved_ip_library"
+        saved_library_arg = shlex.quote(str(saved_library))
+        slang_root, slang_top, slang_search = _slang_values(top, run)
+        with _protect_ip_sources("uart") as source_snapshot:
+            _run(
+                (
+                    f"uv run --no-sync fx settings --reset TOP={top} RUN_TOP={top} "
+                    f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} "
+                    f"CLOCK_DOMAINS={clock_domains} "
+                    f"CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}"
+                ),
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx doctor --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx ip_load --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(
+                f"uv run --no-sync fx regmap_py --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx tests_gen --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            stale_tb_markers = _seed_stale_tb_scaffold(run)
+            _run(
+                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_tb_scaffolds_recreated(stale_tb_markers, run, top)
+            _assert_reset_driver_parity(run, top, multiclock=False)
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(
+                f"uv run --no-sync fx tests --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx lint_slang_suite --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                (
+                    f"uv run --no-sync fx slang_hier --set {slang_root} "
+                    f"--set {slang_top} --set {slang_search} --workdir {workdir}"
+                ),
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                (
+                    f"uv run --no-sync fx slang_ast --set {slang_root} "
+                    f"--set {slang_top} --set {slang_search} --workdir {workdir}"
+                ),
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_ast(top, run)
+            _run(
+                f"uv run --no-sync fx regression --no-setup --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_loaded_ip_tests(top, run_id, workspace)
+            _run(
+                f"uv run --no-sync fx coverage --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx coverage_detail --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_coverage_outputs(run / "dv" / "functional" / "coverage")
+
+            if config.run_signoff:
+                _assert_design_formal_sources(top, run)
+                _run(
+                    f"uv run --no-sync fx setup_formal_csr_prove --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_formal_prove --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_csr_bmc --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_bmc --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_csr_prove --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_prove --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_formal_csr_cover --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_formal_cover --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_csr_cover --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx formal_cover --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_sdc --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+
+                # sky130: rerun only technology-bound synthesis/sign-off stages.
+                _run(
+                    f"uv run --no-sync fx pdk use sky130 --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx settings --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx pdk info sky130 --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_syn --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx syn --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx sdf --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                if config.run_post_syn:
+                    sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
+                    sky130_wave_smoke = sky130_post_syn / (
+                        f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_smoke_arg = shlex.quote(str(sky130_wave_smoke))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_smoke_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_smoke_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="smoke",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=smoke "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_corners = sky130_post_syn / (
+                        f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_corners_arg = shlex.quote(str(sky130_wave_corners))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_corners_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_corners_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_corners_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="corners",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=corners "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_random_seed_1 = sky130_post_syn / (
+                        f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_random_seed_1_arg = shlex.quote(str(sky130_wave_random_seed_1))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_1_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_1_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_seed_1",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_seed_1 "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_random_seed_2 = sky130_post_syn / (
+                        f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_random_seed_2_arg = shlex.quote(str(sky130_wave_random_seed_2))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_2_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_random_seed_2_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="random_seed_2",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_seed_2 "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_reconfig = sky130_post_syn / (
+                        f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_reconfig_arg = shlex.quote(str(sky130_wave_reconfig))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=reconfig "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_auto_toggle = sky130_post_syn / (
+                        f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_auto_toggle_arg = shlex.quote(str(sky130_wave_auto_toggle))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_auto_toggle_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_auto_toggle_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="auto_toggle",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=auto_toggle "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_line_loopback = sky130_post_syn / (
+                        f"{top}_line_loopback_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_line_loopback_arg = shlex.quote(str(sky130_wave_line_loopback))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=line_loopback --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_line_loopback_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=line_loopback --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_line_loopback_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_line_loopback_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="line_loopback",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_line_loopback,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=line_loopback "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_rx_fifo = sky130_post_syn / (
+                        f"{top}_rx_fifo_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_rx_fifo_arg = shlex.quote(str(sky130_wave_rx_fifo))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=rx_fifo --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_rx_fifo_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=rx_fifo --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_rx_fifo_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_rx_fifo_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="rx_fifo",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_rx_fifo,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=rx_fifo "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_noise_filter = sky130_post_syn / (
+                        f"{top}_noise_filter_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_noise_filter_arg = shlex.quote(str(sky130_wave_noise_filter))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=noise_filter --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_noise_filter_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=noise_filter --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_noise_filter_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_noise_filter_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="noise_filter",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_noise_filter,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=noise_filter "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    sky130_wave_parity_reconfig = sky130_post_syn / (
+                        f"{top}_parity_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    sky130_wave_parity_reconfig_arg = shlex.quote(str(sky130_wave_parity_reconfig))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=parity_reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_parity_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=parity_reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={sky130_wave_parity_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        sky130_post_syn / (
+                            f"{top}_post_syn_parity_reconfig_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="sky130", test="parity_reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_parity_reconfig,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=parity_reconfig "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                _run(
+                    f"uv run --no-sync fx manifest --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx manifest_show --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx metrics --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx check --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_technology_closure(top, run, "sky130")
+                _run(
+                    (
+                        f"uv run --no-sync fx ip_save --set IP_NAME={top} "
+                        f"--set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_saved_signoff_scripts(
+                    saved_library, top, "sky130", activity_count=30
+                )
+
+                # ihp-sg13g2: rerun only technology-bound synthesis/sign-off stages.
+                _run(
+                    f"uv run --no-sync fx pdk use ihp-sg13g2 --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx settings --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx pdk info ihp-sg13g2 --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_syn --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx syn --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx sdf --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                if config.run_post_syn:
+                    ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
+                    ihp_sg13g2_wave_smoke = ihp_sg13g2_post_syn / (
+                        f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_smoke))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=smoke --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_smoke_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_smoke_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="smoke",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=smoke "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
+                        f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_corners_arg = shlex.quote(str(ihp_sg13g2_wave_corners))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_corners_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=corners --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_corners_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_corners_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="corners",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=corners "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
+                        f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_random_seed_1_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_1))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_1_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_1 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_1_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_seed_1",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_seed_1 "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
+                        f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_random_seed_2_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_2))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_2_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=random_seed_2 --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_random_seed_2_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="random_seed_2",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=random_seed_2 "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
+                        f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_reconfig))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_reconfig_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=reconfig "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
+                        f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_auto_toggle_arg = shlex.quote(str(ihp_sg13g2_wave_auto_toggle))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_auto_toggle_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=auto_toggle --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_auto_toggle_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="auto_toggle",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=auto_toggle "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_line_loopback = ihp_sg13g2_post_syn / (
+                        f"{top}_line_loopback_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_line_loopback_arg = shlex.quote(str(ihp_sg13g2_wave_line_loopback))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=line_loopback --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_line_loopback_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=line_loopback --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_line_loopback_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_line_loopback_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="line_loopback",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_line_loopback,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=line_loopback "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_rx_fifo = ihp_sg13g2_post_syn / (
+                        f"{top}_rx_fifo_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_rx_fifo_arg = shlex.quote(str(ihp_sg13g2_wave_rx_fifo))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=rx_fifo --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_rx_fifo_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=rx_fifo --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_rx_fifo_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_rx_fifo_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="rx_fifo",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_rx_fifo,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=rx_fifo "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_noise_filter = ihp_sg13g2_post_syn / (
+                        f"{top}_noise_filter_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_noise_filter_arg = shlex.quote(str(ihp_sg13g2_wave_noise_filter))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=noise_filter --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_noise_filter_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=noise_filter --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_noise_filter_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_noise_filter_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="noise_filter",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_noise_filter,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=noise_filter "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    ihp_sg13g2_wave_parity_reconfig = ihp_sg13g2_post_syn / (
+                        f"{top}_parity_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    )
+                    ihp_sg13g2_wave_parity_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_parity_reconfig))
+                    _run(
+                        (
+                            f"uv run --no-sync fx compile_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=parity_reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_parity_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx sim_post_syn --no-setup "
+                            f"--set GLS_BACKEND={config.gls_backend} "
+                            f"--set TIMING_MODE={config.gls_mode} "
+                            f"--set TEST_NAME=parity_reconfig --set SDF_STRICT=1 "
+                            f"--set WAVE_FORMAT=fst --set WAVE_FILE={ihp_sg13g2_wave_parity_reconfig_arg} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                    _assert_post_syn_report(
+                        ihp_sg13g2_post_syn / (
+                            f"{top}_post_syn_parity_reconfig_{config.gls_backend}_"
+                            f"{config.gls_mode}.json"
+                        ),
+                        top=top, pdk="ihp-sg13g2", test="parity_reconfig",
+                        backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_parity_reconfig,
+                    )
+                    _run(
+                        (
+                            f"uv run --no-sync fx power_analysis "
+                            f"--set POWER_TEST_NAME=parity_reconfig "
+                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
+                            f"--set POWER_TIMING_MODE={config.gls_mode} "
+                            f"--workdir {workdir}"
+                        ),
+                        workspace=workspace, top=top, run_id=run_id,
+                    )
+                _run(
+                    f"uv run --no-sync fx manifest --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx manifest_show --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx metrics --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx check --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_technology_closure(top, run, "ihp-sg13g2")
+                _run(
+                    (
+                        f"uv run --no-sync fx ip_save --set IP_NAME={top} "
+                        f"--set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}"
+                    ),
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _assert_saved_signoff_scripts(
+                    saved_library, top, "ihp-sg13g2", activity_count=30
+                )
+            _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)

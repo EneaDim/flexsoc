@@ -25,11 +25,10 @@ help: ## Show this help
 		'  make sync                              Install exactly the locked Python environment' \
 		'  make doctor                            Check Python lock and local EDA tools' \
 		'  make check                             Run Ruff + full E2E closure' \
-		'  make test                              Run full E2E incl. formal/syn/equiv/SDF/STA/power' \
+		'  make test                              Run full E2E on sky130 + ihp-sg13g2' \
 		'  make test-smoke                        Run E2E without formal/synthesis/signoff' \
 		'  make test E2E_ROOT=~/flexsoc-e2e       Choose where E2E workspaces are created' \
 		'  make test SIGNOFF=0 E2E_ROOT=~/fx-e2e  Explicitly skip signoff for a custom run' \
-		'  make test-live                         Stream fx subprocess output live' \
 		'  make test-api                          Run fast Python/API tests only' \
 		'  uv run fx --help                       Show hardware-flow targets' \
 		''
@@ -64,25 +63,21 @@ fix: ## Run Ruff with --fix
 check: lint test ## Run Ruff + full E2E closure
 
 ##@ Tests
-# E2E is the default test surface. Full formal/synthesis/signoff closure is on
-# by default; SIGNOFF=0 is an explicit fast smoke/debug opt-out. The workspace
+# E2E is the default test surface. Shared RTL/DV/formal runs once, then every
+# test qualifies SKY130 and IHP. SIGNOFF=0 is an explicit smoke/debug opt-out.
+# The workspace
 # root can be moved outside /tmp when a run should be inspected or retained.
-.PHONY: test test-smoke test-live test-api
+.PHONY: test test-smoke test-api
 
-FLEXSOC_E2E_FX ?= $(UV) run --no-sync fx
-FLEXSOC_E2E_LIVE ?= 0
 E2E_ROOT ?= /tmp
 SIGNOFF ?= 1
 E2E_SIGNOFF_ARG := $(if $(filter 1 true yes on,$(SIGNOFF)),,--no-signoff)
 
-test: ## Run full E2E closure (SIGNOFF=1 by default, E2E_ROOT=/tmp)
-	FLEXSOC_RUN_E2E=1 FLEXSOC_E2E_LIVE=$(FLEXSOC_E2E_LIVE) FLEXSOC_E2E_FX="$(FLEXSOC_E2E_FX)" $(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_SIGNOFF_ARG) --e2e-root "$(E2E_ROOT)"
+test: ## Run full E2E closure on SKY130 and IHP (SIGNOFF=1, E2E_ROOT=/tmp)
+	$(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_SIGNOFF_ARG) --e2e-root "$(E2E_ROOT)"
 
 test-smoke: ## Run E2E without formal/synthesis/signoff
 	$(MAKE) test SIGNOFF=0 E2E_ROOT="$(E2E_ROOT)"
-
-test-live: ## Run the full E2E closure with live fx output
-	$(MAKE) test FLEXSOC_E2E_LIVE=1 SIGNOFF=$(SIGNOFF) E2E_ROOT="$(E2E_ROOT)"
 
 test-api: ## Run fast Python/API tests only
 	$(PYTEST) -s tests/test_api.py
