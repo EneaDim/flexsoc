@@ -1,4 +1,4 @@
-"""Activity-based OpenSTA power analysis from qualified GLS waveforms."""
+"""Activity-based OpenSTA power analysis from direct SDF-backed GLS waveforms."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from flexsoc.backend.output import print_script
 from flexsoc.backend.setup_signoff import liberty_corner
 from flexsoc.run_layout import layout_from_values
 
@@ -87,89 +88,183 @@ def _load_json(path: Path) -> dict[str, Any]:
     return data
 
 
-def _matrix(values: Mapping[str, str]) -> tuple[Path, dict[str, Any]]:
-    layout = layout_from_values(Path.cwd(), values)
-    path = layout.post_syn_sim_dir / "e2e_qualification" / "matrix.json"
-    if not path.is_file():
-        raise ValueError(f"GLS qualification matrix not found: {path}")
-    return path, _load_json(path)
-
-
 def _selector(values: Mapping[str, str], plural: str, singular: str, default: str) -> tuple[str, ...]:
     raw = values.get(plural) or values.get(singular) or default
     return _split(raw)
 
 
+def _post_syn_report(
+    project_root: Path,
+    values: Mapping[str, str],
+    *,
+    test: str,
+    backend: str,
+    mode: str,
+) -> Path:
+    layout = layout_from_values(project_root, values)
+    top = values.get("TOP", "test")
+    return layout.post_syn_sim_dir / f"{top}_post_syn_{test}_{backend}_{mode}.json"
+
+
 def _qualified_spec(
-    values: Mapping[str, str], *, test: str, backend: str, mode: str
+    project_root: Path,
+    values: Mapping[str, str],
+    *,
+    test: str,
+    backend: str,
+    mode: str,
 ) -> ActivitySpec:
+    """Resolve one successful SDF-backed GLS report without a matrix manifest."""
+
     if mode not in SDF_MODES:
         raise ValueError(
             f"activity power requires back-annotated GLS mode min/typ/max, got {mode!r}"
         )
-    layout = layout_from_values(Path.cwd(), values)
+    report = _post_syn_report(project_root, values, test=test, backend=backend, mode=mode)
+    if not report.is_file():
+        raise ValueError(
+            f"GLS report not found: {report}; run `fx sim_post_syn --set TEST_NAME={test} "
+            f"--set GLS_BACKEND={backend} --set TIMING_MODE={mode}` first"
+        )
+    payload = _load_json(report)
     top = values.get("TOP", "test")
     pdk = values.get("PDK", "sky130")
-    qualification = layout.post_syn_sim_dir / "e2e_qualification"
-    stem = f"{top}_{pdk}_{test}_{backend}_{mode}"
-    report = qualification / "reports" / f"{stem}.json"
-    wave = qualification / "waves" / f"{stem}.{values.get('WAVE_FORMAT', 'fst')}"
-    if not wave.is_file():
-        alternatives = tuple(qualification.glob(f"waves/{stem}.*"))
-        if len(alternatives) == 1:
-            wave = alternatives[0]
-    payload = _load_json(report)
-    annotation = payload.get("annotation")
+    expected = {
+        "stage": "post_syn",
+        "top": top,
+        "pdk": pdk,
+        "test_name": test,
+        "backend": backend,
+        "timing_mode": mode,
+    }
+    mismatches = {
+        key: (payload.get(key), value)
+        for key, value in expected.items()
+        if payload.get(key) != value
+    }
+    if mismatches:
+        detail = ", ".join(
+            f"{key}={actual!r} expected {wanted!r}"
+            for key, (actual, wanted) in mismatches.items()
+        )
+        raise ValueError(f"GLS report metadata mismatch in {report}: {detail}")
     if payload.get("status") != "pass":
         raise ValueError(f"GLS source report is not PASS: {report}")
-    if payload.get("timing_mode") != mode or payload.get("backend") != backend:
-        raise ValueError(f"GLS source report does not match {backend}/{mode}: {report}")
+    annotation = payload.get("annotation")
     if not isinstance(annotation, dict) or annotation.get("requested_marker") is not True:
         raise ValueError(f"GLS source lacks confirmed $sdf_annotate evidence: {report}")
+    raw_wave = payload.get("wave")
+    if not isinstance(raw_wave, str) or not raw_wave.strip():
+        raise ValueError(f"GLS source report does not identify a waveform: {report}")
+    wave = Path(raw_wave).expanduser()
+    if not wave.is_absolute():
+        wave = (report.parent / wave).resolve()
+    else:
+        wave = wave.resolve()
     if not wave.is_file() or wave.stat().st_size == 0:
         raise ValueError(f"GLS activity waveform is missing or empty: {wave}")
-    return ActivitySpec(top, pdk, test, backend, mode, report, wave)
+    return ActivitySpec(top, pdk, test, backend, mode, report.resolve(), wave)
 
 
-def discover_specs(action: str, values: Mapping[str, str]) -> tuple[ActivitySpec, ...]:
-    """Resolve one or every qualified test from the selected PDK matrix."""
+def _available_gls(
+    project_root: Path, values: Mapping[str, str]
+) -> tuple[tuple[str, str, str], ...]:
+    """Discover direct post-synthesis reports as ``(test, backend, mode)`` rows."""
 
-    matrix_path, matrix = _matrix(values)
-    available_tests = tuple(str(item) for item in matrix.get("tests", []))
-    available_backends = tuple(str(item) for item in matrix.get("backends", []))
-    available_modes = tuple(str(item) for item in matrix.get("timing_modes", []))
+    layout = layout_from_values(project_root, values)
+    top = values.get("TOP", "test")
+    prefix = f"{top}_post_syn_"
+    rows: set[tuple[str, str, str]] = set()
+    for report in layout.post_syn_sim_dir.glob(f"{prefix}*.json"):
+        tail = report.stem[len(prefix):]
+        for mode in SDF_MODES:
+            for backend in ("sv", "cocotb"):
+                suffix = f"_{backend}_{mode}"
+                if tail.endswith(suffix) and tail[: -len(suffix)]:
+                    rows.add((tail[: -len(suffix)], backend, mode))
+    mode_order = {mode: index for index, mode in enumerate(SDF_MODES)}
+    return tuple(sorted(rows, key=lambda row: (mode_order[row[2]], row[0], row[1])))
 
-    requested_tests = _selector(
+
+def _one(values: tuple[str, ...], label: str) -> str:
+    if len(values) != 1 or values == ("all",):
+        raise ValueError(f"{label} must select exactly one value")
+    return values[0]
+
+
+def discover_specs(
+    action: str,
+    values: Mapping[str, str],
+    project_root: Path | None = None,
+) -> tuple[ActivitySpec, ...]:
+    """Resolve one GLS trace or discover all direct traces matching the selectors."""
+
+    root = (project_root or Path.cwd()).expanduser().resolve()
+    tests = _selector(
         values,
         "POWER_TEST_NAMES",
         "POWER_TEST_NAME",
         "all" if action == "all" else values.get("TEST_NAME", "smoke"),
     )
-    tests = available_tests if requested_tests == ("all",) else requested_tests
-    backends = _selector(values, "POWER_GLS_BACKENDS", "POWER_GLS_BACKEND", "sv")
-    modes = _selector(values, "POWER_TIMING_MODES", "POWER_TIMING_MODE", "typ")
-    if backends == ("all",):
-        backends = available_backends
-    if modes == ("all",):
-        modes = tuple(mode for mode in available_modes if mode in SDF_MODES)
+    backends = _selector(
+        values,
+        "POWER_GLS_BACKENDS",
+        "POWER_GLS_BACKEND",
+        "all" if action == "all" else values.get("GLS_BACKEND", "sv"),
+    )
+    modes = _selector(
+        values,
+        "POWER_TIMING_MODES",
+        "POWER_TIMING_MODE",
+        "all" if action == "all" else values.get("TIMING_MODE", "typ"),
+    )
+    if action == "single":
+        return (
+            _qualified_spec(
+                root,
+                values,
+                test=_one(tests, "POWER_TEST_NAME"),
+                backend=_one(backends, "POWER_GLS_BACKEND"),
+                mode=_one(modes, "POWER_TIMING_MODE"),
+            ),
+        )
 
-    missing_tests = sorted(set(tests) - set(available_tests))
-    missing_backends = sorted(set(backends) - set(available_backends))
-    missing_modes = sorted(set(modes) - set(available_modes))
-    invalid_modes = sorted(set(modes) - set(SDF_MODES))
-    if missing_tests or missing_backends or missing_modes or invalid_modes:
+    available = _available_gls(root, values)
+    if not available:
+        layout = layout_from_values(root, values)
+        raise ValueError(f"no direct SDF-backed GLS reports found in {layout.post_syn_sim_dir}")
+    selected = tuple(
+        row
+        for row in available
+        if (tests == ("all",) or row[0] in tests)
+        and (backends == ("all",) or row[1] in backends)
+        and (modes == ("all",) or row[2] in modes)
+    )
+    available_columns = (
+        {row[0] for row in available},
+        {row[1] for row in available},
+        {row[2] for row in available},
+    )
+    missing = {
+        label: sorted(set(requested) - present)
+        for label, requested, present in (
+            ("tests", tests, available_columns[0]),
+            ("backends", backends, available_columns[1]),
+            ("modes", modes, available_columns[2]),
+        )
+        if requested != ("all",) and set(requested) - present
+    }
+    if missing:
+        raise ValueError(f"requested GLS reports are missing: {missing}")
+    if not selected:
         raise ValueError(
-            f"power selection is not present in {matrix_path}: "
-            f"tests={missing_tests} backends={missing_backends} "
-            f"modes={missing_modes} non_sdf_modes={invalid_modes}"
+            "no direct GLS reports match power selectors: "
+            f"tests={tests} backends={backends} modes={modes}"
         )
     return tuple(
-        _qualified_spec(values, test=test, backend=backend, mode=mode)
-        for mode in modes
-        for test in tests
-        for backend in backends
+        _qualified_spec(root, values, test=test, backend=backend, mode=mode)
+        for test, backend, mode in selected
     )
-
 
 def _valid_vcd(path: Path) -> bool:
     """Return true when *path* looks like a non-empty VCD capture."""
@@ -347,7 +442,7 @@ def render_power_activity_tcl(
     *, top: str, liberty: Path, netlist: Path, sdc: Path, vcd: Path, scope: str,
     source_report: Path, scope_requested: str = "auto",
 ) -> str:
-    """Render one OpenSTA power run driven by a qualified GLS VCD."""
+    """Render one OpenSTA power run driven by a direct GLS VCD."""
 
     def quote(path: Path) -> str:
         return "{" + path.resolve().as_posix() + "}"
@@ -410,7 +505,7 @@ def _activity_count(text: str) -> int | None:
 
 
 def analyze_spec(project_root: Path, values: Mapping[str, str], spec: ActivitySpec) -> dict[str, Any]:
-    """Analyze one qualified GLS trace at every configured Liberty corner."""
+    """Analyze one direct GLS trace at every configured Liberty corner."""
 
     layout = layout_from_values(project_root, values)
     power_root = layout.power_dir / "activity"
@@ -448,6 +543,7 @@ def analyze_spec(project_root: Path, values: Mapping[str, str], spec: ActivitySp
             ),
             encoding="utf-8",
         )
+        print_script(script)
         log = log_root / f"{spec.stem}_{corner}.log"
         rc = _run_sta(
             [values.get("STA", "sta"), "-exit", "-no_init", str(script)],
@@ -496,28 +592,82 @@ def analyze_spec(project_root: Path, values: Mapping[str, str], spec: ActivitySp
     return report
 
 
-def _write_summary(project_root: Path, values: Mapping[str, str], reports: Sequence[dict[str, Any]]) -> Path:
+def _report_key(report: Mapping[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(report.get("test", "")),
+        str(report.get("backend", "")),
+        str(report.get("timing_mode", "")),
+    )
+
+
+def _write_failure_report(
+    project_root: Path,
+    values: Mapping[str, str],
+    spec: ActivitySpec,
+    reason: str,
+) -> dict[str, Any]:
+    layout = layout_from_values(project_root, values)
+    report = {
+        "schema_version": 1,
+        "status": "fail",
+        "top": spec.top,
+        "pdk": spec.pdk,
+        "test": spec.test,
+        "backend": spec.backend,
+        "timing_mode": spec.mode,
+        "reason": reason,
+    }
+    path = layout.power_dir / "activity" / "reports" / f"{spec.stem}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    report["report"] = str(path)
+    return report
+
+
+def _write_summary(
+    project_root: Path,
+    values: Mapping[str, str],
+    reports: Sequence[dict[str, Any]],
+) -> Path:
+    """Write an aggregate summary from independently executed power analyses."""
+
     layout = layout_from_values(project_root, values)
     root = layout.power_dir / "activity"
-    passed = sum(report.get("status") == "pass" for report in reports)
+    merged: dict[tuple[str, str, str], dict[str, Any]] = {}
+    report_dir = root / "reports"
+    if report_dir.is_dir():
+        for path in sorted(report_dir.glob("*.json")):
+            try:
+                report = _load_json(path)
+            except ValueError:
+                continue
+            if report.get("top") != values.get("TOP", "test"):
+                continue
+            if report.get("pdk") != values.get("PDK", "sky130"):
+                continue
+            report["report"] = str(path)
+            merged[_report_key(report)] = report
+    for report in reports:
+        merged[_report_key(report)] = report
+    ordered = [merged[key] for key in sorted(merged)]
+    passed = sum(report.get("status") == "pass" for report in ordered)
     summary = {
         "schema_version": 1,
-        "status": "pass" if reports and passed == len(reports) else "fail",
+        "status": "pass" if ordered and passed == len(ordered) else "fail",
         "top": values.get("TOP", "test"),
         "pdk": values.get("PDK", "sky130"),
         "passed": passed,
-        "failed": len(reports) - passed,
-        "total": len(reports),
-        "reports": reports,
+        "failed": len(ordered) - passed,
+        "total": len(ordered),
+        "reports": ordered,
     }
     path = root / "summary.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
 
-
 def execute(action: str, project_root: Path, values: Mapping[str, str]) -> int:
-    specs = discover_specs(action, values)
+    specs = discover_specs(action, values, project_root)
     reports: list[dict[str, Any]] = []
     failures: list[str] = []
     for spec in specs:
@@ -525,15 +675,7 @@ def execute(action: str, project_root: Path, values: Mapping[str, str]) -> int:
             report = analyze_spec(project_root, values, spec)
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
             failures.append(f"{spec.stem}: {exc}")
-            report = {
-                "status": "fail",
-                "top": spec.top,
-                "pdk": spec.pdk,
-                "test": spec.test,
-                "backend": spec.backend,
-                "timing_mode": spec.mode,
-                "reason": str(exc),
-            }
+            report = _write_failure_report(project_root, values, spec, str(exc))
         reports.append(report)
         if _live():
             print(f"[power-analysis] {spec.stem}: {str(report.get('status')).upper()}", flush=True)

@@ -1,4 +1,4 @@
-"""Shared terminal rendering for generated FlexSoC scripts."""
+"""Shared terminal rendering for generated scripts and live command logs."""
 
 from __future__ import annotations
 
@@ -8,19 +8,11 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-from rich.console import Console
-from rich.syntax import Syntax
-from rich.text import Text
-
 
 _ANSI = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-_LEXERS = {
-    ".eqy": "ini",
-    ".mk": "make",
-    ".sby": "ini",
-    ".tcl": "tcl",
-    ".ys": "tcl",
-}
+_ORANGE = "\x1b[38;5;208m"
+_GRAY = "\x1b[90m"
+_RESET = "\x1b[0m"
 
 
 def strip_ansi(text: str) -> str:
@@ -30,7 +22,7 @@ def strip_ansi(text: str) -> str:
 
 
 def color_enabled(stream: TextIO | None = None) -> bool:
-    """Return whether generated scripts should use terminal color."""
+    """Return whether FlexSoC terminal blocks should use color."""
 
     stream = stream or sys.stdout
     mode = os.environ.get("FLEXSOC_COLOR", "auto").strip().lower()
@@ -43,6 +35,24 @@ def color_enabled(stream: TextIO | None = None) -> bool:
     return bool(getattr(stream, "isatty", lambda: False)())
 
 
+def print_path_label(
+    label: str,
+    path: Path,
+    *,
+    stream: TextIO | None = None,
+    color: bool | None = None,
+) -> None:
+    """Print one orange block label followed by a subdued absolute path."""
+
+    stream = stream or sys.stdout
+    resolved = path.expanduser().resolve()
+    use_color = color_enabled(stream) if color is None else color
+    if use_color:
+        print(f"{_ORANGE}[{label}]{_RESET} {_GRAY}{resolved}{_RESET}", file=stream)
+    else:
+        print(f"[{label}] {resolved}", file=stream)
+
+
 def print_script(
     path: Path,
     *,
@@ -50,34 +60,53 @@ def print_script(
     color: bool | None = None,
     content: bool | None = None,
 ) -> None:
-    """Print a generated-script label and, in live mode, its highlighted body."""
+    """Print a generated script as an orange header and a gray text block."""
 
     stream = stream or sys.stdout
-    path = path.expanduser().resolve()
+    resolved = path.expanduser().resolve()
     show_content = (
         os.environ.get("FLEXSOC_LIVE", "0").strip().lower() in {"1", "true", "yes", "on"}
         if content is None
         else content
     )
     use_color = color_enabled(stream) if color is None else color
-    if not use_color:
-        print(f"[script] {path}", file=stream)
-        if show_content:
-            text = path.read_text(encoding="utf-8", errors="replace")
-            print(text, end="" if text.endswith("\n") else "\n", file=stream)
-        return
-
-    console = Console(file=stream, force_terminal=True, color_system="auto")
-    console.print(Text.assemble(("[script]", "bold orange1"), " ", (str(path), "bright_cyan")))
+    print_path_label("script", resolved, stream=stream, color=use_color)
     if not show_content:
         return
-    text = path.read_text(encoding="utf-8", errors="replace")
-    console.print(
-        Syntax(
-            text,
-            _LEXERS.get(path.suffix.lower(), "text"),
-            theme="ansi_dark",
-            background_color="default",
-            word_wrap=False,
-        )
-    )
+    text = resolved.read_text(encoding="utf-8", errors="replace")
+    if use_color:
+        stream.write(f"{_GRAY}{text}{_RESET}")
+        if not text.endswith("\n"):
+            stream.write("\n")
+    else:
+        stream.write(text)
+        if not text.endswith("\n"):
+            stream.write("\n")
+    stream.flush()
+
+
+def print_log(path: Path, *, stream: TextIO | None = None, color: bool | None = None) -> None:
+    """Print the header used before a live command transcript."""
+
+    print_path_label("log", path, stream=stream, color=color)
+
+
+def print_live_line(
+    line: str,
+    *,
+    stream: TextIO | None = None,
+    color: bool | None = None,
+) -> None:
+    """Write one live log line in gray while preserving explicit block colors."""
+
+    stream = stream or sys.stdout
+    use_color = color_enabled(stream) if color is None else color
+    plain = strip_ansi(line)
+    if use_color:
+        if _ORANGE in line and plain.startswith("[script] "):
+            stream.write(line)
+        else:
+            stream.write(f"{_GRAY}{plain}{_RESET}")
+    else:
+        stream.write(plain)
+    stream.flush()

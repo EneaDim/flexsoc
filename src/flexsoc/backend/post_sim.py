@@ -363,7 +363,10 @@ def resolve_paths(project_root: Path, values: Mapping[str, str], stage: str) -> 
     fmt = values.get("WAVE_FORMAT", "fst").strip().lower()
     if fmt not in WAVE_FORMATS:
         raise ValueError("WAVE_FORMAT must be fst or vcd")
-    tag = f"{driver}_{timing.mode}"
+    test = values.get("TEST_NAME", "smoke").strip() or "smoke"
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", test):
+        raise ValueError("TEST_NAME may contain only letters, digits, '.', '_' and '-'")
+    tag = f"{test}_{driver}_{timing.mode}"
     wave = (
         Path(values["WAVE_FILE"]).expanduser().resolve()
         if values.get("WAVE_FILE")
@@ -874,6 +877,8 @@ def _write_report(
         "returncode": final_rc,
         "phase": phase,
         "stage": stage,
+        "top": values.get("TOP", "test"),
+        "pdk": values.get("PDK", "sky130"),
         "backend": _driver(values),
         "test_name": values.get("TEST_NAME", "smoke"),
         "simulator": values.get("GLS_SIMULATOR", "iverilog"),

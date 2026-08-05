@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+from textwrap import dedent
 from typing import Sequence
 
 from flexsoc.clocking import clock_config
@@ -253,14 +254,160 @@ bind prim_subreg_ext flexsoc_csr_subreg_ext_checker #(.DW(DW))
 '''
 
 
-def generate_scaffold(top: str, formal_dir: Path) -> tuple[Path, ...]:
-    """Create designer-owned formal property directories without properties."""
+def render_design_prove(top: str, *, multiclock: bool) -> str:
+    """Render starter assertions for the generated single- or N-clock core."""
 
-    root = formal_dir.expanduser().resolve()
-    prove = root / "properties" / "prove"
-    cover = root / "properties" / "cover"
-    prove.mkdir(parents=True, exist_ok=True)
-    cover.mkdir(parents=True, exist_ok=True)
+    if multiclock:
+        return dedent(f"""\
+        // Generated starter assertions for {top}_core.
+        // This file becomes designer-owned after creation and is never overwritten.
+        module {top}_scaffold_prove (
+          input logic dsp_clk_i, dsp_rst_ni,
+          input logic enable_rx, fifo_wready, rx_ready_o,
+          input logic enable_dsp, fifo_rvalid, dsp_valid_o, dsp_ready_i, fifo_rready,
+          input logic clk_gate_en_dsp, dsp_clk_active, soft_reset_dsp,
+          input logic signed [31:0] dsp_result_o,
+          input logic dsp_above_threshold_o, dsp_overflow_o
+        );
+          logic past_valid = 1'b0;
+
+          always_comb begin
+            assert (rx_ready_o == (enable_rx & fifo_wready));
+            assert (fifo_rready == (enable_dsp & fifo_rvalid & (!dsp_valid_o | dsp_ready_i)));
+            assert (dsp_clk_active == (enable_dsp & (!clk_gate_en_dsp | fifo_rvalid | dsp_valid_o)));
+          end
+
+          always_ff @(posedge dsp_clk_i) begin
+            if (past_valid && (!$past(dsp_rst_ni) || $past(soft_reset_dsp))) begin
+              assert (!dsp_valid_o);
+              assert (dsp_result_o == '0);
+              assert (!dsp_above_threshold_o);
+              assert (!dsp_overflow_o);
+            end
+            past_valid <= 1'b1;
+          end
+        endmodule
+
+        bind {top}_core {top}_scaffold_prove {top}_scaffold_prove_i (
+          .dsp_clk_i(dsp_clk_i), .dsp_rst_ni(dsp_rst_ni),
+          .enable_rx(enable_rx), .fifo_wready(fifo_wready), .rx_ready_o(rx_ready_o),
+          .enable_dsp(enable_dsp), .fifo_rvalid(fifo_rvalid), .dsp_valid_o(dsp_valid_o),
+          .dsp_ready_i(dsp_ready_i), .fifo_rready(fifo_rready),
+          .clk_gate_en_dsp(clk_gate_en_dsp), .dsp_clk_active(dsp_clk_active),
+          .soft_reset_dsp(soft_reset_dsp), .dsp_result_o(dsp_result_o),
+          .dsp_above_threshold_o(dsp_above_threshold_o), .dsp_overflow_o(dsp_overflow_o)
+        );
+        """)
+
+    return dedent(f"""\
+    // Generated starter assertions for {top}_core.
+    // This file becomes designer-owned after creation and is never overwritten.
+    module {top}_scaffold_prove (
+      input logic clk_i, rst_ni,
+      input logic [31:0] data_o, pipe_q1,
+      input logic valid_o, valid_q1
+    );
+      logic past_valid = 1'b0;
+
+      always_comb begin
+        assert (data_o == pipe_q1);
+        assert (valid_o == valid_q1);
+      end
+
+      always_ff @(posedge clk_i) begin
+        if (past_valid && !$past(rst_ni)) begin
+          assert (data_o == '0);
+          assert (!valid_o);
+        end
+        past_valid <= 1'b1;
+      end
+    endmodule
+
+    bind {top}_core {top}_scaffold_prove {top}_scaffold_prove_i (
+      .clk_i(clk_i), .rst_ni(rst_ni), .data_o(data_o), .pipe_q1(pipe_q1),
+      .valid_o(valid_o), .valid_q1(valid_q1)
+    );
+    """)
+
+
+def render_design_cover(top: str, *, multiclock: bool) -> str:
+    """Render starter covers for the generated single- or N-clock core."""
+
+    if multiclock:
+        return dedent(f"""\
+        // Generated starter covers for {top}_core.
+        // This file becomes designer-owned after creation and is never overwritten.
+        module {top}_scaffold_cover (
+          input logic cfg_clk_i, cfg_rst_ni, cfg_enable,
+          input logic rx_clk_i, rx_rst_ni, rx_valid_i, rx_ready_o,
+          input logic dsp_clk_i, dsp_rst_ni, fifo_rvalid, dsp_valid_o, dsp_ready_i
+        );
+          always_ff @(posedge cfg_clk_i) if (cfg_rst_ni) cover (cfg_enable);
+          always_ff @(posedge rx_clk_i) if (rx_rst_ni) cover (rx_valid_i && rx_ready_o);
+          always_ff @(posedge dsp_clk_i) if (dsp_rst_ni) begin
+            cover (fifo_rvalid);
+            cover (dsp_valid_o);
+            cover (dsp_valid_o && dsp_ready_i);
+          end
+        endmodule
+
+        bind {top}_core {top}_scaffold_cover {top}_scaffold_cover_i (
+          .cfg_clk_i(cfg_clk_i), .cfg_rst_ni(cfg_rst_ni), .cfg_enable(cfg_enable),
+          .rx_clk_i(rx_clk_i), .rx_rst_ni(rx_rst_ni), .rx_valid_i(rx_valid_i),
+          .rx_ready_o(rx_ready_o), .dsp_clk_i(dsp_clk_i), .dsp_rst_ni(dsp_rst_ni),
+          .fifo_rvalid(fifo_rvalid), .dsp_valid_o(dsp_valid_o), .dsp_ready_i(dsp_ready_i)
+        );
+        """)
+
+    return dedent(f"""\
+    // Generated starter covers for {top}_core.
+    // This file becomes designer-owned after creation and is never overwritten.
+    module {top}_scaffold_cover (
+      input logic clk_i, rst_ni, valid_i, valid_o,
+      input logic [31:0] data_o
+    );
+      logic past_valid = 1'b0;
+
+      always_ff @(posedge clk_i) begin
+        if (rst_ni) begin
+          cover (valid_i);
+          cover (valid_o);
+          cover (valid_o && |data_o);
+          if (past_valid) cover (valid_i && !$past(valid_i));
+        end
+        past_valid <= 1'b1;
+      end
+    endmodule
+
+    bind {top}_core {top}_scaffold_cover {top}_scaffold_cover_i (
+      .clk_i(clk_i), .rst_ni(rst_ni), .valid_i(valid_i),
+      .valid_o(valid_o), .data_o(data_o)
+    );
+    """)
+
+
+def _write_scaffold(path: Path, text: str) -> Path:
+    """Create one designer-owned starter file without replacing existing work."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        path.write_text(text, encoding="utf-8")
+    return path.resolve()
+
+
+def generate_scaffold(top: str, formal_dir: Path) -> tuple[Path, ...]:
+    """Create non-destructive design-property starters for the generated core."""
+
+    root = formal_dir.expanduser().resolve() / "properties"
+    multiclock = clock_config().multiclock
+    prove = _write_scaffold(
+        root / "prove" / f"{top}_prove.sv",
+        render_design_prove(top, multiclock=multiclock),
+    )
+    cover = _write_scaffold(
+        root / "cover" / f"{top}_cover.sv",
+        render_design_cover(top, multiclock=multiclock),
+    )
     return prove, cover
 
 

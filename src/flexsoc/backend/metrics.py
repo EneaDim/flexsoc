@@ -680,37 +680,19 @@ def _gls_group(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _matrix_failure_map(values: Sequence[object]) -> dict[str, str]:
-    """Split ``<stem>: <reason>`` failure rows written by the E2E matrix."""
-
-    result: dict[str, str] = {}
-    for value in values:
-        row = str(value)
-        stem, separator, reason = row.partition(": ")
-        if separator and stem:
-            result[stem] = reason
-    return result
-
-
 def _gls_report_reason(
     report: dict[str, Any],
     *,
     mode: str,
-    report_path: Path,
     wave_path: Path,
-    matrix_reason: str | None,
 ) -> str | None:
-    """Return the first concrete reason one GLS combination is not qualified."""
+    """Return the first concrete reason one direct GLS result is not usable."""
 
-    if not report_path.is_file():
-        return matrix_reason or "qualification report missing"
     if not report:
-        return matrix_reason or "qualification report is not valid JSON"
+        return "GLS report is not valid JSON"
     if str(report.get("status", "unknown")) != "pass":
         phase = str(report.get("phase", "simulation"))
         return f"{phase} failed returncode={report.get('returncode', '?')}"
-    if matrix_reason:
-        return matrix_reason
     if not wave_path.is_file() or wave_path.stat().st_size == 0:
         return "waveform missing or empty"
     if mode in {"min", "typ", "max"}:
@@ -729,82 +711,61 @@ def _gls_report_reason(
 
 
 def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect the archived E2E post-synthesis GLS/back-annotation matrix."""
+    """Collect direct post-synthesis GLS reports without a qualification matrix."""
 
     layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
-    qualification = layout.post_syn_sim_dir / "e2e_qualification"
-    matrix_path = qualification / "matrix.json"
-    report_dir = qualification / "reports"
-    matrix = _json_object(matrix_path)
-    discovered_reports = sorted(report_dir.glob("*.json")) if report_dir.is_dir() else []
-    if not matrix and not discovered_reports:
+    report_paths = sorted(layout.post_syn_sim_dir.glob(f"{top}_post_syn_*.json"))
+    if not report_paths:
         return None
 
-    tests = [str(value) for value in matrix.get("tests", [])]
-    backends = [str(value) for value in matrix.get("backends", [])]
-    modes = [str(value) for value in matrix.get("timing_modes", [])]
-    failure_map = _matrix_failure_map(matrix.get("failures", []))
-
-    expected: list[tuple[str, str, str, str]] = []
-    if tests and backends and modes:
-        for mode in modes:
-            for test_name in tests:
-                for backend in backends:
-                    stem = f"{top}_{pdk}_{test_name}_{backend}_{mode}"
-                    expected.append((stem, test_name, backend, mode))
-    else:
-        prefix = f"{top}_{pdk}_"
-        known_backends = ("cocotb", "sv")
-        known_modes = ("zero", "unit", "min", "typ", "max")
-        for path in discovered_reports:
-            stem = path.stem
-            if not stem.startswith(prefix):
-                continue
-            tail = stem[len(prefix):]
-            parsed = None
-            for mode in known_modes:
-                for backend in known_backends:
-                    suffix = f"_{backend}_{mode}"
-                    if tail.endswith(suffix):
-                        parsed = (tail[: -len(suffix)], backend, mode)
-                        break
-                if parsed:
-                    break
-            if parsed:
-                test_name, backend, mode = parsed
-                expected.append((stem, test_name, backend, mode))
-        tests = sorted({item[1] for item in expected})
-        backends = sorted({item[2] for item in expected})
-        modes = [mode for mode in ("zero", "unit", "min", "typ", "max") if any(item[3] == mode for item in expected)]
-
     records: list[dict[str, Any]] = []
-    for stem, test_name, backend, mode in expected:
-        report_path = report_dir / f"{stem}.json"
-        log_path = qualification / "logs" / f"{stem}.log"
-        wave_path = qualification / "waves" / f"{stem}.fst"
+    for report_path in report_paths:
         report = _json_object(report_path)
+        if report.get("stage") != "post_syn":
+            continue
+        test_name = str(report.get("test_name", ""))
+        backend = str(report.get("backend", ""))
+        mode = str(report.get("timing_mode", ""))
+        if not test_name or backend not in {"sv", "cocotb"}:
+            continue
+        if mode not in {"zero", "unit", "min", "typ", "max"}:
+            continue
+        raw_wave = report.get("wave")
+        wave_path = Path(str(raw_wave)).expanduser() if raw_wave else Path()
+        if raw_wave and not wave_path.is_absolute():
+            wave_path = (report_path.parent / wave_path).resolve()
+        raw_log = report.get("log")
+        log_path = Path(str(raw_log)).expanduser() if raw_log else Path()
+        if raw_log and not log_path.is_absolute():
+            log_path = (report_path.parent / log_path).resolve()
         reason = _gls_report_reason(
             report,
             mode=mode,
-            report_path=report_path,
             wave_path=wave_path,
-            matrix_reason=failure_map.get(stem),
         )
-        status = "missing" if not report_path.is_file() else ("fail" if reason else "pass")
         records.append(
             {
-                "stem": stem,
+                "stem": report_path.stem,
                 "test": test_name,
                 "backend": backend,
                 "timing_mode": mode,
-                "status": status,
+                "status": "fail" if reason else "pass",
                 "reason": reason,
-                "report": relative(report_path, run_dir) if report_path.is_file() else None,
-                "log": relative(log_path, run_dir) if log_path.is_file() else None,
-                "wave": relative(wave_path, run_dir) if wave_path.is_file() else None,
+                "report": relative(report_path, run_dir),
+                "log": relative(log_path, run_dir) if raw_log and log_path.is_file() else None,
+                "wave": relative(wave_path, run_dir) if raw_wave and wave_path.is_file() else None,
             }
         )
+    if not records:
+        return None
 
+    tests = sorted({record["test"] for record in records})
+    backends = sorted({record["backend"] for record in records})
+    modes = [
+        mode
+        for mode in ("zero", "unit", "min", "typ", "max")
+        if any(record["timing_mode"] == mode for record in records)
+    ]
     summary = _gls_group(records)
     by_backend = {
         backend: _gls_group([record for record in records if record["backend"] == backend])
@@ -818,27 +779,23 @@ def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | 
         test_name: _gls_group([record for record in records if record["test"] == test_name])
         for test_name in tests
     }
-    failures = [record for record in records if record["status"] != "pass"]
     return {
         **summary,
         "pdk": pdk,
         "tests": tests,
         "backends": backends,
         "timing_modes": modes,
-        "sdf_strict": bool(matrix.get("sdf_strict", True)),
-        "qualification": relative(qualification, run_dir),
-        "matrix": relative(matrix_path, run_dir) if matrix_path.is_file() else None,
+        "artifacts": relative(layout.post_syn_sim_dir, run_dir),
         "by_backend": by_backend,
         "by_mode": by_mode,
         "by_test": by_test,
         "records": records,
-        "failures": failures,
+        "failures": [record for record in records if record["status"] != "pass"],
     }
 
 
-
 def collect_power_analysis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect activity-based power analysis driven by qualified GLS traces."""
+    """Collect activity-based power analysis driven by direct GLS traces."""
 
     path = pdk_run_layout(run_dir, pdk=pdk, top=top).power_dir / "activity" / "summary.json"
     if not path.is_file():
@@ -1328,16 +1285,14 @@ def show_metrics(path: Path) -> None:
         table = metric_table()
         table.add_row("Status", status_markup(str(gls.get("status", "unknown"))))
         table.add_row(
-            "Matrix",
+            "Results",
             f"{gls.get('passed', 0)}/{gls.get('total', 0)} passed · "
             f"{gls.get('failed', 0)} failed · {gls.get('missing', 0)} missing",
         )
         table.add_row("Tests", ", ".join(str(value) for value in gls.get("tests", [])) or "-")
         table.add_row("Backends", ", ".join(str(value) for value in gls.get("backends", [])) or "-")
         table.add_row("Timing modes", ", ".join(str(value) for value in gls.get("timing_modes", [])) or "-")
-        table.add_row("SDF strict", "yes" if gls.get("sdf_strict") else "no")
-        table.add_row("Qualification", str(gls.get("qualification", "-")))
-        table.add_row("Matrix JSON", str(gls.get("matrix", "-")))
+        table.add_row("Artifacts", str(gls.get("artifacts", "-")))
         console.print(table)
 
         records = gls.get("records", [])
@@ -1364,7 +1319,7 @@ def show_metrics(path: Path) -> None:
                     *cells,
                     f"{total['passed']}/{total['total']} " + status_markup(str(total["status"])),
                 )
-            console.print("\n[bold cyan]GLS qualification matrix[/bold cyan]")
+            console.print("\n[bold cyan]Post-synthesis GLS results[/bold cyan]")
             console.print(matrix)
 
         failures = gls.get("failures", [])
@@ -1379,7 +1334,7 @@ def show_metrics(path: Path) -> None:
                 console.print(f"  [grey70]evidence:[/grey70] {escape(str(evidence))}")
             remaining = len(failures) - 8
             if remaining > 0:
-                console.print(f"[grey70]... {remaining} additional GLS failure(s); inspect matrix JSON.[/grey70]")
+                console.print(f"[grey70]... {remaining} additional GLS failure(s); inspect the direct reports.[/grey70]")
 
 
     power_activity = data.get("power_analysis")
