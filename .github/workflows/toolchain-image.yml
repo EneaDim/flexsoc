@@ -13,6 +13,11 @@ on:
         required: true
         type: boolean
         default: false
+      checkpoint_ref:
+        description: Existing toolchain-installed image; leave empty for a full toolchain build
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -34,23 +39,24 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Log in to GHCR
+        if: inputs.publish || inputs.checkpoint_ref != ''
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build image
         env:
           FLEXSOC_JOBS: "2"
+          TOOLCHAIN_CHECKPOINT_IMAGE: ${{ inputs.checkpoint_ref }}
         run: docker/scripts/build.sh
 
       - name: Verify image
         env:
           FULL_E2E: ${{ inputs.full_e2e && '1' || '0' }}
         run: docker/scripts/verify.sh
-
-      - name: Log in to GHCR
-        if: inputs.publish
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish verified image
         if: inputs.publish

@@ -18,30 +18,43 @@ build_args=(
   --build-arg "SOURCE_URL=$source_url"
 )
 
-printf 'Building resumable toolchain checkpoint %s\n' "$checkpoint_ref"
-printf 'BuildKit caches preserve downloads, sources, build trees, and completed tool markers.\n'
+runtime_context=()
+external_checkpoint=${TOOLCHAIN_CHECKPOINT_IMAGE:-}
 
-docker buildx build \
-  "${build_args[@]}" \
-  --target toolchain-installed \
-  --load \
-  --tag "$checkpoint_ref" \
-  --metadata-file "$checkpoint_metadata" \
-  "$REPO_ROOT"
+if [[ -n "$external_checkpoint" ]]; then
+  printf 'Using external toolchain checkpoint %s\n' "$external_checkpoint"
+  printf 'The toolchain-prereqs and toolchain-installed stages will be skipped.\n'
+  runtime_context+=(
+    --build-context
+    "toolchain-installed=docker-image://$external_checkpoint"
+  )
+else
+  printf 'Building resumable toolchain checkpoint %s\n' "$checkpoint_ref"
+  printf 'BuildKit caches preserve downloads, sources, build trees, and completed tool markers.\n'
 
-checkpoint_id=$(docker image inspect "$checkpoint_ref" --format '{{.Id}}')
-cat > "$STATE_DIR/toolchain-checkpoint.env" <<EOF_CHECKPOINT
+  docker buildx build \
+    "${build_args[@]}" \
+    --target toolchain-installed \
+    --load \
+    --tag "$checkpoint_ref" \
+    --metadata-file "$checkpoint_metadata" \
+    "$REPO_ROOT"
+
+  checkpoint_id=$(docker image inspect "$checkpoint_ref" --format '{{.Id}}')
+  cat > "$STATE_DIR/toolchain-checkpoint.env" <<EOF_CHECKPOINT
 inputs_sha256=$(inputs_sha256)
 image_ref=$checkpoint_ref
 image_id=$checkpoint_id
 EOF_CHECKPOINT
-printf 'Toolchain checkpoint retained: %s (%s)\n' "$checkpoint_ref" "$checkpoint_id"
+  printf 'Toolchain checkpoint retained: %s (%s)\n' "$checkpoint_ref" "$checkpoint_id"
+fi
 
 printf 'Building verified runtime image %s\n' "$local_ref"
 printf 'Registry tag %s\n' "$registry_ref"
 
 docker buildx build \
   "${build_args[@]}" \
+  "${runtime_context[@]}" \
   --target runtime \
   --load \
   --tag "$local_ref" \
@@ -51,4 +64,6 @@ docker buildx build \
 
 docker image inspect "$local_ref" --format 'image={{.Id}} size={{.Size}} created={{.Created}}'
 printf 'Build metadata: %s\n' "$metadata"
-printf 'Checkpoint metadata: %s\n' "$checkpoint_metadata"
+if [[ -z "$external_checkpoint" ]]; then
+  printf 'Checkpoint metadata: %s\n' "$checkpoint_metadata"
+fi
