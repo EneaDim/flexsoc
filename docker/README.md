@@ -1,156 +1,330 @@
-# FlexSoC container toolchain
+# FlexSoC Docker Image and CI
 
-All Docker implementation files live under this directory. GitHub workflow entry points must remain under `.github/workflows/`, because GitHub only discovers workflows there; those files delegate to the scripts in `docker/scripts/`.
+FlexSoC uses a prebuilt Docker image containing the pinned EDA toolchain and
+Python dependencies required by the project.
 
-## Layout
+Image creation and project testing are intentionally separated:
+
+```text
+Manual image workflow:
+build → verify runtime → publish → generate image.lock
+
+Project CI:
+checkout commit → pull locked image → mount source code → lint and test
+```
+
+The Docker image workflow does not run the FlexSoC pytest suite.
+
+---
+
+## Directory structure
 
 ```text
 docker/
-├── .gitignore
-├── README.md
 ├── ci/
 │   ├── Dockerfile
 │   ├── Dockerfile.dockerignore
 │   └── image.lock
 └── scripts/
     ├── build.sh
-    ├── check-lock.sh
     ├── common.sh
-    ├── cleanup-managed-toolchain.sh
-    ├── image-ref.sh
-    ├── inspect.sh
-    ├── preflight.sh
     ├── publish.sh
     ├── run-ci.sh
-    ├── system-inventory.sh
     └── verify.sh
 ```
 
-`image.lock` is the only registry reference consumed by normal CI. It records the image input hash and the immutable GHCR digest. Normal CI never builds the EDA image.
+---
 
-## Host, build, verification, cleanup, and release sequence
+## Script responsibilities
 
-The container is the CI and release authority. Host EDA executables are useful only as a compatibility fallback and are deliberately inspected without searching `~/.local/share/flexsoc`:
+### `build.sh`
 
-```bash
-# 1. Inventory host fallback tools without the FlexSoC managed prefix.
-docker/scripts/system-inventory.sh
+Builds the Docker image.
 
-# 2. Check Docker, WSL resources, free disk, and current Docker usage.
-docker/scripts/preflight.sh
+It can either:
 
-# 3. Build the content-addressed local image. build.sh repeats preflight.
-FLEXSOC_JOBS=2 docker/scripts/build.sh
+- build the complete EDA toolchain from source; or
+- reuse an existing `toolchain-installed` checkpoint image.
 
-# 4. Run the pinned tool doctor, Ruff, API tests and E2E collection inside it.
-docker/scripts/verify.sh
+It produces the final local runtime image but does not run the project tests.
 
-# Strongly recommended before publishing a release image.
-FULL_E2E=1 docker/scripts/verify.sh
+### `verify.sh`
 
-# 5. Inspect the local identity and current lock.
-docker/scripts/inspect.sh
+Performs a technical smoke test of the built image.
 
-# 6. After Docker verification, preview removal of the incomplete/user-managed native toolchain.
-docker/scripts/cleanup-managed-toolchain.sh
+It verifies:
 
-# Apply only after reviewing the paths printed by the dry-run.
-APPLY=1 docker/scripts/cleanup-managed-toolchain.sh
+- the system EDA toolchain;
+- the Python runtime;
+- the `uv` installation;
+- the virtual environment;
+- the main EDA commands.
 
-# 7. Authenticate and publish only the previously verified image.
-export GHCR_USER=<github-user>
-read -rsp 'GHCR token: ' GHCR_TOKEN; echo
-export GHCR_TOKEN
-docker/scripts/publish.sh
-unset GHCR_TOKEN
+It does not run Ruff or pytest.
 
-# 8. Verify the generated immutable lock and commit it.
-docker/scripts/check-lock.sh
-git add docker/ci/image.lock
-git commit -m 'ci: lock verified FlexSoC toolchain image'
+### `publish.sh`
+
+Publishes the verified runtime image to GitHub Container Registry.
+
+It:
+
+1. checks that the current image was successfully verified;
+2. pushes the image to GHCR;
+3. resolves the immutable registry digest;
+4. generates `docker/ci/image.lock`.
+
+It does not run the project tests.
+
+### `run-ci.sh`
+
+Runs the project validation inside the locked Docker image.
+
+It:
+
+1. mounts the checked-out repository at `/workspace`;
+2. installs the current FlexSoC source tree in editable mode;
+3. verifies the system toolchain;
+4. runs Ruff;
+5. runs the API tests;
+6. collects the E2E tests;
+7. optionally runs the complete E2E suite.
+
+This is the only Docker script that runs project tests.
+
+### `common.sh`
+
+Contains shared functions for:
+
+- calculating the image input hash;
+- generating image names and tags;
+- locating the GHCR repository;
+- validating `image.lock`;
+- resolving immutable image references.
+
+---
+
+## Image workflow
+
+The image workflow is defined in:
+
+```text
+.github/workflows/toolchain-image.yml
 ```
 
-The token needs permission to write the package when publishing from the command line. The publish script refuses an unverified image, a stale verification record, changed image inputs, or an already existing content tag unless explicitly allowed.
+It is manual-only:
 
-## Run the locked image locally
+```yaml
+on:
+  workflow_dispatch:
+```
+
+It is not triggered by normal source-code pushes or pull requests.
+
+The workflow executes:
+
+```text
+checkout
+→ build.sh
+→ verify.sh
+→ publish.sh
+→ upload image.lock
+```
+
+### Building from an existing checkpoint
+
+The workflow accepts an optional `checkpoint_ref`.
+
+Example:
+
+```text
+ghcr.io/eneadim/flexsoc/flexsoc-ci:toolchain-e6a29bb60fbb64ce-installed
+```
+
+When this value is supplied, the workflow reuses the installed EDA toolchain
+instead of rebuilding it from source.
+
+The checkpoint image ends with:
+
+```text
+-installed
+```
+
+The final runtime image does not:
+
+```text
+ghcr.io/eneadim/flexsoc/flexsoc-ci:toolchain-<inputs-hash>
+```
+
+---
+
+## Project CI workflow
+
+The project CI workflow is defined in:
+
+```text
+.github/workflows/ci.yml
+```
+
+It is triggered by:
+
+- a push to `main`;
+- a pull request;
+- a manual workflow dispatch.
+
+The workflow executes:
+
+```text
+checkout the requested commit
+→ read and validate image.lock
+→ pull the image by immutable digest
+→ mount the repository at /workspace
+→ install the current source tree
+→ run Ruff and pytest
+```
+
+The source code is not permanently copied into the Docker image.
+
+GitHub Actions checks out the exact commit being tested, and `run-ci.sh` mounts
+that checkout into the container.
+
+No `git pull` is performed inside the container.
+
+---
+
+## Immutable image lock
+
+The file:
+
+```text
+docker/ci/image.lock
+```
+
+records the final image using its immutable registry digest.
+
+Example:
+
+```text
+schema=1
+inputs_sha256=<complete-input-hash>
+repository=ghcr.io/eneadim/flexsoc/flexsoc-ci
+tag=toolchain-<short-input-hash>
+digest=sha256:<registry-digest>
+```
+
+The tag is useful for humans, but CI uses:
+
+```text
+repository@sha256:digest
+```
+
+This ensures that CI always uses the exact image that was verified and
+published.
+
+Whenever one of the image inputs changes, a new runtime image must be published
+and `image.lock` must be updated.
+
+The image inputs are:
+
+```text
+docker/ci/Dockerfile
+docker/ci/Dockerfile.dockerignore
+src/flexsoc/backend/deps.sh
+src/flexsoc/backend/toolchain.lock
+pyproject.toml
+uv.lock
+```
+
+Ordinary changes to FlexSoC source files or tests do not require rebuilding the
+Docker image.
+
+---
+
+## Local commands
+
+### Complete image build
+
+```bash
+FLEXSOC_JOBS=2 docker/scripts/build.sh
+```
+
+### Build from an existing checkpoint
+
+```bash
+TOOLCHAIN_CHECKPOINT_IMAGE=\
+ghcr.io/eneadim/flexsoc/flexsoc-ci:toolchain-e6a29bb60fbb64ce-installed \
+docker/scripts/build.sh
+```
+
+### Verify the image runtime
+
+```bash
+docker/scripts/verify.sh
+```
+
+This command performs only the technical image smoke test.
+
+### Publish the image
+
+Using `GH_TOKEN`:
+
+```bash
+export GH_TOKEN="<token-with-write-packages-permission>"
+
+docker/scripts/publish.sh
+
+unset GH_TOKEN
+```
+
+Alternatively, use `GHCR_TOKEN` and `GHCR_USER`:
+
+```bash
+export GHCR_USER="eneadim"
+export GHCR_TOKEN="<token-with-write-packages-permission>"
+
+docker/scripts/publish.sh
+
+unset GHCR_TOKEN
+unset GHCR_USER
+```
+
+### Run CI using the locked image
 
 ```bash
 docker/scripts/run-ci.sh
+```
+
+### Run the complete E2E suite
+
+```bash
 FULL_E2E=1 docker/scripts/run-ci.sh
 ```
 
+---
 
-## Dependency model
+## Expected development flow
 
-The host needs Docker Engine or Docker Desktop with Buildx, Git, Bash, and enough WSL/Docker disk and memory. It does not need a second pinned EDA installation. `docker/scripts/system-inventory.sh` reports which non-FlexSoC-managed host tools are available, but they are not the CI/release authority.
+### Toolchain or dependency update
 
-The image builds the `base` profile from `src/flexsoc/backend/toolchain.lock`. `deps.sh bootstrap --system` installs compiler and development prerequisites inside the image, then `deps.sh install --system` builds the exact pinned EDA revisions under `/opt/flexsoc/toolchains/<lock-id>`. The Docker build runs the managed `deps.sh doctor` before accepting the layer.
-
-GTKWave 3.3 is configured explicitly with `--enable-gtk3`; the GTKWave upstream build instructions require GTK3 development packages for this source line. The same install must produce both `gtkwave` and `fst2vcd` under the managed prefix. CI power analysis calls the pinned `fst2vcd` automatically for FST traces; it never relies on `/usr/bin/fst2vcd` from the host.
-
-The host cleanup script removes only FlexSoC user-managed toolchain prefixes and build caches after a local Docker image has been verified against the current input hash. It cannot remove `/usr`, `/usr/local`, the repository virtual environment, or Docker data.
-
-## Resumable build checkpoints
-
-The toolchain build is intentionally split into three Docker stages:
+When the Dockerfile, toolchain lock, dependency installer, `pyproject.toml`, or
+`uv.lock` changes:
 
 ```text
-toolchain-prereqs
-    Ubuntu compiler and library prerequisites
-
-toolchain-installed
-    pinned EDA tools installed and exported as a local checkpoint image
-
-toolchain-verified
-    deps doctor executed against the installed checkpoint
-
-runtime
-    Python/uv environment added after the EDA doctor passes
+run the manual image workflow
+→ verify the runtime image
+→ publish the image
+→ download image.lock
+→ commit image.lock
 ```
 
-`docker/scripts/build.sh` first loads `toolchain-installed` under a local
-`*-installed` tag and only then builds the verified runtime image. A failure in
-the doctor, Python environment, or later test layers therefore leaves a usable
-local checkpoint. Re-running the same command resumes from that checkpoint.
+### Normal source-code update
 
-The install stage also uses named BuildKit caches for:
+When FlexSoC source code or tests change:
 
-- downloaded archives and Git sources;
-- build trees;
-- the lock-specific installed prefix and completion markers;
-- apt archives and metadata;
-- the uv package cache.
-
-If compilation itself stops halfway through, completed tools remain marked in
-the prefix cache and are skipped on the next run. Do not use `--no-cache`,
-`docker builder prune`, or `docker buildx prune` while recovering a failed
-toolchain build unless intentionally discarding the checkpoint and caches.
-
-Inspect the retained checkpoint with:
-
-```bash
-docker/scripts/inspect.sh
-docker image ls | grep -- '-installed'
+```text
+commit and push the source changes
+→ project CI pulls the existing locked image
+→ project CI mounts the new commit
+→ project CI runs Ruff and pytest
 ```
 
-A checkpoint is not publishable and is not accepted by normal CI. Only the
-final image that passes `deps.sh doctor`, `docker/scripts/verify.sh`, and the
-requested E2E verification can be published and written to `image.lock`.
-
-### Doctor-only repairs
-
-A doctor failure does not invalidate the installed checkpoint. SymbiYosys and
-EQY derive their displayed releases from Git metadata, while the pinned Docker
-checkouts are intentionally shallow and detached. FlexSoC passes the locked
-`SBY v<version>` and `EQY v<version>` strings explicitly during installation
-and repairs older checkpoints whose launchers report only `SBY` or `EQY`.
-Re-run `docker/scripts/build.sh`: the compiled EDA tools remain cached and only
-the affected launcher/plugin install plus the verification/runtime stages are
-updated.
-
-GTKWave must also be checked without starting its GUI. A normal GTKWave launch,
-including its version path on this pinned line, can initialize GTK and fail when
-Docker has no `DISPLAY`. The installer writes the locked version to
-`.flexsoc/gtkwave.version`; doctor verifies that receipt and source marker,
-requires the managed `gtkwave` and `fst2vcd` executables, and rejects missing
-shared libraries through `ldd`. No Xvfb or host display forwarding is required.
+The Docker image is not rebuilt for ordinary source-code changes.

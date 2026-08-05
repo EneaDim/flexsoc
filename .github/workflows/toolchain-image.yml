@@ -4,17 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Push the verified image to GHCR and emit image.lock
-        required: true
-        type: boolean
-        default: false
-      full_e2e:
-        description: Run the full E2E suite before publishing
+        description: Push the verified image to GHCR and generate image.lock
         required: true
         type: boolean
         default: false
       checkpoint_ref:
-        description: Existing toolchain-installed image; leave empty for a full toolchain build
+        description: Existing toolchain-installed image; leave empty for a full build
         required: false
         type: string
         default: ""
@@ -28,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-verify:
+  image:
     runs-on: ubuntu-latest
     timeout-minutes: 300
 
@@ -54,36 +49,16 @@ jobs:
         run: docker/scripts/build.sh
 
       - name: Verify image
-        env:
-          FULL_E2E: ${{ inputs.full_e2e && '1' || '0' }}
         run: docker/scripts/verify.sh
 
-      - name: Publish verified image
+      - name: Publish image
         if: inputs.publish
-        env:
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: docker/scripts/publish.sh
 
-      - name: Upload generated image lock
+      - name: Upload image lock
         if: inputs.publish
         uses: actions/upload-artifact@v4
         with:
           name: flexsoc-ci-image-lock
           path: docker/ci/image.lock
           if-no-files-found: error
-
-      - name: Summary
-        shell: bash
-        run: |
-          {
-            echo '## FlexSoC container image'
-            echo
-            echo '```text'
-            docker/scripts/inspect.sh || true
-            echo '```'
-            if [[ '${{ inputs.publish }}' == 'true' ]]; then
-              echo
-              echo 'Download the image-lock artifact and commit docker/ci/image.lock before normal CI runs.'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
