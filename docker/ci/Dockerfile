@@ -43,6 +43,11 @@ RUN toolchain_id="$(cat /opt/flexsoc-toolchain.id)" \
 
 FROM toolchain-installed AS toolchain-verified
 
+# Always verify an external checkpoint with the current repository's doctor
+# and lock file. This matters when toolchain-installed is supplied through a
+# named BuildKit context rather than built from this Dockerfile invocation.
+COPY src/flexsoc/backend/deps.sh src/flexsoc/backend/toolchain.lock ./toolchain/
+
 # Verification is deliberately separate from installation. A doctor failure does
 # not invalidate the installed-toolchain checkpoint built by the previous stage.
 RUN bash ./toolchain/deps.sh doctor --system --profile base

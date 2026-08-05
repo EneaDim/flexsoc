@@ -462,7 +462,15 @@ doctor() {
                 out="GTKWave $(version_var GTKWAVE) (headless receipt; shared libraries resolved)"
                 ;;
             surfer) require_marker SURFER surfer; out=$(surfer --version 2>&1); contains "$out" "0.7.0" surfer ;;
-            sv2v) require_marker SV2V sv2v; out=$(sv2v --version 2>&1); contains "$out" "0.0.13" sv2v ;;
+            sv2v)
+                require_marker SV2V sv2v
+                out=$(sv2v --version 2>&1)
+                # Source builds report their Git revision (for v0.0.13 this is
+                # e5effb5) rather than the release number. Accept either form,
+                # while require_marker above still validates the full locked ref.
+                [[ "$out" == *"$(version_var SV2V)"* || "$out" == *"${SV2V_REF:0:7}"* ]] \
+                    || die "sv2v version mismatch: $out"
+                ;;
             netlistsvg) require_marker NETLISTSVG netlistsvg; command -v netlistsvg >/dev/null; out="netlistsvg 1.0.2" ;;
         esac
         printf '  %-12s %s\n' "$tool" "$(first_line "$out")"
