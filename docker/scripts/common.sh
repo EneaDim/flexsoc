@@ -103,6 +103,12 @@ registry_tag_ref() {
     "$(image_tag)"
 }
 
+registry_checkpoint_ref() {
+  printf '%s:%s-installed\n' \
+    "$(registry_repository)" \
+    "$(image_tag)"
+}
+
 require_docker() {
   command -v docker >/dev/null 2>&1 || {
     echo "docker is required" >&2

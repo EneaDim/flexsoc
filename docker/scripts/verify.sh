@@ -44,6 +44,24 @@ docker run --rm \
     command -v iverilog
     command -v sby
     command -v sv2v
+    command -v openroad
+    command -v klayout
+
+    echo
+    echo "===== Physical implementation ====="
+
+    openroad -version
+    klayout -v
+
+    test "$OPENROAD_EXE" = /opt/flexsoc/toolchain/bin/openroad
+    test "$YOSYS_EXE" = /opt/flexsoc/toolchain/bin/yosys
+    test "$KLAYOUT_CMD" = /opt/flexsoc/toolchain/bin/klayout
+    test -f "$ORFS_ROOT/flow/Makefile"
+    test -d "$ORFS_ROOT/flow/scripts"
+    test -d "$ORFS_ROOT/flow/platforms"
+
+    ldd "$OPENROAD_EXE" | tee /tmp/openroad.ldd
+    ! grep -q "not found" /tmp/openroad.ldd
 
     echo
     echo "IMAGE_VERIFY=PASS"

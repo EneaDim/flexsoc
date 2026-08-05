@@ -6,7 +6,9 @@ source "$(dirname "$0")/common.sh"
 require_buildx
 
 local_ref=$(local_image_ref)
+checkpoint_ref=$(toolchain_checkpoint_ref)
 registry_ref=$(registry_tag_ref)
+registry_checkpoint=$(registry_checkpoint_ref)
 verification="$STATE_DIR/verified.env"
 
 test -f "$verification" || {
@@ -53,6 +55,12 @@ if [[ -n "$token" ]]; then
       --password-stdin
 fi
 
+docker image inspect "$checkpoint_ref" >/dev/null 2>&1 || {
+  echo "implementation checkpoint is missing: $checkpoint_ref" >&2
+  exit 6
+}
+
+docker push "$registry_checkpoint"
 docker push "$registry_ref"
 
 digest=$(
@@ -62,7 +70,7 @@ digest=$(
 
 [[ "$digest" == sha256:* ]] || {
   echo "unable to resolve registry digest" >&2
-  exit 6
+  exit 7
 }
 
 repository=$(registry_repository)
@@ -80,6 +88,7 @@ EOF_LOCK
 
 mv "$tmp" "$LOCK_FILE"
 
-printf 'Published: %s\n' "$registry_ref"
-printf 'Locked:    %s@%s\n' "$repository" "$digest"
+printf 'Checkpoint: %s\n' "$registry_checkpoint"
+printf 'Published:  %s\n' "$registry_ref"
+printf 'Locked:     %s@%s\n' "$repository" "$digest"
 printf 'Lock file: %s\n' "$LOCK_FILE"

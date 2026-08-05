@@ -33,6 +33,7 @@ fi
 local_ref=$(local_image_ref)
 checkpoint_ref=$(toolchain_checkpoint_ref)
 registry_ref=$(registry_tag_ref)
+registry_checkpoint=$(registry_checkpoint_ref)
 
 source_url=$(
   git -C "$REPO_ROOT" config --get remote.origin.url 2>/dev/null ||
@@ -51,38 +52,60 @@ build_args=(
 
 runtime_context=()
 external_checkpoint=${TOOLCHAIN_CHECKPOINT_IMAGE:-}
+complete_checkpoint=0
 
 if [[ -n "$external_checkpoint" ]]; then
   printf 'Using existing checkpoint:\n  %s\n' "$external_checkpoint"
 
+  if [[ "$external_checkpoint" == "$registry_checkpoint" ||
+        "$external_checkpoint" == "$checkpoint_ref" ]]; then
+    checkpoint_stage=implementation-installed
+    complete_checkpoint=1
+    printf 'Complete implementation checkpoint selected.\n'
+  else
+    checkpoint_stage=toolchain-installed
+    printf 'Base checkpoint selected; OpenROAD, KLayout and ORFS will be added.\n'
+  fi
+
   runtime_context+=(
     --build-context
-    "toolchain-installed=docker-image://$external_checkpoint"
+    "$checkpoint_stage=docker-image://$external_checkpoint"
   )
+fi
+
+if (( complete_checkpoint )); then
+  docker image inspect "$external_checkpoint" >/dev/null 2>&1 ||
+    docker pull "$external_checkpoint"
+
+  docker image tag "$external_checkpoint" "$checkpoint_ref"
+  docker image tag "$external_checkpoint" "$registry_checkpoint"
 else
-  printf 'Building checkpoint:\n  %s\n' "$checkpoint_ref"
+  printf 'Building implementation checkpoint:\n  %s\n' "$checkpoint_ref"
 
   docker buildx build \
     "${build_args[@]}" \
-    --target toolchain-installed \
+    "${runtime_context[@]}" \
+    --target implementation-installed \
     --load \
     --tag "$checkpoint_ref" \
+    --tag "$registry_checkpoint" \
     --metadata-file "$checkpoint_metadata" \
     "$REPO_ROOT"
+fi
 
-  checkpoint_id=$(
-    docker image inspect "$checkpoint_ref" \
-      --format '{{.Id}}'
-  )
+checkpoint_id=$(
+  docker image inspect "$checkpoint_ref" \
+    --format '{{.Id}}'
+)
 
-  cat > "$STATE_DIR/toolchain-checkpoint.env" <<EOF_CHECKPOINT
+cat > "$STATE_DIR/toolchain-checkpoint.env" <<EOF_CHECKPOINT
 inputs_sha256=$(inputs_sha256)
 image_ref=$checkpoint_ref
+registry_ref=$registry_checkpoint
 image_id=$checkpoint_id
 EOF_CHECKPOINT
 
-  printf 'Checkpoint retained: %s\n' "$checkpoint_id"
-fi
+printf 'Checkpoint retained: %s\n' "$checkpoint_id"
 
 printf 'Building runtime image:\n  %s\n' "$local_ref"
 
@@ -100,3 +123,6 @@ docker image inspect "$local_ref" \
   --format 'image={{.Id}} size={{.Size}} created={{.Created}}'
 
 printf 'Build metadata: %s\n' "$metadata"
+if [[ -f "$checkpoint_metadata" ]]; then
+  printf 'Checkpoint metadata: %s\n' "$checkpoint_metadata"
+fi
