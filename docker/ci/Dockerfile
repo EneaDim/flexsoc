@@ -186,14 +186,21 @@ COPY src/flexsoc/backend/deps.sh src/flexsoc/backend/toolchain.lock ./toolchain/
 
 # Verification is deliberately separate from installation. A doctor failure does
 # not invalidate the installed-toolchain checkpoint built by the previous stage.
-RUN FLEXSOC_TOOLCHAIN=/opt/flexsoc/toolchain \
-    bash ./toolchain/deps.sh doctor --system --profile base \
- && /opt/flexsoc/toolchain/bin/openroad -version \
- && /opt/flexsoc/toolchain/bin/klayout -b -v \
- && test -s /opt/flexsoc/toolchain/.flexsoc/openroad.ref \
- && test -s /opt/flexsoc/toolchain/.flexsoc/orfs.ref \
- && test -f /opt/flexsoc/toolchain/share/orfs/flow/Makefile \
- && test -f /opt/flexsoc/toolchain/share/orfs/flow/designs/nangate45/gcd/config.mk
+RUN set -eux; \
+    echo "===== STA diagnostic ====="; \
+    command -v /opt/flexsoc/toolchain/bin/sta; \
+    ls -l /opt/flexsoc/toolchain/bin/sta; \
+    ldd /opt/flexsoc/toolchain/bin/sta || true; \
+    /opt/flexsoc/toolchain/bin/sta -version || true; \
+    echo "===== Base doctor ====="; \
+    FLEXSOC_TOOLCHAIN=/opt/flexsoc/toolchain \
+      bash ./toolchain/deps.sh doctor --system --profile base; \
+    /opt/flexsoc/toolchain/bin/openroad -version; \
+    /opt/flexsoc/toolchain/bin/klayout -b -v; \
+    test -s /opt/flexsoc/toolchain/.flexsoc/openroad.ref; \
+    test -s /opt/flexsoc/toolchain/.flexsoc/orfs.ref; \
+    test -f /opt/flexsoc/toolchain/share/orfs/flow/Makefile; \
+    test -f /opt/flexsoc/toolchain/share/orfs/flow/designs/nangate45/gcd/config.mk
 
 FROM toolchain-verified AS runtime
 
