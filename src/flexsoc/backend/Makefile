@@ -137,6 +137,8 @@ SDF_LOGDIR     ?= $(LOGDIR)/signoff/sdf/$(PDK)
 SV_COMPILE_LOG ?= $(VERIFY_LOGDIR)/$(TOP)_sv_compile_$(TEST_NAME).log
 SV_SIM_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_sv_sim_$(TEST_NAME).log
 COCOTB_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_cocotb_$(TEST_NAME).log
+COCOTB_WRAPPER ?= $(TBDIR)/cocotb/$(TOP)_tb.sv
+COCOTB_RTL_SOURCES = $(shell awk 'NF && $$1 !~ /^#/ && $$1 !~ /^[+-]/ {print $$1}' $(RTL_COMMON_LIST) $(RTL_IP_LIST) 2>/dev/null)
 RTLDIR         ?= $(OUTROOT)/rtl
 TBDIR          ?= $(FUNCTIONALDIR)/tb
 SIMROOT        ?= $(FUNCTIONALDIR)/sim
@@ -381,6 +383,14 @@ define _require_var
 	fi
 endef
 
+define _require_file
+	@if [ ! -f "$1" ]; then \
+		echo "ERROR: missing required artifact: $1"; \
+		echo "Hint: run: fx $2"; \
+		exit 2; \
+	fi
+endef
+
 # Internal run guards
 define _require_soc_run_vars
 	$(call _require_var,WORKSPACE)
@@ -569,30 +579,34 @@ fetch: ## Fetch or update a vendored dependency
 	$(Q)$(PYTHON) $(VENDOR_TOOL) --update $(REPO_ROOT)/vendor/$(VENDOR).vendor.hjson
 
 ip_flow: reg doc ## Run regression through formal/synthesis/signoff, then report the run
+	@$(BACKEND_MAKE) flist
 	@$(BACKEND_MAKE) lint_suite
 	@$(BACKEND_MAKE) regression
 	@$(BACKEND_MAKE) coverage_detail
 	@$(BACKEND_MAKE) formal
+	@$(BACKEND_MAKE) setup_sdc
+	@$(BACKEND_MAKE) setup_syn
 	@$(BACKEND_MAKE) syn
+	@$(BACKEND_MAKE) setup_eqy
 	@$(BACKEND_MAKE) eqy
-	@$(BACKEND_MAKE) sdf
-	@$(BACKEND_MAKE) sta
-	@$(BACKEND_MAKE) power_estimate
+	@$(BACKEND_MAKE) signoff_corners
 	@$(BACKEND_MAKE) manifest
 	@$(BACKEND_MAKE) manifest_show
 	-@$(BACKEND_MAKE) metrics
 	-@$(BACKEND_MAKE) check
 
-ip_flow_noreg: flist ## Run the standard closure without regenerating registers
+ip_flow_noreg: ## Run the standard closure without regenerating registers
+	@$(BACKEND_MAKE) flist
 	@$(BACKEND_MAKE) lint_suite
 	@$(BACKEND_MAKE) regression
 	@$(BACKEND_MAKE) coverage_detail
 	@$(BACKEND_MAKE) formal
+	@$(BACKEND_MAKE) setup_sdc
+	@$(BACKEND_MAKE) setup_syn
 	@$(BACKEND_MAKE) syn
+	@$(BACKEND_MAKE) setup_eqy
 	@$(BACKEND_MAKE) eqy
-	@$(BACKEND_MAKE) sdf
-	@$(BACKEND_MAKE) sta
-	@$(BACKEND_MAKE) power_estimate
+	@$(BACKEND_MAKE) signoff_corners
 	@$(BACKEND_MAKE) manifest
 	@$(BACKEND_MAKE) manifest_show
 	-@$(BACKEND_MAKE) metrics
@@ -874,11 +888,12 @@ setup_model: setup ## Generate/update Python model and CSR regmap scaffolds
 		--rtl-dir $(RTLDIR)
 
 
-tests_gen: setup ## Generate editable tests plus machine-owned coverage stimulus
+tests_gen: setup ## Recreate all editable tests plus machine-owned coverage stimulus
 	$(call _require_var,TOP)
 	@if [ ! -f "$(MODELDIR)/$(TOP)_tests.py" ]; then \
 		echo "ERROR: missing model test scaffold; run: fx setup_model"; exit 1; \
 	fi
+	$(Q)$(RM) -rf $(TEST_ROOT)
 	$(Q)$(MKDIR) -p $(TEST_ROOT)
 	$(Q)FLEXSOC_SEED="$(SEED)" $(PYTHON) $(MODELDIR)/$(TOP)_tests.py --tests-dir $(TEST_ROOT)
 	$(Q)if [ -f "$(MODELDIR)/$(TOP)_regmap_tests.py" ]; then $(PYTHON) "$(MODELDIR)/$(TOP)_regmap_tests.py" --tests-dir "$(TEST_ROOT)"; fi
@@ -1023,6 +1038,13 @@ cocotb: _require_test_vectors ## Run one cocotb vector test selected by TEST_NAM
 		echo "  fx setup_cocotb --set TOP=$(TOP) --set RUN_TOP=$(RUN_TOP) --set RUN_ID=$(RUN_ID)"; \
 		exit 1; \
 	fi
+	$(Q)if [ ! -f "$(COCOTB_WRAPPER)" ]; then \
+		echo "cocotb wrapper not found: $(COCOTB_WRAPPER)"; exit 1; \
+	fi
+	$(Q)if [ -z "$(strip $(COCOTB_RTL_SOURCES))" ]; then \
+		echo "cocotb RTL sources not found in $(RTL_COMMON_LIST) and $(RTL_IP_LIST)"; \
+		echo "Run: fx flist"; exit 1; \
+	fi
 	$(Q)$(PYTHON) -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('cocotb_tools') else 1)" || { \
 		echo "cocotb is not installed in this environment."; \
 		echo "Run uv sync from the repository root, then retry."; \
@@ -1032,9 +1054,9 @@ cocotb: _require_test_vectors ## Run one cocotb vector test selected by TEST_NAM
 	@printf "%b\n" "$(BLUE)log: $(COCOTB_LOG)$(RESET)"
 	$(Q)if [ "$(COVERAGE)" = "1" ] && [ "$(COMPILER)" = "verilator" ]; then $(MKDIR) -p "$(dir $(COCOTB_COVERAGE_FILE))"; fi
 	$(Q)if [ "$(LIVE)" = "1" ]; then \
-		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVE_FILE="$(WAVE_FILE)" WAVES=$(COCOTB_WAVES) 2>&1 | tee $(COCOTB_LOG); \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVE_FILE="$(WAVE_FILE)" WAVES=$(COCOTB_WAVES) VERILOG_SOURCES="$(COCOTB_RTL_SOURCES) $(COCOTB_WRAPPER)" 2>&1 | tee $(COCOTB_LOG); \
 	else \
-		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVE_FILE="$(WAVE_FILE)" WAVES=$(COCOTB_WAVES) > $(COCOTB_LOG) 2>&1; \
+		$(MAKE) --no-print-dir -C $(TBDIR)/cocotb TEST_NAME="$(TEST_NAME)" SEED="$(SEED)" HDL_COVERAGE="$(COVERAGE)" COVERAGE_FILE="$(COCOTB_COVERAGE_FILE)" WAVE_FILE="$(WAVE_FILE)" WAVES=$(COCOTB_WAVES) VERILOG_SOURCES="$(COCOTB_RTL_SOURCES) $(COCOTB_WRAPPER)" > $(COCOTB_LOG) 2>&1; \
 	fi
 
 
@@ -1063,23 +1085,34 @@ cocotb_tests: ## Run every generated cocotb vector test
 		exit 1; \
 	fi
 
-regression: ## Run every generated test on each selected backend and collect coverage
-	@set -u; \
-	gen_target=tests_gen; tb_target=setup_tb; cocotb_target=setup_cocotb; \
-	rm -rf "$(TEST_ROOT)" "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
-	mkdir -p "$(TEST_ROOT)" "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
-	$(BACKEND_MAKE) $$tb_target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" FORCE=1; \
+regression: ## Run every existing vector test on each selected backend and collect coverage
+	@set -eu; \
+	if [ ! -d "$(TEST_ROOT)" ]; then \
+		echo "ERROR: no vector tests found in $(TEST_ROOT)"; \
+		echo "Run: fx tests_gen, or load an IP package containing saved vectors"; \
+		exit 1; \
+	fi; \
+	if [ ! -f "$(TB_SV_DIR)/$(TESTBENCH).sv" ]; then \
+		echo "ERROR: SystemVerilog testbench not found: $(TB_SV_DIR)/$(TESTBENCH).sv"; \
+		echo "Run: fx setup_tb, or load an IP package containing the saved testbench"; \
+		exit 1; \
+	fi; \
 	case " $(REGRESSION_BACKENDS) " in *" cocotb "*) \
-		$(BACKEND_MAKE) $$cocotb_target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" FORCE=1 ;; \
+		if [ ! -f "$(TBDIR)/cocotb/Makefile" ]; then \
+			echo "ERROR: cocotb scaffold not found: $(TBDIR)/cocotb/Makefile"; \
+			echo "Run: fx setup_cocotb, or load an IP package containing the saved cocotb scaffold"; \
+			exit 1; \
+		fi ;; \
 	esac; \
-	$(BACKEND_MAKE) $$gen_target TOP="$(TOP)" RUN_TOP="$(RUN_TOP)" RUN_ID="$(RUN_ID)" WORKSPACE="$(WORKSPACE)" SEED="$(SEED)"; \
+	rm -rf "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
+	mkdir -p "$(COVERAGEDIR)" "$(REGRESSION_LOGDIR)"; \
 	tests=""; \
 	for dir in "$(TEST_ROOT)"/*; do \
 		[ -d "$$dir" ] || continue; \
 		tests="$$tests $$(basename "$$dir")"; \
 	done; \
 	if [ -z "$$tests" ]; then \
-		echo "ERROR: regression generated no tests in $(TEST_ROOT)"; \
+		echo "ERROR: regression found no tests in $(TEST_ROOT)"; \
 		exit 2; \
 	fi; \
 	total=0; failed=0; \
@@ -1239,12 +1272,15 @@ tb_view: ## Open saved testbench waveform
 # 8. Synthesis and netlist generation
 # ============================================================================
 ##@ Synthesis
-setup_sdc: setup ## Generate timing constraints
+setup_sdc: ## Generate timing constraints
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(CONSTRAINTSDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_sdc $(TOP) $(CLK_PERIOD) -o $(CONSTRAINTSDIR)/$(TOP).sdc
 
-setup_syn: setup_sdc flist ## Generate Yosys synthesis scripts
+setup_syn: ## Generate Yosys synthesis scripts
+	$(call _require_file,$(CONSTRAINTSDIR)/$(TOP).sdc,setup_sdc)
+	$(call _require_file,$(RTL_COMMON_LIST),flist)
+	$(call _require_file,$(RTL_IP_LIST),flist)
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SYNDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_syn \
@@ -1256,14 +1292,16 @@ setup_syn: setup_sdc flist ## Generate Yosys synthesis scripts
 
 syn: $(if $(filter v,$(VSV)),syn_v,syn_sv) ## Run synthesis
 
-syn_v: setup_syn ## Run Verilog synthesis
+syn_v: ## Run Verilog synthesis
+	$(call _require_file,$(SYNDIR)/synth.ys,setup_syn)
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
 	@printf "%b\n" "$(BLUE)log: $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log$(RESET)"
 	$(Q)$(YOSYS) $(SYNDIR)/synth.ys > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
 	$(Q)$(GREP) -Ei '^(Warning:|%Warning-|.*:[0-9]+(:[0-9]+)?:[[:space:]]*warning:)' $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).warnings || true
 	$(Q)$(GREP) -Ei '^(ERROR:|%Error-|.*:[0-9]+(:[0-9]+)?:[[:space:]]*error:)' $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).errors || true
 
-syn_sv: setup_syn ## Run SystemVerilog synthesis
+syn_sv: ## Run SystemVerilog synthesis
+	$(call _require_file,$(SYNDIR)/synth_sv.ys,setup_syn)
 	$(Q)$(MKDIR) -p $(SYNDIR)/plots $(SYNTH_LOGDIR)
 	@printf "%b\n" "$(BLUE)log: $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log$(RESET)"
 	$(Q)$(YOSYS) -s $(SYNDIR)/synth_sv.ys > $(SYNTH_LOGDIR)/$(TOP)_synth_opt_$(TARGET_OPT).log
@@ -1300,22 +1338,10 @@ _formal_scaffold:
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal scaffold --top $(TOP) --formal-dir $(FORMALDIR) >/dev/null
 	@printf "%b\n" "$(GREEN)[formal]$(RESET) $(FORMALDIR) clocks=$(N_CLOCKS)"
 
-setup_formal: _formal_scaffold ## Prepare CSR formal and any authored design-property configurations
-	@$(BACKEND_MAKE) setup_formal_csr_prove
-	@$(BACKEND_MAKE) setup_formal_csr_cover
-	@if find "$(FORMAL_PROVE_PROPERTIES_DIR)" -maxdepth 1 -type f -name '*.sv' -print -quit | grep -q .; then \
-		$(BACKEND_MAKE) setup_formal_prove; \
-	else \
-		printf "%b\n" "$(ORANGE)[formal]$(RESET) design prove: not authored"; \
-	fi
-	@if find "$(FORMAL_COVER_PROPERTIES_DIR)" -maxdepth 1 -type f -name '*.sv' -print -quit | grep -q .; then \
-		$(BACKEND_MAKE) setup_formal_cover; \
-	else \
-		printf "%b\n" "$(ORANGE)[formal]$(RESET) design cover: not authored"; \
-	fi
-	@printf "%b\n" "$(GREEN)[formal]$(RESET) setup complete"
+setup_formal: _formal_scaffold ## Create or preserve starter design assertions and covers
+	@printf "%b\n" "$(GREEN)[formal]$(RESET) property scaffold ready"
 
-setup_formal_csr_prove: flist ## Generate shared CSR BMC/prove configuration
+setup_formal_csr_prove: ## Generate shared CSR BMC/prove configuration
 	$(call _require_var,TOP)
 	$(Q)rm -rf $(FORMAL_CSR_DIR)/generated
 	$(Q)$(MKDIR) -p $(FORMAL_CSR_PROVE_DIR) $(FORMAL_CSR_PROVE_RUN_DIR) $(dir $(FORMAL_CSR_PROVE_LOG))
@@ -1327,7 +1353,8 @@ setup_formal_csr_prove: flist ## Generate shared CSR BMC/prove configuration
 		--generated $(FORMAL_CSR_PROVE_AUTO) --output $(FORMAL_CSR_PROVE_CONFIG) >/dev/null
 	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_CSR_PROVE_CONFIG)$(RESET)"
 
-formal_csr_bmc: setup_formal_csr_prove ## Bounded-check automatic CSR assertions before proof
+formal_csr_bmc: ## Bounded-check automatic CSR assertions before proof
+	$(call _require_file,$(FORMAL_CSR_PROVE_CONFIG),setup_formal_csr_prove)
 	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
 	@printf "%b\n" "$(BLUE)log: $(FORMAL_CSR_BMC_LOG)$(RESET)"
 	@cd "$(FORMAL_CSR_PROVE_RUN_DIR)" && \
@@ -1339,7 +1366,8 @@ formal_csr_bmc: setup_formal_csr_prove ## Bounded-check automatic CSR assertions
 			exit $$status; \
 		}
 
-formal_csr_prove: setup_formal_csr_prove ## Prove automatic CSR semantics with SymbiYosys
+formal_csr_prove: ## Prove automatic CSR semantics with SymbiYosys
+	$(call _require_file,$(FORMAL_CSR_PROVE_CONFIG),setup_formal_csr_prove)
 	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
 	@printf "%b\n" "$(BLUE)log: $(FORMAL_CSR_PROVE_LOG)$(RESET)"
 	@cd "$(FORMAL_CSR_PROVE_RUN_DIR)" && \
@@ -1347,7 +1375,7 @@ formal_csr_prove: setup_formal_csr_prove ## Prove automatic CSR semantics with S
 			status=$$?; cat "$(FORMAL_CSR_PROVE_LOG)"; exit $$status; \
 		}
 
-setup_formal_csr_cover: flist ## Generate automatic CSR cover configuration
+setup_formal_csr_cover: ## Generate automatic CSR cover configuration
 	$(call _require_var,TOP)
 	$(Q)rm -rf $(FORMAL_CSR_DIR)/generated
 	$(Q)$(MKDIR) -p $(FORMAL_CSR_COVER_DIR) $(FORMAL_CSR_COVER_RUN_DIR) $(dir $(FORMAL_CSR_COVER_LOG))
@@ -1358,7 +1386,8 @@ setup_formal_csr_cover: flist ## Generate automatic CSR cover configuration
 		--generated $(FORMAL_CSR_COVER_AUTO) --output $(FORMAL_CSR_COVER_CONFIG) >/dev/null
 	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_CSR_COVER_CONFIG)$(RESET)"
 
-formal_csr_cover: setup_formal_csr_cover ## Cover every software-writable CSR primitive
+formal_csr_cover: ## Cover every software-writable CSR primitive
+	$(call _require_file,$(FORMAL_CSR_COVER_CONFIG),setup_formal_csr_cover)
 	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
 	@printf "%b\n" "$(BLUE)log: $(FORMAL_CSR_COVER_LOG)$(RESET)"
 	@cd "$(FORMAL_CSR_COVER_RUN_DIR)" && \
@@ -1366,20 +1395,27 @@ formal_csr_cover: setup_formal_csr_cover ## Cover every software-writable CSR pr
 			status=$$?; cat "$(FORMAL_CSR_COVER_LOG)"; exit $$status; \
 		}
 
-formal_csr: setup_formal_csr_prove setup_formal_csr_cover ## Run CSR BMC, prove, then cover
-	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_bmc
-	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_prove
-	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_cover
+formal_csr: ## Run CSR BMC, prove, then cover
+	@$(BACKEND_MAKE) setup_formal_csr_prove
+	@$(BACKEND_MAKE) formal_csr_bmc
+	@$(BACKEND_MAKE) formal_csr_prove
+	@$(BACKEND_MAKE) setup_formal_csr_cover
+	@$(BACKEND_MAKE) formal_csr_cover
 
-formal: setup_formal ## Run all formal stages fail-fast: BMC, prove, cover
-	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_bmc
-	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_bmc
-	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_prove
-	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_prove
-	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_csr_cover
-	@$(MAKE) --no-print-dir -f $(lastword $(MAKEFILE_LIST)) formal_cover
+formal: ## Run all formal stages BMC, prove, then cover
+	@$(BACKEND_MAKE) setup_formal
+	@$(BACKEND_MAKE) setup_formal_csr_prove
+	@$(BACKEND_MAKE) setup_formal_prove
+	@$(BACKEND_MAKE) formal_csr_bmc
+	@$(BACKEND_MAKE) formal_bmc
+	@$(BACKEND_MAKE) formal_csr_prove
+	@$(BACKEND_MAKE) formal_prove
+	@$(BACKEND_MAKE) setup_formal_csr_cover
+	@$(BACKEND_MAKE) setup_formal_cover
+	@$(BACKEND_MAKE) formal_csr_cover
+	@$(BACKEND_MAKE) formal_cover
 
-setup_formal_prove: _formal_scaffold flist ## Generate shared design BMC/prove configuration
+setup_formal_prove: ## Generate shared design BMC/prove configuration
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(FORMAL_PROVE_DIR) $(dir $(FORMAL_PROVE_LOG))
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal properties \
@@ -1390,7 +1426,8 @@ setup_formal_prove: _formal_scaffold flist ## Generate shared design BMC/prove c
 		--output $(FORMAL_PROVE_CONFIG) >/dev/null
 	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_PROVE_CONFIG)$(RESET)"
 
-formal_bmc: setup_formal_prove ## Bounded-check authored assertions before proof
+formal_bmc: ## Bounded-check authored assertions before proof
+	$(call _require_file,$(FORMAL_PROVE_CONFIG),setup_formal_prove)
 	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
 	@printf "%b\n" "$(BLUE)log: $(FORMAL_BMC_LOG)$(RESET)"
 	@cd "$(FORMAL_PROVE_DIR)" && \
@@ -1402,7 +1439,8 @@ formal_bmc: setup_formal_prove ## Bounded-check authored assertions before proof
 			exit $$status; \
 		}
 
-formal_prove: setup_formal_prove ## Prove authored SystemVerilog properties with SymbiYosys
+formal_prove: ## Prove authored SystemVerilog properties with SymbiYosys
+	$(call _require_file,$(FORMAL_PROVE_CONFIG),setup_formal_prove)
 	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
 	@printf "%b\n" "$(BLUE)log: $(FORMAL_PROVE_LOG)$(RESET)"
 	@cd "$(FORMAL_PROVE_DIR)" && \
@@ -1410,7 +1448,7 @@ formal_prove: setup_formal_prove ## Prove authored SystemVerilog properties with
 			status=$$?; cat "$(FORMAL_PROVE_LOG)"; exit $$status; \
 		}
 
-setup_formal_cover: _formal_scaffold flist ## Generate SymbiYosys cover configuration for authored cover properties
+setup_formal_cover: ## Generate SymbiYosys cover configuration for authored cover properties
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(FORMAL_COVER_DIR) $(dir $(FORMAL_COVER_LOG))
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_formal properties \
@@ -1420,7 +1458,8 @@ setup_formal_cover: _formal_scaffold flist ## Generate SymbiYosys cover configur
 		--output $(FORMAL_COVER_CONFIG) >/dev/null
 	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(FORMAL_COVER_CONFIG)$(RESET)"
 
-formal_cover: setup_formal_cover ## Reach authored cover properties with SymbiYosys
+formal_cover: ## Reach authored cover properties with SymbiYosys
+	$(call _require_file,$(FORMAL_COVER_CONFIG),setup_formal_cover)
 	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found: $(SBY)"; exit 2; }
 	@printf "%b\n" "$(BLUE)log: $(FORMAL_COVER_LOG)$(RESET)"
 	@cd "$(FORMAL_COVER_DIR)" && \
@@ -1437,9 +1476,15 @@ EQY_CONFIG ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn.eqy
 EQY_VIEW ?= $(EQUIVDIR)/$(TOP)_eqy_view.sv
 EQY_SKY130_CLOCK_GATE_MODEL ?= $(EQUIVDIR)/sky130_clock_gates_formal.v
 EQY_RESULT_DIR ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn
-IP_EQY_DIR ?= $(REPO_ROOT)/hw/ips/$(TOP)/signoff/equivalence/$(PDK)/rtl_vs_syn
+IP_NAME ?= $(TOP)
+IP_LIBRARY_ROOT ?= $(REPO_ROOT)/hw/ips
+IP_ROOT ?= $(IP_LIBRARY_ROOT)/$(IP_NAME)
+IP_SIGNOFF_DIR ?= $(IP_ROOT)/signoff
 
-setup_eqy: flist ## Prepare an existing EQY profile, or generate it when absent/forced
+setup_eqy: ## Prepare an existing EQY profile, or generate it when absent/forced
+	$(call _require_file,$(SYNDIR)/$(TOP)_synth.v,syn)
+	$(call _require_file,$(RTL_COMMON_LIST),flist)
+	$(call _require_file,$(RTL_IP_LIST),flist)
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(EQUIVDIR) $(dir $(EQUIV_LOG))
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff eqy-bind \
@@ -1467,7 +1512,9 @@ setup_eqy: flist ## Prepare an existing EQY profile, or generate it when absent/
 		printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(EQY_CONFIG)$(RESET) $(YELLOW)(generated)$(RESET)"; \
 	fi
 
-eqy: setup_eqy ## Prove RTL equivalent to the mapped post-synthesis netlist with EQY
+eqy: ## Prove RTL equivalent to the mapped post-synthesis netlist with EQY
+	$(call _require_file,$(EQY_CONFIG),setup_eqy)
+	$(call _require_file,$(EQY_VIEW),setup_eqy)
 	@command -v "$(EQY)" >/dev/null 2>&1 || { echo "ERROR: EQY executable not found: $(EQY)"; exit 2; }
 	@command -v "$(SBY)" >/dev/null 2>&1 || { echo "ERROR: SymbiYosys executable not found for EQY SBY fallback: $(SBY)"; exit 2; }
 	@printf "%b\n" "$(ORANGE)[eqy]$(RESET) PDK=$(PDK) · RTL -> mapped synthesis · jobs=$(EQY_JOBS)"
@@ -1483,7 +1530,9 @@ eqy: setup_eqy ## Prove RTL equivalent to the mapped post-synthesis netlist with
 	}
 
 
-setup_signoff: setup_sdc ## Generate PDK-scoped STA, SDF, and power scripts
+setup_signoff: ## Generate PDK-scoped STA, SDF, and power scripts
+	$(call _require_file,$(CONSTRAINTSDIR)/$(TOP).sdc,setup_sdc)
+	$(call _require_file,$(SYNDIR)/$(TOP)_synth.v,syn)
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SIGNOFF_STA_DIR) $(SIGNOFF_POWER_DIR) $(SIGNOFF_SDF_DIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff analysis \
@@ -1521,7 +1570,8 @@ sim_syn: compile_syn ## Run post-synthesis simulation
 
 
 
-sta_corners: setup_signoff ## Run STA for every configured corner and setup/hold mode
+sta_corners: ## Run STA for every configured corner and setup/hold mode
+	$(call _require_file,$(SIGNOFF_STA_DIR)/sta.tcl,setup_signoff)
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(STA_LOGDIR)
 	@set -eu; failed=0; \
@@ -1538,7 +1588,8 @@ sta_corners: setup_signoff ## Run STA for every configured corner and setup/hold
 	done; \
 	exit $$failed
 
-power_estimate_corners: setup_signoff ## Estimate power for every configured corner using global activity
+power_estimate_corners: ## Estimate power for every configured corner using global activity
+	$(call _require_file,$(SIGNOFF_POWER_DIR)/power_estimate.tcl,setup_signoff)
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(POWER_LOGDIR)
 	@set -eu; failed=0; \
@@ -1553,11 +1604,16 @@ power_estimate_corners: setup_signoff ## Estimate power for every configured cor
 	done; \
 	exit $$failed
 
-signoff_corners: sdf sta_corners power_estimate_corners ## Run SDF, multi-corner STA and estimated power
+signoff_corners: ## Run SDF, multi-corner STA and estimated power
+	@$(BACKEND_MAKE) setup_signoff
+	@$(BACKEND_MAKE) sdf
+	@$(BACKEND_MAKE) sta
+	@$(BACKEND_MAKE) power_estimate
 
 sta: sta_corners ## Run STA for every corner and setup/hold mode
 
-sdf: setup_signoff ## Write one SDF timing file per configured corner
+sdf: ## Write one SDF timing file per configured corner
+	$(call _require_file,$(SIGNOFF_SDF_DIR)/write_sdf.tcl,setup_signoff)
 	$(Q)$(MKDIR) -p $(SIGNOFF_SDF_DIR) $(SDF_LOGDIR)
 	@set -eu; failed=0; \
 	for corner in $(SIGNOFF_CORNERS); do \
@@ -1573,7 +1629,7 @@ sdf: setup_signoff ## Write one SDF timing file per configured corner
 
 power_estimate: power_estimate_corners ## Estimate power for every configured corner using global activity
 
-sta_violators: setup_signoff ## Report timing violators
+sta_violators: ## Report timing violators
 	$(Q)$(MKDIR) -p $(STA_LOGDIR)
 	$(Q)$(STA) -exit -no_init $(SIGNOFF_STA_DIR)/sta_violators.tcl > $(STA_LOGDIR)/$(TOP)_sta.violators
 
@@ -1585,13 +1641,13 @@ path_view: ## Build interactive STA path view for the selected PDK
 # 10. Run metadata
 # ============================================================================
 ##@ Run metadata
-metrics: setup ## Collect verification, implementation, and sign-off metrics for the selected PDK
+metrics: ## Collect verification, implementation, and sign-off metrics for the selected PDK
 	$(Q)$(PYTHON) -m flexsoc.backend.metrics \
 		--top $(TOP) \
 		--run-dir $(OUTROOT) \
 		--output $(METRICS_JSON)
 
-manifest: setup ## Collect the automatic run identity and tool manifest
+manifest: ## Collect the automatic run identity and tool manifest
 	$(Q)$(PYTHON) -m flexsoc.backend.manifest \
 		--top $(TOP) \
 		--run-top $(RUN_TOP) \
@@ -1602,7 +1658,8 @@ manifest: setup ## Collect the automatic run identity and tool manifest
 manifest_show: ## Show the current run manifest in a colored terminal view
 	$(Q)$(PYTHON) -m flexsoc.backend.manifest --show $(MANIFEST_JSON)
 
-check: metrics ## Refresh and show the complete functional/formal/synthesis/signoff run status
+check: ## Show the existing complete functional/formal/synthesis/signoff run status
+	@test -f "$(METRICS_JSON)" || { echo "ERROR: metrics not found: $(METRICS_JSON)"; echo "Hint: run: fx metrics"; exit 2; }
 	$(Q)$(PYTHON) -m flexsoc.backend.metrics --show $(METRICS_JSON)
 
 # ============================================================================
@@ -1616,7 +1673,7 @@ setup_pnr: ## Generate OpenROAD config
 		--platform $(ORS_TECH) --sdc-file $(CONSTRAINTSDIR)/$(TOP).sdc \
 		$(RTL_FILELIST_ARGS) --output-dir $(ORSDIR)
 
-pnr: setup_pnr ## Run OpenROAD place and route
+pnr: ## Run OpenROAD place and route
 	$(Q)$(MKDIR) -p $(OR_LOGDIR)
 	$(Q)$(MKDIR) -p $(OR_WORKDIR)
 	@log="$(OR_LOGDIR)/$(TOP)_pnr.log"; \
@@ -1637,7 +1694,7 @@ pnr: setup_pnr ## Run OpenROAD place and route
 		exit 2; \
 	}
 
-pnr_gui: setup_pnr ## Open OpenROAD GUI
+pnr_gui: ## Open OpenROAD GUI
 	$(Q)$(MKDIR) -p $(OR_WORKDIR)
 	@cfg="$(OR_CFG_MK)"; \
 	if [ -n "$(MAKE_DRY_RUN)" ]; then \
@@ -1683,27 +1740,92 @@ ip_load: ## Load the complete saved IP package into a run workspace
 		cp -a "$$src_ip"/. "$$dst_dir"/; \
 	fi; \
 	find "$$dst_dir" -type d -name __pycache__ -prune -exec rm -rf {} +; \
-	find "$$dst_dir" -type f -name '*.pyc' -delete; \
-	$(MAKE) -f $(BACKEND_MAKEFILE) flist HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
-		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
+	find "$$dst_dir" -type f -name '*.pyc' -delete
 
-ip_save: ## Save only the current PDK EQY config and formal view back to hw/ips
+ip_save: ## Save current-PDK EQY and Tcl sign-off scripts back to the IP library
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
-	@test -f "$(EQY_CONFIG)" || { echo "ERROR: EQY config not found: $(EQY_CONFIG)"; exit 2; }
-	@test -f "$(EQY_VIEW)" || { echo "ERROR: EQY formal view not found: $(EQY_VIEW)"; exit 2; }
-	$(Q)$(RM) -rf $(IP_EQY_DIR)
-	$(Q)$(MKDIR) -p $(IP_EQY_DIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff eqy-export \
+	@set -eu; \
+	sta_src="$(SIGNOFF_STA_DIR)"; \
+	sdf_src="$(SIGNOFF_SDF_DIR)"; \
+	power_src="$(SIGNOFF_POWER_DIR)"; \
+	activity_src="$(SIGNOFF_POWER_DIR)/activity/scripts"; \
+	ip_root="$(IP_ROOT)"; \
+	destination="$$ip_root/signoff"; \
+	backup="$$ip_root/.signoff-backup"; \
+	pdk="$(PDK)"; \
+	for source in \
+		"$(EQY_CONFIG)" "$(EQY_VIEW)" \
+		"$$sta_src/sta.tcl" "$$sta_src/sta_violators.tcl" \
+		"$$sdf_src/write_sdf.tcl" "$$power_src/power_estimate.tcl"; do \
+		test -f "$$source" || { echo "ERROR: required ip_save input not found: $$source"; exit 2; }; \
+	done; \
+	activity_count=0; \
+	for source in "$$activity_src"/*.tcl; do \
+		[ -f "$$source" ] || continue; \
+		activity_count=$$((activity_count + 1)); \
+	done; \
+	test "$$activity_count" -gt 0 || { \
+		echo "ERROR: no activity-power Tcl scripts found: $$activity_src"; \
+		echo "Hint: run fx power_analysis for at least one GLS result before fx ip_save"; \
+		exit 2; \
+	}; \
+	mkdir -p "$$ip_root"; \
+	temporary=$$(mktemp -d "$$ip_root/.signoff-export.XXXXXX"); \
+	staged="$$temporary/signoff"; \
+	backed_up=0; \
+	cleanup() { \
+		status=$$?; \
+		trap - EXIT HUP INT TERM; \
+		if [ "$$status" -ne 0 ] && [ "$$backed_up" -eq 1 ] && \
+		   [ ! -e "$$destination" ] && [ -e "$$backup" ]; then \
+			mv "$$backup" "$$destination" || true; \
+		fi; \
+		rm -rf "$$temporary"; \
+		exit "$$status"; \
+	}; \
+	trap cleanup EXIT HUP INT TERM; \
+	if [ -d "$$destination" ]; then \
+		cp -a "$$destination" "$$staged"; \
+	else \
+		mkdir -p "$$staged"; \
+	fi; \
+	rm -rf \
+		"$$staged/equivalence/$$pdk" \
+		"$$staged/sta/$$pdk" \
+		"$$staged/sdf/$$pdk" \
+		"$$staged/power/$$pdk"; \
+	eqy_dst="$$staged/equivalence/$$pdk/rtl_vs_syn"; \
+	sta_dst="$$staged/sta/$$pdk"; \
+	sdf_dst="$$staged/sdf/$$pdk"; \
+	power_dst="$$staged/power/$$pdk"; \
+	activity_dst="$$power_dst/activity/scripts"; \
+	mkdir -p "$$eqy_dst" "$$sta_dst" "$$sdf_dst" "$$activity_dst"; \
+	$(PYTHON) -m flexsoc.backend.setup_signoff eqy-export \
 		$(RTL_FILELIST_ARGS) \
 		--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
 		$(foreach model,$(PRIM),--cell-model $(model)) \
 		--sky130-clock-gate-model $(EQY_SKY130_CLOCK_GATE_MODEL) \
-		--config $(EQY_CONFIG) --view $(EQY_VIEW) --output-dir $(IP_EQY_DIR) >/dev/null
-	@printf "%b\n" "$(GREEN)[ip_save]$(RESET) PDK=$(PDK) · saved $(IP_EQY_DIR)/$(TOP)_rtl_vs_syn.eqy"
-	@printf "%b\n" "$(GREEN)[ip_save]$(RESET) PDK=$(PDK) · saved $(IP_EQY_DIR)/$(TOP)_eqy_view.sv"
+		--config $(EQY_CONFIG) --view $(EQY_VIEW) --output-dir "$$eqy_dst" >/dev/null; \
+	cp -p "$$sta_src/sta.tcl" "$$sta_src/sta_violators.tcl" "$$sta_dst/"; \
+	cp -p "$$sdf_src/write_sdf.tcl" "$$sdf_dst/"; \
+	cp -p "$$power_src/power_estimate.tcl" "$$power_dst/"; \
+	for source in "$$activity_src"/*.tcl; do \
+		[ -f "$$source" ] || continue; \
+		cp -p "$$source" "$$activity_dst/"; \
+	done; \
+	rm -rf "$$backup"; \
+	if [ -e "$$destination" ]; then \
+		mv "$$destination" "$$backup"; \
+		backed_up=1; \
+	fi; \
+	mv "$$staged" "$$destination"; \
+	backed_up=0; \
+	rm -rf "$$backup" "$$temporary"; \
+	trap - EXIT HUP INT TERM; \
+	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · saved EQY and $$((activity_count + 4)) Tcl scripts"
 
 # ============================================================================
 # 13. SoC, FuseSoC, XBAR and software flow

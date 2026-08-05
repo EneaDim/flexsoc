@@ -474,7 +474,7 @@ meaningful when both drivers execute the same architectural schedule.
 ### 7.3 SystemVerilog scaffold
 
 ```bash
-fx setup_tb --force
+fx setup_tb
 ```
 
 The generated SV environment includes:
@@ -493,8 +493,17 @@ Canonical single-clock testbenches instantiate the DUT as `u_<TOP>`; for
 ### 7.4 cocotb scaffold
 
 ```bash
-fx setup_cocotb --force
+fx setup_cocotb
 ```
+
+The SV and cocotb support drivers implement one shared vector reset grammar:
+
+```text
+<cycle> @reset <cycles>
+<cycle> @reset <domain-or-reset-signal> <cycles>
+```
+
+The unnamed form pulses all configured resets. The named form resolves either a `CLOCK_DOMAINS` domain or its reset signal. Both backends use the configured polarity and wait every selected clock concurrently. Running `setup_tb` or `setup_cocotb` recreates the complete machine-owned backend scaffold, including the top wrapper and all drivers; this is the migration step after loading older IP packages and prevents mixed generator versions.
 
 The cocotb environment includes:
 
@@ -521,9 +530,12 @@ fx regression --live \
 fx coverage_detail
 ```
 
-The regression cleans generated tests and previous regression artifacts,
-regenerates the selected harnesses and scenarios, runs every test on every
-selected backend, uses deterministic seeds, and merges Verilator coverage.
+The regression preserves the prepared vectors and harnesses, clears only previous
+regression logs and coverage, runs every existing test on every selected backend,
+uses deterministic seeds, and merges Verilator coverage. Run `fx regmap_py` followed
+by `fx tests_gen` after `fx ip_load`: authored scenarios remain the source of truth,
+while derived vectors such as `auto_toggle` are recreated for the current workspace.
+The cocotb source list is also rebound to the current loaded RTL filelists.
 
 ### 7.6 What functional PASS proves
 
@@ -547,7 +559,7 @@ Use the smallest reproducible test:
 ```bash
 fx tests
 fx test_gen --force --set TEST_NAME=<test>
-fx setup_tb setup_cocotb --force
+fx setup_tb setup_cocotb
 fx sim --live --set TEST_NAME=<test>
 fx cocotb --live --set TEST_NAME=<test>
 ```
@@ -947,15 +959,16 @@ With `SDF_STRICT=1`, an SDF run passes only when:
 - report and waveform are present and non-empty;
 - the timing-model manifest matches the expected path-delay classification.
 
-The E2E qualification archives every combination under:
+Every E2E GLS command writes direct, test-scoped evidence under:
 
 ```text
-dv/functional/sim/post_syn/<pdk>/e2e_qualification/
-├── matrix.json
-├── reports/
-├── logs/
-└── waves/
+dv/functional/sim/post_syn/<pdk>/
+├── <top>_post_syn_<test>_<backend>_<mode>.json
+├── <top>_<test>_<backend>_<mode>.fst
+└── ...
 ```
+
+No qualification matrix is generated or required.
 
 ### 13.7 GLS failure recovery
 
@@ -970,14 +983,14 @@ dv/functional/sim/post_syn/<pdk>/e2e_qualification/
 | SV and cocotb disagree | harness semantics | compare vectors, batching, clock/reset, and sampling phase |
 | waveform/report missing | archival/command failure | inspect command log and machine-readable stage report |
 
-Use `fx check` to identify the exact failed matrix stem and archived evidence.
+Use `fx check` to identify the exact failed direct GLS report and its evidence.
 
 ---
 
 ## 14. Phase 11 — activity-based power from GLS
 
 `power_estimate` uses a global assumption. `power_analysis` uses activity from a
-qualified SDF-backed GLS test.
+successful SDF-backed GLS test.
 
 ```bash
 fx power_analysis \
@@ -997,9 +1010,10 @@ Only `min`, `typ`, and `max` GLS reports are accepted because they prove that
 back-annotation was requested. `zero` and `unit` are intentionally rejected as
 technology power references.
 
-The default E2E analysis uses one SV `typ` trace per test. Running the same
-vectors again through cocotb would normally duplicate the same logical workload.
-Explicit backend/mode matrices remain available for investigations.
+The E2E test runs every generated shared/custom vector explicitly for both
+`sky130` and `ihp-sg13g2`, using one selected backend and timing mode. CI can
+select additional backend/mode combinations without changing the linear command
+sequence inside pytest.
 
 ### 14.2 FST to VCD
 
@@ -1104,7 +1118,7 @@ keeps evidence classes separate:
 
 ```text
 power            vectorless estimate
-post_syn_gls     functional/path-delay matrix
+post_syn_gls     direct functional/path-delay results
 power_activity   qualified post-GLS activity analysis
 ```
 
@@ -1112,15 +1126,52 @@ A standard closure PASS still does not imply final production physical sign-off.
 Review warnings, unconstrained timing paths, coverage, waivers, and current flow
 limitations in addition to the summary word.
 
-### 15.4 Save reusable IP
+### 15.4 Automatic setup policy
+
+Normal CLI use favors convenience for generated script/configuration flows: `fx syn`, `fx eqy`, `fx sdf`, `fx sta`, `fx power_estimate`, `fx pnr`, and the formal execution targets prepend their matching setup commands. Functional and gate-level simulation never prepend `setup_tb` or `setup_cocotb`; those remain visible user steps, including after each PDK switch. The prepended targets do not fabricate earlier analysis results.
+
+Use `--no-setup` for a literal E2E pipeline:
+
+```bash
+fx setup_sdc
+fx setup_syn
+fx syn --no-setup
+fx setup_eqy
+fx eqy --no-setup
+```
+
+This keeps every step readable while retaining convenient one-command interactive use.
+
+### 15.5 Save reusable IP
 
 ```bash
 fx ip_save --set IP_NAME=<name>
 ```
 
-Save authored sources and reusable collateral, not transient run outputs. A SoC
-integration must establish its own address map, clocks/resets, DV, constraints,
-and sign-off assumptions.
+`ip_save` updates only the selected technology branch. In addition to the portable
+EQY profile, it retains the generated Tcl used for STA, timing-violator review,
+SDF export, vectorless power estimation, and every completed activity-power
+analysis:
+
+```text
+signoff/equivalence/<pdk>/rtl_vs_syn/
+signoff/sta/<pdk>/*.tcl
+signoff/sdf/<pdk>/*.tcl
+signoff/power/<pdk>/power_estimate.tcl
+signoff/power/<pdk>/activity/scripts/*.tcl
+```
+
+Logs, reports, generated SDF files, converted activity files, and waveforms are
+not copied. Run `ip_save` once after each technology branch; the second save
+preserves the first PDK. The Tcl files are exact script snapshots, so a loaded
+IP must rerun `setup_signoff` and the relevant `power_analysis` commands to bind
+paths to its new workspace and PDK installation.
+
+
+Tests must never use the default repository library. The E2E suite passes a temporary `IP_LIBRARY_ROOT` and verifies that the complete `hw/ips/<name>` tree is unchanged after both PDK saves.
+
+A SoC integration must still establish its own address map, clocks/resets, DV,
+constraints, and sign-off assumptions.
 
 ---
 
@@ -1170,19 +1221,19 @@ fx flist lint_suite regression formal
 fx syn eqy sdf sta power_estimate --force
 ```
 
-Review CDC/RDC and rerun the full GLS matrix because reset and sampling behavior
+Review CDC/RDC and rerun every selected GLS command because reset and sampling behavior
 changed.
 
 ### 16.5 Test/model change
 
 ```bash
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx setup_tb setup_cocotb
 fx regression
 ```
 
 If the new test is intended for GLS/power qualification, rerun the selected GLS
-modes and `power_analysis_all` so the archived matrix and workload summary stay
+modes and `power_analysis_all` so the direct reports and workload summary stay
 complete.
 
 ### 16.6 Constraint-only change
@@ -1217,19 +1268,16 @@ fx settings \
   POWER_VCD_SCOPE=auto \
   POWER_DUT_INSTANCE=auto
 
-FLEXSOC_E2E_LIVE=0 \
 FLEXSOC_E2E_KEEP=1 \
-FLEXSOC_E2E_PDKS="$PDK_NAME" \
 pytest -s -vv \
   tests/test_e2e_fx.py::test_fx_single_clock_flow_debug \
   --e2e-root "$E2E_ROOT" \
-  --e2e-pdks "$PDK_NAME" \
-  --e2e-gls-tests all
+  --e2e-gls-backends sv \
+  --e2e-gls-modes typ
 ```
 
-For six generated tests, two backends, and five modes, the GLS matrix contains
-60 combinations. The default activity analysis then uses the six qualified SV
-`typ` waves, one per test.
+The test runs all six generated vectors one after another. Each SDF-backed GLS
+result is immediately analyzed by its own `fx power_analysis` command.
 
 ---
 

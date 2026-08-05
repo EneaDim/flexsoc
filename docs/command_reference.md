@@ -4,7 +4,7 @@ This is the complete user-facing reference for the `fx` command line and every b
 
 The reference explains what each command owns. The generated scaffold architecture and design reasoning are described in [IP development guide](ip_development_guide.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <target> --info` and `fx commands --json` when a script needs the live metadata from the installed checkout.
 
-> **Execution model:** `fx target_a target_b` launches separate backend targets in the order written. Make prerequisites inside each target remain fail-fast, but a failure in one explicitly listed top-level target does not suppress later targets. Use a composite target or shell `&&` when the top-level sequence itself must stop immediately.
+> **Execution model:** `fx target_a target_b` launches separate backend targets in order. Atomic execution targets prepend their generated setup steps by default: for example, `fx syn` runs `setup_sdc`, `setup_syn`, then `syn`; `fx eqy` runs `setup_eqy`, then `eqy`. Functional simulation setup remains explicit: run `setup_tb` and `setup_cocotb` when the drivers must be refreshed, including after a PDK switch before GLS. Use `--no-setup` when the setup commands are already written explicitly, as in the E2E pipelines. Setup expansion follows setup-only dependencies recursively, remains ordered, and is deduplicated across one invocation. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
 
 ---
 
@@ -37,7 +37,7 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `fx pdk list` | List known PDK profiles and local readiness. | `--json` returns the catalogue. |
 | `fx pdk info <name>` | Show source, node, digital views, OpenROAD platform, and formal adapter. | `--set PDK_ROOT=...` inspects a non-default installation. |
 | `fx pdk fetch <name>` | Fetch the configured PDK source/provider. | `--force` refreshes; `--set PDK_VERSION=...` selects a supported version. |
-| `fx pdk use <name>` | Validate digital views and persist the active PDK. | Requires at least a typical Liberty and functional gate-level Verilog model. |
+| `fx pdk use <name>` | Validate digital views and persist the active PDK. | Shared RTL, DV, formal, and SDC remain valid; rerun only technology-bound synthesis, EQY, sign-off, GLS power, manifest, metrics, and check. |
 | `fx eqy_debug [partition]` | Summarize EQY closure or diagnose one unresolved partition. | Supports `--wave`, `--files`, `--json`, and reset overrides through `--set`. |
 | `fx shell` | Open an interactive prompt with target completion and history. | `help`, `commands`, `exit`, and normal target lines are accepted. |
 
@@ -55,6 +55,7 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--profile base|impl|riscv` | Dependency targets only | Select the pinned dependency profile. |
 | `--jobs N` | Dependency targets only | Set dependency build jobs. EQY parallelism uses `--set EQY_JOBS=N`. |
 | `--force`, `--overwrite` | Generated targets | Set `FORCE=1`; authored files should still be reviewed before regeneration. |
+| `--no-setup` | Atomic execution targets | Run only the requested target names. Use this for literal pipelines that call their setup targets explicitly. |
 | `--dry-run` | Backend targets | Print the exact command without executing it. |
 | `--script` | With `--dry-run` | Render the preview as a strict Bash script. |
 | `--capture` | Backend targets | Capture stdout/stderr and save a per-command log. |
@@ -62,7 +63,24 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--json` | Supported pseudo-commands and execution output | Emit machine-readable JSON. |
 | `--info` | Backend targets | Describe selected targets and accepted variables instead of running them. |
 
-### 1.3 Canonical run configuration
+### 1.3 Automatic setup and explicit pipelines
+
+The following atomic execution families prepare their generated support files by default:
+
+| Execution family | Prepended targets |
+| --- | --- |
+| `syn`, `syn_v`, `syn_sv` | `setup_sdc`, `setup_syn` |
+| CSR formal execution targets | their matching `setup_formal_csr_*` target |
+| Design formal execution targets | `setup_formal`, then their matching properties setup |
+| `eqy` | `setup_eqy` |
+| `sdf`, `sta*`, `power_estimate*` | `setup_sdc`, `setup_signoff` |
+| `pnr`, `pnr_gui` | `setup_sdc`, `setup_pnr` |
+
+This preparation regenerates only configuration or scripts. Functional SV and cocotb driver setup is deliberately excluded from automatic expansion and remains an explicit user step. It does not execute earlier result-producing stages such as synthesis before EQY or GLS before activity-power analysis. Composite lifecycle targets retain their own orchestration. Use `--dry-run` to inspect the expansion and `--no-setup` to execute only the names written by the caller.
+
+After `ip_load`, and again after each `pdk use` before GLS, run `setup_tb` and `setup_cocotb` explicitly. Each command replaces its complete generated tree (`tb/sv/**` or `tb/cocotb/**`) from the current RTL signature, RegMap, and clock/reset configuration, so saved-IP files cannot mix with a newer generator. These trees are entirely machine-owned; `--force` is accepted for CLI compatibility but is not required.
+
+### 1.4 Canonical run configuration
 
 The variables below define the identity and clock model consumed by every backend:
 
@@ -76,6 +94,36 @@ fx settings \
 
 For N-clock designs, list every domain and declare only real relationships. FlexSoC does not infer that all domains are asynchronous.
 
+
+### 1.5 Changing technology inside one logical run
+
+The run root, RTL, functional DV, property formal, and `constraints/<top>.sdc` are technology independent. After `fx pdk use <name>`, do **not** regenerate HJSON, registers, RTL, filelists, models, tests, testbenches, lint, regression, coverage, formal, or SDC. Run only:
+
+```bash
+# Convenience mode: each execution command prepares its generated scripts.
+fx syn
+fx eqy
+fx sdf
+fx sta
+fx power_estimate
+
+# Literal E2E mode: keep every setup visible and disable expansion.
+fx setup_syn
+fx syn --no-setup
+fx setup_eqy
+fx eqy --no-setup
+fx setup_signoff
+fx sdf --no-setup
+fx sta --no-setup
+fx power_estimate --no-setup
+# compile_post_syn / sim_post_syn / power_analysis for every vector
+fx manifest
+fx metrics
+fx check
+```
+
+Those outputs are isolated below `syn/<pdk>`, `signoff/*/<pdk>`, `dv/functional/sim/post_syn/<pdk>`, and `meta/<pdk>`.
+
 ---
 
 ## 2. Lifecycle command map
@@ -87,6 +135,15 @@ For N-clock designs, list every domain and declare only real relationships. Flex
 | Structural RTL closure | `fx flist`, `fx lint_suite`, `fx slang_hier`, `fx slang_ast` | Reachable hierarchy and clean lint |
 | Functional DV | `fx setup_model`, `fx tests_gen`, `fx setup_tb`, `fx setup_cocotb`, `fx regression`, `fx coverage_detail` | Passing scenarios, waves, coverage |
 | Property formal | `fx setup_formal`, `fx formal` | BMC/prove/cover closure |
+
+The SV and cocotb vector drivers accept the same reset commands:
+
+```text
+<cycle> @reset <cycles>
+<cycle> @reset <domain-or-reset-signal> <cycles>
+```
+
+The short form pulses every configured reset. The named form selects one `CLOCK_DOMAINS` domain or reset signal. Both backends honor the configured polarity and hold all selected resets concurrently for the requested number of their own clock edges; unknown selectors are errors.
 | Constraints and synthesis | `fx setup_sdc`, `fx setup_syn`, `fx syn` | SDC, mapped netlist, synthesis reports |
 | Logical sign-off | `fx setup_eqy`, `fx eqy`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
 | Post-synthesis sign-off | `fx setup_signoff`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
@@ -268,7 +325,7 @@ Generate the reference-model environment, vectors, testbenches, simulations, reg
 | `fx sim_tests` | Run every generated SystemVerilog vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx cocotb` | Run cocotb tests. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx cocotb_tests` | Run every generated cocotb vector test. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
-| `fx regression` | Regenerate and run every vector test on each selected backend, then merge Verilator coverage. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Composite target; use it for the standard ordered flow. |
+| `fx regression` | Run every existing vector test on each selected backend, then merge Verilator coverage. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Composite target; use it for the standard ordered flow. |
 | `fx coverage` | Merge and report existing Verilator coverage data. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx coverage_detail` | Show uncovered Verilator coverage points. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 
@@ -278,7 +335,7 @@ Generate the reference-model environment, vectors, testbenches, simulations, reg
 Generate both environments before running a named test:
 
 ```bash
-fx tests_gen setup_tb setup_cocotb --force
+fx tests_gen setup_tb setup_cocotb
 fx tests
 ```
 
@@ -309,10 +366,14 @@ fx cocotb --live \
   --set WAVE_FILE="$RUN/dv/functional/sim/rtl/${TOP}_tb_cocotb_smoke.fst"
 ```
 
-`fx sim_tests` and `fx cocotb_tests` run every existing generated test for one
-backend. `fx regression` is stronger: it removes and regenerates the generated
-test/scaffold boundary, runs every test on every backend in
-`REGRESSION_BACKENDS`, and merges coverage when `COMPILER=verilator`.
+`fx sim_tests` and `fx cocotb_tests` run every existing vector test for one
+backend. `fx regression` runs the same existing vectors on every backend in
+`REGRESSION_BACKENDS`, clears only previous regression logs and coverage, and
+merges coverage when `COMPILER=verilator`. Use `fx tests_gen` explicitly when the
+editable test catalogue must be recreated. For a loaded IP, run `fx regmap_py` and
+`fx tests_gen` before regression so authored scenarios and machine-owned CSR tests are
+materialized in the current workspace. Cocotb sources are rebased from the current
+RTL filelists at execution time.
 
 ```bash
 fx regression --live --set 'REGRESSION_BACKENDS=sv cocotb'
@@ -376,11 +437,11 @@ Inspect waveforms and saved simulation or synthesis views without changing desig
 
 Generate and execute automatic CSR checks and authored property BMC/prove/cover stages.
 
-**Main result:** `dv/formal/` configurations, proof logs, traces, and status files.
+**Main result:** `dv/formal/` designer-owned prove/cover sources, generated configurations, proof logs, traces, and status files. `setup_formal` creates the initial design-property scaffold only when it is absent; loaded IP properties are preserved.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx setup_formal` | Prepare CSR formal and any authored design-property configurations. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx setup_formal` | Create or preserve starter design assertions and covers. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx setup_formal_csr_prove` | Generate shared CSR BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx setup_formal_csr_cover` | Generate automatic CSR cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx formal_csr_bmc` | Bounded-check automatic CSR assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
@@ -498,9 +559,9 @@ fx sim_post_syn --live \
 Artifacts:
 
 ```text
-dv/functional/sim/post_syn/<pdk>/<testbench>_<backend>_<mode>.<fst|vcd>
-dv/functional/sim/post_syn/<pdk>/<top>_post_syn_<backend>_<mode>.json
-logs/dv/functional/post_syn/<pdk>/<top>_post_syn_<backend>_<mode>.log
+dv/functional/sim/post_syn/<pdk>/<testbench>_<test>_<backend>_<mode>.<fst|vcd>
+dv/functional/sim/post_syn/<pdk>/<top>_post_syn_<test>_<backend>_<mode>.json
+logs/dv/functional/post_syn/<pdk>/<top>_post_syn_<test>_<backend>_<mode>.log
 dv/functional/sim/post_syn/<pdk>/icarus_timing_models/manifest.json
 ```
 
@@ -509,9 +570,9 @@ annotation diagnostics. `SDF_STRICT=1` is the qualification default: missing
 annotation markers and recognized SDF warnings/errors fail the run.
 `SDF_STRICT=0` is diagnostic only.
 
-Default report/log names do not include `TEST_NAME`; repeated manual tests with
-the same backend/mode overwrite them. Use a unique `WAVE_FILE` and archive the
-JSON/log immediately, or use the E2E matrix described below.
+Default waveform, report, executable, and log names include `TEST_NAME`,
+`GLS_BACKEND`, and `TIMING_MODE`. Each direct GLS execution therefore retains
+its own evidence without an intermediate qualification manifest.
 
 Post-PnR targets use the same driver/timing concepts but consume a final netlist
 and corner-specific post-PnR SDF. `sdf_post_pnr` requires `TIMING_MODE=min|typ|max`
@@ -540,7 +601,7 @@ Consolidate run identity, metrics, and closure status for review and release.
 | `fx metrics` | Collect functional/formal/synthesis/signoff metrics. | Common run/clock settings only | Use `--info` for accepted overrides. |
 | `fx manifest` | Collect automatic run identity into meta/manifest.json. | Common run/clock settings only | Use `--info` for accepted overrides. |
 | `fx manifest_show` | Show the current run manifest in color. | Common run/clock settings only | Use `--info` for accepted overrides. |
-| `fx check` | Refresh metrics, then show complete closure for the selected PDK, including the archived post-synthesis GLS matrix when present. | `PDK` plus common run/clock settings | Prints compact PASS/FAIL/MISSING totals by timing mode and backend, followed by the first failing combinations and evidence paths. |
+| `fx check` | Refresh metrics, then show complete closure for the selected PDK, including direct post-synthesis GLS reports when present. | `PDK` plus common run/clock settings | Prints compact PASS/FAIL/MISSING totals by timing mode and backend, followed by the first failing combinations and evidence paths. |
 
 ### 3.13 IP load/save
 
@@ -551,7 +612,28 @@ Move authored IP sources between the reusable library and an isolated run worksp
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx ip_load` | Load an IP into a run workspace. | `IP_NAME` | Use `--info` for accepted overrides. |
-| `fx ip_save` | Save authored IP sources back to hw/ips. | `IP_NAME` | Use `--info` for accepted overrides. |
+| `fx ip_save` | Save the current PDK EQY profile and sign-off Tcl scripts into the reusable IP package. | `IP_NAME`, `IP_LIBRARY_ROOT` | Requires completed EQY, STA/SDF/power-estimate setup, and at least one activity-power analysis. Saves scripts only; logs, reports, SDF files, and waveforms are excluded. |
+
+E2E tests set `IP_LIBRARY_ROOT` inside their temporary workspace and hash the repository-owned package before and after execution. Therefore `make test` cannot write into `hw/ips`.
+
+The saved technology branch mirrors the run layout:
+
+```text
+hw/ips/<IP_NAME>/signoff/
+├── equivalence/<pdk>/rtl_vs_syn/
+├── sta/<pdk>/
+│   ├── sta.tcl
+│   └── sta_violators.tcl
+├── sdf/<pdk>/write_sdf.tcl
+└── power/<pdk>/
+    ├── power_estimate.tcl
+    └── activity/scripts/*.tcl
+```
+
+Each invocation replaces only the selected PDK branch and preserves scripts
+already saved for other technologies. The Tcl files are exact generated script
+snapshots; after `ip_load`, rerun the corresponding setup/analysis command to
+bind paths to the new workspace and PDK installation.
 
 ### 3.14 SoC flow
 
@@ -683,7 +765,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `LIB_SYN` | Primary synthesis Liberty view. |
 | `PRIM` | Technology primitive/formal model input. |
 | `WAVE_FORMAT` | Waveform format: `fst` or `vcd`. |
-| `WAVE_FILE` | Explicit waveform path for simulation or analysis. Use a unique path per test/backend/mode when retaining a matrix. |
+| `WAVE_FILE` | Explicit waveform path for simulation or analysis. Use a unique path per test/backend/mode when overriding the canonical test-scoped path. |
 | `GLS_SIMULATOR` | Gate-level simulator selection; current post-synthesis/post-PnR GLS requires `iverilog`. |
 | `GLS_BACKEND` | Gate-level driver: `sv` or `cocotb`; default `sv`. |
 | `TIMING_MODE` | Gate timing mode: `zero`, `unit`, `min`, `typ`, or `max`; default `zero`. Aliases `sdf_min`, `sdf_typ`, and `sdf_max` are accepted. |
@@ -771,8 +853,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 
 ## 5. End-to-end pytest qualification
 
-`tests/test_e2e_fx.py` keeps four visible tests while each test executes a
-configurable technology and post-synthesis matrix:
+`tests/test_e2e_fx.py` contains four literal, ordered command pipelines:
 
 ```text
 test_fx_single_clock_flow_debug
@@ -781,63 +862,47 @@ test_fx_cordic_ip_load_debug
 test_fx_uart_ip_load_debug
 ```
 
-Default qualification:
+`make test` runs every pipeline without `--live`. Each `fx` invocation is written
+explicitly in the test, so pytest prints the exact `uv run --no-sync fx ...`
+command before executing it. Each full test creates the logical RTL/DV/formal run once, then qualifies two isolated technology branches in order:
 
 ```text
-PDKs:       sky130, ihp-sg13g2
-GLS modes:  zero, unit, min, typ, max
-backends:   sv, cocotb
-GLS tests:  smoke, auto_toggle
+PDKs:        sky130, ihp-sg13g2
+GLS mode:    typ
+GLS backend: sv
+GLS tests:   every generated shared/custom test, one after another, per PDK
 ```
 
-Run the complete matrix and retain successful workspaces:
-
 ```bash
-FLEXSOC_E2E_LIVE=1 \
-FLEXSOC_E2E_KEEP=1 \
-pytest -s -vv tests/test_e2e_fx.py \
-  --e2e-root "$HOME/flexsoc-e2e"
+make test E2E_ROOT="$HOME/flexsoc-e2e"
 ```
 
 | Pytest option | Environment equivalent | Meaning |
 | --- | --- | --- |
 | `--e2e-root PATH` | `FLEXSOC_E2E_ROOT` | Base directory for isolated workspaces. |
-| `--e2e-pdks LIST` | `FLEXSOC_E2E_PDKS` | Comma-separated PDK matrix. |
-| `--e2e-gls-modes LIST` | `FLEXSOC_E2E_GLS_MODES` | Comma-separated subset of `zero,unit,min,typ,max`. |
-| `--e2e-gls-backends LIST` | `FLEXSOC_E2E_GLS_BACKENDS` | Comma-separated subset of `sv,cocotb`. |
-| `--e2e-gls-tests LIST` | `FLEXSOC_E2E_GLS_TESTS` | Named generated tests, or `all` by itself. |
-| `--no-post-syn-gls` | none | Keep synthesis/signoff but skip the GLS matrix. |
-| `--no-signoff` | none | Skip the technology-closure block. In the current E2E implementation this includes setup SDC, property formal, synthesis, EQY, SDF, STA, power, and GLS. |
+| `--e2e-gls-modes VALUE` | `FLEXSOC_E2E_GLS_MODES` | One of `zero`, `unit`, `min`, `typ`, or `max`. |
+| `--e2e-gls-backends VALUE` | `FLEXSOC_E2E_GLS_BACKENDS` | One of `sv` or `cocotb`. |
+| `--no-post-syn-gls` | none | Keep synthesis/signoff but skip the explicit GLS commands. |
+| `--no-signoff` | none | Skip setup SDC, formal, synthesis, EQY, SDF, STA, power, and GLS. |
 
-`FLEXSOC_E2E_LIVE=1` streams each `fx` target. `FLEXSOC_E2E_KEEP=1` preserves
-successful temporary workspaces so reports and waveforms can be inspected.
+`FLEXSOC_E2E_KEEP=1` preserves successful temporary workspaces. To inspect one
+failed target with its generated scripts and complete log, copy the exact command
+printed by pytest and add `--live` manually.
 
-A shorter two-PDK smoke qualification is:
-
-```bash
-FLEXSOC_E2E_LIVE=1 \
-FLEXSOC_E2E_KEEP=1 \
-pytest -s -vv tests/test_e2e_fx.py \
-  --e2e-root "$HOME/flexsoc-e2e-smoke" \
-  --e2e-gls-tests smoke \
-  --e2e-gls-modes zero,typ
-```
-
-Per PDK, archived GLS evidence is stored under:
+Every `sim_post_syn` run writes direct, test-scoped evidence under:
 
 ```text
-dv/functional/sim/post_syn/<pdk>/e2e_qualification/
-├── matrix.json
-├── reports/
-├── logs/
-└── waves/
+dv/functional/sim/post_syn/<pdk>/
+├── <top>_post_syn_<test>_<backend>_<mode>.json
+├── <top>_<test>_<backend>_<mode>.fst
+└── ...
 ```
 
-For `min/typ/max`, the E2E assertion checks that the SDF has real delay records,
-matches the selected corner, was named by the annotation marker, produced no
-strict diagnostics, used the Icarus path-delay model, and generated a non-empty
-waveform. It deletes the source report before each combination to prevent stale
-PASS results.
+There is no E2E qualification matrix or `matrix.json`. For `min`, `typ`, and
+`max`, the E2E test immediately runs `fx power_analysis` for that exact GLS trace.
+The source report records the test, backend, timing mode, netlist, SDF, waveform,
+and observable annotation diagnostics, so stale or mismatched artifacts fail at
+their direct command boundary.
 
 ---
 
@@ -867,7 +932,7 @@ fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=s
 ### Change top-level ports
 
 ```bash
-fx top_from_core flist setup_tb setup_cocotb --force
+fx top_from_core flist setup_tb setup_cocotb
 fx lint_suite regression formal
 fx syn eqy --force
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
@@ -919,9 +984,15 @@ See [Project lifecycle](project_lifecycle.md) for engineering rationale and [Qui
 
 ### 7.1 `fx power_analysis` and `fx power_analysis_all`
 
-`power_estimate` remains the vectorless reference based on one global activity and duty-cycle assumption. `power_analysis` is the activity-based counterpart: it accepts only a qualified `min`, `typ`, or `max` post-synthesis GLS result, converts its FST to VCD when necessary, checks the archived GLS report for successful `$sdf_annotate`, then runs OpenSTA `read_vcd`, `report_activity_annotation`, and `report_power` for every configured Liberty corner.
+`power_estimate` is the vectorless reference based on global activity and duty
+cycle. `power_analysis` consumes one direct `min`, `typ`, or `max`
+post-synthesis GLS report. The report itself identifies the waveform and proves
+that `$sdf_annotate` was requested successfully; no matrix manifest is involved.
+FlexSoC converts FST to VCD when needed, resolves the DUT scope, and runs OpenSTA
+`read_vcd`, `report_activity_annotation`, and `report_power` for every configured
+Liberty corner.
 
-Analyze one test:
+Analyze one GLS trace:
 
 ```bash
 fx power_analysis \
@@ -930,17 +1001,34 @@ fx power_analysis \
   --set POWER_TIMING_MODE=typ
 ```
 
-Analyze every test listed in the E2E GLS matrix:
+Analyze all matching direct reports currently present:
 
 ```bash
 fx power_analysis_all \
-  --set POWER_GLS_BACKEND=sv \
-  --set POWER_TIMING_MODE=typ
+  --set POWER_GLS_BACKENDS=all \
+  --set POWER_TIMING_MODES=all \
+  --set POWER_TEST_NAMES=all
 ```
 
-Relevant variables are `POWER_TEST_NAME`, `POWER_TEST_NAMES`, `POWER_GLS_BACKEND(S)`, `POWER_TIMING_MODE(S)`, `POWER_VCD_SCOPE` (default `auto`), `POWER_DUT_INSTANCE` (default `auto`), and `FST2VCD`. FlexSoC reads the VCD hierarchy and resolves the generated DUT scope automatically. It recognizes both generated conventions: canonical single-clock testbenches use `u_<TOP>` (for example `test_tb/u_test`) while N-clock and cocotb wrappers use `u_dut`. `POWER_DUT_INSTANCE` is an optional hint, not a mandatory fixed name. Explicit OpenSTA scopes use `/` between hierarchy levels, for example `test_tb/u_test`; the legacy dotted spelling `test_tb.u_dut` is normalized after validation. A missing scope fails before OpenSTA instead of silently producing zero annotated activities. `fst2vcd` is a required tool in `fx doctor` and the managed GTKWave installation; FlexSoC invokes it automatically whenever the selected qualified waveform is FST. The converter is called through its documented `-f <input> -o <output>` interface, the resulting VCD is validated before OpenSTA is launched, and a stdout conversion fallback is retained for older wrappers. Conversion diagnostics are stored next to the generated VCD under `activity/captures`. `zero` and `unit` are rejected because activity power is deliberately tied to a back-annotated GLS run. Results are written under `signoff/power/<pdk>/activity`, logs under `logs/signoff/power/<pdk>/activity`, and summarized by `fx check`.
+`power_analysis_all` discovers `<top>_post_syn_<test>_<backend>_<mode>.json`
+files directly. Singular selectors restrict the discovery without requiring a
+separate inventory file. `zero` and `unit` remain invalid for activity power.
+Repeated singular runs accumulate into the same activity-power summary instead
+of overwriting previous test results.
 
-Gate simulations and activity-power runs are quiet by default. Without `--live`, detailed compiler, simulator, converter, and OpenSTA output is written to the command/stage logs; the terminal shows only the target status and log path. Pass `--live` to stream the full output.
+Relevant variables are `POWER_TEST_NAME(S)`, `POWER_GLS_BACKEND(S)`,
+`POWER_TIMING_MODE(S)`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, and `FST2VCD`.
+Explicit OpenSTA scopes use `/`, for example `test_tb/u_test`. Automatic scope
+resolution recognizes `u_<TOP>` and `u_dut`. Results are written under
+`signoff/power/<pdk>/activity`, with plain logs under
+`logs/signoff/power/<pdk>/activity`.
+
+Without `--live`, gate simulation and activity-power targets keep detailed output
+in their logs and print only concise status information. With `--live`, FlexSoC
+prints an orange `[log]` header, the live transcript in gray, and each generated
+script as an orange `[script]` header followed by gray script text. ANSI escape
+sequences are stripped from saved log files, and non-color terminals receive the
+same blocks as plain text.
 
 
 ## 8. Failure-driven command playbook
@@ -1037,7 +1125,7 @@ wrapper from the core rather than regenerating the core.
 ```bash
 fx tests
 fx test_gen --force --set TEST_NAME=<test>
-fx setup_tb setup_cocotb --force
+fx setup_tb setup_cocotb
 fx sim --live --set TEST_NAME=<test>
 fx cocotb --live --set TEST_NAME=<test>
 ```
@@ -1247,16 +1335,13 @@ when race or sampling behavior must be qualified.
 ### 10.3 Full repository E2E qualification
 
 ```bash
-FLEXSOC_E2E_LIVE=0 \
-FLEXSOC_E2E_KEEP=1 \
-pytest -s -vv tests/test_e2e_fx.py \
-  --e2e-root "$HOME/flexsoc-e2e" \
-  --e2e-gls-tests all
+FLEXSOC_E2E_KEEP=1 make test E2E_ROOT="$HOME/flexsoc-e2e"
 ```
 
-The full default matrix uses selected PDKs, all generated tests requested by the
-E2E option, both backends, and `zero/unit/min/typ/max`. Activity power uses the
-qualified SDF-backed traces and remains a separate closure item.
+One pytest invocation always qualifies both `sky130` and `ihp-sg13g2`. The logical
+RTL, functional DV, property formal, and SDC stages run once; after `fx pdk use`
+only the PDK-scoped synthesis, EQY, sign-off, GLS activity-power, manifest, metrics,
+and check stages are rerun. Backend and timing-mode sweeps remain separate CI jobs.
 
 ### 10.4 Final evidence refresh
 

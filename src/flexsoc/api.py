@@ -142,7 +142,7 @@ GATE_SIM = (
 )
 PNR = (*COMMON, "PDK", "PDK_ROOT", "ORS", "ORS_TECH")
 IP_LOAD = (*COMMON, "IP_NAME")
-IP_SAVE = (*EQUIV, "IP_NAME")
+IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "IP_NAME", "IP_LIBRARY_ROOT")))
 SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
 FSM = (*BASE, "FSM", "FORCE")
 TUTORIAL = ("TUTORIAL_WS", "TUTORIAL_RUN_ID", *COMMON)
@@ -231,7 +231,7 @@ TARGETS: dict[str, TargetSpec] = {
     "syn_sv": ("Synthesis", "Run SystemVerilog synthesis", SYN),
     "yosys-vgen": ("Synthesis", "Convert SV to Verilog with Yosys", SYN),
     "sv2v": ("Synthesis", "Convert SV to Verilog with sv2v", SYN),
-    "setup_formal": ("DV formal", "Prepare CSR formal and any authored design-property configurations", FORMAL),
+    "setup_formal": ("DV formal", "Create or preserve starter design assertions and covers", FORMAL),
     "setup_formal_csr_prove": ("DV formal", "Generate shared CSR BMC/prove configuration", FORMAL),
     "setup_formal_csr_cover": ("DV formal", "Generate automatic CSR cover configuration", FORMAL),
     "formal_csr_bmc": ("DV formal", "Bounded-check automatic CSR assertions", FORMAL),
@@ -258,18 +258,18 @@ TARGETS: dict[str, TargetSpec] = {
     "sdf": ("Signoff", "Write SDF timing files", SIGNOFF),
     "power_estimate": ("Signoff", "Estimate power using global switching activity", SIGNOFF),
     "power_analysis": ("Signoff", "Analyze power from one back-annotated GLS activity trace", SIGNOFF),
-    "power_analysis_all": ("Signoff", "Analyze power for every selected back-annotated GLS test", SIGNOFF),
+    "power_analysis_all": ("Signoff", "Analyze power for every matching direct GLS report", SIGNOFF),
     "sta_violators": ("Signoff", "Report timing violators", SIGNOFF),
     "path_view": ("Signoff", "Build interactive STA path view", SIGNOFF),
     "metrics": ("Run metadata", "Collect functional/formal/synthesis/signoff metrics", COMMON),
     "manifest": ("Run metadata", "Collect automatic run identity into meta/manifest.json", COMMON),
     "manifest_show": ("Run metadata", "Show the current run manifest in color", COMMON),
-    "check": ("Run metadata", "Show complete current run closure status and metrics", COMMON),
+    "check": ("Run metadata", "Show existing complete run closure status and metrics", COMMON),
     "setup_pnr": ("Place and route", "Generate OpenROAD config", PNR),
     "pnr": ("Place and route", "Run OpenROAD place and route", PNR),
     "pnr_gui": ("Place and route", "Open OpenROAD GUI", PNR),
     "ip_load": ("IP load/save", "Load the complete IP package into a run workspace", IP_LOAD),
-    "ip_save": ("IP load/save", "Save the current PDK EQY profile back to hw/ips", IP_SAVE),
+    "ip_save": ("IP load/save", "Save current-PDK EQY and Tcl sign-off scripts", IP_SAVE),
     "soc_vendor_deps": (
         "SoC flow",
         "Fetch pinned lowRISC dependencies required by SoC simulation",
@@ -477,6 +477,36 @@ TECHNOLOGY_TARGETS = {
     "ip_save",
     "metrics", "manifest", "manifest_show", "check",
     "clean_syn", "clean_signoff", "clean_pnr", "clean_meta",
+}
+
+
+AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
+    # Functional testbench setup is always explicit: it may be refreshed after
+    # a technology switch without rewriting authored tests or vectors.
+    # Setup targets encode their own setup-only dependencies once.
+    "setup_syn": ("setup_sdc",),
+    "syn": ("setup_syn",),
+    "syn_v": ("setup_syn",),
+    "syn_sv": ("setup_syn",),
+    "formal_csr_bmc": ("setup_formal_csr_prove",),
+    "formal_csr_prove": ("setup_formal_csr_prove",),
+    "formal_csr_cover": ("setup_formal_csr_cover",),
+    "setup_formal_prove": ("setup_formal",),
+    "setup_formal_cover": ("setup_formal",),
+    "formal_bmc": ("setup_formal_prove",),
+    "formal_prove": ("setup_formal_prove",),
+    "formal_cover": ("setup_formal_cover",),
+    "eqy": ("setup_eqy",),
+    "setup_signoff": ("setup_sdc",),
+    "sta": ("setup_signoff",),
+    "sta_corners": ("setup_signoff",),
+    "sdf": ("setup_signoff",),
+    "power_estimate": ("setup_signoff",),
+    "power_estimate_corners": ("setup_signoff",),
+    "sta_violators": ("setup_signoff",),
+    "setup_pnr": ("setup_sdc",),
+    "pnr": ("setup_pnr",),
+    "pnr_gui": ("setup_pnr",),
 }
 
 
@@ -714,10 +744,33 @@ class FlexSoC:
             )
         return FlexSoCCommand(name, tuple(argv), self.project_root, self._env(values), values)
 
-    def commands(self, *targets: str, **overrides: Any) -> tuple[FlexSoCCommand, ...]:
-        """Build several Make commands in user order."""
+    def commands(
+        self,
+        *targets: str,
+        auto_setup: bool = True,
+        **overrides: Any,
+    ) -> tuple[FlexSoCCommand, ...]:
+        """Build commands in user order, including setup steps by default."""
 
-        return tuple(self.command(target, **overrides) for target in targets)
+        requested = tuple(_target(target) for target in targets)
+        expanded: list[str] = []
+        seen: set[str] = set()
+
+        def dependencies(target: str) -> tuple[str, ...]:
+            return AUTO_SETUP_TARGETS.get(target, ())
+
+        def append(target: str) -> None:
+            if target in seen:
+                return
+            if auto_setup:
+                for setup in dependencies(target):
+                    append(setup)
+            expanded.append(target)
+            seen.add(target)
+
+        for target in requested:
+            append(target)
+        return tuple(self.command(target, **overrides) for target in expanded)
 
     def run(
         self,
@@ -726,36 +779,42 @@ class FlexSoC:
         dry_run: bool = False,
         capture: bool = False,
         live: bool = False,
+        auto_setup: bool = True,
         **overrides: Any,
     ) -> tuple[FlexSoCCommand | FlexSoCResult, ...]:
-        """Run or preview one or more targets."""
+        """Run or preview targets, preparing their generated scripts by default."""
 
-        commands = self.commands(*targets, **overrides)
+        commands = self.commands(*targets, auto_setup=auto_setup, **overrides)
         if dry_run:
             return commands
 
+        # Validate the complete sequence before executing any prepended setup.
+        # A missing PDK must not leave partial functional-DV artifacts behind.
+        for command in commands:
+            if command.target not in TECHNOLOGY_TARGETS:
+                continue
+            pdk_root = (
+                Path(command.values.get("PDK_ROOT", "")).expanduser()
+                if command.values.get("PDK_ROOT")
+                else None
+            )
+            if pdk_root is None or not pdk_root.is_dir() or not command.values.get("LIB_SYN"):
+                pdk_name = command.values.get("PDK", DEFAULT_SETTINGS["PDK"])
+                raise RuntimeError(
+                    f"target {command.target!r} requires an activated digital PDK; "
+                    f"{pdk_name!r} is not ready. Run `fx pdk fetch <pdk>` then "
+                    f"`fx pdk use <pdk>`."
+                )
+
         results: list[FlexSoCResult] = []
         for command in commands:
-            if command.target in TECHNOLOGY_TARGETS:
-                pdk_root = (
-                    Path(command.values.get("PDK_ROOT", "")).expanduser()
-                    if command.values.get("PDK_ROOT")
-                    else None
+            if command.target in TECHNOLOGY_TARGETS and not capture and not live:
+                print(
+                    f"\033[38;5;214m[technology]\033[0m "
+                    f"pdk={command.values.get('PDK')} "
+                    f"syn={command.values.get('SYNDIR')}",
+                    flush=True,
                 )
-                if pdk_root is None or not pdk_root.is_dir() or not command.values.get("LIB_SYN"):
-                    pdk_name = command.values.get("PDK", DEFAULT_SETTINGS["PDK"])
-                    raise RuntimeError(
-                        f"target {command.target!r} requires an activated digital PDK; "
-                        f"{pdk_name!r} is not ready. Run `fx pdk fetch <pdk>` then "
-                        f"`fx pdk use <pdk>`."
-                    )
-                if not capture:
-                    print(
-                        f"\033[38;5;214m[technology]\033[0m "
-                        f"pdk={command.values.get('PDK')} "
-                        f"syn={command.values.get('SYNDIR')}",
-                        flush=True,
-                    )
             quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not live
             log_path = self._command_log_path(command) if capture or live or quiet else None
             if log_path:
@@ -773,63 +832,76 @@ class FlexSoC:
                 assert log_path is not None
                 log_path.write_text((done.stdout or "") + (done.stderr or ""), encoding="utf-8")
             else:
-                _, description, _ = TARGETS.get(command.target, ("Target", "Run target", ()))
-                orange, blue, green, red, reset = "\033[38;5;214m", "\033[94m", "\033[92m", "\033[91m", "\033[0m"
-                print(f"{orange}→ {command.target}{reset}: {blue}{description}{reset}", flush=True)
-                print(f"{orange}[{command.target}]{reset} {blue}{description}{reset}", flush=True)
                 if live:
                     assert log_path is not None
                     done = self._run_live(command, log_path)
-                elif quiet:
-                    from .backend.output import strip_ansi
-
-                    assert log_path is not None
-                    done = subprocess.run(
-                        command.argv,
-                        cwd=command.cwd,
-                        env=command.env,
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                    )
-                    log_path.write_text(
-                        strip_ansi((done.stdout or "") + (done.stderr or "")),
-                        encoding="utf-8",
-                    )
-                    print(f"log: {log_path}", flush=True)
                 else:
-                    done = subprocess.run(
-                        command.argv,
-                        cwd=command.cwd,
-                        env=command.env,
-                        check=False,
-                        text=True,
+                    _, description, _ = TARGETS.get(
+                        command.target, ("Target", "Run target", ())
                     )
-                ok = done.returncode == 0
-                status = f"{green}✓{reset}" if ok else f"{red}✗{reset}"
-                suffix = "done" if ok else f"failed ({done.returncode})"
-                print(f"{status} {orange}{command.target}{reset}: {blue}{suffix}{reset}", flush=True)
-                if ok and command.target == "eqy":
-                    from .backend.metrics import eqy_solver_stats
+                    orange, blue = "\033[38;5;214m", "\033[94m"
+                    green, red, reset = "\033[92m", "\033[91m", "\033[0m"
+                    print(
+                        f"{orange}→ {command.target}{reset}: {blue}{description}{reset}",
+                        flush=True,
+                    )
+                    if quiet:
+                        from .backend.output import print_log, strip_ansi
 
-                    stats = eqy_solver_stats(Path(command.values["EQUIV_LOG"]))
-                    if stats:
-                        summary = " · ".join(
-                            f"{name} {row['proved']}/{row['attempts']} proven"
-                            + (f", {row['errors']} error(s)" if row["errors"] else "")
-                            for name, row in stats.items()
+                        assert log_path is not None
+                        done = subprocess.run(
+                            command.argv,
+                            cwd=command.cwd,
+                            env=command.env,
+                            check=False,
+                            capture_output=True,
+                            text=True,
                         )
-                        winners = ", ".join(
-                            f"{name} ({row['proved']})"
-                            for name, row in stats.items()
-                            if row["proved"]
+                        log_path.write_text(
+                            strip_ansi((done.stdout or "") + (done.stderr or "")),
+                            encoding="utf-8",
                         )
-                        print(f"{orange}[eqy]{reset} {blue}strategies:{reset} {summary}", flush=True)
-                        if winners:
+                        print_log(log_path)
+                    else:
+                        done = subprocess.run(
+                            command.argv,
+                            cwd=command.cwd,
+                            env=command.env,
+                            check=False,
+                            text=True,
+                        )
+                    ok = done.returncode == 0
+                    status = f"{green}✓{reset}" if ok else f"{red}✗{reset}"
+                    suffix = "done" if ok else f"failed ({done.returncode})"
+                    print(
+                        f"{status} {orange}{command.target}{reset}: {blue}{suffix}{reset}",
+                        flush=True,
+                    )
+                    if ok and command.target == "eqy":
+                        from .backend.metrics import eqy_solver_stats
+
+                        stats = eqy_solver_stats(Path(command.values["EQUIV_LOG"]))
+                        if stats:
+                            summary = " · ".join(
+                                f"{name} {row['proved']}/{row['attempts']} proven"
+                                + (f", {row['errors']} error(s)" if row["errors"] else "")
+                                for name, row in stats.items()
+                            )
+                            winners = ", ".join(
+                                f"{name} ({row['proved']})"
+                                for name, row in stats.items()
+                                if row["proved"]
+                            )
                             print(
-                                f"{orange}[eqy]{reset} {blue}successful solver/strategy:{reset} {winners}",
+                                f"{orange}[eqy]{reset} {blue}strategies:{reset} {summary}",
                                 flush=True,
                             )
+                            if winners:
+                                print(
+                                    f"{orange}[eqy]{reset} "
+                                    f"{blue}successful solver/strategy:{reset} {winners}",
+                                    flush=True,
+                                )
 
             result = FlexSoCResult(
                 command,
@@ -856,6 +928,29 @@ class FlexSoC:
         name = _safe_log_name(command.target)
         if command.target in {"sim", "sim_v", "sim_sv", "cocotb"} and values.get("TEST_NAME"):
             name = f"{name}_{_safe_log_name(values['TEST_NAME'])}"
+        if command.target in NATIVE_TARGETS and values.get("TEST_NAME"):
+            name = "_".join(
+                (
+                    name,
+                    _safe_log_name(values["TEST_NAME"]),
+                    _safe_log_name(values.get("GLS_BACKEND", "sv")),
+                    _safe_log_name(values.get("TIMING_MODE", "zero")),
+                )
+            )
+        if command.target in POWER_ANALYSIS_TARGETS:
+            if command.target == "power_analysis_all":
+                selectors = (
+                    values.get("POWER_TEST_NAMES", "all"),
+                    values.get("POWER_GLS_BACKENDS", "all"),
+                    values.get("POWER_TIMING_MODES", "all"),
+                )
+            else:
+                selectors = (
+                    values.get("POWER_TEST_NAME", values.get("TEST_NAME", "smoke")),
+                    values.get("POWER_GLS_BACKEND", "sv"),
+                    values.get("POWER_TIMING_MODE", "typ"),
+                )
+            name = "_".join((name, *(_safe_log_name(value) for value in selectors)))
         if command.target in TECHNOLOGY_TARGETS and values.get("COMMAND_LOGDIR"):
             return Path(values["COMMAND_LOGDIR"]) / f"{name}.log"
         return workspace / "runs" / run_top / run_id / "logs" / "commands" / f"{name}.log"
@@ -863,17 +958,13 @@ class FlexSoC:
     def _run_live(self, command: FlexSoCCommand, log_path: Path) -> subprocess.CompletedProcess[str]:
         """Run a command while teeing stdout/stderr to terminal and log."""
 
-        from .backend.output import strip_ansi
+        from .backend.output import color_enabled, print_live_line, print_log, strip_ansi
 
         env = dict(command.env)
         env["FLEXSOC_LIVE"] = "1"
-        env["FLEXSOC_COLOR"] = (
-            "always"
-            if sys.stdout.isatty()
-            and os.environ.get("NO_COLOR") is None
-            and os.environ.get("TERM") != "dumb"
-            else "never"
-        )
+        use_color = color_enabled(sys.stdout)
+        env["FLEXSOC_COLOR"] = "always" if use_color else "never"
+        print_log(log_path, color=use_color)
         with log_path.open("w", encoding="utf-8") as log:
             proc = subprocess.Popen(
                 command.argv,
@@ -885,7 +976,7 @@ class FlexSoC:
             )
             assert proc.stdout is not None
             for line in proc.stdout:
-                sys.stdout.write(line)
+                print_live_line(line, color=use_color)
                 log.write(strip_ansi(line))
             return subprocess.CompletedProcess(command.argv, proc.wait())
 

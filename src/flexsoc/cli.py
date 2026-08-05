@@ -55,6 +55,7 @@ else:
         "--reset",
         "--force",
         "--overwrite",
+        "--no-setup",
         "--dry-run",
         "--script",
         "--capture",
@@ -128,7 +129,8 @@ Use `fx commands` to list every backend Make target.
                     ("fx setup_tb setup_cocotb --force", "Generate SystemVerilog and cocotb runners."),
                     ("fx sim --set TEST_NAME=smoke --force", "Run one SystemVerilog vector test by name."),
                     ("fx cocotb --set TEST_NAME=smoke --force", "Run one cocotb vector test by name."),
-                    ("fx regression", "Run all generated tests on SystemVerilog and cocotb backends with coverage."),
+                    ("fx regression", "Run every prepared vector test; setup_tb/setup_cocotb remain explicit."),
+                    ("fx regression --no-setup", "Run only the regression target when setup steps are already explicit."),
                     ("fx eqy_debug [partition]", "Explain EQY closure, counterexample, and reset-state diagnosis."),
                     ("fx eqy_debug --wave [partition]", "Open the selected counterexample waveform."),
                     ("fx eqy_debug --files [partition]", "List raw EQY/SBY artifacts for the selected partition."),
@@ -139,6 +141,7 @@ Use `fx commands` to list every backend Make target.
                 [
                     ("fx setup hjson reg doc rtl_stub lint --force", "Create a fresh IP workspace and run lint."),
                     ("fx setup_model regression --force", "Generate the model and run the full SV+cocotb regression."),
+                    ("fx syn", "Generate SDC and synthesis scripts, then run synthesis; add --no-setup for an explicit pipeline."),
                     ("fx ip_flow --force", "Run lint, regression, property formal, synthesis, sign-off equivalence, SDF, STA, power, then reports."),
                     ("fx manifest_show", "Show the saved run identity and tool versions in color."),
                 ],
@@ -426,7 +429,11 @@ Use `fx commands` to list every backend Make target.
             console.print(f"[white]root[/white]: {install}")
             console.print(f"[white]Liberty[/white]: {derived.get('LIB_SYN', '-')}")
             console.print(f"[white]OpenROAD[/white]: {derived.get('ORS_TECH', '-')}")
-            console.print("[grey70]Regenerate setup_tb before gate-level simulation after changing PDK.[/grey70]")
+            console.print(
+                "[grey70]Shared RTL, DV, formal, and SDC artifacts remain valid. "
+                "Rerun setup_syn/syn, setup_eqy/eqy, setup_signoff, SDF/STA/power, "
+                "GLS activity power, manifest, metrics, and check.[/grey70]"
+            )
         return 0
 
 
@@ -743,6 +750,7 @@ Use `fx commands` to list every backend Make target.
         live: bool,
         as_json: bool,
         info: bool,
+        no_setup: bool,
     ) -> int:
         """Run, preview, or describe requested targets."""
 
@@ -761,6 +769,7 @@ Use `fx commands` to list every backend Make target.
                 dry_run=dry_run,
                 capture=capture,
                 live=live,
+                auto_setup=not no_setup,
                 **values,
             )
         except (ValueError, RuntimeError, subprocess.CalledProcessError, typer.BadParameter) as exc:
@@ -782,13 +791,6 @@ Use `fx commands` to list every backend Make target.
             print(json.dumps(data[0] if len(data) == 1 else data, indent=2))
         elif capture:
             print("".join(item.stdout or "" for item in items), end="")
-        else:
-            for item in items:
-                log_path = getattr(item, "log_path", None)
-                if log_path:
-                    target = getattr(getattr(item, "command", None), "target", "target")
-                    console.print(f"[bold bright_cyan]{target}[/bold bright_cyan] log: {log_path}")
-
         failed = [item for item in items if not item.ok]
         return failed[0].returncode if failed else 0
 
@@ -882,6 +884,14 @@ Use `fx commands` to list every backend Make target.
             bool,
             typer.Option("--force", "--overwrite", help="Shortcut for FORCE=1.", rich_help_panel="Target options"),
         ] = False,
+        no_setup: Annotated[
+            bool,
+            typer.Option(
+                "--no-setup",
+                help="Run only the requested targets; do not prepend generated-script setup steps.",
+                rich_help_panel="Target options",
+            ),
+        ] = False,
         dry_run: Annotated[
             bool,
             typer.Option("--dry-run", help="Print Make commands without running them.", rich_help_panel="Output"),
@@ -896,7 +906,7 @@ Use `fx commands` to list every backend Make target.
         ] = False,
         live: Annotated[
             bool,
-            typer.Option("--live", help="Stream full tool output to the terminal and keep logs.", rich_help_panel="Output"),
+            typer.Option("--live", help="Show generated scripts and the command log while retaining a plain log file.", rich_help_panel="Output"),
         ] = False,
         as_json: Annotated[
             bool,
@@ -951,7 +961,22 @@ Use `fx commands` to list every backend Make target.
             raise typer.Exit(_eqy_debug(root, workdir, args[1:], set_args, as_json=as_json))
         if args[0] == "shell":
             raise typer.Exit(_shell(root, workdir))
-        raise typer.Exit(_run(client, args, sets=set_args, tool=tool, force=force, dry_run=dry_run, script=script, capture=capture, live=live, as_json=as_json, info=info))
+        raise typer.Exit(
+            _run(
+                client,
+                args,
+                sets=set_args,
+                tool=tool,
+                force=force,
+                dry_run=dry_run,
+                script=script,
+                capture=capture,
+                live=live,
+                as_json=as_json,
+                info=info,
+                no_setup=no_setup,
+            )
+        )
 
     def _click_command() -> click.Command:
         """Build the Click command generated by Typer."""
@@ -975,7 +1000,7 @@ Use `fx commands` to list every backend Make target.
             return _click_command().main(args=args, prog_name="fx", standalone_mode=False) or 0
         except click.exceptions.Exit as exc:
             return int(exc.exit_code or 0)
-        except click.ClickException as exc:
+        except (click.ClickException, typer.BadParameter) as exc:
             exc.show()
             return int(exc.exit_code or 2)
         except KeyboardInterrupt:

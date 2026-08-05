@@ -447,7 +447,7 @@ Generate both drivers after changing ports, clocks, resets, vector syntax, or
 register interfaces:
 
 ```bash
-fx setup_tb setup_cocotb --force
+fx setup_tb setup_cocotb
 ```
 
 Run one named test with the SystemVerilog driver:
@@ -502,14 +502,16 @@ fx regression --live \
 fx coverage_detail
 ```
 
-`fx regression` deliberately performs a clean generated-DV run:
+`fx regression` consumes the prepared vector catalogue without recreating it. Driver preparation is always explicit: run `setup_tb` and `setup_cocotb` before regression when machine-owned reset/vector support must be refreshed. The regression target itself:
 
-1. removes the generated test directory, previous coverage data, and regression logs;
-2. regenerates the SystemVerilog and, when selected, cocotb scaffolds;
-3. regenerates every scenario from `<top>_tests.py`;
-4. runs every generated test on every selected backend;
+1. requires an existing vector-test directory and SystemVerilog testbench;
+2. requires an existing cocotb scaffold when that backend is selected;
+3. removes only previous coverage data and regression logs;
+4. runs every existing test on every selected backend;
 5. assigns `random_seed_<n>` tests seed `<n>` and uses `SEED` for the others;
 6. collects and merges coverage when `COMPILER=verilator`.
+
+Run `fx tests_gen` explicitly when the editable vector catalogue must be recreated. After `fx ip_load`, use the literal sequence `regmap_py`, `tests_gen`, `setup_tb`, `setup_cocotb`, then `regression --no-setup`. The model scenarios remain authored, while both testbench trees are recreated completely from the current source of truth. This removes stale saved-IP files, refreshes the shared vector/reset grammar, and rebases cocotb RTL sources to the loaded workspace. No `--force` is required.
 
 The default backend set is `sv cocotb`. Restrict it only for diagnosis:
 
@@ -599,7 +601,7 @@ Use the smallest reproducible boundary:
 ```bash
 fx tests
 fx test_gen --force --set TEST_NAME=<test>
-fx setup_tb setup_cocotb --force
+fx setup_tb setup_cocotb
 fx sim --live --set TEST_NAME=<test>
 fx cocotb --live --set TEST_NAME=<test>
 ```
@@ -889,7 +891,7 @@ are compared against the same scenario intent.
 Prepare the artifacts:
 
 ```bash
-fx setup_tb setup_cocotb --force
+fx setup_tb setup_cocotb
 fx syn --force
 fx sdf --force
 ```
@@ -913,8 +915,7 @@ cell models, reset, protocol drivers, and vector expectations still agree.
 valuable for finding race, ordering, and sampling assumptions shared by the SV
 and cocotb backends. These modes are diagnostic qualification modes, not PVT
 corners. For normal timing-oriented work use `typ` first and then `min`/`max`,
-which correspond to the generated `tt`, `ff`, and `ss` SDF views. The full E2E
-matrix keeps all five modes because a failure in `zero` or `unit` is usually
+which correspond to the generated `tt`, `ff`, and `ss` SDF views. A full GLS qualification sweep keeps all five modes because a failure in `zero` or `unit` is usually
 faster to diagnose than the same issue hidden inside an SDF run.
 
 The default requested unit delay is `1ps`. FlexSoC reads the selected model
@@ -966,12 +967,27 @@ row (`@write`, `@cfg`, or `@reset`) cannot share a cycle with another command or
 a direct signal drive. Newly generated scaffold vectors serialize every
 transaction on one line, while legacy one-signal-per-line files remain valid.
 
+Runtime reset rows are backend-neutral:
+
+```text
+<cycle> @reset <cycles>
+<cycle> @reset <domain-or-reset-signal> <cycles>
+```
+
+The first form pulses all reset domains. The second selects a domain name or reset signal from `CLOCK_DOMAINS`. SV and cocotb assert the same selected resets with the configured polarity, hold them concurrently for the requested number of edges in their own clock domains, release them on falling edges, and reject unknown selectors. This keeps single-clock and N-clock command streams identical.
+
 > **When GLS goes wrong:** debug `zero` first, then `unit`, then SDF modes. A
 > `zero` failure points to netlist/model/reset/protocol compatibility; a
 > `unit`-only failure points to races, batching, sampling, or timescale
 > precision; an SDF-only failure points to corner generation, annotation, or
 > supported path-model behavior. Compare SV and cocotb only after confirming the
 > same vectors, clock/reset model, and resolved delay.
+
+#### Automatic setup versus literal pipelines
+
+Atomic execution commands prepare generated scripts and configurations by default. `syn` prepends `setup_sdc` and `setup_syn`; formal execution prepends the matching SBY setup; `eqy` prepends `setup_eqy`; sign-off execution prepends `setup_signoff`; and `pnr` prepends `setup_sdc` and `setup_pnr`. Functional and gate-level simulation drivers are always prepared explicitly with `setup_tb` and `setup_cocotb`.
+
+Use `--no-setup` in E2E and debugging sequences where every step is intentionally visible. Gate-level compile/sim commands do not refresh SV or cocotb drivers implicitly. After each PDK switch, explicit pipelines rerun `setup_tb` and `setup_cocotb` before the technology-specific GLS stages. Automatic setup never substitutes for earlier result-producing stages: EQY still requires a synthesized netlist, activity power still requires a completed GLS report, and changing PDK still requires rerunning the technology-bound synthesis and sign-off stages.
 
 #### What Icarus back-annotation proves
 
@@ -1011,7 +1027,7 @@ With the default `SDF_STRICT=1`, an SDF run passes only when:
 The report is stored at:
 
 ```text
-dv/functional/sim/post_syn/<pdk>/<top>_post_syn_<backend>_<mode>.json
+dv/functional/sim/post_syn/<pdk>/<top>_post_syn_<test>_<backend>_<mode>.json
 ```
 
 Important fields are:
@@ -1036,12 +1052,11 @@ annotation.errors
 `SDF_STRICT=0` is a diagnostic escape hatch only. A run that passes solely after
 disabling strict diagnostics is not qualified back-annotation evidence.
 
-The default report and log names are keyed by backend and timing mode, not by
-`TEST_NAME`; a later manual test with the same backend/mode replaces them. Give
-each test a unique `WAVE_FILE` and copy the report/log after each run, or use the
-E2E qualification matrix, which archives every combination.
+Report, log, executable, and default waveform names are keyed by
+`TEST_NAME`, backend, and timing mode. Independent GLS commands therefore retain
+their own evidence without copying files or generating a matrix manifest.
 
-#### Manual post-synthesis matrix
+#### Manual post-synthesis sweep
 
 Start with one test and both drivers:
 
@@ -1082,506 +1097,39 @@ stream and checked results must agree.
 #### Automated E2E qualification
 
 The four E2E tests exercise generated single-clock and multi-clock scaffolds plus
-saved CORDIC and UART IPs. By default each flow runs post-synthesis qualification
-for `sky130` and `ihp-sg13g2`, both drivers, `zero/unit/min/typ/max`, and the
-`smoke` and `auto_toggle` tests:
+saved CORDIC and UART IPs. `make test` runs both `sky130` and `ihp-sg13g2`,
+with one GLS backend and timing mode per pytest invocation. Shared RTL, DV,
+formal, and SDC stages run once; each technology branch then compiles, simulates,
+checks, and—when SDF-backed—sends every shared/custom vector to
+`fx power_analysis` through explicit `uv run --no-sync fx ...` commands.
 
 ```bash
-FLEXSOC_E2E_LIVE=1 \
-FLEXSOC_E2E_KEEP=1 \
-pytest -s -vv tests/test_e2e_fx.py \
-  --e2e-root "$HOME/flexsoc-e2e"
+FLEXSOC_E2E_KEEP=1 make test E2E_ROOT="$HOME/flexsoc-e2e"
 ```
 
-The archived evidence is under:
+Direct evidence is written under:
 
 ```text
-dv/functional/sim/post_syn/<pdk>/e2e_qualification/
-├── matrix.json
-├── reports/
-├── logs/
-└── waves/
+dv/functional/sim/post_syn/<pdk>/
+├── <top>_post_syn_<test>_<backend>_<mode>.json
+├── <top>_<test>_<backend>_<mode>.fst
+└── ...
 ```
 
-For every SDF combination the E2E check validates the netlist, SDF payload,
-corner mapping, annotation marker, strict diagnostics, timing-model manifest,
-report fields, and non-empty waveform. This is the preferred repository-level
-proof that back-annotation is actually exercised across both technologies.
-
-The final human-readable result is shown by `fx check`, not by the run identity
-manifest. `fx check` refreshes `metrics.json`, reads the selected PDK's archived
-qualification matrix, and prints compact totals by backend and timing mode:
+There is no qualification matrix. Each report owns its test/backend/mode
+identity and records the exact netlist, SDF, waveform, annotation evidence, and
+log. `fx check` discovers these direct reports and prints totals by backend,
+timing mode, and test.
 
 ```bash
-fx check \
-  --workdir "$WORKDIR" \
-  --set PDK=ihp-sg13g2
+fx check --workdir "$WORKDIR" --set PDK=ihp-sg13g2
 ```
 
-When a combination fails, the check output names the exact
-`<top>_<pdk>_<test>_<backend>_<mode>` stem, the first failure reason, and the
-archived report/log/waveform path. This is the fastest way to distinguish a
-missing run, a simulator failure, an SDF annotation failure, and a waveform
-archival failure without reading the complete `--live` transcript.
+To inspect one failed command, rerun the exact line printed by pytest with
+`--live`. Live mode shows only the generated `[script]` blocks and the `[log]`
+transcript; `make test` itself remains non-live.
 
-Post-synthesis GLS can expose:
 
-- reset and initialization assumptions;
-- simulation/synthesis semantic differences;
-- incomplete cell-model support;
-- testbench timing assumptions hidden by zero-delay RTL;
-- corner-sensitive path-delay behavior;
-- differences between the SV and cocotb drivers.
-
-It does not replace equivalence or STA.
-
-### 13.3 Pre-layout STA
-
-```bash
-fx sta --force
-fx sta_violators
-```
-
-Pre-layout STA uses the mapped netlist, Liberty timing, SDC, and estimated
-interconnect. Review setup and hold separately across configured corners.
-
-A clean report requires:
-
-- all clocks recognized;
-- all intended endpoints constrained;
-- no unexplained unconstrained paths;
-- justified exceptions;
-- positive or accepted slack policy;
-- transition, capacitance, and fanout checks where supported.
-
-> **When STA goes wrong:** first verify clocks, linked top, path coverage, and
-> exceptions. Negative slack requires a design/constraint/mapping decision;
-> unconstrained endpoints require missing analysis coverage to be repaired. Do
-> not convert either condition into a broad waiver.
-
-### 13.4 Power estimate
-
-```bash
-fx power_estimate --force
-```
-
-The current flow supports a global-activity estimate controlled by:
-
-```text
-POWER_ACTIVITY
-POWER_DUTY
-```
-
-This is useful for early comparison, not final silicon power sign-off. Later
-stages should use realistic activity from representative workloads when the
-flow supports it, together with extracted parasitics and appropriate corners.
-
-Run all current post-synthesis analysis with:
-
-```bash
-fx signoff_corners --force
-```
-
----
-
-> **When power goes wrong:** keep vectorless and activity-based evidence
-> separate. Verify assumptions and Liberty data for `power_estimate`; verify
-> FST conversion, VCD DUT scope, and a nonzero OpenSTA annotation count for
-> activity power. Numeric power returned with zero annotated activities is not a
-> workload-based result.
-
-## 14. Physical implementation with OpenROAD
-
-```bash
-fx setup_pnr --force
-fx pnr --force
-fx pnr_gui
-```
-
-The implementation stage normally includes:
-
-1. floorplan and pin placement;
-2. power-distribution planning;
-3. placement and optimization;
-4. clock-tree synthesis;
-5. routing and post-route optimization;
-6. parasitic extraction;
-7. final reports and layout collateral.
-
-Implementation is not a mechanical final step. Congestion, clock skew, hold
-fixes, buffering, and routing parasitics can expose architectural or constraint
-problems that require a return to RTL or floorplanning.
-
-Review:
-
-- utilization and congestion;
-- placement/routing completion;
-- clock-tree quality;
-- setup and hold after CTS and routing;
-- antenna and electrical checks where available;
-- final netlist and parasitic outputs;
-- consistency between SDC used in synthesis, STA, and PnR.
-
----
-
-## 15. Post-layout sign-off
-
-Final sign-off must use the implemented netlist and extracted parasitics rather
-than the pre-layout approximation.
-
-Typical FlexSoC entry points are:
-
-```bash
-fx sdf_post_pnr --force \
-  --set NETLIST=/path/to/final_netlist.v \
-  --set SPEF_FILE=/path/to/final.spef \
-  --set PNR_SDC_FILE=/path/to/final.sdc
-
-fx compile_post_pnr --force --set NETLIST=/path/to/final_netlist.v
-fx sim_post_pnr --force --set NETLIST=/path/to/final_netlist.v
-```
-
-STA and power scripts can consume the selected final netlist, SDC, and SPEF
-through their corresponding settings.
-
-A production release also requires project-specific physical checks such as:
-
-- DRC;
-- LVS;
-- antenna verification;
-- IR drop and electromigration;
-- clock and power integrity;
-- density/fill and foundry deck compliance;
-- final logical equivalence after implementation/DFT/ECO where applicable.
-
-These checks are named here as mandatory lifecycle evidence even when execution
-is owned by external sign-off tools rather than the current FlexSoC backend.
-
----
-
-## 16. Release and qualification
-
-A release should be reproducible and reviewable.
-
-```bash
-fx manifest --force
-fx manifest_show
-fx metrics --force
-fx check --force
-```
-
-Retain or publish, according to project policy:
-
-- exact configuration and clock model;
-- source revision and dependency lockfiles;
-- generated register documentation;
-- lint, regression, coverage, and formal reports;
-- synthesis netlist and reports;
-- EQY result and strategy summary;
-- STA, SDF, power, and PnR reports;
-- final netlist/parasitics/layout references;
-- known waivers and risk acceptance;
-- release notes and interface compatibility statement.
-
-A reusable IP release belongs under `hw/ips/<top>/` only after authored source
-and selected qualification evidence have been deliberately saved. Run scratch,
-waveforms, solver workdirs, and temporary databases should not be copied into the
-source library.
-
----
-
-## 17. Change-driven workflows
-
-The fastest correct workflow is based on what changed.
-
-### 17.1 Add or change a configuration CSR
-
-1. Edit the HJSON field definition and reset/access policy.
-2. Regenerate hardware, docs, Python regmap, and vectors.
-3. Update model/tests only if behavior changed.
-4. Rerun CSR formal, functional DV, synthesis, and equivalence.
-
-```bash
-fx reg doc --force
-fx regmap_py --force
-fx tests_gen --force
-fx flist --force
-fx lint_suite
-fx regression
-fx formal
-fx syn eqy --force
-```
-
-### 17.2 Add a hardware status CSR
-
-1. Define the status field in HJSON.
-2. Connect the generated `hw2reg` path from the owning RTL state.
-3. Update the model and read-check scenario.
-4. Add an assertion if the status encodes an invariant or sticky event.
-
-Then run the same closure as a CSR behavior change.
-
-### 17.3 Add, remove, or change an RTL port
-
-```bash
-# edit rtl/<top>_core.sv
-fx top_from_core --force
-fx flist --force
-fx lint_suite
-fx setup_tb setup_cocotb --force
-fx regression
-fx formal
-fx syn eqy --force
-```
-
-Review every integration point. A generated wrapper can reconnect ports, but it
-cannot decide the new protocol semantics for the model, tests, SoC, or
-constraints.
-
-### 17.4 Change behavior without changing interfaces
-
-Update together:
-
-```text
-RTL behavior
-reference model
-functional scenarios
-assertions/covers
-requirements text
-```
-
-Then:
-
-```bash
-fx flist --force
-fx lint_suite
-fx tests_gen --force
-fx regression
-fx formal
-fx syn eqy --force
-```
-
-### 17.5 Change latency or handshake timing
-
-Fixed-cycle expectations are part of the interface contract. Prefer explicit
-valid/ready or completion events when variable latency is legal.
-
-After a latency change review:
-
-- model timing;
-- vector interpretation;
-- TB wait conditions;
-- assertions;
-- CDC queues;
-- throughput and back-pressure requirements;
-- timing constraints if pipelines or clocks changed.
-
-### 17.6 Add or modify a clock/reset domain
-
-1. Update `N_CLOCKS` and `CLOCK_DOMAINS`.
-2. Declare each relationship explicitly.
-3. Assign every register window and sequential block to the intended domain.
-4. Insert reviewed CDC/RDC structures.
-5. Regenerate TB, formal, SDC, synthesis, and sign-off collateral.
-
-```bash
-fx setup_tb setup_cocotb --force
-fx setup_formal setup_sdc setup_syn setup_eqy setup_signoff --force
-fx flist --force
-fx lint_suite
-fx regression
-fx formal
-fx syn eqy --force
-fx sdf sta power_estimate --force
-```
-
-### 17.7 Change constraints only
-
-```bash
-fx setup_sdc --force
-fx setup_syn setup_signoff setup_pnr --force
-fx syn eqy --force
-fx sdf sta power_estimate --force
-```
-
-If the RTL netlist is unchanged, equivalence should remain stable, but rerunning
-it keeps the sign-off run self-contained and confirms the correct artifacts were
-selected.
-
-### 17.8 Change only tests
-
-```bash
-fx tests_gen --force
-fx regression
-fx coverage_detail
-```
-
-Formal, synthesis, and implementation do not automatically become stale unless
-the test change exposed a required design or property modification.
-
-### 17.9 Change only authored properties
-
-```bash
-fx formal
-```
-
-A property change is a verification-contract change. Review assumptions and
-waivers even when RTL is untouched.
-
-### 17.10 Reuse an existing IP
-
-```bash
-fx settings \
-  TOP=my_ip RUN_TOP=my_ip RUN_ID=dev HOST=uart \
-  N_CLOCKS=1 CLOCK_DOMAINS=core:clk_i:rst_ni:10:low CLOCK_RELATIONSHIPS=
-fx setup --force
-fx ip_load --force
-fx flist --force
-fx lint_suite
-fx tests_gen --force
-fx regression
-fx formal
-fx syn eqy --force
-```
-
-Preserve source-owned RTL, HJSON, model, tests, and properties. Regenerate only
-collateral that is explicitly derived.
-
-### 17.11 Integrate validated IPs into a SoC
-
-A SoC owns its top-level interfaces, address map, clock/reset plan, system
-verification, constraints, and sign-off assumptions.
-
-```bash
-fx soc_cfg
-fx soc_start
-fx soc_flist
-fx lint_suite
-fx regression
-fx formal
-fx syn eqy --force
-fx setup_pnr pnr --force
-```
-
-Standalone IP qualification reduces integration risk but does not replace
-system-level verification.
-
----
-
-## 18. Quality gates
-
-| Gate | Required evidence | Typical commands |
-| --- | --- | --- |
-| Requirements ready | functions, states, interfaces, clocks, acceptance criteria | project review |
-| Design entry ready | HJSON/RTL coherent, hierarchy resolves | `fx reg doc top_from_core flist --force` |
-| Structural RTL clean | lint and elaboration accepted | `fx lint_suite` |
-| Functional DV clean | scenarios pass on selected SV/cocotb backends, named-test waves and coverage reviewed | `fx regression`, `fx coverage_detail` |
-| Property formal clean | BMC/prove/cover reviewed | `fx formal` |
-| CDC/RDC clean | crossings classified and waived intentionally | dedicated CDC/RDC stage |
-| Synthesis clean | mapped netlist and reports reviewed | `fx syn --force` |
-| Logical equivalence clean | all required EQY partitions proven | `fx eqy --force` |
-| Post-synthesis GLS clean | representative tests pass in zero/unit and strict SDF min/typ/max; reports and waves retained per PDK/backend | `fx sim_post_syn`, E2E matrix |
-| Pre-layout timing clean | constraints complete, setup/hold acceptable | `fx sta --force` |
-| Early power acceptable | estimate within architecture budget | `fx power_estimate --force` |
-| Implementation complete | routed design and extraction available | `fx pnr --force` |
-| Post-layout sign-off clean | extracted STA/SDF/GLS/power and physical checks | project sign-off commands |
-| Release ready | manifest, metrics, reports, waivers, revision captured | `fx manifest metrics check --force` |
-
----
-
-## 19. Run workspace
-
-```text
-<WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
-├── data/                         HJSON register specifications
-├── doc/                          generated register documentation
-├── rtl/                          core/top/register RTL and filelists
-├── constraints/                  logical SDC
-├── dv/
-│   ├── functional/
-│   │   ├── model/                model, generated regmap, scenarios
-│   │   ├── tests/                materialized vectors
-│   │   ├── tb/                   SV and cocotb infrastructure
-│   │   ├── sim/
-│   │   │   ├── rtl/              per-test RTL waveforms and simulator builds
-│   │   │   ├── post_syn/<pdk>/   gate simulations, reports, timing-model manifest
-│   │   │   └── post_pnr/<pdk>/   final-netlist gate simulations
-│   │   └── coverage/
-│   └── formal/
-│       ├── csr/
-│       ├── properties/
-│       └── runs/
-├── analysis/                     hierarchy and future CDC/RDC results
-├── syn/<pdk>/                    synthesis scripts, netlist, reports
-├── pnr_openroad/<pdk>/           physical implementation
-├── signoff/
-│   ├── equivalence/<pdk>/
-│   ├── sta/<pdk>/
-│   ├── sdf/<pdk>/
-│   └── power/<pdk>/
-├── logs/
-│   └── dv/functional/
-│       ├── regression/<backend>/
-│       ├── post_syn/<pdk>/
-│       └── post_pnr/<pdk>/
-└── meta/<pdk>/                   manifest and metrics
-```
-
-Technology-independent source and DV live above PDK-specific implementation
-leaves. This allows several technologies or corners to coexist without copying
-the logical design.
-
----
-
-
-## 20. Reproducible host and CI toolchains
-
-FlexSoC has one authoritative EDA version set: `src/flexsoc/backend/toolchain.lock`. A rootless `fx deps` install places that lock under:
-
-```text
-~/.local/share/flexsoc/toolchains/<lock-id>/
-```
-
-and updates the stable symlink:
-
-```text
-~/.local/share/flexsoc/toolchain
-```
-
-The source and download trees used to build the tools are separate caches under `~/.cache/flexsoc`; they are not required after installation. `fx deps-status` reports current and obsolete prefixes, their size, and other executables visible on the host. `fx deps-prune` is a dry-run unless `DEPS_PRUNE_APPLY=1` is supplied, and it never removes `/usr`, `/usr/local`, distribution packages, or arbitrary OSS CAD Suite directories.
-
-For a clean workstation, keep the current managed prefix, remove old FlexSoC lock prefixes and build caches, and delete any unrelated standalone EDA bundle only after confirming ownership and PATH resolution. Removing Debian/Ubuntu packages wholesale is not recommended because many are build dependencies shared by the managed toolchain and other software.
-
-The same lock is built by `docker/ci/Dockerfile` under `/opt/flexsoc/toolchain`. The image also contains the Python dependency environment from `uv.lock`. Docker assets are grouped under `docker/ci` and `docker/scripts`; GitHub workflow entry points remain under `.github/workflows` only because GitHub requires that location.
-
-The container lifecycle is deliberately separate from normal source CI. A maintainer builds the content-addressed image locally, verifies tool discovery and repository tests inside it, optionally runs the full E2E suite, publishes the already-verified image, and commits the resulting `docker/ci/image.lock`. That lock records the image-input hash and an immutable GHCR digest. Normal CI validates the lock and pulls only that digest; it never falls back to building the EDA toolchain. A stale or unpublished lock is therefore a release error rather than an invitation for each CI job to spend hours compiling tools.
-
-This avoids mixing OSS CAD Suite revisions with FlexSoC-native revisions, prevents workstation/CI drift, and makes local Docker, CI, and native managed runs comparable. The manual-only image workflow is a fallback for maintainers, not a dependency of every push or pull request.
-
-## 21. Production-grade evidence and operating rules
-
-### 21.1 Evidence hierarchy for production sign-off
-
-The Icarus compatibility model is a generated run artifact, not a replacement PDK library and not a production sign-off authority. The original PDK files remain unchanged. FlexSoC derives a copy because Icarus does not implement all constructs used by the foundry-style cell views: unsupported timing checks are removed, `delayed_*` functional inputs are bound, unsupported edge-sensitive `ifnone` paths are omitted, and supported path arcs remain available for SDF qualification. This proves functional behavior and the subset of dynamic path delays that Icarus can execute.
-
-Production timing closure must therefore use the following hierarchy:
-
-1. **Logical correctness:** RTL regression, formal, synthesis, and RTL-to-netlist equivalence.
-2. **Compatibility GLS:** Icarus on the derived model for broad functional and supported path-delay regression.
-3. **Authoritative static timing:** unmodified Liberty, SDC, post-route SPEF, and all required modes/corners in OpenSTA.
-4. **Original-model dynamic qualification:** a separately qualified simulator capable of consuming the unmodified PDK Verilog/specify/SDF timing checks.
-5. **Physical sign-off:** extraction completeness, DRC/LVS, antenna, IR drop, EM, and correlation against the selected foundry/PDK reference flow.
-
-Until stages 3–5 are implemented and qualified for both PDKs, the project should describe the current result as reproducible open-source verification and path-delay qualification, not final production-grade sign-off.
-
-### 21.2 Production-grade operating rules
-
-- Keep requirements, RTL, model, tests, and properties under review and version control.
-- Never hand-copy CSR offsets into model or test code.
-- Treat warnings as review items; do not normalize unexplained warnings.
-- Keep clock/reset relationships explicit and versioned.
-- Require traceability from requirements to scenarios/properties/checks.
-- Separate code coverage, proof closure, equivalence closure, timing closure, and physical closure.
 - Make waivers narrow, justified, owned, and reviewable.
 - Use deterministic tool versions and retain lockfiles/manifests.
 - Regenerate derived collateral in CI and fail on stale or obsolete documentation.
@@ -1592,7 +1140,7 @@ The short runnable path is in [Quickstart](quickstart.md).
 
 ### 21.3 Activity-based power after GLS
 
-The vectorless `power_estimate` stage is useful before representative stimulus exists, but it is an assumption-based estimate. After the post-synthesis GLS matrix has produced a successful SDF-backed `min`, `typ`, or `max` trace, FlexSoC can use the actual switching activity of each vector test:
+The vectorless `power_estimate` stage is useful before representative stimulus exists, but it is an assumption-based estimate. After a direct post-synthesis GLS command has produced a successful SDF-backed `min`, `typ`, or `max` trace, FlexSoC can use the actual switching activity of each vector test:
 
 ```text
 qualified GLS report + FST/VCD
@@ -1604,7 +1152,7 @@ activity annotation report
 per-corner report_power
 ```
 
-`fx power_analysis` selects one test. `fx power_analysis_all` analyzes all selected E2E tests; the default E2E flow uses the `typ`/SV trace for every GLS test, avoiding duplicate power calculations for equivalent SV and cocotb stimulus while still allowing explicit backend/mode matrices. OpenSTA uses `/` as the VCD hierarchy separator. FlexSoC therefore inspects the converted VCD, resolves the generated DUT scope automatically (`POWER_VCD_SCOPE=auto`), validates explicit scopes, and records both the requested and resolved scope in every report. The resolver understands the canonical single-clock `u_<TOP>` convention and the N-clock/cocotb `u_dut` convention; `POWER_DUT_INSTANCE` is only an optional hint. This prevents a syntactically valid `read_vcd` call from silently annotating zero activities because of a dotted or nonexistent hierarchy path. When the qualified trace is FST, FlexSoC calls `fst2vcd -f <input> -o <output>` automatically, validates the generated VCD, and retries through the converter's stdout interface only for compatibility with older wrappers. The conversion log is retained under `signoff/power/<pdk>/activity/captures`. `fx check` keeps vectorless power and post-GLS activity power separate so their assumptions cannot be confused.
+`fx power_analysis` selects one direct GLS report. `fx power_analysis_all` discovers every matching direct report already present under the selected PDK's post-synthesis directory; no matrix manifest is required. Repeated singular analyses accumulate into the common activity-power summary. OpenSTA uses `/` as the VCD hierarchy separator. FlexSoC therefore inspects the converted VCD, resolves the generated DUT scope automatically (`POWER_VCD_SCOPE=auto`), validates explicit scopes, and records both the requested and resolved scope in every report. The resolver understands the canonical single-clock `u_<TOP>` convention and the N-clock/cocotb `u_dut` convention; `POWER_DUT_INSTANCE` is only an optional hint. This prevents a syntactically valid `read_vcd` call from silently annotating zero activities because of a dotted or nonexistent hierarchy path. When the qualified trace is FST, FlexSoC calls `fst2vcd -f <input> -o <output>` automatically, validates the generated VCD, and retries through the converter's stdout interface only for compatibility with older wrappers. The conversion log is retained under `signoff/power/<pdk>/activity/captures`. `fx check` keeps vectorless power and post-GLS activity power separate so their assumptions cannot be confused.
 
 This is a stronger post-synthesis reference, not final silicon sign-off. Final power closure should repeat the activity flow on the post-route netlist with extracted SPEF, validated foundry Liberty power tables, representative operating windows, voltage/temperature corners, clock-tree activity, and rail/IR-drop analysis.
 ## 22. Failure-driven lifecycle playbook
@@ -1641,7 +1189,7 @@ Useful classification:
 | missing assumption | unconstrained path, illegal formal environment | add a narrow reviewed requirement/constraint/assumption |
 | tool/model compatibility | unsupported PDK construct, parser failure | create a declared compatibility adapter without editing the original authority |
 | timeout/nonclosure | EQY/formal engine cannot close | change proof strategy/resources; do not label it a mismatch |
-| archival failure | missing report, wave, or matrix entry | repair command/report handling and rerun the affected combination |
+| archival failure | missing direct report or waveform | repair command/report handling and rerun the affected combination |
 
 ### 22.2 CSR and register-map problems
 
@@ -1706,7 +1254,7 @@ Designer/verification response:
 ```bash
 fx tests
 fx test_gen --force --set TEST_NAME=<test>
-fx setup_tb setup_cocotb --force
+fx setup_tb setup_cocotb
 fx sim --live --set TEST_NAME=<test>
 fx cocotb --live --set TEST_NAME=<test>
 ```
@@ -1861,7 +1409,7 @@ A run is not release-ready merely because `fx check` prints PASS. Review:
 - coverage and requirements traceability;
 - formal and EQY nonclosure classification;
 - unconstrained timing endpoints;
-- GLS matrix completeness;
+- direct GLS report completeness;
 - workload relevance for activity power;
 - current post-synthesis versus post-route limitations;
 - immutable Docker digest and CI verification.
@@ -1873,6 +1421,22 @@ fx manifest
 fx metrics
 fx check
 ```
+
+After closure, save each technology branch explicitly:
+
+```bash
+fx pdk use sky130
+fx ip_save --set IP_NAME=<name>
+fx pdk use ihp-sg13g2
+fx ip_save --set IP_NAME=<name>
+```
+
+The package retains EQY plus the STA, SDF, vectorless-power, and activity-power
+Tcl scripts under `signoff/<function>/<pdk>/`. It deliberately excludes logs,
+reports, SDF outputs, waveforms, and converted activity data.
+
+
+The E2E suite always passes an `IP_LIBRARY_ROOT` below its temporary workspace and compares the complete repository-owned package hash tree before and after the test. `make test` therefore verifies both PDK saves without writing into `hw/ips`.
 
 For Docker-authoritative releases:
 
