@@ -46,17 +46,27 @@ RUN cd /src/orfs/tools/OpenROAD \
       -threads="$FLEXSOC_JOBS" \
       -save-deps-prefixes=/tmp/openroad_deps_prefixes.txt
 
-RUN cd /src/orfs/tools/OpenROAD \
- && ./etc/Build.sh \
+RUN set -eux; \
+    export PATH="/opt/openroad-deps/bin:$PATH"; \
+    export LD_LIBRARY_PATH="/opt/openroad-deps/lib:/opt/openroad-deps/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; \
+    cd /src/orfs/tools/OpenROAD; \
+    for command_name in cmake bison flex swig gcc g++; do \
+      command -v "$command_name"; \
+    done; \
+    if ! ./etc/Build.sh \
       -no-gui \
       -no-tests \
       -threads="$FLEXSOC_JOBS" \
       -dir=/tmp/openroad-build \
       -prefix=/opt/openroad-install \
       -deps-prefixes-file=/tmp/openroad_deps_prefixes.txt \
-      -cmake='-DLINK_TIME_OPTIMIZATION=OFF' \
- && cmake --install /tmp/openroad-build --strip \
- && /opt/openroad-install/bin/openroad -version
+      -cmake='-DLINK_TIME_OPTIMIZATION=OFF'; then \
+      echo "===== OpenROAD build log ====="; \
+      cat /tmp/openroad-build/openroad_build.log 2>/dev/null || true; \
+      exit 1; \
+    fi; \
+    cmake --install /tmp/openroad-build --strip; \
+    /opt/openroad-install/bin/openroad -version
 
 FROM ubuntu:24.04 AS toolchain-prereqs
 
