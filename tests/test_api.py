@@ -554,7 +554,7 @@ def test_eqy_formal_view_recognizes_primary_tlul_response() -> None:
     assert "output wire [1:0] tl_o__flexsoc_eqy_handshake" in view
     assert "output wire [31:0] tl_o__flexsoc_eqy_d_data" in view
     assert "assign tl_o__flexsoc_eqy_handshake = {tl_o__raw[65], tl_o__raw[0]};" in view
-    assert "assign tl_o__flexsoc_eqy_d_data = (tl_o__raw[65] && !tl_o__raw[1])" in view
+    assert "assign tl_o__flexsoc_eqy_d_data = (tl_o__raw[65] && (tl_o__raw[64:62] == 3'h1) && !tl_o__raw[1])" in view
     assert "output wire [65:0] tl_o" not in view
     assert "assign tl_o = {" not in view
 
@@ -1822,7 +1822,7 @@ def test_docker_release_scripts_require_build_verify_publish_order() -> None:
     lock = (ROOT / "docker/ci/image.lock").read_text(encoding="utf-8")
     assert "--metadata-file" in build
     assert "verified.env" in verify
-    assert "fx deps-doctor" in run_ci
+    assert "DEPS_MODE=system fx deps-doctor" in run_ci
     assert "pytest -q tests/test_api.py" in run_ci
     assert "inputs_sha256=" in lock
     assert "tag=toolchain-" in lock
@@ -1920,3 +1920,117 @@ def test_eqy_install_has_deterministic_release_version_and_self_repair() -> None
     assert 'info "repair eqy release string:' in deps
     assert 'contains "$out" "$expected" eqy' in deps
 
+
+
+def test_eqy_reuses_existing_profile_unless_force_is_explicit() -> None:
+    """Loaded IP profiles survive normal eqy runs; --force remains the overwrite switch."""
+
+    text = BACKEND_MAKEFILE.read_text(encoding="utf-8")
+    setup = text.split("setup_eqy:", 1)[1].split("\neqy:", 1)[0]
+    assert 'if [ -f "$(EQY_CONFIG)" ] && [ "$(FORCE)" != "1" ]' in setup
+    assert "(existing)" in setup
+    assert "(generated)" in setup
+    assert "eqy-bind" in setup
+    assert "eqy_saved" not in text
+
+
+def test_ip_load_is_complete_and_ip_save_is_eqy_only(tmp_path: Path) -> None:
+    """Load mirrors the complete package while save persists only the selected PDK profile."""
+
+    text = BACKEND_MAKEFILE.read_text(encoding="utf-8")
+    load = text.split("\nip_load:", 1)[1].split("\nip_save:", 1)[0]
+    save = text.split("\nip_save:", 1)[1].split("\n# ====", 1)[0]
+    assert 'for entry in "$$src_ip"/* "$$src_ip"/.[!.]* "$$src_ip"/..?*' in load
+    assert 'cp -a "$$src_ip"/. "$$dst_dir"/' in load
+    assert "eqy-export" in save
+    assert "$(EQY_CONFIG)" in save and "$(EQY_VIEW)" in save
+    assert "for sub in rtl" not in save
+    assert "src_run=" not in save
+
+    command = FlexSoC(
+        FlexSoCConfig(project_root=tmp_path, workdir=tmp_path / "ws")
+    ).command("ip_save", PDK="ihp-sg13g2")
+    assert "PDK=ihp-sg13g2" in command.argv
+
+
+def test_eqy_profile_export_is_portable_and_bindable(tmp_path: Path, monkeypatch) -> None:
+    """The two saved profile files contain no workspace/PDK absolute dependencies."""
+
+    from flexsoc.backend.setup_signoff import (
+        bind_equivalence_profile,
+        export_equivalence_profile,
+    )
+
+    sources = tmp_path / "source"
+    sources.mkdir()
+    common = sources / "rtl_common.f"
+    ip = sources / "rtl_ip.f"
+    netlist = sources / "demo_synth.v"
+    liberty = sources / "cells.lib"
+    model = sources / "cells.v"
+    clock_gate = sources / "sky130_clock_gates_formal.v"
+    view = sources / "demo_eqy_view.sv"
+    for path, body in (
+        (common, "demo_pkg.sv\n"),
+        (ip, "demo.sv\n"),
+        (netlist, "module demo; endmodule\n"),
+        (liberty, "library(test) {}\n"),
+        (model, "module cell; endmodule\n"),
+        (clock_gate, "module gate; endmodule\n"),
+        (view, "module demo; endmodule\n"),
+    ):
+        path.write_text(body, encoding="utf-8")
+    config = sources / "demo_rtl_vs_syn.eqy"
+    config.write_text(
+        "\n".join((
+            "[gold]",
+            f"read_slang -f {common.resolve()} -f {ip.resolve()} --top demo",
+            f"read_verilog -formal -sv {view.resolve()}",
+            "[gate]",
+            f"read_liberty -ignore_miss_func {liberty.resolve()}",
+            f"read_verilog -formal -sv {model.resolve()}",
+            f"read_verilog -formal -sv {clock_gate.resolve()}",
+            f"read_verilog -formal -sv {netlist.resolve()}",
+            "",
+        )),
+        encoding="utf-8",
+    )
+
+    profile = tmp_path / "profile"
+    saved_config, saved_view = export_equivalence_profile(
+        config=config,
+        view=view,
+        output_dir=profile,
+        filelists=(common, ip),
+        netlist=netlist,
+        liberty=liberty,
+        cell_models=(model,),
+        clock_gate_model=clock_gate,
+    )
+    text = saved_config.read_text(encoding="utf-8")
+    assert str(tmp_path) not in text
+    for name in (
+        "rtl_common.f", "rtl_ip.f", "netlist.v", "library.lib",
+        "cell_model_0.v", "sky130_clock_gates_formal.v", "demo_eqy_view.sv",
+    ):
+        assert name in text
+    assert saved_view.read_text(encoding="utf-8") == view.read_text(encoding="utf-8")
+    assert sorted(path.name for path in profile.iterdir()) == [
+        "demo_eqy_view.sv", "demo_rtl_vs_syn.eqy"
+    ]
+
+    monkeypatch.setenv("FLEXSOC_PDK", "ihp-sg13g2")
+    bound = bind_equivalence_profile(
+        top="demo",
+        output_dir=profile,
+        filelists=(common, ip),
+        netlist=netlist,
+        liberty=liberty,
+        cell_models=(model,),
+        formal_pdk_proc=None,
+        clock_gate_model=clock_gate,
+        config=saved_config,
+    )
+    assert bound
+    for name in ("rtl_common.f", "rtl_ip.f", "netlist.v", "library.lib", "cell_model_0.v"):
+        assert (profile / name).is_symlink()

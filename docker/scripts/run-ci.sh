@@ -27,7 +27,7 @@ docker run --rm \
   bash -lc '
     set -euo pipefail
     uv pip install --python "$VIRTUAL_ENV/bin/python" --no-deps --editable .
-    fx deps-doctor
+    DEPS_MODE=system fx deps-doctor
     ruff check .
     pytest -q tests/test_api.py
     pytest --collect-only -q tests/test_e2e_fx.py

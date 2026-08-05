@@ -71,7 +71,8 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/flexsoc-venv
 RUN --mount=type=cache,id=flexsoc-uv-cache,target=/root/.cache/uv,sharing=locked \
     /opt/uv/bin/uv sync --frozen --no-install-project
 
-ENV FLEXSOC_TOOLCHAIN=/opt/flexsoc/toolchain \
+ENV DEPS_MODE=system \
+    FLEXSOC_TOOLCHAIN=/opt/flexsoc/toolchain \
     VIRTUAL_ENV=/opt/flexsoc-venv \
     PATH=/opt/flexsoc/toolchain/bin:/opt/flexsoc-venv/bin:/opt/uv/bin:${PATH} \
     LD_LIBRARY_PATH=/opt/flexsoc/toolchain/lib:/opt/flexsoc/toolchain/lib64 \
