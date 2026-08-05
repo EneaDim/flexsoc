@@ -232,8 +232,11 @@ def run(root: Path, *, as_json: bool = False) -> int:
     console = Console()
     console.print("[bold orange1]FlexSoC doctor[/bold orange1]")
     project = Table(show_header=False, box=None, pad_edge=False)
-    project.add_column("Check", style="grey70", no_wrap=True); project.add_column("Value", style="white")
-    python = data["python"]; uv_lock = data["uv_lock"]; toolchain = data["toolchain_lock"]
+    project.add_column("Check", style="grey70", no_wrap=True)
+    project.add_column("Value", style="white")
+    python = data["python"]
+    uv_lock = data["uv_lock"]
+    toolchain = data["toolchain_lock"]
     project.add_row("Python", f"{python['version']} · {python['executable']}")
     project.add_row("uv.lock", str(uv_lock["path"]) if uv_lock["ok"] else "missing")
     project.add_row("toolchain.lock", f"v{toolchain.get('lock_version') or '?'} · {toolchain['path']}" if toolchain["ok"] else "missing")
@@ -253,9 +256,14 @@ def run(root: Path, *, as_json: bool = False) -> int:
             continue
         console.print(f"\n[bold bright_cyan]{title}[/bold bright_cyan]")
         table = Table(box=None, pad_edge=False, header_style="bold grey70")
-        table.add_column("Status"); table.add_column("Tool", style="white"); table.add_column("Version / note", style="grey70"); table.add_column("Role", style="grey70")
+        table.add_column("Status")
+        table.add_column("Tool", style="white")
+        table.add_column("Version / note", style="grey70")
+        table.add_column("Role", style="grey70")
         for tool in sorted(rows, key=lambda item: str(item["name"])):
-            found = bool(tool["found"]); version_ok = bool(tool.get("version_ok", True)); lock_match = tool.get("lock_match")
+            found = bool(tool["found"])
+            version_ok = bool(tool.get("version_ok", True))
+            lock_match = tool.get("lock_match")
             if found and version_ok and lock_match is not False:
                 mark = "[bright_cyan]OK[/bright_cyan]"
             elif found and version_ok:

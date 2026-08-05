@@ -3,9 +3,10 @@
 
 This module owns all HJSON/reggen-derived model metadata. ``fx setup_model``
 calls :func:`generate` directly while ``fx regmap_py`` uses this module as its
-standalone entry point. The generated ``<top>_regmap.py`` contains only reusable
-CSR structure and serialization helpers; behavioral code belongs in
-``<top>_model.py`` and test scenarios belong in ``<top>_tests.py``.
+standalone entry point. The command refreshes both ``<top>_regmap.py`` and the
+machine-owned ``<top>_regmap_tests.py`` coverage-stimulus generator. Behavioral
+code belongs in ``<top>_model.py`` and authored scenarios belong in
+``<top>_tests.py``.
 """
 from __future__ import annotations
 
@@ -490,11 +491,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    model_dir = Path(args.model_dir)
     generate(
         args.top,
         Path(args.data_dir),
-        Path(args.model_dir),
+        model_dir,
         force=args.force,
+    )
+
+    # ``regmap_tests.py`` is machine-owned collateral derived from the current
+    # register map.  Refresh it together with ``regmap.py`` so ``tests_gen`` can
+    # always recreate the ``auto_toggle`` vectors after regression clears the
+    # generated test directory.  Import lazily to keep ``generate()`` reusable
+    # from setup_model without introducing an import cycle at module load time.
+    from flexsoc.clocking import clock_config
+    from .setup_model import write_regmap_tests
+
+    write_regmap_tests(
+        args.top,
+        model_dir,
+        safe_controls=clock_config().multiclock,
     )
     return 0
 

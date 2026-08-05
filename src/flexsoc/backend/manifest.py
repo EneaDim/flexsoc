@@ -121,44 +121,107 @@ def show_manifest(path: Path) -> None:
     if not path.is_file():
         raise FileNotFoundError(f"manifest file not found: {path}; run: fx manifest")
     data = json.loads(path.read_text(encoding="utf-8"))
-    console = Console(); run = data.get("run", {}); env = data.get("environment", {})
-    console.print(f"[bold orange1]FlexSoC manifest[/bold orange1] · [bold bright_cyan]{run.get('top', 'unknown')} / {run.get('run_id', 'unknown')}[/bold bright_cyan]")
+    console = Console()
+    run = data.get("run", {})
+    env = data.get("environment", {})
+    console.print(
+        "[bold orange1]FlexSoC manifest[/bold orange1] · "
+        f"[bold bright_cyan]{run.get('top', 'unknown')} / "
+        f"{run.get('run_id', 'unknown')}[/bold bright_cyan]"
+    )
 
     def section(title: str, rows: list[tuple[str, object]]) -> None:
         console.print(f"\n[bold bright_cyan]{title}[/bold bright_cyan]")
         table = Table(show_header=False, box=None, pad_edge=False)
-        table.add_column("Field", style="grey70", no_wrap=True); table.add_column("Value", style="white")
-        for key, value in rows: table.add_row(key, str(value))
+        table.add_column("Field", style="grey70", no_wrap=True)
+        table.add_column("Value", style="white")
+        for key, value in rows:
+            table.add_row(key, str(value))
         console.print(table)
 
     dirty = data.get("git", {}).get("dirty")
-    section("Run", [("TOP", run.get("top", "-")), ("RUN_TOP", run.get("run_top", "-")), ("RUN_ID", run.get("run_id", "-")), ("PDK", run.get("pdk") or "-"), ("RUN_ROOT", run.get("run_root") or "-")])
-    section("Source / environment", [("Git commit", data.get("git", {}).get("commit") or "unavailable"), ("Git tree", "unknown" if dirty is None else ("dirty" if dirty else "clean")), ("FlexSoC", env.get("flexsoc", "unknown")), ("Python", env.get("python", "unknown")), ("Platform", env.get("platform", "unknown")), ("Machine", env.get("machine", "unknown")), ("uv.lock SHA256", env.get("uv_lock_sha256") or "missing"), ("toolchain.lock SHA256", env.get("toolchain_lock_sha256") or "missing")])
+    section(
+        "Run",
+        [
+            ("TOP", run.get("top", "-")),
+            ("RUN_TOP", run.get("run_top", "-")),
+            ("RUN_ID", run.get("run_id", "-")),
+            ("PDK", run.get("pdk") or "-"),
+            ("RUN_ROOT", run.get("run_root") or "-"),
+        ],
+    )
+    section(
+        "Source / environment",
+        [
+            ("Git commit", data.get("git", {}).get("commit") or "unavailable"),
+            (
+                "Git tree",
+                "unknown" if dirty is None else ("dirty" if dirty else "clean"),
+            ),
+            ("FlexSoC", env.get("flexsoc", "unknown")),
+            ("Python", env.get("python", "unknown")),
+            ("Platform", env.get("platform", "unknown")),
+            ("Machine", env.get("machine", "unknown")),
+            ("uv.lock SHA256", env.get("uv_lock_sha256") or "missing"),
+            (
+                "toolchain.lock SHA256",
+                env.get("toolchain_lock_sha256") or "missing",
+            ),
+        ],
+    )
 
     artifacts = run.get("artifacts")
     if isinstance(artifacts, dict):
-        section("Artifacts", [(name.replace("_", " ").title(), value) for name, value in artifacts.items()])
+        section(
+            "Artifacts",
+            [
+                (name.replace("_", " ").title(), value)
+                for name, value in artifacts.items()
+            ],
+        )
 
     tools = data.get("tools", {})
     if tools:
         groups = (
             ("RTL / lint", {"slang", "verilator", "slang-hier"}),
-            ("Formal / equivalence", {"yosys", "sby", "eqy", "bitwuzla", "boolector", "btormc", "btorsim"}),
-            ("Simulation / debug", {"iverilog", "gtkwave", "fst2vcd", "surfer", "sv2v", "netlistsvg"}),
+            (
+                "Formal / equivalence",
+                {"yosys", "sby", "eqy", "bitwuzla", "boolector", "btormc", "btorsim"},
+            ),
+            (
+                "Simulation / debug",
+                {"iverilog", "gtkwave", "fst2vcd", "surfer", "sv2v", "netlistsvg"},
+            ),
             ("Implementation / sign-off", {"sta", "openroad", "klayout"}),
             ("Environment", {"uv"}),
         )
         for title, names in groups:
             rows = [(name, tools[name]) for name in sorted(names) if name in tools]
-            if not rows: continue
+            if not rows:
+                continue
             console.print(f"\n[bold bright_cyan]{title} tools[/bold bright_cyan]")
             table = Table(box=None, pad_edge=False, header_style="bold grey70")
-            table.add_column("Executable", style="white"); table.add_column("Version", style="grey70"); table.add_column("Lock", style="grey70")
+            table.add_column("Executable", style="white")
+            table.add_column("Version", style="grey70")
+            table.add_column("Lock", style="grey70")
             for executable, value in rows:
                 if isinstance(value, dict):
-                    lock_match = value.get("lock_match"); locked = value.get("locked_version")
-                    lock = "match" if lock_match is True else (f"tested {locked}" if lock_match is False and locked else "-")
-                    table.add_row(executable, str(value.get("version", "unknown")), lock)
+                    lock_match = value.get("lock_match")
+                    locked = value.get("locked_version")
+                    lock = (
+                        "match"
+                        if lock_match is True
+                        else (
+                            f"tested {locked}"
+                            if lock_match is False and locked
+                            else "-"
+                        )
+                    )
+                    table.add_row(
+                        executable,
+                        str(value.get("version", "unknown")),
+                        lock,
+                    )
                 else:
                     table.add_row(executable, str(value), "-")
             console.print(table)

@@ -20,7 +20,6 @@ from flexsoc.backend.power_analysis import (
     ActivitySpec,
     _activity_count,
     _activity_vcd,
-    discover_specs,
     render_power_activity_tcl,
 )
 from flexsoc.backend.output import print_script, strip_ansi

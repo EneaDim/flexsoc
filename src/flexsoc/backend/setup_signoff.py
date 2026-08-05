@@ -244,7 +244,7 @@ def render_formal_protocol_view(top: str, ports: Sequence[NetlistPort]) -> str:
         lines.extend((
             f"  assign {prefix}_handshake = {{{raw}[65], {raw}[0]}};",
             f"  assign {prefix}_d_ctrl = {raw}[65] ? {raw}[64:48] : '0;",
-            f"  assign {prefix}_d_data = ({raw}[65] && !{raw}[1]) ? {raw}[47:16] : '0;",
+            f"  assign {prefix}_d_data = ({raw}[65] && ({raw}[64:62] == 3'h1) && !{raw}[1]) ? {raw}[47:16] : '0;",
             f"  assign {prefix}_d_meta = {raw}[65] ? {raw}[15:1] : '0;",
             "",
         ))
@@ -593,6 +593,132 @@ def generate_equivalence_config(cfg: EquivalenceConfig) -> Path:
     return write_text(cfg.output, render_eqy(prepared))
 
 
+
+def _eqy_binding_names(
+    filelists: Sequence[Path],
+    cell_models: Sequence[Path],
+) -> tuple[tuple[Path, str], ...]:
+    """Return stable local names for portable EQY dependencies."""
+
+    bindings: list[tuple[Path, str]] = []
+    used: set[str] = set()
+    for path in filelists:
+        name = path.name
+        if not name or name in used:
+            raise ValueError(f"EQY filelist basename must be unique: {path}")
+        used.add(name)
+        bindings.append((path, name))
+    for index, path in enumerate(cell_models):
+        suffix = path.suffix or ".v"
+        name = f"cell_model_{index}{suffix}"
+        bindings.append((path, name))
+    return tuple(bindings)
+
+
+def _replace_symlink(source: Path, destination: Path) -> Path:
+    """Create one deterministic absolute symlink, replacing an old binding."""
+
+    source = source.expanduser().resolve()
+    if not source.is_file():
+        raise ValueError(f"missing EQY binding source: {source}")
+    destination = destination.expanduser().absolute()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists() or destination.is_symlink():
+        destination.unlink()
+    destination.symlink_to(source)
+    return destination
+
+
+def bind_equivalence_profile(
+    *,
+    top: str,
+    output_dir: Path,
+    filelists: Sequence[Path],
+    netlist: Path,
+    liberty: Path,
+    cell_models: Sequence[Path],
+    formal_pdk_proc: Path | None,
+    clock_gate_model: Path,
+    config: Path | None = None,
+) -> tuple[Path, ...]:
+    """Bind a portable, design-owned EQY profile to the active run and PDK."""
+
+    output_dir = output_dir.expanduser().absolute()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    created = [
+        *(_replace_symlink(path, output_dir / name)
+          for path, name in _eqy_binding_names(filelists, cell_models)),
+        _replace_symlink(netlist, output_dir / "netlist.v"),
+        _replace_symlink(liberty, output_dir / "library.lib"),
+    ]
+    clock_gate = output_dir / clock_gate_model.name
+    body = (
+        render_sky130_clock_gate_model()
+        if os.environ.get("FLEXSOC_PDK", "").strip().lower() == "sky130"
+        else "// No PDK-specific EQY compatibility model required.\n"
+    )
+    created.append(write_text(clock_gate, body))
+
+    config_text = ""
+    if config is not None and config.is_file():
+        config_text = config.read_text(encoding="utf-8", errors="replace")
+    if "formal_pdk.v" in config_text:
+        cfg = EquivalenceConfig(
+            top=top,
+            filelists=tuple(filelists),
+            netlist=netlist,
+            liberty=liberty,
+            cell_models=tuple(cell_models),
+            formal_pdk_proc=formal_pdk_proc,
+            sky130_clock_gate_model=clock_gate,
+            engine="abc pdr",
+            depth=1,
+            sat_depth=1,
+            output=output_dir / "_bind.eqy",
+        )
+        prepared = _prepare_formal_cell_model(cfg)
+        if prepared.formal_cell_model is None:
+            raise ValueError(
+                "EQY profile requires formal_pdk.v but no formal PDK processor is available"
+            )
+        created.append(prepared.formal_cell_model)
+    return tuple(created)
+
+
+def export_equivalence_profile(
+    *,
+    config: Path,
+    view: Path,
+    output_dir: Path,
+    filelists: Sequence[Path],
+    netlist: Path,
+    liberty: Path,
+    cell_models: Sequence[Path],
+    clock_gate_model: Path,
+) -> tuple[Path, Path]:
+    """Save only the portable EQY config and formal view for one PDK."""
+
+    config, view = _require_files((config, view), label="EQY profile file(s)")
+    text = config.read_text(encoding="utf-8")
+    replacements = [
+        *(_eqy_binding_names(filelists, cell_models)),
+        (netlist, "netlist.v"),
+        (liberty, "library.lib"),
+        (clock_gate_model, clock_gate_model.name),
+        (view, view.name),
+    ]
+    for source, local_name in replacements:
+        expanded = source.expanduser()
+        for spelling in {str(expanded.absolute()), str(expanded.resolve())}:
+            text = text.replace(spelling, local_name)
+    text = re.sub(r"(?<!\S)\S*formal_pdk\.v", "formal_pdk.v", text)
+
+    output_dir = output_dir.expanduser().absolute()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    saved_config = write_text(output_dir / config.name, text)
+    saved_view = write_text(output_dir / view.name, view.read_text(encoding="utf-8"))
+    return saved_config, saved_view
+
 def liberty_corner(path: Path) -> str:
     """Infer a short process corner name from a Liberty filename."""
 
@@ -783,6 +909,27 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
     eqy = subparsers.add_parser("eqy", help="Generate RTL-vs-synthesis EQY config.")
     _add_equivalence_args(eqy)
+
+    bind = subparsers.add_parser("eqy-bind", help="Bind a portable EQY profile to one run.")
+    bind.add_argument("--top", required=True)
+    bind.add_argument("--filelist", action="append", type=Path, required=True)
+    bind.add_argument("--netlist", type=Path, required=True)
+    bind.add_argument("--liberty", type=Path, required=True)
+    bind.add_argument("--cell-model", action="append", type=Path, default=[])
+    bind.add_argument("--formal-pdk-proc", type=Path)
+    bind.add_argument("--sky130-clock-gate-model", type=Path, required=True)
+    bind.add_argument("--config", type=Path)
+    bind.add_argument("--output-dir", type=Path, required=True)
+
+    export = subparsers.add_parser("eqy-export", help="Export one portable EQY profile.")
+    export.add_argument("--filelist", action="append", type=Path, required=True)
+    export.add_argument("--netlist", type=Path, required=True)
+    export.add_argument("--liberty", type=Path, required=True)
+    export.add_argument("--cell-model", action="append", type=Path, default=[])
+    export.add_argument("--sky130-clock-gate-model", type=Path, required=True)
+    export.add_argument("--config", type=Path, required=True)
+    export.add_argument("--view", type=Path, required=True)
+    export.add_argument("--output-dir", type=Path, required=True)
     return parser.parse_args(list(argv))
 
 
@@ -865,8 +1012,33 @@ def main(argv: Sequence[str]) -> int:
         if args.command == "analysis":
             for path in write_signoff_scripts(_sta_config(args)):
                 print_script(path)
-        else:
+        elif args.command == "eqy":
             print(generate_equivalence_config(_equivalence_config(args)))
+        elif args.command == "eqy-bind":
+            for path in bind_equivalence_profile(
+                top=args.top,
+                output_dir=args.output_dir,
+                filelists=args.filelist,
+                netlist=args.netlist,
+                liberty=args.liberty,
+                cell_models=args.cell_model,
+                formal_pdk_proc=args.formal_pdk_proc,
+                clock_gate_model=args.sky130_clock_gate_model,
+                config=args.config,
+            ):
+                print(path)
+        else:
+            for path in export_equivalence_profile(
+                config=args.config,
+                view=args.view,
+                output_dir=args.output_dir,
+                filelists=args.filelist,
+                netlist=args.netlist,
+                liberty=args.liberty,
+                cell_models=args.cell_model,
+                clock_gate_model=args.sky130_clock_gate_model,
+            ):
+                print(path)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

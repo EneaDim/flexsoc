@@ -1,0 +1,79 @@
+[options]
+splitnets off
+
+[gold]
+read_slang -D SYNTHESIS --ignore-assertions -f rtl_common.f -f rtl_ip.f --top uart
+rename uart uart__eqy_impl
+read_verilog -formal -sv uart_eqy_view.sv
+
+[gate]
+read_liberty -ignore_miss_func library.lib
+read_verilog -formal -sv netlist.v
+rename uart uart__eqy_impl
+read_verilog -formal -sv uart_eqy_view.sv
+
+[script]
+hierarchy -check -top uart
+proc
+prep -top uart -flatten
+memory -nomap
+memory_map -formal
+async2sync
+# FlexSoC EQY reset normalization begin
+uniquify
+sim -clock clk_i -resetn rst_ni -rstlen 2 -n 2 -w
+# FlexSoC EQY reset normalization end
+
+[match uart]
+nodefault
+gold-match clk_i
+gold-match rst_ni
+gold-match tl_i
+gold-match tl_o__flexsoc_eqy_handshake
+gold-match tl_o__flexsoc_eqy_d_ctrl
+gold-match tl_o__flexsoc_eqy_d_data
+gold-match tl_o__flexsoc_eqy_d_meta
+gold-match cio_rx_i
+gold-match cio_tx_o
+gold-match cio_tx_en_o
+
+# FlexSoC UART sequential cut-points begin
+gold-match *u_uart_core.nco_sum_q
+gold-match *u_uart_core.tx_out_q
+gold-match *u_uart_core.rx_sync_q1
+gold-match *u_uart_core.rx_sync_q2
+gold-match *u_uart_core.uart_tx.baud_div_q
+gold-match *u_uart_core.uart_tx.tick_baud_q
+gold-match *u_uart_core.uart_tx.bit_cnt_q
+gold-match *u_uart_core.uart_tx.sreg_q
+gold-match *u_uart_core.uart_tx.tx_q
+gold-match *u_uart_core.uart_rx.bit_cnt_q
+gold-match *u_uart_core.uart_rx.baud_div_q
+gold-match *u_uart_core.uart_rx.tick_baud_q
+gold-match *u_uart_core.uart_rx.idle_q
+gold-match *u_uart_core.uart_rx.rx_valid_q
+gold-match *u_uart_core.uart_rdata
+# FlexSoC UART sequential cut-points end
+
+[collect uart]
+join tl_o__flexsoc_eqy_handshake
+join tl_o__flexsoc_eqy_d_ctrl
+join tl_o__flexsoc_eqy_d_data
+join tl_o__flexsoc_eqy_d_meta
+
+[strategy sat]
+use sat
+depth 5
+
+[strategy pdr]
+use sby
+engine abc pdr
+timeout 60
+xprop on
+
+[strategy smt]
+use sby
+engine smtbmc bitwuzla
+depth 2
+timeout 60
+xprop on

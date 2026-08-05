@@ -1434,21 +1434,38 @@ formal_cover: setup_formal_cover ## Reach authored cover properties with SymbiYo
 # ============================================================================
 ##@ Signoff
 EQY_CONFIG ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn.eqy
+EQY_VIEW ?= $(EQUIVDIR)/$(TOP)_eqy_view.sv
 EQY_SKY130_CLOCK_GATE_MODEL ?= $(EQUIVDIR)/sky130_clock_gates_formal.v
 EQY_RESULT_DIR ?= $(EQUIVDIR)/$(TOP)_rtl_vs_syn
+IP_EQY_DIR ?= $(REPO_ROOT)/hw/ips/$(TOP)/signoff/equivalence/$(PDK)/rtl_vs_syn
 
-setup_eqy: flist ## Generate EQY RTL-vs-post-synthesis equivalence configuration
+setup_eqy: flist ## Prepare an existing EQY profile, or generate it when absent/forced
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(EQUIVDIR) $(dir $(EQUIV_LOG))
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff eqy \
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff eqy-bind \
 		--top $(TOP) $(RTL_FILELIST_ARGS) \
 		--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
 		$(foreach model,$(PRIM),--cell-model $(model)) \
 		$(if $(FORMAL_PDK_PROC),--formal-pdk-proc "$(FORMAL_PDK_PROC)") \
 		--sky130-clock-gate-model $(EQY_SKY130_CLOCK_GATE_MODEL) \
-		--engine "$(EQY_ENGINE)" --depth $(EQY_DEPTH) --sat-depth $(EQY_SAT_DEPTH) \
-		--output $(EQY_CONFIG) >/dev/null
-	@printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(EQY_CONFIG)$(RESET)"
+		--config $(EQY_CONFIG) --output-dir $(EQUIVDIR) >/dev/null
+	@if [ -f "$(EQY_CONFIG)" ] && [ "$(FORCE)" != "1" ]; then \
+		test -f "$(EQY_VIEW)" || { \
+			echo "ERROR: EQY config exists but its formal view is missing: $(EQY_VIEW)"; \
+			echo "Hint: regenerate both files with: fx eqy --force"; exit 2; \
+		}; \
+		printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(EQY_CONFIG)$(RESET) $(GREEN)(existing)$(RESET)"; \
+	else \
+		$(PYTHON) -m flexsoc.backend.setup_signoff eqy \
+			--top $(TOP) $(RTL_FILELIST_ARGS) \
+			--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
+			$(foreach model,$(PRIM),--cell-model $(model)) \
+			$(if $(FORMAL_PDK_PROC),--formal-pdk-proc "$(FORMAL_PDK_PROC)") \
+			--sky130-clock-gate-model $(EQY_SKY130_CLOCK_GATE_MODEL) \
+			--engine "$(EQY_ENGINE)" --depth $(EQY_DEPTH) --sat-depth $(EQY_SAT_DEPTH) \
+			--output $(EQY_CONFIG) >/dev/null; \
+		printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(EQY_CONFIG)$(RESET) $(YELLOW)(generated)$(RESET)"; \
+	fi
 
 eqy: setup_eqy ## Prove RTL equivalent to the mapped post-synthesis netlist with EQY
 	@command -v "$(EQY)" >/dev/null 2>&1 || { echo "ERROR: EQY executable not found: $(EQY)"; exit 2; }
@@ -1639,7 +1656,7 @@ pnr_gui: setup_pnr ## Open OpenROAD GUI
 # 12. IP load/save
 # ============================================================================
 ##@ IP load/save
-ip_load: ## Load an IP into a run workspace
+ip_load: ## Load the complete saved IP package into a run workspace
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_TOP)
@@ -1652,16 +1669,11 @@ ip_load: ## Load an IP into a run workspace
 	if [ "$(RUN_TOP)" = "$(TOP)" ]; then \
 		dst_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
 		mkdir -p "$$dst_dir"; \
-		for sub in rtl dv data doc drivers py fsms lint syn signoff pnr_openroad ips; do \
-			if [ -d "$$src_ip/$$sub" ]; then \
-				rm -rf "$$dst_dir/$$sub"; \
-				cp -a "$$src_ip/$$sub" "$$dst_dir/$$sub"; \
-			fi; \
-		done; \
-		for f in manifest.json run.yaml report.json *.core; do \
-			for x in "$$src_ip"/$$f; do \
-				if [ -e "$$x" ]; then cp -a "$$x" "$$dst_dir"/; fi; \
-			done; \
+		for entry in "$$src_ip"/* "$$src_ip"/.[!.]* "$$src_ip"/..?*; do \
+			[ -e "$$entry" ] || continue; \
+			name="$${entry##*/}"; \
+			rm -rf "$$dst_dir/$$name"; \
+			cp -a "$$entry" "$$dst_dir/$$name"; \
 		done; \
 	else \
 		dst_dir="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)/ips/$$load_name"; \
@@ -1670,65 +1682,28 @@ ip_load: ## Load an IP into a run workspace
 		mkdir -p "$$dst_dir"; \
 		cp -a "$$src_ip"/. "$$dst_dir"/; \
 	fi; \
+	find "$$dst_dir" -type d -name __pycache__ -prune -exec rm -rf {} +; \
+	find "$$dst_dir" -type f -name '*.pyc' -delete; \
 	$(MAKE) -f $(BACKEND_MAKEFILE) flist HOST=$(HOST) SOC_CFG_MODE=$(SOC_CFG_MODE) \
 		WORKSPACE=$(WORKSPACE) RUN_TOP=$(RUN_TOP) RUN_ID=$(RUN_ID) TOP=$(TOP)
 
-ip_save: ## Save run artifacts back to hw/ips
+ip_save: ## Save only the current PDK EQY config and formal view back to hw/ips
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
-	@set -eu; \
-	src_run="$(WORKSPACE)/runs/$(RUN_TOP)/$(RUN_ID)"; \
-	dst_ip="$(REPO_ROOT)/hw/ips/$(TOP)"; \
-	test -d "$$src_run" || { echo "ERROR: missing run directory: $$src_run"; exit 2; }; \
-	mkdir -p "$$dst_ip"; \
-	for sub in rtl data doc drivers py fsms lint syn; do \
-		if [ -d "$$src_run/$$sub" ]; then \
-			rm -rf "$$dst_ip/$$sub"; \
-			cp -a "$$src_run/$$sub" "$$dst_ip/$$sub"; \
-		fi; \
-	done; \
-	rm -rf "$$dst_ip/dv"; \
-	if [ -d "$$src_run/dv/functional" ]; then \
-		mkdir -p "$$dst_ip/dv/functional"; \
-		for sub in model tests tb; do \
-			if [ -d "$$src_run/dv/functional/$$sub" ]; then \
-				cp -a "$$src_run/dv/functional/$$sub" "$$dst_ip/dv/functional/$$sub"; \
-			fi; \
-		done; \
-		if [ -d "$$src_run/dv/functional/sim/rtl" ]; then \
-			mkdir -p "$$dst_ip/dv/functional/sim/rtl"; \
-			find "$$src_run/dv/functional/sim/rtl" -maxdepth 1 -type f -name '*.gtkw' \
-				-exec cp -a {} "$$dst_ip/dv/functional/sim/rtl"/ \; ; \
-		fi; \
-	fi; \
-	if [ -d "$$src_run/dv/formal/properties" ]; then \
-		mkdir -p "$$dst_ip/dv/formal"; \
-		cp -a "$$src_run/dv/formal/properties" "$$dst_ip/dv/formal/properties"; \
-	fi; \
-	if [ -d "$$src_run/signoff" ]; then \
-		rm -rf "$$dst_ip/signoff"; \
-		mkdir -p "$$dst_ip/signoff"; \
-		find "$$src_run/signoff" -mindepth 1 -maxdepth 1 \
-			! -name sdf \
-			-exec cp -a {} "$$dst_ip/signoff"/ \; ; \
-	fi; \
-	if [ -d "$$src_run/pnr_openroad" ]; then \
-		rm -rf "$$dst_ip/pnr_openroad"; \
-		mkdir -p "$$dst_ip/pnr_openroad"; \
-		find "$$src_run/pnr_openroad" -maxdepth 1 -type f \
-			-exec cp -a {} "$$dst_ip/pnr_openroad"/ \; ; \
-	fi; \
-	for f in manifest.json run.yaml report.json *.core; do \
-		for x in "$$src_run"/$$f; do \
-			if [ -e "$$x" ]; then cp -a "$$x" "$$dst_ip"/; fi; \
-		done; \
-	done; \
-	find "$$dst_ip" -type d \( -name sim_build -o -name __pycache__ \) \
-		-prune -exec rm -rf {} +; \
-	find "$$dst_ip" -type f \( -name results.xml -o -name '*.vcd' -o -name '*.pyc' \) \
-		-delete
+	@test -f "$(EQY_CONFIG)" || { echo "ERROR: EQY config not found: $(EQY_CONFIG)"; exit 2; }
+	@test -f "$(EQY_VIEW)" || { echo "ERROR: EQY formal view not found: $(EQY_VIEW)"; exit 2; }
+	$(Q)$(RM) -rf $(IP_EQY_DIR)
+	$(Q)$(MKDIR) -p $(IP_EQY_DIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff eqy-export \
+		$(RTL_FILELIST_ARGS) \
+		--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
+		$(foreach model,$(PRIM),--cell-model $(model)) \
+		--sky130-clock-gate-model $(EQY_SKY130_CLOCK_GATE_MODEL) \
+		--config $(EQY_CONFIG) --view $(EQY_VIEW) --output-dir $(IP_EQY_DIR) >/dev/null
+	@printf "%b\n" "$(GREEN)[ip_save]$(RESET) PDK=$(PDK) · saved $(IP_EQY_DIR)/$(TOP)_rtl_vs_syn.eqy"
+	@printf "%b\n" "$(GREEN)[ip_save]$(RESET) PDK=$(PDK) · saved $(IP_EQY_DIR)/$(TOP)_eqy_view.sv"
 
 # ============================================================================
 # 13. SoC, FuseSoC, XBAR and software flow

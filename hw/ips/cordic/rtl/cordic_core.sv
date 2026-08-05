@@ -28,6 +28,22 @@ module cordic_core
   output cordic_hw2reg_t hw2reg
 );
 
+  // ---------------------------------------------------------------------------
+  // Numerical configuration
+  // ---------------------------------------------------------------------------
+  localparam int DATA_W       = 16;
+  localparam int DATA_FRAC_W  = 14;
+  localparam int ANGLE_W      = 16;
+  localparam int ANGLE_FRAC_W = 13;
+  localparam int GUARD_W      = 3;
+  localparam int INT_W        = DATA_W + GUARD_W;
+  localparam int MAX_ITER     = 16;
+  localparam int ITER_W       = $clog2(MAX_ITER + 1);
+
+  localparam logic [7:0] DATA_W_U8      = 8'(DATA_W);
+  localparam logic [7:0] DATA_FRAC_W_U8 = 8'(DATA_FRAC_W);
+  localparam logic [7:0] MAX_ITER_U8    = 8'(MAX_ITER);
+
   //////////////
   // Signals  //
   //////////////
@@ -44,9 +60,15 @@ module cordic_core
   logic [31:0] x_in_value;
   logic [31:0] y_in_value;
   logic [31:0] z_in_value;
+  // CSR-visible aliases.  The actual registered state is kept at the native
+  // CORDIC widths below so synthesis does not have to collapse replicated
+  // sign-bit flops.
   logic [31:0] x_out_value;
   logic [31:0] y_out_value;
   logic [31:0] z_out_value;
+  logic signed [DATA_W-1:0]  x_out_q;
+  logic signed [DATA_W-1:0]  y_out_q;
+  logic signed [ANGLE_W-1:0] z_out_q;
   logic [7:0] cfg_data_width;
   logic [7:0] cfg_frac_width;
   logic [7:0] cfg_max_iter;
@@ -65,6 +87,10 @@ module cordic_core
   assign y_in_value    = reg2hw.y_in.q;
   assign z_in_value    = reg2hw.z_in.q;
 
+  assign x_out_value = {{(32-DATA_W){x_out_q[DATA_W-1]}}, x_out_q};
+  assign y_out_value = {{(32-DATA_W){y_out_q[DATA_W-1]}}, y_out_q};
+  assign z_out_value = {{(32-ANGLE_W){z_out_q[ANGLE_W-1]}}, z_out_q};
+
   //////////////
   // REG2CTRL //
   //////////////
@@ -79,23 +105,6 @@ module cordic_core
   assign hw2reg.cfg.frac_width.d = cfg_frac_width;
   assign hw2reg.cfg.max_iter.d   = cfg_max_iter;
   assign hw2reg.cfg.rsvd.d       = cfg_rsvd;
-
-  // ---------------------------------------------------------------------------
-  // Numerical configuration
-  // ---------------------------------------------------------------------------
-  localparam int DATA_W       = 16;
-  localparam int DATA_FRAC_W  = 14;
-  localparam int ANGLE_W      = 16;
-  localparam int ANGLE_FRAC_W = 13;
-  localparam int GUARD_W      = 3;
-  localparam int INT_W        = DATA_W + GUARD_W;
-  localparam int MAX_ITER     = 16;
-  localparam int ITER_W       = $clog2(MAX_ITER + 1);
-
-  localparam logic [7:0] DATA_W_U8      = 8'(DATA_W);
-  localparam logic [7:0] DATA_FRAC_W_U8 = 8'(DATA_FRAC_W);
-  localparam logic [7:0] MAX_ITER_U8    = 8'(MAX_ITER);
-
 
   // ---------------------------------------------------------------------------
   // FSM and datapath state
@@ -134,9 +143,9 @@ module cordic_core
   logic signed [INT_W-1:0]   y_step;
   logic signed [ANGLE_W-1:0] z_step;
 
-  logic [31:0] x_out_next_32;
-  logic [31:0] y_out_next_32;
-  logic [31:0] z_out_next_32;
+  logic signed [DATA_W-1:0]  x_out_next;
+  logic signed [DATA_W-1:0]  y_out_next;
+  logic signed [ANGLE_W-1:0] z_out_next;
 
   // ---------------------------------------------------------------------------
   // Helper functions
@@ -174,22 +183,6 @@ module cordic_core
       end else begin
         sat_data_to_visible = value_i[DATA_W-1:0];
       end
-    end
-  endfunction
-
-  function automatic logic [31:0] data_visible_to_csr32(
-    input logic signed [DATA_W-1:0] value_i
-  );
-    begin
-      data_visible_to_csr32 = {{(32-DATA_W){value_i[DATA_W-1]}}, value_i};
-    end
-  endfunction
-
-  function automatic logic [31:0] angle_visible_to_csr32(
-    input logic signed [ANGLE_W-1:0] value_i
-  );
-    begin
-      angle_visible_to_csr32 = {{(32-ANGLE_W){value_i[ANGLE_W-1]}}, value_i};
     end
   endfunction
 
@@ -334,9 +327,9 @@ module cordic_core
     x_final_visible = sat_data_to_visible(x_step);
     y_final_visible = sat_data_to_visible(y_step);
 
-    x_out_next_32 = data_visible_to_csr32(x_final_visible);
-    y_out_next_32 = data_visible_to_csr32(y_final_visible);
-    z_out_next_32 = angle_visible_to_csr32(z_step);
+    x_out_next = x_final_visible;
+    y_out_next = y_final_visible;
+    z_out_next = z_step;
   end
 
   // ---------------------------------------------------------------------------
@@ -414,9 +407,9 @@ module cordic_core
       mode_q        <= 1'b0;
       status_valid  <= 1'b0;
       status_error  <= 1'b0;
-      x_out_value   <= '0;
-      y_out_value   <= '0;
-      z_out_value   <= '0;
+      x_out_q       <= '0;
+      y_out_q       <= '0;
+      z_out_q       <= '0;
     end else if (ctrl_soft_rst) begin
       state_q       <= StIdle;
       x_q           <= '0;
@@ -427,9 +420,9 @@ module cordic_core
       mode_q        <= 1'b0;
       status_valid  <= 1'b0;
       status_error  <= 1'b0;
-      x_out_value   <= '0;
-      y_out_value   <= '0;
-      z_out_value   <= '0;
+      x_out_q       <= '0;
+      y_out_q       <= '0;
+      z_out_q       <= '0;
     end else begin
       state_q      <= state_d;
       x_q          <= x_d;
@@ -442,9 +435,9 @@ module cordic_core
       status_error <= status_error_d;
 
       if ((state_q == StRun) && (iter_q == (n_iter_q - 1'b1))) begin
-        x_out_value <= x_out_next_32;
-        y_out_value <= y_out_next_32;
-        z_out_value <= z_out_next_32;
+        x_out_q <= x_out_next;
+        y_out_q <= y_out_next;
+        z_out_q <= z_out_next;
       end
     end
   end

@@ -349,7 +349,9 @@ def render_power_activity_tcl(
 ) -> str:
     """Render one OpenSTA power run driven by a qualified GLS VCD."""
 
-    quote = lambda path: "{" + path.resolve().as_posix() + "}"
+    def quote(path: Path) -> str:
+        return "{" + path.resolve().as_posix() + "}"
+
     return "\n".join(
         [
             'puts ""',

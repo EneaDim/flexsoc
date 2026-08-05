@@ -36,6 +36,14 @@ SAVED_IP_CUSTOM_TESTS = {
     "cordic": ("smoke_zero", "rotate_45deg", "quadrant_sweep", "random_small"),
     "uart": ("line_loopback", "rx_fifo", "noise_filter", "parity_reconfig"),
 }
+# Raw Make-style settings exported by an interactive shell must not override the
+# isolated workspace configuration selected by each E2E flow.
+AMBIENT_FX_SETTING_KEYS = (
+    "TOP", "RUN_TOP", "RUN_ID", "HOST", "WORKSPACE", "RUN_ROOT", "PDK",
+    "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS", "CLK_PERIOD", "FORCE",
+    "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE", "FST2VCD", "GLS_BACKEND",
+    "GLS_UNIT_DELAY", "SDF_STRICT", "SYN_DIR", "EQUIV_DIR", "PNR_DIR",
+)
 CONSOLE = Console()
 
 
@@ -191,6 +199,27 @@ def _dump_recent_logs(top: str, run_id: str, *, workspace: Path) -> None:
         print(line, flush=True)
 
 
+def _fx_subprocess_env() -> dict[str, str]:
+    """Return an environment that cannot override workspace-local fx settings."""
+
+    environment = os.environ.copy()
+    for key in AMBIENT_FX_SETTING_KEYS:
+        environment.pop(key, None)
+    return environment
+
+
+def _run_fx_process(full_args: list[str]) -> subprocess.CompletedProcess[bytes]:
+    """Execute one already-expanded fx command with isolated settings variables."""
+
+    _print_step(full_args)
+    return subprocess.run(
+        ["fx", *full_args],
+        cwd=REPO_ROOT,
+        check=False,
+        env=_fx_subprocess_env(),
+    )
+
+
 def _run_fx(
     args: list[str],
     *,
@@ -199,14 +228,16 @@ def _run_fx(
     workspace: Path,
     required: bool = True,
 ) -> bool:
-    """Run one fx target; reporting targets may be explicitly non-blocking."""
+    """Run one fx target using the workspace settings selected by _settings()."""
 
+    workspace = workspace.resolve()
     full_args = [*args, "--workdir", str(workspace)]
-    if _live() and full_args and full_args[0] != "settings" and "--live" not in full_args:
+    is_settings = bool(args) and args[0] == "settings"
+
+    if _live() and not is_settings and "--live" not in full_args:
         full_args.append("--live")
 
-    _print_step(full_args)
-    completed = subprocess.run(["fx", *full_args], cwd=REPO_ROOT, check=False)
+    completed = _run_fx_process(full_args)
     if completed.returncode == 0:
         return True
 
@@ -239,7 +270,7 @@ def _settings(
     ]
     if pdk:
         args.append(f"PDK={pdk}")
-    _run_fx(args, workspace=workspace)
+    _run_fx(args, workspace=workspace.resolve())
 
 
 def _run_preflight(*, pdk: str, workspace: Path) -> None:
@@ -301,7 +332,7 @@ def _sha256(path: Path) -> str:
 
 
 def _ip_protected_sources(top: str) -> tuple[Path, ...]:
-    """Return HJSON, RTL source, and model artifacts that must stay immutable."""
+    """Return authored HJSON, RTL, and model artifacts that must stay immutable."""
 
     root = REPO_ROOT / "hw" / "ips" / top
     protected = [*sorted((root / "data").rglob("*.hjson"))]
@@ -313,11 +344,13 @@ def _ip_protected_sources(top: str) -> tuple[Path, ...]:
         )
     )
     model = root / "dv" / "functional" / "model"
+    derived_model = model / f"{top}_regmap.py"
     protected.extend(
         sorted(
             path
             for path in model.rglob("*")
             if path.is_file()
+            and path != derived_model
             and "__pycache__" not in path.parts
             and path.suffix not in {".pyc", ".pyo"}
         )
@@ -335,7 +368,7 @@ def _validate_ip_layout(top: str) -> None:
         "data", "doc", "drivers", "rtl", "dv/functional/model",
         "dv/functional/tests", "dv/functional/tb/sv", "dv/functional/tb/cocotb",
         "dv/formal/properties/prove", "dv/formal/properties/cover",
-        "syn", "signoff", "pnr_openroad",
+        "syn", "signoff/equivalence", "pnr_openroad",
     )
     required_files = (
         f"data/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
@@ -348,8 +381,6 @@ def _validate_ip_layout(top: str) -> None:
         f"dv/formal/properties/prove/{top}_prove.sv",
         f"dv/formal/properties/cover/{top}_cover.sv",
         "syn/synth.ys", "syn/synth_sv.ys", "syn/abc.constr", "syn/area.abc",
-        "signoff/power.tcl", "signoff/sta.tcl",
-        "signoff/sta_violators.tcl", "signoff/write_sdf.tcl",
         "pnr_openroad/config.mk", f"pnr_openroad/{top}.sdc",
     )
     missing = [
@@ -359,6 +390,14 @@ def _validate_ip_layout(top: str) -> None:
         ) if not path.exists()
     ]
     assert not missing, f"invalid {top} IP structure; missing: {missing}"
+    legacy_signoff = [
+        root / "signoff" / name
+        for name in ("power.tcl", "sta.tcl", "sta_violators.tcl", "write_sdf.tcl")
+        if (root / "signoff" / name).exists()
+    ]
+    transient = [root / name for name in ("manifest.json", "report.json", "run.yaml") if (root / name).exists()]
+    assert not legacy_signoff, f"legacy generated signoff files remain in {top}: {legacy_signoff}"
+    assert not transient, f"transient run metadata remains in {top}: {transient}"
 
     tests_file = root / "dv" / "functional" / "model" / f"{top}_tests.py"
     completed = subprocess.run(
@@ -386,9 +425,16 @@ def _validate_ip_layout(top: str) -> None:
         assert not missing_vectors, f"incomplete saved {top}/{name}: {missing_vectors}"
 
 
+def _eqy_profile_files(root: Path, top: str, pdk: str) -> tuple[Path, Path]:
+    """Return the normal run/package EQY config and formal-view paths."""
+
+    directory = root / "signoff" / "equivalence" / pdk / "rtl_vs_syn"
+    return directory / f"{top}_rtl_vs_syn.eqy", directory / f"{top}_eqy_view.sv"
+
+
 @contextmanager
 def _protect_ip_sources(top: str) -> Iterator[dict[Path, str]]:
-    """Fail if an ip_load E2E run changes saved HJSON, RTL source, or model files."""
+    """Fail if ip_load changes saved authored HJSON, RTL, or model files."""
 
     _validate_ip_layout(top)
     snapshot = {path: _sha256(path) for path in _ip_protected_sources(top)}
@@ -416,7 +462,7 @@ def _assert_loaded_ip_tests(top: str, run_id: str, workspace: Path) -> None:
 def _assert_loaded_sources_match(
     top: str, run_id: str, workspace: Path, snapshot: dict[Path, str]
 ) -> None:
-    """Verify loaded HJSON, RTL source, and model files remain byte-identical."""
+    """Verify loaded authored HJSON, RTL, and model files remain byte-identical."""
 
     source_root = REPO_ROOT / "hw" / "ips" / top
     run_root = workspace / "runs" / top / run_id
@@ -425,7 +471,7 @@ def _assert_loaded_sources_match(
         loaded = run_root / source.relative_to(source_root)
         if not loaded.is_file() or _sha256(loaded) != digest:
             changed.append(loaded)
-    assert not changed, f"{top} loaded HJSON/RTL/model changed during flow: {changed}"
+    assert not changed, f"{top} loaded authored HJSON/RTL/model changed: {changed}"
 
 
 # -----------------------------------------------------------------------------
@@ -464,13 +510,25 @@ def _run_loaded_ip_setup(
     workspace: Path,
     snapshot: dict[Path, str],
 ) -> None:
-    """Load one saved IP without regenerating its HJSON, RTL source, or model."""
+    """Load one saved IP and refresh only machine-owned derived collateral."""
 
     _run_fx(["setup", "--force"], top=top, run_id=run_id, workspace=workspace)
     _run_fx(["ip_load", "--force"], top=top, run_id=run_id, workspace=workspace)
     _assert_loaded_sources_match(top, run_id, workspace, snapshot)
-    # setup_model may add machine-owned helpers, but existing editable model files stay intact.
-    _run_fx(["setup_model"], top=top, run_id=run_id, workspace=workspace)
+
+    # setup_model is a bootstrap/reset command: it owns editable model and test
+    # scaffolds and must never run after ip_load.  Refresh only deterministic
+    # artifacts derived from the saved HJSON/RTL.  The common regression flow
+    # later regenerates test vectors and SV/cocotb harnesses.
+    _run_fx(["regmap_py", "--force"], top=top, run_id=run_id, workspace=workspace)
+    model_dir = workspace / "runs" / top / run_id / "dv" / "functional" / "model"
+    regmap = model_dir / f"{top}_regmap.py"
+    regmap_tests = model_dir / f"{top}_regmap_tests.py"
+    assert regmap.is_file(), f"missing regenerated {top} CSR regmap: {regmap}"
+    assert regmap_tests.is_file(), (
+        f"missing regenerated {top} machine-owned CSR test generator: {regmap_tests}"
+    )
+    _run_fx(["flist", "--force"], top=top, run_id=run_id, workspace=workspace)
     _assert_loaded_sources_match(top, run_id, workspace, snapshot)
 
 
@@ -706,6 +764,7 @@ def _run_signoff_stages(
     run_id: str,
     clock_mode: str,
     workspace: Path,
+    preserve_eqy: bool = False,
 ) -> bool:
     """Run synthesis/equivalence/signoff as individually visible targets."""
 
@@ -724,8 +783,9 @@ def _run_signoff_stages(
         ("Power estimate", "power_estimate"),
     ):
         _print_section(title)
+        args = [target] if target == "eqy" and preserve_eqy else [target, "--force"]
         ok = _run_fx(
-            [target, "--force"], top=top, run_id=run_id, workspace=workspace,
+            args, top=top, run_id=run_id, workspace=workspace,
             required=target != "eqy",
         )
         if target == "eqy":
@@ -967,8 +1027,10 @@ def _run_visible_flow(
     host: str,
     plan: E2EPlan,
     workspace: Path,
+    preserve_eqy: bool = False,
+    active_pdk: str | None = None,
 ) -> None:
-    """Run common verification once, then complete sign-off for every PDK."""
+    """Run common verification once, selecting settings only when the PDK changes."""
 
     _run_lint_stages(top, run_id=run_id, workspace=workspace)
     _run_slang_ast(top, run_id=run_id, workspace=workspace)
@@ -981,18 +1043,21 @@ def _run_visible_flow(
     failures: list[str] = []
     for pdk in plan.pdks:
         _print_section(f"Technology flow — PDK={pdk}")
-        _settings(
-            top,
-            clock_domains=clock_domains,
-            clock_relationships=clock_relationships,
-            run_id=run_id,
-            host=host,
-            pdk=pdk,
-            workspace=workspace,
-        )
+        if pdk != active_pdk:
+            _settings(
+                top,
+                clock_domains=clock_domains,
+                clock_relationships=clock_relationships,
+                run_id=run_id,
+                host=host,
+                pdk=pdk,
+                workspace=workspace,
+            )
+            active_pdk = pdk
         _run_preflight(pdk=pdk, workspace=workspace)
         equivalence_ok = _run_signoff_stages(
-            top, run_id=run_id, clock_mode=clock_mode, workspace=workspace
+            top, run_id=run_id, clock_mode=clock_mode, workspace=workspace,
+            preserve_eqy=preserve_eqy,
         )
         if plan.run_post_syn:
             failures.extend(
@@ -1044,6 +1109,7 @@ def _run_single_clock_flow(*, plan: E2EPlan, workspace: Path) -> None:
         host=host,
         plan=plan,
         workspace=workspace,
+        active_pdk=plan.pdks[0],
     )
 
     test_root = workspace / "runs" / top / run_id / "dv" / "functional" / "tests"
@@ -1094,6 +1160,7 @@ def _run_multi_clock_flow(*, plan: E2EPlan, workspace: Path) -> None:
         host=host,
         plan=plan,
         workspace=workspace,
+        active_pdk=plan.pdks[0],
     )
 
     for test in (*SHARED_VECTOR_TESTS, *NCLOCK_DESIGN_TESTS):
@@ -1123,6 +1190,15 @@ def _run_loaded_ip_flow(
         _run_preflight(pdk=plan.pdks[0], workspace=workspace)
         _print_section("Load saved IP")
         _run_loaded_ip_setup(top, run_id=run_id, workspace=workspace, snapshot=snapshot)
+        run_root = workspace / "runs" / top / run_id
+        profiles: dict[Path, str] = {}
+        for pdk in plan.pdks:
+            for path in _eqy_profile_files(run_root, top, pdk):
+                assert path.is_file(), (
+                    f"missing saved {top}/{pdk} EQY profile: {path}; "
+                    "generate, tune, and persist it with fx ip_save"
+                )
+                profiles[path] = _sha256(path)
         _run_visible_flow(
             top,
             run_id=run_id,
@@ -1132,7 +1208,11 @@ def _run_loaded_ip_flow(
             host=host,
             plan=plan,
             workspace=workspace,
+            preserve_eqy=True,
+            active_pdk=plan.pdks[0],
         )
+        changed_profiles = [path for path, digest in profiles.items() if _sha256(path) != digest]
+        assert not changed_profiles, f"loaded EQY profiles were regenerated: {changed_profiles}"
         _assert_loaded_sources_match(top, run_id, workspace, snapshot)
         _assert_loaded_ip_tests(top, run_id, workspace)
 

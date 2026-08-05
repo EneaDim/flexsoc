@@ -269,14 +269,17 @@ Use `fx commands` to list every backend Make target.
             table.add_column("Key", style="grey70", no_wrap=True)
             table.add_column("Value", style="white")
             for key, value in rows:
-                shown.add(key); table.add_row(key, value)
+                shown.add(key)
+                table.add_row(key, value)
             console.print(table)
         extra = [(key, value) for key, value in sorted(values.items()) if key not in shown]
         if extra:
             console.print("[bold bright_cyan]Advanced[/bold bright_cyan]")
             table = Table(show_header=False, box=None, pad_edge=False)
-            table.add_column("Key", style="grey70", no_wrap=True); table.add_column("Value", style="white")
-            for key, value in extra: table.add_row(key, value)
+            table.add_column("Key", style="grey70", no_wrap=True)
+            table.add_column("Value", style="white")
+            for key, value in extra:
+                table.add_row(key, value)
             console.print(table)
 
     def _print_info(client: FlexSoC, targets: tuple[str, ...], as_json: bool) -> None:
@@ -395,8 +398,10 @@ Use `fx commands` to list every backend Make target.
                 ):
                     console.print(f"[bold bright_cyan]{title}[/bold bright_cyan]")
                     table = Table(show_header=False, box=None, pad_edge=False)
-                    table.add_column("Field", style="grey70", no_wrap=True); table.add_column("Value", style="white")
-                    for key, value in rows: table.add_row(str(key), str(value))
+                    table.add_column("Field", style="grey70", no_wrap=True)
+                    table.add_column("Value", style="white")
+                    for key, value in rows:
+                        table.add_row(str(key), str(value))
                     console.print(table)
                 if data.get("formal_adapter_required"):
                     console.print(f"[grey70]Formal adapter:[/grey70] [white]{data.get('formal_adapter') or 'missing'}[/white]")
@@ -453,9 +458,11 @@ Use `fx commands` to list every backend Make target.
         values = list(args)
         action = "show"
         if values and values[0] in {"--wave", "wave", "open"}:
-            action = "wave"; values.pop(0)
+            action = "wave"
+            values.pop(0)
         elif values and values[0] in {"--files", "files"}:
-            action = "files"; values.pop(0)
+            action = "files"
+            values.pop(0)
         partition = values.pop(0) if values else None
         trace_kind = values.pop(0) if values else "auto"
         if values:
@@ -488,14 +495,17 @@ Use `fx commands` to list every backend Make target.
             item = select(rows, partition)
         except ValueError as exc:
             if partition is not None:
-                error_console.print(f"[red]{exc}[/red]"); return 2
+                error_console.print(f"[red]{exc}[/red]")
+                return 2
             if as_json:
                 print(json.dumps({"pdk": pdk, "passed": passed, "total": total, "closure_pct": closure,
                                   "counterexamples": [entry.to_dict() for entry in non_pass]}, indent=2))
             else:
                 table = Table(title=f"EQY debug · {passed}/{total} PASS · {closure:.2f}%",
                               header_style="bold grey70", border_style="grey50")
-                table.add_column("Partition", style="white"); table.add_column("Status"); table.add_column("Strategy", style="grey70")
+                table.add_column("Partition", style="white")
+                table.add_column("Status")
+                table.add_column("Strategy", style="grey70")
                 max_rows = 24
                 for entry in non_pass[:max_rows]:
                     strategy = entry.failing_strategy
@@ -513,7 +523,10 @@ Use `fx commands` to list every backend Make target.
 
         strategy = item.failing_strategy
         if strategy is None:
-            error_console.print(f"[red]partition {item.partition} has no failing strategy[/red]"); return 2
+            error_console.print(
+                f"[red]partition {item.partition} has no failing strategy[/red]"
+            )
+            return 2
         if action == "files":
             files = (*strategy.traces, *strategy.logs)
             if as_json:
@@ -522,7 +535,8 @@ Use `fx commands` to list every backend Make target.
             else:
                 console.print(f"[orange1]{item.partition}[/orange1] · [white]{strategy.name}[/white]")
                 console.print(f"[grey70]directory:[/grey70] [white]{strategy.directory}[/white]")
-                for path in files: console.print(f"  [white]{path}[/white]")
+                for path in files:
+                    console.print(f"  [white]{path}[/white]")
             return 0
         if action == "wave":
             try:
@@ -530,7 +544,8 @@ Use `fx commands` to list every backend Make target.
                 viewer = settings.get("WAVE_VIEWER", "gtkwave")
                 session, _ = open_wave(trace, item.partition, viewer=viewer)
             except (FileNotFoundError, ValueError, OSError) as exc:
-                error_console.print(f"[red]{exc}[/red]"); return 2
+                error_console.print(f"[red]{exc}[/red]")
+                return 2
             if as_json:
                 print(json.dumps({"partition": item.partition, "trace": str(trace), "viewer": viewer,
                                   "session": str(session) if session else None}, indent=2))
@@ -543,7 +558,8 @@ Use `fx commands` to list every backend Make target.
         try:
             explanation = explain_counterexample(item)
         except (FileNotFoundError, ValueError, OSError) as exc:
-            error_console.print(f"[red]{exc}[/red]"); return 2
+            error_console.print(f"[red]{exc}[/red]")
+            return 2
 
         if not as_json:
             console.print(Panel.fit(
@@ -551,10 +567,13 @@ Use `fx commands` to list every backend Make target.
                 f"partition: [white]{item.partition}[/white]\nstatus: [red]{item.status}[/red] · strategy: [white]{strategy.name}[/white]",
                 title="EQY debug", border_style="orange1",
             ))
-            failure = explanation.get("failure") or {}; divergence = explanation.get("first_divergence")
+            failure = explanation.get("failure") or {}
+            divergence = explanation.get("first_divergence")
             facts = Table(title="Counterexample", header_style="bold grey70", border_style="grey50")
-            facts.add_column("Field", style="grey70"); facts.add_column("Value", style="white")
-            phase = failure.get("phase") or "unknown"; step = failure.get("step")
+            facts.add_column("Field", style="grey70")
+            facts.add_column("Value", style="white")
+            phase = failure.get("phase") or "unknown"
+            step = failure.get("step")
             facts.add_row("Proof", phase + (f" · step {step}" if step is not None else ""))
             facts.add_row("Class", str(explanation.get("classification", "unclassified")))
             decoded = describe_partition(item.partition)
@@ -582,8 +601,10 @@ Use `fx commands` to list every backend Make target.
                 )
             except (TypeError, ValueError):
                 reset_domains = None
-        try: reset_cycles = int(settings.get("EQY_RESET_CYCLES", "1"))
-        except ValueError: reset_cycles = 1
+        try:
+            reset_cycles = int(settings.get("EQY_RESET_CYCLES", "1"))
+        except ValueError:
+            reset_cycles = 1
         eqy = str(settings.get("EQY", "eqy"))
 
         if not as_json:
@@ -626,7 +647,12 @@ Use `fx commands` to list every backend Make target.
                 for stage_name in ("generic", "dffmap", "abc", "clean"):
                     stage = (synthesis_probe.get("stages") or {}).get(stage_name, {})
                     if stage.get("valid"):
-                        status = str(stage.get("status", "UNKNOWN")); color = "green" if status == "PASS" else "red" if status == "FAIL" else "orange1"
+                        status = str(stage.get("status", "UNKNOWN"))
+                        color = (
+                            "green"
+                            if status == "PASS"
+                            else "red" if status == "FAIL" else "orange1"
+                        )
                         cached = " · cached" if stage.get("cached") else ""
                         console.print(f"  [{color}]{status}[/{color}]{cached}")
 
@@ -634,15 +660,23 @@ Use `fx commands` to list every backend Make target.
                    "closure_pct": closure, "counterexample": explanation,
                    "reset_probe": reset_probe, "synthesis_probe": synthesis_probe}
         if as_json:
-            print(json.dumps(payload, indent=2)); return 0
+            print(json.dumps(payload, indent=2))
+            return 0
 
         probe = Table(title="Targeted probes", header_style="bold grey70", border_style="grey50")
-        probe.add_column("Boundary", style="white"); probe.add_column("Selected partition", style="white")
+        probe.add_column("Boundary", style="white")
+        probe.add_column("Selected partition", style="white")
         probe.add_row("mapped baseline", f"[red]{item.status}[/red]")
         if reset_probe.get("valid"):
-            rs = str(reset_probe.get("status", "UNKNOWN")); rc = "green" if rs == "PASS" else "red" if rs == "FAIL" else "orange1"
+            rs = str(reset_probe.get("status", "UNKNOWN"))
+            rc = (
+                "green"
+                if rs == "PASS"
+                else "red" if rs == "FAIL" else "orange1"
+            )
             probe.add_row("after reset", f"[{rc}]{rs}[/{rc}]")
-        else: probe.add_row("after reset", "[orange1]inconclusive[/orange1]")
+        else:
+            probe.add_row("after reset", "[orange1]inconclusive[/orange1]")
         stages = (synthesis_probe or {}).get("stages", {}) if synthesis_probe else {}
         for key, label in (
             ("generic", "generic synthesis"),
@@ -652,9 +686,15 @@ Use `fx commands` to list every backend Make target.
         ):
             stage = stages.get(key, {}) if isinstance(stages, dict) else {}
             if stage.get("valid"):
-                ss = str(stage.get("status", "UNKNOWN")); sc = "green" if ss == "PASS" else "red" if ss == "FAIL" else "orange1"
+                ss = str(stage.get("status", "UNKNOWN"))
+                sc = (
+                    "green"
+                    if ss == "PASS"
+                    else "red" if ss == "FAIL" else "orange1"
+                )
                 probe.add_row(label, f"[{sc}]{ss}[/{sc}]")
-            elif stage.get("missing"): probe.add_row(label, "[grey70]checkpoint missing[/grey70]")
+            elif stage.get("missing"):
+                probe.add_row(label, "[grey70]checkpoint missing[/grey70]")
         console.print(probe)
 
         if reset_probe.get("status") == "PASS":

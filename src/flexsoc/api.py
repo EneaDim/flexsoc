@@ -142,6 +142,7 @@ GATE_SIM = (
 )
 PNR = (*COMMON, "PDK", "PDK_ROOT", "ORS", "ORS_TECH")
 IP_LOAD = (*COMMON, "IP_NAME")
+IP_SAVE = (*EQUIV, "IP_NAME")
 SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
 FSM = (*BASE, "FSM", "FORCE")
 TUTORIAL = ("TUTORIAL_WS", "TUTORIAL_RUN_ID", *COMMON)
@@ -267,8 +268,8 @@ TARGETS: dict[str, TargetSpec] = {
     "setup_pnr": ("Place and route", "Generate OpenROAD config", PNR),
     "pnr": ("Place and route", "Run OpenROAD place and route", PNR),
     "pnr_gui": ("Place and route", "Open OpenROAD GUI", PNR),
-    "ip_load": ("IP load/save", "Load an IP into a run workspace", IP_LOAD),
-    "ip_save": ("IP load/save", "Save authored IP sources back to hw/ips", IP_LOAD),
+    "ip_load": ("IP load/save", "Load the complete IP package into a run workspace", IP_LOAD),
+    "ip_save": ("IP load/save", "Save the current PDK EQY profile back to hw/ips", IP_SAVE),
     "soc_vendor_deps": (
         "SoC flow",
         "Fetch pinned lowRISC dependencies required by SoC simulation",
@@ -473,6 +474,7 @@ TECHNOLOGY_TARGETS = {
     "setup_signoff", "sta", "sdf", "power_estimate", "power_analysis", "power_analysis_all", "sta_violators",
     "path_view", "sta_corners", "power_estimate_corners", "signoff_corners",
     "setup_pnr", "pnr", "pnr_gui",
+    "ip_save",
     "metrics", "manifest", "manifest_show", "check",
     "clean_syn", "clean_signoff", "clean_pnr", "clean_meta",
 }
