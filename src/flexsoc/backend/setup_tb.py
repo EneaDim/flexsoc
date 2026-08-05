@@ -17,7 +17,13 @@ from typing import Any, Sequence
 
 from flexsoc.clocking import ClockConfig, clock_config
 
-from .common import ensure_dir, has_reg_pkg, parse_sv_signature, safe_write_file
+from .common import (
+    ensure_dir,
+    has_reg_pkg,
+    parse_sv_signature,
+    replace_generated_tree,
+    safe_write_file,
+)
 
 
 
@@ -1186,7 +1192,15 @@ def _sv_input_default(name: str) -> str:
     return "'1" if name.lower() in {"cio_rx_i", "uart_rx_i", "serial_rx_i"} else "'0"
 
 
-def render_sv_vec_driver(top: str, clk: str, rst: str, inputs: Sequence[str], outputs: Sequence[str]) -> str:
+def render_sv_vec_driver(
+    top: str,
+    clk: str,
+    rst: str,
+    inputs: Sequence[str],
+    outputs: Sequence[str],
+    reset_polarity: str = "low",
+    reset_domain: str = "core",
+) -> str:
     """Render generic input-vector drive tasks from data_in.vec.
 
     Supported rows:
@@ -1194,6 +1208,7 @@ def render_sv_vec_driver(top: str, clk: str, rst: str, inputs: Sequence[str], ou
       <cycle> @write <reg_or_addr> <data> [mask]
       <cycle> @cfg <path>
       <cycle> @reset <cycles>
+      <cycle> @reset <domain_or_reset> <cycles>
     """
 
     drives = ["  if (1'b0) begin\n    tb_vector_apply_count = tb_vector_apply_count;\n  end"]
@@ -1207,6 +1222,8 @@ def render_sv_vec_driver(top: str, clk: str, rst: str, inputs: Sequence[str], ou
         )
     drives_text = "\n".join(drives)
     reset_defaults = "\n".join(f"  {name} = {_sv_input_default(name)};" for name in inputs)
+    reset_asserted = "1'b1" if reset_polarity == "high" else "1'b0"
+    reset_released = "1'b0" if reset_polarity == "high" else "1'b1"
 
     return f"""// Auto-generated vector driver for {top}.
 // data_in.vec supports signal drives, @write, @cfg, and @reset.
@@ -1263,14 +1280,27 @@ task automatic tb_step(input string data_out_path, inout int now_cycle);
   tb_check_outputs(data_out_path, now_cycle);
 endtask
 
-task automatic tb_apply_reset(input int cycles, input string data_out_path, inout int now_cycle);
+task automatic tb_apply_reset(
+  input string selector,
+  input int cycles,
+  input string data_out_path,
+  inout int now_cycle
+);
   int i;
+  bit selected;
 {reset_defaults}
-  {rst} = 1'b0;
-  for (i = 0; i < cycles; i++) tb_step(data_out_path, now_cycle);
-  @(negedge {clk}); #1;
-  {rst} = 1'b1;
-  tb_vector_apply_count++;
+  selected = (selector == "" || selector == "all" || selector == "*" ||
+              selector == "{reset_domain}" || selector == "{rst}");
+  if (!selected) begin
+    error_count++;
+    $display("[TB][ERROR] unknown reset selector: %s", selector);
+  end else begin
+    {rst} = {reset_asserted};
+    for (i = 0; i < cycles; i++) tb_step(data_out_path, now_cycle);
+    @(negedge {clk}); #1;
+    {rst} = {reset_released};
+    tb_vector_apply_count++;
+  end
 endtask
 
 task automatic tb_finish_cycle(input string data_out_path, inout int now_cycle, inout bit cycle_open);
@@ -1319,6 +1349,7 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
   logic [31:0] reset_cycles;
   logic [32:0] parsed;
   string cycle_raw;
+  string reset_selector;
   string line;
   reg [8*4096-1:0] line_buf;
   string t0;
@@ -1378,11 +1409,19 @@ task automatic run_vectors(input string data_in_path, input string data_out_path
       tb_finish_cycle(data_out_path, now_cycle, cycle_open);
       tb_wait_before_drive(cycle, data_out_path, now_cycle);
       current_cycle = -1;
-      parsed = tb_parse_u32(t1);
+      if (code >= 4) begin
+        parsed = tb_parse_u32(t2);
+      end else begin
+        parsed = tb_parse_u32(t1);
+      end
       reset_cycles = parsed[32] ? parsed[31:0] : 32'd2;
       if (reset_cycles == 0) reset_cycles = 2;
-      $display("[TB][RESET] cycle=%0d cycles=%0d", cycle, reset_cycles);
-      tb_apply_reset(int'(reset_cycles), data_out_path, now_cycle);
+      reset_selector = code >= 4 ? t1 : "all";
+      $display(
+        "[TB][RESET] cycle=%0d selector=%s cycles=%0d",
+        cycle, reset_selector, reset_cycles
+      );
+      tb_apply_reset(reset_selector, int'(reset_cycles), data_out_path, now_cycle);
       disable tb_input_line;
     end
 
@@ -1654,11 +1693,14 @@ def _packed_vec_driver(text: str) -> str:
     text = text.replace("input string reg_key", "input tb_token_t reg_key")
     text = text.replace("input string data_raw", "input tb_token_t data_raw")
     text = text.replace("input string mask_raw", "input tb_token_t mask_raw")
+    text = text.replace("input string selector", "input tb_token_t selector")
     for name in ("t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7"):
         text = text.replace(f"  input string {name}", f"  input tb_token_t {name}")
     text = text.replace("  string line;\n", "")
     text = text.replace("  reg [8*4096-1:0] line_buf;", "  tb_line_t line_buf;")
-    for name in ("cycle_raw", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7"):
+    for name in (
+        "cycle_raw", "reset_selector", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7"
+    ):
         text = text.replace(f"  string {name};", f"  tb_token_t {name};")
     text = text.replace("    line = \"\";\n", "")
     text = text.replace("    void'($fgets(line_buf, fd));\n    line = $sformatf(\"%0s\", line_buf);",
@@ -1680,8 +1722,12 @@ def render_sv_vec_driver(
     rst: str,
     inputs: Sequence[str],
     outputs: Sequence[str],
+    reset_polarity: str = "low",
+    reset_domain: str = "core",
 ) -> str:
-    string_parser = _STRING_RENDER_SV_VEC_DRIVER(top, clk, rst, inputs, outputs)
+    string_parser = _STRING_RENDER_SV_VEC_DRIVER(
+        top, clk, rst, inputs, outputs, reset_polarity, reset_domain
+    )
     return _sv_parser_variants(string_parser, _packed_vec_driver(string_parser))
 
 def _simple_datapath_ports(sig: dict[str, Any]) -> tuple[list[str], list[str]]:
@@ -1718,6 +1764,8 @@ def write_sv_verification_helpers(
     hjson_path: Path | None = None,
     bus_active: bool,
     force: bool,
+    reset_polarity: str = "low",
+    reset_domain: str = "core",
 ) -> list[Path]:
     """Write SystemVerilog driver/monitor/config helper include files."""
 
@@ -1744,14 +1792,17 @@ def write_sv_verification_helpers(
 
     if bus_active or (inputs and outputs):
         files[stale_vec_files[0]] = render_sv_vec_monitor(top, outputs)
-        files[stale_vec_files[1]] = render_sv_vec_driver(top, clk, rst, inputs, outputs)
+        files[stale_vec_files[1]] = render_sv_vec_driver(
+            top, clk, rst, inputs, outputs, reset_polarity, reset_domain
+        )
     else:
         for stale in stale_vec_files:
             if stale.exists():
                 stale.unlink()
 
     for path, text in files.items():
-        safe_write_file(path, text, overwrite=force)
+        # Verification helpers belong to the fully generated SV scaffold.
+        safe_write_file(path, text, overwrite=True)
 
     return list(files)
 
@@ -2038,11 +2089,6 @@ interface tlul_if (
 
 endinterface
 """
-
-def render_tlul_utils() -> str:
-    """Retain a harmless compatibility file for older generated workspaces."""
-
-    return "// TL-UL tasks are defined in tlul_if.sv.\n"
 
 def render_reg_interface(top: str) -> str:
     """Render a generic register request/response SystemVerilog interface."""
@@ -2584,7 +2630,7 @@ def write_bus_helpers(config: TestbenchConfig, *, reg_pkg: bool, simple_mode: bo
 
     outdir = Path(config.output)
     helpers = {
-        "tlul": (("tlul_if.sv", render_tlul_interface()), ("tlul_utils.sv", render_tlul_utils())),
+        "tlul": (("tlul_if.sv", render_tlul_interface()),),
         "reg_iface": (
             (("reg_if.sv", render_reg_interface(config.top)), ("reg_utils.sv", render_reg_utils(config.top)))
             if config.compiler == "verilator" else ()
@@ -2594,6 +2640,10 @@ def write_bus_helpers(config: TestbenchConfig, *, reg_pkg: bool, simple_mode: bo
     written: list[Path] = []
     for name, body in helpers:
         path = outdir / name
+        # Bus interfaces/helpers are machine-owned and must stay in lockstep
+        # with the generated register/vector drivers.  Preserving an older
+        # tlul_if.sv while regenerating drivers can leave the drivers calling
+        # tasks that the saved interface does not provide.
         safe_write_file(path, body, overwrite=True)
         written.append(path)
     return written
@@ -2629,10 +2679,13 @@ def _with_canonical_sv_output(config: TestbenchConfig) -> TestbenchConfig:
     return replace(config, output=sv_output)
 # END FLEXSOC CANONICAL SV OUTPUT
 
-def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
+def _generate_testbench_files(
+    config: TestbenchConfig, clocks: ClockConfig | None = None
+) -> tuple[Path, ...]:
     """Generate include, helper, and top-level testbench files for one request."""
 
     config = _with_canonical_sv_output(config)
+    clocks = clocks or clock_config()
     outdir = Path(config.output)
     ensure_dir(outdir)
 
@@ -2642,6 +2695,11 @@ def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
     written: list[Path] = []
     hjson_path = _candidate_hjson_path(config.rtldir, config.top)
     # setup_model owns config.regs/data_in.vec/data_out.vec generation.
+    primary_reset = (sig.get("rsts") or ["rst_ni"])[0]
+    reset_domain = next(
+        (domain for domain in clocks.domains if domain.reset == primary_reset),
+        clocks.domains[0],
+    )
     written.extend(
         write_sv_verification_helpers(
             outdir,
@@ -2651,6 +2709,8 @@ def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
             hjson_path=hjson_path,
             bus_active=(not simple_mode and (config.interface == "tlul" or config.compiler == "verilator")),
             force=True,
+            reset_polarity=reset_domain.reset_polarity,
+            reset_domain=reset_domain.name,
         )
     )
 
@@ -2665,7 +2725,7 @@ def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
             config.vsv,
         )
         include_path = outdir / f"include_{config.top}_tb.sv"
-        safe_write_file(include_path, include, overwrite=config.force)
+        safe_write_file(include_path, include, overwrite=True)
         written.append(include_path)
 
     written.extend(write_bus_helpers(config, reg_pkg=reg_pkg, simple_mode=simple_mode))
@@ -2693,9 +2753,21 @@ def generate_testbench_files(config: TestbenchConfig) -> tuple[Path, ...]:
         )
     )
     tb_path = outdir / f"{config.top}_tb.sv"
-    safe_write_file(tb_path, body, overwrite=config.force)
+    safe_write_file(tb_path, body, overwrite=True)
     written.append(tb_path)
     return tuple(written)
+
+
+def generate_testbench_files(
+    config: TestbenchConfig, clocks: ClockConfig | None = None
+) -> tuple[Path, ...]:
+    """Recreate the complete machine-owned SystemVerilog scaffold."""
+
+    canonical = _with_canonical_sv_output(config)
+    with replace_generated_tree(canonical.output):
+        written = _generate_testbench_files(canonical, clocks)
+        _normalize_generated_sv_layout(canonical)
+        return written
 
 
 def parse_args(argv=None):
@@ -2935,7 +3007,8 @@ def _patch_tb_driver_includes(config: TestbenchConfig) -> None:
     if not tb_path.exists():
         return
 
-    text = _remove_inline_run_vectors(_read_text(tb_path))
+    original = _read_text(tb_path)
+    text = _remove_inline_run_vectors(original)
     driver_lines = [
         f'  `include "drivers/{top}_reg_driver.svh"',
         f'  `include "drivers/{top}_vec_monitor.svh"',
@@ -2967,7 +3040,8 @@ def _patch_tb_driver_includes(config: TestbenchConfig) -> None:
         text = text.replace(marker, marker + "\n" + include_block, 1)
     else:
         text = text.replace("\n  // DUT", "\n  // Verification helpers\n" + include_block + "\n\n  // DUT", 1)
-    _write_text(tb_path, text)
+    if text != original:
+        _write_text(tb_path, text)
 
 
 def _validate_sv_driver_layout(config: TestbenchConfig) -> None:
@@ -3023,12 +3097,30 @@ def sv_driver_text(top: str, clocks: ClockConfig) -> str:
 
     resets = {domain.reset: domain.reset_polarity for domain in clocks.domains}
     assert_reset = "\n".join(
-        f"    {name} = 1'b{1 if polarity == 'high' else 0};"
+        f"        {name} = 1'b{1 if polarity == 'high' else 0};"
         for name, polarity in resets.items()
     )
     release_reset = "\n".join(
-        f"    {name} = 1'b{0 if polarity == 'high' else 1};"
+        f"        {name} = 1'b{0 if polarity == 'high' else 1};"
         for name, polarity in resets.items()
+    )
+    wait_all = "\n".join(
+        f"          begin repeat (cycles) @(posedge {domain.signal}); @(negedge {domain.signal}); end"
+        for domain in clocks.domains
+    )
+    named_reset = "\n".join(
+        dedent(
+            f"""\
+            else if (selector == "{domain.name}" || selector == "{domain.reset}") begin
+              {domain.reset} = 1'b{1 if domain.reset_polarity == 'high' else 0};
+              repeat (cycles) @(posedge {domain.signal});
+              @(negedge {domain.signal});
+              {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};
+              matched = 1'b1;
+            end
+            """
+        ).rstrip()
+        for domain in clocks.domains
     )
     primary = clocks.domains[0].signal
     text = dedent("""\
@@ -3044,10 +3136,22 @@ def sv_driver_text(top: str, clocks: ClockConfig) -> str:
         test_en_i = 1'b1;
       endtask
 
-      task automatic reset_dut(input integer cycles);
+      task automatic reset_dut(input string selector, input integer cycles);
+        bit matched;
+        matched = 1'b0;
+        if (selector == "" || selector == "all" || selector == "*") begin
 __ASSERT_RESET__
-        repeat (cycles) @(posedge __PRIMARY_CLOCK__);
+          fork
+__WAIT_ALL_RESETS__
+          join
 __RELEASE_RESET__
+          matched = 1'b1;
+        end
+__NAMED_RESET_BRANCHES__
+        if (!matched) begin
+          $display("[TB][ERROR] unknown reset selector: %s", selector);
+          errors++;
+        end
         apply_defaults();
         repeat (8) @(posedge __PRIMARY_CLOCK__);
       endtask
@@ -3193,7 +3297,9 @@ __RELEASE_RESET__
       endtask
     """)
     return (text.replace("__ASSERT_RESET__", assert_reset)
+                .replace("__WAIT_ALL_RESETS__", wait_all)
                 .replace("__RELEASE_RESET__", release_reset)
+                .replace("__NAMED_RESET_BRANCHES__", named_reset)
                 .replace("__PRIMARY_CLOCK__", primary))
 
 def sv_vec_driver_text(top: str) -> str:
@@ -3229,6 +3335,7 @@ def sv_vec_driver_text(top: str) -> str:
         integer cycles;
         string token;
         string reg_name;
+        string reset_selector;
         logic [31:0] value;
         logic [31:0] mask;
         string line;
@@ -3270,8 +3377,17 @@ def sv_vec_driver_text(top: str) -> str:
               expect_reg(reg_name, value, mask);
             end
           end else if (token == "@reset" || token == "reset") begin
-            code = $sscanf(line, "%d %s %d", step, token, cycles);
-            if (code == 3) reset_dut(cycles);
+            reset_selector = "all";
+            code = $sscanf(line, "%d %s %s %d", step, token, reset_selector, cycles);
+            if (code == 3) begin
+              code = $sscanf(line, "%d %s %d", step, token, cycles);
+              reset_selector = "all";
+            end
+            if (code == 3 || code == 4) reset_dut(reset_selector, cycles);
+            else begin
+              $display("[TB][ERROR] @reset format: cycle @reset [domain|reset] cycles");
+              errors++;
+            end
           end else begin
             code = $sscanf(line, "%d %s %h", step, token, value);
             if (code != 3) disable tb_nclk_input_line;
@@ -3631,9 +3747,10 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
 
 
 
-def generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, force: bool) -> None:
+def _generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, force: bool) -> None:
     """Write the generated N-clock SV testbench and split drivers."""
 
+    del force
     drivers = output / "drivers"
     drivers.mkdir(parents=True, exist_ok=True)
     files = {
@@ -3644,7 +3761,16 @@ def generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, fo
         output / f"{top}_tb.sv": sv_tb_text(top, f"{top}_tb", clocks),
     }
     for path, text in files.items():
-        safe_write_file(path, text, overwrite=force)
+        safe_write_file(path, text, overwrite=True)
+
+
+def generate_nclock_testbench(
+    top: str, output: Path, clocks: ClockConfig, *, force: bool
+) -> None:
+    """Recreate the complete machine-owned N-clock SystemVerilog scaffold."""
+
+    with replace_generated_tree(output):
+        _generate_nclock_testbench(top, output, clocks, force=force)
 
 
 def main(argv=None) -> int:
@@ -3655,8 +3781,7 @@ def main(argv=None) -> int:
     if clocks.multiclock:
         generate_nclock_testbench(config.top, Path(config.output), clocks, force=config.force)
     else:
-        generate_testbench_files(config)
-        _normalize_generated_sv_layout(config)
+        generate_testbench_files(config, clocks)
     return 0
 
 

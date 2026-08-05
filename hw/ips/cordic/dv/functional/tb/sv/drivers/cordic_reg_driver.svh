@@ -169,7 +169,7 @@ task automatic tb_reg_write_addr(
   input logic [31:0] data,
   input logic [31:0] mask
 );
-  tl_utils_inst.tlul_write(addr[top_pkg::TL_AW-1:0], data, 4'h0, mask[top_pkg::TL_DBW-1:0]);
+  tl_if.tlul_write(addr[31:0], data, 8'h00, mask[3:0]);
   @(posedge clk_i);
 endtask
 
@@ -177,7 +177,7 @@ task automatic tb_reg_read_addr(
   input logic [31:0] addr,
   output logic [31:0] data
 );
-  tl_utils_inst.tlul_read(addr[top_pkg::TL_AW-1:0], data, '0);
+  tl_if.tlul_read(addr[31:0], data, 8'h00);
   @(posedge clk_i);
 endtask
 

@@ -10,14 +10,11 @@ module cordic_tb;
   // Inputs
   logic clk_i;
   logic rst_ni;
-  tlul_pkg::tl_h2d_t tl_i;
 
   // Outputs
-  tlul_pkg::tl_d2h_t tl_o;
 
   integer error_count;
-  logic [cordic_reg_pkg::DW-1:0] rdata;
-  tlul_utils tl_utils_inst;
+  logic [31:0] rdata;
   tlul_if tl_if(.clk_i(clk_i), .rst_ni(rst_ni));
 
   // Verification helpers
@@ -103,12 +100,11 @@ module cordic_tb;
     error_count = 0;
     tb_select_test(cfg_path, data_in_path, data_out_path);
     rst_ni = '0;
-    tl_i = '0;
+    tl_if.init();
     #(CLK_PERIOD);
     rst_ni = 1'b1;
     #(CLK_PERIOD);
     $display("\nRunning...\n");
-    tl_utils_inst = new(tl_if);
     #(CLK_PERIOD*10);
     run_reg_config(cfg_path);
     run_vectors(data_in_path, data_out_path);

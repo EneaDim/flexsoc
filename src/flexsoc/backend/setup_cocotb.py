@@ -15,6 +15,7 @@ from typing import Sequence
 
 from flexsoc.clocking import ClockConfig, clock_config
 
+from .common import replace_generated_tree
 from .setup_tb import _candidate_hjson_path, _register_entries, render_packed_tlul_helpers
 
 
@@ -873,10 +874,11 @@ def render_vec_driver_py() -> str:
 
     return r"""from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
-from cocotb.triggers import FallingEdge, RisingEdge, Timer
+from cocotb.triggers import Combine, FallingEdge, RisingEdge, Timer
 
 from drivers.reg_driver import WRITE_TOKENS, parse_u32
 
@@ -925,9 +927,16 @@ def load_vectors(path=None):
             continue
 
         if command in RESET_TOKENS:
-            if len(parts) != 3:
-                raise ValueError(f"{path}:{lineno}: @reset format is: cycle @reset cycles")
-            rows.append((cycle, [("@reset", parse_u32(parts[2]))]))
+            if len(parts) == 3:
+                selector, cycles = "all", parts[2]
+            elif len(parts) == 4:
+                selector, cycles = parts[2], parts[3]
+            else:
+                raise ValueError(
+                    f"{path}:{lineno}: @reset format is: "
+                    "cycle @reset [domain|reset] cycles"
+                )
+            rows.append((cycle, [("@reset", selector, parse_u32(cycles))]))
             continue
 
         if (len(parts) - 1) % 2 != 0:
@@ -976,6 +985,45 @@ async def _advance(clk, count=1):
         await RisingEdge(clk)
 
 
+def _configured_reset_domains():
+    raw = os.environ.get("CLOCK_DOMAINS", "").strip()
+    domains = []
+    for item in raw.replace(";", ",").split(","):
+        parts = [part.strip() for part in item.split(":") if part.strip()]
+        if len(parts) in {4, 5}:
+            domain, clock, reset = parts[:3]
+            polarity = parts[4].lower() if len(parts) == 5 else "low"
+            domains.append((domain, clock, reset, polarity))
+    return tuple(domains or (("core", "clk_i", "rst_ni", "low"),))
+
+
+def _selected_reset_domains(selector):
+    clean = str(selector or "all")
+    domains = _configured_reset_domains()
+    if clean in {"all", "*"}:
+        return domains
+    selected = tuple(item for item in domains if clean in {item[0], item[2]})
+    if not selected:
+        raise AssertionError(f"unknown reset selector: {clean}")
+    return selected
+
+
+async def _default_reset_runner(dut, selector, cycles):
+    selected = _selected_reset_domains(selector)
+    for name in ("cio_rx_i", "uart_rx_i", "serial_rx_i"):
+        if hasattr(dut, name):
+            getattr(dut, name).value = 1
+    for _, _, reset, polarity in selected:
+        if not hasattr(dut, reset):
+            raise AssertionError(f"reset signal not found on DUT: {reset}")
+        getattr(dut, reset).value = int(polarity == "high")
+    for _ in range(max(1, int(cycles))):
+        await Combine(*(RisingEdge(getattr(dut, clock)) for _, clock, _, _ in selected))
+    await Combine(*(FallingEdge(getattr(dut, clock)) for _, clock, _, _ in selected))
+    for _, _, reset, polarity in selected:
+        getattr(dut, reset).value = int(polarity == "low")
+
+
 async def _drive_one(dut, name, value):
     if not hasattr(dut, name):
         raise AssertionError(f"unknown input vector signal: {name}")
@@ -1016,10 +1064,12 @@ async def drive_vectors(
         dut._log.info("vector cycle=%d", cycle)
 
         if pairs[0][0] in RESET_TOKENS:
+            _, selector, cycles = pairs[0]
+            cycles = max(1, int(cycles))
             if reset_runner is None:
-                raise AssertionError("@reset row requested but no reset_runner was provided")
-            cycles = max(1, int(pairs[0][1]))
-            await reset_runner(cycles)
+                await _default_reset_runner(dut, selector, cycles)
+            else:
+                await reset_runner(selector, cycles)
             applied += 1
             now = cycle + cycles - 1
             continue
@@ -1073,9 +1123,17 @@ async def drive_vectors(
         raise AssertionError("no vector inputs or register writes were applied")
 """
 
-def render_python_test(top: str) -> str:
-    """Render the generated cocotb test module."""
+def render_python_test(
+    top: str,
+    clk: str,
+    rst: str,
+    rst_active: str,
+    period_ns: float,
+    reset_domain: str = "core",
+) -> str:
+    """Render the generated single-clock cocotb test module."""
 
+    reset_domains = {reset_domain: (clk, rst, rst_active)}
     return f"""from __future__ import annotations
 
 import os
@@ -1083,7 +1141,7 @@ from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import FallingEdge, RisingEdge, Timer
+from cocotb.triggers import Combine, FallingEdge, RisingEdge, Timer
 
 from drivers.reg_driver import (
     init_register_bus,
@@ -1096,36 +1154,45 @@ from drivers.vec_driver import drive_vectors, load_vectors
 from drivers.vec_monitor import LatencyMonitor
 
 
-async def apply_reset(dut, cycles=5):
+RESET_DOMAINS = {reset_domains!r}
+
+
+def _selected_resets(selector):
+    clean = str(selector or "all")
+    if clean in {{"all", "*"}}:
+        return tuple(RESET_DOMAINS.values())
+    for domain, item in RESET_DOMAINS.items():
+        if clean in {{domain, item[1]}}:
+            return (item,)
+    raise AssertionError(f"unknown reset selector: {{clean}}")
+
+
+async def apply_reset(dut, selector="all", cycles=5):
+    selected = _selected_resets(selector)
     for name in ("cio_rx_i", "uart_rx_i", "serial_rx_i"):
         if hasattr(dut, name):
             getattr(dut, name).value = 1
-    if hasattr(dut, "rst_ni"):
-        dut.rst_ni.value = 1
-    for _ in range(2):
-        await RisingEdge(dut.clk_i)
-    await FallingEdge(dut.clk_i)
-    if hasattr(dut, "rst_ni"):
-        dut.rst_ni.value = 0
+    for _, reset, polarity in selected:
+        getattr(dut, reset).value = int(polarity == "high")
     for _ in range(max(1, int(cycles))):
-        await RisingEdge(dut.clk_i)
-    await FallingEdge(dut.clk_i)
-    if hasattr(dut, "rst_ni"):
-        dut.rst_ni.value = 1
-    for _ in range(2):
-        await RisingEdge(dut.clk_i)
+        await Combine(*(RisingEdge(getattr(dut, clock)) for clock, _, _ in selected))
+    await Combine(*(FallingEdge(getattr(dut, clock)) for clock, _, _ in selected))
+    for _, reset, polarity in selected:
+        getattr(dut, reset).value = int(polarity == "low")
     await Timer(1, unit="ns")
 
 
 @cocotb.test()
 async def {top}_generated_test(dut):
-    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
-    if hasattr(dut, "rst_ni"):
-        dut.rst_ni.value = 1
-    await init_register_bus(dut, dut.clk_i)
+    cocotb.start_soon(Clock(dut.{clk}, {period_ns:g}, unit="ns").start())
+    for _, reset, polarity in RESET_DOMAINS.values():
+        getattr(dut, reset).value = int(polarity == "low")
+    await init_register_bus(dut, dut.{clk})
     reset_cycles = max(1, int(os.environ.get("INITIAL_RESET_CYCLES", "5")))
     dut._log.info("initial reset cycles=%d", reset_cycles)
-    await apply_reset(dut, reset_cycles)
+    await apply_reset(dut, "all", reset_cycles)
+    for _ in range(2):
+        await RisingEdge(dut.{clk})
 
     test_name = os.environ.get("TEST_NAME", "smoke")
     test_root = Path(os.environ.get("TEST_ROOT", "tests"))
@@ -1143,22 +1210,22 @@ async def {top}_generated_test(dut):
     regmap = load_register_map(cfg_path, data_in, data_out)
 
     async def apply_config(path):
-        await run_register_config(dut, path, regmap=regmap, clk=dut.clk_i)
+        await run_register_config(dut, path, regmap=regmap, clk=dut.{clk})
 
     async def do_write(reg, data, mask):
-        await write_register(dut, reg, data, mask, regmap=regmap, clk=dut.clk_i)
+        await write_register(dut, reg, data, mask, regmap=regmap, clk=dut.{clk})
 
     async def do_read(reg):
-        return await read_register(dut, reg, regmap=regmap, clk=dut.clk_i)
+        return await read_register(dut, reg, regmap=regmap, clk=dut.{clk})
 
-    async def do_reset(cycles):
-        await apply_reset(dut, cycles)
+    async def do_reset(selector, cycles):
+        await apply_reset(dut, selector, cycles)
 
     await apply_config(cfg_path)
 
     await drive_vectors(
         dut,
-        dut.clk_i,
+        dut.{clk},
         load_vectors(data_in),
         LatencyMonitor(dut, data_out, register_reader=do_read),
         config_runner=apply_config,
@@ -1257,9 +1324,12 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
         """
     )
 
-def _write_cocotb_scaffold_impl(cfg: CocotbConfig) -> list[Path]:
+def _write_cocotb_scaffold_impl(
+    cfg: CocotbConfig, clocks: ClockConfig | None = None
+) -> list[Path]:
     """Write the cocotb scaffold and return generated paths."""
 
+    clocks = clocks or clock_config()
     out_dir = cfg.output.resolve()
     drivers = out_dir / "drivers"
     drivers.mkdir(parents=True, exist_ok=True)
@@ -1271,7 +1341,13 @@ def _write_cocotb_scaffold_impl(cfg: CocotbConfig) -> list[Path]:
         drivers / "reg_driver.py": render_reg_driver_py(registers),
         drivers / "vec_driver.py": render_vec_driver_py(),
         drivers / "vec_monitor.py": render_vec_monitor_py(),
-        out_dir / f"{cfg.top}_tb.py": render_python_test(cfg.top),
+        out_dir / f"{cfg.top}_tb.py": render_python_test(
+            cfg.top, cfg.clk, cfg.rst, cfg.rst_active, cfg.period_ns,
+            next(
+                (domain.name for domain in clocks.domains if domain.reset == cfg.rst),
+                clocks.domains[0].name,
+            ),
+        ),
         out_dir / f"{cfg.top}_tb.sv": render_tlul_wrapper(cfg),
     }
     for stale in (
@@ -1310,15 +1386,18 @@ def _format_generated_tlul_wrapper(config: CocotbConfig) -> None:
         return
     path.write_text(_render_tlul_wrapper(config, text), encoding="utf-8")
 
-def write_cocotb_scaffold(config: CocotbConfig) -> list[Path]:
-    """Generate Cocotb scaffolding and normalize the generated TL-UL wrapper."""
+def write_cocotb_scaffold(
+    config: CocotbConfig, clocks: ClockConfig | None = None
+) -> list[Path]:
+    """Recreate the complete machine-owned cocotb scaffold."""
 
-    written = _write_cocotb_scaffold_impl(config)
-    if config.interface == "tlul":
-        _format_generated_tlul_wrapper(config)
-    if written is None:
-        return sorted(path for path in Path(config.output).iterdir() if path.is_file())
-    return written
+    with replace_generated_tree(config.output):
+        written = _write_cocotb_scaffold_impl(config, clocks)
+        if config.interface == "tlul":
+            _format_generated_tlul_wrapper(config)
+        if written is None:
+            return sorted(path for path in Path(config.output).iterdir() if path.is_file())
+        return written
 def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
     """Render the package-free N-clock cocotb wrapper with two TL-UL proxies."""
 
@@ -1496,7 +1575,10 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
     """Render TL-UL helpers bound to the canonical clock/reset domains."""
 
     clock_map = {domain.name: domain.signal for domain in clocks.domains}
-    reset_map = {domain.reset: domain.reset_polarity for domain in clocks.domains}
+    reset_map = {
+        domain.name: (domain.signal, domain.reset, domain.reset_polarity)
+        for domain in clocks.domains
+    }
     primary = clocks.domains[0].signal
     settle = clocks.domains[-1].signal
     text = dedent("""\
@@ -1504,11 +1586,11 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
 
     from pathlib import Path
 
-    from cocotb.triggers import FallingEdge, RisingEdge
+    from cocotb.triggers import Combine, FallingEdge, RisingEdge
 
 
     CLOCKS = __CLOCK_MAP__
-    RESETS = __RESET_MAP__
+    RESET_DOMAINS = __RESET_MAP__
     PRIMARY_CLOCK = __PRIMARY_CLOCK__
     SETTLE_CLOCK = __SETTLE_CLOCK__
 
@@ -1556,25 +1638,36 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
         dut.test_en_i.value = 1
 
 
-    async def reset(dut, cycles: int = 5):
-        "Apply a real deassert-assert-deassert pulse to every configured reset."
-        set_defaults(dut)
-        primary = getattr(dut, PRIMARY_CLOCK)
-        for signal, polarity in RESETS.items():
-            getattr(dut, signal).value = int(polarity == "low")
-        for _ in range(2):
-            await RisingEdge(primary)
-        await FallingEdge(primary)
-        for signal, polarity in RESETS.items():
-            getattr(dut, signal).value = int(polarity == "high")
+    def _selected_resets(selector: str):
+        "Resolve all, a domain name, or a reset signal name."
+        clean = str(selector or "all")
+        if clean in {"all", "*"}:
+            return tuple(RESET_DOMAINS.values())
+        for domain, item in RESET_DOMAINS.items():
+            if clean in {domain, item[1]}:
+                return (item,)
+        raise AssertionError(f"unknown reset selector: {clean}")
+
+
+    async def _wait_reset_cycles(dut, selected, cycles: int):
+        "Wait the requested number of edges in every selected reset domain."
         for _ in range(max(1, int(cycles))):
-            await RisingEdge(primary)
-        await FallingEdge(primary)
-        for signal, polarity in RESETS.items():
+            await Combine(*(RisingEdge(getattr(dut, clock)) for clock, _, _ in selected))
+
+
+    async def reset(dut, selector: str = "all", cycles: int = 5):
+        "Apply the same named reset pulse semantics used by the SV backend."
+        selected = _selected_resets(selector)
+        set_defaults(dut)
+        for _, signal, polarity in selected:
+            getattr(dut, signal).value = int(polarity == "high")
+        await _wait_reset_cycles(dut, selected, cycles)
+        await Combine(*(FallingEdge(getattr(dut, clock)) for clock, _, _ in selected))
+        for _, signal, polarity in selected:
             getattr(dut, signal).value = int(polarity == "low")
         set_defaults(dut)
         for _ in range(8):
-            await RisingEdge(primary)
+            await RisingEdge(getattr(dut, PRIMARY_CLOCK))
 
 
     async def _wait_high(dut, signal: str, clk, limit: int = 256):
@@ -1733,8 +1826,16 @@ def cocotb_vec_driver_py_text(top: str) -> str:
                 mask = int(parts[4], 0) if len(parts) >= 5 else 0xFFFFFFFF
                 await expect_reg(dut, parts[2], int(parts[3], 0), mask)
                 continue
-            if token in {"@reset", "reset"} and len(parts) >= 3:
-                await reset(dut, int(parts[2], 0))
+            if token in {"@reset", "reset"}:
+                if len(parts) == 3:
+                    selector, cycles = "all", parts[2]
+                elif len(parts) == 4:
+                    selector, cycles = parts[2], parts[3]
+                else:
+                    raise AssertionError(
+                        "@reset format: cycle @reset [domain|reset] cycles"
+                    )
+                await reset(dut, selector, int(cycles, 0))
                 continue
             if len(parts) < 3:
                 continue
@@ -1823,7 +1924,7 @@ def cocotb_py_text(top: str, clocks: ClockConfig) -> str:
         """Run one generated vector test selected by TEST_NAME."""
     __CLOCK_STARTS__
         set_defaults(dut)
-        await reset(dut)
+        await reset(dut, "all")
 
         test_name = os.environ.get("TEST_NAME", "smoke")
         cfg = os.environ.get("CFG", f"../tests/{{test_name}}/config.regs")
@@ -1843,8 +1944,8 @@ def cocotb_py_text(top: str, clocks: ClockConfig) -> str:
 # ---------------------------------------------------------------------------
 
 
-def write_nclock_cocotb(cfg: CocotbConfig, clocks: ClockConfig) -> list[Path]:
-    """Write the generated N-clock cocotb scaffold."""
+def _write_nclock_cocotb_tree(cfg: CocotbConfig, clocks: ClockConfig) -> list[Path]:
+    """Write the generated N-clock cocotb scaffold into an empty tree."""
 
     out, drivers = cfg.output, cfg.output / "drivers"
     files = {
@@ -1858,9 +1959,15 @@ def write_nclock_cocotb(cfg: CocotbConfig, clocks: ClockConfig) -> list[Path]:
     }
     for path, text in files.items():
         path.parent.mkdir(parents=True, exist_ok=True)
-        if cfg.force or not path.exists() or path.name == "__init__.py":
-            path.write_text(text.rstrip() + "\n", encoding="utf-8")
+        path.write_text(text.rstrip() + "\n", encoding="utf-8")
     return list(files)
+
+
+def write_nclock_cocotb(cfg: CocotbConfig, clocks: ClockConfig) -> list[Path]:
+    """Recreate the complete machine-owned N-clock cocotb scaffold."""
+
+    with replace_generated_tree(cfg.output):
+        return _write_nclock_cocotb_tree(cfg, clocks)
 
 
 def main() -> None:
@@ -1878,7 +1985,7 @@ def main() -> None:
     if clocks.multiclock:
         write_nclock_cocotb(cfg, clocks)
     else:
-        write_cocotb_scaffold(cfg)
+        write_cocotb_scaffold(cfg, clocks)
 
 
 if __name__ == "__main__":

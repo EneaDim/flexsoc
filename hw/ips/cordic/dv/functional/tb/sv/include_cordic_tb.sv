@@ -5,7 +5,6 @@
   `include "prim_secded_pkg.sv"
   `include "cordic_reg_pkg.sv"
   `include "tlul_pkg.sv"
-  `include "tlul_utils.sv"
   `include "tlul_if.sv"
   `include "cordic.sv"
 `else

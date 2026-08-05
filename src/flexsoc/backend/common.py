@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -39,6 +41,41 @@ def safe_write_file(
     if p.exists() and not overwrite:
         raise FileExistsError(str(p))
     p.write_text(content, encoding="utf-8")
+
+
+@contextmanager
+def replace_generated_tree(path: str | os.PathLike[str]):
+    """Replace one generated directory atomically, restoring it on failure.
+
+    Setup commands own the complete tree they generate.  Moving the previous
+    tree aside before writing prevents stale files from mixing with a new
+    scaffold while still preserving the old tree if generation raises.
+    """
+
+    tree = Path(path)
+    backup = tree.with_name(f".{tree.name}.flexsoc-backup")
+    if backup.exists():
+        raise RuntimeError(
+            f"stale generated-tree backup exists: {backup}; "
+            "remove or restore it before retrying"
+        )
+
+    tree.parent.mkdir(parents=True, exist_ok=True)
+    had_tree = tree.exists()
+    if had_tree:
+        tree.rename(backup)
+    tree.mkdir(parents=True, exist_ok=False)
+
+    try:
+        yield tree
+    except BaseException:
+        shutil.rmtree(tree, ignore_errors=True)
+        if had_tree:
+            backup.rename(tree)
+        raise
+    else:
+        if had_tree:
+            shutil.rmtree(backup)
 
 
 def _strip_line_comment(line: str) -> str:
