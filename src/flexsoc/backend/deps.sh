@@ -38,7 +38,7 @@ Options:
 
 Profiles:
   base    DV, synthesis, formal, STA and waveform/debug tooling
-  impl    Physical implementation tooling (reserved until pinned)
+  impl    Physical implementation tooling provided by the Docker image
   riscv   RISC-V GNU toolchain (reserved until pinned)
 
 Bootstrap:
@@ -119,7 +119,7 @@ BASE_LIB_PACKAGES=(
 profile_ready() {
     case "$PROFILE" in
         base) return 0 ;;
-        impl) die "impl profile is reserved until OpenROAD/KLayout revisions are pinned" ;;
+        impl) die "impl profile is provided by the FlexSoC Docker image" ;;
         riscv) die "riscv profile is reserved until the RISC-V GNU toolchain revision is pinned" ;;
     esac
 }
@@ -437,7 +437,16 @@ contains() { [[ "$1" == *"$2"* ]] || die "$3 version mismatch: $1"; }
 first_line() { sed -n '/./{p;q;}' <<<"$1"; }
 
 doctor() {
-    paths; profile_ready; export PATH="$PREFIX/bin:$PATH"
+    paths
+    # Container images may layer additional pinned tools on top of an existing
+    # base checkpoint. In that case, validate the exact active stable prefix
+    # instead of deriving a new directory name from the extended lock file.
+    if [[ -n ${FLEXSOC_TOOLCHAIN:-} ]]; then
+        PREFIX=$(readlink -f "$FLEXSOC_TOOLCHAIN")
+        [[ -d "$PREFIX" ]] || die "FLEXSOC_TOOLCHAIN is not a directory: $PREFIX"
+        MARKERS="$PREFIX/.flexsoc"
+    fi
+    profile_ready; export PATH="$PREFIX/bin:$PATH"
     export LD_LIBRARY_PATH="$PREFIX/lib:$PREFIX/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     local out tool linkage
     for tool in $(profile_tools); do
@@ -562,8 +571,9 @@ versions() {
         printf '    %-12s %-14s %s\n' "${key,,}" "$(version_var "$key")" "$(source_id "$key")"
     done
     printf '    %-12s %-14s %s\n' boost-build "$(version_var BOOST)" "$(source_id BOOST)"
-    printf '  [impl]  %-12s %-24s %s\n' openroad "${OPENROAD_VERSION:-unlocked}" "${OPENROAD_REF_PREFIX:-external}"
-    echo '          KLayout/physical implementation installer not locked yet'
+    printf '  [impl]  %-12s %-24s %s\n' openroad "${OPENROAD_INSTALL_MODE:-unlocked}" "${OPENROAD_REF_PREFIX:-unlocked}"
+    printf '          %-12s %-24s %s\n' orfs scripts-only "${ORFS_REF_PREFIX:-unlocked}"
+    printf '          %-12s %-24s %s\n' klayout "${KLAYOUT_VERSION:-unlocked}" "${KLAYOUT_MD5:-unlocked}"
     echo '  [riscv] not locked yet: RISC-V GNU toolchain'
 }
 

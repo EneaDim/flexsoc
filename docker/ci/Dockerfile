@@ -1,10 +1,62 @@
 # syntax=docker/dockerfile:1.7
 
-# Stable ORFS bundle used only as a source for the matched OpenROAD binary and
-# flow files. The final FlexSoC image remains Ubuntu 24.04 and keeps its own
-# pinned Yosys; the ORFS image's Yosys is never copied.
-ARG ORFS_IMAGE=docker.io/openroad/orfs@sha256:92df0ca02e0b1174f3a34b9141160a7f95fd6d5c1a9a1e67d0961a08f256f4ff
-FROM ${ORFS_IMAGE} AS orfs-upstream
+# Build the ORFS-matched OpenROAD revision on the same Ubuntu 24.04 base used
+# by the final FlexSoC image. Only the OpenROAD submodule is initialized; the
+# ORFS Yosys submodule is never downloaded or built.
+FROM ubuntu:24.04 AS implementation-builder
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG FLEXSOC_JOBS=2
+
+COPY src/flexsoc/backend/toolchain.lock /tmp/toolchain.lock
+
+RUN --mount=type=cache,id=flexsoc-impl-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=flexsoc-impl-apt-lists,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates git
+
+WORKDIR /src
+
+RUN set -eux; \
+    . /tmp/toolchain.lock; \
+    git clone --filter=blob:none --no-checkout "$ORFS_REPO" /src/orfs; \
+    matches="$(git -C /src/orfs rev-list --all | grep "^${ORFS_REF_PREFIX}")"; \
+    test "$(printf '%s\n' "$matches" | grep -c .)" -eq 1; \
+    orfs_ref="$matches"; \
+    git -C /src/orfs checkout --detach "$orfs_ref"; \
+    openroad_ref="$(git -C /src/orfs ls-tree HEAD tools/OpenROAD | awk '{print $3}')"; \
+    test -n "$openroad_ref"; \
+    case "$openroad_ref" in "$OPENROAD_REF_PREFIX"*) ;; *) exit 2 ;; esac; \
+    git -C /src/orfs submodule update --init --recursive --depth=1 tools/OpenROAD \
+      || git -C /src/orfs submodule update --init --recursive tools/OpenROAD; \
+    test "$(git -C /src/orfs/tools/OpenROAD rev-parse HEAD)" = "$openroad_ref"; \
+    printf '%s\n' "$orfs_ref" > /src/orfs.ref; \
+    printf '%s\n' "$openroad_ref" > /src/openroad.ref; \
+    test -f /src/orfs/flow/Makefile
+
+RUN --mount=type=cache,id=flexsoc-impl-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=flexsoc-impl-apt-lists,target=/var/lib/apt/lists,sharing=locked \
+    cd /src/orfs/tools/OpenROAD \
+ && ./etc/DependencyInstaller.sh -base -threads="$FLEXSOC_JOBS"
+
+RUN cd /src/orfs/tools/OpenROAD \
+ && ./etc/DependencyInstaller.sh \
+      -common \
+      -prefix=/opt/openroad-deps \
+      -threads="$FLEXSOC_JOBS" \
+      -save-deps-prefixes=/tmp/openroad_deps_prefixes.txt
+
+RUN cd /src/orfs/tools/OpenROAD \
+ && ./etc/Build.sh \
+      -no-gui \
+      -no-tests \
+      -threads="$FLEXSOC_JOBS" \
+      -dir=/tmp/openroad-build \
+      -prefix=/opt/openroad-install \
+      -deps-prefixes-file=/tmp/openroad_deps_prefixes.txt \
+      -cmake='-DLINK_TIME_OPTIMIZATION=OFF' \
+ && cmake --install /tmp/openroad-build --strip \
+ && /opt/openroad-install/bin/openroad -version
 
 FROM ubuntu:24.04 AS toolchain-prereqs
 
@@ -51,52 +103,51 @@ RUN toolchain_id="$(cat /opt/flexsoc-toolchain.id)" \
 FROM toolchain-installed AS implementation-installed
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ORFS_IMAGE
-ARG KLAYOUT_VERSION=0.28.16-0ubuntu0.24.04.1
 
-# KLayout is supplied by Ubuntu 24.04. OpenROAD and ORFS are copied from one
-# pinned official ORFS image so their revisions stay paired. OpenROAD's runtime
-# libraries are isolated under the FlexSoC prefix and embedded through RPATH;
-# no global LD_LIBRARY_PATH changes are needed for the rest of the toolchain.
+COPY src/flexsoc/backend/toolchain.lock /tmp/implementation-toolchain.lock
+
+# KLayout and the ORFS Python/runtime utilities are installed on Ubuntu 24.04.
+# OpenROAD and its non-system shared libraries are copied from the Ubuntu 24.04
+# builder stage into the existing versioned FlexSoC toolchain prefix.
 RUN --mount=type=cache,id=flexsoc-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=flexsoc-apt-lists,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update \
- && apt-get install -y --no-install-recommends \
-      bc file jq "klayout=$KLAYOUT_VERSION" patchelf rsync time \
- && rm -rf /var/lib/apt/lists/*
+    set -eux; \
+    . /tmp/implementation-toolchain.lock; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      bc ca-certificates curl file jq patchelf rsync ruby time \
+      python3-click python3-numpy python3-pandas python3-yaml python3-yamlfix; \
+    curl --fail --location --retry 3 "$KLAYOUT_URL" -o /tmp/klayout.deb; \
+    printf '%s  %s\n' "$KLAYOUT_MD5" /tmp/klayout.deb | md5sum --check --strict; \
+    apt-get install -y --no-install-recommends /tmp/klayout.deb; \
+    rm -f /tmp/klayout.deb; \
+    rm -rf /var/lib/apt/lists/*
 
-RUN --mount=from=orfs-upstream,source=/,target=/mnt/orfs,ro \
+RUN --mount=from=implementation-builder,source=/,target=/mnt/implementation,ro \
     set -eux; \
     prefix="$(readlink -f /opt/flexsoc/toolchain)"; \
-    upstream_root=/mnt/orfs/OpenROAD-flow-scripts/tools/install/OpenROAD; \
-    upstream_bin="$upstream_root/bin/openroad"; \
     private_lib="$prefix/lib/openroad"; \
     orfs_root="$prefix/share/orfs"; \
-    test -x "$upstream_bin"; \
-    test -f /mnt/orfs/OpenROAD-flow-scripts/flow/Makefile; \
     install -d "$prefix/bin" "$private_lib" "$orfs_root" "$prefix/.flexsoc"; \
-    install -m 0755 "$upstream_bin" "$prefix/bin/openroad"; \
-    if test -d "$upstream_root/share/openroad"; then \
-      rm -rf "$prefix/share/openroad"; \
-      cp -a "$upstream_root/share/openroad" "$prefix/share/"; \
-    fi; \
-    cp -a /mnt/orfs/OpenROAD-flow-scripts/flow "$orfs_root/"; \
-    rm -rf "$orfs_root/flow/designs" "$orfs_root/flow/test" "$orfs_root/flow/tutorials"; \
+    cp -a /mnt/implementation/opt/openroad-install/. "$prefix/"; \
+    cp -a /mnt/implementation/src/orfs/flow "$orfs_root/"; \
+    install -m 0644 /mnt/implementation/src/orfs.ref "$prefix/.flexsoc/orfs.ref"; \
+    install -m 0644 /mnt/implementation/src/openroad.ref "$prefix/.flexsoc/openroad.ref"; \
     pass=1; \
     while :; do \
-      LD_LIBRARY_PATH="$private_lib" ldd "$prefix/bin/openroad" > /tmp/openroad.ldd; \
+      LD_LIBRARY_PATH="$private_lib:$prefix/lib:$prefix/lib64" \
+        ldd "$prefix/bin/openroad" > /tmp/openroad.ldd; \
       missing="$(awk '$2 == "=>" && $3 == "not" { print $1 }' /tmp/openroad.ldd)"; \
       test -n "$missing" || break; \
-      test "$pass" -le 8; \
+      test "$pass" -le 12; \
       for soname in $missing; do \
         source=; \
         for directory in \
-          "$upstream_root/lib" \
-          "$upstream_root/lib64" \
-          /mnt/orfs/usr/local/lib \
-          /mnt/orfs/usr/lib/x86_64-linux-gnu \
-          /mnt/orfs/lib/x86_64-linux-gnu \
-          /mnt/orfs/opt/or-tools/lib; do \
+          /mnt/implementation/opt/openroad-deps/lib \
+          /mnt/implementation/opt/openroad-deps/lib64 \
+          /mnt/implementation/usr/local/lib \
+          /mnt/implementation/usr/lib/x86_64-linux-gnu \
+          /mnt/implementation/lib/x86_64-linux-gnu; do \
           test -d "$directory" || continue; \
           source="$(find "$directory" -name "$soname" -print -quit)"; \
           test -z "$source" || break; \
@@ -106,14 +157,15 @@ RUN --mount=from=orfs-upstream,source=/,target=/mnt/orfs,ro \
       done; \
       pass=$((pass + 1)); \
     done; \
-    patchelf --force-rpath --set-rpath '$ORIGIN/../lib/openroad' "$prefix/bin/openroad"; \
+    patchelf --force-rpath \
+      --set-rpath '$ORIGIN/../lib/openroad:$ORIGIN/../lib:$ORIGIN/../lib64' \
+      "$prefix/bin/openroad"; \
     ldd "$prefix/bin/openroad" | tee /tmp/openroad.ldd; \
     ! grep -q 'not found' /tmp/openroad.ldd; \
     ln -sfn /usr/bin/klayout "$prefix/bin/klayout"; \
     "$prefix/bin/openroad" -version | tee "$prefix/.flexsoc/openroad.version"; \
-    "$prefix/bin/klayout" -v | tee "$prefix/.flexsoc/klayout.version"; \
-    printf '%s\n' "${ORFS_IMAGE#docker.io/}" > "$prefix/.flexsoc/orfs.image"; \
-    rm -f /tmp/openroad.ldd
+    "$prefix/bin/klayout" -b -v | tee "$prefix/.flexsoc/klayout.version"; \
+    rm -f /tmp/openroad.ldd /tmp/implementation-toolchain.lock
 
 FROM implementation-installed AS toolchain-verified
 
@@ -124,10 +176,14 @@ COPY src/flexsoc/backend/deps.sh src/flexsoc/backend/toolchain.lock ./toolchain/
 
 # Verification is deliberately separate from installation. A doctor failure does
 # not invalidate the installed-toolchain checkpoint built by the previous stage.
-RUN bash ./toolchain/deps.sh doctor --system --profile base \
+RUN FLEXSOC_TOOLCHAIN=/opt/flexsoc/toolchain \
+    bash ./toolchain/deps.sh doctor --system --profile base \
  && /opt/flexsoc/toolchain/bin/openroad -version \
- && /opt/flexsoc/toolchain/bin/klayout -v \
- && test -f /opt/flexsoc/toolchain/share/orfs/flow/Makefile
+ && /opt/flexsoc/toolchain/bin/klayout -b -v \
+ && test -s /opt/flexsoc/toolchain/.flexsoc/openroad.ref \
+ && test -s /opt/flexsoc/toolchain/.flexsoc/orfs.ref \
+ && test -f /opt/flexsoc/toolchain/share/orfs/flow/Makefile \
+ && test -f /opt/flexsoc/toolchain/share/orfs/flow/designs/nangate45/gcd/config.mk
 
 FROM toolchain-verified AS runtime
 
@@ -154,6 +210,7 @@ ENV DEPS_MODE=system \
     OPENROAD_EXE=/opt/flexsoc/toolchain/bin/openroad \
     YOSYS_EXE=/opt/flexsoc/toolchain/bin/yosys \
     KLAYOUT_CMD=/opt/flexsoc/toolchain/bin/klayout \
+    PYTHON_EXE=/usr/bin/python3 \
     VIRTUAL_ENV=/opt/flexsoc-venv \
     PATH=/opt/flexsoc/toolchain/bin:/opt/flexsoc-venv/bin:/opt/uv/bin:${PATH} \
     LD_LIBRARY_PATH=/opt/flexsoc/toolchain/lib:/opt/flexsoc/toolchain/lib64 \

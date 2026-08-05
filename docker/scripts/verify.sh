@@ -51,7 +51,7 @@ docker run --rm \
     echo "===== Physical implementation ====="
 
     openroad -version
-    klayout -v
+    klayout -b -v
 
     test "$OPENROAD_EXE" = /opt/flexsoc/toolchain/bin/openroad
     test "$YOSYS_EXE" = /opt/flexsoc/toolchain/bin/yosys
@@ -62,6 +62,29 @@ docker run --rm \
 
     ldd "$OPENROAD_EXE" | tee /tmp/openroad.ldd
     ! grep -q "not found" /tmp/openroad.ldd
+
+    test -s /opt/flexsoc/toolchain/.flexsoc/openroad.ref
+    test -s /opt/flexsoc/toolchain/.flexsoc/orfs.ref
+
+    echo
+    echo "===== ORFS smoke flow ====="
+
+    smoke=/tmp/flexsoc-orfs-smoke
+    rm -rf "$smoke"
+
+    make --directory "$ORFS_ROOT/flow" \
+      WORK_HOME="$smoke" \
+      DESIGN_CONFIG="$ORFS_ROOT/flow/designs/nangate45/gcd/config.mk" \
+      OPENROAD_EXE="$OPENROAD_EXE" \
+      YOSYS_EXE="$YOSYS_EXE" \
+      KLAYOUT_CMD="$KLAYOUT_CMD" \
+      PYTHON_EXE="$PYTHON_EXE" \
+      floorplan
+
+    find "$smoke/results" -name 2_floorplan.odb -type f -print -quit |
+      grep -q .
+
+    rm -rf "$smoke"
 
     echo
     echo "IMAGE_VERIFY=PASS"

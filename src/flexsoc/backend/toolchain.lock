@@ -69,16 +69,18 @@ NETLISTSVG_REPO=https://github.com/nturley/netlistsvg.git
 NETLISTSVG_REF=d3518f1b5c996a876b72a1a984bb39d3572c47dc
 
 # impl -----------------------------------------------------------------------
-# OpenROAD does not publish a modern stable release line comparable to Icarus
-# or Verilator.  Record the exact FlexSoC-tested external baseline here; the
-# managed impl installer remains a separate follow-up because OpenROAD brings a
-# much larger dependency surface than the base profile.
-OPENROAD_VERSION=v2.0-26328-gd6e98657f1
-OPENROAD_REPO=https://github.com/The-OpenROAD-Project/OpenROAD.git
-OPENROAD_REF_PREFIX=d6e98657f1
-OPENROAD_INSTALL_MODE=external
+# ORFS is checked out without its Yosys submodule. Only the ORFS-matched
+# OpenROAD submodule is initialized and built on Ubuntu 24.04.
+ORFS_REPO=https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts.git
+ORFS_REF_PREFIX=ae34c73b7
 
-# KLayout is intentionally not pinned yet.
+OPENROAD_REPO=https://github.com/The-OpenROAD-Project/OpenROAD.git
+OPENROAD_REF_PREFIX=08f67ee5ec
+OPENROAD_INSTALL_MODE=source-ubuntu24
+
+KLAYOUT_VERSION=0.30.7
+KLAYOUT_URL=https://www.klayout.org/downloads/Ubuntu-24/klayout_0.30.7-1_amd64.deb
+KLAYOUT_MD5=145adaa044101bb41179aa63ec6d7f86
 
 # riscv ----------------------------------------------------------------------
 # RISC-V GNU toolchain is intentionally not pinned yet.
