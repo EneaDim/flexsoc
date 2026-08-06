@@ -71,7 +71,12 @@ def collect_manifest(
     run_root_value = os.environ.get("FLEXSOC_RUN_ROOT") or None
     artifact_paths: dict[str, str] | None = None
     if pdk and run_root_value:
-        artifact_paths = pdk_run_layout(Path(run_root_value), pdk=pdk, top=top).as_dict()
+        candidates = pdk_run_layout(Path(run_root_value), pdk=pdk, top=top).as_dict()
+        artifact_paths = {
+            name: value
+            for name, value in candidates.items()
+            if Path(value).exists()
+        }
 
     tools = {
         item["executable"]: {

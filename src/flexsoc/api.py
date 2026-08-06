@@ -33,6 +33,9 @@ DEFAULT_SETTINGS = {
     "GLS_UNIT_DELAY": "1ps",
     "SDF_STRICT": "1",
     "FST2VCD": "fst2vcd",
+    "SIGNOFF_STAGE": "post_syn",
+    "POWER_VCD_SCOPE": "auto",
+    "POWER_DUT_INSTANCE": "auto",
 }
 
 # Parameter bundles keep the target table compact; every value is still overrideable.
@@ -120,6 +123,17 @@ SIGNOFF = (
     "PNR_SDC_FILE",
     "POWER_ACTIVITY",
     "POWER_DUTY",
+    "POWER_GLOBAL_ACTIVITY",
+    "MACRO_LIBS",
+    "SIGNOFF_STAGE",
+    "STA_ENDPOINT_GROUP_LIMIT",
+    "STA_ENDPOINT_PATH_LIMIT",
+    "STA_NEAR_CRITICAL_SETUP",
+    "STA_NEAR_CRITICAL_HOLD",
+    "POWER_TOP_INSTANCES",
+    "FUSION_PATHS_PER_INSTANCE",
+    "FUSION_TOP_PATHS",
+    "FUSION_HIGH_FANOUT_THRESHOLD",
     "POWER_TEST_NAME",
     "POWER_TEST_NAMES",
     "POWER_GLS_BACKEND",
@@ -127,6 +141,7 @@ SIGNOFF = (
     "POWER_TIMING_MODE",
     "POWER_TIMING_MODES",
     "POWER_VCD_SCOPE",
+    "POWER_DUT_INSTANCE",
     "FST2VCD",
     "PATH_VIEW_FILE",
     "NPATHS",
@@ -259,6 +274,8 @@ TARGETS: dict[str, TargetSpec] = {
     "power_estimate": ("Signoff", "Estimate power using global switching activity", SIGNOFF),
     "power_analysis": ("Signoff", "Analyze power from one back-annotated GLS activity trace", SIGNOFF),
     "power_analysis_all": ("Signoff", "Analyze power for every matching direct GLS report", SIGNOFF),
+    "fusion_analysis": ("Signoff", "Correlate timing and power for one GLS workload", SIGNOFF),
+    "fusion_analysis_all": ("Signoff", "Correlate timing and power for all matching GLS workloads", SIGNOFF),
     "sta_violators": ("Signoff", "Report timing violators", SIGNOFF),
     "path_view": ("Signoff", "Build interactive STA path view", SIGNOFF),
     "metrics": ("Run metadata", "Collect functional/formal/synthesis/signoff metrics", COMMON),
@@ -471,7 +488,7 @@ TECHNOLOGY_TARGETS = {
     "setup_eqy", "eqy",
     "compile_syn", "sim_syn", "compile_post_syn", "sim_post_syn",
     "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
-    "setup_signoff", "sta", "sdf", "power_estimate", "power_analysis", "power_analysis_all", "sta_violators",
+    "setup_signoff", "sta", "sdf", "power_estimate", "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all", "sta_violators",
     "path_view", "sta_corners", "power_estimate_corners", "signoff_corners",
     "setup_pnr", "pnr", "pnr_gui",
     "ip_save",
@@ -504,6 +521,10 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "power_estimate": ("setup_signoff",),
     "power_estimate_corners": ("setup_signoff",),
     "sta_violators": ("setup_signoff",),
+    "power_analysis": ("setup_signoff",),
+    "power_analysis_all": ("setup_signoff",),
+    "fusion_analysis": ("setup_signoff",),
+    "fusion_analysis_all": ("setup_signoff",),
     "setup_pnr": ("setup_sdc",),
     "pnr": ("setup_pnr",),
     "pnr_gui": ("setup_pnr",),
@@ -512,9 +533,9 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
 
 TECHNOLOGY_PATH_KEYS = {
     "RUN_ROOT", "CONSTRAINTSDIR", "SYNDIR", "SYNTH_LOGDIR",
-    "EQUIVDIR", "EQUIV_LOG", "SIGNOFFDIR",
-    "SIGNOFF_STA_DIR", "SIGNOFF_POWER_DIR", "SIGNOFF_SDF_DIR", "SIGNOFF_PATH_VIEW_DIR",
-    "STA_LOGDIR", "POWER_LOGDIR", "SDF_LOGDIR",
+    "EQUIVDIR", "EQUIV_LOG", "SIGNOFFDIR", "SIGNOFF_PDK_DIR",
+    "SIGNOFF_STA_DIR", "SIGNOFF_POWER_DIR", "SIGNOFF_SDF_DIR", "SIGNOFF_FUSION_DIR", "SIGNOFF_PATH_VIEW_DIR",
+    "STA_LOGDIR", "POWER_LOGDIR", "SDF_LOGDIR", "FUSION_LOGDIR",
     "ORSDIR", "OR_WORKDIR", "OR_LOGDIR",
     "POST_SYN_SIMDIR", "POST_LAYOUT_SIMDIR",
     "METADIR", "METRICS_JSON", "MANIFEST_JSON", "COMMAND_LOGDIR",
@@ -535,15 +556,14 @@ NATIVE_TARGETS: dict[str, tuple[str, str]] = {
 }
 
 
-POWER_ANALYSIS_TARGETS: dict[str, str] = {
-    "power_analysis": "single",
-    "power_analysis_all": "all",
+ACTIVITY_ANALYSIS_TARGETS = {
+    "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all",
 }
 
 QUIET_BY_DEFAULT_TARGETS = {
     "compile_post_syn", "sim_post_syn",
     "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
-    "power_analysis", "power_analysis_all",
+    "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all",
 }
 
 
@@ -705,18 +725,6 @@ class FlexSoC:
                 action,
                 "--stage",
                 stage,
-                "--project-root",
-                str(self.project_root),
-                "--values-json",
-                json.dumps(values, sort_keys=True),
-            )
-        elif name in POWER_ANALYSIS_TARGETS:
-            argv = (
-                sys.executable,
-                "-m",
-                "flexsoc.backend.power_analysis",
-                "--action",
-                POWER_ANALYSIS_TARGETS[name],
                 "--project-root",
                 str(self.project_root),
                 "--values-json",
@@ -937,8 +945,8 @@ class FlexSoC:
                     _safe_log_name(values.get("TIMING_MODE", "zero")),
                 )
             )
-        if command.target in POWER_ANALYSIS_TARGETS:
-            if command.target == "power_analysis_all":
+        if command.target in ACTIVITY_ANALYSIS_TARGETS:
+            if command.target.endswith("_all"):
                 selectors = (
                     values.get("POWER_TEST_NAMES", "all"),
                     values.get("POWER_GLS_BACKENDS", "all"),

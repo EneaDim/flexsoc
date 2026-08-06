@@ -323,108 +323,76 @@ def collect_synthesis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | Non
 
 
 def collect_sta(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect timing summary metrics for the selected PDK."""
+    """Collect per-corner setup/hold reports from the PDK-first STA tree."""
 
-    log_dir = pdk_run_layout(run_dir, pdk=pdk, top=top).sta_log_dir
-    prefix = f"{top}_sta_"
+    layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
     scenarios: dict[str, dict[str, Any]] = {}
-
-    for log in sorted(log_dir.glob(f"{top}_sta_*.log")):
-        stem = log.stem
-        if not stem.startswith(prefix):
-            continue
-        name = stem[len(prefix) :]
-        if "_" not in name:
-            continue
-        corner, mode = name.rsplit("_", 1)
+    for summary in sorted(layout.sta_dir.glob("*/*/summary.rpt")):
+        corner = summary.parent.parent.name
+        mode = summary.parent.name
         if mode not in {"setup", "hold"}:
             continue
-
-        text = read_text(log)
+        text = read_text(summary)
         wns = last_number(r"^\s*wns\s+(" + FLOAT + r")\s*$", text, float)
         tns = last_number(r"^\s*tns\s+(" + FLOAT + r")\s*$", text, float)
-        unconstrained = marked_section(
-            text,
-            "=== flexsoc unconstrained paths ===",
-            "=== flexsoc unconstrained paths end ===",
-        )
+        violating = summary.parent / "violating.rpt"
+        unconstrained = summary.parent / "unconstrained.rpt"
         data: dict[str, Any] = {
-            "reported_violating_paths": len(re.findall(r"slack\s*\(VIOLATED\)", text, flags=re.IGNORECASE)),
-            "reported_unconstrained_paths": len(re.findall(r"^Startpoint:", unconstrained, flags=re.MULTILINE)),
-            "log": relative(log, run_dir),
+            "reported_violating_paths": len(re.findall(r"slack\s*\(VIOLATED\)", read_text(violating), flags=re.IGNORECASE)),
+            "reported_unconstrained_paths": len(re.findall(r"^Startpoint:", read_text(unconstrained), flags=re.MULTILINE)),
+            "summary": relative(summary, run_dir),
+            "log": relative(layout.sta_log_dir / corner / mode / f"{top}.log", run_dir),
         }
         if wns is not None:
             data["wns"] = wns
         if tns is not None:
             data["tns"] = tns
         scenarios.setdefault(corner, {})[mode] = data
-
     return scenarios or None
 
 
 def collect_power_estimate(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect global-activity power estimates for the selected PDK."""
+    """Collect vectorless input-activity power estimates by corner."""
 
-    log_dir = pdk_run_layout(run_dir, pdk=pdk, top=top).power_log_dir
-    prefix = f"{top}_power_estimate_"
+    layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
     corners: dict[str, Any] = {}
     activity: float | None = None
     duty: float | None = None
-
-    for log in sorted(log_dir.glob(f"{top}_power_estimate_*.log")):
-        if not log.stem.startswith(prefix):
-            continue
-        corner = log.stem[len(prefix) :]
-        text = read_text(log)
-
-        assumption = re.search(
-            r"analysis=estimate\s+activity_source=global\s+activity=("
-            + FLOAT
-            + r")\s+transitions_per_cycle\s+duty=("
-            + FLOAT
-            + r")",
-            text,
-        )
-        if assumption:
-            activity = float(assumption.group(1))
-            duty = float(assumption.group(2))
-
+    for report in sorted((layout.power_dir / "estimate").glob("*/power_summary.rpt")):
+        corner = report.parent.name
+        text = read_text(report)
+        assumptions = read_text(report.parent / "activity_assumptions.rpt")
+        activity_match = re.search(r"^activity=(" + FLOAT + r")$", assumptions, flags=re.MULTILINE)
+        duty_match = re.search(r"^duty=(" + FLOAT + r")$", assumptions, flags=re.MULTILINE)
+        if activity_match:
+            activity = float(activity_match.group(1))
+        if duty_match:
+            duty = float(duty_match.group(1))
         total = re.search(
-            r"^\s*Total\s+("
-            + FLOAT
-            + r")\s+("
-            + FLOAT
-            + r")\s+("
-            + FLOAT
-            + r")\s+("
-            + FLOAT
-            + r")",
+            r"^\s*Total\s+(" + FLOAT + r")\s+(" + FLOAT + r")\s+(" + FLOAT + r")\s+(" + FLOAT + r")",
             text,
             flags=re.MULTILINE,
         )
-        data: dict[str, Any] = {"log": relative(log, run_dir)}
+        data: dict[str, Any] = {
+            "report": relative(report, run_dir),
+            "assumptions": relative(report.parent / "activity_assumptions.rpt", run_dir),
+            "log": relative(layout.power_log_dir / "estimate" / corner / f"{top}.log", run_dir),
+        }
         if total:
             internal, switching, leakage, overall = (float(value) for value in total.groups())
-            data.update(
-                {
-                    "internal_w": internal,
-                    "switching_w": switching,
-                    "leakage_w": leakage,
-                    "total_w": overall,
-                }
-            )
+            data.update({
+                "internal_w": internal,
+                "switching_w": switching,
+                "dynamic_w": internal + switching,
+                "leakage_w": leakage,
+                "total_w": overall,
+            })
         corners[corner] = data
-
     if not corners:
         return None
-
-    result: dict[str, Any] = {
-        "analysis": "estimate",
-        "activity_source": "global",
-        "corners": corners,
-    }
+    result: dict[str, Any] = {"activity_source": "input_assumption", "corners": corners}
     if activity is not None:
-        result["activity_transitions_per_cycle"] = activity
+        result["activity"] = activity
     if duty is not None:
         result["duty"] = duty
     return result
@@ -454,11 +422,15 @@ def formal_stage(run_dir: Path, workdir: Path, log: Path) -> dict[str, Any] | No
     status = workdir / "status"
     if not status.is_file() and not log.is_file() and not workdir.is_dir():
         return None
-    traces = sorted(
-        path
-        for path in workdir.rglob("trace*")
-        if path.is_file() and path.suffix in {".vcd", ".yw", ".v", ".smtc"}
-    ) if workdir.is_dir() else []
+    traces = (
+        sorted(
+            path
+            for path in workdir.rglob("trace*")
+            if path.is_file() and path.suffix in {".vcd", ".yw", ".v", ".smtc"}
+        )
+        if workdir.is_dir()
+        else []
+    )
     elapsed = None
     if log.is_file():
         elapsed = last_number(r"Elapsed clock time .*?\((\d+)\)", read_text(log), int)
@@ -633,7 +605,7 @@ def collect_sdf(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
     """Collect generated SDF files for the selected PDK."""
 
     sdf_dir = pdk_run_layout(run_dir, pdk=pdk, top=top).sdf_dir
-    files = sorted(sdf_dir.glob(f"{top}_*.sdf")) if sdf_dir.is_dir() else []
+    files = sorted(sdf_dir.glob(f"*/{top}_*.sdf")) if sdf_dir.is_dir() else []
     if not files:
         return None
     corners: dict[str, Any] = {}
@@ -797,7 +769,7 @@ def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | 
 def collect_power_analysis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
     """Collect activity-based power analysis driven by direct GLS traces."""
 
-    path = pdk_run_layout(run_dir, pdk=pdk, top=top).power_dir / "activity" / "summary.json"
+    path = pdk_run_layout(run_dir, pdk=pdk, top=top).power_dir / "analysis" / "summary.json"
     if not path.is_file():
         return None
     try:

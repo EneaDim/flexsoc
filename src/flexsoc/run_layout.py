@@ -3,7 +3,7 @@
 FlexSoC keeps logical design/DV artifacts under one shared run root and adds the
 PDK name only where an artifact becomes technology dependent.  This preserves a
 human-readable hierarchy such as ``syn/sky130`` and
-``signoff/equivalence/ihp-sg13g2`` instead of introducing a parallel ``tech``
+``signoff/ihp-sg13g2/equivalence`` instead of introducing a parallel ``tech``
 tree.
 """
 
@@ -52,12 +52,16 @@ class PDKRunLayout:
         return self.run_root / "logs" / "synthesis" / self.pdk
 
     @property
+    def signoff_pdk_root(self) -> Path:
+        return self.signoff_root / self.pdk
+
+    @property
     def equivalence_dir(self) -> Path:
-        return self.run_root / "signoff" / "equivalence" / self.pdk / "rtl_vs_syn"
+        return self.signoff_pdk_root / "equivalence" / "rtl_vs_syn"
 
     @property
     def equivalence_log(self) -> Path:
-        return self.run_root / "logs" / "signoff" / "equivalence" / self.pdk / f"{self.top}_rtl_vs_syn.log"
+        return self.run_root / "logs" / "signoff" / self.pdk / "equivalence" / f"{self.top}_rtl_vs_syn.log"
 
     @property
     def post_syn_sim_dir(self) -> Path:
@@ -89,31 +93,40 @@ class PDKRunLayout:
 
     @property
     def sta_dir(self) -> Path:
-        return self.signoff_root / "sta" / self.pdk
+        return self.signoff_pdk_root / "sta"
 
     @property
     def power_dir(self) -> Path:
-        return self.signoff_root / "power" / self.pdk
+        return self.signoff_pdk_root / "power"
 
     @property
     def sdf_dir(self) -> Path:
-        return self.signoff_root / "sdf" / self.pdk
+        return self.signoff_pdk_root / "sdf"
+
+
+    @property
+    def fusion_dir(self) -> Path:
+        return self.signoff_pdk_root / "fusion"
+
+    @property
+    def fusion_log_dir(self) -> Path:
+        return self.run_root / "logs" / "signoff" / self.pdk / "fusion"
 
     @property
     def path_view_dir(self) -> Path:
-        return self.signoff_root / "path_view" / self.pdk
+        return self.signoff_pdk_root / "path_view"
 
     @property
     def sta_log_dir(self) -> Path:
-        return self.run_root / "logs" / "signoff" / "sta" / self.pdk
+        return self.run_root / "logs" / "signoff" / self.pdk / "sta"
 
     @property
     def power_log_dir(self) -> Path:
-        return self.run_root / "logs" / "signoff" / "power" / self.pdk
+        return self.run_root / "logs" / "signoff" / self.pdk / "power"
 
     @property
     def sdf_log_dir(self) -> Path:
-        return self.run_root / "logs" / "signoff" / "sdf" / self.pdk
+        return self.run_root / "logs" / "signoff" / self.pdk / "sdf"
 
     @property
     def meta_dir(self) -> Path:
@@ -134,6 +147,7 @@ class PDKRunLayout:
             "pnr": str(self.pnr_dir),
             "sta": str(self.sta_dir),
             "power": str(self.power_dir),
+            "fusion": str(self.fusion_dir),
             "sdf": str(self.sdf_dir),
             "path_view": str(self.path_view_dir),
             "meta": str(self.meta_dir),
@@ -170,13 +184,16 @@ def pdk_make_paths(project_root: Path, values: Mapping[str, str]) -> dict[str, s
         "EQUIVDIR": str(layout.equivalence_dir),
         "EQUIV_LOG": str(layout.equivalence_log),
         "SIGNOFFDIR": str(layout.signoff_root),
+        "SIGNOFF_PDK_DIR": str(layout.signoff_pdk_root),
         "SIGNOFF_STA_DIR": str(layout.sta_dir),
         "SIGNOFF_POWER_DIR": str(layout.power_dir),
         "SIGNOFF_SDF_DIR": str(layout.sdf_dir),
+        "SIGNOFF_FUSION_DIR": str(layout.fusion_dir),
         "SIGNOFF_PATH_VIEW_DIR": str(layout.path_view_dir),
         "STA_LOGDIR": str(layout.sta_log_dir),
         "POWER_LOGDIR": str(layout.power_log_dir),
         "SDF_LOGDIR": str(layout.sdf_log_dir),
+        "FUSION_LOGDIR": str(layout.fusion_log_dir),
         "ORSDIR": str(layout.pnr_dir),
         "OR_WORKDIR": str(layout.pnr_dir),
         "OR_LOGDIR": str(layout.pnr_log_dir),

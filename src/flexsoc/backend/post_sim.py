@@ -298,13 +298,13 @@ def _discover_pnr_file(pnr_dir: Path, top: str, platform: str, filename: str) ->
 def _post_syn_sdf(layout, top: str, values: Mapping[str, str], mode: str) -> Path:
     default_corner = {"min": "ff", "typ": "tt", "max": "ss"}[mode]
     corner = values.get("SDF_CORNER", default_corner).strip()
-    return (layout.sdf_dir / f"{top}_{corner}.sdf").resolve()
+    return (layout.sdf_dir / corner / f"{top}_{corner}.sdf").resolve()
 
 
 def _cocotb_wrapper(run_root: Path, top: str) -> Path:
-    root = run_root / "dv" / "functional" / "tb" / "cocotb"
-    nclock = root / f"{top}_cocotb_tb.sv"
-    return nclock if nclock.is_file() else root / f"{top}_tb.sv"
+    """Return the canonical cocotb HDL wrapper for every clock topology."""
+
+    return run_root / "dv" / "functional" / "tb" / "cocotb" / f"{top}_tb.sv"
 
 
 def resolve_paths(project_root: Path, values: Mapping[str, str], stage: str) -> GateSimPaths:

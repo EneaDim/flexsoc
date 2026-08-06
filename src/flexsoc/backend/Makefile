@@ -130,10 +130,11 @@ FORMAL_CSR_BMC_LOG ?= $(FORMAL_LOGDIR)/csr/$(TOP)_bmc.log
 FORMAL_CSR_PROVE_LOG ?= $(FORMAL_LOGDIR)/csr/$(TOP)_prove.log
 FORMAL_CSR_COVER_LOG ?= $(FORMAL_LOGDIR)/csr/$(TOP)_cover.log
 SYNTH_LOGDIR   ?= $(LOGDIR)/synthesis/$(PDK)
-EQUIV_LOG      ?= $(LOGDIR)/signoff/equivalence/$(PDK)/$(TOP)_rtl_vs_syn.log
-STA_LOGDIR     ?= $(LOGDIR)/signoff/sta/$(PDK)
-POWER_LOGDIR   ?= $(LOGDIR)/signoff/power/$(PDK)
-SDF_LOGDIR     ?= $(LOGDIR)/signoff/sdf/$(PDK)
+EQUIV_LOG      ?= $(LOGDIR)/signoff/$(PDK)/equivalence/$(TOP)_rtl_vs_syn.log
+STA_LOGDIR     ?= $(LOGDIR)/signoff/$(PDK)/sta
+POWER_LOGDIR   ?= $(LOGDIR)/signoff/$(PDK)/power
+SDF_LOGDIR     ?= $(LOGDIR)/signoff/$(PDK)/sdf
+FUSION_LOGDIR  ?= $(LOGDIR)/signoff/$(PDK)/fusion
 SV_COMPILE_LOG ?= $(VERIFY_LOGDIR)/$(TOP)_sv_compile_$(TEST_NAME).log
 SV_SIM_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_sv_sim_$(TEST_NAME).log
 COCOTB_LOG     ?= $(VERIFY_LOGDIR)/$(TOP)_cocotb_$(TEST_NAME).log
@@ -147,12 +148,14 @@ POST_SYN_SIMDIR ?= $(SIMROOT)/post_syn/$(PDK)
 POST_LAYOUT_SIMDIR ?= $(SIMROOT)/post_pnr/$(PDK)
 CONSTRAINTSDIR ?= $(OUTROOT)/constraints
 SYNDIR         ?= $(OUTROOT)/syn/$(PDK)
-SIGNOFFDIR     ?= $(OUTROOT)/signoff
-EQUIVDIR       ?= $(SIGNOFFDIR)/equivalence/$(PDK)/rtl_vs_syn
-SIGNOFF_STA_DIR ?= $(SIGNOFFDIR)/sta/$(PDK)
-SIGNOFF_POWER_DIR ?= $(SIGNOFFDIR)/power/$(PDK)
-SIGNOFF_SDF_DIR ?= $(SIGNOFFDIR)/sdf/$(PDK)
-SIGNOFF_PATH_VIEW_DIR ?= $(SIGNOFFDIR)/path_view/$(PDK)
+SIGNOFFDIR      ?= $(OUTROOT)/signoff
+SIGNOFF_PDK_DIR  ?= $(SIGNOFFDIR)/$(PDK)
+EQUIVDIR         ?= $(SIGNOFF_PDK_DIR)/equivalence/rtl_vs_syn
+SIGNOFF_STA_DIR  ?= $(SIGNOFF_PDK_DIR)/sta
+SIGNOFF_POWER_DIR ?= $(SIGNOFF_PDK_DIR)/power
+SIGNOFF_SDF_DIR  ?= $(SIGNOFF_PDK_DIR)/sdf
+SIGNOFF_FUSION_DIR ?= $(SIGNOFF_PDK_DIR)/fusion
+SIGNOFF_PATH_VIEW_DIR ?= $(SIGNOFF_PDK_DIR)/path_view
 METADIR        ?= $(OUTROOT)/meta/$(PDK)
 METRICS_JSON   ?= $(METADIR)/metrics.json
 MANIFEST_JSON  ?= $(METADIR)/manifest.json
@@ -276,7 +279,7 @@ VSV             ?= sv
 WAVE_EXT        ?= $(if $(filter verilator,$(COMPILER)),fst,vcd)
 WAVE_FILE       ?= $(SIMDIR)/$(TESTBENCH)_$(TEST_NAME).$(WAVE_EXT)
 VCD_SYN_FILE    ?= $(POST_SYN_SIMDIR)/$(TOP)_syn_tb.vcd
-SDF_FILE        ?= $(SIGNOFF_SDF_DIR)/$(TOP)_ss.sdf
+SDF_FILE        ?= $(SIGNOFF_SDF_DIR)/ss/$(TOP)_ss.sdf
 
 # -----------------------------------------------------------------------------
 # Synthesis / signoff
@@ -310,7 +313,22 @@ EQY_RESET_NORMALIZE ?= 1
 EQY_RESET_CYCLES ?= 2
 POWER_ACTIVITY  ?= 0.1
 POWER_DUTY      ?= 0.5
-PATH_VIEW_FILE  ?= $(TOP)_sta.violators
+POWER_GLOBAL_ACTIVITY ?= 0
+POWER_VCD_SCOPE ?= auto
+POWER_DUT_INSTANCE ?= auto
+FST2VCD ?= fst2vcd
+MACRO_LIBS ?=
+SIGNOFF_STAGE ?= post_syn
+STA_ENDPOINT_GROUP_LIMIT ?= 10000
+STA_ENDPOINT_PATH_LIMIT ?= 10
+STA_NEAR_CRITICAL_SETUP ?= 0.200
+STA_NEAR_CRITICAL_HOLD ?= 0.100
+POWER_TOP_INSTANCES ?= 200
+FUSION_PATHS_PER_INSTANCE ?= 2
+FUSION_TOP_PATHS ?= 100
+FUSION_POWER_METRIC ?= dynamic
+FUSION_HIGH_FANOUT_THRESHOLD ?= 16
+PATH_VIEW_FILE  ?= tt/setup/violating.rpt
 NPATHS          ?= 20
 
 # -----------------------------------------------------------------------------
@@ -417,7 +435,7 @@ PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests comp
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
 PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
 PHONY_TARGETS += _formal_scaffold setup_formal setup_formal_prove setup_formal_cover formal_bmc formal_prove formal_cover setup_formal_csr_prove setup_formal_csr_cover formal_csr_bmc formal_csr_prove formal_csr_cover formal_csr formal
-PHONY_TARGETS += setup_eqy eqy setup_signoff compile_syn sim_syn sta sdf power_estimate sta_violators path_view
+PHONY_TARGETS += setup_eqy eqy setup_signoff compile_syn sim_syn sta sdf power_estimate power_analysis power_analysis_all fusion_analysis fusion_analysis_all sta_violators path_view
 PHONY_TARGETS += setup_pnr pnr pnr_gui
 PHONY_TARGETS += ip_load ip_save
 PHONY_TARGETS += soc_vendor_deps fsoc_init fsoc xbar xbar_init xbar_build soc soc_stage_tops soc_flist soc_flow soc_uart_gen soc_ibex_gen
@@ -1487,7 +1505,7 @@ setup_eqy: ## Prepare an existing EQY profile, or generate it when absent/forced
 	$(call _require_file,$(RTL_IP_LIST),flist)
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(EQUIVDIR) $(dir $(EQUIV_LOG))
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff eqy-bind \
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_eqy eqy-bind \
 		--top $(TOP) $(RTL_FILELIST_ARGS) \
 		--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
 		$(foreach model,$(PRIM),--cell-model $(model)) \
@@ -1501,7 +1519,7 @@ setup_eqy: ## Prepare an existing EQY profile, or generate it when absent/forced
 		}; \
 		printf "%b\n" "$(ORANGE)[script]$(RESET) $(BLUE)$(EQY_CONFIG)$(RESET) $(GREEN)(existing)$(RESET)"; \
 	else \
-		$(PYTHON) -m flexsoc.backend.setup_signoff eqy \
+		$(PYTHON) -m flexsoc.backend.setup_eqy eqy \
 			--top $(TOP) $(RTL_FILELIST_ARGS) \
 			--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
 			$(foreach model,$(PRIM),--cell-model $(model)) \
@@ -1530,17 +1548,34 @@ eqy: ## Prove RTL equivalent to the mapped post-synthesis netlist with EQY
 	}
 
 
-setup_signoff: ## Generate PDK-scoped STA, SDF, and power scripts
+SIGNOFF_PY_ARGS = \
+	--project-root "$(REPO_ROOT)" --workspace "$(WORKSPACE)" \
+	--run-top "$(RUN_TOP)" --run-id "$(RUN_ID)" --top "$(TOP)" --pdk "$(PDK)" \
+	--signoff-stage "$(SIGNOFF_STAGE)" --sta "$(STA)" \
+	--corners "$(SIGNOFF_CORNERS)" --modes "$(STA_MODES)" \
+	$(foreach lib,$(LIBS),--liberty "$(lib)") --lib-syn "$(LIB_SYN)" \
+	$(foreach lib,$(MACRO_LIBS),--macro-liberty "$(lib)") \
+	$(if $(strip $(NETLIST)),--netlist "$(NETLIST)") \
+	$(if $(strip $(SPEF_FILE)),--spef "$(SPEF_FILE)") \
+	--sdc "$(CONSTRAINTSDIR)/$(TOP).sdc" \
+	--power-activity "$(POWER_ACTIVITY)" --power-duty "$(POWER_DUTY)" \
+	$(if $(filter 1,$(POWER_GLOBAL_ACTIVITY)),--power-global-activity) \
+	--power-vcd-scope "$(POWER_VCD_SCOPE)" --power-dut-instance "$(POWER_DUT_INSTANCE)" \
+	--fst2vcd "$(FST2VCD)" \
+	--endpoint-group-limit "$(STA_ENDPOINT_GROUP_LIMIT)" \
+	--endpoint-path-limit "$(STA_ENDPOINT_PATH_LIMIT)" \
+	--near-critical-setup "$(STA_NEAR_CRITICAL_SETUP)" \
+	--near-critical-hold "$(STA_NEAR_CRITICAL_HOLD)" \
+	--power-top-instances "$(POWER_TOP_INSTANCES)" \
+	--fusion-paths-per-instance "$(FUSION_PATHS_PER_INSTANCE)" \
+	--fusion-top-paths "$(FUSION_TOP_PATHS)" \
+	--fusion-power-metric "$(FUSION_POWER_METRIC)" \
+	--fusion-high-fanout-threshold "$(FUSION_HIGH_FANOUT_THRESHOLD)"
+
+setup_signoff: ## Generate all PDK-scoped OpenSTA Tcl families
 	$(call _require_file,$(CONSTRAINTSDIR)/$(TOP).sdc,setup_sdc)
-	$(call _require_file,$(SYNDIR)/$(TOP)_synth.v,syn)
 	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(SIGNOFF_STA_DIR) $(SIGNOFF_POWER_DIR) $(SIGNOFF_SDF_DIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff analysis \
-		--top $(TOP) \
-		--constraints-dir $(CONSTRAINTSDIR) --synthesis-dir $(SYNDIR) --simulation-dir $(SIMDIR) \
-		--sta-dir $(SIGNOFF_STA_DIR) --power-dir $(SIGNOFF_POWER_DIR) --sdf-dir $(SIGNOFF_SDF_DIR) \
-		$(foreach lib,$(LIBS),--liberty $(lib)) \
-		--power-activity $(POWER_ACTIVITY) --power-duty $(POWER_DUTY)
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff generate $(SIGNOFF_PY_ARGS)
 
 SYN_NETLIST ?= $(SYNDIR)/$(TOP)_synth.v
 
@@ -1571,38 +1606,10 @@ sim_syn: compile_syn ## Run post-synthesis simulation
 
 
 sta_corners: ## Run STA for every configured corner and setup/hold mode
-	$(call _require_file,$(SIGNOFF_STA_DIR)/sta.tcl,setup_signoff)
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(STA_LOGDIR)
-	@set -eu; failed=0; \
-	for corner in $(SIGNOFF_CORNERS); do \
-		for mode in $(STA_MODES); do \
-			log="$(STA_LOGDIR)/$(TOP)_sta_$${corner}_$${mode}.log"; \
-			printf "%b\n" "$(ORANGE)[sta]$(RESET) $(BLUE)corner=$$corner mode=$$mode log=$$log$(RESET)"; \
-			if [ "$(LIVE)" = "1" ]; then \
-				STA_CORNER="$$corner" STA_MODE="$$mode" STA_PATHS="$(STA_PATHS)" STA_GROUPS="$(STA_GROUPS)" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFF_STA_DIR)/sta.tcl 2>&1 | tee '"$$log"; \
-			else \
-				STA_CORNER="$$corner" STA_MODE="$$mode" STA_PATHS="$(STA_PATHS)" STA_GROUPS="$(STA_GROUPS)" $(STA) -exit -no_init $(SIGNOFF_STA_DIR)/sta.tcl > "$$log" 2>&1; \
-			fi || failed=1; \
-		done; \
-	done; \
-	exit $$failed
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff run --analysis sta $(SIGNOFF_PY_ARGS)
 
-power_estimate_corners: ## Estimate power for every configured corner using global activity
-	$(call _require_file,$(SIGNOFF_POWER_DIR)/power_estimate.tcl,setup_signoff)
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(POWER_LOGDIR)
-	@set -eu; failed=0; \
-	for corner in $(SIGNOFF_CORNERS); do \
-		log="$(POWER_LOGDIR)/$(TOP)_power_estimate_$${corner}.log"; \
-		printf "%b\n" "$(ORANGE)[power_estimate]$(RESET) $(BLUE)corner=$$corner activity=$(POWER_ACTIVITY) duty=$(POWER_DUTY) log=$$log$(RESET)"; \
-		if [ "$(LIVE)" = "1" ]; then \
-			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFF_POWER_DIR)/power_estimate.tcl 2>&1 | tee '"$$log"; \
-		else \
-			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFF_POWER_DIR)/power_estimate.tcl > "$$log" 2>&1; \
-		fi || failed=1; \
-	done; \
-	exit $$failed
+power_estimate_corners: ## Estimate power for every configured corner using input activity
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff run --analysis power_estimate $(SIGNOFF_PY_ARGS)
 
 signoff_corners: ## Run SDF, multi-corner STA and estimated power
 	@$(BACKEND_MAKE) setup_signoff
@@ -1613,29 +1620,39 @@ signoff_corners: ## Run SDF, multi-corner STA and estimated power
 sta: sta_corners ## Run STA for every corner and setup/hold mode
 
 sdf: ## Write one SDF timing file per configured corner
-	$(call _require_file,$(SIGNOFF_SDF_DIR)/write_sdf.tcl,setup_signoff)
-	$(Q)$(MKDIR) -p $(SIGNOFF_SDF_DIR) $(SDF_LOGDIR)
-	@set -eu; failed=0; \
-	for corner in $(SIGNOFF_CORNERS); do \
-		log="$(SDF_LOGDIR)/$(TOP)_sdf_$${corner}.log"; \
-		printf "%b\n" "$(ORANGE)[sdf]$(RESET) $(BLUE)corner=$$corner log=$$log$(RESET)"; \
-		if [ "$(LIVE)" = "1" ]; then \
-			STA_CORNER="$$corner" bash -o pipefail -c '$(STA) -exit -no_init $(SIGNOFF_SDF_DIR)/write_sdf.tcl 2>&1 | tee '"$$log"; \
-		else \
-			STA_CORNER="$$corner" $(STA) -exit -no_init $(SIGNOFF_SDF_DIR)/write_sdf.tcl > "$$log" 2>&1; \
-		fi || failed=1; \
-	done; \
-	exit $$failed
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff run --analysis sdf $(SIGNOFF_PY_ARGS)
 
-power_estimate: power_estimate_corners ## Estimate power for every configured corner using global activity
+power_estimate: power_estimate_corners ## Estimate power for every configured corner
 
-sta_violators: ## Report timing violators
-	$(Q)$(MKDIR) -p $(STA_LOGDIR)
-	$(Q)$(STA) -exit -no_init $(SIGNOFF_STA_DIR)/sta_violators.tcl > $(STA_LOGDIR)/$(TOP)_sta.violators
+power_analysis: ## Analyze one qualified GLS workload with OpenSTA
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff activity --analysis power_analysis --action single $(SIGNOFF_PY_ARGS) \
+		--test-name "$(or $(POWER_TEST_NAME),$(TEST_NAME))" \
+		--gls-backend "$(or $(POWER_GLS_BACKEND),$(GLS_BACKEND),sv)" \
+		--timing-mode "$(or $(POWER_TIMING_MODE),$(TIMING_MODE),typ)"
+
+power_analysis_all: ## Analyze all matching qualified GLS workloads with OpenSTA
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff activity --analysis power_analysis --action all $(SIGNOFF_PY_ARGS) \
+		--test-names "$(or $(POWER_TEST_NAMES),all)" \
+		--gls-backends "$(or $(POWER_GLS_BACKENDS),all)" \
+		--timing-modes "$(or $(POWER_TIMING_MODES),all)"
+
+fusion_analysis: ## Correlate timing and workload power for one qualified GLS trace
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff activity --analysis fusion_analysis --action single $(SIGNOFF_PY_ARGS) \
+		--test-name "$(or $(POWER_TEST_NAME),$(TEST_NAME))" \
+		--gls-backend "$(or $(POWER_GLS_BACKEND),$(GLS_BACKEND),sv)" \
+		--timing-mode "$(or $(POWER_TIMING_MODE),$(TIMING_MODE),typ)"
+
+fusion_analysis_all: ## Correlate timing and workload power for all matching GLS traces
+	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff activity --analysis fusion_analysis --action all $(SIGNOFF_PY_ARGS) \
+		--test-names "$(or $(POWER_TEST_NAMES),all)" \
+		--gls-backends "$(or $(POWER_GLS_BACKENDS),all)" \
+		--timing-modes "$(or $(POWER_TIMING_MODES),all)"
+
+sta_violators: sta ## Generate the per-corner violating.rpt files
 
 path_view: ## Build interactive STA path view for the selected PDK
 	$(Q)$(MKDIR) -p $(SIGNOFF_PATH_VIEW_DIR)
-	$(Q)cd $(SIGNOFF_PATH_VIEW_DIR) && $(PYTHON) $(UTILDIR)/interactiveReport.py -i $(STA_LOGDIR)/$(PATH_VIEW_FILE) -s $(UTILDIR)/default.svg -t opensta -n $(NPATHS)
+	$(Q)cd $(SIGNOFF_PATH_VIEW_DIR) && $(PYTHON) $(UTILDIR)/interactiveReport.py -i $(SIGNOFF_STA_DIR)/$(PATH_VIEW_FILE) -s $(UTILDIR)/default.svg -t opensta -n $(NPATHS)
 
 # ============================================================================
 # 10. Run metadata
@@ -1742,90 +1759,55 @@ ip_load: ## Load the complete saved IP package into a run workspace
 	find "$$dst_dir" -type d -name __pycache__ -prune -exec rm -rf {} +; \
 	find "$$dst_dir" -type f -name '*.pyc' -delete
 
-ip_save: ## Save current-PDK EQY and Tcl sign-off scripts back to the IP library
+ip_save: ## Save current-PDK synthesis, PnR, EQY and OpenSTA Tcl into the IP library
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
 	@set -eu; \
-	sta_src="$(SIGNOFF_STA_DIR)"; \
-	sdf_src="$(SIGNOFF_SDF_DIR)"; \
-	power_src="$(SIGNOFF_POWER_DIR)"; \
-	activity_src="$(SIGNOFF_POWER_DIR)/activity/scripts"; \
-	ip_root="$(IP_ROOT)"; \
-	destination="$$ip_root/signoff"; \
-	backup="$$ip_root/.signoff-backup"; \
-	pdk="$(PDK)"; \
-	for source in \
-		"$(EQY_CONFIG)" "$(EQY_VIEW)" \
-		"$$sta_src/sta.tcl" "$$sta_src/sta_violators.tcl" \
-		"$$sdf_src/write_sdf.tcl" "$$power_src/power_estimate.tcl"; do \
+	ip_root="$(IP_ROOT)"; library_root="$(IP_LIBRARY_ROOT)"; pdk="$(PDK)"; \
+	test -d "$(SYNDIR)" || { echo "ERROR: synthesis branch not found: $(SYNDIR)"; exit 2; }; \
+	test -d "$(SIGNOFF_PDK_DIR)" || { echo "ERROR: signoff branch not found: $(SIGNOFF_PDK_DIR)"; exit 2; }; \
+	for source in "$(EQY_CONFIG)" "$(EQY_VIEW)" \
+		"$(SIGNOFF_STA_DIR)/sta.tcl" \
+		"$(SIGNOFF_SDF_DIR)/write_sdf.tcl" \
+		"$(SIGNOFF_POWER_DIR)/estimate/power_estimate.tcl"; do \
 		test -f "$$source" || { echo "ERROR: required ip_save input not found: $$source"; exit 2; }; \
 	done; \
-	activity_count=0; \
-	for source in "$$activity_src"/*.tcl; do \
-		[ -f "$$source" ] || continue; \
-		activity_count=$$((activity_count + 1)); \
-	done; \
-	test "$$activity_count" -gt 0 || { \
-		echo "ERROR: no activity-power Tcl scripts found: $$activity_src"; \
-		echo "Hint: run fx power_analysis for at least one GLS result before fx ip_save"; \
-		exit 2; \
-	}; \
-	mkdir -p "$$ip_root"; \
-	temporary=$$(mktemp -d "$$ip_root/.signoff-export.XXXXXX"); \
-	staged="$$temporary/signoff"; \
-	backed_up=0; \
+	mkdir -p "$$library_root"; \
+	temporary=$$(mktemp -d "$$library_root/.ip-save.$(IP_NAME).XXXXXX"); \
+	staged="$$temporary/$(IP_NAME)"; backup="$$library_root/.$(IP_NAME).backup"; backed_up=0; \
 	cleanup() { \
-		status=$$?; \
-		trap - EXIT HUP INT TERM; \
-		if [ "$$status" -ne 0 ] && [ "$$backed_up" -eq 1 ] && \
-		   [ ! -e "$$destination" ] && [ -e "$$backup" ]; then \
-			mv "$$backup" "$$destination" || true; \
+		status=$$?; trap - EXIT HUP INT TERM; \
+		if [ "$$status" -ne 0 ] && [ "$$backed_up" -eq 1 ] && [ ! -e "$$ip_root" ] && [ -e "$$backup" ]; then \
+			mv "$$backup" "$$ip_root" || true; \
 		fi; \
-		rm -rf "$$temporary"; \
-		exit "$$status"; \
+		rm -rf "$$temporary"; exit "$$status"; \
 	}; \
 	trap cleanup EXIT HUP INT TERM; \
-	if [ -d "$$destination" ]; then \
-		cp -a "$$destination" "$$staged"; \
-	else \
-		mkdir -p "$$staged"; \
-	fi; \
-	rm -rf \
-		"$$staged/equivalence/$$pdk" \
-		"$$staged/sta/$$pdk" \
-		"$$staged/sdf/$$pdk" \
-		"$$staged/power/$$pdk"; \
-	eqy_dst="$$staged/equivalence/$$pdk/rtl_vs_syn"; \
-	sta_dst="$$staged/sta/$$pdk"; \
-	sdf_dst="$$staged/sdf/$$pdk"; \
-	power_dst="$$staged/power/$$pdk"; \
-	activity_dst="$$power_dst/activity/scripts"; \
-	mkdir -p "$$eqy_dst" "$$sta_dst" "$$sdf_dst" "$$activity_dst"; \
-	$(PYTHON) -m flexsoc.backend.setup_signoff eqy-export \
+	if [ -d "$$ip_root" ]; then cp -a "$$ip_root" "$$staged"; else mkdir -p "$$staged"; fi; \
+	rm -rf "$$staged/syn/$$pdk" "$$staged/pnr_openroad/$$pdk" "$$staged/signoff/$$pdk"; \
+	mkdir -p "$$staged/syn" "$$staged/pnr_openroad" "$$staged/signoff/$$pdk/equivalence/rtl_vs_syn"; \
+	cp -a "$(SYNDIR)" "$$staged/syn/$$pdk"; \
+	if [ -d "$(ORSDIR)" ]; then cp -a "$(ORSDIR)" "$$staged/pnr_openroad/$$pdk"; fi; \
+	$(PYTHON) -m flexsoc.backend.setup_eqy eqy-export \
 		$(RTL_FILELIST_ARGS) \
-		--netlist $(SYNDIR)/$(TOP)_synth.v --liberty $(LIB_SYN) \
-		$(foreach model,$(PRIM),--cell-model $(model)) \
-		--sky130-clock-gate-model $(EQY_SKY130_CLOCK_GATE_MODEL) \
-		--config $(EQY_CONFIG) --view $(EQY_VIEW) --output-dir "$$eqy_dst" >/dev/null; \
-	cp -p "$$sta_src/sta.tcl" "$$sta_src/sta_violators.tcl" "$$sta_dst/"; \
-	cp -p "$$sdf_src/write_sdf.tcl" "$$sdf_dst/"; \
-	cp -p "$$power_src/power_estimate.tcl" "$$power_dst/"; \
-	for source in "$$activity_src"/*.tcl; do \
-		[ -f "$$source" ] || continue; \
-		cp -p "$$source" "$$activity_dst/"; \
+		--netlist "$(SYNDIR)/$(TOP)_synth.v" --liberty "$(LIB_SYN)" \
+		$(foreach model,$(PRIM),--cell-model "$(model)") \
+		--sky130-clock-gate-model "$(EQY_SKY130_CLOCK_GATE_MODEL)" \
+		--config "$(EQY_CONFIG)" --view "$(EQY_VIEW)" \
+		--output-dir "$$staged/signoff/$$pdk/equivalence/rtl_vs_syn" >/dev/null; \
+	cd "$(SIGNOFF_PDK_DIR)"; \
+	find . -type f -name '*.tcl' -print | while IFS= read -r relative; do \
+		target="$$staged/signoff/$$pdk/$${relative#./}"; mkdir -p "$${target%/*}"; cp -p "$$relative" "$$target"; \
 	done; \
+	cd "$(REPO_ROOT)"; \
 	rm -rf "$$backup"; \
-	if [ -e "$$destination" ]; then \
-		mv "$$destination" "$$backup"; \
-		backed_up=1; \
-	fi; \
-	mv "$$staged" "$$destination"; \
-	backed_up=0; \
-	rm -rf "$$backup" "$$temporary"; \
+	if [ -e "$$ip_root" ]; then mv "$$ip_root" "$$backup"; backed_up=1; fi; \
+	mv "$$staged" "$$ip_root"; backed_up=0; rm -rf "$$backup" "$$temporary"; \
 	trap - EXIT HUP INT TERM; \
-	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · saved EQY and $$((activity_count + 4)) Tcl scripts"
+	tcl_count=$$(find "$$ip_root/signoff/$$pdk" -type f -name '*.tcl' | wc -l); \
+	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · syn/<pdk>, pnr_openroad/<pdk>, signoff/<pdk> · Tcl=$$tcl_count"
 
 # ============================================================================
 # 13. SoC, FuseSoC, XBAR and software flow
@@ -2271,8 +2253,8 @@ clean_syn: ## Remove synthesis outputs for the selected PDK
 	$(Q)$(RM) -rf $(SYNDIR) $(SYNTH_LOGDIR)
 
 clean_signoff: ## Remove signoff outputs for the selected PDK
-	$(Q)$(RM) -rf $(SIGNOFFDIR)/equivalence/$(PDK) $(SIGNOFF_STA_DIR) $(SIGNOFF_POWER_DIR) $(SIGNOFF_SDF_DIR) $(SIGNOFF_PATH_VIEW_DIR)
-	$(Q)$(RM) -rf $(dir $(EQUIV_LOG)) $(STA_LOGDIR) $(POWER_LOGDIR) $(SDF_LOGDIR)
+	$(Q)$(RM) -rf $(SIGNOFF_PDK_DIR)
+	$(Q)$(RM) -rf $(dir $(EQUIV_LOG)) $(STA_LOGDIR) $(POWER_LOGDIR) $(SDF_LOGDIR) $(FUSION_LOGDIR)
 
 clean_meta: ## Remove run metadata
 	$(Q)$(RM) -rf $(METADIR)/*
