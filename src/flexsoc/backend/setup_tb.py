@@ -3383,8 +3383,13 @@ def sv_vec_driver_text(top: str) -> str:
               code = $sscanf(line, "%d %s %d", step, token, cycles);
               reset_selector = "all";
             end
-            if (code == 3 || code == 4) reset_dut(reset_selector, cycles);
-            else begin
+            if (code == 3 || code == 4) begin
+              $display(
+                "[TB][RESET] cycle=%0d selector=%s cycles=%0d",
+                step, reset_selector, cycles
+              );
+              reset_dut(reset_selector, cycles);
+            end else begin
               $display("[TB][ERROR] @reset format: cycle @reset [domain|reset] cycles");
               errors++;
             end

@@ -1,7 +1,7 @@
 """Generate SymbiYosys property-verification configurations.
 
 This module owns PDK-independent BMC/PROVE/COVER intent. Technology-dependent
-RTL-to-netlist equivalence belongs to :mod:`flexsoc.backend.setup_signoff`.
+RTL-to-netlist equivalence belongs to :mod:`flexsoc.backend.setup_eqy`.
 """
 
 from __future__ import annotations

@@ -1066,6 +1066,10 @@ async def drive_vectors(
         if pairs[0][0] in RESET_TOKENS:
             _, selector, cycles = pairs[0]
             cycles = max(1, int(cycles))
+            dut._log.info(
+                "[TB][RESET] cycle=%d selector=%s cycles=%d",
+                cycle, selector, cycles,
+            )
             if reset_runner is None:
                 await _default_reset_runner(dut, selector, cycles)
             else:
@@ -1413,7 +1417,7 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
     return dedent(f"""\
     `timescale 1ns/1ps
 
-    module {top}_cocotb_tb;
+    module {top}_tb;
       {clock_decls}
       logic test_en_i;
 
@@ -1526,7 +1530,7 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     return dedent(f"""\
     SIM ?= verilator
     TOPLEVEL_LANG ?= verilog
-    COCOTB_TOPLEVEL = {top}_cocotb_tb
+    COCOTB_TOPLEVEL = {top}_tb
     COCOTB_TEST_MODULES = {top}_tb
 
     ifeq ($(GATES),yes)
@@ -1538,7 +1542,7 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     EXTRA_ARGS += -Wno-fatal
     endif
 
-    VERILOG_SOURCES += $(PWD)/{top}_cocotb_tb.sv
+    VERILOG_SOURCES += $(PWD)/{top}_tb.sv
     export TEST_NAME ?= smoke
     export TEST_ROOT ?= $(abspath ../../tests)
     SEED ?= 1
@@ -1835,6 +1839,10 @@ def cocotb_vec_driver_py_text(top: str) -> str:
                     raise AssertionError(
                         "@reset format: cycle @reset [domain|reset] cycles"
                     )
+                dut._log.info(
+                    "[TB][RESET] cycle=%s selector=%s cycles=%s",
+                    parts[0], selector, cycles,
+                )
                 await reset(dut, selector, int(cycles, 0))
                 continue
             if len(parts) < 3:
@@ -1950,7 +1958,7 @@ def _write_nclock_cocotb_tree(cfg: CocotbConfig, clocks: ClockConfig) -> list[Pa
     out, drivers = cfg.output, cfg.output / "drivers"
     files = {
         out / "Makefile": cocotb_makefile_text(cfg.top, cfg.rtl_dir),
-        out / f"{cfg.top}_cocotb_tb.sv": cocotb_sv_text(cfg.top, clocks),
+        out / f"{cfg.top}_tb.sv": cocotb_sv_text(cfg.top, clocks),
         drivers / "__init__.py": "",
         drivers / "reg_driver.py": cocotb_reg_driver_py_text(cfg.top, clocks),
         drivers / "vec_driver.py": cocotb_vec_driver_py_text(cfg.top),
