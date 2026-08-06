@@ -51,6 +51,7 @@ docker run --rm \
     echo "===== Physical implementation ====="
 
     openroad -version
+    sta -version
     klayout -b -v
 
     test "$OPENROAD_EXE" = /opt/flexsoc/toolchain/bin/openroad
