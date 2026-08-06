@@ -22,7 +22,7 @@ from flexsoc.api import (
     AUTO_SETUP_TARGETS,
     DEFAULT_SETTINGS,
     NATIVE_TARGETS,
-    POWER_ANALYSIS_TARGETS,
+    ACTIVITY_ANALYSIS_TARGETS,
     TARGETS,
     TECHNOLOGY_TARGETS,
     main as api_main,
@@ -178,6 +178,7 @@ def test_pdk_switch_keeps_shared_run_artifacts_and_reselects_technology_paths(
         "SIGNOFF_STA_DIR",
         "SIGNOFF_POWER_DIR",
         "SIGNOFF_SDF_DIR",
+        "SIGNOFF_FUSION_DIR",
         "POST_SYN_SIMDIR",
         "METADIR",
         "COMMAND_LOGDIR",
@@ -187,7 +188,7 @@ def test_pdk_switch_keeps_shared_run_artifacts_and_reselects_technology_paths(
         assert "ihp-sg13g2" in Path(ihp[key]).parts
 
 
-def test_commands_route_make_native_and_power_targets(tmp_path: Path) -> None:
+def test_commands_route_make_native_and_signoff_targets(tmp_path: Path) -> None:
     fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work", TOP="base")
 
     lint, ast = fx.override(top="cordic").commands(
@@ -205,12 +206,11 @@ def test_commands_route_make_native_and_power_targets(tmp_path: Path) -> None:
         )
         assert action in command.argv and stage in command.argv
 
-    for name, action in POWER_ANALYSIS_TARGETS.items():
+    for name in ACTIVITY_ANALYSIS_TARGETS:
         command = fx.command(name)
         assert command.argv[:4] == (
-            sys.executable, "-m", "flexsoc.backend.power_analysis", "--action"
+            "make", "-f", str(ROOT / "src/flexsoc/backend/Makefile"), name
         )
-        assert action in command.argv
 
 
 def test_ip_save_forwards_package_name_and_library_root(tmp_path: Path) -> None:
@@ -248,8 +248,8 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
         "setup_sdc", "setup_syn", "syn"
     ]
     assert [command.target for command in fx.commands("regression")] == ["regression"]
-    assert [command.target for command in fx.commands("sdf", "sta", "power_estimate")] == [
-        "setup_sdc", "setup_signoff", "sdf", "sta", "power_estimate"
+    assert [command.target for command in fx.commands("sdf", "sta", "power_estimate", "fusion_analysis")] == [
+        "setup_sdc", "setup_signoff", "sdf", "sta", "power_estimate", "fusion_analysis"
     ]
     assert [
         command.target
@@ -337,12 +337,14 @@ def test_gate_and_power_logs_are_scoped_by_gls_case(
         POWER_TEST_NAME="smoke",
         POWER_GLS_BACKEND="sv",
         POWER_TIMING_MODE="typ",
+        auto_setup=False,
     )
     power_all, = fx.run(
         "power_analysis_all",
         POWER_TEST_NAMES="all",
         POWER_GLS_BACKENDS="all",
         POWER_TIMING_MODES="all",
+        auto_setup=False,
     )
 
     assert smoke.log_path is not None and smoke.log_path.name == "sim_post_syn_smoke_sv_typ.log"
