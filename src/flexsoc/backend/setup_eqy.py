@@ -610,6 +610,19 @@ def _replace_symlink(source: Path, destination: Path) -> Path:
     return destination
 
 
+def _bind_sky130_liberty_fallback(config: Path, clock_gate_model: Path) -> Path:
+    """Replace an unavailable portable formal model with the standard fallback."""
+
+    formal_read = "read_verilog -formal -sv formal_pdk.v"
+    fallback = "\n".join((
+        "# FlexSoC SKY130 Liberty fallback begin",
+        "read_liberty -ignore_miss_func library.lib",
+        f"read_verilog -formal -sv {clock_gate_model.name}",
+        "# FlexSoC SKY130 Liberty fallback end",
+    ))
+    return write_text(config, config.read_text(encoding="utf-8").replace(formal_read, fallback))
+
+
 def bind_equivalence_profile(
     *,
     top: str,
@@ -658,11 +671,11 @@ def bind_equivalence_profile(
             output=output_dir / "_bind.eqy",
         )
         prepared = _prepare_formal_cell_model(cfg)
-        if prepared.formal_cell_model is None:
-            raise ValueError(
-                "EQY profile requires formal_pdk.v but no formal PDK processor is available"
-            )
-        created.append(prepared.formal_cell_model)
+        created.append(
+            prepared.formal_cell_model
+            if prepared.formal_cell_model is not None
+            else _bind_sky130_liberty_fallback(config, clock_gate)
+        )
     return tuple(created)
 
 

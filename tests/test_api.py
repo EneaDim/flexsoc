@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import sys
@@ -9,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+import flexsoc.backend.setup_eqy as setup_eqy_module
+import flexsoc.backend.setup_signoff as setup_signoff_module
 import flexsoc.cli as cli_module
 import flexsoc.doctor as doctor_module
 from flexsoc import (
@@ -19,14 +22,41 @@ from flexsoc import (
     FlexSoCTarget,
 )
 from flexsoc.api import (
+    ACTIVITY_ANALYSIS_TARGETS,
     AUTO_SETUP_TARGETS,
     DEFAULT_SETTINGS,
     NATIVE_TARGETS,
-    ACTIVITY_ANALYSIS_TARGETS,
+    STREAM_BY_DEFAULT_TARGETS,
     TARGETS,
     TECHNOLOGY_TARGETS,
     main as api_main,
 )
+from flexsoc.backend.manifest import collect_manifest
+from flexsoc.backend.metrics import (
+    collect_formal,
+    collect_power_estimate,
+    collect_sta,
+    formal_stage,
+    status_word,
+)
+from flexsoc.backend.post_sim import _cocotb_wrapper
+from flexsoc.backend.setup_cocotb import CocotbConfig, write_nclock_cocotb
+from flexsoc.backend.setup_signoff import (
+    SignoffContext,
+    _annotate_power_summary,
+    _run_sta,
+    _timing_values,
+    _write_activity_table,
+    _selection,
+    generate_families,
+    render_fusion_analysis_tcl,
+    render_power_analysis_tcl,
+    render_power_estimate_tcl,
+    render_sta_tcl,
+)
+from flexsoc.backend.output import print_script, strip_ansi
+from flexsoc.clocking import ClockConfig, ClockDomain
+from flexsoc.run_layout import pdk_run_layout
 from flexsoc.cli import app
 
 
@@ -402,11 +432,131 @@ def test_live_run_prints_only_log_block_and_keeps_plain_log(
     )
 
 
+def test_fusion_streams_progress_by_default_and_keeps_plain_log(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    seen_env: dict[str, str] = {}
+
+    class FakeProcess:
+        stdout = iter((
+            "[fusion_analysis] run 1/6 START workload=smoke_sv_typ corner=ss mode=setup\n",
+            "[report] ss/setup /tmp/fusion.rpt\n",
+        ))
+
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(*args: object, **kwargs: object) -> FakeProcess:
+        seen_env.update(kwargs["env"])
+        return FakeProcess()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    pdk = _fake_pdk(tmp_path / "pdk")
+    result, = FlexSoC(
+        project_root=tmp_path,
+        workdir=tmp_path / "work",
+        PDK="sky130",
+        PDK_ROOT=pdk,
+        TOP="demo",
+    ).run(
+        "fusion_analysis",
+        auto_setup=False,
+        POWER_TEST_NAME="smoke",
+        POWER_GLS_BACKEND="sv",
+        POWER_TIMING_MODE="typ",
+    )
+
+    output = capsys.readouterr().out
+    assert STREAM_BY_DEFAULT_TARGETS == {"fusion_analysis", "fusion_analysis_all"}
+    assert "→ fusion_analysis" in output
+    assert "run 1/6 START" in output
+    assert "[report] ss/setup /tmp/fusion.rpt" in output
+    assert "✓" in output and "fusion_analysis" in output
+    assert seen_env["FLEXSOC_LIVE"] == "0"
+    assert seen_env["PYTHONUNBUFFERED"] == "1"
+    assert result.log_path is not None
+    assert result.log_path.read_text(encoding="utf-8").endswith(
+        "[report] ss/setup /tmp/fusion.rpt\n"
+    )
+
+
 def test_technology_execution_requires_an_activated_pdk(tmp_path: Path) -> None:
     fx = FlexSoC(project_root=tmp_path, PDK="sky130", PDK_ROOT=tmp_path / "missing")
     with pytest.raises(RuntimeError, match="fx pdk fetch"):
         fx.run(next(iter(TECHNOLOGY_TARGETS)))
 
+
+def test_eqy_bind_uses_sky130_liberty_fallback_without_adapter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    output = tmp_path / "eqy"
+    output.mkdir()
+    filelist = tmp_path / "rtl_ip.f"
+    netlist = tmp_path / "netlist.v"
+    liberty = tmp_path / "library.lib"
+    cell_model = tmp_path / "cells.v"
+    for path in (filelist, netlist, liberty, cell_model):
+        path.write_text("placeholder\n", encoding="utf-8")
+    config = output / "cordic_rtl_vs_syn.eqy"
+    config.write_text(
+        "[gate]\nread_verilog -formal -sv formal_pdk.v\n"
+        "read_verilog -formal -sv netlist.v\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("FLEXSOC_PDK", "sky130")
+    monkeypatch.setattr(setup_eqy_module, "_formal_pdk_processor", lambda _cfg: None)
+    setup_eqy_module.bind_equivalence_profile(
+        top="cordic",
+        output_dir=output,
+        filelists=(filelist,),
+        netlist=netlist,
+        liberty=liberty,
+        cell_models=(cell_model,),
+        formal_pdk_proc=None,
+        clock_gate_model=output / "sky130_clock_gates_formal.v",
+        config=config,
+    )
+
+    bound = config.read_text(encoding="utf-8")
+    assert "formal_pdk.v" not in bound
+    assert "read_liberty -ignore_miss_func library.lib" in bound
+    assert "read_verilog -formal -sv sky130_clock_gates_formal.v" in bound
+
+
+
+def test_ip_save_optional_pnr_and_e2e_activity_order() -> None:
+    """Saving must tolerate absent PnR, and every GLS workload runs power then fusion."""
+
+    makefile = (ROOT / "src/flexsoc/backend/Makefile").read_text(encoding="utf-8")
+    e2e = (ROOT / "tests/test_e2e_fx.py").read_text(encoding="utf-8")
+    assert "pnr_status=not_available" in makefile
+    assert "pnr=$$pnr_status" in makefile
+    assert "[ip_load]" in makefile and "syn=$$(list_branches" in makefile
+    assert "pnr=$$(list_branches" in makefile and "eqy=$$(list_eqy" in makefile
+    assert 'for target in ("power_analysis", "fusion_analysis")' in e2e
+    assert e2e.count("_run_power_and_fusion(") == 71
+    assert "_assert_saved_multitech_layout(saved_library, top)" in e2e
+    assert "fx power_analysis --no-setup" not in e2e
+    assert "fx fusion_analysis --no-setup" not in e2e
+
+
+def test_uart_ihp_eqy_profile_targets_the_fifo_proof_horizon() -> None:
+    """The IHP UART profile must not expose a stale reset node or deepen every partition."""
+
+    profile = (
+        ROOT
+        / "hw/ips/uart/signoff/ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy"
+    ).read_text(encoding="utf-8")
+    fifo_strategy = profile.split("[strategy fifo_sat]", 1)[1].split("[strategy pdr]", 1)[0]
+    assert "under_rst" not in profile
+    assert "apply uart uart.u_impl.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q" in fifo_strategy
+    assert "apply uart uart.tl_o__flexsoc_eqy_d_data" in fifo_strategy
+    assert "use sat" in fifo_strategy and "depth 20" in fifo_strategy
+    fast_strategy = profile.split("[strategy sat]", 1)[1].split("[strategy fifo_sat]", 1)[0]
+    assert "use sat" in fast_strategy and "depth 5" in fast_strategy
 
 def test_api_main_delegates_to_cli(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli_module, "app", lambda argv=None: 23)
@@ -419,14 +569,67 @@ def test_api_main_delegates_to_cli(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_cli_help_and_commands_json(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
-    assert app(["--help"]) == 0
-    help_text = capsys.readouterr().out
-    assert "fx settings" in help_text and "fx commands" in help_text
+    for argv in ([], ["help"], ["-h"], ["--help"]):
+        assert app(argv) == 0
+        help_text = capsys.readouterr().out
+        assert "Canonical IP lifecycle" in help_text
+        assert "Step" in help_text and "Command" in help_text and "Purpose" in help_text
+        assert help_text.index("1. Configure the run") < help_text.index("2. Create a new IP scaffold")
+        assert help_text.index("sim_post_syn") < help_text.index("power_analysis")
+        assert help_text.index("power_analysis") < help_text.index("fusion_analysis")
+        assert "6. Run post-synthesis sign-off" in help_text
+        assert "fx <command> --help" in help_text
 
     assert app(["commands", "--json", "--project-root", str(tmp_path)]) == 0
     catalog = json.loads(capsys.readouterr().out)
     assert [item["name"] for item in catalog] == list(TARGETS)
     assert all({"name", "group", "description", "params"} == set(item) for item in catalog)
+
+
+
+def test_cli_completion_protocol_bypasses_custom_guide(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Shell TAB completion must reach Click instead of printing the lifecycle."""
+
+    calls: list[tuple[list[str], str, bool]] = []
+
+    class CompletionCommand:
+        def main(self, *, args: list[str], prog_name: str, standalone_mode: bool) -> int:
+            calls.append((args, prog_name, standalone_mode))
+            print("sim_post_syn\nsim_post_pnr")
+            return 0
+
+    monkeypatch.setenv("_FX_COMPLETE", "complete_bash")
+    monkeypatch.setattr(cli_module, "_click_command", lambda: CompletionCommand())
+    assert app([]) == 0
+    output = capsys.readouterr().out
+    assert output == "sim_post_syn\nsim_post_pnr\n"
+    assert calls == [([], "fx", False)]
+    assert "Canonical IP lifecycle" not in output
+
+def test_cli_dedicated_help_aliases_and_signoff_selectors(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    for argv in (
+        ["fusion_analysis", "--help"],
+        ["fusion_analysis", "-h"],
+        ["fusion_analysis", "help"],
+        ["fusion_analysis", "info"],
+        ["help", "fusion_analysis"],
+    ):
+        assert app(argv) == 0
+        output = capsys.readouterr().out
+        assert "fx fusion_analysis" in output
+        assert "Correlate timing and power" in output
+        assert "POWER_TEST_NAME" in output
+        assert "POWER_GLS_BACKEND" in output
+        assert "POWER_TIMING_MODE" in output
+        assert "Automatic setup" in output and "setup_signoff" in output
+
+    assert app(["pdk", "--help"]) == 0
+    pdk_help = capsys.readouterr().out
+    assert "fx pdk list" in pdk_help and "fx pdk use sky130" in pdk_help
 
 
 def test_cli_settings_persist_reset_unset_and_derive_paths(
@@ -540,6 +743,8 @@ def test_cli_tool_and_dependency_options_are_forwarded(
         (["hjson", "--user"], "only valid for dependency targets"),
     ],
 )
+
+
 def test_cli_reports_invalid_user_input(
     capsys: pytest.CaptureFixture[str], tmp_path: Path, argv: list[str], message: str
 ) -> None:
@@ -636,3 +841,1062 @@ def test_cli_execution_output_modes(
     assert app(["hjson", "--live", "--project-root", str(tmp_path)]) == 0
     assert capsys.readouterr().out == ""
     assert seen[-1]["live"] is True and seen[-1]["LIVE"] == "1"
+
+
+# ---------------------------------------------------------------------------
+# Backend contracts retained in the public API suite
+# ---------------------------------------------------------------------------
+
+
+def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
+    output = tmp_path / "run" / "dv" / "functional" / "tb" / "cocotb"
+    cfg = CocotbConfig(
+        top="tri_stream_dsp",
+        interface="tlul",
+        output=output,
+        rtl_dir=tmp_path / "rtl",
+    )
+    clocks = ClockConfig(
+        domains=(
+            ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 10.0),
+            ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 8.0),
+            ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 5.0),
+        )
+    )
+
+    write_nclock_cocotb(cfg, clocks)
+
+    wrapper = output / "tri_stream_dsp_tb.sv"
+    assert wrapper.is_file()
+    assert not (output / "tri_stream_dsp_cocotb_tb.sv").exists()
+    assert "module tri_stream_dsp_tb;" in wrapper.read_text(encoding="utf-8")
+
+    makefile = (output / "Makefile").read_text(encoding="utf-8")
+    assert "COCOTB_TOPLEVEL = tri_stream_dsp_tb" in makefile
+    assert "VERILOG_SOURCES += $(PWD)/tri_stream_dsp_tb.sv" in makefile
+    assert _cocotb_wrapper(tmp_path / "run", "tri_stream_dsp") == wrapper
+
+
+def test_manifest_lists_only_existing_artifact_directories(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    run = tmp_path / "runs" / "demo" / "dev"
+    syn = run / "syn" / "sky130"
+    syn.mkdir(parents=True)
+    monkeypatch.setenv("FLEXSOC_PDK", "sky130")
+    monkeypatch.setenv("FLEXSOC_RUN_ROOT", str(run))
+
+    data = collect_manifest(
+        top="demo",
+        run_top="demo",
+        run_id="dev",
+        repo_root=tmp_path,
+    )
+
+    artifacts = data["run"]["artifacts"]
+    assert isinstance(artifacts, dict)
+    assert artifacts == {"synthesis": str(syn.resolve())}
+
+
+def _write_formal_stage(run: Path, top: str, suite: str, stage: str) -> None:
+    formal = run / "dv" / "formal" / "runs"
+    logs = run / "logs" / "dv" / "formal"
+    if suite == "csr":
+        category = "cover" if stage == "cover" else "prove"
+        workdir = formal / "csr" / category / f"{top}_csr_{stage}"
+        log = logs / "csr" / f"{top}_{stage}.log"
+    else:
+        category = "cover" if stage == "cover" else "prove"
+        workdir = formal / "properties" / category / f"{top}_{stage}"
+        log = logs / "properties" / f"{top}_{stage}.log"
+    workdir.mkdir(parents=True, exist_ok=True)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    (workdir / "status").write_text("PASS\n", encoding="utf-8")
+    (workdir / "trace0.vcd").write_text("$enddefinitions $end\n", encoding="utf-8")
+    log.write_text("DONE (PASS)\nElapsed clock time [00:00:03] (3)\n", encoding="utf-8")
+
+
+def test_status_word_prefers_persisted_tool_result(tmp_path: Path) -> None:
+    status = tmp_path / "status"
+    log = tmp_path / "run.log"
+    status.write_text("PASS\n", encoding="utf-8")
+    log.write_text("informational ERROR counter: 0\n", encoding="utf-8")
+
+    assert status_word(status, log) == "pass"
+
+
+def test_formal_stage_collects_status_elapsed_and_trace(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    workdir = run / "dv/formal/runs/properties/prove/demo_prove"
+    log = run / "logs/dv/formal/properties/demo_prove.log"
+    workdir.mkdir(parents=True)
+    log.parent.mkdir(parents=True)
+    (workdir / "status").write_text("PASS\n", encoding="utf-8")
+    (workdir / "trace0.vcd").write_text("trace\n", encoding="utf-8")
+    log.write_text("Elapsed clock time [00:00:09] (9)\n", encoding="utf-8")
+
+    data = formal_stage(run, workdir, log)
+
+    assert data == {
+        "status": "pass",
+        "workdir": "dv/formal/runs/properties/prove/demo_prove",
+        "log": "logs/dv/formal/properties/demo_prove.log",
+        "trace_count": 1,
+        "elapsed_s": 9,
+        "traces": ["dv/formal/runs/properties/prove/demo_prove/trace0.vcd"],
+    }
+
+
+def test_collect_formal_reports_all_six_stages(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    top = "demo"
+    for suite in ("csr", "properties"):
+        for stage in ("bmc", "prove", "cover"):
+            _write_formal_stage(run, top, suite, stage)
+
+    data = collect_formal(top, run)
+
+    assert data is not None
+    assert data["status"] == "pass"
+    assert data["summary"] == {
+        "passed": 6,
+        "observed": 6,
+        "total": 6,
+        "elapsed_s": 18,
+        "traces": 6,
+        "stages": {
+            "bmc": {"passed": 2, "total": 2},
+            "prove": {"passed": 2, "total": 2},
+            "cover": {"passed": 2, "total": 2},
+        },
+    }
+
+
+def _context(tmp_path: Path, *, analysis: str, mode: str = "setup") -> SignoffContext:
+    liberty = tmp_path / "demo__tt.lib"
+    netlist = tmp_path / "demo_synth.v"
+    sdc = tmp_path / "demo.sdc"
+    activity = tmp_path / "smoke.vcd"
+    gls = tmp_path / "smoke.json"
+    for path, text in (
+        (liberty, "library(demo) {}\n"),
+        (netlist, "module demo; endmodule\n"),
+        (sdc, "create_clock -period 10 [get_ports clk]\n"),
+        (activity, "$enddefinitions $end\n"),
+        (gls, "{}\n"),
+    ):
+        path.write_text(text, encoding="utf-8")
+    return SignoffContext(
+        analysis=analysis,
+        design="demo",
+        variant="dev",
+        pdk="sky130",
+        stage="post_syn",
+        corner="tt",
+        mode=mode,
+        workload="smoke_sv_typ" if "analysis" in analysis else "",
+        top="demo",
+        liberty=liberty,
+        macro_liberties=(),
+        netlist=netlist,
+        sdc=sdc,
+        report_dir=tmp_path / "reports",
+        activity_file=activity if analysis in {"power_analysis", "fusion_analysis"} else None,
+        activity_scope="demo_tb/u_demo",
+        gls_report=gls if analysis in {"power_analysis", "fusion_analysis"} else None,
+    )
+
+
+def test_failed_opensta_keeps_details_in_log(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tool = tmp_path / "fake_sta.py"
+    tool.write_text(
+        "#!/usr/bin/env python3\n"
+        "print('Error: synthetic OpenSTA failure')\n"
+        "raise SystemExit(7)\n",
+        encoding="utf-8",
+    )
+    tool.chmod(0o755)
+    log = tmp_path / "sta.log"
+
+    assert _run_sta([str(tool)], cwd=tmp_path, log=log) == 7
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+    assert "synthetic OpenSTA failure" in log.read_text(encoding="utf-8")
+
+
+def test_sdf_writer_uses_pinned_opensta_command_contract(tmp_path: Path) -> None:
+    from flexsoc.backend.setup_signoff import render_sdf_tcl
+
+    script = render_sdf_tcl(_context(tmp_path, analysis="sdf", mode=""))
+    assert "write_sdf -divider . -include_typ $sdf_file" in script
+    assert "demo_tt.sdf" in script
+    assert "units.rpt" not in script
+    assert "check_setup.rpt" not in script
+
+
+def test_sta_setup_hold_and_compact_report_contract(tmp_path: Path) -> None:
+    setup = render_sta_tcl(_context(tmp_path, analysis="sta", mode="setup"))
+    hold = render_sta_tcl(_context(tmp_path, analysis="sta", mode="hold"))
+
+    assert "set delay_type max" in setup
+    assert "set delay_type min" in hold
+    assert "report_wns -$delay_type" in setup
+    assert "report_tns -$delay_type" in setup
+    assert "timing.rpt" in setup
+    for section in (
+        "Timing summary",
+        "Constraint validation",
+        "Violating paths",
+        "Near-critical paths",
+        "Unconstrained paths",
+    ):
+        assert section in setup
+    for obsolete in (
+        "summary.rpt",
+        "check_setup.rpt",
+        "endpoint_coverage.rpt",
+        "violating.rpt",
+        "near_critical.rpt",
+        "unconstrained.rpt",
+        "check_types.rpt",
+        "endpoint_coverage.json",
+        "units.rpt",
+    ):
+        assert obsolete not in setup
+
+
+def test_power_estimate_uses_one_primary_report(tmp_path: Path) -> None:
+    script = render_power_estimate_tcl(_context(tmp_path, analysis="power_estimate"))
+
+    assert "set_power_activity -input" in script
+    assert "set_power_activity -global" not in script
+    assert "analysis=power_estimate" in script
+    assert "activity_source=input_assumption" in script
+    assert "power.rpt" in script
+    for obsolete in (
+        "activity_assumptions.rpt",
+        "activity_annotation.rpt",
+        "power_summary.rpt",
+        "highest_power_instances.rpt",
+        "power.json",
+        "highest_power_instances.json",
+        "units.rpt",
+        "check_setup.rpt",
+    ):
+        assert obsolete not in script
+
+
+def test_activity_power_reads_trace_into_one_primary_report(tmp_path: Path) -> None:
+    script = render_power_analysis_tcl(_context(tmp_path, analysis="power_analysis"))
+
+    assert "read_vcd -scope $activity_scope $activity_file" in script
+    assert "read_saif -scope $activity_scope $activity_file" in script
+    assert "report_activity_annotation -report_annotated -report_unannotated" in script
+    assert "report_power -highest_power_instances" in script
+    assert "power.rpt" in script
+    assert "power.json" not in script
+    assert "highest_power_instances.json" not in script
+
+def test_opensta_signal_returncode_is_actionable() -> None:
+    assert setup_signoff_module._returncode_text(-11) == "signal 11 (SIGSEGV)"
+    assert setup_signoff_module._returncode_text(2) == "exit 2"
+
+
+def test_fusion_discovers_worst_met_or_violated_paths_with_public_reports(tmp_path: Path) -> None:
+    ctx = _context(tmp_path, analysis="fusion_analysis")
+    script = render_fusion_analysis_tcl(ctx)
+
+    assert script.index("report_power >> $report") < script.index("Worst timing paths")
+    assert "fusion.rpt" in script
+    assert "methodology=staged_public_opensta" in script
+    assert "Worst timing paths (violated or met)" in script
+    assert "-slack_max" not in script
+    assert "-group_path_count $endpoint_path_limit -endpoint_path_count 1" in script
+    assert "-fields {slew capacitance input_pin net fanout}" in script
+    assert "report_power -highest_power_instances" in script
+    assert "-digits 12 > [file join $report_dir .highest_power.rpt]" in script
+    for private in (
+        "sta::instance_power",
+        "sta::network_leaf_instances",
+        "find_timing_paths",
+        "get_property",
+    ):
+        assert private not in script
+
+
+def test_fusion_parses_gate_timing_fanout_and_capacitance() -> None:
+    report = """Startpoint: r1 (rising edge-triggered flip-flop clocked by clk)
+Endpoint: r2 (rising edge-triggered flip-flop clocked by clk)
+Path Group: clk
+Path Type: max
+
+ Fanout Cap Slew Delay Time Description
+ ---------------------------------------------------------
+ 1 0.010 0.020 0.100 0.100 ^ r1/Q (DFF_X1)
+ 0.021 0.005 0.105 ^ u1/A (BUF_X1)
+ 3 0.030 0.022 0.080 0.185 ^ u1/Y (BUF_X1)
+ 0.024 0.004 0.189 ^ r2/D (DFF_X1)
+ 0.189 data arrival time
+ 0.250 data required time
+ 0.061 slack (MET)
+"""
+    paths = setup_signoff_module._timing_path_blocks(report)
+
+    assert len(paths) == 1
+    assert paths[0]["status"] == "met"
+    assert paths[0]["slack"] == pytest.approx(0.061)
+    assert [stage["instance"] for stage in paths[0]["stages"]] == ["r1", "u1", "r2"]
+    gate = paths[0]["stages"][1]
+    assert gate["pins"] == ["A", "Y"]
+    assert gate["fanout"] == pytest.approx(3.0)
+    assert gate["capacitance"] == pytest.approx(0.03)
+    assert gate["slew"] == pytest.approx(0.022)
+    assert gate["delay"] == pytest.approx(0.08)
+    assert gate["arrival"] == pytest.approx(0.185)
+
+
+def test_fusion_normalizes_opensta_instance_power_json(tmp_path: Path) -> None:
+    source = tmp_path / "power.json"
+    source.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "u1",
+                    "internal": 1.0,
+                    "switching": 2.0,
+                    "leakage": 0.1,
+                    "total": 3.1,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert setup_signoff_module._power_instance_rows(source) == [
+        {
+            "instance": "u1",
+            "internal": 1.0,
+            "switching": 2.0,
+            "dynamic": 3.0,
+            "leakage": 0.1,
+            "total": 3.1,
+        }
+    ]
+
+
+def test_fusion_normalizes_opensta_27_instance_power_text(tmp_path: Path) -> None:
+    source = tmp_path / "power.rpt"
+    source.write_text(
+        """Instance                         Internal      Switching        Leakage          Total
+                                      Power          Power          Power          Power (Watts)
+-----------------------------------------------------------------------------------------------
+u_top/u1                      1.000000e+00   2.000000e+00   1.000000e-01   3.100000e+00
+u_top/u2                      4.000000e-03   5.000000e-04   2.000000e-05   4.520000e-03  1.2%
+""",
+        encoding="utf-8",
+    )
+
+    rows = setup_signoff_module._power_instance_rows(source)
+    assert rows[0] == {
+        "instance": "u_top/u1",
+        "internal": 1.0,
+        "switching": 2.0,
+        "dynamic": 3.0,
+        "leakage": 0.1,
+        "total": 3.1,
+    }
+    assert rows[1]["instance"] == "u_top/u2"
+    assert rows[1]["total"] == pytest.approx(0.00452)
+
+
+def test_fusion_normalizes_opensta_instance_power_with_cell_column(tmp_path: Path) -> None:
+    source = tmp_path / "highest_power.rpt"
+    source.write_text(
+        """Rank Instance Cell Internal Switching Leakage Total Percent
+1 u_top/u1 sky130_fd_sc_hd__buf_1 1.000000e+00 2.000000e+00 1.000000e-01 3.100000e+00 60.0%
+2 u_top/u2 sky130_fd_sc_hd__inv_1 4.000000e-03 5.000000e-04 2.000000e-05 4.520000e-03 1.2%
+""",
+        encoding="utf-8",
+    )
+
+    rows = setup_signoff_module._power_instance_rows(source)
+    assert [row["instance"] for row in rows] == ["u_top/u1", "u_top/u2"]
+    assert rows[0]["total"] == pytest.approx(3.1)
+    assert rows[1]["leakage"] == pytest.approx(2.0e-5)
+
+
+def test_fusion_normalizes_marked_per_instance_power_blocks(tmp_path: Path) -> None:
+    source = tmp_path / "instance_power.rpt"
+    source.write_text(
+        """# FlexSoC marked OpenSTA instance-power blocks
+=== FLEXSOC_INSTANCE u_top/u1 ===
+Group Internal Switching Leakage Total
+Sequential 0 0 0 0
+Combinational 1.0 2.0 0.1 3.1
+Total 1.0 2.0 0.1 3.1
+=== FLEXSOC_INSTANCE u_top/u2 ===
+Group Internal Switching Leakage Total
+Total 4.0e-3 5.0e-4 2.0e-5 4.52e-3
+""",
+        encoding="utf-8",
+    )
+
+    rows = setup_signoff_module._power_instance_rows(source)
+    assert [row["instance"] for row in rows] == ["u_top/u1", "u_top/u2"]
+    assert rows[0]["dynamic"] == pytest.approx(3.0)
+    assert rows[1]["total"] == pytest.approx(4.52e-3)
+
+
+def test_fusion_detail_pass_uses_public_power_and_timing_commands(tmp_path: Path) -> None:
+    ctx = _context(tmp_path, analysis="fusion_analysis")
+    script, marker = setup_signoff_module._fusion_detail_tcl(
+        ctx,
+        ("u1", "array_reg[3]"),
+        ("u1",),
+    )
+
+    assert "report_power -instances $instances -digits 12" in script
+    assert "=== FLEXSOC_INSTANCE $instance_name ===" in script
+    assert "foreach instance_name $instance_names instance_pattern $instance_patterns" in script
+    assert "report_checks -through $pins" in script
+    assert "get_cells" in script
+    assert "get_pins [list" in script
+    assert r"array_reg\[3\]" in script
+    assert marker in script
+    for private in ("sta::instance_power", "find_timing_paths", "get_property"):
+        assert private not in script
+
+
+def test_fusion_report_contains_path_gate_power_and_hotspot_reverse_lookup(tmp_path: Path) -> None:
+    report = tmp_path / "fusion.rpt"
+    report.write_text("analysis=fusion_analysis\n", encoding="utf-8")
+    paths = [
+        {
+            "status": "met",
+            "slack": 0.1,
+            "type": "max",
+            "group": "core",
+            "startpoint": "r1",
+            "endpoint": "r2",
+            "stages": [
+                {
+                    "instance": "u1",
+                    "cell": "BUF_X1",
+                    "pins": ["A", "Y"],
+                    "fanout": 2.0,
+                    "capacitance": 0.03,
+                    "slew": 0.02,
+                    "delay": 0.08,
+                    "arrival": 0.18,
+                }
+            ],
+        }
+    ]
+    power = {
+        "u1": {
+            "internal": 1.0,
+            "switching": 2.0,
+            "dynamic": 3.0,
+            "leakage": 0.1,
+            "total": 3.1,
+        }
+    }
+    hotspot = [{"instance": "u1", **power["u1"]}]
+    setup_signoff_module._append_fusion_tables(
+        report,
+        paths,
+        power,
+        hotspot,
+        {"u1": {**paths[0], "raw": "Startpoint: r1\n0.1 slack (MET)"}},
+    )
+    text = report.read_text(encoding="utf-8")
+    assert "Gate-level timing/power fusion" in text
+    assert "stage instance cell pins fanout capacitance" in text
+    assert "u1 BUF_X1 A,Y 2 0.03 0.02 0.08 0.18 1 2 3 0.1 3.1" in text
+    assert "selected_worst_paths=1" in text
+    assert "Startpoint: r1" in text
+
+
+def test_fusion_enrichment_extends_power_to_hotspot_path_instances(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = _context(tmp_path, analysis="fusion_analysis")
+    ctx.report_dir.mkdir(parents=True)
+    ctx.report_dir.joinpath("fusion.rpt").write_text(
+        """Startpoint: r1
+Endpoint: r2
+Path Group: core
+Path Type: max
+1 0.01 0.02 0.10 0.10 ^ u1/Y (BUF_X1)
+0.10 data arrival time
+0.20 data required time
+0.10 slack (MET)
+""",
+        encoding="utf-8",
+    )
+    ctx.report_dir.joinpath(".highest_power.rpt").write_text(
+        "u1 1.000000000000e+00 2.000000000000e+00 1.000000000000e-01 3.100000000000e+00\n",
+        encoding="utf-8",
+    )
+
+    def fake_run(command: object, *, cwd: Path, log: Path) -> int:
+        del cwd
+        script = Path(command[-1])  # type: ignore[index]
+        log.parent.mkdir(parents=True, exist_ok=True)
+        if script.name == ".fusion_detail.tcl":
+            ctx.report_dir.joinpath(".instance_power.rpt").write_text(
+                "u1 1.000000000000e+00 2.000000000000e+00 1.000000000000e-01 3.100000000000e+00\n",
+                encoding="utf-8",
+            )
+            ctx.report_dir.joinpath(".hotspot_paths.rpt").write_text(
+                """=== HOTSPOT rank=1 instance=u1 ===
+Startpoint: r3
+Endpoint: r4
+Path Group: core
+Path Type: max
+1 0.02 0.03 0.05 0.05 ^ u1/Y (BUF_X1)
+2 0.04 0.04 0.06 0.11 ^ u2/Y (BUF_X2)
+0.11 data arrival time
+0.20 data required time
+0.09 slack (MET)
+""",
+                encoding="utf-8",
+            )
+            log.write_text(
+                "FLEXSOC_FUSION_DETAIL_COMPLETE corner=tt mode=setup workload=smoke_sv_typ\n",
+                encoding="utf-8",
+            )
+        else:
+            ctx.report_dir.joinpath(".additional_power.rpt").write_text(
+                "u2 4.000000000000e+00 5.000000000000e+00 2.000000000000e-01 9.200000000000e+00\n",
+                encoding="utf-8",
+            )
+            log.write_text(
+                "FLEXSOC_FUSION_POWER_COMPLETE corner=tt mode=setup workload=smoke_sv_typ\n",
+                encoding="utf-8",
+            )
+        return 0
+
+    monkeypatch.setattr(setup_signoff_module, "_run_sta", fake_run)
+    result = setup_signoff_module._enrich_fusion_report(
+        tmp_path,
+        {"STA": "sta"},
+        ctx,
+        tmp_path / "fusion.log",
+        progress_label="",
+        run_index=1,
+        total_runs=1,
+    )
+
+    report = ctx.report_dir.joinpath("fusion.rpt").read_text(encoding="utf-8")
+    assert result["hotspot_path_count"] == 1
+    assert "u2 BUF_X2 Y 2 0.04 0.04 0.06 0.11 4 5 9 0.2 9.2" in report
+    assert "path_power_complete=true" in report
+    assert not tuple(ctx.report_dir.glob(".*power*.rpt"))
+    assert not tuple(ctx.report_dir.glob(".fusion_*.tcl"))
+
+
+def test_fusion_table_is_compact_and_points_to_primary_reports(tmp_path: Path) -> None:
+    workload_root = tmp_path / "smoke_sv_typ"
+    reports = {
+        "ss/setup": {
+            "status": "pass",
+            "wns": -0.01,
+            "tns": -0.05,
+            "internal_w": 0.1,
+            "switching_w": 0.02,
+            "leakage_w": 0.001,
+            "total_w": 0.121,
+            "activity_annotation_count": 5120,
+            "report": str(workload_root / "ss/setup/fusion.rpt"),
+        }
+    }
+
+    table = _write_activity_table("fusion_analysis", workload_root, "smoke_sv_typ", reports)
+    text = table.read_text(encoding="utf-8")
+    assert table == workload_root / "fusion_table.rpt"
+    assert "corner/mode status" in text
+    assert "ss/setup" in text
+    assert "ss/setup/fusion.rpt" in text
+    assert "activity_annotation.rpt" not in text
+
+
+def test_fusion_all_prints_workload_and_corner_progress(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    liberty = tmp_path / "ss.lib"
+    wave = tmp_path / "demo_smoke_sv_typ.vcd"
+    gls_report = tmp_path / "demo_smoke_sv_typ.json"
+    fixtures = (
+        (liberty, "library(ss) {}\n"),
+        (wave, "$enddefinitions $end\n"),
+        (gls_report, "{}\n"),
+    )
+    for path, content in fixtures:
+        path.write_text(content, encoding="utf-8")
+    spec = setup_signoff_module.ActivitySpec(
+        top="demo",
+        pdk="sky130",
+        test="smoke",
+        backend="sv",
+        mode="typ",
+        report=gls_report,
+        wave=wave,
+    )
+
+    class Layout:
+        fusion_dir = tmp_path / "fusion"
+        power_dir = tmp_path / "power"
+        fusion_log_dir = tmp_path / "logs/fusion"
+        power_log_dir = tmp_path / "logs/power"
+
+    monkeypatch.setattr(setup_signoff_module, "discover_specs", lambda *args: [spec])
+    monkeypatch.setattr(setup_signoff_module, "layout_from_values", lambda *args: Layout())
+    monkeypatch.setattr(
+        setup_signoff_module,
+        "_activity_vcd",
+        lambda *args: (wave, None, "direct-vcd"),
+    )
+    monkeypatch.setattr(
+        setup_signoff_module,
+        "_resolve_vcd_scope",
+        lambda *args, **kwargs: ("demo_tb/u_demo", ("demo_tb/u_demo",)),
+    )
+    monkeypatch.setattr(setup_signoff_module, "_liberties", lambda values: {"ss": liberty})
+
+    def fake_context(
+        project_root: Path,
+        values: object,
+        **kwargs: object,
+    ) -> SignoffContext:
+        del project_root, values
+        return SignoffContext(
+            analysis=str(kwargs["analysis"]),
+            design="demo",
+            variant="dev",
+            pdk="sky130",
+            stage="post_syn",
+            corner=str(kwargs["corner"]),
+            mode=str(kwargs["mode"]),
+            workload=str(kwargs["workload"]),
+            top="demo",
+            liberty=kwargs["liberty"],
+            macro_liberties=(),
+            netlist=tmp_path / "demo_synth.v",
+            sdc=tmp_path / "demo.sdc",
+            report_dir=kwargs["report_dir"],
+            activity_file=kwargs["activity_file"],
+            activity_scope=str(kwargs["activity_scope"]),
+            gls_report=kwargs["gls_report"],
+        )
+
+    def fake_execute(
+        project_root: Path,
+        values: object,
+        *,
+        analysis: str,
+        ctx: SignoffContext,
+        script: Path,
+        log: Path,
+    ) -> int:
+        del project_root, values, analysis, script
+        ctx.report_dir.mkdir(parents=True, exist_ok=True)
+        report = ctx.report_dir / "fusion.rpt"
+        report.write_text(
+            "Annotated 5120 pin activities.\n"
+            "wns max 0.100\n"
+            "tns max 0.000\n"
+            "Total 1.0 2.0 0.1 3.1\n",
+            encoding="utf-8",
+        )
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("complete\n", encoding="utf-8")
+        return 0
+
+    def fake_enrich(
+        project_root: Path,
+        values: object,
+        ctx: SignoffContext,
+        log: Path,
+        *,
+        progress_label: str,
+        run_index: int,
+        total_runs: int,
+    ) -> dict[str, object]:
+        del project_root, values, log
+        print(
+            f"[{progress_label}] run {run_index}/{total_runs} DISCOVERY PASS "
+            "paths=2 path_instances=4 hotspots=3"
+        )
+        print(
+            f"[{progress_label}] run {run_index}/{total_runs} HOTSPOT TIMING START "
+            "hotspots=3"
+        )
+        print(
+            f"[{progress_label}] run {run_index}/{total_runs} HOTSPOT TIMING PASS "
+            "targeted_paths=3 log=fake_detail.log"
+        )
+        print(
+            f"[{progress_label}] run {run_index}/{total_runs} FUSION PASS "
+            f"worst_paths=2 hotspot_paths=3 report={ctx.report_dir / 'fusion.rpt'}"
+        )
+        return {
+            "timing_path_count": 2,
+            "path_instance_count": 4,
+            "power_hotspot_count": 3,
+        }
+
+    monkeypatch.setattr(setup_signoff_module, "_base_context", fake_context)
+    monkeypatch.setattr(setup_signoff_module, "_execute_script", fake_execute)
+    monkeypatch.setattr(setup_signoff_module, "_enrich_fusion_report", fake_enrich)
+
+    assert setup_signoff_module.execute_activity(
+        "fusion_analysis",
+        "all",
+        tmp_path,
+        {
+            "TOP": "demo",
+            "PDK": "sky130",
+            "SIGNOFF_CORNERS": "ss",
+            "STA_MODES": "setup hold",
+        },
+    ) == 0
+
+    output = capsys.readouterr().out
+    assert "[fusion_analysis_all] workloads=1" in output
+    assert "workload 1/1 START test=smoke backend=sv timing=typ name=smoke_sv_typ" in output
+    assert "activity=" in output and "scope=demo_tb/u_demo runs=2" in output
+    assert "run 1/2 START workload=smoke_sv_typ corner=ss mode=setup" in output
+    assert "run 1/2 DISCOVERY PASS paths=2 path_instances=4 hotspots=3" in output
+    assert "run 1/2 HOTSPOT TIMING START hotspots=3" in output
+    assert "run 1/2 HOTSPOT TIMING PASS targeted_paths=3" in output
+    assert "run 1/2 FUSION PASS worst_paths=2 hotspot_paths=3 report=" in output
+    assert "run 1/2 PASS report=" in output
+    setup_report = "[report] ss/setup "
+    hold_start = "run 2/2 START workload=smoke_sv_typ corner=ss mode=hold"
+    assert setup_report in output
+    assert output.index(setup_report) < output.index(hold_start)
+    assert output.count(setup_report) == 1
+    assert hold_start in output
+    assert "[report] ss/hold " in output
+    assert "workload 1/1 PASS progress=1/1 passed=1 failed=0" in output
+    assert "[report] workload=smoke_sv_typ table=" in output
+    assert "[report] machine_summary=" in output
+    assert "[fusion_analysis_all] 1/1 PASS" in output
+
+    assert setup_signoff_module.execute_activity(
+        "fusion_analysis",
+        "single",
+        tmp_path,
+        {
+            "TOP": "demo",
+            "PDK": "sky130",
+            "SIGNOFF_CORNERS": "ss",
+            "STA_MODES": "setup hold",
+        },
+    ) == 0
+    single_output = capsys.readouterr().out
+    assert "[fusion_analysis] workloads=1" in single_output
+    assert "[report] ss/setup " in single_output
+    assert single_output.index("[report] ss/setup ") < single_output.index(hold_start)
+    assert "[report] ss/hold " in single_output
+    assert "[report] machine_summary=" in single_output
+
+
+def test_timing_summary_parser_accepts_opensta_wns_tns() -> None:
+    assert _timing_values("wns max -0.125\ntns max -1.250\n") == {
+        "wns": -0.125,
+        "tns": -1.25,
+    }
+
+def test_signoff_execution_rejects_truncated_zero_exit_and_stale_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = _context(tmp_path, analysis="power_analysis")
+    ctx.report_dir.mkdir(parents=True)
+    stale = ctx.report_dir / "power_summary.rpt"
+    stale.write_text("stale\n", encoding="utf-8")
+
+    def fake_run(command: object, *, cwd: Path, log: Path) -> int:
+        del command, cwd
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("OpenSTA stopped without a Tcl error code\n", encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(setup_signoff_module, "_run_sta", fake_run)
+    with pytest.raises(ValueError, match="completion marker"):
+        setup_signoff_module._execute_script(
+            tmp_path,
+            {"STA": "sta"},
+            analysis="power_analysis",
+            ctx=ctx,
+            script=tmp_path / "power_analysis.tcl",
+            log=tmp_path / "power_analysis.log",
+        )
+    assert not stale.exists()
+
+
+def test_signoff_render_appends_deterministic_completion_marker(tmp_path: Path) -> None:
+    ctx = _context(tmp_path, analysis="fusion_analysis", mode="hold")
+    script = setup_signoff_module._render("fusion_analysis", ctx)
+
+    assert script.rstrip().endswith(
+        "puts {FLEXSOC_SIGNOFF_COMPLETE analysis=fusion_analysis corner=tt "
+        "mode=hold workload=smoke_sv_typ}"
+    )
+
+
+def test_pdk_first_layout_for_all_technology_artifacts(tmp_path: Path) -> None:
+    layout = pdk_run_layout(tmp_path / "run", pdk="ihp-sg13g2", top="demo")
+
+    assert layout.syn_dir == tmp_path / "run/syn/ihp-sg13g2"
+    assert layout.pnr_dir == tmp_path / "run/pnr_openroad/ihp-sg13g2"
+    assert layout.equivalence_dir == tmp_path / "run/signoff/ihp-sg13g2/equivalence/rtl_vs_syn"
+    assert layout.sta_dir == tmp_path / "run/signoff/ihp-sg13g2/sta"
+    assert layout.power_dir == tmp_path / "run/signoff/ihp-sg13g2/power"
+    assert layout.fusion_dir == tmp_path / "run/signoff/ihp-sg13g2/fusion"
+    assert layout.sdf_dir == tmp_path / "run/signoff/ihp-sg13g2/sdf"
+
+
+def test_eqy_and_opensta_modules_are_separated() -> None:
+    root = Path(__file__).resolve().parents[1] / "src/flexsoc/backend"
+    signoff = (root / "setup_signoff.py").read_text(encoding="utf-8")
+    eqy = (root / "setup_eqy.py").read_text(encoding="utf-8")
+
+    assert "eqy-export" not in signoff
+    assert "generate_equivalence_config" not in signoff
+    assert "render_sta_tcl" not in eqy
+    assert "render_power_analysis_tcl" not in eqy
+    assert not (root / "power_analysis.py").exists()
+
+
+def test_saved_ip_packages_use_pdk_first_technology_branches() -> None:
+    root = Path(__file__).resolve().parents[1] / "hw/ips"
+    technology_packages = []
+    for package in sorted(path for path in root.iterdir() if path.is_dir()):
+        if not any((package / stage).is_dir() for stage in ("syn", "pnr_openroad", "signoff")):
+            continue
+        technology_packages.append(package.name)
+        for stage in ("syn", "pnr_openroad"):
+            directory = package / stage
+            if directory.is_dir():
+                assert not any(path.is_file() for path in directory.iterdir()), (
+                    package.name,
+                    stage,
+                )
+        signoff = package / "signoff"
+        if signoff.is_dir():
+            assert not any(path.is_file() for path in signoff.iterdir()), package.name
+            assert not (signoff / "equivalence").exists(), package.name
+    assert {"cordic", "uart", "cache_wrapper", "fft_core", "gpio", "pwm"}.issubset(
+        technology_packages
+    )
+    for top in ("cordic", "uart"):
+        package = root / top
+        assert (package / "syn/sky130").is_dir()
+        assert (package / "pnr_openroad/sky130").is_dir()
+        assert (package / "signoff/sky130/equivalence/rtl_vs_syn").is_dir()
+        assert (package / "signoff/ihp-sg13g2/equivalence/rtl_vs_syn").is_dir()
+
+
+def test_setup_signoff_generates_five_families_without_activity_scripts(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs/demo/dev"
+    (run / "syn/sky130").mkdir(parents=True)
+    (run / "constraints").mkdir(parents=True)
+    (run / "syn/sky130/demo_synth.v").write_text(
+        "module demo; endmodule\n", encoding="utf-8"
+    )
+    (run / "constraints/demo.sdc").write_text(
+        "create_clock -period 10 [get_ports clk]\n", encoding="utf-8"
+    )
+    liberties = []
+    for corner in ("ss", "tt", "ff"):
+        path = tmp_path / f"demo__{corner}_view.lib"
+        path.write_text("library(demo) {}\n", encoding="utf-8")
+        liberties.append(path)
+    values = {
+        "WORKSPACE": str(workspace),
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+        "TOP": "demo",
+        "PDK": "sky130",
+        "LIBS": " ".join(str(path) for path in liberties),
+        "PNR_SDC_FILE": str(run / "constraints/demo.sdc"),
+    }
+
+    paths = generate_families(tmp_path, values)
+
+    assert {path.relative_to(run).as_posix() for path in paths} == {
+        "signoff/sky130/sta/sta.tcl",
+        "signoff/sky130/sdf/write_sdf.tcl",
+        "signoff/sky130/power/estimate/power_estimate.tcl",
+        "signoff/sky130/power/analysis/power_analysis.tcl",
+        "signoff/sky130/fusion/fusion_analysis.tcl",
+    }
+    assert not (run / "signoff/sky130/power/activity/scripts").exists()
+
+
+def test_common_header_and_runtime_validation_are_complete(tmp_path: Path) -> None:
+    ctx = _context(tmp_path, analysis="sta", mode="setup")
+    script = render_sta_tcl(ctx)
+
+    for label in (
+        "Analysis : sta",
+        "Design   : demo",
+        "Variant  : dev",
+        "PDK      : sky130",
+        "Stage    : post_syn",
+        "Corner   : tt",
+        "Mode     : setup",
+        "Top      : demo",
+        "Macro Liberty",
+        "Report dir",
+        "Limitations:",
+    ):
+        assert label in script
+    assert "flexsoc_require_readable" in script
+    assert "read_liberty $liberty" in script
+    assert "read_verilog $netlist" in script
+    assert "link_design $top" in script
+    assert "read_sdc $sdc" in script
+    assert "report_units" in script
+
+
+def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs/demo/dev"
+    results = run / "pnr_openroad/sky130/results/demo/base"
+    results.mkdir(parents=True)
+    (results / "6_final.v").write_text("module demo; endmodule\n", encoding="utf-8")
+    (results / "6_final.spef").write_text("*SPEF \"IEEE 1481-1998\"\n", encoding="utf-8")
+    (run / "constraints").mkdir(parents=True)
+    (run / "constraints/demo.sdc").write_text("create_clock -period 10 [get_ports clk]\n", encoding="utf-8")
+    liberty = tmp_path / "demo__tt_view.lib"
+    liberty.write_text("library(demo) {}\n", encoding="utf-8")
+    paths = generate_families(
+        tmp_path,
+        {
+            "WORKSPACE": str(workspace),
+            "RUN_TOP": "demo",
+            "RUN_ID": "dev",
+            "TOP": "demo",
+            "PDK": "sky130",
+            "SIGNOFF_STAGE": "post_route",
+            "LIBS": str(liberty),
+            "PNR_SDC_FILE": str(run / "constraints/demo.sdc"),
+        },
+    )
+    sta = next(path for path in paths if path.name == "sta.tcl").read_text(encoding="utf-8")
+    assert str(results / "6_final.v") in sta
+    assert str(results / "6_final.spef") in sta
+    assert "set_propagated_clock" in sta
+    assert "Stage    : post_route" in sta
+
+
+def test_missing_configured_macro_liberty_is_an_error(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs/demo/dev"
+    (run / "syn/sky130").mkdir(parents=True)
+    (run / "constraints").mkdir(parents=True)
+    (run / "syn/sky130/demo_synth.v").write_text("module demo; endmodule\n", encoding="utf-8")
+    (run / "constraints/demo.sdc").write_text("create_clock -period 10 [get_ports clk]\n", encoding="utf-8")
+    liberty = tmp_path / "demo__tt_view.lib"
+    liberty.write_text("library(demo) {}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="missing macro Liberty"):
+        generate_families(
+            tmp_path,
+            {
+                "WORKSPACE": str(workspace),
+                "RUN_TOP": "demo",
+                "RUN_ID": "dev",
+                "TOP": "demo",
+                "PDK": "sky130",
+                "LIBS": str(liberty),
+                "MACRO_LIBS": str(tmp_path / "missing_macro.lib"),
+                "PNR_SDC_FILE": str(run / "constraints/demo.sdc"),
+            },
+        )
+
+
+
+def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    timing = run / "signoff/sky130/sta/ss/setup/timing.rpt"
+    timing.parent.mkdir(parents=True)
+    timing.write_text(
+        "wns max -0.125\ntns max -1.250\n"
+        "=== Violating paths ===\nslack (VIOLATED)\n"
+        "=== Unconstrained paths ===\nStartpoint: floating\n",
+        encoding="utf-8",
+    )
+    power = run / "signoff/sky130/power/estimate/ss/power.rpt"
+    power.parent.mkdir(parents=True)
+    power.write_text(
+        "activity=0.1\nduty=0.5\nTotal 1.0 2.0 0.25 3.25\n",
+        encoding="utf-8",
+    )
+
+    sta = collect_sta("demo", run, "sky130")
+    assert sta is not None
+    assert sta["ss"]["setup"]["wns"] == -0.125
+    assert sta["ss"]["setup"]["tns"] == -1.25
+    assert sta["ss"]["setup"]["reported_violating_paths"] == 1
+    assert sta["ss"]["setup"]["reported_unconstrained_paths"] == 1
+    assert sta["ss"]["setup"]["report"].endswith("timing.rpt")
+
+    estimate = collect_power_estimate("demo", run, "sky130")
+    assert estimate is not None
+    assert estimate["activity"] == 0.1
+    assert estimate["duty"] == 0.5
+    assert estimate["corners"]["ss"]["dynamic_w"] == 3.0
+    assert estimate["corners"]["ss"]["report"].endswith("power.rpt")
+
+def test_power_summary_gets_explicit_dynamic_definition(tmp_path: Path) -> None:
+    report = tmp_path / "power.rpt"
+    report.write_text("Total 1.0 2.5 0.25 3.75\n", encoding="utf-8")
+    _annotate_power_summary(tmp_path)
+    text = report.read_text(encoding="utf-8")
+    assert "dynamic_power_definition=internal_power+switching_power" in text
+    assert "internal_power=1.0" in text
+    assert "switching_power=2.5" in text
+    assert "dynamic_power=3.5" in text
+    assert "total_power=3.75" in text
+
+
+def test_script_output_includes_context_and_keeps_logs_plain(tmp_path: Path) -> None:
+    script = tmp_path / "sta.tcl"
+    script.write_text("# comment\nset corner ss\nreport_checks\n", encoding="utf-8")
+    details = {"analysis": "sta", "corner": "ss", "mode": "setup"}
+
+    plain = io.StringIO()
+    print_script(script, details=details, stream=plain, color=False, content=True)
+    output = plain.getvalue()
+    assert output.startswith(
+        f"[script] {script.resolve()} · analysis=sta · corner=ss · mode=setup\n"
+    )
+    assert "\x1b" not in output
+
+    colored = io.StringIO()
+    print_script(script, details=details, stream=colored, color=True, content=True)
+    assert "\x1b" in colored.getvalue()
+    colored_plain = strip_ansi(colored.getvalue())
+    assert "[script]" in colored_plain
+    assert colored_plain.endswith("report_checks\n")
+
+
+def test_signoff_selector_rejects_unknown_and_duplicate_values() -> None:
+    assert _selection("ss tt", "", ("ss", "tt", "ff"), "corner") == ("ss", "tt")
+    with pytest.raises(ValueError, match="unsupported corner"):
+        _selection("ss wc", "", ("ss", "tt", "ff"), "corner")
+    with pytest.raises(ValueError, match="duplicate corner"):
+        _selection("ss ss", "", ("ss", "tt", "ff"), "corner")

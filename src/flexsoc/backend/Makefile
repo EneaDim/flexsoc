@@ -323,12 +323,8 @@ STA_ENDPOINT_GROUP_LIMIT ?= 10000
 STA_ENDPOINT_PATH_LIMIT ?= 10
 STA_NEAR_CRITICAL_SETUP ?= 0.200
 STA_NEAR_CRITICAL_HOLD ?= 0.100
-POWER_TOP_INSTANCES ?= 200
-FUSION_PATHS_PER_INSTANCE ?= 2
-FUSION_TOP_PATHS ?= 100
-FUSION_POWER_METRIC ?= dynamic
-FUSION_HIGH_FANOUT_THRESHOLD ?= 16
-PATH_VIEW_FILE  ?= tt/setup/violating.rpt
+POWER_TOP_INSTANCES ?= 20
+PATH_VIEW_FILE  ?= tt/setup/timing.rpt
 NPATHS          ?= 20
 
 # -----------------------------------------------------------------------------
@@ -1566,11 +1562,7 @@ SIGNOFF_PY_ARGS = \
 	--endpoint-path-limit "$(STA_ENDPOINT_PATH_LIMIT)" \
 	--near-critical-setup "$(STA_NEAR_CRITICAL_SETUP)" \
 	--near-critical-hold "$(STA_NEAR_CRITICAL_HOLD)" \
-	--power-top-instances "$(POWER_TOP_INSTANCES)" \
-	--fusion-paths-per-instance "$(FUSION_PATHS_PER_INSTANCE)" \
-	--fusion-top-paths "$(FUSION_TOP_PATHS)" \
-	--fusion-power-metric "$(FUSION_POWER_METRIC)" \
-	--fusion-high-fanout-threshold "$(FUSION_HIGH_FANOUT_THRESHOLD)"
+	--power-top-instances "$(POWER_TOP_INSTANCES)"
 
 setup_signoff: ## Generate all PDK-scoped OpenSTA Tcl families
 	$(call _require_file,$(CONSTRAINTSDIR)/$(TOP).sdc,setup_sdc)
@@ -1648,7 +1640,7 @@ fusion_analysis_all: ## Correlate timing and workload power for all matching GLS
 		--gls-backends "$(or $(POWER_GLS_BACKENDS),all)" \
 		--timing-modes "$(or $(POWER_TIMING_MODES),all)"
 
-sta_violators: sta ## Generate the per-corner violating.rpt files
+sta_violators: sta ## Run STA; violating paths are included in each timing.rpt
 
 path_view: ## Build interactive STA path view for the selected PDK
 	$(Q)$(MKDIR) -p $(SIGNOFF_PATH_VIEW_DIR)
@@ -1757,9 +1749,16 @@ ip_load: ## Load the complete saved IP package into a run workspace
 		cp -a "$$src_ip"/. "$$dst_dir"/; \
 	fi; \
 	find "$$dst_dir" -type d -name __pycache__ -prune -exec rm -rf {} +; \
-	find "$$dst_dir" -type f -name '*.pyc' -delete
+	find "$$dst_dir" -type f -name '*.pyc' -delete; \
+	list_branches() { root="$$1"; values=""; if [ -d "$$root" ]; then for branch in "$$root"/*; do \
+		[ -d "$$branch" ] || continue; name="$${branch##*/}"; values="$${values}$${values:+,}$${name}"; \
+	done; fi; printf '%s' "$${values:-none}"; }; \
+	list_eqy() { root="$$1"; values=""; if [ -d "$$root" ]; then for branch in "$$root"/*; do \
+		[ -d "$$branch/equivalence/rtl_vs_syn" ] || continue; name="$${branch##*/}"; values="$${values}$${values:+,}$${name}"; \
+	done; fi; printf '%s' "$${values:-none}"; }; \
+	printf "%b\n" "$(GREEN)[ip_load]$(RESET) IP=$(TOP) as=$$load_name · syn=$$(list_branches "$$dst_dir/syn") · pnr=$$(list_branches "$$dst_dir/pnr_openroad") · eqy=$$(list_eqy "$$dst_dir/signoff")"
 
-ip_save: ## Save current-PDK synthesis, PnR, EQY and OpenSTA Tcl into the IP library
+ip_save: ## Save current-PDK synthesis, optional PnR, EQY and OpenSTA Tcl into the IP library
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_TOP)
@@ -1789,7 +1788,8 @@ ip_save: ## Save current-PDK synthesis, PnR, EQY and OpenSTA Tcl into the IP lib
 	rm -rf "$$staged/syn/$$pdk" "$$staged/pnr_openroad/$$pdk" "$$staged/signoff/$$pdk"; \
 	mkdir -p "$$staged/syn" "$$staged/pnr_openroad" "$$staged/signoff/$$pdk/equivalence/rtl_vs_syn"; \
 	cp -a "$(SYNDIR)" "$$staged/syn/$$pdk"; \
-	if [ -d "$(ORSDIR)" ]; then cp -a "$(ORSDIR)" "$$staged/pnr_openroad/$$pdk"; fi; \
+	pnr_status=not_available; \
+	if [ -d "$(ORSDIR)" ]; then cp -a "$(ORSDIR)" "$$staged/pnr_openroad/$$pdk"; pnr_status=copied; fi; \
 	$(PYTHON) -m flexsoc.backend.setup_eqy eqy-export \
 		$(RTL_FILELIST_ARGS) \
 		--netlist "$(SYNDIR)/$(TOP)_synth.v" --liberty "$(LIB_SYN)" \
@@ -1807,7 +1807,7 @@ ip_save: ## Save current-PDK synthesis, PnR, EQY and OpenSTA Tcl into the IP lib
 	mv "$$staged" "$$ip_root"; backed_up=0; rm -rf "$$backup" "$$temporary"; \
 	trap - EXIT HUP INT TERM; \
 	tcl_count=$$(find "$$ip_root/signoff/$$pdk" -type f -name '*.tcl' | wc -l); \
-	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · syn/<pdk>, pnr_openroad/<pdk>, signoff/<pdk> · Tcl=$$tcl_count"
+	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · syn=copied · pnr=$$pnr_status · signoff=copied · Tcl=$$tcl_count"
 
 # ============================================================================
 # 13. SoC, FuseSoC, XBAR and software flow

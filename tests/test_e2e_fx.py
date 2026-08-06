@@ -434,6 +434,24 @@ def _assert_post_syn_report(
         assert report.get("annotation") is None
 
 
+def _run_power_and_fusion(
+    *, workspace: Path, top: str, run_id: str, workdir: str,
+    test: str, backend: str, mode: str,
+) -> None:
+    """Run activity power, then timing/power fusion for one GLS workload."""
+
+    selectors = (
+        f"--set POWER_TEST_NAME={test} "
+        f"--set POWER_GLS_BACKEND={backend} "
+        f"--set POWER_TIMING_MODE={mode} "
+    )
+    for target in ("power_analysis", "fusion_analysis"):
+        _run(
+            f"uv run --no-sync fx {target} --no-setup {selectors}--workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+
+
 def _slang_values(top: str, run: Path) -> tuple[str, str, str]:
     """Return quoted Slang overrides; this helper does not execute commands."""
 
@@ -487,7 +505,9 @@ def _assert_saved_signoff_scripts(
     del activity_count  # Workload/corner multiplicity belongs to reports, not Tcl files.
     root = library_root / top
     assert (root / "syn" / pdk).is_dir()
-    assert (root / "pnr_openroad" / pdk).is_dir()
+    assert (root / "pnr_openroad").is_dir()
+    pnr = root / "pnr_openroad" / pdk
+    assert not pnr.exists() or pnr.is_dir()
     signoff = root / "signoff" / pdk
     assert (signoff / "equivalence" / "rtl_vs_syn").is_dir()
     canonical = {
@@ -511,6 +531,20 @@ def _assert_saved_signoff_scripts(
         and path.suffix != ".tcl"
     ]
     assert not forbidden, f"non-Tcl sign-off snapshots saved for {pdk}: {forbidden}"
+
+
+def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
+    """Require load -> two complete technology flows -> save to preserve both branches."""
+
+    root = library_root / top
+    for common in ("data", "doc", "drivers", "rtl", "dv"):
+        assert (root / common).is_dir(), f"missing saved {top}/{common}"
+    for pdk in ("sky130", "ihp-sg13g2"):
+        assert (root / "syn" / pdk).is_dir(), f"missing saved {top} synthesis for {pdk}"
+        profile = root / "signoff" / pdk / "equivalence" / "rtl_vs_syn"
+        assert (profile / f"{top}_rtl_vs_syn.eqy").is_file()
+        assert (profile / f"{top}_eqy_view.sv").is_file()
+    assert (root / "pnr_openroad" / "sky130").is_dir()
 
 
 # Every test below contains its complete ordered sequence of one-command fx invocations.
@@ -772,36 +806,11 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=smoke "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="smoke", backend=config.gls_backend, mode=config.gls_mode,
                 )
 
-                _run(
-
-                    (
-
-                        f"uv run --no-sync fx fusion_analysis --no-setup "
-
-                        f"--set POWER_TEST_NAME=smoke "
-
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-
-                        f"--workdir {workdir}"
-
-                    ),
-
-                    workspace=workspace, top=top, run_id=run_id,
-
-                )
                 sky130_wave_corners = sky130_post_syn / (
                     f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
                 )
@@ -836,15 +845,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="corners",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=corners "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="corners", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_random_seed_1 = sky130_post_syn / (
                     f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
@@ -880,15 +883,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="random_seed_1",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=random_seed_1 "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_random_seed_2 = sky130_post_syn / (
                     f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
@@ -924,15 +921,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="random_seed_2",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=random_seed_2 "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_reconfig = sky130_post_syn / (
                     f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -968,15 +959,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="reconfig",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=reconfig "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_auto_toggle = sky130_post_syn / (
                     f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1012,15 +997,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="auto_toggle",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=auto_toggle "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                 )
             _run(
                 f"uv run --no-sync fx manifest --workdir {workdir}",
@@ -1129,36 +1108,11 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=smoke "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="smoke", backend=config.gls_backend, mode=config.gls_mode,
                 )
 
-                _run(
-
-                    (
-
-                        f"uv run --no-sync fx fusion_analysis --no-setup "
-
-                        f"--set POWER_TEST_NAME=smoke "
-
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-
-                        f"--workdir {workdir}"
-
-                    ),
-
-                    workspace=workspace, top=top, run_id=run_id,
-
-                )
                 ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
                     f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
                 )
@@ -1193,15 +1147,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="corners",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=corners "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="corners", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
                     f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1237,15 +1185,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="random_seed_1",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=random_seed_1 "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
                     f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1281,15 +1223,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="random_seed_2",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=random_seed_2 "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
                     f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1325,15 +1261,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="reconfig",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=reconfig "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
                     f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1369,15 +1299,9 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="auto_toggle",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=auto_toggle "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                 )
             _run(
                 f"uv run --no-sync fx manifest --workdir {workdir}",
@@ -1665,36 +1589,11 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=smoke "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="smoke", backend=config.gls_backend, mode=config.gls_mode,
                 )
 
-                _run(
-
-                    (
-
-                        f"uv run --no-sync fx fusion_analysis --no-setup "
-
-                        f"--set POWER_TEST_NAME=smoke "
-
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-
-                        f"--workdir {workdir}"
-
-                    ),
-
-                    workspace=workspace, top=top, run_id=run_id,
-
-                )
                 sky130_wave_corners = sky130_post_syn / (
                     f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
                 )
@@ -1729,15 +1628,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="corners",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=corners "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="corners", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_random_seed_1 = sky130_post_syn / (
                     f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1773,15 +1666,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="random_seed_1",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=random_seed_1 "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_random_seed_2 = sky130_post_syn / (
                     f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1817,15 +1704,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="random_seed_2",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=random_seed_2 "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_reconfig = sky130_post_syn / (
                     f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1861,15 +1742,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="reconfig",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=reconfig "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_auto_toggle = sky130_post_syn / (
                     f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1905,15 +1780,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="auto_toggle",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=auto_toggle "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_mac_smoke = sky130_post_syn / (
                     f"{top}_mac_smoke_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1949,15 +1818,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="mac_smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_mac_smoke,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=mac_smoke "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="mac_smoke", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_absdiff = sky130_post_syn / (
                     f"{top}_absdiff_{config.gls_backend}_{config.gls_mode}.fst"
@@ -1993,15 +1856,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="absdiff",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_absdiff,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=absdiff "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="absdiff", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_energy = sky130_post_syn / (
                     f"{top}_energy_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2037,15 +1894,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="sky130", test="energy",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_energy,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=energy "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="energy", backend=config.gls_backend, mode=config.gls_mode,
                 )
             _run(
                 f"uv run --no-sync fx manifest --workdir {workdir}",
@@ -2154,36 +2005,11 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=smoke "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="smoke", backend=config.gls_backend, mode=config.gls_mode,
                 )
 
-                _run(
-
-                    (
-
-                        f"uv run --no-sync fx fusion_analysis --no-setup "
-
-                        f"--set POWER_TEST_NAME=smoke "
-
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-
-                        f"--workdir {workdir}"
-
-                    ),
-
-                    workspace=workspace, top=top, run_id=run_id,
-
-                )
                 ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
                     f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
                 )
@@ -2218,15 +2044,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="corners",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=corners "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="corners", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
                     f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2262,15 +2082,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="random_seed_1",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=random_seed_1 "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
                     f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2306,15 +2120,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="random_seed_2",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=random_seed_2 "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
                     f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2350,15 +2158,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="reconfig",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=reconfig "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
                     f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2394,15 +2196,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="auto_toggle",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=auto_toggle "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_mac_smoke = ihp_sg13g2_post_syn / (
                     f"{top}_mac_smoke_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2438,15 +2234,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="mac_smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_mac_smoke,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=mac_smoke "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="mac_smoke", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_absdiff = ihp_sg13g2_post_syn / (
                     f"{top}_absdiff_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2482,15 +2272,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="absdiff",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_absdiff,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=absdiff "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="absdiff", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_energy = ihp_sg13g2_post_syn / (
                     f"{top}_energy_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2526,15 +2310,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     top=top, pdk="ihp-sg13g2", test="energy",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_energy,
                 )
-                _run(
-                    (
-                        f"uv run --no-sync fx power_analysis --no-setup "
-                        f"--set POWER_TEST_NAME=energy "
-                        f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                        f"--set POWER_TIMING_MODE={config.gls_mode} "
-                        f"--workdir {workdir}"
-                    ),
-                    workspace=workspace, top=top, run_id=run_id,
+                _run_power_and_fusion(
+                    workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                    test="energy", backend=config.gls_backend, mode=config.gls_mode,
                 )
             _run(
                 f"uv run --no-sync fx manifest --workdir {workdir}",
@@ -2795,36 +2573,11 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="smoke",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=smoke "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="smoke", backend=config.gls_backend, mode=config.gls_mode,
                     )
 
-                    _run(
-
-                        (
-
-                            f"uv run --no-sync fx fusion_analysis --no-setup "
-
-                            f"--set POWER_TEST_NAME=smoke "
-
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-
-                            f"--workdir {workdir}"
-
-                        ),
-
-                        workspace=workspace, top=top, run_id=run_id,
-
-                    )
                     sky130_wave_corners = sky130_post_syn / (
                         f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
                     )
@@ -2859,15 +2612,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="corners",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=corners "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="corners", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_seed_1 = sky130_post_syn / (
                         f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2903,15 +2650,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="random_seed_1",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_seed_1 "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_seed_2 = sky130_post_syn / (
                         f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2947,15 +2688,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="random_seed_2",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_seed_2 "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_reconfig = sky130_post_syn / (
                         f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -2991,15 +2726,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=reconfig "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_auto_toggle = sky130_post_syn / (
                         f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3035,15 +2764,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="auto_toggle",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=auto_toggle "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_smoke_zero = sky130_post_syn / (
                         f"{top}_smoke_zero_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3079,15 +2802,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="smoke_zero",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke_zero,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=smoke_zero "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="smoke_zero", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_rotate_45deg = sky130_post_syn / (
                         f"{top}_rotate_45deg_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3123,15 +2840,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="rotate_45deg",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_rotate_45deg,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=rotate_45deg "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="rotate_45deg", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_quadrant_sweep = sky130_post_syn / (
                         f"{top}_quadrant_sweep_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3167,15 +2878,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="quadrant_sweep",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_quadrant_sweep,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=quadrant_sweep "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="quadrant_sweep", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_small = sky130_post_syn / (
                         f"{top}_random_small_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3211,15 +2916,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="random_small",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_small,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_small "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_small", backend=config.gls_backend, mode=config.gls_mode,
                     )
                 _run(
                     f"uv run --no-sync fx manifest --workdir {workdir}",
@@ -3338,36 +3037,11 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="smoke",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=smoke "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="smoke", backend=config.gls_backend, mode=config.gls_mode,
                     )
 
-                    _run(
-
-                        (
-
-                            f"uv run --no-sync fx fusion_analysis --no-setup "
-
-                            f"--set POWER_TEST_NAME=smoke "
-
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-
-                            f"--workdir {workdir}"
-
-                        ),
-
-                        workspace=workspace, top=top, run_id=run_id,
-
-                    )
                     ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
                         f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
                     )
@@ -3402,15 +3076,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="corners",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=corners "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="corners", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
                         f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3446,15 +3114,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="random_seed_1",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_seed_1 "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
                         f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3490,15 +3152,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="random_seed_2",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_seed_2 "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
                         f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3534,15 +3190,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=reconfig "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
                         f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3578,15 +3228,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="auto_toggle",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=auto_toggle "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_smoke_zero = ihp_sg13g2_post_syn / (
                         f"{top}_smoke_zero_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3622,15 +3266,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="smoke_zero",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke_zero,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=smoke_zero "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="smoke_zero", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_rotate_45deg = ihp_sg13g2_post_syn / (
                         f"{top}_rotate_45deg_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3666,15 +3304,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="rotate_45deg",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_rotate_45deg,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=rotate_45deg "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="rotate_45deg", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_quadrant_sweep = ihp_sg13g2_post_syn / (
                         f"{top}_quadrant_sweep_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3710,15 +3342,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="quadrant_sweep",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_quadrant_sweep,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=quadrant_sweep "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="quadrant_sweep", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_small = ihp_sg13g2_post_syn / (
                         f"{top}_random_small_{config.gls_backend}_{config.gls_mode}.fst"
@@ -3754,15 +3380,9 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="random_small",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_small,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_small "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_small", backend=config.gls_backend, mode=config.gls_mode,
                     )
                 _run(
                     f"uv run --no-sync fx manifest --workdir {workdir}",
@@ -3791,6 +3411,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 _assert_saved_signoff_scripts(
                     saved_library, top, "ihp-sg13g2", activity_count=30
                 )
+                _assert_saved_multitech_layout(saved_library, top)
             _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
 
 @pytest.mark.e2e
@@ -4031,36 +3652,11 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="smoke",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=smoke "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="smoke", backend=config.gls_backend, mode=config.gls_mode,
                     )
 
-                    _run(
-
-                        (
-
-                            f"uv run --no-sync fx fusion_analysis --no-setup "
-
-                            f"--set POWER_TEST_NAME=smoke "
-
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-
-                            f"--workdir {workdir}"
-
-                        ),
-
-                        workspace=workspace, top=top, run_id=run_id,
-
-                    )
                     sky130_wave_corners = sky130_post_syn / (
                         f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
                     )
@@ -4095,15 +3691,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="corners",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=corners "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="corners", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_seed_1 = sky130_post_syn / (
                         f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4139,15 +3729,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="random_seed_1",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_seed_1 "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_seed_2 = sky130_post_syn / (
                         f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4183,15 +3767,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="random_seed_2",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_seed_2 "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_reconfig = sky130_post_syn / (
                         f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4227,15 +3805,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=reconfig "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_auto_toggle = sky130_post_syn / (
                         f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4271,15 +3843,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="auto_toggle",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=auto_toggle "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_line_loopback = sky130_post_syn / (
                         f"{top}_line_loopback_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4315,15 +3881,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="line_loopback",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_line_loopback,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=line_loopback "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="line_loopback", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_rx_fifo = sky130_post_syn / (
                         f"{top}_rx_fifo_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4359,15 +3919,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="rx_fifo",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_rx_fifo,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=rx_fifo "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="rx_fifo", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_noise_filter = sky130_post_syn / (
                         f"{top}_noise_filter_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4403,15 +3957,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="noise_filter",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_noise_filter,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=noise_filter "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="noise_filter", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_parity_reconfig = sky130_post_syn / (
                         f"{top}_parity_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4447,15 +3995,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="sky130", test="parity_reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_parity_reconfig,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=parity_reconfig "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="parity_reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                 _run(
                     f"uv run --no-sync fx manifest --workdir {workdir}",
@@ -4574,36 +4116,11 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="smoke",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=smoke "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="smoke", backend=config.gls_backend, mode=config.gls_mode,
                     )
 
-                    _run(
-
-                        (
-
-                            f"uv run --no-sync fx fusion_analysis --no-setup "
-
-                            f"--set POWER_TEST_NAME=smoke "
-
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-
-                            f"--workdir {workdir}"
-
-                        ),
-
-                        workspace=workspace, top=top, run_id=run_id,
-
-                    )
                     ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
                         f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
                     )
@@ -4638,15 +4155,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="corners",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=corners "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="corners", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
                         f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4682,15 +4193,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="random_seed_1",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_seed_1 "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
                         f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4726,15 +4231,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="random_seed_2",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=random_seed_2 "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
                         f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4770,15 +4269,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=reconfig "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
                         f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4814,15 +4307,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="auto_toggle",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=auto_toggle "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_line_loopback = ihp_sg13g2_post_syn / (
                         f"{top}_line_loopback_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4858,15 +4345,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="line_loopback",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_line_loopback,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=line_loopback "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="line_loopback", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_rx_fifo = ihp_sg13g2_post_syn / (
                         f"{top}_rx_fifo_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4902,15 +4383,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="rx_fifo",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_rx_fifo,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=rx_fifo "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="rx_fifo", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_noise_filter = ihp_sg13g2_post_syn / (
                         f"{top}_noise_filter_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4946,15 +4421,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="noise_filter",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_noise_filter,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=noise_filter "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="noise_filter", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_parity_reconfig = ihp_sg13g2_post_syn / (
                         f"{top}_parity_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
@@ -4990,15 +4459,9 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         top=top, pdk="ihp-sg13g2", test="parity_reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_parity_reconfig,
                     )
-                    _run(
-                        (
-                            f"uv run --no-sync fx power_analysis --no-setup "
-                            f"--set POWER_TEST_NAME=parity_reconfig "
-                            f"--set POWER_GLS_BACKEND={config.gls_backend} "
-                            f"--set POWER_TIMING_MODE={config.gls_mode} "
-                            f"--workdir {workdir}"
-                        ),
-                        workspace=workspace, top=top, run_id=run_id,
+                    _run_power_and_fusion(
+                        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+                        test="parity_reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                 _run(
                     f"uv run --no-sync fx manifest --workdir {workdir}",
@@ -5027,4 +4490,5 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 _assert_saved_signoff_scripts(
                     saved_library, top, "ihp-sg13g2", activity_count=30
                 )
+                _assert_saved_multitech_layout(saved_library, top)
             _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)

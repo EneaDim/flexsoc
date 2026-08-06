@@ -41,7 +41,6 @@ gold-match cio_tx_en_o
 gold-match *u_uart_core.nco_sum_q
 gold-match *u_uart_core.uart_tx.baud_div_q
 gold-match *u_uart_core.uart_tx.tick_baud_q
-gold-match *u_uart_core.u_uart_rxfifo*under_rst
 gold-match *u_uart_core.u_uart_rxfifo*u_fifo_cnt*wptr_wrap_cnt_q
 gold-match *u_uart_core.u_uart_rxfifo*u_fifo_cnt*rptr_wrap_cnt_q
 # FlexSoC UART sequential cut-points end
@@ -57,6 +56,15 @@ join *u_uart_core.u_uart_rxfifo*u_fifo_cnt*wptr_wrap_cnt_q
 [strategy sat]
 use sat
 depth 5
+
+# The RX FIFO has 16 entries. Keep the fast depth-5 pass for every partition,
+# then give only the two FIFO-dependent IHP partitions enough induction depth
+# to cover reset, pointer wrap, and one response cycle.
+[strategy fifo_sat]
+apply uart uart.u_impl.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q
+apply uart uart.tl_o__flexsoc_eqy_d_data
+use sat
+depth 20
 
 [strategy pdr]
 use sby
