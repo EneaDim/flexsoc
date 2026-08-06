@@ -323,24 +323,23 @@ def collect_synthesis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | Non
 
 
 def collect_sta(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect per-corner setup/hold reports from the PDK-first STA tree."""
+    """Collect per-corner setup/hold data from each unified timing report."""
 
     layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
     scenarios: dict[str, dict[str, Any]] = {}
-    for summary in sorted(layout.sta_dir.glob("*/*/summary.rpt")):
-        corner = summary.parent.parent.name
-        mode = summary.parent.name
+    for report in sorted(layout.sta_dir.glob("*/*/timing.rpt")):
+        corner = report.parent.parent.name
+        mode = report.parent.name
         if mode not in {"setup", "hold"}:
             continue
-        text = read_text(summary)
-        wns = last_number(r"^\s*wns\s+(" + FLOAT + r")\s*$", text, float)
-        tns = last_number(r"^\s*tns\s+(" + FLOAT + r")\s*$", text, float)
-        violating = summary.parent / "violating.rpt"
-        unconstrained = summary.parent / "unconstrained.rpt"
+        text = read_text(report)
+        wns = last_number(r"^\s*wns(?:\s+\w+)?\s+(" + FLOAT + r")\s*$", text, float)
+        tns = last_number(r"^\s*tns(?:\s+\w+)?\s+(" + FLOAT + r")\s*$", text, float)
+        unconstrained = text.split("=== Unconstrained paths ===", 1)[-1] if "=== Unconstrained paths ===" in text else ""
         data: dict[str, Any] = {
-            "reported_violating_paths": len(re.findall(r"slack\s*\(VIOLATED\)", read_text(violating), flags=re.IGNORECASE)),
-            "reported_unconstrained_paths": len(re.findall(r"^Startpoint:", read_text(unconstrained), flags=re.MULTILINE)),
-            "summary": relative(summary, run_dir),
+            "reported_violating_paths": len(re.findall(r"slack\s*\(VIOLATED\)", text, flags=re.IGNORECASE)),
+            "reported_unconstrained_paths": len(re.findall(r"^Startpoint:", unconstrained, flags=re.MULTILINE)),
+            "report": relative(report, run_dir),
             "log": relative(layout.sta_log_dir / corner / mode / f"{top}.log", run_dir),
         }
         if wns is not None:
@@ -350,7 +349,6 @@ def collect_sta(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
         scenarios.setdefault(corner, {})[mode] = data
     return scenarios or None
 
-
 def collect_power_estimate(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
     """Collect vectorless input-activity power estimates by corner."""
 
@@ -358,12 +356,11 @@ def collect_power_estimate(top: str, run_dir: Path, pdk: str) -> dict[str, Any] 
     corners: dict[str, Any] = {}
     activity: float | None = None
     duty: float | None = None
-    for report in sorted((layout.power_dir / "estimate").glob("*/power_summary.rpt")):
+    for report in sorted((layout.power_dir / "estimate").glob("*/power.rpt")):
         corner = report.parent.name
         text = read_text(report)
-        assumptions = read_text(report.parent / "activity_assumptions.rpt")
-        activity_match = re.search(r"^activity=(" + FLOAT + r")$", assumptions, flags=re.MULTILINE)
-        duty_match = re.search(r"^duty=(" + FLOAT + r")$", assumptions, flags=re.MULTILINE)
+        activity_match = re.search(r"^activity=(" + FLOAT + r")$", text, flags=re.MULTILINE)
+        duty_match = re.search(r"^duty=(" + FLOAT + r")$", text, flags=re.MULTILINE)
         if activity_match:
             activity = float(activity_match.group(1))
         if duty_match:
@@ -375,7 +372,6 @@ def collect_power_estimate(top: str, run_dir: Path, pdk: str) -> dict[str, Any] 
         )
         data: dict[str, Any] = {
             "report": relative(report, run_dir),
-            "assumptions": relative(report.parent / "activity_assumptions.rpt", run_dir),
             "log": relative(layout.power_log_dir / "estimate" / corner / f"{top}.log", run_dir),
         }
         if total:
@@ -396,7 +392,6 @@ def collect_power_estimate(top: str, run_dir: Path, pdk: str) -> dict[str, Any] 
     if duty is not None:
         result["duty"] = duty
     return result
-
 
 def status_word(path: Path, log: Path | None = None) -> str:
     """Return pass/fail/error/unknown from a tool status file or log."""

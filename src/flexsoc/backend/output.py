@@ -6,7 +6,10 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import TextIO
+from typing import Mapping, TextIO
+
+from rich.console import Console
+from rich.syntax import Syntax
 
 
 _ANSI = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
@@ -39,28 +42,36 @@ def print_path_label(
     label: str,
     path: Path,
     *,
+    details: Mapping[str, object] | None = None,
     stream: TextIO | None = None,
     color: bool | None = None,
 ) -> None:
-    """Print one orange block label followed by a subdued absolute path."""
+    """Print one labeled absolute path followed by deterministic key/value context."""
 
     stream = stream or sys.stdout
     resolved = path.expanduser().resolve()
+    suffix = " · ".join(
+        f"{key}={value}"
+        for key, value in (details or {}).items()
+        if value is not None and value != ""
+    )
+    text = f"{resolved}" + (f" · {suffix}" if suffix else "")
     use_color = color_enabled(stream) if color is None else color
     if use_color:
-        print(f"{_ORANGE}[{label}]{_RESET} {_GRAY}{resolved}{_RESET}", file=stream)
+        print(f"{_ORANGE}[{label}]{_RESET} {_GRAY}{text}{_RESET}", file=stream)
     else:
-        print(f"[{label}] {resolved}", file=stream)
+        print(f"[{label}] {text}", file=stream)
 
 
 def print_script(
     path: Path,
     *,
+    details: Mapping[str, object] | None = None,
     stream: TextIO | None = None,
     color: bool | None = None,
     content: bool | None = None,
 ) -> None:
-    """Print a generated script as an orange header and a gray text block."""
+    """Print a generated script header and, in live mode, highlighted Tcl content."""
 
     stream = stream or sys.stdout
     resolved = path.expanduser().resolve()
@@ -70,14 +81,14 @@ def print_script(
         else content
     )
     use_color = color_enabled(stream) if color is None else color
-    print_path_label("script", resolved, stream=stream, color=use_color)
+    print_path_label("script", resolved, details=details, stream=stream, color=use_color)
     if not show_content:
         return
     text = resolved.read_text(encoding="utf-8", errors="replace")
     if use_color:
-        stream.write(f"{_GRAY}{text}{_RESET}")
-        if not text.endswith("\n"):
-            stream.write("\n")
+        Console(file=stream, force_terminal=True, color_system="256", soft_wrap=True).print(
+            Syntax(text.rstrip("\n"), "tcl", theme="ansi_dark", word_wrap=False)
+        )
     else:
         stream.write(text)
         if not text.endswith("\n"):
@@ -97,16 +108,13 @@ def print_live_line(
     stream: TextIO | None = None,
     color: bool | None = None,
 ) -> None:
-    """Write one live log line in gray while preserving explicit block colors."""
+    """Write one live line, preserving intentional child-process ANSI styling."""
 
     stream = stream or sys.stdout
     use_color = color_enabled(stream) if color is None else color
     plain = strip_ansi(line)
     if use_color:
-        if _ORANGE in line and plain.startswith("[script] "):
-            stream.write(line)
-        else:
-            stream.write(f"{_GRAY}{plain}{_RESET}")
+        stream.write(line if _ANSI.search(line) else f"{_GRAY}{plain}{_RESET}")
     else:
         stream.write(plain)
     stream.flush()
