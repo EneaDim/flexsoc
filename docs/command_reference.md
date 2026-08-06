@@ -122,7 +122,7 @@ fx metrics
 fx check
 ```
 
-Those outputs are isolated below `syn/<pdk>`, `signoff/*/<pdk>`, `dv/functional/sim/post_syn/<pdk>`, and `meta/<pdk>`.
+Those outputs are isolated below `syn/<pdk>`, `pnr_openroad/<pdk>`, `signoff/<pdk>`, `dv/functional/sim/post_syn/<pdk>`, and `meta/<pdk>`.
 
 ---
 
@@ -475,12 +475,12 @@ Generate timing constraints and Yosys scripts, then map RTL to the selected PDK.
 
 Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, and power analysis.
 
-**Main result:** `signoff/equivalence/`, `signoff/sta/`, `signoff/sdf/`, and `signoff/power/`.
+**Main result:** `signoff/<pdk>/{equivalence,sta,sdf,power,fusion}/`.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx sta_corners` | Run STA setup/hold for each configured corner. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
-| `fx power_estimate_corners` | Estimate power for each corner using global activity. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
+| `fx power_estimate_corners` | Estimate power for each corner using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
 | `fx signoff_corners` | Run SDF, multi-corner STA and estimated power. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
 | `fx setup_eqy` | Generate RTL-vs-post-synthesis EQY configuration. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx eqy` | Prove RTL equivalent to the post-synthesis netlist with EQY. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Use `--info` for accepted overrides. |
@@ -489,7 +489,11 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx sim_syn` | Run post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sdf` | Write SDF timing files. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx power_estimate` | Estimate power using global switching activity. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx power_estimate` | Estimate power using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
+| `fx power_analysis` | Run workload-dependent OpenSTA power analysis for one qualified GLS trace. | `SIGNOFF_STAGE`, `POWER_TEST_NAME`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODE`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, `MACRO_LIBS`, `SPEF_FILE` | Requires a passing direct GLS report and VCD/SAIF activity. |
+| `fx power_analysis_all` | Run workload-dependent power analysis for all matching qualified GLS traces. | `POWER_TEST_NAMES`, `POWER_GLS_BACKENDS`, `POWER_TIMING_MODES`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE` | Discovers direct GLS reports; no extra manifest is created. |
+| `fx fusion_analysis` | Correlate timing and workload power for one qualified GLS trace. | Power-analysis selectors plus `STA_MODES`, `POWER_TOP_INSTANCES`, `FUSION_PATHS_PER_INSTANCE`, `FUSION_TOP_PATHS`, `FUSION_POWER_METRIC`, `FUSION_HIGH_FANOUT_THRESHOLD` | Keeps timing-driven and power-driven path selection independent. |
+| `fx fusion_analysis_all` | Run fusion analysis for all matching qualified GLS traces. | Plural power-analysis selectors plus fusion limits | Produces path-level and instance-level CSV and separate rankings. |
 | `fx sta_violators` | Report timing violators. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx path_view` | Build interactive STA path view. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 
@@ -612,22 +616,24 @@ Move authored IP sources between the reusable library and an isolated run worksp
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx ip_load` | Load an IP into a run workspace. | `IP_NAME` | Use `--info` for accepted overrides. |
-| `fx ip_save` | Save the current PDK EQY profile and sign-off Tcl scripts into the reusable IP package. | `IP_NAME`, `IP_LIBRARY_ROOT` | Requires completed EQY, STA/SDF/power-estimate setup, and at least one activity-power analysis. Saves scripts only; logs, reports, SDF files, and waveforms are excluded. |
+| `fx ip_save` | Save the current PDK EQY profile and sign-off Tcl scripts into the reusable IP package. | `IP_NAME`, `IP_LIBRARY_ROOT` | Requires current-PDK synthesis, a portable EQY profile, and the static sign-off Tcl families. Saves `syn/<pdk>`, optional `pnr_openroad/<pdk>`, the EQY profile, and Tcl scripts only; logs, reports, generated SDF files, and waveforms are excluded. |
 
 E2E tests set `IP_LIBRARY_ROOT` inside their temporary workspace and hash the repository-owned package before and after execution. Therefore `make test` cannot write into `hw/ips`.
 
-The saved technology branch mirrors the run layout:
+The saved technology branches mirror the PDK-first run layout:
 
 ```text
-hw/ips/<IP_NAME>/signoff/
-├── equivalence/<pdk>/rtl_vs_syn/
-├── sta/<pdk>/
-│   ├── sta.tcl
-│   └── sta_violators.tcl
-├── sdf/<pdk>/write_sdf.tcl
-└── power/<pdk>/
-    ├── power_estimate.tcl
-    └── activity/scripts/*.tcl
+hw/ips/<IP_NAME>/
+├── syn/<pdk>/
+├── pnr_openroad/<pdk>/
+└── signoff/<pdk>/
+    ├── equivalence/rtl_vs_syn/
+    ├── sta/sta.tcl
+    ├── sdf/write_sdf.tcl
+    ├── power/
+    │   ├── estimate/power_estimate.tcl
+    │   └── analysis/power_analysis.tcl
+    └── fusion/fusion_analysis.tcl
 ```
 
 Each invocation replaces only the selected PDK branch and preserves scripts
@@ -885,7 +891,7 @@ make test E2E_ROOT="$HOME/flexsoc-e2e"
 | `--no-post-syn-gls` | none | Keep synthesis/signoff but skip the explicit GLS commands. |
 | `--no-signoff` | none | Skip setup SDC, formal, synthesis, EQY, SDF, STA, power, and GLS. |
 
-`FLEXSOC_E2E_KEEP=1` preserves successful temporary workspaces. To inspect one
+E2E workspaces are always preserved for inspection. To inspect one
 failed target with its generated scripts and complete log, copy the exact command
 printed by pytest and add `--live` manually.
 
@@ -984,8 +990,8 @@ See [Project lifecycle](project_lifecycle.md) for engineering rationale and [Qui
 
 ### 7.1 `fx power_analysis` and `fx power_analysis_all`
 
-`power_estimate` is the vectorless reference based on global activity and duty
-cycle. `power_analysis` consumes one direct `min`, `typ`, or `max`
+`power_estimate` is the vectorless reference based by default on primary-input activity and duty
+cycle assumptions; global activity is used only when explicitly requested. `power_analysis` consumes one direct `min`, `typ`, or `max`
 post-synthesis GLS report. The report itself identifies the waveform and proves
 that `$sdf_annotate` was requested successfully; no matrix manifest is involved.
 FlexSoC converts FST to VCD when needed, resolves the DUT scope, and runs OpenSTA
@@ -1019,9 +1025,10 @@ of overwriting previous test results.
 Relevant variables are `POWER_TEST_NAME(S)`, `POWER_GLS_BACKEND(S)`,
 `POWER_TIMING_MODE(S)`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, and `FST2VCD`.
 Explicit OpenSTA scopes use `/`, for example `test_tb/u_test`. Automatic scope
-resolution recognizes `u_<TOP>` and `u_dut`. Results are written under
-`signoff/power/<pdk>/activity`, with plain logs under
-`logs/signoff/power/<pdk>/activity`.
+resolution recognizes `u_<TOP>` and `u_dut`. Captured or converted VCD files are written under `signoff/<pdk>/power/activity/captures`.
+The canonical Tcl lives at `signoff/<pdk>/power/analysis/power_analysis.tcl`.
+Each execution rewrites that script for the selected workload/corner, while reports
+and logs remain separated under `<workload>/<corner>`.
 
 Without `--live`, gate simulation and activity-power targets keep detailed output
 in their logs and print only concise status information. With `--live`, FlexSoC
@@ -1335,7 +1342,7 @@ when race or sampling behavior must be qualified.
 ### 10.3 Full repository E2E qualification
 
 ```bash
-FLEXSOC_E2E_KEEP=1 make test E2E_ROOT="$HOME/flexsoc-e2e"
+make test E2E_ROOT="$HOME/flexsoc-e2e"
 ```
 
 One pytest invocation always qualifies both `sky130` and `ihp-sg13g2`. The logical
@@ -1436,3 +1443,67 @@ When EQY still does not close:
 2. distinguish `FAIL` from `timeout`;
 3. run `fx eqy_debug` on the first unresolved witness;
 4. do not increase timeouts until reset normalization, protocol care-set handling, and synthesis-boundary diagnostics have been checked.
+
+
+## PDK-first sign-off and analysis ownership
+
+Technology-dependent outputs use one consistent PDK-first hierarchy:
+
+```text
+runs/<design>/<variant>/
+├── syn/<pdk>/
+├── pnr_openroad/<pdk>/
+└── signoff/<pdk>/
+    ├── equivalence/rtl_vs_syn/
+    ├── sta/<corner>/<setup|hold>/
+    ├── sdf/<corner>/
+    ├── power/
+    │   ├── activity/captures/
+    │   ├── estimate/<corner>/
+    │   └── analysis/<workload>/<corner>/
+    └── fusion/<workload>/<corner>/<setup|hold>/
+```
+
+`activity/` contains only VCD/SAIF captures and conversion logs. Each analysis
+family owns one canonical Tcl under its stage root; workload/corner/mode
+directories contain reports only. There is no `activity/scripts` directory and
+no additional activity manifest.
+
+The backend ownership is deliberately narrow:
+
+```text
+Makefile -> setup_signoff.py -> OpenSTA Tcl, execution, logs and reports
+Makefile -> setup_eqy.py     -> EQY config, execution inputs and portable export
+```
+
+`setup_signoff.py` owns `sta`, `power_estimate`, `power_analysis` and
+`fusion_analysis`; `setup_eqy.py` owns only RTL-to-netlist equivalence. The old
+`power_analysis.py` entry point has been removed so activity discovery, scope
+resolution, Tcl generation and OpenSTA execution cannot diverge.
+
+The four OpenSTA Tcl families are generated by `fx setup_signoff`. Static
+analyses create concrete per-corner scripts when executed. Workload analyses
+create concrete scripts only after a qualified GLS report and VCD/SAIF exist.
+`fx fusion_analysis` and `fx fusion_analysis_all` preserve independent
+TIMING_DRIVEN and POWER_DRIVEN selections; a power-driven path is never filtered
+by slack and may therefore be timing-safe.
+
+Fusion emits `TIMING_VIOLATING`, `TIMING_NEAR_CRITICAL`, and independently ranked
+`POWER_DRIVEN` paths.  `FUSION_POWER_METRIC=dynamic|total` selects the
+hotspot and path-power ranking metric.  Path reports include launch/data/capture
+roles, pin and instance sequences, timing attributes, per-instance power, slew,
+complete-net capacitance and fanout.  `paths.csv` and `path_instances.csv` feed
+separate rankings for dynamic power, total power, capacitance, fanout, and slew;
+activity-weighted capacitance remains blank unless reliable pin/net activity is
+available from the pinned OpenSTA build.
+
+### OpenSTA compatibility boundary
+
+The repository pins OpenSTA commit `d5761004cd2cd2bcfa85d73327867966c279c83d` in
+`src/flexsoc/backend/toolchain.lock`. Fusion treats `find_timing_paths`,
+`sta::instance_power`, `sta::cmd_scene`, `sta::network_leaf_instances`,
+`get_full_name`, `get_pins`, `get_cells`, and `get_nets` as indispensable and
+terminates with a named diagnostic when one is unavailable. Optional JSON
+formats and optional pin/net detail APIs are protected with Tcl `catch` or
+fallback probes. Missing optional data remains blank; FlexSoC does not invent
+activity, capacitance, fanout, slew, or power values.

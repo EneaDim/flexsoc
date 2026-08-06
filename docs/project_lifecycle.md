@@ -1104,7 +1104,7 @@ checks, and—when SDF-backed—sends every shared/custom vector to
 `fx power_analysis` through explicit `uv run --no-sync fx ...` commands.
 
 ```bash
-FLEXSOC_E2E_KEEP=1 make test E2E_ROOT="$HOME/flexsoc-e2e"
+make test E2E_ROOT="$HOME/flexsoc-e2e"
 ```
 
 Direct evidence is written under:
@@ -1140,7 +1140,7 @@ The short runnable path is in [Quickstart](quickstart.md).
 
 ### 21.3 Activity-based power after GLS
 
-The vectorless `power_estimate` stage is useful before representative stimulus exists, but it is an assumption-based estimate. After a direct post-synthesis GLS command has produced a successful SDF-backed `min`, `typ`, or `max` trace, FlexSoC can use the actual switching activity of each vector test:
+The primary-input-assumption `power_estimate` stage is useful before representative stimulus exists, but it is an assumption-based estimate. After a direct post-synthesis GLS command has produced a successful SDF-backed `min`, `typ`, or `max` trace, FlexSoC can use the actual switching activity of each vector test:
 
 ```text
 qualified GLS report + FST/VCD
@@ -1152,7 +1152,7 @@ activity annotation report
 per-corner report_power
 ```
 
-`fx power_analysis` selects one direct GLS report. `fx power_analysis_all` discovers every matching direct report already present under the selected PDK's post-synthesis directory; no matrix manifest is required. Repeated singular analyses accumulate into the common activity-power summary. OpenSTA uses `/` as the VCD hierarchy separator. FlexSoC therefore inspects the converted VCD, resolves the generated DUT scope automatically (`POWER_VCD_SCOPE=auto`), validates explicit scopes, and records both the requested and resolved scope in every report. The resolver understands the canonical single-clock `u_<TOP>` convention and the N-clock/cocotb `u_dut` convention; `POWER_DUT_INSTANCE` is only an optional hint. This prevents a syntactically valid `read_vcd` call from silently annotating zero activities because of a dotted or nonexistent hierarchy path. When the qualified trace is FST, FlexSoC calls `fst2vcd -f <input> -o <output>` automatically, validates the generated VCD, and retries through the converter's stdout interface only for compatibility with older wrappers. The conversion log is retained under `signoff/power/<pdk>/activity/captures`. `fx check` keeps vectorless power and post-GLS activity power separate so their assumptions cannot be confused.
+`fx power_analysis` selects one direct GLS report. `fx power_analysis_all` discovers every matching direct report already present under the selected PDK's post-synthesis directory; no matrix manifest is required. Repeated singular analyses accumulate into the common activity-power summary. OpenSTA uses `/` as the VCD hierarchy separator. FlexSoC therefore inspects the converted VCD, resolves the generated DUT scope automatically (`POWER_VCD_SCOPE=auto`), validates explicit scopes, and records both the requested and resolved scope in every report. The resolver understands the canonical single-clock `u_<TOP>` convention and the N-clock/cocotb `u_dut` convention; `POWER_DUT_INSTANCE` is only an optional hint. This prevents a syntactically valid `read_vcd` call from silently annotating zero activities because of a dotted or nonexistent hierarchy path. When the qualified trace is FST, FlexSoC calls `fst2vcd -f <input> -o <output>` automatically, validates the generated VCD, and retries through the converter's stdout interface only for compatibility with older wrappers. The conversion log is retained under `signoff/<pdk>/power/activity/captures`. `fx check` keeps vectorless power and post-GLS activity power separate so their assumptions cannot be confused.
 
 This is a stronger post-synthesis reference, not final silicon sign-off. Final power closure should repeat the activity flow on the post-route netlist with extracted SPEF, validated foundry Liberty power tables, representative operating windows, voltage/temperature corners, clock-tree activity, and rail/IR-drop analysis.
 ## 22. Failure-driven lifecycle playbook
@@ -1497,3 +1497,67 @@ The designer should respond according to the evidence:
 - multi-clock reset normalization remains opt-in and must follow an explicitly reviewed domain-reset sequence.
 
 Do not waive a whole `tl_o` bus because one solver timed out. Work at the field witness that failed, preserve the generated formal view, and archive the EQY configuration and diagnostic result with the run manifest.
+
+
+## PDK-first sign-off and analysis ownership
+
+Technology-dependent outputs use one consistent PDK-first hierarchy:
+
+```text
+runs/<design>/<variant>/
+├── syn/<pdk>/
+├── pnr_openroad/<pdk>/
+└── signoff/<pdk>/
+    ├── equivalence/rtl_vs_syn/
+    ├── sta/<corner>/<setup|hold>/
+    ├── sdf/<corner>/
+    ├── power/
+    │   ├── activity/captures/
+    │   ├── estimate/<corner>/
+    │   └── analysis/<workload>/<corner>/
+    └── fusion/<workload>/<corner>/<setup|hold>/
+```
+
+`activity/` contains only VCD/SAIF captures and conversion logs. Each analysis
+family owns one canonical Tcl under its stage root; workload/corner/mode
+directories contain reports only. There is no `activity/scripts` directory and
+no additional activity manifest.
+
+The backend ownership is deliberately narrow:
+
+```text
+Makefile -> setup_signoff.py -> OpenSTA Tcl, execution, logs and reports
+Makefile -> setup_eqy.py     -> EQY config, execution inputs and portable export
+```
+
+`setup_signoff.py` owns `sta`, `power_estimate`, `power_analysis` and
+`fusion_analysis`; `setup_eqy.py` owns only RTL-to-netlist equivalence. The old
+`power_analysis.py` entry point has been removed so activity discovery, scope
+resolution, Tcl generation and OpenSTA execution cannot diverge.
+
+The four OpenSTA Tcl families are generated by `fx setup_signoff`. Static
+analyses create concrete per-corner scripts when executed. Workload analyses
+create concrete scripts only after a qualified GLS report and VCD/SAIF exist.
+`fx fusion_analysis` and `fx fusion_analysis_all` preserve independent
+TIMING_DRIVEN and POWER_DRIVEN selections; a power-driven path is never filtered
+by slack and may therefore be timing-safe.
+
+Fusion emits `TIMING_VIOLATING`, `TIMING_NEAR_CRITICAL`, and independently ranked
+`POWER_DRIVEN` paths.  `FUSION_POWER_METRIC=dynamic|total` selects the
+hotspot and path-power ranking metric.  Path reports include launch/data/capture
+roles, pin and instance sequences, timing attributes, per-instance power, slew,
+complete-net capacitance and fanout.  `paths.csv` and `path_instances.csv` feed
+separate rankings for dynamic power, total power, capacitance, fanout, and slew;
+activity-weighted capacitance remains blank unless reliable pin/net activity is
+available from the pinned OpenSTA build.
+
+### OpenSTA compatibility boundary
+
+The repository pins OpenSTA commit `d5761004cd2cd2bcfa85d73327867966c279c83d` in
+`src/flexsoc/backend/toolchain.lock`. Fusion treats `find_timing_paths`,
+`sta::instance_power`, `sta::cmd_scene`, `sta::network_leaf_instances`,
+`get_full_name`, `get_pins`, `get_cells`, and `get_nets` as indispensable and
+terminates with a named diagnostic when one is unavailable. Optional JSON
+formats and optional pin/net detail APIs are protected with Tcl `catch` or
+fallback probes. Missing optional data remains blank; FlexSoC does not invent
+activity, capacitance, fanout, slew, or power values.
