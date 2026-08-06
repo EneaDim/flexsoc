@@ -131,9 +131,6 @@ SIGNOFF = (
     "STA_NEAR_CRITICAL_SETUP",
     "STA_NEAR_CRITICAL_HOLD",
     "POWER_TOP_INSTANCES",
-    "FUSION_PATHS_PER_INSTANCE",
-    "FUSION_TOP_PATHS",
-    "FUSION_HIGH_FANOUT_THRESHOLD",
     "POWER_TEST_NAME",
     "POWER_TEST_NAMES",
     "POWER_GLS_BACKEND",
@@ -286,7 +283,11 @@ TARGETS: dict[str, TargetSpec] = {
     "pnr": ("Place and route", "Run OpenROAD place and route", PNR),
     "pnr_gui": ("Place and route", "Open OpenROAD GUI", PNR),
     "ip_load": ("IP load/save", "Load the complete IP package into a run workspace", IP_LOAD),
-    "ip_save": ("IP load/save", "Save current-PDK EQY and Tcl sign-off scripts", IP_SAVE),
+    "ip_save": (
+        "IP load/save",
+        "Save current-PDK synthesis, optional PnR, EQY, and sign-off Tcl",
+        IP_SAVE,
+    ),
     "soc_vendor_deps": (
         "SoC flow",
         "Fetch pinned lowRISC dependencies required by SoC simulation",
@@ -560,10 +561,12 @@ ACTIVITY_ANALYSIS_TARGETS = {
     "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all",
 }
 
+STREAM_BY_DEFAULT_TARGETS = {"fusion_analysis", "fusion_analysis_all"}
+
 QUIET_BY_DEFAULT_TARGETS = {
     "compile_post_syn", "sim_post_syn",
     "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
-    "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all",
+    "power_analysis", "power_analysis_all",
 }
 
 
@@ -823,8 +826,13 @@ class FlexSoC:
                     f"syn={command.values.get('SYNDIR')}",
                     flush=True,
                 )
+            stream = command.target in STREAM_BY_DEFAULT_TARGETS and not capture and not live
             quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not live
-            log_path = self._command_log_path(command) if capture or live or quiet else None
+            log_path = (
+                self._command_log_path(command)
+                if capture or live or quiet or stream
+                else None
+            )
             if log_path:
                 log_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -853,7 +861,10 @@ class FlexSoC:
                         f"{orange}→ {command.target}{reset}: {blue}{description}{reset}",
                         flush=True,
                     )
-                    if quiet:
+                    if stream:
+                        assert log_path is not None
+                        done = self._run_tee(command, log_path, show_scripts=False)
+                    elif quiet:
                         from .backend.output import print_log, strip_ansi
 
                         assert log_path is not None
@@ -964,12 +975,24 @@ class FlexSoC:
         return workspace / "runs" / run_top / run_id / "logs" / "commands" / f"{name}.log"
 
     def _run_live(self, command: FlexSoCCommand, log_path: Path) -> subprocess.CompletedProcess[str]:
-        """Run a command while teeing stdout/stderr to terminal and log."""
+        """Run a command live, including generated script contents."""
+
+        return self._run_tee(command, log_path, show_scripts=True)
+
+    def _run_tee(
+        self,
+        command: FlexSoCCommand,
+        log_path: Path,
+        *,
+        show_scripts: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        """Stream one command while retaining an ANSI-free command log."""
 
         from .backend.output import color_enabled, print_live_line, print_log, strip_ansi
 
         env = dict(command.env)
-        env["FLEXSOC_LIVE"] = "1"
+        env["FLEXSOC_LIVE"] = "1" if show_scripts else "0"
+        env["PYTHONUNBUFFERED"] = "1"
         use_color = color_enabled(sys.stdout)
         env["FLEXSOC_COLOR"] = "always" if use_color else "never"
         print_log(log_path, color=use_color)
@@ -981,11 +1004,13 @@ class FlexSoC:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                bufsize=1,
             )
             assert proc.stdout is not None
             for line in proc.stdout:
                 print_live_line(line, color=use_color)
                 log.write(strip_ansi(line))
+                log.flush()
             return subprocess.CompletedProcess(command.argv, proc.wait())
 
     def _env(self, values: Mapping[str, str] | None = None) -> dict[str, str]:

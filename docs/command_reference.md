@@ -2,7 +2,7 @@
 
 This is the complete user-facing reference for the `fx` command line and every backend target currently exposed by FlexSoC. It follows the same lifecycle as [Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify it, synthesize it, prove equivalence, analyze timing and power, implement it, and collect release evidence.
 
-The reference explains what each command owns. The generated scaffold architecture and design reasoning are described in [IP development guide](ip_development_guide.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <target> --info` and `fx commands --json` when a script needs the live metadata from the installed checkout.
+The reference explains what each command owns. The generated scaffold architecture and design reasoning are described in [IP development guide](ip_development_guide.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
 
 > **Execution model:** `fx target_a target_b` launches separate backend targets in order. Atomic execution targets prepend their generated setup steps by default: for example, `fx syn` runs `setup_sdc`, `setup_syn`, then `syn`; `fx eqy` runs `setup_eqy`, then `eqy`. Functional simulation setup remains explicit: run `setup_tb` and `setup_cocotb` when the drivers must be refreshed, including after a PDK switch before GLS. Use `--no-setup` when the setup commands are already written explicitly, as in the E2E pipelines. Setup expansion follows setup-only dependencies recursively, remains ordered, and is deduplicated across one invocation. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
 
@@ -30,7 +30,8 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 
 | Command | Purpose | Important behavior |
 | --- | --- | --- |
-| `fx` / `fx --help` | Show the curated CLI guide. | Does not execute Make. |
+| `fx`, `fx help`, `fx -h`, `fx --help` | Show the lifecycle-ordered IP guide. | Does not execute Make. |
+| `fx <command> --help` | Show dedicated help, examples, automatic setup, and accepted variables. | `fx <command> -h`, `fx <command> help`, `fx <command> info`, and `fx help <command>` are equivalent. |
 | `fx commands` | List all backend targets, groups, descriptions, and accepted variables. | Add `--json` for machine-readable metadata. |
 | `fx settings [KEY=VALUE ...]` | Show or update persistent project settings and derived run paths. | Supports `--set`, `--unset`, `--reset`, `--workdir`, and `--json`. Clock relationships are cleared automatically when domains change unless explicitly supplied. |
 | `fx doctor` | Check Python, lock files, and installed EDA tools. | Add `--json` for CI or provisioning scripts. |
@@ -59,7 +60,7 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--dry-run` | Backend targets | Print the exact command without executing it. |
 | `--script` | With `--dry-run` | Render the preview as a strict Bash script. |
 | `--capture` | Backend targets | Capture stdout/stderr and save a per-command log. |
-| `--live` | Backend targets | Stream complete tool output while retaining the command log. Generated script contents are rendered only in live mode; normal mode prints the script path without flooding the terminal. |
+| `--live` | Backend targets | Stream complete tool output while retaining the command log and render generated script contents. `fusion_analysis` and `fusion_analysis_all` already stream progress/report paths by default, but keep Tcl contents hidden unless `--live` is requested. |
 | `--json` | Supported pseudo-commands and execution output | Emit machine-readable JSON. |
 | `--info` | Backend targets | Describe selected targets and accepted variables instead of running them. |
 
@@ -155,7 +156,7 @@ The short form pulses every configured reset. The named form selects one `CLOCK_
 
 ## 3. Complete backend target catalogue
 
-Every target below is accepted by the current Python API. The tables omit the common run identity, clock settings, workspace, and `FORCE`; the remaining target-specific overrides are shown explicitly. All variables are defined in the [variable reference](#4-variable-reference), while `fx <target> --info` remains the exact live source.
+Every target below is accepted by the current Python API. The tables omit the common run identity, clock settings, workspace, and `FORCE`; the remaining target-specific overrides are shown explicitly. All variables are defined in the [variable reference](#4-variable-reference), while `fx <target> --help` remains the exact live source.
 
 ### 3.1 Dependencies
 
@@ -492,8 +493,8 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx power_estimate` | Estimate power using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx power_analysis` | Run workload-dependent OpenSTA power analysis for one qualified GLS trace. | `SIGNOFF_STAGE`, `POWER_TEST_NAME`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODE`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, `MACRO_LIBS`, `SPEF_FILE` | Requires a passing direct GLS report and VCD/SAIF activity. |
 | `fx power_analysis_all` | Run workload-dependent power analysis for all matching qualified GLS traces. | `POWER_TEST_NAMES`, `POWER_GLS_BACKENDS`, `POWER_TIMING_MODES`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE` | Discovers direct GLS reports; no extra manifest is created. |
-| `fx fusion_analysis` | Correlate timing and workload power for one qualified GLS trace. | Power-analysis selectors plus `STA_MODES`, `POWER_TOP_INSTANCES`, `FUSION_PATHS_PER_INSTANCE`, `FUSION_TOP_PATHS`, `FUSION_POWER_METRIC`, `FUSION_HIGH_FANOUT_THRESHOLD` | Keeps timing-driven and power-driven path selection independent. |
-| `fx fusion_analysis_all` | Run fusion analysis for all matching qualified GLS traces. | Plural power-analysis selectors plus fusion limits | Produces path-level and instance-level CSV and separate rankings. |
+| `fx fusion_analysis` | Correlate timing and workload power for one qualified GLS trace. | Power-analysis selectors plus `STA_MODES`, `STA_ENDPOINT_PATH_LIMIT` and `POWER_TOP_INSTANCES` (default 20) | Uses staged public OpenSTA passes to report worst met/violated paths, gate fanout/capacitance/power, and the worst timing path through each top-power gate in one `fusion.rpt` per corner/mode. |
+| `fx fusion_analysis_all` | Run fusion analysis for all matching qualified GLS traces. | Plural power-analysis selectors plus `STA_MODES`, `STA_ENDPOINT_PATH_LIMIT` and `POWER_TOP_INSTANCES` | Prints workload/corner/pass progress, writes one fusion table per workload, and retains one global JSON summary. |
 | `fx sta_violators` | Report timing violators. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx path_view` | Build interactive STA path view. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 
@@ -1483,27 +1484,19 @@ resolution, Tcl generation and OpenSTA execution cannot diverge.
 
 The four OpenSTA Tcl families are generated by `fx setup_signoff`. Static
 analyses create concrete per-corner scripts when executed. Workload analyses
-create concrete scripts only after a qualified GLS report and VCD/SAIF exist.
-`fx fusion_analysis` and `fx fusion_analysis_all` preserve independent
-TIMING_DRIVEN and POWER_DRIVEN selections; a power-driven path is never filtered
-by slack and may therefore be timing-safe.
+run only after a qualified GLS report and VCD/SAIF exist.
 
-Fusion emits `TIMING_VIOLATING`, `TIMING_NEAR_CRITICAL`, and independently ranked
-`POWER_DRIVEN` paths.  `FUSION_POWER_METRIC=dynamic|total` selects the
-hotspot and path-power ranking metric.  Path reports include launch/data/capture
-roles, pin and instance sequences, timing attributes, per-instance power, slew,
-complete-net capacitance and fanout.  `paths.csv` and `path_instances.csv` feed
-separate rankings for dynamic power, total power, capacitance, fanout, and slew;
-activity-weighted capacitance remains blank unless reliable pin/net activity is
-available from the pinned OpenSTA build.
+Each scenario has one primary human-readable artifact: `timing.rpt` for STA,
+`power.rpt` for vectorless or workload power, and `fusion.rpt` for combined
+timing/power context. Fusion also writes one `fusion_table.rpt` per workload,
+with corner/mode status, WNS, TNS, power totals, annotation count, and the
+relative path to each detailed report. A single `summary.json` remains for CI
+and machine consumers.
 
 ### OpenSTA compatibility boundary
 
-The repository pins OpenSTA commit `d5761004cd2cd2bcfa85d73327867966c279c83d` in
-`src/flexsoc/backend/toolchain.lock`. Fusion treats `find_timing_paths`,
-`sta::instance_power`, `sta::cmd_scene`, `sta::network_leaf_instances`,
-`get_full_name`, `get_pins`, `get_cells`, and `get_nets` as indispensable and
-terminates with a named diagnostic when one is unavailable. Optional JSON
-formats and optional pin/net detail APIs are protected with Tcl `catch` or
-fallback probes. Missing optional data remains blank; FlexSoC does not invent
-activity, capacitance, fanout, slew, or power values.
+Fusion uses public `report_wns`, `report_tns`, `report_checks`, `report_power`,
+and `report_activity_annotation` commands. It deliberately avoids private SWIG
+objects and does not claim per-path power attribution; timing paths and average
+power are reported for the same netlist, corner, mode, constraints, and activity
+trace.

@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import subprocess
 import sys
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Mapping
 
-from .api import DEFAULT_SETTINGS, TARGETS, FlexSoC, FlexSoCConfig
+from .api import AUTO_SETUP_TARGETS, DEFAULT_SETTINGS, TARGETS, FlexSoC, FlexSoCConfig
 
 try:  # Keep the entry point understandable if the new CLI deps are not installed yet.
     import click
     import typer
+    from rich import box
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
@@ -41,7 +43,7 @@ if _MISSING:  # pragma: no cover - exercised only in incomplete envs.
 else:
     console = Console()
     error_console = Console(stderr=True)
-    PSEUDO_COMMANDS = ("settings", "commands", "doctor", "pdk", "eqy_debug", "shell")
+    PSEUDO_COMMANDS = ("help", "settings", "commands", "doctor", "pdk", "eqy_debug", "shell")
     OPTION_WORDS = (
         "--set",
         "--unset",
@@ -95,99 +97,431 @@ Use `fx commands` to list every backend Make target.
 
         return [word for word in _completion_words() if word.startswith(incomplete)]
 
+    HELP_WORDS = {"help", "info", "-h", "--help"}
+
+    FLOW_GUIDE = (
+        (
+            "1. Configure the run",
+            (
+                ("fx settings TOP=my_ip RUN_TOP=my_ip RUN_ID=dev", "Persist run identity."),
+                ("fx settings N_CLOCKS=1 CLOCK_DOMAINS=core:clk_i:rst_ni:10:low", "Declare clock/reset intent once."),
+                ("fx doctor", "Check Python and the locally installed EDA tools."),
+                ("fx pdk list | fx pdk info sky130 | fx pdk use sky130", "Inspect and activate a digital PDK."),
+            ),
+        ),
+        (
+            "2. Create a new IP scaffold",
+            (
+                ("fx setup --force", "Create the run directory tree."),
+                ("fx hjson --force", "Create the CSR HJSON source of truth."),
+                ("fx reg doc --force", "Generate register RTL and documentation."),
+                ("fx rtl_stub --force", "Create the editable RTL core and aligned wrapper."),
+                ("fx top_from_core flist --force", "Refresh the wrapper and ordered RTL filelists."),
+            ),
+        ),
+        (
+            "3. Build functional DV",
+            (
+                ("fx setup_model --force", "Create the model, RegMap API, and scenario source."),
+                ("fx tests_gen | fx test_gen --set TEST_NAME=smoke", "Generate all tests or one named test."),
+                ("fx tests", "List the generated test catalogue."),
+                ("fx setup_tb setup_cocotb", "Generate SV and cocotb drivers from the current interfaces."),
+                ("fx sim --set TEST_NAME=smoke", "Run one SystemVerilog vector test."),
+                ("fx cocotb --set TEST_NAME=smoke", "Run the same vectors through cocotb."),
+                ("fx regression | fx coverage | fx coverage_detail", "Run the catalogue and inspect coverage."),
+            ),
+        ),
+        (
+            "4. Close RTL and properties",
+            (
+                ("fx lint_suite", "Run the complete Slang and Verilator lint suites."),
+                ("fx slang_hier | fx slang_ast", "Inspect elaborated hierarchy and AST."),
+                ("fx setup_formal | fx formal", "Generate and run BMC, prove, and cover stages."),
+            ),
+        ),
+        (
+            "5. Synthesize and prove equivalence",
+            (
+                ("fx setup_sdc", "Generate constraints from the shared clock configuration."),
+                ("fx syn", "Prepare scripts and produce the mapped netlist."),
+                ("fx eqy", "Prepare and prove RTL versus mapped-netlist equivalence."),
+                ("fx eqy_debug [partition]", "Diagnose unresolved equivalence partitions."),
+            ),
+        ),
+        (
+            "6. Run post-synthesis sign-off",
+            (
+                ("fx setup_signoff", "Generate the shared generic OpenSTA Tcl families."),
+                ("fx sdf | fx sta | fx power_estimate", "Produce corner SDF, timing, and vectorless power."),
+                ("fx compile_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Compile one named GLS workload."),
+                ("fx sim_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Run zero/unit/SDF min/typ/max GLS."),
+                ("fx power_analysis --set POWER_TEST_NAME=smoke --set POWER_TIMING_MODE=typ", "Analyze power for one GLS workload."),
+                ("fx fusion_analysis --set POWER_TEST_NAME=smoke --set POWER_TIMING_MODE=typ", "Correlate worst timing paths and gate power for one workload."),
+                ("fx fusion_analysis_all --set POWER_TEST_NAMES=all", "Run fusion for every matching GLS workload."),
+            ),
+        ),
+        (
+            "7. Implement and release",
+            (
+                ("fx pnr", "Prepare and run OpenROAD implementation."),
+                ("fx sdf_post_pnr | fx sim_post_pnr", "Export and simulate post-layout timing."),
+                ("fx manifest | fx metrics | fx check", "Collect release identity, metrics, and closure status."),
+                ("fx ip_save", "Save a reusable IP package after closure."),
+            ),
+        ),
+        (
+            "8. Reuse an existing IP",
+            (
+                ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic", "Load authored and generated IP collateral."),
+                ("fx regmap_py tests_gen setup_tb setup_cocotb", "Refresh generator-owned DV collateral."),
+                ("fx lint_suite regression formal syn eqy", "Run the same qualification gates as a scaffolded IP."),
+                ("fx soc_start | fx soc_flow", "Use loaded IPs as building blocks for a later SoC flow."),
+            ),
+        ),
+    )
+
+    PARAMETER_HELP = {
+        "TOP": "Logical IP top module.",
+        "RUN_TOP": "Run-directory owner; normally the same as TOP.",
+        "RUN_ID": "Named run instance below runs/<RUN_TOP>/.",
+        "WORKSPACE": "External workspace root; prefer the --workdir option.",
+        "FORCE": "Allow regeneration of generator-owned outputs; prefer --force.",
+        "N_CLOCKS": "Number of declared clock domains.",
+        "CLOCK_DOMAINS": "Comma-separated name:clock:reset:period:polarity domain declarations.",
+        "CLOCK_RELATIONSHIPS": "Explicit sync/async/exclusive relationships between domains.",
+        "PDK": "Active technology profile name.",
+        "PDK_ROOT": "Root of an already installed PDK.",
+        "CLK_PERIOD": "Primary clock period override in nanoseconds.",
+        "REG_ITF": "Generated register bus/interface type.",
+        "TESTBENCH": "Testbench module/base name.",
+        "TEST_NAME": "Select one functional or GLS test by name.",
+        "TEST_NAMES": "Select multiple functional tests.",
+        "TEST_ROOT": "Override the generated vector-test directory.",
+        "REGCFG": "Override the test config.regs input.",
+        "DATA_IN": "Override the input command-vector file.",
+        "DATA_OUT": "Override the expected-output vector file.",
+        "COMPILER": "RTL simulation compiler/backend.",
+        "REGRESSION_BACKENDS": "Simulation backends included in regression.",
+        "SEED": "Deterministic simulation or vector-generation seed.",
+        "WAVE_FORMAT": "Waveform format: fst or vcd.",
+        "WAVE_FILE": "Explicit waveform output path.",
+        "COCOTB_WAVES": "Enable cocotb waveform generation.",
+        "COVERAGE": "Enable or select coverage collection.",
+        "COVERAGE_DETAIL_LIMIT": "Maximum uncovered points printed by coverage_detail.",
+        "LINT_TOOL": "Selected lint implementation.",
+        "LINT_PART": "Selected lint diagnostic subset.",
+        "VSV": "SystemVerilog/Verilog language selection used by backend scripts.",
+        "GLS_SIMULATOR": "Gate-level simulator executable/family.",
+        "GLS_BACKEND": "Gate-level driver backend, normally sv or cocotb.",
+        "TIMING_MODE": "GLS timing mode: zero, unit, min, typ, or max.",
+        "GLS_UNIT_DELAY": "Delay assigned in unit-delay GLS mode.",
+        "SDF_STRICT": "Fail when SDF annotation is missing or incomplete.",
+        "SDF_FILE": "Explicit SDF file used for GLS.",
+        "SDF_CORNER": "Corner selected for SDF generation or annotation.",
+        "NETLIST": "Explicit synthesized or post-route netlist.",
+        "SIGNOFF_STAGE": "Sign-off source stage: post_syn or post_route.",
+        "SPEF_FILE": "Extracted parasitics for post-route timing/power.",
+        "PNR_SDC_FILE": "Post-route SDC override.",
+        "LIBS": "Corner Liberty list or mapping.",
+        "LIB_SYN": "Synthesis/default Liberty file.",
+        "MACRO_LIBS": "Additional macro Liberty files.",
+        "PRIM": "Standard-cell functional Verilog models.",
+        "STA_ENDPOINT_GROUP_LIMIT": "Maximum path groups reported by STA/fusion.",
+        "STA_ENDPOINT_PATH_LIMIT": "Worst paths retained per endpoint/group.",
+        "STA_NEAR_CRITICAL_SETUP": "Setup-slack window included as near-critical.",
+        "STA_NEAR_CRITICAL_HOLD": "Hold-slack window included as near-critical.",
+        "POWER_ACTIVITY": "Default vectorless input switching activity.",
+        "POWER_DUTY": "Default vectorless input duty cycle.",
+        "POWER_GLOBAL_ACTIVITY": "Global activity assumption for power_estimate.",
+        "POWER_TOP_INSTANCES": "Number of highest-power gates analyzed and cross-referenced.",
+        "POWER_TEST_NAME": "Select one GLS workload for power/fusion.",
+        "POWER_TEST_NAMES": "Select GLS workloads for *_all; use all for discovery.",
+        "POWER_GLS_BACKEND": "Select one workload backend for power/fusion.",
+        "POWER_GLS_BACKENDS": "Select workload backends for *_all.",
+        "POWER_TIMING_MODE": "Select one workload timing mode for power/fusion.",
+        "POWER_TIMING_MODES": "Select timing modes for *_all.",
+        "POWER_VCD_SCOPE": "VCD hierarchy scope to annotate, or auto.",
+        "POWER_DUT_INSTANCE": "DUT instance used to resolve activity scope, or auto.",
+        "FST2VCD": "FST-to-VCD converter executable.",
+        "PATH_VIEW_FILE": "STA report opened by path_view.",
+        "NPATHS": "Number of paths loaded into path_view.",
+        "FORMAL_DEPTH": "Default formal depth.",
+        "FORMAL_BMC_DEPTH": "Bounded model-check depth.",
+        "FORMAL_BMC_APPEND": "Additional BMC steps after the base depth.",
+        "SBY": "SymbiYosys executable.",
+        "EQY": "EQY executable.",
+        "EQY_JOBS": "Parallel EQY partition jobs.",
+        "EQY_TIMEOUT": "Overall EQY strategy timeout.",
+        "EQY_STRATEGY_ORDER": "Ordered SAT/SMTBMC/PDR strategy portfolio.",
+        "EQY_RESET_CYCLES": "Reset cycles assumed by reset normalization.",
+        "IP_NAME": "Saved or loaded IP package name.",
+        "IP_LIBRARY_ROOT": "IP package library root.",
+        "HOST": "Selected SoC host integration.",
+        "SOC_CFG_MODE": "SoC configuration mode.",
+        "DEVLIST": "SoC device/IP list.",
+        "TARGET_SYN": "Yosys synthesis target/profile.",
+        "TARGET_OPT": "Yosys optimization target/profile.",
+        "ORS": "OpenROAD-flow-scripts root.",
+        "ORS_TECH": "OpenROAD platform/technology name.",
+    }
+
+    TARGET_EXAMPLES = {
+        "hjson": ("fx hjson --force",),
+        "reg": ("fx reg --force",),
+        "rtl_stub": ("fx rtl_stub --force", "fx top_from_core --force"),
+        "setup_model": ("fx setup_model --force",),
+        "test_gen": ("fx test_gen --set TEST_NAME=smoke",),
+        "tests": ("fx tests",),
+        "sim": ("fx sim --set TEST_NAME=smoke --set COMPILER=verilator",),
+        "cocotb": ("fx cocotb --set TEST_NAME=smoke --set COCOTB_WAVES=1",),
+        "regression": ("fx regression --no-setup",),
+        "syn": ("fx syn", "fx setup_syn && fx syn --no-setup"),
+        "eqy": ("fx eqy", "fx setup_eqy && fx eqy --no-setup"),
+        "compile_post_syn": (
+            "fx compile_post_syn --no-setup --set TEST_NAME=smoke "
+            "--set GLS_BACKEND=sv --set TIMING_MODE=typ",
+        ),
+        "sim_post_syn": (
+            "fx sim_post_syn --no-setup --set TEST_NAME=smoke "
+            "--set GLS_BACKEND=sv --set TIMING_MODE=typ --set SDF_STRICT=1",
+        ),
+        "power_analysis": (
+            "fx power_analysis --no-setup --set POWER_TEST_NAME=smoke "
+            "--set POWER_GLS_BACKEND=sv --set POWER_TIMING_MODE=typ",
+        ),
+        "power_analysis_all": (
+            "fx power_analysis_all --no-setup --set POWER_TEST_NAMES=all "
+            "--set POWER_GLS_BACKENDS=all --set POWER_TIMING_MODES=all",
+        ),
+        "fusion_analysis": (
+            "fx fusion_analysis --no-setup --set POWER_TEST_NAME=smoke "
+            "--set POWER_GLS_BACKEND=sv --set POWER_TIMING_MODE=typ",
+        ),
+        "fusion_analysis_all": (
+            "fx fusion_analysis_all --no-setup --set POWER_TEST_NAMES=all "
+            "--set POWER_GLS_BACKENDS=all --set POWER_TIMING_MODES=all",
+        ),
+        "ip_load": ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic",),
+        "ip_save": ("fx ip_save --set IP_NAME=cordic_release",),
+    }
+
+    PSEUDO_HELP = {
+        "settings": (
+            "Show or update persistent project settings and derived run paths.",
+            ("fx settings", "fx settings TOP=my_ip RUN_ID=dev", "fx settings --reset ..."),
+            ("--set KEY=VALUE", "--unset KEY", "--reset", "--workdir PATH", "--json"),
+        ),
+        "commands": (
+            "List the complete backend target catalogue.",
+            ("fx commands", "fx commands --json"),
+            ("--json",),
+        ),
+        "doctor": (
+            "Check Python dependencies and the locally available EDA toolchain.",
+            ("fx doctor", "fx doctor --json"),
+            ("--json", "--workdir PATH"),
+        ),
+        "pdk": (
+            "List, inspect, fetch, or activate a PDK profile.",
+            ("fx pdk list", "fx pdk info sky130", "fx pdk fetch sky130", "fx pdk use sky130"),
+            ("--set PDK_ROOT=PATH", "--force", "--json"),
+        ),
+        "eqy_debug": (
+            "Summarize EQY closure or inspect one unresolved partition.",
+            ("fx eqy_debug", "fx eqy_debug partition_name", "fx eqy_debug --wave partition_name"),
+            ("--wave", "--files", "--set KEY=VALUE", "--json"),
+        ),
+        "shell": (
+            "Open the interactive fx prompt with completion and history.",
+            ("fx shell",),
+            ("--workdir PATH",),
+        ),
+    }
+
     def _guide() -> None:
-        """Print a compact orange/cyan guide with one description per row."""
+        """Print the canonical IP lifecycle in execution order."""
 
-        def row(cmd: str, desc: str) -> str:
-            """Format one command plus its short explanation."""
-
-            return f"  [bold bright_cyan]{cmd}[/bold bright_cyan]\n    [white]{desc}[/white]"
-
-        def section(title: str, rows: list[tuple[str, str]]) -> str:
-            """Format one readable help section."""
-
-            body = "\n".join(row(cmd, desc) for cmd, desc in rows)
-            return f"[bold orange1]{title}[/bold orange1]\n{body}"
-
-        blocks = [
-            section(
-                "Main commands",
-                [
-                    ("fx settings TOP=test RUN_TOP=test RUN_ID=dev HOST=uart", "Save the default IP/run configuration."),
-                    ("fx commands", "List every backend target exposed by the Makefile."),
-                    ("fx doctor", "Check the Python lock and local EDA toolchain."),
-                    ("fx pdk list", "List real/open, predictive, and reference PDK profiles."),
-                    ("fx pdk use sky130", "Activate one locally usable PDK for synthesis, GLS, EQY and PnR."),
-                    ("fx tests", "Show generated verification tests for the current IP."),
-                    ("fx shell", "Open the interactive prompt with target completion."),
-                ],
-            ),
-            section(
-                "Model + verification",
-                [
-                    ("fx setup_model --force", "Create the editable model and generate config/data vectors."),
-                    ("fx setup_tb setup_cocotb --force", "Generate SystemVerilog and cocotb runners."),
-                    ("fx sim --set TEST_NAME=smoke --force", "Run one SystemVerilog vector test by name."),
-                    ("fx cocotb --set TEST_NAME=smoke --force", "Run one cocotb vector test by name."),
-                    ("fx regression", "Run every prepared vector test; setup_tb/setup_cocotb remain explicit."),
-                    ("fx regression --no-setup", "Run only the regression target when setup steps are already explicit."),
-                    ("fx eqy_debug [partition]", "Explain EQY closure, counterexample, and reset-state diagnosis."),
-                    ("fx eqy_debug --wave [partition]", "Open the selected counterexample waveform."),
-                    ("fx eqy_debug --files [partition]", "List raw EQY/SBY artifacts for the selected partition."),
-                ],
-            ),
-            section(
-                "IP development",
-                [
-                    ("fx setup hjson reg doc rtl_stub lint --force", "Create a fresh IP workspace and run lint."),
-                    ("fx setup_model regression --force", "Generate the model and run the full SV+cocotb regression."),
-                    ("fx syn", "Generate SDC and synthesis scripts, then run synthesis; add --no-setup for an explicit pipeline."),
-                    ("fx ip_flow --force", "Run lint, regression, property formal, synthesis, sign-off equivalence, SDF, STA, power, then reports."),
-                    ("fx manifest_show", "Show the saved run identity and tool versions in color."),
-                ],
-            ),
-            section(
-                "Clock domains",
-                [
-                    ("fx settings N_CLOCKS=3 CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low", "Describe clock/reset domains once for every backend."),
-                    ("fx settings CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp", "Declare timing relationships explicitly; none are assumed."),
-                    ("fx hjson reg doc rtl_stub setup_model setup_tb setup_cocotb --force", "Use the same public targets for one or many clocks."),
-                ],
-            ),
-            section(
-                "System-on-chip building",
-                [
-                    ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic", "Load an existing IP into the workspace."),
-                    ("fx soc_uart_gen soc_prepare soc_build_sw soc_run", "Build and run a UART-hosted SoC flow."),
-                ],
-            ),
-            section(
-                "Useful options",
-                [
-                    ("--set KEY=VALUE", "Override one Make/config variable for this command."),
-                    ("--user / --system", "Select rootless user or shared/system dependency mode."),
-                    ("--profile base|impl|riscv", "Select the dependency profile."),
-                    ("--jobs N", "Set parallel jobs for dependency builds."),
-                    ("--force", "Overwrite generated files where supported."),
-                    ("--dry-run", "Print the Make command without executing it."),
-                    ("--info", "Describe selected targets instead of running them."),
-                    ("--json", "Print machine-readable output for scripts."),
-                    ("--install-completion", "Install shell completion through Typer."),
-                ],
-            ),
-        ]
-        text = "\n\n".join(blocks)
         console.print()
         console.print(
             Panel(
-                text,
-                title="[bold orange1]FlexSoC fx help[/bold orange1]",
-                subtitle="[bold bright_cyan]settings • targets • verification[/bold bright_cyan]",
+                "[white]Production-oriented digital IP flow: scaffold, verify, synthesize, "
+                "sign off, implement, and package.[/white]\n"
+                "[grey70]The same public commands apply to one or many clock domains.[/grey70]",
+                title="[bold orange1]FlexSoC fx[/bold orange1]",
+                subtitle="[bold bright_cyan]IP lifecycle[/bold bright_cyan]",
                 border_style="orange1",
                 padding=(1, 2),
             )
         )
-        console.print("[white]Tip:[/white] use [bold bright_cyan]fx commands[/bold bright_cyan] for the full target catalog.\n")
+        table = Table(
+            title="[bold orange1]Canonical IP lifecycle[/bold orange1]",
+            box=box.ROUNDED,
+            expand=True,
+            header_style="bold white",
+            show_lines=True,
+        )
+        table.add_column("Step", style="orange1", no_wrap=True, width=30)
+        table.add_column("Command", style="bright_cyan", ratio=4)
+        table.add_column("Purpose", style="white", ratio=3)
+        for title, rows in FLOW_GUIDE:
+            for index, (command, purpose) in enumerate(rows):
+                table.add_row(title if index == 0 else "", command, purpose)
+        console.print(table)
+        console.print()
+        console.print(
+            Panel(
+                "[bold bright_cyan]fx <command> --help[/bold bright_cyan]  "
+                "[white]dedicated command help[/white]\n"
+                "[bold bright_cyan]fx <command> help[/bold bright_cyan] or "
+                "[bold bright_cyan]fx <command> info[/bold bright_cyan]  "
+                "[white]equivalent forms[/white]\n"
+                "[bold bright_cyan]fx commands[/bold bright_cyan]  "
+                "[white]complete target catalogue[/white]\n"
+                "[bold bright_cyan]--set KEY=VALUE[/bold bright_cyan]  "
+                "[white]one-shot selector or backend override[/white]\n"
+                "[bold bright_cyan]--no-setup[/bold bright_cyan]  "
+                "[white]run only explicitly named targets[/white]",
+                title="[bold orange1]Help and execution controls[/bold orange1]",
+                border_style="orange1",
+                padding=(1, 2),
+            )
+        )
+        console.print()
+
+    def _target_name(value: str) -> str:
+        """Resolve dashed or underscored spelling against the target catalogue."""
+
+        for candidate in (value, value.replace("-", "_"), value.replace("_", "-")):
+            if candidate in TARGETS:
+                return candidate
+        raise ValueError(f"unknown command {value!r}; run `fx commands`")
+
+    def _parameter_description(name: str) -> str:
+        """Return concise help for one accepted target variable."""
+
+        if name in PARAMETER_HELP:
+            return PARAMETER_HELP[name]
+        prefixes = {
+            "EQY_": "Equivalence-check override",
+            "FORMAL_": "Property-formal override",
+            "SLANG_": "Slang elaboration override",
+            "DEPS_": "Managed dependency override",
+            "TUTORIAL_": "Tutorial workspace override",
+        }
+        for prefix, label in prefixes.items():
+            if name.startswith(prefix):
+                suffix = name[len(prefix):].replace("_", " ").lower()
+                return f"{label}: {suffix}."
+        return f"Advanced backend override: {name.replace('_', ' ').lower()}."
+
+    def _target_examples(name: str, params: tuple[str, ...]) -> tuple[str, ...]:
+        """Return practical examples without duplicating the target catalogue."""
+
+        if name in TARGET_EXAMPLES:
+            return TARGET_EXAMPLES[name]
+        command = f"fx {name}"
+        if "FORCE" in params:
+            command += " --force"
+        return (command,)
+
+    def _print_target_help(name: str) -> None:
+        """Render dedicated help for one backend target."""
+
+        target = _target_name(name)
+        group, description, params = TARGETS[target]
+        console.print()
+        console.print(
+            Panel(
+                f"[white]{description}[/white]",
+                title=f"[bold orange1]fx {target}[/bold orange1]",
+                subtitle=f"[bold bright_cyan]{group}[/bold bright_cyan]",
+                border_style="orange1",
+                padding=(1, 2),
+            )
+        )
+        console.print("[bold orange1]Usage[/bold orange1]")
+        for example in _target_examples(target, params):
+            console.print(f"  [bold bright_cyan]{example}[/bold bright_cyan]")
+        setup = AUTO_SETUP_TARGETS.get(target)
+        if setup:
+            console.print(
+                "[bold orange1]Automatic setup[/bold orange1]  "
+                f"[white]{', '.join(setup)}[/white] "
+                "[grey70](disable with --no-setup)[/grey70]"
+            )
+        else:
+            console.print(
+                "[bold orange1]Automatic setup[/bold orange1]  "
+                "[grey70]none; prerequisites remain explicit[/grey70]"
+            )
+        console.print("[bold orange1]Accepted target variables[/bold orange1]")
+        if params:
+            table = Table(box=box.SIMPLE_HEAVY, expand=True, header_style="bold white")
+            table.add_column("Variable", style="bright_cyan", no_wrap=True, width=30)
+            table.add_column("Meaning", style="white", ratio=3)
+            table.add_column("Default", style="grey70", no_wrap=True, ratio=1)
+            for parameter in params:
+                table.add_row(
+                    parameter,
+                    _parameter_description(parameter),
+                    str(DEFAULT_SETTINGS.get(parameter, "—")),
+                )
+            console.print(table)
+            console.print(
+                "[grey70]Pass variables with[/grey70] "
+                "[bold bright_cyan]--set KEY=VALUE[/bold bright_cyan]"
+            )
+        else:
+            console.print("  [grey70]No target-specific variables.[/grey70]")
+        console.print(
+            "[bold orange1]Common controls[/bold orange1]  "
+            "[bright_cyan]--workdir PATH[/bright_cyan], "
+            "[bright_cyan]--dry-run[/bright_cyan], "
+            "[bright_cyan]--live[/bright_cyan], "
+            "[bright_cyan]--info[/bright_cyan]"
+        )
+        console.print()
+
+    def _print_pseudo_help(name: str) -> None:
+        """Render dedicated help for one Python-side pseudo-command."""
+
+        description, examples, options = PSEUDO_HELP[name]
+        console.print()
+        console.print(
+            Panel(
+                f"[white]{description}[/white]",
+                title=f"[bold orange1]fx {name}[/bold orange1]",
+                subtitle="[bold bright_cyan]CLI command[/bold bright_cyan]",
+                border_style="orange1",
+                padding=(1, 2),
+            )
+        )
+        console.print("[bold orange1]Usage[/bold orange1]")
+        for example in examples:
+            console.print(f"  [bold bright_cyan]{example}[/bold bright_cyan]")
+        console.print("[bold orange1]Options[/bold orange1]")
+        for option in options:
+            console.print(f"  [bright_cyan]{option}[/bright_cyan]")
+        console.print()
+
+    def _print_command_help(name: str) -> None:
+        """Render pseudo-command or target help from the installed catalogue."""
+
+        if name in PSEUDO_HELP:
+            _print_pseudo_help(name)
+        else:
+            _print_target_help(name)
+
+    def _help_request(args: list[str]) -> str | None:
+        """Recognize all supported dedicated-help spellings before Typer parsing."""
+
+        if len(args) != 2:
+            return None
+        if args[0] == "help":
+            return args[1]
+        if args[1] in HELP_WORDS:
+            return args[0]
+        return None
 
     # -----------------------------------------------------------------------
     # Persistent settings
@@ -286,15 +620,14 @@ Use `fx commands` to list every backend Make target.
             console.print(table)
 
     def _print_info(client: FlexSoC, targets: tuple[str, ...], as_json: bool) -> None:
-        """Print metadata for selected targets."""
+        """Print machine metadata or the full dedicated target help."""
 
         data = [client.target_info(target).to_dict() for target in targets]
         if as_json:
             print(json.dumps(data[0] if len(data) == 1 else data, indent=2))
             return
         for item in data:
-            text = f"[bold cyan]{item['name']}[/bold cyan]\n{item['description']}\nvars: {', '.join(item['params']) or '-'}"
-            console.print(Panel.fit(text, title=item["group"]))
+            _print_target_help(item["name"])
 
     # -----------------------------------------------------------------------
     # Command handlers
@@ -993,8 +1326,27 @@ Use `fx commands` to list every backend Make target.
                 token[2:] if token in {"--wave", "--files"} else token
                 for token in args[index + 1:]
             ]
-        if args in (["-h"], ["--help"]):
+        if os.environ.get("_FX_COMPLETE") or os.environ.get("_FLEXSOC_COMPLETE"):
+            try:
+                return _click_command().main(
+                    args=args, prog_name="fx", standalone_mode=False
+                ) or 0
+            except click.exceptions.Exit as exc:
+                return int(exc.exit_code or 0)
+        if (
+            not args
+            or args in (["-h"], ["--help"], ["help"])
+            or (len(args) == 2 and args[0] == "help" and args[1] in HELP_WORDS)
+        ):
             _guide()
+            return 0
+        help_command = _help_request(args)
+        if help_command is not None:
+            try:
+                _print_command_help(help_command)
+            except ValueError as exc:
+                error_console.print(f"[red]{exc}[/red]")
+                return 2
             return 0
         try:
             return _click_command().main(args=args, prog_name="fx", standalone_mode=False) or 0
