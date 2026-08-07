@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/syn/uart_synth.v}
 puts "link_design uart_master"
 link_design uart_master
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/pnr_openroad/uart_master.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/pnr_openroad/uart_master.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/signoff/sky130/uart_master.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/uart_master/dev/signoff/sky130/uart_master.sdc}
 
 puts "=== Power ==="
 puts "set_power_activity -global -activity 10.0"

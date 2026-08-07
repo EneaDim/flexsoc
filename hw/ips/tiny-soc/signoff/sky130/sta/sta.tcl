@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/tiny-soc/dev/syn
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/tiny-soc/dev/syn/soc_synth.v}
 puts "link_design soc"
 link_design soc
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/tiny-soc/dev/pnr_openroad/soc.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/tiny-soc/dev/pnr_openroad/soc.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/tiny-soc/dev/signoff/sky130/soc.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/tiny-soc/dev/signoff/sky130/soc.sdc}
 
 puts "=== Timing reports ==="
 report_checks -path_delay max -fields {slew cap input_pins} -digits 3

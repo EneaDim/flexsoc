@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/de
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/syn/cache_wrapper_synth.v}
 puts "link_design cache_wrapper"
 link_design cache_wrapper
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/pnr_openroad/cache_wrapper.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/pnr_openroad/cache_wrapper.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/signoff/sky130/cache_wrapper.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/signoff/sky130/cache_wrapper.sdc}
 
 puts "=== Write SDF ==="
 puts "write_sdf -divider . -include_typ /home/eneadim/github/flexsoc/workspace/runs/cache_wrapper/dev/signoff/sdf/cache_wrapper_tt.sdf"

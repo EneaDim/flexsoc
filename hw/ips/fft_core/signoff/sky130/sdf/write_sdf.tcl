@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/syn
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/syn/fft_core_synth.v}
 puts "link_design fft_core"
 link_design fft_core
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/pnr_openroad/fft_core.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/pnr_openroad/fft_core.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/signoff/sky130/fft_core.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/signoff/sky130/fft_core.sdc}
 
 puts "=== Write SDF ==="
 puts "write_sdf -divider . -include_typ /home/eneadim/github/flexsoc/workspace/runs/fft_core/dev/signoff/sdf/fft_core_tt.sdf"

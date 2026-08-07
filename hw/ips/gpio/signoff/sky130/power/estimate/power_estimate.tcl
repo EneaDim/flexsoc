@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/syn/gpi
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/syn/gpio_synth.v}
 puts "link_design gpio"
 link_design gpio
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/pnr_openroad/gpio.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/pnr_openroad/gpio.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/signoff/sky130/gpio.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/signoff/sky130/gpio.sdc}
 
 puts "=== Power ==="
 puts "set_power_activity -global -activity 10.0"

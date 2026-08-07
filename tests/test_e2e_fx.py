@@ -36,7 +36,7 @@ AMBIENT_FX_SETTING_KEYS = (
     "TOP", "RUN_TOP", "RUN_ID", "HOST", "WORKSPACE", "RUN_ROOT", "PDK",
     "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS", "CLK_PERIOD", "FORCE",
     "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE", "FST2VCD", "GLS_BACKEND",
-    "GLS_UNIT_DELAY", "SDF_STRICT", "SYN_DIR", "EQUIV_DIR", "PNR_DIR",
+    "GLS_UNIT_DELAY", "SDF_STRICT", "SYN_DIR", "EQUIV_DIR", "IMPL_DIR",
 )
 
 
@@ -230,7 +230,7 @@ def _validate_ip_layout(top: str) -> None:
         "data", "doc", "drivers", "rtl", "dv/functional/model",
         "dv/functional/tests", "dv/functional/tb/sv", "dv/functional/tb/cocotb",
         "dv/formal/properties/prove", "dv/formal/properties/cover",
-        "syn/sky130", "signoff/sky130/equivalence", "pnr_openroad/sky130",
+        "syn/sky130", "signoff/sky130/equivalence", "impl/sky130",
     )
     required_files = (
         f"data/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
@@ -244,7 +244,7 @@ def _validate_ip_layout(top: str) -> None:
         f"dv/formal/properties/cover/{top}_cover.sv",
         "syn/sky130/synth.ys", "syn/sky130/synth_sv.ys",
         "syn/sky130/abc.constr", "syn/sky130/area.abc",
-        "pnr_openroad/sky130/config.mk", f"pnr_openroad/sky130/{top}.sdc",
+        "impl/sky130/config.mk", f"signoff/sky130/{top}.sdc",
     )
     missing = [
         path
@@ -504,11 +504,23 @@ def _assert_saved_signoff_scripts(
 
     del activity_count  # Workload/corner multiplicity belongs to reports, not Tcl files.
     root = library_root / top
-    assert (root / "syn" / pdk).is_dir()
-    assert (root / "pnr_openroad").is_dir()
-    pnr = root / "pnr_openroad" / pdk
+    syn = root / "syn" / pdk
+    assert syn.is_dir()
+    debug_checkpoints = [syn / f"{top}_{stage}.il" for stage in ("generic", "dffmap", "abc", "clean")]
+    assert not any(path.exists() for path in debug_checkpoints), (
+        f"diagnostic RTLIL checkpoints leaked into saved {top}/{pdk}: {debug_checkpoints}"
+    )
+    meta = root / "meta" / pdk
+    assert (meta / "manifest.json").is_file()
+    assert (meta / "metrics.json").is_file()
+    assert (meta / "check.rpt").is_file() and (meta / "check.rpt").stat().st_size > 0
+    assert not any(path.name == "__pycache__" for path in root.rglob("__pycache__"))
+    assert not any(path.suffix in {".pyc", ".pyo"} for path in root.rglob("*"))
+    assert (root / "impl").is_dir()
+    pnr = root / "impl" / pdk
     assert not pnr.exists() or pnr.is_dir()
     signoff = root / "signoff" / pdk
+    assert (signoff / f"{top}.sdc").is_file()
     assert (signoff / "equivalence" / "rtl_vs_syn").is_dir()
     canonical = {
         signoff / "sta" / "sta.tcl",
@@ -528,7 +540,7 @@ def _assert_saved_signoff_scripts(
         path for path in signoff.rglob("*")
         if path.is_file()
         and "equivalence" not in path.parts
-        and path.suffix != ".tcl"
+        and path.suffix not in {".tcl", ".sdc"}
     ]
     assert not forbidden, f"non-Tcl sign-off snapshots saved for {pdk}: {forbidden}"
 
@@ -541,10 +553,17 @@ def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
         assert (root / common).is_dir(), f"missing saved {top}/{common}"
     for pdk in ("sky130", "ihp-sg13g2"):
         assert (root / "syn" / pdk).is_dir(), f"missing saved {top} synthesis for {pdk}"
+        assert (root / "signoff" / pdk / f"{top}.sdc").is_file()
+        meta = root / "meta" / pdk
+        assert (meta / "manifest.json").is_file(), f"missing saved {top} manifest for {pdk}"
+        assert (meta / "metrics.json").is_file(), f"missing saved {top} metrics for {pdk}"
+        assert (meta / "check.rpt").is_file(), f"missing saved {top} closure report for {pdk}"
         profile = root / "signoff" / pdk / "equivalence" / "rtl_vs_syn"
         assert (profile / f"{top}_rtl_vs_syn.eqy").is_file()
         assert (profile / f"{top}_eqy_view.sv").is_file()
-    assert (root / "pnr_openroad" / "sky130").is_dir()
+    assert (root / "impl" / "sky130").is_dir()
+    assert not any(path.name == "__pycache__" for path in root.rglob("__pycache__"))
+    assert not any(path.suffix in {".pyc", ".pyo"} for path in root.rglob("*"))
 
 
 # Every test below contains its complete ordered sequence of one-command fx invocations.
@@ -710,10 +729,6 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             )
             _run(
                 f"uv run --no-sync fx formal_cover --no-setup --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"uv run --no-sync fx setup_sdc --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
 
@@ -1493,10 +1508,6 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             )
             _run(
                 f"uv run --no-sync fx formal_cover --no-setup --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"uv run --no-sync fx setup_sdc --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
 
@@ -2477,10 +2488,6 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"uv run --no-sync fx formal_cover --no-setup --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx setup_sdc --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
 
@@ -3556,10 +3563,6 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"uv run --no-sync fx formal_cover --no-setup --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx setup_sdc --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
 

@@ -201,7 +201,9 @@ def test_pdk_switch_keeps_shared_run_artifacts_and_reselects_technology_paths(
     ihp = fx.values({"PDK": "ihp-sg13g2", "PDK_ROOT": pdk})
 
     assert sky130["RUN_ROOT"] == ihp["RUN_ROOT"]
-    assert sky130["CONSTRAINTSDIR"] == ihp["CONSTRAINTSDIR"]
+    assert sky130["SIGNOFF_SDC_FILE"] != ihp["SIGNOFF_SDC_FILE"]
+    assert sky130["SIGNOFF_SDC_FILE"].endswith("signoff/sky130/demo.sdc")
+    assert ihp["SIGNOFF_SDC_FILE"].endswith("signoff/ihp-sg13g2/demo.sdc")
     for key in (
         "SYNDIR",
         "EQUIVDIR",
@@ -267,24 +269,22 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
 ) -> None:
     fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work")
 
-    assert AUTO_SETUP_TARGETS["setup_syn"] == ("setup_sdc",)
+    assert "setup_syn" not in AUTO_SETUP_TARGETS
     assert AUTO_SETUP_TARGETS["syn"] == ("setup_syn",)
     assert "regression" not in AUTO_SETUP_TARGETS
-    assert AUTO_SETUP_TARGETS["setup_pnr"] == ("setup_sdc",)
+    assert AUTO_SETUP_TARGETS["setup_pnr"] == ("setup_signoff",)
     assert AUTO_SETUP_TARGETS["pnr"] == ("setup_pnr",)
     assert AUTO_SETUP_TARGETS["setup_formal_prove"] == ("setup_formal",)
     assert AUTO_SETUP_TARGETS["formal_bmc"] == ("setup_formal_prove",)
-    assert [command.target for command in fx.commands("syn")] == [
-        "setup_sdc", "setup_syn", "syn"
-    ]
+    assert [command.target for command in fx.commands("syn")] == ["setup_syn", "syn"]
     assert [command.target for command in fx.commands("regression")] == ["regression"]
     assert [command.target for command in fx.commands("sdf", "sta", "power_estimate", "fusion_analysis")] == [
-        "setup_sdc", "setup_signoff", "sdf", "sta", "power_estimate", "fusion_analysis"
+        "setup_signoff", "sdf", "sta", "power_estimate", "fusion_analysis"
     ]
     assert [
         command.target
-        for command in fx.commands("setup_sdc", "setup_syn", "syn")
-    ] == ["setup_sdc", "setup_syn", "syn"]
+        for command in fx.commands("setup_signoff", "setup_syn", "syn")
+    ] == ["setup_signoff", "setup_syn", "syn"]
     assert [
         command.target for command in fx.commands("eqy", auto_setup=False)
     ] == ["eqy"]
@@ -432,7 +432,7 @@ def test_live_run_prints_only_log_block_and_keeps_plain_log(
     )
 
 
-def test_fusion_streams_progress_by_default_and_keeps_plain_log(
+def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
@@ -442,6 +442,8 @@ def test_fusion_streams_progress_by_default_and_keeps_plain_log(
     class FakeProcess:
         stdout = iter((
             "[fusion_analysis] run 1/6 START workload=smoke_sv_typ corner=ss mode=setup\n",
+            "[script] /tmp/fusion_analysis.tcl · corner=ss · mode=setup\n",
+            "[fusion_analysis] run 1/6 DISCOVERY PASS paths=20 hotspots=18\n",
             "[report] ss/setup /tmp/fusion.rpt\n",
         ))
 
@@ -470,14 +472,21 @@ def test_fusion_streams_progress_by_default_and_keeps_plain_log(
 
     output = capsys.readouterr().out
     assert STREAM_BY_DEFAULT_TARGETS == {"fusion_analysis", "fusion_analysis_all"}
-    assert "→ fusion_analysis" in output
-    assert "run 1/6 START" in output
+    assert output.startswith("[log] ")
+    assert "[script] /tmp/fusion_analysis.tcl" in output
     assert "[report] ss/setup /tmp/fusion.rpt" in output
-    assert "✓" in output and "fusion_analysis" in output
+    assert "run 1/6 START" not in output
+    assert "DISCOVERY PASS" not in output
+    assert "→ fusion_analysis" not in output
+    assert "[technology]" not in output
+    assert "✓" in output and "fusion_analysis" in output and "done" in output
     assert seen_env["FLEXSOC_LIVE"] == "0"
     assert seen_env["PYTHONUNBUFFERED"] == "1"
     assert result.log_path is not None
-    assert result.log_path.read_text(encoding="utf-8").endswith(
+    assert result.log_path.read_text(encoding="utf-8") == (
+        "[fusion_analysis] run 1/6 START workload=smoke_sv_typ corner=ss mode=setup\n"
+        "[script] /tmp/fusion_analysis.tcl · corner=ss · mode=setup\n"
+        "[fusion_analysis] run 1/6 DISCOVERY PASS paths=20 hotspots=18\n"
         "[report] ss/setup /tmp/fusion.rpt\n"
     )
 
@@ -532,10 +541,19 @@ def test_ip_save_optional_pnr_and_e2e_activity_order() -> None:
 
     makefile = (ROOT / "src/flexsoc/backend/Makefile").read_text(encoding="utf-8")
     e2e = (ROOT / "tests/test_e2e_fx.py").read_text(encoding="utf-8")
-    assert "pnr_status=not_available" in makefile
-    assert "pnr=$$pnr_status" in makefile
+    assert "impl_status=not_available" in makefile
+    assert "impl=$$impl_status" in makefile
     assert "[ip_load]" in makefile and "syn=$$(list_branches" in makefile
-    assert "pnr=$$(list_branches" in makefile and "eqy=$$(list_eqy" in makefile
+    assert "impl=$$(list_branches" in makefile and "eqy=$$(list_eqy" in makefile
+    assert 'for checkpoint in generic dffmap abc clean' in makefile
+    assert '$(TOP)_$${checkpoint}.il' in makefile
+    assert 'rm -rf "$$staged/syn/$$pdk" "$$staged/impl/$$pdk" "$$staged/signoff/$$pdk" "$$staged/meta/$$pdk"' in makefile
+    assert 'cp -p "$(MANIFEST_JSON)" "$$staged/meta/$$pdk/manifest.json"' in makefile
+    assert 'cp -p "$(METRICS_JSON)" "$$staged/meta/$$pdk/metrics.json"' in makefile
+    assert 'flexsoc.backend.metrics --show "$(METRICS_JSON)" > "$$staged/meta/$$pdk/check.rpt"' in makefile
+    assert "-name '__pycache__'" in makefile
+    assert "-name '*.pyc'" in makefile
+    assert "meta=$$meta_status" in makefile
     assert 'for target in ("power_analysis", "fusion_analysis")' in e2e
     assert e2e.count("_run_power_and_fusion(") == 71
     assert "_assert_saved_multitech_layout(saved_library, top)" in e2e
@@ -543,20 +561,25 @@ def test_ip_save_optional_pnr_and_e2e_activity_order() -> None:
     assert "fx fusion_analysis --no-setup" not in e2e
 
 
-def test_uart_ihp_eqy_profile_targets_the_fifo_proof_horizon() -> None:
-    """The IHP UART profile must not expose a stale reset node or deepen every partition."""
+def test_uart_eqy_partitioning_is_technology_independent() -> None:
+    """The same UART RTL must use the same logical cut-points across PDKs."""
 
-    profile = (
-        ROOT
-        / "hw/ips/uart/signoff/ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy"
-    ).read_text(encoding="utf-8")
-    fifo_strategy = profile.split("[strategy fifo_sat]", 1)[1].split("[strategy pdr]", 1)[0]
-    assert "under_rst" not in profile
-    assert "apply uart uart.u_impl.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q" in fifo_strategy
-    assert "apply uart uart.tl_o__flexsoc_eqy_d_data" in fifo_strategy
-    assert "use sat" in fifo_strategy and "depth 20" in fifo_strategy
-    fast_strategy = profile.split("[strategy sat]", 1)[1].split("[strategy fifo_sat]", 1)[0]
-    assert "use sat" in fast_strategy and "depth 5" in fast_strategy
+    root = ROOT / "hw/ips/uart/signoff"
+    sky = (root / "sky130/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy").read_text(encoding="utf-8")
+    ihp = (root / "ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy").read_text(encoding="utf-8")
+
+    def section(text: str, begin: str, end: str) -> str:
+        return text.split(begin, 1)[1].split(end, 1)[0].strip()
+
+    marker_begin = "# FlexSoC UART sequential cut-points begin"
+    marker_end = "# FlexSoC UART sequential cut-points end"
+    assert section(ihp, marker_begin, marker_end) == section(sky, marker_begin, marker_end)
+    assert "u_fifo_cnt*wptr_wrap_cnt_q" not in ihp
+    assert "u_fifo_cnt*rptr_wrap_cnt_q" not in ihp
+    assert "[strategy fifo_sat]" not in ihp
+    assert "under_rst" not in ihp
+    assert "noapply uart.u_impl.u_uart_core.uart_tx.sreg_q" in ihp
+    assert "noapply uart.u_impl.u_uart_core.uart_tx.sreg_q" not in sky
 
 def test_api_main_delegates_to_cli(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli_module, "app", lambda argv=None: 23)
@@ -698,7 +721,7 @@ def test_cli_auto_setup_and_no_setup_dry_run(
 
     assert app(["syn", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert [line.split()[3] for line in lines] == ["setup_sdc", "setup_syn", "syn"]
+    assert [line.split()[3] for line in lines] == ["setup_syn", "syn"]
 
     assert app(["syn", "--no-setup", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
@@ -1044,8 +1067,12 @@ def test_sta_setup_hold_and_compact_report_contract(tmp_path: Path) -> None:
 
     assert "set delay_type max" in setup
     assert "set delay_type min" in hold
-    assert "report_wns -$delay_type" in setup
-    assert "report_tns -$delay_type" in setup
+    assert "flexsoc_append_opensta $report report_wns -$delay_type" in setup
+    assert "flexsoc_append_opensta $report report_tns -$delay_type" in setup
+    assert "flexsoc_append_opensta $report report_units" in setup
+    assert "sta::" not in setup
+    assert "# Report worst negative slack" in setup
+    assert "# Report the worst violating paths first" in setup
     assert "timing.rpt" in setup
     for section in (
         "Timing summary",
@@ -1074,6 +1101,9 @@ def test_power_estimate_uses_one_primary_report(tmp_path: Path) -> None:
 
     assert "set_power_activity -input" in script
     assert "set_power_activity -global" not in script
+    assert "sta::" not in script
+    assert "# Seed vectorless switching activity" in script
+    assert "# Report average internal, switching, leakage, and total cell power" in script
     assert "analysis=power_estimate" in script
     assert "activity_source=input_assumption" in script
     assert "power.rpt" in script
@@ -1095,6 +1125,9 @@ def test_activity_power_reads_trace_into_one_primary_report(tmp_path: Path) -> N
 
     assert "read_vcd -scope $activity_scope $activity_file" in script
     assert "read_saif -scope $activity_scope $activity_file" in script
+    assert "sta::" not in script
+    assert "# Annotate signal transitions from the GLS VCD" in script
+    assert "# Create one compact workload-driven power report" in script
     assert "report_activity_annotation -report_annotated -report_unannotated" in script
     assert "report_power -highest_power_instances" in script
     assert "power.rpt" in script
@@ -1110,7 +1143,7 @@ def test_fusion_discovers_worst_met_or_violated_paths_with_public_reports(tmp_pa
     ctx = _context(tmp_path, analysis="fusion_analysis")
     script = render_fusion_analysis_tcl(ctx)
 
-    assert script.index("report_power >> $report") < script.index("Worst timing paths")
+    assert script.index("flexsoc_append_opensta $report report_power") < script.index("Worst timing paths")
     assert "fusion.rpt" in script
     assert "methodology=staged_public_opensta" in script
     assert "Worst timing paths (violated or met)" in script
@@ -1118,7 +1151,11 @@ def test_fusion_discovers_worst_met_or_violated_paths_with_public_reports(tmp_pa
     assert "-group_path_count $endpoint_path_limit -endpoint_path_count 1" in script
     assert "-fields {slew capacitance input_pin net fanout}" in script
     assert "report_power -highest_power_instances" in script
-    assert "-digits 12 > [file join $report_dir .highest_power.rpt]" in script
+    assert "set highest_power_report [file join $report_dir .highest_power.rpt]" in script
+    assert "flexsoc_append_opensta $highest_power_report report_power -highest_power_instances" in script
+    assert "sta::" not in script
+    assert "# Discover the worst paths even when timing is met" in script
+    assert "# Discover the highest-power instances" in script
     for private in (
         "sta::instance_power",
         "sta::network_leaf_instances",
@@ -1126,6 +1163,41 @@ def test_fusion_discovers_worst_met_or_violated_paths_with_public_reports(tmp_pa
         "get_property",
     ):
         assert private not in script
+
+
+def test_signoff_tcl_uses_only_public_opensta_commands_and_explains_steps(tmp_path: Path) -> None:
+    scripts = {
+        "sta": render_sta_tcl(_context(tmp_path, analysis="sta", mode="setup")),
+        "power_estimate": render_power_estimate_tcl(_context(tmp_path, analysis="power_estimate")),
+        "power_analysis": render_power_analysis_tcl(_context(tmp_path, analysis="power_analysis")),
+        "fusion_analysis": render_fusion_analysis_tcl(_context(tmp_path, analysis="fusion_analysis")),
+    }
+
+    for name, script in scripts.items():
+        assert "sta::" not in script, name
+        assert "# Load the standard-cell Liberty view" in script, name
+        assert "# Read the mapped gate-level Verilog netlist" in script, name
+        assert "# Link the selected top" in script, name
+        assert "# Apply clocks, I/O delays" in script, name
+        assert "# Validate clocks, endpoints, constraints" in script, name
+        assert "flexsoc_append_opensta $report report_units" in script, name
+        assert "log_begin $capture" in script, name
+        assert "log_end" in script, name
+        assert ">> $report" not in script, name
+        assert "sta::redirect_file" not in script, name
+
+
+def test_opensta_report_capture_uses_public_logging_not_private_redirects(tmp_path: Path) -> None:
+    script = render_sta_tcl(_context(tmp_path, analysis="sta", mode="setup"))
+
+    assert "proc flexsoc_append_opensta {path args}" in script
+    assert "log_begin $capture" in script
+    assert "log_end" in script
+    assert "fcopy $src $dst" in script
+    assert "sta::redirect_file" not in script
+    assert "report_units >>" not in script
+    assert "report_wns -$delay_type >>" not in script
+    assert "report_tns -$delay_type >>" not in script
 
 
 def test_fusion_parses_gate_timing_fanout_and_capacitance() -> None:
@@ -1262,7 +1334,8 @@ def test_fusion_detail_pass_uses_public_power_and_timing_commands(tmp_path: Path
     assert "report_power -instances $instances -digits 12" in script
     assert "=== FLEXSOC_INSTANCE $instance_name ===" in script
     assert "foreach instance_name $instance_names instance_pattern $instance_patterns" in script
-    assert "report_checks -through $pins" in script
+    assert "flexsoc_append_opensta $hotspot_report report_checks -through $pins" in script
+    assert ">> $hotspot_report" not in script
     assert "get_cells" in script
     assert "get_pins [list" in script
     assert r"array_reg\[3\]" in script
@@ -1657,12 +1730,26 @@ def test_pdk_first_layout_for_all_technology_artifacts(tmp_path: Path) -> None:
     layout = pdk_run_layout(tmp_path / "run", pdk="ihp-sg13g2", top="demo")
 
     assert layout.syn_dir == tmp_path / "run/syn/ihp-sg13g2"
-    assert layout.pnr_dir == tmp_path / "run/pnr_openroad/ihp-sg13g2"
+    assert layout.pnr_dir == tmp_path / "run/impl/ihp-sg13g2"
+    assert layout.signoff_sdc == tmp_path / "run/signoff/ihp-sg13g2/demo.sdc"
     assert layout.equivalence_dir == tmp_path / "run/signoff/ihp-sg13g2/equivalence/rtl_vs_syn"
     assert layout.sta_dir == tmp_path / "run/signoff/ihp-sg13g2/sta"
     assert layout.power_dir == tmp_path / "run/signoff/ihp-sg13g2/power"
     assert layout.fusion_dir == tmp_path / "run/signoff/ihp-sg13g2/fusion"
     assert layout.sdf_dir == tmp_path / "run/signoff/ihp-sg13g2/sdf"
+
+
+
+def test_synthesis_uses_abc_constraints_not_sdc() -> None:
+    makefile = (ROOT / "src/flexsoc/backend/Makefile").read_text(encoding="utf-8")
+    setup_syn = (ROOT / "src/flexsoc/backend/setup_syn.py").read_text(encoding="utf-8")
+
+    setup_syn_recipe = makefile.split("setup_syn:", 1)[1].split("\nsyn:", 1)[0]
+    assert "setup_signoff" not in setup_syn_recipe
+    assert "SIGNOFF_SDC_FILE" not in setup_syn_recipe
+    assert "-sdcdir" not in setup_syn_recipe
+    assert "abc.constr" in setup_syn
+    assert "-constr" in setup_syn
 
 
 def test_eqy_and_opensta_modules_are_separated() -> None:
@@ -1681,10 +1768,10 @@ def test_saved_ip_packages_use_pdk_first_technology_branches() -> None:
     root = Path(__file__).resolve().parents[1] / "hw/ips"
     technology_packages = []
     for package in sorted(path for path in root.iterdir() if path.is_dir()):
-        if not any((package / stage).is_dir() for stage in ("syn", "pnr_openroad", "signoff")):
+        if not any((package / stage).is_dir() for stage in ("syn", "impl", "signoff")):
             continue
         technology_packages.append(package.name)
-        for stage in ("syn", "pnr_openroad"):
+        for stage in ("syn", "impl"):
             directory = package / stage
             if directory.is_dir():
                 assert not any(path.is_file() for path in directory.iterdir()), (
@@ -1701,7 +1788,9 @@ def test_saved_ip_packages_use_pdk_first_technology_branches() -> None:
     for top in ("cordic", "uart"):
         package = root / top
         assert (package / "syn/sky130").is_dir()
-        assert (package / "pnr_openroad/sky130").is_dir()
+        assert (package / "impl/sky130").is_dir()
+        assert (package / f"signoff/sky130/{top}.sdc").is_file()
+        assert not (package / f"impl/sky130/{top}.sdc").exists()
         assert (package / "signoff/sky130/equivalence/rtl_vs_syn").is_dir()
         assert (package / "signoff/ihp-sg13g2/equivalence/rtl_vs_syn").is_dir()
 
@@ -1712,13 +1801,6 @@ def test_setup_signoff_generates_five_families_without_activity_scripts(
     workspace = tmp_path / "workspace"
     run = workspace / "runs/demo/dev"
     (run / "syn/sky130").mkdir(parents=True)
-    (run / "constraints").mkdir(parents=True)
-    (run / "syn/sky130/demo_synth.v").write_text(
-        "module demo; endmodule\n", encoding="utf-8"
-    )
-    (run / "constraints/demo.sdc").write_text(
-        "create_clock -period 10 [get_ports clk]\n", encoding="utf-8"
-    )
     liberties = []
     for corner in ("ss", "tt", "ff"):
         path = tmp_path / f"demo__{corner}_view.lib"
@@ -1731,7 +1813,6 @@ def test_setup_signoff_generates_five_families_without_activity_scripts(
         "TOP": "demo",
         "PDK": "sky130",
         "LIBS": " ".join(str(path) for path in liberties),
-        "PNR_SDC_FILE": str(run / "constraints/demo.sdc"),
     }
 
     paths = generate_families(tmp_path, values)
@@ -1743,6 +1824,13 @@ def test_setup_signoff_generates_five_families_without_activity_scripts(
         "signoff/sky130/power/analysis/power_analysis.tcl",
         "signoff/sky130/fusion/fusion_analysis.tcl",
     }
+    sdc = run / "signoff/sky130/demo.sdc"
+    assert sdc.is_file()
+    assert "create_clock -name core -period 10 [get_ports clk_i]" in sdc.read_text(encoding="utf-8")
+    sta_template = run / "signoff/sky130/sta/sta.tcl"
+    assert str(run / "syn/sky130/demo_synth.v") in sta_template.read_text(encoding="utf-8")
+    assert not (run / "syn/sky130/demo_synth.v").exists()
+    assert not (run / "constraints").exists()
     assert not (run / "signoff/sky130/power/activity/scripts").exists()
 
 
@@ -1775,12 +1863,10 @@ def test_common_header_and_runtime_validation_are_complete(tmp_path: Path) -> No
 def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     run = workspace / "runs/demo/dev"
-    results = run / "pnr_openroad/sky130/results/demo/base"
+    results = run / "impl/sky130/results/demo/base"
     results.mkdir(parents=True)
     (results / "6_final.v").write_text("module demo; endmodule\n", encoding="utf-8")
     (results / "6_final.spef").write_text("*SPEF \"IEEE 1481-1998\"\n", encoding="utf-8")
-    (run / "constraints").mkdir(parents=True)
-    (run / "constraints/demo.sdc").write_text("create_clock -period 10 [get_ports clk]\n", encoding="utf-8")
     liberty = tmp_path / "demo__tt_view.lib"
     liberty.write_text("library(demo) {}\n", encoding="utf-8")
     paths = generate_families(
@@ -1793,8 +1879,7 @@ def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path
             "PDK": "sky130",
             "SIGNOFF_STAGE": "post_route",
             "LIBS": str(liberty),
-            "PNR_SDC_FILE": str(run / "constraints/demo.sdc"),
-        },
+            },
     )
     sta = next(path for path in paths if path.name == "sta.tcl").read_text(encoding="utf-8")
     assert str(results / "6_final.v") in sta
@@ -1807,9 +1892,7 @@ def test_missing_configured_macro_liberty_is_an_error(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     run = workspace / "runs/demo/dev"
     (run / "syn/sky130").mkdir(parents=True)
-    (run / "constraints").mkdir(parents=True)
     (run / "syn/sky130/demo_synth.v").write_text("module demo; endmodule\n", encoding="utf-8")
-    (run / "constraints/demo.sdc").write_text("create_clock -period 10 [get_ports clk]\n", encoding="utf-8")
     liberty = tmp_path / "demo__tt_view.lib"
     liberty.write_text("library(demo) {}\n", encoding="utf-8")
     with pytest.raises(ValueError, match="missing macro Liberty"):
@@ -1823,8 +1906,7 @@ def test_missing_configured_macro_liberty_is_an_error(tmp_path: Path) -> None:
                 "PDK": "sky130",
                 "LIBS": str(liberty),
                 "MACRO_LIBS": str(tmp_path / "missing_macro.lib"),
-                "PNR_SDC_FILE": str(run / "constraints/demo.sdc"),
-            },
+                    },
         )
 
 

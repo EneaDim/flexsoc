@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from flexsoc.backend.output import print_script
+from flexsoc.backend.setup_sdc import render_clock_config_sdc, write_sdc
+from flexsoc.clocking import clock_config
 from flexsoc.run_layout import layout_from_values
 
 SDF_MODES = ("min", "typ", "max")
@@ -909,12 +911,14 @@ def _fusion_detail_tcl(
         'puts $fp "# FlexSoC marked OpenSTA instance-power blocks"',
         "close $fp",
         "foreach instance_name $instance_names instance_pattern $instance_patterns {",
+        "  # Resolve one exact hierarchical instance using the public get_cells collection command.",
         "  set instances [get_cells [list $instance_pattern]]",
         "  set fp [open $instance_report a]",
         '  puts $fp "=== FLEXSOC_INSTANCE $instance_name ==="',
         "  close $fp",
         "  if {[llength $instances] == 1} {",
-        "    report_power -instances $instances -digits 12 >> $instance_report",
+        "    # Query average power for the resolved instance using the public report_power command.",
+        "    flexsoc_append_opensta $instance_report report_power -instances $instances -digits 12",
         "  } else {",
         "    set fp [open $instance_report a]",
         '    puts $fp "instance_lookup_count=[llength $instances]"',
@@ -932,18 +936,19 @@ def _fusion_detail_tcl(
                 "set hp [open $hotspot_report a]",
                 f"puts $hp {_quote(f'=== HOTSPOT rank={rank} instance={name} ===')}",
                 "close $hp",
+                "# Resolve all pins of the hotspot instance so the timing query can require that the path passes through it.",
                 f"set pins [get_pins [list {_quote(_sta_pattern(name) + '/*')}]]",
                 "if {[llength $pins] == 0} {",
                 "  set hp [open $hotspot_report a]",
                 '  puts $hp "targeted_timing_path=instance_pins_not_found"',
                 "  close $hp",
                 "} else {",
+                "  # Report the worst timing path through this power hotspot using the public report_checks command.",
                 (
-                    "  report_checks -through $pins -path_delay $delay_type "
+                    "  flexsoc_append_opensta $hotspot_report report_checks -through $pins -path_delay $delay_type "
                     "-group_path_count 1 -endpoint_path_count 1 -sort_by_slack "
                     "-format full_clock_expanded "
-                    "-fields {slew capacitance input_pin net fanout} -digits 6 "
-                    ">> $hotspot_report"
+                    "-fields {slew capacitance input_pin net fanout} -digits 6"
                 ),
                 "}",
             )
@@ -978,12 +983,14 @@ def _fusion_power_tcl(
             'puts $fp "# FlexSoC marked OpenSTA instance-power blocks"',
             "close $fp",
             "foreach instance_name $instance_names instance_pattern $instance_patterns {",
+            "  # Resolve one newly discovered path instance using the public get_cells command.",
             "  set instances [get_cells [list $instance_pattern]]",
             "  set fp [open $instance_report a]",
             '  puts $fp "=== FLEXSOC_INSTANCE $instance_name ==="',
             "  close $fp",
             "  if {[llength $instances] == 1} {",
-            "    report_power -instances $instances -digits 12 >> $instance_report",
+            "    # Query its average power using the public report_power command.",
+            "    flexsoc_append_opensta $instance_report report_power -instances $instances -digits 12",
             "  } else {",
             "    set fp [open $instance_report a]",
             '    puts $fp "instance_lookup_count=[llength $instances]"',
@@ -1331,6 +1338,7 @@ def _common_init(ctx: SignoffContext, *, activity: bool) -> str:
         f"set spef {_quote(ctx.spef) if ctx.spef else '{}'}",
         f"set top {_quote(ctx.top)}",
         f"set stage {_quote(ctx.stage)}",
+        "# Validate every file referenced by this script before building the timing graph.",
         "flexsoc_require_readable \"standard-cell Liberty\" $liberty",
         "flexsoc_require_readable \"gate-level netlist\" $netlist",
         "flexsoc_require_readable \"SDC constraints\" $sdc",
@@ -1339,34 +1347,44 @@ def _common_init(ctx: SignoffContext, *, activity: bool) -> str:
         "",
         'puts "=== Step 1/7: Read Liberty ==="',
         'puts "liberty=$liberty"',
+        "# Load the standard-cell Liberty view for this PVT corner; it supplies timing arcs, checks, and cell power data.",
         "read_liberty $liberty",
         "foreach macro_lib $macro_liberties {",
         '  puts "macro_liberty=$macro_lib"',
+        "  # Load each macro Liberty view so hard macros participate in timing and power analysis.",
         "  read_liberty $macro_lib",
         "}",
         "",
         'puts "=== Step 2/7: Read netlist ==="',
         'puts "netlist=$netlist"',
+        "# Read the mapped gate-level Verilog netlist that will be analyzed.",
         "read_verilog $netlist",
         "",
         'puts "=== Step 3/7: Link design ==="',
         'puts "top=$top"',
+        "# Link the selected top and resolve every netlist cell against the loaded Liberty views.",
         "link_design $top",
         "",
         'puts "=== Step 4/7: Read SDC ==="',
         'puts "sdc=$sdc"',
+        "# Apply clocks, I/O delays, uncertainties, exceptions, and electrical constraints from the SDC.",
         "read_sdc $sdc",
         "",
         'puts "=== Step 5/7: Read parasitics / establish clock model ==="',
         "if {$spef ne \"\"} {",
         '  puts "spef=$spef"',
+        "  # Annotate extracted RC parasitics so interconnect delay and capacitance are included.",
         "  read_spef $spef",
         "} else {",
         '  puts "spef=not_used"',
         "}",
         "if {$stage eq \"post_route\"} {",
+        "  # Collect all SDC clocks before switching post-route analysis to propagated clock latency.",
         "  set clocks [get_clocks *]",
-        "  if {[llength $clocks] > 0} {set_propagated_clock $clocks}",
+        "  if {[llength $clocks] > 0} {",
+        "    # Propagate clock-tree delay through the linked network instead of assuming ideal clocks.",
+        "    set_propagated_clock $clocks",
+        "  }",
         '  puts "clock_model=propagated"',
         "} else {",
         '  puts "clock_model=ideal post_synthesis"',
@@ -1382,8 +1400,27 @@ def _common_init(ctx: SignoffContext, *, activity: bool) -> str:
         '  puts -nonewline $fp "$label "',
         "  close $fp",
         "}",
+        "proc flexsoc_append_opensta {path args} {",
+        "  # Capture one public OpenSTA report command without relying on command-specific > / >> support.",
+        "  set capture [file join [file dirname $path] .flexsoc_opensta_capture.rpt]",
+        "  file delete -force $capture",
+        "  log_begin $capture",
+        "  set code [catch {uplevel 1 $args} result options]",
+        "  log_end",
+        "  if {[file exists $capture]} {",
+        "    set src [open $capture r]",
+        "    set dst [open $path a]",
+        "    fcopy $src $dst",
+        "    close $src",
+        "    close $dst",
+        "    file delete -force $capture",
+        "  }",
+        "  if {$code != 0} {return -options $options $result}",
+        "  return $result",
+        "}",
         "",
         'puts "=== Step 6/7: Validate timing setup ==="',
+        "# Validate clocks, endpoints, constraints, and timing relationships before generating reports.",
         "check_setup -verbose",
     ]
     if activity:
@@ -1395,10 +1432,13 @@ def _common_init(ctx: SignoffContext, *, activity: bool) -> str:
             "flexsoc_require_readable \"activity VCD/SAIF\" $activity_file",
             'puts "activity_file=$activity_file"',
             'puts "activity_scope=$activity_scope"',
+            "# Select the public activity reader from the trace extension.",
             "set activity_ext [string tolower [file extension $activity_file]]",
             "if {$activity_ext eq \".saif\"} {",
+            "  # Annotate averaged switching activity from SAIF at the GLS hierarchy scope.",
             "  read_saif -scope $activity_scope $activity_file",
             "} elseif {$activity_ext eq \".vcd\"} {",
+            "  # Annotate signal transitions from the GLS VCD at the matching hierarchy scope.",
             "  read_vcd -scope $activity_scope $activity_file",
             "} else {",
             '  puts stderr "ERROR: activity file must be VCD or SAIF: $activity_file"',
@@ -1428,6 +1468,7 @@ def render_sta_tcl(ctx: SignoffContext) -> str:
             f"set endpoint_group_limit {ctx.endpoint_group_limit}",
             f"set endpoint_path_limit {ctx.endpoint_path_limit}",
             f"set near_critical_limit {threshold:.6f}",
+            "# Create one compact timing report for this corner/mode and write its analysis context first.",
             "set report [file join $report_dir timing.rpt]",
             "set fp [open $report w]",
             f'puts $fp "analysis=sta corner={ctx.corner} mode={ctx.mode} stage={ctx.stage}"',
@@ -1437,29 +1478,29 @@ def render_sta_tcl(ctx: SignoffContext) -> str:
             'puts $fp "spef=$spef"',
             "close $fp",
             "flexsoc_section $report Units",
-            "sta::redirect_file_append_begin $report",
-            "report_units",
-            "sta::redirect_file_end",
+            "# Record the unit system used by all timing, slew, and capacitance values below.",
+            "flexsoc_append_opensta $report report_units",
             "flexsoc_section $report {Timing summary}",
             'flexsoc_label $report "wns $delay_type"',
-            "sta::redirect_file_append_begin $report",
-            "report_wns -$delay_type",
-            "sta::redirect_file_end",
+            "# Report worst negative slack for the selected max/setup or min/hold analysis.",
+            "flexsoc_append_opensta $report report_wns -$delay_type",
             'flexsoc_label $report "tns $delay_type"',
-            "sta::redirect_file_append_begin $report",
-            "report_tns -$delay_type",
-            "sta::redirect_file_end",
+            "# Report total negative slack across all violating endpoints for this analysis type.",
+            "flexsoc_append_opensta $report report_tns -$delay_type",
             "flexsoc_section $report {Constraint validation}",
-            "sta::redirect_file_append_begin $report",
-            "check_setup -verbose",
-            "report_check_types -max_slew -max_capacitance -max_fanout -recovery -removal -min_pulse_width -min_period -min_delay -max_delay",
-            "sta::redirect_file_end",
+            "# Append setup diagnostics so missing clocks, unconstrained endpoints, or invalid constraints stay visible.",
+            "flexsoc_append_opensta $report check_setup -verbose",
+            "# Append electrical and sequential timing checks such as slew, capacitance, fanout, recovery, and removal.",
+            "flexsoc_append_opensta $report report_check_types -max_slew -max_capacitance -max_fanout -recovery -removal -min_pulse_width -min_period -min_delay -max_delay",
             "flexsoc_section $report {Violating paths}",
-            "report_checks -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count $endpoint_path_limit -unique_paths_to_endpoint -sort_by_slack -slack_max 0.0 -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6 >> $report",
+            "# Report the worst violating paths first, including gate slew, capacitance, net, and fanout fields.",
+            "flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count $endpoint_path_limit -unique_paths_to_endpoint -sort_by_slack -slack_max 0.0 -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
             "flexsoc_section $report {Near-critical paths}",
-            "report_checks -path_delay $delay_type -group_path_count 3000 -endpoint_path_count 3 -unique_paths_to_endpoint -sort_by_slack -slack_min 0.0 -slack_max $near_critical_limit -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6 >> $report",
+            "# Report met paths close to zero slack so timing margin is visible before it becomes a violation.",
+            "flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count 3000 -endpoint_path_count 3 -unique_paths_to_endpoint -sort_by_slack -slack_min 0.0 -slack_max $near_critical_limit -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
             "flexsoc_section $report {Unconstrained paths}",
-            "report_checks -unconstrained -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count 1 -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6 >> $report",
+            "# Report paths with no valid timing requirement; review these instead of treating them as passing timing.",
+            "flexsoc_append_opensta $report report_checks -unconstrained -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count 1 -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
             'puts "report=$report"',
         ]
     )
@@ -1485,17 +1526,20 @@ def _power_reports(ctx: SignoffContext) -> list[str]:
 
     return [
         "flexsoc_section $report Units",
-        "sta::redirect_file_append_begin $report",
-        "report_units",
-        "sta::redirect_file_end",
+        "# Record the unit system used by the power and activity values below.",
+        "flexsoc_append_opensta $report report_units",
         "flexsoc_section $report {Constraint validation}",
-        "check_setup -verbose >> $report",
+        "# Append timing-setup diagnostics because power must use the same correctly linked and constrained design.",
+        "flexsoc_append_opensta $report check_setup -verbose",
         "flexsoc_section $report {Activity annotation}",
-        "report_activity_annotation -report_annotated -report_unannotated >> $report",
+        "# Show which design objects received switching activity and which remain unannotated.",
+        "flexsoc_append_opensta $report report_activity_annotation -report_annotated -report_unannotated",
         "flexsoc_section $report {Power summary}",
-        "report_power >> $report",
+        "# Report average internal, switching, leakage, and total cell power for the complete design.",
+        "flexsoc_append_opensta $report report_power",
         "flexsoc_section $report {Highest-power instances}",
-        f"report_power -highest_power_instances {ctx.power_top_instances} >> $report",
+        "# Rank the highest-power instances to expose the dominant contributors in this corner/workload.",
+        f"flexsoc_append_opensta $report report_power -highest_power_instances {ctx.power_top_instances}",
         'puts "report=$report"',
     ]
 
@@ -1511,7 +1555,9 @@ def render_power_estimate_tcl(ctx: SignoffContext) -> str:
             _header(ctx, limitations),
             _common_init(ctx, activity=False),
             "",
+            "# Seed vectorless switching activity on primary inputs (or globally) and let OpenSTA propagate it through the design.",
             f"set_power_activity {activity_cmd} -activity {ctx.estimated_activity} -duty {ctx.estimated_duty}",
+            "# Create one compact vectorless power report and record the assumptions used to produce it.",
             "set report [file join $report_dir power.rpt]",
             "set fp [open $report w]",
             'puts $fp "analysis=power_estimate activity_source=input_assumption"',
@@ -1538,6 +1584,7 @@ def render_power_analysis_tcl(ctx: SignoffContext) -> str:
             _header(ctx, limitations),
             _common_init(ctx, activity=True),
             "",
+            "# Create one compact workload-driven power report after GLS activity has been annotated.",
             "set report [file join $report_dir power.rpt]",
             "set fp [open $report w]",
             f'puts $fp "analysis=power_analysis corner={ctx.corner} stage={ctx.stage}"',
@@ -1569,6 +1616,7 @@ def render_fusion_analysis_tcl(ctx: SignoffContext) -> str:
             "",
             f"set delay_type {delay_type}",
             f"set endpoint_path_limit {ctx.endpoint_path_limit}",
+            "# Create the discovery report that keeps timing and power in the same netlist/corner/mode/activity context.",
             "set report [file join $report_dir fusion.rpt]",
             "set fp [open $report w]",
             f'puts $fp "analysis=fusion_analysis corner={ctx.corner} mode={ctx.mode} stage={ctx.stage}"',
@@ -1583,34 +1631,34 @@ def render_fusion_analysis_tcl(ctx: SignoffContext) -> str:
             'puts $fp "spef=$spef"',
             "close $fp",
             "flexsoc_section $report Units",
-            "sta::redirect_file_append_begin $report",
-            "report_units",
-            "sta::redirect_file_end",
+            "# Record units once so timing and power values can be interpreted together.",
+            "flexsoc_append_opensta $report report_units",
             "flexsoc_section $report {Constraint validation}",
-            "check_setup -verbose >> $report",
+            "# Re-check the timing setup before correlating paths with power.",
+            "flexsoc_append_opensta $report check_setup -verbose",
             "flexsoc_section $report {Timing summary}",
             'flexsoc_label $report "wns $delay_type"',
-            "sta::redirect_file_append_begin $report",
-            "report_wns -$delay_type",
-            "sta::redirect_file_end",
+            "# Record worst negative slack for this setup/hold mode.",
+            "flexsoc_append_opensta $report report_wns -$delay_type",
             'flexsoc_label $report "tns $delay_type"',
-            "sta::redirect_file_append_begin $report",
-            "report_tns -$delay_type",
-            "sta::redirect_file_end",
+            "# Record total negative slack for the same mode and corner.",
+            "flexsoc_append_opensta $report report_tns -$delay_type",
             "flexsoc_section $report {Power summary}",
-            "report_power >> $report",
+            "# Report design-average power using the already annotated GLS activity trace.",
+            "flexsoc_append_opensta $report report_power",
             "flexsoc_section $report {Worst timing paths (violated or met)}",
+            "# Discover the worst paths even when timing is met; Python later correlates their gates with instance power.",
             (
-                "report_checks -path_delay $delay_type "
+                "flexsoc_append_opensta $report report_checks -path_delay $delay_type "
                 "-group_path_count $endpoint_path_limit -endpoint_path_count 1 "
                 "-unique_paths_to_endpoint -sort_by_slack "
                 "-format full_clock_expanded "
-                "-fields {slew capacitance input_pin net fanout} -digits 6 >> $report"
+                "-fields {slew capacitance input_pin net fanout} -digits 6"
             ),
-            (
-                f"report_power -highest_power_instances {ctx.power_top_instances} "
-                "-digits 12 > [file join $report_dir .highest_power.rpt]"
-            ),
+            "# Discover the highest-power instances into a transient machine-parsed report used by the second fusion pass.",
+            "set highest_power_report [file join $report_dir .highest_power.rpt]",
+            "file delete -force $highest_power_report",
+            f"flexsoc_append_opensta $highest_power_report report_power -highest_power_instances {ctx.power_top_instances} -digits 12",
             'puts "report=$report"',
         ]
     )
@@ -1670,13 +1718,20 @@ def _base_context(
     activity_file: Path | None = None,
     activity_scope: str = "",
     gls_report: Path | None = None,
+    validate_stage_inputs: bool = True,
 ) -> SignoffContext:
-    """Resolve one concrete analysis context from the existing run settings."""
+    """Resolve one analysis context, optionally before the stage netlist exists."""
 
     layout = layout_from_values(project_root, values)
-    netlist, spef = _stage_inputs(project_root, values)
+    if validate_stage_inputs or values.get("SIGNOFF_STAGE", "post_syn") == "post_route":
+        netlist, spef = _stage_inputs(project_root, values)
+    else:
+        top = values.get("TOP", "test")
+        netlist = Path(values.get("NETLIST") or layout.syn_dir / f"{top}_synth.v").expanduser().resolve()
+        raw_spef = values.get("SPEF_FILE", "").strip()
+        spef = Path(raw_spef).expanduser().resolve() if raw_spef else None
     sdc = _require_file(
-        Path(values.get("PNR_SDC_FILE") or layout.constraints_dir / f"{values.get('TOP', 'test')}.sdc"),
+        Path(values.get("PNR_SDC_FILE") or layout.signoff_sdc),
         "SDC",
     )
     return SignoffContext(
@@ -1731,10 +1786,28 @@ def _render(analysis: str, ctx: SignoffContext) -> str:
     return script.rstrip() + f"\nputs {_quote(_completion_marker(ctx))}\n"
 
 
-def generate_families(project_root: Path, values: Mapping[str, str]) -> tuple[Path, ...]:
-    """Generate the four public Tcl families plus SDF under one PDK branch."""
+def generate_signoff_sdc(project_root: Path, values: Mapping[str, str]) -> Path:
+    """Generate the canonical PDK-scoped SDC consumed by STA and physical implementation."""
 
     layout = layout_from_values(project_root, values)
+    top = values.get("TOP", "test")
+    cfg = clock_config(values)
+    text = render_clock_config_sdc(
+        top, cfg, float(values.get("SDC_IO_DELAY_PCT", "0.2"))
+    )
+    path = write_sdc(layout.signoff_sdc, text)
+    print_script(
+        path,
+        details={"owner": "setup_signoff", "pdk": values.get("PDK", "sky130")},
+    )
+    return path
+
+
+def generate_families(project_root: Path, values: Mapping[str, str]) -> tuple[Path, ...]:
+    """Generate the canonical SDC and all OpenSTA Tcl families under one PDK branch."""
+
+    layout = layout_from_values(project_root, values)
+    generate_signoff_sdc(project_root, values)
     liberties = _liberties(values)
     corner = "tt" if "tt" in liberties else next(iter(liberties))
     liberty = liberties[corner]
@@ -1759,6 +1832,7 @@ def generate_families(project_root: Path, values: Mapping[str, str]) -> tuple[Pa
             mode=mode,
             report_dir=report_dir,
             liberty=liberty,
+            validate_stage_inputs=False,
         )
         generated.append((_write(path, _render(analysis, ctx)), ctx))
     # Workload-dependent families are complete templates with explicit sentinel
@@ -1781,6 +1855,7 @@ def generate_families(project_root: Path, values: Mapping[str, str]) -> tuple[Pa
             activity_file=None,
             activity_scope="DUT_SCOPE_REQUIRED",
             gls_report=None,
+            validate_stage_inputs=False,
         )
         # Header and analysis Tcl intentionally expose sentinel names without
         # requiring the placeholder files to exist during setup_signoff.
@@ -2298,12 +2373,17 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--near-critical-setup", default="0.200")
     parser.add_argument("--near-critical-hold", default="0.100")
     parser.add_argument("--power-top-instances", default="20")
+    parser.add_argument("--n-clocks", default="1")
+    parser.add_argument("--clock-domains", default="")
+    parser.add_argument("--clock-relationships", default="")
+    parser.add_argument("--clock-period", default="10")
+    parser.add_argument("--sdc-io-delay-pct", default="0.2")
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    generate = subparsers.add_parser("generate", help="Generate all OpenSTA Tcl families.")
+    generate = subparsers.add_parser("generate", help="Generate the SDC and all OpenSTA Tcl families.")
     _add_common_arguments(generate)
     run = subparsers.add_parser("run", help="Execute one static OpenSTA analysis family.")
     _add_common_arguments(run)
@@ -2349,6 +2429,11 @@ def _values(args: argparse.Namespace) -> dict[str, str]:
         "STA_NEAR_CRITICAL_SETUP": args.near_critical_setup,
         "STA_NEAR_CRITICAL_HOLD": args.near_critical_hold,
         "POWER_TOP_INSTANCES": args.power_top_instances,
+        "N_CLOCKS": args.n_clocks,
+        "CLOCK_DOMAINS": args.clock_domains,
+        "CLOCK_RELATIONSHIPS": args.clock_relationships,
+        "CLK_PERIOD": args.clock_period,
+        "SDC_IO_DELAY_PCT": args.sdc_io_delay_pct,
     }
     if args.command == "activity":
         values.update(

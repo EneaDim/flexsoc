@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/syn/gpi
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/syn/gpio_synth.v}
 puts "link_design gpio"
 link_design gpio
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/pnr_openroad/gpio.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/pnr_openroad/gpio.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/signoff/sky130/gpio.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/gpio/dev/signoff/sky130/gpio.sdc}
 
 puts "=== Write SDF ==="
 puts "write_sdf -divider . -include_typ /home/eneadim/github/flexsoc/workspace/runs/gpio/dev/signoff/sdf/gpio_tt.sdf"

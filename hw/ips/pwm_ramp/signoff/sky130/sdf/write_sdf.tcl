@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/syn
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/syn/pwm_ramp_synth.v}
 puts "link_design pwm_ramp"
 link_design pwm_ramp
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/pnr_openroad/pwm_ramp.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/pnr_openroad/pwm_ramp.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/signoff/sky130/pwm_ramp.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/signoff/sky130/pwm_ramp.sdc}
 
 puts "=== Write SDF ==="
 puts "write_sdf -divider . -include_typ /home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/signoff/sdf/pwm_ramp_tt.sdf"

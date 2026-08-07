@@ -74,7 +74,7 @@ by PDK so several technologies can coexist in one logical run.
 | Top wrapper around the core | generator | regenerate after port/CSR changes |
 | Ordered RTL filelists | elaboration | regenerate after hierarchy changes |
 | Vector files | scenario generator | regenerate from authored tests |
-| SV/cocotb/formal/SDC/synthesis/sign-off scaffolds | generator | regenerate after owning inputs change |
+| SV/cocotb/formal/synthesis/sign-off scaffolds | generator | regenerate after owning inputs change; `setup_signoff` owns the SDC |
 | Tool scripts, reports, waves, metrics, manifests | run | retain as evidence; do not edit |
 
 `--force` is for machine-owned files. It is not permission to overwrite an
@@ -115,7 +115,6 @@ runs/<RUN_TOP>/<RUN_ID>/
 ├── data/                         HJSON register sources
 ├── doc/                          generated register documentation
 ├── rtl/                          authored/generated RTL and ordered filelists
-├── constraints/                  generated and authored SDC
 ├── dv/
 │   ├── functional/
 │   │   ├── model/                behavioral model, regmap API, scenarios
@@ -134,7 +133,7 @@ runs/<RUN_TOP>/<RUN_ID>/
 │       └── runs/                  BMC/prove/cover results
 ├── analysis/                     hierarchy and future CDC/RDC results
 ├── syn/<pdk>/                    synthesis scripts, netlist, reports
-├── pnr_openroad/<pdk>/           physical implementation
+├── impl/<pdk>/           physical implementation
 ├── signoff/
 │   ├── equivalence/<pdk>/        RTL-to-netlist EQY evidence
 │   ├── sdf/<pdk>/                generated SDF corners
@@ -665,7 +664,7 @@ fx settings \
 Generate constraints:
 
 ```bash
-fx setup_sdc --force
+fx setup_signoff --force
 ```
 
 The generated SDC creates declared clocks, generated clocks where specified,
@@ -689,7 +688,7 @@ analysis.
 | many unconstrained paths | add missing I/O/path constraints or correct hierarchy; do not call them passing |
 | false/multicycle exception fixes timing unexpectedly | prove the architectural reason and scope the exception narrowly |
 | simulation and STA use different periods | correct persistent settings and regenerate all clock-derived scaffolds |
-| clock relationship changes | regenerate TB, formal, SDC, synthesis, EQY, and sign-off scaffolds; review CDC/RDC |
+| clock relationship changes | regenerate TB, formal, synthesis, EQY, and sign-off scaffolds (including the SDC); review CDC/RDC |
 
 ---
 
@@ -1135,7 +1134,7 @@ Normal CLI use favors convenience for generated script/configuration flows: `fx 
 Use `--no-setup` for a literal E2E pipeline:
 
 ```bash
-fx setup_sdc
+fx setup_signoff
 fx setup_syn
 fx syn --no-setup
 fx setup_eqy
@@ -1218,7 +1217,7 @@ fx syn eqy sdf sta power_estimate --force
 
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
-fx setup_tb setup_cocotb setup_formal setup_sdc setup_syn setup_eqy setup_signoff --force
+fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
 fx flist lint_suite regression formal
 fx syn eqy sdf sta power_estimate --force
 ```
@@ -1241,7 +1240,7 @@ complete.
 ### 16.6 Constraint-only change
 
 ```bash
-fx setup_sdc setup_syn setup_eqy setup_signoff --force
+fx setup_syn setup_eqy setup_signoff --force
 fx syn eqy sdf sta power_estimate --force
 ```
 
@@ -1338,8 +1337,9 @@ Technology-dependent outputs use one consistent PDK-first hierarchy:
 ```text
 runs/<design>/<variant>/
 ├── syn/<pdk>/
-├── pnr_openroad/<pdk>/
+├── impl/<pdk>/
 └── signoff/<pdk>/
+    ├── <top>.sdc
     ├── equivalence/rtl_vs_syn/
     ├── sta/<corner>/<setup|hold>/
     ├── sdf/<corner>/

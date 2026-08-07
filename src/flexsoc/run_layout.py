@@ -40,10 +40,6 @@ class PDKRunLayout:
     top: str
 
     @property
-    def constraints_dir(self) -> Path:
-        return self.run_root / "constraints"
-
-    @property
     def syn_dir(self) -> Path:
         return self.run_root / "syn" / self.pdk
 
@@ -81,7 +77,15 @@ class PDKRunLayout:
 
     @property
     def pnr_dir(self) -> Path:
-        return self.run_root / "pnr_openroad" / self.pdk
+        """Return the physical-implementation branch for the selected PDK."""
+
+        return self.run_root / "impl" / self.pdk
+
+    @property
+    def signoff_sdc(self) -> Path:
+        """Return the canonical PDK-scoped SDC owned by sign-off setup."""
+
+        return self.signoff_pdk_root / f"{self.top}.sdc"
 
     @property
     def pnr_log_dir(self) -> Path:
@@ -144,7 +148,8 @@ class PDKRunLayout:
             "equivalence": str(self.equivalence_dir),
             "post_syn_sim": str(self.post_syn_sim_dir),
             "post_pnr_sim": str(self.post_pnr_sim_dir),
-            "pnr": str(self.pnr_dir),
+            "implementation": str(self.pnr_dir),
+            "sdc": str(self.signoff_sdc),
             "sta": str(self.sta_dir),
             "power": str(self.power_dir),
             "fusion": str(self.fusion_dir),
@@ -178,7 +183,7 @@ def pdk_make_paths(project_root: Path, values: Mapping[str, str]) -> dict[str, s
     layout = layout_from_values(project_root, values)
     return {
         "RUN_ROOT": str(layout.run_root),
-        "CONSTRAINTSDIR": str(layout.constraints_dir),
+        "SIGNOFF_SDC_FILE": str(layout.signoff_sdc),
         "SYNDIR": str(layout.syn_dir),
         "SYNTH_LOGDIR": str(layout.synthesis_log_dir),
         "EQUIVDIR": str(layout.equivalence_dir),

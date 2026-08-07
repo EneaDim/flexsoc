@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/syn
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/syn/pwm_ramp_synth.v}
 puts "link_design pwm_ramp"
 link_design pwm_ramp
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/pnr_openroad/pwm_ramp.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/pnr_openroad/pwm_ramp.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/signoff/sky130/pwm_ramp.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/pwm_ramp/dev/signoff/sky130/pwm_ramp.sdc}
 
 puts "=== Violators ==="
 report_check_types -max_slew -max_cap -max_fanout -violators

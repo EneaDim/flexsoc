@@ -4,7 +4,7 @@ This is the complete user-facing reference for the `fx` command line and every b
 
 The reference explains what each command owns. The generated scaffold architecture and design reasoning are described in [IP development guide](ip_development_guide.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
 
-> **Execution model:** `fx target_a target_b` launches separate backend targets in order. Atomic execution targets prepend their generated setup steps by default: for example, `fx syn` runs `setup_sdc`, `setup_syn`, then `syn`; `fx eqy` runs `setup_eqy`, then `eqy`. Functional simulation setup remains explicit: run `setup_tb` and `setup_cocotb` when the drivers must be refreshed, including after a PDK switch before GLS. Use `--no-setup` when the setup commands are already written explicitly, as in the E2E pipelines. Setup expansion follows setup-only dependencies recursively, remains ordered, and is deduplicated across one invocation. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
+> **Execution model:** `fx target_a target_b` launches separate backend targets in order. Atomic execution targets prepend their generated setup steps by default: for example, `fx syn` prepends `setup_syn`; `fx eqy` runs `setup_eqy`, then `eqy`. Functional simulation setup remains explicit: run `setup_tb` and `setup_cocotb` when the drivers must be refreshed, including after a PDK switch before GLS. Use `--no-setup` when the setup commands are already written explicitly, as in the E2E pipelines. Setup expansion follows setup-only dependencies recursively, remains ordered, and is deduplicated across one invocation. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
 
 ---
 
@@ -38,7 +38,7 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `fx pdk list` | List known PDK profiles and local readiness. | `--json` returns the catalogue. |
 | `fx pdk info <name>` | Show source, node, digital views, OpenROAD platform, and formal adapter. | `--set PDK_ROOT=...` inspects a non-default installation. |
 | `fx pdk fetch <name>` | Fetch the configured PDK source/provider. | `--force` refreshes; `--set PDK_VERSION=...` selects a supported version. |
-| `fx pdk use <name>` | Validate digital views and persist the active PDK. | Shared RTL, DV, formal, and SDC remain valid; rerun only technology-bound synthesis, EQY, sign-off, GLS power, manifest, metrics, and check. |
+| `fx pdk use <name>` | Validate digital views and persist the active PDK. | Shared RTL, DV, and formal remain valid; synthesis must be regenerated for the PDK, and the PDK-scoped SDC/sign-off collateral must be regenerated independently for the selected technology. |
 | `fx eqy_debug [partition]` | Summarize EQY closure or diagnose one unresolved partition. | Supports `--wave`, `--files`, `--json`, and reset overrides through `--set`. |
 | `fx shell` | Open an interactive prompt with target completion and history. | `help`, `commands`, `exit`, and normal target lines are accepted. |
 
@@ -70,12 +70,12 @@ The following atomic execution families prepare their generated support files by
 
 | Execution family | Prepended targets |
 | --- | --- |
-| `syn`, `syn_v`, `syn_sv` | `setup_sdc`, `setup_syn` |
+| `syn`, `syn_v`, `syn_sv` | `setup_syn` |
 | CSR formal execution targets | their matching `setup_formal_csr_*` target |
 | Design formal execution targets | `setup_formal`, then their matching properties setup |
 | `eqy` | `setup_eqy` |
-| `sdf`, `sta*`, `power_estimate*` | `setup_sdc`, `setup_signoff` |
-| `pnr`, `pnr_gui` | `setup_sdc`, `setup_pnr` |
+| `sdf`, `sta*`, `power_estimate*` | `setup_signoff` |
+| `pnr`, `pnr_gui` | `setup_signoff`, `setup_pnr` |
 
 This preparation regenerates only configuration or scripts. Functional SV and cocotb driver setup is deliberately excluded from automatic expansion and remains an explicit user step. It does not execute earlier result-producing stages such as synthesis before EQY or GLS before activity-power analysis. Composite lifecycle targets retain their own orchestration. Use `--dry-run` to inspect the expansion and `--no-setup` to execute only the names written by the caller.
 
@@ -98,7 +98,7 @@ For N-clock designs, list every domain and declare only real relationships. Flex
 
 ### 1.5 Changing technology inside one logical run
 
-The run root, RTL, functional DV, property formal, and `constraints/<top>.sdc` are technology independent. After `fx pdk use <name>`, do **not** regenerate HJSON, registers, RTL, filelists, models, tests, testbenches, lint, regression, coverage, formal, or SDC. Run only:
+The run root, RTL, functional DV, and property formal are technology independent. The canonical SDC is technology-scoped at `signoff/<pdk>/<top>.sdc` and is regenerated by `setup_signoff` from the shared clock configuration for each PDK. Yosys/ABC synthesis does not consume this SDC; ASIC mapping uses the generated `syn/<pdk>/abc.constr` plus the ABC delay target. After `fx pdk use <name>`, do **not** regenerate HJSON, registers, RTL, models, or model-derived tests. Regenerate only technology-dependent synthesis/sign-off collateral, including the PDK-scoped SDC. Run only:
 
 ```bash
 # Convenience mode: each execution command prepares its generated scripts.
@@ -123,7 +123,7 @@ fx metrics
 fx check
 ```
 
-Those outputs are isolated below `syn/<pdk>`, `pnr_openroad/<pdk>`, `signoff/<pdk>`, `dv/functional/sim/post_syn/<pdk>`, and `meta/<pdk>`.
+Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv/functional/sim/post_syn/<pdk>`, and `meta/<pdk>`.
 
 ---
 
@@ -145,7 +145,8 @@ The SV and cocotb vector drivers accept the same reset commands:
 ```
 
 The short form pulses every configured reset. The named form selects one `CLOCK_DOMAINS` domain or reset signal. Both backends honor the configured polarity and hold all selected resets concurrently for the requested number of their own clock edges; unknown selectors are errors.
-| Constraints and synthesis | `fx setup_sdc`, `fx setup_syn`, `fx syn` | SDC, mapped netlist, synthesis reports |
+| Synthesis | `fx setup_syn`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
+| Sign-off constraints | `fx setup_signoff` | canonical `signoff/<pdk>/<top>.sdc` plus OpenSTA Tcl families |
 | Logical sign-off | `fx setup_eqy`, `fx eqy`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
 | Post-synthesis sign-off | `fx setup_signoff`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
 | Physical implementation | `fx setup_pnr`, `fx pnr`, `fx pnr_gui` | Placed/routed implementation |
@@ -458,14 +459,13 @@ Generate and execute automatic CSR checks and authored property BMC/prove/cover 
 
 ### 3.8 Synthesis
 
-Generate timing constraints and Yosys scripts, then map RTL to the selected PDK.
+Generate Yosys/ABC scripts and map RTL to the selected PDK. FlexSoC synthesis uses `abc.constr` and the ABC delay target; it does not parse the sign-off SDC.
 
-**Main result:** `constraints/` and `syn/<PDK>/` netlists, logs, statistics, and checkpoints.
+**Main result:** `syn/<PDK>/` contains Yosys/ABC scripts, `abc.constr`, mapped netlists, logs, statistics, and checkpoints. The SDC is owned separately by `setup_signoff`.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx setup_sdc` | Generate timing constraints. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx setup_syn` | Generate Yosys synthesis scripts. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx setup_syn` | Generate Yosys/ABC synthesis scripts and `abc.constr`; no SDC is consumed by synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx syn` | Run synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
 | `fx syn_v` | Run Verilog synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
 | `fx syn_sv` | Run SystemVerilog synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
@@ -485,7 +485,7 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx signoff_corners` | Run SDF, multi-corner STA and estimated power. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
 | `fx setup_eqy` | Generate RTL-vs-post-synthesis EQY configuration. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx eqy` | Prove RTL equivalent to the post-synthesis netlist with EQY. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Use `--info` for accepted overrides. |
-| `fx setup_signoff` | Generate signoff scripts. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx setup_signoff` | Generate the canonical `signoff/<pdk>/<top>.sdc` and sign-off Tcl families. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx compile_syn` | Compile post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sim_syn` | Run post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
@@ -583,16 +583,16 @@ Post-PnR targets use the same driver/timing concepts but consume a final netlist
 and corner-specific post-PnR SDF. `sdf_post_pnr` requires `TIMING_MODE=min|typ|max`
 and explicit or discovered final netlist, SDC, and SPEF inputs.
 
-### 3.11 Place and route
+### 3.11 Physical implementation
 
 Generate OpenROAD configuration, implement the design, and inspect the physical result.
 
-**Main result:** `pnr_openroad/<PDK>/` implementation collateral and reports.
+**Main result:** `impl/<PDK>/` implementation collateral and reports.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx setup_pnr` | Generate OpenROAD config. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx pnr` | Run OpenROAD place and route. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Use `--info` for accepted overrides. |
+| `fx pnr` | Run OpenROAD physical implementation. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Use `--info` for accepted overrides. |
 | `fx pnr_gui` | Open OpenROAD GUI. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Use `--info` for accepted overrides. |
 
 ### 3.12 Run metadata
@@ -617,7 +617,7 @@ Move authored IP sources between the reusable library and an isolated run worksp
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx ip_load` | Load an IP into a run workspace. | `IP_NAME` | Use `--info` for accepted overrides. |
-| `fx ip_save` | Save the current PDK EQY profile and sign-off Tcl scripts into the reusable IP package. | `IP_NAME`, `IP_LIBRARY_ROOT` | Requires current-PDK synthesis, a portable EQY profile, and the static sign-off Tcl families. Saves `syn/<pdk>`, optional `pnr_openroad/<pdk>`, the EQY profile, and Tcl scripts only; logs, reports, generated SDF files, and waveforms are excluded. |
+| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT` | Saves reusable `syn/<pdk>` collateral, optional `impl/<pdk>`, EQY/SDC/OpenSTA Tcl, and—when already collected—`meta/<pdk>/manifest.json`, `metrics.json`, plus a plain `check.rpt` rendered from those metrics. Diagnostic RTLIL checkpoints, logs, analysis reports, generated SDF files, waveforms, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
 
 E2E tests set `IP_LIBRARY_ROOT` inside their temporary workspace and hash the repository-owned package before and after execution. Therefore `make test` cannot write into `hw/ips`.
 
@@ -626,8 +626,9 @@ The saved technology branches mirror the PDK-first run layout:
 ```text
 hw/ips/<IP_NAME>/
 ├── syn/<pdk>/
-├── pnr_openroad/<pdk>/
+├── impl/<pdk>/
 └── signoff/<pdk>/
+    ├── <top>.sdc
     ├── equivalence/rtl_vs_syn/
     ├── sta/sta.tcl
     ├── sdf/write_sdf.tcl
@@ -890,7 +891,7 @@ make test E2E_ROOT="$HOME/flexsoc-e2e"
 | `--e2e-gls-modes VALUE` | `FLEXSOC_E2E_GLS_MODES` | One of `zero`, `unit`, `min`, `typ`, or `max`. |
 | `--e2e-gls-backends VALUE` | `FLEXSOC_E2E_GLS_BACKENDS` | One of `sv` or `cocotb`. |
 | `--no-post-syn-gls` | none | Keep synthesis/signoff but skip the explicit GLS commands. |
-| `--no-signoff` | none | Skip setup SDC, formal, synthesis, EQY, SDF, STA, power, and GLS. |
+| `--no-signoff` | none | Skip sign-off SDC setup, formal, synthesis, EQY, SDF, STA, power, and GLS. |
 
 E2E workspaces are always preserved for inspection. To inspect one
 failed target with its generated scripts and complete log, copy the exact command
@@ -949,7 +950,7 @@ fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smok
 
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
-fx setup_tb setup_cocotb setup_formal setup_sdc setup_syn setup_eqy setup_signoff --force
+fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
 fx flist lint_suite regression formal
 fx syn eqy sdf sta power_estimate --force
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=unit --set TEST_NAME=smoke
@@ -1169,10 +1170,10 @@ fx formal_cover
 | unreachable cover | review reset/state assumptions and add activation covers |
 | suspicious instant PASS | check vacuity and whether assumptions disable the property |
 
-### 8.7 SDC and synthesis failures
+### 8.7 SDC and synthesis setup failures
 
 ```bash
-fx setup_sdc --force
+fx setup_signoff --force
 fx setup_syn --force
 fx syn --live
 ```
@@ -1290,7 +1291,6 @@ pulls the recorded digest and intentionally does not rebuild the EDA toolchain.
 | `setup_tb` | SV harness | no | ports, clocks, protocol, vector grammar change |
 | `setup_cocotb` | cocotb harness/drivers | no | same owning changes as SV harness |
 | `setup_formal` | formal configs/wrappers | generated config no; authored properties yes | hierarchy, clock/reset, CSR, property integration changes |
-| `setup_sdc` | SDC scaffold | generated base no; reviewed project additions may be authored | clock/relationship/path-policy changes |
 | `setup_syn` | synthesis scripts | no | hierarchy, PDK, SDC, strategy changes |
 | `setup_eqy` | EQY configuration/adapters | no | RTL/netlist/reset/PDK/strategy changes |
 | `setup_signoff` | SDF/STA/power/GLS scripts | no | PDK, netlist, SDC, corners, sign-off policy changes |
@@ -1317,7 +1317,7 @@ fx setup hjson reg doc rtl_stub flist --force
 fx setup_model tests_gen setup_tb setup_cocotb --force
 fx lint_suite regression
 fx setup_formal formal --force
-fx setup_sdc setup_syn syn --force
+fx setup_syn syn --force
 fx setup_eqy eqy --force
 fx setup_signoff sdf sta power_estimate --force
 fx manifest metrics check
@@ -1453,8 +1453,9 @@ Technology-dependent outputs use one consistent PDK-first hierarchy:
 ```text
 runs/<design>/<variant>/
 ├── syn/<pdk>/
-├── pnr_openroad/<pdk>/
+├── impl/<pdk>/
 └── signoff/<pdk>/
+    ├── <top>.sdc
     ├── equivalence/rtl_vs_syn/
     ├── sta/<corner>/<setup|hold>/
     ├── sdf/<corner>/

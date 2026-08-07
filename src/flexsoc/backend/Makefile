@@ -19,7 +19,7 @@ CLOCK_RELATIONSHIPS ?=
 #   6. waveform/netlist viewing and regression artifacts
 #   7. synthesis
 #   8. signoff: SDF, STA, estimated power, path analysis
-#   9. OpenROAD place & route
+#   9. OpenROAD implementation
 #  10. IP load/save
 #  11. SoC/FuseSoC/XBAR/software flow
 #  12. FSM flow
@@ -146,7 +146,7 @@ SIMROOT        ?= $(FUNCTIONALDIR)/sim
 SIMDIR         ?= $(SIMROOT)/rtl
 POST_SYN_SIMDIR ?= $(SIMROOT)/post_syn/$(PDK)
 POST_LAYOUT_SIMDIR ?= $(SIMROOT)/post_pnr/$(PDK)
-CONSTRAINTSDIR ?= $(OUTROOT)/constraints
+SIGNOFF_SDC_FILE ?= $(SIGNOFF_PDK_DIR)/$(TOP).sdc
 SYNDIR         ?= $(OUTROOT)/syn/$(PDK)
 SIGNOFFDIR      ?= $(OUTROOT)/signoff
 SIGNOFF_PDK_DIR  ?= $(SIGNOFFDIR)/$(PDK)
@@ -171,7 +171,7 @@ FSMDIR         ?= $(OUTROOT)/fsms
 FSMWORKDIR     ?= $(FSMDIR)/$(FSM)
 FSM_INPUT_DIR  ?= $(FSMWORKDIR)/inputs
 FSM_OUTPUT_DIR ?= $(FSMWORKDIR)/outputs
-ORSDIR         ?= $(OUTROOT)/pnr_openroad/$(PDK)
+ORSDIR         ?= $(OUTROOT)/impl/$(PDK)
 TB_SAVEDIR     ?= $(FUNCTIONALDIR)/saved
 TEST_NAMES     ?= smoke corners random reconfig
 REGMAP ?=
@@ -353,7 +353,7 @@ SOC_CFG_MK := $(OUTROOT)/soc_config.mk
 -include $(SOC_CFG_MK)
 
 # OpenROAD run-local layout
-OR_WORKDIR  ?= $(abspath $(OUTROOT))/pnr_openroad/$(PDK)
+OR_WORKDIR  ?= $(abspath $(OUTROOT))/impl/$(PDK)
 OR_LOGDIR   ?= $(abspath $(LOGDIR))/pnr/$(PDK)
 OR_CFG_MK   := $(abspath $(ORSDIR))/config.mk
 OR_MAKEFILE := $(ORS)/Makefile
@@ -429,7 +429,7 @@ PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
 PHONY_TARGETS += lint lint_slang lint_verilator lint_slang_suite lint_verilator_suite lint_suite lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier slang_ast slang_flist
 PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests regression coverage coverage_detail
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
-PHONY_TARGETS += setup_sdc setup_syn syn syn_v syn_sv yosys-vgen sv2v
+PHONY_TARGETS += setup_syn syn syn_v syn_sv yosys-vgen sv2v
 PHONY_TARGETS += _formal_scaffold setup_formal setup_formal_prove setup_formal_cover formal_bmc formal_prove formal_cover setup_formal_csr_prove setup_formal_csr_cover formal_csr_bmc formal_csr_prove formal_csr_cover formal_csr formal
 PHONY_TARGETS += setup_eqy eqy setup_signoff compile_syn sim_syn sta sdf power_estimate power_analysis power_analysis_all fusion_analysis fusion_analysis_all sta_violators path_view
 PHONY_TARGETS += setup_pnr pnr pnr_gui
@@ -474,7 +474,6 @@ setup: ## Create the run directory tree
 		$(TBDIR) \
 		$(TEST_ROOT) \
 		$(SIMDIR) \
-		$(CONSTRAINTSDIR) \
 		$(SIGNOFFDIR) \
 		$(FORMAL_CSR_PROVE_DIR) \
 		$(FORMAL_CSR_COVER_DIR) \
@@ -598,7 +597,6 @@ ip_flow: reg doc ## Run regression through formal/synthesis/signoff, then report
 	@$(BACKEND_MAKE) regression
 	@$(BACKEND_MAKE) coverage_detail
 	@$(BACKEND_MAKE) formal
-	@$(BACKEND_MAKE) setup_sdc
 	@$(BACKEND_MAKE) setup_syn
 	@$(BACKEND_MAKE) syn
 	@$(BACKEND_MAKE) setup_eqy
@@ -615,7 +613,6 @@ ip_flow_noreg: ## Run the standard closure without regenerating registers
 	@$(BACKEND_MAKE) regression
 	@$(BACKEND_MAKE) coverage_detail
 	@$(BACKEND_MAKE) formal
-	@$(BACKEND_MAKE) setup_sdc
 	@$(BACKEND_MAKE) setup_syn
 	@$(BACKEND_MAKE) syn
 	@$(BACKEND_MAKE) setup_eqy
@@ -1286,19 +1283,13 @@ tb_view: ## Open saved testbench waveform
 # 8. Synthesis and netlist generation
 # ============================================================================
 ##@ Synthesis
-setup_sdc: ## Generate timing constraints
-	$(call _require_var,TOP)
-	$(Q)$(MKDIR) -p $(CONSTRAINTSDIR)
-	$(Q)$(PYTHON) -m flexsoc.backend.setup_sdc $(TOP) $(CLK_PERIOD) -o $(CONSTRAINTSDIR)/$(TOP).sdc
-
 setup_syn: ## Generate Yosys synthesis scripts
-	$(call _require_file,$(CONSTRAINTSDIR)/$(TOP).sdc,setup_sdc)
 	$(call _require_file,$(RTL_COMMON_LIST),flist)
 	$(call _require_file,$(RTL_IP_LIST),flist)
 	$(call _require_var,TOP)
 	$(Q)$(MKDIR) -p $(SYNDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_syn \
-		-top $(TOP) -topdir $(RTLDIR) -sdcdir $(CONSTRAINTSDIR) \
+		-top $(TOP) -topdir $(RTLDIR) \
 		$(RTL_FILELIST_ARGS) \
 		-liberty $(LIB_SYN) -clk $(CLK_PERIOD) \
 		-target $(TARGET_SYN) -opt $(TARGET_OPT) \
@@ -1553,7 +1544,7 @@ SIGNOFF_PY_ARGS = \
 	$(foreach lib,$(MACRO_LIBS),--macro-liberty "$(lib)") \
 	$(if $(strip $(NETLIST)),--netlist "$(NETLIST)") \
 	$(if $(strip $(SPEF_FILE)),--spef "$(SPEF_FILE)") \
-	--sdc "$(CONSTRAINTSDIR)/$(TOP).sdc" \
+	--sdc "$(SIGNOFF_SDC_FILE)" \
 	--power-activity "$(POWER_ACTIVITY)" --power-duty "$(POWER_DUTY)" \
 	$(if $(filter 1,$(POWER_GLOBAL_ACTIVITY)),--power-global-activity) \
 	--power-vcd-scope "$(POWER_VCD_SCOPE)" --power-dut-instance "$(POWER_DUT_INSTANCE)" \
@@ -1562,10 +1553,11 @@ SIGNOFF_PY_ARGS = \
 	--endpoint-path-limit "$(STA_ENDPOINT_PATH_LIMIT)" \
 	--near-critical-setup "$(STA_NEAR_CRITICAL_SETUP)" \
 	--near-critical-hold "$(STA_NEAR_CRITICAL_HOLD)" \
-	--power-top-instances "$(POWER_TOP_INSTANCES)"
+	--power-top-instances "$(POWER_TOP_INSTANCES)" \
+	--n-clocks "$(N_CLOCKS)" --clock-domains "$(CLOCK_DOMAINS)" \
+	--clock-relationships "$(CLOCK_RELATIONSHIPS)" --clock-period "$(CLK_PERIOD)"
 
-setup_signoff: ## Generate all PDK-scoped OpenSTA Tcl families
-	$(call _require_file,$(CONSTRAINTSDIR)/$(TOP).sdc,setup_sdc)
+setup_signoff: ## Generate the canonical PDK-scoped SDC and all OpenSTA Tcl families
 	$(call _require_var,TOP)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff generate $(SIGNOFF_PY_ARGS)
 
@@ -1672,17 +1664,18 @@ check: ## Show the existing complete functional/formal/synthesis/signoff run sta
 	$(Q)$(PYTHON) -m flexsoc.backend.metrics --show $(METRICS_JSON)
 
 # ============================================================================
-# 11. OpenROAD place and route
+# 11. OpenROAD implementation
 # ============================================================================
-##@ Place and route
-setup_pnr: ## Generate OpenROAD config
+##@ Implementation
+setup_pnr: ## Generate OpenROAD implementation config
+	$(call _require_file,$(SIGNOFF_SDC_FILE),setup_signoff)
 	$(Q)$(MKDIR) -p $(ORSDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_pnr --top $(TOP) \
 		--synthesis-strategy $(TARGET_OPT) --clock-period $(CLK_PERIOD) \
-		--platform $(ORS_TECH) --sdc-file $(CONSTRAINTSDIR)/$(TOP).sdc \
+		--platform $(ORS_TECH) --sdc-file $(SIGNOFF_SDC_FILE) \
 		$(RTL_FILELIST_ARGS) --output-dir $(ORSDIR)
 
-pnr: ## Run OpenROAD place and route
+pnr: ## Run OpenROAD implementation
 	$(Q)$(MKDIR) -p $(OR_LOGDIR)
 	$(Q)$(MKDIR) -p $(OR_WORKDIR)
 	@log="$(OR_LOGDIR)/$(TOP)_pnr.log"; \
@@ -1756,9 +1749,9 @@ ip_load: ## Load the complete saved IP package into a run workspace
 	list_eqy() { root="$$1"; values=""; if [ -d "$$root" ]; then for branch in "$$root"/*; do \
 		[ -d "$$branch/equivalence/rtl_vs_syn" ] || continue; name="$${branch##*/}"; values="$${values}$${values:+,}$${name}"; \
 	done; fi; printf '%s' "$${values:-none}"; }; \
-	printf "%b\n" "$(GREEN)[ip_load]$(RESET) IP=$(TOP) as=$$load_name · syn=$$(list_branches "$$dst_dir/syn") · pnr=$$(list_branches "$$dst_dir/pnr_openroad") · eqy=$$(list_eqy "$$dst_dir/signoff")"
+	printf "%b\n" "$(GREEN)[ip_load]$(RESET) IP=$(TOP) as=$$load_name · syn=$$(list_branches "$$dst_dir/syn") · impl=$$(list_branches "$$dst_dir/impl") · eqy=$$(list_eqy "$$dst_dir/signoff")"
 
-ip_save: ## Save current-PDK synthesis, optional PnR, EQY and OpenSTA Tcl into the IP library
+ip_save: ## Save reusable current-PDK collateral and qualification metadata into the IP library
 	$(call _require_var,WORKSPACE)
 	$(call _require_var,TOP)
 	$(call _require_var,RUN_TOP)
@@ -1768,6 +1761,7 @@ ip_save: ## Save current-PDK synthesis, optional PnR, EQY and OpenSTA Tcl into t
 	test -d "$(SYNDIR)" || { echo "ERROR: synthesis branch not found: $(SYNDIR)"; exit 2; }; \
 	test -d "$(SIGNOFF_PDK_DIR)" || { echo "ERROR: signoff branch not found: $(SIGNOFF_PDK_DIR)"; exit 2; }; \
 	for source in "$(EQY_CONFIG)" "$(EQY_VIEW)" \
+		"$(SIGNOFF_SDC_FILE)" \
 		"$(SIGNOFF_STA_DIR)/sta.tcl" \
 		"$(SIGNOFF_SDF_DIR)/write_sdf.tcl" \
 		"$(SIGNOFF_POWER_DIR)/estimate/power_estimate.tcl"; do \
@@ -1785,11 +1779,12 @@ ip_save: ## Save current-PDK synthesis, optional PnR, EQY and OpenSTA Tcl into t
 	}; \
 	trap cleanup EXIT HUP INT TERM; \
 	if [ -d "$$ip_root" ]; then cp -a "$$ip_root" "$$staged"; else mkdir -p "$$staged"; fi; \
-	rm -rf "$$staged/syn/$$pdk" "$$staged/pnr_openroad/$$pdk" "$$staged/signoff/$$pdk"; \
-	mkdir -p "$$staged/syn" "$$staged/pnr_openroad" "$$staged/signoff/$$pdk/equivalence/rtl_vs_syn"; \
+	rm -rf "$$staged/syn/$$pdk" "$$staged/impl/$$pdk" "$$staged/signoff/$$pdk" "$$staged/meta/$$pdk"; \
+	mkdir -p "$$staged/syn" "$$staged/impl" "$$staged/signoff/$$pdk/equivalence/rtl_vs_syn"; \
 	cp -a "$(SYNDIR)" "$$staged/syn/$$pdk"; \
-	pnr_status=not_available; \
-	if [ -d "$(ORSDIR)" ]; then cp -a "$(ORSDIR)" "$$staged/pnr_openroad/$$pdk"; pnr_status=copied; fi; \
+	for checkpoint in generic dffmap abc clean; do rm -f "$$staged/syn/$$pdk/$(TOP)_$${checkpoint}.il"; done; \
+	impl_status=not_available; \
+	if [ -d "$(ORSDIR)" ]; then cp -a "$(ORSDIR)" "$$staged/impl/$$pdk"; impl_status=copied; fi; \
 	$(PYTHON) -m flexsoc.backend.setup_eqy eqy-export \
 		$(RTL_FILELIST_ARGS) \
 		--netlist "$(SYNDIR)/$(TOP)_synth.v" --liberty "$(LIB_SYN)" \
@@ -1797,17 +1792,30 @@ ip_save: ## Save current-PDK synthesis, optional PnR, EQY and OpenSTA Tcl into t
 		--sky130-clock-gate-model "$(EQY_SKY130_CLOCK_GATE_MODEL)" \
 		--config "$(EQY_CONFIG)" --view "$(EQY_VIEW)" \
 		--output-dir "$$staged/signoff/$$pdk/equivalence/rtl_vs_syn" >/dev/null; \
+	cp -p "$(SIGNOFF_SDC_FILE)" "$$staged/signoff/$$pdk/$(TOP).sdc"; \
 	cd "$(SIGNOFF_PDK_DIR)"; \
 	find . -type f -name '*.tcl' -print | while IFS= read -r relative; do \
 		target="$$staged/signoff/$$pdk/$${relative#./}"; mkdir -p "$${target%/*}"; cp -p "$$relative" "$$target"; \
 	done; \
 	cd "$(REPO_ROOT)"; \
+	meta_status=not_available; manifest_status=missing; metrics_status=missing; \
+	if [ -f "$(MANIFEST_JSON)" ] || [ -f "$(METRICS_JSON)" ]; then \
+		mkdir -p "$$staged/meta/$$pdk"; \
+		if [ -f "$(MANIFEST_JSON)" ]; then cp -p "$(MANIFEST_JSON)" "$$staged/meta/$$pdk/manifest.json"; manifest_status=copied; fi; \
+		if [ -f "$(METRICS_JSON)" ]; then \
+			cp -p "$(METRICS_JSON)" "$$staged/meta/$$pdk/metrics.json"; metrics_status=copied; \
+			NO_COLOR=1 TERM=dumb $(PYTHON) -m flexsoc.backend.metrics --show "$(METRICS_JSON)" > "$$staged/meta/$$pdk/check.rpt"; \
+		fi; \
+		if [ "$$manifest_status" = copied ] && [ "$$metrics_status" = copied ]; then meta_status=copied; else meta_status=partial; fi; \
+	fi; \
+	find "$$staged" -type d -name '__pycache__' -prune -exec rm -rf {} +; \
+	find "$$staged" -type f \( -name '*.pyc' -o -name '*.pyo' \) -exec rm -f {} +; \
 	rm -rf "$$backup"; \
 	if [ -e "$$ip_root" ]; then mv "$$ip_root" "$$backup"; backed_up=1; fi; \
 	mv "$$staged" "$$ip_root"; backed_up=0; rm -rf "$$backup" "$$temporary"; \
 	trap - EXIT HUP INT TERM; \
 	tcl_count=$$(find "$$ip_root/signoff/$$pdk" -type f -name '*.tcl' | wc -l); \
-	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · syn=copied · pnr=$$pnr_status · signoff=copied · Tcl=$$tcl_count"
+	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · syn=copied · impl=$$impl_status · signoff=copied · meta=$$meta_status · Tcl=$$tcl_count"
 
 # ============================================================================
 # 13. SoC, FuseSoC, XBAR and software flow

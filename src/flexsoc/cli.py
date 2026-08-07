@@ -142,8 +142,7 @@ Use `fx commands` to list every backend Make target.
         (
             "5. Synthesize and prove equivalence",
             (
-                ("fx setup_sdc", "Generate constraints from the shared clock configuration."),
-                ("fx syn", "Prepare scripts and produce the mapped netlist."),
+                ("fx syn", "Prepare Yosys/ABC scripts and produce the mapped netlist."),
                 ("fx eqy", "Prepare and prove RTL versus mapped-netlist equivalence."),
                 ("fx eqy_debug [partition]", "Diagnose unresolved equivalence partitions."),
             ),
@@ -151,7 +150,7 @@ Use `fx commands` to list every backend Make target.
         (
             "6. Run post-synthesis sign-off",
             (
-                ("fx setup_signoff", "Generate the shared generic OpenSTA Tcl families."),
+                ("fx setup_signoff", "Generate the PDK-scoped SDC and OpenSTA Tcl families."),
                 ("fx sdf | fx sta | fx power_estimate", "Produce corner SDF, timing, and vectorless power."),
                 ("fx compile_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Compile one named GLS workload."),
                 ("fx sim_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Run zero/unit/SDF min/typ/max GLS."),
@@ -593,7 +592,7 @@ Use `fx commands` to list every backend Make target.
             ("Clocking", ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")),
             ("Technology", ("PDK", "PDK_ROOT")),
             ("Verification", ("REG_ITF", "COMPILER", "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE")),
-            ("Paths", ("WORKSPACE", "RUN_ROOT", "SYN_DIR", "EQUIV_DIR", "PNR_DIR")),
+            ("Paths", ("WORKSPACE", "RUN_ROOT", "SYN_DIR", "EQUIV_DIR", "IMPL_DIR")),
         )
         shown: set[str] = set()
         console.print("[bold orange1]FlexSoC settings[/bold orange1]")
@@ -663,7 +662,7 @@ Use `fx commands` to list every backend Make target.
         display["RUN_ROOT"] = str(layout.run_root)
         display["SYN_DIR"] = str(layout.syn_dir)
         display["EQUIV_DIR"] = str(layout.equivalence_dir)
-        display["PNR_DIR"] = str(layout.pnr_dir)
+        display["IMPL_DIR"] = str(layout.pnr_dir)
         _print_settings(display, as_json)
 
     def _pdk(

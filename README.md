@@ -81,7 +81,7 @@ implemented hardware still matches its specification and RTL intent.
 - post-synthesis and post-PnR gate-level simulation;
 - SDF generation;
 - OpenSTA timing and power estimation;
-- OpenROAD place and route;
+- OpenROAD physical implementation;
 - consolidated metrics and run manifests.
 
 CDC/RDC analysis, DFT insertion, and final foundry physical verification are
@@ -117,7 +117,7 @@ fx regression
 fx coverage_detail
 fx formal
 
-fx setup_sdc syn --force
+fx setup_syn syn --force
 fx eqy --force
 fx sdf sta power_estimate --force
 fx manifest metrics check --force
@@ -163,9 +163,8 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 ├── rtl/              # RTL and ordered filelists
 ├── doc/              # generated register documentation
 ├── dv/               # functional and property-formal collateral
-├── constraints/      # SDC
 ├── syn/<pdk>/        # synthesized implementation
-├── pnr_openroad/<pdk>/
+├── impl/<pdk>/
 ├── signoff/          # equivalence, STA, SDF, power
 ├── logs/
 └── meta/             # manifest and metrics

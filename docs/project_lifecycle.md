@@ -112,7 +112,7 @@ A production flow remains maintainable only when each fact has one owner.
 | Hardware interfaces | RTL core ports | generated top wrapper, TB connections, filelists |
 | Clock/reset intent | `N_CLOCKS`, `CLOCK_DOMAINS`, `CLOCK_RELATIONSHIPS` | TB timing, SDC, formal and sign-off configuration |
 | Expected functional behavior | authored model + scenarios | vectors consumed by simulators |
-| Timing intent | SDC inputs and clock configuration | synthesis, STA, PnR, SDF |
+| Timing intent | SDC inputs and clock configuration | STA, implementation, SDF, timing-aware GLS |
 | Technology mapping | PDK profile and synthesis settings | mapped netlist and timing reports |
 | Physical implementation | OpenROAD configuration + implementation inputs | final netlist, DEF/GDS collateral, SPEF |
 
@@ -142,7 +142,7 @@ ordered Slang filelists
 test vectors
 testbench scaffolds
 formal configurations
-SDC, synthesis, EQY, STA, SDF, power, and PnR scripts
+SDC/sign-off, synthesis, EQY, STA, SDF, power, and implementation scripts
 metrics and manifests
 ```
 
@@ -722,7 +722,7 @@ Timing constraints express the design contract seen by synthesis, STA, and PnR.
 They should be reviewed before synthesis, not created after timing fails.
 
 ```bash
-fx setup_sdc --force
+fx setup_signoff --force
 ```
 
 The generated SDC contains declared clocks, generated clocks, and explicit
@@ -745,7 +745,7 @@ fx flist --force
 fx lint_suite
 fx regression
 fx formal
-fx setup_sdc --force
+fx setup_signoff --force
 ```
 
 ---
@@ -985,7 +985,7 @@ The first form pulses all reset domains. The second selects a domain name or res
 
 #### Automatic setup versus literal pipelines
 
-Atomic execution commands prepare generated scripts and configurations by default. `syn` prepends `setup_sdc` and `setup_syn`; formal execution prepends the matching SBY setup; `eqy` prepends `setup_eqy`; sign-off execution prepends `setup_signoff`; and `pnr` prepends `setup_sdc` and `setup_pnr`. Functional and gate-level simulation drivers are always prepared explicitly with `setup_tb` and `setup_cocotb`.
+Atomic execution commands prepare generated scripts and configurations by default. `syn` prepends `setup_syn`; formal execution prepends the matching SBY setup; `eqy` prepends `setup_eqy`; sign-off execution prepends `setup_signoff`; and `pnr` prepends the sign-off-owned SDC setup and `setup_pnr`. Functional and gate-level simulation drivers are always prepared explicitly with `setup_tb` and `setup_cocotb`.
 
 Use `--no-setup` in E2E and debugging sequences where every step is intentionally visible. Gate-level compile/sim commands do not refresh SV or cocotb drivers implicitly. After each PDK switch, explicit pipelines rerun `setup_tb` and `setup_cocotb` before the technology-specific GLS stages. Automatic setup never substitutes for earlier result-producing stages: EQY still requires a synthesized netlist, activity power still requires a completed GLS report, and changing PDK still requires rerunning the technology-bound synthesis and sign-off stages.
 
@@ -1300,7 +1300,7 @@ Designer response:
 
 ```bash
 fx settings
-fx setup_tb setup_cocotb setup_formal setup_sdc setup_syn setup_eqy setup_signoff --force
+fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
 ```
 
 Review CDC/RDC explicitly whenever domain relationships change. An exception is
@@ -1506,8 +1506,9 @@ Technology-dependent outputs use one consistent PDK-first hierarchy:
 ```text
 runs/<design>/<variant>/
 ├── syn/<pdk>/
-├── pnr_openroad/<pdk>/
+├── impl/<pdk>/
 └── signoff/<pdk>/
+    ├── <top>.sdc
     ├── equivalence/rtl_vs_syn/
     ├── sta/<corner>/<setup|hold>/
     ├── sdf/<corner>/

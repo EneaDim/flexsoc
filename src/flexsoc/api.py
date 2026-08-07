@@ -106,6 +106,7 @@ SIGNOFF = (
     *COMMON,
     "PDK",
     "PDK_ROOT",
+    "CLK_PERIOD",
     "LIBS",
     "LIB_SYN",
     "PRIM",
@@ -152,7 +153,7 @@ GATE_SIM = (
     "DATA_IN",
     "DATA_OUT",
 )
-PNR = (*COMMON, "PDK", "PDK_ROOT", "ORS", "ORS_TECH")
+PNR = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "ORS", "ORS_TECH")
 IP_LOAD = (*COMMON, "IP_NAME")
 IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "IP_NAME", "IP_LIBRARY_ROOT")))
 SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
@@ -236,7 +237,6 @@ TARGETS: dict[str, TargetSpec] = {
     "view_presyn_sv": ("Viewing", "Open pre-synthesis graph from SV", VIEW),
     "tb_save": ("Viewing", "Save testbench regression artifacts", VIEW),
     "tb_view": ("Viewing", "Open saved testbench waveform", VIEW),
-    "setup_sdc": ("Synthesis", "Generate timing constraints", SYN),
     "setup_syn": ("Synthesis", "Generate Yosys synthesis scripts", SYN),
     "syn": ("Synthesis", "Run synthesis", SYN),
     "syn_v": ("Synthesis", "Run Verilog synthesis", SYN),
@@ -258,7 +258,7 @@ TARGETS: dict[str, TargetSpec] = {
     "formal_cover": ("DV formal", "Reach authored cover properties with SymbiYosys", FORMAL),
     "setup_eqy": ("Signoff", "Generate RTL-vs-post-synthesis EQY configuration", EQUIV),
     "eqy": ("Signoff", "Prove RTL equivalent to the post-synthesis netlist with EQY", EQUIV),
-    "setup_signoff": ("Signoff", "Generate signoff scripts", SIGNOFF),
+    "setup_signoff": ("Signoff", "Generate PDK-scoped SDC and signoff scripts", SIGNOFF),
     "compile_syn": ("Signoff", "Compile post-synthesis simulation", SIGNOFF),
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
     "compile_post_syn": ("Gate simulation", "Compile post-synthesis gate-level simulation with Icarus", GATE_SIM),
@@ -279,13 +279,13 @@ TARGETS: dict[str, TargetSpec] = {
     "manifest": ("Run metadata", "Collect automatic run identity into meta/manifest.json", COMMON),
     "manifest_show": ("Run metadata", "Show the current run manifest in color", COMMON),
     "check": ("Run metadata", "Show existing complete run closure status and metrics", COMMON),
-    "setup_pnr": ("Place and route", "Generate OpenROAD config", PNR),
-    "pnr": ("Place and route", "Run OpenROAD place and route", PNR),
-    "pnr_gui": ("Place and route", "Open OpenROAD GUI", PNR),
+    "setup_pnr": ("Implementation", "Generate OpenROAD implementation config", PNR),
+    "pnr": ("Implementation", "Run OpenROAD implementation", PNR),
+    "pnr_gui": ("Implementation", "Open OpenROAD GUI", PNR),
     "ip_load": ("IP load/save", "Load the complete IP package into a run workspace", IP_LOAD),
     "ip_save": (
         "IP load/save",
-        "Save current-PDK synthesis, optional PnR, EQY, and sign-off Tcl",
+        "Save reusable current-PDK collateral and qualification metadata",
         IP_SAVE,
     ),
     "soc_vendor_deps": (
@@ -502,7 +502,6 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     # Functional testbench setup is always explicit: it may be refreshed after
     # a technology switch without rewriting authored tests or vectors.
     # Setup targets encode their own setup-only dependencies once.
-    "setup_syn": ("setup_sdc",),
     "syn": ("setup_syn",),
     "syn_v": ("setup_syn",),
     "syn_sv": ("setup_syn",),
@@ -515,7 +514,6 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "formal_prove": ("setup_formal_prove",),
     "formal_cover": ("setup_formal_cover",),
     "eqy": ("setup_eqy",),
-    "setup_signoff": ("setup_sdc",),
     "sta": ("setup_signoff",),
     "sta_corners": ("setup_signoff",),
     "sdf": ("setup_signoff",),
@@ -526,14 +524,14 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "power_analysis_all": ("setup_signoff",),
     "fusion_analysis": ("setup_signoff",),
     "fusion_analysis_all": ("setup_signoff",),
-    "setup_pnr": ("setup_sdc",),
+    "setup_pnr": ("setup_signoff",),
     "pnr": ("setup_pnr",),
     "pnr_gui": ("setup_pnr",),
 }
 
 
 TECHNOLOGY_PATH_KEYS = {
-    "RUN_ROOT", "CONSTRAINTSDIR", "SYNDIR", "SYNTH_LOGDIR",
+    "RUN_ROOT", "SIGNOFF_SDC_FILE", "SYNDIR", "SYNTH_LOGDIR",
     "EQUIVDIR", "EQUIV_LOG", "SIGNOFFDIR", "SIGNOFF_PDK_DIR",
     "SIGNOFF_STA_DIR", "SIGNOFF_POWER_DIR", "SIGNOFF_SDF_DIR", "SIGNOFF_FUSION_DIR", "SIGNOFF_PATH_VIEW_DIR",
     "STA_LOGDIR", "POWER_LOGDIR", "SDF_LOGDIR", "FUSION_LOGDIR",
@@ -819,14 +817,19 @@ class FlexSoC:
 
         results: list[FlexSoCResult] = []
         for command in commands:
-            if command.target in TECHNOLOGY_TARGETS and not capture and not live:
+            stream = command.target in STREAM_BY_DEFAULT_TARGETS and not capture and not live
+            if (
+                command.target in TECHNOLOGY_TARGETS
+                and not capture
+                and not live
+                and not stream
+            ):
                 print(
                     f"\033[38;5;214m[technology]\033[0m "
                     f"pdk={command.values.get('PDK')} "
                     f"syn={command.values.get('SYNDIR')}",
                     flush=True,
                 )
-            stream = command.target in STREAM_BY_DEFAULT_TARGETS and not capture and not live
             quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not live
             log_path = (
                 self._command_log_path(command)
@@ -857,10 +860,11 @@ class FlexSoC:
                     )
                     orange, blue = "\033[38;5;214m", "\033[94m"
                     green, red, reset = "\033[92m", "\033[91m", "\033[0m"
-                    print(
-                        f"{orange}→ {command.target}{reset}: {blue}{description}{reset}",
-                        flush=True,
-                    )
+                    if not stream:
+                        print(
+                            f"{orange}→ {command.target}{reset}: {blue}{description}{reset}",
+                            flush=True,
+                        )
                     if stream:
                         assert log_path is not None
                         done = self._run_tee(command, log_path, show_scripts=False)
@@ -996,6 +1000,7 @@ class FlexSoC:
         use_color = color_enabled(sys.stdout)
         env["FLEXSOC_COLOR"] = "always" if use_color else "never"
         print_log(log_path, color=use_color)
+        compact = command.target in STREAM_BY_DEFAULT_TARGETS and not show_scripts
         with log_path.open("w", encoding="utf-8") as log:
             proc = subprocess.Popen(
                 command.argv,
@@ -1008,9 +1013,11 @@ class FlexSoC:
             )
             assert proc.stdout is not None
             for line in proc.stdout:
-                print_live_line(line, color=use_color)
-                log.write(strip_ansi(line))
+                plain = strip_ansi(line)
+                log.write(plain)
                 log.flush()
+                if not compact or plain.lstrip().startswith(("[script]", "[report]")):
+                    print_live_line(line, color=use_color)
             return subprocess.CompletedProcess(command.argv, proc.wait())
 
     def _env(self, values: Mapping[str, str] | None = None) -> dict[str, str]:

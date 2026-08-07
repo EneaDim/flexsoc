@@ -1,0 +1,145 @@
+# =============================================================================
+# AUTO-GENERATED FLEXSOC OPENSTA ANALYSIS
+#
+# Analysis : sdf
+# Design   : cordic
+# Variant  : dev
+# PDK      : ihp-sg13g2
+# Stage    : post_syn
+# Corner   : ff
+# Mode     : not applicable
+# Workload : not applicable
+# Top      : cordic
+#
+# Inputs:
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib
+#   Macro Liberty : not used
+#   Netlist       : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
+#   SDC           : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc
+#   SPEF          : not used
+#   VCD or SAIF   : not used
+#   Activity scope: not used
+#   GLS report    : not used
+#   Report dir    : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/sdf/ff
+#
+# Limitations:
+#   - SDF reflects the linked netlist and timing model for the selected corner.
+#
+# Generated baseline: review or edit as needed; regeneration replaces this file.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Runtime validation and common OpenSTA initialization
+#
+# Each required input is checked before OpenSTA reads it.  The resulting linked
+# network associates netlist instances and pins with Liberty timing arcs,
+# sequential checks and power models.  A link failure normally identifies a
+# missing standard-cell or macro Liberty view.
+# -----------------------------------------------------------------------------
+proc flexsoc_require_readable {label path} {
+  if {![file exists $path] || ![file readable $path]} {
+    puts stderr "ERROR: missing or unreadable $label: $path"
+    exit 2
+  }
+}
+set report_dir {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/sdf/ff}
+file mkdir $report_dir
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib}
+set macro_liberties {}
+set netlist {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v}
+set sdc {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc}
+set spef {}
+set top {cordic}
+set stage {post_syn}
+# Validate every file referenced by this script before building the timing graph.
+flexsoc_require_readable "standard-cell Liberty" $liberty
+flexsoc_require_readable "gate-level netlist" $netlist
+flexsoc_require_readable "SDC constraints" $sdc
+foreach macro_lib $macro_liberties {flexsoc_require_readable "macro Liberty" $macro_lib}
+if {$spef ne ""} {flexsoc_require_readable "SPEF parasitics" $spef}
+
+puts "=== Step 1/7: Read Liberty ==="
+puts "liberty=$liberty"
+# Load the standard-cell Liberty view for this PVT corner; it supplies timing arcs, checks, and cell power data.
+read_liberty $liberty
+foreach macro_lib $macro_liberties {
+  puts "macro_liberty=$macro_lib"
+  # Load each macro Liberty view so hard macros participate in timing and power analysis.
+  read_liberty $macro_lib
+}
+
+puts "=== Step 2/7: Read netlist ==="
+puts "netlist=$netlist"
+# Read the mapped gate-level Verilog netlist that will be analyzed.
+read_verilog $netlist
+
+puts "=== Step 3/7: Link design ==="
+puts "top=$top"
+# Link the selected top and resolve every netlist cell against the loaded Liberty views.
+link_design $top
+
+puts "=== Step 4/7: Read SDC ==="
+puts "sdc=$sdc"
+# Apply clocks, I/O delays, uncertainties, exceptions, and electrical constraints from the SDC.
+read_sdc $sdc
+
+puts "=== Step 5/7: Read parasitics / establish clock model ==="
+if {$spef ne ""} {
+  puts "spef=$spef"
+  # Annotate extracted RC parasitics so interconnect delay and capacitance are included.
+  read_spef $spef
+} else {
+  puts "spef=not_used"
+}
+if {$stage eq "post_route"} {
+  # Collect all SDC clocks before switching post-route analysis to propagated clock latency.
+  set clocks [get_clocks *]
+  if {[llength $clocks] > 0} {
+    # Propagate clock-tree delay through the linked network instead of assuming ideal clocks.
+    set_propagated_clock $clocks
+  }
+  puts "clock_model=propagated"
+} else {
+  puts "clock_model=ideal post_synthesis"
+}
+proc flexsoc_section {path title} {
+  set fp [open $path a]
+  puts $fp ""
+  puts $fp "=== $title ==="
+  close $fp
+}
+proc flexsoc_label {path label} {
+  set fp [open $path a]
+  puts -nonewline $fp "$label "
+  close $fp
+}
+proc flexsoc_append_opensta {path args} {
+  # Capture one public OpenSTA report command without relying on command-specific > / >> support.
+  set capture [file join [file dirname $path] .flexsoc_opensta_capture.rpt]
+  file delete -force $capture
+  log_begin $capture
+  set code [catch {uplevel 1 $args} result options]
+  log_end
+  if {[file exists $capture]} {
+    set src [open $capture r]
+    set dst [open $path a]
+    fcopy $src $dst
+    close $src
+    close $dst
+    file delete -force $capture
+  }
+  if {$code != 0} {return -options $options $result}
+  return $result
+}
+
+puts "=== Step 6/7: Validate timing setup ==="
+# Validate clocks, endpoints, constraints, and timing relationships before generating reports.
+check_setup -verbose
+
+puts "=== Step 7/7: Analysis-specific reporting ==="
+
+# write_sdf serializes the linked timing model for gate-level simulation.
+set sdf_file {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/sdf/ff/cordic_ff.sdf}
+puts "sdf=$sdf_file"
+write_sdf -divider . -include_typ $sdf_file
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=sdf corner=ff mode=n/a workload=n/a}

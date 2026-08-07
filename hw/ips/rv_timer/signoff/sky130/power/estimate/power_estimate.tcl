@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/syn
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/syn/rv_timer_synth.v}
 puts "link_design rv_timer"
 link_design rv_timer
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/pnr_openroad/rv_timer.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/pnr_openroad/rv_timer.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/signoff/sky130/rv_timer.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/rv_timer/dev/signoff/sky130/rv_timer.sdc}
 
 puts "=== Power ==="
 puts "set_power_activity -global -activity 10.0"

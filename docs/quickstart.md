@@ -99,7 +99,7 @@ This runs automatic CSR checks and authored BMC/prove/cover stages.
 ## 6. Constraints and synthesis
 
 ```bash
-fx setup_sdc --force
+fx setup_signoff --force
 fx syn --force
 ```
 
@@ -215,7 +215,7 @@ fx syn eqy --force
 
 ```bash
 # update N_CLOCKS, CLOCK_DOMAINS, CLOCK_RELATIONSHIPS
-fx setup_tb setup_cocotb setup_formal setup_sdc setup_syn setup_eqy setup_signoff --force
+fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
 fx flist --force
 fx lint_suite
 fx regression

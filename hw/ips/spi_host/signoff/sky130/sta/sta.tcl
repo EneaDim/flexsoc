@@ -6,8 +6,8 @@ puts "read_verilog {/home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/syn
 read_verilog {/home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/syn/spi_host_synth.v}
 puts "link_design spi_host"
 link_design spi_host
-puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/pnr_openroad/spi_host.sdc}"
-read_sdc {/home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/pnr_openroad/spi_host.sdc}
+puts "read_sdc {/home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/signoff/sky130/spi_host.sdc}"
+read_sdc {/home/eneadim/github/flexsoc/workspace/runs/spi_host/dev/signoff/sky130/spi_host.sdc}
 
 puts "=== Timing reports ==="
 report_checks -path_delay max -fields {slew cap input_pins} -digits 3
