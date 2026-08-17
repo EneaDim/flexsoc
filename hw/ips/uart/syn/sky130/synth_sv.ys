@@ -1,30 +1,37 @@
 # read files (SystemVerilog via slang)
-read_slang -I ../hw/ips/pkgs \
-           -I ../hw/ips/prim \
-           -I ../hw/ips/prim_opentitan \
-           -I ../hw/ips/tlul \
+read_slang -I /home/eneadim/github/flexsoc/hw/ips/pkgs \
+           -I /home/eneadim/github/flexsoc/hw/ips/prim \
+           -I /home/eneadim/github/flexsoc/hw/ips/prim_opentitan \
+           -I /home/eneadim/github/flexsoc/hw/ips/tlul \
            -D SYNTHESIS \
            --ignore-assertions \
-           -f /home/eneadim/github/flexsoc/workspace/runs/uart/dev/rtl/rtl_list.f \
+           -f /home/eneadim/github/flexsoc/workspace/runs/uart/dev/rtl/rtl_common.f \
+           -f /home/eneadim/github/flexsoc/workspace/runs/uart/dev/rtl/rtl_ip.f \
            --top uart
 
 # basic synth
 synth -top uart -noabc
 
+# technology-boundary checkpoints used by equivalence diagnostics
+write_rtlil /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/uart_generic.il
+
 # map internal register types to the ones from the cell library
-dfflibmap -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+dfflibmap -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
+write_rtlil /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/uart_dffmap.il
 
-# mapping to internal cell library
-abc -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/area.abc \
-    -constr /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/abc.constr \
+# map logic to the selected cell library
+abc -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib -script /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/area.abc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/abc.constr
+write_rtlil /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/uart_abc.il
 
-# Clean
-opt_clean -purge
+# Clean while preserving public/internal names used by EQY matching and debug
+opt_clean
+write_rtlil /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/uart_clean.il
 
 # Basic stats of std cells and area
-stat -liberty /home/eneadim/github/flexsoc/pdks/sky130/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+stat -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 
 # write verilog
-write_verilog /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/uart_synth.v
+write_verilog /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/uart_synth.v
 # write json
-write_json /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/uart_synth.json
+write_json /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/uart_synth.json

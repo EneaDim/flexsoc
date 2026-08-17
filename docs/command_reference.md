@@ -19,7 +19,7 @@ Examples:
 ```bash
 fx settings TOP=my_ip RUN_ID=dev
 fx hjson reg doc --force
-fx lint_suite regression formal
+fx lint_suite cdc_rdc formal regression
 fx syn eqy --set EQY_JOBS=8 --live
 fx setup_signoff --dry-run --script
 ```
@@ -133,9 +133,17 @@ Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv
 | --- | --- | --- |
 | Environment and technology | `fx doctor`, `fx deps-doctor`, `fx pdk info`, `fx pdk use` | Tool/PDK readiness |
 | Requirements to CSR/RTL entry | `fx setup`, `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`, `fx top_from_core` | Register collateral and authored RTL boundary |
-| Structural RTL closure | `fx flist`, `fx lint_suite`, `fx slang_hier`, `fx slang_ast` | Reachable hierarchy and clean lint |
-| Functional DV | `fx setup_model`, `fx tests_gen`, `fx setup_tb`, `fx setup_cocotb`, `fx regression`, `fx coverage_detail` | Passing scenarios, waves, coverage |
+| RTL elaboration and lint | `fx flist`, `fx lint_suite`, `fx slang_hier`, `fx slang_ast` | Reachable hierarchy and clean structural RTL |
+| CDC/RDC | `fx setup_cdc_rdc`, `fx cdc_rdc` | Domain inventory, classified crossings, obligations, detailed log |
 | Property formal | `fx setup_formal`, `fx formal` | BMC/prove/cover closure |
+| Functional DV | `fx setup_model`, `fx tests_gen`, `fx setup_tb`, `fx setup_cocotb`, `fx regression`, `fx coverage_detail` | Passing scenarios, waves, coverage |
+| Sign-off constraints | `fx setup_signoff` | canonical `signoff/<pdk>/<top>.sdc` plus OpenSTA Tcl families |
+| Synthesis | `fx setup_syn`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
+| Logical sign-off | `fx setup_eqy`, `fx eqy`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
+| Post-synthesis sign-off | `fx setup_signoff`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
+| Physical implementation | `fx setup_pnr`, `fx pnr`, `fx pnr_gui` | Placed/routed implementation |
+| Post-layout sign-off | `fx sdf_post_pnr`, `fx compile_post_pnr`, `fx sim_post_pnr`, external physical verification | Final timing-aware simulation and physical evidence |
+| Release | `fx manifest`, `fx metrics`, `fx check`, `fx ip_save` | Traceable release metadata and reusable authored sources |
 
 The SV and cocotb vector drivers accept the same reset commands:
 
@@ -145,13 +153,6 @@ The SV and cocotb vector drivers accept the same reset commands:
 ```
 
 The short form pulses every configured reset. The named form selects one `CLOCK_DOMAINS` domain or reset signal. Both backends honor the configured polarity and hold all selected resets concurrently for the requested number of their own clock edges; unknown selectors are errors.
-| Synthesis | `fx setup_syn`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
-| Sign-off constraints | `fx setup_signoff` | canonical `signoff/<pdk>/<top>.sdc` plus OpenSTA Tcl families |
-| Logical sign-off | `fx setup_eqy`, `fx eqy`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
-| Post-synthesis sign-off | `fx setup_signoff`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
-| Physical implementation | `fx setup_pnr`, `fx pnr`, `fx pnr_gui` | Placed/routed implementation |
-| Post-layout sign-off | `fx sdf_post_pnr`, `fx compile_post_pnr`, `fx sim_post_pnr`, external physical verification | Final timing-aware simulation and physical evidence |
-| Release | `fx manifest`, `fx metrics`, `fx check`, `fx ip_save` | Traceable release metadata and reusable authored sources |
 
 ---
 
@@ -303,7 +304,57 @@ Elaborate the reachable hierarchy and detect structural RTL issues before simula
 | `fx slang_ast` | Generate Slang AST JSON. | `LINT_TOOL`, `LINT_PART`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
 | `fx slang_flist` | Generate a trimmed topological RTL filelist with Slang. | `LINT_TOOL`, `LINT_PART`, `VSV`, `SLANG_ROOT`, `SLANG_TOP_FILE`, `SLANG_TOP`, `SLANG_ARGS`, `SLANG_SEARCH_ARGS`, `SLANG_AST_SCOPE` | Use `--info` for accepted overrides. |
 
-### 3.5 DV functional
+### 3.5 CDC/RDC structural analysis
+
+Run clock/reset-domain analysis after linting and before functional regression. The
+checker uses a pre-technology Slang/Yosys representation, builds one shared
+sequential dependency graph, and applies CDC, RDC, setup, protocol,
+reconvergence, and clock/reset glitch checks. It works for single-clock designs
+too; a valid single-domain design normally reports zero raw CDC crossings rather
+than skipping the stage.
+
+| Target | Action | Main overrides | Notes |
+| --- | --- | --- | --- |
+| `fx setup_cdc_rdc` | Generate the pre-technology Yosys extraction script. | clock settings | Automatically run by `fx cdc_rdc` unless `--no-setup` is used. |
+| `fx cdc_rdc` | Extract, classify, report, and optionally gate CDC/RDC findings. | `CDC_RDC_HEARTBEAT`, `CDC_RDC_STRICT` | Runs automatically after `lint_suite`; prints the colored final summary and detailed log path by default. `--live` shows extraction, domains, checker counts, findings, obligations, and report paths; `fx cdc_rdc --help` explains every summary/status keyword. |
+
+The structural checks cover scalar N-FF synchronizers and their integrity,
+multi-bit transfers, synchronized controls, Gray/coherency obligations, async-FIFO
+and closed-loop-handshake candidates, synchronized reconvergence, undeclared or
+inconsistent clock/reset intent, combinational clock/reset paths, uncontrolled
+reset-domain crossings, reset synchronizers, asynchronous reset release, and
+reset-sequencing obligations. Results use `SAFE`, `WARN`, `ERROR`, and `REVIEW`;
+`REVIEW` records a property that structural analysis alone cannot prove.
+
+Main artifacts are under `analysis/cdc_rdc/` (`design.json`, CDC/RDC/setup/glitch
+reports, obligations, and `summary.json`) with detailed logs under
+`logs/analysis/cdc_rdc/`. The implementation is a custom FlexSoC checker; it does
+not yet implement the Accellera CDC/RDC interchange and hierarchical abstraction
+layer.
+
+### 3.6 DV formal
+
+Generate and execute automatic CSR checks and authored property BMC/prove/cover stages.
+
+**Main result:** `dv/formal/` designer-owned prove/cover sources, generated configurations, proof logs, traces, and status files. `setup_formal` creates the initial design-property scaffold only when it is absent; loaded IP properties are preserved.
+
+| Target | Action | Target-specific overrides | Notes |
+| --- | --- | --- | --- |
+| `fx setup_formal` | Create or preserve starter design assertions and covers. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx setup_formal_csr_prove` | Generate shared CSR BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx setup_formal_csr_cover` | Generate automatic CSR cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal_csr_bmc` | Bounded-check automatic CSR assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal_csr_prove` | Prove automatic CSR semantics with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal_csr_cover` | Reach automatic CSR cover points with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal_csr` | Run CSR BMC, prove, then cover. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Composite target; use it for the standard ordered flow. |
+| `fx formal` | Run all formal stages BMC, prove, then cover. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Composite target; use it for the standard ordered flow. |
+| `fx setup_formal_prove` | Generate shared design BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx setup_formal_cover` | Generate authored-property cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal_bmc` | Bounded-check authored design assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal_prove` | Prove authored properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+| `fx formal_cover` | Reach authored cover properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
+
+### 3.7 DV functional
 
 Generate the reference-model environment, vectors, testbenches, simulations, regressions, and coverage.
 
@@ -417,7 +468,7 @@ Set `WAVE_FILE` during the simulation when a stable, scriptable artifact name is
 required. `COCOTB_WAVES=1` enables RTL cocotb dumping; post-synthesis cocotb GLS
 manages its waveform owner automatically.
 
-### 3.6 Viewing
+### 3.8 Viewing
 
 Inspect waveforms and saved simulation or synthesis views without changing design state.
 
@@ -435,29 +486,7 @@ Inspect waveforms and saved simulation or synthesis views without changing desig
 | `fx tb_save` | Save testbench regression artifacts. | `WAVE_VIEWER`, `SURFER_BACKEND` | Use `--info` for accepted overrides. |
 | `fx tb_view` | Open saved testbench waveform. | `WAVE_VIEWER`, `SURFER_BACKEND` | Use `--info` for accepted overrides. |
 
-### 3.7 DV formal
-
-Generate and execute automatic CSR checks and authored property BMC/prove/cover stages.
-
-**Main result:** `dv/formal/` designer-owned prove/cover sources, generated configurations, proof logs, traces, and status files. `setup_formal` creates the initial design-property scaffold only when it is absent; loaded IP properties are preserved.
-
-| Target | Action | Target-specific overrides | Notes |
-| --- | --- | --- | --- |
-| `fx setup_formal` | Create or preserve starter design assertions and covers. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx setup_formal_csr_prove` | Generate shared CSR BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx setup_formal_csr_cover` | Generate automatic CSR cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx formal_csr_bmc` | Bounded-check automatic CSR assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_csr_prove` | Prove automatic CSR semantics with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_csr_cover` | Reach automatic CSR cover points with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_csr` | Run CSR BMC, prove, then cover. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Composite target; use it for the standard ordered flow. |
-| `fx formal` | Run all formal stages BMC, prove, then cover. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Composite target; use it for the standard ordered flow. |
-| `fx setup_formal_prove` | Generate shared design BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx setup_formal_cover` | Generate authored-property cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx formal_bmc` | Bounded-check authored design assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_prove` | Prove authored properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-| `fx formal_cover` | Reach authored cover properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
-
-### 3.8 Synthesis
+### 3.9 Synthesis
 
 Generate Yosys/ABC scripts and map RTL to the selected PDK. FlexSoC synthesis uses `abc.constr` and the ABC delay target; it does not parse the sign-off SDC.
 
@@ -472,7 +501,7 @@ Generate Yosys/ABC scripts and map RTL to the selected PDK. FlexSoC synthesis us
 | `fx yosys-vgen` | Convert SV to Verilog with Yosys. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
 | `fx sv2v` | Convert SV to Verilog with sv2v. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
 
-### 3.9 Signoff
+### 3.10 Signoff
 
 Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, and power analysis.
 
@@ -498,7 +527,7 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx sta_violators` | Report timing violators. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx path_view` | Build interactive STA path view. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 
-### 3.10 Gate simulation
+### 3.11 Gate simulation
 
 Compile and run mapped or post-route gate-level simulations, optionally with SDF annotation.
 
@@ -590,7 +619,7 @@ Post-PnR targets use the same driver/timing concepts but consume a final netlist
 and corner-specific post-PnR SDF. `sdf_post_pnr` requires `TIMING_MODE=min|typ|max`
 and explicit or discovered final netlist, SDC, and SPEF inputs.
 
-### 3.11 Physical implementation
+### 3.12 Physical implementation
 
 Generate OpenROAD configuration, implement the design, and inspect the physical result.
 
@@ -602,7 +631,7 @@ Generate OpenROAD configuration, implement the design, and inspect the physical 
 | `fx pnr` | Run OpenROAD physical implementation. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Use `--info` for accepted overrides. |
 | `fx pnr_gui` | Open OpenROAD GUI. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Use `--info` for accepted overrides. |
 
-### 3.12 Run metadata
+### 3.13 Run metadata
 
 Consolidate run identity, metrics, and closure status for review and release.
 
@@ -610,12 +639,12 @@ Consolidate run identity, metrics, and closure status for review and release.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx metrics` | Collect functional/formal/synthesis/signoff metrics. | Common run/clock settings only | Use `--info` for accepted overrides. |
-| `fx manifest` | Collect automatic run identity into meta/manifest.json. | Common run/clock settings only | Use `--info` for accepted overrides. |
+| `fx metrics` | Collect lint, CDC/RDC, formal, functional, synthesis, and sign-off metrics. | Common run/clock settings only | CDC/RDC is reported immediately after lint in closure/check output. |
+| `fx manifest` | Collect automatic run identity and lightweight lint/CDC-RDC evidence into meta/manifest.json. | Common run/clock settings only | Use `--info` for accepted overrides. |
 | `fx manifest_show` | Show the current run manifest in color. | Common run/clock settings only | Use `--info` for accepted overrides. |
 | `fx check` | Refresh metrics, then show complete closure for the selected PDK, including direct post-synthesis GLS reports when present. | `PDK` plus common run/clock settings | GLS closure is per test × timing mode: SV/cocotb are alternative evidence sources, so one qualified backend is sufficient. Per-backend diagnostics remain visible. |
 
-### 3.13 IP load/save
+### 3.14 IP load/save
 
 Move authored IP sources between the reusable library and an isolated run workspace.
 
@@ -624,7 +653,9 @@ Move authored IP sources between the reusable library and an isolated run worksp
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx ip_load` | Load an IP into a run workspace. | `IP_NAME` | Use `--info` for accepted overrides. |
-| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT` | Preserves results in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, and final `.rpt`/`.json`/`.sdf` evidence under `signoff/<pdk>/`. It also saves reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC/OpenSTA Tcl, and `meta/<pdk>`. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
+| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT`; use `--force` to replace existing destinations | Without `--force`, performs an atomic preflight and refuses to overwrite any existing destination, listing every conflicting package path and changing nothing. With `--force`, replaces the current-PDK/source-backed destinations while preserving unrelated PDK branches and any optional branch unavailable in the current run. Results stay in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, final `.rpt`/`.json`/`.sdf` under `signoff/<pdk>/`, reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC/OpenSTA Tcl, and `meta/<pdk>`. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
+
+`ip_save` is intentionally non-destructive by default. A first save into missing destinations succeeds; if any destination that the current run would update already exists, the command exits before staging or replacing the package and prints the conflicting relative paths. Use `fx ip_save --force ...` only when those destinations are intended to be refreshed.
 
 E2E tests set `IP_LIBRARY_ROOT` inside their temporary workspace and hash the repository-owned package before and after execution. Therefore `make test` cannot write into `hw/ips`.
 
@@ -650,7 +681,7 @@ already saved for other technologies. The Tcl files are exact generated script
 snapshots; after `ip_load`, rerun the corresponding setup/analysis command to
 bind paths to the new workspace and PDK installation.
 
-### 3.14 SoC flow
+### 3.15 SoC flow
 
 Compose loaded IPs into a small SoC, generate crossbar/FuseSoC collateral, build software, and simulate.
 
@@ -678,7 +709,7 @@ Compose loaded IPs into a small SoC, generate crossbar/FuseSoC collateral, build
 | `fx soc_run_only` | Alias for SoC simulation run. | `HOST`, `SOC_CFG_MODE`, `DEVLIST` | Alias for `fx soc_run`. |
 | `fx soc_view` | Open SoC waveform. | `HOST`, `SOC_CFG_MODE`, `DEVLIST` | Use `--info` for accepted overrides. |
 
-### 3.15 FSM flow
+### 3.16 FSM flow
 
 Generate, visualize, and install finite-state-machine RTL from the FSM workspace.
 
@@ -695,7 +726,7 @@ Generate, visualize, and install finite-state-machine RTL from the FSM workspace
 | `fx fsm_install` | Install FSM artifacts into the IP run. | `FSM` | Use `--info` for accepted overrides. |
 | `fx fsm2rtl` | Alias for FSM RTL installation. | `FSM` | Alias for `fx fsm_install`. |
 
-### 3.16 Tutorials
+### 3.17 Tutorials
 
 Run reproducible tutorial workflows for IP, FSM, UART-host, and Ibex-host examples.
 
@@ -711,7 +742,7 @@ Run reproducible tutorial workflows for IP, FSM, UART-host, and Ibex-host exampl
 | `fx ip_tutorial` | Run the IP tutorial flow. | `TUTORIAL_WS`, `TUTORIAL_RUN_ID` | Composite tutorial workflow. |
 | `fx soc_pless` | Run the tiny SoC tutorial flow. | `TUTORIAL_WS`, `TUTORIAL_RUN_ID` | Use `--info` for accepted overrides. |
 
-### 3.17 Cleanup
+### 3.18 Cleanup
 
 Remove selected generated products while preserving authored sources unless the deep-clean target explicitly says otherwise.
 
@@ -741,7 +772,7 @@ Remove selected generated products while preserving authored sources unless the 
 | `fx clean` | Clean generated flow outputs. | Common run/clock settings only | Destructive for generated outputs; preview broad cleanup with `--dry-run`. |
 | `fx clean_all` | Remove all generated run outputs. | Common run/clock settings only | Destructive for generated outputs; preview broad cleanup with `--dry-run`. |
 
-### 3.18 Help
+### 3.19 Help
 
 Print backend help grouped for common development areas.
 
@@ -944,8 +975,9 @@ fx syn eqy --force
 
 ```bash
 fx flist lint_suite --force
-fx tests_gen regression --force
+fx cdc_rdc
 fx formal
+fx tests_gen regression --force
 fx syn eqy --force
 fx sdf sta power_estimate --force
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
@@ -956,7 +988,7 @@ fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=s
 
 ```bash
 fx top_from_core flist setup_tb setup_cocotb
-fx lint_suite regression formal
+fx lint_suite cdc_rdc formal regression
 fx syn eqy --force
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
 ```
@@ -966,7 +998,7 @@ fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smok
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
 fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
-fx flist lint_suite regression formal
+fx flist lint_suite cdc_rdc formal regression
 fx syn eqy sdf sta power_estimate --force
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=unit --set TEST_NAME=smoke
 fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=smoke

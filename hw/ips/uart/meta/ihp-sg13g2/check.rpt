@@ -1,0 +1,156 @@
+FlexSoC run check · uart
+
+Closure
+Stage           Status
+lint            PASS  
+regression      PASS  
+formal          PASS  
+synthesis       PASS  
+equivalence     FAIL  
+sdf             PASS  
+sta             PASS  
+power           PASS  
+post_syn_gls    PASS  
+power_activity  PASS  
+Standard closure: INCOMPLETE
+
+Verification summary
+Functional regression  PASS              
+Functional coverage    4661/13419  34.73%
+Design coverage        975/1574  61.94%  
+Formal stages          6/6  PASS         
+Formal BMC             2/2  PASS         
+Formal PROVE           2/2  PASS         
+Formal COVER           2/2  PASS         
+
+Sign-off summary
+RTL ↔ synthesis     9/16  56.25%  FAIL
+SDF                 PASS              
+STA                 PASS              
+Power estimate      PASS              
+Post-synthesis GLS  50/50  PASS       
+Activity power      30/30  PASS       
+
+Lint  Slang → Verilator
+Tool       Status  Errors  Warnings  Latch  Width  Unused
+slang      PASS         0         0      0      0       0
+verilator  PASS         0       143      0      0      29
+
+Functional regression
+Status           PASS              
+Generated tests  10                
+sv logs          10                
+cocotb logs      10                
+Coverage all     4661/13419  34.73%
+Coverage design  975/1574  61.94%  
+
+Functional coverage — scope × type
+Scope                  line             toggle             expr           branch  fsm  user               total
+design       35/35  100.00%   775/1358  57.07%    83/89  93.26%    82/92  89.13%    -     -    975/1574  61.94%
+registers     45/47  95.74%   739/1446  51.11%    24/47  51.06%     2/2  100.00%    -     -    810/1542  52.53%
+common       76/1742  4.36%  1461/2908  50.24%  158/3482  4.54%   97/188  51.60%    -     -   1792/8320  21.54%
+other       578/680  85.00%    283/778  36.38%   85/185  45.95%  138/340  40.59%    -     -   1084/1983  54.66%
+all        734/2504  29.31%  3258/6490  50.20%  350/3803  9.20%  319/622  51.29%    -     -  4661/13419  34.73%
+
+Formal
+Suite       Stage  Status  Time  Traces
+csr         bmc    PASS      4s       0
+csr         prove  PASS      0s       0
+csr         cover  PASS      0s       6
+properties  bmc    PASS      4s       0
+properties  prove  PASS      0s       0
+properties  cover  PASS      0s       8
+
+Synthesis
+Strategy         area                       
+Netlist          syn/ihp-sg13g2/uart_synth.v
+Cells            1734                       
+Area             29254.2894                 
+Sequential area  16999.1136                 
+Errors           0                          
+Warnings         0                          
+
+RTL ↔ synthesis equivalence
+Status             FAIL                                                   
+Partitions proven  9/16  56.25%                                           
+Partitions failed  6                                                      
+Engine errors      1                                                      
+Timeouts           0                                                      
+Unknown            0                                                      
+Strategy sat       8/16 proven                                            
+Strategy pdr       1/2 proven                                             
+Strategy smt       0/1 proven                                             
+Log                logs/signoff/ihp-sg13g2/equivalence/uart_rtl_vs_syn.log
+
+SDF
+Corner   Bytes  Artifact                             
+ff      986876  signoff/ihp-sg13g2/sdf/ff/uart_ff.sdf
+ss      986876  signoff/ihp-sg13g2/sdf/ss/uart_ss.sdf
+tt      986874  signoff/ihp-sg13g2/sdf/tt/uart_tt.sdf
+
+Post-synthesis GLS · ihp-sg13g2
+Status     PASS                                                                                                                      
+Results    50/50 passed · 0 failed · 0 missing                                                                                       
+Tests      auto_toggle, corners, line_loopback, noise_filter, parity_reconfig, random_seed_1, random_seed_2, reconfig, rx_fifo, smoke
+Backends   sv                                                                                                                        
+Scenarios  zero, unit, ff, tt, ss                                                                                                    
+Artifacts  dv/functional/sim/post_syn/ihp-sg13g2                                                                                     
+
+Post-synthesis GLS results
+Scenario          sv     Closure
+zero      10/10 PASS  10/10 PASS
+unit      10/10 PASS  10/10 PASS
+ff        10/10 PASS  10/10 PASS
+tt        10/10 PASS  10/10 PASS
+ss        10/10 PASS  10/10 PASS
+
+Post-GLS activity power
+Status        PASS                                          
+Analyses      30/30 passed · 0 failed                       
+Summary JSON  signoff/ihp-sg13g2/power/analysis/summary.json
+Test             Backend  GLS  Corner  Activity  Total W  Status
+auto_toggle      sv       ff   ff       100.00%   0.0034  PASS  
+corners          sv       ff   ff       100.00%  0.00345  PASS  
+line_loopback    sv       ff   ff       100.00%  0.00345  PASS  
+noise_filter     sv       ff   ff       100.00%  0.00346  PASS  
+parity_reconfig  sv       ff   ff       100.00%  0.00346  PASS  
+random_seed_1    sv       ff   ff       100.00%  0.00345  PASS  
+random_seed_2    sv       ff   ff       100.00%  0.00345  PASS  
+reconfig         sv       ff   ff       100.00%  0.00346  PASS  
+rx_fifo          sv       ff   ff       100.00%  0.00345  PASS  
+smoke            sv       ff   ff       100.00%  0.00345  PASS  
+auto_toggle      sv       tt   tt       100.00%  0.00292  PASS  
+corners          sv       tt   tt       100.00%  0.00297  PASS  
+line_loopback    sv       tt   tt       100.00%  0.00297  PASS  
+noise_filter     sv       tt   tt       100.00%  0.00298  PASS  
+parity_reconfig  sv       tt   tt       100.00%  0.00298  PASS  
+random_seed_1    sv       tt   tt       100.00%  0.00297  PASS  
+random_seed_2    sv       tt   tt       100.00%  0.00297  PASS  
+reconfig         sv       tt   tt       100.00%  0.00298  PASS  
+rx_fifo          sv       tt   tt       100.00%  0.00297  PASS  
+smoke            sv       tt   tt       100.00%  0.00296  PASS  
+auto_toggle      sv       ss   ss       100.00%   0.0024  PASS  
+corners          sv       ss   ss       100.00%  0.00246  PASS  
+line_loopback    sv       ss   ss       100.00%  0.00244  PASS  
+noise_filter     sv       ss   ss       100.00%  0.00246  PASS  
+parity_reconfig  sv       ss   ss       100.00%  0.00246  PASS  
+random_seed_1    sv       ss   ss       100.00%  0.00246  PASS  
+random_seed_2    sv       ss   ss       100.00%  0.00246  PASS  
+reconfig         sv       ss   ss       100.00%  0.00246  PASS  
+rx_fifo          sv       ss   ss       100.00%  0.00246  PASS  
+smoke            sv       ss   ss       100.00%  0.00244  PASS  
+
+STA
+Corner  Mode   WNS  TNS  Viol.  Unconstr.
+ff      hold     -    -      0        548
+ff      setup    -    -      0        548
+ss      hold     -    -      0        548
+ss      setup    -    -      0        548
+tt      hold     -    -      0        548
+tt      setup    -    -      0        548
+
+Power estimate
+Corner  Total W  Internal W  Switching W  Leakage W
+ff      0.00382     0.00353     0.000289   2.87e-06
+ss       0.0026     0.00243     0.000165   2.23e-06
+tt      0.00319     0.00297     0.000219   9.27e-07

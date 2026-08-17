@@ -49,6 +49,7 @@ IP_DEV = (*BASE, "REG_ITF", "FORCE")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
 IP_FULL = (*COMMON, "REG_ITF", "LINT_TOOL", "LINT_PART", "TARGET_SYN", "TARGET_OPT")
 LINT = (*COMMON, "LINT_TOOL", "LINT_PART", "VSV")
+CDC_RDC = (*COMMON, "CLK_PERIOD", "CDC_RDC_HEARTBEAT", "CDC_RDC_STRICT")
 SLANG = (*LINT, "SLANG_ROOT", "SLANG_TOP_FILE", "SLANG_TOP", "SLANG_ARGS", "SLANG_SEARCH_ARGS", "SLANG_AST_SCOPE")
 SIM = (
     *COMMON,
@@ -201,6 +202,8 @@ TARGETS: dict[str, TargetSpec] = {
     "lint_slang_suite": ("Linting", "Run the full Slang lint suite", LINT),
     "lint_verilator_suite": ("Linting", "Run the full Verilator lint suite", LINT),
     "lint_suite": ("Linting", "Run full Slang suite, then full Verilator suite", LINT),
+    "setup_cdc_rdc": ("Domain analysis", "Generate pre-technology CDC/RDC structural extraction", CDC_RDC),
+    "cdc_rdc": ("Domain analysis", "Run structural CDC/RDC, protocol, reset, setup, and glitch checks", CDC_RDC),
     "lint_v": ("Linting", "Run Verilog lint checks", LINT),
     "lint_sv": ("Linting", "Run SystemVerilog lint checks", LINT),
     "lint_latch": ("Linting", "Run latch-focused HDL lint diagnostics", LINT),
@@ -535,6 +538,7 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "formal_prove": ("setup_formal_prove",),
     "formal_cover": ("setup_formal_cover",),
     "eqy": ("setup_eqy",),
+    "cdc_rdc": ("setup_cdc_rdc",),
     "sim_post_syn_all": ("sdf",),
     "sta": ("setup_signoff",),
     "sta_corners": ("setup_signoff",),

@@ -118,6 +118,26 @@ def collect_lint(top: str, run_dir: Path) -> dict[str, Any] | None:
     }
 
 
+def collect_cdc_rdc(top: str, run_dir: Path) -> dict[str, Any] | None:
+    """Collect the custom structural CDC/RDC summary emitted after lint."""
+
+    summary_path = run_dir / "analysis" / "cdc_rdc" / "summary.json"
+    if not summary_path.is_file():
+        return None
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(summary, dict) or summary.get("top") != top:
+        return None
+    result = dict(summary)
+    result["summary"] = relative(summary_path, run_dir)
+    detail_log = run_dir / "logs" / "analysis" / "cdc_rdc" / "cdc_rdc.log"
+    if detail_log.is_file():
+        result["log"] = relative(detail_log, run_dir)
+    return result
+
+
 def parse_coverage_summary(path: Path) -> dict[str, Any]:
     """Parse legacy/plain FlexSoC coverage scope totals."""
 
@@ -855,9 +875,25 @@ def collect_power_analysis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] 
 
 
 def verification_summary(metrics: dict[str, Any]) -> dict[str, Any]:
-    """Summarize PDK-independent functional and property-formal verification."""
+    """Summarize PDK-independent verification in lifecycle order."""
 
     result: dict[str, Any] = {}
+    cdc_rdc = metrics.get("cdc_rdc")
+    if isinstance(cdc_rdc, dict):
+        result["cdc_rdc"] = {
+            "status": cdc_rdc.get("status", "unknown"),
+            "cdc": cdc_rdc.get("cdc", {}),
+            "rdc": cdc_rdc.get("rdc", {}),
+            "obligations": cdc_rdc.get("verification_obligations", 0),
+        }
+
+    formal = metrics.get("formal")
+    if isinstance(formal, dict):
+        result["formal"] = {
+            "status": formal.get("status", "unknown"),
+            **formal.get("summary", {}),
+        }
+
     regression = metrics.get("regression")
     if isinstance(regression, dict):
         coverage = regression.get("coverage", {})
@@ -867,13 +903,6 @@ def verification_summary(metrics: dict[str, Any]) -> dict[str, Any]:
             "coverage_all": coverage.get("all"),
             "coverage_design": coverage.get("design"),
             "coverage_matrix": regression.get("coverage_matrix", {}),
-        }
-
-    formal = metrics.get("formal")
-    if isinstance(formal, dict):
-        result["formal"] = {
-            "status": formal.get("status", "unknown"),
-            **formal.get("summary", {}),
         }
 
     return result
@@ -923,6 +952,8 @@ def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
     stages: dict[str, str] = {}
     lint = metrics.get("lint")
     stages["lint"] = str(lint.get("status")) if isinstance(lint, dict) else "missing"
+    cdc_rdc = metrics.get("cdc_rdc")
+    stages["cdc_rdc"] = str(cdc_rdc.get("status")) if isinstance(cdc_rdc, dict) else "missing"
     regression = metrics.get("regression")
     stages["regression"] = str(regression.get("status")) if isinstance(regression, dict) else "missing"
     formal = metrics.get("formal")
@@ -940,7 +971,7 @@ def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
     stages["sdf"] = str(sdf.get("status")) if isinstance(sdf, dict) else "missing"
     stages["sta"] = "pass" if metrics.get("sta") else "missing"
     stages["power"] = "pass" if metrics.get("power_estimate") else "missing"
-    order = ["lint", "regression", "formal", "synthesis", "equivalence", "sdf", "sta", "power"]
+    order = ["lint", "cdc_rdc", "formal", "regression", "synthesis", "equivalence", "sdf", "sta", "power"]
     gls = metrics.get("post_syn_gls")
     if isinstance(gls, dict):
         stages["post_syn_gls"] = str(gls.get("status", "unknown"))
@@ -949,10 +980,20 @@ def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
     if isinstance(power_activity, dict):
         stages["power_activity"] = str(power_activity.get("status", "unknown"))
         order.append("power_activity")
+    values = tuple(stages.values())
+    if any(status in {"fail", "error"} for status in values):
+        overall = "fail"
+    elif any(status in {"missing", "partial", "unknown"} for status in values):
+        overall = "incomplete"
+    elif any(status in {"review", "warn"} for status in values):
+        overall = "review"
+    else:
+        overall = "pass"
     return {
         "order": order,
         "stages": stages,
-        "complete": all(status == "pass" for status in stages.values()),
+        "status": overall,
+        "complete": overall == "pass",
     }
 
 
@@ -967,7 +1008,7 @@ def collect_metrics(
     selected_pdk = pdk or "sky130"
     layout = pdk_run_layout(run_dir, pdk=selected_pdk, top=top)
     metrics: dict[str, Any] = {
-        "schema_version": 12,
+        "schema_version": 13,
         "top": top,
         "run_root": str(run_dir.resolve()),
         "technology": {
@@ -979,8 +1020,9 @@ def collect_metrics(
     # PDK-independent closure is shared by every implementation branch.
     for name, collector in (
         ("lint", collect_lint),
-        ("regression", collect_regression),
+        ("cdc_rdc", collect_cdc_rdc),
         ("formal", collect_formal),
+        ("regression", collect_regression),
     ):
         data = collector(top, run_dir)
         if data is not None:
@@ -1101,6 +1143,9 @@ def status_markup(status: str) -> str:
         "fail": "bold red",
         "error": "bold red",
         "partial": "bold yellow",
+        "review": "bold yellow",
+        "warn": "bold yellow",
+        "safe": "bold green",
         "missing": "bold grey70",
         "unknown": "bold grey70",
     }
@@ -1128,21 +1173,20 @@ def show_metrics(path: Path) -> None:
             status = str(closure.get("stages", {}).get(name, "missing"))
             table.add_row(name, status_markup(status))
         console.print(table)
-        overall = "PASS" if closure.get("complete") else "INCOMPLETE"
-        color = "green" if closure.get("complete") else "red"
-        console.print(f"[grey70]Standard closure:[/grey70] [bold {color}]{overall}[/bold {color}]")
+        overall = str(closure.get("status", "pass" if closure.get("complete") else "incomplete"))
+        style = {"pass": "green", "review": "yellow", "fail": "red"}.get(overall, "grey70")
+        console.print(
+            f"[grey70]Standard closure:[/grey70] "
+            f"[bold {style}]{overall.upper()}[/bold {style}]"
+        )
 
     verification = data.get("verification", {})
     if verification:
         console.print("\n[bold cyan]Verification summary[/bold cyan]")
         table = metric_table()
-        functional = verification.get("functional", {})
-        if functional:
-            table.add_row("Functional regression", status_markup(str(functional.get("status", "unknown"))))
-            for label, key in (("Functional coverage", "coverage_all"), ("Design coverage", "coverage_design")):
-                coverage = functional.get(key)
-                if coverage:
-                    table.add_row(label, f"{coverage['hit']}/{coverage['total']}  {coverage['percent']:.2f}%")
+        domain_summary = verification.get("cdc_rdc", {})
+        if domain_summary:
+            table.add_row("CDC/RDC", status_markup(str(domain_summary.get("status", "unknown"))))
         formal_summary = verification.get("formal", {})
         if formal_summary:
             table.add_row(
@@ -1165,6 +1209,13 @@ def show_metrics(path: Path) -> None:
                         else "partial"
                     ),
                 )
+        functional = verification.get("functional", {})
+        if functional:
+            table.add_row("Functional regression", status_markup(str(functional.get("status", "unknown"))))
+            for label, key in (("Functional coverage", "coverage_all"), ("Design coverage", "coverage_design")):
+                coverage = functional.get(key)
+                if coverage:
+                    table.add_row(label, f"{coverage['hit']}/{coverage['total']}  {coverage['percent']:.2f}%")
         console.print(table)
 
     signoff = data.get("signoff", {})
@@ -1227,6 +1278,29 @@ def show_metrics(path: Path) -> None:
                 str(diag.get("width", 0)),
                 str(diag.get("unused", 0)),
             )
+        console.print(table)
+
+    cdc_rdc = data.get("cdc_rdc")
+    if cdc_rdc:
+        console.print("\n[bold cyan]CDC / RDC[/bold cyan]  [cyan]post-lint structural analysis[/cyan]")
+        table = metric_table()
+        table.add_row("Status", status_markup(str(cdc_rdc.get("status", "unknown"))))
+        table.add_row(
+            "Domains",
+            f"clocks={cdc_rdc.get('clock_domains', 0)} · resets={cdc_rdc.get('reset_domains', 0)} · "
+            f"sequential={cdc_rdc.get('sequential_elements', 0)}",
+        )
+        for label, key in (("CDC", "cdc"), ("RDC", "rdc")):
+            values = cdc_rdc.get(key, {})
+            if isinstance(values, dict):
+                table.add_row(
+                    label,
+                    f"raw={values.get('raw_crossings', 0)} · safe={values.get('safe', 0)} · "
+                    f"review={values.get('review', 0)} · warn={values.get('warnings', 0)} · "
+                    f"error={values.get('errors', 0)}",
+                )
+        table.add_row("Obligations", str(cdc_rdc.get("verification_obligations", 0)))
+        table.add_row("Log", str(cdc_rdc.get("log", "-")))
         console.print(table)
 
     regression = data.get("regression")

@@ -1,0 +1,71 @@
+analysis=power_analysis corner=tt stage=post_syn
+workload=line_loopback_sv_tt
+gls_report=/home/eneadim/github/flexsoc/workspace/runs/uart/dev/dv/functional/sim/post_syn/ihp-sg13g2/uart_post_syn_line_loopback_sv_tt.json
+activity_file=/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/power/activity/captures/uart_ihp-sg13g2_line_loopback_sv_tt.vcd
+activity_scope=uart_tb/u_uart
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+netlist=/home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/ihp-sg13g2/uart_synth.v
+sdc=/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/uart.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1uA
+ power 1pW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Activity annotation ===
+annotated_percent=100.00%
+Unannotated pins: none
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             2.94e-03   2.80e-06   4.74e-07   2.94e-03  99.3%
+Combinational          1.06e-05   1.01e-05   4.50e-07   2.12e-05   0.7%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  2.95e-03   1.29e-05   9.25e-07   2.97e-03 100.0%
+                          99.5%       0.4%       0.0%
+
+=== Highest-power instances ===
+   Internal  Switching    Leakage      Total
+      Power      Power      Power      Power (Watts)
+--------------------------------------------
+   1.12e-05   8.41e-07   1.52e-09   1.20e-05 _2868_
+   1.13e-05   3.86e-07   1.53e-09   1.17e-05 _2867_
+   1.01e-05   2.41e-07   1.53e-09   1.03e-05 _2808_
+   1.01e-05   1.57e-07   1.53e-09   1.02e-05 _2803_
+   1.01e-05   3.15e-08   1.51e-09   1.02e-05 _2877_
+   9.83e-06   7.65e-08   1.56e-09   9.91e-06 _2852_
+   9.83e-06   6.01e-08   1.55e-09   9.89e-06 _2862_
+   9.81e-06   5.96e-08   1.56e-09   9.87e-06 _2866_
+   9.82e-06   5.09e-08   1.55e-09   9.87e-06 _2864_
+   9.76e-06   4.59e-08   1.56e-09   9.81e-06 _2860_
+   9.76e-06   2.91e-08   1.56e-09   9.79e-06 _2853_
+   9.62e-06   1.14e-07   1.53e-09   9.74e-06 _2809_
+   9.63e-06   8.61e-08   1.53e-09   9.72e-06 _2804_
+   9.64e-06   1.53e-08   1.56e-09   9.65e-06 _2858_
+   9.64e-06   1.38e-08   1.56e-09   9.65e-06 _2856_
+   9.61e-06   1.12e-08   1.56e-09   9.62e-06 _2857_
+   9.47e-06   9.24e-09   1.55e-09   9.48e-06 _3092_
+   9.47e-06   7.56e-09   1.55e-09   9.48e-06 _3103_
+   9.47e-06   7.56e-09   1.55e-09   9.48e-06 _3113_
+   9.47e-06   7.40e-09   1.55e-09   9.48e-06 _3121_
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00295
+switching_power=1.29e-05
+dynamic_power=0.0029629
+leakage_power=9.25e-07
+total_power=0.00297

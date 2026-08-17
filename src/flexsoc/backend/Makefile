@@ -426,7 +426,7 @@ PHONY_TARGETS += help help_ip help_soc help_doc help_fsm
 PHONY_TARGETS += setup soc_cfg soc_start sta_corners power_estimate_corners signoff_corners metrics manifest manifest_show check
 PHONY_TARGETS += hjson hjson_gen reg doc rtl_stub top_from_core flist driver fetch regmap_py
 PHONY_TARGETS += ip_start ip_flow ip_flow_noreg ip_flow_all
-PHONY_TARGETS += lint lint_slang lint_verilator lint_slang_suite lint_verilator_suite lint_suite lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier slang_ast slang_flist
+PHONY_TARGETS += lint lint_slang lint_verilator lint_slang_suite lint_verilator_suite lint_suite lint_v lint_sv lint_latch lint_undriven lint_width lint_unconnected lint_unused _lint_run slang_hier slang_ast slang_flist setup_cdc_rdc cdc_rdc
 PHONY_TARGETS += setup_tb setup_cocotb setup_model tests_gen test_gen tests compile compile_v compile_sv sim sim_v sim_sv sim_tests cocotb cocotb_tests regression coverage coverage_detail
 PHONY_TARGETS += view view_cocotb view_syn plot_postsyn view_presyn view_presyn_v view_presyn_sv tb_save tb_view
 PHONY_TARGETS += setup_syn syn syn_v syn_sv yosys-vgen sv2v
@@ -594,6 +594,8 @@ fetch: ## Fetch or update a vendored dependency
 ip_flow: reg doc ## Run regression through formal/synthesis/signoff, then report the run
 	@$(BACKEND_MAKE) flist
 	@$(BACKEND_MAKE) lint_suite
+	@$(BACKEND_MAKE) setup_cdc_rdc
+	@$(BACKEND_MAKE) cdc_rdc
 	@$(BACKEND_MAKE) regression
 	@$(BACKEND_MAKE) coverage_detail
 	@$(BACKEND_MAKE) formal
@@ -610,6 +612,8 @@ ip_flow: reg doc ## Run regression through formal/synthesis/signoff, then report
 ip_flow_noreg: ## Run the standard closure without regenerating registers
 	@$(BACKEND_MAKE) flist
 	@$(BACKEND_MAKE) lint_suite
+	@$(BACKEND_MAKE) setup_cdc_rdc
+	@$(BACKEND_MAKE) cdc_rdc
 	@$(BACKEND_MAKE) regression
 	@$(BACKEND_MAKE) coverage_detail
 	@$(BACKEND_MAKE) formal
@@ -721,6 +725,39 @@ lint_verilator_suite: flist ## Run the full Verilator lint suite
 lint_suite: flist ## Run the full Slang suite first, then the full Verilator suite
 	@$(BACKEND_MAKE) lint_slang_suite $(LINT_ARGS)
 	@$(BACKEND_MAKE) lint_verilator_suite $(LINT_ARGS)
+
+CDC_RDC_DIR ?= $(OUTROOT)/analysis/cdc_rdc
+CDC_RDC_LOGDIR ?= $(LOGDIR)/analysis/cdc_rdc
+CDC_RDC_SCRIPT ?= $(CDC_RDC_DIR)/extract.ys
+CDC_RDC_JSON ?= $(CDC_RDC_DIR)/design.json
+CDC_RDC_HEARTBEAT ?= 5
+CDC_RDC_STRICT ?= 0
+
+setup_cdc_rdc: flist ## Generate pre-technology structural extraction for CDC/RDC
+	@$(MKDIR) -p $(CDC_RDC_DIR) $(CDC_RDC_LOGDIR)
+	@$(PYTHON) -m flexsoc.backend.cdc_rdc setup \
+		--top "$(TOP)" \
+		--repo-root "$(REPO_ROOT)" \
+		--filelist "$(RTL_COMMON_LIST)" \
+		--filelist "$(RTL_IP_LIST)" \
+		--script "$(CDC_RDC_SCRIPT)" \
+		--design-json "$(CDC_RDC_JSON)"
+
+cdc_rdc: ## Run structural CDC/RDC, protocol, reset, setup, and glitch checks
+	@$(MKDIR) -p $(CDC_RDC_DIR) $(CDC_RDC_LOGDIR)
+	@$(PYTHON) -m flexsoc.backend.cdc_rdc run \
+		--top "$(TOP)" \
+		--script "$(CDC_RDC_SCRIPT)" \
+		--design-json "$(CDC_RDC_JSON)" \
+		--analysis-dir "$(CDC_RDC_DIR)" \
+		--log-dir "$(CDC_RDC_LOGDIR)" \
+		--yosys "$(YOSYS)" \
+		--n-clocks "$(N_CLOCKS)" \
+		--clock-domains "$(CLOCK_DOMAINS)" \
+		--clock-relationships "$(CLOCK_RELATIONSHIPS)" \
+		--clk-period "$(CLK_PERIOD)" \
+		--heartbeat "$(CDC_RDC_HEARTBEAT)" \
+		$(if $(filter 1,$(CDC_RDC_STRICT)),--strict,)
 
 lint_latch lint_undriven lint_width lint_unconnected lint_unused: lint_%: flist
 	@set -eu; \
@@ -1759,7 +1796,7 @@ ip_save: ## Save reusable current-PDK collateral and qualification metadata into
 	$(call _require_var,RUN_TOP)
 	$(call _require_var,RUN_ID)
 	@set -eu; \
-	ip_root="$(IP_ROOT)"; library_root="$(IP_LIBRARY_ROOT)"; pdk="$(PDK)"; \
+	ip_root="$(IP_ROOT)"; library_root="$(IP_LIBRARY_ROOT)"; pdk="$(PDK)"; force="$${FORCE:-$(FORCE)}"; \
 	test -d "$(SYNDIR)" || { echo "ERROR: synthesis branch not found: $(SYNDIR)"; exit 2; }; \
 	test -d "$(SIGNOFF_PDK_DIR)" || { echo "ERROR: signoff branch not found: $(SIGNOFF_PDK_DIR)"; exit 2; }; \
 	for source in "$(EQY_CONFIG)" "$(EQY_VIEW)" \
@@ -1769,6 +1806,21 @@ ip_save: ## Save reusable current-PDK collateral and qualification metadata into
 		"$(SIGNOFF_POWER_DIR)/estimate/power_estimate.tcl"; do \
 		test -f "$$source" || { echo "ERROR: required ip_save input not found: $$source"; exit 2; }; \
 	done; \
+	conflicts=""; \
+	add_conflict() { relative="$$1"; if [ -e "$$ip_root/$$relative" ]; then conflicts="$${conflicts}$${conflicts:+|}$$relative"; fi; }; \
+	add_conflict "syn/$$pdk"; \
+	add_conflict "signoff/$$pdk"; \
+	if [ -d "$(ORSDIR)" ]; then add_conflict "impl/$$pdk"; fi; \
+	if find "$(POST_SYN_SIMDIR)" -maxdepth 1 -type f -name '*.json' -print -quit 2>/dev/null | grep -q .; then add_conflict "dv/functional/sim/post_syn/$$pdk"; fi; \
+	if [ -f "$(COVERAGEDIR)/summary.txt" ] || [ -f "$(COVERAGEDIR)/summary.json" ]; then add_conflict "dv/functional/coverage"; fi; \
+	if [ -f "$(MANIFEST_JSON)" ] || [ -f "$(METRICS_JSON)" ]; then add_conflict "meta/$$pdk"; fi; \
+	if [ -n "$$conflicts" ] && [ "$$force" != "1" ]; then \
+		echo "ERROR: ip_save would overwrite existing package content:"; \
+		printf '%s\n' "$$conflicts" | tr '|' '\n' | while IFS= read -r relative; do printf '  - %s\n' "$$relative"; done; \
+		echo "No package content was modified."; \
+		echo "Hint: rerun with --force to replace the entries above."; \
+		exit 2; \
+	fi; \
 	mkdir -p "$$library_root"; \
 	temporary=$$(mktemp -d "$$library_root/.ip-save.$(IP_NAME).XXXXXX"); \
 	staged="$$temporary/$(IP_NAME)"; backup="$$library_root/.$(IP_NAME).backup"; backed_up=0; \
@@ -1781,12 +1833,16 @@ ip_save: ## Save reusable current-PDK collateral and qualification metadata into
 	}; \
 	trap cleanup EXIT HUP INT TERM; \
 	if [ -d "$$ip_root" ]; then cp -a "$$ip_root" "$$staged"; else mkdir -p "$$staged"; fi; \
-	rm -rf "$$staged/syn/$$pdk" "$$staged/impl/$$pdk" "$$staged/signoff/$$pdk" "$$staged/meta/$$pdk"; \
+	rm -rf "$$staged/syn/$$pdk" "$$staged/signoff/$$pdk"; \
 	mkdir -p "$$staged/syn" "$$staged/impl" "$$staged/signoff/$$pdk/equivalence/rtl_vs_syn"; \
 	cp -a "$(SYNDIR)" "$$staged/syn/$$pdk"; \
 	for checkpoint in generic dffmap abc clean; do rm -f "$$staged/syn/$$pdk/$(TOP)_$${checkpoint}.il"; done; \
 	impl_status=not_available; \
-	if [ -d "$(ORSDIR)" ]; then cp -a "$(ORSDIR)" "$$staged/impl/$$pdk"; impl_status=copied; fi; \
+	if [ -d "$(ORSDIR)" ]; then \
+		rm -rf "$$staged/impl/$$pdk"; cp -a "$(ORSDIR)" "$$staged/impl/$$pdk"; impl_status=copied; \
+	elif [ -d "$$staged/impl/$$pdk" ]; then \
+		impl_status=preserved; \
+	fi; \
 	$(PYTHON) -m flexsoc.backend.setup_eqy eqy-export \
 		$(RTL_FILELIST_ARGS) \
 		--netlist "$(SYNDIR)/$(TOP)_synth.v" --liberty "$(LIB_SYN)" \
@@ -1813,8 +1869,9 @@ ip_save: ## Save reusable current-PDK collateral and qualification metadata into
 			! -name '.*' -print | wc -l); \
 		cd "$(REPO_ROOT)"; \
 	fi; \
-	rm -rf "$$staged/dv/functional/sim/post_syn/$$pdk"; gls_report_count=0; \
-	if [ -d "$(POST_SYN_SIMDIR)" ]; then \
+	gls_report_count=0; \
+	if find "$(POST_SYN_SIMDIR)" -maxdepth 1 -type f -name '*.json' -print -quit 2>/dev/null | grep -q .; then \
+		rm -rf "$$staged/dv/functional/sim/post_syn/$$pdk"; \
 		mkdir -p "$$staged/dv/functional/sim/post_syn/$$pdk"; \
 		for report in "$(POST_SYN_SIMDIR)"/*.json; do \
 			[ -f "$$report" ] || continue; cp -p "$$report" "$$staged/dv/functional/sim/post_syn/$$pdk/"; \
@@ -1822,8 +1879,8 @@ ip_save: ## Save reusable current-PDK collateral and qualification metadata into
 		done; \
 		if [ "$$gls_report_count" -eq 0 ]; then rmdir "$$staged/dv/functional/sim/post_syn/$$pdk" 2>/dev/null || true; fi; \
 	fi; \
-	rm -rf "$$staged/dv/functional/coverage"; \
-	if [ -d "$(COVERAGEDIR)" ]; then \
+	if [ -f "$(COVERAGEDIR)/summary.txt" ] || [ -f "$(COVERAGEDIR)/summary.json" ]; then \
+		rm -rf "$$staged/dv/functional/coverage"; \
 		mkdir -p "$$staged/dv/functional/coverage"; \
 		for report in "$(COVERAGEDIR)/summary.txt" "$(COVERAGEDIR)/summary.json"; do \
 			[ -f "$$report" ] || continue; cp -p "$$report" "$$staged/dv/functional/coverage/"; \
@@ -1831,6 +1888,7 @@ ip_save: ## Save reusable current-PDK collateral and qualification metadata into
 	fi; \
 	meta_status=not_available; manifest_status=missing; metrics_status=missing; \
 	if [ -f "$(MANIFEST_JSON)" ] || [ -f "$(METRICS_JSON)" ]; then \
+		rm -rf "$$staged/meta/$$pdk"; \
 		mkdir -p "$$staged/meta/$$pdk"; \
 		if [ -f "$(MANIFEST_JSON)" ]; then cp -p "$(MANIFEST_JSON)" "$$staged/meta/$$pdk/manifest.json"; manifest_status=copied; fi; \
 		if [ -f "$(METRICS_JSON)" ]; then \
@@ -1846,7 +1904,7 @@ ip_save: ## Save reusable current-PDK collateral and qualification metadata into
 	mv "$$staged" "$$ip_root"; backed_up=0; rm -rf "$$backup" "$$temporary"; \
 	trap - EXIT HUP INT TERM; \
 	tcl_count=$$(find "$$ip_root/signoff/$$pdk" -type f -name '*.tcl' | wc -l); \
-	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · syn=copied · impl=$$impl_status · signoff=copied · gls=$$gls_report_count · results=$$signoff_result_count · meta=$$meta_status · Tcl=$$tcl_count"
+	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · force=$${force:-0} · syn=copied · impl=$$impl_status · signoff=copied · gls=$$gls_report_count · results=$$signoff_result_count · meta=$$meta_status · Tcl=$$tcl_count"
 
 # ============================================================================
 # 13. SoC, FuseSoC, XBAR and software flow

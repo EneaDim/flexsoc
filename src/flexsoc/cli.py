@@ -255,6 +255,8 @@ Use `fx commands` to list every backend Make target.
         "EQY_TIMEOUT": "Overall EQY strategy timeout.",
         "EQY_STRATEGY_ORDER": "Ordered SAT/SMTBMC/PDR strategy portfolio.",
         "EQY_RESET_CYCLES": "Reset cycles assumed by reset normalization.",
+        "CDC_RDC_HEARTBEAT": "Live-mode progress heartbeat interval in seconds.",
+        "CDC_RDC_STRICT": "Return non-zero when structural ERROR findings make CDC/RDC status FAIL.",
         "IP_NAME": "Saved or loaded IP package name.",
         "IP_LIBRARY_ROOT": "IP package library root.",
         "HOST": "Selected SoC host integration.",
@@ -278,6 +280,7 @@ Use `fx commands` to list every backend Make target.
         "regression": ("fx regression --no-setup",),
         "syn": ("fx syn", "fx setup_syn && fx syn --no-setup"),
         "eqy": ("fx eqy", "fx setup_eqy && fx eqy --no-setup"),
+        "cdc_rdc": ("fx cdc_rdc", "fx cdc_rdc --live", "fx cdc_rdc --set CDC_RDC_STRICT=1"),
         "compile_post_syn": (
             "fx compile_post_syn --no-setup --set TEST_NAME=smoke "
             "--set GLS_BACKEND=sv --set TIMING_MODE=typ",
@@ -310,7 +313,7 @@ Use `fx commands` to list every backend Make target.
             "--set POWER_GLS_BACKENDS=all --set POWER_TIMING_MODES=all",
         ),
         "ip_load": ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic",),
-        "ip_save": ("fx ip_save --set IP_NAME=cordic_release",),
+        "ip_save": ("fx ip_save --set IP_NAME=cordic_release", "fx ip_save --force --set IP_NAME=cordic_release"),
     }
 
     PSEUDO_HELP = {
@@ -432,6 +435,54 @@ Use `fx commands` to list every backend Make target.
             command += " --force"
         return (command,)
 
+    TARGET_HELP_SECTIONS = {
+        "cdc_rdc": (
+            (
+                "Summary fields",
+                (
+                    ("clocks / resets / sequential", "Declared clock domains, reset domains seen on state, and sequential elements analyzed."),
+                    ("raw", "Raw structural domain crossings before protocol/synchronizer classification; raw does not mean error."),
+                    ("safe", "Findings whose recognized structure is sufficient for the structural checker."),
+                    ("review", "Findings that need a verification obligation or design-intent confirmation before closure."),
+                    ("warn", "Suspicious or ambiguous structure that deserves review but is not a proven structural violation."),
+                    ("error", "Structural violations; these make the overall status FAIL."),
+                    ("obligations", "Properties still requiring formal/dynamic evidence, for example stability, Gray coherency, pulse width, or reset sequencing."),
+                ),
+            ),
+            (
+                "Finding status",
+                (
+                    ("PASS", "No WARN, REVIEW, or ERROR findings remain."),
+                    ("REVIEW", "At least one WARN/REVIEW exists and no ERROR exists; the run completed but closure is not complete."),
+                    ("SAFE", "A specific recognized crossing/check is structurally safe."),
+                    ("WARN", "A specific finding needs inspection; it does not make the run fail by itself."),
+                    ("ERROR", "A structural violation. With CDC_RDC_STRICT=1, ERROR findings make the command return non-zero."),
+                ),
+            ),
+            (
+                "Output and reports",
+                (
+                    ("default", "Print only the colored final summary plus the detailed cdc_rdc.log path."),
+                    ("--live", "Show extraction progress, domains, checker counts, every finding and obligation, and report paths."),
+                    ("JSON", "Machine-readable inventory, CDC, RDC, setup, glitch, obligations, and summary reports are written under analysis/cdc_rdc/."),
+                    ("log", "The complete human-readable analysis is written under logs/analysis/cdc_rdc/cdc_rdc.log."),
+                ),
+            ),
+        ),
+    }
+
+    def _print_target_sections(name: str) -> None:
+        """Render concise target-specific semantics after the generic options."""
+
+        for title, rows in TARGET_HELP_SECTIONS.get(name, ()):
+            console.print(f"[bold orange1]{title}[/bold orange1]")
+            table = Table(box=box.SIMPLE, expand=True, show_header=False)
+            table.add_column("Keyword", style="bright_cyan", no_wrap=True, width=28)
+            table.add_column("Meaning", style="white", ratio=4)
+            for keyword, meaning in rows:
+                table.add_row(keyword, meaning)
+            console.print(table)
+
     def _print_target_help(name: str) -> None:
         """Render dedicated help for one backend target."""
 
@@ -488,6 +539,7 @@ Use `fx commands` to list every backend Make target.
             "[bright_cyan]--live[/bright_cyan], "
             "[bright_cyan]--info[/bright_cyan]"
         )
+        _print_target_sections(target)
         console.print()
 
     def _print_pseudo_help(name: str) -> None:

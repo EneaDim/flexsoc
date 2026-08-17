@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 from typing import Iterator
@@ -131,6 +132,25 @@ def _dump_recent_logs(top: str, run_id: str, workspace: Path) -> None:
         print(line, flush=True)
 
 
+def _assert_e2e_ip_save_isolated(argv: list[str]) -> None:
+    """Require every E2E ip_save to target a non-repository library root."""
+
+    if "ip_save" not in argv:
+        return
+    settings = [
+        argv[index + 1]
+        for index, token in enumerate(argv[:-1])
+        if token == "--set"
+    ]
+    roots = [item.split("=", 1)[1] for item in settings if item.startswith("IP_LIBRARY_ROOT=")]
+    assert len(roots) == 1, "E2E ip_save must set exactly one IP_LIBRARY_ROOT"
+    target = Path(roots[0]).expanduser().resolve()
+    repository_library = (REPO_ROOT / "hw" / "ips").resolve()
+    assert target != repository_library and not target.is_relative_to(repository_library), (
+        f"E2E ip_save must not write repository IPs: {target}"
+    )
+
+
 def _run(
     command: str,
     *,
@@ -142,8 +162,10 @@ def _run(
     """Print and execute exactly one complete command written in the test body."""
 
     print(f"\n>>> {command}", flush=True)
+    argv = shlex.split(command)
+    _assert_e2e_ip_save_isolated(argv)
     completed = subprocess.run(
-        shlex.split(command),
+        argv,
         cwd=REPO_ROOT,
         check=False,
         env=_fx_subprocess_env(),
@@ -230,7 +252,7 @@ def _validate_ip_layout(top: str) -> None:
         "data", "doc", "drivers", "rtl", "dv/functional/model",
         "dv/functional/tests", "dv/functional/tb/sv", "dv/functional/tb/cocotb",
         "dv/formal/properties/prove", "dv/formal/properties/cover",
-        "syn/sky130", "signoff/sky130/equivalence", "impl/sky130",
+        "syn/sky130", "signoff/sky130/equivalence",
     )
     required_files = (
         f"data/{top}.hjson", f"doc/{top}.md", f"doc/{top}_interfaces.md",
@@ -244,7 +266,7 @@ def _validate_ip_layout(top: str) -> None:
         f"dv/formal/properties/cover/{top}_cover.sv",
         "syn/sky130/synth.ys", "syn/sky130/synth_sv.ys",
         "syn/sky130/abc.constr", "syn/sky130/area.abc",
-        "impl/sky130/config.mk", f"signoff/sky130/{top}.sdc",
+        f"signoff/sky130/{top}.sdc",
     )
     missing = [
         path
@@ -255,6 +277,12 @@ def _validate_ip_layout(top: str) -> None:
         if not path.exists()
     ]
     assert not missing, f"invalid {top} IP structure; missing: {missing}"
+    implementation = root / "impl" / "sky130"
+    if implementation.exists():
+        assert implementation.is_dir()
+        assert (implementation / "config.mk").is_file(), (
+            f"invalid optional {top} implementation branch: {implementation}"
+        )
     vector_names = {
         path.name for path in (root / "dv" / "functional" / "tests").iterdir()
         if path.is_dir()
@@ -286,6 +314,12 @@ def _protect_ip_sources(top: str) -> Iterator[dict[Path, str]]:
         f"{top} package changed during E2E; ip_save must use IP_LIBRARY_ROOT"
     )
     assert not changed, f"{top} source artifacts changed during ip_load E2E: {changed}"
+
+
+def _seed_saved_ip_library(library_root: Path, top: str) -> None:
+    """Clone the package so ip_save updates only a disposable E2E library."""
+
+    shutil.copytree(REPO_ROOT / "hw" / "ips" / top, library_root / top)
 
 
 def _assert_loaded_sources_match(
@@ -459,22 +493,22 @@ def _run_power_and_fusion(
         )
 
 
-def _run_other_gls_backend_all(
+def _run_gls_all(
     *, workspace: Path, top: str, run_id: str, workdir: str, config: E2EConfig,
 ) -> None:
-    """Qualify the second GLS driver with the same E2E timing selection."""
+    """Qualify every GLS test and timing scenario with both drivers."""
 
-    backend = "cocotb" if config.gls_backend == "sv" else "sv"
-    _run(
-        (
-            "uv run --no-sync fx sim_post_syn_all --no-setup "
-            f"--set GLS_BACKEND={backend} "
-            f"--set TIMING_MODES={config.gls_mode} "
-            "--set TEST_NAMES=all --set SDF_STRICT=1 "
-            f"--workdir {workdir}"
-        ),
-        workspace=workspace, top=top, run_id=run_id,
-    )
+    other = "cocotb" if config.gls_backend == "sv" else "sv"
+    for backend in (config.gls_backend, other):
+        _run(
+            (
+                "uv run --no-sync fx sim_post_syn_all --no-setup "
+                f"--set GLS_BACKEND={backend} --set TIMING_MODES=all "
+                "--set TEST_NAMES=all --set SDF_STRICT=1 "
+                f"--workdir {workdir}"
+            ),
+            workspace=workspace, top=top, run_id=run_id,
+        )
 
 
 def _slang_values(top: str, run: Path) -> tuple[str, str, str]:
@@ -501,6 +535,20 @@ def _assert_ast(top: str, run: Path) -> None:
     ast = run / "analysis" / "slang" / f"{top}_ast.json"
     assert ast.is_file() and ast.stat().st_size > 0, f"missing or empty Slang AST: {ast}"
 
+def _assert_cdc_rdc_outputs(top: str, run: Path) -> None:
+    """Require the CDC/RDC stage to emit its summary, detail, and obligations."""
+
+    analysis = run / "analysis" / "cdc_rdc"
+    logs = run / "logs" / "analysis" / "cdc_rdc"
+    for name in ("summary.json", "cdc.json", "rdc.json", "obligations.json"):
+        path = analysis / name
+        assert path.is_file() and path.stat().st_size > 0, f"missing CDC/RDC artifact: {path}"
+    summary = json.loads((analysis / "summary.json").read_text(encoding="utf-8"))
+    assert summary.get("top") == top
+    assert "cdc" in summary and "rdc" in summary
+    detail = logs / "cdc_rdc.log"
+    assert detail.is_file() and detail.stat().st_size > 0, f"missing CDC/RDC detail log: {detail}"
+
 def _assert_design_formal_sources(top: str, run: Path) -> None:
     """Require real designer-owned prove and cover sources."""
 
@@ -518,8 +566,15 @@ def _assert_technology_closure(top: str, run: Path, pdk: str) -> None:
     assert (run / "signoff" / pdk / "sdf").is_dir()
     assert (run / "signoff" / pdk / "sta").is_dir()
     assert (run / "signoff" / pdk / "power").is_dir()
-    assert (run / "meta" / pdk / "manifest.json").is_file()
-    assert (run / "meta" / pdk / "metrics.json").is_file()
+    manifest_path = run / "meta" / pdk / "manifest.json"
+    metrics_path = run / "meta" / pdk / "metrics.json"
+    assert manifest_path.is_file()
+    assert metrics_path.is_file()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    assert isinstance(manifest.get("analysis", {}).get("cdc_rdc"), dict)
+    assert isinstance(metrics.get("cdc_rdc"), dict)
+    assert metrics.get("closure", {}).get("order", [])[:2] == ["lint", "cdc_rdc"]
 
 
 def _assert_saved_signoff_scripts(
@@ -565,9 +620,12 @@ def _assert_saved_signoff_scripts(
         path for path in signoff.rglob("*")
         if path.is_file()
         and "equivalence" not in path.parts
-        and path.suffix not in {".tcl", ".sdc"}
+        and (
+            path.name.startswith(".")
+            or path.suffix not in {".tcl", ".sdc", ".rpt", ".json", ".sdf"}
+        )
     ]
-    assert not forbidden, f"non-Tcl sign-off snapshots saved for {pdk}: {forbidden}"
+    assert not forbidden, f"unexpected saved sign-off artifacts for {pdk}: {forbidden}"
 
 
 def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
@@ -586,7 +644,10 @@ def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
         profile = root / "signoff" / pdk / "equivalence" / "rtl_vs_syn"
         assert (profile / f"{top}_rtl_vs_syn.eqy").is_file()
         assert (profile / f"{top}_eqy_view.sv").is_file()
-    assert (root / "impl" / "sky130").is_dir()
+    assert (root / "impl").is_dir()
+    for implementation in (root / "impl").iterdir():
+        if implementation.is_dir():
+            assert (implementation / "config.mk").is_file()
     assert not any(path.name == "__pycache__" for path in root.rglob("__pycache__"))
     assert not any(path.suffix in {".pyc", ".pyo"} for path in root.rglob("*"))
 
@@ -681,6 +742,11 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
+        _run(
+            f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _assert_cdc_rdc_outputs(top, run)
         _run(
             (
                 f"uv run --no-sync fx slang_hier --set {slang_root} "
@@ -811,7 +877,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             if config.run_post_syn:
-                _run_other_gls_backend_all(
+                _run_gls_all(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, config=config,
                 )
@@ -1117,7 +1183,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             if config.run_post_syn:
-                _run_other_gls_backend_all(
+                _run_gls_all(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, config=config,
                 )
@@ -1461,6 +1527,11 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
+            f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _assert_cdc_rdc_outputs(top, run)
+        _run(
             (
                 f"uv run --no-sync fx slang_hier --set {slang_root} "
                 f"--set {slang_top} --set {slang_search} --workdir {workdir}"
@@ -1598,7 +1669,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             if config.run_post_syn:
-                _run_other_gls_backend_all(
+                _run_gls_all(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, config=config,
                 )
@@ -2018,7 +2089,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             if config.run_post_syn:
-                _run_other_gls_backend_all(
+                _run_gls_all(
                     workspace=workspace, top=top, run_id=run_id,
                     workdir=workdir, config=config,
                 )
@@ -2406,6 +2477,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
         run = workspace / "runs" / top / run_id
         saved_library = workspace / "saved_ip_library"
         saved_library_arg = shlex.quote(str(saved_library))
+        _seed_saved_ip_library(saved_library, top)
         slang_root, slang_top, slang_search = _slang_values(top, run)
         with _protect_ip_sources("cordic") as source_snapshot:
             _run(
@@ -2459,6 +2531,11 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
+            _run(
+                f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_cdc_rdc_outputs(top, run)
             _run(
                 (
                     f"uv run --no-sync fx slang_hier --set {slang_root} "
@@ -2562,14 +2639,6 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_eqy --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
                     f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
@@ -2586,7 +2655,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
-                    _run_other_gls_backend_all(
+                    _run_gls_all(
                         workspace=workspace, top=top, run_id=run_id,
                         workdir=workdir, config=config,
                     )
@@ -2991,7 +3060,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 _assert_technology_closure(top, run, "sky130")
                 _run(
                     (
-                        f"uv run --no-sync fx ip_save --set IP_NAME={top} "
+                        f"uv run --no-sync fx ip_save --force --set IP_NAME={top} "
                         f"--set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}"
                     ),
                     workspace=workspace, top=top, run_id=run_id,
@@ -3030,14 +3099,6 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_eqy --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
                     f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
@@ -3054,7 +3115,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
-                    _run_other_gls_backend_all(
+                    _run_gls_all(
                         workspace=workspace, top=top, run_id=run_id,
                         workdir=workdir, config=config,
                     )
@@ -3459,7 +3520,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 _assert_technology_closure(top, run, "ihp-sg13g2")
                 _run(
                     (
-                        f"uv run --no-sync fx ip_save --set IP_NAME={top} "
+                        f"uv run --no-sync fx ip_save --force --set IP_NAME={top} "
                         f"--set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}"
                     ),
                     workspace=workspace, top=top, run_id=run_id,
@@ -3489,6 +3550,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
         run = workspace / "runs" / top / run_id
         saved_library = workspace / "saved_ip_library"
         saved_library_arg = shlex.quote(str(saved_library))
+        _seed_saved_ip_library(saved_library, top)
         slang_root, slang_top, slang_search = _slang_values(top, run)
         with _protect_ip_sources("uart") as source_snapshot:
             _run(
@@ -3510,6 +3572,8 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
             )
             _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
             _assert_loaded_ip_tests(top, run_id, workspace)
+            ihp_eqy = Path("signoff/ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy")
+            assert _sha256(run / ihp_eqy) == _sha256(REPO_ROOT / "hw" / "ips" / top / ihp_eqy)
             _run(
                 f"uv run --no-sync fx regmap_py --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
@@ -3542,6 +3606,11 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
+            _run(
+                f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _assert_cdc_rdc_outputs(top, run)
             _run(
                 (
                     f"uv run --no-sync fx slang_hier --set {slang_root} "
@@ -3645,14 +3714,6 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_eqy --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
                     f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
@@ -3669,7 +3730,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
-                    _run_other_gls_backend_all(
+                    _run_gls_all(
                         workspace=workspace, top=top, run_id=run_id,
                         workdir=workdir, config=config,
                     )
@@ -4074,7 +4135,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 _assert_technology_closure(top, run, "sky130")
                 _run(
                     (
-                        f"uv run --no-sync fx ip_save --set IP_NAME={top} "
+                        f"uv run --no-sync fx ip_save --force --set IP_NAME={top} "
                         f"--set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}"
                     ),
                     workspace=workspace, top=top, run_id=run_id,
@@ -4113,14 +4174,6 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_eqy --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx eqy --no-setup --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
                     f"uv run --no-sync fx setup_signoff --no-setup --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
@@ -4137,7 +4190,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
-                    _run_other_gls_backend_all(
+                    _run_gls_all(
                         workspace=workspace, top=top, run_id=run_id,
                         workdir=workdir, config=config,
                     )
@@ -4542,7 +4595,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 _assert_technology_closure(top, run, "ihp-sg13g2")
                 _run(
                     (
-                        f"uv run --no-sync fx ip_save --set IP_NAME={top} "
+                        f"uv run --no-sync fx ip_save --force --set IP_NAME={top} "
                         f"--set IP_LIBRARY_ROOT={saved_library_arg} --workdir {workdir}"
                     ),
                     workspace=workspace, top=top, run_id=run_id,

@@ -12,6 +12,7 @@ import pytest
 
 import flexsoc.backend.setup_eqy as setup_eqy_module
 import flexsoc.backend.setup_signoff as setup_signoff_module
+import flexsoc.backend.setup_syn as setup_syn_module
 import flexsoc.backend.post_sim as post_sim_module
 import flexsoc.cli as cli_module
 import flexsoc.doctor as doctor_module
@@ -852,12 +853,20 @@ def test_ip_save_optional_pnr_and_e2e_activity_order() -> None:
     makefile = (ROOT / "src/flexsoc/backend/Makefile").read_text(encoding="utf-8")
     e2e = (ROOT / "tests/test_e2e_fx.py").read_text(encoding="utf-8")
     assert "impl_status=not_available" in makefile
+    assert "impl_status=preserved" in makefile
+    assert 'rm -rf "$$staged/impl/$$pdk"; cp -a "$(ORSDIR)"' in makefile
+    assert '"$$staged/syn/$$pdk" "$$staged/impl/$$pdk"' not in makefile
     assert "impl=$$impl_status" in makefile
     assert "[ip_load]" in makefile and "syn=$$(list_branches" in makefile
     assert "impl=$$(list_branches" in makefile and "eqy=$$(list_eqy" in makefile
     assert 'for checkpoint in generic dffmap abc clean' in makefile
     assert '$(TOP)_$${checkpoint}.il' in makefile
-    assert 'rm -rf "$$staged/syn/$$pdk" "$$staged/impl/$$pdk" "$$staged/signoff/$$pdk" "$$staged/meta/$$pdk"' in makefile
+    assert 'rm -rf "$$staged/syn/$$pdk" "$$staged/signoff/$$pdk"' in makefile
+    assert 'ip_save would overwrite existing package content' in makefile
+    assert 'Hint: rerun with --force' in makefile
+    assert 'No package content was modified.' in makefile
+    assert 'if [ -d "$(ORSDIR)" ]; then add_conflict "impl/$$pdk"; fi' in makefile
+    assert 'rm -rf "$$staged/meta/$$pdk"' in makefile
     assert 'cp -p "$(MANIFEST_JSON)" "$$staged/meta/$$pdk/manifest.json"' in makefile
     assert 'cp -p "$(METRICS_JSON)" "$$staged/meta/$$pdk/metrics.json"' in makefile
     assert 'flexsoc.backend.metrics --show "$(METRICS_JSON)" > "$$staged/meta/$$pdk/check.rpt"' in makefile
@@ -872,29 +881,42 @@ def test_ip_save_optional_pnr_and_e2e_activity_order() -> None:
     assert 'for target in ("power_analysis", "fusion_analysis")' in e2e
     assert e2e.count("_run_power_and_fusion(") == 71
     assert "_assert_saved_multitech_layout(saved_library, top)" in e2e
+    assert "_assert_e2e_ip_save_isolated(argv)" in e2e
+    assert "E2E ip_save must not write repository IPs" in e2e
+    assert e2e.count("IP_LIBRARY_ROOT={saved_library_arg}") == e2e.count("fx ip_save")
+    assert e2e.count("fx ip_save --force") == e2e.count("fx ip_save")
+    assert '{".tcl", ".sdc", ".rpt", ".json", ".sdf"}' in e2e
     assert "fx power_analysis --no-setup" not in e2e
     assert "fx fusion_analysis --no-setup" not in e2e
 
 
-def test_uart_eqy_partitioning_is_technology_independent() -> None:
-    """The same UART RTL must use the same logical cut-points across PDKs."""
+def test_uart_eqy_flow_is_consistent_across_pdks() -> None:
+    """UART EQY differs by technology model only, not proof structure."""
 
     root = ROOT / "hw/ips/uart/signoff"
     sky = (root / "sky130/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy").read_text(encoding="utf-8")
     ihp = (root / "ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy").read_text(encoding="utf-8")
+    expected_ihp = sky.replace(
+        "read_verilog -formal -sv formal_pdk.v",
+        "read_liberty -ignore_miss_func library.lib",
+        1,
+    )
 
-    def section(text: str, begin: str, end: str) -> str:
-        return text.split(begin, 1)[1].split(end, 1)[0].strip()
-
-    marker_begin = "# FlexSoC UART sequential cut-points begin"
-    marker_end = "# FlexSoC UART sequential cut-points end"
-    assert section(ihp, marker_begin, marker_end) == section(sky, marker_begin, marker_end)
-    assert "u_fifo_cnt*wptr_wrap_cnt_q" not in ihp
-    assert "u_fifo_cnt*rptr_wrap_cnt_q" not in ihp
-    assert "[strategy fifo_sat]" not in ihp
-    assert "under_rst" not in ihp
-    assert "noapply uart.u_impl.u_uart_core.uart_tx.sreg_q" in ihp
-    assert "noapply uart.u_impl.u_uart_core.uart_tx.sreg_q" not in sky
+    assert ihp == expected_ihp
+    matches = [line for line in sky.splitlines() if line.startswith("gold-match ")]
+    assert matches == [
+        "gold-match clk_i",
+        "gold-match rst_ni",
+        "gold-match tl_i",
+        "gold-match tl_o__flexsoc_eqy_handshake",
+        "gold-match tl_o__flexsoc_eqy_d_ctrl",
+        "gold-match tl_o__flexsoc_eqy_d_data",
+        "gold-match tl_o__flexsoc_eqy_d_meta",
+        "gold-match cio_rx_i",
+        "gold-match cio_tx_o",
+        "gold-match cio_tx_en_o",
+    ]
+    assert not any("*" in line for line in matches)
 
 def test_api_main_delegates_to_cli(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli_module, "app", lambda argv=None: 23)
@@ -2358,9 +2380,11 @@ def test_saved_ip_packages_use_pdk_first_technology_branches() -> None:
     for top in ("cordic", "uart"):
         package = root / top
         assert (package / "syn/sky130").is_dir()
-        assert (package / "impl/sky130").is_dir()
+        implementation = package / "impl/sky130"
+        if implementation.exists():
+            assert (implementation / "config.mk").is_file()
+            assert not (implementation / f"{top}.sdc").exists()
         assert (package / f"signoff/sky130/{top}.sdc").is_file()
-        assert not (package / f"impl/sky130/{top}.sdc").exists()
         assert (package / "signoff/sky130/equivalence/rtl_vs_syn").is_dir()
         assert (package / "signoff/ihp-sg13g2/equivalence/rtl_vs_syn").is_dir()
 

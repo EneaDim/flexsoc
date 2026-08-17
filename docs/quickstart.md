@@ -50,10 +50,9 @@ fx reg doc --force
 fx rtl_stub --force
 fx top_from_core --force
 fx flist --force
-fx lint_suite
 ```
 
-Edit these sources:
+Edit the authored sources:
 
 ```text
 data/<top>.hjson                 CSR/register specification
@@ -62,6 +61,36 @@ dv/functional/model/<top>_model.py
 dv/functional/model/<top>_tests.py
 dv/formal/properties/            authored assertions and covers
 ```
+
+## 4. Design verification
+
+Run verification in this order so structural problems are removed before the
+more expensive behavioral gates.
+
+### 4.1 Linting
+
+```bash
+fx lint_suite
+```
+
+### 4.2 CDC/RDC
+
+```bash
+fx cdc_rdc
+```
+
+The default output is a summary plus the detailed log path. Use `--live` for
+all domains, checks, findings, and obligations.
+
+### 4.3 Property formal
+
+```bash
+fx formal
+```
+
+This runs automatic CSR checks and authored BMC/prove/cover stages.
+
+### 4.4 Functional regression
 
 Generate the model/test workspace once:
 
@@ -72,8 +101,6 @@ fx setup_model --force
 After it contains authored work, use `fx regmap_py --force` for routine CSR-only
 updates instead of recreating the complete model workspace.
 
-## 4. Functional verification
-
 ```bash
 fx tests_gen --force
 fx setup_tb setup_cocotb --force
@@ -81,29 +108,21 @@ fx regression
 fx coverage_detail
 ```
 
-Open the latest waveform when needed:
+Open a waveform when needed:
 
 ```bash
 fx view
 fx view_cocotb
 ```
 
-## 5. Property formal
-
-```bash
-fx formal
-```
-
-This runs automatic CSR checks and authored BMC/prove/cover stages.
-
-## 6. Constraints and synthesis
+## 5. Constraints and synthesis
 
 ```bash
 fx setup_signoff --force
 fx syn --force
 ```
 
-## 7. RTL-to-netlist equivalence
+## 6. RTL-to-netlist equivalence
 
 ```bash
 fx eqy --force
@@ -132,7 +151,7 @@ fx eqy_debug --wave <partition>
 fx eqy_debug --files <partition>
 ```
 
-## 8. Post-synthesis analysis
+## 7. Post-synthesis analysis
 
 ```bash
 fx sdf sta power_estimate --force
@@ -145,7 +164,7 @@ fx compile_post_syn --force
 fx sim_post_syn --force
 ```
 
-## 9. OpenROAD implementation
+## 8. OpenROAD implementation
 
 ```bash
 fx setup_pnr --force
@@ -165,7 +184,7 @@ fx compile_post_pnr --force --set NETLIST=/path/to/final_netlist.v
 fx sim_post_pnr --force --set NETLIST=/path/to/final_netlist.v
 ```
 
-## 10. Consolidated status
+## 9. Consolidated status
 
 ```bash
 fx manifest --force
@@ -174,73 +193,78 @@ fx metrics --force
 fx check --force
 ```
 
-## 11. Common update loops
+## 10. Common update loops
 
-### Add or change a CSR
+### 10.1 Add or change a CSR
 
 ```bash
 # edit HJSON
 fx reg doc regmap_py tests_gen --force
 fx flist --force
 fx lint_suite
+fx cdc_rdc
 fx regression
 fx formal
 fx syn eqy --force
 ```
 
-### Change RTL behavior
+### 10.2 Change RTL behavior
 
 ```bash
 # edit RTL, model, tests, and properties together
 fx flist --force
 fx lint_suite
+fx cdc_rdc
 fx tests_gen --force
-fx regression
 fx formal
+fx regression
 fx syn eqy --force
 ```
 
-### Change RTL ports
+### 10.3 Change RTL ports
 
 ```bash
 # edit <top>_core.sv
 fx top_from_core flist setup_tb setup_cocotb --force
 fx lint_suite
+fx cdc_rdc
 fx regression
 fx formal
 fx syn eqy --force
 ```
 
-### Change clock domains
+### 10.4 Change clock domains
 
 ```bash
 # update N_CLOCKS, CLOCK_DOMAINS, CLOCK_RELATIONSHIPS
 fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
 fx flist --force
 fx lint_suite
+fx cdc_rdc
 fx regression
 fx formal
 fx syn eqy --force
 fx sdf sta power_estimate --force
 ```
 
-## 12. Existing reusable IP
+## 11. Existing reusable IP
 
 ```bash
 fx setup --force
 fx ip_load --force
 fx flist --force
 fx lint_suite
+fx cdc_rdc
 fx tests_gen --force
-fx regression
 fx formal
+fx regression
 fx syn eqy --force
 ```
 
 Preserve the IP-owned HJSON, RTL, model, tests, and properties. Regenerate only
 the explicitly derived collateral.
 
-## 13. Complete automated flow
+## 12. Complete automated flow
 
 After the authored sources and tests are ready:
 
@@ -260,7 +284,7 @@ For a flow that must not regenerate register RTL/docs:
 fx ip_flow_noreg --force
 ```
 
-## 14. Project regression
+## 13. Project regression
 
 ```bash
 pytest -q tests/test_api.py

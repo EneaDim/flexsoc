@@ -60,10 +60,10 @@ WORKSPACE / RUN_TOP / RUN_ID / PDK
    └── ordered elaborated RTL hierarchy
 
 3. Design verification
-   ├── functional DV: model, scenarios, shared vectors, SV/cocotb simulation
-   ├── regression: per-test logs, deterministic waveforms, coverage review
+   ├── RTL lint and elaboration sanity
+   ├── CDC/RDC structural analysis and verification obligations
    ├── property formal: BMC, unbounded proof, cover
-   └── CDC/RDC structural closure for multi-domain designs
+   └── functional regression: shared vectors, SV/cocotb simulation, coverage
 
 4. Pre-implementation definition
    ├── clocks and relationships
@@ -327,6 +327,7 @@ fx rtl_stub --force
 fx top_from_core --force
 fx flist --force
 fx lint_suite
+fx cdc_rdc
 ```
 
 For a complete starter workspace:
@@ -353,370 +354,130 @@ gate, so regenerate it after hierarchy, package, include-path, or port changes.
 
 ---
 
-## 7. Design verification plan
+## 7. Design verification
 
-Verification should be planned from the requirements, not added after RTL is
-complete.
-
-For each requirement identify at least one of:
-
-- directed functional scenario;
-- constrained-random or parameterized scenario;
-- assertion/invariant;
-- cover objective;
-- CDC/RDC structural rule;
-- implementation or timing check.
-
-The main evidence classes are different:
+Design verification is a sequence of independent evidence gates. FlexSoC runs
+the cheapest structural checks first so later formal and simulation effort is
+spent on an RTL hierarchy that is already well formed.
 
 ```text
-functional simulation  proves selected scenarios behave as expected
-code coverage           shows which implementation structures were exercised
-property formal         proves or explores declared RTL properties
-CDC/RDC analysis        checks clock/reset crossing structure and assumptions
-equivalence             proves synthesis preserved the RTL representation
-STA                      proves timing against declared constraints
-physical sign-off       checks the implemented layout and extracted design
+ordered RTL hierarchy
+        ↓
+      lint
+        ↓
+     CDC/RDC
+        ↓
+ property formal
+        ↓
+functional regression + coverage
 ```
 
-No single percentage replaces the others.
+Passing a later gate does not waive an earlier one. A failure should be repaired
+at the earliest source of truth that owns it, then all affected downstream gates
+are rerun. The detailed mechanics of each phase are in the
+[IP development guide](ip_development_guide.md); exact syntax is in the
+[command reference](command_reference.md).
 
----
+### 7.1 Verification planning
 
-## 8. Functional design verification
+Plan verification from requirements rather than after RTL completion. Each
+requirement should map to one or more evidence mechanisms: directed or
+parameterized scenarios, assertions/invariants, cover objectives, CDC/RDC rules,
+or implementation/timing checks.
 
-### 8.1 Model and CSR API
+The evidence classes answer different questions:
 
-Bootstrap the functional workspace once:
+| Gate | Primary question | Main evidence |
+| --- | --- | --- |
+| Lint | Is the elaborated RTL structurally clean? | lint diagnostics and hierarchy inspection |
+| CDC/RDC | Are clock/reset crossings intentionally structured? | classified crossings and verification obligations |
+| Property formal | Do declared invariants hold for all explored legal behaviors? | BMC/prove/cover results |
+| Functional regression | Do representative architectural scenarios behave as specified? | SV/cocotb results, logs, waves, coverage |
+
+No single PASS or percentage replaces the others.
+
+### 7.2 RTL lint and elaboration sanity
+
+Run lint first:
 
 ```bash
-fx setup_model --force
+fx flist --force
+fx lint_suite
 ```
 
-Ownership:
+This gate catches frontend/elaboration problems and structural RTL defects such
+as width/sign issues, inferred latches, undriven or unused objects, and related
+tool diagnostics. `slang_hier` and `slang_ast` support hierarchy/frontend debug.
 
-```text
-dv/functional/model/<top>_model.py   authored expected behavior
-dv/functional/model/<top>_regmap.py  generated CSR API
-dv/functional/model/<top>_tests.py   authored scenarios and vector policy
-```
+**Advance when:** the selected hierarchy and enabled lint rules are clean.
+Functional behavior and domain-crossing safety are intentionally checked later.
 
-After customization, an HJSON-only change should normally use:
+### 7.3 CDC and RDC analysis
+
+Run the custom domain checker immediately after lint:
 
 ```bash
-fx reg doc --force
-fx regmap_py --force
+fx cdc_rdc
 ```
 
-rather than recreating the complete model workspace.
-
-### 8.2 Scenario and vector generation
-
-Generate every declared scenario or one selected scenario:
-
-```bash
-fx tests_gen --force
-fx test_gen --force --set TEST_NAME=smoke
-fx tests
-```
-
-Each scenario is materialized as simulator-independent data:
-
-```text
-dv/functional/tests/<TEST_NAME>/
-├── config.regs
-├── data_in.vec
-└── data_out.vec
-```
-
-`config.regs` describes initial CSR configuration. `data_in.vec` contains timed
-pin activity, CSR writes, resets, and other commands. `data_out.vec` contains
-expected pin values and CSR reads. SystemVerilog, cocotb, post-synthesis GLS,
-and post-PnR GLS consume the same files; a backend-specific expectation does
-not belong in the vector set.
-
-A scenario should express architectural events and declared latency. Avoid
-using zero-delay behavior as an implicit specification. In particular, tests
-that inspect live status after protocol activity should return the interface to
-an idle state, reset or drain transient state when required, and wait long
-enough for the configured protocol timing.
-
-### 8.3 Generate and run the RTL simulation environments
-
-Generate both drivers after changing ports, clocks, resets, vector syntax, or
-register interfaces:
-
-```bash
-fx setup_tb setup_cocotb
-```
-
-Run one named test with the SystemVerilog driver:
-
-```bash
-WORKDIR="$HOME/flexsoc-workspace"
-TOP=my_ip
-RUN_TOP=my_ip
-RUN_ID=dev
-RUN="$WORKDIR/runs/$RUN_TOP/$RUN_ID"
-WAVE="$RUN/dv/functional/sim/rtl/${TOP}_tb_sv_smoke.fst"
-
-fx sim --live \
-  --workdir "$WORKDIR" \
-  --set COMPILER=verilator \
-  --set TEST_NAME=smoke \
-  --set WAVE_FILE="$WAVE"
-```
-
-Run the same vectors with cocotb:
-
-```bash
-WAVE="$RUN/dv/functional/sim/rtl/${TOP}_tb_cocotb_smoke.fst"
-
-fx cocotb --live \
-  --workdir "$WORKDIR" \
-  --set COMPILER=verilator \
-  --set TEST_NAME=smoke \
-  --set COCOTB_WAVES=1 \
-  --set WAVE_FILE="$WAVE"
-```
-
-Run all generated tests on one backend:
-
-```bash
-fx sim_tests --live
-fx cocotb_tests --live
-```
-
-A single-test run is the fastest debug loop because it preserves a stable test
-name, log, seed, and waveform. Use it before rerunning the full regression.
-
-### 8.4 Regression semantics
-
-The normal dual-backend gate is:
-
-```bash
-fx regression --live \
-  --set COMPILER=verilator \
-  --set 'REGRESSION_BACKENDS=sv cocotb'
-
-fx coverage_detail
-```
-
-`fx regression` consumes the prepared vector catalogue without recreating it. Driver preparation is always explicit: run `setup_tb` and `setup_cocotb` before regression when machine-owned reset/vector support must be refreshed. The regression target itself:
-
-1. requires an existing vector-test directory and SystemVerilog testbench;
-2. requires an existing cocotb scaffold when that backend is selected;
-3. removes only previous coverage data and regression logs;
-4. runs every existing test on every selected backend;
-5. assigns `random_seed_<n>` tests seed `<n>` and uses `SEED` for the others;
-6. collects and merges coverage when `COMPILER=verilator`.
-
-Run `fx tests_gen` explicitly when the editable vector catalogue must be recreated. After `fx ip_load`, use the literal sequence `regmap_py`, `tests_gen`, `setup_tb`, `setup_cocotb`, then `regression --no-setup`. The model scenarios remain authored, while both testbench trees are recreated completely from the current source of truth. This removes stale saved-IP files, refreshes the shared vector/reset grammar, and rebases cocotb RTL sources to the loaded workspace. No `--force` is required.
-
-The default backend set is `sv cocotb`. Restrict it only for diagnosis:
-
-```bash
-fx regression --live --set 'REGRESSION_BACKENDS=sv'
-fx regression --live --set 'REGRESSION_BACKENDS=cocotb'
-```
-
-A backend-only PASS is useful evidence, but release qualification should return
-to the configured full backend set. When `COMPILER` is not Verilator, the tests
-still run but the Verilator coverage stage is skipped explicitly.
-
-The default regression waveform name is deterministic:
-
-```text
-dv/functional/sim/rtl/<testbench>_<backend>_<test>.<fst|vcd>
-```
-
-Regression logs are separated by backend:
-
-```text
-logs/dv/functional/regression/sv/
-logs/dv/functional/regression/cocotb/
-```
-
-### 8.5 Inspect one waveform from a regression
-
-`fx view` is a convenience command for a waveform in the default RTL simulation
-directory. For a particular regression test, select the exact file rather than
-relying on viewer discovery:
-
-```bash
-RUN="$WORKDIR/runs/$RUN_TOP/$RUN_ID"
-
-find "$RUN/dv/functional/sim/rtl" \
-  -maxdepth 1 -type f \( -name '*.fst' -o -name '*.vcd' \) \
-  -printf '%f\n' | sort
-
-WAVE="$RUN/dv/functional/sim/rtl/${TOP}_tb_sv_smoke.fst"
-test -s "$WAVE"
-gtkwave "$WAVE" &
-```
-
-Use Surfer instead when configured:
-
-```bash
-surfer "$WAVE" &
-```
-
-For side-by-side driver comparison, open one viewer process per waveform:
-
-```bash
-gtkwave "$RUN/dv/functional/sim/rtl/${TOP}_tb_sv_smoke.fst" &
-gtkwave "$RUN/dv/functional/sim/rtl/${TOP}_tb_cocotb_smoke.fst" &
-```
-
-The top-level clock, reset, pins, and protocol buses are the most stable debug
-signals. Internal synthesized or generated names may change after regeneration.
-A waveform is evidence only when paired with the exact test vectors, backend,
-seed, log, and run settings that produced it.
-
-### 8.6 Coverage and exit criteria
-
-Code coverage is a review tool, not an automatic quality certificate. Inspect:
-
-- line and branch coverage;
-- expression and toggle coverage;
-- FSM coverage;
-- user-defined functional cover points;
-- exclusions and unreachable logic.
-
-A production gate should combine coverage thresholds with scenario review,
-requirements traceability, assertions, and bug history. Coverage should be
-collected from representative tests; adding tests only to increase a percentage
-without exercising a requirement does not improve verification quality.
-
-### 8.7 Functional debug order
-
-> **When functional DV goes wrong:** reduce to one named test and keep the
-> expectation backend-neutral. Compare vectors, model result, declared latency,
-> reset/configuration, and the first differing waveform event before rerunning
-> the complete regression. A failure on only SV or only cocotb normally points
-> to harness scheduling or sampling, not an alternate legal output.
-
-Use the smallest reproducible boundary:
-
-```bash
-fx tests
-fx test_gen --force --set TEST_NAME=<test>
-fx setup_tb setup_cocotb
-fx sim --live --set TEST_NAME=<test>
-fx cocotb --live --set TEST_NAME=<test>
-```
-
-Then compare:
-
-1. the generated `config.regs`, `data_in.vec`, and `data_out.vec`;
-2. the first differing command or expected event;
-3. the first `X/Z`, timeout, or protocol error in each log;
-4. the exact waveform around that event;
-5. the authored model and RTL behavior that own the expectation.
-
-Only after the named test is understood should the full regression and coverage
-be rerun.
-
-## 9. Property formal verification
-
-Property formal operates on the RTL and is PDK-independent. It is separate from
-RTL-to-netlist equivalence.
-
-### 9.1 Automatic CSR semantics
-
-FlexSoC generates checks for register behavior derived from HJSON:
-
-```bash
-fx formal_csr_bmc
-fx formal_csr_prove
-fx formal_csr_cover
-```
-
-The aggregate target is:
-
-```bash
-fx formal_csr
-```
-
-Typical properties cover reset values, access policy, field behavior, and
-reachable CSR transactions.
-
-### 9.2 Authored design properties
-
-Design-specific assertions and covers belong with the IP:
-
-```bash
-fx formal_bmc
-fx formal_prove
-fx formal_cover
-```
-
-The complete property-formal flow is:
+FlexSoC builds a technology-independent sequential dependency graph once and
+reuses it for CDC, RDC, protocol, reconvergence, setup, and clock/reset glitch
+checks. The same stage runs for single-clock and multi-clock designs.
+
+The result distinguishes structurally safe patterns from warnings, structural
+errors, and `REVIEW` obligations that need temporal/protocol verification. The
+compact terminal output always points to the detailed log; `--live` streams the
+full analysis.
+
+**Advance when:** structural `ERROR` findings are repaired and every remaining
+`REVIEW`/`WARN` has an explicit closure plan. The current checker is custom
+FlexSoC; Accellera interchange and hierarchical IP-abstraction support can be
+added later as a separate standards layer.
+
+### 7.4 Property formal verification
+
+Run property formal before broad regression:
 
 ```bash
 fx formal
 ```
 
-Use:
+Formal combines generated CSR semantics with authored design assertions and
+covers. It is the right gate for invariants, protocol safety, legal state
+transitions, FIFO safety, reset convergence, and other properties that should
+not depend on selecting a particular simulation scenario.
 
-- **BMC** to find short counterexamples quickly;
-- **prove** for invariants over unbounded execution;
-- **cover** to check that important states and sequences are reachable.
+**Advance when:** real counterexamples are fixed, expected covers are reachable,
+and proof assumptions/limits are reviewed rather than used to hide DUT behavior.
 
-Good formal candidates include protocol invariants, FIFO safety, mutual
-exclusion, legal state transitions, overflow policy, and reset convergence.
+### 7.5 Functional regression and coverage
 
-### 9.3 Formal modelling discipline
+Functional DV closes representative end-to-end behavior using the authored
+model/scenarios and shared vectors across the supported simulation backends:
 
-Formal assumptions are part of the verification contract. They must describe
-legal environment behavior without hiding design bugs. Review:
-
-- clock/reset assumptions;
-- protocol input assumptions;
-- initial state modelling;
-- memory abstraction or lowering;
-- unreachable-state assumptions;
-- proof depth and engine selection.
-
----
-
-> **When formal goes wrong:** classify counterexample, unreachable cover,
-> timeout, and vacuous PASS separately. Repair RTL/property intent for a real
-> trace; change engine, depth, partitioning, or invariants for genuine
-> nonclosure. Assumptions are reviewed verification contracts, not a mechanism
-> for hiding illegal DUT behavior.
-
-## 10. CDC and RDC closure
-
-A multi-clock simulation or proof does not replace structural CDC/RDC analysis.
-
-For every crossing classify the mechanism:
-
-```text
-single-bit level       synchronizer
-single-cycle pulse     pulse/toggle synchronizer or handshake
-multi-bit control      encoded handshake with stability guarantee
-stream/data payload    asynchronous FIFO or explicit bridge
-reset crossing         synchronized release and domain-specific reset policy
+```bash
+fx regression
+fx coverage_detail
 ```
 
-The design review should verify:
+Regression provides per-test logs, deterministic waveforms, backend agreement,
+and coverage evidence. Coverage is a review aid: it shows what implementation
+structure was exercised but does not replace requirements traceability or formal
+proof.
 
-- source and destination domains;
-- data-coherency assumptions;
-- synchronizer depth;
-- FIFO pointer encoding and reset behavior;
-- reconvergence hazards;
-- reset assertion/deassertion policy;
-- exceptions and waived paths.
+**Advance when:** the required scenario catalogue passes on the configured
+backends, coverage gaps are reviewed, and failures are reproducible from a named
+test, seed, log, and waveform.
 
-FlexSoC already carries clock relationships through `ClockConfig`. Dedicated
-CDC/RDC tool execution is an explicit planned quality gate and should be added
-without merging its results into functional coverage or EQY closure.
+### 7.6 Verification closure
+
+The verification stage is complete only when lint, CDC/RDC, formal, and
+functional evidence are mutually consistent. Any RTL, CSR, clock/reset, model,
+property, or interface change reopens the gates whose assumptions changed.
 
 ---
 
-## 11. Constraints and pre-synthesis checks
+## 8. Constraints and pre-synthesis checks
 
 Timing constraints express the design contract seen by synthesis, STA, and PnR.
 They should be reviewed before synthesis, not created after timing fails.
@@ -743,6 +504,7 @@ Before synthesis run:
 ```bash
 fx flist --force
 fx lint_suite
+fx cdc_rdc
 fx regression
 fx formal
 fx setup_signoff --force
@@ -755,7 +517,7 @@ fx setup_signoff --force
 > and SDC source, regenerate every clock-derived scaffold, and review CDC/RDC
 > whenever domain relationships change. Keep exceptions narrow and owned.
 
-## 12. Synthesis
+## 9. Synthesis
 
 Synthesis transforms the RTL hierarchy into a technology-mapped logical
 implementation.
@@ -808,9 +570,9 @@ flow.
 
 ---
 
-## 13. Post-synthesis sign-off
+## 10. Post-synthesis sign-off
 
-### 13.1 RTL-to-netlist equivalence
+### 10.1 RTL-to-netlist equivalence
 
 After synthesis, prove that the mapped netlist preserves the RTL behavior:
 
@@ -881,7 +643,7 @@ first divergence is.
 > mismatch belongs to RTL/netlist/reset/X/cell-model ownership. Do not trade one
 > classification for another merely to obtain a green aggregate status.
 
-### 13.2 SDF and gate-level simulation
+### 10.2 SDF and gate-level simulation
 
 SDF and STA are sibling consumers of the timing model; STA does not require SDF.
 SDF is used to annotate delays into a gate-level simulation of the mapped
@@ -1138,7 +900,7 @@ transcript; `make test` itself remains non-live.
 The short runnable path is in [Quickstart](quickstart.md).
 
 
-### 21.3 Activity-based power after GLS
+### 10.3 Activity-based power after GLS
 
 The primary-input-assumption `power_estimate` stage is useful before representative stimulus exists, but it is an assumption-based estimate. After a direct post-synthesis GLS command has produced a successful SDF-backed `min`, `typ`, or `max` trace, FlexSoC can use the actual switching activity of each vector test:
 
@@ -1155,7 +917,7 @@ per-corner report_power
 `fx power_analysis` selects one direct GLS report. `fx power_analysis_all` discovers every matching direct report already present under the selected PDK's post-synthesis directory; no matrix manifest is required. Repeated singular analyses accumulate into the common activity-power summary. OpenSTA uses `/` as the VCD hierarchy separator. FlexSoC therefore inspects the converted VCD, resolves the generated DUT scope automatically (`POWER_VCD_SCOPE=auto`), validates explicit scopes, and records both the requested and resolved scope in every report. The resolver understands the canonical single-clock `u_<TOP>` convention and the N-clock/cocotb `u_dut` convention; `POWER_DUT_INSTANCE` is only an optional hint. This prevents a syntactically valid `read_vcd` call from silently annotating zero activities because of a dotted or nonexistent hierarchy path. When the qualified trace is FST, FlexSoC calls `fst2vcd -f <input> -o <output>` automatically, validates the generated VCD, and retries through the converter's stdout interface only for compatibility with older wrappers. The conversion log is retained under `signoff/<pdk>/power/activity/captures`. `fx check` keeps vectorless power and post-GLS activity power separate so their assumptions cannot be confused.
 
 This is a stronger post-synthesis reference, not final silicon sign-off. Final power closure should repeat the activity flow on the post-route netlist with extracted SPEF, validated foundry Liberty power tables, representative operating windows, voltage/temperature corners, clock-tree activity, and rail/IR-drop analysis.
-## 22. Failure-driven lifecycle playbook
+## 11. Failure-driven lifecycle playbook
 
 The normal lifecycle is iterative. A failure is useful when it identifies the
 boundary that no longer matches its assumptions. FlexSoC should be used to
@@ -1165,7 +927,7 @@ the final stage.
 The full generated architecture and scaffold rationale are documented in
 [IP development guide](ip_development_guide.md).
 
-### 22.1 Standard triage sequence
+### 11.1 Standard triage sequence
 
 For every failure:
 
@@ -1191,7 +953,7 @@ Useful classification:
 | timeout/nonclosure | EQY/formal engine cannot close | change proof strategy/resources; do not label it a mismatch |
 | archival failure | missing direct report or waveform | repair command/report handling and rerun the affected combination |
 
-### 22.2 CSR and register-map problems
+### 11.2 CSR and register-map problems
 
 Common warning signs:
 
@@ -1215,7 +977,7 @@ Do not patch generated register RTL or Python metadata. If the HJSON itself is
 wrong, fixing downstream consumers separately creates several incompatible
 register maps.
 
-### 22.3 RTL and hierarchy problems
+### 11.3 RTL and hierarchy problems
 
 Common warning signs:
 
@@ -1238,7 +1000,7 @@ Repair authored RTL for real structural problems. Regenerate wrappers/filelists
 for mechanical drift. After the repair rerun regression, formal, synthesis, and
 downstream sign-off if behavior or state changed.
 
-### 22.4 Functional-DV problems
+### 11.4 Functional-DV problems
 
 Common warning signs:
 
@@ -1264,7 +1026,7 @@ state, and waveform. Preserve one backend-neutral expectation. A backend-only
 special case is usually a harness scheduling defect, not a valid alternate
 architecture.
 
-### 22.5 Formal problems
+### 11.5 Formal problems
 
 Common warning signs:
 
@@ -1286,7 +1048,7 @@ inconclusive and may require a smaller cone, stronger valid invariant, another
 engine, or additional resources. Add covers for property activation to prevent
 vacuous closure.
 
-### 22.6 Clock, reset, and constraint problems
+### 11.6 Clock, reset, and constraint problems
 
 Common warning signs:
 
@@ -1306,7 +1068,7 @@ fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
 Review CDC/RDC explicitly whenever domain relationships change. An exception is
 an architectural statement and requires a narrow scope, rationale, and owner.
 
-### 22.7 Synthesis and equivalence problems
+### 11.7 Synthesis and equivalence problems
 
 Common synthesis signs:
 
@@ -1335,7 +1097,7 @@ fx eqy_debug <partition>
 Keep mismatch, timeout, unknown, and engine error distinct. A synthesis PASS is
 not enough; equivalence must prove the representation change preserved logic.
 
-### 22.8 GLS problems
+### 11.8 GLS problems
 
 Use the timing modes diagnostically:
 
@@ -1366,7 +1128,7 @@ The generated Icarus view is a compatibility adapter. Repair its generator or
 model-discovery logic when needed; never edit the original PDK library or the
 staged generated copy manually.
 
-### 22.9 STA and power problems
+### 11.9 STA and power problems
 
 For timing:
 
@@ -1399,7 +1161,7 @@ A failed FST conversion, unresolved VCD hierarchy, or zero activity annotation
 means the workload was not applied. Numeric `report_power` output in that state
 must not be accepted as activity-based evidence.
 
-### 22.10 Release problems
+### 11.10 Release problems
 
 A run is not release-ready merely because `fx check` prints PASS. Review:
 
@@ -1422,18 +1184,25 @@ fx metrics
 fx check
 ```
 
-After closure, save each technology branch explicitly:
+After closure, save each technology branch explicitly. Use `--force` when refreshing an already published branch:
 
 ```bash
 fx pdk use sky130
-fx ip_save --set IP_NAME=<name>
+fx ip_save --force --set IP_NAME=<name>
 fx pdk use ihp-sg13g2
-fx ip_save --set IP_NAME=<name>
+fx ip_save --force --set IP_NAME=<name>
 ```
 
-The package retains EQY plus the STA, SDF, vectorless-power, and activity-power
-Tcl scripts under `signoff/<function>/<pdk>/`. It deliberately excludes logs,
-reports, SDF outputs, waveforms, and converted activity data.
+Without `--force`, `ip_save` is a non-destructive preflight: if any destination
+that the current run would update already exists, it lists the conflicting
+package paths and exits without modifying the package. With `--force`, it
+atomically refreshes the current-PDK/source-backed destinations while preserving
+unrelated PDK branches and optional branches that are unavailable in the run.
+The package retains reusable synthesis/implementation collateral, EQY/SDC/Tcl,
+selected post-synthesis GLS JSON, compact coverage summaries, final sign-off
+`.rpt`/`.json`/`.sdf` evidence, and per-PDK metadata. Logs, waveforms, converted
+activity data, hidden transient sign-off files, RTLIL debug checkpoints, and
+Python caches are excluded.
 
 
 The E2E suite always passes an `IP_LIBRARY_ROOT` below its temporary workspace and compares the complete repository-owned package hash tree before and after the test. `make test` therefore verifies both PDK saves without writing into `hw/ips`.
@@ -1450,7 +1219,7 @@ docker/scripts/check-lock.sh
 Normal CI should consume the committed digest and fail on an unpublished or
 stale lock rather than rebuilding the complete toolchain inside each job.
 
-## 23. Recovering a failed Docker toolchain build
+## 12. Recovering a failed Docker toolchain build
 
 A Docker toolchain failure must be classified by stage.
 
@@ -1484,7 +1253,7 @@ the install-time version receipt, both managed executables (`gtkwave` and
 `fst2vcd`), and the viewer's shared-library resolution. Do not add a fake
 `DISPLAY` or X server merely to query a version: a GUI initialization failure
 is not evidence that the installed binaries or FST conversion path are broken.
-## 24. Equivalence recovery for protocol outputs
+## 13. Equivalence recovery for protocol outputs
 
 A timeout on a packed protocol response is not evidence of a logic mismatch. FlexSoC first canonicalizes protocol-defined don't-care fields and projects TL-UL `tl_o` into bounded formal witnesses. The packed response is internal to the formal wrapper and is not retained as a second public output; otherwise EQY would still generate raw bit partitions alongside the witnesses. Single-clock equivalence is initialized through the declared reset contract, so the default claim is equivalence after legal reset rather than equivalence from arbitrary uninitialized flop states.
 

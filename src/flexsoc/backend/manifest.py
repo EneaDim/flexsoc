@@ -55,6 +55,32 @@ def _flexsoc_version(repo_root: Path) -> str:
         return str(data.get("project", {}).get("version", "unknown"))
 
 
+def _analysis_evidence(run_root: Path) -> dict[str, object]:
+    """Return lightweight post-lint analysis evidence for the run manifest."""
+
+    result: dict[str, object] = {}
+    lint_dir = run_root / "logs" / "lint"
+    if lint_dir.is_dir():
+        result["lint"] = {"path": lint_dir.relative_to(run_root).as_posix()}
+    summary = run_root / "analysis" / "cdc_rdc" / "summary.json"
+    if summary.is_file():
+        record: dict[str, object] = {
+            "path": summary.relative_to(run_root).as_posix(),
+            "sha256": _file_sha256(summary),
+        }
+        try:
+            data = json.loads(summary.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        if isinstance(data, dict):
+            record["status"] = data.get("status", "unknown")
+            record["cdc_raw"] = data.get("cdc", {}).get("raw_crossings", 0) if isinstance(data.get("cdc"), dict) else 0
+            record["rdc_raw"] = data.get("rdc", {}).get("raw_crossings", 0) if isinstance(data.get("rdc"), dict) else 0
+            record["obligations"] = data.get("verification_obligations", 0)
+        result["cdc_rdc"] = record
+    return result
+
+
 def collect_manifest(
     *,
     top: str,
@@ -70,6 +96,10 @@ def collect_manifest(
     pdk = os.environ.get("FLEXSOC_PDK") or None
     run_root_value = os.environ.get("FLEXSOC_RUN_ROOT") or None
     artifact_paths: dict[str, str] | None = None
+    analysis: dict[str, object] | None = None
+    if run_root_value:
+        evidence = _analysis_evidence(Path(run_root_value))
+        analysis = evidence or None
     if pdk and run_root_value:
         candidates = pdk_run_layout(Path(run_root_value), pdk=pdk, top=top).as_dict()
         artifact_paths = {
@@ -94,7 +124,7 @@ def collect_manifest(
     }
 
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "run": {
             "top": top,
             "run_top": run_top,
@@ -116,6 +146,7 @@ def collect_manifest(
             "toolchain_lock_sha256": _file_sha256(repo_root / "src" / "flexsoc" / "backend" / "toolchain.lock"),
         },
         "toolchain": environment.get("toolchain_lock", {}),
+        "analysis": analysis,
         "tools": tools,
     }
 
@@ -184,6 +215,23 @@ def show_manifest(path: Path) -> None:
                 for name, value in artifacts.items()
             ],
         )
+
+    analysis = data.get("analysis")
+    if isinstance(analysis, dict):
+        rows: list[tuple[str, object]] = []
+        lint = analysis.get("lint")
+        if isinstance(lint, dict):
+            rows.append(("Lint", lint.get("path", "-")))
+        cdc_rdc = analysis.get("cdc_rdc")
+        if isinstance(cdc_rdc, dict):
+            rows.append((
+                "CDC/RDC",
+                f"{str(cdc_rdc.get('status', 'unknown')).upper()} · "
+                f"CDC raw={cdc_rdc.get('cdc_raw', 0)} · RDC raw={cdc_rdc.get('rdc_raw', 0)} · "
+                f"obligations={cdc_rdc.get('obligations', 0)} · {cdc_rdc.get('path', '-')}",
+            ))
+        if rows:
+            section("Verification evidence", rows)
 
     tools = data.get("tools", {})
     if tools:

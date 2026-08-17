@@ -16,7 +16,7 @@ requirements and architecture
         ↓
 CSR / register map + RTL interfaces + RTL behavior
         ↓
-functional DV + property formal + CDC/RDC planning
+functional DV + property formal + structural CDC/RDC analysis
         ↓
 constraints + synthesis
         ↓
@@ -71,6 +71,7 @@ implemented hardware still matches its specification and RTL intent.
 - Verilator code coverage;
 - automatic CSR formal checks;
 - authored assertions and covers through SymbiYosys;
+- custom structural CDC/RDC, protocol, reset, and glitch analysis;
 - waveform, log, and counterexample inspection.
 
 ### Implementation and sign-off
@@ -84,9 +85,9 @@ implemented hardware still matches its specification and RTL intent.
 - OpenROAD physical implementation;
 - consolidated metrics and run manifests.
 
-CDC/RDC analysis, DFT insertion, and final foundry physical verification are
-identified as explicit lifecycle gates. They are not treated as substitutes for
-functional verification or formal equivalence.
+CDC/RDC analysis is an explicit post-lint lifecycle gate. DFT insertion and final
+foundry physical verification remain separate later-stage gates; none substitutes
+for functional verification or formal equivalence.
 
 ## Install
 
@@ -110,6 +111,7 @@ fx settings \
 fx setup --force
 fx hjson reg doc rtl_stub top_from_core flist --force
 fx lint_suite
+fx cdc_rdc
 
 fx setup_model --force
 fx tests_gen setup_tb setup_cocotb --force

@@ -16,6 +16,7 @@ _ANSI = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 _ORANGE = "\x1b[38;5;208m"
 _BLUE = "\x1b[94m"
 _GREEN = "\x1b[92m"
+_YELLOW = "\x1b[93m"
 _RED = "\x1b[91m"
 _GRAY = "\x1b[90m"
 _RESET = "\x1b[0m"
@@ -125,6 +126,36 @@ def print_label(
         print(f"{_ORANGE}[{label}]{_RESET} {_BLUE}{text}{_RESET}", file=stream, flush=True)
     else:
         print(f"[{label}] {text}", file=stream, flush=True)
+
+def print_status_label(
+    label: str,
+    status: str,
+    text: str = "",
+    *,
+    stream: TextIO | None = None,
+    color: bool | None = None,
+) -> None:
+    """Print one labeled status using the standard FlexSoC result colors."""
+
+    stream = stream or sys.stdout
+    use_color = color_enabled(stream) if color is None else color
+    normalized = status.strip().lower()
+    status_color = (
+        _GREEN if normalized in {"pass", "safe", "done"}
+        else _YELLOW if normalized in {"review", "warn", "warning", "partial"}
+        else _RED if normalized in {"fail", "error", "failed"}
+        else _BLUE
+    )
+    suffix = f" · {text}" if text else ""
+    if use_color:
+        print(
+            f"{_ORANGE}[{label}]{_RESET} {status_color}{status.upper()}{_RESET}"
+            f"{_BLUE}{suffix}{_RESET}",
+            file=stream,
+            flush=True,
+        )
+    else:
+        print(f"[{label}] {status.upper()}{suffix}", file=stream, flush=True)
 
 def print_script(
     path: Path,

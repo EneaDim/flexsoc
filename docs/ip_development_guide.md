@@ -88,7 +88,7 @@ Use shell `&&` or a composite target when later work must not run after a
 failure.
 
 ```bash
-fx lint_suite regression formal
+fx lint_suite cdc_rdc formal regression
 ```
 
 For diagnosis:
@@ -374,19 +374,7 @@ rtl/rtl_ip.f
 Those lists feed lint, simulation, formal, synthesis, and equivalence. A stale
 hierarchy can make every downstream stage analyze the wrong design.
 
-### 6.4 Structural checks
-
-```bash
-fx lint_suite
-fx slang_hier
-fx slang_ast
-```
-
-Lint checks syntax, widths, latches, unused signals, and tool-specific structural
-rules. Hierarchy inspection verifies the reachable design and helps identify an
-unexpected module, duplicate definition, or missing package.
-
-### 6.5 RTL failure recovery
+### 6.4 RTL and hierarchy failure recovery
 
 | Symptom | Likely owner | Repair |
 | --- | --- | --- |
@@ -401,20 +389,159 @@ After an RTL repair, rerun at least:
 
 ```bash
 fx flist lint_suite --force
-fx regression
+fx cdc_rdc --force
 fx formal
+fx regression
 ```
 
 and every implementation/sign-off stage whose logic changed.
 
 ---
 
-## 7. Phase 4 — functional design verification
+## 7. Phase 4 — RTL lint and structural closure
+
+Lint is the first verification phase after elaboration. It should fail fast on
+problems that would otherwise contaminate CDC/RDC, formal, simulation, and
+synthesis.
+
+### 7.1 Structural checks
+
+```bash
+fx lint_suite
+fx slang_hier
+fx slang_ast
+```
+
+Lint checks syntax, widths, latches, unused signals, and tool-specific structural
+rules. Hierarchy inspection verifies the reachable design and helps identify an
+unexpected module, duplicate definition, or missing package.
+
+### 7.2 What lint PASS proves
+
+A lint PASS means the selected hierarchy elaborates cleanly and the enabled
+structural rules found no blocking RTL defect. It does not prove behavioral
+correctness, protocol safety, or clock/reset-domain correctness.
+
+For hierarchy-oriented failures, repair the RTL/filelist owner described in
+Phase 3, regenerate `flist`, and rerun `lint_suite` before continuing.
+
+---
+
+## 8. Phase 5 — CDC/RDC structural analysis
+
+CDC/RDC runs immediately after lint and before behavioral verification. It is a
+technology-independent gate and uses the same command for single-clock and
+multi-clock designs.
+
+### 8.1 Analysis flow
+
+Run the domain checker next:
+
+```bash
+fx cdc_rdc
+```
+
+`setup_cdc_rdc` generates a pre-technology Slang/Yosys extraction; `cdc_rdc` then
+builds one shared graph of sequential dependencies and reuses it for every check.
+The analysis is independent of SKY130/IHP cell naming and is not skipped for a
+single-clock design.
+
+The checker groups findings instead of treating every bit as an unrelated error.
+It recognizes scalar N-FF synchronizers, qualified and synchronized multi-bit
+transfers, FIFO/Gray and handshake candidates, reconvergence, clock/reset setup
+problems, combinational clock/reset paths, uncontrolled RDC, reset synchronizers,
+and reset-release/sequence obligations. Structural facts can be `SAFE`, `WARN`, or
+`ERROR`; protocol/timing properties that need assertions are reported as `REVIEW`
+with an explicit obligation.
+
+The concise result is printed at runtime, while `analysis/cdc_rdc/` contains JSON
+reports and `logs/analysis/cdc_rdc/` keeps the detailed trace. This is a custom
+FlexSoC analyzer; Accellera-compatible interchange and hierarchical IP abstraction
+can be layered on later without changing the graph/checker model.
+
+### 8.2 Result semantics
+
+The terminal is summary-first by default and always prints the detailed log
+path. Use `fx cdc_rdc --live` to stream extraction, domain inventory, checker
+counts, every finding, verification obligation, and report path.
+
+`SAFE` is a structurally recognized safe pattern, `WARN` is suspicious or
+ambiguous structure, `ERROR` is a structural violation, and `REVIEW` records a
+property that structural analysis alone cannot prove. `raw` is the number of
+pre-classification crossings; it is not an error count.
+
+The analyzer is custom FlexSoC. Its methodology is intentionally compatible
+with later Accellera-oriented interchange/IP-abstraction work, but that standard
+layer is not part of the current implementation.
+
+---
+
+## 9. Phase 6 — property formal verification
+
+```bash
+fx setup_formal --force
+fx formal
+```
+
+The formal scaffold creates separate suites for generated CSR semantics and
+authored design properties.
+
+### 9.1 Generated CSR properties
+
+```bash
+fx formal_csr_bmc
+fx formal_csr_prove
+fx formal_csr_cover
+```
+
+These derive reset values, access behavior, and reachable CSR transactions from
+HJSON-generated collateral.
+
+### 9.2 Authored design properties
+
+```bash
+fx formal_bmc
+fx formal_prove
+fx formal_cover
+```
+
+Use BMC for short counterexamples, prove for invariants, and cover for
+reachability. Appropriate properties include protocol stability, legal state
+transitions, mutual exclusion, FIFO safety, overflow policy, and reset
+convergence.
+
+### 9.3 Formal assumptions
+
+Assumptions define the legal environment. They must not hide a DUT failure.
+Review:
+
+- reset and initial-state assumptions;
+- protocol legality assumptions;
+- clock behavior;
+- memory abstraction;
+- unreachable states;
+- engine and depth choices.
+
+### 9.4 Formal failure recovery
+
+| Result | Meaning | Action |
+| --- | --- | --- |
+| counterexample | property is violated under current assumptions | inspect earliest divergence; fix RTL or correct an invalid property |
+| cover unreachable | scenario cannot be reached under model/assumptions | review assumptions, reset, and state transition design |
+| timeout/unknown | no proof result within resources | simplify cone, strengthen valid invariants, change engine/depth, or partition |
+| vacuous PASS | property antecedent never activates | add cover for activation and review environment assumptions |
+
+A formal repair can change the verification contract even if RTL is unchanged;
+rerun regression when assumptions or expected legal behavior changes.
+
+---
+
+## 10. Phase 7 — functional design verification
 
 Functional DV uses one authored model and scenario catalogue to generate one
 backend-neutral command stream consumed by RTL simulation and GLS.
 
-### 7.1 Model and scenario scaffold
+### 10.1 Model and scenario scaffold
 
 ```bash
 fx setup_model --force
@@ -439,7 +566,7 @@ The starter model exposes a transaction-level `compute()` method and a declared
 latency. Stateful or protocol-driven IPs may replace that simple contract, but
 the model should remain independent of one simulator backend.
 
-### 7.2 Scenario materialization
+### 10.2 Scenario materialization
 
 ```bash
 fx tests_gen --force
@@ -470,7 +597,7 @@ A command row that consumes time cannot share a cycle with an unrelated command
 or direct drive. This common contract is essential: backend agreement is only
 meaningful when both drivers execute the same architectural schedule.
 
-### 7.3 SystemVerilog scaffold
+### 10.3 SystemVerilog scaffold
 
 ```bash
 fx setup_tb
@@ -489,7 +616,7 @@ The generated SV environment includes:
 Canonical single-clock testbenches instantiate the DUT as `u_<TOP>`; for
 `TOP=test`, the VCD scope is `test_tb/u_test`.
 
-### 7.4 cocotb scaffold
+### 10.4 cocotb scaffold
 
 ```bash
 fx setup_cocotb
@@ -516,7 +643,7 @@ The cocotb environment includes:
 N-clock and cocotb wrappers use the generated `u_dut` convention. The vectors,
 expected values, cycles, and unit-delay value remain shared with SV.
 
-### 7.5 Run one test and the regression
+### 10.5 Run one test and the regression
 
 ```bash
 fx sim --live --set TEST_NAME=smoke
@@ -536,7 +663,7 @@ by `fx tests_gen` after `fx ip_load`: authored scenarios remain the source of tr
 while derived vectors such as `auto_toggle` are recreated for the current workspace.
 The cocotb source list is also rebound to the current loaded RTL filelists.
 
-### 7.6 What functional PASS proves
+### 10.6 What functional PASS proves
 
 It proves that selected scenarios produced the declared expected behavior in the
 selected RTL simulator backends. It does not prove:
@@ -551,7 +678,7 @@ selected RTL simulator backends. It does not prove:
 Coverage shows exercised implementation structures. It does not replace a
 requirements-to-test review or formal proof.
 
-### 7.7 Functional failure recovery
+### 10.7 Functional failure recovery
 
 Use the smallest reproducible test:
 
@@ -577,67 +704,7 @@ semantics. Do not add a backend-specific expected result to make the test pass.
 
 ---
 
-## 8. Phase 5 — property formal verification
-
-```bash
-fx setup_formal --force
-fx formal
-```
-
-The formal scaffold creates separate suites for generated CSR semantics and
-authored design properties.
-
-### 8.1 Generated CSR properties
-
-```bash
-fx formal_csr_bmc
-fx formal_csr_prove
-fx formal_csr_cover
-```
-
-These derive reset values, access behavior, and reachable CSR transactions from
-HJSON-generated collateral.
-
-### 8.2 Authored design properties
-
-```bash
-fx formal_bmc
-fx formal_prove
-fx formal_cover
-```
-
-Use BMC for short counterexamples, prove for invariants, and cover for
-reachability. Appropriate properties include protocol stability, legal state
-transitions, mutual exclusion, FIFO safety, overflow policy, and reset
-convergence.
-
-### 8.3 Formal assumptions
-
-Assumptions define the legal environment. They must not hide a DUT failure.
-Review:
-
-- reset and initial-state assumptions;
-- protocol legality assumptions;
-- clock behavior;
-- memory abstraction;
-- unreachable states;
-- engine and depth choices.
-
-### 8.4 Formal failure recovery
-
-| Result | Meaning | Action |
-| --- | --- | --- |
-| counterexample | property is violated under current assumptions | inspect earliest divergence; fix RTL or correct an invalid property |
-| cover unreachable | scenario cannot be reached under model/assumptions | review assumptions, reset, and state transition design |
-| timeout/unknown | no proof result within resources | simplify cone, strengthen valid invariants, change engine/depth, or partition |
-| vacuous PASS | property antecedent never activates | add cover for activation and review environment assumptions |
-
-A formal repair can change the verification contract even if RTL is unchanged;
-rerun regression when assumptions or expected legal behavior changes.
-
----
-
-## 9. Phase 6 — clocks, resets, and SDC
+## 11. Phase 8 — clocks, resets, and SDC
 
 One `ClockConfig` feeds simulation, formal, synthesis, SDC, EQY, STA, and PnR.
 
@@ -672,15 +739,14 @@ and explicit asynchronous groups. A real project may add reviewed input/output
 delays, uncertainty, latency, false paths, multicycle paths, case analysis, and
 transition/capacitance/fanout policy.
 
-### 9.1 Current CDC/RDC position
+### 11.1 CDC/RDC relationship to clock constraints
 
-FlexSoC carries clock relationships and generates N-clock scaffolds, but the
-current target catalogue does not yet expose a dedicated CDC/RDC analysis
-command. CDC/RDC remains an explicit architecture and review gate. Do not treat
-multi-clock simulation or formal as a substitute for structural crossing
-analysis.
+`fx cdc_rdc` runs earlier, after linting, but consumes the same declared
+`CLOCK_DOMAINS` and `CLOCK_RELATIONSHIPS` that drive the generated SDC. If clock or
+reset intent changes, regenerate the affected collateral and rerun CDC/RDC before
+synthesis/sign-off.
 
-### 9.2 Constraint failure recovery
+### 11.2 Constraint failure recovery
 
 | Symptom | Repair |
 | --- | --- |
@@ -692,7 +758,7 @@ analysis.
 
 ---
 
-## 10. Phase 7 — synthesis
+## 12. Phase 9 — synthesis
 
 ```bash
 fx setup_syn --force
@@ -716,14 +782,14 @@ syn/<pdk>/<top>_synth.v
 
 with logs, statistics, area/cell reports, and generated scripts.
 
-### 10.1 What synthesis PASS proves
+### 12.1 What synthesis PASS proves
 
 It proves that the selected RTL hierarchy can be elaborated and mapped with the
 selected technology and strategy. It does not prove that synthesis preserved
 behavior; that is the role of equivalence. It also does not prove timing closure
 or routability.
 
-### 10.2 Synthesis failure recovery
+### 12.2 Synthesis failure recovery
 
 | Symptom | First checks | Repair |
 | --- | --- | --- |
@@ -737,7 +803,7 @@ After synthesis changes, always rerun equivalence.
 
 ---
 
-## 11. Phase 8 — RTL-to-netlist equivalence
+## 13. Phase 10 — RTL-to-netlist equivalence
 
 ```bash
 fx setup_eqy --force
@@ -757,7 +823,7 @@ fx eqy_debug --wave <partition>
 fx eqy_debug --files <partition>
 ```
 
-### 11.1 Result classification
+### 13.1 Result classification
 
 | Result | Interpretation |
 | --- | --- |
@@ -769,7 +835,7 @@ fx eqy_debug --files <partition>
 A timeout is not proof of a mismatch. A checkpoint that times out at every
 boundary indicates nonclosure, not necessarily a faulty synthesis result.
 
-### 11.2 EQY failure recovery
+### 13.2 EQY failure recovery
 
 1. Confirm the RTL and netlist correspond to the same run, PDK, top, and settings.
 2. Inspect the first unresolved partition with `eqy_debug`.
@@ -783,7 +849,7 @@ that mapping preserved behavior, and an EQY PASS does not validate test intent.
 
 ---
 
-## 12. Phase 9 — SDF, STA, and vectorless power scaffolds
+## 14. Phase 11 — SDF, STA, and vectorless power scaffolds
 
 ```bash
 fx setup_signoff --force
@@ -794,7 +860,7 @@ fx power_estimate
 
 The sign-off generator prepares scripts for the selected PDK and corner set.
 
-### 12.1 SDF
+### 14.1 SDF
 
 `fx sdf` writes generated corner files under:
 
@@ -808,7 +874,7 @@ Corner aliases are resolved by the PDK profile. File presence alone is not
 sufficient evidence; GLS qualification checks that the SDF contains real delay
 records and that the intended file was requested by the simulator.
 
-### 12.2 Pre-layout STA
+### 14.2 Pre-layout STA
 
 `fx sta` reads the mapped netlist, Liberty, SDC, and pre-layout interconnect
 assumptions. Review setup and hold separately, recognized clocks, unconstrained
@@ -818,7 +884,7 @@ The current `fx check` report may show no violations while still listing
 unconstrained endpoints. Unconstrained paths are missing analysis coverage, not
 a timing PASS.
 
-### 12.3 Vectorless power estimate
+### 14.3 Vectorless power estimate
 
 `fx power_estimate` applies primary-input activity and duty-cycle assumptions by default:
 
@@ -831,7 +897,7 @@ It is useful for architecture comparison and early budget checks. It is not
 workload-specific and remains separate from post-GLS activity power in metrics
 and `fx check`.
 
-### 12.4 Failure recovery
+### 14.4 Failure recovery
 
 | Stage | Failure | Repair |
 | --- | --- | --- |
@@ -842,7 +908,7 @@ and `fx check`.
 
 ---
 
-## 13. Phase 10 — post-synthesis GLS
+## 15. Phase 12 — post-synthesis GLS
 
 GLS executes the same functional tests on the mapped netlist and selected cell
 models.
@@ -856,7 +922,7 @@ fx sim_post_syn \
   --set SDF_STRICT=1
 ```
 
-### 13.1 Shared SV/cocotb semantics
+### 15.1 Shared SV/cocotb semantics
 
 Both backends use:
 
@@ -872,7 +938,7 @@ Backend-specific scheduling must not change the architectural command stream.
 A difference is a harness bug or simulator/model compatibility issue until
 proven otherwise.
 
-### 13.2 Timing modes
+### 15.2 Timing modes
 
 | Mode | Model | SDF | Purpose |
 | --- | --- | --- | --- |
@@ -887,7 +953,7 @@ normal timing-oriented work, run `typ` first and then `min/max`. Keep all five
 in framework/image qualification because the diagnostic modes isolate model,
 netlist, reset, and harness failures faster than SDF runs.
 
-### 13.3 Unit-delay normalization
+### 15.3 Unit-delay normalization
 
 `GLS_UNIT_DELAY` is a physical request, `1ps` by default. FlexSoC reads the
 selected model `timescale` directives, rounds up to the coarsest representable
@@ -904,7 +970,7 @@ Icarus define         #0.01
 
 The same resolved value is passed to SV and cocotb.
 
-### 13.4 PDK support and the Icarus compatibility view
+### 15.4 PDK support and the Icarus compatibility view
 
 The original PDK library is never edited. FlexSoC stages a run-local derived
 copy under:
@@ -926,7 +992,7 @@ aggregate standard-cell model. The derived aggregate view may:
 The model manifest records transformation counts. This makes compatibility
 explicit and reproducible.
 
-### 13.5 What Icarus GLS proves
+### 15.5 What Icarus GLS proves
 
 It provides strong evidence for:
 
@@ -947,7 +1013,7 @@ Authoritative production timing requires unmodified Liberty/SDC/post-route SPEF
 in STA and, where required, a separately qualified simulator that can consume
 the original PDK timing models without sanitization.
 
-### 13.6 Strict evidence
+### 15.6 Strict evidence
 
 With `SDF_STRICT=1`, an SDF run passes only when:
 
@@ -969,7 +1035,7 @@ dv/functional/sim/post_syn/<pdk>/
 
 No qualification matrix is generated or required.
 
-### 13.7 GLS failure recovery
+### 15.7 GLS failure recovery
 
 | First failure | Likely area | Action |
 | --- | --- | --- |
@@ -986,7 +1052,7 @@ Use `fx check` to identify the exact failed direct GLS report and its evidence.
 
 ---
 
-## 14. Phase 11 — activity-based power from GLS
+## 16. Phase 13 — activity-based power from GLS
 
 `power_estimate` uses primary-input activity assumptions by default. `power_analysis` uses activity from a
 successful SDF-backed GLS test.
@@ -1003,7 +1069,7 @@ fx power_analysis_all \
   --set POWER_TIMING_MODE=typ
 ```
 
-### 14.1 Accepted activity sources
+### 16.1 Accepted activity sources
 
 Only `min`, `typ`, and `max` GLS reports are accepted because they prove that
 back-annotation was requested. `zero` and `unit` are intentionally rejected as
@@ -1014,7 +1080,7 @@ The E2E test runs every generated shared/custom vector explicitly for both
 select additional backend/mode combinations without changing the linear command
 sequence inside pytest.
 
-### 14.2 FST to VCD
+### 16.2 FST to VCD
 
 OpenSTA imports VCD/SAIF, while simulations normally retain compact FST. When the
 qualified wave is FST, FlexSoC automatically runs:
@@ -1029,7 +1095,7 @@ supports older wrappers.
 `fst2vcd` is therefore a required simulation/debug tool and is included with the
 pinned GTKWave toolchain/image.
 
-### 14.3 VCD hierarchy resolution
+### 16.3 VCD hierarchy resolution
 
 OpenSTA uses `/` as the hierarchy separator. `POWER_VCD_SCOPE=auto` inspects the
 VCD and recognizes generated DUT conventions:
@@ -1043,7 +1109,7 @@ For `TOP=test`, the single-clock scope is `test_tb/u_test`. An explicit dotted
 path is normalized only after validation. The run fails before OpenSTA when no
 DUT scope can be resolved.
 
-### 14.4 OpenSTA analysis
+### 16.4 OpenSTA analysis
 
 For each selected test and Liberty corner, the generated Tcl:
 
@@ -1069,7 +1135,7 @@ signoff/<pdk>/power/
 └── analysis/summary.json
 ```
 
-### 14.5 What activity power proves
+### 16.5 What activity power proves
 
 It is a stronger post-synthesis workload reference than vectorless estimation.
 Each workload is an aligned pre-layout sign-off scenario: `_ff` consumes FF/min activity, `_tt` consumes TT/typ activity, and `_ss` consumes SS/max activity. The workload suffix therefore identifies the Liberty corner used for the single `power.rpt`; cross-corner activity experiments are not part of the default closure flow.
@@ -1078,7 +1144,7 @@ It is not final silicon power sign-off because it does not yet include the final
 clock tree, post-route glitch behavior, extracted interconnect capacitance,
 representative system workloads, voltage-drop effects, or rail analysis.
 
-### 14.6 Power failure recovery
+### 16.6 Power failure recovery
 
 | Failure | Repair |
 | --- | --- |
@@ -1091,7 +1157,7 @@ representative system workloads, voltage-drop effects, or rail analysis.
 
 ---
 
-## 15. Phase 12 — metrics, closure, and release
+## 17. Phase 14 — metrics, closure, and release
 
 ```bash
 fx manifest
@@ -1099,19 +1165,20 @@ fx metrics
 fx check
 ```
 
-### 15.1 Manifest
+### 17.1 Manifest
 
 `manifest.json` records run identity, Git state, FlexSoC/Python/platform data,
-lock hashes, tool versions, PDK, and artifact paths. It answers: **what produced
+lock hashes, tool versions, PDK, artifact paths, and lightweight verification
+evidence for lint and the post-lint CDC/RDC analysis. It answers: **what produced
 this run?**
 
-### 15.2 Metrics
+### 17.2 Metrics
 
-`metrics.json` collects structured evidence from lint, regression, coverage,
-formal, synthesis, equivalence, SDF, STA, vectorless power, GLS qualification,
-and activity power. It answers: **what did the run achieve?**
+`metrics.json` collects structured evidence from lint, CDC/RDC, formal,
+regression/coverage, synthesis, equivalence, SDF, STA, vectorless power, GLS
+qualification, and activity power. It answers: **what did the run achieve?**
 
-### 15.3 Check
+### 17.3 Check
 
 `fx check` refreshes metrics and renders the human-readable closure summary. It
 keeps evidence classes separate:
@@ -1126,7 +1193,7 @@ A standard closure PASS still does not imply final production physical sign-off.
 Review warnings, unconstrained timing paths, coverage, waivers, and current flow
 limitations in addition to the summary word.
 
-### 15.4 Automatic setup policy
+### 17.4 Automatic setup policy
 
 Normal CLI use favors convenience for generated script/configuration flows: `fx syn`, `fx eqy`, `fx sdf`, `fx sta`, `fx power_estimate`, `fx pnr`, and the formal execution targets prepend their matching setup commands. Functional and gate-level simulation never prepend `setup_tb` or `setup_cocotb`; those remain visible user steps, including after each PDK switch. The prepended targets do not fabricate earlier analysis results.
 
@@ -1142,16 +1209,22 @@ fx eqy --no-setup
 
 This keeps every step readable while retaining convenient one-command interactive use.
 
-### 15.5 Save reusable IP
+### 17.5 Save reusable IP
 
 ```bash
 fx ip_save --set IP_NAME=<name>
+# If the package destinations already exist and are intentionally being refreshed:
+fx ip_save --force --set IP_NAME=<name>
 ```
 
-`ip_save` updates only the selected technology branch. In addition to the portable
-EQY profile, it retains the generated Tcl used for STA, timing-violator review,
-SDF export, vectorless power estimation, and every completed activity-power
-analysis:
+Without `--force`, `ip_save` refuses any overwrite, prints every conflicting
+relative package path, and leaves the package unchanged. With `--force`, it
+atomically refreshes only the destinations backed by the current run and selected
+PDK; branches belonging to other technologies remain untouched, and an optional
+`impl/<pdk>` already in the package is preserved when the current run has no new
+implementation. In addition to the portable EQY profile, it retains the generated
+Tcl used for STA, timing-violator review, SDF export, vectorless power estimation,
+and every completed activity-power analysis:
 
 ```text
 signoff/<pdk>/equivalence/rtl_vs_syn/
@@ -1161,11 +1234,14 @@ signoff/<pdk>/power/estimate/power_estimate.tcl
 signoff/<pdk>/power/analysis/power_analysis.tcl
 ```
 
-Logs, reports, generated SDF files, converted activity files, and waveforms are
-not copied. Run `ip_save` once after each technology branch; the second save
-preserves the first PDK. The Tcl files are exact script snapshots, so a loaded
-IP must rerun `setup_signoff` and the relevant `power_analysis` commands to bind
-paths to its new workspace and PDK installation.
+Final `.rpt`, `.json`, and `.sdf` sign-off evidence is retained in its native
+hierarchy together with selected post-synthesis GLS JSON and compact coverage
+summaries. Logs, waveforms, converted activity files, hidden transient sign-off
+files, RTLIL debug checkpoints, and Python caches are not copied. Run `ip_save`
+after each technology branch; use `--force` when refreshing destinations that
+already exist. The Tcl files are exact script snapshots, so a loaded IP must
+rerun `setup_signoff` and the relevant analysis commands to bind paths to its new
+workspace and PDK installation.
 
 
 Tests must never use the default repository library. The E2E suite passes a temporary `IP_LIBRARY_ROOT` and verifies that the complete `hw/ips/<name>` tree is unchanged after both PDK saves.
@@ -1175,15 +1251,15 @@ constraints, and sign-off assumptions.
 
 ---
 
-## 16. Change-impact recipes
+## 18. Change-impact recipes
 
-### 16.1 CSR-only change
+### 18.1 CSR-only change
 
 ```bash
 fx reg doc regmap_py --force
 fx top_from_core flist --force
 fx tests_gen --force
-fx lint_suite regression formal
+fx lint_suite cdc_rdc formal regression
 fx syn eqy --force
 fx sdf sta power_estimate --force
 ```
@@ -1191,12 +1267,13 @@ fx sdf sta power_estimate --force
 Rerun representative GLS and activity power when the CSR affects runtime
 configuration or switching.
 
-### 16.2 RTL behavior or latency change
+### 18.2 RTL behavior or latency change
 
 ```bash
 fx flist lint_suite --force
-fx tests_gen regression --force
+fx cdc_rdc
 fx formal
+fx tests_gen regression --force
 fx syn eqy --force
 fx sdf sta power_estimate --force
 ```
@@ -1204,27 +1281,27 @@ fx sdf sta power_estimate --force
 Then qualify GLS. Start with `zero`, use `unit` if timing-ordering assumptions
 are suspect, and run `typ,min,max` for SDF evidence.
 
-### 16.3 Port change
+### 18.3 Port change
 
 ```bash
 fx top_from_core flist setup_tb setup_cocotb --force
-fx lint_suite regression formal
+fx lint_suite cdc_rdc formal regression
 fx syn eqy sdf sta power_estimate --force
 ```
 
-### 16.4 Clock/reset change
+### 18.4 Clock/reset change
 
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
 fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
-fx flist lint_suite regression formal
+fx flist lint_suite cdc_rdc formal regression
 fx syn eqy sdf sta power_estimate --force
 ```
 
 Review CDC/RDC and rerun every selected GLS command because reset and sampling behavior
 changed.
 
-### 16.5 Test/model change
+### 18.5 Test/model change
 
 ```bash
 fx tests_gen --force
@@ -1236,7 +1313,7 @@ If the new test is intended for GLS/power qualification, rerun the selected GLS
 modes and `power_analysis_all` so the direct reports and workload summary stay
 complete.
 
-### 16.6 Constraint-only change
+### 18.6 Constraint-only change
 
 ```bash
 fx setup_syn setup_eqy setup_signoff --force
@@ -1248,7 +1325,7 @@ be reviewed even when RTL is untouched.
 
 ---
 
-## 17. Complete single-clock qualification example
+## 19. Complete single-clock qualification example
 
 ```bash
 PDK_NAME=ihp-sg13g2
@@ -1280,7 +1357,7 @@ result is immediately analyzed by its own `fx power_analysis` command.
 
 ---
 
-## 18. Production-grade evidence hierarchy
+## 20. Production-grade evidence hierarchy
 
 The current framework can provide reproducible logical verification,
 post-synthesis path-delay GLS, and activity-based power references. A true
@@ -1305,7 +1382,7 @@ retaining that distinction rather than labelling every PASS as equivalent.
 
 ---
 
-## 19. Practical troubleshooting rule
+## 21. Practical troubleshooting rule
 
 When a stage fails:
 
