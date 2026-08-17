@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/sky130/cordic_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/cordic.sdc
+#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v
+#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/power/estimate/ff
+#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/estimate/ff
 #
 # Limitations:
 #   - This is a vectorless estimate; it does not represent a simulated workload.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/power/estimate/ff}
+set report_dir {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/estimate/ff}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/sky130/cordic_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/cordic.sdc}
+set netlist {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v}
+set sdc {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -160,9 +160,6 @@ flexsoc_append_opensta $report report_units
 flexsoc_section $report {Constraint validation}
 # Append timing-setup diagnostics because power must use the same correctly linked and constrained design.
 flexsoc_append_opensta $report check_setup -verbose
-flexsoc_section $report {Activity annotation}
-# Show which design objects received switching activity and which remain unannotated.
-flexsoc_append_opensta $report report_activity_annotation -report_annotated -report_unannotated
 flexsoc_section $report {Power summary}
 # Report average internal, switching, leakage, and total cell power for the complete design.
 flexsoc_append_opensta $report report_power

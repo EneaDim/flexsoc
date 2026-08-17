@@ -14,8 +14,12 @@ from rich.syntax import Syntax
 
 _ANSI = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 _ORANGE = "\x1b[38;5;208m"
+_BLUE = "\x1b[94m"
+_GREEN = "\x1b[92m"
+_RED = "\x1b[91m"
 _GRAY = "\x1b[90m"
 _RESET = "\x1b[0m"
+_STRUCTURED = re.compile(r"^\s*\[(log|script|report|technology)\]\s*(.*?)(?:\r?\n)?$")
 
 
 def strip_ansi(text: str) -> str:
@@ -58,10 +62,69 @@ def print_path_label(
     text = f"{resolved}" + (f" · {suffix}" if suffix else "")
     use_color = color_enabled(stream) if color is None else color
     if use_color:
-        print(f"{_ORANGE}[{label}]{_RESET} {_GRAY}{text}{_RESET}", file=stream)
+        print(f"{_ORANGE}[{label}]{_RESET} {_BLUE}{text}{_RESET}", file=stream)
     else:
         print(f"[{label}] {text}", file=stream)
 
+
+
+def print_target_start(
+    target: str,
+    description: str,
+    *,
+    stream: TextIO | None = None,
+    color: bool | None = None,
+) -> None:
+    """Print the uniform header emitted before every CLI target."""
+
+    stream = stream or sys.stdout
+    use_color = color_enabled(stream) if color is None else color
+    if use_color:
+        print(f"{_ORANGE}→ {target}{_RESET}: {_BLUE}{description}{_RESET}", file=stream, flush=True)
+    else:
+        print(f"→ {target}: {description}", file=stream, flush=True)
+
+
+def print_target_result(
+    target: str,
+    returncode: int,
+    *,
+    stream: TextIO | None = None,
+    color: bool | None = None,
+) -> None:
+    """Print the uniform completion line emitted after every CLI target."""
+
+    stream = stream or sys.stdout
+    use_color = color_enabled(stream) if color is None else color
+    ok = returncode == 0
+    mark = "✓" if ok else "✗"
+    suffix = "done" if ok else f"failed ({returncode})"
+    if use_color:
+        status = _GREEN if ok else _RED
+        print(
+            f"{status}{mark}{_RESET} {_ORANGE}{target}{_RESET}: {status}{suffix}{_RESET}",
+            file=stream,
+            flush=True,
+        )
+    else:
+        print(f"{mark} {target}: {suffix}", file=stream, flush=True)
+
+
+def print_label(
+    label: str,
+    text: str,
+    *,
+    stream: TextIO | None = None,
+    color: bool | None = None,
+) -> None:
+    """Print one uniform FlexSoC label/value line."""
+
+    stream = stream or sys.stdout
+    use_color = color_enabled(stream) if color is None else color
+    if use_color:
+        print(f"{_ORANGE}[{label}]{_RESET} {_BLUE}{text}{_RESET}", file=stream, flush=True)
+    else:
+        print(f"[{label}] {text}", file=stream, flush=True)
 
 def print_script(
     path: Path,
@@ -113,6 +176,11 @@ def print_live_line(
     stream = stream or sys.stdout
     use_color = color_enabled(stream) if color is None else color
     plain = strip_ansi(line)
+    structured = _STRUCTURED.match(plain)
+    if structured:
+        label, text = structured.groups()
+        print_label(label, text, stream=stream, color=use_color)
+        return
     if use_color:
         stream.write(line if _ANSI.search(line) else f"{_GRAY}{plain}{_RESET}")
     else:

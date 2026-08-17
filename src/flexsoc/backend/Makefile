@@ -1608,27 +1608,29 @@ sdf: ## Write one SDF timing file per configured corner
 
 power_estimate: power_estimate_corners ## Estimate power for every configured corner
 
-power_analysis: ## Analyze one qualified GLS workload with OpenSTA
+power_analysis: ## Analyze one qualified GLS workload in its aligned FF/min, TT/typ, or SS/max scenario
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff activity --analysis power_analysis --action single $(SIGNOFF_PY_ARGS) \
 		--test-name "$(or $(POWER_TEST_NAME),$(TEST_NAME))" \
 		--gls-backend "$(or $(POWER_GLS_BACKEND),$(GLS_BACKEND),sv)" \
 		--timing-mode "$(or $(POWER_TIMING_MODE),$(TIMING_MODE),typ)"
 
-power_analysis_all: ## Analyze all matching qualified GLS workloads with OpenSTA
+power_analysis_all: ## Analyze all matching qualified GLS workloads in aligned sign-off scenarios
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff activity --analysis power_analysis --action all $(SIGNOFF_PY_ARGS) \
 		--test-names "$(or $(POWER_TEST_NAMES),all)" \
+		--gls-backend "$(or $(POWER_GLS_BACKEND),$(GLS_BACKEND),sv)" \
 		--gls-backends "$(or $(POWER_GLS_BACKENDS),all)" \
 		--timing-modes "$(or $(POWER_TIMING_MODES),all)"
 
-fusion_analysis: ## Correlate timing and workload power for one qualified GLS trace
+fusion_analysis: ## Correlate timing and workload power in one aligned sign-off scenario
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff activity --analysis fusion_analysis --action single $(SIGNOFF_PY_ARGS) \
 		--test-name "$(or $(POWER_TEST_NAME),$(TEST_NAME))" \
 		--gls-backend "$(or $(POWER_GLS_BACKEND),$(GLS_BACKEND),sv)" \
 		--timing-mode "$(or $(POWER_TIMING_MODE),$(TIMING_MODE),typ)"
 
-fusion_analysis_all: ## Correlate timing and workload power for all matching GLS traces
+fusion_analysis_all: ## Correlate timing and workload power for all aligned GLS scenarios
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_signoff activity --analysis fusion_analysis --action all $(SIGNOFF_PY_ARGS) \
 		--test-names "$(or $(POWER_TEST_NAMES),all)" \
+		--gls-backend "$(or $(POWER_GLS_BACKEND),$(GLS_BACKEND),sv)" \
 		--gls-backends "$(or $(POWER_GLS_BACKENDS),all)" \
 		--timing-modes "$(or $(POWER_TIMING_MODES),all)"
 
@@ -1798,6 +1800,35 @@ ip_save: ## Save reusable current-PDK collateral and qualification metadata into
 		target="$$staged/signoff/$$pdk/$${relative#./}"; mkdir -p "$${target%/*}"; cp -p "$$relative" "$$target"; \
 	done; \
 	cd "$(REPO_ROOT)"; \
+	signoff_result_count=0; \
+	if [ -d "$(SIGNOFF_PDK_DIR)" ]; then \
+		cd "$(SIGNOFF_PDK_DIR)"; \
+		find . -type f \
+			\( -name '*.rpt' -o -name '*.json' -o -name '*.sdf' \) \
+			! -name '.*' -print | sort | while IFS= read -r relative; do \
+			target="$$staged/signoff/$$pdk/$${relative#./}"; mkdir -p "$${target%/*}"; cp -p "$$relative" "$$target"; \
+		done; \
+		signoff_result_count=$$(find . -type f \
+			\( -name '*.rpt' -o -name '*.json' -o -name '*.sdf' \) \
+			! -name '.*' -print | wc -l); \
+		cd "$(REPO_ROOT)"; \
+	fi; \
+	rm -rf "$$staged/dv/functional/sim/post_syn/$$pdk"; gls_report_count=0; \
+	if [ -d "$(POST_SYN_SIMDIR)" ]; then \
+		mkdir -p "$$staged/dv/functional/sim/post_syn/$$pdk"; \
+		for report in "$(POST_SYN_SIMDIR)"/*.json; do \
+			[ -f "$$report" ] || continue; cp -p "$$report" "$$staged/dv/functional/sim/post_syn/$$pdk/"; \
+			gls_report_count=$$((gls_report_count + 1)); \
+		done; \
+		if [ "$$gls_report_count" -eq 0 ]; then rmdir "$$staged/dv/functional/sim/post_syn/$$pdk" 2>/dev/null || true; fi; \
+	fi; \
+	rm -rf "$$staged/dv/functional/coverage"; \
+	if [ -d "$(COVERAGEDIR)" ]; then \
+		mkdir -p "$$staged/dv/functional/coverage"; \
+		for report in "$(COVERAGEDIR)/summary.txt" "$(COVERAGEDIR)/summary.json"; do \
+			[ -f "$$report" ] || continue; cp -p "$$report" "$$staged/dv/functional/coverage/"; \
+		done; \
+	fi; \
 	meta_status=not_available; manifest_status=missing; metrics_status=missing; \
 	if [ -f "$(MANIFEST_JSON)" ] || [ -f "$(METRICS_JSON)" ]; then \
 		mkdir -p "$$staged/meta/$$pdk"; \
@@ -1815,7 +1846,7 @@ ip_save: ## Save reusable current-PDK collateral and qualification metadata into
 	mv "$$staged" "$$ip_root"; backed_up=0; rm -rf "$$backup" "$$temporary"; \
 	trap - EXIT HUP INT TERM; \
 	tcl_count=$$(find "$$ip_root/signoff/$$pdk" -type f -name '*.tcl' | wc -l); \
-	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · syn=copied · impl=$$impl_status · signoff=copied · meta=$$meta_status · Tcl=$$tcl_count"
+	printf "%b\n" "$(GREEN)[ip_save]$(RESET) IP=$(IP_NAME) PDK=$(PDK) · syn=copied · impl=$$impl_status · signoff=copied · gls=$$gls_report_count · results=$$signoff_result_count · meta=$$meta_status · Tcl=$$tcl_count"
 
 # ============================================================================
 # 13. SoC, FuseSoC, XBAR and software flow

@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc
+#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
+#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/sdf/ff
+#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/sdf/ff
 #
 # Limitations:
 #   - SDF reflects the linked netlist and timing model for the selected corner.
@@ -42,12 +42,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/sdf/ff}
+set report_dir {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/sdf/ff}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc}
+set netlist {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v}
+set sdc {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -139,7 +139,7 @@ check_setup -verbose
 puts "=== Step 7/7: Analysis-specific reporting ==="
 
 # write_sdf serializes the linked timing model for gate-level simulation.
-set sdf_file {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/sdf/ff/cordic_ff.sdf}
+set sdf_file {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/sdf/ff/cordic_ff.sdf}
 puts "sdf=$sdf_file"
 write_sdf -divider . -include_typ $sdf_file
 puts {FLEXSOC_SIGNOFF_COMPLETE analysis=sdf corner=ff mode=n/a workload=n/a}

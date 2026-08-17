@@ -6,21 +6,21 @@
 # Variant  : dev
 # PDK      : sky130
 # Stage    : post_syn
-# Corner   : ff
+# Corner   : ss
 # Mode     : not applicable
-# Workload : smoke_zero_sv_typ
+# Workload : smoke_zero_sv_ss
 # Top      : cordic
 #
 # Inputs:
-#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/sky130/cordic_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/cordic.sdc
+#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v
+#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_smoke_zero_sv_typ.vcd
+#   VCD or SAIF   : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_smoke_zero_sv_ss.vcd
 #   Activity scope: cordic_tb/u_cordic
-#   GLS report    : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/dv/functional/sim/post_syn/sky130/cordic_post_syn_smoke_zero_sv_typ.json
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/power/analysis/smoke_zero_sv_typ/ff
+#   GLS report    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/dv/functional/sim/post_syn/sky130/cordic_post_syn_smoke_zero_sv_ss.json
+#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/analysis/smoke_zero_sv_ss
 #
 # Limitations:
 #   - Power is average cell power derived from the selected Liberty models and annotated activity.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/power/analysis/smoke_zero_sv_typ/ff}
+set report_dir {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/analysis/smoke_zero_sv_ss}
 file mkdir $report_dir
-set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib}
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/sky130/cordic_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/cordic.sdc}
+set netlist {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v}
+set sdc {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -136,9 +136,71 @@ proc flexsoc_append_opensta {path args} {
 puts "=== Step 6/7: Validate timing setup ==="
 # Validate clocks, endpoints, constraints, and timing relationships before generating reports.
 check_setup -verbose
+proc flexsoc_append_activity_coverage {path} {
+  # Keep activity evidence compact: percentage plus only the pins that were not annotated.
+  set capture [file join [file dirname $path] .flexsoc_activity_annotation.rpt]
+  file delete -force $capture
+  log_begin $capture
+  set code [catch {report_activity_annotation -report_unannotated} result options]
+  log_end
+  if {$code != 0} {
+    file delete -force $capture
+    return -options $options $result
+  }
+  if {![file exists $capture]} {error {activity annotation report was not captured}}
+  set src [open $capture r]
+  set text [read $src]
+  close $src
+  file delete -force $capture
+  set annotated 0
+  set unannotated 0
+  set have_annotated 0
+  set have_unannotated 0
+  set in_unannotated 0
+  set unannotated_pins {}
+  foreach line [split $text "\n"] {
+    if {[regexp {^[[:space:]]*(vcd|saif|input)[[:space:]]+([0-9]+)[[:space:]]*$} $line -> origin count]} {
+      incr annotated $count
+      set have_annotated 1
+      continue
+    }
+    if {[regexp {^[[:space:]]*unannotated[[:space:]]+([0-9]+)[[:space:]]*$} $line -> count]} {
+      set unannotated $count
+      set have_unannotated 1
+      continue
+    }
+    if {[regexp -nocase {^[[:space:]]*Annotated[[:space:]]+([0-9]+).*activities} $line -> count]} {
+      set annotated $count
+      set have_annotated 1
+      continue
+    }
+    if {[regexp -nocase {^[[:space:]]*Unannotated[[:space:]]+([0-9]+).*activities} $line -> count]} {
+      set unannotated $count
+      set have_unannotated 1
+      continue
+    }
+    if {[regexp {^Unannotated pins:[[:space:]]*$} $line]} {
+      set in_unannotated 1
+      continue
+    }
+    if {$in_unannotated && [string trim $line] ne ""} {lappend unannotated_pins [string trim $line]}
+  }
+  if {!$have_annotated || !$have_unannotated} {error {could not parse OpenSTA activity annotation summary}}
+  set total [expr {$annotated + $unannotated}]
+  set percent [expr {$total > 0 ? 100.0 * $annotated / $total : 0.0}]
+  set dst [open $path a]
+  puts $dst [format {annotated_percent=%.2f%%} $percent]
+  if {[llength $unannotated_pins] == 0} {
+    puts $dst {Unannotated pins: none}
+  } else {
+    puts $dst {Unannotated pins:}
+    foreach pin $unannotated_pins {puts $dst " $pin"}
+  }
+  close $dst
+}
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_smoke_zero_sv_typ.vcd}
+set activity_file {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_smoke_zero_sv_ss.vcd}
 set activity_scope {cordic_tb/u_cordic}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
@@ -159,10 +221,10 @@ if {$activity_ext eq ".saif"} {
 # Create one compact workload-driven power report after GLS activity has been annotated.
 set report [file join $report_dir power.rpt]
 set fp [open $report w]
-puts $fp "analysis=power_analysis corner=ff stage=post_syn"
-puts $fp "workload=smoke_zero_sv_typ"
-puts $fp "gls_report=/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/dv/functional/sim/post_syn/sky130/cordic_post_syn_smoke_zero_sv_typ.json"
-puts $fp "activity_file=/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_smoke_zero_sv_typ.vcd"
+puts $fp "analysis=power_analysis corner=ss stage=post_syn"
+puts $fp "workload=smoke_zero_sv_ss"
+puts $fp "gls_report=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/dv/functional/sim/post_syn/sky130/cordic_post_syn_smoke_zero_sv_ss.json"
+puts $fp "activity_file=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_smoke_zero_sv_ss.vcd"
 puts $fp "activity_scope=cordic_tb/u_cordic"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
@@ -176,8 +238,8 @@ flexsoc_section $report {Constraint validation}
 # Append timing-setup diagnostics because power must use the same correctly linked and constrained design.
 flexsoc_append_opensta $report check_setup -verbose
 flexsoc_section $report {Activity annotation}
-# Show which design objects received switching activity and which remain unannotated.
-flexsoc_append_opensta $report report_activity_annotation -report_annotated -report_unannotated
+# Report annotation coverage as one percentage and list only pins missing direct VCD/SAIF activity.
+flexsoc_append_activity_coverage $report
 flexsoc_section $report {Power summary}
 # Report average internal, switching, leakage, and total cell power for the complete design.
 flexsoc_append_opensta $report report_power
@@ -185,4 +247,4 @@ flexsoc_section $report {Highest-power instances}
 # Rank the highest-power instances to expose the dominant contributors in this corner/workload.
 flexsoc_append_opensta $report report_power -highest_power_instances 20
 puts "report=$report"
-puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_analysis corner=ff mode=n/a workload=smoke_zero_sv_typ}
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_analysis corner=ss mode=n/a workload=smoke_zero_sv_ss}

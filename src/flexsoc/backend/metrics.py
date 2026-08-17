@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
+from flexsoc.backend.setup_signoff import SDF_MODE_TO_CORNER
 from flexsoc.run_layout import pdk_run_layout
 
 
@@ -623,6 +624,23 @@ def _json_object(path: Path) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _gls_scenario(mode: str) -> str:
+    """Return the user-facing GLS scenario while retaining zero/unit as DV modes."""
+
+    return SDF_MODE_TO_CORNER.get(mode, mode)
+
+
+def _activity_scenario(report: dict[str, Any], fallback: str = "-") -> str:
+    """Return the PVT scenario recorded by one activity analysis report."""
+
+    scenario = report.get("scenario")
+    if isinstance(scenario, dict):
+        return str(scenario.get("corner", fallback))
+    if scenario:
+        return str(scenario)
+    return _gls_scenario(str(report.get("timing_mode", fallback)))
+
+
 def _gls_group(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """Summarize one subset of archived GLS qualification records."""
 
@@ -645,6 +663,49 @@ def _gls_group(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "failed": failed,
         "missing": missing,
     }
+
+
+def _gls_scenario_records(records: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse backend alternatives into one qualification result per test/scenario."""
+
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for record in records:
+        grouped.setdefault(
+            (str(record.get("test", "")), str(record.get("timing_mode", ""))), []
+        ).append(record)
+
+    scenarios: list[dict[str, Any]] = []
+    mode_order = {mode: index for index, mode in enumerate(("zero", "unit", "min", "typ", "max"))}
+    backend_order = {"sv": 0, "cocotb": 1}
+    for (test, mode), candidates in sorted(
+        grouped.items(), key=lambda item: (mode_order.get(item[0][1], 99), item[0][0])
+    ):
+        ordered = sorted(
+            candidates, key=lambda record: backend_order.get(str(record.get("backend", "")), 99)
+        )
+        passing = [record for record in ordered if record.get("status") == "pass"]
+        selected = passing[0] if passing else ordered[0]
+        failures = [record for record in ordered if record.get("status") != "pass"]
+        scenarios.append(
+            {
+                "stem": f"{test}_{_gls_scenario(mode)}",
+                "test": test,
+                "timing_mode": mode,
+                "scenario": _gls_scenario(mode),
+                "status": "pass" if passing else "fail",
+                "backend": selected.get("backend") if passing else None,
+                "available_backends": [record.get("backend") for record in ordered],
+                "failed_backends": [record.get("backend") for record in failures],
+                "reason": None if passing else "; ".join(
+                    f"{record.get('backend')}: {record.get('reason') or 'not qualified'}"
+                    for record in failures
+                ),
+                "report": selected.get("report"),
+                "log": selected.get("log"),
+                "wave": selected.get("wave"),
+            }
+        )
+    return scenarios
 
 
 def _gls_report_reason(
@@ -685,7 +746,7 @@ def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | 
     if not report_paths:
         return None
 
-    records: list[dict[str, Any]] = []
+    record_map: dict[tuple[str, str, str], tuple[bool, dict[str, Any]]] = {}
     for report_path in report_paths:
         report = _json_object(report_path)
         if report.get("stage") != "post_syn":
@@ -710,19 +771,24 @@ def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | 
             mode=mode,
             wave_path=wave_path,
         )
-        records.append(
-            {
-                "stem": report_path.stem,
-                "test": test_name,
-                "backend": backend,
-                "timing_mode": mode,
-                "status": "fail" if reason else "pass",
-                "reason": reason,
-                "report": relative(report_path, run_dir),
-                "log": relative(log_path, run_dir) if raw_log and log_path.is_file() else None,
-                "wave": relative(wave_path, run_dir) if raw_wave and wave_path.is_file() else None,
-            }
-        )
+        record = {
+            "stem": report_path.stem,
+            "test": test_name,
+            "backend": backend,
+            "timing_mode": mode,
+            "scenario": str(report.get("scenario") or _gls_scenario(mode)),
+            "status": "fail" if reason else "pass",
+            "reason": reason,
+            "report": relative(report_path, run_dir),
+            "log": relative(log_path, run_dir) if raw_log and log_path.is_file() else None,
+            "wave": relative(wave_path, run_dir) if raw_wave and wave_path.is_file() else None,
+        }
+        key = (test_name, backend, mode)
+        canonical = report_path.stem.endswith(f"_{backend}_{_gls_scenario(mode)}")
+        previous = record_map.get(key)
+        if previous is None or (canonical and not previous[0]):
+            record_map[key] = (canonical, record)
+    records = [entry[1] for entry in record_map.values()]
     if not records:
         return None
 
@@ -733,17 +799,24 @@ def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | 
         for mode in ("zero", "unit", "min", "typ", "max")
         if any(record["timing_mode"] == mode for record in records)
     ]
-    summary = _gls_group(records)
+    scenarios = _gls_scenario_records(records)
+    summary = _gls_group(scenarios)
     by_backend = {
         backend: _gls_group([record for record in records if record["backend"] == backend])
         for backend in backends
     }
     by_mode = {
-        mode: _gls_group([record for record in records if record["timing_mode"] == mode])
+        mode: _gls_group([record for record in scenarios if record["timing_mode"] == mode])
+        for mode in modes
+    }
+    by_scenario = {
+        _gls_scenario(mode): _gls_group(
+            [record for record in scenarios if record["timing_mode"] == mode]
+        )
         for mode in modes
     }
     by_test = {
-        test_name: _gls_group([record for record in records if record["test"] == test_name])
+        test_name: _gls_group([record for record in scenarios if record["test"] == test_name])
         for test_name in tests
     }
     return {
@@ -752,12 +825,16 @@ def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | 
         "tests": tests,
         "backends": backends,
         "timing_modes": modes,
+        "scenarios": [_gls_scenario(mode) for mode in modes],
         "artifacts": relative(layout.post_syn_sim_dir, run_dir),
         "by_backend": by_backend,
         "by_mode": by_mode,
+        "by_scenario": by_scenario,
         "by_test": by_test,
         "records": records,
-        "failures": [record for record in records if record["status"] != "pass"],
+        "scenario_records": scenarios,
+        "failures": [record for record in scenarios if record["status"] != "pass"],
+        "backend_failures": [record for record in records if record["status"] != "pass"],
     }
 
 
@@ -890,7 +967,7 @@ def collect_metrics(
     selected_pdk = pdk or "sky130"
     layout = pdk_run_layout(run_dir, pdk=selected_pdk, top=top)
     metrics: dict[str, Any] = {
-        "schema_version": 10,
+        "schema_version": 12,
         "top": top,
         "run_root": str(run_dir.resolve()),
         "technology": {
@@ -1258,7 +1335,12 @@ def show_metrics(path: Path) -> None:
         )
         table.add_row("Tests", ", ".join(str(value) for value in gls.get("tests", [])) or "-")
         table.add_row("Backends", ", ".join(str(value) for value in gls.get("backends", [])) or "-")
-        table.add_row("Timing modes", ", ".join(str(value) for value in gls.get("timing_modes", [])) or "-")
+        table.add_row(
+            "Scenarios",
+            ", ".join(str(value) for value in gls.get("scenarios", []))
+            or ", ".join(_gls_scenario(str(value)) for value in gls.get("timing_modes", []))
+            or "-",
+        )
         table.add_row("Artifacts", str(gls.get("artifacts", "-")))
         console.print(table)
 
@@ -1267,10 +1349,11 @@ def show_metrics(path: Path) -> None:
         modes = [str(value) for value in gls.get("timing_modes", [])]
         if records and backends and modes:
             matrix = Table(box=None, pad_edge=False, header_style="bold cyan")
-            matrix.add_column("Mode", style="white", no_wrap=True)
+            matrix.add_column("Scenario", style="white", no_wrap=True)
             for backend in backends:
                 matrix.add_column(backend, justify="right", no_wrap=True)
-            matrix.add_column("Total", justify="right", no_wrap=True)
+            matrix.add_column("Closure", justify="right", no_wrap=True)
+            scenario_records = gls.get("scenario_records", [])
             for mode in modes:
                 row = [record for record in records if record.get("timing_mode") == mode]
                 cells = []
@@ -1280,11 +1363,14 @@ def show_metrics(path: Path) -> None:
                         f"{group['passed']}/{group['total']} "
                         + status_markup(str(group["status"]))
                     )
-                total = _gls_group(row)
+                scenario_group = _gls_group(
+                    [record for record in scenario_records if record.get("timing_mode") == mode]
+                )
                 matrix.add_row(
-                    mode,
+                    _gls_scenario(mode),
                     *cells,
-                    f"{total['passed']}/{total['total']} " + status_markup(str(total["status"])),
+                    f"{scenario_group['passed']}/{scenario_group['total']} "
+                    + status_markup(str(scenario_group["status"])),
                 )
             console.print("\n[bold cyan]Post-synthesis GLS results[/bold cyan]")
             console.print(matrix)
@@ -1321,23 +1407,33 @@ def show_metrics(path: Path) -> None:
         table.add_column("Backend")
         table.add_column("GLS")
         table.add_column("Corner")
-        table.add_column("Annotated", justify="right")
+        table.add_column("Activity", justify="right")
         table.add_column("Total W", justify="right")
         table.add_column("Status")
         for report in power_activity.get("reports", []):
             corners = report.get("corners", {}) if isinstance(report, dict) else {}
             if not corners:
                 table.add_row(
-                    str(report.get("test", "-")), str(report.get("backend", "-")),
-                    str(report.get("timing_mode", "-")), "-", "-", "-",
+                    str(report.get("test", "-")),
+                    str(report.get("backend", "-")),
+                    _activity_scenario(report),
+                    "-",
+                    "-",
+                    "-",
                     status_markup(str(report.get("status", "fail"))),
                 )
                 continue
             for corner, values in corners.items():
                 table.add_row(
-                    str(report.get("test", "-")), str(report.get("backend", "-")),
-                    str(report.get("timing_mode", "-")), str(corner),
-                    str(values.get("activity_annotation_count", "-")),
+                    str(report.get("test", "-")),
+                    str(report.get("backend", "-")),
+                    _activity_scenario(report, str(corner)),
+                    str(corner),
+                    (
+                        f"{float(values['activity_annotation_percent']):.2f}%"
+                        if isinstance(values.get("activity_annotation_percent"), int | float)
+                        else str(values.get("activity_annotation_count", "-"))
+                    ),
                     str(values.get("total_w", "-")),
                     status_markup(str(values.get("status", "unknown"))),
                 )

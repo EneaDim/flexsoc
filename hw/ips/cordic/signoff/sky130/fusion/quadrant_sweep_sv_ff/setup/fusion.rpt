@@ -1,0 +1,1034 @@
+analysis=fusion_analysis corner=ff mode=setup stage=post_syn
+workload=quadrant_sweep_sv_ff
+methodology=staged_public_opensta
+path_power_semantics=average_instance_power_in_same_analysis_context
+activity_file=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_quadrant_sweep_sv_ff.vcd
+activity_scope=cordic_tb/u_cordic
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib
+netlist=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v
+sdc=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1mA
+ power 1nW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Timing summary ===
+wns max wns max 0.00
+tns max tns max 0.00
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             1.41e-03   4.33e-06   4.49e-09   1.41e-03  94.4%
+Combinational          3.52e-05   4.83e-05   8.63e-09   8.34e-05   5.6%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  1.44e-03   5.26e-05   1.31e-08   1.50e-03 100.0%
+                          96.5%       3.5%       0.0%
+
+=== Worst timing paths (violated or met) ===
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4436_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2597_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2597_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0253_ (net)
+                      0.163423    0.000000    4.016475 ^ _4436_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4436_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4437_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2595_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2595_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0252_ (net)
+                      0.163423    0.000000    4.016475 ^ _4437_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4437_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4438_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2593_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2593_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0251_ (net)
+                      0.163423    0.000000    4.016475 ^ _4438_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4438_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4439_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2591_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2591_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0250_ (net)
+                      0.163423    0.000000    4.016475 ^ _4439_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4439_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4440_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2589_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2589_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0249_ (net)
+                      0.163423    0.000000    4.016475 ^ _4440_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4440_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4441_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2587_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2587_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0248_ (net)
+                      0.163423    0.000000    4.016475 ^ _4441_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4441_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4442_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2585_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2585_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0247_ (net)
+                      0.163423    0.000000    4.016475 ^ _4442_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4442_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4443_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2583_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2583_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0246_ (net)
+                      0.163423    0.000000    4.016475 ^ _4443_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4443_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4444_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2581_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2581_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0245_ (net)
+                      0.163423    0.000000    4.016475 ^ _4444_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4444_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: tl_i[64] (input port clocked by core)
+Endpoint: _4445_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 v input external delay
+     2    0.005179    0.000000    0.000000    2.000000 v tl_i[64] (in)
+                                                         tl_i[64] (net)
+                      0.000000    0.000000    2.000000 v _4367_/A (sky130_fd_sc_hd__nor2_1)
+     2    0.005605    0.088499    0.078984    2.078984 ^ _4367_/Y (sky130_fd_sc_hd__nor2_1)
+                                                         _1498_ (net)
+                      0.088499    0.000000    2.078984 ^ _4368_/A (sky130_fd_sc_hd__clkinv_1)
+     2    0.004316    0.040513    0.050798    2.129782 v _4368_/Y (sky130_fd_sc_hd__clkinv_1)
+                                                         _1499_ (net)
+                      0.040513    0.000000    2.129782 v _4369_/C (sky130_fd_sc_hd__nor3_1)
+    27    0.067005    1.293955    0.958366    3.088148 ^ _4369_/Y (sky130_fd_sc_hd__nor3_1)
+                                                         _1500_ (net)
+                      1.293955    0.000000    3.088148 ^ _2535_/B (sky130_fd_sc_hd__nand2_1)
+    64    0.124896    0.662680    0.663845    3.751993 v _2535_/Y (sky130_fd_sc_hd__nand2_1)
+                                                         _1769_ (net)
+                      0.662680    0.000000    3.751993 v _2579_/A2 (sky130_fd_sc_hd__o21ai_0)
+     1    0.002086    0.163423    0.264483    4.016475 ^ _2579_/Y (sky130_fd_sc_hd__o21ai_0)
+                                                         _0244_ (net)
+                      0.163423    0.000000    4.016475 ^ _4445_/D (sky130_fd_sc_hd__dfrtp_1)
+                                              4.016475   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4445_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                 -0.047637    9.952364   library setup time
+                                              9.952364   data required time
+---------------------------------------------------------------------------------------------
+                                              9.952364   data required time
+                                             -4.016475   data arrival time
+---------------------------------------------------------------------------------------------
+                                              5.935888   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4598_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4598_/SET_B (sky130_fd_sc_hd__dfstp_2)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4598_/CLK (sky130_fd_sc_hd__dfstp_2)
+                                  0.079513   10.079513   library recovery time
+                                             10.079513   data required time
+---------------------------------------------------------------------------------------------
+                                             10.079513   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.079513   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4421_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4421_/RESET_B (sky130_fd_sc_hd__dfrtp_1)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4421_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                  0.144888   10.144888   library recovery time
+                                             10.144888   data required time
+---------------------------------------------------------------------------------------------
+                                             10.144888   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.144888   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4422_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4422_/RESET_B (sky130_fd_sc_hd__dfrtp_1)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4422_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                  0.144888   10.144888   library recovery time
+                                             10.144888   data required time
+---------------------------------------------------------------------------------------------
+                                             10.144888   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.144888   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4423_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4423_/RESET_B (sky130_fd_sc_hd__dfrtp_1)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4423_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                  0.144888   10.144888   library recovery time
+                                             10.144888   data required time
+---------------------------------------------------------------------------------------------
+                                             10.144888   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.144888   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4424_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4424_/RESET_B (sky130_fd_sc_hd__dfrtp_1)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4424_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                  0.144888   10.144888   library recovery time
+                                             10.144888   data required time
+---------------------------------------------------------------------------------------------
+                                             10.144888   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.144888   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4425_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4425_/RESET_B (sky130_fd_sc_hd__dfrtp_1)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4425_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                  0.144888   10.144888   library recovery time
+                                             10.144888   data required time
+---------------------------------------------------------------------------------------------
+                                             10.144888   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.144888   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4426_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4426_/RESET_B (sky130_fd_sc_hd__dfrtp_1)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4426_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                  0.144888   10.144888   library recovery time
+                                             10.144888   data required time
+---------------------------------------------------------------------------------------------
+                                             10.144888   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.144888   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4427_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4427_/RESET_B (sky130_fd_sc_hd__dfrtp_1)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4427_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                  0.144888   10.144888   library recovery time
+                                             10.144888   data required time
+---------------------------------------------------------------------------------------------
+                                             10.144888   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.144888   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4428_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4428_/RESET_B (sky130_fd_sc_hd__dfrtp_1)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4428_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                  0.144888   10.144888   library recovery time
+                                             10.144888   data required time
+---------------------------------------------------------------------------------------------
+                                             10.144888   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.144888   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _4429_ (recovery check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: max
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+   293    1.060897    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _4429_/RESET_B (sky130_fd_sc_hd__dfrtp_1)
+                                              2.000000   data arrival time
+
+                      0.000000   10.000000   10.000000   clock core (rise edge)
+                                  0.000000   10.000000   clock network delay (ideal)
+                                  0.000000   10.000000   clock reconvergence pessimism
+                                             10.000000 ^ _4429_/CLK (sky130_fd_sc_hd__dfrtp_1)
+                                  0.144888   10.144888   library recovery time
+                                             10.144888   data required time
+---------------------------------------------------------------------------------------------
+                                             10.144888   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              8.144888   slack (MET)
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00144
+switching_power=5.26e-05
+dynamic_power=0.0014926000000000002
+leakage_power=1.31e-08
+total_power=0.0015
+
+=== Gate-level timing/power fusion ===
+power_semantics=average_instance_power_from_the_same_VCD_SAIF_context
+path_power_sum=unique_instance_average_power_sum_not_incremental_path_energy
+fanout_capacitance_source=OpenSTA_report_checks_output_pin_fields
+
+Worst path 1: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4436_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2597_,_4367_,_4368_,_4369_,_4436_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2597_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4436_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 2: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4437_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2595_,_4367_,_4368_,_4369_,_4437_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2595_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4437_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 3: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4438_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2593_,_4367_,_4368_,_4369_,_4438_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2593_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4438_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 4: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4439_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2591_,_4367_,_4368_,_4369_,_4439_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2591_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4439_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 5: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4440_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2589_,_4367_,_4368_,_4369_,_4440_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2589_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4440_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 6: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4441_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2587_,_4367_,_4368_,_4369_,_4441_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2587_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4441_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 7: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4442_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2585_,_4367_,_4368_,_4369_,_4442_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2585_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4442_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 8: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4443_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2583_,_4367_,_4368_,_4369_,_4443_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2583_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4443_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 9: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4444_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2581_,_4367_,_4368_,_4369_,_4444_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2581_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4444_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 10: status=met slack=5.93589 type=max group=core
+startpoint=tl_i[64] (input port clocked by core)
+endpoint=_4445_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=false missing_power_instances=_2535_,_2579_,_4367_,_4368_,_4369_,_4445_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4367_ sky130_fd_sc_hd__nor2_1 A,Y 2 0.005605 0.088499 0.078984 2.07898 - - - - -
+2 _4368_ sky130_fd_sc_hd__clkinv_1 A,Y 2 0.004316 0.040513 0.050798 2.12978 - - - - -
+3 _4369_ sky130_fd_sc_hd__nor3_1 C,Y 27 0.067005 1.29395 0.958366 3.08815 - - - - -
+4 _2535_ sky130_fd_sc_hd__nand2_1 B,Y 64 0.124896 0.66268 0.663845 3.75199 - - - - -
+5 _2579_ sky130_fd_sc_hd__o21ai_0 A2,Y 1 0.002086 0.163423 0.264483 4.01647 - - - - -
+6 _4445_ sky130_fd_sc_hd__dfrtp_1 D - - 0.163423 0 4.01647 - - - - -
+
+Worst path 11: status=met slack=8.07951 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4598_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4598_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4598_ sky130_fd_sc_hd__dfstp_2 SET_B - - 0 0 2 - - - - -
+
+Worst path 12: status=met slack=8.14489 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4421_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4421_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4421_ sky130_fd_sc_hd__dfrtp_1 RESET_B - - 0 0 2 - - - - -
+
+Worst path 13: status=met slack=8.14489 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4422_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4422_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4422_ sky130_fd_sc_hd__dfrtp_1 RESET_B - - 0 0 2 - - - - -
+
+Worst path 14: status=met slack=8.14489 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4423_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4423_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4423_ sky130_fd_sc_hd__dfrtp_1 RESET_B - - 0 0 2 - - - - -
+
+Worst path 15: status=met slack=8.14489 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4424_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4424_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4424_ sky130_fd_sc_hd__dfrtp_1 RESET_B - - 0 0 2 - - - - -
+
+Worst path 16: status=met slack=8.14489 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4425_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4425_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4425_ sky130_fd_sc_hd__dfrtp_1 RESET_B - - 0 0 2 - - - - -
+
+Worst path 17: status=met slack=8.14489 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4426_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4426_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4426_ sky130_fd_sc_hd__dfrtp_1 RESET_B - - 0 0 2 - - - - -
+
+Worst path 18: status=met slack=8.14489 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4427_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4427_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4427_ sky130_fd_sc_hd__dfrtp_1 RESET_B - - 0 0 2 - - - - -
+
+Worst path 19: status=met slack=8.14489 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4428_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4428_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4428_ sky130_fd_sc_hd__dfrtp_1 RESET_B - - 0 0 2 - - - - -
+
+Worst path 20: status=met slack=8.14489 type=max group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_4429_ (recovery check against rising-edge clock core)
+path_power_complete=false missing_power_instances=_4429_
+path_average_power_sum internal=0 switching=0 dynamic=0 leakage=0 total=0
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _4429_ sky130_fd_sc_hd__dfrtp_1 RESET_B - - 0 0 2 - - - - -
+
+=== Highest-power instances and worst path through each ===
+
+Hotspot 1: instance=4.938275651512e-06 selected_worst_paths=none internal=1.71017e-06 switching=1.64058e-11 dynamic=1.71019e-06 leakage=6.64847e-06 total=4602
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 2: instance=4.863482445217e-06 selected_worst_paths=none internal=4.62479e-07 switching=1.64013e-11 dynamic=4.62496e-07 leakage=5.32598e-06 total=4603
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 3: instance=4.834565061174e-06 selected_worst_paths=none internal=1.82757e-07 switching=1.64009e-11 dynamic=1.82773e-07 leakage=5.01734e-06 total=4604
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 4: instance=4.953269581165e-06 selected_worst_paths=none internal=4.25544e-08 switching=1.63279e-11 dynamic=4.25707e-08 leakage=4.99584e-06 total=4592
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 5: instance=4.811267899640e-06 selected_worst_paths=none internal=1.58962e-07 switching=1.59224e-11 dynamic=1.58978e-07 leakage=4.97025e-06 total=4712
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 6: instance=4.874669684796e-06 selected_worst_paths=none internal=4.53691e-08 switching=1.64831e-11 dynamic=4.53855e-08 leakage=4.92006e-06 total=4612
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 7: instance=4.870964858128e-06 selected_worst_paths=none internal=4.8926e-08 switching=1.64594e-11 dynamic=4.89424e-08 leakage=4.91991e-06 total=4622
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 8: instance=4.877444553131e-06 selected_worst_paths=none internal=4.08628e-08 switching=1.64595e-11 dynamic=4.08793e-08 leakage=4.91832e-06 total=4621
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 9: instance=4.881018867309e-06 selected_worst_paths=none internal=3.71248e-08 switching=1.65066e-11 dynamic=3.71413e-08 leakage=4.91816e-06 total=4618
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 10: instance=4.877495484834e-06 selected_worst_paths=none internal=3.71248e-08 switching=1.64471e-11 dynamic=3.71412e-08 leakage=4.91464e-06 total=4610
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 11: instance=4.857626208832e-06 selected_worst_paths=none internal=5.59679e-08 switching=1.37509e-11 dynamic=5.59816e-08 leakage=4.91361e-06 total=4623
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 12: instance=4.870169050264e-06 selected_worst_paths=none internal=3.48858e-08 switching=1.65547e-11 dynamic=3.49023e-08 leakage=4.90507e-06 total=4616
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 13: instance=4.877364062850e-06 selected_worst_paths=none internal=2.42399e-08 switching=1.6471e-11 dynamic=2.42564e-08 leakage=4.90162e-06 total=4619
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 14: instance=4.873564648733e-06 selected_worst_paths=none internal=2.46806e-08 switching=1.64596e-11 dynamic=2.46971e-08 leakage=4.89826e-06 total=4620
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 15: instance=4.855126007897e-06 selected_worst_paths=none internal=3.92956e-08 switching=1.43386e-11 dynamic=3.931e-08 leakage=4.89444e-06 total=4625
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 16: instance=4.854144663113e-06 selected_worst_paths=none internal=3.71356e-08 switching=1.66036e-11 dynamic=3.71522e-08 leakage=4.8913e-06 total=4644
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 17: instance=4.851535777561e-06 selected_worst_paths=none internal=3.6982e-08 switching=1.29426e-11 dynamic=3.6995e-08 leakage=4.88853e-06 total=4626
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 18: instance=4.856184204982e-06 selected_worst_paths=none internal=3.11353e-08 switching=1.43626e-11 dynamic=3.11497e-08 leakage=4.88733e-06 total=4643
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 19: instance=4.860945864493e-06 selected_worst_paths=none internal=2.55233e-08 switching=1.64833e-11 dynamic=2.55398e-08 leakage=4.88649e-06 total=4614
+targeted_timing_path=not_found_or_unconstrained
+
+Hotspot 20: instance=4.863626600127e-06 selected_worst_paths=none internal=2.26239e-08 switching=1.6507e-11 dynamic=2.26404e-08 leakage=4.88627e-06 total=4617
+targeted_timing_path=not_found_or_unconstrained

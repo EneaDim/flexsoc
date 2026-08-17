@@ -12,6 +12,7 @@ import pytest
 
 import flexsoc.backend.setup_eqy as setup_eqy_module
 import flexsoc.backend.setup_signoff as setup_signoff_module
+import flexsoc.backend.post_sim as post_sim_module
 import flexsoc.cli as cli_module
 import flexsoc.doctor as doctor_module
 from flexsoc import (
@@ -34,14 +35,17 @@ from flexsoc.api import (
 from flexsoc.backend.manifest import collect_manifest
 from flexsoc.backend.metrics import (
     collect_formal,
+    collect_post_syn_gls,
     collect_power_estimate,
     collect_sta,
     formal_stage,
     status_word,
 )
-from flexsoc.backend.post_sim import _cocotb_wrapper
+from flexsoc.backend.post_sim import _cocotb_wrapper, execute_all
 from flexsoc.backend.setup_cocotb import CocotbConfig, write_nclock_cocotb
 from flexsoc.backend.setup_signoff import (
+    SIGNOFF_SCENARIOS,
+    SDF_MODE_TO_CORNER,
     SignoffContext,
     _annotate_power_summary,
     _run_sta,
@@ -53,6 +57,7 @@ from flexsoc.backend.setup_signoff import (
     render_power_analysis_tcl,
     render_power_estimate_tcl,
     render_sta_tcl,
+    scenario_corner,
 )
 from flexsoc.backend.output import print_script, strip_ansi
 from flexsoc.clocking import ClockConfig, ClockDomain
@@ -274,6 +279,7 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     assert "regression" not in AUTO_SETUP_TARGETS
     assert AUTO_SETUP_TARGETS["setup_pnr"] == ("setup_signoff",)
     assert AUTO_SETUP_TARGETS["pnr"] == ("setup_pnr",)
+    assert AUTO_SETUP_TARGETS["sim_post_syn_all"] == ("sdf",)
     assert AUTO_SETUP_TARGETS["setup_formal_prove"] == ("setup_formal",)
     assert AUTO_SETUP_TARGETS["formal_bmc"] == ("setup_formal_prove",)
     assert [command.target for command in fx.commands("syn")] == ["setup_syn", "syn"]
@@ -362,6 +368,14 @@ def test_gate_and_power_logs_are_scoped_by_gls_case(
         TIMING_MODE="typ",
         auto_setup=False,
     )
+    all_gls, = fx.run(
+        "sim_post_syn_all",
+        TEST_NAMES="all",
+        GLS_BACKEND="sv",
+        TIMING_MODES="all",
+        auto_setup=False,
+        capture=True,
+    )
     power, = fx.run(
         "power_analysis",
         POWER_TEST_NAME="smoke",
@@ -377,16 +391,266 @@ def test_gate_and_power_logs_are_scoped_by_gls_case(
         auto_setup=False,
     )
 
-    assert smoke.log_path is not None and smoke.log_path.name == "sim_post_syn_smoke_sv_typ.log"
+    assert smoke.log_path is not None and smoke.log_path.name == "sim_post_syn_smoke_sv_tt.log"
     assert corners.log_path is not None and corners.log_path.name == (
-        "sim_post_syn_corners_sv_typ.log"
+        "sim_post_syn_corners_sv_tt.log"
     )
+    assert all_gls.log_path is not None and all_gls.log_path.name == "sim_post_syn_all.log"
     assert power.log_path is not None and power.log_path.name == (
-        "power_analysis_smoke_sv_typ.log"
+        "power_analysis_smoke_sv_tt.log"
     )
-    assert power_all.log_path is not None and power_all.log_path.name == (
-        "power_analysis_all_all_all_all.log"
+    assert power_all.log_path is not None and power_all.log_path.name == "power_analysis_all.log"
+
+
+
+def test_all_target_log_names_omit_default_all_selectors(tmp_path: Path) -> None:
+    fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work", TOP="demo")
+    default = fx.command(
+        "sim_post_syn_all",
+        TEST_NAMES="all",
+        GLS_BACKEND="sv",
+        TIMING_MODES="all",
+        auto_setup=False,
     )
+    selected = fx.command(
+        "sim_post_syn_all",
+        TEST_NAMES="smoke corners",
+        GLS_BACKEND="cocotb",
+        TIMING_MODES="typ max",
+        auto_setup=False,
+    )
+
+    assert fx._command_log_path(default).name == "sim_post_syn_all.log"
+    assert fx._command_log_path(selected).name == (
+        "sim_post_syn_all_tests_smoke_corners_backend_cocotb_timing_tt_ss.log"
+    )
+
+
+def test_terminal_rendering_uses_one_semantic_palette() -> None:
+    from io import StringIO
+
+    from flexsoc.backend.output import (
+        print_label,
+        print_live_line,
+        print_target_result,
+        print_target_start,
+    )
+
+    stream = StringIO()
+    print_target_start("sta", "Run STA", stream=stream, color=True)
+    print_label("log", "/tmp/sta.log", stream=stream, color=True)
+    print_live_line("[report] /tmp/timing.rpt\n", stream=stream, color=True)
+    print_target_result("sta", 0, stream=stream, color=True)
+    text = stream.getvalue()
+
+    assert "\x1b[38;5;208m→ sta\x1b[0m" in text
+    assert "\x1b[38;5;208m[log]\x1b[0m \x1b[94m/tmp/sta.log\x1b[0m" in text
+    assert "\x1b[38;5;208m[report]\x1b[0m \x1b[94m/tmp/timing.rpt\x1b[0m" in text
+    assert "\x1b[92m✓\x1b[0m \x1b[38;5;208msta\x1b[0m: \x1b[92mdone\x1b[0m" in text
+
+
+
+def test_sim_post_syn_all_discovers_matrix_and_writes_dv_summary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs/demo/dev"
+    for name in ("corners", "smoke"):
+        test = run / "dv/functional/tests" / name
+        test.mkdir(parents=True)
+        for filename in ("config.regs", "data_in.vec", "data_out.vec"):
+            (test / filename).write_text("0\n", encoding="utf-8")
+
+    seen: list[tuple[str, str, str]] = []
+
+    def fake_execute(
+        action: str, stage: str, project_root: Path, values: dict[str, str]
+    ) -> int:
+        assert action == "sim" and stage == "post_syn"
+        seen.append((values["TEST_NAME"], values["GLS_BACKEND"], values["TIMING_MODE"]))
+        paths = post_sim_module.resolve_paths(project_root, values, stage)
+        paths.report.parent.mkdir(parents=True, exist_ok=True)
+        paths.report.write_text(
+            json.dumps(
+                {
+                    "status": "pass",
+                    "returncode": 0,
+                    "stage": stage,
+                    "test_name": values["TEST_NAME"],
+                    "backend": values["GLS_BACKEND"],
+                    "timing_mode": values["TIMING_MODE"],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return 0
+
+    monkeypatch.setattr(post_sim_module, "execute", fake_execute)
+    values = {
+        "WORKSPACE": str(workspace),
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+        "TOP": "demo",
+        "PDK": "sky130",
+        "TEST_NAMES": "all",
+        "GLS_BACKEND": "cocotb",
+        "TIMING_MODES": "zero typ",
+    }
+
+    assert execute_all(tmp_path, values) == 0
+    assert seen == [
+        (test, "cocotb", mode)
+        for test in ("corners", "smoke")
+        for mode in ("zero", "typ")
+    ]
+    summary_path = run / "dv/functional/sim/post_syn/sky130/summary_cocotb.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["status"] == "pass"
+    assert summary["total"] == 4
+    assert summary["tests"] == ["corners", "smoke"]
+    assert summary["backend"] == "cocotb"
+    assert summary["timing_modes"] == ["zero", "typ"]
+    assert summary["scenarios"] == ["zero", "tt"]
+
+
+
+def test_post_syn_sdf_artifacts_use_pvt_scenario_names(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    values = {
+        "WORKSPACE": str(workspace),
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+        "TOP": "demo",
+        "PDK": "sky130",
+        "TEST_NAME": "smoke",
+        "TESTBENCH": "demo_tb",
+        "GLS_BACKEND": "sv",
+        "WAVE_FORMAT": "fst",
+    }
+    expected = {"min": "ff", "typ": "tt", "max": "ss"}
+    for mode, scenario in expected.items():
+        paths = post_sim_module.resolve_paths(
+            tmp_path, {**values, "TIMING_MODE": mode}, "post_syn"
+        )
+        assert paths.report.name == f"demo_post_syn_smoke_sv_{scenario}.json"
+        assert paths.wave.name == f"demo_tb_smoke_sv_{scenario}.fst"
+        assert paths.executable.name == f"demo_tb_smoke_sv_{scenario}.vvp"
+        assert paths.log.name == f"demo_post_syn_smoke_sv_{scenario}.log"
+        assert paths.sdf == (
+            workspace / f"runs/demo/dev/signoff/sky130/sdf/{scenario}/demo_{scenario}.sdf"
+        ).resolve()
+
+
+def test_successful_sdf_gls_cleanup_removes_legacy_mode_artifacts(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    values = {
+        "WORKSPACE": str(workspace),
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+        "TOP": "demo",
+        "PDK": "sky130",
+        "TEST_NAME": "smoke",
+        "TESTBENCH": "demo_tb",
+        "GLS_BACKEND": "sv",
+        "TIMING_MODE": "typ",
+        "WAVE_FORMAT": "fst",
+    }
+    paths = post_sim_module.resolve_paths(tmp_path, values, "post_syn")
+    stage = workspace / "runs/demo/dev/dv/functional/sim/post_syn/sky130"
+    logs = workspace / "runs/demo/dev/logs/dv/functional/post_syn/sky130"
+    legacy = (
+        stage / "demo_tb_smoke_sv_typ.fst",
+        stage / "demo_tb_smoke_sv_typ.vvp",
+        stage / "demo_post_syn_smoke_sv_typ.json",
+        logs / "demo_post_syn_smoke_sv_typ.log",
+        logs / "demo_post_syn_smoke_sv_typ_compile.log",
+    )
+    for path in legacy:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("legacy\n", encoding="utf-8")
+    for path in (paths.wave, paths.executable, paths.log, paths.report):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("canonical\n", encoding="utf-8")
+
+    post_sim_module._cleanup_legacy_sdf_artifacts(tmp_path, values, "post_syn", paths)
+
+    assert not any(path.exists() for path in legacy)
+    assert all(path.exists() for path in (paths.wave, paths.executable, paths.log, paths.report))
+
+
+def test_sim_post_syn_all_rejects_legacy_multi_backend_selector(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    test = workspace / "runs/demo/dev/dv/functional/tests/smoke"
+    test.mkdir(parents=True)
+    values = {
+        "WORKSPACE": str(workspace),
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+        "TOP": "demo",
+        "PDK": "sky130",
+        "TEST_NAMES": "all",
+        "GLS_BACKEND": "sv",
+        "GLS_BACKENDS": "all",
+        "TIMING_MODES": "typ",
+    }
+    with pytest.raises(ValueError, match="GLS_BACKENDS is not supported"):
+        execute_all(tmp_path, values)
+
+
+def test_sim_post_syn_all_continues_after_one_failed_case(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace = tmp_path / "workspace"
+    run = workspace / "runs/demo/dev"
+    for name in ("a", "b"):
+        (run / "dv/functional/tests" / name).mkdir(parents=True)
+
+    seen: list[str] = []
+
+    def fake_execute(
+        action: str, stage: str, project_root: Path, values: dict[str, str]
+    ) -> int:
+        del action, stage, project_root
+        seen.append(values["TEST_NAME"])
+        if values["TEST_NAME"] == "a":
+            raise ValueError("synthetic failure")
+        paths = post_sim_module.resolve_paths(tmp_path, values, "post_syn")
+        paths.report.parent.mkdir(parents=True, exist_ok=True)
+        paths.report.write_text(
+            json.dumps(
+                {
+                    "status": "pass",
+                    "returncode": 0,
+                    "test_name": values["TEST_NAME"],
+                    "backend": values["GLS_BACKEND"],
+                    "timing_mode": values["TIMING_MODE"],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return 0
+
+    monkeypatch.setattr(post_sim_module, "execute", fake_execute)
+    values = {
+        "WORKSPACE": str(workspace),
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+        "TOP": "demo",
+        "PDK": "sky130",
+        "TEST_NAMES": "all",
+        "GLS_BACKEND": "sv",
+        "TIMING_MODES": "zero",
+    }
+    assert execute_all(tmp_path, values) == 2
+    assert seen == ["a", "b"]
+    summary = json.loads(
+        (run / "dv/functional/sim/post_syn/sky130/summary_sv.json").read_text(encoding="utf-8")
+    )
+    assert summary["passed"] == 1
+    assert summary["failed"] == 1
+    assert summary["total"] == 2
 
 
 def test_run_check_and_nonchecking_failure_modes(
@@ -423,13 +687,58 @@ def test_live_run_prints_only_log_block_and_keeps_plain_log(
     )
 
     output = capsys.readouterr().out
-    assert output.startswith("[log] ")
+    assert output.startswith("→ hjson: ")
+    assert "[log] " in output
     assert "generated line" in output and "[script]" in output
-    assert "→ hjson" not in output and "✓ hjson" not in output
+    assert "✓ hjson: done" in output
     assert result.ok and result.log_path is not None
     assert result.log_path.read_text(encoding="utf-8") == (
         "generated line\n[script] file.tcl\n"
     )
+
+
+def test_sim_post_syn_all_prints_uniform_header_artifacts_and_done(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    class FakeProcess:
+        stdout = iter((
+            "[sim_post_syn_all] 1/1 START test=smoke backend=sv timing=typ\n",
+            "[report] smoke/sv/typ /tmp/smoke.json\n",
+            "[report] machine_summary=/tmp/summary_sv.json\n",
+        ))
+
+        def wait(self) -> int:
+            return 0
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    pdk = _fake_pdk(tmp_path / "pdk")
+    result, = FlexSoC(
+        project_root=tmp_path,
+        workdir=tmp_path / "work",
+        PDK="sky130",
+        PDK_ROOT=pdk,
+        TOP="demo",
+    ).run(
+        "sim_post_syn_all",
+        auto_setup=False,
+        TEST_NAMES="all",
+        GLS_BACKEND="sv",
+        TIMING_MODES="all",
+    )
+
+    output = capsys.readouterr().out
+    assert output.startswith(
+        "→ sim_post_syn_all: Run every selected post-synthesis GLS test/timing combination with one backend\n"
+    )
+    assert "[log] " in output and "sim_post_syn_all.log" in output
+    assert "[report] smoke/sv/typ /tmp/smoke.json" in output
+    assert "[report] machine_summary=/tmp/summary_sv.json" in output
+    assert "1/1 START" not in output
+    assert "✓ sim_post_syn_all: done" in output
+    assert result.ok
+
 
 
 def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
@@ -441,10 +750,10 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
 
     class FakeProcess:
         stdout = iter((
-            "[fusion_analysis] run 1/6 START workload=smoke_sv_typ corner=ss mode=setup\n",
-            "[script] /tmp/fusion_analysis.tcl · corner=ss · mode=setup\n",
+            "[fusion_analysis] run 1/6 START workload=smoke_sv_tt corner=tt mode=setup\n",
+            "[script] /tmp/fusion_analysis.tcl · corner=tt · mode=setup\n",
             "[fusion_analysis] run 1/6 DISCOVERY PASS paths=20 hotspots=18\n",
-            "[report] ss/setup /tmp/fusion.rpt\n",
+            "[report] tt/setup /tmp/fusion.rpt\n",
         ))
 
         def wait(self) -> int:
@@ -471,23 +780,24 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
     )
 
     output = capsys.readouterr().out
-    assert STREAM_BY_DEFAULT_TARGETS == {"fusion_analysis", "fusion_analysis_all"}
-    assert output.startswith("[log] ")
+    assert STREAM_BY_DEFAULT_TARGETS == {"sim_post_syn_all", "fusion_analysis", "fusion_analysis_all"}
+    assert output.startswith("→ fusion_analysis: Correlate timing and power in one aligned GLS scenario\n")
+    assert "[log] " in output
     assert "[script] /tmp/fusion_analysis.tcl" in output
-    assert "[report] ss/setup /tmp/fusion.rpt" in output
+    assert "[report] tt/setup /tmp/fusion.rpt" in output
     assert "run 1/6 START" not in output
     assert "DISCOVERY PASS" not in output
-    assert "→ fusion_analysis" not in output
+    assert "→ fusion_analysis: Correlate timing and power in one aligned GLS scenario" in output
     assert "[technology]" not in output
     assert "✓" in output and "fusion_analysis" in output and "done" in output
     assert seen_env["FLEXSOC_LIVE"] == "0"
     assert seen_env["PYTHONUNBUFFERED"] == "1"
     assert result.log_path is not None
     assert result.log_path.read_text(encoding="utf-8") == (
-        "[fusion_analysis] run 1/6 START workload=smoke_sv_typ corner=ss mode=setup\n"
-        "[script] /tmp/fusion_analysis.tcl · corner=ss · mode=setup\n"
+        "[fusion_analysis] run 1/6 START workload=smoke_sv_tt corner=tt mode=setup\n"
+        "[script] /tmp/fusion_analysis.tcl · corner=tt · mode=setup\n"
         "[fusion_analysis] run 1/6 DISCOVERY PASS paths=20 hotspots=18\n"
-        "[report] ss/setup /tmp/fusion.rpt\n"
+        "[report] tt/setup /tmp/fusion.rpt\n"
     )
 
 
@@ -551,6 +861,11 @@ def test_ip_save_optional_pnr_and_e2e_activity_order() -> None:
     assert 'cp -p "$(MANIFEST_JSON)" "$$staged/meta/$$pdk/manifest.json"' in makefile
     assert 'cp -p "$(METRICS_JSON)" "$$staged/meta/$$pdk/metrics.json"' in makefile
     assert 'flexsoc.backend.metrics --show "$(METRICS_JSON)" > "$$staged/meta/$$pdk/check.rpt"' in makefile
+    assert '"$$staged/dv/functional/sim/post_syn/$$pdk"' in makefile
+    assert '"$(POST_SYN_SIMDIR)"/*.json' in makefile
+    assert "-name '*.rpt' -o -name '*.json' -o -name '*.sdf'" in makefile
+    assert "! -name '.*'" in makefile
+    assert '"$(COVERAGEDIR)/summary.json"' in makefile
     assert "-name '__pycache__'" in makefile
     assert "-name '*.pyc'" in makefile
     assert "meta=$$meta_status" in makefile
@@ -599,6 +914,7 @@ def test_cli_help_and_commands_json(capsys: pytest.CaptureFixture[str], tmp_path
         assert "Step" in help_text and "Command" in help_text and "Purpose" in help_text
         assert help_text.index("1. Configure the run") < help_text.index("2. Create a new IP scaffold")
         assert help_text.index("sim_post_syn") < help_text.index("power_analysis")
+        assert "sim_post_syn_all" in help_text
         assert help_text.index("power_analysis") < help_text.index("fusion_analysis")
         assert "6. Run post-synthesis sign-off" in help_text
         assert "fx <command> --help" in help_text
@@ -1017,7 +1333,7 @@ def _context(tmp_path: Path, *, analysis: str, mode: str = "setup") -> SignoffCo
         stage="post_syn",
         corner="tt",
         mode=mode,
-        workload="smoke_sv_typ" if "analysis" in analysis else "",
+        workload="smoke_sv_tt" if "analysis" in analysis else "",
         top="demo",
         liberty=liberty,
         macro_liberties=(),
@@ -1104,6 +1420,9 @@ def test_power_estimate_uses_one_primary_report(tmp_path: Path) -> None:
     assert "sta::" not in script
     assert "# Seed vectorless switching activity" in script
     assert "# Report average internal, switching, leakage, and total cell power" in script
+    assert "Activity annotation" not in script
+    assert "report_activity_annotation" not in script
+    assert "annotated_percent=" not in script
     assert "analysis=power_estimate" in script
     assert "activity_source=input_assumption" in script
     assert "power.rpt" in script
@@ -1128,11 +1447,20 @@ def test_activity_power_reads_trace_into_one_primary_report(tmp_path: Path) -> N
     assert "sta::" not in script
     assert "# Annotate signal transitions from the GLS VCD" in script
     assert "# Create one compact workload-driven power report" in script
-    assert "report_activity_annotation -report_annotated -report_unannotated" in script
+    assert "report_activity_annotation -report_unannotated" in script
+    assert "-report_annotated" not in script
+    assert "annotated_percent=%.2f%%" in script
+    assert "Unannotated pins:" in script
+    assert "flexsoc_append_activity_coverage $report" in script
     assert "report_power -highest_power_instances" in script
     assert "power.rpt" in script
     assert "power.json" not in script
     assert "highest_power_instances.json" not in script
+
+def test_compact_activity_percent_parser() -> None:
+    assert setup_signoff_module._activity_percent("annotated_percent=99.75%\n") == 99.75
+    assert setup_signoff_module._activity_percent("Unannotated pins: none\n") is None
+
 
 def test_opensta_signal_returncode_is_actionable() -> None:
     assert setup_signoff_module._returncode_text(-11) == "signal 11 (SIGSEGV)"
@@ -1441,7 +1769,7 @@ Path Type: max
                 encoding="utf-8",
             )
             log.write_text(
-                "FLEXSOC_FUSION_DETAIL_COMPLETE corner=tt mode=setup workload=smoke_sv_typ\n",
+                "FLEXSOC_FUSION_DETAIL_COMPLETE corner=tt mode=setup workload=smoke_sv_tt\n",
                 encoding="utf-8",
             )
         else:
@@ -1450,7 +1778,7 @@ Path Type: max
                 encoding="utf-8",
             )
             log.write_text(
-                "FLEXSOC_FUSION_POWER_COMPLETE corner=tt mode=setup workload=smoke_sv_typ\n",
+                "FLEXSOC_FUSION_POWER_COMPLETE corner=tt mode=setup workload=smoke_sv_tt\n",
                 encoding="utf-8",
             )
         return 0
@@ -1474,8 +1802,55 @@ Path Type: max
     assert not tuple(ctx.report_dir.glob(".fusion_*.tcl"))
 
 
+def test_pre_layout_signoff_scenarios_are_canonical() -> None:
+    assert SIGNOFF_SCENARIOS == {"ff": "min", "tt": "typ", "ss": "max"}
+    assert SDF_MODE_TO_CORNER == {"min": "ff", "typ": "tt", "max": "ss"}
+    assert scenario_corner("min") == "ff"
+    assert scenario_corner("typ") == "tt"
+    assert scenario_corner("max") == "ss"
+    with pytest.raises(ValueError, match="no sign-off scenario"):
+        scenario_corner("unit")
+
+
+def test_activity_source_requires_aligned_sdf_corner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report = tmp_path / "demo_post_syn_smoke_sv_typ.json"
+    wave = tmp_path / "wave.vcd"
+    wave.write_text("$enddefinitions $end\n", encoding="utf-8")
+    report.write_text(
+        json.dumps(
+            {
+                "status": "pass",
+                "stage": "post_syn",
+                "top": "demo",
+                "pdk": "sky130",
+                "test_name": "smoke",
+                "backend": "sv",
+                "timing_mode": "typ",
+                "sdf_corner": "ss",
+                "sdf": str(tmp_path / "sdf" / "ss" / "demo_ss.sdf"),
+                "wave": str(wave),
+                "annotation": {"requested_marker": True},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(setup_signoff_module, "_post_syn_report", lambda *args, **kwargs: report)
+
+    with pytest.raises(ValueError, match="TIMING_MODE=typ requires SDF corner tt"):
+        setup_signoff_module._qualified_spec(
+            tmp_path,
+            {"TOP": "demo", "PDK": "sky130"},
+            test="smoke",
+            backend="sv",
+            mode="typ",
+        )
+
+
 def test_fusion_table_is_compact_and_points_to_primary_reports(tmp_path: Path) -> None:
-    workload_root = tmp_path / "smoke_sv_typ"
+    workload_root = tmp_path / "smoke_sv_tt"
     reports = {
         "ss/setup": {
             "status": "pass",
@@ -1486,17 +1861,90 @@ def test_fusion_table_is_compact_and_points_to_primary_reports(tmp_path: Path) -
             "leakage_w": 0.001,
             "total_w": 0.121,
             "activity_annotation_count": 5120,
-            "report": str(workload_root / "ss/setup/fusion.rpt"),
+            "report": str(workload_root / "setup/fusion.rpt"),
         }
     }
 
-    table = _write_activity_table("fusion_analysis", workload_root, "smoke_sv_typ", reports)
+    table = _write_activity_table("fusion_analysis", workload_root, "smoke_sv_tt", reports)
     text = table.read_text(encoding="utf-8")
     assert table == workload_root / "fusion_table.rpt"
     assert "corner/mode status" in text
     assert "ss/setup" in text
-    assert "ss/setup/fusion.rpt" in text
+    assert "setup/fusion.rpt" in text
     assert "activity_annotation.rpt" not in text
+
+
+def test_activity_workload_uses_corner_name_and_flat_report_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = setup_signoff_module.ActivitySpec(
+        top="demo", pdk="sky130", test="smoke", backend="sv", mode="max",
+        report=tmp_path / "gls.json", wave=tmp_path / "wave.vcd",
+    )
+    assert spec.workload == "smoke_sv_ss"
+    assert spec.legacy_workload == "smoke_sv_max"
+
+    liberties = {corner: tmp_path / f"{corner}.lib" for corner in ("ss", "tt", "ff")}
+    for corner, liberty in liberties.items():
+        liberty.write_text(f"library({corner}) {{}}\n", encoding="utf-8")
+    spec.report.write_text("{}\n", encoding="utf-8")
+    spec.wave.write_text("$enddefinitions $end\n", encoding="utf-8")
+
+    class Layout:
+        power_dir = tmp_path / "power"
+        fusion_dir = tmp_path / "fusion"
+        power_log_dir = tmp_path / "logs/power"
+        fusion_log_dir = tmp_path / "logs/fusion"
+
+    legacy = Layout.power_dir / "analysis/smoke_sv_max/ss"
+    legacy.mkdir(parents=True)
+    (legacy / "power.rpt").write_text("stale\n", encoding="utf-8")
+
+    monkeypatch.setattr(setup_signoff_module, "layout_from_values", lambda *args: Layout())
+    monkeypatch.setattr(setup_signoff_module, "_liberties", lambda values: liberties)
+    monkeypatch.setattr(
+        setup_signoff_module, "_activity_vcd", lambda *args: (spec.wave, None, "direct-vcd")
+    )
+    monkeypatch.setattr(
+        setup_signoff_module, "_resolve_vcd_scope", lambda *args, **kwargs: ("tb/dut", ("tb/dut",))
+    )
+
+    def fake_context(project_root: Path, values: object, **kwargs: object) -> SignoffContext:
+        del project_root, values
+        return SignoffContext(
+            analysis=str(kwargs["analysis"]), design="demo", variant="dev", pdk="sky130",
+            stage="post_syn", corner=str(kwargs["corner"]), mode=str(kwargs["mode"]),
+            workload=str(kwargs["workload"]), top="demo", liberty=kwargs["liberty"],
+            macro_liberties=(), netlist=tmp_path / "demo_synth.v", sdc=tmp_path / "demo.sdc",
+            report_dir=kwargs["report_dir"], activity_file=kwargs["activity_file"],
+            activity_scope=str(kwargs["activity_scope"]), gls_report=kwargs["gls_report"],
+        )
+
+    def fake_execute(
+        project_root: Path, values: object, *, analysis: str, ctx: SignoffContext,
+        script: Path, log: Path
+    ) -> int:
+        del project_root, values, analysis, script
+        ctx.report_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.report_dir / "power.rpt").write_text(
+            "annotated_percent=100.00%\nTotal 1.0 2.0 0.1 3.1\n", encoding="utf-8"
+        )
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("complete\n", encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(setup_signoff_module, "_base_context", fake_context)
+    monkeypatch.setattr(setup_signoff_module, "_execute_script", fake_execute)
+
+    result = setup_signoff_module.analyze_activity_spec(
+        "power_analysis", tmp_path, {"SIGNOFF_CORNERS": "ss tt ff"}, spec
+    )
+    root = Layout.power_dir / "analysis/smoke_sv_ss"
+    assert result["workload"] == "smoke_sv_ss"
+    assert Path(result["corners"]["ss"]["report"]) == root / "power.rpt"
+    assert (root / "power_table.rpt").is_file()
+    assert not (root / "ss").exists()
+    assert not (Layout.power_dir / "analysis/smoke_sv_max").exists()
 
 
 def test_fusion_all_prints_workload_and_corner_progress(
@@ -1504,11 +1952,11 @@ def test_fusion_all_prints_workload_and_corner_progress(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    liberty = tmp_path / "ss.lib"
+    liberties = {corner: tmp_path / f"{corner}.lib" for corner in ("ss", "tt", "ff")}
     wave = tmp_path / "demo_smoke_sv_typ.vcd"
     gls_report = tmp_path / "demo_smoke_sv_typ.json"
     fixtures = (
-        (liberty, "library(ss) {}\n"),
+        *((path, f"library({corner}) {{}}\n") for corner, path in liberties.items()),
         (wave, "$enddefinitions $end\n"),
         (gls_report, "{}\n"),
     )
@@ -1542,7 +1990,7 @@ def test_fusion_all_prints_workload_and_corner_progress(
         "_resolve_vcd_scope",
         lambda *args, **kwargs: ("demo_tb/u_demo", ("demo_tb/u_demo",)),
     )
-    monkeypatch.setattr(setup_signoff_module, "_liberties", lambda values: {"ss": liberty})
+    monkeypatch.setattr(setup_signoff_module, "_liberties", lambda values: liberties)
 
     def fake_context(
         project_root: Path,
@@ -1637,32 +2085,37 @@ def test_fusion_all_prints_workload_and_corner_progress(
         {
             "TOP": "demo",
             "PDK": "sky130",
-            "SIGNOFF_CORNERS": "ss",
+            "SIGNOFF_CORNERS": "ss tt ff",
             "STA_MODES": "setup hold",
         },
     ) == 0
 
     output = capsys.readouterr().out
     assert "[fusion_analysis_all] workloads=1" in output
-    assert "workload 1/1 START test=smoke backend=sv timing=typ name=smoke_sv_typ" in output
-    assert "activity=" in output and "scope=demo_tb/u_demo runs=2" in output
-    assert "run 1/2 START workload=smoke_sv_typ corner=ss mode=setup" in output
+    assert "workload 1/1 START test=smoke backend=sv timing=typ name=smoke_sv_tt" in output
+    assert "activity=" in output and "scope=demo_tb/u_demo scenario=tt/typ runs=2" in output
+    assert "run 1/2 START workload=smoke_sv_tt corner=tt mode=setup" in output
     assert "run 1/2 DISCOVERY PASS paths=2 path_instances=4 hotspots=3" in output
     assert "run 1/2 HOTSPOT TIMING START hotspots=3" in output
     assert "run 1/2 HOTSPOT TIMING PASS targeted_paths=3" in output
     assert "run 1/2 FUSION PASS worst_paths=2 hotspot_paths=3 report=" in output
     assert "run 1/2 PASS report=" in output
-    setup_report = "[report] ss/setup "
-    hold_start = "run 2/2 START workload=smoke_sv_typ corner=ss mode=hold"
+    setup_report = "[report] tt/setup "
+    hold_start = "run 2/2 START workload=smoke_sv_tt corner=tt mode=hold"
     assert setup_report in output
     assert output.index(setup_report) < output.index(hold_start)
     assert output.count(setup_report) == 1
     assert hold_start in output
-    assert "[report] ss/hold " in output
+    assert "[report] tt/hold " in output
     assert "workload 1/1 PASS progress=1/1 passed=1 failed=0" in output
-    assert "[report] workload=smoke_sv_typ table=" in output
+    assert "[report] workload=smoke_sv_tt table=" in output
     assert "[report] machine_summary=" in output
     assert "[fusion_analysis_all] 1/1 PASS" in output
+    assert "corner=ss" not in output and "corner=ff" not in output
+    fusion_root = tmp_path / "fusion/smoke_sv_tt"
+    assert (fusion_root / "setup/fusion.rpt").is_file()
+    assert (fusion_root / "hold/fusion.rpt").is_file()
+    assert not (fusion_root / "tt").exists()
 
     assert setup_signoff_module.execute_activity(
         "fusion_analysis",
@@ -1671,16 +2124,133 @@ def test_fusion_all_prints_workload_and_corner_progress(
         {
             "TOP": "demo",
             "PDK": "sky130",
-            "SIGNOFF_CORNERS": "ss",
+            "SIGNOFF_CORNERS": "ss tt ff",
             "STA_MODES": "setup hold",
         },
     ) == 0
     single_output = capsys.readouterr().out
     assert "[fusion_analysis] workloads=1" in single_output
-    assert "[report] ss/setup " in single_output
-    assert single_output.index("[report] ss/setup ") < single_output.index(hold_start)
-    assert "[report] ss/hold " in single_output
+    assert "[report] tt/setup " in single_output
+    assert single_output.index("[report] tt/setup ") < single_output.index(hold_start)
+    assert "[report] tt/hold " in single_output
     assert "[report] machine_summary=" in single_output
+
+
+def test_activity_all_uses_backends_as_alternative_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        setup_signoff_module,
+        "_available_gls",
+        lambda *args: (("smoke", "sv", "typ"), ("smoke", "cocotb", "typ")),
+    )
+
+    def fake_qualified(
+        project_root: Path,
+        values: object,
+        *,
+        test: str,
+        backend: str,
+        mode: str,
+    ) -> setup_signoff_module.ActivitySpec:
+        del project_root, values
+        calls.append(backend)
+        if backend == "cocotb":
+            raise ValueError("waveform missing or empty")
+        return setup_signoff_module.ActivitySpec(
+            top="demo", pdk="sky130", test=test, backend=backend, mode=mode,
+            report=tmp_path / "sv.json", wave=tmp_path / "sv.vcd",
+        )
+
+    monkeypatch.setattr(setup_signoff_module, "_qualified_spec", fake_qualified)
+    specs = setup_signoff_module.discover_specs(
+        "all",
+        {
+            "POWER_TEST_NAMES": "smoke",
+            "POWER_GLS_BACKENDS": "all",
+            "POWER_GLS_BACKEND": "cocotb",
+            "POWER_TIMING_MODES": "typ",
+        },
+        tmp_path,
+    )
+
+    assert calls == ["cocotb", "sv"]
+    assert len(specs) == 1
+    assert specs[0].backend == "sv"
+    assert specs[0].mode == "typ"
+
+
+def test_gls_closure_requires_one_passing_backend_per_test_mode(tmp_path: Path) -> None:
+    run = tmp_path / "runs/demo/dev"
+    sim = pdk_run_layout(run, pdk="sky130", top="demo").post_syn_sim_dir
+    sim.mkdir(parents=True)
+    sv_wave = sim / "demo_tb_smoke_sv_tt.vcd"
+    sv_wave.write_text("$enddefinitions $end\n", encoding="utf-8")
+
+    common = {
+        "stage": "post_syn",
+        "top": "demo",
+        "pdk": "sky130",
+        "test_name": "smoke",
+        "timing_mode": "typ",
+        "scenario": "tt",
+        "status": "pass",
+        "timing_model": "icarus-path-delay-only",
+        "annotation": {"requested_marker": True, "errors": [], "warnings": []},
+    }
+    (sim / "demo_post_syn_smoke_sv_tt.json").write_text(
+        json.dumps({**common, "backend": "sv", "wave": str(sv_wave)}) + "\n",
+        encoding="utf-8",
+    )
+    (sim / "demo_post_syn_smoke_cocotb_tt.json").write_text(
+        json.dumps(
+            {
+                **common,
+                "backend": "cocotb",
+                "wave": str(sim / "missing_cocotb.fst"),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    gls = collect_post_syn_gls("demo", run, "sky130")
+    assert gls is not None
+    assert gls["status"] == "pass"
+    assert (gls["passed"], gls["failed"], gls["total"]) == (1, 0, 1)
+    assert gls["by_backend"]["sv"]["status"] == "pass"
+    assert gls["by_backend"]["cocotb"]["status"] == "fail"
+    assert gls["scenario_records"][0]["backend"] == "sv"
+    assert gls["failures"] == []
+    assert len(gls["backend_failures"]) == 1
+
+
+def test_activity_analysis_rejects_incoherent_corner_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = setup_signoff_module.ActivitySpec(
+        top="demo", pdk="sky130", test="smoke", backend="sv", mode="typ",
+        report=tmp_path / "gls.json", wave=tmp_path / "wave.vcd",
+    )
+    spec.report.write_text("{}\n", encoding="utf-8")
+    spec.wave.write_text("$enddefinitions $end\n", encoding="utf-8")
+    liberties = {corner: tmp_path / f"{corner}.lib" for corner in ("ss", "tt", "ff")}
+    for corner, liberty in liberties.items():
+        liberty.write_text(f"library({corner}) {{}}\n", encoding="utf-8")
+    monkeypatch.setattr(setup_signoff_module, "_liberties", lambda values: liberties)
+    monkeypatch.setattr(
+        setup_signoff_module, "_activity_vcd", lambda *args: (spec.wave, None, "direct-vcd")
+    )
+    monkeypatch.setattr(
+        setup_signoff_module, "_resolve_vcd_scope", lambda *args, **kwargs: ("tb/dut", ("tb/dut",))
+    )
+
+    with pytest.raises(ValueError, match="belongs to sign-off scenario 'tt'"):
+        setup_signoff_module.analyze_activity_spec(
+            "power_analysis", tmp_path, {"SIGNOFF_CORNERS": "ss"}, spec
+        )
 
 
 def test_timing_summary_parser_accepts_opensta_wns_tns() -> None:
@@ -1722,7 +2292,7 @@ def test_signoff_render_appends_deterministic_completion_marker(tmp_path: Path) 
 
     assert script.rstrip().endswith(
         "puts {FLEXSOC_SIGNOFF_COMPLETE analysis=fusion_analysis corner=tt "
-        "mode=hold workload=smoke_sv_typ}"
+        "mode=hold workload=smoke_sv_tt}"
     )
 
 

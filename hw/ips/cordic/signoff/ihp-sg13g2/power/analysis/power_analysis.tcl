@@ -6,21 +6,21 @@
 # Variant  : dev
 # PDK      : ihp-sg13g2
 # Stage    : post_syn
-# Corner   : ff
+# Corner   : tt
 # Mode     : not applicable
-# Workload : smoke_zero_sv_typ
+# Workload : GLS_WORKLOAD_REQUIRED
 # Top      : cordic
 #
 # Inputs:
-#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc
+#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
+#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/captures/cordic_ihp-sg13g2_smoke_zero_sv_typ.vcd
-#   Activity scope: cordic_tb/u_cordic
-#   GLS report    : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/dv/functional/sim/post_syn/ihp-sg13g2/cordic_post_syn_smoke_zero_sv_typ.json
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/power/analysis/smoke_zero_sv_typ/ff
+#   VCD or SAIF   : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd
+#   Activity scope: DUT_SCOPE_REQUIRED
+#   GLS report    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/analysis/template_reports
 #
 # Limitations:
 #   - Power is average cell power derived from the selected Liberty models and annotated activity.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/power/analysis/smoke_zero_sv_typ/ff}
+set report_dir {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/analysis/template_reports}
 file mkdir $report_dir
-set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib}
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc}
+set netlist {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v}
+set sdc {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -136,10 +136,72 @@ proc flexsoc_append_opensta {path args} {
 puts "=== Step 6/7: Validate timing setup ==="
 # Validate clocks, endpoints, constraints, and timing relationships before generating reports.
 check_setup -verbose
+proc flexsoc_append_activity_coverage {path} {
+  # Keep activity evidence compact: percentage plus only the pins that were not annotated.
+  set capture [file join [file dirname $path] .flexsoc_activity_annotation.rpt]
+  file delete -force $capture
+  log_begin $capture
+  set code [catch {report_activity_annotation -report_unannotated} result options]
+  log_end
+  if {$code != 0} {
+    file delete -force $capture
+    return -options $options $result
+  }
+  if {![file exists $capture]} {error {activity annotation report was not captured}}
+  set src [open $capture r]
+  set text [read $src]
+  close $src
+  file delete -force $capture
+  set annotated 0
+  set unannotated 0
+  set have_annotated 0
+  set have_unannotated 0
+  set in_unannotated 0
+  set unannotated_pins {}
+  foreach line [split $text "\n"] {
+    if {[regexp {^[[:space:]]*(vcd|saif|input)[[:space:]]+([0-9]+)[[:space:]]*$} $line -> origin count]} {
+      incr annotated $count
+      set have_annotated 1
+      continue
+    }
+    if {[regexp {^[[:space:]]*unannotated[[:space:]]+([0-9]+)[[:space:]]*$} $line -> count]} {
+      set unannotated $count
+      set have_unannotated 1
+      continue
+    }
+    if {[regexp -nocase {^[[:space:]]*Annotated[[:space:]]+([0-9]+).*activities} $line -> count]} {
+      set annotated $count
+      set have_annotated 1
+      continue
+    }
+    if {[regexp -nocase {^[[:space:]]*Unannotated[[:space:]]+([0-9]+).*activities} $line -> count]} {
+      set unannotated $count
+      set have_unannotated 1
+      continue
+    }
+    if {[regexp {^Unannotated pins:[[:space:]]*$} $line]} {
+      set in_unannotated 1
+      continue
+    }
+    if {$in_unannotated && [string trim $line] ne ""} {lappend unannotated_pins [string trim $line]}
+  }
+  if {!$have_annotated || !$have_unannotated} {error {could not parse OpenSTA activity annotation summary}}
+  set total [expr {$annotated + $unannotated}]
+  set percent [expr {$total > 0 ? 100.0 * $annotated / $total : 0.0}]
+  set dst [open $path a]
+  puts $dst [format {annotated_percent=%.2f%%} $percent]
+  if {[llength $unannotated_pins] == 0} {
+    puts $dst {Unannotated pins: none}
+  } else {
+    puts $dst {Unannotated pins:}
+    foreach pin $unannotated_pins {puts $dst " $pin"}
+  }
+  close $dst
+}
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/captures/cordic_ihp-sg13g2_smoke_zero_sv_typ.vcd}
-set activity_scope {cordic_tb/u_cordic}
+set activity_file {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
 puts "activity_scope=$activity_scope"
@@ -159,11 +221,11 @@ if {$activity_ext eq ".saif"} {
 # Create one compact workload-driven power report after GLS activity has been annotated.
 set report [file join $report_dir power.rpt]
 set fp [open $report w]
-puts $fp "analysis=power_analysis corner=ff stage=post_syn"
-puts $fp "workload=smoke_zero_sv_typ"
-puts $fp "gls_report=/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/dv/functional/sim/post_syn/ihp-sg13g2/cordic_post_syn_smoke_zero_sv_typ.json"
-puts $fp "activity_file=/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/captures/cordic_ihp-sg13g2_smoke_zero_sv_typ.vcd"
-puts $fp "activity_scope=cordic_tb/u_cordic"
+puts $fp "analysis=power_analysis corner=tt stage=post_syn"
+puts $fp "workload=GLS_WORKLOAD_REQUIRED"
+puts $fp "gls_report=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/GLS_REPORT_REQUIRED.json"
+puts $fp "activity_file=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
 puts $fp "sdc=$sdc"
@@ -176,8 +238,8 @@ flexsoc_section $report {Constraint validation}
 # Append timing-setup diagnostics because power must use the same correctly linked and constrained design.
 flexsoc_append_opensta $report check_setup -verbose
 flexsoc_section $report {Activity annotation}
-# Show which design objects received switching activity and which remain unannotated.
-flexsoc_append_opensta $report report_activity_annotation -report_annotated -report_unannotated
+# Report annotation coverage as one percentage and list only pins missing direct VCD/SAIF activity.
+flexsoc_append_activity_coverage $report
 flexsoc_section $report {Power summary}
 # Report average internal, switching, leakage, and total cell power for the complete design.
 flexsoc_append_opensta $report report_power
@@ -185,4 +247,4 @@ flexsoc_section $report {Highest-power instances}
 # Rank the highest-power instances to expose the dominant contributors in this corner/workload.
 flexsoc_append_opensta $report report_power -highest_power_instances 20
 puts "report=$report"
-puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_analysis corner=ff mode=n/a workload=smoke_zero_sv_typ}
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_analysis corner=tt mode=n/a workload=GLS_WORKLOAD_REQUIRED}

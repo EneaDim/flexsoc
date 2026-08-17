@@ -1086,7 +1086,7 @@ find "$RUN/dv/functional/sim/post_syn/$PDK" \
   -printf '%p\n' | sort
 
 gtkwave \
-  "$RUN/dv/functional/sim/post_syn/$PDK/${TOP}_smoke_sv_typ.fst" &
+  "$RUN/dv/functional/sim/post_syn/$PDK/${TOP}_smoke_sv_tt.fst" &
 ```
 
 Compare SV and cocotb waveforms only after confirming they used the same vectors,
@@ -1515,14 +1515,16 @@ runs/<design>/<variant>/
     ├── power/
     │   ├── activity/captures/
     │   ├── estimate/<corner>/
-    │   └── analysis/<workload>/<corner>/
-    └── fusion/<workload>/<corner>/<setup|hold>/
+    │   └── analysis/<workload>/
+    └── fusion/<workload>/<setup|hold>/
 ```
 
 `activity/` contains only VCD/SAIF captures and conversion logs. Each analysis
-family owns one canonical Tcl under its stage root; workload/corner/mode
+family owns one canonical Tcl under its stage root; scenario-workload/mode
 directories contain reports only. There is no `activity/scripts` directory and
 no additional activity manifest.
+
+For activity-based power and fusion, `<workload>` is named with the aligned PVT scenario rather than the raw SDF selector: `*_ff` corresponds to `min`, `*_tt` to `typ`, and `*_ss` to `max`. Because the corner is already encoded in the workload, power writes `power.rpt` directly under `<workload>` and fusion writes only `setup/fusion.rpt` and `hold/fusion.rpt`.
 
 The backend ownership is deliberately narrow:
 

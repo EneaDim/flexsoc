@@ -153,7 +153,8 @@ Use `fx commands` to list every backend Make target.
                 ("fx setup_signoff", "Generate the PDK-scoped SDC and OpenSTA Tcl families."),
                 ("fx sdf | fx sta | fx power_estimate", "Produce corner SDF, timing, and vectorless power."),
                 ("fx compile_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Compile one named GLS workload."),
-                ("fx sim_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Run zero/unit/SDF min/typ/max GLS."),
+                ("fx sim_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Run one post-synthesis GLS workload."),
+                ("fx sim_post_syn_all", "Run all generated tests/timing modes with the selected GLS backend."),
                 ("fx power_analysis --set POWER_TEST_NAME=smoke --set POWER_TIMING_MODE=typ", "Analyze power for one GLS workload."),
                 ("fx fusion_analysis --set POWER_TEST_NAME=smoke --set POWER_TIMING_MODE=typ", "Correlate worst timing paths and gate power for one workload."),
                 ("fx fusion_analysis_all --set POWER_TEST_NAMES=all", "Run fusion for every matching GLS workload."),
@@ -212,7 +213,8 @@ Use `fx commands` to list every backend Make target.
         "VSV": "SystemVerilog/Verilog language selection used by backend scripts.",
         "GLS_SIMULATOR": "Gate-level simulator executable/family.",
         "GLS_BACKEND": "Gate-level driver backend, normally sv or cocotb.",
-        "TIMING_MODE": "GLS timing mode: zero, unit, min, typ, or max.",
+        "TIMING_MODE": "Technical GLS timing selection: zero, unit, min, typ, or max; SDF-backed artifacts use ff/tt/ss scenario names.",
+        "TIMING_MODES": "Technical selections for sim_post_syn_all; all means zero/unit/min/typ/max, named zero/unit/ff/tt/ss in artifacts.",
         "GLS_UNIT_DELAY": "Delay assigned in unit-delay GLS mode.",
         "SDF_STRICT": "Fail when SDF annotation is missing or incomplete.",
         "SDF_FILE": "Explicit SDF file used for GLS.",
@@ -235,10 +237,10 @@ Use `fx commands` to list every backend Make target.
         "POWER_TOP_INSTANCES": "Number of highest-power gates analyzed and cross-referenced.",
         "POWER_TEST_NAME": "Select one GLS workload for power/fusion.",
         "POWER_TEST_NAMES": "Select GLS workloads for *_all; use all for discovery.",
-        "POWER_GLS_BACKEND": "Select one workload backend for power/fusion.",
-        "POWER_GLS_BACKENDS": "Select workload backends for *_all.",
-        "POWER_TIMING_MODE": "Select one workload timing mode for power/fusion.",
-        "POWER_TIMING_MODES": "Select timing modes for *_all.",
+        "POWER_GLS_BACKEND": "Preferred workload backend for *_all; exact backend for single power/fusion.",
+        "POWER_GLS_BACKENDS": "Candidate workload backends for *_all; they are alternatives, not cumulative requirements.",
+        "POWER_TIMING_MODE": "Select one aligned sign-off scenario by GLS mode: min→ff, typ→tt, max→ss.",
+        "POWER_TIMING_MODES": "Select aligned sign-off scenarios for *_all by GLS mode; all means min/typ/max.",
         "POWER_VCD_SCOPE": "VCD hierarchy scope to annotate, or auto.",
         "POWER_DUT_INSTANCE": "DUT instance used to resolve activity scope, or auto.",
         "FST2VCD": "FST-to-VCD converter executable.",
@@ -283,6 +285,13 @@ Use `fx commands` to list every backend Make target.
         "sim_post_syn": (
             "fx sim_post_syn --no-setup --set TEST_NAME=smoke "
             "--set GLS_BACKEND=sv --set TIMING_MODE=typ --set SDF_STRICT=1",
+        ),
+        "sim_post_syn_all": (
+            "fx sim_post_syn_all",
+            "fx sim_post_syn_all --no-setup --set TEST_NAMES=all "
+            "--set GLS_BACKEND=sv --set TIMING_MODES=all",
+            "fx sim_post_syn_all --no-setup --set TEST_NAMES=all "
+            "--set GLS_BACKEND=cocotb --set TIMING_MODES=all",
         ),
         "power_analysis": (
             "fx power_analysis --no-setup --set POWER_TEST_NAME=smoke "

@@ -1,0 +1,67 @@
+analysis=power_estimate activity_source=input_assumption
+activity_model=input
+activity=0.1
+duty=0.5
+corner=ss stage=post_syn
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib
+netlist=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v
+sdc=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1mA
+ power 1nW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             1.39e-03   1.77e-04   1.39e-09   1.56e-03  29.9%
+Combinational          1.54e-03   2.11e-03   2.73e-09   3.66e-03  70.1%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  2.93e-03   2.29e-03   4.12e-09   5.22e-03 100.0%
+                          56.1%      43.9%       0.0%
+
+=== Highest-power instances ===
+   Internal  Switching    Leakage      Total
+      Power      Power      Power      Power (Watts)
+--------------------------------------------
+   4.92e-06   3.73e-05   1.09e-12   4.22e-05 _3512_
+   4.60e-06   2.45e-05   1.15e-12   2.91e-05 _3064_
+   5.48e-06   2.18e-05   4.57e-12   2.73e-05 _4602_
+   1.65e-06   2.45e-05   4.82e-13   2.62e-05 _3524_
+   5.53e-06   1.65e-05   4.30e-12   2.20e-05 _4712_
+   4.34e-07   2.14e-05   1.17e-13   2.18e-05 _2715_
+   2.55e-07   2.02e-05   6.63e-13   2.04e-05 _3841_
+   5.69e-06   1.19e-05   4.75e-12   1.76e-05 _4603_
+   1.94e-07   1.70e-05   6.31e-13   1.72e-05 _3838_
+   1.83e-07   1.59e-05   3.61e-13   1.60e-05 _3045_
+   5.74e-06   9.43e-06   4.67e-12   1.52e-05 _4604_
+   8.70e-06   5.46e-06   2.17e-12   1.42e-05 _3144_
+   7.49e-06   5.37e-06   1.56e-12   1.29e-05 _3498_
+   7.46e-06   5.38e-06   2.06e-12   1.28e-05 _3043_
+   7.86e-06   4.96e-06   2.77e-12   1.28e-05 _3529_
+   3.80e-06   9.02e-06   1.50e-12   1.28e-05 _3519_
+   2.65e-07   1.25e-05   6.32e-13   1.28e-05 _3844_
+   7.44e-06   5.36e-06   2.57e-12   1.28e-05 _3053_
+   8.03e-06   4.34e-06   2.08e-12   1.24e-05 _3179_
+   4.65e-06   7.41e-06   1.45e-12   1.21e-05 _3049_
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00293
+switching_power=0.00229
+dynamic_power=0.00522
+leakage_power=4.12e-09
+total_power=0.00522

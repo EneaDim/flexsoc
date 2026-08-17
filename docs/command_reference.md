@@ -60,7 +60,7 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--dry-run` | Backend targets | Print the exact command without executing it. |
 | `--script` | With `--dry-run` | Render the preview as a strict Bash script. |
 | `--capture` | Backend targets | Capture stdout/stderr and save a per-command log. |
-| `--live` | Backend targets | Stream complete tool output while retaining the command log and render generated script contents. `fusion_analysis` and `fusion_analysis_all` already stream progress/report paths by default, but keep Tcl contents hidden unless `--live` is requested. |
+| `--live` | Backend targets | Stream complete tool output while retaining the command log and render generated script contents. Compact streaming targets show only their normal artifact lines unless `--live` is requested. |
 | `--json` | Supported pseudo-commands and execution output | Emit machine-readable JSON. |
 | `--info` | Backend targets | Describe selected targets and accepted variables instead of running them. |
 
@@ -491,10 +491,10 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sdf` | Write SDF timing files. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx power_estimate` | Estimate power using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx power_analysis` | Run workload-dependent OpenSTA power analysis for one qualified GLS trace. | `SIGNOFF_STAGE`, `POWER_TEST_NAME`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODE`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, `MACRO_LIBS`, `SPEF_FILE` | Requires a passing direct GLS report and VCD/SAIF activity. |
-| `fx power_analysis_all` | Run workload-dependent power analysis for all matching qualified GLS traces. | `POWER_TEST_NAMES`, `POWER_GLS_BACKENDS`, `POWER_TIMING_MODES`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE` | Discovers direct GLS reports; no extra manifest is created. |
+| `fx power_analysis` | Run workload-dependent OpenSTA power analysis for one qualified GLS trace in its aligned scenario. | `SIGNOFF_STAGE`, `POWER_TEST_NAME`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODE`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, `MACRO_LIBS`, `SPEF_FILE` | Requires a passing direct GLS report and VCD/SAIF activity. |
+| `fx power_analysis_all` | Run workload-dependent power analysis for all selected test/scenario pairs. | `POWER_TEST_NAMES`, `POWER_GLS_BACKENDS`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODES`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE` | Treats SV/cocotb as alternative activity sources and selects one qualified backend per test/scenario. |
 | `fx fusion_analysis` | Correlate timing and workload power for one qualified GLS trace. | Power-analysis selectors plus `STA_MODES`, `STA_ENDPOINT_PATH_LIMIT` and `POWER_TOP_INSTANCES` (default 20) | Uses staged public OpenSTA passes to report worst met/violated paths, gate fanout/capacitance/power, and the worst timing path through each top-power gate in one `fusion.rpt` per corner/mode. |
-| `fx fusion_analysis_all` | Run fusion analysis for all matching qualified GLS traces. | Plural power-analysis selectors plus `STA_MODES`, `STA_ENDPOINT_PATH_LIMIT` and `POWER_TOP_INSTANCES` | Prints workload/corner/pass progress, writes one fusion table per workload, and retains one global JSON summary. |
+| `fx fusion_analysis_all` | Run fusion analysis for all selected test/scenario pairs. | Plural power-analysis selectors plus `STA_MODES`, `STA_ENDPOINT_PATH_LIMIT` and `POWER_TOP_INSTANCES` | Selects one qualified SV/cocotb source per test/scenario, then writes one fusion table per selected workload and one global JSON summary. |
 | `fx sta_violators` | Report timing violators. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx path_view` | Build interactive STA path view. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 
@@ -507,7 +507,8 @@ Compile and run mapped or post-route gate-level simulations, optionally with SDF
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx compile_post_syn` | Compile post-synthesis gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sim_post_syn` | Run post-synthesis gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sim_post_syn` | Run one post-synthesis gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sim_post_syn_all` | Run all selected generated tests and timing modes with one GLS backend. | `TEST_NAMES`, `GLS_BACKEND`, `TIMING_MODES`, plus the `sim_post_syn` overrides | Defaults to all test directories, backend `sv`, and `zero unit min typ max`; normal auto-setup runs `sdf` first. Run the command once with `GLS_BACKEND=sv` and once with `GLS_BACKEND=cocotb` when both drivers must be qualified. Results and `summary_<backend>.json` stay under `dv/functional/sim/post_syn/<pdk>/`. |
 | `fx compile_post_pnr` | Compile post-PnR gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 | `fx sdf_post_pnr` | Export post-PnR SDF from final netlist, SDC and SPEF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 | `fx sim_post_pnr` | Run post-PnR gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
@@ -515,7 +516,9 @@ Compile and run mapped or post-route gate-level simulations, optionally with SDF
 
 #### Post-synthesis timing modes
 
-Both `compile_post_syn` and `sim_post_syn` require Icarus. Select the driver with
+The CLI uses one terminal grammar for every target: `→ target: description` at start, orange labels for `[log]`, `[script]`, `[report]`, blue values/paths, and a green `✓ target: done` or red `✗ target: failed (...)` completion line. Default all-matrix logs use the concise target name (`sim_post_syn_all.log`, `power_analysis_all.log`, `fusion_analysis_all.log`); non-default selectors are appended only when they disambiguate the run.
+
+Both `compile_post_syn` and `sim_post_syn` require Icarus. `sim_post_syn_all` invokes the same direct flow for every selected case. Select the driver with
 `GLS_BACKEND=sv|cocotb` and the timing behavior with:
 
 | `TIMING_MODE` | Cell-model behavior | SDF | Report model |
@@ -558,15 +561,15 @@ fx sim_post_syn --live \
   --set TEST_NAME=smoke \
   --set SDF_STRICT=1 \
   --set WAVE_FORMAT=fst \
-  --set WAVE_FILE="$RUN/dv/functional/sim/post_syn/$PDK/${TOP}_smoke_sv_typ.fst"
+  --set WAVE_FILE="$RUN/dv/functional/sim/post_syn/$PDK/${TOP}_smoke_sv_tt.fst"
 ```
 
 Artifacts:
 
 ```text
-dv/functional/sim/post_syn/<pdk>/<testbench>_<test>_<backend>_<mode>.<fst|vcd>
-dv/functional/sim/post_syn/<pdk>/<top>_post_syn_<test>_<backend>_<mode>.json
-logs/dv/functional/post_syn/<pdk>/<top>_post_syn_<test>_<backend>_<mode>.log
+dv/functional/sim/post_syn/<pdk>/<testbench>_<test>_<backend>_<scenario>.<fst|vcd>
+dv/functional/sim/post_syn/<pdk>/<top>_post_syn_<test>_<backend>_<scenario>.json
+logs/dv/functional/post_syn/<pdk>/<top>_post_syn_<test>_<backend>_<scenario>.log
 dv/functional/sim/post_syn/<pdk>/icarus_timing_models/manifest.json
 ```
 
@@ -576,8 +579,12 @@ annotation markers and recognized SDF warnings/errors fail the run.
 `SDF_STRICT=0` is diagnostic only.
 
 Default waveform, report, executable, and log names include `TEST_NAME`,
-`GLS_BACKEND`, and `TIMING_MODE`. Each direct GLS execution therefore retains
-its own evidence without an intermediate qualification manifest.
+`GLS_BACKEND`, and the user-facing scenario. `zero` and `unit` keep their names;
+SDF-backed modes are named by PVT (`min→ff`, `typ→tt`, `max→ss`). The JSON
+still records the exact technical `timing_mode` used by Icarus, so for example
+`*_ss.json` contains `scenario=ss`, `timing_mode=max`, and `sdf_corner=ss`.
+Each direct GLS execution therefore retains its own evidence without an
+intermediate qualification manifest.
 
 Post-PnR targets use the same driver/timing concepts but consume a final netlist
 and corner-specific post-PnR SDF. `sdf_post_pnr` requires `TIMING_MODE=min|typ|max`
@@ -606,7 +613,7 @@ Consolidate run identity, metrics, and closure status for review and release.
 | `fx metrics` | Collect functional/formal/synthesis/signoff metrics. | Common run/clock settings only | Use `--info` for accepted overrides. |
 | `fx manifest` | Collect automatic run identity into meta/manifest.json. | Common run/clock settings only | Use `--info` for accepted overrides. |
 | `fx manifest_show` | Show the current run manifest in color. | Common run/clock settings only | Use `--info` for accepted overrides. |
-| `fx check` | Refresh metrics, then show complete closure for the selected PDK, including direct post-synthesis GLS reports when present. | `PDK` plus common run/clock settings | Prints compact PASS/FAIL/MISSING totals by timing mode and backend, followed by the first failing combinations and evidence paths. |
+| `fx check` | Refresh metrics, then show complete closure for the selected PDK, including direct post-synthesis GLS reports when present. | `PDK` plus common run/clock settings | GLS closure is per test × timing mode: SV/cocotb are alternative evidence sources, so one qualified backend is sufficient. Per-backend diagnostics remain visible. |
 
 ### 3.13 IP load/save
 
@@ -617,7 +624,7 @@ Move authored IP sources between the reusable library and an isolated run worksp
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx ip_load` | Load an IP into a run workspace. | `IP_NAME` | Use `--info` for accepted overrides. |
-| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT` | Saves reusable `syn/<pdk>` collateral, optional `impl/<pdk>`, EQY/SDC/OpenSTA Tcl, and—when already collected—`meta/<pdk>/manifest.json`, `metrics.json`, plus a plain `check.rpt` rendered from those metrics. Diagnostic RTLIL checkpoints, logs, analysis reports, generated SDF files, waveforms, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
+| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT` | Preserves results in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, and final `.rpt`/`.json`/`.sdf` evidence under `signoff/<pdk>/`. It also saves reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC/OpenSTA Tcl, and `meta/<pdk>`. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
 
 E2E tests set `IP_LIBRARY_ROOT` inside their temporary workspace and hash the repository-owned package before and after execution. Therefore `make test` cannot write into `hw/ips`.
 
@@ -773,10 +780,10 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `LIB_SYN` | Primary synthesis Liberty view. |
 | `PRIM` | Technology primitive/formal model input. |
 | `WAVE_FORMAT` | Waveform format: `fst` or `vcd`. |
-| `WAVE_FILE` | Explicit waveform path for simulation or analysis. Use a unique path per test/backend/mode when overriding the canonical test-scoped path. |
+| `WAVE_FILE` | Explicit waveform path for simulation or analysis. Use a unique path per test/backend/scenario when overriding the canonical test-scoped path. |
 | `GLS_SIMULATOR` | Gate-level simulator selection; current post-synthesis/post-PnR GLS requires `iverilog`. |
 | `GLS_BACKEND` | Gate-level driver: `sv` or `cocotb`; default `sv`. |
-| `TIMING_MODE` | Gate timing mode: `zero`, `unit`, `min`, `typ`, or `max`; default `zero`. Aliases `sdf_min`, `sdf_typ`, and `sdf_max` are accepted. |
+| `TIMING_MODE` | Technical gate timing selection: `zero`, `unit`, `min`, `typ`, or `max`; default `zero`. SDF-backed artifacts are named by aligned PVT scenario (`min→ff`, `typ→tt`, `max→ss`). Aliases `sdf_min`, `sdf_typ`, and `sdf_max` are accepted. |
 | `GLS_UNIT_DELAY` | Requested physical primitive delay used only by `TIMING_MODE=unit`; default `1ps`. FlexSoC rounds it up to the coarsest precision declared by the selected cell models and passes Icarus a suffix-free numeric delay. Real technology timing uses `min/typ/max` SDF. |
 | `SDF_STRICT` | When true (default `1`), missing annotation evidence or recognized SDF warnings/errors fail the simulation report. |
 | `SDF_FILE` | Explicit SDF file for `min/typ/max` gate simulation. It is rejected in `zero/unit`; missing SDF is fatal in timed modes. |
@@ -889,7 +896,7 @@ make test E2E_ROOT="$HOME/flexsoc-e2e"
 | --- | --- | --- |
 | `--e2e-root PATH` | `FLEXSOC_E2E_ROOT` | Base directory for isolated workspaces. |
 | `--e2e-gls-modes VALUE` | `FLEXSOC_E2E_GLS_MODES` | One of `zero`, `unit`, `min`, `typ`, or `max`. |
-| `--e2e-gls-backends VALUE` | `FLEXSOC_E2E_GLS_BACKENDS` | One of `sv` or `cocotb`. |
+| `--e2e-gls-backends VALUE` | `FLEXSOC_E2E_GLS_BACKENDS` | Primary backend (`sv` or `cocotb`) used for detailed GLS/power/fusion checks; the other backend is additionally exercised with `sim_post_syn_all`. |
 | `--no-post-syn-gls` | none | Keep synthesis/signoff but skip the explicit GLS commands. |
 | `--no-signoff` | none | Skip sign-off SDC setup, formal, synthesis, EQY, SDF, STA, power, and GLS. |
 
@@ -905,6 +912,14 @@ dv/functional/sim/post_syn/<pdk>/
 ├── <top>_<test>_<backend>_<mode>.fst
 └── ...
 ```
+
+`fx sim_post_syn_all` discovers the generated test directories and runs the selected test × timing-mode matrix with the single backend chosen by `GLS_BACKEND`. It writes the same per-case JSON reports plus:
+
+```text
+dv/functional/sim/post_syn/<pdk>/summary_<backend>.json
+```
+
+Use `TEST_NAMES` and `TIMING_MODES` to restrict the matrix; each selector accepts whitespace/comma-separated values or `all`. `GLS_BACKEND` selects exactly one driver (`sv` or `cocotb`) per invocation.
 
 There is no E2E qualification matrix or `matrix.json`. For `min`, `typ`, and
 `max`, the E2E test immediately runs `fx power_analysis` for that exact GLS trace.
@@ -990,6 +1005,27 @@ fx eqy_debug --files <partition>
 See [Project lifecycle](project_lifecycle.md) for engineering rationale and [Quickstart](quickstart.md) for the shortest runnable flow.
 
 
+### 7.0 Pre-layout sign-off scenarios
+
+FlexSoC keeps static sign-off and workload-dependent sign-off deliberately distinct.
+STA remains exhaustive across every configured Liberty corner and both setup/hold
+checks.  Activity-based power and fusion instead use one physically coherent
+pre-layout scenario per SDF-backed GLS trace:
+
+| Scenario corner | GLS SDF mode | Workload-dependent analyses |
+| --- | --- | --- |
+| `ff` | `min` | power on FF; fusion FF setup + hold |
+| `tt` | `typ` | power on TT; fusion TT setup + hold |
+| `ss` | `max` | power on SS; fusion SS setup + hold |
+
+Thus `POWER_TIMING_MODE=typ` means the `tt/typ` scenario; it no longer causes the
+same TT/typ waveform to be swept again through FF and SS Liberty views.
+`POWER_TIMING_MODES=all` means all three aligned scenarios, not a timing-mode ×
+corner Cartesian product.  `sim_post_syn_all` remains a DV matrix and can still
+select `zero`, `unit`, `min`, `typ`, and `max`, while its SDF-backed files are
+named `ff`, `tt`, and `ss`.  SDF generation, STA, and vectorless
+`power_estimate` remain multi-corner (`ff`, `tt`, `ss`).
+
 ### 7.1 `fx power_analysis` and `fx power_analysis_all`
 
 `power_estimate` is the vectorless reference based by default on primary-input activity and duty
@@ -997,8 +1033,11 @@ cycle assumptions; global activity is used only when explicitly requested. `powe
 post-synthesis GLS report. The report itself identifies the waveform and proves
 that `$sdf_annotate` was requested successfully; no matrix manifest is involved.
 FlexSoC converts FST to VCD when needed, resolves the DUT scope, and runs OpenSTA
-`read_vcd`, `report_activity_annotation`, and `report_power` for every configured
-Liberty corner.
+`read_vcd`/`read_saif`, compact activity-coverage reporting, and `report_power` only in
+the Liberty corner aligned with that GLS scenario.  The primary `power.rpt` records
+only the annotated percentage and the unannotated pin list; it deliberately omits the
+full annotated-pin list.  Vectorless `power_estimate` has no VCD/SAIF annotation
+section at all.
 
 Analyze one GLS trace:
 
@@ -1019,18 +1058,22 @@ fx power_analysis_all \
 ```
 
 `power_analysis_all` discovers `<top>_post_syn_<test>_<backend>_<mode>.json`
-files directly. Singular selectors restrict the discovery without requiring a
-separate inventory file. `zero` and `unit` remain invalid for activity power.
-Repeated singular runs accumulate into the same activity-power summary instead
-of overwriting previous test results.
+files directly. For each selected `test × timing_mode`, SV and cocotb are
+**alternative activity sources**, not two mandatory sign-off runs. FlexSoC validates
+the available candidates (PASS report, scenario-aligned SDF annotation, non-empty
+waveform) and selects one qualified backend. `POWER_GLS_BACKEND` is the preferred
+backend when both qualify (default `sv`); `POWER_GLS_BACKENDS` restricts the
+allowed alternatives. A missing or failed cocotb result therefore does not block a
+scenario when the matching SV result is qualified, and vice versa. `zero` and
+`unit` remain invalid for activity power. Repeated singular runs accumulate into
+the same activity-power summary instead of overwriting previous test results.
 
 Relevant variables are `POWER_TEST_NAME(S)`, `POWER_GLS_BACKEND(S)`,
 `POWER_TIMING_MODE(S)`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, and `FST2VCD`.
 Explicit OpenSTA scopes use `/`, for example `test_tb/u_test`. Automatic scope
 resolution recognizes `u_<TOP>` and `u_dut`. Captured or converted VCD files are written under `signoff/<pdk>/power/activity/captures`.
 The canonical Tcl lives at `signoff/<pdk>/power/analysis/power_analysis.tcl`.
-Each execution rewrites that script for the selected workload/corner, while reports
-and logs remain separated under `<workload>/<corner>`.
+Each execution rewrites that script for the selected aligned scenario-workload. The workload name encodes the PVT corner (`_<backend>_ff`, `_<backend>_tt`, or `_<backend>_ss`), so reports and logs live directly under `<workload>` with no redundant corner subdirectory.
 
 Without `--live`, gate simulation and activity-power targets keep detailed output
 in their logs and print only concise status information. With `--live`, FlexSoC
@@ -1462,12 +1505,12 @@ runs/<design>/<variant>/
     ├── power/
     │   ├── activity/captures/
     │   ├── estimate/<corner>/
-    │   └── analysis/<workload>/<corner>/
-    └── fusion/<workload>/<corner>/<setup|hold>/
+    │   └── analysis/<workload>/
+    └── fusion/<workload>/<setup|hold>/
 ```
 
 `activity/` contains only VCD/SAIF captures and conversion logs. Each analysis
-family owns one canonical Tcl under its stage root; workload/corner/mode
+family owns one canonical Tcl under its stage root; scenario-workload/mode
 directories contain reports only. There is no `activity/scripts` directory and
 no additional activity manifest.
 

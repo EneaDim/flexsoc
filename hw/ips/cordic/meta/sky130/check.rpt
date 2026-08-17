@@ -28,8 +28,8 @@ RTL ↔ synthesis     17/17  100.00%  PASS
 SDF                 PASS                
 STA                 PASS                
 Power estimate      PASS                
-Post-synthesis GLS  10/10  PASS         
-Activity power      1/1  PASS           
+Post-synthesis GLS  50/50  PASS         
+Activity power      30/30  PASS         
 
 Lint  Slang → Verilator
 Tool       Status  Errors  Warnings  Latch  Width  Unused
@@ -57,7 +57,7 @@ Suite       Stage  Status  Time  Traces
 csr         bmc    PASS      4s       0
 csr         prove  PASS      0s       0
 csr         cover  PASS      0s       8
-properties  bmc    PASS      2s       0
+properties  bmc    PASS      3s       0
 properties  prove  PASS      0s       0
 properties  cover  PASS      0s       8
 
@@ -88,25 +88,56 @@ ss      1114325  signoff/sky130/sdf/ss/cordic_ss.sdf
 tt      1114325  signoff/sky130/sdf/tt/cordic_tt.sdf
 
 Post-synthesis GLS · sky130
-Status        PASS                                                                                                                       
-Results       10/10 passed · 0 failed · 0 missing                                                                                        
-Tests         auto_toggle, corners, quadrant_sweep, random_seed_1, random_seed_2, random_small, reconfig, rotate_45deg, smoke, smoke_zero
-Backends      sv                                                                                                                         
-Timing modes  typ                                                                                                                        
-Artifacts     dv/functional/sim/post_syn/sky130                                                                                          
+Status     PASS                                                                                                                       
+Results    50/50 passed · 0 failed · 0 missing                                                                                        
+Tests      auto_toggle, corners, quadrant_sweep, random_seed_1, random_seed_2, random_small, reconfig, rotate_45deg, smoke, smoke_zero
+Backends   sv                                                                                                                         
+Scenarios  zero, unit, ff, tt, ss                                                                                                     
+Artifacts  dv/functional/sim/post_syn/sky130                                                                                          
 
 Post-synthesis GLS results
-Mode          sv       Total
-typ   10/10 PASS  10/10 PASS
+Scenario          sv     Closure
+zero      10/10 PASS  10/10 PASS
+unit      10/10 PASS  10/10 PASS
+ff        10/10 PASS  10/10 PASS
+tt        10/10 PASS  10/10 PASS
+ss        10/10 PASS  10/10 PASS
 
 Post-GLS activity power
 Status        PASS                                      
-Analyses      1/1 passed · 0 failed                     
+Analyses      30/30 passed · 0 failed                   
 Summary JSON  signoff/sky130/power/analysis/summary.json
-Test        Backend  GLS  Corner  Annotated  Total W  Status
-smoke_zero  sv       typ  ff           8898  0.00148  PASS  
-smoke_zero  sv       typ  ss           8898  0.00121  PASS  
-smoke_zero  sv       typ  tt           8898   0.0013  PASS  
+Test            Backend  GLS  Corner  Activity  Total W  Status
+auto_toggle     sv       ff   ff       100.00%  0.00143  PASS  
+corners         sv       ff   ff       100.00%  0.00149  PASS  
+quadrant_sweep  sv       ff   ff       100.00%   0.0015  PASS  
+random_seed_1   sv       ff   ff       100.00%   0.0015  PASS  
+random_seed_2   sv       ff   ff       100.00%   0.0015  PASS  
+random_small    sv       ff   ff       100.00%   0.0015  PASS  
+reconfig        sv       ff   ff       100.00%  0.00147  PASS  
+rotate_45deg    sv       ff   ff       100.00%  0.00149  PASS  
+smoke           sv       ff   ff       100.00%  0.00148  PASS  
+smoke_zero      sv       ff   ff       100.00%  0.00148  PASS  
+auto_toggle     sv       tt   tt       100.00%  0.00125  PASS  
+corners         sv       tt   tt       100.00%  0.00131  PASS  
+quadrant_sweep  sv       tt   tt       100.00%  0.00131  PASS  
+random_seed_1   sv       tt   tt       100.00%  0.00132  PASS  
+random_seed_2   sv       tt   tt       100.00%  0.00132  PASS  
+random_small    sv       tt   tt       100.00%  0.00132  PASS  
+reconfig        sv       tt   tt       100.00%  0.00129  PASS  
+rotate_45deg    sv       tt   tt       100.00%  0.00131  PASS  
+smoke           sv       tt   tt       100.00%   0.0013  PASS  
+smoke_zero      sv       tt   tt       100.00%   0.0013  PASS  
+auto_toggle     sv       ss   ss       100.00%  0.00117  PASS  
+corners         sv       ss   ss       100.00%  0.00121  PASS  
+quadrant_sweep  sv       ss   ss       100.00%  0.00122  PASS  
+random_seed_1   sv       ss   ss       100.00%  0.00123  PASS  
+random_seed_2   sv       ss   ss       100.00%  0.00122  PASS  
+random_small    sv       ss   ss       100.00%  0.00123  PASS  
+reconfig        sv       ss   ss       100.00%   0.0012  PASS  
+rotate_45deg    sv       ss   ss       100.00%  0.00121  PASS  
+smoke           sv       ss   ss       100.00%  0.00121  PASS  
+smoke_zero      sv       ss   ss       100.00%  0.00121  PASS  
 
 STA
 Corner  Mode   WNS  TNS  Viol.  Unconstr.

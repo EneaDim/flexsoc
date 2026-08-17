@@ -1064,7 +1064,7 @@ signoff/<pdk>/power/
 ├── activity/captures/            converted VCD; converter log only on failure
 ├── analysis/<workload>/
 │   ├── power_table.rpt
-│   └── <corner>/power.rpt
+│   └── power.rpt
 ├── analysis/power_analysis.tcl
 └── analysis/summary.json
 ```
@@ -1072,8 +1072,7 @@ signoff/<pdk>/power/
 ### 14.5 What activity power proves
 
 It is a stronger post-synthesis workload reference than vectorless estimation.
-It compares the same captured switching behavior against each configured
-Liberty corner.
+Each workload is an aligned pre-layout sign-off scenario: `_ff` consumes FF/min activity, `_tt` consumes TT/typ activity, and `_ss` consumes SS/max activity. The workload suffix therefore identifies the Liberty corner used for the single `power.rpt`; cross-corner activity experiments are not part of the default closure flow.
 
 It is not final silicon power sign-off because it does not yet include the final
 clock tree, post-route glitch behavior, extracted interconnect capacitance,
@@ -1346,8 +1345,8 @@ runs/<design>/<variant>/
     ├── power/
     │   ├── activity/captures/
     │   ├── estimate/<corner>/
-    │   └── analysis/<workload>/<corner>/
-    └── fusion/<workload>/<corner>/<setup|hold>/
+    │   └── analysis/<workload>/
+    └── fusion/<workload>/<setup|hold>/
 ```
 
 `activity/` contains only VCD/SAIF captures and conversion logs. Tcl scripts are

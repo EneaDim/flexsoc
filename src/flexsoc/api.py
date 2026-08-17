@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
+from .backend.setup_signoff import SDF_MODE_TO_CORNER
+
 
 # ---------------------------------------------------------------------------
 # Configuration data
@@ -153,6 +155,7 @@ GATE_SIM = (
     "DATA_IN",
     "DATA_OUT",
 )
+GATE_SIM_ALL = tuple(dict.fromkeys((*GATE_SIM, "TEST_NAMES", "TIMING_MODES")))
 PNR = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "ORS", "ORS_TECH")
 IP_LOAD = (*COMMON, "IP_NAME")
 IP_SAVE = tuple(dict.fromkeys((*EQUIV, *SIGNOFF, "IP_NAME", "IP_LIBRARY_ROOT")))
@@ -263,16 +266,17 @@ TARGETS: dict[str, TargetSpec] = {
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
     "compile_post_syn": ("Gate simulation", "Compile post-synthesis gate-level simulation with Icarus", GATE_SIM),
     "sim_post_syn": ("Gate simulation", "Run post-synthesis gate-level simulation with optional SDF", GATE_SIM),
+    "sim_post_syn_all": ("Gate simulation", "Run every selected post-synthesis GLS test/timing combination with one backend", GATE_SIM_ALL),
     "compile_post_pnr": ("Gate simulation", "Compile post-PnR gate-level simulation with Icarus", GATE_SIM),
     "sdf_post_pnr": ("Gate simulation", "Export post-PnR SDF from final netlist, SDC and SPEF", GATE_SIM),
     "sim_post_pnr": ("Gate simulation", "Run post-PnR gate-level simulation with optional SDF", GATE_SIM),
     "sta": ("Signoff", "Run static timing analysis", SIGNOFF),
     "sdf": ("Signoff", "Write SDF timing files", SIGNOFF),
     "power_estimate": ("Signoff", "Estimate power using global switching activity", SIGNOFF),
-    "power_analysis": ("Signoff", "Analyze power from one back-annotated GLS activity trace", SIGNOFF),
-    "power_analysis_all": ("Signoff", "Analyze power for every matching direct GLS report", SIGNOFF),
-    "fusion_analysis": ("Signoff", "Correlate timing and power for one GLS workload", SIGNOFF),
-    "fusion_analysis_all": ("Signoff", "Correlate timing and power for all matching GLS workloads", SIGNOFF),
+    "power_analysis": ("Signoff", "Analyze power in the GLS trace aligned signoff scenario", SIGNOFF),
+    "power_analysis_all": ("Signoff", "Analyze power for all matching aligned GLS scenarios", SIGNOFF),
+    "fusion_analysis": ("Signoff", "Correlate timing and power in one aligned GLS scenario", SIGNOFF),
+    "fusion_analysis_all": ("Signoff", "Correlate timing and power for all aligned GLS scenarios", SIGNOFF),
     "sta_violators": ("Signoff", "Report timing violators", SIGNOFF),
     "path_view": ("Signoff", "Build interactive STA path view", SIGNOFF),
     "metrics": ("Run metadata", "Collect functional/formal/synthesis/signoff metrics", COMMON),
@@ -483,11 +487,28 @@ def _safe_log_name(value: str) -> str:
 
 
 
+def _scenario_log_value(value: str) -> str:
+    """Render SDF min/typ/max selectors as their aligned ff/tt/ss scenarios."""
+
+    tokens = [part for part in re.split(r"[\s,]+", str(value).strip()) if part]
+    return " ".join(SDF_MODE_TO_CORNER.get(token.lower(), token) for token in tokens)
+
+def _selector_log_suffix(selectors: tuple[tuple[str, str], ...]) -> str:
+    """Return a concise suffix containing only non-default matrix selectors."""
+
+    parts: list[str] = []
+    for label, value in selectors:
+        text = str(value).strip()
+        if not text or text.lower() == "all":
+            continue
+        parts.extend((label, _safe_log_name(text)))
+    return "_".join(parts)
+
 
 TECHNOLOGY_TARGETS = {
     "setup_syn", "syn", "syn_v", "syn_sv",
     "setup_eqy", "eqy",
-    "compile_syn", "sim_syn", "compile_post_syn", "sim_post_syn",
+    "compile_syn", "sim_syn", "compile_post_syn", "sim_post_syn", "sim_post_syn_all",
     "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
     "setup_signoff", "sta", "sdf", "power_estimate", "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all", "sta_violators",
     "path_view", "sta_corners", "power_estimate_corners", "signoff_corners",
@@ -514,6 +535,7 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "formal_prove": ("setup_formal_prove",),
     "formal_cover": ("setup_formal_cover",),
     "eqy": ("setup_eqy",),
+    "sim_post_syn_all": ("sdf",),
     "sta": ("setup_signoff",),
     "sta_corners": ("setup_signoff",),
     "sdf": ("setup_signoff",),
@@ -549,6 +571,7 @@ NATIVE_TARGETS: dict[str, tuple[str, str]] = {
     "sim_syn": ("sim", "post_syn"),
     "compile_post_syn": ("compile", "post_syn"),
     "sim_post_syn": ("sim", "post_syn"),
+    "sim_post_syn_all": ("sim_all", "post_syn"),
     "compile_post_pnr": ("compile", "post_pnr"),
     "sdf_post_pnr": ("sdf", "post_pnr"),
     "sim_post_pnr": ("sim", "post_pnr"),
@@ -559,7 +582,7 @@ ACTIVITY_ANALYSIS_TARGETS = {
     "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all",
 }
 
-STREAM_BY_DEFAULT_TARGETS = {"fusion_analysis", "fusion_analysis_all"}
+STREAM_BY_DEFAULT_TARGETS = {"sim_post_syn_all", "fusion_analysis", "fusion_analysis_all"}
 
 QUIET_BY_DEFAULT_TARGETS = {
     "compile_post_syn", "sim_post_syn",
@@ -818,18 +841,20 @@ class FlexSoC:
         results: list[FlexSoCResult] = []
         for command in commands:
             stream = command.target in STREAM_BY_DEFAULT_TARGETS and not capture and not live
-            if (
-                command.target in TECHNOLOGY_TARGETS
-                and not capture
-                and not live
-                and not stream
-            ):
-                print(
-                    f"\033[38;5;214m[technology]\033[0m "
-                    f"pdk={command.values.get('PDK')} "
-                    f"syn={command.values.get('SYNDIR')}",
-                    flush=True,
-                )
+            if not capture:
+                from .backend.output import print_label, print_target_result, print_target_start
+
+                _, description, _ = TARGETS.get(command.target, ("Target", "Run target", ()))
+                print_target_start(command.target, description)
+                if (
+                    command.target in TECHNOLOGY_TARGETS
+                    and not live
+                    and not stream
+                ):
+                    print_label(
+                        "technology",
+                        f"pdk={command.values.get('PDK')} syn={command.values.get('SYNDIR')}",
+                    )
             quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not live
             log_path = (
                 self._command_log_path(command)
@@ -855,16 +880,6 @@ class FlexSoC:
                     assert log_path is not None
                     done = self._run_live(command, log_path)
                 else:
-                    _, description, _ = TARGETS.get(
-                        command.target, ("Target", "Run target", ())
-                    )
-                    orange, blue = "\033[38;5;214m", "\033[94m"
-                    green, red, reset = "\033[92m", "\033[91m", "\033[0m"
-                    if not stream:
-                        print(
-                            f"{orange}→ {command.target}{reset}: {blue}{description}{reset}",
-                            flush=True,
-                        )
                     if stream:
                         assert log_path is not None
                         done = self._run_tee(command, log_path, show_scripts=False)
@@ -893,38 +908,26 @@ class FlexSoC:
                             check=False,
                             text=True,
                         )
-                    ok = done.returncode == 0
-                    status = f"{green}✓{reset}" if ok else f"{red}✗{reset}"
-                    suffix = "done" if ok else f"failed ({done.returncode})"
-                    print(
-                        f"{status} {orange}{command.target}{reset}: {blue}{suffix}{reset}",
-                        flush=True,
-                    )
-                    if ok and command.target == "eqy":
-                        from .backend.metrics import eqy_solver_stats
+                ok = done.returncode == 0
+                print_target_result(command.target, done.returncode)
+                if ok and command.target == "eqy":
+                    from .backend.metrics import eqy_solver_stats
 
-                        stats = eqy_solver_stats(Path(command.values["EQUIV_LOG"]))
-                        if stats:
-                            summary = " · ".join(
-                                f"{name} {row['proved']}/{row['attempts']} proven"
-                                + (f", {row['errors']} error(s)" if row["errors"] else "")
-                                for name, row in stats.items()
-                            )
-                            winners = ", ".join(
-                                f"{name} ({row['proved']})"
-                                for name, row in stats.items()
-                                if row["proved"]
-                            )
-                            print(
-                                f"{orange}[eqy]{reset} {blue}strategies:{reset} {summary}",
-                                flush=True,
-                            )
-                            if winners:
-                                print(
-                                    f"{orange}[eqy]{reset} "
-                                    f"{blue}successful solver/strategy:{reset} {winners}",
-                                    flush=True,
-                                )
+                    stats = eqy_solver_stats(Path(command.values["EQUIV_LOG"]))
+                    if stats:
+                        summary = " · ".join(
+                            f"{name} {row['proved']}/{row['attempts']} proven"
+                            + (f", {row['errors']} error(s)" if row["errors"] else "")
+                            for name, row in stats.items()
+                        )
+                        winners = ", ".join(
+                            f"{name} ({row['proved']})"
+                            for name, row in stats.items()
+                            if row["proved"]
+                        )
+                        print_label("eqy", f"strategies: {summary}")
+                        if winners:
+                            print_label("eqy", f"successful solver/strategy: {winners}")
 
             result = FlexSoCResult(
                 command,
@@ -951,29 +954,44 @@ class FlexSoC:
         name = _safe_log_name(command.target)
         if command.target in {"sim", "sim_v", "sim_sv", "cocotb"} and values.get("TEST_NAME"):
             name = f"{name}_{_safe_log_name(values['TEST_NAME'])}"
-        if command.target in NATIVE_TARGETS and values.get("TEST_NAME"):
+        if command.target == "sim_post_syn_all":
+            selectors = [
+                ("tests", values.get("TEST_NAMES", "all")),
+                ("timing", _scenario_log_value(values.get("TIMING_MODES", "all"))),
+            ]
+            backend = values.get("GLS_BACKEND", DEFAULT_SETTINGS["GLS_BACKEND"])
+            if backend != DEFAULT_SETTINGS["GLS_BACKEND"]:
+                selectors.insert(1, ("backend", backend))
+            suffix = _selector_log_suffix(tuple(selectors))
+            if suffix:
+                name = f"{name}_{suffix}"
+        elif command.target in NATIVE_TARGETS and values.get("TEST_NAME"):
             name = "_".join(
                 (
                     name,
                     _safe_log_name(values["TEST_NAME"]),
                     _safe_log_name(values.get("GLS_BACKEND", "sv")),
-                    _safe_log_name(values.get("TIMING_MODE", "zero")),
+                    _safe_log_name(_scenario_log_value(values.get("TIMING_MODE", "zero"))),
                 )
             )
         if command.target in ACTIVITY_ANALYSIS_TARGETS:
             if command.target.endswith("_all"):
-                selectors = (
-                    values.get("POWER_TEST_NAMES", "all"),
-                    values.get("POWER_GLS_BACKENDS", "all"),
-                    values.get("POWER_TIMING_MODES", "all"),
+                suffix = _selector_log_suffix(
+                    (
+                        ("tests", values.get("POWER_TEST_NAMES", "all")),
+                        ("backends", values.get("POWER_GLS_BACKENDS", "all")),
+                        ("timing", _scenario_log_value(values.get("POWER_TIMING_MODES", "all"))),
+                    )
                 )
+                if suffix:
+                    name = f"{name}_{suffix}"
             else:
                 selectors = (
                     values.get("POWER_TEST_NAME", values.get("TEST_NAME", "smoke")),
                     values.get("POWER_GLS_BACKEND", "sv"),
-                    values.get("POWER_TIMING_MODE", "typ"),
+                    _scenario_log_value(values.get("POWER_TIMING_MODE", "typ")),
                 )
-            name = "_".join((name, *(_safe_log_name(value) for value in selectors)))
+                name = "_".join((name, *(_safe_log_name(value) for value in selectors)))
         if command.target in TECHNOLOGY_TARGETS and values.get("COMMAND_LOGDIR"):
             return Path(values["COMMAND_LOGDIR"]) / f"{name}.log"
         return workspace / "runs" / run_top / run_id / "logs" / "commands" / f"{name}.log"

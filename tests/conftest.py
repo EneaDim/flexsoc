@@ -31,8 +31,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         dest="e2e_gls_backends",
         default=None,
         help=(
-            "Single GLS backend for one linear E2E run (default: sv). "
-            "Use the CI matrix for cocotb."
+            "Primary GLS backend for detailed E2E power/fusion checks (default: sv). "
+            "The second backend is also exercised through sim_post_syn_all."
         ),
     )
     parser.addoption(

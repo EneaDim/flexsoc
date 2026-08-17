@@ -6,21 +6,21 @@
 # Variant  : dev
 # PDK      : ihp-sg13g2
 # Stage    : post_syn
-# Corner   : ff
+# Corner   : tt
 # Mode     : not applicable
 # Workload : not applicable
 # Top      : cordic
 #
 # Inputs:
-#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc
+#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
+#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/power/estimate/ff
+#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/estimate/template_reports
 #
 # Limitations:
 #   - This is a vectorless estimate; it does not represent a simulated workload.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/power/estimate/ff}
+set report_dir {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/estimate/template_reports}
 file mkdir $report_dir
-set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib}
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc}
+set netlist {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v}
+set sdc {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -148,7 +148,7 @@ puts $fp "analysis=power_estimate activity_source=input_assumption"
 puts $fp "activity_model=input"
 puts $fp "activity=0.1"
 puts $fp "duty=0.5"
-puts $fp "corner=ff stage=post_syn"
+puts $fp "corner=tt stage=post_syn"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
 puts $fp "sdc=$sdc"
@@ -160,9 +160,6 @@ flexsoc_append_opensta $report report_units
 flexsoc_section $report {Constraint validation}
 # Append timing-setup diagnostics because power must use the same correctly linked and constrained design.
 flexsoc_append_opensta $report check_setup -verbose
-flexsoc_section $report {Activity annotation}
-# Show which design objects received switching activity and which remain unannotated.
-flexsoc_append_opensta $report report_activity_annotation -report_annotated -report_unannotated
 flexsoc_section $report {Power summary}
 # Report average internal, switching, leakage, and total cell power for the complete design.
 flexsoc_append_opensta $report report_power
@@ -170,4 +167,4 @@ flexsoc_section $report {Highest-power instances}
 # Rank the highest-power instances to expose the dominant contributors in this corner/workload.
 flexsoc_append_opensta $report report_power -highest_power_instances 20
 puts "report=$report"
-puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_estimate corner=ff mode=n/a workload=n/a}
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_estimate corner=tt mode=n/a workload=n/a}

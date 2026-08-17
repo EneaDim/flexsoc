@@ -21,11 +21,14 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from flexsoc.backend.output import print_script
+from flexsoc.backend.setup_signoff import scenario_corner
 from flexsoc.run_layout import layout_from_values
 
 
 STAGES = {"post_syn", "post_pnr"}
-DRIVERS = {"sv", "cocotb"}
+DRIVER_ORDER = ("sv", "cocotb")
+DRIVERS = set(DRIVER_ORDER)
+TIMING_MODE_ORDER = ("zero", "unit", "min", "typ", "max")
 WAVE_FORMATS = {"fst", "vcd"}
 TIMING_ALIASES = {
     "zero": "zero",
@@ -38,6 +41,12 @@ TIMING_ALIASES = {
     "sdf_max": "max",
 }
 SDF_MODES = {"min", "typ", "max"}
+
+
+def timing_scenario(mode: str) -> str:
+    """Return the user-facing GLS scenario name for one timing mode."""
+
+    return scenario_corner(mode) if mode in SDF_MODES else mode
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,7 +305,7 @@ def _discover_pnr_file(pnr_dir: Path, top: str, platform: str, filename: str) ->
 
 
 def _post_syn_sdf(layout, top: str, values: Mapping[str, str], mode: str) -> Path:
-    default_corner = {"min": "ff", "typ": "tt", "max": "ss"}[mode]
+    default_corner = scenario_corner(mode)
     corner = values.get("SDF_CORNER", default_corner).strip()
     return (layout.sdf_dir / corner / f"{top}_{corner}.sdf").resolve()
 
@@ -366,7 +375,7 @@ def resolve_paths(project_root: Path, values: Mapping[str, str], stage: str) -> 
     test = values.get("TEST_NAME", "smoke").strip() or "smoke"
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", test):
         raise ValueError("TEST_NAME may contain only letters, digits, '.', '_' and '-'")
-    tag = f"{test}_{driver}_{timing.mode}"
+    tag = f"{test}_{driver}_{timing_scenario(timing.mode)}"
     wave = (
         Path(values["WAVE_FILE"]).expanduser().resolve()
         if values.get("WAVE_FILE")
@@ -390,6 +399,41 @@ def resolve_paths(project_root: Path, values: Mapping[str, str], stage: str) -> 
         log.resolve(),
         report.resolve(),
     )
+
+
+def _cleanup_legacy_sdf_artifacts(
+    project_root: Path, values: Mapping[str, str], stage: str, paths: GateSimPaths
+) -> None:
+    """Remove pre-scenario ``min/typ/max`` artifact names after a successful GLS run."""
+
+    timing = timing_config(values)
+    if not timing.uses_sdf:
+        return
+    layout = layout_from_values(project_root, values)
+    top = values.get("TOP", "test")
+    backend = _driver(values)
+    test = values.get("TEST_NAME", "smoke").strip() or "smoke"
+    testbench = values.get("TESTBENCH", f"{top}_tb")
+    stage_dir = layout.post_syn_sim_dir if stage == "post_syn" else layout.post_pnr_sim_dir
+    log_dir = layout.post_syn_log_dir if stage == "post_syn" else layout.post_pnr_log_dir
+    fmt = values.get("WAVE_FORMAT", "fst").strip().lower()
+    legacy_tag = f"{test}_{backend}_{timing.mode}"
+    legacy_log = log_dir / f"{top}_{stage}_{legacy_tag}.log"
+    candidates = (
+        stage_dir / f"{testbench}_{legacy_tag}.{fmt}",
+        stage_dir / f"{testbench}_{legacy_tag}.vvp",
+        stage_dir / f"{top}_{stage}_{legacy_tag}.json",
+        legacy_log,
+        legacy_log.with_name(legacy_log.stem + "_compile.log"),
+    )
+    keep = {paths.wave.resolve(), paths.executable.resolve(), paths.log.resolve(), paths.report.resolve()}
+    for candidate in candidates:
+        if candidate.resolve() in keep:
+            continue
+        try:
+            candidate.unlink()
+        except FileNotFoundError:
+            pass
 
 
 _DELAY_LITERAL = re.compile(r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:fs|ps|ns|us|ms|s)$", re.I)
@@ -883,6 +927,7 @@ def _write_report(
         "test_name": values.get("TEST_NAME", "smoke"),
         "simulator": values.get("GLS_SIMULATOR", "iverilog"),
         "timing_mode": timing.mode,
+        "scenario": timing_scenario(timing.mode),
         "unit_delay": unit_delay.effective if unit_delay else None,
         "unit_delay_requested": unit_delay.requested if unit_delay else None,
         "unit_delay_define": unit_delay.define if unit_delay else None,
@@ -898,6 +943,11 @@ def _write_report(
         ),
         "netlist": str(paths.netlist),
         "sdf": str(paths.sdf) if paths.sdf else None,
+        "sdf_corner": (
+            values.get("SDF_CORNER", scenario_corner(timing.mode)).strip()
+            if stage == "post_syn" and timing.uses_sdf
+            else None
+        ),
         "wave": str(paths.wave),
         "log": str(paths.log),
         "annotation": annotation,
@@ -906,6 +956,152 @@ def _write_report(
     paths.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return final_rc, report
 
+
+
+def _selector_values(raw: str | None, *, allowed: Sequence[str], label: str) -> tuple[str, ...]:
+    """Resolve one whitespace/comma selector while preserving canonical order."""
+
+    text = (raw or "all").strip().lower()
+    if not text or text == "all":
+        return tuple(allowed)
+    requested = tuple(dict.fromkeys(part for part in re.split(r"[\s,]+", text) if part))
+    unknown = tuple(value for value in requested if value not in allowed)
+    if unknown:
+        raise ValueError(f"{label} contains unsupported value(s): {', '.join(unknown)}")
+    return tuple(value for value in allowed if value in requested)
+
+
+def _all_test_names(values: Mapping[str, str], run_root: Path) -> tuple[str, ...]:
+    """Discover generated functional tests or validate an explicit TEST_NAMES selector."""
+
+    test_root = (
+        Path(values["TEST_ROOT"]).expanduser().resolve()
+        if values.get("TEST_ROOT")
+        else run_root / "dv" / "functional" / "tests"
+    )
+    if not test_root.is_dir():
+        raise ValueError(f"functional test directory not found: {test_root}")
+    available = tuple(sorted(path.name for path in test_root.iterdir() if path.is_dir()))
+    if not available:
+        raise ValueError(f"no functional tests found in {test_root}")
+    raw = values.get("TEST_NAMES", "all").strip() or "all"
+    if raw.lower() == "all":
+        return available
+    requested = tuple(dict.fromkeys(part for part in re.split(r"[\s,]+", raw) if part))
+    missing = tuple(name for name in requested if name not in available)
+    if missing:
+        raise ValueError(
+            "TEST_NAMES selects missing test(s): "
+            + ", ".join(missing)
+            + f"; available: {', '.join(available)}"
+        )
+    return tuple(name for name in available if name in requested)
+
+
+def execute_all(project_root: Path, values: Mapping[str, str]) -> int:
+    """Run every selected test/timing mode with one GLS backend."""
+
+    layout = layout_from_values(project_root, values)
+    tests = _all_test_names(values, layout.run_root)
+    if values.get("GLS_BACKENDS"):
+        raise ValueError(
+            "GLS_BACKENDS is not supported by sim_post_syn_all; "
+            "select exactly one GLS_BACKEND=sv or GLS_BACKEND=cocotb"
+        )
+    backend = _driver(values)
+    modes = _selector_values(
+        values.get("TIMING_MODES"), allowed=TIMING_MODE_ORDER, label="TIMING_MODES"
+    )
+    cases = [(test, mode) for test in tests for mode in modes]
+    reports: list[dict[str, object]] = []
+    failures = 0
+    print(
+        f"[sim_post_syn_all] tests={len(tests)} backend={backend} "
+        f"scenarios={len(modes)} cases={len(cases)}",
+        flush=True,
+    )
+    for index, (test, mode) in enumerate(cases, 1):
+        case_values = dict(values)
+        case_values.update(
+            {"TEST_NAME": test, "GLS_BACKEND": backend, "TIMING_MODE": mode}
+        )
+        print(
+            f"[sim_post_syn_all] {index}/{len(cases)} START "
+            f"test={test} backend={backend} scenario={timing_scenario(mode)}"
+            + (f" sdf_mode={mode}" if mode in SDF_MODES else ""),
+            flush=True,
+        )
+        paths = resolve_paths(project_root, case_values, "post_syn")
+        try:
+            rc = execute("sim", "post_syn", project_root, case_values)
+        except (ValueError, OSError, subprocess.SubprocessError) as exc:
+            rc = 2
+            paths.report.parent.mkdir(parents=True, exist_ok=True)
+            paths.report.write_text(
+                json.dumps(
+                    {
+                        "status": "fail",
+                        "returncode": rc,
+                        "stage": "post_syn",
+                        "top": values.get("TOP", "test"),
+                        "pdk": values.get("PDK", "sky130"),
+                        "test_name": test,
+                        "backend": backend,
+                        "timing_mode": mode,
+                        "scenario": timing_scenario(mode),
+                        "reason": str(exc),
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+        if paths.report.is_file():
+            report = json.loads(paths.report.read_text(encoding="utf-8"))
+        else:
+            report = {
+                "status": "pass" if rc == 0 else "fail",
+                "returncode": rc,
+                "test_name": test,
+                "backend": backend,
+                "timing_mode": mode,
+                "scenario": timing_scenario(mode),
+                "report": str(paths.report),
+            }
+        reports.append(report)
+        failures += int(rc != 0)
+        print(
+            f"[sim_post_syn_all] {index}/{len(cases)} "
+            f"{'PASS' if rc == 0 else 'FAIL'} test={test} backend={backend} "
+            f"scenario={timing_scenario(mode)}" + (f" sdf_mode={mode}" if mode in SDF_MODES else ""),
+            flush=True,
+        )
+        print(
+            f"[report] {test}/{backend}/{timing_scenario(mode)} {paths.report}",
+            flush=True,
+        )
+
+    summary = {
+        "schema_version": 1,
+        "stage": "post_syn",
+        "status": "pass" if cases and failures == 0 else "fail",
+        "top": values.get("TOP", "test"),
+        "pdk": values.get("PDK", "sky130"),
+        "tests": list(tests),
+        "backend": backend,
+        "timing_modes": list(modes),
+        "scenarios": [timing_scenario(mode) for mode in modes],
+        "passed": len(cases) - failures,
+        "failed": failures,
+        "total": len(cases),
+        "reports": reports,
+    }
+    summary_path = layout.post_syn_sim_dir / f"summary_{backend}.json"
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"[report] machine_summary={summary_path}", flush=True)
+    return 0 if cases and failures == 0 else 2
 
 def execute(action: str, stage: str, project_root: Path, values: Mapping[str, str]) -> int:
     """Compile/run GLS or export post-PnR SDF."""
@@ -951,16 +1147,19 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
             _normalize_cocotb_wave(paths, values)
 
     rc, report = _write_report(paths, values, stage, rc)
+    if rc == 0:
+        _cleanup_legacy_sdf_artifacts(project_root, values, stage, paths)
     print(
-        f"[gate-sim] stage={stage} backend={report['backend']} timing={report['timing_mode']} "
-        f"wave={paths.wave} report={paths.report}"
+        f"[gate-sim] stage={stage} backend={report['backend']} scenario={report['scenario']} "
+        + (f"sdf_mode={report['timing_mode']} " if report['timing_mode'] in SDF_MODES else "")
+        + f"wave={paths.wave} report={paths.report}"
     )
     return rc
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="FlexSoC post-synthesis/post-PnR gate simulation")
-    parser.add_argument("--action", choices=("compile", "sim", "sdf"), required=True)
+    parser.add_argument("--action", choices=("compile", "sim", "sim_all", "sdf"), required=True)
     parser.add_argument("--stage", choices=tuple(sorted(STAGES)), required=True)
     parser.add_argument("--project-root", type=Path, required=True)
     parser.add_argument("--values-json", required=True)
@@ -971,6 +1170,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         values = {str(k): str(v) for k, v in json.loads(args.values_json).items()}
+        if args.action == "sim_all":
+            if args.stage != "post_syn":
+                raise ValueError("sim_all is only valid for post_syn")
+            return execute_all(args.project_root.resolve(), values)
         return execute(args.action, args.stage, args.project_root.resolve(), values)
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

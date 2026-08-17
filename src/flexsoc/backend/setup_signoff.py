@@ -26,17 +26,40 @@ from flexsoc.backend.setup_sdc import render_clock_config_sdc, write_sdc
 from flexsoc.clocking import clock_config
 from flexsoc.run_layout import layout_from_values
 
-SDF_MODES = ("min", "typ", "max")
+# Canonical pre-layout relationship between the Liberty PVT corner and the
+# SDF timing selection used to generate matching GLS activity. Static STA
+# still evaluates setup and hold independently in every configured corner.
+SIGNOFF_SCENARIOS = {
+    "ff": "min",
+    "tt": "typ",
+    "ss": "max",
+}
+SDF_MODE_TO_CORNER = {mode: corner for corner, mode in SIGNOFF_SCENARIOS.items()}
+
+
+def scenario_corner(timing_mode: str) -> str:
+    """Return the Liberty corner aligned with one SDF timing mode."""
+
+    try:
+        return SDF_MODE_TO_CORNER[timing_mode]
+    except KeyError as exc:
+        raise ValueError(
+            f"no sign-off scenario for timing mode {timing_mode!r}; "
+            f"expected one of {tuple(SDF_MODE_TO_CORNER)}"
+        ) from exc
+
+
+SDF_MODES = tuple(SDF_MODE_TO_CORNER)
 ANALYSES = ("sta", "power_estimate", "power_analysis", "fusion_analysis")
 POWER_RE = re.compile(
     r"^\s*Total\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)",
     re.MULTILINE,
 )
 ACTIVITY_RE = re.compile(r"Annotated\s+(\d+)\s+(?:pin\s+)?activities", re.IGNORECASE)
+ACTIVITY_PERCENT_RE = re.compile(r"^annotated_percent=([0-9]+(?:\.[0-9]+)?)%\s*$", re.MULTILINE)
 WNS_RE = re.compile(r"^\s*wns(?:\s+\w+)?\s+([-+0-9.eE]+)\s*$", re.IGNORECASE | re.MULTILINE)
 TNS_RE = re.compile(r"^\s*tns(?:\s+\w+)?\s+([-+0-9.eE]+)\s*$", re.IGNORECASE | re.MULTILINE)
 COMPLETE_PREFIX = "FLEXSOC_SIGNOFF_COMPLETE"
-
 
 @dataclass(frozen=True, slots=True)
 class ActivitySpec:
@@ -52,10 +75,18 @@ class ActivitySpec:
 
     @property
     def stem(self) -> str:
-        return f"{self.top}_{self.pdk}_{self.test}_{self.backend}_{self.mode}"
+        return f"{self.top}_{self.pdk}_{self.test}_{self.backend}_{scenario_corner(self.mode)}"
 
     @property
     def workload(self) -> str:
+        """Return the sign-off workload name using the aligned PVT corner."""
+
+        return f"{self.test}_{self.backend}_{scenario_corner(self.mode)}"
+
+    @property
+    def legacy_workload(self) -> str:
+        """Return the pre-scenario workload name used before corner naming."""
+
         return f"{self.test}_{self.backend}_{self.mode}"
 
 
@@ -210,7 +241,12 @@ def _post_syn_report(
     signoff_stage = values.get("SIGNOFF_STAGE", "post_syn")
     report_stage = "post_pnr" if signoff_stage == "post_route" else "post_syn"
     stage_dir = layout.post_pnr_sim_dir if report_stage == "post_pnr" else layout.post_syn_sim_dir
-    return stage_dir / f"{top}_{report_stage}_{test}_{backend}_{mode}.json"
+    scenario = scenario_corner(mode)
+    canonical = stage_dir / f"{top}_{report_stage}_{test}_{backend}_{scenario}.json"
+    if canonical.is_file():
+        return canonical
+    legacy = stage_dir / f"{top}_{report_stage}_{test}_{backend}_{mode}.json"
+    return legacy if legacy.is_file() else canonical
 
 
 def _qualified_spec(
@@ -258,6 +294,23 @@ def _qualified_spec(
         raise ValueError(f"GLS report metadata mismatch in {report}: {detail}")
     if payload.get("status") != "pass":
         raise ValueError(f"GLS source report is not PASS: {report}")
+    expected_corner = scenario_corner(mode)
+    reported_scenario = payload.get("scenario")
+    if reported_scenario is not None and reported_scenario != expected_corner:
+        raise ValueError(
+            f"GLS source scenario mismatch: expected {expected_corner}, "
+            f"report has {reported_scenario!r}: {report}"
+        )
+    reported_corner = payload.get("sdf_corner")
+    if reported_corner is None:
+        raw_sdf = payload.get("sdf")
+        if isinstance(raw_sdf, str) and raw_sdf.strip():
+            reported_corner = Path(raw_sdf).expanduser().parent.name
+    if reported_corner != expected_corner:
+        raise ValueError(
+            f"GLS source is not scenario-aligned: TIMING_MODE={mode} requires "
+            f"SDF corner {expected_corner}, report has {reported_corner!r}: {report}"
+        )
     annotation = payload.get("annotation")
     if not isinstance(annotation, dict) or annotation.get("requested_marker") is not True:
         raise ValueError(f"GLS source lacks confirmed $sdf_annotate evidence: {report}")
@@ -286,12 +339,17 @@ def _available_gls(
     prefix = f"{top}_{report_stage}_"
     rows: set[tuple[str, str, str]] = set()
     for report in stage_dir.glob(f"{prefix}*.json"):
-        tail = report.stem[len(prefix):]
-        for mode in SDF_MODES:
-            for backend in ("sv", "cocotb"):
-                suffix = f"_{backend}_{mode}"
-                if tail.endswith(suffix) and tail[: -len(suffix)]:
-                    rows.add((tail[: -len(suffix)], backend, mode))
+        try:
+            payload = _load_json(report)
+        except (ValueError, OSError):
+            continue
+        if payload.get("stage") != report_stage or payload.get("top") != top:
+            continue
+        test = str(payload.get("test_name", "")).strip()
+        backend = str(payload.get("backend", "")).strip()
+        mode = str(payload.get("timing_mode", "")).strip()
+        if test and backend in {"sv", "cocotb"} and mode in SDF_MODES:
+            rows.add((test, backend, mode))
     mode_order = {mode: index for index, mode in enumerate(SDF_MODES)}
     return tuple(sorted(rows, key=lambda row: (mode_order[row[2]], row[0], row[1])))
 
@@ -359,11 +417,12 @@ def discover_specs(
         label: sorted(set(requested) - present)
         for label, requested, present in (
             ("tests", tests, available_columns[0]),
-            ("backends", backends, available_columns[1]),
             ("modes", modes, available_columns[2]),
         )
         if requested != ("all",) and set(requested) - present
     }
+    if backends != ("all",) and not set(backends) & available_columns[1]:
+        missing["backends"] = list(backends)
     if missing:
         raise ValueError(f"requested GLS reports are missing: {missing}")
     if not selected:
@@ -371,10 +430,52 @@ def discover_specs(
             "no direct GLS reports match power selectors: "
             f"tests={tests} backends={backends} modes={modes}"
         )
-    return tuple(
-        _qualified_spec(root, values, test=test, backend=backend, mode=mode)
-        for test, backend, mode in selected
+
+    # Backends are alternative activity sources for one test/scenario, not
+    # independent sign-off dimensions. Prefer the explicitly selected/default
+    # backend when both qualify, then fall back to the other backend.
+    preferred = values.get("POWER_GLS_BACKEND", values.get("GLS_BACKEND", "sv")).strip().lower()
+    allowed = {"sv", "cocotb"} if backends == ("all",) else set(backends)
+    backend_order = tuple(
+        backend
+        for backend in (preferred, "sv", "cocotb")
+        if backend in allowed
     )
+    backend_order = tuple(dict.fromkeys(backend_order))
+    grouped: dict[tuple[str, str], set[str]] = {}
+    for test, backend, mode in selected:
+        grouped.setdefault((test, mode), set()).add(backend)
+
+    specs: list[ActivitySpec] = []
+    rejected: dict[str, list[str]] = {}
+    mode_order = {mode: index for index, mode in enumerate(SDF_MODES)}
+    for test, mode in sorted(grouped, key=lambda item: (mode_order[item[1]], item[0])):
+        reasons: list[str] = []
+        for backend in backend_order:
+            if backend not in grouped[(test, mode)]:
+                continue
+            try:
+                spec = _qualified_spec(
+                    root, values, test=test, backend=backend, mode=mode
+                )
+            except ValueError as exc:
+                reasons.append(f"{backend}: {exc}")
+                continue
+            specs.append(spec)
+            break
+        else:
+            rejected[f"{test}/{mode}"] = reasons or ["no selected backend report"]
+
+    if rejected:
+        detail = "; ".join(
+            f"{scenario}: {' | '.join(reasons)}"
+            for scenario, reasons in rejected.items()
+        )
+        raise ValueError(
+            "no qualified GLS backend is available for one or more selected scenarios: "
+            + detail
+        )
+    return tuple(specs)
 
 
 def _valid_vcd(path: Path) -> bool:
@@ -598,6 +699,13 @@ def _activity_count(text: str) -> int | None:
 
     match = ACTIVITY_RE.search(text)
     return int(match.group(1)) if match else None
+
+
+def _activity_percent(text: str) -> float | None:
+    """Return the compact activity-annotation percentage emitted by FlexSoC."""
+
+    match = ACTIVITY_PERCENT_RE.search(text)
+    return float(match.group(1)) if match else None
 
 
 def _timing_values(text: str) -> dict[str, float]:
@@ -1425,6 +1533,68 @@ def _common_init(ctx: SignoffContext, *, activity: bool) -> str:
     ]
     if activity:
         lines += [
+            "proc flexsoc_append_activity_coverage {path} {",
+            "  # Keep activity evidence compact: percentage plus only the pins that were not annotated.",
+            "  set capture [file join [file dirname $path] .flexsoc_activity_annotation.rpt]",
+            "  file delete -force $capture",
+            "  log_begin $capture",
+            "  set code [catch {report_activity_annotation -report_unannotated} result options]",
+            "  log_end",
+            "  if {$code != 0} {",
+            "    file delete -force $capture",
+            "    return -options $options $result",
+            "  }",
+            "  if {![file exists $capture]} {error {activity annotation report was not captured}}",
+            "  set src [open $capture r]",
+            "  set text [read $src]",
+            "  close $src",
+            "  file delete -force $capture",
+            "  set annotated 0",
+            "  set unannotated 0",
+            "  set have_annotated 0",
+            "  set have_unannotated 0",
+            "  set in_unannotated 0",
+            "  set unannotated_pins {}",
+            "  foreach line [split $text \"\\n\"] {",
+            "    if {[regexp {^[[:space:]]*(vcd|saif|input)[[:space:]]+([0-9]+)[[:space:]]*$} $line -> origin count]} {",
+            "      incr annotated $count",
+            "      set have_annotated 1",
+            "      continue",
+            "    }",
+            "    if {[regexp {^[[:space:]]*unannotated[[:space:]]+([0-9]+)[[:space:]]*$} $line -> count]} {",
+            "      set unannotated $count",
+            "      set have_unannotated 1",
+            "      continue",
+            "    }",
+            "    if {[regexp -nocase {^[[:space:]]*Annotated[[:space:]]+([0-9]+).*activities} $line -> count]} {",
+            "      set annotated $count",
+            "      set have_annotated 1",
+            "      continue",
+            "    }",
+            "    if {[regexp -nocase {^[[:space:]]*Unannotated[[:space:]]+([0-9]+).*activities} $line -> count]} {",
+            "      set unannotated $count",
+            "      set have_unannotated 1",
+            "      continue",
+            "    }",
+            "    if {[regexp {^Unannotated pins:[[:space:]]*$} $line]} {",
+            "      set in_unannotated 1",
+            "      continue",
+            "    }",
+            "    if {$in_unannotated && [string trim $line] ne \"\"} {lappend unannotated_pins [string trim $line]}",
+            "  }",
+            "  if {!$have_annotated || !$have_unannotated} {error {could not parse OpenSTA activity annotation summary}}",
+            "  set total [expr {$annotated + $unannotated}]",
+            "  set percent [expr {$total > 0 ? 100.0 * $annotated / $total : 0.0}]",
+            "  set dst [open $path a]",
+            "  puts $dst [format {annotated_percent=%.2f%%} $percent]",
+            "  if {[llength $unannotated_pins] == 0} {",
+            "    puts $dst {Unannotated pins: none}",
+            "  } else {",
+            "    puts $dst {Unannotated pins:}",
+            "    foreach pin $unannotated_pins {puts $dst \" $pin\"}",
+            "  }",
+            "  close $dst",
+            "}",
             "",
             'puts "=== Step 7/7: Read activity ==="',
             f"set activity_file {_quote(ctx.activity_file) if ctx.activity_file else '{}'}",
@@ -1521,19 +1691,24 @@ def render_sdf_tcl(ctx: SignoffContext) -> str:
     )
 
 
-def _power_reports(ctx: SignoffContext) -> list[str]:
+def _power_reports(ctx: SignoffContext, *, activity_coverage: bool) -> list[str]:
     """Append concise public power sections to ``$report``."""
 
-    return [
+    lines = [
         "flexsoc_section $report Units",
         "# Record the unit system used by the power and activity values below.",
         "flexsoc_append_opensta $report report_units",
         "flexsoc_section $report {Constraint validation}",
         "# Append timing-setup diagnostics because power must use the same correctly linked and constrained design.",
         "flexsoc_append_opensta $report check_setup -verbose",
-        "flexsoc_section $report {Activity annotation}",
-        "# Show which design objects received switching activity and which remain unannotated.",
-        "flexsoc_append_opensta $report report_activity_annotation -report_annotated -report_unannotated",
+    ]
+    if activity_coverage:
+        lines += [
+            "flexsoc_section $report {Activity annotation}",
+            "# Report annotation coverage as one percentage and list only pins missing direct VCD/SAIF activity.",
+            "flexsoc_append_activity_coverage $report",
+        ]
+    lines += [
         "flexsoc_section $report {Power summary}",
         "# Report average internal, switching, leakage, and total cell power for the complete design.",
         "flexsoc_append_opensta $report report_power",
@@ -1542,6 +1717,7 @@ def _power_reports(ctx: SignoffContext) -> list[str]:
         f"flexsoc_append_opensta $report report_power -highest_power_instances {ctx.power_top_instances}",
         'puts "report=$report"',
     ]
+    return lines
 
 def render_power_estimate_tcl(ctx: SignoffContext) -> str:
     model = "global" if ctx.global_activity else "input"
@@ -1570,7 +1746,7 @@ def render_power_estimate_tcl(ctx: SignoffContext) -> str:
             'puts $fp "sdc=$sdc"',
             'puts $fp "spef=$spef"',
             "close $fp",
-            *_power_reports(ctx),
+            *_power_reports(ctx, activity_coverage=False),
         ]
     )
 
@@ -1597,7 +1773,7 @@ def render_power_analysis_tcl(ctx: SignoffContext) -> str:
             'puts $fp "sdc=$sdc"',
             'puts $fp "spef=$spef"',
             "close $fp",
-            *_power_reports(ctx),
+            *_power_reports(ctx, activity_coverage=True),
         ]
     )
 
@@ -2068,7 +2244,7 @@ def _write_activity_table(
         ]
     else:
         lines += [
-            "corner status    internal   switching     leakage       total  annotated report",
+            "corner status    internal   switching     leakage       total   coverage report",
             "------ ------ ----------- ----------- ----------- ----------- ---------- ------",
         ]
     for key, item in corners.items():
@@ -2083,7 +2259,12 @@ def _write_activity_table(
             report_name = "n/a"
         values = [metric(item, name) for name in ("internal_w", "switching_w", "leakage_w", "total_w")]
         count = item.get("activity_annotation_count")
-        annotated = str(count) if count is not None else "n/a"
+        percent = item.get("activity_annotation_percent")
+        annotated = (
+            f"{float(percent):.2f}%"
+            if isinstance(percent, int | float)
+            else (str(count) if count is not None else "n/a")
+        )
         if analysis == "fusion_analysis":
             lines.append(
                 f"{key:<11} {str(item.get('status', 'fail')):<6} "
@@ -2107,7 +2288,7 @@ def analyze_activity_spec(
     *,
     progress_label: str = "",
 ) -> dict[str, Any]:
-    """Execute one workload-dependent analysis for every selected corner."""
+    """Execute one workload-dependent analysis in its aligned sign-off scenario."""
 
     if analysis not in {"power_analysis", "fusion_analysis"}:
         raise ValueError(f"unsupported activity analysis: {analysis}")
@@ -2125,9 +2306,16 @@ def analyze_activity_spec(
     corners: dict[str, Any] = {}
     failures: list[str] = []
     liberties = _liberties(values)
-    selected_corners = _selection(
+    configured_corners = _selection(
         values.get("SIGNOFF_CORNERS"), "ss tt ff", tuple(liberties), "sign-off corner"
     )
+    aligned_corner = scenario_corner(spec.mode)
+    if aligned_corner not in configured_corners:
+        raise ValueError(
+            f"GLS timing mode {spec.mode!r} belongs to sign-off scenario "
+            f"{aligned_corner!r}, but SIGNOFF_CORNERS={configured_corners}"
+        )
+    selected_corners = (aligned_corner,)
     modes = (
         _selection(values.get("STA_MODES"), "setup hold", ("setup", "hold"), "STA mode")
         if analysis == "fusion_analysis"
@@ -2135,17 +2323,27 @@ def analyze_activity_spec(
     )
     if analysis == "power_analysis":
         workload_root = layout.power_dir / "analysis" / spec.workload
+        legacy_root = layout.power_dir / "analysis" / spec.legacy_workload
         script = layout.power_dir / "analysis" / "power_analysis.tcl"
         primary_name = "power.rpt"
     else:
         workload_root = layout.fusion_dir / spec.workload
+        legacy_root = layout.fusion_dir / spec.legacy_workload
         script = layout.fusion_dir / "fusion_analysis.tcl"
         primary_name = "fusion.rpt"
+    # One workload directory represents exactly one aligned PVT scenario. Rebuild
+    # it from scratch and remove the former *_min/*_typ/*_max layout so reruns do
+    # not leave mixed naming schemes in the sign-off tree.
+    if workload_root.is_dir():
+        shutil.rmtree(workload_root)
+    if legacy_root != workload_root and legacy_root.is_dir():
+        shutil.rmtree(legacy_root)
     total_runs = len(selected_corners) * len(modes)
     run_index = 0
     if progress_label:
         print(
-            f"[{progress_label}] activity={capture} scope={scope} runs={total_runs}",
+            f"[{progress_label}] activity={capture} scope={scope} "
+            f"scenario={aligned_corner}/{spec.mode} runs={total_runs}",
             flush=True,
         )
     for corner in selected_corners:
@@ -2153,12 +2351,12 @@ def analyze_activity_spec(
         for mode in modes:
             run_index += 1
             if analysis == "power_analysis":
-                report_dir = workload_root / corner
-                log = layout.power_log_dir / "analysis" / spec.workload / corner / f"{spec.top}.log"
+                report_dir = workload_root
+                log = layout.power_log_dir / "analysis" / spec.workload / f"{spec.top}.log"
                 key = corner
             else:
-                report_dir = workload_root / corner / mode
-                log = layout.fusion_log_dir / spec.workload / corner / mode / f"{spec.top}.log"
+                report_dir = workload_root / mode
+                log = layout.fusion_log_dir / spec.workload / mode / f"{spec.top}.log"
                 key = f"{corner}/{mode}"
             ctx = _base_context(
                 project_root,
@@ -2206,7 +2404,13 @@ def analyze_activity_spec(
                 annotated = _activity_count(report_text)
                 if annotated is None:
                     annotated = _activity_count(text)
-                ok = rc == 0 and (annotated is None or annotated > 0)
+                annotation_percent = _activity_percent(report_text)
+                has_activity = (
+                    annotation_percent > 0.0
+                    if annotation_percent is not None
+                    else (annotated > 0 if annotated is not None else None)
+                )
+                ok = rc == 0 and has_activity is not False
                 corners[key] = {
                     "status": "pass" if ok else "fail",
                     "returncode": rc,
@@ -2215,6 +2419,7 @@ def analyze_activity_spec(
                     "log": str(log),
                     "report": str(primary),
                     "activity_annotation_count": annotated,
+                    "activity_annotation_percent": annotation_percent,
                     **(_timing_values(report_text) if analysis == "fusion_analysis" else {}),
                     **fusion_details,
                     **numbers,
@@ -2252,7 +2457,7 @@ def analyze_activity_spec(
                     )
     table = _write_activity_table(analysis, workload_root, spec.workload, corners)
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "analysis": analysis,
         "status": "pass" if corners and not failures else "fail",
         "top": spec.top,
@@ -2260,6 +2465,7 @@ def analyze_activity_spec(
         "test": spec.test,
         "backend": spec.backend,
         "timing_mode": spec.mode,
+        "scenario": {"corner": aligned_corner, "sdf_mode": spec.mode},
         "workload": spec.workload,
         "activity_source": (
             "post_pnr_gls_vcd"
@@ -2328,7 +2534,7 @@ def execute_activity(
     if legacy.is_dir():
         shutil.rmtree(legacy)
     summary = {
-        "schema_version": 3,
+        "schema_version": 4,
         "analysis": analysis,
         "status": "pass" if reports and passed == len(reports) else "fail",
         "top": values.get("TOP", "test"),

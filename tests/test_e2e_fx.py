@@ -395,6 +395,12 @@ def _assert_coverage_outputs(coverage: Path) -> None:
     ]
 
 
+def _gls_scenario(mode: str) -> str:
+    """Return the scenario label used in SDF-backed GLS artifact names."""
+
+    return {"min": "ff", "typ": "tt", "max": "ss"}.get(mode, mode)
+
+
 def _assert_post_syn_report(
     path: Path,
     *,
@@ -416,6 +422,7 @@ def _assert_post_syn_report(
     assert report.get("test_name") == test
     assert report.get("backend") == backend
     assert report.get("timing_mode") == mode
+    assert report.get("scenario") == _gls_scenario(mode)
     assert Path(str(report.get("wave", ""))).resolve() == wave.resolve()
     assert wave.is_file() and wave.stat().st_size > 0, f"missing waveform: {wave}"
     netlist = Path(str(report.get("netlist", ""))).resolve()
@@ -450,6 +457,24 @@ def _run_power_and_fusion(
             f"uv run --no-sync fx {target} --no-setup {selectors}--workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
+
+
+def _run_other_gls_backend_all(
+    *, workspace: Path, top: str, run_id: str, workdir: str, config: E2EConfig,
+) -> None:
+    """Qualify the second GLS driver with the same E2E timing selection."""
+
+    backend = "cocotb" if config.gls_backend == "sv" else "sv"
+    _run(
+        (
+            "uv run --no-sync fx sim_post_syn_all --no-setup "
+            f"--set GLS_BACKEND={backend} "
+            f"--set TIMING_MODES={config.gls_mode} "
+            "--set TEST_NAMES=all --set SDF_STRICT=1 "
+            f"--workdir {workdir}"
+        ),
+        workspace=workspace, top=top, run_id=run_id,
+    )
 
 
 def _slang_values(top: str, run: Path) -> tuple[str, str, str]:
@@ -786,9 +811,13 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             if config.run_post_syn:
+                _run_other_gls_backend_all(
+                    workspace=workspace, top=top, run_id=run_id,
+                    workdir=workdir, config=config,
+                )
                 sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
                 sky130_wave_smoke = sky130_post_syn / (
-                    f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_smoke_arg = shlex.quote(str(sky130_wave_smoke))
                 _run(
@@ -816,7 +845,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_smoke_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
@@ -827,7 +856,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 )
 
                 sky130_wave_corners = sky130_post_syn / (
-                    f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_corners_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_corners_arg = shlex.quote(str(sky130_wave_corners))
                 _run(
@@ -855,7 +884,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_corners_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="corners",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
@@ -865,7 +894,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="corners", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_random_seed_1 = sky130_post_syn / (
-                    f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_random_seed_1_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_random_seed_1_arg = shlex.quote(str(sky130_wave_random_seed_1))
                 _run(
@@ -893,7 +922,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="random_seed_1",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
@@ -903,7 +932,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_random_seed_2 = sky130_post_syn / (
-                    f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_random_seed_2_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_random_seed_2_arg = shlex.quote(str(sky130_wave_random_seed_2))
                 _run(
@@ -931,7 +960,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="random_seed_2",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
@@ -941,7 +970,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_reconfig = sky130_post_syn / (
-                    f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_reconfig_arg = shlex.quote(str(sky130_wave_reconfig))
                 _run(
@@ -969,7 +998,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_reconfig_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="reconfig",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
@@ -979,7 +1008,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_auto_toggle = sky130_post_syn / (
-                    f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_auto_toggle_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_auto_toggle_arg = shlex.quote(str(sky130_wave_auto_toggle))
                 _run(
@@ -1007,7 +1036,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="auto_toggle",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
@@ -1088,9 +1117,13 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             if config.run_post_syn:
+                _run_other_gls_backend_all(
+                    workspace=workspace, top=top, run_id=run_id,
+                    workdir=workdir, config=config,
+                )
                 ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
                 ihp_sg13g2_wave_smoke = ihp_sg13g2_post_syn / (
-                    f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_smoke))
                 _run(
@@ -1118,7 +1151,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_smoke_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
@@ -1129,7 +1162,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 )
 
                 ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
-                    f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_corners_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_corners_arg = shlex.quote(str(ihp_sg13g2_wave_corners))
                 _run(
@@ -1157,7 +1190,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_corners_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="corners",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
@@ -1167,7 +1200,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="corners", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
-                    f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_random_seed_1_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_random_seed_1_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_1))
                 _run(
@@ -1195,7 +1228,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="random_seed_1",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
@@ -1205,7 +1238,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
-                    f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_random_seed_2_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_random_seed_2_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_2))
                 _run(
@@ -1233,7 +1266,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="random_seed_2",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
@@ -1243,7 +1276,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
-                    f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_reconfig))
                 _run(
@@ -1271,7 +1304,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_reconfig_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="reconfig",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
@@ -1281,7 +1314,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
-                    f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_auto_toggle_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_auto_toggle_arg = shlex.quote(str(ihp_sg13g2_wave_auto_toggle))
                 _run(
@@ -1309,7 +1342,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="auto_toggle",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
@@ -1565,9 +1598,13 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             if config.run_post_syn:
+                _run_other_gls_backend_all(
+                    workspace=workspace, top=top, run_id=run_id,
+                    workdir=workdir, config=config,
+                )
                 sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
                 sky130_wave_smoke = sky130_post_syn / (
-                    f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_smoke_arg = shlex.quote(str(sky130_wave_smoke))
                 _run(
@@ -1595,7 +1632,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_smoke_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
@@ -1606,7 +1643,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 )
 
                 sky130_wave_corners = sky130_post_syn / (
-                    f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_corners_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_corners_arg = shlex.quote(str(sky130_wave_corners))
                 _run(
@@ -1634,7 +1671,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_corners_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="corners",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
@@ -1644,7 +1681,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="corners", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_random_seed_1 = sky130_post_syn / (
-                    f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_random_seed_1_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_random_seed_1_arg = shlex.quote(str(sky130_wave_random_seed_1))
                 _run(
@@ -1672,7 +1709,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="random_seed_1",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
@@ -1682,7 +1719,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_random_seed_2 = sky130_post_syn / (
-                    f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_random_seed_2_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_random_seed_2_arg = shlex.quote(str(sky130_wave_random_seed_2))
                 _run(
@@ -1710,7 +1747,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="random_seed_2",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
@@ -1720,7 +1757,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_reconfig = sky130_post_syn / (
-                    f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_reconfig_arg = shlex.quote(str(sky130_wave_reconfig))
                 _run(
@@ -1748,7 +1785,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_reconfig_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="reconfig",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
@@ -1758,7 +1795,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_auto_toggle = sky130_post_syn / (
-                    f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_auto_toggle_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_auto_toggle_arg = shlex.quote(str(sky130_wave_auto_toggle))
                 _run(
@@ -1786,7 +1823,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="auto_toggle",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
@@ -1796,7 +1833,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_mac_smoke = sky130_post_syn / (
-                    f"{top}_mac_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_mac_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_mac_smoke_arg = shlex.quote(str(sky130_wave_mac_smoke))
                 _run(
@@ -1824,7 +1861,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_mac_smoke_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="mac_smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_mac_smoke,
@@ -1834,7 +1871,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="mac_smoke", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_absdiff = sky130_post_syn / (
-                    f"{top}_absdiff_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_absdiff_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_absdiff_arg = shlex.quote(str(sky130_wave_absdiff))
                 _run(
@@ -1862,7 +1899,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_absdiff_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="absdiff",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_absdiff,
@@ -1872,7 +1909,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="absdiff", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 sky130_wave_energy = sky130_post_syn / (
-                    f"{top}_energy_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_energy_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 sky130_wave_energy_arg = shlex.quote(str(sky130_wave_energy))
                 _run(
@@ -1900,7 +1937,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     sky130_post_syn / (
                         f"{top}_post_syn_energy_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="sky130", test="energy",
                     backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_energy,
@@ -1981,9 +2018,13 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             if config.run_post_syn:
+                _run_other_gls_backend_all(
+                    workspace=workspace, top=top, run_id=run_id,
+                    workdir=workdir, config=config,
+                )
                 ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
                 ihp_sg13g2_wave_smoke = ihp_sg13g2_post_syn / (
-                    f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_smoke))
                 _run(
@@ -2011,7 +2052,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_smoke_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
@@ -2022,7 +2063,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 )
 
                 ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
-                    f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_corners_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_corners_arg = shlex.quote(str(ihp_sg13g2_wave_corners))
                 _run(
@@ -2050,7 +2091,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_corners_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="corners",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
@@ -2060,7 +2101,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="corners", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
-                    f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_random_seed_1_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_random_seed_1_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_1))
                 _run(
@@ -2088,7 +2129,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="random_seed_1",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
@@ -2098,7 +2139,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
-                    f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_random_seed_2_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_random_seed_2_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_2))
                 _run(
@@ -2126,7 +2167,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="random_seed_2",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
@@ -2136,7 +2177,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
-                    f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_reconfig))
                 _run(
@@ -2164,7 +2205,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_reconfig_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="reconfig",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
@@ -2174,7 +2215,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
-                    f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_auto_toggle_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_auto_toggle_arg = shlex.quote(str(ihp_sg13g2_wave_auto_toggle))
                 _run(
@@ -2202,7 +2243,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="auto_toggle",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
@@ -2212,7 +2253,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_mac_smoke = ihp_sg13g2_post_syn / (
-                    f"{top}_mac_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_mac_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_mac_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_mac_smoke))
                 _run(
@@ -2240,7 +2281,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_mac_smoke_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="mac_smoke",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_mac_smoke,
@@ -2250,7 +2291,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="mac_smoke", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_absdiff = ihp_sg13g2_post_syn / (
-                    f"{top}_absdiff_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_absdiff_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_absdiff_arg = shlex.quote(str(ihp_sg13g2_wave_absdiff))
                 _run(
@@ -2278,7 +2319,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_absdiff_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="absdiff",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_absdiff,
@@ -2288,7 +2329,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     test="absdiff", backend=config.gls_backend, mode=config.gls_mode,
                 )
                 ihp_sg13g2_wave_energy = ihp_sg13g2_post_syn / (
-                    f"{top}_energy_{config.gls_backend}_{config.gls_mode}.fst"
+                    f"{top}_energy_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                 )
                 ihp_sg13g2_wave_energy_arg = shlex.quote(str(ihp_sg13g2_wave_energy))
                 _run(
@@ -2316,7 +2357,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 _assert_post_syn_report(
                     ihp_sg13g2_post_syn / (
                         f"{top}_post_syn_energy_{config.gls_backend}_"
-                        f"{config.gls_mode}.json"
+                        f"{_gls_scenario(config.gls_mode)}.json"
                     ),
                     top=top, pdk="ihp-sg13g2", test="energy",
                     backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_energy,
@@ -2545,9 +2586,13 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
+                    _run_other_gls_backend_all(
+                        workspace=workspace, top=top, run_id=run_id,
+                        workdir=workdir, config=config,
+                    )
                     sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
                     sky130_wave_smoke = sky130_post_syn / (
-                        f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_smoke_arg = shlex.quote(str(sky130_wave_smoke))
                     _run(
@@ -2575,7 +2620,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_smoke_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="smoke",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
@@ -2586,7 +2631,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     )
 
                     sky130_wave_corners = sky130_post_syn / (
-                        f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_corners_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_corners_arg = shlex.quote(str(sky130_wave_corners))
                     _run(
@@ -2614,7 +2659,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_corners_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="corners",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
@@ -2624,7 +2669,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="corners", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_seed_1 = sky130_post_syn / (
-                        f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_seed_1_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_random_seed_1_arg = shlex.quote(str(sky130_wave_random_seed_1))
                     _run(
@@ -2652,7 +2697,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="random_seed_1",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
@@ -2662,7 +2707,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_seed_2 = sky130_post_syn / (
-                        f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_seed_2_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_random_seed_2_arg = shlex.quote(str(sky130_wave_random_seed_2))
                     _run(
@@ -2690,7 +2735,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="random_seed_2",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
@@ -2700,7 +2745,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_reconfig = sky130_post_syn / (
-                        f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_reconfig_arg = shlex.quote(str(sky130_wave_reconfig))
                     _run(
@@ -2728,7 +2773,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_reconfig_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
@@ -2738,7 +2783,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_auto_toggle = sky130_post_syn / (
-                        f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_auto_toggle_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_auto_toggle_arg = shlex.quote(str(sky130_wave_auto_toggle))
                     _run(
@@ -2766,7 +2811,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="auto_toggle",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
@@ -2776,7 +2821,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_smoke_zero = sky130_post_syn / (
-                        f"{top}_smoke_zero_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_smoke_zero_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_smoke_zero_arg = shlex.quote(str(sky130_wave_smoke_zero))
                     _run(
@@ -2804,7 +2849,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_smoke_zero_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="smoke_zero",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke_zero,
@@ -2814,7 +2859,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="smoke_zero", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_rotate_45deg = sky130_post_syn / (
-                        f"{top}_rotate_45deg_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_rotate_45deg_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_rotate_45deg_arg = shlex.quote(str(sky130_wave_rotate_45deg))
                     _run(
@@ -2842,7 +2887,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_rotate_45deg_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="rotate_45deg",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_rotate_45deg,
@@ -2852,7 +2897,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="rotate_45deg", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_quadrant_sweep = sky130_post_syn / (
-                        f"{top}_quadrant_sweep_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_quadrant_sweep_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_quadrant_sweep_arg = shlex.quote(str(sky130_wave_quadrant_sweep))
                     _run(
@@ -2880,7 +2925,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_quadrant_sweep_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="quadrant_sweep",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_quadrant_sweep,
@@ -2890,7 +2935,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="quadrant_sweep", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_small = sky130_post_syn / (
-                        f"{top}_random_small_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_small_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_random_small_arg = shlex.quote(str(sky130_wave_random_small))
                     _run(
@@ -2918,7 +2963,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_random_small_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="random_small",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_small,
@@ -3009,9 +3054,13 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
+                    _run_other_gls_backend_all(
+                        workspace=workspace, top=top, run_id=run_id,
+                        workdir=workdir, config=config,
+                    )
                     ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
                     ihp_sg13g2_wave_smoke = ihp_sg13g2_post_syn / (
-                        f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_smoke))
                     _run(
@@ -3039,7 +3088,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_smoke_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="smoke",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
@@ -3050,7 +3099,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     )
 
                     ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
-                        f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_corners_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_corners_arg = shlex.quote(str(ihp_sg13g2_wave_corners))
                     _run(
@@ -3078,7 +3127,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_corners_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="corners",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
@@ -3088,7 +3137,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="corners", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
-                        f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_seed_1_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_random_seed_1_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_1))
                     _run(
@@ -3116,7 +3165,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="random_seed_1",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
@@ -3126,7 +3175,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
-                        f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_seed_2_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_random_seed_2_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_2))
                     _run(
@@ -3154,7 +3203,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="random_seed_2",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
@@ -3164,7 +3213,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
-                        f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_reconfig))
                     _run(
@@ -3192,7 +3241,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_reconfig_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
@@ -3202,7 +3251,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
-                        f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_auto_toggle_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_auto_toggle_arg = shlex.quote(str(ihp_sg13g2_wave_auto_toggle))
                     _run(
@@ -3230,7 +3279,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="auto_toggle",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
@@ -3240,7 +3289,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_smoke_zero = ihp_sg13g2_post_syn / (
-                        f"{top}_smoke_zero_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_smoke_zero_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_smoke_zero_arg = shlex.quote(str(ihp_sg13g2_wave_smoke_zero))
                     _run(
@@ -3268,7 +3317,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_smoke_zero_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="smoke_zero",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke_zero,
@@ -3278,7 +3327,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="smoke_zero", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_rotate_45deg = ihp_sg13g2_post_syn / (
-                        f"{top}_rotate_45deg_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_rotate_45deg_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_rotate_45deg_arg = shlex.quote(str(ihp_sg13g2_wave_rotate_45deg))
                     _run(
@@ -3306,7 +3355,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_rotate_45deg_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="rotate_45deg",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_rotate_45deg,
@@ -3316,7 +3365,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="rotate_45deg", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_quadrant_sweep = ihp_sg13g2_post_syn / (
-                        f"{top}_quadrant_sweep_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_quadrant_sweep_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_quadrant_sweep_arg = shlex.quote(str(ihp_sg13g2_wave_quadrant_sweep))
                     _run(
@@ -3344,7 +3393,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_quadrant_sweep_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="quadrant_sweep",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_quadrant_sweep,
@@ -3354,7 +3403,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="quadrant_sweep", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_small = ihp_sg13g2_post_syn / (
-                        f"{top}_random_small_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_small_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_random_small_arg = shlex.quote(str(ihp_sg13g2_wave_random_small))
                     _run(
@@ -3382,7 +3431,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_random_small_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="random_small",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_small,
@@ -3620,9 +3669,13 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
+                    _run_other_gls_backend_all(
+                        workspace=workspace, top=top, run_id=run_id,
+                        workdir=workdir, config=config,
+                    )
                     sky130_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "sky130"
                     sky130_wave_smoke = sky130_post_syn / (
-                        f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_smoke_arg = shlex.quote(str(sky130_wave_smoke))
                     _run(
@@ -3650,7 +3703,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_smoke_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="smoke",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_smoke,
@@ -3661,7 +3714,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     )
 
                     sky130_wave_corners = sky130_post_syn / (
-                        f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_corners_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_corners_arg = shlex.quote(str(sky130_wave_corners))
                     _run(
@@ -3689,7 +3742,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_corners_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="corners",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_corners,
@@ -3699,7 +3752,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="corners", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_seed_1 = sky130_post_syn / (
-                        f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_seed_1_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_random_seed_1_arg = shlex.quote(str(sky130_wave_random_seed_1))
                     _run(
@@ -3727,7 +3780,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="random_seed_1",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_1,
@@ -3737,7 +3790,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_random_seed_2 = sky130_post_syn / (
-                        f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_seed_2_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_random_seed_2_arg = shlex.quote(str(sky130_wave_random_seed_2))
                     _run(
@@ -3765,7 +3818,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="random_seed_2",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_random_seed_2,
@@ -3775,7 +3828,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_reconfig = sky130_post_syn / (
-                        f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_reconfig_arg = shlex.quote(str(sky130_wave_reconfig))
                     _run(
@@ -3803,7 +3856,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_reconfig_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_reconfig,
@@ -3813,7 +3866,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_auto_toggle = sky130_post_syn / (
-                        f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_auto_toggle_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_auto_toggle_arg = shlex.quote(str(sky130_wave_auto_toggle))
                     _run(
@@ -3841,7 +3894,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="auto_toggle",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_auto_toggle,
@@ -3851,7 +3904,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_line_loopback = sky130_post_syn / (
-                        f"{top}_line_loopback_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_line_loopback_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_line_loopback_arg = shlex.quote(str(sky130_wave_line_loopback))
                     _run(
@@ -3879,7 +3932,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_line_loopback_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="line_loopback",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_line_loopback,
@@ -3889,7 +3942,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="line_loopback", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_rx_fifo = sky130_post_syn / (
-                        f"{top}_rx_fifo_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_rx_fifo_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_rx_fifo_arg = shlex.quote(str(sky130_wave_rx_fifo))
                     _run(
@@ -3917,7 +3970,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_rx_fifo_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="rx_fifo",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_rx_fifo,
@@ -3927,7 +3980,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="rx_fifo", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_noise_filter = sky130_post_syn / (
-                        f"{top}_noise_filter_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_noise_filter_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_noise_filter_arg = shlex.quote(str(sky130_wave_noise_filter))
                     _run(
@@ -3955,7 +4008,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_noise_filter_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="noise_filter",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_noise_filter,
@@ -3965,7 +4018,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="noise_filter", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     sky130_wave_parity_reconfig = sky130_post_syn / (
-                        f"{top}_parity_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_parity_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     sky130_wave_parity_reconfig_arg = shlex.quote(str(sky130_wave_parity_reconfig))
                     _run(
@@ -3993,7 +4046,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         sky130_post_syn / (
                             f"{top}_post_syn_parity_reconfig_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="sky130", test="parity_reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=sky130_wave_parity_reconfig,
@@ -4084,9 +4137,13 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 if config.run_post_syn:
+                    _run_other_gls_backend_all(
+                        workspace=workspace, top=top, run_id=run_id,
+                        workdir=workdir, config=config,
+                    )
                     ihp_sg13g2_post_syn = run / "dv" / "functional" / "sim" / "post_syn" / "ihp-sg13g2"
                     ihp_sg13g2_wave_smoke = ihp_sg13g2_post_syn / (
-                        f"{top}_smoke_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_smoke_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_smoke_arg = shlex.quote(str(ihp_sg13g2_wave_smoke))
                     _run(
@@ -4114,7 +4171,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_smoke_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="smoke",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_smoke,
@@ -4125,7 +4182,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     )
 
                     ihp_sg13g2_wave_corners = ihp_sg13g2_post_syn / (
-                        f"{top}_corners_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_corners_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_corners_arg = shlex.quote(str(ihp_sg13g2_wave_corners))
                     _run(
@@ -4153,7 +4210,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_corners_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="corners",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_corners,
@@ -4163,7 +4220,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="corners", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_seed_1 = ihp_sg13g2_post_syn / (
-                        f"{top}_random_seed_1_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_seed_1_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_random_seed_1_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_1))
                     _run(
@@ -4191,7 +4248,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_random_seed_1_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="random_seed_1",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_1,
@@ -4201,7 +4258,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="random_seed_1", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_random_seed_2 = ihp_sg13g2_post_syn / (
-                        f"{top}_random_seed_2_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_random_seed_2_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_random_seed_2_arg = shlex.quote(str(ihp_sg13g2_wave_random_seed_2))
                     _run(
@@ -4229,7 +4286,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_random_seed_2_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="random_seed_2",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_random_seed_2,
@@ -4239,7 +4296,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="random_seed_2", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_reconfig = ihp_sg13g2_post_syn / (
-                        f"{top}_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_reconfig))
                     _run(
@@ -4267,7 +4324,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_reconfig_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_reconfig,
@@ -4277,7 +4334,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="reconfig", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_auto_toggle = ihp_sg13g2_post_syn / (
-                        f"{top}_auto_toggle_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_auto_toggle_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_auto_toggle_arg = shlex.quote(str(ihp_sg13g2_wave_auto_toggle))
                     _run(
@@ -4305,7 +4362,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_auto_toggle_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="auto_toggle",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_auto_toggle,
@@ -4315,7 +4372,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_line_loopback = ihp_sg13g2_post_syn / (
-                        f"{top}_line_loopback_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_line_loopback_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_line_loopback_arg = shlex.quote(str(ihp_sg13g2_wave_line_loopback))
                     _run(
@@ -4343,7 +4400,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_line_loopback_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="line_loopback",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_line_loopback,
@@ -4353,7 +4410,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="line_loopback", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_rx_fifo = ihp_sg13g2_post_syn / (
-                        f"{top}_rx_fifo_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_rx_fifo_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_rx_fifo_arg = shlex.quote(str(ihp_sg13g2_wave_rx_fifo))
                     _run(
@@ -4381,7 +4438,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_rx_fifo_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="rx_fifo",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_rx_fifo,
@@ -4391,7 +4448,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="rx_fifo", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_noise_filter = ihp_sg13g2_post_syn / (
-                        f"{top}_noise_filter_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_noise_filter_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_noise_filter_arg = shlex.quote(str(ihp_sg13g2_wave_noise_filter))
                     _run(
@@ -4419,7 +4476,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_noise_filter_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="noise_filter",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_noise_filter,
@@ -4429,7 +4486,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                         test="noise_filter", backend=config.gls_backend, mode=config.gls_mode,
                     )
                     ihp_sg13g2_wave_parity_reconfig = ihp_sg13g2_post_syn / (
-                        f"{top}_parity_reconfig_{config.gls_backend}_{config.gls_mode}.fst"
+                        f"{top}_parity_reconfig_{config.gls_backend}_{_gls_scenario(config.gls_mode)}.fst"
                     )
                     ihp_sg13g2_wave_parity_reconfig_arg = shlex.quote(str(ihp_sg13g2_wave_parity_reconfig))
                     _run(
@@ -4457,7 +4514,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     _assert_post_syn_report(
                         ihp_sg13g2_post_syn / (
                             f"{top}_post_syn_parity_reconfig_{config.gls_backend}_"
-                            f"{config.gls_mode}.json"
+                            f"{_gls_scenario(config.gls_mode)}.json"
                         ),
                         top=top, pdk="ihp-sg13g2", test="parity_reconfig",
                         backend=config.gls_backend, mode=config.gls_mode, wave=ihp_sg13g2_wave_parity_reconfig,

@@ -1,29 +1,29 @@
 # read files
-read_verilog /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/rtl/cordic.v
+read_verilog /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/rtl/cordic.v
 # basic synth
 synth -top cordic -noabc
-show -width -format dot -prefix /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/plots/cordic_postsyn
+show -width -format dot -prefix /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/plots/cordic_postsyn
 
 # technology-boundary checkpoints used by equivalence diagnostics
-write_rtlil /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_generic.il
+write_rtlil /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_generic.il
 
 # map internal register types to the ones from the cell library
 dfflibmap -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
-write_rtlil /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_dffmap.il
+write_rtlil /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_dffmap.il
 
 # map logic to the selected cell library
-abc -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib -script /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/area.abc \
-    -constr /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/abc.constr
-write_rtlil /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_abc.il
+abc -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib -script /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/area.abc \
+    -constr /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/abc.constr
+write_rtlil /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_abc.il
 
 # Clean while preserving public/internal names used by EQY matching and debug
 opt_clean
-write_rtlil /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_clean.il
+write_rtlil /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_clean.il
 
 # Basic stats of std cells and area
 stat -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 
 # write verilog
-write_verilog /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
+write_verilog /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
 # write json
-write_json /home/eneadim/github/flexsoc/workspace/cordic-full-flow/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.json
+write_json /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.json
