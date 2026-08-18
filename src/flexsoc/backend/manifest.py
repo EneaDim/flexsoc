@@ -16,6 +16,7 @@ from typing import Sequence
 from rich.console import Console
 from rich.table import Table
 
+from flexsoc.backend.metrics import collect_metrics
 from flexsoc.doctor import collect as collect_environment
 from flexsoc.run_layout import pdk_run_layout
 
@@ -97,16 +98,26 @@ def collect_manifest(
     run_root_value = os.environ.get("FLEXSOC_RUN_ROOT") or None
     artifact_paths: dict[str, str] | None = None
     analysis: dict[str, object] | None = None
+    signoff: dict[str, object] | None = None
+    flow: dict[str, object] | None = None
+    implementation: dict[str, object] | None = None
+    closure: dict[str, object] | None = None
     if run_root_value:
         evidence = _analysis_evidence(Path(run_root_value))
         analysis = evidence or None
     if pdk and run_root_value:
-        candidates = pdk_run_layout(Path(run_root_value), pdk=pdk, top=top).as_dict()
+        run_root = Path(run_root_value)
+        candidates = pdk_run_layout(run_root, pdk=pdk, top=top).as_dict()
         artifact_paths = {
             name: value
             for name, value in candidates.items()
             if Path(value).exists()
         }
+        metrics = collect_metrics(top, run_root, pdk=pdk)
+        signoff = metrics.get("signoff") if isinstance(metrics.get("signoff"), dict) else None
+        flow = metrics.get("flow") if isinstance(metrics.get("flow"), dict) else None
+        implementation = metrics.get("implementation") if isinstance(metrics.get("implementation"), dict) else None
+        closure = metrics.get("closure") if isinstance(metrics.get("closure"), dict) else None
 
     tools = {
         item["executable"]: {
@@ -124,7 +135,7 @@ def collect_manifest(
     }
 
     return {
-        "schema_version": 6,
+        "schema_version": 8,
         "run": {
             "top": top,
             "run_top": run_top,
@@ -147,6 +158,10 @@ def collect_manifest(
         },
         "toolchain": environment.get("toolchain_lock", {}),
         "analysis": analysis,
+        "flow": flow,
+        "implementation": implementation,
+        "signoff": signoff,
+        "closure": closure,
         "tools": tools,
     }
 
@@ -206,6 +221,28 @@ def show_manifest(path: Path) -> None:
         ],
     )
 
+    flow = data.get("flow")
+    if isinstance(flow, dict):
+        labels = {
+            "lint": "RTL lint",
+            "cdc_rdc": "CDC / RDC",
+            "functional": "Functional verification",
+            "formal": "Formal verification",
+            "synthesis": "Synthesis",
+            "equivalence": "RTL ↔ synthesis equivalence",
+            "pre_implementation_signoff": "Pre-implementation sign-off",
+            "implementation": "Implementation / PnR",
+            "post_implementation_signoff": "Post-implementation sign-off",
+        }
+        stages = flow.get("stages", {})
+        section(
+            "Flow",
+            [
+                (labels.get(name, name), str(stages.get(name, "missing")).upper())
+                for name in flow.get("order", [])
+            ] + [("Overall", str(flow.get("status", "incomplete")).upper())],
+        )
+
     artifacts = run.get("artifacts")
     if isinstance(artifacts, dict):
         section(
@@ -215,6 +252,37 @@ def show_manifest(path: Path) -> None:
                 for name, value in artifacts.items()
             ],
         )
+
+    implementation = data.get("implementation")
+    if isinstance(implementation, dict):
+        artifacts = implementation.get("artifacts", {})
+        section(
+            "Implementation / PnR",
+            [
+                ("Status", str(implementation.get("status", "unknown")).upper()),
+                ("Results", implementation.get("platform_root", "-")),
+                ("Final artifacts", f"{len(artifacts)}/5" if isinstance(artifacts, dict) else "-"),
+                ("Log", implementation.get("log") or "-"),
+            ],
+        )
+
+    signoff = data.get("signoff")
+    if isinstance(signoff, dict):
+        rows: list[tuple[str, object]] = []
+        sta = signoff.get("sta")
+        if isinstance(sta, dict):
+            rows.append(("Pre-implementation STA", f"{str(sta.get('status', 'unknown')).upper()} · ideal clock · no SPEF"))
+        routed = signoff.get("post_pnr")
+        if isinstance(routed, dict):
+            routed_sta = routed.get("sta")
+            if isinstance(routed_sta, dict):
+                rows.append(("Post-implementation STA", f"{str(routed_sta.get('status', 'unknown')).upper()} · propagated clock · SPEF"))
+            for label, key in (("Post-implementation SDF", "sdf"), ("Post-implementation GLS", "gls"), ("Post-implementation power", "power"), ("Post-implementation activity power", "power_activity"), ("Post-implementation fusion", "fusion")):
+                stage = routed.get(key)
+                if isinstance(stage, dict):
+                    rows.append((label, str(stage.get("status", "unknown")).upper()))
+        if rows:
+            section("Sign-off detail", rows)
 
     analysis = data.get("analysis")
     if isinstance(analysis, dict):

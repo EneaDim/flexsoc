@@ -1587,7 +1587,7 @@ SIGNOFF_PY_ARGS = \
 	$(foreach lib,$(MACRO_LIBS),--macro-liberty "$(lib)") \
 	$(if $(strip $(NETLIST)),--netlist "$(NETLIST)") \
 	$(if $(strip $(SPEF_FILE)),--spef "$(SPEF_FILE)") \
-	--sdc "$(SIGNOFF_SDC_FILE)" \
+	$(if $(strip $(PNR_SDC_FILE)),--sdc "$(PNR_SDC_FILE)",$(if $(filter post_syn,$(SIGNOFF_STAGE)),--sdc "$(SIGNOFF_SDC_FILE)")) \
 	--power-activity "$(POWER_ACTIVITY)" --power-duty "$(POWER_DUTY)" \
 	$(if $(filter 1,$(POWER_GLOBAL_ACTIVITY)),--power-global-activity) \
 	--power-vcd-scope "$(POWER_VCD_SCOPE)" --power-dut-instance "$(POWER_DUT_INSTANCE)" \

@@ -247,7 +247,7 @@ install_slang() {
 install_iverilog() {
     installed IVERILOG iverilog && { info "iverilog already installed"; return; }
     local d; d=$(archive_source IVERILOG iverilog); info "build iverilog $(version_var IVERILOG)"
-    (cd "$d"; ./configure --prefix="$PREFIX" --enable-libvvp --enable-libveriuser; make -j"$JOBS"; make install)
+    (cd "$d"; [[ -x ./configure ]] || sh autoconf.sh; ./configure --prefix="$PREFIX" --enable-libvvp --enable-libveriuser; make -j"$JOBS"; make install)
     mark_installed IVERILOG iverilog
 }
 
@@ -452,14 +452,19 @@ doctor() {
     for tool in $(profile_tools); do
         case "$tool" in
             verilator) require_marker VERILATOR verilator; out=$(verilator --version); contains "$out" "${VERILATOR_VERSION}" verilator ;;
-            slang) require_marker SLANG slang; out=$(slang --version); contains "$out" "11.0.0" slang; command -v slang-hier >/dev/null ;;
-            iverilog) require_marker IVERILOG iverilog; out=$(iverilog -V 2>&1); contains "$out" "version ${IVERILOG_VERSION}" iverilog ;;
-            yosys) require_marker YOSYS yosys; out=$(yosys -V); contains "$out" "Yosys 0.67" yosys; yosys -qp 'help read_slang' ;;
-            sby) require_marker SBY sby; out=$(sby --version); contains "$out" "0.67" sby ;;
-            eqy) require_marker EQY eqy; out=$(eqy --version); contains "$out" "0.67" eqy ;;
-            bitwuzla) require_marker BITWUZLA bitwuzla; out=$(bitwuzla --version); contains "$out" "0.9.1" bitwuzla ;;
-            boolector) require_marker BOOLECTOR boolector; out=$(boolector --version 2>&1); contains "$out" "3.2.4" boolector; [[ -x "$PREFIX/bin/btormc" && -x "$PREFIX/bin/btorsim" ]] ;;
-            opensta) require_marker CUDD cudd; require_marker OPENSTA opensta; out=$(sta -version 2>&1) ;;
+            slang) require_marker SLANG slang; out=$(slang --version); contains "$out" "$(version_var SLANG)" slang; command -v slang-hier >/dev/null ;;
+            iverilog)
+                require_marker IVERILOG iverilog
+                out=$(iverilog -V 2>&1); contains "$out" "version $(version_var IVERILOG)" iverilog
+                iverilog -g2012 -ginterconnect -V >/dev/null 2>&1 \
+                    || die "iverilog $(version_var IVERILOG) lacks required -ginterconnect support"
+                ;;
+            yosys) require_marker YOSYS yosys; out=$(yosys -V); contains "$out" "Yosys $(version_var YOSYS)" yosys; yosys -qp 'help read_slang' ;;
+            sby) require_marker SBY sby; out=$(sby --version); contains "$out" "$(version_var SBY)" sby ;;
+            eqy) require_marker EQY eqy; out=$(eqy --version); contains "$out" "$(version_var EQY)" eqy ;;
+            bitwuzla) require_marker BITWUZLA bitwuzla; out=$(bitwuzla --version); contains "$out" "$(version_var BITWUZLA)" bitwuzla ;;
+            boolector) require_marker BOOLECTOR boolector; out=$(boolector --version 2>&1); contains "$out" "$(version_var BOOLECTOR)" boolector; [[ -x "$PREFIX/bin/btormc" && -x "$PREFIX/bin/btorsim" ]] ;;
+            opensta) require_marker CUDD cudd; require_marker OPENSTA opensta; out=$(sta -version 2>&1); contains "$out" "$(version_var OPENSTA)" opensta ;;
             gtkwave)
                 require_marker GTKWAVE gtkwave
                 [[ -x "$PREFIX/bin/gtkwave" && -x "$PREFIX/bin/fst2vcd" ]] || die "GTKWave install is incomplete in $PREFIX/bin"
@@ -470,7 +475,7 @@ doctor() {
                 [[ "$linkage" != *"not found"* ]] || die "gtkwave has unresolved shared libraries: $linkage"
                 out="GTKWave $(version_var GTKWAVE) (headless receipt; shared libraries resolved)"
                 ;;
-            surfer) require_marker SURFER surfer; out=$(surfer --version 2>&1); contains "$out" "0.7.0" surfer ;;
+            surfer) require_marker SURFER surfer; out=$(surfer --version 2>&1); contains "$out" "$(version_var SURFER)" surfer ;;
             sv2v)
                 require_marker SV2V sv2v
                 out=$(sv2v --version 2>&1)
@@ -480,7 +485,7 @@ doctor() {
                 [[ "$out" == *"$(version_var SV2V)"* || "$out" == *"${SV2V_REF:0:7}"* ]] \
                     || die "sv2v version mismatch: $out"
                 ;;
-            netlistsvg) require_marker NETLISTSVG netlistsvg; command -v netlistsvg >/dev/null; out="netlistsvg 1.0.2" ;;
+            netlistsvg) require_marker NETLISTSVG netlistsvg; command -v netlistsvg >/dev/null; out="netlistsvg $(version_var NETLISTSVG)" ;;
         esac
         printf '  %-12s %s\n' "$tool" "$(first_line "$out")"
     done

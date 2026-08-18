@@ -343,12 +343,16 @@ def collect_synthesis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | Non
     return data
 
 
-def collect_sta(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect per-corner setup/hold data from each unified timing report."""
+def collect_sta(
+    top: str, run_dir: Path, pdk: str, stage: str = "post_syn"
+) -> dict[str, Any] | None:
+    """Collect per-corner setup/hold data from one sign-off stage."""
 
     layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
+    root = layout.signoff_stage_root(stage)
+    log_root = layout.signoff_stage_log_root(stage)
     scenarios: dict[str, dict[str, Any]] = {}
-    for report in sorted(layout.sta_dir.glob("*/*/timing.rpt")):
+    for report in sorted((root / "sta").glob("*/*/timing.rpt")):
         corner = report.parent.parent.name
         mode = report.parent.name
         if mode not in {"setup", "hold"}:
@@ -361,7 +365,7 @@ def collect_sta(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
             "reported_violating_paths": len(re.findall(r"slack\s*\(VIOLATED\)", text, flags=re.IGNORECASE)),
             "reported_unconstrained_paths": len(re.findall(r"^Startpoint:", unconstrained, flags=re.MULTILINE)),
             "report": relative(report, run_dir),
-            "log": relative(layout.sta_log_dir / corner / mode / f"{top}.log", run_dir),
+            "log": relative(log_root / "sta" / corner / mode / f"{top}.log", run_dir),
         }
         if wns is not None:
             data["wns"] = wns
@@ -370,14 +374,18 @@ def collect_sta(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
         scenarios.setdefault(corner, {})[mode] = data
     return scenarios or None
 
-def collect_power_estimate(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
+def collect_power_estimate(
+    top: str, run_dir: Path, pdk: str, stage: str = "post_syn"
+) -> dict[str, Any] | None:
     """Collect vectorless input-activity power estimates by corner."""
 
     layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
+    root = layout.signoff_stage_root(stage)
+    log_root = layout.signoff_stage_log_root(stage)
     corners: dict[str, Any] = {}
     activity: float | None = None
     duty: float | None = None
-    for report in sorted((layout.power_dir / "estimate").glob("*/power.rpt")):
+    for report in sorted((root / "power" / "estimate").glob("*/power.rpt")):
         corner = report.parent.name
         text = read_text(report)
         activity_match = re.search(r"^activity=(" + FLOAT + r")$", text, flags=re.MULTILINE)
@@ -393,7 +401,7 @@ def collect_power_estimate(top: str, run_dir: Path, pdk: str) -> dict[str, Any] 
         )
         data: dict[str, Any] = {
             "report": relative(report, run_dir),
-            "log": relative(layout.power_log_dir / "estimate" / corner / f"{top}.log", run_dir),
+            "log": relative(log_root / "power" / "estimate" / corner / f"{top}.log", run_dir),
         }
         if total:
             internal, switching, leakage, overall = (float(value) for value in total.groups())
@@ -617,10 +625,13 @@ def collect_equivalence(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | N
     }
 
 
-def collect_sdf(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect generated SDF files for the selected PDK."""
+def collect_sdf(
+    top: str, run_dir: Path, pdk: str, stage: str = "post_syn"
+) -> dict[str, Any] | None:
+    """Collect generated SDF files for one sign-off stage."""
 
-    sdf_dir = pdk_run_layout(run_dir, pdk=pdk, top=top).sdf_dir
+    layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
+    sdf_dir = layout.signoff_stage_root(stage) / "sdf"
     files = sorted(sdf_dir.glob(f"*/{top}_*.sdf")) if sdf_dir.is_dir() else []
     if not files:
         return None
@@ -755,21 +766,30 @@ def _gls_report_reason(
             return f"SDF annotation warning: {warnings[0]}"
         if report.get("timing_model") != "icarus-path-delay-only":
             return f"unexpected timing model={report.get('timing_model', 'missing')}"
+        if (
+            report.get("stage") == "post_pnr"
+            and report.get("interconnect_delays") != "enabled"
+        ):
+            return "post-PnR SDF interconnect delays are not enabled"
     return None
 
 
-def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect direct post-synthesis GLS reports without a qualification matrix."""
+def collect_post_syn_gls(
+    top: str, run_dir: Path, pdk: str, stage: str = "post_syn"
+) -> dict[str, Any] | None:
+    """Collect direct GLS reports from one gate-level stage."""
 
     layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
-    report_paths = sorted(layout.post_syn_sim_dir.glob(f"{top}_post_syn_*.json"))
+    report_stage = "post_pnr" if stage == "post_route" else "post_syn"
+    stage_dir = layout.post_pnr_sim_dir if report_stage == "post_pnr" else layout.post_syn_sim_dir
+    report_paths = sorted(stage_dir.glob(f"{top}_{report_stage}_*.json"))
     if not report_paths:
         return None
 
     record_map: dict[tuple[str, str, str], tuple[bool, dict[str, Any]]] = {}
     for report_path in report_paths:
         report = _json_object(report_path)
-        if report.get("stage") != "post_syn":
+        if report.get("stage") != report_stage:
             continue
         test_name = str(report.get("test_name", ""))
         backend = str(report.get("backend", ""))
@@ -846,7 +866,8 @@ def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | 
         "backends": backends,
         "timing_modes": modes,
         "scenarios": [_gls_scenario(mode) for mode in modes],
-        "artifacts": relative(layout.post_syn_sim_dir, run_dir),
+        "artifacts": relative(stage_dir, run_dir),
+        "interconnect_delays": "enabled" if report_stage == "post_pnr" else "not-applicable",
         "by_backend": by_backend,
         "by_mode": by_mode,
         "by_scenario": by_scenario,
@@ -858,21 +879,128 @@ def collect_post_syn_gls(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | 
     }
 
 
-def collect_power_analysis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect activity-based power analysis driven by direct GLS traces."""
+def _collect_activity_analysis(
+    top: str, run_dir: Path, pdk: str, stage: str, subdir: str
+) -> dict[str, Any] | None:
+    """Collect one activity-driven sign-off summary."""
 
-    path = pdk_run_layout(run_dir, pdk=pdk, top=top).power_dir / "analysis" / "summary.json"
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict) or not isinstance(data.get("reports"), list):
+    path = pdk_run_layout(run_dir, pdk=pdk, top=top).signoff_stage_root(stage) / subdir / "summary.json"
+    data = _json_object(path)
+    if not isinstance(data.get("reports"), list):
         return None
     data["summary"] = relative(path, run_dir)
     return data
 
+
+def collect_power_analysis(
+    top: str, run_dir: Path, pdk: str, stage: str = "post_syn"
+) -> dict[str, Any] | None:
+    """Collect activity-based power analysis driven by direct GLS traces."""
+
+    return _collect_activity_analysis(top, run_dir, pdk, stage, "power/analysis")
+
+
+def collect_fusion_analysis(
+    top: str, run_dir: Path, pdk: str, stage: str = "post_syn"
+) -> dict[str, Any] | None:
+    """Collect workload-correlated timing/power analysis."""
+
+    return _collect_activity_analysis(top, run_dir, pdk, stage, "fusion")
+
+
+
+def collect_implementation(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | None:
+    """Collect final ORFS implementation artifacts for one PDK."""
+
+    layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
+    roots = sorted((layout.pnr_dir / "results").glob(f"*/{top}/base"))
+    roots = [root for root in roots if root.is_dir()]
+    if not roots:
+        return None
+    root = roots[0]
+    required = ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds")
+    artifacts = {name: relative(root / name, run_dir) for name in required if (root / name).is_file()}
+    status = "pass" if len(artifacts) == len(required) else "partial"
+    log = layout.pnr_log_dir / f"{top}_pnr.log"
+    return {
+        "status": status,
+        "platform_root": relative(root, run_dir),
+        "artifacts": artifacts,
+        "log": relative(log, run_dir) if log.is_file() else None,
+    }
+
+
+def _phase_status(*values: str | None) -> str:
+    """Aggregate ordered lifecycle evidence into one phase status."""
+
+    statuses = [str(value or "missing") for value in values]
+    if any(value in {"fail", "error"} for value in statuses):
+        return "fail"
+    if any(value in {"review", "warn"} for value in statuses):
+        return "review"
+    if any(value in {"missing", "partial", "unknown", "incomplete"} for value in statuses):
+        return "incomplete"
+    return "pass"
+
+
+def flow_summary(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Summarize the complete FlexSoC lifecycle in user-facing order."""
+
+    def status(name: str) -> str:
+        value = metrics.get(name)
+        if isinstance(value, dict):
+            return str(value.get("status", "pass" if value else "missing"))
+        return "missing"
+
+    synthesis = metrics.get("synthesis")
+    synthesis_status = "missing"
+    if isinstance(synthesis, dict):
+        synthesis_status = (
+            "pass"
+            if int(synthesis.get("errors", 0)) == 0 and bool(synthesis.get("netlist"))
+            else "fail"
+        )
+
+    pre = _phase_status(
+        status("sdf"),
+        "pass" if metrics.get("sta") else "missing",
+        "pass" if metrics.get("power_estimate") else "missing",
+        status("post_syn_gls"),
+        status("power_analysis"),
+        status("fusion_analysis"),
+    )
+    implementation = status("implementation")
+    routed = metrics.get("post_pnr")
+    if isinstance(routed, dict):
+        post = _phase_status(
+            str(routed.get("sdf", {}).get("status", "missing")) if isinstance(routed.get("sdf"), dict) else "missing",
+            "pass" if routed.get("sta") else "missing",
+            "pass" if routed.get("power_estimate") else "missing",
+            str(routed.get("gls", {}).get("status", "missing")) if isinstance(routed.get("gls"), dict) else "missing",
+            str(routed.get("power_analysis", {}).get("status", "missing")) if isinstance(routed.get("power_analysis"), dict) else "missing",
+            str(routed.get("fusion_analysis", {}).get("status", "missing")) if isinstance(routed.get("fusion_analysis"), dict) else "missing",
+        )
+    else:
+        post = "missing"
+
+    stages = {
+        "lint": status("lint"),
+        "cdc_rdc": status("cdc_rdc"),
+        "functional": status("regression"),
+        "formal": status("formal"),
+        "synthesis": synthesis_status,
+        "equivalence": status("equivalence"),
+        "pre_implementation_signoff": pre,
+        "implementation": implementation,
+        "post_implementation_signoff": post,
+    }
+    overall = _phase_status(*stages.values())
+    return {
+        "order": list(stages),
+        "stages": stages,
+        "status": overall,
+        "complete": overall == "pass",
+    }
 
 def verification_summary(metrics: dict[str, Any]) -> dict[str, Any]:
     """Summarize PDK-independent verification in lifecycle order."""
@@ -924,7 +1052,7 @@ def signoff_summary(metrics: dict[str, Any]) -> dict[str, Any]:
     if isinstance(sdf, dict):
         result["sdf"] = {"status": sdf.get("status", "unknown"), "count": sdf.get("count", 0)}
     if metrics.get("sta"):
-        result["sta"] = {"status": "pass"}
+        result["sta"] = {"status": "pass", "clock_model": "ideal", "interconnect": "none"}
     if metrics.get("power_estimate"):
         result["power"] = {"status": "pass"}
     power_activity = metrics.get("power_analysis")
@@ -933,6 +1061,13 @@ def signoff_summary(metrics: dict[str, Any]) -> dict[str, Any]:
             "status": power_activity.get("status", "unknown"),
             "passed": power_activity.get("passed", 0),
             "total": power_activity.get("total", 0),
+        }
+    fusion = metrics.get("fusion_analysis")
+    if isinstance(fusion, dict):
+        result["fusion"] = {
+            "status": fusion.get("status", "unknown"),
+            "passed": fusion.get("passed", 0),
+            "total": fusion.get("total", 0),
         }
     gls = metrics.get("post_syn_gls")
     if isinstance(gls, dict):
@@ -943,6 +1078,39 @@ def signoff_summary(metrics: dict[str, Any]) -> dict[str, Any]:
             "failed": gls.get("failed", 0),
             "missing": gls.get("missing", 0),
         }
+    post_pnr = metrics.get("post_pnr")
+    if isinstance(post_pnr, dict):
+        routed: dict[str, Any] = {}
+        sdf = post_pnr.get("sdf")
+        if isinstance(sdf, dict):
+            routed["sdf"] = {"status": sdf.get("status", "unknown"), "count": sdf.get("count", 0)}
+        if post_pnr.get("sta"):
+            routed["sta"] = {"status": "pass", "clock_model": "propagated", "interconnect": "spef"}
+        if post_pnr.get("power_estimate"):
+            routed["power"] = {"status": "pass"}
+        gls = post_pnr.get("gls")
+        if isinstance(gls, dict):
+            routed["gls"] = {
+                "status": gls.get("status", "unknown"),
+                "passed": gls.get("passed", 0),
+                "total": gls.get("total", 0),
+            }
+        activity = post_pnr.get("power_analysis")
+        if isinstance(activity, dict):
+            routed["power_activity"] = {
+                "status": activity.get("status", "unknown"),
+                "passed": activity.get("passed", 0),
+                "total": activity.get("total", 0),
+            }
+        fusion = post_pnr.get("fusion_analysis")
+        if isinstance(fusion, dict):
+            routed["fusion"] = {
+                "status": fusion.get("status", "unknown"),
+                "passed": fusion.get("passed", 0),
+                "total": fusion.get("total", 0),
+            }
+        if routed:
+            result["post_pnr"] = routed
     return result
 
 
@@ -973,13 +1141,49 @@ def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
     stages["power"] = "pass" if metrics.get("power_estimate") else "missing"
     order = ["lint", "cdc_rdc", "formal", "regression", "synthesis", "equivalence", "sdf", "sta", "power"]
     gls = metrics.get("post_syn_gls")
-    if isinstance(gls, dict):
-        stages["post_syn_gls"] = str(gls.get("status", "unknown"))
-        order.append("post_syn_gls")
+    stages["post_syn_gls"] = str(gls.get("status", "unknown")) if isinstance(gls, dict) else "missing"
+    order.append("post_syn_gls")
     power_activity = metrics.get("power_analysis")
-    if isinstance(power_activity, dict):
-        stages["power_activity"] = str(power_activity.get("status", "unknown"))
-        order.append("power_activity")
+    stages["power_activity"] = (
+        str(power_activity.get("status", "unknown")) if isinstance(power_activity, dict) else "missing"
+    )
+    order.append("power_activity")
+    fusion = metrics.get("fusion_analysis")
+    stages["fusion"] = str(fusion.get("status", "unknown")) if isinstance(fusion, dict) else "missing"
+    order.append("fusion")
+
+    implementation = metrics.get("implementation")
+    stages["implementation"] = (
+        str(implementation.get("status", "unknown")) if isinstance(implementation, dict) else "missing"
+    )
+    order.append("implementation")
+
+    post_pnr = metrics.get("post_pnr")
+    routed = post_pnr if isinstance(post_pnr, dict) else {}
+    routed_sdf = routed.get("sdf")
+    stages["post_pnr_sdf"] = (
+        str(routed_sdf.get("status", "unknown")) if isinstance(routed_sdf, dict) else "missing"
+    )
+    stages["post_pnr_sta"] = "pass" if routed.get("sta") else "missing"
+    stages["post_pnr_power"] = "pass" if routed.get("power_estimate") else "missing"
+    routed_gls = routed.get("gls")
+    stages["post_pnr_gls"] = (
+        str(routed_gls.get("status", "unknown")) if isinstance(routed_gls, dict) else "missing"
+    )
+    routed_activity = routed.get("power_analysis")
+    stages["post_pnr_power_activity"] = (
+        str(routed_activity.get("status", "unknown"))
+        if isinstance(routed_activity, dict)
+        else "missing"
+    )
+    routed_fusion = routed.get("fusion_analysis")
+    stages["post_pnr_fusion"] = (
+        str(routed_fusion.get("status", "unknown")) if isinstance(routed_fusion, dict) else "missing"
+    )
+    order.extend((
+        "post_pnr_sdf", "post_pnr_sta", "post_pnr_power", "post_pnr_gls",
+        "post_pnr_power_activity", "post_pnr_fusion",
+    ))
     values = tuple(stages.values())
     if any(status in {"fail", "error"} for status in values):
         overall = "fail"
@@ -1008,7 +1212,7 @@ def collect_metrics(
     selected_pdk = pdk or "sky130"
     layout = pdk_run_layout(run_dir, pdk=selected_pdk, top=top)
     metrics: dict[str, Any] = {
-        "schema_version": 13,
+        "schema_version": 16,
         "top": top,
         "run_root": str(run_dir.resolve()),
         "technology": {
@@ -1037,10 +1241,30 @@ def collect_metrics(
         ("sta", collect_sta),
         ("power_estimate", collect_power_estimate),
         ("power_analysis", collect_power_analysis),
+        ("fusion_analysis", collect_fusion_analysis),
     ):
         data = collector(top, run_dir, selected_pdk)
         if data is not None:
             metrics[name] = data
+
+    implementation = collect_implementation(top, run_dir, selected_pdk)
+    if implementation is not None:
+        metrics["implementation"] = implementation
+
+    post_pnr: dict[str, Any] = {}
+    for name, collector in (
+        ("sdf", collect_sdf),
+        ("gls", collect_post_syn_gls),
+        ("sta", collect_sta),
+        ("power_estimate", collect_power_estimate),
+        ("power_analysis", collect_power_analysis),
+        ("fusion_analysis", collect_fusion_analysis),
+    ):
+        data = collector(top, run_dir, selected_pdk, "post_route")
+        if data is not None:
+            post_pnr[name] = data
+    if post_pnr:
+        metrics["post_pnr"] = post_pnr
 
     synthesis = metrics.get("synthesis")
     if isinstance(synthesis, dict):
@@ -1048,6 +1272,7 @@ def collect_metrics(
         synthesis["netlist"] = relative(netlist, run_dir) if netlist.is_file() else None
     metrics["verification"] = verification_summary(metrics)
     metrics["signoff"] = signoff_summary(metrics)
+    metrics["flow"] = flow_summary(metrics)
     metrics["closure"] = closure_status(metrics)
     return metrics
 
@@ -1163,22 +1388,30 @@ def show_metrics(path: Path) -> None:
     console = Console()
     console.print(f"[bold cyan]FlexSoC run check[/bold cyan] · [bold white]{data.get('top', 'unknown')}[/bold white]")
 
-    closure = data.get("closure", {})
-    if closure:
-        console.print("\n[bold cyan]Closure[/bold cyan]")
+    flow = data.get("flow", {})
+    if flow:
+        console.print("\n[bold cyan]Flow[/bold cyan]")
         table = Table(box=None, pad_edge=False, header_style="bold cyan")
-        table.add_column("Stage")
+        table.add_column("Main step")
         table.add_column("Status")
-        for name in closure.get("order", []):
-            status = str(closure.get("stages", {}).get(name, "missing"))
-            table.add_row(name, status_markup(status))
+        labels = {
+            "lint": "RTL lint",
+            "cdc_rdc": "CDC / RDC",
+            "functional": "Functional verification",
+            "formal": "Formal verification",
+            "synthesis": "Synthesis",
+            "equivalence": "RTL ↔ synthesis equivalence",
+            "pre_implementation_signoff": "Pre-implementation sign-off",
+            "implementation": "Implementation / PnR",
+            "post_implementation_signoff": "Post-implementation sign-off",
+        }
+        for name in flow.get("order", []):
+            status = str(flow.get("stages", {}).get(name, "missing"))
+            table.add_row(labels.get(name, name), status_markup(status))
         console.print(table)
-        overall = str(closure.get("status", "pass" if closure.get("complete") else "incomplete"))
+        overall = str(flow.get("status", "incomplete"))
         style = {"pass": "green", "review": "yellow", "fail": "red"}.get(overall, "grey70")
-        console.print(
-            f"[grey70]Standard closure:[/grey70] "
-            f"[bold {style}]{overall.upper()}[/bold {style}]"
-        )
+        console.print(f"[grey70]Run status:[/grey70] [bold {style}]{overall.upper()}[/bold {style}]")
 
     verification = data.get("verification", {})
     if verification:
@@ -1235,7 +1468,10 @@ def show_metrics(path: Path) -> None:
         for label, key in (("SDF", "sdf"), ("STA", "sta"), ("Power estimate", "power")):
             stage = signoff.get(key, {})
             if stage:
-                table.add_row(label, status_markup(str(stage.get("status", "unknown"))))
+                detail = ""
+                if key == "sta":
+                    detail = f" · {stage.get('clock_model', 'ideal')} clock · {stage.get('interconnect', 'none')}"
+                table.add_row(label, status_markup(str(stage.get("status", "unknown"))) + detail)
         gls_summary = signoff.get("post_syn_gls", {})
         if gls_summary:
             table.add_row(
@@ -1250,6 +1486,44 @@ def show_metrics(path: Path) -> None:
                 f"{activity_summary.get('passed', 0)}/{activity_summary.get('total', 0)}  "
                 + status_markup(str(activity_summary.get("status", "unknown"))),
             )
+        fusion_summary = signoff.get("fusion", {})
+        if fusion_summary:
+            table.add_row(
+                "Timing / power fusion",
+                f"{fusion_summary.get('passed', 0)}/{fusion_summary.get('total', 0)}  "
+                + status_markup(str(fusion_summary.get("status", "unknown"))),
+            )
+        routed = signoff.get("post_pnr", {})
+        if routed:
+            for label, key in (("Post-implementation SDF", "sdf"), ("Post-implementation STA", "sta"), ("Post-implementation power", "power")):
+                stage = routed.get(key, {})
+                if stage:
+                    detail = ""
+                    if key == "sta":
+                        detail = f" · {stage.get('clock_model', 'propagated')} clock · {stage.get('interconnect', 'spef')}"
+                    table.add_row(label, status_markup(str(stage.get("status", "unknown"))) + detail)
+            gls = routed.get("gls", {})
+            if gls:
+                table.add_row(
+                    "Post-implementation GLS",
+                    f"{gls.get('passed', 0)}/{gls.get('total', 0)}  "
+                    + status_markup(str(gls.get("status", "unknown")))
+                    + f" · interconnect {gls.get('interconnect_delays', 'unknown')}",
+                )
+            activity = routed.get("power_activity", {})
+            if activity:
+                table.add_row(
+                    "Post-implementation activity power",
+                    f"{activity.get('passed', 0)}/{activity.get('total', 0)}  "
+                    + status_markup(str(activity.get("status", "unknown"))),
+                )
+            fusion = routed.get("fusion", {})
+            if fusion:
+                table.add_row(
+                    "Post-implementation timing / power fusion",
+                    f"{fusion.get('passed', 0)}/{fusion.get('total', 0)}  "
+                    + status_markup(str(fusion.get("status", "unknown"))),
+                )
         console.print(table)
 
     lint = data.get("lint")
@@ -1362,6 +1636,19 @@ def show_metrics(path: Path) -> None:
         warnings = int(synthesis.get("warnings", 0))
         table.add_row("Errors", f"[{count_color(errors, error=True)}]{errors}[/]")
         table.add_row("Warnings", f"[{count_color(warnings)}]{warnings}[/]")
+        console.print(table)
+
+    implementation = data.get("implementation")
+    if implementation:
+        console.print("\n[bold cyan]Implementation / PnR[/bold cyan]")
+        table = metric_table()
+        table.add_row("Status", status_markup(str(implementation.get("status", "unknown"))))
+        table.add_row("Results", str(implementation.get("platform_root", "-")))
+        artifacts = implementation.get("artifacts", {})
+        if isinstance(artifacts, dict):
+            table.add_row("Final artifacts", f"{len(artifacts)}/5")
+        if implementation.get("log"):
+            table.add_row("Log", str(implementation.get("log")))
         console.print(table)
 
     equiv = data.get("equivalence")

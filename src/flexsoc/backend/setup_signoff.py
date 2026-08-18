@@ -744,7 +744,7 @@ def _instance_name(prefix: str) -> str:
     return tokens[0].rstrip(":")
 
 
-def _power_instance_rows(path: Path, *, names_only_ok: bool = False) -> list[dict[str, Any]]:
+def _power_instance_rows(path: Path) -> list[dict[str, Any]]:
     """Normalize OpenSTA instance-power JSON, tables, or marked report blocks."""
 
     try:
@@ -814,6 +814,23 @@ def _power_instance_rows(path: Path, *, names_only_ok: bool = False) -> list[dic
 
         numeric = re.compile(FLOAT_RE.pattern)
         for line in text.splitlines():
+            tokens = line.split()
+            if len(tokens) == 5:
+                try:
+                    powers = [float(value) for value in tokens[:4]]
+                except ValueError:
+                    pass
+                else:
+                    items.append(
+                        {
+                            "instance": tokens[4],
+                            "internal": powers[0],
+                            "switching": powers[1],
+                            "leakage": powers[2],
+                            "total": powers[3],
+                        }
+                    )
+                    continue
             matches = list(numeric.finditer(line))
             if len(matches) < 4:
                 continue
@@ -839,31 +856,6 @@ def _power_instance_rows(path: Path, *, names_only_ok: bool = False) -> list[dic
                 }
             )
 
-        if not items and names_only_ok:
-            excluded = {
-                "group",
-                "instance",
-                "internal",
-                "switching",
-                "leakage",
-                "total",
-                "power",
-                "sequential",
-                "combinational",
-                "macro",
-                "pad",
-            }
-            for line in text.splitlines():
-                stripped = line.strip().strip(":")
-                if not stripped or set(stripped) <= {"-", "="}:
-                    continue
-                tokens = stripped.split()
-                if tokens and tokens[0].isdigit():
-                    tokens.pop(0)
-                if len(tokens) != 1 or tokens[0].lower() in excluded:
-                    continue
-                if re.fullmatch(r"[A-Za-z_\\][A-Za-z0-9_.$/\\\[\]:-]*", tokens[0]):
-                    items.append({"instance": tokens[0]})
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -1253,9 +1245,11 @@ def _enrich_fusion_report(
         raise ValueError(
             f"fusion discovery found no constrained timing paths; report={report}"
         )
-    hotspots = _power_instance_rows(
-        ctx.report_dir / ".highest_power.rpt", names_only_ok=True
-    )
+    hotspots = sorted(
+        _power_instance_rows(ctx.report_dir / ".highest_power.rpt"),
+        key=lambda row: float(row["total"]),
+        reverse=True,
+    )[: ctx.power_top_instances]
     if ctx.power_top_instances > 0 and not hotspots:
         raise ValueError(
             "fusion discovery found no instance-power rows; "
@@ -1649,6 +1643,11 @@ def render_sta_tcl(ctx: SignoffContext) -> str:
             "flexsoc_section $report Units",
             "# Record the unit system used by all timing, slew, and capacitance values below.",
             "flexsoc_append_opensta $report report_units",
+            "flexsoc_section $report {Delay model}",
+            "set fp [open $report a]",
+            f'puts $fp "clock_network={"propagated" if ctx.stage == "post_route" else "ideal"}"',
+            f'puts $fp "interconnect={"spef" if ctx.stage == "post_route" else "none"}"',
+            "close $fp",
             "flexsoc_section $report {Timing summary}",
             'flexsoc_label $report "wns $delay_type"',
             "# Report worst negative slack for the selected max/setup or min/hold analysis.",
@@ -1661,6 +1660,24 @@ def render_sta_tcl(ctx: SignoffContext) -> str:
             "flexsoc_append_opensta $report check_setup -verbose",
             "# Append electrical and sequential timing checks such as slew, capacitance, fanout, recovery, and removal.",
             "flexsoc_append_opensta $report report_check_types -max_slew -max_capacitance -max_fanout -recovery -removal -min_pulse_width -min_period -min_delay -max_delay",
+            *(
+                [
+                    "flexsoc_section $report {Routed parasitic annotation}",
+                    "# Show SPEF coverage; unannotated routed nets remain explicit instead of silently using zero parasitics.",
+                    "flexsoc_append_opensta $report report_parasitic_annotation -report_unannotated",
+                    "flexsoc_section $report {Clock latency and skew}",
+                    "# Report propagated clock-tree latency including Liberty internal clock latency where available.",
+                    "flexsoc_append_opensta $report report_clock_latency -include_internal_latency -digits 6",
+                    "# Report both setup and hold clock skew from the propagated post-route clock network.",
+                    "flexsoc_append_opensta $report report_clock_skew -setup -include_internal_latency -digits 6",
+                    "flexsoc_append_opensta $report report_clock_skew -hold -include_internal_latency -digits 6",
+                    "flexsoc_section $report {Worst routed paths}",
+                    "# Always show routed paths, even when timing is met, so cell and interconnect delay remain inspectable.",
+                    "flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count 50 -endpoint_path_count 1 -unique_paths_to_endpoint -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
+                ]
+                if ctx.stage == "post_route"
+                else []
+            ),
             "flexsoc_section $report {Violating paths}",
             "# Report the worst violating paths first, including gate slew, capacitance, net, and fanout fields.",
             "flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count $endpoint_path_limit -unique_paths_to_endpoint -sort_by_slack -slack_max 0.0 -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
@@ -1685,7 +1702,20 @@ def render_sdf_tcl(ctx: SignoffContext) -> str:
             "# write_sdf serializes the linked timing model for gate-level simulation.",
             f"set sdf_file {_quote(sdf)}",
             'puts "sdf=$sdf_file"',
-            "write_sdf -divider . -include_typ $sdf_file",
+            "write_sdf -divider . -include_typ -no_timestamp -no_version $sdf_file",
+            "proc flexsoc_complete_sdf_typ_header {path} {",
+            "  set fp [open $path r]",
+            "  set text [read $fp]",
+            "  close $fp",
+            "  # OpenSTA 3.1 leaves PVT header typ empty even with -include_typ.",
+            r"  regsub -all {(\(VOLTAGE[ \t]+)([-+0-9.eE]+)::([-+0-9.eE]+)(\))} $text {\1\2:\2:\3\4} text",
+            r'  regsub -all {(\(PROCESS[ \t]+")([-+0-9.eE]+)::([-+0-9.eE]+)("\))} $text {\1\2:\2:\3\4} text',
+            r"  regsub -all {(\(TEMPERATURE[ \t]+)([-+0-9.eE]+)::([-+0-9.eE]+)(\))} $text {\1\2:\2:\3\4} text",
+            "  set fp [open $path w]",
+            "  puts -nonewline $fp $text",
+            "  close $fp",
+            "}",
+            "flexsoc_complete_sdf_typ_header $sdf_file",
         ]
     )
 
@@ -1711,9 +1741,6 @@ def _power_reports(ctx: SignoffContext, *, activity_coverage: bool) -> list[str]
         "flexsoc_section $report {Power summary}",
         "# Report average internal, switching, leakage, and total cell power for the complete design.",
         "flexsoc_append_opensta $report report_power",
-        "flexsoc_section $report {Highest-power instances}",
-        "# Rank the highest-power instances to expose the dominant contributors in this corner/workload.",
-        f"flexsoc_append_opensta $report report_power -highest_power_instances {ctx.power_top_instances}",
         'puts "report=$report"',
     ]
     return lines
@@ -1830,10 +1857,11 @@ def render_fusion_analysis_tcl(ctx: SignoffContext) -> str:
                 "-format full_clock_expanded "
                 "-fields {slew capacitance input_pin net fanout} -digits 6"
             ),
-            "# Discover the highest-power instances into a transient machine-parsed report used by the second fusion pass.",
+            "# Collect public per-instance power rows; Python ranks the hottest instances for the second fusion pass.",
             "set highest_power_report [file join $report_dir .highest_power.rpt]",
             "file delete -force $highest_power_report",
-            f"flexsoc_append_opensta $highest_power_report report_power -highest_power_instances {ctx.power_top_instances} -digits 12",
+            "set all_instances [get_cells -hierarchical *]",
+            "flexsoc_append_opensta $highest_power_report report_power -instances $all_instances -digits 12",
             'puts "report=$report"',
         ]
     )
@@ -1880,6 +1908,24 @@ def _stage_inputs(project_root: Path, values: Mapping[str, str]) -> tuple[Path, 
     return _require_file(netlist, "gate-level netlist"), _optional_file(spef, "SPEF")
 
 
+def _stage_sdc(project_root: Path, values: Mapping[str, str]) -> Path:
+    """Resolve the canonical pre-synthesis or final routed SDC."""
+
+    layout = layout_from_values(project_root, values)
+    raw = values.get("PNR_SDC_FILE", "").strip()
+    if raw:
+        return _require_file(Path(raw), "SDC")
+    if values.get("SIGNOFF_STAGE", "post_syn") == "post_route":
+        top = values.get("TOP", "test")
+        candidates = sorted((layout.pnr_dir / "results").glob(f"**/{top}/**/6_final.sdc"))
+        if not candidates:
+            candidates = sorted((layout.pnr_dir / "results").glob("**/6_final.sdc"))
+        if not candidates:
+            raise ValueError(f"post-route SDC not found under {layout.pnr_dir / 'results'}")
+        return _require_file(candidates[-1], "post-route SDC")
+    return _require_file(layout.signoff_sdc, "SDC")
+
+
 def _base_context(
     project_root: Path,
     values: Mapping[str, str],
@@ -1905,10 +1951,7 @@ def _base_context(
         netlist = Path(values.get("NETLIST") or layout.syn_dir / f"{top}_synth.v").expanduser().resolve()
         raw_spef = values.get("SPEF_FILE", "").strip()
         spef = Path(raw_spef).expanduser().resolve() if raw_spef else None
-    sdc = _require_file(
-        Path(values.get("PNR_SDC_FILE") or layout.signoff_sdc),
-        "SDC",
-    )
+    sdc = _stage_sdc(project_root, values)
     return SignoffContext(
         analysis=analysis,
         design=values.get("RUN_TOP") or values.get("TOP", "test"),
@@ -1982,11 +2025,13 @@ def generate_families(project_root: Path, values: Mapping[str, str]) -> tuple[Pa
     """Generate the canonical SDC and all OpenSTA Tcl families under one PDK branch."""
 
     layout = layout_from_values(project_root, values)
-    generate_signoff_sdc(project_root, values)
+    stage = values.get("SIGNOFF_STAGE", "post_syn")
+    if stage == "post_syn":
+        generate_signoff_sdc(project_root, values)
     liberties = _liberties(values)
     corner = "tt" if "tt" in liberties else next(iter(liberties))
     liberty = liberties[corner]
-    root = layout.signoff_pdk_root
+    root = layout.signoff_stage_root(stage)
     generated: list[tuple[Path, SignoffContext]] = []
     specs = (
         ("sta", root / "sta" / "sta.tcl", "setup", root / "sta" / "template_reports"),
@@ -2169,6 +2214,9 @@ def execute_static(analysis: str, project_root: Path, values: Mapping[str, str])
     if analysis not in {"sta", "sdf", "power_estimate"}:
         raise ValueError(f"static analysis is not supported: {analysis}")
     layout = layout_from_values(project_root, values)
+    stage = values.get("SIGNOFF_STAGE", "post_syn")
+    root = layout.signoff_stage_root(stage)
+    log_root = layout.signoff_stage_log_root(stage)
     liberties = _liberties(values)
     corners = _selection(
         values.get("SIGNOFF_CORNERS"), "ss tt ff", tuple(liberties), "sign-off corner"
@@ -2183,17 +2231,17 @@ def execute_static(analysis: str, project_root: Path, values: Mapping[str, str])
     for corner in corners:
         for mode in modes:
             if analysis == "sta":
-                report_dir = layout.sta_dir / corner / mode
-                script = layout.sta_dir / "sta.tcl"
-                log = layout.sta_log_dir / corner / mode / f"{values.get('TOP', 'test')}.log"
+                report_dir = root / "sta" / corner / mode
+                script = root / "sta" / "sta.tcl"
+                log = log_root / "sta" / corner / mode / f"{values.get('TOP', 'test')}.log"
             elif analysis == "sdf":
-                report_dir = layout.sdf_dir / corner
-                script = layout.sdf_dir / "write_sdf.tcl"
-                log = layout.sdf_log_dir / corner / f"{values.get('TOP', 'test')}.log"
+                report_dir = root / "sdf" / corner
+                script = root / "sdf" / "write_sdf.tcl"
+                log = log_root / "sdf" / corner / f"{values.get('TOP', 'test')}.log"
             else:
-                report_dir = layout.power_dir / "estimate" / corner
-                script = layout.power_dir / "estimate" / "power_estimate.tcl"
-                log = layout.power_log_dir / "estimate" / corner / f"{values.get('TOP', 'test')}.log"
+                report_dir = root / "power" / "estimate" / corner
+                script = root / "power" / "estimate" / "power_estimate.tcl"
+                log = log_root / "power" / "estimate" / corner / f"{values.get('TOP', 'test')}.log"
             ctx = _base_context(
                 project_root,
                 values,
@@ -2315,8 +2363,11 @@ def analyze_activity_spec(
     if analysis not in {"power_analysis", "fusion_analysis"}:
         raise ValueError(f"unsupported activity analysis: {analysis}")
     layout = layout_from_values(project_root, values)
+    stage = values.get("SIGNOFF_STAGE", "post_syn")
+    root = layout.signoff_stage_root(stage)
+    log_root = layout.signoff_stage_log_root(stage)
     capture, conversion_log, conversion_method = _activity_vcd(
-        spec, values, layout.power_dir / "activity" / "captures"
+        spec, values, root / "power" / "activity" / "captures"
     )
     requested_scope = values.get("POWER_VCD_SCOPE", "auto").strip() or "auto"
     scope, scopes = _resolve_vcd_scope(
@@ -2344,14 +2395,14 @@ def analyze_activity_spec(
         else ("",)
     )
     if analysis == "power_analysis":
-        workload_root = layout.power_dir / "analysis" / spec.workload
-        legacy_root = layout.power_dir / "analysis" / spec.legacy_workload
-        script = layout.power_dir / "analysis" / "power_analysis.tcl"
+        workload_root = root / "power" / "analysis" / spec.workload
+        legacy_root = root / "power" / "analysis" / spec.legacy_workload
+        script = root / "power" / "analysis" / "power_analysis.tcl"
         primary_name = "power.rpt"
     else:
-        workload_root = layout.fusion_dir / spec.workload
-        legacy_root = layout.fusion_dir / spec.legacy_workload
-        script = layout.fusion_dir / "fusion_analysis.tcl"
+        workload_root = root / "fusion" / spec.workload
+        legacy_root = root / "fusion" / spec.legacy_workload
+        script = root / "fusion" / "fusion_analysis.tcl"
         primary_name = "fusion.rpt"
     # One workload directory represents exactly one aligned PVT scenario. Rebuild
     # it from scratch and remove the former *_min/*_typ/*_max layout so reruns do
@@ -2374,11 +2425,11 @@ def analyze_activity_spec(
             run_index += 1
             if analysis == "power_analysis":
                 report_dir = workload_root
-                log = layout.power_log_dir / "analysis" / spec.workload / f"{spec.top}.log"
+                log = log_root / "power" / "analysis" / spec.workload / f"{spec.top}.log"
                 key = corner
             else:
                 report_dir = workload_root / mode
-                log = layout.fusion_log_dir / spec.workload / mode / f"{spec.top}.log"
+                log = log_root / "fusion" / spec.workload / mode / f"{spec.top}.log"
                 key = f"{corner}/{mode}"
             ctx = _base_context(
                 project_root,
@@ -2551,7 +2602,8 @@ def execute_activity(
             )
     passed = sum(report.get("status") == "pass" for report in reports)
     layout = layout_from_values(project_root, values)
-    summary_root = layout.power_dir / "analysis" if analysis == "power_analysis" else layout.fusion_dir
+    root = layout.signoff_stage_root(values.get("SIGNOFF_STAGE", "post_syn"))
+    summary_root = root / "power" / "analysis" if analysis == "power_analysis" else root / "fusion"
     legacy = summary_root / "reports"
     if legacy.is_dir():
         shutil.rmtree(legacy)

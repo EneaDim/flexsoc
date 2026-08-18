@@ -20,7 +20,6 @@ from decimal import Decimal, ROUND_CEILING
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from flexsoc.backend.output import print_script
 from flexsoc.backend.setup_signoff import scenario_corner
 from flexsoc.run_layout import layout_from_values
 
@@ -55,8 +54,6 @@ class GateSimPaths:
 
     run_root: Path
     pnr_dir: Path
-    sdf_dir: Path
-    sdf_log_dir: Path
     stage_dir: Path
     tb: Path
     netlist: Path
@@ -117,6 +114,7 @@ _IHP_DELAY_INSTANCE = re.compile(
     r"bufif0|bufif1|notif0|notif1|tranif0|tranif1|rtranif0|rtranif1|"
     r"ihp_[A-Za-z_][A-Za-z0-9_]*)\s*(?P<tail>\()"
 )
+_SDF_EXPECTED_WARNING = re.compile(r"\bTIMINGCHECK not supported\b", re.I)
 
 
 def _delayed_input(name: str) -> str | None:
@@ -295,15 +293,6 @@ def _discover_pnr_netlist(pnr_dir: Path, top: str, platform: str) -> Path | None
     return candidates[-1].resolve() if candidates else None
 
 
-def _discover_pnr_file(pnr_dir: Path, top: str, platform: str, filename: str) -> Path | None:
-    base = pnr_dir / "results"
-    direct = base / platform / top / "base" / filename
-    if direct.is_file():
-        return direct.resolve()
-    candidates = sorted(base.glob(f"**/{top}/**/{filename}")) if base.is_dir() else []
-    return candidates[-1].resolve() if candidates else None
-
-
 def _post_syn_sdf(layout, top: str, values: Mapping[str, str], mode: str) -> Path:
     default_corner = scenario_corner(mode)
     corner = values.get("SDF_CORNER", default_corner).strip()
@@ -354,13 +343,12 @@ def resolve_paths(project_root: Path, values: Mapping[str, str], stage: str) -> 
         elif stage == "post_syn":
             sdf = _post_syn_sdf(layout, top, values, timing.mode)
         else:
-            # Post-layout SDF is corner-specific. Never reuse a mode-less or
-            # tool-emitted SDF whose timing corner is not known to FlexSoC.
+            corner = scenario_corner(timing.mode)
             sdf = (
-                layout.sdf_dir
-                / "post_pnr"
+                layout.signoff_stage_root("post_route")
                 / "sdf"
-                / f"{top}_post_pnr_{timing.mode}.sdf"
+                / corner
+                / f"{top}_{corner}.sdf"
             ).resolve()
     else:
         if explicit_sdf:
@@ -388,8 +376,6 @@ def resolve_paths(project_root: Path, values: Mapping[str, str], stage: str) -> 
     return GateSimPaths(
         run_root,
         layout.pnr_dir,
-        layout.sdf_dir,
-        layout.sdf_log_dir,
         stage_dir,
         tb.resolve(),
         netlist,
@@ -620,6 +606,7 @@ def compile_command(project_root: Path, values: Mapping[str, str], stage: str, p
         "-DSYN",
         "-DFLEXSOC_GLS_EXTERNAL_MODELS",
         *_compile_timing_args(timing, values, models),
+        *(["-ginterconnect"] if stage == "post_pnr" and timing.uses_sdf else []),
         "-s",
         values.get("TESTBENCH", f"{top}_tb"),
     ]
@@ -698,7 +685,9 @@ def run_environment(values: Mapping[str, str]) -> dict[str, str]:
     )
 
 
-def cocotb_command(action: str, values: Mapping[str, str], paths: GateSimPaths) -> list[str]:
+def cocotb_command(
+    action: str, values: Mapping[str, str], stage: str, paths: GateSimPaths
+) -> list[str]:
     """Build the cocotb Make command using the same GLS artifacts and vectors."""
 
     if action not in {"compile", "sim"}:
@@ -736,6 +725,7 @@ def cocotb_command(action: str, values: Mapping[str, str], paths: GateSimPaths) 
         f"GLS_NETLIST={paths.netlist}",
         f"GLS_MODELS={models}",
         f"TIMING_MODE={timing.mode}",
+        f"GLS_INTERCONNECT={int(stage == 'post_pnr' and timing.uses_sdf)}",
         f"GLS_UNIT_DELAY_DEFINE={unit_delay.define if unit_delay else 0}",
         f"SDF_FILE={paths.sdf or ''}",
         f"WAVE_FORMAT={values.get('WAVE_FORMAT', 'fst')}",
@@ -780,69 +770,17 @@ def _run(
             text=True,
         )
         assert proc.stdout is not None
+        ignored = 0
         for line in proc.stdout:
-            sys.stdout.write(line)
             stream.write(line)
-        return proc.wait()
-
-
-def _timing_liberty(values: Mapping[str, str]) -> Path | None:
-    """Pick one Liberty view matching an explicit SDF timing mode."""
-
-    mode = timing_config(values).mode
-    if mode not in SDF_MODES:
-        raise ValueError("post-PnR SDF export requires TIMING_MODE=min, typ, or max")
-    libs = tuple(path for path in _split_paths(values.get("LIBS")) if path.is_file())
-    lib_syn = (
-        Path(values["LIB_SYN"]).expanduser().resolve()
-        if values.get("LIB_SYN") and Path(values["LIB_SYN"]).expanduser().is_file()
-        else None
-    )
-    if mode == "typ" and lib_syn:
-        return lib_syn
-    if libs:
-        if mode == "max":
-            return libs[0]
-        if mode == "min":
-            return libs[-1]
-        return libs[len(libs) // 2]
-    return lib_syn
-
-
-def render_post_pnr_sdf_tcl(project_root: Path, values: Mapping[str, str], paths: GateSimPaths) -> tuple[Path, Path]:
-    """Render OpenSTA Tcl that writes SDF from the final netlist + SPEF."""
-
-    top = values.get("TOP", "test")
-    platform = values.get("ORS_TECH", "")
-    liberty = _timing_liberty(values)
-    if not liberty:
-        raise ValueError("no Liberty file resolved; select/activate a usable PDK first")
-    spef = Path(values["SPEF_FILE"]).expanduser().resolve() if values.get("SPEF_FILE") else _discover_pnr_file(paths.pnr_dir, top, platform, "6_final.spef")
-    sdc = Path(values["PNR_SDC_FILE"]).expanduser().resolve() if values.get("PNR_SDC_FILE") else _discover_pnr_file(paths.pnr_dir, top, platform, "6_final.sdc")
-    if not spef or not spef.is_file():
-        raise ValueError("post-PnR SPEF not found; pass --set SPEF_FILE=/path/to/6_final.spef")
-    if not sdc or not sdc.is_file():
-        raise ValueError("post-PnR SDC not found; pass --set PNR_SDC_FILE=/path/to/6_final.sdc")
-
-    outdir = paths.sdf_dir / "post_pnr"
-    sdf_dir = outdir / "sdf"
-    sdf_dir.mkdir(parents=True, exist_ok=True)
-    mode = timing_config(values).mode
-    sdf = sdf_dir / f"{top}_post_pnr_{mode}.sdf"
-    tcl = outdir / f"{top}_write_sdf.tcl"
-    lines = [
-        "# Auto-generated FlexSoC post-PnR SDF export",
-        f"read_liberty {{{liberty}}}",
-        f"read_verilog {{{paths.netlist}}}",
-        f"link_design {top}",
-        f"read_sdc {{{sdc}}}",
-        f"read_spef {{{spef}}}",
-        f"write_sdf {{{sdf}}}",
-        "exit",
-        "",
-    ]
-    tcl.write_text("\n".join(lines), encoding="utf-8")
-    return tcl, sdf
+            if _SDF_EXPECTED_WARNING.search(line):
+                ignored += 1
+            else:
+                sys.stdout.write(line)
+        rc = proc.wait()
+        if ignored:
+            print(f"[gate-sim] ignored unsupported SDF TIMINGCHECK warnings={ignored}", flush=True)
+        return rc
 
 
 _SDF_WARNING = re.compile(r"\b(?:warning|unsupported|not annotated|not found|unable)\b", re.I)
@@ -850,18 +788,23 @@ _SDF_ERROR = re.compile(r"\b(?:error|failed|fatal|invalid)\b", re.I)
 
 
 def sdf_annotation_summary(text: str) -> dict[str, object]:
-    """Summarize observable Icarus SDF diagnostics without inventing counts."""
+    """Summarize actionable Icarus SDF diagnostics."""
 
     lines = text.splitlines()
     relevant = [line.strip() for line in lines if re.search(r"sdf|annotat|timing check", line, re.I)]
     markers = [line for line in relevant if "[TB] sdf =" in line]
     errors = [line for line in relevant if _SDF_ERROR.search(line)]
-    warnings = [line for line in relevant if _SDF_WARNING.search(line) and line not in errors]
+    expected = [line for line in relevant if _SDF_EXPECTED_WARNING.search(line)]
+    warnings = [
+        line for line in relevant
+        if _SDF_WARNING.search(line) and line not in errors and line not in expected
+    ]
     return {
         "requested_marker": bool(markers),
         "markers": markers,
         "warnings": warnings,
         "errors": errors,
+        "ignored_warnings": {"timingcheck_unsupported": len(expected)},
         # Icarus does not expose stable machine-readable cell/check totals here.
         "annotated_cells": None,
         "timing_checks": None,
@@ -941,11 +884,14 @@ def _write_report(
         "timing_checks": (
             "disabled-unsupported-by-icarus" if timing.uses_sdf else "not-applicable"
         ),
+        "interconnect_delays": (
+            "enabled" if stage == "post_pnr" and timing.uses_sdf else "disabled"
+        ),
         "netlist": str(paths.netlist),
         "sdf": str(paths.sdf) if paths.sdf else None,
         "sdf_corner": (
             values.get("SDF_CORNER", scenario_corner(timing.mode)).strip()
-            if stage == "post_syn" and timing.uses_sdf
+            if timing.uses_sdf
             else None
         ),
         "wave": str(paths.wave),
@@ -998,14 +944,15 @@ def _all_test_names(values: Mapping[str, str], run_root: Path) -> tuple[str, ...
     return tuple(name for name in available if name in requested)
 
 
-def execute_all(project_root: Path, values: Mapping[str, str]) -> int:
-    """Run every selected test/timing mode with one GLS backend."""
+def execute_all(project_root: Path, values: Mapping[str, str], stage: str = "post_syn") -> int:
+    """Run every selected test/timing mode with one GLS backend at one gate stage."""
 
     layout = layout_from_values(project_root, values)
     tests = _all_test_names(values, layout.run_root)
+    label = f"sim_{stage}_all"
     if values.get("GLS_BACKENDS"):
         raise ValueError(
-            "GLS_BACKENDS is not supported by sim_post_syn_all; "
+            f"GLS_BACKENDS is not supported by {label}; "
             "select exactly one GLS_BACKEND=sv or GLS_BACKEND=cocotb"
         )
     backend = _driver(values)
@@ -1016,7 +963,7 @@ def execute_all(project_root: Path, values: Mapping[str, str]) -> int:
     reports: list[dict[str, object]] = []
     failures = 0
     print(
-        f"[sim_post_syn_all] tests={len(tests)} backend={backend} "
+        f"[{label}] tests={len(tests)} backend={backend} "
         f"scenarios={len(modes)} cases={len(cases)}",
         flush=True,
     )
@@ -1026,14 +973,14 @@ def execute_all(project_root: Path, values: Mapping[str, str]) -> int:
             {"TEST_NAME": test, "GLS_BACKEND": backend, "TIMING_MODE": mode}
         )
         print(
-            f"[sim_post_syn_all] {index}/{len(cases)} START "
+            f"[{label}] {index}/{len(cases)} START "
             f"test={test} backend={backend} scenario={timing_scenario(mode)}"
             + (f" sdf_mode={mode}" if mode in SDF_MODES else ""),
             flush=True,
         )
-        paths = resolve_paths(project_root, case_values, "post_syn")
+        paths = resolve_paths(project_root, case_values, stage)
         try:
-            rc = execute("sim", "post_syn", project_root, case_values)
+            rc = execute("sim", stage, project_root, case_values)
         except (ValueError, OSError, subprocess.SubprocessError) as exc:
             rc = 2
             paths.report.parent.mkdir(parents=True, exist_ok=True)
@@ -1042,7 +989,7 @@ def execute_all(project_root: Path, values: Mapping[str, str]) -> int:
                     {
                         "status": "fail",
                         "returncode": rc,
-                        "stage": "post_syn",
+                        "stage": stage,
                         "top": values.get("TOP", "test"),
                         "pdk": values.get("PDK", "sky130"),
                         "test_name": test,
@@ -1072,19 +1019,16 @@ def execute_all(project_root: Path, values: Mapping[str, str]) -> int:
         reports.append(report)
         failures += int(rc != 0)
         print(
-            f"[sim_post_syn_all] {index}/{len(cases)} "
+            f"[{label}] {index}/{len(cases)} "
             f"{'PASS' if rc == 0 else 'FAIL'} test={test} backend={backend} "
             f"scenario={timing_scenario(mode)}" + (f" sdf_mode={mode}" if mode in SDF_MODES else ""),
             flush=True,
         )
-        print(
-            f"[report] {test}/{backend}/{timing_scenario(mode)} {paths.report}",
-            flush=True,
-        )
+        print(f"[report] {test}/{backend}/{timing_scenario(mode)} {paths.report}", flush=True)
 
     summary = {
         "schema_version": 1,
-        "stage": "post_syn",
+        "stage": stage,
         "status": "pass" if cases and failures == 0 else "fail",
         "top": values.get("TOP", "test"),
         "pdk": values.get("PDK", "sky130"),
@@ -1097,27 +1041,17 @@ def execute_all(project_root: Path, values: Mapping[str, str]) -> int:
         "total": len(cases),
         "reports": reports,
     }
-    summary_path = layout.post_syn_sim_dir / f"summary_{backend}.json"
+    summary_dir = layout.post_syn_sim_dir if stage == "post_syn" else layout.post_pnr_sim_dir
+    summary_path = summary_dir / f"summary_{backend}.json"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"[report] machine_summary={summary_path}", flush=True)
     return 0 if cases and failures == 0 else 2
 
 def execute(action: str, stage: str, project_root: Path, values: Mapping[str, str]) -> int:
-    """Compile/run GLS or export post-PnR SDF."""
+    """Compile or run GLS at one gate stage."""
 
     paths = resolve_paths(project_root, values, stage)
-    if action == "sdf":
-        if stage != "post_pnr":
-            raise ValueError("SDF export action is only valid for post_pnr")
-        tcl, sdf = render_post_pnr_sdf_tcl(project_root, values, paths)
-        print_script(tcl)
-        log = paths.sdf_log_dir / f"{values.get('TOP', 'test')}_post_pnr_sdf.log"
-        rc = _run([values.get("STA", "sta"), "-exit", "-no_init", str(tcl)], cwd=project_root, log=log)
-        if rc == 0:
-            print(f"[post_pnr] sdf: {sdf}")
-        return rc
-
     driver = _driver(values)
     if driver == "sv":
         compile_cmd = compile_command(project_root, values, stage, paths)
@@ -1138,7 +1072,7 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
             env=run_environment(values),
         )
     else:
-        command = cocotb_command(action, values, paths)
+        command = cocotb_command(action, values, stage, paths)
         log = paths.log.with_name(paths.log.stem + "_compile.log") if action == "compile" else paths.log
         rc = _run(command, cwd=project_root, log=log)
         if action == "compile":
@@ -1159,7 +1093,7 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="FlexSoC post-synthesis/post-PnR gate simulation")
-    parser.add_argument("--action", choices=("compile", "sim", "sim_all", "sdf"), required=True)
+    parser.add_argument("--action", choices=("compile", "sim", "sim_all"), required=True)
     parser.add_argument("--stage", choices=tuple(sorted(STAGES)), required=True)
     parser.add_argument("--project-root", type=Path, required=True)
     parser.add_argument("--values-json", required=True)
@@ -1171,9 +1105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         values = {str(k): str(v) for k, v in json.loads(args.values_json).items()}
         if args.action == "sim_all":
-            if args.stage != "post_syn":
-                raise ValueError("sim_all is only valid for post_syn")
-            return execute_all(args.project_root.resolve(), values)
+            return execute_all(args.project_root.resolve(), values, args.stage)
         return execute(args.action, args.stage, args.project_root.resolve(), values)
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

@@ -51,6 +51,25 @@ class PDKRunLayout:
     def signoff_pdk_root(self) -> Path:
         return self.signoff_root / self.pdk
 
+    def signoff_stage_root(self, stage: str) -> Path:
+        """Return the stage-specific sign-off root without moving post-synthesis outputs."""
+
+        if stage == "post_syn":
+            return self.signoff_pdk_root
+        if stage in {"post_route", "post_pnr"}:
+            return self.signoff_pdk_root / "post_pnr"
+        raise ValueError(f"unsupported sign-off stage: {stage}")
+
+    def signoff_stage_log_root(self, stage: str) -> Path:
+        """Return the matching stage-specific sign-off log root."""
+
+        root = self.run_root / "logs" / "signoff" / self.pdk
+        if stage == "post_syn":
+            return root
+        if stage in {"post_route", "post_pnr"}:
+            return root / "post_pnr"
+        raise ValueError(f"unsupported sign-off stage: {stage}")
+
     @property
     def equivalence_dir(self) -> Path:
         return self.signoff_pdk_root / "equivalence" / "rtl_vs_syn"
@@ -149,6 +168,7 @@ class PDKRunLayout:
             "post_syn_sim": str(self.post_syn_sim_dir),
             "post_pnr_sim": str(self.post_pnr_sim_dir),
             "implementation": str(self.pnr_dir),
+            "post_pnr_signoff": str(self.signoff_stage_root("post_route")),
             "sdc": str(self.signoff_sdc),
             "sta": str(self.sta_dir),
             "power": str(self.power_dir),

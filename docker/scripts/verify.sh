@@ -21,10 +21,13 @@ docker run --rm \
 
     echo "===== Toolchain ====="
 
-    bash /opt/flexsoc-build/toolchain/deps.sh \
-      doctor \
-      --system \
-      --profile base
+    bash /opt/flexsoc-build/toolchain/deps.sh versions --system --profile base
+    bash /opt/flexsoc-build/toolchain/deps.sh doctor --system --profile base
+
+    # shellcheck disable=SC1091
+    source /opt/flexsoc-build/toolchain/toolchain.lock
+    iverilog -g2012 -ginterconnect -V >/dev/null 2>&1
+    sta -version 2>&1 | grep -F "$OPENSTA_VERSION"
 
     echo
     echo "===== Runtime ====="
@@ -52,7 +55,7 @@ docker run --rm \
 
     openroad -version
     sta -version
-    klayout -b -v
+    klayout -b -v | grep -F "$KLAYOUT_VERSION"
 
     test "$OPENROAD_EXE" = /opt/flexsoc/toolchain/bin/openroad
     test "$YOSYS_EXE" = /opt/flexsoc/toolchain/bin/yosys
@@ -66,6 +69,11 @@ docker run --rm \
 
     test -s /opt/flexsoc/toolchain/.flexsoc/openroad.ref
     test -s /opt/flexsoc/toolchain/.flexsoc/orfs.ref
+    openroad_ref=$(cat /opt/flexsoc/toolchain/.flexsoc/openroad.ref)
+    orfs_ref=$(cat /opt/flexsoc/toolchain/.flexsoc/orfs.ref)
+    case "$openroad_ref" in "$OPENROAD_REF_PREFIX"*) ;; *) echo "OpenROAD ref mismatch: $openroad_ref" >&2; exit 2 ;; esac
+    case "$orfs_ref" in "$ORFS_REF_PREFIX"*) ;; *) echo "ORFS ref mismatch: $orfs_ref" >&2; exit 2 ;; esac
+    printf 'OpenROAD ref: %s\nORFS ref:     %s\n' "$openroad_ref" "$orfs_ref"
 
     echo
     echo "===== ORFS smoke flow ====="

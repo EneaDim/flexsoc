@@ -28,6 +28,7 @@ help: ## Show this help
 		'  make test                              Run full E2E on sky130 + ihp-sg13g2' \
 		'  make test-smoke                        Run E2E without formal/synthesis/signoff' \
 		'  make test E2E_ROOT=~/flexsoc-e2e       Choose where E2E workspaces are created' \
+		'  make test E2E_ORS=~/OpenROAD-flow-scripts/flow  Select the ORFS flow root' \
 		'  make test SIGNOFF=0 E2E_ROOT=~/fx-e2e  Explicitly skip signoff for a custom run' \
 		'  make test-api                          Run fast Python/API tests only' \
 		'  uv run fx --help                       Show hardware-flow targets' \
@@ -70,11 +71,13 @@ check: lint test ## Run Ruff + full E2E closure
 .PHONY: test test-smoke test-api
 
 E2E_ROOT ?= /tmp
+E2E_ORS ?=
 SIGNOFF ?= 1
 E2E_SIGNOFF_ARG := $(if $(filter 1 true yes on,$(SIGNOFF)),,--no-signoff)
+E2E_ORS_ARG := $(if $(strip $(E2E_ORS)),--e2e-ors "$(E2E_ORS)",)
 
 test: ## Run full E2E closure on SKY130 and IHP (SIGNOFF=1, E2E_ROOT=/tmp)
-	$(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_SIGNOFF_ARG) --e2e-root "$(E2E_ROOT)"
+	$(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
 
 test-smoke: ## Run E2E without formal/synthesis/signoff
 	$(MAKE) test SIGNOFF=0 E2E_ROOT="$(E2E_ROOT)"

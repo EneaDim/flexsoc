@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Push the verified image to GHCR and generate image.lock
+        description: Push the verified image to GHCR, commit image.lock, and dispatch CI
         required: true
         type: boolean
         default: false
@@ -15,7 +15,8 @@ on:
         default: ""
 
 permissions:
-  contents: read
+  actions: write
+  contents: write
   packages: write
 
 concurrency:
@@ -78,3 +79,30 @@ jobs:
           name: flexsoc-ci-image-lock
           path: docker/ci/image.lock
           if-no-files-found: error
+
+      - name: Commit image lock
+        if: inputs.publish && github.ref_type == 'branch'
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/$BRANCH)" || {
+            echo "Branch moved while the image was building; rerun the workflow." >&2
+            exit 2
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docker/ci/image.lock
+          if git diff --cached --quiet; then
+            echo "image.lock is already current"
+          else
+            git commit -m "ci: lock verified toolchain image"
+            git push origin "HEAD:$BRANCH"
+          fi
+
+      - name: Run CI on locked image
+        if: inputs.publish && github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: gh workflow run ci.yml --ref "$BRANCH"

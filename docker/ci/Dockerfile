@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
+ARG UV_VERSION=0.9.29
+
 # Build the ORFS-matched OpenROAD revision on the same Ubuntu 24.04 base used
 # by the final FlexSoC image. Only the OpenROAD submodule is initialized; the
 # ORFS Yosys submodule is never downloaded or built.
@@ -72,7 +74,6 @@ FROM ubuntu:24.04 AS toolchain-prereqs
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG FLEXSOC_JOBS=2
-ARG UV_VERSION=0.10.0
 ARG SOURCE_URL=""
 
 LABEL org.opencontainers.image.title="FlexSoC CI toolchain" \
@@ -198,14 +199,15 @@ FROM toolchain-verified AS runtime
 
 # The external toolchain-installed named context breaks ARG inheritance from
 # toolchain-prereqs, so declare the runtime build argument in this stage too.
-ARG UV_VERSION=0.10.0
+ARG UV_VERSION
 
 RUN --mount=type=cache,id=flexsoc-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=flexsoc-apt-lists,target=/var/lib/apt/lists,sharing=locked \
     apt-get update \
  && apt-get install -y --no-install-recommends python3 python3-pip python3-venv \
  && python3 -m venv /opt/uv \
- && /opt/uv/bin/pip install --no-cache-dir "uv==$UV_VERSION"
+ && /opt/uv/bin/pip install --no-cache-dir "uv==$UV_VERSION" \
+ && /opt/uv/bin/uv --version | grep -F "uv $UV_VERSION"
 
 COPY pyproject.toml uv.lock README.md /opt/flexsoc-python/
 WORKDIR /opt/flexsoc-python

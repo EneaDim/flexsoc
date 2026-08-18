@@ -37,13 +37,13 @@ docker run --rm \
       --editable .
 
     DEPS_MODE=system fx deps-doctor
+    fx doctor
 
-    ruff check .
-
-    pytest -q tests/test_api.py
-    pytest --collect-only -q tests/test_e2e_fx.py
+    make lint
+    make test-api
+    uv run --no-sync pytest --collect-only -q tests/test_e2e_fx.py
 
     if [[ ${FLEXSOC_RUN_E2E:-0} == 1 ]]; then
-      pytest -s tests/test_e2e_fx.py
+      make test E2E_ORS="$ORFS_ROOT/flow"
     fi
   '

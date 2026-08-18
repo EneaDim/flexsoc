@@ -272,8 +272,17 @@ TARGETS: dict[str, TargetSpec] = {
     "sim_post_syn": ("Gate simulation", "Run post-synthesis gate-level simulation with optional SDF", GATE_SIM),
     "sim_post_syn_all": ("Gate simulation", "Run every selected post-synthesis GLS test/timing combination with one backend", GATE_SIM_ALL),
     "compile_post_pnr": ("Gate simulation", "Compile post-PnR gate-level simulation with Icarus", GATE_SIM),
-    "sdf_post_pnr": ("Gate simulation", "Export post-PnR SDF from final netlist, SDC and SPEF", GATE_SIM),
+    "setup_signoff_post_pnr": ("Post-PnR signoff", "Generate post-PnR OpenSTA scripts from final ORFS artifacts", SIGNOFF),
+    "signoff_post_pnr": ("Post-PnR signoff", "Run post-PnR SDF, STA and vectorless power", SIGNOFF),
+    "sdf_post_pnr": ("Post-PnR signoff", "Write post-PnR SDF from final netlist, SDC and SPEF", SIGNOFF),
+    "sta_post_pnr": ("Post-PnR signoff", "Run SPEF-aware STA with propagated clock reporting", SIGNOFF),
+    "power_estimate_post_pnr": ("Post-PnR signoff", "Estimate post-PnR power with extracted parasitics", SIGNOFF),
     "sim_post_pnr": ("Gate simulation", "Run post-PnR gate-level simulation with optional SDF", GATE_SIM),
+    "sim_post_pnr_all": ("Gate simulation", "Run every selected post-PnR GLS test/timing combination", GATE_SIM_ALL),
+    "power_analysis_post_pnr": ("Post-PnR signoff", "Analyze post-PnR power for one GLS workload", SIGNOFF),
+    "power_analysis_post_pnr_all": ("Post-PnR signoff", "Analyze post-PnR power for all matching GLS workloads", SIGNOFF),
+    "fusion_analysis_post_pnr": ("Post-PnR signoff", "Correlate routed timing and power for one GLS workload", SIGNOFF),
+    "fusion_analysis_post_pnr_all": ("Post-PnR signoff", "Correlate routed timing and power for all GLS workloads", SIGNOFF),
     "sta": ("Signoff", "Run static timing analysis", SIGNOFF),
     "sdf": ("Signoff", "Write SDF timing files", SIGNOFF),
     "power_estimate": ("Signoff", "Estimate power using global switching activity", SIGNOFF),
@@ -513,7 +522,9 @@ TECHNOLOGY_TARGETS = {
     "setup_syn", "syn", "syn_v", "syn_sv",
     "setup_eqy", "eqy",
     "compile_syn", "sim_syn", "compile_post_syn", "sim_post_syn", "sim_post_syn_all",
-    "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
+    "compile_post_pnr", "sim_post_pnr", "sim_post_pnr_all",
+    "setup_signoff_post_pnr", "signoff_post_pnr", "sdf_post_pnr", "sta_post_pnr", "power_estimate_post_pnr",
+    "power_analysis_post_pnr", "power_analysis_post_pnr_all", "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all",
     "setup_signoff", "sta", "sdf", "power_estimate", "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all", "sta_violators",
     "path_view", "sta_corners", "power_estimate_corners", "signoff_corners",
     "setup_pnr", "pnr", "pnr_gui",
@@ -541,6 +552,14 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "eqy": ("setup_eqy",),
     "cdc_rdc": ("setup_cdc_rdc",),
     "sim_post_syn_all": ("sdf",),
+    "sdf_post_pnr": ("setup_signoff_post_pnr",),
+    "sta_post_pnr": ("setup_signoff_post_pnr",),
+    "power_estimate_post_pnr": ("setup_signoff_post_pnr",),
+    "sim_post_pnr_all": ("sdf_post_pnr",),
+    "power_analysis_post_pnr": ("setup_signoff_post_pnr",),
+    "power_analysis_post_pnr_all": ("setup_signoff_post_pnr",),
+    "fusion_analysis_post_pnr": ("setup_signoff_post_pnr",),
+    "fusion_analysis_post_pnr_all": ("setup_signoff_post_pnr",),
     "sta": ("setup_signoff",),
     "sta_corners": ("setup_signoff",),
     "sdf": ("setup_signoff",),
@@ -578,21 +597,39 @@ NATIVE_TARGETS: dict[str, tuple[str, str]] = {
     "sim_post_syn": ("sim", "post_syn"),
     "sim_post_syn_all": ("sim_all", "post_syn"),
     "compile_post_pnr": ("compile", "post_pnr"),
-    "sdf_post_pnr": ("sdf", "post_pnr"),
     "sim_post_pnr": ("sim", "post_pnr"),
+    "sim_post_pnr_all": ("sim_all", "post_pnr"),
 }
+
+TARGET_ALIASES = {
+    "setup_signoff_post_pnr": "setup_signoff",
+    "signoff_post_pnr": "signoff_corners",
+    "sdf_post_pnr": "sdf",
+    "sta_post_pnr": "sta",
+    "power_estimate_post_pnr": "power_estimate",
+    "power_analysis_post_pnr": "power_analysis",
+    "power_analysis_post_pnr_all": "power_analysis_all",
+    "fusion_analysis_post_pnr": "fusion_analysis",
+    "fusion_analysis_post_pnr_all": "fusion_analysis_all",
+}
+POST_PNR_SIGNOFF_TARGETS = set(TARGET_ALIASES) | {"sim_post_pnr_all"}
 
 
 ACTIVITY_ANALYSIS_TARGETS = {
     "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all",
+    "power_analysis_post_pnr", "power_analysis_post_pnr_all",
+    "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all",
 }
 
-STREAM_BY_DEFAULT_TARGETS = {"sim_post_syn_all", "fusion_analysis", "fusion_analysis_all"}
+STREAM_BY_DEFAULT_TARGETS = {
+    "sim_post_syn_all", "sim_post_pnr_all", "fusion_analysis", "fusion_analysis_all",
+    "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all",
+}
 
 QUIET_BY_DEFAULT_TARGETS = {
     "compile_post_syn", "sim_post_syn",
     "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
-    "power_analysis", "power_analysis_all",
+    "power_analysis", "power_analysis_all", "power_analysis_post_pnr", "power_analysis_post_pnr_all",
 }
 
 
@@ -743,7 +780,10 @@ class FlexSoC:
     def command(self, target: str, **overrides: Any) -> FlexSoCCommand:
         """Build one backend command without executing it."""
 
-        name, values = _target(target), self.values(overrides)
+        name = _target(target)
+        if name in POST_PNR_SIGNOFF_TARGETS:
+            overrides = {**overrides, "SIGNOFF_STAGE": "post_route"}
+        values = self.values(overrides)
         if name in NATIVE_TARGETS:
             action, stage = NATIVE_TARGETS[name]
             argv = (
@@ -776,7 +816,7 @@ class FlexSoC:
                 "make",
                 "-f",
                 str(_backend_makefile()),
-                name,
+                TARGET_ALIASES.get(name, name),
                 *(f"{k}={v}" for k, v in make_values.items()),
             )
         return FlexSoCCommand(name, tuple(argv), self.project_root, self._env(values), values)
@@ -959,7 +999,7 @@ class FlexSoC:
         name = _safe_log_name(command.target)
         if command.target in {"sim", "sim_v", "sim_sv", "cocotb"} and values.get("TEST_NAME"):
             name = f"{name}_{_safe_log_name(values['TEST_NAME'])}"
-        if command.target == "sim_post_syn_all":
+        if command.target in {"sim_post_syn_all", "sim_post_pnr_all"}:
             selectors = [
                 ("tests", values.get("TEST_NAMES", "all")),
                 ("timing", _scenario_log_value(values.get("TIMING_MODES", "all"))),

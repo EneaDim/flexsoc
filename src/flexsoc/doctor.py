@@ -41,8 +41,11 @@ TOOLS = (
 # compatible system installation unusable.
 DEFAULT_MINIMUMS = {
     "verilator": "5.050",
-    "iverilog": "12.0",
+    "iverilog": "13.0",
+    "sta": "3.1.0",
 }
+
+VERSIONLESS_TOOLS = {"btorsim"}
 
 
 def load_toolchain_lock(root: Path) -> dict[str, str]:
@@ -104,6 +107,8 @@ def _version(executable: str, args: tuple[str, ...]) -> tuple[str, str] | None:
     path = shutil.which(executable)
     if not path:
         return None
+    if executable in VERSIONLESS_TOOLS:
+        return path, "installed · version not exposed"
     try:
         result = subprocess.run(
             [path, *args],
@@ -127,6 +132,7 @@ def _numeric_version(version: str | None, executable: str) -> tuple[int, ...] | 
     patterns = {
         "verilator": r"\bVerilator\s+(\d+(?:\.\d+)+)",
         "iverilog": r"\bversion\s+(\d+(?:\.\d+)+)",
+        "sta": r"\bOpenSTA\s+(\d+(?:\.\d+)+)",
     }
     pattern = patterns.get(executable)
     if not pattern:

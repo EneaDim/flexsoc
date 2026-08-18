@@ -37,7 +37,7 @@ AMBIENT_FX_SETTING_KEYS = (
     "TOP", "RUN_TOP", "RUN_ID", "HOST", "WORKSPACE", "RUN_ROOT", "PDK",
     "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS", "CLK_PERIOD", "FORCE",
     "GLS_SIMULATOR", "WAVE_FORMAT", "TIMING_MODE", "FST2VCD", "GLS_BACKEND",
-    "GLS_UNIT_DELAY", "SDF_STRICT", "SYN_DIR", "EQUIV_DIR", "IMPL_DIR",
+    "GLS_UNIT_DELAY", "SDF_STRICT", "SIGNOFF_STAGE", "SYN_DIR", "EQUIV_DIR", "IMPL_DIR",
 )
 
 
@@ -505,6 +505,7 @@ def _run_power_and_fusion(
 
 def _run_gls_all(
     *, workspace: Path, top: str, run_id: str, workdir: str, config: E2EConfig,
+    stage: str = "post_syn",
 ) -> None:
     """Qualify every GLS test and timing scenario with both drivers."""
 
@@ -512,13 +513,79 @@ def _run_gls_all(
     for backend in (config.gls_backend, other):
         _run(
             (
-                "uv run --no-sync fx sim_post_syn_all --no-setup "
+                f"uv run --no-sync fx sim_{stage}_all --no-setup "
                 f"--set GLS_BACKEND={backend} --set TIMING_MODES=all "
                 "--set TEST_NAMES=all --set SDF_STRICT=1 "
                 f"--workdir {workdir}"
             ),
             workspace=workspace, top=top, run_id=run_id,
         )
+
+
+def _assert_post_pnr_gls_evidence(top: str, run: Path, pdk: str) -> None:
+    """Require routed GLS reports to prove interconnect-delay simulation."""
+
+    sim = run / "dv" / "functional" / "sim" / "post_pnr" / pdk
+    reports = []
+    for path in sorted(sim.glob(f"{top}_post_pnr_*.json")):
+        report = json.loads(path.read_text(encoding="utf-8"))
+        if report.get("phase") == "run":
+            reports.append(report)
+    assert reports, f"missing post-PnR GLS reports: {sim}"
+    sdf_reports = [report for report in reports if report.get("timing_mode") in SDF_GLS_MODES]
+    assert sdf_reports, f"missing routed SDF GLS reports: {sim}"
+    assert all(report.get("status") == "pass" for report in reports)
+    assert all(report.get("interconnect_delays") == "enabled" for report in sdf_reports)
+
+
+def _run_post_pnr_signoff(
+    *, workspace: Path, top: str, run_id: str, run: Path, workdir: str,
+    pdk: str, config: E2EConfig,
+) -> None:
+    """Run routed STA/SDF/power and optional timing-aware GLS."""
+
+    for target in (
+        "setup_signoff_post_pnr", "sta_post_pnr", "sdf_post_pnr",
+        "power_estimate_post_pnr",
+    ):
+        _run(
+            f"uv run --no-sync fx {target} --no-setup --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+
+    root = run / "signoff" / pdk / "post_pnr"
+    for corner in ("ss", "tt", "ff"):
+        sdf = root / "sdf" / corner / f"{top}_{corner}.sdf"
+        power = root / "power" / "estimate" / corner / "power.rpt"
+        assert sdf.is_file() and sdf.stat().st_size > 0, f"missing post-PnR SDF: {sdf}"
+        sdf_text = sdf.read_text(encoding="utf-8", errors="replace")
+        assert "::" not in "\n".join(sdf_text.splitlines()[:12]), f"missing SDF typ header value: {sdf}"
+        assert "(INTERCONNECT" in sdf_text, f"missing routed INTERCONNECT delays: {sdf}"
+        assert power.is_file() and power.stat().st_size > 0, f"missing post-PnR power: {power}"
+        for mode in ("setup", "hold"):
+            timing = root / "sta" / corner / mode / "timing.rpt"
+            assert timing.is_file() and timing.stat().st_size > 0, f"missing routed STA: {timing}"
+            text = timing.read_text(encoding="utf-8", errors="replace")
+            assert "clock_network=propagated" in text
+            assert "interconnect=spef" in text
+            assert "Routed parasitic annotation" in text
+            assert "Clock latency and skew" in text
+            assert "Worst routed paths" in text
+
+    if not config.run_post_syn:
+        return
+    _run_gls_all(
+        workspace=workspace, top=top, run_id=run_id, workdir=workdir,
+        config=config, stage="post_pnr",
+    )
+    _assert_post_pnr_gls_evidence(top, run, pdk)
+    for target in ("power_analysis_post_pnr_all", "fusion_analysis_post_pnr_all"):
+        _run(
+            f"uv run --no-sync fx {target} --no-setup --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+    assert (root / "power" / "analysis" / "summary.json").is_file()
+    assert (root / "fusion" / "summary.json").is_file()
 
 
 def _run_implementation(
@@ -559,6 +626,10 @@ def _run_implementation(
     for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
         artifact = results / name
         assert artifact.is_file() and artifact.stat().st_size > 0, f"missing PnR artifact: {artifact}"
+    _run_post_pnr_signoff(
+        workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+        pdk=pdk, config=config,
+    )
 
 
 def _slang_values(top: str, run: Path) -> tuple[str, str, str]:
@@ -625,6 +696,39 @@ def _assert_technology_closure(top: str, run: Path, pdk: str) -> None:
     assert isinstance(manifest.get("analysis", {}).get("cdc_rdc"), dict)
     assert isinstance(metrics.get("cdc_rdc"), dict)
     assert metrics.get("closure", {}).get("order", [])[:2] == ["lint", "cdc_rdc"]
+    flow = metrics.get("flow", {})
+    assert flow.get("order", []) == [
+        "lint", "cdc_rdc", "functional", "formal", "synthesis", "equivalence",
+        "pre_implementation_signoff", "implementation", "post_implementation_signoff",
+    ]
+    if (run / "signoff" / pdk / "post_pnr").is_dir():
+        assert metrics.get("implementation", {}).get("status") == "pass"
+        assert manifest.get("implementation", {}).get("status") == "pass"
+        assert isinstance(manifest.get("signoff", {}).get("post_pnr"), dict)
+        assert isinstance(metrics.get("post_pnr", {}).get("fusion_analysis"), dict)
+        assert flow.get("stages", {}).get("post_implementation_signoff") == "pass"
+        assert "post_pnr_fusion" in metrics.get("closure", {}).get("order", [])
+
+
+
+def _assert_pre_impl_ip_branch(top: str, run: Path, pdk: str) -> None:
+    """Require IP-load qualification to stop before EQY execution and PnR."""
+
+    assert (run / "syn" / pdk / f"{top}_synth.v").is_file()
+    assert (run / "signoff" / pdk / "sdf").is_dir()
+    assert (run / "signoff" / pdk / "sta").is_dir()
+    assert (run / "signoff" / pdk / "power").is_dir()
+    assert not (run / "logs" / "signoff" / pdk / "equivalence" / f"{top}_rtl_vs_syn.log").exists()
+    assert not (run / "logs" / "pnr" / pdk / f"{top}_pnr.log").exists()
+    metrics_path = run / "meta" / pdk / "metrics.json"
+    manifest_path = run / "meta" / pdk / "manifest.json"
+    assert metrics_path.is_file() and manifest_path.is_file()
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    flow = metrics.get("flow", {}).get("stages", {})
+    assert flow.get("pre_implementation_signoff") == "pass"
+    assert flow.get("equivalence") == "missing"
+    assert flow.get("implementation") == "missing"
+    assert flow.get("post_implementation_signoff") == "missing"
 
 
 def _assert_saved_signoff_scripts(
@@ -922,10 +1026,6 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
-            _run_implementation(
-                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-                pdk="sky130", platform="sky130hd", config=config,
-            )
             _run(
                 f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
@@ -1009,6 +1109,10 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id, workdir=workdir,
                     test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                 )
+            _run_implementation(
+                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+                pdk="sky130", platform="sky130hd", config=config,
+            )
             _run(
                 f"uv run --no-sync fx manifest --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
@@ -1075,10 +1179,6 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             _run(
                 f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
-            )
-            _run_implementation(
-                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-                pdk="ihp-sg13g2", platform="ihp-sg13g2", config=config,
             )
             _run(
                 f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
@@ -1163,6 +1263,10 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id, workdir=workdir,
                     test="auto_toggle", backend=config.gls_backend, mode=config.gls_mode,
                 )
+            _run_implementation(
+                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+                pdk="ihp-sg13g2", platform="ihp-sg13g2", config=config,
+            )
             _run(
                 f"uv run --no-sync fx manifest --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
@@ -1410,10 +1514,6 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
-            _run_implementation(
-                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-                pdk="sky130", platform="sky130hd", config=config,
-            )
             _run(
                 f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
@@ -1533,6 +1633,10 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id, workdir=workdir,
                     test="energy", backend=config.gls_backend, mode=config.gls_mode,
                 )
+            _run_implementation(
+                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+                pdk="sky130", platform="sky130hd", config=config,
+            )
             _run(
                 f"uv run --no-sync fx manifest --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
@@ -1599,10 +1703,6 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             _run(
                 f"uv run --no-sync fx sta --no-setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
-            )
-            _run_implementation(
-                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-                pdk="ihp-sg13g2", platform="ihp-sg13g2", config=config,
             )
             _run(
                 f"uv run --no-sync fx power_estimate --no-setup --workdir {workdir}",
@@ -1723,6 +1823,10 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id, workdir=workdir,
                     test="energy", backend=config.gls_backend, mode=config.gls_mode,
                 )
+            _run_implementation(
+                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+                pdk="ihp-sg13g2", platform="ihp-sg13g2", config=config,
+            )
             _run(
                 f"uv run --no-sync fx manifest --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
@@ -2083,7 +2187,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     f"uv run --no-sync fx check --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
-                _assert_technology_closure(top, run, "sky130")
+                _assert_pre_impl_ip_branch(top, run, "sky130")
                 _run(
                     (
                         f"uv run --no-sync fx ip_save --force --set IP_NAME={top} "
@@ -2283,7 +2387,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     f"uv run --no-sync fx check --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
-                _assert_technology_closure(top, run, "ihp-sg13g2")
+                _assert_pre_impl_ip_branch(top, run, "ihp-sg13g2")
                 _run(
                     (
                         f"uv run --no-sync fx ip_save --force --set IP_NAME={top} "
@@ -2638,7 +2742,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     f"uv run --no-sync fx check --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
-                _assert_technology_closure(top, run, "sky130")
+                _assert_pre_impl_ip_branch(top, run, "sky130")
                 _run(
                     (
                         f"uv run --no-sync fx ip_save --force --set IP_NAME={top} "
@@ -2838,7 +2942,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     f"uv run --no-sync fx check --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
-                _assert_technology_closure(top, run, "ihp-sg13g2")
+                _assert_pre_impl_ip_branch(top, run, "ihp-sg13g2")
                 _run(
                     (
                         f"uv run --no-sync fx ip_save --force --set IP_NAME={top} "

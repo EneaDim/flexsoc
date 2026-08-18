@@ -30,6 +30,7 @@ from flexsoc.api import (
     DEFAULT_SETTINGS,
     NATIVE_TARGETS,
     STREAM_BY_DEFAULT_TARGETS,
+    TARGET_ALIASES,
     TARGETS,
     TECHNOLOGY_TARGETS,
     main as api_main,
@@ -37,6 +38,8 @@ from flexsoc.api import (
 from flexsoc.backend.manifest import collect_manifest
 from flexsoc.backend.metrics import (
     collect_formal,
+    collect_fusion_analysis,
+    collect_metrics,
     collect_post_syn_gls,
     collect_power_estimate,
     collect_sta,
@@ -44,7 +47,11 @@ from flexsoc.backend.metrics import (
     status_word,
 )
 from flexsoc.backend.post_sim import _cocotb_wrapper, execute_all
-from flexsoc.backend.setup_cocotb import CocotbConfig, write_nclock_cocotb
+from flexsoc.backend.setup_cocotb import (
+    CocotbConfig,
+    render_gls_make_block,
+    write_nclock_cocotb,
+)
 from flexsoc.backend.setup_signoff import (
     SIGNOFF_SCENARIOS,
     SDF_MODE_TO_CORNER,
@@ -248,7 +255,8 @@ def test_commands_route_make_native_and_signoff_targets(tmp_path: Path) -> None:
     for name in ACTIVITY_ANALYSIS_TARGETS:
         command = fx.command(name)
         assert command.argv[:4] == (
-            "make", "-f", str(ROOT / "src/flexsoc/backend/Makefile"), name
+            "make", "-f", str(ROOT / "src/flexsoc/backend/Makefile"),
+            TARGET_ALIASES.get(name, name),
         )
 
 
@@ -591,6 +599,96 @@ def test_post_syn_sdf_artifacts_use_pvt_scenario_names(tmp_path: Path) -> None:
         ).resolve()
 
 
+def test_post_pnr_sdf_enables_icarus_interconnect_only_for_routed_timing(
+    tmp_path: Path,
+) -> None:
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    tb = tmp_path / "demo_tb.sv"
+    netlist = tmp_path / "demo.v"
+    sdf = tmp_path / "demo.sdf"
+    sources = (
+        (tb, "module demo_tb; endmodule\n"),
+        (netlist, "module demo; endmodule\n"),
+        (sdf, "(DELAYFILE)\n"),
+    )
+    for path, text in sources:
+        path.write_text(text, encoding="utf-8")
+    paths = post_sim_module.GateSimPaths(
+        tmp_path, tmp_path / "impl", stage, tb, netlist, sdf,
+        stage / "wave.fst", stage / "sim.vvp", stage / "sim.log", stage / "sim.json",
+    )
+    values = {
+        "TOP": "demo", "TESTBENCH": "demo_tb",
+        "GLS_BACKEND": "sv", "TIMING_MODE": "typ",
+    }
+
+    routed = post_sim_module.compile_command(tmp_path, values, "post_pnr", paths)
+    post_syn = post_sim_module.compile_command(tmp_path, values, "post_syn", paths)
+    assert "-ginterconnect" in routed
+    assert "-ginterconnect" not in post_syn
+    assert "-ginterconnect" not in post_sim_module.compile_command(
+        tmp_path, {**values, "TIMING_MODE": "unit"}, "post_pnr", paths
+    )
+
+    (tmp_path / "Makefile").write_text("all:\n", encoding="utf-8")
+    cocotb_paths = post_sim_module.GateSimPaths(
+        tmp_path, tmp_path / "impl", stage, tmp_path / "demo_tb.sv", netlist, sdf,
+        stage / "cocotb.fst", stage / "cocotb.vvp", stage / "cocotb.log", stage / "cocotb.json",
+    )
+    cocotb = {**values, "GLS_BACKEND": "cocotb"}
+    assert "GLS_INTERCONNECT=1" in post_sim_module.cocotb_command(
+        "compile", cocotb, "post_pnr", cocotb_paths
+    )
+    assert "GLS_INTERCONNECT=0" in post_sim_module.cocotb_command(
+        "compile", cocotb, "post_syn", cocotb_paths
+    )
+    block = render_gls_make_block(str(netlist))
+    assert "ifeq ($(GLS_INTERCONNECT),1)" in block
+    assert "COMPILE_ARGS += -ginterconnect" in block
+
+
+def test_icarus_sdf_strict_ignores_only_unsupported_timingchecks() -> None:
+    summary = post_sim_module.sdf_annotation_summary(
+        "[TB] sdf = /tmp/demo.sdf scope=u_demo mode=TYPICAL\n"
+        "SDF WARNING: /tmp/demo.sdf:10: TIMINGCHECK not supported.\n"
+        "SDF WARNING: Unable to match ModPath A -> Y in u_demo._1_\n"
+    )
+    assert summary["ignored_warnings"] == {"timingcheck_unsupported": 1}
+    assert len(summary["warnings"]) == 1
+    assert "Unable to match ModPath" in summary["warnings"][0]
+
+
+def test_post_pnr_gls_metrics_require_interconnect_delays(tmp_path: Path) -> None:
+    run = tmp_path / "runs/demo/dev"
+    sim = pdk_run_layout(run, pdk="sky130", top="demo").post_pnr_sim_dir
+    sim.mkdir(parents=True)
+    wave = sim / "demo_tb_smoke_sv_tt.fst"
+    wave.write_text("wave\n", encoding="utf-8")
+    report = sim / "demo_post_pnr_smoke_sv_tt.json"
+    common = {
+        "stage": "post_pnr", "top": "demo", "pdk": "sky130", "test_name": "smoke",
+        "backend": "sv", "timing_mode": "typ", "scenario": "tt", "status": "pass",
+        "timing_model": "icarus-path-delay-only", "wave": str(wave),
+        "annotation": {"requested_marker": True, "errors": [], "warnings": []},
+    }
+    report.write_text(
+        json.dumps({**common, "interconnect_delays": "disabled"}) + "\n",
+        encoding="utf-8",
+    )
+    gls = collect_post_syn_gls("demo", run, "sky130", "post_route")
+    assert gls is not None and gls["status"] == "fail"
+    assert "interconnect delays are not enabled" in gls["failures"][0]["reason"]
+
+    report.write_text(
+        json.dumps({**common, "interconnect_delays": "enabled"}) + "\n",
+        encoding="utf-8",
+    )
+    gls = collect_post_syn_gls("demo", run, "sky130", "post_route")
+    assert gls is not None and gls["status"] == "pass"
+    assert gls["interconnect_delays"] == "enabled"
+
+
 def test_successful_sdf_gls_cleanup_removes_legacy_mode_artifacts(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     values = {
@@ -829,7 +927,11 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
     )
 
     output = capsys.readouterr().out
-    assert STREAM_BY_DEFAULT_TARGETS == {"sim_post_syn_all", "fusion_analysis", "fusion_analysis_all"}
+    assert STREAM_BY_DEFAULT_TARGETS == {
+        "sim_post_syn_all", "sim_post_pnr_all",
+        "fusion_analysis", "fusion_analysis_all",
+        "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all",
+    }
     assert output.startswith("→ fusion_analysis: Correlate timing and power in one aligned GLS scenario\n")
     assert "[log] " in output
     assert "[script] /tmp/fusion_analysis.tcl" in output
@@ -1189,6 +1291,22 @@ def test_cli_pdk_list_info_and_use(capsys: pytest.CaptureFixture[str], tmp_path:
     assert "setup_syn/syn" in output and "setup_eqy/eqy" in output
 
 
+def test_doctor_opensta_31_and_versionless_btorsim(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert doctor_module._numeric_version("OpenSTA 3.1.0 e8af2e8ad9", "sta") == (3, 1, 0)
+    version_ok, lock_match = doctor_module._assess_tool(
+        "sta",
+        "OpenSTA 3.1.0 e8af2e8ad9",
+        {"minimum_version": "3.1.0", "locked_version": "3.1.0"},
+    )
+    assert version_ok and lock_match
+
+    monkeypatch.setattr(doctor_module.shutil, "which", lambda executable: f"/usr/bin/{executable}")
+    assert doctor_module._version("btorsim", ("--version",)) == (
+        "/usr/bin/btorsim",
+        "installed · version not exposed",
+    )
+
+
 def test_cli_dispatches_doctor_eqy_debug_and_shell(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1292,6 +1410,9 @@ def test_manifest_lists_only_existing_artifact_directories(
     run = tmp_path / "runs" / "demo" / "dev"
     syn = run / "syn" / "sky130"
     syn.mkdir(parents=True)
+    routed = run / "signoff/sky130/post_pnr/sta/tt/setup/timing.rpt"
+    routed.parent.mkdir(parents=True)
+    routed.write_text("wns max 0.100\ntns max 0.000\n", encoding="utf-8")
     monkeypatch.setenv("FLEXSOC_PDK", "sky130")
     monkeypatch.setenv("FLEXSOC_RUN_ROOT", str(run))
 
@@ -1304,7 +1425,13 @@ def test_manifest_lists_only_existing_artifact_directories(
 
     artifacts = data["run"]["artifacts"]
     assert isinstance(artifacts, dict)
-    assert artifacts == {"synthesis": str(syn.resolve())}
+    assert artifacts == {
+        "synthesis": str(syn.resolve()),
+        "post_pnr_signoff": str((run / "signoff/sky130/post_pnr").resolve()),
+    }
+    assert data["signoff"]["post_pnr"]["sta"] == {
+        "status": "pass", "clock_model": "propagated", "interconnect": "spef"
+    }
 
 
 def _write_formal_stage(run: Path, top: str, suite: str, stage: str) -> None:
@@ -1441,7 +1568,10 @@ def test_sdf_writer_uses_pinned_opensta_command_contract(tmp_path: Path) -> None
     from flexsoc.backend.setup_signoff import render_sdf_tcl
 
     script = render_sdf_tcl(_context(tmp_path, analysis="sdf", mode=""))
-    assert "write_sdf -divider . -include_typ $sdf_file" in script
+    assert "write_sdf -divider . -include_typ -no_timestamp -no_version $sdf_file" in script
+    assert "proc flexsoc_complete_sdf_typ_header {path}" in script
+    assert "flexsoc_complete_sdf_typ_header $sdf_file" in script
+    assert "VOLTAGE" in script and "PROCESS" in script and "TEMPERATURE" in script
     assert "demo_tt.sdf" in script
     assert "units.rpt" not in script
     assert "check_setup.rpt" not in script
@@ -1522,7 +1652,7 @@ def test_activity_power_reads_trace_into_one_primary_report(tmp_path: Path) -> N
     assert "annotated_percent=%.2f%%" in script
     assert "Unannotated pins:" in script
     assert "flexsoc_append_activity_coverage $report" in script
-    assert "report_power -highest_power_instances" in script
+    assert "report_power -highest_power_instances" not in script
     assert "power.rpt" in script
     assert "power.json" not in script
     assert "highest_power_instances.json" not in script
@@ -1548,12 +1678,13 @@ def test_fusion_discovers_worst_met_or_violated_paths_with_public_reports(tmp_pa
     assert "-slack_max" not in script
     assert "-group_path_count $endpoint_path_limit -endpoint_path_count 1" in script
     assert "-fields {slew capacitance input_pin net fanout}" in script
-    assert "report_power -highest_power_instances" in script
+    assert "report_power -highest_power_instances" not in script
     assert "set highest_power_report [file join $report_dir .highest_power.rpt]" in script
-    assert "flexsoc_append_opensta $highest_power_report report_power -highest_power_instances" in script
+    assert "set all_instances [get_cells -hierarchical *]" in script
+    assert "report_power -instances $all_instances -digits 12" in script
     assert "sta::" not in script
     assert "# Discover the worst paths even when timing is met" in script
-    assert "# Discover the highest-power instances" in script
+    assert "# Collect public per-instance power rows" in script
     for private in (
         "sta::instance_power",
         "sta::network_leaf_instances",
@@ -1681,6 +1812,30 @@ u_top/u2                      4.000000e-03   5.000000e-04   2.000000e-05   4.520
     }
     assert rows[1]["instance"] == "u_top/u2"
     assert rows[1]["total"] == pytest.approx(0.00452)
+
+
+def test_fusion_normalizes_opensta_instance_power_name_at_end(tmp_path: Path) -> None:
+    source = tmp_path / "power.rpt"
+    source.write_text(
+        """   Internal  Switching    Leakage      Total
+      Power      Power      Power      Power (Watts)
+--------------------------------------------
+   1.20e-04   1.95e-04   2.12e-10   3.16e-04 u_top/u1
+""",
+        encoding="utf-8",
+    )
+
+    rows = setup_signoff_module._power_instance_rows(source)
+    assert rows == [
+        {
+            "instance": "u_top/u1",
+            "internal": 1.2e-4,
+            "switching": 1.95e-4,
+            "dynamic": 3.15e-4,
+            "leakage": 2.12e-10,
+            "total": 3.16e-4,
+        }
+    ]
 
 
 def test_fusion_normalizes_opensta_instance_power_with_cell_column(tmp_path: Path) -> None:
@@ -1966,6 +2121,14 @@ def test_activity_workload_uses_corner_name_and_flat_report_layout(
         power_log_dir = tmp_path / "logs/power"
         fusion_log_dir = tmp_path / "logs/fusion"
 
+        def signoff_stage_root(self, stage: str) -> Path:
+            assert stage == "post_syn"
+            return tmp_path
+
+        def signoff_stage_log_root(self, stage: str) -> Path:
+            assert stage == "post_syn"
+            return tmp_path / "logs"
+
     legacy = Layout.power_dir / "analysis/smoke_sv_max/ss"
     legacy.mkdir(parents=True)
     (legacy / "power.rpt").write_text("stale\n", encoding="utf-8")
@@ -2047,6 +2210,14 @@ def test_fusion_all_prints_workload_and_corner_progress(
         power_dir = tmp_path / "power"
         fusion_log_dir = tmp_path / "logs/fusion"
         power_log_dir = tmp_path / "logs/power"
+
+        def signoff_stage_root(self, stage: str) -> Path:
+            assert stage == "post_syn"
+            return tmp_path
+
+        def signoff_stage_log_root(self, stage: str) -> Path:
+            assert stage == "post_syn"
+            return tmp_path / "logs"
 
     monkeypatch.setattr(setup_signoff_module, "discover_specs", lambda *args: [spec])
     monkeypatch.setattr(setup_signoff_module, "layout_from_values", lambda *args: Layout())
@@ -2509,6 +2680,7 @@ def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path
     results.mkdir(parents=True)
     (results / "6_final.v").write_text("module demo; endmodule\n", encoding="utf-8")
     (results / "6_final.spef").write_text("*SPEF \"IEEE 1481-1998\"\n", encoding="utf-8")
+    (results / "6_final.sdc").write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
     liberty = tmp_path / "demo__tt_view.lib"
     liberty.write_text("library(demo) {}\n", encoding="utf-8")
     paths = generate_families(
@@ -2526,8 +2698,17 @@ def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path
     sta = next(path for path in paths if path.name == "sta.tcl").read_text(encoding="utf-8")
     assert str(results / "6_final.v") in sta
     assert str(results / "6_final.spef") in sta
+    assert str(results / "6_final.sdc") in sta
     assert "set_propagated_clock" in sta
+    assert "report_parasitic_annotation -report_unannotated" in sta
+    assert "report_clock_latency -include_internal_latency" in sta
+    assert "report_clock_skew -setup -include_internal_latency" in sta
+    assert "report_clock_skew -hold -include_internal_latency" in sta
+    assert 'clock_network=propagated' in sta
+    assert 'interconnect=spef' in sta
+    assert "Worst routed paths" in sta
     assert "Stage    : post_route" in sta
+    assert all("/post_pnr/" in str(path) for path in paths)
 
 
 def test_missing_configured_macro_liberty_is_an_error(tmp_path: Path) -> None:
@@ -2585,6 +2766,31 @@ def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
     assert estimate["corners"]["ss"]["dynamic_w"] == 3.0
     assert estimate["corners"]["ss"]["report"].endswith("power.rpt")
 
+    routed_timing = run / "signoff/sky130/post_pnr/sta/tt/hold/timing.rpt"
+    routed_timing.parent.mkdir(parents=True)
+    routed_timing.write_text("wns min 0.075\ntns min 0.000\n", encoding="utf-8")
+    routed_power = run / "signoff/sky130/post_pnr/power/estimate/tt/power.rpt"
+    routed_power.parent.mkdir(parents=True)
+    routed_power.write_text("activity=0.2\nduty=0.5\nTotal 2.0 1.0 0.1 3.1\n", encoding="utf-8")
+
+    fusion = run / "signoff/sky130/post_pnr/fusion/summary.json"
+    fusion.parent.mkdir(parents=True)
+    fusion.write_text('{"status":"pass","passed":2,"total":2,"reports":[]}\n', encoding="utf-8")
+
+    routed_sta = collect_sta("demo", run, "sky130", "post_route")
+    routed_estimate = collect_power_estimate("demo", run, "sky130", "post_route")
+    routed_fusion = collect_fusion_analysis("demo", run, "sky130", "post_route")
+    assert routed_sta is not None and routed_sta["tt"]["hold"]["wns"] == 0.075
+    assert routed_estimate is not None and routed_estimate["corners"]["tt"]["total_w"] == 3.1
+    assert routed_fusion is not None and routed_fusion["status"] == "pass"
+    assert "/post_pnr/" in routed_sta["tt"]["hold"]["report"]
+
+    metrics = collect_metrics("demo", run, pdk="sky130")
+    assert metrics["signoff"]["post_pnr"]["sta"]["clock_model"] == "propagated"
+    assert metrics["signoff"]["post_pnr"]["sta"]["interconnect"] == "spef"
+    assert metrics["signoff"]["post_pnr"]["fusion"]["status"] == "pass"
+    assert "post_pnr_fusion" in metrics["closure"]["order"]
+
 def test_power_summary_gets_explicit_dynamic_definition(tmp_path: Path) -> None:
     report = tmp_path / "power.rpt"
     report.write_text("Total 1.0 2.5 0.25 3.75\n", encoding="utf-8")
@@ -2624,3 +2830,16 @@ def test_signoff_selector_rejects_unknown_and_duplicate_values() -> None:
         _selection("ss wc", "", ("ss", "tt", "ff"), "corner")
     with pytest.raises(ValueError, match="duplicate corner"):
         _selection("ss ss", "", ("ss", "tt", "ff"), "corner")
+
+def test_ci_toolchain_contract() -> None:
+    """Keep the locked container and repository CI on one tool/ORFS contract."""
+
+    lock = (ROOT / "src/flexsoc/backend/toolchain.lock").read_text(encoding="utf-8")
+    deps = (ROOT / "src/flexsoc/backend/deps.sh").read_text(encoding="utf-8")
+    run_ci = (ROOT / "docker/scripts/run-ci.sh").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/toolchain-image.yml").read_text(encoding="utf-8")
+    assert "IVERILOG_VERSION=13.0" in lock and "IVERILOG_MIN_VERSION=13.0" in lock
+    assert "iverilog -g2012 -ginterconnect -V" in deps
+    assert 'make test E2E_ORS="$ORFS_ROOT/flow"' in run_ci
+    assert "gh workflow run ci.yml" in workflow
+

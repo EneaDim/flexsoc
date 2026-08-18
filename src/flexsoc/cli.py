@@ -161,10 +161,13 @@ Use `fx commands` to list every backend Make target.
             ),
         ),
         (
-            "7. Implement and release",
+            "7. Implement and close routed timing",
             (
-                ("fx pnr", "Prepare and run OpenROAD implementation."),
-                ("fx sdf_post_pnr | fx sim_post_pnr", "Export and simulate post-layout timing."),
+                ("fx pnr", "Run OpenROAD and produce the final netlist, SDC, SPEF, ODB, and GDS."),
+                ("fx setup_signoff_post_pnr | fx sta_post_pnr", "Consume routed SDC/SPEF and report propagated clock/interconnect timing."),
+                ("fx sdf_post_pnr | fx power_estimate_post_pnr", "Write routed SDF and vectorless post-PnR power."),
+                ("fx sim_post_pnr_all", "Run timing-aware post-PnR GLS across selected tests and scenarios."),
+                ("fx power_analysis_post_pnr_all | fx fusion_analysis_post_pnr_all", "Use routed GLS activity for power and timing/power correlation."),
                 ("fx manifest | fx metrics | fx check", "Collect release identity, metrics, and closure status."),
                 ("fx ip_save", "Save a reusable IP package after closure."),
             ),

@@ -7,10 +7,10 @@ Image creation and project testing are intentionally separated:
 
 ```text
 Manual image workflow:
-build → verify runtime → publish → generate image.lock
+build → verify locked versions/capabilities → publish → generate/commit image.lock → dispatch CI
 
 Project CI:
-checkout commit → pull locked image → mount source code → lint and test
+checkout commit → validate/pull locked image → mount source code → make lint/test
 ```
 
 The Docker image workflow does not run the FlexSoC pytest suite.
@@ -54,11 +54,11 @@ Performs a technical smoke test of the built image.
 
 It verifies:
 
-- the system EDA toolchain;
-- the Python runtime;
-- the `uv` installation;
-- the virtual environment;
-- the main EDA commands.
+- every locked base-tool version;
+- Icarus 13 `-ginterconnect` support required by routed GLS;
+- OpenSTA and the OpenROAD/ORFS locked revisions;
+- the Python runtime, `uv`, and virtual environment;
+- a small ORFS floorplan smoke flow.
 
 It does not run Ruff or pytest.
 
@@ -83,11 +83,10 @@ It:
 
 1. mounts the checked-out repository at `/workspace`;
 2. installs the current FlexSoC source tree in editable mode;
-3. verifies the system toolchain;
-4. runs Ruff;
-5. runs the API tests;
-6. collects the E2E tests;
-7. optionally runs the complete E2E suite.
+3. runs both the locked dependency doctor and `fx doctor`;
+4. runs `make lint` and `make test-api`;
+5. collects the E2E tests;
+6. runs `make test E2E_ORS="$ORFS_ROOT/flow"` for full CI.
 
 This is the only Docker script that runs project tests.
 
@@ -128,6 +127,8 @@ checkout
 → verify.sh
 → publish.sh
 → upload image.lock
+→ commit image.lock on the selected branch
+→ dispatch ci.yml on that branch
 ```
 
 ### Building from an existing checkpoint
@@ -220,8 +221,9 @@ repository@sha256:digest
 This ensures that CI always uses the exact image that was verified and
 published.
 
-Whenever one of the image inputs changes, a new runtime image must be published
-and `image.lock` must be updated.
+Whenever one of the image inputs changes, CI rejects the stale lock. Run the
+manual toolchain-image workflow with `publish=true`; it publishes the runtime
+image, commits the new `image.lock`, and dispatches CI on the same branch.
 
 The image inputs are:
 
@@ -309,12 +311,16 @@ When the Dockerfile, toolchain lock, dependency installer, `pyproject.toml`, or
 `uv.lock` changes:
 
 ```text
-run the manual image workflow
-→ verify the runtime image
-→ publish the image
-→ download image.lock
-→ commit image.lock
+push the source changes to a branch
+→ run the manual toolchain-image workflow on that branch with publish=true
+→ GitHub builds and verifies the runtime image
+→ GitHub publishes it and commits image.lock on the same branch
+→ the image workflow dispatches ci.yml on the locked commit
 ```
+
+Leave `checkpoint_ref` empty after a tool revision changes so the first image is
+rebuilt from the pinned sources. Reuse a checkpoint only when its installed
+toolchain is known to match the current lock.
 
 ### Normal source-code update
 

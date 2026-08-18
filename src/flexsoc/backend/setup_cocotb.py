@@ -246,6 +246,7 @@ def render_gls_make_block(default_netlist: str) -> str:
         SIM_BUILD ?= sim_build/gls
         TIMING_MODE ?= zero
         GLS_UNIT_DELAY_DEFINE ?= 1
+        GLS_INTERCONNECT ?= 0
         SDF_FILE ?=
         GLS_MODELS ?=
         GLS_NETLIST ?= {default_netlist}
@@ -263,6 +264,9 @@ def render_gls_make_block(default_netlist: str) -> str:
         $(error SDF_FILE is required when TIMING_MODE=$(TIMING_MODE))
         endif
         COMPILE_ARGS += -gspecify -T$(TIMING_MODE) -DFLEXSOC_ENABLE_SDF
+        ifeq ($(GLS_INTERCONNECT),1)
+        COMPILE_ARGS += -ginterconnect
+        endif
         ifeq ($(TIMING_MODE),min)
         COMPILE_ARGS += -DFLEXSOC_SDF_MIN
         else ifeq ($(TIMING_MODE),typ)
