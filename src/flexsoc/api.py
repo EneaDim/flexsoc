@@ -28,6 +28,7 @@ DEFAULT_SETTINGS = {
     "RUN_ID": "default",
     "N_CLOCKS": "1",
     "PDK": "sky130",
+    "TARGET_OPT": "area",
     "WAVE_FORMAT": "fst",
     "GLS_SIMULATOR": "iverilog",
     "GLS_BACKEND": "sv",
@@ -70,7 +71,7 @@ SIM = (
     "WAVE_FILE",
 )
 VIEW = (*COMMON, "WAVE_VIEWER", "SURFER_BACKEND")
-SYN = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV", "LIB_SYN")
+SYN = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV", "LIB_SYN", "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS")
 FORMAL = (
     *COMMON,
     "SBY",
@@ -550,7 +551,7 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "power_analysis_all": ("setup_signoff",),
     "fusion_analysis": ("setup_signoff",),
     "fusion_analysis_all": ("setup_signoff",),
-    "setup_pnr": ("setup_signoff",),
+    "setup_pnr": ("syn", "setup_signoff"),
     "pnr": ("setup_pnr",),
     "pnr_gui": ("setup_pnr",),
 }

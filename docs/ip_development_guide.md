@@ -724,7 +724,7 @@ N clocks:
 fx settings \
   TOP=my_ip RUN_TOP=my_ip RUN_ID=dev \
   N_CLOCKS=3 \
-  'CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:10:low,rx:rx_clk_i:rx_rst_ni:8:low,dsp:dsp_clk_i:dsp_rst_ni:6:low' \
+  'CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:20:low,rx:rx_clk_i:rx_rst_ni:16:low,dsp:dsp_clk_i:dsp_rst_ni:30:low' \
   'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 ```
 
@@ -877,12 +877,12 @@ records and that the intended file was requested by the simulator.
 ### 14.2 Pre-layout STA
 
 `fx sta` reads the mapped netlist, Liberty, SDC, and pre-layout interconnect
-assumptions. Review setup and hold separately, recognized clocks, unconstrained
-paths, exceptions, and electrical checks where supported.
+assumptions. Setup and hold are checked separately for every configured corner.
+All reports are written even on failure, but `fx sta` returns non-zero when any
+corner/mode has negative WNS or a `VIOLATED` timing path.
 
-The current `fx check` report may show no violations while still listing
-unconstrained endpoints. Unconstrained paths are missing analysis coverage, not
-a timing PASS.
+Unconstrained endpoints remain a separate coverage condition: they must be
+reviewed even when constrained paths meet timing.
 
 ### 14.3 Vectorless power estimate
 

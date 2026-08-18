@@ -13,6 +13,7 @@ import pytest
 import flexsoc.backend.setup_eqy as setup_eqy_module
 import flexsoc.backend.setup_signoff as setup_signoff_module
 import flexsoc.backend.setup_syn as setup_syn_module
+import flexsoc.backend.setup_pnr as setup_pnr_module
 import flexsoc.backend.post_sim as post_sim_module
 import flexsoc.cli as cli_module
 import flexsoc.doctor as doctor_module
@@ -278,7 +279,7 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     assert "setup_syn" not in AUTO_SETUP_TARGETS
     assert AUTO_SETUP_TARGETS["syn"] == ("setup_syn",)
     assert "regression" not in AUTO_SETUP_TARGETS
-    assert AUTO_SETUP_TARGETS["setup_pnr"] == ("setup_signoff",)
+    assert AUTO_SETUP_TARGETS["setup_pnr"] == ("syn", "setup_signoff")
     assert AUTO_SETUP_TARGETS["pnr"] == ("setup_pnr",)
     assert AUTO_SETUP_TARGETS["sim_post_syn_all"] == ("sdf",)
     assert AUTO_SETUP_TARGETS["setup_formal_prove"] == ("setup_formal",)
@@ -303,6 +304,53 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
         command.target
         for command in fx.commands("sim_post_syn", GLS_BACKEND="cocotb")
     ] == ["sim_post_syn"]
+
+
+def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
+    liberty = tmp_path / "cells.lib"
+    liberty.write_text("library(test) {}\n", encoding="utf-8")
+    cfg = setup_syn_module.SynthesisConfig(
+        top="demo",
+        topdir=tmp_path,
+        target="asic",
+        clk_period_ns=10.0,
+        output=tmp_path / "syn",
+        liberty=liberty,
+        tie_hi=("TIEHI", "Y"),
+        tie_lo=("TIELO", "Y"),
+        min_buffer=("BUF", "A", "Y"),
+    )
+    assert cfg.opt == "area"
+    script = setup_syn_module.yosys_synth_asic_verilog(
+        cfg.top, cfg.topdir, liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
+        tie_hi=cfg.tie_hi, tie_lo=cfg.tie_lo, min_buffer=cfg.min_buffer,
+    )
+    assert f"read_liberty -overwrite -setattr liberty_cell -lib {liberty}" in script
+    assert script.index("read_liberty") < script.index("read_verilog")
+    assert "dfflibmap -prepare" in script
+    assert "abc -keepff" in script
+    assert "dfflibmap -map-only" in script
+    assert script.index("check -assert") < script.index("splitnets")
+    assert "splitnets" in script
+    assert "hilomap -singleton -hicell TIEHI Y -locell TIELO Y" in script
+    assert "insbuf -buf BUF A Y" in script
+    assert "check -assert -mapped" in script
+    assert "write_verilog -nohex -nodec" in script
+
+
+def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
+    netlist = tmp_path / "demo_synth.v"
+    sdc = tmp_path / "demo.sdc"
+    netlist.write_text("module demo; endmodule\n", encoding="utf-8")
+    sdc.write_text("current_design demo\n", encoding="utf-8")
+    text = setup_pnr_module.render_config("demo", "sky130hd", netlist, sdc)
+    assert f"SYNTH_NETLIST_FILES := {netlist}" in text
+    assert f"SDC_FILE             := {sdc}" in text
+    assert "VERILOG_FILES" not in text
+    assert "SYNTH_HDL_FRONTEND" not in text
+    assert "ABC_AREA" not in text
+    assert "STRATEGY" not in text
+    assert "PLACE_DENSITY ?= 0.58" in text
 
 
 def test_dry_run_returns_commands_without_spawning(

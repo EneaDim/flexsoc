@@ -1,4 +1,4 @@
-"""Generate OpenROAD-flow-scripts `config.mk` files from RTL filelists."""
+"""Generate OpenROAD-flow-scripts physical-implementation configuration."""
 
 from __future__ import annotations
 
@@ -9,162 +9,65 @@ from textwrap import dedent
 from flexsoc.backend.output import print_script
 
 
-def unique_paths(paths: list[Path]) -> list[Path]:
-    """Return paths in first-seen order while removing duplicates by string value."""
-
-    seen: set[str] = set()
-    out: list[Path] = []
-    for path in paths:
-        key = str(path)
-        if key not in seen:
-            seen.add(key)
-            out.append(path)
-    return out
-
-
-def resolve_from(base: Path, value: str) -> Path:
-    """Resolve a filelist entry against its filelist directory when needed."""
-
-    path = Path(value.strip())
-    return path if path.is_absolute() else (base / path).resolve()
-
-
-def parse_filelist(filelist: Path) -> tuple[list[Path], list[Path]]:
-    """Parse include directories and RTL files from a Verilog `.f` file."""
-
-    inc_dirs: list[Path] = []
-    files: list[Path] = []
-    base = filelist.parent
-    for raw in filelist.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("+incdir+"):
-            inc_dirs.append(resolve_from(base, line.removeprefix("+incdir+")))
-        else:
-            files.append(resolve_from(base, line))
-    return unique_paths(inc_dirs), unique_paths(files)
-
-
-def repo_common_incdirs() -> list[Path]:
-    """Return common OpenTitan-style include directories used by FlexSoC RTL."""
-
-    root = Path(__file__).resolve().parents[3]
-    return unique_paths(
-        [
-            root / "hw/ips/pkgs",
-            root / "hw/ips/prim",
-            root / "hw/ips/prim_opentitan",
-            root / "hw/ips/tlul",
-        ]
-    )
-
-
 def render_config(
     top: str,
-    inc_dirs: list[Path],
-    vfiles: list[Path],
-    outdir: Path,
     platform: str,
+    netlist: Path,
     sdc_file: Path,
-    syn_strategy: str = "area",
-    clk_period: int = 50,
 ) -> str:
-    """Render an OpenROAD `config.mk` with absolute source and constraint paths."""
+    """Render a physical-only ORFS config from FlexSoC synthesis artifacts."""
 
     return dedent(
         f"""\
-        # =========================================
-        # OpenROAD-flow-scripts — config.mk (generated)
-        # Absolute paths (cwd-safe)
-        # =========================================
-
+        # OpenROAD-flow-scripts physical implementation (generated)
         export DESIGN_NICKNAME = {top}
         export DESIGN_NAME     = {top}
         export PLATFORM        = {platform}
 
-        # Sources
-        export VERILOG_INCLUDE_DIRS := {' '.join(str(path) for path in inc_dirs)}
-        export VERILOG_FILES := {' '.join(str(path) for path in vfiles)}
+        # FlexSoC owns synthesis and timing intent.
+        export SYNTH_NETLIST_FILES := {netlist}
+        export SDC_FILE             := {sdc_file}
 
-        # Constraints / Frontend
-        export SYNTH_HDL_FRONTEND = slang
-        export SDC_FILE           = {sdc_file}
-
-        # Strategy / timing knobs
-        STRATEGY ?= {syn_strategy}
-        TARGET_CLOCK_PS ?= {clk_period * 1000}
-
+        # Physical defaults; synthesis strategy does not alter these.
         export CORE_UTILIZATION ?= 50
+        export PLACE_DENSITY ?= 0.58
         export PLACE_DENSITY_LB_ADDON = 0.20
         export TNS_END_PERCENT = 100
 
         export DETAILED_METRICS := 1
         export REPORT_CLOCK_SKEW := 1
-        export YOSYS_FLAGS := -v 3
         export GUI_TIMING := 1
-
         export SETUP_SLACK_MARGIN := 0
         export HOLD_SLACK_MARGIN  := 0
-
         export CELL_PAD_IN_SITES_GLOBAL_PLACEMENT := 0
         export CELL_PAD_IN_SITES_DETAIL_PLACEMENT := 0
-
         export DETAILED_ROUTE_END_ITERATION := 64
         export USE_FILL := 0
         export GPL_TIMING_DRIVEN := 1
         export GPL_ROUTABILITY_DRIVEN := 1
-
-        ifeq ($(STRATEGY),none)
-          # vanilla
-        endif
-
-        ifeq ($(STRATEGY),area)
-          export ABC_AREA := 1
-          export ABC_CLOCK_PERIOD_IN_PS := $(TARGET_CLOCK_PS)
-          export PLACE_DENSITY := 0.58
-        endif
-
-        ifeq ($(STRATEGY),delay)
-          export ABC_AREA := 0
-          export ABC_CLOCK_PERIOD_IN_PS := $(TARGET_CLOCK_PS)
-          export PLACE_DENSITY := 0.55
-        endif
         """
     )
 
 
 def write_config(
     top: str,
-    filelists: list[Path],
     outdir: Path,
     platform: str,
+    netlist: Path,
     sdc_file: Path,
-    syn_strategy: str = "area",
-    clk_period: int = 50,
 ) -> Path:
-    """Write `config.mk` for a PnR run and return the generated path."""
+    """Write `config.mk` for one physical implementation run."""
 
-    inc_dirs, vfiles = [], []
-    for filelist in filelists:
-        inc, files = parse_filelist(filelist.expanduser().resolve())
-        inc_dirs.extend(inc)
-        vfiles.extend(files)
-    inc_dirs, vfiles = unique_paths(inc_dirs), unique_paths(vfiles)
     outdir = outdir.expanduser().resolve()
+    netlist = netlist.expanduser().resolve()
+    sdc_file = sdc_file.expanduser().resolve()
+    if not netlist.is_file():
+        raise ValueError(f"synthesized netlist not found: {netlist}")
+    if not sdc_file.is_file():
+        raise ValueError(f"SDC not found: {sdc_file}")
     outdir.mkdir(parents=True, exist_ok=True)
-    text = render_config(
-        top=top,
-        inc_dirs=unique_paths(repo_common_incdirs() + inc_dirs),
-        vfiles=vfiles,
-        outdir=outdir,
-        platform=platform,
-        sdc_file=sdc_file.expanduser().resolve(),
-        syn_strategy=syn_strategy,
-        clk_period=clk_period,
-    )
     path = outdir / "config.mk"
-    path.write_text(text, encoding="utf-8")
+    path.write_text(render_config(top, platform, netlist, sdc_file), encoding="utf-8")
     return path
 
 
@@ -172,14 +75,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for direct script execution."""
 
     parser = argparse.ArgumentParser(
-        description="Generate OpenROAD-flow-scripts config.mk from RTL filelists."
+        description="Generate an ORFS physical-only config from a mapped netlist and SDC."
     )
     parser.add_argument("--top", required=True, help="Top module name")
-    parser.add_argument("--synthesis-strategy", dest="syn_strategy", default="area", help="Synthesis strategy: none|area|delay")
-    parser.add_argument("--clock-period", dest="clk_period", type=int, default=50, help="Clock period in ns")
-    parser.add_argument("--platform", required=True, help="Target OpenROAD platform from the active PDK profile")
-    parser.add_argument("--sdc-file", required=True, help="Logical run SDC consumed by the selected PDK implementation")
-    parser.add_argument("--filelist", action="append", required=True, help="Path to a .f file. Repeat for common/IP lists.")
+    parser.add_argument("--platform", required=True, help="Target OpenROAD platform")
+    parser.add_argument("--netlist", required=True, help="FlexSoC synthesized implementation netlist")
+    parser.add_argument("--sdc-file", required=True, help="Canonical design timing constraints")
     parser.add_argument("--output-dir", dest="outdir", required=True, help="Output directory")
     return parser.parse_args(argv)
 
@@ -190,12 +91,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     path = write_config(
         top=args.top,
-        filelists=[Path(value) for value in args.filelist],
         outdir=Path(args.outdir),
         platform=args.platform,
+        netlist=Path(args.netlist),
         sdc_file=Path(args.sdc_file),
-        syn_strategy=args.syn_strategy,
-        clk_period=args.clk_period,
     )
     print_script(path)
     return 0

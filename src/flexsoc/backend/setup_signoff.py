@@ -399,7 +399,6 @@ def discover_specs(
 
     available = _available_gls(root, values)
     if not available:
-        layout = layout_from_values(root, values)
         raise ValueError(f"no direct SDF-backed GLS reports found for SIGNOFF_STAGE={values.get('SIGNOFF_STAGE', 'post_syn')}")
     selected = tuple(
         row
@@ -2154,6 +2153,16 @@ def _annotate_power_summary(report_dir: Path, name: str = "power.rpt") -> None:
         )
     report.write_text(text.rstrip() + "\n" + "\n".join(lines) + "\n", encoding="utf-8")
 
+
+def _sta_report_violation(path: Path) -> tuple[bool, float | None, int]:
+    """Return whether one STA report contains a real negative-slack violation."""
+
+    text = path.read_text(encoding="utf-8", errors="replace")
+    timing = _timing_values(text)
+    wns = timing.get("wns")
+    violated = len(re.findall(r"\bslack\s+\(VIOLATED\)", text, re.IGNORECASE))
+    return bool(violated or (wns is not None and wns < 0.0)), wns, violated
+
 def execute_static(analysis: str, project_root: Path, values: Mapping[str, str]) -> int:
     """Generate and execute STA, SDF or vectorless power at every configured corner."""
 
@@ -2170,6 +2179,7 @@ def execute_static(analysis: str, project_root: Path, values: Mapping[str, str])
         else ("",)
     )
     failures: list[str] = []
+    violations: list[str] = []
     for corner in corners:
         for mode in modes:
             if analysis == "sta":
@@ -2210,9 +2220,21 @@ def execute_static(analysis: str, project_root: Path, values: Mapping[str, str])
             else:
                 for report in _required_reports(analysis, ctx):
                     print(f"[report] {corner}/{mode or analysis} {report}", flush=True)
+                    if analysis == "sta":
+                        violated, wns, path_count = _sta_report_violation(report)
+                        if violated:
+                            wns_text = "n/a" if wns is None else f"{wns:g}"
+                            violations.append(
+                                f"{corner}/{mode}: timing violation wns={wns_text} "
+                                f"violating_paths={path_count}; report={report}"
+                            )
     for failure in failures:
         print(f"ERROR: {failure}", file=sys.stderr)
-    return 0 if not failures else 2
+    for violation in violations:
+        print(f"ERROR: {violation}", file=sys.stderr)
+    if failures:
+        return 2
+    return 1 if violations else 0
 
 
 def _write_activity_table(

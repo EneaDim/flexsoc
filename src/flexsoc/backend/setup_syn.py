@@ -47,8 +47,11 @@ class SynthesisConfig:
     output: Path = Path("syn")
     liberty: Path | None = None
     sdcdir: Path | None = None
-    opt: str = "delay"
+    opt: str = "area"
     filelists: tuple[Path, ...] = (Path("rtl_common.f"), Path("rtl_ip.f"))
+    tie_hi: tuple[str, str] | None = None
+    tie_lo: tuple[str, str] | None = None
+    min_buffer: tuple[str, str, str] | None = None
 
 
 def pjoin(*parts: str | Path) -> str:
@@ -149,13 +152,14 @@ def render_abc_command(cfg: SynthesisConfig, script_name: str | None) -> str:
 
     if script_name is None:
         delay_ps = int(round(cfg.clk_period_ns * 1000.0))
-        return f"abc -D {delay_ps} -liberty {cfg.liberty.as_posix()}"
+        return f"abc -keepff -D {delay_ps} -liberty {cfg.liberty.as_posix()}"
 
-    base = f"abc -liberty {cfg.liberty.as_posix()}"
+    base = f"abc -keepff -liberty {cfg.liberty.as_posix()}"
     if cfg.opt == "delay":
         delay_ps = int(round(cfg.clk_period_ns * 1000.0))
-        base = f"abc -D {delay_ps} -liberty {cfg.liberty.as_posix()}"
+        base = f"abc -keepff -D {delay_ps} -liberty {cfg.liberty.as_posix()}"
     return f"{base} -script {pjoin(cfg.output, script_name)} \\" + _abc_constraint_arg(cfg)
+
 
 def _asic_tail(cfg: SynthesisConfig, script_name: str | None) -> list[str]:
     """Return shared ASIC mapping, cleanup, and output commands."""
@@ -168,24 +172,44 @@ def _asic_tail(cfg: SynthesisConfig, script_name: str | None) -> list[str]:
         "# technology-boundary checkpoints used by equivalence diagnostics",
         f"write_rtlil {pjoin(cfg.output, cfg.top + '_generic.il')}",
         "",
-        "# map internal register types to the ones from the cell library",
-        f"dfflibmap -liberty {cfg.liberty.as_posix()}",
+        "# prepare FF types while keeping Yosys FF boundaries visible to ABC",
+        f"dfflibmap -prepare -liberty {cfg.liberty.as_posix()}",
         f"write_rtlil {pjoin(cfg.output, cfg.top + '_dffmap.il')}",
         "",
-        "# map logic to the selected cell library",
+        "# map combinational logic and preserve FF output wires used by EQY",
         render_abc_command(cfg, script_name),
         f"write_rtlil {pjoin(cfg.output, cfg.top + '_abc.il')}",
         "",
-        "# Clean while preserving public/internal names used by EQY matching and debug",
-        "opt_clean",
+        "# bind the prepared FF types to final technology cells after ABC",
+        f"dfflibmap -map-only -liberty {cfg.liberty.as_posix()}",
+        "",
+        "# Validate mapped connectivity before physical-only netlist finalization",
+        "check -assert",
+        "",
+        "# Finalize the implementation-ready technology netlist",
+        "splitnets",
+        "opt_clean -purge",
+        *(
+            [
+                f"hilomap -singleton -hicell {cfg.tie_hi[0]} {cfg.tie_hi[1]} "
+                f"-locell {cfg.tie_lo[0]} {cfg.tie_lo[1]}"
+            ]
+            if cfg.tie_hi and cfg.tie_lo
+            else []
+        ),
+        *(
+            [f"insbuf -buf {cfg.min_buffer[0]} {cfg.min_buffer[1]} {cfg.min_buffer[2]}"]
+            if cfg.min_buffer
+            else []
+        ),
+        "check -assert -mapped",
         f"write_rtlil {pjoin(cfg.output, cfg.top + '_clean.il')}",
         "",
         "# Basic stats of std cells and area",
         f"stat -liberty {cfg.liberty.as_posix()}",
         "",
-        "# write verilog",
-        f"write_verilog {pjoin(cfg.output, cfg.top + '_synth.v')}",
-        "# write json",
+        "# Final netlist consumed directly by physical implementation",
+        f"write_verilog -nohex -nodec {pjoin(cfg.output, cfg.top + '_synth.v')}",
         f"write_json {pjoin(cfg.output, cfg.top + '_synth.json')}",
         "",
     ]
@@ -199,12 +223,21 @@ def yosys_synth_asic_verilog(
     opt: str,
     sdcdir: Path | None,
     outdir: Path,
+    *,
+    tie_hi: tuple[str, str] | None = None,
+    tie_lo: tuple[str, str] | None = None,
+    min_buffer: tuple[str, str, str] | None = None,
 ) -> str:
     """Render a Verilog-only ASIC Yosys script."""
 
-    cfg = SynthesisConfig(top, topdir, "asic", clk_ns, outdir, liberty, sdcdir, opt)
+    cfg = SynthesisConfig(
+        top, topdir, "asic", clk_ns, outdir, liberty, sdcdir, opt,
+        tie_hi=tie_hi, tie_lo=tie_lo, min_buffer=min_buffer,
+    )
     script_name = _abc_script_name(opt)
     lines = [
+        "# read target standard cells as library modules for mapped-cell pin directions",
+        f"read_liberty -overwrite -setattr liberty_cell -lib {liberty.as_posix()}",
         "# read files",
         f"read_verilog {pjoin(topdir, top + '.v')}",
         "# basic synth",
@@ -223,12 +256,21 @@ def yosys_synth_asic_slang(
     sdcdir: Path | None,
     outdir: Path,
     filelists: Sequence[Path] = (Path("rtl_common.f"), Path("rtl_ip.f")),
+    *,
+    tie_hi: tuple[str, str] | None = None,
+    tie_lo: tuple[str, str] | None = None,
+    min_buffer: tuple[str, str, str] | None = None,
 ) -> str:
     """Render a SystemVerilog ASIC Yosys script through slang."""
 
-    cfg = SynthesisConfig(top, Path("rtl"), "asic", clk_ns, outdir, liberty, sdcdir, opt, tuple(filelists))
+    cfg = SynthesisConfig(
+        top, Path("rtl"), "asic", clk_ns, outdir, liberty, sdcdir, opt, tuple(filelists),
+        tie_hi=tie_hi, tie_lo=tie_lo, min_buffer=min_buffer,
+    )
     script_name = _abc_script_name(opt)
     lines = [
+        "# read target standard cells as library modules for mapped-cell pin directions",
+        f"read_liberty -overwrite -setattr liberty_cell -lib {liberty.as_posix()}",
         "# read files (SystemVerilog via slang)",
         f"read_slang -I {(_repo_root() / 'hw' / 'ips' / 'pkgs').as_posix()} \\",
         "           -I ../hw/ips/prim \\",
@@ -314,8 +356,20 @@ def generate_synthesis_scripts(cfg: SynthesisConfig) -> tuple[Path, ...]:
                     render_abc_constraints(os.environ.get("FLEXSOC_DRIVING_CELL", "")),
                 )
             )
-        written.append(write_text(cfg.output / "synth.ys", yosys_synth_asic_verilog(cfg.top, cfg.topdir, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output)))
-        written.append(write_text(cfg.output / "synth_sv.ys", yosys_synth_asic_slang(cfg.top, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output, cfg.filelists)))
+        written.append(write_text(
+            cfg.output / "synth.ys",
+            yosys_synth_asic_verilog(
+                cfg.top, cfg.topdir, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
+                tie_hi=cfg.tie_hi, tie_lo=cfg.tie_lo, min_buffer=cfg.min_buffer,
+            ),
+        ))
+        written.append(write_text(
+            cfg.output / "synth_sv.ys",
+            yosys_synth_asic_slang(
+                cfg.top, cfg.liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output, cfg.filelists,
+                tie_hi=cfg.tie_hi, tie_lo=cfg.tie_lo, min_buffer=cfg.min_buffer,
+            ),
+        ))
     elif cfg.target == "xilinx":
         written.append(write_text(cfg.output / "synth.ys", yosys_synth_xilinx(cfg.top, cfg.topdir, cfg.output)))
         written.append(write_text(cfg.output / "xilinx.tcl", vivado_tcl_xilinx(cfg.top)))
@@ -337,7 +391,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("-liberty", "--liberty", type=Path, help="Liberty file for ASIC mapping.")
     parser.add_argument("-clk", "--clk", type=float, required=True, help="Clock period in ns for ABC -D.")
     parser.add_argument("-sdcdir", "--sdcdir", type=Path, default=None, help="Directory containing <top>.sdc.")
-    parser.add_argument("-opt", "--opt", choices=["area", "delay", "none"], default="delay", help="ASIC optimization mode.")
+    parser.add_argument("-opt", "--opt", choices=["area", "delay", "none"], default="area", help="ASIC optimization mode.")
+    parser.add_argument("--tiehi", nargs=2, metavar=("CELL", "PORT"), default=None, help="Tie-high cell and output port.")
+    parser.add_argument("--tielo", nargs=2, metavar=("CELL", "PORT"), default=None, help="Tie-low cell and output port.")
+    parser.add_argument("--min-buffer", nargs=3, metavar=("CELL", "IN", "OUT"), default=None, help="Minimum buffer cell and ports.")
     parser.add_argument("-o", "--output", type=Path, default=Path("syn"), help="Output folder.")
     parser.add_argument("--filelist", type=Path, action="append", default=None, help="SystemVerilog file list for slang. Repeat for common/IP lists.")
     args = parser.parse_args(argv)
@@ -365,6 +422,9 @@ def config_from_args(args: argparse.Namespace) -> SynthesisConfig:
         sdcdir=args.sdcdir,
         opt=args.opt,
         filelists=tuple(args.filelist or (Path("rtl_common.f"), Path("rtl_ip.f"))),
+        tie_hi=tuple(args.tiehi) if args.tiehi else None,
+        tie_lo=tuple(args.tielo) if args.tielo else None,
+        min_buffer=tuple(args.min_buffer) if args.min_buffer else None,
     )
 
 

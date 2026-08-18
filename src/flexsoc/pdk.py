@@ -33,6 +33,9 @@ class PDKSpec:
     note: str = ""
     fetch_provider: str = "git"
     formal_adapter_url: str = ""
+    tie_hi: tuple[str, str] | None = None
+    tie_lo: tuple[str, str] | None = None
+    min_buffer: tuple[str, str, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +76,9 @@ PDKS: dict[str, PDKSpec] = {
         "Real SkyWater process; open release is an experimental/preview PDK.",
         "ciel",
         "https://raw.githubusercontent.com/YosysHQ/eqy/6a8421db37b72826f39b560139fb95e327a63f5c/examples/spm/formal_pdk_proc.py",
+        tie_hi=("sky130_fd_sc_hd__conb_1", "HI"),
+        tie_lo=("sky130_fd_sc_hd__conb_1", "LO"),
+        min_buffer=("sky130_fd_sc_hd__buf_4", "A", "X"),
     ),
     "gf180mcu": PDKSpec(
         "gf180mcu",
@@ -85,6 +91,9 @@ PDKS: dict[str, PDKSpec] = {
         "",
         "Real GlobalFoundries process; open release is an experimental/preview PDK.",
         "ciel",
+        tie_hi=("gf180mcu_fd_sc_mcu7t5v0__tieh", "Z"),
+        tie_lo=("gf180mcu_fd_sc_mcu7t5v0__tiel", "ZN"),
+        min_buffer=("gf180mcu_fd_sc_mcu7t5v0__dlya_4", "I", "Z"),
     ),
     "ihp-sg13g2": PDKSpec(
         "ihp-sg13g2",
@@ -96,6 +105,9 @@ PDKS: dict[str, PDKSpec] = {
         "sg13g2_stdcell",
         "sg13g2_buf_1",
         "Real IHP process; open release is currently a preview.",
+        tie_hi=("sg13g2_tiehi", "L_HI"),
+        tie_lo=("sg13g2_tielo", "L_LO"),
+        min_buffer=("sg13g2_buf_1", "A", "X"),
     ),
     "asap7": PDKSpec(
         "asap7",
@@ -107,6 +119,9 @@ PDKS: dict[str, PDKSpec] = {
         "asap7",
         "BUFx2_ASAP7_75t_R",
         "Predictive research PDK; resulting designs are not manufacturable.",
+        tie_hi=("TIEHIx1_ASAP7_75t_R", "H"),
+        tie_lo=("TIELOx1_ASAP7_75t_R", "L"),
+        min_buffer=("BUFx2_ASAP7_75t_R", "A", "Y"),
     ),
     "nangate45": PDKSpec(
         "nangate45",
@@ -118,6 +133,9 @@ PDKS: dict[str, PDKSpec] = {
         "NangateOpenCellLibrary",
         "BUF_X1",
         "Reference/academic platform, not a foundry production PDK.",
+        tie_hi=("LOGIC1_X1", "Z"),
+        tie_lo=("LOGIC0_X1", "Z"),
+        min_buffer=("BUF_X1", "A", "Z"),
     ),
 }
 
@@ -323,6 +341,12 @@ def make_overrides(project_root: Path, name: str, root: str | Path | None = None
         "ORS_TECH": item.orfs_platform,
         "DRIVING_CELL": item.driving_cell,
     }
+    if item.tie_hi:
+        values["TIEHI_CELL_AND_PORT"] = " ".join(item.tie_hi)
+    if item.tie_lo:
+        values["TIELO_CELL_AND_PORT"] = " ".join(item.tie_lo)
+    if item.min_buffer:
+        values["MIN_BUF_CELL_AND_PORTS"] = " ".join(item.min_buffer)
     if views.liberty_typ:
         values["LIB_SYN"] = str(views.liberty_typ)
     corners = [path for path in (views.liberty_slow, views.liberty_typ, views.liberty_fast) if path]

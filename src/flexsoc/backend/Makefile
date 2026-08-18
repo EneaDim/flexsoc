@@ -299,6 +299,9 @@ FCLK						?= 32
 CLK_PERIOD      ?= 20
 TARGET_SYN      ?= asic
 TARGET_OPT      ?= area
+TIEHI_CELL_AND_PORT ?=
+TIELO_CELL_AND_PORT ?=
+MIN_BUF_CELL_AND_PORTS ?=
 FORMAL_DEPTH ?= 20
 FORMAL_BMC_DEPTH ?= 30
 FORMAL_BMC_APPEND ?= 5
@@ -1330,6 +1333,9 @@ setup_syn: ## Generate Yosys synthesis scripts
 		$(RTL_FILELIST_ARGS) \
 		-liberty $(LIB_SYN) -clk $(CLK_PERIOD) \
 		-target $(TARGET_SYN) -opt $(TARGET_OPT) \
+		$(if $(strip $(TIEHI_CELL_AND_PORT)),--tiehi $(TIEHI_CELL_AND_PORT)) \
+		$(if $(strip $(TIELO_CELL_AND_PORT)),--tielo $(TIELO_CELL_AND_PORT)) \
+		$(if $(strip $(MIN_BUF_CELL_AND_PORTS)),--min-buffer $(MIN_BUF_CELL_AND_PORTS)) \
 		-o $(SYNDIR)
 
 syn: $(if $(filter v,$(VSV)),syn_v,syn_sv) ## Run synthesis
@@ -1707,33 +1713,22 @@ check: ## Show the existing complete functional/formal/synthesis/signoff run sta
 # ============================================================================
 ##@ Implementation
 setup_pnr: ## Generate OpenROAD implementation config
+	$(call _require_file,$(SYNDIR)/$(TOP)_synth.v,syn)
 	$(call _require_file,$(SIGNOFF_SDC_FILE),setup_signoff)
 	$(Q)$(MKDIR) -p $(ORSDIR)
 	$(Q)$(PYTHON) -m flexsoc.backend.setup_pnr --top $(TOP) \
-		--synthesis-strategy $(TARGET_OPT) --clock-period $(CLK_PERIOD) \
-		--platform $(ORS_TECH) --sdc-file $(SIGNOFF_SDC_FILE) \
-		$(RTL_FILELIST_ARGS) --output-dir $(ORSDIR)
+		--platform $(ORS_TECH) \
+		--netlist $(SYNDIR)/$(TOP)_synth.v \
+		--sdc-file $(SIGNOFF_SDC_FILE) \
+		--output-dir $(ORSDIR)
 
 pnr: ## Run OpenROAD implementation
-	$(Q)$(MKDIR) -p $(OR_LOGDIR)
-	$(Q)$(MKDIR) -p $(OR_WORKDIR)
-	@log="$(OR_LOGDIR)/$(TOP)_pnr.log"; \
-	cfg="$(OR_CFG_MK)"; \
-	if [ -n "$(MAKE_DRY_RUN)" ]; then \
-		echo "cd $(OR_WORKDIR) && $(MAKE) --file=$(OR_MAKEFILE) --no-print-dir DESIGN_CONFIG=$$cfg > $$log 2>&1"; \
-		exit 0; \
-	fi; \
-	if [ ! -f "$$cfg" ]; then \
-		echo "ERROR: OpenROAD config.mk not found: $$cfg"; \
-		exit 2; \
-	fi; \
-	cd "$(OR_WORKDIR)" && \
-	$(MAKE) --file="$(OR_MAKEFILE)" --no-print-dir \
-		DESIGN_CONFIG="$$cfg" \
-		> "$$log" 2>&1 || { \
-		echo "ERROR: OpenROAD PnR failed. See log: $$log"; \
-		exit 2; \
-	}
+	$(Q)$(MKDIR) -p $(OR_LOGDIR) $(OR_WORKDIR)
+	$(Q)$(PYTHON) -m flexsoc.backend.pnr_run \
+		--makefile $(OR_MAKEFILE) \
+		--config $(OR_CFG_MK) \
+		--workdir $(OR_WORKDIR) \
+		--log $(OR_LOGDIR)/$(TOP)_pnr.log
 
 pnr_gui: ## Open OpenROAD GUI
 	$(Q)$(MKDIR) -p $(OR_WORKDIR)

@@ -41,3 +41,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Skip the explicit post-synthesis GLS/back-annotation command sequence.",
     )
+    parser.addoption(
+        "--no-pnr",
+        action="store_true",
+        default=False,
+        help="Skip physical implementation in FlexSoC E2E tests.",
+    )
+    parser.addoption(
+        "--e2e-ors",
+        default=None,
+        help="OpenROAD-flow-scripts flow directory (default: ~/OpenROAD-flow-scripts/flow).",
+    )

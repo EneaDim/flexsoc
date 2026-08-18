@@ -312,10 +312,13 @@ def render_nclock_core(top: str) -> str:
       logic [31:0] fifo_rdata;
       logic [3:0]  fifo_wdepth;
       logic [3:0]  fifo_rdepth;
+      logic        dsp_pipe_valid_q;
+      logic        dsp_pipe_ready;
+      logic        dsp_out_ready;
 
       assign fifo_wdata  = {{rx_sample_i, rx_coeff_i}};
       assign rx_ready_o  = enable_rx & fifo_wready;
-      assign fifo_rready = enable_dsp & fifo_rvalid & (!dsp_valid_o | dsp_ready_i);
+      assign fifo_rready = enable_dsp & fifo_rvalid & dsp_pipe_ready;
 
       prim_fifo_async #(
         .Width(32),
@@ -346,7 +349,7 @@ def render_nclock_core(top: str) -> str:
       // after your constraints and gate-level checks are ready.
       logic dsp_clk_gated;
       logic dsp_clk_active;
-      assign dsp_clk_active = enable_dsp & (!clk_gate_en_dsp | fifo_rvalid | dsp_valid_o);
+      assign dsp_clk_active = enable_dsp & (!clk_gate_en_dsp | fifo_rvalid | dsp_pipe_valid_q | dsp_valid_o);
 
       prim_clk_gate u_dsp_clk_gate (
         .clk_i     (dsp_clk_i),
@@ -363,10 +366,13 @@ def render_nclock_core(top: str) -> str:
       logic signed [63:0] sample_ext;
       logic signed [63:0] coeff_ext;
       logic signed [63:0] gain_ext;
-      logic signed [63:0] raw_result;
-      logic signed [31:0] clipped_result;
+      logic signed [63:0] raw_result_d;
+      logic signed [63:0] raw_result_q;
+      logic signed [31:0] clipped_result_d;
       logic               overflow_d;
       logic               above_threshold_d;
+      logic               dsp_saturate_q;
+      logic [31:0]        dsp_threshold_q;
 
       assign sample_d   = fifo_rdata[31:16];
       assign coeff_d    = fifo_rdata[15:0];
@@ -374,42 +380,64 @@ def render_nclock_core(top: str) -> str:
       assign coeff_ext  = {{{{48{{coeff_d[15]}}}}, coeff_d}};
       assign gain_ext   = {{{{48{{gain_dsp_q[15]}}}}, gain_dsp_q}};
 
+      assign dsp_out_ready  = !dsp_valid_o | dsp_ready_i;
+      assign dsp_pipe_ready = !dsp_pipe_valid_q | dsp_out_ready;
+
       always_comb begin
         unique case (dsp_op)
-          2'd1: raw_result = (sample_ext >= coeff_ext) ? sample_ext - coeff_ext : coeff_ext - sample_ext;
-          2'd2: raw_result = (sample_ext * sample_ext) + (coeff_ext * coeff_ext);
-          default: raw_result = (sample_ext * coeff_ext) + gain_ext;
+          2'd1: raw_result_d = (sample_ext >= coeff_ext) ? sample_ext - coeff_ext : coeff_ext - sample_ext;
+          2'd2: raw_result_d = (sample_ext * sample_ext) + (coeff_ext * coeff_ext);
+          default: raw_result_d = (sample_ext * coeff_ext) + gain_ext;
         endcase
 
-        overflow_d = (raw_result > I32_MAX) | (raw_result < I32_MIN);
-        if (dsp_saturate && raw_result > I32_MAX) begin
-          clipped_result = 32'sh7fff_ffff;
-        end else if (dsp_saturate && raw_result < I32_MIN) begin
-          clipped_result = -32'sh8000_0000;
+        overflow_d = (raw_result_q > I32_MAX) | (raw_result_q < I32_MIN);
+        if (dsp_saturate_q && raw_result_q > I32_MAX) begin
+          clipped_result_d = 32'sh7fff_ffff;
+        end else if (dsp_saturate_q && raw_result_q < I32_MIN) begin
+          clipped_result_d = -32'sh8000_0000;
         end else begin
-          clipped_result = raw_result[31:0];
+          clipped_result_d = raw_result_q[31:0];
         end
-        above_threshold_d = $unsigned(clipped_result) > dsp_threshold;
+        above_threshold_d = $unsigned(clipped_result_d) > dsp_threshold_q;
       end
 
       always_ff @(posedge dsp_clk_i or negedge dsp_rst_ni) begin
         if (!dsp_rst_ni) begin
-          dsp_valid_o           <= 1'b0;
-          dsp_result_o          <= '0;
+          raw_result_q         <= '0;
+          dsp_saturate_q       <= 1'b0;
+          dsp_threshold_q      <= '0;
+          dsp_pipe_valid_q     <= 1'b0;
+          dsp_valid_o          <= 1'b0;
+          dsp_result_o         <= '0;
           dsp_above_threshold_o <= 1'b0;
-          dsp_overflow_o        <= 1'b0;
+          dsp_overflow_o       <= 1'b0;
         end else if (soft_reset_dsp) begin
-          dsp_valid_o           <= 1'b0;
-          dsp_result_o          <= '0;
+          raw_result_q         <= '0;
+          dsp_saturate_q       <= 1'b0;
+          dsp_threshold_q      <= '0;
+          dsp_pipe_valid_q     <= 1'b0;
+          dsp_valid_o          <= 1'b0;
+          dsp_result_o         <= '0;
           dsp_above_threshold_o <= 1'b0;
-          dsp_overflow_o        <= 1'b0;
-        end else if (fifo_rready) begin
-          dsp_valid_o           <= 1'b1;
-          dsp_result_o          <= clipped_result;
-          dsp_above_threshold_o <= above_threshold_d;
-          dsp_overflow_o        <= overflow_d;
-        end else if (dsp_ready_i) begin
-          dsp_valid_o <= 1'b0;
+          dsp_overflow_o       <= 1'b0;
+        end else begin
+          if (dsp_out_ready) begin
+            dsp_valid_o <= dsp_pipe_valid_q;
+            if (dsp_pipe_valid_q) begin
+              dsp_result_o          <= clipped_result_d;
+              dsp_above_threshold_o <= above_threshold_d;
+              dsp_overflow_o        <= overflow_d;
+            end
+          end
+
+          if (dsp_pipe_ready) begin
+            dsp_pipe_valid_q <= fifo_rready;
+            if (fifo_rready) begin
+              raw_result_q    <= raw_result_d;
+              dsp_saturate_q  <= dsp_saturate;
+              dsp_threshold_q <= dsp_threshold;
+            end
+          end
         end
       end
 
