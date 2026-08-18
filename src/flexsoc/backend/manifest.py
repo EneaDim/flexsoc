@@ -201,25 +201,6 @@ def show_manifest(path: Path) -> None:
             ("RUN_ROOT", run.get("run_root") or "-"),
         ],
     )
-    section(
-        "Source / environment",
-        [
-            ("Git commit", data.get("git", {}).get("commit") or "unavailable"),
-            (
-                "Git tree",
-                "unknown" if dirty is None else ("dirty" if dirty else "clean"),
-            ),
-            ("FlexSoC", env.get("flexsoc", "unknown")),
-            ("Python", env.get("python", "unknown")),
-            ("Platform", env.get("platform", "unknown")),
-            ("Machine", env.get("machine", "unknown")),
-            ("uv.lock SHA256", env.get("uv_lock_sha256") or "missing"),
-            (
-                "toolchain.lock SHA256",
-                env.get("toolchain_lock_sha256") or "missing",
-            ),
-        ],
-    )
 
     flow = data.get("flow")
     if isinstance(flow, dict):
@@ -243,15 +224,59 @@ def show_manifest(path: Path) -> None:
             ] + [("Overall", str(flow.get("status", "incomplete")).upper())],
         )
 
-    artifacts = run.get("artifacts")
-    if isinstance(artifacts, dict):
-        section(
-            "Artifacts",
-            [
-                (name.replace("_", " ").title(), value)
-                for name, value in artifacts.items()
-            ],
-        )
+    section(
+        "Source / environment",
+        [
+            ("Git commit", data.get("git", {}).get("commit") or "unavailable"),
+            ("Git tree", "unknown" if dirty is None else ("dirty" if dirty else "clean")),
+            ("FlexSoC", env.get("flexsoc", "unknown")),
+            ("Python", env.get("python", "unknown")),
+            ("Platform", env.get("platform", "unknown")),
+            ("Machine", env.get("machine", "unknown")),
+            ("uv.lock SHA256", env.get("uv_lock_sha256") or "missing"),
+            ("toolchain.lock SHA256", env.get("toolchain_lock_sha256") or "missing"),
+        ],
+    )
+
+    analysis = data.get("analysis")
+    if isinstance(analysis, dict):
+        rows: list[tuple[str, object]] = []
+        lint = analysis.get("lint")
+        if isinstance(lint, dict):
+            rows.append(("RTL lint", lint.get("path", "-")))
+        cdc_rdc = analysis.get("cdc_rdc")
+        if isinstance(cdc_rdc, dict):
+            rows.append((
+                "CDC / RDC",
+                f"{str(cdc_rdc.get('status', 'unknown')).upper()} · "
+                f"CDC raw={cdc_rdc.get('cdc_raw', 0)} · RDC raw={cdc_rdc.get('rdc_raw', 0)} · "
+                f"obligations={cdc_rdc.get('obligations', 0)} · {cdc_rdc.get('path', '-')}",
+            ))
+        if rows:
+            section("Verification evidence", rows)
+
+    signoff = data.get("signoff")
+    if isinstance(signoff, dict):
+        rows: list[tuple[str, object]] = []
+        for label, key in (
+            ("SDF", "sdf"),
+            ("STA", "sta"),
+            ("GLS", "post_syn_gls"),
+            ("Power estimate", "power"),
+            ("Activity power", "power_activity"),
+            ("Timing / power fusion", "fusion"),
+        ):
+            stage = signoff.get(key)
+            if not isinstance(stage, dict):
+                continue
+            detail = str(stage.get("status", "unknown")).upper()
+            if key == "sta":
+                detail += f" · {stage.get('clock_model', 'ideal')} clock · {stage.get('interconnect', 'none')}"
+            if key == "post_syn_gls":
+                detail += f" · interconnect {stage.get('interconnect_delays', 'unknown')}"
+            rows.append((label, detail))
+        if rows:
+            section("Pre-implementation sign-off", rows)
 
     implementation = data.get("implementation")
     if isinstance(implementation, dict):
@@ -266,40 +291,36 @@ def show_manifest(path: Path) -> None:
             ],
         )
 
-    signoff = data.get("signoff")
     if isinstance(signoff, dict):
-        rows: list[tuple[str, object]] = []
-        sta = signoff.get("sta")
-        if isinstance(sta, dict):
-            rows.append(("Pre-implementation STA", f"{str(sta.get('status', 'unknown')).upper()} · ideal clock · no SPEF"))
         routed = signoff.get("post_pnr")
         if isinstance(routed, dict):
-            routed_sta = routed.get("sta")
-            if isinstance(routed_sta, dict):
-                rows.append(("Post-implementation STA", f"{str(routed_sta.get('status', 'unknown')).upper()} · propagated clock · SPEF"))
-            for label, key in (("Post-implementation SDF", "sdf"), ("Post-implementation GLS", "gls"), ("Post-implementation power", "power"), ("Post-implementation activity power", "power_activity"), ("Post-implementation fusion", "fusion")):
+            rows = []
+            for label, key in (
+                ("SDF", "sdf"),
+                ("STA", "sta"),
+                ("GLS", "gls"),
+                ("Power estimate", "power"),
+                ("Activity power", "power_activity"),
+                ("Timing / power fusion", "fusion"),
+            ):
                 stage = routed.get(key)
-                if isinstance(stage, dict):
-                    rows.append((label, str(stage.get("status", "unknown")).upper()))
-        if rows:
-            section("Sign-off detail", rows)
+                if not isinstance(stage, dict):
+                    continue
+                detail = str(stage.get("status", "unknown")).upper()
+                if key == "sta":
+                    detail += f" · {stage.get('clock_model', 'propagated')} clock · {stage.get('interconnect', 'spef')}"
+                if key == "gls":
+                    detail += f" · interconnect {stage.get('interconnect_delays', 'unknown')}"
+                rows.append((label, detail))
+            if rows:
+                section("Post-implementation sign-off", rows)
 
-    analysis = data.get("analysis")
-    if isinstance(analysis, dict):
-        rows: list[tuple[str, object]] = []
-        lint = analysis.get("lint")
-        if isinstance(lint, dict):
-            rows.append(("Lint", lint.get("path", "-")))
-        cdc_rdc = analysis.get("cdc_rdc")
-        if isinstance(cdc_rdc, dict):
-            rows.append((
-                "CDC/RDC",
-                f"{str(cdc_rdc.get('status', 'unknown')).upper()} · "
-                f"CDC raw={cdc_rdc.get('cdc_raw', 0)} · RDC raw={cdc_rdc.get('rdc_raw', 0)} · "
-                f"obligations={cdc_rdc.get('obligations', 0)} · {cdc_rdc.get('path', '-')}",
-            ))
-        if rows:
-            section("Verification evidence", rows)
+    artifacts = run.get("artifacts")
+    if isinstance(artifacts, dict):
+        section(
+            "Artifacts",
+            [(name.replace("_", " ").title(), value) for name, value in artifacts.items()],
+        )
 
     tools = data.get("tools", {})
     if tools:

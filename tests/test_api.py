@@ -45,6 +45,7 @@ from flexsoc.backend.metrics import (
     collect_power_estimate,
     collect_sta,
     formal_stage,
+    signoff_summary,
     status_word,
 )
 from flexsoc.backend.post_sim import _cocotb_wrapper, execute_all
@@ -706,6 +707,8 @@ def test_post_pnr_gls_metrics_require_interconnect_delays(tmp_path: Path) -> Non
     gls = collect_post_syn_gls("demo", run, "sky130", "post_route")
     assert gls is not None and gls["status"] == "pass"
     assert gls["interconnect_delays"] == "enabled"
+    summary = signoff_summary({"post_pnr": {"gls": gls}})
+    assert summary["post_pnr"]["gls"]["interconnect_delays"] == "enabled"
 
 
 def test_post_syn_gls_metrics_require_no_interconnect_delays(tmp_path: Path) -> None:
@@ -736,6 +739,8 @@ def test_post_syn_gls_metrics_require_no_interconnect_delays(tmp_path: Path) -> 
     gls = collect_post_syn_gls("demo", run, "sky130")
     assert gls is not None and gls["status"] == "pass"
     assert gls["interconnect_delays"] == "none"
+    summary = signoff_summary({"post_syn_gls": gls})
+    assert summary["post_syn_gls"]["interconnect_delays"] == "none"
 
 
 def test_successful_sdf_gls_cleanup_removes_legacy_mode_artifacts(tmp_path: Path) -> None:

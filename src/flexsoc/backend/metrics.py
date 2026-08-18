@@ -1085,6 +1085,7 @@ def signoff_summary(metrics: dict[str, Any]) -> dict[str, Any]:
             "total": gls.get("total", 0),
             "failed": gls.get("failed", 0),
             "missing": gls.get("missing", 0),
+            "interconnect_delays": gls.get("interconnect_delays", "unknown"),
         }
     post_pnr = metrics.get("post_pnr")
     if isinstance(post_pnr, dict):
@@ -1102,6 +1103,7 @@ def signoff_summary(metrics: dict[str, Any]) -> dict[str, Any]:
                 "status": gls.get("status", "unknown"),
                 "passed": gls.get("passed", 0),
                 "total": gls.get("total", 0),
+                "interconnect_delays": gls.get("interconnect_delays", "unknown"),
             }
         activity = post_pnr.get("power_analysis")
         if isinstance(activity, dict):
@@ -1386,18 +1388,73 @@ def status_markup(status: str) -> str:
     return f"[{color}]{status.upper()}[/{color}]"
 
 
+def _show_signoff_stage(console: Console, title: str, stage: dict[str, Any]) -> None:
+    """Render one compact sign-off stage in execution order."""
+
+    console.print(f"\n[bold cyan]{title}[/bold cyan]")
+    table = metric_table()
+
+    sdf = stage.get("sdf", {})
+    if isinstance(sdf, dict) and sdf:
+        count = int(sdf.get("count", 0) or 0)
+        suffix = f" · corners={count}" if count else ""
+        table.add_row("SDF", status_markup(str(sdf.get("status", "unknown"))) + suffix)
+
+    sta = stage.get("sta", {})
+    if isinstance(sta, dict) and sta:
+        table.add_row(
+            "STA",
+            status_markup(str(sta.get("status", "unknown")))
+            + f" · {sta.get('clock_model', 'unknown')} clock · {sta.get('interconnect', 'unknown')}",
+        )
+
+    gls = stage.get("gls", stage.get("post_syn_gls", {}))
+    if isinstance(gls, dict) and gls:
+        table.add_row(
+            "Gate-level simulation",
+            f"{gls.get('passed', 0)}/{gls.get('total', 0)}  "
+            + status_markup(str(gls.get("status", "unknown")))
+            + f" · interconnect {gls.get('interconnect_delays', 'unknown')}",
+        )
+
+    power = stage.get("power", {})
+    if isinstance(power, dict) and power:
+        table.add_row("Power estimate", status_markup(str(power.get("status", "unknown"))))
+
+    activity = stage.get("power_activity", {})
+    if isinstance(activity, dict) and activity:
+        table.add_row(
+            "Activity power",
+            f"{activity.get('passed', 0)}/{activity.get('total', 0)}  "
+            + status_markup(str(activity.get("status", "unknown"))),
+        )
+
+    fusion = stage.get("fusion", {})
+    if isinstance(fusion, dict) and fusion:
+        table.add_row(
+            "Timing / power fusion",
+            f"{fusion.get('passed', 0)}/{fusion.get('total', 0)}  "
+            + status_markup(str(fusion.get("status", "unknown"))),
+        )
+
+    console.print(table)
+
+
 def show_metrics(path: Path) -> None:
-    """Print a colored end-of-run closure summary from metrics.json."""
+    """Print one lifecycle-ordered end-of-run closure summary."""
 
     if not path.is_file():
         raise FileNotFoundError(f"metrics file not found: {path}; run: fx metrics")
 
     data = json.loads(path.read_text(encoding="utf-8"))
     console = Console()
-    console.print(f"[bold cyan]FlexSoC run check[/bold cyan] · [bold white]{data.get('top', 'unknown')}[/bold white]")
+    console.print(
+        f"[bold cyan]FlexSoC run check[/bold cyan] · "
+        f"[bold white]{data.get('top', 'unknown')}[/bold white]"
+    )
 
     flow = data.get("flow", {})
-    if flow:
+    if isinstance(flow, dict) and flow:
         console.print("\n[bold cyan]Flow[/bold cyan]")
         table = Table(box=None, pad_edge=False, header_style="bold cyan")
         table.add_column("Main step")
@@ -1421,122 +1478,9 @@ def show_metrics(path: Path) -> None:
         style = {"pass": "green", "review": "yellow", "fail": "red"}.get(overall, "grey70")
         console.print(f"[grey70]Run status:[/grey70] [bold {style}]{overall.upper()}[/bold {style}]")
 
-    verification = data.get("verification", {})
-    if verification:
-        console.print("\n[bold cyan]Verification summary[/bold cyan]")
-        table = metric_table()
-        domain_summary = verification.get("cdc_rdc", {})
-        if domain_summary:
-            table.add_row("CDC/RDC", status_markup(str(domain_summary.get("status", "unknown"))))
-        formal_summary = verification.get("formal", {})
-        if formal_summary:
-            table.add_row(
-                "Formal stages",
-                f"{formal_summary.get('passed', 0)}/{formal_summary.get('total', 6)}  "
-                + status_markup(
-                    "pass"
-                    if formal_summary.get("passed", 0) == formal_summary.get("total", 6)
-                    else "partial"
-                ),
-            )
-            for stage in ("bmc", "prove", "cover"):
-                values = formal_summary.get("stages", {}).get(stage, {})
-                table.add_row(
-                    f"Formal {stage.upper()}",
-                    f"{values.get('passed', 0)}/{values.get('total', 2)}  "
-                    + status_markup(
-                        "pass"
-                        if values.get("passed", 0) == values.get("total", 2)
-                        else "partial"
-                    ),
-                )
-        functional = verification.get("functional", {})
-        if functional:
-            table.add_row("Functional regression", status_markup(str(functional.get("status", "unknown"))))
-            for label, key in (("Functional coverage", "coverage_all"), ("Design coverage", "coverage_design")):
-                coverage = functional.get(key)
-                if coverage:
-                    table.add_row(label, f"{coverage['hit']}/{coverage['total']}  {coverage['percent']:.2f}%")
-        console.print(table)
-
-    signoff = data.get("signoff", {})
-    if signoff:
-        console.print("\n[bold cyan]Sign-off summary[/bold cyan]")
-        table = metric_table()
-        equivalence = signoff.get("equivalence", {})
-        if equivalence:
-            total = int(equivalence.get("total", 0) or 0)
-            proven = int(equivalence.get("proven", 0) or 0)
-            percent = float(equivalence.get("percent", 0.0) or 0.0)
-            closure = f"{proven}/{total}  {percent:.2f}%  " if total else ""
-            table.add_row(
-                "RTL ↔ synthesis",
-                closure + status_markup(str(equivalence.get("status", "unknown"))),
-            )
-        for label, key in (("SDF", "sdf"), ("STA", "sta"), ("Power estimate", "power")):
-            stage = signoff.get(key, {})
-            if stage:
-                detail = ""
-                if key == "sta":
-                    detail = f" · {stage.get('clock_model', 'ideal')} clock · {stage.get('interconnect', 'none')}"
-                table.add_row(label, status_markup(str(stage.get("status", "unknown"))) + detail)
-        gls_summary = signoff.get("post_syn_gls", {})
-        if gls_summary:
-            table.add_row(
-                "Post-synthesis GLS",
-                f"{gls_summary.get('passed', 0)}/{gls_summary.get('total', 0)}  "
-                + status_markup(str(gls_summary.get("status", "unknown"))),
-            )
-        activity_summary = signoff.get("power_activity", {})
-        if activity_summary:
-            table.add_row(
-                "Activity power",
-                f"{activity_summary.get('passed', 0)}/{activity_summary.get('total', 0)}  "
-                + status_markup(str(activity_summary.get("status", "unknown"))),
-            )
-        fusion_summary = signoff.get("fusion", {})
-        if fusion_summary:
-            table.add_row(
-                "Timing / power fusion",
-                f"{fusion_summary.get('passed', 0)}/{fusion_summary.get('total', 0)}  "
-                + status_markup(str(fusion_summary.get("status", "unknown"))),
-            )
-        routed = signoff.get("post_pnr", {})
-        if routed:
-            for label, key in (("Post-implementation SDF", "sdf"), ("Post-implementation STA", "sta"), ("Post-implementation power", "power")):
-                stage = routed.get(key, {})
-                if stage:
-                    detail = ""
-                    if key == "sta":
-                        detail = f" · {stage.get('clock_model', 'propagated')} clock · {stage.get('interconnect', 'spef')}"
-                    table.add_row(label, status_markup(str(stage.get("status", "unknown"))) + detail)
-            gls = routed.get("gls", {})
-            if gls:
-                table.add_row(
-                    "Post-implementation GLS",
-                    f"{gls.get('passed', 0)}/{gls.get('total', 0)}  "
-                    + status_markup(str(gls.get("status", "unknown")))
-                    + f" · interconnect {gls.get('interconnect_delays', 'unknown')}",
-                )
-            activity = routed.get("power_activity", {})
-            if activity:
-                table.add_row(
-                    "Post-implementation activity power",
-                    f"{activity.get('passed', 0)}/{activity.get('total', 0)}  "
-                    + status_markup(str(activity.get("status", "unknown"))),
-                )
-            fusion = routed.get("fusion", {})
-            if fusion:
-                table.add_row(
-                    "Post-implementation timing / power fusion",
-                    f"{fusion.get('passed', 0)}/{fusion.get('total', 0)}  "
-                    + status_markup(str(fusion.get("status", "unknown"))),
-                )
-        console.print(table)
-
     lint = data.get("lint")
-    if lint:
-        console.print("\n[bold cyan]Lint[/bold cyan]  [cyan]Slang → Verilator[/cyan]")
+    if isinstance(lint, dict):
+        console.print("\n[bold cyan]RTL lint[/bold cyan]  [cyan]Slang → Verilator[/cyan]")
         table = Table(box=None, pad_edge=False, header_style="bold cyan")
         table.add_column("Tool")
         table.add_column("Status")
@@ -1563,7 +1507,7 @@ def show_metrics(path: Path) -> None:
         console.print(table)
 
     cdc_rdc = data.get("cdc_rdc")
-    if cdc_rdc:
+    if isinstance(cdc_rdc, dict):
         console.print("\n[bold cyan]CDC / RDC[/bold cyan]  [cyan]post-lint structural analysis[/cyan]")
         table = metric_table()
         table.add_row("Status", status_markup(str(cdc_rdc.get("status", "unknown"))))
@@ -1586,29 +1530,27 @@ def show_metrics(path: Path) -> None:
         console.print(table)
 
     regression = data.get("regression")
-    if regression:
-        console.print("\n[bold cyan]Functional regression[/bold cyan]")
+    if isinstance(regression, dict):
+        console.print("\n[bold cyan]Functional verification[/bold cyan]")
         table = metric_table()
         table.add_row("Status", status_markup(str(regression.get("status", "unknown"))))
         table.add_row("Generated tests", str(regression.get("test_count", 0)))
         for backend, values in regression.get("backends", {}).items():
             table.add_row(f"{backend} logs", str(values.get("tests_logged", 0)))
-        all_cov = regression.get("coverage", {}).get("all")
-        if all_cov:
-            table.add_row("Coverage all", f"{all_cov['hit']}/{all_cov['total']}  {all_cov['percent']:.2f}%")
-        design_cov = regression.get("coverage", {}).get("design")
-        if design_cov:
-            table.add_row("Coverage design", f"{design_cov['hit']}/{design_cov['total']}  {design_cov['percent']:.2f}%")
+        coverage = regression.get("coverage", {})
+        for label, key in (("Coverage all", "all"), ("Coverage design", "design")):
+            values = coverage.get(key, {}) if isinstance(coverage, dict) else {}
+            if isinstance(values, dict) and values:
+                table.add_row(
+                    label,
+                    f"{values.get('hit', 0)}/{values.get('total', 0)}  "
+                    f"{float(values.get('percent', 0.0) or 0.0):.2f}%",
+                )
         console.print(table)
 
-        matrix_table = coverage_matrix_table(regression.get("coverage_matrix", {}))
-        if matrix_table is not None:
-            console.print("\n[bold cyan]Functional coverage — scope × type[/bold cyan]")
-            console.print(matrix_table)
-
     formal = data.get("formal")
-    if formal:
-        console.print("\n[bold cyan]Formal[/bold cyan]")
+    if isinstance(formal, dict):
+        console.print("\n[bold cyan]Formal verification[/bold cyan]")
         table = Table(box=None, pad_edge=False, header_style="bold cyan")
         table.add_column("Suite")
         table.add_column("Stage")
@@ -1632,7 +1574,7 @@ def show_metrics(path: Path) -> None:
         console.print(table)
 
     synthesis = data.get("synthesis")
-    if synthesis:
+    if isinstance(synthesis, dict):
         console.print("\n[bold cyan]Synthesis[/bold cyan]")
         table = metric_table()
         table.add_row("Strategy", str(synthesis.get("strategy", "unknown")))
@@ -1646,21 +1588,8 @@ def show_metrics(path: Path) -> None:
         table.add_row("Warnings", f"[{count_color(warnings)}]{warnings}[/]")
         console.print(table)
 
-    implementation = data.get("implementation")
-    if implementation:
-        console.print("\n[bold cyan]Implementation / PnR[/bold cyan]")
-        table = metric_table()
-        table.add_row("Status", status_markup(str(implementation.get("status", "unknown"))))
-        table.add_row("Results", str(implementation.get("platform_root", "-")))
-        artifacts = implementation.get("artifacts", {})
-        if isinstance(artifacts, dict):
-            table.add_row("Final artifacts", f"{len(artifacts)}/5")
-        if implementation.get("log"):
-            table.add_row("Log", str(implementation.get("log")))
-        console.print(table)
-
     equiv = data.get("equivalence")
-    if equiv:
+    if isinstance(equiv, dict):
         console.print("\n[bold cyan]RTL ↔ synthesis equivalence[/bold cyan]")
         table = metric_table()
         table.add_row("Status", status_markup(str(equiv.get("status", "unknown"))))
@@ -1680,179 +1609,28 @@ def show_metrics(path: Path) -> None:
         table.add_row("Log", str(equiv.get("log", "-")))
         console.print(table)
 
-    sdf = data.get("sdf")
-    if sdf:
-        console.print("\n[bold cyan]SDF[/bold cyan]")
-        table = Table(box=None, pad_edge=False, header_style="bold cyan")
-        table.add_column("Corner")
-        table.add_column("Bytes", justify="right")
-        table.add_column("Artifact")
-        for corner, values in sdf.get("corners", {}).items():
-            table.add_row(corner, str(values.get("bytes", 0)), str(values.get("path", "-")))
-        console.print(table)
+    signoff = data.get("signoff", {})
+    if isinstance(signoff, dict) and signoff:
+        _show_signoff_stage(console, "Pre-implementation sign-off", signoff)
 
-    gls = data.get("post_syn_gls")
-    if gls:
-        pdk = data.get("technology", {}).get("pdk", gls.get("pdk", "unknown"))
-        console.print(f"\n[bold cyan]Post-synthesis GLS[/bold cyan] · [bold white]{escape(str(pdk))}[/bold white]")
+    implementation = data.get("implementation")
+    if isinstance(implementation, dict):
+        console.print("\n[bold cyan]Implementation / PnR[/bold cyan]")
         table = metric_table()
-        table.add_row("Status", status_markup(str(gls.get("status", "unknown"))))
-        table.add_row(
-            "Results",
-            f"{gls.get('passed', 0)}/{gls.get('total', 0)} passed · "
-            f"{gls.get('failed', 0)} failed · {gls.get('missing', 0)} missing",
-        )
-        table.add_row("Tests", ", ".join(str(value) for value in gls.get("tests", [])) or "-")
-        table.add_row("Backends", ", ".join(str(value) for value in gls.get("backends", [])) or "-")
-        table.add_row(
-            "Scenarios",
-            ", ".join(str(value) for value in gls.get("scenarios", []))
-            or ", ".join(_gls_scenario(str(value)) for value in gls.get("timing_modes", []))
-            or "-",
-        )
-        table.add_row("Artifacts", str(gls.get("artifacts", "-")))
+        table.add_row("Status", status_markup(str(implementation.get("status", "unknown"))))
+        table.add_row("Results", str(implementation.get("platform_root", "-")))
+        artifacts = implementation.get("artifacts", {})
+        if isinstance(artifacts, dict):
+            table.add_row("Final artifacts", f"{len(artifacts)}/5")
+        if implementation.get("log"):
+            table.add_row("Log", str(implementation.get("log")))
         console.print(table)
 
-        records = gls.get("records", [])
-        backends = [str(value) for value in gls.get("backends", [])]
-        modes = [str(value) for value in gls.get("timing_modes", [])]
-        if records and backends and modes:
-            matrix = Table(box=None, pad_edge=False, header_style="bold cyan")
-            matrix.add_column("Scenario", style="white", no_wrap=True)
-            for backend in backends:
-                matrix.add_column(backend, justify="right", no_wrap=True)
-            matrix.add_column("Closure", justify="right", no_wrap=True)
-            scenario_records = gls.get("scenario_records", [])
-            for mode in modes:
-                row = [record for record in records if record.get("timing_mode") == mode]
-                cells = []
-                for backend in backends:
-                    group = _gls_group([record for record in row if record.get("backend") == backend])
-                    cells.append(
-                        f"{group['passed']}/{group['total']} "
-                        + status_markup(str(group["status"]))
-                    )
-                scenario_group = _gls_group(
-                    [record for record in scenario_records if record.get("timing_mode") == mode]
-                )
-                matrix.add_row(
-                    _gls_scenario(mode),
-                    *cells,
-                    f"{scenario_group['passed']}/{scenario_group['total']} "
-                    + status_markup(str(scenario_group["status"])),
-                )
-            console.print("\n[bold cyan]Post-synthesis GLS results[/bold cyan]")
-            console.print(matrix)
+    routed = signoff.get("post_pnr", {}) if isinstance(signoff, dict) else {}
+    if isinstance(routed, dict) and routed:
+        _show_signoff_stage(console, "Post-implementation sign-off", routed)
 
-        failures = gls.get("failures", [])
-        if failures:
-            console.print("\n[bold red]GLS failures[/bold red]")
-            for record in failures[:8]:
-                evidence = record.get("log") or record.get("report") or record.get("wave") or "-"
-                console.print(
-                    f"[bold red]FAIL[/bold red] [white]{escape(str(record.get('stem', 'unknown')))}[/white]"
-                )
-                console.print(f"  [grey70]reason:[/grey70] {escape(str(record.get('reason') or 'not qualified'))}")
-                console.print(f"  [grey70]evidence:[/grey70] {escape(str(evidence))}")
-            remaining = len(failures) - 8
-            if remaining > 0:
-                console.print(f"[grey70]... {remaining} additional GLS failure(s); inspect the direct reports.[/grey70]")
-
-
-    power_activity = data.get("power_analysis")
-    if power_activity:
-        console.print("\n[bold cyan]Post-GLS activity power[/bold cyan]")
-        summary = metric_table()
-        summary.add_row("Status", status_markup(str(power_activity.get("status", "unknown"))))
-        summary.add_row(
-            "Analyses",
-            f"{power_activity.get('passed', 0)}/{power_activity.get('total', 0)} passed · "
-            f"{power_activity.get('failed', 0)} failed",
-        )
-        summary.add_row("Summary JSON", str(power_activity.get("summary", "-")))
-        console.print(summary)
-        table = Table(box=None, pad_edge=False, header_style="bold cyan")
-        table.add_column("Test")
-        table.add_column("Backend")
-        table.add_column("GLS")
-        table.add_column("Corner")
-        table.add_column("Activity", justify="right")
-        table.add_column("Total W", justify="right")
-        table.add_column("Status")
-        for report in power_activity.get("reports", []):
-            corners = report.get("corners", {}) if isinstance(report, dict) else {}
-            if not corners:
-                table.add_row(
-                    str(report.get("test", "-")),
-                    str(report.get("backend", "-")),
-                    _activity_scenario(report),
-                    "-",
-                    "-",
-                    "-",
-                    status_markup(str(report.get("status", "fail"))),
-                )
-                continue
-            for corner, values in corners.items():
-                table.add_row(
-                    str(report.get("test", "-")),
-                    str(report.get("backend", "-")),
-                    _activity_scenario(report, str(corner)),
-                    str(corner),
-                    (
-                        f"{float(values['activity_annotation_percent']):.2f}%"
-                        if isinstance(values.get("activity_annotation_percent"), int | float)
-                        else str(values.get("activity_annotation_count", "-"))
-                    ),
-                    str(values.get("total_w", "-")),
-                    status_markup(str(values.get("status", "unknown"))),
-                )
-        console.print(table)
-
-    sta = data.get("sta")
-    if sta:
-        console.print("\n[bold cyan]STA[/bold cyan]")
-        table = Table(box=None, pad_edge=False, header_style="bold cyan")
-        table.add_column("Corner")
-        table.add_column("Mode")
-        table.add_column("WNS", justify="right")
-        table.add_column("TNS", justify="right")
-        table.add_column("Viol.", justify="right")
-        table.add_column("Unconstr.", justify="right")
-        for corner, modes in sta.items():
-            for mode, values in modes.items():
-                wns = values.get("wns")
-                tns = values.get("tns")
-                wns_text = "-" if wns is None else f"[{timing_color(float(wns))}]{wns}[/]"
-                tns_text = "-" if tns is None else f"[{timing_color(float(tns))}]{tns}[/]"
-                table.add_row(
-                    corner,
-                    mode,
-                    wns_text,
-                    tns_text,
-                    str(values.get("reported_violating_paths", 0)),
-                    str(values.get("reported_unconstrained_paths", 0)),
-                )
-        console.print(table)
-
-    power = data.get("power_estimate")
-    if power:
-        console.print("\n[bold cyan]Power estimate[/bold cyan]")
-        table = Table(box=None, pad_edge=False, header_style="bold cyan")
-        table.add_column("Corner")
-        table.add_column("Total W", justify="right")
-        table.add_column("Internal W", justify="right")
-        table.add_column("Switching W", justify="right")
-        table.add_column("Leakage W", justify="right")
-        for corner, values in power.get("corners", {}).items():
-            table.add_row(
-                corner,
-                str(values.get("total_w", "-")),
-                str(values.get("internal_w", "-")),
-                str(values.get("switching_w", "-")),
-                str(values.get("leakage_w", "-")),
-            )
-        console.print(table)
-
+    console.print(f"\n[grey70]Detailed metrics:[/grey70] {path}")
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse the small metrics collector CLI."""
