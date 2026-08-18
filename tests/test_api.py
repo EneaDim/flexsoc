@@ -15,6 +15,7 @@ import flexsoc.backend.setup_signoff as setup_signoff_module
 import flexsoc.backend.setup_syn as setup_syn_module
 import flexsoc.backend.setup_pnr as setup_pnr_module
 import flexsoc.backend.post_sim as post_sim_module
+import flexsoc.backend.pnr_run as pnr_run_module
 import flexsoc.cli as cli_module
 import flexsoc.doctor as doctor_module
 from flexsoc import (
@@ -98,6 +99,24 @@ def _completed(
     stderr: str = "",
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(argv, returncode, stdout, stderr)
+
+
+def test_pnr_resolves_orfs_tools_from_active_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENROAD_EXE", "/usr/local/OpenROAD/bin/openroad")
+    monkeypatch.setenv("YOSYS_EXE", "/stale/yosys")
+    monkeypatch.setenv("KLAYOUT_CMD", "/stale/klayout")
+    resolved = {
+        "openroad": "/active/bin/openroad",
+        "yosys": "/active/bin/yosys",
+        "klayout": "/active/bin/klayout",
+    }
+    monkeypatch.setattr(pnr_run_module.shutil, "which", resolved.get)
+
+    env = pnr_run_module._orfs_env()
+
+    assert env["OPENROAD_EXE"] == resolved["openroad"]
+    assert env["YOSYS_EXE"] == resolved["yosys"]
+    assert env["KLAYOUT_CMD"] == resolved["klayout"]
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +618,7 @@ def test_post_syn_sdf_artifacts_use_pvt_scenario_names(tmp_path: Path) -> None:
         ).resolve()
 
 
-def test_post_pnr_sdf_enables_icarus_interconnect_only_for_routed_timing(
+def test_sdf_gls_enables_icarus_interconnect_for_all_timing_stages(
     tmp_path: Path,
 ) -> None:
     stage = tmp_path / "stage"
@@ -687,6 +706,36 @@ def test_post_pnr_gls_metrics_require_interconnect_delays(tmp_path: Path) -> Non
     gls = collect_post_syn_gls("demo", run, "sky130", "post_route")
     assert gls is not None and gls["status"] == "pass"
     assert gls["interconnect_delays"] == "enabled"
+
+
+def test_post_syn_gls_metrics_require_no_interconnect_delays(tmp_path: Path) -> None:
+    run = tmp_path / "runs/demo/dev"
+    sim = pdk_run_layout(run, pdk="sky130", top="demo").post_syn_sim_dir
+    sim.mkdir(parents=True)
+    wave = sim / "demo_tb_smoke_sv_tt.fst"
+    wave.write_text("wave\n", encoding="utf-8")
+    report = sim / "demo_post_syn_smoke_sv_tt.json"
+    common = {
+        "stage": "post_syn", "top": "demo", "pdk": "sky130", "test_name": "smoke",
+        "backend": "sv", "timing_mode": "typ", "scenario": "tt", "status": "pass",
+        "timing_model": "icarus-path-delay-only", "wave": str(wave),
+        "annotation": {"requested_marker": True, "errors": [], "warnings": []},
+    }
+    report.write_text(
+        json.dumps({**common, "interconnect_delays": "enabled"}) + "\n",
+        encoding="utf-8",
+    )
+    gls = collect_post_syn_gls("demo", run, "sky130")
+    assert gls is not None and gls["status"] == "fail"
+    assert "unexpectedly enables interconnect delays" in gls["failures"][0]["reason"]
+
+    report.write_text(
+        json.dumps({**common, "interconnect_delays": "none"}) + "\n",
+        encoding="utf-8",
+    )
+    gls = collect_post_syn_gls("demo", run, "sky130")
+    assert gls is not None and gls["status"] == "pass"
+    assert gls["interconnect_delays"] == "none"
 
 
 def test_successful_sdf_gls_cleanup_removes_legacy_mode_artifacts(tmp_path: Path) -> None:
@@ -1571,6 +1620,10 @@ def test_sdf_writer_uses_pinned_opensta_command_contract(tmp_path: Path) -> None
     assert "write_sdf -divider . -include_typ -no_timestamp -no_version $sdf_file" in script
     assert "proc flexsoc_complete_sdf_typ_header {path}" in script
     assert "flexsoc_complete_sdf_typ_header $sdf_file" in script
+    assert "proc flexsoc_strip_sdf_interconnect_cell {path}" in script
+    assert 'if {$stage eq "post_syn"} {' in script
+    assert "flexsoc_strip_sdf_interconnect_cell $sdf_file" in script
+    assert "sdf_interconnect=retained stage=post_route" in script
     assert "VOLTAGE" in script and "PROCESS" in script and "TEMPERATURE" in script
     assert "demo_tt.sdf" in script
     assert "units.rpt" not in script
@@ -2439,6 +2492,7 @@ def test_gls_closure_requires_one_passing_backend_per_test_mode(tmp_path: Path) 
         "scenario": "tt",
         "status": "pass",
         "timing_model": "icarus-path-delay-only",
+        "interconnect_delays": "none",
         "annotation": {"requested_marker": True, "errors": [], "warnings": []},
     }
     (sim / "demo_post_syn_smoke_sv_tt.json").write_text(

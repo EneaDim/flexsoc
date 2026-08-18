@@ -744,6 +744,7 @@ def _gls_report_reason(
     *,
     mode: str,
     wave_path: Path,
+    interconnect_expected: bool,
 ) -> str | None:
     """Return the first concrete reason one direct GLS result is not usable."""
 
@@ -766,11 +767,13 @@ def _gls_report_reason(
             return f"SDF annotation warning: {warnings[0]}"
         if report.get("timing_model") != "icarus-path-delay-only":
             return f"unexpected timing model={report.get('timing_model', 'missing')}"
-        if (
-            report.get("stage") == "post_pnr"
-            and report.get("interconnect_delays") != "enabled"
-        ):
-            return "post-PnR SDF interconnect delays are not enabled"
+        expected = "enabled" if interconnect_expected else "none"
+        if report.get("interconnect_delays") != expected:
+            return (
+                "SDF interconnect delays are not enabled"
+                if interconnect_expected
+                else "post-synthesis SDF unexpectedly enables interconnect delays"
+            )
     return None
 
 
@@ -810,6 +813,7 @@ def collect_post_syn_gls(
             report,
             mode=mode,
             wave_path=wave_path,
+            interconnect_expected=report_stage == "post_pnr",
         )
         record = {
             "stem": report_path.stem,
@@ -867,7 +871,11 @@ def collect_post_syn_gls(
         "timing_modes": modes,
         "scenarios": [_gls_scenario(mode) for mode in modes],
         "artifacts": relative(stage_dir, run_dir),
-        "interconnect_delays": "enabled" if report_stage == "post_pnr" else "not-applicable",
+        "interconnect_delays": (
+            ("enabled" if report_stage == "post_pnr" else "none")
+            if any(mode in {"min", "typ", "max"} for mode in modes)
+            else "not-applicable"
+        ),
         "by_backend": by_backend,
         "by_mode": by_mode,
         "by_scenario": by_scenario,

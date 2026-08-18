@@ -885,7 +885,9 @@ def _write_report(
             "disabled-unsupported-by-icarus" if timing.uses_sdf else "not-applicable"
         ),
         "interconnect_delays": (
-            "enabled" if stage == "post_pnr" and timing.uses_sdf else "disabled"
+            "enabled"
+            if stage == "post_pnr" and timing.uses_sdf
+            else ("none" if timing.uses_sdf else "not-applicable")
         ),
         "netlist": str(paths.netlist),
         "sdf": str(paths.sdf) if paths.sdf else None,

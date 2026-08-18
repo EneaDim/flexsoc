@@ -56,6 +56,7 @@ RUN set -eux; \
       command -v "$command_name"; \
     done; \
     if ! ./etc/Build.sh \
+      -cmake-build \
       -no-gui \
       -no-tests \
       -threads="$FLEXSOC_JOBS" \

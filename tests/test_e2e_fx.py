@@ -480,6 +480,7 @@ def _assert_post_syn_report(
         assert annotation.get("requested_marker") is True
         assert annotation.get("warnings") == []
         assert annotation.get("errors") == []
+        assert report.get("interconnect_delays") == "none"
     else:
         assert report.get("sdf") is None
         assert report.get("annotation") is None
@@ -687,6 +688,10 @@ def _assert_technology_closure(top: str, run: Path, pdk: str) -> None:
     assert (run / "signoff" / pdk / "sdf").is_dir()
     assert (run / "signoff" / pdk / "sta").is_dir()
     assert (run / "signoff" / pdk / "power").is_dir()
+    for corner in ("ss", "tt", "ff"):
+        sdf = run / "signoff" / pdk / "sdf" / corner / f"{top}_{corner}.sdf"
+        assert sdf.is_file() and sdf.stat().st_size > 0, f"missing post-synthesis SDF: {sdf}"
+        assert "(INTERCONNECT" not in sdf.read_text(encoding="utf-8", errors="replace")
     manifest_path = run / "meta" / pdk / "manifest.json"
     metrics_path = run / "meta" / pdk / "metrics.json"
     assert manifest_path.is_file()

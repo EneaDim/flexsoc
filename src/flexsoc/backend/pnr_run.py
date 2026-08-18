@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -49,6 +50,21 @@ def _final_artifacts(workdir: Path) -> tuple[tuple[str, Path], ...]:
     return tuple(found)
 
 
+def _orfs_env() -> dict[str, str]:
+    """Resolve ORFS tool executables from the active FlexSoC PATH."""
+
+    env = os.environ.copy()
+    for variable, executable in (
+        ("OPENROAD_EXE", "openroad"),
+        ("YOSYS_EXE", "yosys"),
+        ("KLAYOUT_CMD", "klayout"),
+    ):
+        env.pop(variable, None)
+        if resolved := shutil.which(executable):
+            env[variable] = resolved
+    return env
+
+
 def run(*, makefile: Path, config: Path, workdir: Path, log: Path) -> int:
     """Run the ORFS Makefile and return its exit status."""
 
@@ -67,10 +83,15 @@ def run(*, makefile: Path, config: Path, workdir: Path, log: Path) -> int:
     seen: set[str] = set()
     pending_finish = False
     command = ("make", f"--file={makefile}", "--no-print-dir", f"DESIGN_CONFIG={config}")
+    env = _orfs_env()
     with log.open("w", encoding="utf-8") as handle:
+        for variable in ("OPENROAD_EXE", "YOSYS_EXE", "KLAYOUT_CMD"):
+            if value := env.get(variable):
+                handle.write(f"[flexsoc] {variable}={value}\n")
         proc = subprocess.Popen(
             command,
             cwd=workdir,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
