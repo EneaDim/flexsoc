@@ -1,7 +1,7 @@
 # Root development Makefile
 #
-# Repository-level developer tasks only. Hardware flow execution stays in
-# src/flexsoc/backend/Makefile and is normally reached through the fx command.
+# Repository-level developer tasks only. Hardware flow execution lives in the Python backend and is normally reached
+# through the fx command; src/flexsoc/backend/Makefile is a compatibility shim.
 
 .DEFAULT_GOAL := help
 
@@ -45,7 +45,7 @@ sync: ## Install exactly the Python environment recorded in uv.lock
 	$(UV) sync --locked
 
 doctor: ## Check Python lock and local EDA tools
-	PYTHONPATH=src $(PYTHON) -m flexsoc.doctor
+	PYTHONPATH=src $(PYTHON) -m flexsoc doctor
 
 venv: sync ## Create or update the local uv virtualenv
 

@@ -2,22 +2,26 @@
 
 from __future__ import annotations
 
+import inspect
 import io
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-import flexsoc.backend.setup_eqy as setup_eqy_module
-import flexsoc.backend.setup_signoff as setup_signoff_module
-import flexsoc.backend.setup_syn as setup_syn_module
-import flexsoc.backend.setup_pnr as setup_pnr_module
-import flexsoc.backend.post_sim as post_sim_module
-import flexsoc.backend.pnr_run as pnr_run_module
+import flexsoc.api as api_module
+import flexsoc.backend.syn.eqy as setup_eqy_module
+import flexsoc.backend.signoff.sta as signoff_sta_module
+import flexsoc.backend.signoff.power as signoff_power_module
+import flexsoc.backend.signoff.fusion as signoff_fusion_module
+import flexsoc.backend.syn.syn as setup_syn_module
+import flexsoc.backend.impl.impl as setup_pnr_module
+import flexsoc.backend.signoff.gls as post_sim_module
 import flexsoc.cli as cli_module
-import flexsoc.doctor as doctor_module
+import flexsoc.backend.core.toolchain as doctor_module
 from flexsoc import (
     FlexSoC,
     FlexSoCCommand,
@@ -36,11 +40,13 @@ from flexsoc.api import (
     TECHNOLOGY_TARGETS,
     main as api_main,
 )
-from flexsoc.backend.manifest import collect_manifest
-from flexsoc.backend.metrics import (
+from flexsoc.backend.core.package import PackageFlow
+from flexsoc.backend.core.reporting import collect_manifest
+from flexsoc.backend.core.reporting import (
     collect_formal,
     collect_fusion_analysis,
     collect_metrics,
+    collect_physical_signoff,
     collect_post_syn_gls,
     collect_power_estimate,
     collect_sta,
@@ -48,31 +54,33 @@ from flexsoc.backend.metrics import (
     signoff_summary,
     status_word,
 )
-from flexsoc.backend.post_sim import _cocotb_wrapper, execute_all
-from flexsoc.backend.setup_cocotb import (
+from flexsoc.backend.signoff.gls import _cocotb_wrapper, execute_all
+from flexsoc.backend.dv.testbench import (
     CocotbConfig,
     render_gls_make_block,
     write_nclock_cocotb,
 )
-from flexsoc.backend.setup_signoff import (
+from flexsoc.backend.signoff.sta import (
     SIGNOFF_SCENARIOS,
     SDF_MODE_TO_CORNER,
     SignoffContext,
-    _annotate_power_summary,
     _run_sta,
     _timing_values,
-    _write_activity_table,
     _selection,
     generate_families,
-    render_fusion_analysis_tcl,
-    render_power_analysis_tcl,
-    render_power_estimate_tcl,
     render_sta_tcl,
     scenario_corner,
 )
-from flexsoc.backend.output import print_script, strip_ansi
-from flexsoc.clocking import ClockConfig, ClockDomain
-from flexsoc.run_layout import pdk_run_layout
+from flexsoc.backend.signoff.power import (
+    _annotate_power_summary,
+    _write_activity_table,
+    render_power_analysis_tcl,
+    render_power_estimate_tcl,
+)
+from flexsoc.backend.signoff.fusion import render_fusion_analysis_tcl
+from flexsoc.backend.core.execution import print_script, strip_ansi
+from flexsoc.backend.core import ClockConfig, ClockDomain
+from flexsoc.backend.core import pdk_run_layout
 from flexsoc.cli import app
 
 
@@ -111,9 +119,9 @@ def test_pnr_resolves_orfs_tools_from_active_path(monkeypatch: pytest.MonkeyPatc
         "yosys": "/active/bin/yosys",
         "klayout": "/active/bin/klayout",
     }
-    monkeypatch.setattr(pnr_run_module.shutil, "which", resolved.get)
+    monkeypatch.setattr(doctor_module.shutil, "which", resolved.get)
 
-    env = pnr_run_module._orfs_env()
+    env = doctor_module.orfs_environment()
 
     assert env["OPENROAD_EXE"] == resolved["openroad"]
     assert env["YOSYS_EXE"] == resolved["yosys"]
@@ -254,33 +262,29 @@ def test_pdk_switch_keeps_shared_run_artifacts_and_reselects_technology_paths(
         assert "ihp-sg13g2" in Path(ihp[key]).parts
 
 
-def test_commands_route_make_native_and_signoff_targets(tmp_path: Path) -> None:
+
+def test_commands_route_direct_backend_targets(tmp_path: Path) -> None:
     fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work", TOP="base")
 
-    lint, ast = fx.override(top="cordic").commands(
+    lint, ast_cmd = fx.override(top="cordic").commands(
         "lint-width", "slang_ast", RUN_ID="r1", UNUSED="ignored"
     )
-    assert [lint.target, ast.target] == ["lint_width", "slang_ast"]
-    assert lint.argv[:4] == ("make", "-f", str(ROOT / "src/flexsoc/backend/Makefile"), "lint_width")
-    assert "TOP=cordic" in lint.argv and "RUN_ID=r1" in lint.argv
-    assert not any(arg.startswith("UNUSED=") for arg in lint.argv)
+    assert [lint.target, ast_cmd.target] == ["lint_width", "slang_ast"]
+    assert lint.argv[:2] == ("fx", "lint_width")
+    assert "RUN_ID=r1" in lint.argv
+    assert not any("UNUSED=" in arg for arg in lint.argv)
+    assert "make" not in lint.argv
+    assert "flexsoc.backend.setup_" not in lint.shell_line()
 
-    for name, (action, stage) in NATIVE_TARGETS.items():
+    for name in (*NATIVE_TARGETS, *ACTIVITY_ANALYSIS_TARGETS):
         command = fx.command(name)
-        assert command.argv[:4] == (
-            sys.executable, "-m", "flexsoc.backend.post_sim", "--action"
-        )
-        assert action in command.argv and stage in command.argv
-
-    for name in ACTIVITY_ANALYSIS_TARGETS:
-        command = fx.command(name)
-        assert command.argv[:4] == (
-            "make", "-f", str(ROOT / "src/flexsoc/backend/Makefile"),
-            TARGET_ALIASES.get(name, name),
-        )
+        assert command.argv[:2] == ("fx", name)
+        assert "flexsoc.backend." not in command.shell_line()
 
 
-def test_ip_save_forwards_package_name_and_library_root(tmp_path: Path) -> None:
+
+
+def test_ip_save_preview_keeps_user_parameters_and_derives_artifacts_in_backend(tmp_path: Path) -> None:
     command = FlexSoC(
         project_root=tmp_path,
         workdir=tmp_path / "work",
@@ -294,9 +298,10 @@ def test_ip_save_forwards_package_name_and_library_root(tmp_path: Path) -> None:
     assert command.target == "ip_save"
     assert "IP_NAME=cordic_release" in command.argv
     assert f"IP_LIBRARY_ROOT={tmp_path / 'ip-library'}" in command.argv
-    assert any(arg.startswith("SIGNOFF_STA_DIR=") for arg in command.argv)
-    assert any(arg.startswith("SIGNOFF_SDF_DIR=") for arg in command.argv)
-    assert any(arg.startswith("SIGNOFF_POWER_DIR=") for arg in command.argv)
+    assert command.argv[:2] == ("fx", "ip_save")
+    assert not any("SIGNOFF_STA_DIR=" in arg for arg in command.argv)
+    assert "eqy_view" in inspect.signature(PackageFlow.save).parameters
+
 
 
 def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
@@ -309,6 +314,8 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     assert "regression" not in AUTO_SETUP_TARGETS
     assert AUTO_SETUP_TARGETS["setup_pnr"] == ("syn", "setup_signoff")
     assert AUTO_SETUP_TARGETS["pnr"] == ("setup_pnr",)
+    assert "physical_signoff" in TARGETS
+    assert "physical_signoff" in TECHNOLOGY_TARGETS
     assert AUTO_SETUP_TARGETS["sim_post_syn_all"] == ("sdf",)
     assert AUTO_SETUP_TARGETS["setup_formal_prove"] == ("setup_formal",)
     assert AUTO_SETUP_TARGETS["formal_bmc"] == ("setup_formal_prove",)
@@ -394,35 +401,23 @@ def test_dry_run_returns_commands_without_spawning(
     assert all(isinstance(command, FlexSoCCommand) for command in commands)
 
 
-def test_run_capture_returns_results_and_writes_log(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    def fake_run(argv: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        assert kwargs["cwd"] == tmp_path.resolve()
-        assert kwargs["capture_output"] is True
-        return _completed(argv, stdout="generated\n")
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+def test_run_capture_executes_direct_backend_and_writes_log(tmp_path: Path) -> None:
     result, = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work").run(
         "hjson", capture=True, TOP="demo", RUN_ID="api"
     )
 
     assert isinstance(result, FlexSoCResult)
-    assert result.ok and result.stdout == "generated\n"
-    assert result.log_path is not None
-    assert result.log_path.read_text(encoding="utf-8") == "generated\n"
+    assert result.ok
+    assert (tmp_path / "work/runs/demo/api/data/demo.hjson").is_file()
+    assert result.log_path is not None and result.log_path.is_file()
+    assert "make" not in result.command.argv
 
 
-def test_gate_and_power_logs_are_scoped_by_gls_case(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
+
+
+def test_gate_and_power_logs_are_scoped_by_gls_case(tmp_path: Path) -> None:
     pdk = _fake_pdk(tmp_path / "pdk")
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda argv, **kwargs: _completed(argv, stdout="quiet output\n"),
-    )
     fx = FlexSoC(
         project_root=tmp_path,
         workdir=tmp_path / "work",
@@ -431,52 +426,31 @@ def test_gate_and_power_logs_are_scoped_by_gls_case(
         TOP="demo",
     )
 
-    smoke, = fx.run(
-        "sim_post_syn",
-        TEST_NAME="smoke",
-        GLS_BACKEND="sv",
-        TIMING_MODE="typ",
-        auto_setup=False,
-    )
-    corners, = fx.run(
-        "sim_post_syn",
-        TEST_NAME="corners",
-        GLS_BACKEND="sv",
-        TIMING_MODE="typ",
-        auto_setup=False,
-    )
-    all_gls, = fx.run(
-        "sim_post_syn_all",
-        TEST_NAMES="all",
-        GLS_BACKEND="sv",
-        TIMING_MODES="all",
-        auto_setup=False,
-        capture=True,
-    )
-    power, = fx.run(
+    def log(target: str, **values: str) -> Path:
+        return fx._command_log_path(fx.command(target, **values))
+
+    assert log(
+        "sim_post_syn", TEST_NAME="smoke", GLS_BACKEND="sv", TIMING_MODE="typ"
+    ).name == "sim_post_syn_smoke_sv_tt.log"
+    assert log(
+        "sim_post_syn", TEST_NAME="corners", GLS_BACKEND="sv", TIMING_MODE="typ"
+    ).name == "sim_post_syn_corners_sv_tt.log"
+    assert log(
+        "sim_post_syn_all", TEST_NAMES="all", GLS_BACKEND="sv", TIMING_MODES="all"
+    ).name == "sim_post_syn_all.log"
+    assert log(
         "power_analysis",
         POWER_TEST_NAME="smoke",
         POWER_GLS_BACKEND="sv",
         POWER_TIMING_MODE="typ",
-        auto_setup=False,
-    )
-    power_all, = fx.run(
+    ).name == "power_analysis_smoke_sv_tt.log"
+    assert log(
         "power_analysis_all",
         POWER_TEST_NAMES="all",
         POWER_GLS_BACKENDS="all",
         POWER_TIMING_MODES="all",
-        auto_setup=False,
-    )
+    ).name == "power_analysis_all.log"
 
-    assert smoke.log_path is not None and smoke.log_path.name == "sim_post_syn_smoke_sv_tt.log"
-    assert corners.log_path is not None and corners.log_path.name == (
-        "sim_post_syn_corners_sv_tt.log"
-    )
-    assert all_gls.log_path is not None and all_gls.log_path.name == "sim_post_syn_all.log"
-    assert power.log_path is not None and power.log_path.name == (
-        "power_analysis_smoke_sv_tt.log"
-    )
-    assert power_all.log_path is not None and power_all.log_path.name == "power_analysis_all.log"
 
 
 
@@ -506,7 +480,7 @@ def test_all_target_log_names_omit_default_all_selectors(tmp_path: Path) -> None
 def test_terminal_rendering_uses_one_semantic_palette() -> None:
     from io import StringIO
 
-    from flexsoc.backend.output import (
+    from flexsoc.backend.core.execution import (
         print_label,
         print_live_line,
         print_target_result,
@@ -854,14 +828,11 @@ def test_sim_post_syn_all_continues_after_one_failed_case(
     assert summary["total"] == 2
 
 
+
 def test_run_check_and_nonchecking_failure_modes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda argv, **kwargs: _completed(argv, returncode=7),
-    )
+    monkeypatch.setattr(api_module._TargetRouter, "execute", lambda self, target: 7)
     fx = FlexSoC(project_root=tmp_path)
 
     with pytest.raises(RuntimeError, match="exit code 7"):
@@ -871,18 +842,19 @@ def test_run_check_and_nonchecking_failure_modes(
     assert result.returncode == 7 and not result.ok
 
 
-def test_live_run_prints_only_log_block_and_keeps_plain_log(
+
+
+def test_live_run_streams_direct_backend_and_keeps_plain_log(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    class FakeProcess:
-        stdout = iter(("generated line\n", "\033[38;5;208m[script]\033[0m file.tcl\n"))
+    def execute(self, target: str) -> int:
+        print("generated line")
+        print("\033[38;5;208m[script]\033[0m file.tcl")
+        return 0
 
-        def wait(self) -> int:
-            return 0
-
-    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    monkeypatch.setattr(api_module._TargetRouter, "execute", execute)
     result, = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work").run(
         "hjson", live=True, TOP="demo"
     )
@@ -898,22 +870,20 @@ def test_live_run_prints_only_log_block_and_keeps_plain_log(
     )
 
 
+
+
 def test_sim_post_syn_all_prints_uniform_header_artifacts_and_done(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    class FakeProcess:
-        stdout = iter((
-            "[sim_post_syn_all] 1/1 START test=smoke backend=sv timing=typ\n",
-            "[report] smoke/sv/typ /tmp/smoke.json\n",
-            "[report] machine_summary=/tmp/summary_sv.json\n",
-        ))
+    def execute(self, target: str) -> int:
+        print("[sim_post_syn_all] 1/1 START test=smoke backend=sv timing=typ")
+        print("[report] smoke/sv/typ /tmp/smoke.json")
+        print("[report] machine_summary=/tmp/summary_sv.json")
+        return 0
 
-        def wait(self) -> int:
-            return 0
-
-    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    monkeypatch.setattr(api_module._TargetRouter, "execute", execute)
     pdk = _fake_pdk(tmp_path / "pdk")
     result, = FlexSoC(
         project_root=tmp_path,
@@ -942,6 +912,8 @@ def test_sim_post_syn_all_prints_uniform_header_artifacts_and_done(
 
 
 
+
+
 def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -949,22 +921,16 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
 ) -> None:
     seen_env: dict[str, str] = {}
 
-    class FakeProcess:
-        stdout = iter((
-            "[fusion_analysis] run 1/6 START workload=smoke_sv_tt corner=tt mode=setup\n",
-            "[script] /tmp/fusion_analysis.tcl · corner=tt · mode=setup\n",
-            "[fusion_analysis] run 1/6 DISCOVERY PASS paths=20 hotspots=18\n",
-            "[report] tt/setup /tmp/fusion.rpt\n",
-        ))
+    def execute(self, target: str) -> int:
+        seen_env["FLEXSOC_LIVE"] = os.environ["FLEXSOC_LIVE"]
+        seen_env["PYTHONUNBUFFERED"] = os.environ["PYTHONUNBUFFERED"]
+        print("[fusion_analysis] run 1/6 START workload=smoke_sv_tt corner=tt mode=setup")
+        print("[script] /tmp/fusion_analysis.tcl · corner=tt · mode=setup")
+        print("[fusion_analysis] run 1/6 DISCOVERY PASS paths=20 hotspots=18")
+        print("[report] tt/setup /tmp/fusion.rpt")
+        return 0
 
-        def wait(self) -> int:
-            return 0
-
-    def fake_popen(*args: object, **kwargs: object) -> FakeProcess:
-        seen_env.update(kwargs["env"])
-        return FakeProcess()
-
-    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(api_module._TargetRouter, "execute", execute)
     pdk = _fake_pdk(tmp_path / "pdk")
     result, = FlexSoC(
         project_root=tmp_path,
@@ -992,11 +958,8 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
     assert "[report] tt/setup /tmp/fusion.rpt" in output
     assert "run 1/6 START" not in output
     assert "DISCOVERY PASS" not in output
-    assert "→ fusion_analysis: Correlate timing and power in one aligned GLS scenario" in output
-    assert "[technology]" not in output
     assert "✓" in output and "fusion_analysis" in output and "done" in output
-    assert seen_env["FLEXSOC_LIVE"] == "0"
-    assert seen_env["PYTHONUNBUFFERED"] == "1"
+    assert seen_env == {"FLEXSOC_LIVE": "0", "PYTHONUNBUFFERED": "1"}
     assert result.log_path is not None
     assert result.log_path.read_text(encoding="utf-8") == (
         "[fusion_analysis] run 1/6 START workload=smoke_sv_tt corner=tt mode=setup\n"
@@ -1004,6 +967,7 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
         "[fusion_analysis] run 1/6 DISCOVERY PASS paths=20 hotspots=18\n"
         "[report] tt/setup /tmp/fusion.rpt\n"
     )
+
 
 
 def test_technology_execution_requires_an_activated_pdk(tmp_path: Path) -> None:
@@ -1051,37 +1015,80 @@ def test_eqy_bind_uses_sky130_liberty_fallback_without_adapter(
 
 
 
-def test_ip_save_optional_pnr_and_e2e_activity_order() -> None:
-    """Saving must tolerate absent PnR, and every GLS workload runs power then fusion."""
 
-    makefile = (ROOT / "src/flexsoc/backend/Makefile").read_text(encoding="utf-8")
+def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
+    """Packaging stays atomic/optional-PnR and GLS workloads keep power→fusion order."""
+    top, pdk = "demo", "sky130"
+    run = tmp_path / "run"
+    synth = run / "syn" / pdk
+    signoff = run / "signoff" / pdk
+    eqy = signoff / "equivalence" / "rtl_vs_syn"
+    synth.mkdir(parents=True)
+    eqy.mkdir(parents=True)
+    (synth / f"{top}_synth.v").write_text("module demo; endmodule\n", encoding="utf-8")
+    (synth / f"{top}_generic.il").write_text("checkpoint\n", encoding="utf-8")
+    sdc = signoff / f"{top}.sdc"
+    sdc.write_text("create_clock -period 10 clk_i\n", encoding="utf-8")
+    (signoff / "sta").mkdir()
+    (signoff / "sta/sta.tcl").write_text("# sta\n", encoding="utf-8")
+    config = eqy / f"{top}_rtl_vs_syn.eqy"
+    view = eqy / f"{top}_eqy_view.sv"
+    config.write_text("[gold]\n", encoding="utf-8")
+    view.write_text("module demo; endmodule\n", encoding="utf-8")
+    flist = run / "rtl.f"
+    flist.write_text("", encoding="utf-8")
+    liberty = tmp_path / "cells.lib"
+    liberty.write_text("library(cells) {}\n", encoding="utf-8")
+    model = tmp_path / "cells.v"
+    model.write_text("module cell; endmodule\n", encoding="utf-8")
+    gate = eqy / "sky130_clock_gates_formal.v"
+    gate.write_text("// gates\n", encoding="utf-8")
+    library = tmp_path / "library"
+
+    flow = PackageFlow(tmp_path, {})
+    saved = flow.save(
+        ip_name=top,
+        top=top,
+        pdk=pdk,
+        library_root=library,
+        synth_dir=synth,
+        signoff_dir=signoff,
+        sdc_file=sdc,
+        eqy_config=config,
+        eqy_view=view,
+        filelists=(flist,),
+        netlist=synth / f"{top}_synth.v",
+        liberty=liberty,
+        cell_models=(model,),
+        clock_gate_model=gate,
+    )
+    assert not (saved / "impl" / pdk).exists()
+    assert not (saved / "syn" / pdk / f"{top}_generic.il").exists()
+
+    implementation = run / "impl" / pdk
+    implementation.mkdir(parents=True)
+    (implementation / "config.mk").write_text("DESIGN_NAME := demo\n", encoding="utf-8")
+    flow.save(
+        ip_name=top,
+        top=top,
+        pdk=pdk,
+        library_root=library,
+        synth_dir=synth,
+        signoff_dir=signoff,
+        sdc_file=sdc,
+        eqy_config=config,
+        eqy_view=view,
+        filelists=(flist,),
+        netlist=synth / f"{top}_synth.v",
+        liberty=liberty,
+        cell_models=(model,),
+        clock_gate_model=gate,
+        impl_dir=implementation,
+        force=True,
+    )
+    assert (saved / "impl" / pdk / "config.mk").is_file()
+
     e2e = (ROOT / "tests/test_e2e_fx.py").read_text(encoding="utf-8")
-    assert "impl_status=not_available" in makefile
-    assert "impl_status=preserved" in makefile
-    assert 'rm -rf "$$staged/impl/$$pdk"; cp -a "$(ORSDIR)"' in makefile
-    assert '"$$staged/syn/$$pdk" "$$staged/impl/$$pdk"' not in makefile
-    assert "impl=$$impl_status" in makefile
-    assert "[ip_load]" in makefile and "syn=$$(list_branches" in makefile
-    assert "impl=$$(list_branches" in makefile and "eqy=$$(list_eqy" in makefile
-    assert 'for checkpoint in generic dffmap abc clean' in makefile
-    assert '$(TOP)_$${checkpoint}.il' in makefile
-    assert 'rm -rf "$$staged/syn/$$pdk" "$$staged/signoff/$$pdk"' in makefile
-    assert 'ip_save would overwrite existing package content' in makefile
-    assert 'Hint: rerun with --force' in makefile
-    assert 'No package content was modified.' in makefile
-    assert 'if [ -d "$(ORSDIR)" ]; then add_conflict "impl/$$pdk"; fi' in makefile
-    assert 'rm -rf "$$staged/meta/$$pdk"' in makefile
-    assert 'cp -p "$(MANIFEST_JSON)" "$$staged/meta/$$pdk/manifest.json"' in makefile
-    assert 'cp -p "$(METRICS_JSON)" "$$staged/meta/$$pdk/metrics.json"' in makefile
-    assert 'flexsoc.backend.metrics --show "$(METRICS_JSON)" > "$$staged/meta/$$pdk/check.rpt"' in makefile
-    assert '"$$staged/dv/functional/sim/post_syn/$$pdk"' in makefile
-    assert '"$(POST_SYN_SIMDIR)"/*.json' in makefile
-    assert "-name '*.rpt' -o -name '*.json' -o -name '*.sdf'" in makefile
-    assert "! -name '.*'" in makefile
-    assert '"$(COVERAGEDIR)/summary.json"' in makefile
-    assert "-name '__pycache__'" in makefile
-    assert "-name '*.pyc'" in makefile
-    assert "meta=$$meta_status" in makefile
     assert 'for target in ("power_analysis", "fusion_analysis")' in e2e
     assert e2e.count("_run_power_and_fusion(") == 71
     assert "_assert_saved_multitech_layout(saved_library, top)" in e2e
@@ -1089,9 +1096,9 @@ def test_ip_save_optional_pnr_and_e2e_activity_order() -> None:
     assert "E2E ip_save must not write repository IPs" in e2e
     assert e2e.count("IP_LIBRARY_ROOT={saved_library_arg}") == e2e.count("fx ip_save")
     assert e2e.count("fx ip_save --force") == e2e.count("fx ip_save")
-    assert '{".tcl", ".sdc", ".rpt", ".json", ".sdf"}' in e2e
     assert "fx power_analysis --no-setup" not in e2e
     assert "fx fusion_analysis --no-setup" not in e2e
+
 
 
 def test_uart_eqy_flow_is_consistent_across_pdks() -> None:
@@ -1256,6 +1263,7 @@ def test_cli_target_info_dry_run_and_script_output(
     assert " setup_signoff " in script
 
 
+
 def test_cli_auto_setup_and_no_setup_dry_run(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
@@ -1263,19 +1271,20 @@ def test_cli_auto_setup_and_no_setup_dry_run(
 
     assert app(["syn", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert [line.split()[3] for line in lines] == ["setup_syn", "syn"]
+    assert [line.split()[1] for line in lines] == ["setup_syn", "syn"]
 
     assert app(["syn", "--no-setup", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert len(lines) == 1 and " syn " in lines[0]
+    assert len(lines) == 1 and lines[0].split()[1] == "syn"
 
     assert app(["regression", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert len(lines) == 1 and " regression " in lines[0]
+    assert len(lines) == 1 and lines[0].split()[1] == "regression"
 
     assert app(["regression", "--no-setup", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert len(lines) == 1 and " regression " in lines[0]
+    assert len(lines) == 1 and lines[0].split()[1] == "regression"
+
 
 
 def test_cli_tool_and_dependency_options_are_forwarded(
@@ -1619,7 +1628,7 @@ def test_failed_opensta_keeps_details_in_log(
 
 
 def test_sdf_writer_uses_pinned_opensta_command_contract(tmp_path: Path) -> None:
-    from flexsoc.backend.setup_signoff import render_sdf_tcl
+    from flexsoc.backend.signoff.sta import render_sdf_tcl
 
     script = render_sdf_tcl(_context(tmp_path, analysis="sdf", mode=""))
     assert "write_sdf -divider . -include_typ -no_timestamp -no_version $sdf_file" in script
@@ -1716,13 +1725,13 @@ def test_activity_power_reads_trace_into_one_primary_report(tmp_path: Path) -> N
     assert "highest_power_instances.json" not in script
 
 def test_compact_activity_percent_parser() -> None:
-    assert setup_signoff_module._activity_percent("annotated_percent=99.75%\n") == 99.75
-    assert setup_signoff_module._activity_percent("Unannotated pins: none\n") is None
+    assert signoff_power_module._activity_percent("annotated_percent=99.75%\n") == 99.75
+    assert signoff_power_module._activity_percent("Unannotated pins: none\n") is None
 
 
 def test_opensta_signal_returncode_is_actionable() -> None:
-    assert setup_signoff_module._returncode_text(-11) == "signal 11 (SIGSEGV)"
-    assert setup_signoff_module._returncode_text(2) == "exit 2"
+    assert signoff_sta_module._returncode_text(-11) == "signal 11 (SIGSEGV)"
+    assert signoff_sta_module._returncode_text(2) == "exit 2"
 
 
 def test_fusion_discovers_worst_met_or_violated_paths_with_public_reports(tmp_path: Path) -> None:
@@ -1803,7 +1812,7 @@ Path Type: max
  0.250 data required time
  0.061 slack (MET)
 """
-    paths = setup_signoff_module._timing_path_blocks(report)
+    paths = signoff_fusion_module._timing_path_blocks(report)
 
     assert len(paths) == 1
     assert paths[0]["status"] == "met"
@@ -1835,7 +1844,7 @@ def test_fusion_normalizes_opensta_instance_power_json(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert setup_signoff_module._power_instance_rows(source) == [
+    assert signoff_power_module._power_instance_rows(source) == [
         {
             "instance": "u1",
             "internal": 1.0,
@@ -1859,7 +1868,7 @@ u_top/u2                      4.000000e-03   5.000000e-04   2.000000e-05   4.520
         encoding="utf-8",
     )
 
-    rows = setup_signoff_module._power_instance_rows(source)
+    rows = signoff_power_module._power_instance_rows(source)
     assert rows[0] == {
         "instance": "u_top/u1",
         "internal": 1.0,
@@ -1883,7 +1892,7 @@ def test_fusion_normalizes_opensta_instance_power_name_at_end(tmp_path: Path) ->
         encoding="utf-8",
     )
 
-    rows = setup_signoff_module._power_instance_rows(source)
+    rows = signoff_power_module._power_instance_rows(source)
     assert rows == [
         {
             "instance": "u_top/u1",
@@ -1906,7 +1915,7 @@ def test_fusion_normalizes_opensta_instance_power_with_cell_column(tmp_path: Pat
         encoding="utf-8",
     )
 
-    rows = setup_signoff_module._power_instance_rows(source)
+    rows = signoff_power_module._power_instance_rows(source)
     assert [row["instance"] for row in rows] == ["u_top/u1", "u_top/u2"]
     assert rows[0]["total"] == pytest.approx(3.1)
     assert rows[1]["leakage"] == pytest.approx(2.0e-5)
@@ -1928,7 +1937,7 @@ Total 4.0e-3 5.0e-4 2.0e-5 4.52e-3
         encoding="utf-8",
     )
 
-    rows = setup_signoff_module._power_instance_rows(source)
+    rows = signoff_power_module._power_instance_rows(source)
     assert [row["instance"] for row in rows] == ["u_top/u1", "u_top/u2"]
     assert rows[0]["dynamic"] == pytest.approx(3.0)
     assert rows[1]["total"] == pytest.approx(4.52e-3)
@@ -1936,7 +1945,7 @@ Total 4.0e-3 5.0e-4 2.0e-5 4.52e-3
 
 def test_fusion_detail_pass_uses_public_power_and_timing_commands(tmp_path: Path) -> None:
     ctx = _context(tmp_path, analysis="fusion_analysis")
-    script, marker = setup_signoff_module._fusion_detail_tcl(
+    script, marker = signoff_fusion_module._fusion_detail_tcl(
         ctx,
         ("u1", "array_reg[3]"),
         ("u1",),
@@ -1990,7 +1999,7 @@ def test_fusion_report_contains_path_gate_power_and_hotspot_reverse_lookup(tmp_p
         }
     }
     hotspot = [{"instance": "u1", **power["u1"]}]
-    setup_signoff_module._append_fusion_tables(
+    signoff_fusion_module._append_fusion_tables(
         report,
         paths,
         power,
@@ -2066,8 +2075,8 @@ Path Type: max
             )
         return 0
 
-    monkeypatch.setattr(setup_signoff_module, "_run_sta", fake_run)
-    result = setup_signoff_module._enrich_fusion_report(
+    monkeypatch.setattr(signoff_fusion_module, "_run_sta", fake_run)
+    result = signoff_fusion_module._enrich_fusion_report(
         tmp_path,
         {"STA": "sta"},
         ctx,
@@ -2120,10 +2129,10 @@ def test_activity_source_requires_aligned_sdf_corner(
         + "\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(setup_signoff_module, "_post_syn_report", lambda *args, **kwargs: report)
+    monkeypatch.setattr(signoff_power_module, "_post_syn_report", lambda *args, **kwargs: report)
 
     with pytest.raises(ValueError, match="TIMING_MODE=typ requires SDF corner tt"):
-        setup_signoff_module._qualified_spec(
+        signoff_power_module._qualified_spec(
             tmp_path,
             {"TOP": "demo", "PDK": "sky130"},
             test="smoke",
@@ -2160,7 +2169,7 @@ def test_fusion_table_is_compact_and_points_to_primary_reports(tmp_path: Path) -
 def test_activity_workload_uses_corner_name_and_flat_report_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    spec = setup_signoff_module.ActivitySpec(
+    spec = signoff_power_module.ActivitySpec(
         top="demo", pdk="sky130", test="smoke", backend="sv", mode="max",
         report=tmp_path / "gls.json", wave=tmp_path / "wave.vcd",
     )
@@ -2191,13 +2200,13 @@ def test_activity_workload_uses_corner_name_and_flat_report_layout(
     legacy.mkdir(parents=True)
     (legacy / "power.rpt").write_text("stale\n", encoding="utf-8")
 
-    monkeypatch.setattr(setup_signoff_module, "layout_from_values", lambda *args: Layout())
-    monkeypatch.setattr(setup_signoff_module, "_liberties", lambda values: liberties)
+    monkeypatch.setattr(signoff_power_module, "layout_from_values", lambda *args: Layout())
+    monkeypatch.setattr(signoff_power_module, "_liberties", lambda values: liberties)
     monkeypatch.setattr(
-        setup_signoff_module, "_activity_vcd", lambda *args: (spec.wave, None, "direct-vcd")
+        signoff_power_module, "_activity_vcd", lambda *args: (spec.wave, None, "direct-vcd")
     )
     monkeypatch.setattr(
-        setup_signoff_module, "_resolve_vcd_scope", lambda *args, **kwargs: ("tb/dut", ("tb/dut",))
+        signoff_power_module, "_resolve_vcd_scope", lambda *args, **kwargs: ("tb/dut", ("tb/dut",))
     )
 
     def fake_context(project_root: Path, values: object, **kwargs: object) -> SignoffContext:
@@ -2224,10 +2233,10 @@ def test_activity_workload_uses_corner_name_and_flat_report_layout(
         log.write_text("complete\n", encoding="utf-8")
         return 0
 
-    monkeypatch.setattr(setup_signoff_module, "_base_context", fake_context)
-    monkeypatch.setattr(setup_signoff_module, "_execute_script", fake_execute)
+    monkeypatch.setattr(signoff_power_module, "_base_context", fake_context)
+    monkeypatch.setattr(signoff_power_module, "_execute_script", fake_execute)
 
-    result = setup_signoff_module.analyze_activity_spec(
+    result = signoff_power_module.analyze_activity_spec(
         "power_analysis", tmp_path, {"SIGNOFF_CORNERS": "ss tt ff"}, spec
     )
     root = Layout.power_dir / "analysis/smoke_sv_ss"
@@ -2253,7 +2262,7 @@ def test_fusion_all_prints_workload_and_corner_progress(
     )
     for path, content in fixtures:
         path.write_text(content, encoding="utf-8")
-    spec = setup_signoff_module.ActivitySpec(
+    spec = signoff_power_module.ActivitySpec(
         top="demo",
         pdk="sky130",
         test="smoke",
@@ -2277,19 +2286,19 @@ def test_fusion_all_prints_workload_and_corner_progress(
             assert stage == "post_syn"
             return tmp_path / "logs"
 
-    monkeypatch.setattr(setup_signoff_module, "discover_specs", lambda *args: [spec])
-    monkeypatch.setattr(setup_signoff_module, "layout_from_values", lambda *args: Layout())
+    monkeypatch.setattr(signoff_power_module, "discover_specs", lambda *args: [spec])
+    monkeypatch.setattr(signoff_power_module, "layout_from_values", lambda *args: Layout())
     monkeypatch.setattr(
-        setup_signoff_module,
+        signoff_power_module,
         "_activity_vcd",
         lambda *args: (wave, None, "direct-vcd"),
     )
     monkeypatch.setattr(
-        setup_signoff_module,
+        signoff_power_module,
         "_resolve_vcd_scope",
         lambda *args, **kwargs: ("demo_tb/u_demo", ("demo_tb/u_demo",)),
     )
-    monkeypatch.setattr(setup_signoff_module, "_liberties", lambda values: liberties)
+    monkeypatch.setattr(signoff_power_module, "_liberties", lambda values: liberties)
 
     def fake_context(
         project_root: Path,
@@ -2373,11 +2382,11 @@ def test_fusion_all_prints_workload_and_corner_progress(
             "power_hotspot_count": 3,
         }
 
-    monkeypatch.setattr(setup_signoff_module, "_base_context", fake_context)
-    monkeypatch.setattr(setup_signoff_module, "_execute_script", fake_execute)
-    monkeypatch.setattr(setup_signoff_module, "_enrich_fusion_report", fake_enrich)
+    monkeypatch.setattr(signoff_power_module, "_base_context", fake_context)
+    monkeypatch.setattr(signoff_power_module, "_execute_script", fake_execute)
+    monkeypatch.setattr(signoff_power_module, "_enrich_fusion_report", fake_enrich)
 
-    assert setup_signoff_module.execute_activity(
+    assert signoff_power_module.execute_activity(
         "fusion_analysis",
         "all",
         tmp_path,
@@ -2416,7 +2425,7 @@ def test_fusion_all_prints_workload_and_corner_progress(
     assert (fusion_root / "hold/fusion.rpt").is_file()
     assert not (fusion_root / "tt").exists()
 
-    assert setup_signoff_module.execute_activity(
+    assert signoff_power_module.execute_activity(
         "fusion_analysis",
         "single",
         tmp_path,
@@ -2441,7 +2450,7 @@ def test_activity_all_uses_backends_as_alternative_sources(
     calls: list[str] = []
 
     monkeypatch.setattr(
-        setup_signoff_module,
+        signoff_power_module,
         "_available_gls",
         lambda *args: (("smoke", "sv", "typ"), ("smoke", "cocotb", "typ")),
     )
@@ -2453,18 +2462,18 @@ def test_activity_all_uses_backends_as_alternative_sources(
         test: str,
         backend: str,
         mode: str,
-    ) -> setup_signoff_module.ActivitySpec:
+    ) -> signoff_power_module.ActivitySpec:
         del project_root, values
         calls.append(backend)
         if backend == "cocotb":
             raise ValueError("waveform missing or empty")
-        return setup_signoff_module.ActivitySpec(
+        return signoff_power_module.ActivitySpec(
             top="demo", pdk="sky130", test=test, backend=backend, mode=mode,
             report=tmp_path / "sv.json", wave=tmp_path / "sv.vcd",
         )
 
-    monkeypatch.setattr(setup_signoff_module, "_qualified_spec", fake_qualified)
-    specs = setup_signoff_module.discover_specs(
+    monkeypatch.setattr(signoff_power_module, "_qualified_spec", fake_qualified)
+    specs = signoff_power_module.discover_specs(
         "all",
         {
             "POWER_TEST_NAMES": "smoke",
@@ -2530,7 +2539,7 @@ def test_gls_closure_requires_one_passing_backend_per_test_mode(tmp_path: Path) 
 def test_activity_analysis_rejects_incoherent_corner_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    spec = setup_signoff_module.ActivitySpec(
+    spec = signoff_power_module.ActivitySpec(
         top="demo", pdk="sky130", test="smoke", backend="sv", mode="typ",
         report=tmp_path / "gls.json", wave=tmp_path / "wave.vcd",
     )
@@ -2539,16 +2548,16 @@ def test_activity_analysis_rejects_incoherent_corner_selection(
     liberties = {corner: tmp_path / f"{corner}.lib" for corner in ("ss", "tt", "ff")}
     for corner, liberty in liberties.items():
         liberty.write_text(f"library({corner}) {{}}\n", encoding="utf-8")
-    monkeypatch.setattr(setup_signoff_module, "_liberties", lambda values: liberties)
+    monkeypatch.setattr(signoff_power_module, "_liberties", lambda values: liberties)
     monkeypatch.setattr(
-        setup_signoff_module, "_activity_vcd", lambda *args: (spec.wave, None, "direct-vcd")
+        signoff_power_module, "_activity_vcd", lambda *args: (spec.wave, None, "direct-vcd")
     )
     monkeypatch.setattr(
-        setup_signoff_module, "_resolve_vcd_scope", lambda *args, **kwargs: ("tb/dut", ("tb/dut",))
+        signoff_power_module, "_resolve_vcd_scope", lambda *args, **kwargs: ("tb/dut", ("tb/dut",))
     )
 
     with pytest.raises(ValueError, match="belongs to sign-off scenario 'tt'"):
-        setup_signoff_module.analyze_activity_spec(
+        signoff_power_module.analyze_activity_spec(
             "power_analysis", tmp_path, {"SIGNOFF_CORNERS": "ss"}, spec
         )
 
@@ -2573,9 +2582,9 @@ def test_signoff_execution_rejects_truncated_zero_exit_and_stale_reports(
         log.write_text("OpenSTA stopped without a Tcl error code\n", encoding="utf-8")
         return 0
 
-    monkeypatch.setattr(setup_signoff_module, "_run_sta", fake_run)
+    monkeypatch.setattr(signoff_sta_module, "_run_sta", fake_run)
     with pytest.raises(ValueError, match="completion marker"):
-        setup_signoff_module._execute_script(
+        signoff_sta_module._execute_script(
             tmp_path,
             {"STA": "sta"},
             analysis="power_analysis",
@@ -2588,7 +2597,7 @@ def test_signoff_execution_rejects_truncated_zero_exit_and_stale_reports(
 
 def test_signoff_render_appends_deterministic_completion_marker(tmp_path: Path) -> None:
     ctx = _context(tmp_path, analysis="fusion_analysis", mode="hold")
-    script = setup_signoff_module._render("fusion_analysis", ctx)
+    script = signoff_sta_module._render("fusion_analysis", ctx)
 
     assert script.rstrip().endswith(
         "puts {FLEXSOC_SIGNOFF_COMPLETE analysis=fusion_analysis corner=tt "
@@ -2610,22 +2619,61 @@ def test_pdk_first_layout_for_all_technology_artifacts(tmp_path: Path) -> None:
 
 
 
+
+
+def test_backend_v8_tree_has_no_legacy_modules() -> None:
+    backend = ROOT / "src/flexsoc/backend"
+    expected_packages = {"core", "design", "dv", "syn", "signoff", "impl"}
+    assert expected_packages == {
+        path.name for path in backend.iterdir()
+        if path.is_dir() and not path.name.startswith("__")
+    } - {"__pycache__"}
+
+    for package in expected_packages:
+        assert (backend / package / "__init__.py").is_file()
+
+    legacy = {
+        "cdc_rdc.py", "common.py", "coverage_report.py", "driver_gen.py",
+        "eqy_debug.py", "hjson_gen.py", "manifest.py", "metrics.py",
+        "output.py", "physical_signoff.py", "pnr_run.py", "post_sim.py",
+        "rtl_stub_gen.py", "setup_cocotb.py", "setup_eqy.py",
+        "setup_formal.py", "setup_fsoc.py", "setup_model.py",
+        "setup_model_regmap.py", "setup_pnr.py", "setup_sdc.py",
+        "setup_signoff.py", "setup_syn.py", "setup_tb.py", "slang_tools.py",
+        "soc_cfg.py", "soc_gen.py", "soc_start.py", "sw_soc_gen.py",
+        "top_from_core.py", "xbar_init.py",
+    }
+    assert not any((backend / name).exists() for name in legacy)
+    for name in ("clocking.py", "pdk.py", "run_layout.py", "doctor.py"):
+        assert not (ROOT / "src/flexsoc" / name).exists()
+
+    source = "\n".join(
+        path.read_text(encoding="utf-8", errors="replace")
+        for path in (ROOT / "src/flexsoc").rglob("*.py")
+    )
+    assert "flexsoc.backend.setup_" not in source
+    assert "python -m flexsoc.backend." not in source
+    assert len(TARGETS) == 191
+
+
 def test_synthesis_uses_abc_constraints_not_sdc() -> None:
     makefile = (ROOT / "src/flexsoc/backend/Makefile").read_text(encoding="utf-8")
-    setup_syn = (ROOT / "src/flexsoc/backend/setup_syn.py").read_text(encoding="utf-8")
+    synthesis = (ROOT / "src/flexsoc/backend/syn/syn.py").read_text(encoding="utf-8")
 
-    setup_syn_recipe = makefile.split("setup_syn:", 1)[1].split("\nsyn:", 1)[0]
-    assert "setup_signoff" not in setup_syn_recipe
-    assert "SIGNOFF_SDC_FILE" not in setup_syn_recipe
-    assert "-sdcdir" not in setup_syn_recipe
-    assert "abc.constr" in setup_syn
-    assert "-constr" in setup_syn
+    assert "setup_syn:" not in makefile
+    assert "python -m flexsoc.backend" not in makefile
+    assert "compatibility Make shim" in makefile
+    assert "read_sdc" not in synthesis
+    assert "SIGNOFF_SDC_FILE" not in synthesis
+    assert "abc.constr" in synthesis
+    assert "-constr" in synthesis
+
 
 
 def test_eqy_and_opensta_modules_are_separated() -> None:
     root = Path(__file__).resolve().parents[1] / "src/flexsoc/backend"
-    signoff = (root / "setup_signoff.py").read_text(encoding="utf-8")
-    eqy = (root / "setup_eqy.py").read_text(encoding="utf-8")
+    signoff = (root / "signoff/sta.py").read_text(encoding="utf-8")
+    eqy = (root / "syn/eqy.py").read_text(encoding="utf-8")
 
     assert "eqy-export" not in signoff
     assert "generate_equivalence_config" not in signoff
@@ -2893,8 +2941,8 @@ def test_signoff_selector_rejects_unknown_and_duplicate_values() -> None:
 def test_ci_toolchain_contract() -> None:
     """Keep the locked container and repository CI on one tool/ORFS contract."""
 
-    lock = (ROOT / "src/flexsoc/backend/toolchain.lock").read_text(encoding="utf-8")
-    deps = (ROOT / "src/flexsoc/backend/deps.sh").read_text(encoding="utf-8")
+    lock = (ROOT / "src/flexsoc/backend/core/toolchain.lock").read_text(encoding="utf-8")
+    deps = (ROOT / "src/flexsoc/backend/core/deps.sh").read_text(encoding="utf-8")
     run_ci = (ROOT / "docker/scripts/run-ci.sh").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/toolchain-image.yml").read_text(encoding="utf-8")
     assert "IVERILOG_VERSION=13.0" in lock and "IVERILOG_MIN_VERSION=13.0" in lock
@@ -2902,3 +2950,50 @@ def test_ci_toolchain_contract() -> None:
     assert 'make test E2E_ORS="$ORFS_ROOT/flow"' in run_ci
     assert "gh workflow run ci.yml" in workflow
 
+
+
+def test_physical_signoff_metrics_collector(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    summary = run / "signoff" / "sky130" / "physical" / "summary.json"
+    report = run / "impl" / "sky130" / "reports" / "sky130hd" / "demo" / "base" / "6_drc.lyrdb"
+    report.parent.mkdir(parents=True)
+    report.write_text("clean\n", encoding="utf-8")
+    summary.parent.mkdir(parents=True)
+    summary.write_text(json.dumps({
+        "status": "pass",
+        "checks": {"gds_drc": {"status": "pass", "violations": 0, "report": str(report)}},
+    }), encoding="utf-8")
+    data = collect_physical_signoff(run, "sky130")
+    assert data is not None
+    assert data["status"] == "pass"
+    assert data["checks"]["gds_drc"]["report"].startswith("impl/sky130/")
+    assert data["summary"] == "signoff/sky130/physical/summary.json"
+
+
+def test_tool_runner_executes_local_commands(tmp_path: Path) -> None:
+    from flexsoc.backend.core import CommandRequest, ToolRunner
+
+    log = tmp_path / "run.log"
+    request = CommandRequest(
+        (sys.executable, "-c", "print('ok')"), tmp_path, {}, log,
+    )
+    result = ToolRunner(project_root=tmp_path).run(request)
+
+    assert result.returncode == 0
+    assert log.read_text(encoding="utf-8").strip() == "ok"
+
+
+def test_tool_runner_rejects_unknown_execution_target(tmp_path: Path) -> None:
+    from flexsoc.backend.core import CommandRequest, ToolRunner
+
+    request = CommandRequest((sys.executable, "-c", "pass"), tmp_path, {}, tmp_path / "run.log")
+    with pytest.raises(ValueError, match="unknown execution target"):
+        ToolRunner(project_root=tmp_path).run(request, on="missing")
+
+
+def test_make_shim_forwards_command_line_overrides() -> None:
+    makefile = (ROOT / "src/flexsoc/backend/Makefile").read_text(encoding="utf-8")
+
+    assert "FLEXSOC_SET_ARGS" in makefile
+    assert "--set $(key)=$($(key))" in makefile
+    assert "export FLEXSOC_$(key)" not in makefile

@@ -1,0 +1,234 @@
+"""Reusable IP package load/save contract."""
+
+from __future__ import annotations
+
+import contextlib
+import io
+import shutil
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Mapping, Sequence
+
+from .reporting import Reporting
+
+
+def _copy_contents(source: Path, destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    for entry in source.iterdir():
+        target = destination / entry.name
+        if target.exists() or target.is_symlink():
+            shutil.rmtree(target) if target.is_dir() and not target.is_symlink() else target.unlink()
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.copytree(entry, target, symlinks=True)
+        elif entry.is_symlink():
+            target.symlink_to(entry.readlink())
+        else:
+            shutil.copy2(entry, target)
+
+
+def _clean_python_cache(root: Path) -> None:
+    for path in list(root.rglob("__pycache__")):
+        shutil.rmtree(path, ignore_errors=True)
+    for pattern in ("*.pyc", "*.pyo"):
+        for path in root.rglob(pattern):
+            path.unlink(missing_ok=True)
+
+
+@dataclass(slots=True)
+class PackageFlow:
+    """Load and atomically save reusable IP artifacts without Make indirection."""
+
+    project_root: Path
+    values: Mapping[str, str]
+
+    def load(
+        self,
+        *,
+        ip_name: str,
+        run_top: str,
+        run_id: str,
+        workspace: Path,
+        load_as: str | None = None,
+    ) -> Path:
+        """Load one packaged IP into a canonical run workspace."""
+
+        source = self.project_root / "hw" / "ips" / ip_name
+        if not source.is_dir():
+            raise FileNotFoundError(f"missing source IP directory: {source}")
+        run = Path(workspace) / "runs" / run_top / run_id
+        destination = run if run_top == ip_name else run / "ips" / (load_as or ip_name)
+        if destination.exists() and destination != run:
+            shutil.rmtree(destination)
+        _copy_contents(source, destination)
+        _clean_python_cache(destination)
+        return destination
+
+    def save(
+        self,
+        *,
+        ip_name: str,
+        top: str,
+        pdk: str,
+        library_root: Path,
+        synth_dir: Path,
+        signoff_dir: Path,
+        sdc_file: Path,
+        eqy_config: Path,
+        eqy_view: Path,
+        filelists: Sequence[Path],
+        netlist: Path,
+        liberty: Path,
+        cell_models: Sequence[Path],
+        clock_gate_model: Path,
+        impl_dir: Path | None = None,
+        post_syn_sim_dir: Path | None = None,
+        coverage_dir: Path | None = None,
+        manifest_json: Path | None = None,
+        metrics_json: Path | None = None,
+        force: bool = False,
+    ) -> Path:
+        """Atomically update one PDK branch in the reusable IP library."""
+
+        required = (synth_dir, signoff_dir, sdc_file, eqy_config, eqy_view, netlist, liberty)
+        missing = [path for path in required if not Path(path).exists()]
+        if missing:
+            raise FileNotFoundError("required ip_save input not found: " + ", ".join(map(str, missing)))
+
+        library_root = Path(library_root)
+        target = library_root / ip_name
+        conflicts = [target / "syn" / pdk, target / "signoff" / pdk]
+        if impl_dir and Path(impl_dir).is_dir():
+            conflicts.append(target / "impl" / pdk)
+        existing = [path for path in conflicts if path.exists()]
+        if existing and not force:
+            names = ", ".join(str(path.relative_to(target)) for path in existing)
+            raise FileExistsError(f"ip_save would overwrite existing package content: {names}")
+
+        library_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=f".ip-save.{ip_name}.", dir=library_root) as tmp:
+            staged = Path(tmp) / ip_name
+            if target.is_dir():
+                shutil.copytree(target, staged, symlinks=True)
+            else:
+                staged.mkdir(parents=True)
+
+            self._stage_synthesis(staged, pdk, synth_dir, top)
+            self._stage_equivalence(
+                staged, pdk, top, eqy_config, eqy_view, filelists,
+                netlist, liberty, cell_models, clock_gate_model,
+            )
+            self._stage_signoff(staged, pdk, signoff_dir, sdc_file, top)
+            if impl_dir and Path(impl_dir).is_dir():
+                self._replace_tree(Path(impl_dir), staged / "impl" / pdk)
+            self._stage_optional_reports(
+                staged, pdk, post_syn_sim_dir, coverage_dir,
+                manifest_json, metrics_json,
+            )
+            _clean_python_cache(staged)
+
+            backup = library_root / f".{ip_name}.backup"
+            if backup.exists():
+                shutil.rmtree(backup)
+            if target.exists():
+                target.rename(backup)
+            try:
+                staged.rename(target)
+            except Exception:
+                if backup.exists() and not target.exists():
+                    backup.rename(target)
+                raise
+            shutil.rmtree(backup, ignore_errors=True)
+        return target
+
+    @staticmethod
+    def _replace_tree(source: Path, destination: Path) -> None:
+        if destination.exists():
+            shutil.rmtree(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, destination, symlinks=True)
+
+    def _stage_synthesis(self, staged: Path, pdk: str, source: Path, top: str) -> None:
+        destination = staged / "syn" / pdk
+        self._replace_tree(Path(source), destination)
+        for checkpoint in ("generic", "dffmap", "abc", "clean"):
+            (destination / f"{top}_{checkpoint}.il").unlink(missing_ok=True)
+
+    def _stage_equivalence(
+        self,
+        staged: Path,
+        pdk: str,
+        top: str,
+        config: Path,
+        view: Path,
+        filelists: Sequence[Path],
+        netlist: Path,
+        liberty: Path,
+        cell_models: Sequence[Path],
+        clock_gate_model: Path,
+    ) -> None:
+        from flexsoc.backend.syn.eqy import export_equivalence_profile
+
+        output = staged / "signoff" / pdk / "equivalence" / "rtl_vs_syn"
+        export_equivalence_profile(
+            config=config,
+            view=view,
+            output_dir=output,
+            filelists=filelists,
+            netlist=netlist,
+            liberty=liberty,
+            cell_models=cell_models,
+            clock_gate_model=clock_gate_model,
+        )
+
+    @staticmethod
+    def _stage_signoff(staged: Path, pdk: str, source: Path, sdc: Path, top: str) -> None:
+        destination = staged / "signoff" / pdk
+        destination.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(sdc, destination / f"{top}.sdc")
+        for path in Path(source).rglob("*"):
+            if not path.is_file() or path.name.startswith("."):
+                continue
+            if path.suffix not in {".tcl", ".rpt", ".json", ".sdf"}:
+                continue
+            target = destination / path.relative_to(source)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+
+    @staticmethod
+    def _stage_optional_reports(
+        staged: Path,
+        pdk: str,
+        post_syn_sim_dir: Path | None,
+        coverage_dir: Path | None,
+        manifest_json: Path | None,
+        metrics_json: Path | None,
+    ) -> None:
+        if post_syn_sim_dir and Path(post_syn_sim_dir).is_dir():
+            reports = list(Path(post_syn_sim_dir).glob("*.json"))
+            if reports:
+                target = staged / "dv" / "functional" / "sim" / "post_syn" / pdk
+                target.mkdir(parents=True, exist_ok=True)
+                for report in reports:
+                    shutil.copy2(report, target / report.name)
+        if coverage_dir:
+            reports = [Path(coverage_dir) / name for name in ("summary.txt", "summary.json")]
+            reports = [path for path in reports if path.is_file()]
+            if reports:
+                target = staged / "dv" / "functional" / "coverage"
+                target.mkdir(parents=True, exist_ok=True)
+                for report in reports:
+                    shutil.copy2(report, target / report.name)
+        if not any(path and Path(path).is_file() for path in (manifest_json, metrics_json)):
+            return
+        target = staged / "meta" / pdk
+        target.mkdir(parents=True, exist_ok=True)
+        if manifest_json and Path(manifest_json).is_file():
+            shutil.copy2(manifest_json, target / "manifest.json")
+        if metrics_json and Path(metrics_json).is_file():
+            metrics = target / "metrics.json"
+            shutil.copy2(metrics_json, metrics)
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                Reporting().show_metrics(metrics)
+            (target / "check.rpt").write_text(buffer.getvalue(), encoding="utf-8")

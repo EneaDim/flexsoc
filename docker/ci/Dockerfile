@@ -10,7 +10,7 @@ FROM ubuntu:24.04 AS implementation-builder
 ARG DEBIAN_FRONTEND=noninteractive
 ARG FLEXSOC_JOBS=2
 
-COPY src/flexsoc/backend/toolchain.lock /tmp/toolchain.lock
+COPY src/flexsoc/backend/core/toolchain.lock /tmp/toolchain.lock
 
 RUN --mount=type=cache,id=flexsoc-impl-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=flexsoc-impl-apt-lists,target=/var/lib/apt/lists,sharing=locked \
@@ -82,7 +82,7 @@ LABEL org.opencontainers.image.title="FlexSoC CI toolchain" \
       org.opencontainers.image.source="$SOURCE_URL"
 
 WORKDIR /opt/flexsoc-build
-COPY src/flexsoc/backend/deps.sh src/flexsoc/backend/toolchain.lock ./toolchain/
+COPY src/flexsoc/backend/core/deps.sh src/flexsoc/backend/core/toolchain.lock ./toolchain/
 
 # Commit host prerequisites as their own reusable layer. Apt metadata and package
 # archives stay in BuildKit caches instead of being downloaded on every retry.
@@ -116,7 +116,7 @@ FROM toolchain-installed AS implementation-installed
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-COPY src/flexsoc/backend/toolchain.lock /tmp/implementation-toolchain.lock
+COPY src/flexsoc/backend/core/toolchain.lock /tmp/implementation-toolchain.lock
 
 # KLayout and the ORFS Python/runtime utilities are installed on Ubuntu 24.04.
 # OpenROAD and its non-system shared libraries are copied from the Ubuntu 24.04
@@ -184,7 +184,7 @@ FROM implementation-installed AS toolchain-verified
 
 # Always verify an external checkpoint with the current repository's doctor
 # and lock file.
-COPY src/flexsoc/backend/deps.sh src/flexsoc/backend/toolchain.lock ./toolchain/
+COPY src/flexsoc/backend/core/deps.sh src/flexsoc/backend/core/toolchain.lock ./toolchain/
 
 RUN FLEXSOC_TOOLCHAIN=/opt/flexsoc/toolchain \
     bash ./toolchain/deps.sh doctor --system --profile base \

@@ -1,4 +1,4 @@
-"""Small FlexSoC Python API for launching backend Make targets."""
+"""Public FlexSoC API over the object-oriented backend flow."""
 
 from __future__ import annotations
 
@@ -6,13 +6,12 @@ import json
 import os
 import re
 import shlex
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
-from .backend.setup_signoff import SDF_MODE_TO_CORNER
+from .backend.signoff.sta import SDF_MODE_TO_CORNER
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +298,7 @@ TARGETS: dict[str, TargetSpec] = {
     "setup_pnr": ("Implementation", "Generate OpenROAD implementation config", PNR),
     "pnr": ("Implementation", "Run OpenROAD implementation", PNR),
     "pnr_gui": ("Implementation", "Open OpenROAD GUI", PNR),
+    "physical_signoff": ("Physical signoff", "Run ORFS DRC/LVS and qualify physical sign-off", PNR),
     "ip_load": ("IP load/save", "Load the complete IP package into a run workspace", IP_LOAD),
     "ip_save": (
         "IP load/save",
@@ -442,7 +442,7 @@ class FlexSoCCommand:
 
 @dataclass(frozen=True, slots=True)
 class FlexSoCResult:
-    """Store one executed command result."""
+    """Store one executed backend operation result."""
 
     command: FlexSoCCommand
     returncode: int
@@ -452,7 +452,7 @@ class FlexSoCResult:
 
     @property
     def ok(self) -> bool:
-        """Report whether Make exited successfully."""
+        """Report whether the backend operation completed successfully."""
 
         return self.returncode == 0
 
@@ -472,12 +472,6 @@ class FlexSoCResult:
 # ---------------------------------------------------------------------------
 # Small helpers
 # ---------------------------------------------------------------------------
-
-def _backend_makefile() -> Path:
-    """Return the packaged backend Makefile."""
-
-    return Path(__file__).with_name("backend") / "Makefile"
-
 
 def _path(value: PathLike, fallback: Path) -> Path:
     """Resolve a path-like value or fallback."""
@@ -527,7 +521,7 @@ TECHNOLOGY_TARGETS = {
     "power_analysis_post_pnr", "power_analysis_post_pnr_all", "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all",
     "setup_signoff", "sta", "sdf", "power_estimate", "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all", "sta_violators",
     "path_view", "sta_corners", "power_estimate_corners", "signoff_corners",
-    "setup_pnr", "pnr", "pnr_gui",
+    "setup_pnr", "pnr", "pnr_gui", "physical_signoff",
     "ip_save",
     "metrics", "manifest", "manifest_show", "check",
     "clean_syn", "clean_signoff", "clean_pnr", "clean_meta",
@@ -582,6 +576,7 @@ TECHNOLOGY_PATH_KEYS = {
     "SIGNOFF_STA_DIR", "SIGNOFF_POWER_DIR", "SIGNOFF_SDF_DIR", "SIGNOFF_FUSION_DIR", "SIGNOFF_PATH_VIEW_DIR",
     "STA_LOGDIR", "POWER_LOGDIR", "SDF_LOGDIR", "FUSION_LOGDIR",
     "ORSDIR", "OR_WORKDIR", "OR_LOGDIR",
+    "PHYSICAL_SIGNOFF_DIR", "PHYSICAL_SIGNOFF_JSON", "PHYSICAL_SIGNOFF_LOG",
     "POST_SYN_SIMDIR", "POST_LAYOUT_SIMDIR",
     "METADIR", "METRICS_JSON", "MANIFEST_JSON", "COMMAND_LOGDIR",
 }
@@ -649,21 +644,669 @@ def _target_object(name: str) -> FlexSoCTarget:
     return FlexSoCTarget(name, group, description, params)
 
 
+class _TargetRouter:
+    """Map historical CLI targets to the new object-oriented backend API."""
+
+    def __init__(self, client: "FlexSoC", values: Mapping[str, str], *, on: str = "local"):
+        from .backend import Backend, BackendContext
+        from .backend.core import ToolRunner
+
+        self.client = client
+        self.values = dict(values)
+        self.on = on
+        self.context = BackendContext(client.project_root, client.workdir, self.values)
+        self.runner = ToolRunner(client.execution_targets, project_root=client.project_root)
+        self.backend = Backend(self.context, self.runner)
+        self.paths = self.context.paths
+
+    @staticmethod
+    def _bool(value: object, default: bool = False) -> bool:
+        if value is None:
+            return default
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    def _path(self, key: str, default: Path) -> Path:
+        value = self.values.get(key)
+        return Path(value).expanduser().resolve() if value else default.resolve()
+
+    def _words(self, key: str, default: str = "") -> tuple[str, ...]:
+        return tuple(part for part in self.values.get(key, default).replace(",", " ").split() if part)
+
+    def _run_cmd(self, argv, *, cwd: Path | None = None, log: Path | None = None, inputs=(), outputs=()) -> int:
+        from .backend.core import CommandRequest
+
+        cwd = (cwd or self.client.project_root).resolve()
+        log = log or self.paths.logs / "commands" / f"{_safe_log_name(str(argv[0]))}.log"
+        request = CommandRequest(tuple(str(x) for x in argv), cwd, {}, log, tuple(inputs), tuple(outputs))
+        return self.runner.run(request, on=self.on).returncode
+
+    def _tb_configs(self):
+        from .backend.dv import CocotbConfig, TestbenchConfig
+
+        top = self.paths.top
+        period = float(self.values.get("CLK_PERIOD", "20"))
+        interface = self.values.get("REG_ITF", "tlul")
+        sv = TestbenchConfig(
+            top=top,
+            rtldir=self.paths.rtl,
+            simdir=self.paths.sim / "rtl",
+            syndir=self.paths.syn,
+            prims=self._words("PRIM"),
+            clk_period_ns=max(1, int(period)),
+            compiler=self.values.get("COMPILER", "verilator"),
+            interface=interface,
+            vsv=self.values.get("VSV", "sv"),
+            output=self.paths.tb / "sv",
+            force=self._bool(self.values.get("FORCE")),
+        )
+        cocotb = CocotbConfig(
+            top=top,
+            interface=interface,
+            output=self.paths.tb / "cocotb",
+            rtl_dir=self.paths.rtl,
+            ips_root=self.client.project_root / "hw" / "ips",
+            simulator=self.values.get("GLS_SIMULATOR", self.values.get("COMPILER", "iverilog")),
+            period_ns=period,
+            vsv=self.values.get("VSV", "sv"),
+            force=self._bool(self.values.get("FORCE")),
+        )
+        return sv, cocotb
+
+    def _rtl_sources(self) -> tuple[Path, ...]:
+        sources: list[Path] = []
+        for filelist in (self.paths.rtl_common, self.paths.rtl_ip):
+            if not filelist.is_file():
+                continue
+            for line in filelist.read_text(encoding="utf-8").splitlines():
+                item = line.strip()
+                if item and not item.startswith(("#", "+", "-")):
+                    sources.append(Path(item))
+        return tuple(sources)
+
+    def _setup_synthesis(self) -> object:
+        flow = self.backend.syn.synthesis
+        target = self.values.get("TARGET_SYN", "asic").lower()
+        period = float(self.values.get("CLK_PERIOD", "20"))
+        if target in {"xilinx", "xc7"}:
+            return flow.setup_xilinx(top=self.paths.top, topdir=self.paths.rtl, clk_period_ns=period, output=self.paths.syn)
+        if target in {"ice40", "ice"}:
+            return flow.setup_ice40(top=self.paths.top, topdir=self.paths.rtl, clk_period_ns=period, output=self.paths.syn)
+        liberty = Path(self.values["LIB_SYN"])
+        return flow.setup_asic(
+            top=self.paths.top, topdir=self.paths.rtl, liberty=liberty,
+            clk_period_ns=period, output=self.paths.syn,
+            opt=self.values.get("TARGET_OPT", "area"),
+            filelists=(self.paths.rtl_common, self.paths.rtl_ip),
+            tie_hi=self._tuple("TIEHI_CELL_AND_PORT", 2),
+            tie_lo=self._tuple("TIELO_CELL_AND_PORT", 2),
+            min_buffer=self._tuple("MIN_BUF_CELL_AND_PORTS", 3),
+        )
+
+    def _tuple(self, key: str, size: int):
+        parts = self._words(key)
+        return tuple(parts) if len(parts) == size else None
+
+    def _setup_eqy(self) -> object:
+        flow = self.backend.syn.eqy
+        layout = self.context.layout
+        out = layout.equivalence_dir
+        config = out / f"{self.paths.top}_rtl_vs_syn.eqy"
+        models = tuple(Path(x) for x in self._words("PRIM"))
+        formal_proc = self.values.get("FORMAL_PDK_PROC")
+        return flow.setup(
+            top=self.paths.top,
+            output_dir=out,
+            filelists=(self.paths.rtl_common, self.paths.rtl_ip),
+            netlist=self.paths.syn / f"{self.paths.top}_synth.v",
+            liberty=Path(self.values["LIB_SYN"]),
+            cell_models=models,
+            clock_gate_model=out / "sky130_clock_gates_formal.v",
+            engine=self.values.get("EQY_ENGINE", "sat"),
+            depth=int(self.values.get("EQY_DEPTH", "20")),
+            sat_depth=int(self.values.get("EQY_SAT_DEPTH", "20")),
+            config=config,
+            formal_pdk_proc=Path(formal_proc) if formal_proc else None,
+            force=self._bool(self.values.get("FORCE")),
+            on=self.on,
+        )
+
+    def _run_eqy(self) -> int:
+        layout = self.context.layout
+        return self.backend.syn.eqy.run(
+            config=layout.equivalence_dir / f"{self.paths.top}_rtl_vs_syn.eqy",
+            log=layout.equivalence_log,
+            jobs=int(self.values.get("EQY_JOBS", "1")),
+            eqy=self.values.get("EQY", "eqy"),
+            on=self.on,
+        )
+
+    def _formal_setup(self, *, csr: bool, mode: str) -> Path:
+        flow = self.backend.dv.formal
+        top = self.paths.top
+        props = self.paths.formal / ("csr" if csr else "properties") / mode
+        runs = self.paths.formal / "runs" / ("csr" if csr else "properties") / mode
+        runs.mkdir(parents=True, exist_ok=True)
+        output = runs / f"{top}_{'csr_' if csr else ''}{mode}.sby"
+        common = (self.paths.rtl_common, self.paths.rtl_ip)
+        kwargs = dict(
+            top=top, filelists=common, properties_dir=props, mode=mode,
+            engine=self.values.get("FORMAL_PROVE_ENGINE" if mode == "prove" else "FORMAL_COVER_ENGINE", "abc pdr" if mode == "prove" else "btor btormc"),
+            output=output, depth=int(self.values.get("FORMAL_DEPTH", "20")),
+            bmc_engine=self.values.get("FORMAL_BMC_ENGINE", "smtbmc bitwuzla"),
+            bmc_depth=int(self.values.get("FORMAL_BMC_DEPTH", "30")),
+            bmc_append=int(self.values.get("FORMAL_BMC_APPEND", "5")),
+            multiclock=self.context.clocks.multiclock,
+        )
+        if csr:
+            kwargs["generated"] = props / f"{top}_csr_auto_{mode}.sv"
+            return flow.setup_csr(**kwargs)
+        return flow.setup_design(**kwargs)
+
+    def _run_formal(self, target: str) -> object:
+        flow = self.backend.dv.formal
+        top = self.paths.top
+        logs = self.paths.logs / "dv" / "formal"
+        sby = self.values.get("SBY", "sby")
+        if target.startswith("formal_csr_"):
+            mode = target.rsplit("_", 1)[-1]
+            config = self._formal_setup(csr=True, mode="cover" if mode == "cover" else "prove")
+            log = logs / "csr" / f"{top}_{mode}.log"
+            return getattr(flow, f"run_csr_{mode}")(config, **({} if mode == "cover" else {"top": top}), log=log, sby=sby, on=self.on)
+        mode = target.rsplit("_", 1)[-1]
+        config = self._formal_setup(csr=False, mode="cover" if mode == "cover" else "prove")
+        log = logs / "properties" / f"{top}_{mode}.log"
+        return getattr(flow, f"run_{mode}")(config, **({} if mode == "cover" else {"top": top}), log=log, sby=sby, on=self.on)
+
+    def _setup_pnr(self) -> Path:
+        ors_tech = self.values.get("ORS_TECH", self.values.get("PDK", "sky130"))
+        return self.backend.impl.setup(
+            top=self.paths.top,
+            output_dir=self.paths.impl,
+            platform=ors_tech,
+            netlist=self.paths.syn / f"{self.paths.top}_synth.v",
+            sdc_file=self.paths.sdc,
+        )
+
+    def _orfs(self) -> tuple[Path, Path]:
+        ors = Path(self.values.get("ORS", "")).expanduser()
+        makefile = ors / "Makefile"
+        return makefile.resolve(), self.paths.impl / "config.mk"
+
+    def _run_pnr(self, *, gui: bool = False) -> int:
+        makefile, config = self._orfs()
+        log = self.paths.logs / "implementation" / self.paths.pdk / ("gui.log" if gui else "pnr.log")
+        if gui:
+            return self.backend.impl.view(makefile=makefile, config=config, workdir=self.paths.impl, log=log, on=self.on)
+        return self.backend.impl.run(makefile=makefile, config=config, workdir=self.paths.impl, log=log, on=self.on)
+
+    def _report(self, target: str) -> object:
+        report = self.backend.reporting
+        if target == "metrics":
+            return report.write_metrics(self.paths.top, self.paths.run, self.paths.metrics, pdk=self.paths.pdk)
+        if target == "manifest":
+            return report.write_manifest(top=self.paths.top, run_top=self.paths.run_top, run_id=self.paths.run_id, repo_root=self.client.project_root, output=self.paths.manifest)
+        if target == "manifest_show":
+            return report.show_manifest(self.paths.manifest)
+        return report.check(self.paths.metrics)
+
+    def execute(self, target: str) -> object:
+        """Execute one public target without invoking the backend Makefile."""
+        b, p, v = self.backend, self.paths, self.values
+        top, force = p.top, self._bool(v.get("FORCE"))
+        interface = v.get("REG_ITF", "tlul")
+
+        if target.startswith("help"):
+            print(TARGETS[target][1])
+            return 0
+        if target == "setup":
+            return p.ensure()
+        if target in {"hjson", "hjson_gen"}:
+            return b.design.regs.setup_hjson(top, interface, p.data, force=force, clocks=self.context.clocks)
+        if target == "reg":
+            return b.design.regs.generate_rtl(top, p.data, p.rtl, regmap=v.get("REGMAP"), on=self.on)
+        if target == "doc":
+            return b.design.regs.generate_docs(top, p.data, p.doc, regmap=v.get("REGMAP"), on=self.on)
+        if target == "driver":
+            return b.design.regs.generate_driver(p.data / f"{top}.hjson", p.drivers, base_address=v.get("BASE_ADDRESS", "0x0"))
+        if target == "regmap_py":
+            return b.design.regs.generate_regmap_py(top, p.data, p.model, force=force, refresh_tests=True, clocks=self.context.clocks)
+        if target == "rtl_stub":
+            hjson = p.data / f"{top}.hjson"
+            return b.design.rtl.setup_scaffold(hjson if hjson.exists() else None, interface, p.rtl, top=top, force=force, clocks=self.context.clocks)
+        if target == "top_from_core":
+            return b.design.rtl.generate_top(top, p.rtl, interface, force=force, clocks=self.context.clocks)
+        if target in {"flist", "slang_flist"}:
+            return b.design.rtl.generate_filelists(root=self.client.project_root, top_file=p.rtl / f"{top}.sv", common_out=p.rtl_common, ip_out=p.rtl_ip, search_roots=(p.rtl, self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), common_roots=(self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), top=top, slang=v.get("SLANG", "slang"), on=self.on)
+        if target == "fetch":
+            vendor = v.get("VENDOR") or v.get("TARGET")
+            if not vendor:
+                raise ValueError("fetch requires VENDOR=<name>")
+            return b.design.rtl.fetch_vendor(self.client.project_root / "vendor" / f"{vendor}.vendor.hjson", target_dir=self.client.project_root, force=force, on=self.on)
+        if target == "slang_hier":
+            return b.design.rtl.show_hierarchy(root=self.client.project_root, top_file=p.rtl / f"{top}.sv", output=p.run / "lint" / f"{top}_hier.txt", search_roots=(p.rtl, self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), top=top, slang_hier=v.get("SLANG_HIER", "slang-hier"), on=self.on)
+        if target == "slang_ast":
+            return b.design.rtl.show_ast(root=self.client.project_root, top_file=p.rtl / f"{top}.sv", output=p.run / "lint" / f"{top}_ast.json", search_roots=(p.rtl, self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), top=top, slang=v.get("SLANG", "slang"), scope=v.get("SLANG_AST_SCOPE"), on=self.on)
+        if target == "setup_model":
+            b.design.regs.generate_regmap_py(top, p.data, p.model, force=force)
+            return b.design.model.flow(top, p.data, p.model, p.rtl, force=force, clocks=self.context.clocks)
+        if target in {"setup_tb", "setup_cocotb"}:
+            sv, cocotb = self._tb_configs()
+            return b.dv.testbench.setup_systemverilog(sv, clocks=self.context.clocks) if target == "setup_tb" else b.dv.testbench.setup_cocotb(cocotb, clocks=self.context.clocks)
+        if target in {"tests_gen", "test_gen", "tests"}:
+            if target == "tests":
+                tests = b.dv.functional.tests(p.tests)
+                print("\n".join(tests))
+                return tests
+            hjson = p.data / f"{top}.hjson"
+            if target == "test_gen":
+                return b.dv.functional.generate_test(v.get("TEST_NAME", "smoke"), p.tests, top, hjson, force=force)
+            return b.dv.functional.generate_tests(p.tests, top, hjson, force=force)
+
+        if target.startswith("lint") or target == "_lint_run":
+            kind = target.removeprefix("lint_") if target.startswith("lint_") else "all"
+            if target == "lint_slang": return b.dv.lint_slang(on=self.on)
+            if target == "lint_verilator": return b.dv.lint_verilator(on=self.on)
+            if target == "lint_slang_suite": return b.dv.lint_suite(tools=("slang",), on=self.on)
+            if target == "lint_verilator_suite": return b.dv.lint_suite(tools=("verilator",), on=self.on)
+            if target in {"lint", "lint_suite"}: return b.dv.lint_suite(on=self.on)
+            if target in {"lint_v", "lint_sv"}: return b.dv.lint_verilator(kind="all", on=self.on)
+            return b.dv.lint_suite(tools=(v.get("LINT_TOOL", "slang"),), part=v.get("LINT_PART", "ip"), on=self.on) if kind not in {"latch","undriven","width","unconnected","unused"} else (b.dv.lint_slang(kind=kind, part=v.get("LINT_PART","ip"), on=self.on), b.dv.lint_verilator(kind=kind, part=v.get("LINT_PART","ip"), on=self.on))
+
+        if target in {"setup_cdc_rdc", "cdc_rdc"}:
+            analysis = p.run / "analysis" / "cdc_rdc"
+            script, design_json = analysis / "extract.ys", analysis / "design.json"
+            if target == "setup_cdc_rdc":
+                return b.dv.cdc.setup(top=top, script=script, design_json=design_json, repo_root=self.client.project_root, filelists=(p.rtl_common, p.rtl_ip))
+            return b.dv.cdc.flow_from_context(self.context, on=self.on)
+
+        if target in {"compile", "compile_v", "compile_sv"}:
+            return b.dv.functional.compile_systemverilog(top=top, tb_dir=p.tb, sim_dir=p.sim / "rtl", common_filelist=p.rtl_common, ip_filelist=p.rtl_ip, test_name=v.get("TEST_NAME","smoke"), compiler=v.get("COMPILER","verilator"), coverage=self._bool(v.get("COVERAGE")), log=p.logs / "dv" / "functional" / f"{top}_compile.log", on=self.on)
+        if target in {"sim", "sim_v", "sim_sv"}:
+            return b.dv.functional.run_systemverilog(top=top, test_root=p.tests, tb_dir=p.tb, sim_dir=p.sim / "rtl", test_name=v.get("TEST_NAME","smoke"), compiler=v.get("COMPILER","verilator"), seed=int(v.get("SEED","1")), log=p.logs / "dv" / "functional" / f"{top}_sim_{v.get('TEST_NAME','smoke')}.log", on=self.on)
+        if target == "sim_tests":
+            return b.dv.functional.run_regression(top=top, test_root=p.tests, tb_dir=p.tb, sim_dir=p.sim / "rtl", common_filelist=p.rtl_common, ip_filelist=p.rtl_ip, rtl_sources=self._rtl_sources(), compiler=v.get("COMPILER","verilator"), backends=("sv",), seed=int(v.get("SEED","1")), log_dir=p.logs / "dv" / "functional", on=self.on)
+        if target in {"cocotb", "cocotb_tests"}:
+            if target == "cocotb_tests":
+                return b.dv.functional.run_regression(top=top, test_root=p.tests, tb_dir=p.tb, sim_dir=p.sim / "rtl", common_filelist=p.rtl_common, ip_filelist=p.rtl_ip, rtl_sources=self._rtl_sources(), backends=("cocotb",), seed=int(v.get("SEED","1")), log_dir=p.logs / "dv" / "functional", on=self.on)
+            return b.dv.functional.run_cocotb(top=top, test_root=p.tests, tb_dir=p.tb, rtl_sources=self._rtl_sources(), test_name=v.get("TEST_NAME","smoke"), seed=int(v.get("SEED","1")), waves=self._bool(v.get("COCOTB_WAVES"), True), log=p.logs / "dv" / "functional" / f"{top}_cocotb_{v.get('TEST_NAME','smoke')}.log", on=self.on)
+        if target == "regression":
+            return b.dv.functional.flow_from_context(self.context, on=self.on)
+        if target in {"coverage", "coverage_detail"}:
+            return b.dv.coverage.flow_from_context(self.context, detail=target == "coverage_detail", on=self.on)
+
+        if target in {"setup_formal", "setup_formal_prove", "setup_formal_cover", "setup_formal_csr_prove", "setup_formal_csr_cover"}:
+            b.dv.formal.setup_scaffold(top, p.formal)
+            if target == "setup_formal": return 0
+            csr = "csr" in target
+            mode = "cover" if target.endswith("cover") else "prove"
+            return self._formal_setup(csr=csr, mode=mode)
+        if target in {"formal_bmc", "formal_prove", "formal_cover", "formal_csr_bmc", "formal_csr_prove", "formal_csr_cover"}:
+            return self._run_formal(target)
+        if target == "formal_csr":
+            return (self._run_formal("formal_csr_bmc"), self._run_formal("formal_csr_prove"), self._run_formal("formal_csr_cover"))
+        if target == "formal":
+            return b.dv.formal.flow_from_context(self.context, on=self.on)
+
+        if target == "setup_syn":
+            return self._setup_synthesis()
+        if target in {"syn", "syn_v", "syn_sv"}:
+            return b.syn.synthesis.run_asic(output=p.syn, top=top, log_dir=p.logs / "synthesis" / p.pdk, opt=v.get("TARGET_OPT","area"), yosys=v.get("YOSYS","yosys"), systemverilog=(target != "syn_v" and v.get("VSV","sv") != "v"), on=self.on)
+        if target == "yosys-vgen":
+            return b.syn.synthesis.run_yosys_vgen(top=top, cwd=p.run, output=p.rtl / f"{top}.v", yosys=v.get("YOSYS","yosys"), on=self.on)
+        if target == "sv2v":
+            return 0
+        if target == "setup_eqy":
+            return self._setup_eqy()
+        if target == "eqy":
+            return self._run_eqy()
+
+        pre = b.signoff.pre
+        post = b.signoff.post
+        if target == "setup_signoff":
+            return (pre.setup_sdc(), pre.setup_sta(), pre.setup_sdf(), pre.setup_power(), pre.setup_fusion())
+        if target == "setup_signoff_post_pnr":
+            return (post.setup_sta(), post.setup_sdf(), post.setup_power(), post.setup_fusion())
+        if target in {"sta", "sta_corners"}: return pre.run_sta(on=self.on)
+        if target == "sdf": return pre.write_sdf(on=self.on)
+        if target in {"power_estimate", "power_estimate_corners"}: return pre.run_power_estimate(on=self.on)
+        if target == "power_analysis": return pre.run_power_activity(all_workloads=False, on=self.on)
+        if target == "power_analysis_all": return pre.run_power_activity(all_workloads=True, on=self.on)
+        if target == "fusion_analysis": return pre.run_fusion(all_workloads=False, on=self.on)
+        if target == "fusion_analysis_all": return pre.run_fusion(all_workloads=True, on=self.on)
+        if target == "signoff_corners": return (pre.write_sdf(on=self.on), pre.run_sta(on=self.on), pre.run_power_estimate(on=self.on))
+        if target in {"compile_syn", "compile_post_syn", "sim_syn", "sim_post_syn", "sim_post_syn_all"}:
+            timing = v.get("TIMING_MODE", "zero")
+            test = v.get("TEST_NAME", "smoke")
+            if target.startswith("compile"):
+                return pre.gls.compile(test=test, timing=timing, backend=v.get("GLS_BACKEND","sv"), on=self.on)
+            return pre.gls.flow(on=self.on) if target.endswith("_all") else pre.run_gls(test=test, timing=timing, backend=v.get("GLS_BACKEND","sv"), on=self.on)
+        if target in {"compile_post_pnr", "sim_post_pnr", "sim_post_pnr_all"}:
+            timing = v.get("TIMING_MODE", "zero")
+            test = v.get("TEST_NAME", "smoke")
+            if target == "compile_post_pnr": return post.gls.compile(test=test, timing=timing, backend=v.get("GLS_BACKEND","sv"), on=self.on)
+            return post.gls.flow(on=self.on) if target.endswith("_all") else post.run_gls(test=test, timing=timing, backend=v.get("GLS_BACKEND","sv"), on=self.on)
+        if target in {"sta_post_pnr"}: return post.run_sta(on=self.on)
+        if target in {"sdf_post_pnr"}: return post.write_sdf(on=self.on)
+        if target == "power_estimate_post_pnr": return post.run_power_estimate(on=self.on)
+        if target == "power_analysis_post_pnr": return post.run_power_activity(all_workloads=False, on=self.on)
+        if target == "power_analysis_post_pnr_all": return post.run_power_activity(all_workloads=True, on=self.on)
+        if target == "fusion_analysis_post_pnr": return post.run_fusion(all_workloads=False, on=self.on)
+        if target == "fusion_analysis_post_pnr_all": return post.run_fusion(all_workloads=True, on=self.on)
+        if target == "signoff_post_pnr": return post.flow(on=self.on)
+        if target == "sta_violators":
+            return pre.run_sta(on=self.on)
+        if target == "path_view":
+            path = self._path("PATH_VIEW_FILE", p.signoff / "path_view" / "paths.json")
+            return self._run_cmd((sys.executable, str(self.client.project_root / "src" / "util" / "plot_path.py"), str(path)), log=p.logs / "signoff" / p.pdk / "path_view.log", inputs=(path,))
+
+        if target == "setup_pnr": return self._setup_pnr()
+        if target == "pnr": return self._run_pnr()
+        if target == "pnr_gui": return self._run_pnr(gui=True)
+        if target == "physical_signoff":
+            makefile, config = self._orfs()
+            return post.run_physical(makefile=makefile, config=config, workdir=p.impl, top=top, output=p.signoff / "physical" / "summary.json", log=p.logs / "signoff" / p.pdk / "physical" / "physical_signoff.log", on=self.on)
+
+        if target in {"metrics", "manifest", "manifest_show", "check"}: return self._report(target)
+        if target == "ip_load":
+            return b.package.load(
+                ip_name=v.get("IP_NAME", top), run_top=p.run_top, run_id=p.run_id,
+                workspace=self.client.workdir, load_as=v.get("LOAD_AS") or None,
+            )
+        if target == "ip_save":
+            eqy = self.context.layout.equivalence_dir
+            model_paths = tuple(Path(item) for item in self._words("PRIM"))
+            return b.package.save(
+                ip_name=v.get("IP_NAME", top), top=top, pdk=p.pdk,
+                library_root=Path(v.get("IP_LIBRARY_ROOT", self.client.project_root / "hw" / "ips")),
+                synth_dir=p.syn, signoff_dir=p.signoff, sdc_file=p.sdc,
+                eqy_config=eqy / f"{top}_rtl_vs_syn.eqy",
+                eqy_view=eqy / f"{top}_eqy_view.sv",
+                filelists=(p.rtl_common, p.rtl_ip), netlist=p.syn / f"{top}_synth.v",
+                liberty=Path(v["LIB_SYN"]), cell_models=model_paths,
+                clock_gate_model=eqy / "sky130_clock_gates_formal.v",
+                impl_dir=p.impl if p.impl.is_dir() else None,
+                post_syn_sim_dir=self.context.layout.post_syn_sim_dir,
+                coverage_dir=p.coverage, manifest_json=p.manifest, metrics_json=p.metrics,
+                force=force,
+            )
+
+        if target in {"soc_cfg", "soc_start"} or target.startswith(("soc_", "fsoc", "xbar", "sw_soc")) or target == "soc":
+            return self._soc(target)
+        if target.startswith("fsm"):
+            return self._fsm(target)
+        if target.startswith("deps"):
+            action = {"deps-bootstrap":"bootstrap","deps":"install","deps-doctor":"doctor","deps-versions":"versions","deps-env":"env","deps-status":"status","deps-prune":"prune"}[target]
+            return b.toolchain.deps(action, profile=v.get("DEPS_PROFILE","base"), jobs=int(v.get("DEPS_JOBS","2")), apply=self._bool(v.get("DEPS_PRUNE_APPLY")), prune_cache=self._bool(v.get("DEPS_PRUNE_CACHE")), on=self.on)
+        if target.startswith("clean"):
+            return self._clean(target)
+        if target.endswith("tutorial") or target in {"soc_ibex_fetch", "soc_pless", "full_tutorial"}:
+            return self._tutorial(target)
+        if target in {"view", "view_cocotb", "view_syn", "plot_postsyn", "view_presyn", "view_presyn_v", "view_presyn_sv", "tb_save", "tb_view"}:
+            return self._view(target)
+        if target in {"ip_start", "ip_flow", "ip_flow_noreg", "ip_flow_all"}:
+            return self._ip_flow(target)
+        raise NotImplementedError(f"direct target mapping missing: {target}")
+
+    def _view(self, target: str) -> int:
+        """Open or save one viewer artifact without Make indirection."""
+        import shutil
+        p, v = self.paths, self.values
+        if target == "tb_save":
+            destination = p.functional / "saved"
+            destination.mkdir(parents=True, exist_ok=True)
+            for source in p.tb.rglob("*"):
+                if source.is_file():
+                    out = destination / source.relative_to(p.tb)
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, out)
+            return 0
+        if target == "tb_view":
+            print(p.functional / "saved")
+            return 0
+        patterns = ["*.fst", "*.vcd"]
+        candidates = [x for pat in patterns for x in p.functional.rglob(pat)]
+        if not candidates:
+            raise FileNotFoundError("no waveform available")
+        wave = max(candidates, key=lambda x: x.stat().st_mtime)
+        viewer = v.get("WAVE_VIEWER", "surfer")
+        return self._run_cmd((viewer, str(wave)), cwd=wave.parent, log=p.logs / "viewer" / f"{target}.log", inputs=(wave,))
+
+    def _clean(self, target: str) -> int:
+        """Remove only artifacts owned by the selected cleanup operation."""
+        import shutil
+
+        p = self.paths
+
+        def remove_contents(path: Path) -> None:
+            if not path.is_dir():
+                return
+            for item in path.iterdir():
+                if item.is_dir() and not item.is_symlink():
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    item.unlink(missing_ok=True)
+
+        def remove_globs(path: Path, *patterns: str) -> None:
+            if not path.is_dir():
+                return
+            for pattern in patterns:
+                for item in path.glob(pattern):
+                    if item.is_dir() and not item.is_symlink():
+                        shutil.rmtree(item, ignore_errors=True)
+                    else:
+                        item.unlink(missing_ok=True)
+
+        if target == "clean-pyc":
+            for directory in self.client.project_root.rglob("__pycache__"):
+                shutil.rmtree(directory, ignore_errors=True)
+            for file in self.client.project_root.rglob("*.py[co]"):
+                file.unlink(missing_ok=True)
+            for directory in (
+                self.client.project_root / ".pytest_cache",
+                self.client.project_root / ".ruff_cache",
+            ):
+                shutil.rmtree(directory, ignore_errors=True)
+            return 0
+
+        if target == "clean_doc":
+            remove_contents(p.doc)
+        elif target == "clean_log":
+            remove_contents(p.logs)
+        elif target == "clean_rtl":
+            remove_globs(p.rtl, "*.v")
+        elif target == "clean_sim":
+            remove_globs(p.sim, "*.vvp", "*.vcd", "*.fst")
+            shutil.rmtree(p.sim / "verilator", ignore_errors=True)
+        elif target == "clean_cocotb":
+            cocotb = p.tb / "cocotb"
+            remove_globs(cocotb, "*.vcd", "*.fst", "__pycache__", "*.pyc")
+            shutil.rmtree(cocotb / "sim_build", ignore_errors=True)
+        elif target == "clean_formal":
+            shutil.rmtree(p.formal, ignore_errors=True)
+            shutil.rmtree(p.logs / "dv" / "formal", ignore_errors=True)
+        elif target == "clean_syn":
+            shutil.rmtree(p.syn, ignore_errors=True)
+            shutil.rmtree(p.logs / "synthesis" / p.pdk, ignore_errors=True)
+        elif target == "clean_signoff":
+            shutil.rmtree(p.signoff, ignore_errors=True)
+            shutil.rmtree(p.logs / "signoff" / p.pdk, ignore_errors=True)
+        elif target == "clean_meta":
+            remove_contents(p.meta)
+        elif target == "clean_pnr":
+            shutil.rmtree(p.impl, ignore_errors=True)
+            shutil.rmtree(p.logs / "pnr" / p.pdk, ignore_errors=True)
+        elif target in {"clean_fsm", "clean_fsm_all", "clean_subdir"}:
+            from .backend.design.fsm_gen import FsmFlow
+
+            flow = FsmFlow(p.run, self.runner)
+            name = self.values.get("FSM", "fsm_example")
+            if target == "clean_subdir":
+                flow.clean(name)
+                flow.setup(name)
+            else:
+                flow.clean(name, inputs=target == "clean_fsm_all")
+        elif target == "clean_fsoc":
+            shutil.rmtree(self.client.project_root / "build", ignore_errors=True)
+            shutil.rmtree(p.run / "fusesoc", ignore_errors=True)
+        elif target == "clean_soc":
+            for name in ("trace_core_00000000.log", "uart0.log", "soc.core", "xbar_main.hjson"):
+                (self.client.project_root / name).unlink(missing_ok=True)
+            remove_globs(self.client.project_root, "sim.fst*")
+            remove_globs(self.client.project_root / "sw", "*.elf", "*.o", "*.csv")
+            remove_globs(self.client.project_root / "tb", "top_verilator.*")
+            shutil.rmtree(p.run / "soc", ignore_errors=True)
+        elif target == "clean_sw":
+            remove_globs(p.run / "sw", "*.elf", "*.o", "*.csv")
+        elif target == "clean_vendor":
+            vendor = self.client.project_root / "vendor"
+            for name in ("lowrisc_ip", "lowrisc_ibex"):
+                shutil.rmtree(vendor / name, ignore_errors=True)
+                (vendor / f"{name}.lock.hjson").unlink(missing_ok=True)
+        elif target == "clean_agent":
+            shutil.rmtree(self.client.project_root / "flexsoc_make_agent", ignore_errors=True)
+        elif target == "clean_all":
+            shutil.rmtree(p.run, ignore_errors=True)
+            default = self.client.workdir / "runs" / p.run_top / "default"
+            if default != p.run:
+                shutil.rmtree(default, ignore_errors=True)
+            for name in ("build", "dist", ".pytest_cache", ".mypy_cache", ".ruff_cache"):
+                shutil.rmtree(self.client.project_root / name, ignore_errors=True)
+            self._clean("clean-pyc")
+        elif target == "clean":
+            for name in (
+                "clean-pyc", "clean_log", "clean_rtl", "clean_sim", "clean_syn",
+                "clean_signoff", "clean_meta", "clean_pnr", "clean_subdir",
+                "clean_fsoc", "clean_soc", "clean_fsm",
+            ):
+                self._clean(name)
+        return 0
+
+    def _fsm(self, target: str) -> object:
+        """Dispatch FSM targets to the run-local reusable generator."""
+        from .backend.design.fsm_gen import FsmFlow
+        p, v = self.paths, self.values
+        name = v.get("FSM", "fsm_example")
+        flow = FsmFlow(p.run, self.runner)
+        if target in {"fsm_init", "fsm_setup"}: return flow.setup(name)
+        if target == "fsm_example_load": return flow.load_example(name)
+        if target == "fsm_gen": return flow.generate(name, clock_mhz=int(v.get("F_CLK","32")))
+        if target == "fsm_plot": return flow.plot(name, on=self.on)
+        if target == "fsm_flow": return flow.flow(name, clock_mhz=int(v.get("F_CLK","32")), plot=True, on=self.on)
+        if target in {"fsm_install", "fsm2rtl"}: return flow.install(name, rtl_dir=p.rtl, tb_dir=p.tb / "sv", sim_dir=p.sim / "rtl")
+        raise ValueError(target)
+
+    def _soc(self, target: str) -> object:
+        """Dispatch SoC generation and external tools through SocFlow."""
+        from .backend.design.soc import SoCGenerationConfig, SoCModule, SoCSoftwareConfig, SoCStartConfig, XbarConfig, parse_device_rows
+        p, v, soc = self.paths, self.values, self.backend.design.soc
+        host = v.get("HOST", "uart")
+        if target == "soc_start":
+            return soc.start(SoCStartConfig(self.client.workdir, p.run_top, p.run_id))
+        if target == "soc_cfg":
+            cfg = soc.resolve_config(workspace=self.client.workdir, run_top=p.run_top, run_id=p.run_id, default_host=host, mode=v.get("SOC_CFG_MODE","builtin"))
+            print(cfg)
+            return cfg
+        if target == "sw_soc": return soc.generate_software(SoCSoftwareConfig(self.client.workdir, p.run_top, p.run_id, host))
+        if target == "fsoc_init": return soc.generate_fusesoc(v.get("PRJ","flexsoc"), p.top, p.rtl, p.run / "fusesoc" / host / "cores")
+        if target == "soc_vendor_deps":
+            for vendor in ("lowrisc_ip", "lowrisc_ibex"):
+                if not (self.client.project_root / "vendor" / vendor).is_dir():
+                    old = self.values.get("VENDOR"); self.values["VENDOR"] = vendor
+                    self.execute("fetch")
+                    if old is None: self.values.pop("VENDOR", None)
+                    else: self.values["VENDOR"] = old
+            return 0
+        if target in {"xbar_init", "xbar"}:
+            cfg = soc.resolve_config(workspace=self.client.workdir, run_top=p.run_top, run_id=p.run_id, default_host=host, mode=v.get("SOC_CFG_MODE","builtin"))
+            devices = tuple(parse_device_rows([list(device.args()) for device in cfg.devices]))
+            out = p.run / "soc" / "xbar.hjson"
+            result = soc.init_xbar(XbarConfig(host, devices), out)
+            if target == "xbar": self._soc("xbar_build")
+            return result
+        if target == "xbar_build":
+            cfg = p.run / "soc" / "xbar.hjson"
+            out = p.rtl / "xbar"
+            out.mkdir(parents=True, exist_ok=True)
+            return soc.run_tool((sys.executable, str(self.client.project_root / "src" / "util" / "tlgen.py"), "-t", str(out), str(cfg)), cwd=self.client.project_root, log=p.logs/"soc"/"xbar.log", inputs=(cfg,), outputs=(out,), on=self.on).returncode
+        if target in {"soc", "soc_uart_gen", "soc_ibex_gen"}:
+            cfg = soc.resolve_config(self.client.workdir, p.run_top, p.run_id, host=("ibex" if target == "soc_ibex_gen" else "uart" if target == "soc_uart_gen" else host), mode=v.get("SOC_CFG_MODE","builtin"))
+            devices = tuple(SoCModule(d.name, d.base, d.size, d.from_lr.strip().lower() in {"1", "true", "yes", "on"}) for d in cfg.devices)
+            return soc.generate(SoCGenerationConfig(cfg.host, devices, p.run, p.rtl / "soc.sv"))
+        if target in {"soc_flist", "soc_stage_tops"}: return self.execute("flist")
+        if target == "soc_flow":
+            return (self._soc("xbar"), self._soc("soc"), self._soc("soc_flist"))
+        if target in {"fsoc", "soc_sim", "soc_prepare"}:
+            root = p.run / "fusesoc" / host
+            argv=(v.get("FUSESOC","fusesoc"), f"--cores-root={self.client.project_root}", f"--cores-root={root/'cores'}", "run", "--setup", "--build", "--target", v.get("TARGET","sim" if target != "fsoc" else "default"), "--build-root", str(root/"build"), v.get("SOC_CORE_VLNV","enea:soc:main"))
+            return soc.run_tool(argv, cwd=root, log=p.logs/"soc"/f"{target}.log", on=self.on).returncode
+        if target == "soc_build_sw":
+            self._soc("soc_prepare"); self._soc("sw_soc")
+            return soc.run_tool(("make", "-C", str(p.run/"sw")), cwd=p.run, log=p.logs/"soc"/"build_sw.log", on=self.on).returncode
+        if target in {"soc_run", "soc_run_only"}:
+            exe=p.run/"fusesoc"/host/"build"/"sim-verilator"/"Vtop_verilator"
+            return soc.run_tool((str(exe),), cwd=exe.parent, log=p.logs/"soc"/"run.log", inputs=(exe,), on=self.on).returncode
+        if target == "soc_view": return self._view("view")
+        raise ValueError(target)
+
+    def _tutorial(self, target: str) -> object:
+        """Compose tutorials from real flow operations instead of Make recipes."""
+        sequences = {
+            "soc_ibex_fetch": ("fetch",),
+            "full_tutorial": ("ip_start", "ip_flow", "pnr", "pnr_gui"),
+            "fsm_tutorial": ("setup", "fsm_setup", "fsm_example_load", "fsm_gen", "fsm_plot", "fsm2rtl", "ip_flow_noreg"),
+            "ip_tutorial": ("ip_load", "flist", "sim", "syn", "sdf", "sta", "sta_violators", "power_estimate", "view"),
+            "soc_pless": ("ip_load", "flist", "sim", "syn", "sdf", "sta", "power_estimate", "view"),
+        }
+        if target == "soc_uart_tutorial":
+            return self._soc("soc_run")
+        if target == "soc_ibex_tutorial":
+            self._tutorial("soc_ibex_fetch")
+            return self._soc("soc_run")
+        sequence = sequences.get(target)
+        if sequence is None: raise ValueError(target)
+        return tuple(self.execute(name) for name in sequence)
+
+    def _ip_flow(self, target: str) -> object:
+        """Compose high-level IP flows from the new domain APIs."""
+        if target == "ip_start":
+            sequence = (
+                "setup", "hjson", "reg", "doc", "rtl_stub", "top_from_core",
+                "flist", "driver", "setup_model", "setup_tb", "setup_cocotb",
+                "tests_gen",
+            )
+        elif target == "ip_flow_noreg":
+            sequence = (
+                "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc", "regression",
+                "coverage_detail", "formal", "setup_syn", "syn", "setup_eqy", "eqy",
+                "signoff_corners", "manifest", "manifest_show", "metrics", "check",
+            )
+        elif target == "ip_flow":
+            sequence = (
+                "reg", "doc", "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc",
+                "regression", "coverage_detail", "formal", "setup_syn", "syn",
+                "setup_eqy", "eqy", "signoff_corners", "manifest", "manifest_show",
+                "metrics", "check",
+            )
+        else:
+            sequence = ("ip_flow", "pnr", "pnr_gui")
+        return tuple(self.execute(name) for name in sequence)
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 class FlexSoC:
-    """Configure and launch backend Make targets."""
+    """Configure and execute FlexSoC backend targets."""
 
     def __init__(
         self,
         config: FlexSoCConfig | None = None,
         project_root: PathLike = None,
         workdir: PathLike = None,
+        execution_targets: Mapping[str, Any] | None = None,
         **values: Any,
     ) -> None:
-        """Create a client with paths and initial Make-variable defaults."""
+        """Create a client with paths and initial backend settings."""
 
         base = config or FlexSoCConfig()
         self.config = FlexSoCConfig(
@@ -671,7 +1314,10 @@ class FlexSoC:
             workdir if workdir is not None else base.workdir,
             base.make_values(),
         )
-        self.settings = _upper({**self.config.make_values(), **values})
+        known = set(DEFAULT_SETTINGS) | {key for _, _, params in TARGETS.values() for key in params}
+        env_values = {key: os.environ[f"FLEXSOC_{key}"] for key in known if f"FLEXSOC_{key}" in os.environ}
+        self.settings = _upper({**self.config.make_values(), **env_values, **values})
+        self.execution_targets = dict(execution_targets or {}) or None
 
     @property
     def project_root(self) -> Path:
@@ -681,9 +1327,20 @@ class FlexSoC:
 
     @property
     def workdir(self) -> Path:
-        """Return the workspace directory passed to Make."""
+        """Return the canonical FlexSoC workspace directory."""
 
         return _path(self.config.workdir, self.project_root / "workspace")
+
+    def flows(self, **overrides: Any):
+        """Return the reusable object-oriented backend for this configuration."""
+
+        from .backend import Backend, BackendContext
+        from .backend.core import ToolRunner
+
+        values = self.values(overrides)
+        context = BackendContext(self.project_root, self.workdir, values)
+        runner = ToolRunner(self.execution_targets, project_root=self.project_root)
+        return Backend(context, runner)
 
     def describe(self) -> dict[str, Any]:
         """Return the current client configuration."""
@@ -696,18 +1353,22 @@ class FlexSoC:
         }
 
     def set(self, **values: Any) -> "FlexSoC":
-        """Update default Make variables in place."""
+        """Update default backend settings in place."""
 
         self.settings.update(_upper(values))
         return self
 
     def override(self, **values: Any) -> "FlexSoC":
-        """Return a copy with extra Make-variable defaults."""
+        """Return a copy with extra backend-setting defaults."""
 
-        return FlexSoC(FlexSoCConfig(self.project_root, self.workdir, self.settings), **values)
+        return FlexSoC(
+            FlexSoCConfig(self.project_root, self.workdir, self.settings),
+            execution_targets=self.execution_targets,
+            **values,
+        )
 
     def targets(self) -> tuple[FlexSoCTarget, ...]:
-        """List every backend Make target exposed by fx."""
+        """List every backend target exposed by fx."""
 
         return tuple(_target_object(name) for name in TARGETS)
 
@@ -740,7 +1401,7 @@ class FlexSoC:
         pdk_values: dict[str, str] = {}
         pdk_name = explicit.get("PDK", DEFAULT_SETTINGS["PDK"])
         try:
-            from .pdk import make_overrides
+            from .backend.core import make_overrides
 
             pdk_values = make_overrides(
                 self.project_root,
@@ -754,8 +1415,8 @@ class FlexSoC:
             pdk_values = {"PDK": pdk_name}
 
         values = _upper({"WORKSPACE": self.workdir, **pdk_values, **explicit})
-        from .clocking import clock_config
-        from .run_layout import pdk_make_paths
+        from .backend.core import clock_config
+        from .backend.core import pdk_make_paths
 
         values.update(clock_config(values).make_values())
         values.update(pdk_make_paths(self.project_root, values))
@@ -778,48 +1439,16 @@ class FlexSoC:
         return values
 
     def command(self, target: str, **overrides: Any) -> FlexSoCCommand:
-        """Build one backend command without executing it."""
-
+        """Build one direct fx command preview without executing it."""
         name = _target(target)
         if name in POST_PNR_SIGNOFF_TARGETS:
             overrides = {**overrides, "SIGNOFF_STAGE": "post_route"}
         values = self.values(overrides)
-        if name in NATIVE_TARGETS:
-            action, stage = NATIVE_TARGETS[name]
-            argv = (
-                sys.executable,
-                "-m",
-                "flexsoc.backend.post_sim",
-                "--action",
-                action,
-                "--stage",
-                stage,
-                "--project-root",
-                str(self.project_root),
-                "--values-json",
-                json.dumps(values, sort_keys=True),
-            )
-        else:
-            # Only forward variables declared by this target.  In particular,
-            # never leak PDK variables such as LIBS into RTL simulation: the
-            # generated Verilator makefile uses the conventional LIBS variable
-            # for C++ linker inputs, so a Liberty file there is interpreted as
-            # a linker script.  Technology views belong only to technology
-            # dependent targets.
-            params = set(TARGETS[name][2])
-            make_values = {key: value for key, value in values.items() if key in params}
-            if name in TECHNOLOGY_TARGETS:
-                make_values.update(
-                    {key: value for key, value in values.items() if key in TECHNOLOGY_PATH_KEYS}
-                )
-            argv = (
-                "make",
-                "-f",
-                str(_backend_makefile()),
-                TARGET_ALIASES.get(name, name),
-                *(f"{k}={v}" for k, v in make_values.items()),
-            )
-        return FlexSoCCommand(name, tuple(argv), self.project_root, self._env(values), values)
+        params = set(TARGETS[name][2])
+        call_values = _upper(overrides)
+        shown = {key: value for key, value in {**self.settings, **call_values}.items() if key in params}
+        argv = ("fx", name, *(item for key, value in sorted(shown.items()) for item in ("--set", f"{key}={value}")))
+        return FlexSoCCommand(name, argv, self.project_root, self._env(values), values)
 
     def commands(
         self,
@@ -857,137 +1486,156 @@ class FlexSoC:
         capture: bool = False,
         live: bool = False,
         auto_setup: bool = True,
+        on: str = "local",
         **overrides: Any,
     ) -> tuple[FlexSoCCommand | FlexSoCResult, ...]:
-        """Run or preview targets, preparing their generated scripts by default."""
-
+        """Execute targets directly through backend flow objects."""
         commands = self.commands(*targets, auto_setup=auto_setup, **overrides)
         if dry_run:
             return commands
 
-        # Validate the complete sequence before executing any prepended setup.
-        # A missing PDK must not leave partial functional-DV artifacts behind.
         for command in commands:
-            if command.target not in TECHNOLOGY_TARGETS:
-                continue
-            pdk_root = (
-                Path(command.values.get("PDK_ROOT", "")).expanduser()
-                if command.values.get("PDK_ROOT")
-                else None
-            )
-            if pdk_root is None or not pdk_root.is_dir() or not command.values.get("LIB_SYN"):
-                pdk_name = command.values.get("PDK", DEFAULT_SETTINGS["PDK"])
-                raise RuntimeError(
-                    f"target {command.target!r} requires an activated digital PDK; "
-                    f"{pdk_name!r} is not ready. Run `fx pdk fetch <pdk>` then "
-                    f"`fx pdk use <pdk>`."
-                )
+            self._preflight(command)
+
+        import contextlib
+        import io
+
+        from .backend.core.execution import (
+            print_label,
+            print_log,
+            print_target_result,
+            print_target_start,
+            strip_ansi,
+        )
+
+        class _Stream(io.TextIOBase):
+            """Mirror backend output to a plain log and an optional console."""
+
+            def __init__(self, log, console, *, compact: bool = False):
+                self.log = log
+                self.console = console
+                self.compact = compact
+
+            def write(self, text: str) -> int:
+                plain = strip_ansi(text)
+                self.log.write(plain)
+                self.log.flush()
+                if self.console is not None:
+                    visible = not self.compact or plain.lstrip().startswith(("[script]", "[report]"))
+                    if visible:
+                        self.console.write(text)
+                        self.console.flush()
+                return len(text)
+
+            def flush(self) -> None:
+                if not self.log.closed:
+                    self.log.flush()
+                if self.console is not None:
+                    self.console.flush()
 
         results: list[FlexSoCResult] = []
         for command in commands:
+            _, description, _ = TARGETS.get(command.target, ("Target", "Run target", ()))
             stream = command.target in STREAM_BY_DEFAULT_TARGETS and not capture and not live
-            if not capture:
-                from .backend.output import print_label, print_target_result, print_target_start
+            quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not capture and not live
+            log_path = self._command_log_path(command)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
 
-                _, description, _ = TARGETS.get(command.target, ("Target", "Run target", ()))
+            stdout = io.StringIO() if capture else None
+            stderr = io.StringIO() if capture else None
+            rc, error = 0, None
+
+            if not capture:
                 print_target_start(command.target, description)
-                if (
-                    command.target in TECHNOLOGY_TARGETS
-                    and not live
-                    and not stream
-                ):
+                if command.target in TECHNOLOGY_TARGETS and not live and not stream:
                     print_label(
                         "technology",
                         f"pdk={command.values.get('PDK')} syn={command.values.get('SYNDIR')}",
                     )
-            quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not live
-            log_path = (
-                self._command_log_path(command)
-                if capture or live or quiet or stream
-                else None
-            )
-            if log_path:
-                log_path.parent.mkdir(parents=True, exist_ok=True)
+                if live or stream or quiet:
+                    print_log(log_path)
 
-            if capture:
-                done = subprocess.run(
-                    command.argv,
-                    cwd=command.cwd,
-                    env=command.env,
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                )
-                assert log_path is not None
-                log_path.write_text((done.stdout or "") + (done.stderr or ""), encoding="utf-8")
-            else:
-                if live:
-                    assert log_path is not None
-                    done = self._run_live(command, log_path)
-                else:
-                    if stream:
-                        assert log_path is not None
-                        done = self._run_tee(command, log_path, show_scripts=False)
-                    elif quiet:
-                        from .backend.output import print_log, strip_ansi
-
-                        assert log_path is not None
-                        done = subprocess.run(
-                            command.argv,
-                            cwd=command.cwd,
-                            env=command.env,
-                            check=False,
-                            capture_output=True,
-                            text=True,
-                        )
-                        log_path.write_text(
-                            strip_ansi((done.stdout or "") + (done.stderr or "")),
-                            encoding="utf-8",
-                        )
-                        print_log(log_path)
+            try:
+                with log_path.open("w", encoding="utf-8") as log, contextlib.ExitStack() as stack:
+                    if capture:
+                        stack.enter_context(contextlib.redirect_stdout(stdout))
+                        stack.enter_context(contextlib.redirect_stderr(stderr))
                     else:
-                        done = subprocess.run(
-                            command.argv,
-                            cwd=command.cwd,
-                            env=command.env,
-                            check=False,
-                            text=True,
-                        )
-                ok = done.returncode == 0
-                print_target_result(command.target, done.returncode)
-                if ok and command.target == "eqy":
-                    from .backend.metrics import eqy_solver_stats
+                        console = None if quiet else sys.stdout
+                        writer = _Stream(log, console, compact=stream)
+                        stack.enter_context(contextlib.redirect_stdout(writer))
+                        stack.enter_context(contextlib.redirect_stderr(writer))
 
-                    stats = eqy_solver_stats(Path(command.values["EQUIV_LOG"]))
-                    if stats:
-                        summary = " · ".join(
-                            f"{name} {row['proved']}/{row['attempts']} proven"
-                            + (f", {row['errors']} error(s)" if row["errors"] else "")
-                            for name, row in stats.items()
-                        )
-                        winners = ", ".join(
-                            f"{name} ({row['proved']})"
-                            for name, row in stats.items()
-                            if row["proved"]
-                        )
-                        print_label("eqy", f"strategies: {summary}")
-                        if winners:
-                            print_label("eqy", f"successful solver/strategy: {winners}")
+                    previous = {
+                        "FLEXSOC_LIVE": os.environ.get("FLEXSOC_LIVE"),
+                        "PYTHONUNBUFFERED": os.environ.get("PYTHONUNBUFFERED"),
+                    }
+                    os.environ["FLEXSOC_LIVE"] = "1" if live else "0"
+                    os.environ["PYTHONUNBUFFERED"] = "1"
+                    try:
+                        value = _TargetRouter(self, command.values, on=on).execute(command.target)
+                        rc = self._returncode(value)
+                    finally:
+                        for key, value in previous.items():
+                            if value is None:
+                                os.environ.pop(key, None)
+                            else:
+                                os.environ[key] = value
 
+                    if capture:
+                        log.write(strip_ansi((stdout.getvalue() if stdout else "") + (stderr.getvalue() if stderr else "")))
+            except Exception as exc:
+                rc, error = 2, exc
+                if capture and stderr is not None:
+                    stderr.write(str(exc) + "\n")
+                    log_path.write_text(
+                        strip_ansi((stdout.getvalue() if stdout else "") + stderr.getvalue()),
+                        encoding="utf-8",
+                    )
+
+            if not capture:
+                print_target_result(command.target, rc)
             result = FlexSoCResult(
                 command,
-                done.returncode,
-                done.stdout if capture else None,
-                done.stderr if capture else None,
+                rc,
+                stdout.getvalue() if stdout else None,
+                stderr.getvalue() if stderr else None,
                 log_path,
             )
             results.append(result)
-            if check and done.returncode:
-                detail = f"; log: {log_path}" if log_path else ""
-                raise RuntimeError(
-                    f"target '{command.target}' failed with exit code {done.returncode}{detail}"
-                )
+            if error is not None and check:
+                raise RuntimeError(f"target '{command.target}' failed: {error}") from error
+            if rc and check:
+                raise RuntimeError(f"target '{command.target}' failed with exit code {rc}")
         return tuple(results)
+
+    @staticmethod
+    def _returncode(value: object) -> int:
+        """Normalize nested backend results to one target return code."""
+        if value is None or isinstance(value, (Path, str, dict)):
+            return 0
+        if isinstance(value, bool):
+            return 0 if value else 1
+        if isinstance(value, int):
+            return value
+        if hasattr(value, "returncode"):
+            return int(getattr(value, "returncode"))
+        if isinstance(value, (tuple, list)):
+            return next((rc for item in value if (rc := FlexSoC._returncode(item))), 0)
+        return 0
+
+    def _preflight(self, command: FlexSoCCommand) -> None:
+        """Validate technology requirements before any target mutates the run."""
+        if command.target not in TECHNOLOGY_TARGETS:
+            return
+        root = command.values.get("PDK_ROOT")
+        if root and Path(root).expanduser().is_dir() and command.values.get("LIB_SYN"):
+            return
+        pdk = command.values.get("PDK", DEFAULT_SETTINGS["PDK"])
+        raise RuntimeError(
+            f"target {command.target!r} requires an activated digital PDK; {pdk!r} is not ready. "
+            f"Run `fx pdk fetch {pdk}` then `fx pdk use {pdk}`."
+        )
 
     def _command_log_path(self, command: FlexSoCCommand) -> Path:
         """Return the per-target command log path."""
@@ -1040,48 +1688,6 @@ class FlexSoC:
         if command.target in TECHNOLOGY_TARGETS and values.get("COMMAND_LOGDIR"):
             return Path(values["COMMAND_LOGDIR"]) / f"{name}.log"
         return workspace / "runs" / run_top / run_id / "logs" / "commands" / f"{name}.log"
-
-    def _run_live(self, command: FlexSoCCommand, log_path: Path) -> subprocess.CompletedProcess[str]:
-        """Run a command live, including generated script contents."""
-
-        return self._run_tee(command, log_path, show_scripts=True)
-
-    def _run_tee(
-        self,
-        command: FlexSoCCommand,
-        log_path: Path,
-        *,
-        show_scripts: bool,
-    ) -> subprocess.CompletedProcess[str]:
-        """Stream one command while retaining an ANSI-free command log."""
-
-        from .backend.output import color_enabled, print_live_line, print_log, strip_ansi
-
-        env = dict(command.env)
-        env["FLEXSOC_LIVE"] = "1" if show_scripts else "0"
-        env["PYTHONUNBUFFERED"] = "1"
-        use_color = color_enabled(sys.stdout)
-        env["FLEXSOC_COLOR"] = "always" if use_color else "never"
-        print_log(log_path, color=use_color)
-        compact = command.target in STREAM_BY_DEFAULT_TARGETS and not show_scripts
-        with log_path.open("w", encoding="utf-8") as log:
-            proc = subprocess.Popen(
-                command.argv,
-                cwd=command.cwd,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-            )
-            assert proc.stdout is not None
-            for line in proc.stdout:
-                plain = strip_ansi(line)
-                log.write(plain)
-                log.flush()
-                if not compact or plain.lstrip().startswith(("[script]", "[report]")):
-                    print_live_line(line, color=use_color)
-            return subprocess.CompletedProcess(command.argv, proc.wait())
 
     def _env(self, values: Mapping[str, str] | None = None) -> dict[str, str]:
         """Prepend this checkout to PYTHONPATH and export flow abstractions."""

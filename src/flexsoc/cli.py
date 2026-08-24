@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import shlex
-import subprocess
 import sys
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Mapping
@@ -72,7 +71,7 @@ else:
 FlexSoC command runner.
 
 Run `fx` or `fx --help` to show the readable orange/cyan guide.
-Use `fx commands` to list every backend Make target.
+Use `fx commands` to list every backend target.
 """
 
     typer_app = typer.Typer(
@@ -168,6 +167,7 @@ Use `fx commands` to list every backend Make target.
                 ("fx sdf_post_pnr | fx power_estimate_post_pnr", "Write routed SDF and vectorless post-PnR power."),
                 ("fx sim_post_pnr_all", "Run timing-aware post-PnR GLS across selected tests and scenarios."),
                 ("fx power_analysis_post_pnr_all | fx fusion_analysis_post_pnr_all", "Use routed GLS activity for power and timing/power correlation."),
+                ("fx physical_signoff", "Run ORFS final GDS DRC/LVS and qualify route DRC, antenna, and IR/PDN evidence."),
                 ("fx manifest | fx metrics | fx check", "Collect release identity, metrics, and closure status."),
                 ("fx ip_save", "Save a reusable IP package after closure."),
             ),
@@ -591,7 +591,7 @@ Use `fx commands` to list every backend Make target.
     # -----------------------------------------------------------------------
 
     def _upper(values: Mapping[str, Any]) -> dict[str, str]:
-        """Convert settings to Make-style uppercase strings."""
+        """Convert settings to normalized uppercase strings."""
 
         return {str(key).upper(): str(value) for key, value in values.items() if value is not None}
 
@@ -636,7 +636,7 @@ Use `fx commands` to list every backend Make target.
         if as_json:
             print(json.dumps([target.to_dict() for target in targets], indent=2))
             return
-        table = Table(title="FlexSoC Make targets", show_lines=False)
+        table = Table(title="FlexSoC backend targets", show_lines=False)
         table.add_column("Target", style="cyan", no_wrap=True)
         table.add_column("Group", style="magenta", no_wrap=True)
         table.add_column("Description")
@@ -699,7 +699,7 @@ Use `fx commands` to list every backend Make target.
     def _settings(root: Path, workdir: Path | None, items: tuple[str, ...], sets: tuple[str, ...], unsets: tuple[str, ...], reset: bool, as_json: bool) -> None:
         """Show or update persistent project settings plus derived run roots."""
 
-        from .run_layout import layout_from_values
+        from .backend.core import layout_from_values
 
         values = dict(DEFAULT_SETTINGS if reset else _read_settings(root))
         for key in unsets:
@@ -714,7 +714,7 @@ Use `fx commands` to list every backend Make target.
             values.pop("CLOCK_RELATIONSHIPS", None)
         values.update(updates)
         if clock_updates:
-            from .clocking import clock_config
+            from .backend.core import clock_config
 
             values.update(clock_config(values).make_values())
         if reset or unsets or sets or items:
@@ -739,7 +739,7 @@ Use `fx commands` to list every backend Make target.
     ) -> int:
         """List, inspect, fetch, or activate a PDK profile."""
 
-        from .pdk import describe, discover_views, fetch, json_text, list_data, make_overrides, normalize_name
+        from .backend.core import describe, discover_views, fetch, json_text, list_data, make_overrides, normalize_name
 
         action = args[0] if args else "list"
         name = args[1] if len(args) > 1 else None
@@ -844,7 +844,7 @@ Use `fx commands` to list every backend Make target.
     ) -> int:
         """Explain one EQY failure; expensive probes target only the selected partition."""
 
-        from .backend.eqy_debug import (
+        from .backend.syn.eqy import (
             choose_trace, describe_partition, discover_result_dir, explain_counterexample, open_wave,
             run_reset_normalized_diagnostic, run_synthesis_boundary_diagnostics,
             scan, select, synthesis_boundary_diagnosis,
@@ -997,7 +997,7 @@ Use `fx commands` to list every backend Make target.
         reset_domains = None
         if not explicit_reset:
             try:
-                from .clocking import clock_config
+                from .backend.core import clock_config
                 reset_domains = tuple(
                     (domain.signal, domain.reset, domain.reset_polarity)
                     for domain in clock_config(settings).domains
@@ -1031,7 +1031,7 @@ Use `fx commands` to list every backend Make target.
 
         synthesis_probe: dict[str, object] | None = None
         if reset_probe.get("valid") and reset_probe.get("status") != "PASS":
-            from .run_layout import pdk_run_layout, run_root
+            from .backend.core import pdk_run_layout, run_root
             layout = pdk_run_layout(run_root(workspace, run_top=run_top, run_id=run_id), pdk=pdk, top=top)
             def progress(stage: str) -> None:
                 if not as_json:
@@ -1147,6 +1147,7 @@ Use `fx commands` to list every backend Make target.
         as_json: bool,
         info: bool,
         no_setup: bool,
+        on: str,
     ) -> int:
         """Run, preview, or describe requested targets."""
 
@@ -1166,9 +1167,10 @@ Use `fx commands` to list every backend Make target.
                 capture=capture,
                 live=live,
                 auto_setup=not no_setup,
+                on=on,
                 **values,
             )
-        except (ValueError, RuntimeError, subprocess.CalledProcessError, typer.BadParameter) as exc:
+        except (ValueError, RuntimeError, OSError, typer.BadParameter) as exc:
             error_console.print(f"[red]{exc}[/red]")
             return getattr(exc, "returncode", 2) or 2
 
@@ -1206,7 +1208,7 @@ Use `fx commands` to list every backend Make target.
             history=FileHistory(str(history)),
             completer=WordCompleter(_completion_words(), ignore_case=True, sentence=True),
         )
-        console.print("[bold cyan]fx shell[/bold cyan]  type 'help', 'commands', 'exit' or Make targets")
+        console.print("[bold cyan]fx shell[/bold cyan]  type 'help', 'commands', 'exit' or backend targets")
         while True:
             try:
                 line = session.prompt("fx> ").strip()
@@ -1231,7 +1233,7 @@ Use `fx commands` to list every backend Make target.
         items: Annotated[
             list[str] | None,
             typer.Argument(
-                help="Pseudo-command (`settings`, `commands`, `shell`) or one or more Make targets.",
+                help="Pseudo-command (`settings`, `commands`, `shell`) or one or more backend targets.",
                 autocompletion=_complete_items,
                 show_default=False,
             ),
@@ -1246,11 +1248,11 @@ Use `fx commands` to list every backend Make target.
         ] = None,
         project_root: Annotated[
             Path | None,
-            typer.Option("--project-root", help="Repository root used as Make cwd.", rich_help_panel="Paths"),
+            typer.Option("--project-root", help="Repository root used by backend flows.", rich_help_panel="Paths"),
         ] = None,
         workdir: Annotated[
             Path | None,
-            typer.Option("--workdir", help="Workspace passed to Make as WORKSPACE.", rich_help_panel="Paths"),
+            typer.Option("--workdir", help="Workspace used by backend flows.", rich_help_panel="Paths"),
         ] = None,
         tool: Annotated[
             str | None,
@@ -1288,9 +1290,13 @@ Use `fx commands` to list every backend Make target.
                 rich_help_panel="Target options",
             ),
         ] = False,
+        on: Annotated[
+            str,
+            typer.Option("--on", help="Execution target name (local or configured server).", rich_help_panel="Target options"),
+        ] = "local",
         dry_run: Annotated[
             bool,
-            typer.Option("--dry-run", help="Print Make commands without running them.", rich_help_panel="Output"),
+            typer.Option("--dry-run", help="Print backend command previews without running them.", rich_help_panel="Output"),
         ] = False,
         script: Annotated[
             bool,
@@ -1313,7 +1319,7 @@ Use `fx commands` to list every backend Make target.
             typer.Option("--info", help="Describe targets instead of running them.", rich_help_panel="Output"),
         ] = False,
     ) -> None:
-        """Dispatch pseudo-commands or ordered Make targets."""
+        """Dispatch pseudo-commands or ordered backend targets."""
 
         root = (project_root or Path.cwd()).resolve()
         args, set_args, unset_args = tuple(items or ()), tuple(sets or ()), tuple(unsets or ())
@@ -1348,7 +1354,7 @@ Use `fx commands` to list every backend Make target.
             _settings(root, workdir, args[1:], set_args, unset_args, reset, as_json)
             return
         if args[0] == "doctor":
-            from .doctor import run as run_doctor
+            from .backend.core.toolchain import run as run_doctor
 
             raise typer.Exit(run_doctor(root, as_json=as_json))
         if args[0] == "pdk":
@@ -1371,6 +1377,7 @@ Use `fx commands` to list every backend Make target.
                 as_json=as_json,
                 info=info,
                 no_setup=no_setup,
+                on=on,
             )
         )
 

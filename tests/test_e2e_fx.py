@@ -14,7 +14,7 @@ from typing import Iterator
 
 import pytest
 
-from flexsoc.backend.setup_model import NCLOCK_DESIGN_TESTS, SHARED_VECTOR_TESTS
+from flexsoc.backend.design.model import NCLOCK_DESIGN_TESTS, SHARED_VECTOR_TESTS
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -631,6 +631,20 @@ def _run_implementation(
         workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
         pdk=pdk, config=config,
     )
+    _run(
+        f"uv run --no-sync fx physical_signoff --no-setup --set {ors} --workdir {workdir}",
+        workspace=workspace, top=top, run_id=run_id,
+    )
+    summary_path = run / "signoff" / pdk / "physical" / "summary.json"
+    assert summary_path.is_file() and summary_path.stat().st_size > 0
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary.get("status") in {"pass", "review"}
+    checks = summary.get("checks", {})
+    for name in ("route_drc", "antenna", "gds_drc", "lvs", "ir_drop"):
+        assert isinstance(checks.get(name), dict), f"missing physical sign-off check: {name}"
+    if pdk == "sky130":
+        for name in ("route_drc", "antenna", "gds_drc", "lvs"):
+            assert checks[name].get("status") == "pass", f"{name} not clean: {checks[name]}"
 
 
 def _slang_values(top: str, run: Path) -> tuple[str, str, str]:
@@ -705,6 +719,7 @@ def _assert_technology_closure(top: str, run: Path, pdk: str) -> None:
     assert flow.get("order", []) == [
         "lint", "cdc_rdc", "functional", "formal", "synthesis", "equivalence",
         "pre_implementation_signoff", "implementation", "post_implementation_signoff",
+        "physical_signoff",
     ]
     if (run / "signoff" / pdk / "post_pnr").is_dir():
         assert metrics.get("implementation", {}).get("status") == "pass"
@@ -712,7 +727,11 @@ def _assert_technology_closure(top: str, run: Path, pdk: str) -> None:
         assert isinstance(manifest.get("signoff", {}).get("post_pnr"), dict)
         assert isinstance(metrics.get("post_pnr", {}).get("fusion_analysis"), dict)
         assert flow.get("stages", {}).get("post_implementation_signoff") == "pass"
+        assert flow.get("stages", {}).get("physical_signoff") in {"pass", "review"}
+        assert isinstance(metrics.get("physical_signoff"), dict)
+        assert isinstance(manifest.get("physical_signoff"), dict)
         assert "post_pnr_fusion" in metrics.get("closure", {}).get("order", [])
+        assert metrics.get("closure", {}).get("order", [])[-1] == "physical_signoff"
 
 
 

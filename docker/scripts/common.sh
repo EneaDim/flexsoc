@@ -14,8 +14,8 @@ image_input_files() {
   cat <<'FILES'
 docker/ci/Dockerfile
 docker/ci/Dockerfile.dockerignore
-src/flexsoc/backend/deps.sh
-src/flexsoc/backend/toolchain.lock
+src/flexsoc/backend/core/deps.sh
+src/flexsoc/backend/core/toolchain.lock
 pyproject.toml
 uv.lock
 FILES
