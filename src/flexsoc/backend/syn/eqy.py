@@ -56,6 +56,7 @@ class EquivalenceConfig:
     output: Path
     formal_cell_model: Path | None = None
     formal_pdk_proc: Path | None = None
+    pdk: str = ""
     timeout: int = 60
     quick_timeout: int = 5
     multiclock: bool = False
@@ -279,6 +280,12 @@ endmodule"""
     return "\n\n".join(modules) + "\n"
 
 
+def _active_pdk(cfg: EquivalenceConfig) -> str:
+    """Return the explicit PDK identity, with ambient env only as compatibility fallback."""
+
+    return cfg.pdk.strip().lower() or os.environ.get("FLEXSOC_PDK", "").strip().lower()
+
+
 def _gate_model_reads(
     cfg: EquivalenceConfig,
     *,
@@ -288,7 +295,7 @@ def _gate_model_reads(
 ) -> list[str]:
     """Read functional cell models when safe, otherwise use Liberty fallback."""
 
-    pdk = os.environ.get("FLEXSOC_PDK", "").strip().lower()
+    pdk = _active_pdk(cfg)
     reads: list[str] = []
     if cfg.formal_cell_model is not None:
         reads.append(f"read_verilog -formal -sv {cfg.formal_cell_model}")
@@ -478,7 +485,7 @@ def _formal_pdk_processor(cfg: EquivalenceConfig) -> str | None:
 def _prepare_formal_cell_model(cfg: EquivalenceConfig, *, runner=None, on: str = "local") -> EquivalenceConfig:
     """Prepare SKY130 functional Verilog without making LibreLane a dependency."""
 
-    pdk = os.environ.get("FLEXSOC_PDK", "").strip().lower()
+    pdk = _active_pdk(cfg)
     if pdk != "sky130" or not cfg.cell_models:
         return cfg
 
@@ -544,7 +551,7 @@ def write_text(path: Path, content: str) -> Path:
 def generate_equivalence_config(cfg: EquivalenceConfig, *, runner=None, on: str = "local") -> Path:
     """Generate optional PDK compatibility models and one EQY config."""
 
-    pdk = os.environ.get("FLEXSOC_PDK", "").strip().lower()
+    pdk = _active_pdk(cfg)
     body = (
         render_sky130_clock_gate_model()
         if pdk == "sky130"
@@ -616,6 +623,7 @@ def bind_equivalence_profile(
     config: Path | None = None,
     runner=None,
     on: str = "local",
+    pdk: str | None = None,
 ) -> tuple[Path, ...]:
     """Bind a portable, design-owned EQY profile to the active run and PDK."""
 
@@ -628,9 +636,10 @@ def bind_equivalence_profile(
         _replace_symlink(liberty, output_dir / "library.lib"),
     ]
     clock_gate = output_dir / clock_gate_model.name
+    resolved_pdk = (pdk or os.environ.get("FLEXSOC_PDK", "")).strip().lower()
     body = (
         render_sky130_clock_gate_model()
-        if os.environ.get("FLEXSOC_PDK", "").strip().lower() == "sky130"
+        if resolved_pdk == "sky130"
         else "// No PDK-specific EQY compatibility model required.\n"
     )
     created.append(write_text(clock_gate, body))
@@ -646,6 +655,7 @@ def bind_equivalence_profile(
             liberty=liberty,
             cell_models=tuple(cell_models),
             formal_pdk_proc=formal_pdk_proc,
+            pdk=resolved_pdk,
             sky130_clock_gate_model=clock_gate,
             engine="abc pdr",
             depth=1,
@@ -1744,11 +1754,19 @@ class EquivalenceFlow:
         formal_pdk_proc: Path | None = None,
         timeout: int = 60,
         quick_timeout: int = 5,
+        pdr_engine: str | None = None,
+        pdk: str | None = None,
+        multiclock: bool | None = None,
+        reset_domains: Sequence[tuple[str, str, str]] | None = None,
     ) -> EquivalenceConfig:
         """Build a configuration from explicit inputs and active clock intent."""
 
         clocks = clock_config()
-        multiclock = clocks.multiclock
+        resolved_multiclock = clocks.multiclock if multiclock is None else bool(multiclock)
+        resolved_reset_domains = (
+            tuple((d.signal, d.reset, d.reset_polarity) for d in clocks.domains)
+            if reset_domains is None else tuple(reset_domains)
+        )
         raw_order = os.environ.get("EQY_STRATEGY_ORDER", "auto").strip().lower()
         order = () if raw_order in {"", "auto"} else tuple(
             token.strip() for token in raw_order.split(",") if token.strip()
@@ -1760,26 +1778,31 @@ class EquivalenceFlow:
             liberty=liberty,
             cell_models=tuple(cell_models),
             formal_pdk_proc=formal_pdk_proc,
+            pdk=(pdk or os.environ.get("FLEXSOC_PDK", "")).strip().lower(),
             sky130_clock_gate_model=clock_gate_model,
             engine=engine,
             depth=depth,
             sat_depth=sat_depth,
             output=output,
-            timeout=int(os.environ.get("EQY_TIMEOUT", "30" if multiclock else str(timeout))),
+            timeout=int(os.environ.get("EQY_TIMEOUT", "30" if resolved_multiclock else str(timeout))),
             quick_timeout=int(os.environ.get("EQY_QUICK_TIMEOUT", str(quick_timeout))),
-            multiclock=multiclock,
+            multiclock=resolved_multiclock,
             splitnets=os.environ.get("EQY_SPLITNETS", "off").strip().lower(),
-            use_sat=_env_bool("EQY_USE_SAT", not multiclock),
+            use_sat=_env_bool("EQY_USE_SAT", not resolved_multiclock),
             use_pdr=_env_bool("EQY_USE_PDR", True),
-            pdr_engine=os.environ.get("EQY_PDR_ENGINE", engine).strip() or "abc pdr",
+            pdr_engine=(
+                pdr_engine.strip()
+                if pdr_engine is not None and pdr_engine.strip()
+                else os.environ.get("EQY_PDR_ENGINE", "abc pdr").strip() or "abc pdr"
+            ),
             smt_engine=os.environ.get("EQY_SMT_ENGINE", "smtbmc bitwuzla").strip(),
-            smt_depth=int(os.environ.get("EQY_SMT_DEPTH", "5" if multiclock else "2")),
+            smt_depth=int(os.environ.get("EQY_SMT_DEPTH", "5" if resolved_multiclock else "2")),
             xprop=os.environ.get("EQY_XPROP", "on").strip().lower(),
             join_outputs=_env_bool("EQY_JOIN_OUTPUTS", True),
             strategy_order=order,
-            reset_normalize=_env_bool("EQY_RESET_NORMALIZE", not multiclock),
+            reset_normalize=_env_bool("EQY_RESET_NORMALIZE", not resolved_multiclock),
             reset_cycles=int(os.environ.get("EQY_RESET_CYCLES", "2")),
-            reset_domains=tuple((d.signal, d.reset, d.reset_polarity) for d in clocks.domains),
+            reset_domains=resolved_reset_domains,
         )
 
     def setup(
@@ -1799,6 +1822,10 @@ class EquivalenceFlow:
         formal_pdk_proc: Path | None = None,
         force: bool = False,
         on: str = "local",
+        pdr_engine: str | None = None,
+        pdk: str | None = None,
+        multiclock: bool | None = None,
+        reset_domains: Sequence[tuple[str, str, str]] | None = None,
     ) -> tuple[Path, Path]:
         """Bind the portable view and generate the EQY config when required."""
 
@@ -1814,6 +1841,7 @@ class EquivalenceFlow:
             config=config if config.is_file() and not force else None,
             runner=self.runner,
             on=on,
+            pdk=pdk,
         )
         view = output_dir / f"{top}_eqy_view.sv"
         if force or not config.is_file():
@@ -1829,6 +1857,10 @@ class EquivalenceFlow:
                 depth=depth,
                 sat_depth=sat_depth,
                 output=config,
+                pdr_engine=pdr_engine,
+                pdk=pdk,
+                multiclock=multiclock,
+                reset_domains=reset_domains,
             )
             generate_equivalence_config(cfg, runner=self.runner, on=on)
         if not view.is_file():

@@ -35,6 +35,7 @@ DEFAULT_SETTINGS = {
     "SDF_STRICT": "1",
     "FST2VCD": "fst2vcd",
     "SIGNOFF_STAGE": "post_syn",
+    "SDC_CLOCK_PERIOD_NS": "20",
     "POWER_VCD_SCOPE": "auto",
     "POWER_DUT_INSTANCE": "auto",
 }
@@ -129,6 +130,8 @@ SIGNOFF = (
     "POWER_GLOBAL_ACTIVITY",
     "MACRO_LIBS",
     "SIGNOFF_STAGE",
+    "SDC_IO_DELAY_PCT",
+    "SDC_CLOCK_PERIOD_NS",
     "STA_ENDPOINT_GROUP_LIMIT",
     "STA_ENDPOINT_PATH_LIMIT",
     "STA_NEAR_CRITICAL_SETUP",
@@ -297,7 +300,7 @@ TARGETS: dict[str, TargetSpec] = {
     "setup_pnr": ("Implementation", "Generate OpenROAD implementation config", PNR),
     "pnr": ("Implementation", "Run OpenROAD implementation", PNR),
     "pnr_gui": ("Implementation", "Open OpenROAD GUI", PNR),
-    "physical_signoff": ("Physical signoff", "Run ORFS DRC/LVS and qualify physical sign-off", PNR),
+    "physical_signoff": ("Post Sign-Off", "Run ORFS physical closure checks within post-implementation sign-off", PNR),
     "ip_load": ("IP load/save", "Load the complete IP package into a run workspace", IP_LOAD),
     "ip_save": (
         "IP load/save",
@@ -616,14 +619,16 @@ ACTIVITY_ANALYSIS_TARGETS = {
 }
 
 STREAM_BY_DEFAULT_TARGETS = {
-    "sim_post_syn_all", "sim_post_pnr_all", "fusion_analysis", "fusion_analysis_all",
+    "sim_post_syn_all", "sim_post_pnr_all",
+    "power_analysis_all", "power_analysis_post_pnr_all",
+    "fusion_analysis", "fusion_analysis_all",
     "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all",
 }
 
 QUIET_BY_DEFAULT_TARGETS = {
     "compile_post_syn", "sim_post_syn",
     "compile_post_pnr", "sdf_post_pnr", "sim_post_pnr",
-    "power_analysis", "power_analysis_all", "power_analysis_post_pnr", "power_analysis_post_pnr_all",
+    "power_analysis", "power_analysis_post_pnr",
 }
 
 
@@ -795,7 +800,14 @@ class _TargetRouter:
             config=config,
             formal_pdk_proc=Path(formal_proc) if formal_proc else None,
             force=self._bool(self.values.get("FORCE")),
+            pdr_engine=self.values.get("EQY_PDR_ENGINE", "abc pdr"),
             on=self.on,
+            pdk=self.values.get("PDK", ""),
+            multiclock=self.context.clocks.multiclock,
+            reset_domains=tuple(
+                (domain.signal, domain.reset, domain.reset_polarity)
+                for domain in self.context.clocks.domains
+            ),
         )
 
     def _run_eqy(self) -> int:
@@ -862,7 +874,10 @@ class _TargetRouter:
 
     def _run_pnr(self, *, gui: bool = False) -> int:
         makefile, config = self._orfs()
-        log = self.paths.logs / "implementation" / self.paths.pdk / ("gui.log" if gui else "pnr.log")
+        layout = self.context.layout
+        log = layout.pnr_log_dir / (
+            f"{self.paths.top}_pnr_gui.log" if gui else f"{self.paths.top}_pnr.log"
+        )
         if gui:
             return self.backend.impl.view(makefile=makefile, config=config, workdir=self.paths.impl, log=log, on=self.on)
         return self.backend.impl.run(makefile=makefile, config=config, workdir=self.paths.impl, log=log, on=self.on)
@@ -970,7 +985,7 @@ class _TargetRouter:
             return b.dv.coverage.flow_from_context(self.context, detail=target == "coverage_detail", on=self.on)
 
         if target in {"setup_formal", "setup_formal_prove", "setup_formal_cover", "setup_formal_csr_prove", "setup_formal_csr_cover"}:
-            b.dv.formal.setup_scaffold(top, p.formal)
+            b.dv.formal.setup_scaffold(top, p.formal, multiclock=self.context.clocks.multiclock)
             if target == "setup_formal":
                 return 0
             csr = "csr" in target
@@ -1060,7 +1075,15 @@ class _TargetRouter:
             return self._run_pnr(gui=True)
         if target == "physical_signoff":
             makefile, config = self._orfs()
-            return post.run_physical(makefile=makefile, config=config, workdir=p.impl, top=top, output=p.signoff / "physical" / "summary.json", log=p.logs / "signoff" / p.pdk / "physical" / "physical_signoff.log", on=self.on)
+            return post.run_physical(
+                makefile=makefile,
+                config=config,
+                workdir=p.impl,
+                top=top,
+                output=p.signoff / "post_pnr" / "physical" / "summary.json",
+                log=p.logs / "signoff" / p.pdk / "post_pnr" / "physical" / "physical_signoff.log",
+                on=self.on,
+            )
 
         if target in {"metrics", "manifest", "manifest_show", "check"}:
             return self._report(target)
@@ -1584,18 +1607,35 @@ class FlexSoC:
         class _Stream(io.TextIOBase):
             """Mirror backend output to a plain log and an optional console."""
 
+            _COMPACT_PREFIXES = ("[script]", "[report]", "[summary]", "[gate-sim]")
+
             def __init__(self, log, console, *, compact: bool = False):
                 self.log = log
                 self.console = console
                 self.compact = compact
+                self._console_pending = ""
+
+            def _compact_visible(self, line: str) -> bool:
+                return line.lstrip().startswith(self._COMPACT_PREFIXES)
+
+            def _write_compact_console(self, text: str) -> None:
+                if self.console is None:
+                    return
+                self._console_pending += text
+                while "\n" in self._console_pending:
+                    line, self._console_pending = self._console_pending.split("\n", 1)
+                    if self._compact_visible(strip_ansi(line)):
+                        self.console.write(line + "\n")
+                self.console.flush()
 
             def write(self, text: str) -> int:
                 plain = strip_ansi(text)
                 self.log.write(plain)
                 self.log.flush()
                 if self.console is not None:
-                    visible = not self.compact or plain.lstrip().startswith(("[script]", "[report]"))
-                    if visible:
+                    if self.compact:
+                        self._write_compact_console(text)
+                    else:
                         self.console.write(text)
                         self.console.flush()
                 return len(text)
@@ -1604,6 +1644,11 @@ class FlexSoC:
                 if not self.log.closed:
                     self.log.flush()
                 if self.console is not None:
+                    if self.compact and self._console_pending:
+                        pending = self._console_pending
+                        self._console_pending = ""
+                        if self._compact_visible(strip_ansi(pending)):
+                            self.console.write(pending)
                     self.console.flush()
 
         results: list[FlexSoCResult] = []
