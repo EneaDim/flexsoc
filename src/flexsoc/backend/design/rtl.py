@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import ast
 import re
-import sys
+import shlex
+import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
-from typing import Any
+from typing import Any, Sequence
 
-from flexsoc.backend.core import clock_config
-
-from flexsoc.backend.core import colorize, ensure_dir, safe_write_file
+from flexsoc.backend.core import ClockConfig, ClockDomain, clock_config, ensure_dir, safe_write_file
 
 try:
     import hjson  # type: ignore
@@ -491,16 +491,6 @@ def generate_rtl_stubs(hjson_path: str | Path, itf: str, outdir: str | Path, *, 
     return core_path, top_path
 
 
-import re
-import sys
-from dataclasses import dataclass
-from pathlib import Path
-
-from flexsoc.backend.core import ClockConfig, ClockDomain, clock_config
-
-from flexsoc.backend.core import colorize, safe_write_file
-
-
 @dataclass(frozen=True, slots=True)
 class Port:
     """One parsed SystemVerilog port."""
@@ -705,12 +695,6 @@ def write_top_from_core(top: str, rtl_dir: str | Path, itf: str, *, force: bool 
     safe_write_file(out, text, overwrite=force)
     return out
 
-
-import re
-import shlex
-import shutil
-import subprocess
-from pathlib import Path
 
 MODULE_RE = re.compile(r"\bmodule\s+(?:(?:automatic|static)\s+)?([A-Za-z_][A-Za-z0-9_$]*)")
 TIMESCALE_RE = re.compile(r"`timescale\s+([^\s/]+)\s*/\s*([^\s]+)")

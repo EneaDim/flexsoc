@@ -35,6 +35,38 @@ def _clean_python_cache(root: Path) -> None:
             path.unlink(missing_ok=True)
 
 
+def _rebind_filelists(destination: Path, project_root: Path) -> None:
+    """Bind copied saved-IP filelists to the current checkout and run."""
+
+    rtl = destination / "rtl"
+    for filelist in (rtl / "rtl_common.f", rtl / "rtl_ip.f"):
+        if not filelist.is_file():
+            continue
+        local = filelist.name == "rtl_ip.f"
+        lines = []
+        for line in filelist.read_text(encoding="utf-8").splitlines():
+            prefix, value = ("+incdir+", line[8:]) if line.startswith("+incdir+") else ("", line)
+            if not value or value.startswith(("#", "+")):
+                lines.append(line)
+                continue
+            normalized = value.replace("\\", "/")
+            rebound = None
+            if local:
+                if prefix:
+                    rebound = rtl
+                else:
+                    matches = [path for path in rtl.rglob(Path(value).name) if path.is_file()]
+                    if len(matches) == 1:
+                        rebound = matches[0]
+            else:
+                for marker, base in (("/hw/ips/", project_root / "hw" / "ips"), ("/vendor/", project_root / "vendor")):
+                    if marker in normalized:
+                        rebound = base / normalized.split(marker, 1)[1]
+                        break
+            lines.append(prefix + (rebound.resolve().as_posix() if rebound else value))
+        filelist.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 @dataclass(slots=True)
 class PackageFlow:
     """Load and atomically save reusable IP artifacts without Make indirection."""
@@ -62,6 +94,7 @@ class PackageFlow:
             shutil.rmtree(destination)
         _copy_contents(source, destination)
         _clean_python_cache(destination)
+        _rebind_filelists(destination, self.project_root)
         return destination
 
     def save(

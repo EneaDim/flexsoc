@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 _cfg_SUPPORTED_HOSTS = {"ibex", "uart"}
 KNOWN_BASES = {
@@ -195,11 +199,6 @@ def render_args(config: SoCConfig) -> str:
 
 
 
-import shutil
-from dataclasses import dataclass
-from pathlib import Path
-
-
 @dataclass(frozen=True, slots=True)
 class SoCStartConfig:
     """Configuration required to initialize a SoC run."""
@@ -346,12 +345,6 @@ def initialize_soc_run(config: SoCStartConfig) -> Path:
 
 
 
-import json
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
-
-
 @dataclass(frozen=True, slots=True)
 class XbarDevice:
     """Describe one device node attached to the generated crossbar."""
@@ -436,10 +429,6 @@ def parse_device_rows(rows: list[list[str]]) -> tuple[XbarDevice, ...]:
 
 
 
-
-from dataclasses import dataclass
-from pathlib import Path
-import re
 
 _gen_SUPPORTED_HOSTS = {"ibex", "uart"}
 
@@ -1162,9 +1151,6 @@ def generate_soc_sv(host, device, root_dir, output_file):
 
 
 
-from pathlib import Path
-
-
 LICENSE = """# Copyright 2025 Enea Dimroci
 #
 # Licensed under the Apache License, Version 2.0.
@@ -1240,11 +1226,6 @@ def write_core(prj: str, top: str, rtl_dir: Path, output: Path | None = None) ->
 
 
 
-
-
-import shutil
-from dataclasses import dataclass
-from pathlib import Path
 
 
 BOOT_S = r"""# Copyright lowRISC contributors.

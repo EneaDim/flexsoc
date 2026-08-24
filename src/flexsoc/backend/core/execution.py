@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, TextIO
+from time import monotonic
+from typing import Any, Mapping, Protocol, TextIO
 
 from rich.console import Console
 from rich.syntax import Syntax
@@ -218,11 +221,6 @@ def print_live_line(
         stream.write(plain)
     stream.flush()
 
-
-from dataclasses import dataclass
-from time import monotonic
-from typing import Any, Protocol, Sequence
-import subprocess
 
 @dataclass(frozen=True, slots=True)
 class CommandRequest:

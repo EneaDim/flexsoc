@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
+import hashlib
 import json
 import os
+import platform
 import re
+import subprocess
+import tomllib
+from dataclasses import dataclass
+from importlib import metadata
 from pathlib import Path
 from typing import Any, Sequence
 
 from rich.console import Console
-from rich.markup import escape
 from rich.table import Table
 
 from flexsoc.backend.signoff.sta import SDF_MODE_TO_CORNER
 from flexsoc.backend.core import pdk_run_layout
+from flexsoc.backend.core.toolchain import collect as collect_environment
 
 
 LINT_KINDS = ("latch", "undriven", "width", "unconnected", "unused")
@@ -1713,23 +1717,6 @@ def show_metrics(path: Path) -> None:
         console.print(table)
 
     console.print(f"\n[grey70]Detailed metrics:[/grey70] {path}")
-
-
-import hashlib
-import json
-import os
-import platform
-import subprocess
-import tomllib
-from importlib import metadata
-from pathlib import Path
-from typing import Sequence
-
-from rich.console import Console
-from rich.table import Table
-
-from flexsoc.backend.core.toolchain import collect as collect_environment
-from flexsoc.backend.core import pdk_run_layout
 
 
 def _git(root: Path, *args: str) -> str | None:

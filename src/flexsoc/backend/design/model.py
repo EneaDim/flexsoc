@@ -198,7 +198,8 @@ def _tests_text(top: str) -> str:
 
         from __future__ import annotations
 
-                import random
+        import argparse
+        import random
         from dataclasses import dataclass
         from pathlib import Path
 
@@ -557,7 +558,8 @@ def _regmap_tests_text(top: str, *, safe_controls: bool = False) -> str:
         """
         from __future__ import annotations
 
-                from pathlib import Path
+        import argparse
+        from pathlib import Path
 
         import {top}_model as model
         import {top}_regmap as regmap
@@ -799,7 +801,8 @@ def render_nclock_tests(top: str) -> str:
 
     from __future__ import annotations
 
-        import random
+    import argparse
+    import random
     from dataclasses import dataclass
     from pathlib import Path
 
@@ -1151,8 +1154,6 @@ class ModelFlow:
         clocks=None,
     ) -> tuple[Path, Path, Path, Path]:
         """Prepare regmap, model and both test scaffolds."""
-
-        from .regs import generate as generate_regmap
 
         clocks = clocks or clock_config()
         regmap = generate_regmap(top, data_dir, output, force=force)

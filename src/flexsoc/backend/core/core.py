@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import os
-from dataclasses import dataclass
-from typing import Mapping
+import re
+import shutil
+import subprocess
+import sys
+import urllib.request
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Iterable, Mapping
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,16 +149,6 @@ def clock_config(values: Mapping[str, object] | None = None) -> ClockConfig:
         raise ValueError(f"N_CLOCKS={requested} but CLOCK_DOMAINS defines {len(domains)} domain(s)")
     relationships = _relationships(relationships_text, {domain.name for domain in domains})
     return ClockConfig(domains, relationships)
-
-
-import json
-import re
-import shutil
-import subprocess
-import urllib.request
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Iterable
 
 
 @dataclass(frozen=True, slots=True)
@@ -747,12 +745,6 @@ def json_text(data: object) -> str:
     return json.dumps(data, indent=2, sort_keys=True)
 
 
-import re
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Mapping
-
-
 def _slug(value: str) -> str:
     """Return a safe deterministic directory component."""
 
@@ -967,15 +959,6 @@ def pdk_make_paths(project_root: Path, values: Mapping[str, str]) -> dict[str, s
         "MANIFEST_JSON": str(layout.meta_dir / "manifest.json"),
         "COMMAND_LOGDIR": str(layout.command_log_dir),
     }
-
-
-import os
-import re
-import shutil
-import sys
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Iterable
 
 
 def colorize(text: str, color_code: str = "\033[38;5;214m") -> str:

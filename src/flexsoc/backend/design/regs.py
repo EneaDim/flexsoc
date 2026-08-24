@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
+from typing import Any
 
-from flexsoc.backend.core import clock_config
-
-from flexsoc.backend.core import colorize, ensure_dir, safe_write_file
+from flexsoc.backend.core import ensure_dir, safe_write_file
 
 
 HJSON_TEMPLATE = r"""{{ 
@@ -319,10 +319,6 @@ def render_nclock_hjson(top: str, regmap: str) -> str:
 # RTL generation
 
 
-from pathlib import Path
-from typing import Any
-
-
 def load_hjson(path: str | Path) -> dict[str, Any]:
     """Load one HJSON file with hjson, falling back to a tiny name parser."""
 
@@ -508,14 +504,6 @@ def generate_driver(hjson_file: str | Path, output_dir: str | Path, base_address
     return header, source
 
 
-#!/usr/bin/env python3
-
-import sys
-from dataclasses import dataclass
-from pathlib import Path
-from textwrap import dedent
-from typing import Any
-
 READABLE_SWACCESS = frozenset({"ro", "rc", "rw", "rw1s", "rw1c", "rw0c"})
 WRITABLE_SWACCESS = frozenset({"rw", "wo", "r0w1c", "rw1s", "rw1c", "rw0c"})
 
@@ -571,7 +559,7 @@ class RegisterSpec:
 def _reggen_ip_block() -> Any:
     """Return the bundled reggen ``IpBlock`` class."""
 
-    util_dir = Path(__file__).resolve().parents[2] / "util"
+    util_dir = Path(__file__).resolve().parents[3] / "util"
     if util_dir.is_dir() and str(util_dir) not in sys.path:
         sys.path.insert(0, str(util_dir))
     try:
@@ -995,18 +983,20 @@ class RegsFlow:
         *,
         force: bool = False,
         clocks=None,
-    ) -> Path:
+    ) -> Path | tuple[Path, ...]:
         """Create the HJSON source of truth for one IP."""
 
         if clocks is not None and clocks.multiclock:
             ensure_dir(output_dir)
-            path = Path(output_dir) / f"{top}.hjson"
-            safe_write_file(path, render_nclock_hjson(top, clocks), overwrite=force)
-            return path
+            paths = tuple(Path(output_dir) / f"{top}_{name}.hjson" for name in ("cfg", "dsp"))
+            for path, name in zip(paths, ("cfg", "dsp"), strict=True):
+                safe_write_file(path, render_nclock_hjson(top, name), overwrite=force)
+            return paths
         return write_hjson(top, interface, output_dir, force=force)
 
     def _maps(self, top: str, data_dir: Path, regmap: str | None = None) -> tuple[Path, ...]:
-        paths = [data_dir / f"{top}.hjson", *sorted(data_dir.glob(f"{top}_*.hjson"))]
+        named = sorted(data_dir.glob(f"{top}_*.hjson"))
+        paths = named or [data_dir / f"{top}.hjson"]
         if regmap:
             paths = [path for path in paths if path.stem == f"{top}_{regmap}"]
         selected = tuple(path for path in paths if path.is_file())
