@@ -50,6 +50,7 @@ from flexsoc.backend.core.reporting import (
     collect_power_estimate,
     collect_sta,
     formal_stage,
+    flow_summary,
     signoff_summary,
     status_word,
 )
@@ -948,6 +949,7 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
     output = capsys.readouterr().out
     assert STREAM_BY_DEFAULT_TARGETS == {
         "sim_post_syn_all", "sim_post_pnr_all",
+        "power_analysis_all", "power_analysis_post_pnr_all",
         "fusion_analysis", "fusion_analysis_all",
         "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all",
     }
@@ -2714,6 +2716,58 @@ def test_saved_ip_packages_use_pdk_first_technology_branches() -> None:
         assert (package / "signoff/ihp-sg13g2/equivalence/rtl_vs_syn").is_dir()
 
 
+
+def test_formal_scaffold_uses_explicit_multiclock_context(tmp_path: Path) -> None:
+    from flexsoc.backend.dv.formal import generate_scaffold
+
+    prove, cover = generate_scaffold("tri_stream_dsp", tmp_path, multiclock=True)
+    prove_text = prove.read_text(encoding="utf-8")
+    cover_text = cover.read_text(encoding="utf-8")
+    assert "dsp_clk_i" in prove_text
+    assert "fifo_rready" in prove_text
+    assert "pipe_q1" not in prove_text
+    assert "cfg_clk_i" in cover_text
+    assert "rx_clk_i" in cover_text
+
+
+def test_cordic_signoff_sdc_default_uses_lighter_io_budget(tmp_path: Path) -> None:
+    from flexsoc.backend.signoff.sta import generate_signoff_sdc
+
+    workspace = tmp_path / "workspace"
+    values = {
+        "WORKSPACE": str(workspace),
+        "RUN_TOP": "cordic",
+        "RUN_ID": "dev",
+        "TOP": "cordic",
+        "PDK": "sky130",
+        "N_CLOCKS": "1",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+    }
+    text = generate_signoff_sdc(tmp_path, values).read_text(encoding="utf-8")
+    assert "create_clock -name core -period 20" in text
+    assert "set_input_delay [expr 20 * 0.1]" in text
+    assert "set_output_delay [expr 20 * 0.1]" in text
+
+def test_signoff_sdc_defaults_every_domain_to_20ns_and_allows_override(tmp_path: Path) -> None:
+    from flexsoc.backend.signoff.sta import generate_signoff_sdc
+
+    values = {
+        "WORKSPACE": str(tmp_path / "workspace"),
+        "RUN_TOP": "multi",
+        "RUN_ID": "dev",
+        "TOP": "multi",
+        "PDK": "sky130",
+        "N_CLOCKS": "3",
+        "CLOCK_DOMAINS": "cfg:cfg_clk_i:cfg_rst_ni:20:low,rx:rx_clk_i:rx_rst_ni:16:low,dsp:dsp_clk_i:dsp_rst_ni:30:low",
+        "CLOCK_RELATIONSHIPS": "async:cfg:rx,async:cfg:dsp,async:rx:dsp",
+    }
+    text = generate_signoff_sdc(tmp_path, values).read_text(encoding="utf-8")
+    assert text.count("-period 20") == 3
+    values["SDC_CLOCK_PERIOD_NS"] = "25"
+    text = generate_signoff_sdc(tmp_path, values).read_text(encoding="utf-8")
+    assert text.count("-period 25") == 3
+
+
 def test_setup_signoff_generates_five_families_without_activity_scripts(
     tmp_path: Path,
 ) -> None:
@@ -2745,7 +2799,7 @@ def test_setup_signoff_generates_five_families_without_activity_scripts(
     }
     sdc = run / "signoff/sky130/demo.sdc"
     assert sdc.is_file()
-    assert "create_clock -name core -period 10 [get_ports clk_i]" in sdc.read_text(encoding="utf-8")
+    assert "create_clock -name core -period 20 [get_ports clk_i]" in sdc.read_text(encoding="utf-8")
     sta_template = run / "signoff/sky130/sta/sta.tcl"
     assert str(run / "syn/sky130/demo_synth.v") in sta_template.read_text(encoding="utf-8")
     assert not (run / "syn/sky130/demo_synth.v").exists()
@@ -2942,10 +2996,16 @@ def test_ci_toolchain_contract() -> None:
 
     lock = (ROOT / "src/flexsoc/backend/core/toolchain.lock").read_text(encoding="utf-8")
     deps = (ROOT / "src/flexsoc/backend/core/deps.sh").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "docker/ci/Dockerfile").read_text(encoding="utf-8")
+    verify = (ROOT / "docker/scripts/verify.sh").read_text(encoding="utf-8")
     run_ci = (ROOT / "docker/scripts/run-ci.sh").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/toolchain-image.yml").read_text(encoding="utf-8")
     assert "IVERILOG_VERSION=13.0" in lock and "IVERILOG_MIN_VERSION=13.0" in lock
     assert "iverilog -g2012 -ginterconnect -V" in deps
+    assert "orfs-klayout.version" in dockerfile
+    assert 'test "$required_klayout" = "$KLAYOUT_VERSION"' in dockerfile
+    assert 'orfs_klayout_required=$(cat /opt/flexsoc/toolchain/.flexsoc/orfs-klayout.version)' in verify
+    assert 'test "$orfs_klayout_required" = "$KLAYOUT_VERSION"' in verify
     assert 'make test E2E_ORS="$ORFS_ROOT/flow"' in run_ci
     assert "gh workflow run ci.yml" in workflow
 
@@ -2953,7 +3013,7 @@ def test_ci_toolchain_contract() -> None:
 
 def test_physical_signoff_metrics_collector(tmp_path: Path) -> None:
     run = tmp_path / "run"
-    summary = run / "signoff" / "sky130" / "physical" / "summary.json"
+    summary = run / "signoff" / "sky130" / "post_pnr" / "physical" / "summary.json"
     report = run / "impl" / "sky130" / "reports" / "sky130hd" / "demo" / "base" / "6_drc.lyrdb"
     report.parent.mkdir(parents=True)
     report.write_text("clean\n", encoding="utf-8")
@@ -2966,7 +3026,19 @@ def test_physical_signoff_metrics_collector(tmp_path: Path) -> None:
     assert data is not None
     assert data["status"] == "pass"
     assert data["checks"]["gds_drc"]["report"].startswith("impl/sky130/")
-    assert data["summary"] == "signoff/sky130/physical/summary.json"
+    assert data["summary"] == "signoff/sky130/post_pnr/physical/summary.json"
+
+
+def test_post_impl_signoff_flow_declares_physical_first() -> None:
+    from flexsoc.backend.signoff import SignoffFlow
+
+    source = inspect.getsource(SignoffFlow.flow)
+    assert source.index("run_physical") < source.index("write_sdf")
+    assert source.index("write_sdf") < source.index("run_sta")
+    assert source.index("run_sta") < source.index("gls.flow")
+    assert source.index("gls.flow") < source.index("run_power_estimate")
+    assert source.index("run_power_estimate") < source.index("run_power_activity")
+    assert source.index("run_power_activity") < source.index("run_fusion")
 
 
 def test_tool_runner_executes_local_commands(tmp_path: Path) -> None:
@@ -2980,6 +3052,56 @@ def test_tool_runner_executes_local_commands(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert log.read_text(encoding="utf-8").strip() == "ok"
+
+
+def test_tool_runner_streams_line_callback_while_logging(tmp_path: Path) -> None:
+    from flexsoc.backend.core import CommandRequest, ToolRunner
+
+    seen: list[str] = []
+    log = tmp_path / "stream.log"
+    request = CommandRequest(
+        (sys.executable, "-c", "print('stage 1_import', flush=True); print('stage 2_floorplan', flush=True)"),
+        tmp_path,
+        {},
+        log,
+        line_callback=seen.append,
+    )
+    result = ToolRunner(project_root=tmp_path).run(request)
+
+    assert result.returncode == 0
+    assert [line.strip() for line in seen] == ["stage 1_import", "stage 2_floorplan"]
+    assert log.read_text(encoding="utf-8").splitlines() == ["stage 1_import", "stage 2_floorplan"]
+
+
+def test_flow_summary_merges_physical_into_post_signoff() -> None:
+    metrics = {
+        "lint": {"status": "pass"},
+        "cdc_rdc": {"status": "review"},
+        "regression": {"status": "pass"},
+        "formal": {"status": "pass"},
+        "synthesis": {"errors": 0, "netlist": "demo.v"},
+        "equivalence": {"status": "partial"},
+        "sdf": {"status": "pass"},
+        "sta": {"tt": {}},
+        "power_estimate": {"corners": {}},
+        "post_syn_gls": {"status": "pass"},
+        "power_analysis": {"status": "pass"},
+        "fusion_analysis": {"status": "pass"},
+        "implementation": {"status": "pass"},
+        "post_pnr": {
+            "sdf": {"status": "pass"},
+            "sta": {"tt": {}},
+            "power_estimate": {"corners": {}},
+            "gls": {"status": "pass"},
+            "power_analysis": {"status": "pass"},
+            "fusion_analysis": {"status": "pass"},
+        },
+        "physical_signoff": {"status": "review"},
+    }
+    flow = flow_summary(metrics)
+    assert flow["order"][-1] == "post_implementation_signoff"
+    assert "physical_signoff" not in flow["order"]
+    assert flow["stages"]["post_implementation_signoff"] == "review"
 
 
 def test_tool_runner_rejects_unknown_execution_target(tmp_path: Path) -> None:
@@ -2996,3 +3118,276 @@ def test_make_shim_forwards_command_line_overrides() -> None:
     assert "FLEXSOC_SET_ARGS" in makefile
     assert "--set $(key)=$($(key))" in makefile
     assert "export FLEXSOC_$(key)" not in makefile
+
+
+def test_eqy_explicit_pdk_and_multiclock_contract(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from flexsoc.backend.syn.eqy import EquivalenceFlow
+
+    monkeypatch.delenv("FLEXSOC_PDK", raising=False)
+    monkeypatch.delenv("N_CLOCKS", raising=False)
+    flow = EquivalenceFlow()
+    cfg = flow.config(
+        top="tri_stream_dsp",
+        filelists=(),
+        netlist=tmp_path / "netlist.v",
+        liberty=tmp_path / "library.lib",
+        cell_models=(),
+        clock_gate_model=tmp_path / "cg.v",
+        engine="abc pdr", depth=20, sat_depth=20, output=tmp_path / "demo.eqy",
+        pdk="sky130", multiclock=True,
+        reset_domains=(("cfg_clk_i", "cfg_rst_ni", "low"), ("dsp_clk_i", "dsp_rst_ni", "low")),
+    )
+    assert cfg.pdk == "sky130"
+    assert cfg.multiclock is True
+    assert cfg.reset_normalize is False
+    assert cfg.reset_domains[0][1] == "cfg_rst_ni"
+    assert all(reset != "rst_ni" for _, reset, _ in cfg.reset_domains)
+
+
+def test_eqy_pdr_engine_is_independent_from_legacy_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from flexsoc.backend.syn.eqy import EquivalenceFlow
+
+    monkeypatch.delenv("EQY_PDR_ENGINE", raising=False)
+    flow = EquivalenceFlow()
+    cfg = flow.config(
+        top="demo", filelists=(), netlist=tmp_path / "netlist.v",
+        liberty=tmp_path / "library.lib", cell_models=(),
+        clock_gate_model=tmp_path / "cg.v", engine="sat", depth=20, sat_depth=20,
+        output=tmp_path / "demo.eqy", pdk="sky130", multiclock=False,
+    )
+    assert cfg.engine == "sat"
+    assert cfg.pdr_engine == "abc pdr"
+
+    overridden = flow.config(
+        top="demo", filelists=(), netlist=tmp_path / "netlist.v",
+        liberty=tmp_path / "library.lib", cell_models=(),
+        clock_gate_model=tmp_path / "cg.v", engine="sat", depth=20, sat_depth=20,
+        output=tmp_path / "demo.eqy", pdk="sky130", multiclock=True,
+        pdr_engine="abc pdr",
+    )
+    assert overridden.pdr_engine == "abc pdr"
+
+
+def test_router_setup_pnr_leaves_platform_physical_views_to_orfs(tmp_path: Path) -> None:
+    import flexsoc.api as api_module
+
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+        "PDK": "sky130", "ORS_TECH": "sky130hd",
+    }
+    router = api_module._TargetRouter(client, values)
+    router.paths.syn.mkdir(parents=True, exist_ok=True)
+    (router.paths.syn / "demo_synth.v").write_text(
+        "module demo; endmodule\n", encoding="utf-8"
+    )
+    router.paths.sdc.parent.mkdir(parents=True, exist_ok=True)
+    router.paths.sdc.write_text("current_design demo\n", encoding="utf-8")
+
+    config = router._setup_pnr()
+    text = config.read_text(encoding="utf-8")
+    assert "CDL_FILE" not in text
+    assert "KLAYOUT" not in text
+    assert "SYNTH_NETLIST_FILES" in text
+    assert "SDC_FILE" in text
+
+
+def test_orfs_config_does_not_override_platform_cdl(tmp_path: Path) -> None:
+    from flexsoc.backend.impl.impl import render_config
+
+    text = render_config(
+        "demo", "sky130hd", tmp_path / "demo.v", tmp_path / "demo.sdc"
+    )
+    assert "CDL_FILE" not in text
+    assert "Platform-owned physical views" in text
+
+
+def test_orfs_make_argv_uses_native_flow_directory_and_work_home(tmp_path: Path) -> None:
+    from flexsoc.backend.impl.impl import orfs_make_argv
+
+    flow = tmp_path / "OpenROAD-flow-scripts" / "flow"
+    makefile = flow / "Makefile"
+    config = tmp_path / "run" / "config.mk"
+    work = tmp_path / "run"
+    argv = orfs_make_argv(
+        makefile=makefile, config=config, workdir=work, targets=("drc", "lvs"),
+    )
+    assert argv == (
+        "make", "-C", str(flow.resolve()), "--no-print-dir",
+        f"DESIGN_CONFIG={config.resolve()}", f"WORK_HOME={work.resolve()}",
+        "drc", "lvs",
+    )
+    assert not any(item.startswith("--file=") for item in argv)
+
+
+def test_orfs_klayout_requirement_matches_selected_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from flexsoc.backend.core.toolchain import (
+        orfs_klayout_requirement,
+        validate_orfs_klayout,
+    )
+
+    root = tmp_path / "OpenROAD-flow-scripts"
+    flow = root / "flow"
+    etc = root / "etc"
+    flow.mkdir(parents=True)
+    etc.mkdir(parents=True)
+    makefile = flow / "Makefile"
+    makefile.write_text("all:\n\t@true\n", encoding="utf-8")
+    (etc / "DependencyInstaller.sh").write_text(
+        "klayoutVersion=0.30.7\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        doctor_module.subprocess,
+        "run",
+        lambda *args, **kwargs: _completed(tuple(args[0]), stdout="KLayout 0.30.8\n"),
+    )
+    assert orfs_klayout_requirement(makefile) == "0.30.7"
+    assert validate_orfs_klayout(
+        makefile, {"KLAYOUT_CMD": "/tools/klayout"}
+    ) == ("0.30.8", "0.30.7")
+
+
+def test_orfs_klayout_preflight_rejects_old_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from flexsoc.backend.core.toolchain import validate_orfs_klayout
+
+    root = tmp_path / "OpenROAD-flow-scripts"
+    flow = root / "flow"
+    etc = root / "etc"
+    flow.mkdir(parents=True)
+    etc.mkdir(parents=True)
+    makefile = flow / "Makefile"
+    makefile.write_text("all:\n\t@true\n", encoding="utf-8")
+    (etc / "DependencyInstaller.sh").write_text(
+        "klayoutVersion=0.30.7\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        doctor_module.subprocess,
+        "run",
+        lambda *args, **kwargs: _completed(tuple(args[0]), stdout="KLayout 0.28.16\n"),
+    )
+    with pytest.raises(
+        ValueError, match=r"KLayout 0\.28\.16 incompatible.*need >= 0\.30\.7"
+    ):
+        validate_orfs_klayout(makefile, {"KLAYOUT_CMD": "/tools/klayout"})
+
+
+def test_toolchain_metadata_tracks_locked_klayout_version() -> None:
+    from flexsoc.backend.core.toolchain import toolchain_metadata
+
+    metadata = toolchain_metadata(ROOT)
+    assert metadata["expected"]["klayout"]["locked_version"] == "0.30.7"
+
+
+def test_physical_signoff_reaches_summary_after_native_orfs_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import flexsoc.backend.signoff as signoff_module
+
+    class Runner:
+        def __init__(self) -> None:
+            self.requests = []
+
+        def run(self, request, *, on="local"):
+            self.requests.append(request)
+            return type("Result", (), {"returncode": 0})()
+
+    root = tmp_path / "OpenROAD-flow-scripts"
+    flow = root / "flow"
+    etc = root / "etc"
+    flow.mkdir(parents=True)
+    etc.mkdir(parents=True)
+    makefile = flow / "Makefile"
+    makefile.write_text("all:\n\t@true\n", encoding="utf-8")
+    (etc / "DependencyInstaller.sh").write_text(
+        "klayoutVersion=0.30.7\n", encoding="utf-8"
+    )
+    config = tmp_path / "work" / "config.mk"
+    config.parent.mkdir(parents=True)
+    config.write_text("export PLATFORM = sky130hd\n", encoding="utf-8")
+    output = tmp_path / "summary.json"
+    log = tmp_path / "physical.log"
+    runner = Runner()
+    monkeypatch.setattr(
+        signoff_module, "orfs_environment",
+        lambda: {"KLAYOUT_CMD": "/tools/klayout", "OPENROAD_EXE": "/tools/openroad"},
+    )
+    monkeypatch.setattr(
+        signoff_module, "validate_orfs_klayout",
+        lambda makefile, env: ("0.30.7", "0.30.7"),
+    )
+    monkeypatch.setattr(signoff_module, "_run_antenna", lambda **kwargs: None)
+    monkeypatch.setattr(
+        signoff_module, "collect",
+        lambda **kwargs: {
+            "status": "review",
+            "checks": {"ir_drop": {"status": "unsupported"}},
+        },
+    )
+
+    rc = signoff_module._run_physical(
+        makefile=makefile, config=config, workdir=config.parent, top="demo",
+        output=output, log=log, runner=runner,
+    )
+    assert rc == 0
+    assert output.is_file()
+    assert json.loads(output.read_text(encoding="utf-8"))["orfs_returncode"] == 0
+    argv = runner.requests[0].argv
+    assert argv[:3] == ("make", "-C", str(flow.resolve()))
+    assert f"WORK_HOME={config.parent.resolve()}" in argv
+    assert argv[-2:] == ("drc", "lvs")
+
+
+
+def test_eqy_explicit_sky130_never_reads_raw_primitive_models(tmp_path: Path) -> None:
+    from flexsoc.backend.syn.eqy import EquivalenceConfig, _gate_model_reads
+
+    model = tmp_path / "primitives.v"
+    liberty = tmp_path / "library.lib"
+    netlist = tmp_path / "netlist.v"
+    cfg = EquivalenceConfig(
+        top="demo",
+        filelists=(),
+        netlist=netlist,
+        liberty=liberty,
+        cell_models=(model,),
+        engine="sat",
+        depth=20,
+        sat_depth=20,
+        pdk="sky130",
+        sky130_clock_gate_model=tmp_path / "sky130_clock_gates_formal.v",
+        output=tmp_path / "demo.eqy",
+    )
+    reads = _gate_model_reads(cfg, liberty=liberty, netlist=netlist, cell_models=(model,))
+    assert not any(str(model) in line for line in reads)
+    assert f"read_liberty -ignore_miss_func {liberty}" in reads
+
+
+def test_physical_antenna_explicit_count_is_machine_readable(tmp_path: Path) -> None:
+    from flexsoc.backend.signoff import _antenna
+
+    log = tmp_path / "antenna.log"
+    log.write_text("FLEXSOC_ANTENNA_VIOLATIONS=0\n", encoding="utf-8")
+    result = _antenna(log)
+    assert result["status"] == "pass"
+    assert result["net_violations"] == 0
+
+def test_post_impl_signoff_maps_lifecycle_stage_to_post_pnr_gls(tmp_path: Path) -> None:
+    from flexsoc.backend.signoff import Signoff, SignoffStage
+
+    signoff = Signoff(tmp_path, {"TOP": "demo", "PDK": "sky130"})
+
+    pre = signoff.pre
+    post = signoff.post
+    assert pre.stage is SignoffStage.PRE_IMPL
+    assert pre.gls.stage == "post_syn"
+    assert post.stage is SignoffStage.POST_IMPL
+    assert post.stage.value == "post_route"
+    assert post.gls.stage == "post_pnr"
+
