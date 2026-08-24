@@ -6,12 +6,12 @@ from dataclasses import dataclass
 
 import re
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .power import _power_instance_rows
 from .sta import (
     FLOAT_RE, PATH_PIN_RE, PATH_SLACK_RE, PATH_START_RE, SignoffContext,
-    _common_init, _header, _quote, _returncode_text, _run_sta, _timing_values, _write,
+    _common_init, _header, _quote, _returncode_text, _run_sta, _write,
 )
 
 def _timing_path_blocks(text: str) -> list[dict[str, Any]]:

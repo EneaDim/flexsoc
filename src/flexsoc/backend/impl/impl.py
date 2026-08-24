@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
-
 from pathlib import Path
 from textwrap import dedent
 
-from flexsoc.backend.core.execution import print_script
+from flexsoc.backend.core.execution import print_label, print_path_label, strip_ansi
+from flexsoc.backend.core.toolchain import orfs_environment
 
 
 def render_config(
@@ -71,12 +72,6 @@ def write_config(
     path.write_text(render_config(top, platform, netlist, sdc_file), encoding="utf-8")
     return path
 
-
-import re
-from pathlib import Path
-
-from flexsoc.backend.core.execution import print_label, print_live_line, print_log, print_path_label, strip_ansi
-from flexsoc.backend.core.toolchain import orfs_environment
 
 _STAGE = re.compile(r"stage\s+([1-6])(?:_|\b)", re.IGNORECASE)
 _PHASE = {

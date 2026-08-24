@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, replace
+import time
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Iterable, Mapping, Sequence
 
-from flexsoc.backend.core import clock_config
+from flexsoc.backend.core import clock_config, pdk_run_layout, run_root
 
 @dataclass(frozen=True, slots=True)
 class NetlistPort:
@@ -691,19 +694,6 @@ def export_equivalence_profile(
     saved_config = write_text(output_dir / config.name, text)
     saved_view = write_text(output_dir / view.name, view.read_text(encoding="utf-8"))
     return saved_config, saved_view
-
-
-import hashlib
-import json
-import re
-import shutil
-import subprocess
-import time
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Callable, Iterable, Mapping, Sequence
-
-from flexsoc.backend.core import pdk_run_layout, run_root
 
 
 _STATUS_ORDER = {"FAIL": 5, "ERROR": 4, "TIMEOUT": 3, "UNKNOWN": 2, "PASS": 1, "MISSING": 0}
@@ -1812,7 +1802,7 @@ class EquivalenceFlow:
     ) -> tuple[Path, Path]:
         """Bind the portable view and generate the EQY config when required."""
 
-        bound = bind_equivalence_profile(
+        bind_equivalence_profile(
             top=top,
             output_dir=output_dir,
             filelists=filelists,
