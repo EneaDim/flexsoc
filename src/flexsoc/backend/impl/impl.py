@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
 
-from flexsoc.backend.core.execution import print_label, print_path_label, strip_ansi
+from flexsoc.backend.core.execution import print_label, print_log, print_path_label, strip_ansi
 from flexsoc.backend.core.toolchain import orfs_environment
 
 
@@ -18,7 +18,6 @@ def render_config(
     sdc_file: Path,
 ) -> str:
     """Render a physical-only ORFS config from FlexSoC synthesis artifacts."""
-
     return dedent(
         f"""\
         # OpenROAD-flow-scripts physical implementation (generated)
@@ -30,6 +29,7 @@ def render_config(
         export SYNTH_NETLIST_FILES := {netlist}
         export SDC_FILE             := {sdc_file}
 
+        # Platform-owned physical views (LEF/GDS/CDL/LVS decks) stay with ORFS.
         # Physical defaults; synthesis strategy does not alter these.
         export CORE_UTILIZATION ?= 50
         export PLACE_DENSITY ?= 0.58
@@ -113,6 +113,29 @@ def _final_artifacts(workdir: Path) -> tuple[tuple[str, Path], ...]:
 
 
 
+def orfs_make_argv(
+    *,
+    makefile: Path,
+    config: Path,
+    workdir: Path,
+    targets: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    """Return the canonical out-of-tree ORFS make invocation."""
+
+    makefile = makefile.expanduser().resolve()
+    config = config.expanduser().resolve()
+    workdir = workdir.expanduser().resolve()
+    return (
+        "make",
+        "-C",
+        str(makefile.parent),
+        "--no-print-dir",
+        f"DESIGN_CONFIG={config}",
+        f"WORK_HOME={workdir}",
+        *targets,
+    )
+
+
 @dataclass(slots=True)
 class ImplementationFlow:
     """Prepare, run and inspect the ORFS/OpenROAD implementation stage."""
@@ -159,14 +182,23 @@ class ImplementationFlow:
         if not config.is_file():
             raise ValueError(f"OpenROAD config.mk not found: {config}")
         workdir.mkdir(parents=True, exist_ok=True)
+        seen: set[str] = set()
+
+        def on_line(line: str) -> None:
+            phase = checkpoint(line)
+            if phase and phase not in seen:
+                seen.add(phase)
+                print_label("pnr", phase)
+
+        print_log(log)
         request = CommandRequest(
-            ("make", f"--file={makefile}", "--no-print-dir", f"DESIGN_CONFIG={config}"),
+            orfs_make_argv(makefile=makefile, config=config, workdir=workdir),
             workdir,
             orfs_environment(),
             log,
+            line_callback=on_line,
         )
         result = self.runner.run(request, on=on)
-        self._show_checkpoints(log)
         if result.returncode == 0:
             for kind, path in _final_artifacts(workdir):
                 print_path_label("report", path, details={"kind": kind})
@@ -191,7 +223,9 @@ class ImplementationFlow:
         from flexsoc.backend.core.execution import CommandRequest
 
         request = CommandRequest(
-            ("make", f"--file={makefile.resolve()}", "--no-print-dir", f"DESIGN_CONFIG={config.resolve()}", "gui_final"),
+            orfs_make_argv(
+                makefile=makefile, config=config, workdir=workdir, targets=("gui_final",),
+            ),
             workdir.resolve(),
             orfs_environment(),
             log.resolve(),

@@ -35,7 +35,7 @@ TOOLS = (
     ("sv2v", "sv2v", ("--version",), False, "SV2V"),
     ("netlistsvg", "netlistsvg", ("--version",), False, "NETLISTSVG"),
     ("OpenROAD", "openroad", ("-version",), False, "OPENROAD"),
-    ("KLayout", "klayout", ("-v",), False, None),
+    ("KLayout", "klayout", ("-v",), False, "KLAYOUT"),
 )
 
 # Compatibility floors describe required features, while the lock may pin newer tools.
@@ -64,6 +64,60 @@ def orfs_environment() -> dict[str, str]:
         if resolved := shutil.which(executable):
             env[variable] = resolved
     return env
+
+
+_ORFS_KLAYOUT_VERSION = re.compile(
+    r"^\s*klayoutVersion\s*=\s*[\"']?([0-9]+(?:\.[0-9]+)+)",
+    re.MULTILINE,
+)
+_GENERIC_VERSION = re.compile(r"([0-9]+(?:\.[0-9]+)+)")
+
+
+def orfs_klayout_requirement(makefile: Path) -> str | None:
+    """Read the KLayout version required by the selected ORFS checkout."""
+
+    installer = makefile.expanduser().resolve().parent.parent / "etc" / "DependencyInstaller.sh"
+    if not installer.is_file():
+        return None
+    match = _ORFS_KLAYOUT_VERSION.search(
+        installer.read_text(encoding="utf-8", errors="replace")
+    )
+    return match.group(1) if match else None
+
+
+def validate_orfs_klayout(
+    makefile: Path,
+    env: dict[str, str] | None = None,
+) -> tuple[str | None, str | None]:
+    """Require the KLayout floor declared by the selected ORFS checkout."""
+
+    required = orfs_klayout_requirement(makefile)
+    if required is None:
+        return None, None
+    active_env = env or orfs_environment()
+    executable = active_env.get("KLAYOUT_CMD") or shutil.which("klayout")
+    if not executable:
+        raise ValueError(f"KLayout not found; selected ORFS requires >= {required}")
+    try:
+        result = subprocess.run(
+            [executable, "-v"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ValueError(f"cannot query KLayout version: {exc}") from exc
+    text = ((result.stdout or "") + "\n" + (result.stderr or "")).strip()
+    match = _GENERIC_VERSION.search(text)
+    if not match:
+        raise ValueError(f"cannot parse KLayout version from: {text or 'empty output'}")
+    current = match.group(1)
+    if _numeric_text(current) < _numeric_text(required):
+        raise ValueError(
+            f"KLayout {current} incompatible with selected ORFS checkout; need >= {required}"
+        )
+    return current, required
 
 
 def load_toolchain_lock(root: Path) -> dict[str, str]:

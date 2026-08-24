@@ -56,6 +56,13 @@ docker run --rm \
     openroad -version
     sta -version
     klayout -b -v | grep -F "$KLAYOUT_VERSION"
+    test -s /opt/flexsoc/toolchain/.flexsoc/orfs-klayout.version
+    orfs_klayout_required=$(cat /opt/flexsoc/toolchain/.flexsoc/orfs-klayout.version)
+    test "$orfs_klayout_required" = "$KLAYOUT_VERSION"
+    installed_klayout=$(klayout -b -v | grep -oE "[0-9]+(\.[0-9]+)+")
+    test "$installed_klayout" = "$KLAYOUT_VERSION"
+    printf "KLayout contract: installed=%s locked=%s ORFS-required=%s\n" \
+      "$installed_klayout" "$KLAYOUT_VERSION" "$orfs_klayout_required"
 
     test "$OPENROAD_EXE" = /opt/flexsoc/toolchain/bin/openroad
     test "$YOSYS_EXE" = /opt/flexsoc/toolchain/bin/yosys

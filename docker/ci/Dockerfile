@@ -26,6 +26,13 @@ RUN set -eux; \
     test "$(printf '%s\n' "$matches" | grep -c .)" -eq 1; \
     orfs_ref="$matches"; \
     git -C /src/orfs checkout --detach "$orfs_ref"; \
+    required_klayout="$(sed -n 's/^[^=]*klayoutVersion[^=]*=[^0-9]*\([0-9][0-9.]*\).*$/\1/p' /src/orfs/etc/DependencyInstaller.sh | head -n 1)"; \
+    test -n "$required_klayout"; \
+    test "$required_klayout" = "$KLAYOUT_VERSION" || { \
+      echo "KLayout lock mismatch: ORFS requires $required_klayout, FlexSoC locks $KLAYOUT_VERSION" >&2; \
+      exit 2; \
+    }; \
+    printf '%s\n' "$required_klayout" > /src/orfs-klayout.version; \
     openroad_ref="$(git -C /src/orfs ls-tree HEAD tools/OpenROAD | awk '{print $3}')"; \
     test -n "$openroad_ref"; \
     case "$openroad_ref" in "$OPENROAD_REF_PREFIX"*) ;; *) exit 2 ;; esac; \
@@ -133,6 +140,11 @@ RUN --mount=type=cache,id=flexsoc-apt-cache,target=/var/cache/apt,sharing=locked
     curl --fail --location --retry 3 "$KLAYOUT_URL" -o /tmp/klayout.deb; \
     printf '%s  %s\n' "$KLAYOUT_MD5" /tmp/klayout.deb | md5sum --check --strict; \
     apt-get install -y --no-install-recommends /tmp/klayout.deb; \
+    installed_klayout="$(klayout -b -v | grep -oE '[0-9]+(\.[0-9]+)+')"; \
+    test "$installed_klayout" = "$KLAYOUT_VERSION" || { \
+      echo "KLayout install mismatch: installed $installed_klayout, locked $KLAYOUT_VERSION" >&2; \
+      exit 2; \
+    }; \
     rm -f /tmp/klayout.deb; \
     rm -rf /var/lib/apt/lists/*
 
@@ -145,6 +157,7 @@ RUN --mount=from=implementation-builder,source=/,target=/mnt/implementation,ro \
     cp -a /mnt/implementation/opt/openroad-install/. "$prefix/"; \
     cp -a /mnt/implementation/src/orfs/flow "$orfs_root/"; \
     install -m 0644 /mnt/implementation/src/orfs.ref "$prefix/.flexsoc/orfs.ref"; \
+    install -m 0644 /mnt/implementation/src/orfs-klayout.version "$prefix/.flexsoc/orfs-klayout.version"; \
     install -m 0644 /mnt/implementation/src/openroad.ref "$prefix/.flexsoc/openroad.ref"; \
     pass=1; \
     while :; do \
@@ -193,6 +206,8 @@ RUN FLEXSOC_TOOLCHAIN=/opt/flexsoc/toolchain \
  && /opt/flexsoc/toolchain/bin/klayout -b -v \
  && test -s /opt/flexsoc/toolchain/.flexsoc/openroad.ref \
  && test -s /opt/flexsoc/toolchain/.flexsoc/orfs.ref \
+ && test -s /opt/flexsoc/toolchain/.flexsoc/orfs-klayout.version \
+ && bash -c '. ./toolchain/toolchain.lock; test "$(cat /opt/flexsoc/toolchain/.flexsoc/orfs-klayout.version)" = "$KLAYOUT_VERSION"' \
  && test -f /opt/flexsoc/toolchain/share/orfs/flow/Makefile \
  && test -f /opt/flexsoc/toolchain/share/orfs/flow/designs/nangate45/gcd/config.mk
 

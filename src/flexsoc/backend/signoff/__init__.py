@@ -10,7 +10,8 @@ import re
 from typing import Mapping
 
 from flexsoc.backend.core.execution import CommandRequest, ToolRunner, print_label, print_log, print_path_label
-from flexsoc.backend.core.toolchain import orfs_environment
+from flexsoc.backend.core.toolchain import orfs_environment, validate_orfs_klayout
+from flexsoc.backend.impl.impl import orfs_make_argv
 
 from .fusion import FusionAnalysis
 from .gls import GateLevelSimulation
@@ -33,6 +34,7 @@ _BAD_LVS = re.compile(
 )
 _BAD_IR = re.compile(r"(?:\[ERROR|^ERROR:|\bfailed\b)", re.IGNORECASE | re.MULTILINE)
 _WORST_IR = re.compile(r"Worstcase IR drop:\s*([0-9.eE+-]+)\s*V", re.IGNORECASE)
+_ANT_TOTAL = re.compile(r"FLEXSOC_ANTENNA_VIOLATIONS\s*=\s*(\d+)", re.IGNORECASE)
 
 
 def _branch(root: Path, kind: str, top: str) -> Path | None:
@@ -55,7 +57,16 @@ def _antenna(path: Path | None) -> dict[str, object]:
     text = path.read_text(encoding="utf-8", errors="replace")
     values = {kind.lower(): int(count) for count, kind in _ANT.findall(text)}
     if not values:
-        return {"status": "unknown", "net_violations": None, "pin_violations": None, "report": str(path)}
+        total = _ANT_TOTAL.search(text)
+        if total:
+            violations = int(total.group(1))
+            return {
+                "status": "pass" if violations == 0 else "fail",
+                "net_violations": violations,
+                "pin_violations": None,
+                "report": str(path),
+            }
+        return {"status": "review", "net_violations": None, "pin_violations": None, "report": str(path)}
     nets, pins = values.get("net", 0), values.get("pin", 0)
     return {
         "status": "pass" if nets == 0 and pins == 0 else "fail",
@@ -122,24 +133,55 @@ def _overall(checks: dict[str, dict[str, object]]) -> str:
     statuses = [str(check.get("status", "missing")) for check in checks.values()]
     if "fail" in statuses:
         return "fail"
-    if any(status in {"missing", "unknown", "unsupported"} for status in statuses):
+    if any(status in {"missing", "unknown", "unsupported", "review"} for status in statuses):
         return "review"
     return "pass"
 
 
-def collect(*, workdir: Path, top: str) -> dict[str, object]:
+def collect(*, workdir: Path, top: str, antenna_report: Path | None = None) -> dict[str, object]:
     reports = _branch(workdir, "reports", top)
     results = _branch(workdir, "results", top)
     logs = _branch(workdir, "logs", top)
+    antenna = antenna_report if antenna_report is not None else (reports / "antenna.log" if reports else None)
     checks = {
         "route_drc": _route_drc(reports / "5_route_drc.rpt" if reports else None),
-        "antenna": _antenna(reports / "antenna.log" if reports else None),
+        "antenna": _antenna(antenna),
         "gds_drc": _gds_drc(reports),
         "lvs": _lvs(results, logs),
         "ir_drop": _ir_drop(reports),
     }
     return {"status": _overall(checks), "checks": checks}
 
+
+
+def _run_antenna(*, workdir: Path, top: str, output_dir: Path, runner, on: str) -> Path | None:
+    """Run a deterministic antenna check from the final ODB when ORFS has no report."""
+
+    reports = _branch(workdir, "reports", top)
+    native = reports / "antenna.log" if reports else None
+    if native is not None and native.is_file():
+        return native
+    results = _branch(workdir, "results", top)
+    odb = results / "6_final.odb" if results else None
+    if odb is None or not odb.is_file():
+        return None
+    output_dir.mkdir(parents=True, exist_ok=True)
+    script = output_dir / "antenna.tcl"
+    log = output_dir / "antenna.log"
+    script.write_text(
+        f"read_db {{{odb}}}\n"
+        "check_antennas -verbose\n"
+        'puts "FLEXSOC_ANTENNA_VIOLATIONS=[ant::antenna_violation_count]"\n',
+        encoding="utf-8",
+    )
+    env = orfs_environment()
+    executable = env.get("OPENROAD_EXE", "openroad")
+    request = CommandRequest(
+        (executable, "-exit", "-no_init", str(script)),
+        workdir, env, log, inputs=(odb, script), outputs=(log,),
+    )
+    result = runner.run(request, on=on)
+    return log if result.returncode == 0 and log.is_file() else None
 
 def _run_physical(*, makefile: Path, config: Path, workdir: Path, top: str, output: Path, log: Path, targets: tuple[str, ...] = ("drc", "lvs"), runner=None, on: str = "local") -> int:
     makefile = makefile.expanduser().resolve()
@@ -153,19 +195,36 @@ def _run_physical(*, makefile: Path, config: Path, workdir: Path, top: str, outp
     output.parent.mkdir(parents=True, exist_ok=True)
     log.parent.mkdir(parents=True, exist_ok=True)
     print_log(log)
-    command = ("make", f"--file={makefile}", "--no-print-dir", f"DESIGN_CONFIG={config}", *targets)
+    env = orfs_environment()
+    try:
+        current_klayout, required_klayout = validate_orfs_klayout(makefile, env)
+    except ValueError as exc:
+        log.write_text(f"ERROR: {exc}\n", encoding="utf-8")
+        print_label("post-signoff", f"klayout=fail · {exc}")
+        raise
+    if current_klayout and required_klayout:
+        print_label(
+            "post-signoff",
+            f"klayout={current_klayout} · required>={required_klayout}",
+        )
+    command = orfs_make_argv(
+        makefile=makefile, config=config, workdir=workdir, targets=targets,
+    )
     runner = runner or ToolRunner()
     request = CommandRequest(
-        command, workdir, orfs_environment(), log,
+        command, workdir, env, log,
         inputs=(makefile, config), outputs=(workdir,),
     )
     returncode = runner.run(request, on=on).returncode
-    summary = collect(workdir=workdir, top=top)
+    antenna_report = _run_antenna(
+        workdir=workdir, top=top, output_dir=output.parent, runner=runner, on=on,
+    )
+    summary = collect(workdir=workdir, top=top, antenna_report=antenna_report)
     summary.update({"orfs_returncode": returncode, "log": str(log)})
     output.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    print_path_label("report", output, details={"kind": "physical-signoff"})
+    print_path_label("report", output, details={"kind": "post-signoff-physical"})
     for name, values in summary["checks"].items():
-        print_label("physical", f"{name}={values['status']}")
+        print_label("post-signoff", f"{name}={values['status']}")
     return 2 if returncode != 0 or summary["status"] == "fail" else 0
 
 
@@ -188,7 +247,8 @@ class SignoffFlow:
     def __post_init__(self) -> None:
         self.values = {**self.values, "SIGNOFF_STAGE": self.stage.value}
         self.sta = StaAnalysis(self.project_root, self.values, self.runner)
-        self.gls = GateLevelSimulation(self.project_root, self.values, self.stage.value, self.runner)
+        gls_stage = "post_pnr" if self.stage is SignoffStage.POST_IMPL else "post_syn"
+        self.gls = GateLevelSimulation(self.project_root, self.values, gls_stage, self.runner)
         self.power = PowerAnalysis(self.project_root, self.values, self.runner)
         self.fusion = FusionAnalysis(self.project_root, self.values, self.runner)
 
@@ -292,17 +352,21 @@ class SignoffFlow:
         return collect(workdir=workdir, top=top)
 
     def flow(self, *, physical: dict | None = None, on: str = "local") -> int:
-        """Run the canonical pre/post sign-off sequence."""
+        """Run sign-off in lifecycle order; post-implementation starts with physical closure."""
 
+        if self.stage is SignoffStage.POST_IMPL and physical:
+            rc = self.run_physical(**physical, on=on)
+            if rc:
+                return rc
         if self.stage is SignoffStage.PRE_IMPL:
             self.setup_sdc()
-        self.setup_sta()
         self.setup_sdf()
+        self.setup_sta()
         self.setup_power()
         self.setup_fusion()
         for action in (
-            lambda: self.run_sta(on=on),
             lambda: self.write_sdf(on=on),
+            lambda: self.run_sta(on=on),
             lambda: self.gls.flow(on=on),
             lambda: self.run_power_estimate(on=on),
             lambda: self.run_power_activity(all_workloads=True, on=on),
@@ -311,8 +375,6 @@ class SignoffFlow:
             rc = action()
             if rc:
                 return rc
-        if self.stage is SignoffStage.POST_IMPL and physical:
-            return self.run_physical(**physical, on=on)
         return 0
 
 

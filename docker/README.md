@@ -57,6 +57,7 @@ It verifies:
 - every locked base-tool version;
 - Icarus 13 `-ginterconnect` support required by routed GLS;
 - OpenSTA and the OpenROAD/ORFS locked revisions;
+- the exact KLayout version locked by FlexSoC and the KLayout version required by the selected ORFS checkout;
 - the Python runtime, `uv`, and virtual environment;
 - a small ORFS floorplan smoke flow.
 
@@ -101,6 +102,19 @@ Contains shared functions for:
 - resolving immutable image references.
 
 ---
+
+### ORFS / KLayout compatibility contract
+
+The implementation image treats the selected ORFS checkout as the authority for
+the minimum KLayout version. During the image build FlexSoC reads
+`etc/DependencyInstaller.sh` from that exact ORFS revision and requires its
+`klayoutVersion` to match `KLAYOUT_VERSION` in `toolchain.lock`. The build aborts
+on any mismatch. The required version is stored in the image as
+`/opt/flexsoc/toolchain/.flexsoc/orfs-klayout.version` and `verify.sh` checks the
+receipt again against both the lock and the installed `klayout` binary.
+
+This keeps local Physical Sign-Off and Docker/CI on the same native ORFS tool
+contract; no platform CDL, LVS deck, or standard-cell collateral is rewritten.
 
 ## Image workflow
 
