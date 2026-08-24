@@ -35,7 +35,6 @@ from flexsoc.api import (
     DEFAULT_SETTINGS,
     NATIVE_TARGETS,
     STREAM_BY_DEFAULT_TARGETS,
-    TARGET_ALIASES,
     TARGETS,
     TECHNOLOGY_TARGETS,
     main as api_main,
@@ -58,7 +57,7 @@ from flexsoc.backend.signoff.gls import _cocotb_wrapper, execute_all
 from flexsoc.backend.dv.testbench import (
     CocotbConfig,
     render_gls_make_block,
-    write_nclock_cocotb,
+    write_cocotb_scaffold,
 )
 from flexsoc.backend.signoff.sta import (
     SIGNOFF_SCENARIOS,
@@ -1454,7 +1453,7 @@ def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
         )
     )
 
-    write_nclock_cocotb(cfg, clocks)
+    write_cocotb_scaffold(cfg, clocks)
 
     wrapper = output / "tri_stream_dsp_tb.sv"
     assert wrapper.is_file()
