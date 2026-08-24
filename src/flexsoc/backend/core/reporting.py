@@ -942,9 +942,11 @@ def collect_implementation(top: str, run_dir: Path, pdk: str) -> dict[str, Any] 
 
 
 def collect_physical_signoff(run_dir: Path, pdk: str) -> dict[str, Any] | None:
-    """Collect the FlexSoC-qualified ORFS physical sign-off summary."""
+    """Collect ORFS physical checks as part of post-implementation sign-off."""
 
-    path = run_dir / "signoff" / pdk / "physical" / "summary.json"
+    canonical = run_dir / "signoff" / pdk / "post_pnr" / "physical" / "summary.json"
+    legacy = run_dir / "signoff" / pdk / "physical" / "summary.json"
+    path = canonical if canonical.is_file() else legacy
     if not path.is_file():
         return None
     try:
@@ -968,7 +970,6 @@ def collect_physical_signoff(run_dir: Path, pdk: str) -> dict[str, Any] | None:
     result = normalize(data)
     result["summary"] = relative(path, run_dir)
     return result
-
 
 def _phase_status(*values: str | None) -> str:
     """Aggregate ordered lifecycle evidence into one phase status."""
@@ -1032,8 +1033,7 @@ def flow_summary(metrics: dict[str, Any]) -> dict[str, Any]:
         "equivalence": status("equivalence"),
         "pre_implementation_signoff": pre,
         "implementation": implementation,
-        "post_implementation_signoff": post,
-        "physical_signoff": status("physical_signoff"),
+        "post_implementation_signoff": _phase_status(post, status("physical_signoff")),
     }
     overall = _phase_status(*stages.values())
     return {
@@ -1154,6 +1154,14 @@ def signoff_summary(metrics: dict[str, Any]) -> dict[str, Any]:
             }
         if routed:
             result["post_pnr"] = routed
+    physical = metrics.get("physical_signoff")
+    if isinstance(physical, dict):
+        routed = result.setdefault("post_pnr", {})
+        routed["physical"] = {
+            "status": physical.get("status", "unknown"),
+            "checks": physical.get("checks", {}),
+            "summary": physical.get("summary"),
+        }
     return result
 
 
@@ -1201,6 +1209,12 @@ def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
     )
     order.append("implementation")
 
+    physical = metrics.get("physical_signoff")
+    stages["physical_signoff"] = (
+        str(physical.get("status", "unknown")) if isinstance(physical, dict) else "missing"
+    )
+    order.append("physical_signoff")
+
     post_pnr = metrics.get("post_pnr")
     routed = post_pnr if isinstance(post_pnr, dict) else {}
     routed_sdf = routed.get("sdf")
@@ -1224,14 +1238,9 @@ def closure_status(metrics: dict[str, Any]) -> dict[str, Any]:
         str(routed_fusion.get("status", "unknown")) if isinstance(routed_fusion, dict) else "missing"
     )
     order.extend((
-        "post_pnr_sdf", "post_pnr_sta", "post_pnr_power", "post_pnr_gls",
+        "post_pnr_sdf", "post_pnr_sta", "post_pnr_gls", "post_pnr_power",
         "post_pnr_power_activity", "post_pnr_fusion",
     ))
-    physical = metrics.get("physical_signoff")
-    stages["physical_signoff"] = (
-        str(physical.get("status", "unknown")) if isinstance(physical, dict) else "missing"
-    )
-    order.append("physical_signoff")
     values = tuple(stages.values())
     if any(status in {"fail", "error"} for status in values):
         overall = "fail"
@@ -1435,6 +1444,22 @@ def _show_signoff_stage(console: Console, title: str, stage: dict[str, Any]) -> 
     console.print(f"\n[bold cyan]{title}[/bold cyan]")
     table = metric_table()
 
+    physical = stage.get("physical", {})
+    if isinstance(physical, dict) and physical:
+        table.add_row("Physical closure", status_markup(str(physical.get("status", "unknown"))))
+        checks = physical.get("checks", {})
+        if isinstance(checks, dict):
+            for label, key in (
+                ("Route DRC", "route_drc"),
+                ("Antenna", "antenna"),
+                ("GDS DRC", "gds_drc"),
+                ("LVS", "lvs"),
+                ("IR / PDN", "ir_drop"),
+            ):
+                check = checks.get(key)
+                if isinstance(check, dict):
+                    table.add_row(label, status_markup(str(check.get("status", "unknown"))))
+
     sdf = stage.get("sdf", {})
     if isinstance(sdf, dict) and sdf:
         count = int(sdf.get("count", 0) or 0)
@@ -1509,8 +1534,7 @@ def show_metrics(path: Path) -> None:
             "equivalence": "RTL ↔ synthesis equivalence",
             "pre_implementation_signoff": "Pre-implementation sign-off",
             "implementation": "Implementation / PnR",
-            "post_implementation_signoff": "Post-implementation sign-off",
-            "physical_signoff": "Physical sign-off",
+            "post_implementation_signoff": "Post Sign-Off",
         }
         for name in flow.get("order", []):
             status = str(flow.get("stages", {}).get(name, "missing"))
@@ -1669,52 +1693,13 @@ def show_metrics(path: Path) -> None:
         console.print(table)
 
     routed = signoff.get("post_pnr", {}) if isinstance(signoff, dict) else {}
-    if isinstance(routed, dict) and routed:
-        _show_signoff_stage(console, "Post-implementation sign-off", routed)
-
-    physical = data.get("physical_signoff")
-    if isinstance(physical, dict):
-        console.print("\n[bold cyan]Physical sign-off[/bold cyan]")
-        table = metric_table()
-        table.add_row("Status", status_markup(str(physical.get("status", "unknown"))))
-        checks = physical.get("checks", {})
-        if isinstance(checks, dict):
-            route = checks.get("route_drc", {})
-            if isinstance(route, dict):
-                detail = status_markup(str(route.get("status", "unknown")))
-                if route.get("entries") is not None:
-                    detail += f" · report entries={route.get('entries')}"
-                table.add_row("Route DRC", detail)
-            antenna = checks.get("antenna", {})
-            if isinstance(antenna, dict):
-                detail = status_markup(str(antenna.get("status", "unknown")))
-                if antenna.get("net_violations") is not None:
-                    detail += (
-                        f" · net={antenna.get('net_violations')} "
-                        f"pin={antenna.get('pin_violations')}"
-                    )
-                table.add_row("Antenna", detail)
-            gds = checks.get("gds_drc", {})
-            if isinstance(gds, dict):
-                detail = status_markup(str(gds.get("status", "unknown")))
-                if gds.get("violations") is not None:
-                    detail += f" · violations={gds.get('violations')}"
-                table.add_row("GDS DRC", detail)
-            lvs = checks.get("lvs", {})
-            if isinstance(lvs, dict):
-                table.add_row("LVS", status_markup(str(lvs.get("status", "unknown"))))
-            ir = checks.get("ir_drop", {})
-            if isinstance(ir, dict):
-                detail = status_markup(str(ir.get("status", "unknown")))
-                worst = ir.get("worst_drop_v", {})
-                if isinstance(worst, dict) and worst:
-                    detail += " · " + " · ".join(
-                        f"{rail}={float(value):.6g} V" for rail, value in sorted(worst.items())
-                    )
-                table.add_row("IR / PDN", detail)
-        if physical.get("summary"):
-            table.add_row("Summary", str(physical.get("summary")))
-        console.print(table)
+    if isinstance(routed, dict):
+        routed = dict(routed)
+        physical = data.get("physical_signoff")
+        if isinstance(physical, dict):
+            routed["physical"] = physical
+        if routed:
+            _show_signoff_stage(console, "Post Sign-Off", routed)
 
     console.print(f"\n[grey70]Detailed metrics:[/grey70] {path}")
 
@@ -1914,8 +1899,7 @@ def show_manifest(path: Path) -> None:
             "equivalence": "RTL ↔ synthesis equivalence",
             "pre_implementation_signoff": "Pre-implementation sign-off",
             "implementation": "Implementation / PnR",
-            "post_implementation_signoff": "Post-implementation sign-off",
-            "physical_signoff": "Physical sign-off",
+            "post_implementation_signoff": "Post Sign-Off",
         }
         stages = flow.get("stages", {})
         section(
@@ -1997,6 +1981,21 @@ def show_manifest(path: Path) -> None:
         routed = signoff.get("post_pnr")
         if isinstance(routed, dict):
             rows = []
+            physical = routed.get("physical")
+            if isinstance(physical, dict):
+                rows.append(("Physical closure", str(physical.get("status", "unknown")).upper()))
+                checks = physical.get("checks", {})
+                if isinstance(checks, dict):
+                    for label, key in (
+                        ("Route DRC", "route_drc"),
+                        ("Antenna", "antenna"),
+                        ("GDS DRC", "gds_drc"),
+                        ("LVS", "lvs"),
+                        ("IR / PDN", "ir_drop"),
+                    ):
+                        check = checks.get(key)
+                        if isinstance(check, dict):
+                            rows.append((label, str(check.get("status", "unknown")).upper()))
             for label, key in (
                 ("SDF", "sdf"),
                 ("STA", "sta"),
@@ -2015,26 +2014,7 @@ def show_manifest(path: Path) -> None:
                     detail += f" · interconnect {stage.get('interconnect_delays', 'unknown')}"
                 rows.append((label, detail))
             if rows:
-                section("Post-implementation sign-off", rows)
-
-    physical = data.get("physical_signoff")
-    if isinstance(physical, dict):
-        rows = [("Status", str(physical.get("status", "unknown")).upper())]
-        checks = physical.get("checks", {})
-        if isinstance(checks, dict):
-            for label, key in (
-                ("Route DRC", "route_drc"),
-                ("Antenna", "antenna"),
-                ("GDS DRC", "gds_drc"),
-                ("LVS", "lvs"),
-                ("IR / PDN", "ir_drop"),
-            ):
-                check = checks.get(key)
-                if isinstance(check, dict):
-                    rows.append((label, str(check.get("status", "unknown")).upper()))
-        if physical.get("summary"):
-            rows.append(("Summary", physical.get("summary")))
-        section("Physical sign-off", rows)
+                section("Post Sign-Off", rows)
 
     artifacts = run.get("artifacts")
     if isinstance(artifacts, dict):

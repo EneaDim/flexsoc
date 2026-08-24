@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic
-from typing import Any, Mapping, Protocol, TextIO
+from typing import Any, Callable, Mapping, Protocol, TextIO
 
 from rich.console import Console
 from rich.syntax import Syntax
@@ -233,6 +233,7 @@ class CommandRequest:
     inputs: tuple[Path, ...] = ()
     outputs: tuple[Path, ...] = ()
     timeout_s: int | None = None
+    line_callback: Callable[[str], None] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,17 +304,35 @@ class LocalExecutor:
         env.update(request.env)
         start = monotonic()
         with request.log.open("w", encoding="utf-8") as log:
-            proc = subprocess.run(
+            if request.line_callback is None:
+                proc = subprocess.run(
+                    request.argv,
+                    cwd=request.cwd,
+                    env=env,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=request.timeout_s,
+                    check=False,
+                )
+                return CommandResult(proc.returncode, request.log, monotonic() - start)
+
+            proc = subprocess.Popen(
                 request.argv,
                 cwd=request.cwd,
                 env=env,
-                stdout=log,
+                stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                timeout=request.timeout_s,
-                check=False,
+                bufsize=1,
             )
-        return CommandResult(proc.returncode, request.log, monotonic() - start)
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                log.write(strip_ansi(line))
+                log.flush()
+                request.line_callback(line)
+            returncode = proc.wait(timeout=request.timeout_s)
+        return CommandResult(returncode, request.log, monotonic() - start)
 
 
 class SshExecutor:
@@ -398,17 +417,33 @@ class SshExecutor:
         command = f"cd {shlex.quote(str(remote_cwd))} && {exports} {argv}".strip()
         start = monotonic()
         with request.log.open("w", encoding="utf-8") as log:
-            proc = subprocess.run(
-                ["ssh", self.target.host, command],
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=request.timeout_s,
-                check=False,
-            )
-        if proc.returncode == 0:
+            if request.line_callback is None:
+                proc = subprocess.run(
+                    ["ssh", self.target.host, command],
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    timeout=request.timeout_s,
+                    check=False,
+                )
+                returncode = proc.returncode
+            else:
+                proc = subprocess.Popen(
+                    ["ssh", self.target.host, command],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+                assert proc.stdout is not None
+                for line in proc.stdout:
+                    log.write(strip_ansi(line))
+                    log.flush()
+                    request.line_callback(line)
+                returncode = proc.wait(timeout=request.timeout_s)
+        if returncode == 0:
             self._sync_outputs(request)
-        return CommandResult(proc.returncode, request.log, monotonic() - start)
+        return CommandResult(returncode, request.log, monotonic() - start)
 
 
 class ToolRunner:

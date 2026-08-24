@@ -14,8 +14,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from flexsoc.backend.core import ClockConfig, clock_config, layout_from_values
-from flexsoc.backend.core.execution import print_script
+from flexsoc.backend.core import ClockConfig, ClockDomain, clock_config, layout_from_values
+from flexsoc.backend.core.execution import print_label, print_script
 
 TEMPLATE = """current_design {top}
 
@@ -801,9 +801,30 @@ def generate_signoff_sdc(project_root: Path, values: Mapping[str, str]) -> Path:
     layout = layout_from_values(project_root, values)
     top = values.get("TOP", "test")
     cfg = clock_config(values)
-    text = render_clock_config_sdc(
-        top, cfg, float(values.get("SDC_IO_DELAY_PCT", "0.2"))
+    is_cordic = top.strip().lower() == "cordic"
+    default_io_delay_pct = "0.1" if is_cordic else "0.2"
+    io_delay_pct = float(values.get("SDC_IO_DELAY_PCT", default_io_delay_pct))
+    signoff_period_ns = float(values.get("SDC_CLOCK_PERIOD_NS", "20"))
+    if signoff_period_ns <= 0.0:
+        raise ValueError("SDC_CLOCK_PERIOD_NS must be positive")
+    cfg = ClockConfig(
+        tuple(
+            ClockDomain(
+                domain.name,
+                domain.signal,
+                domain.reset,
+                signoff_period_ns,
+                domain.reset_polarity,
+            )
+            for domain in cfg.domains
+        ),
+        cfg.relationships,
     )
+    print_label(
+        "timing",
+        f"sdc_clock_period={signoff_period_ns:g}ns · io_delay_pct={io_delay_pct:g}",
+    )
+    text = render_clock_config_sdc(top, cfg, io_delay_pct)
     path = write_sdc(layout.signoff_sdc, text)
     print_script(
         path,

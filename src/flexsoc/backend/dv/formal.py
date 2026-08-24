@@ -387,18 +387,20 @@ def _write_scaffold(path: Path, text: str) -> Path:
     return path.resolve()
 
 
-def generate_scaffold(top: str, formal_dir: Path) -> tuple[Path, ...]:
+def generate_scaffold(
+    top: str, formal_dir: Path, *, multiclock: bool | None = None
+) -> tuple[Path, ...]:
     """Create non-destructive design-property starters for the generated core."""
 
     root = formal_dir.expanduser().resolve() / "properties"
-    multiclock = clock_config().multiclock
+    is_multiclock = clock_config().multiclock if multiclock is None else multiclock
     prove = _write_scaffold(
         root / "prove" / f"{top}_prove.sv",
-        render_design_prove(top, multiclock=multiclock),
+        render_design_prove(top, multiclock=is_multiclock),
     )
     cover = _write_scaffold(
         root / "cover" / f"{top}_cover.sv",
-        render_design_cover(top, multiclock=multiclock),
+        render_design_cover(top, multiclock=is_multiclock),
     )
     return prove, cover
 
@@ -501,10 +503,12 @@ class FormalFlow:
 
     runner: object | None = None
 
-    def setup_scaffold(self, top: str, formal_dir: Path) -> tuple[Path, ...]:
+    def setup_scaffold(
+        self, top: str, formal_dir: Path, *, multiclock: bool | None = None
+    ) -> tuple[Path, ...]:
         """Create or preserve designer-owned property sources."""
 
-        return generate_scaffold(top, formal_dir)
+        return generate_scaffold(top, formal_dir, multiclock=multiclock)
 
     def setup_design(
         self,
@@ -629,7 +633,7 @@ class FormalFlow:
         props=paths.formal / "properties"
         runs=paths.formal / "runs"
         logs=paths.logs / "dv" / "formal"
-        self.setup_scaffold(top, paths.formal)
+        self.setup_scaffold(top, paths.formal, multiclock=context.clocks.multiclock)
         prove=self.setup_design(top=top, filelists=common, properties_dir=props/"prove", mode="prove", engine=values.get("FORMAL_PROVE_ENGINE","abc pdr"), output=runs/"properties"/"prove"/f"{top}_prove.sby", depth=int(values.get("FORMAL_DEPTH","20")), bmc_engine=values.get("FORMAL_BMC_ENGINE","smtbmc bitwuzla"), bmc_depth=int(values.get("FORMAL_BMC_DEPTH","30")), bmc_append=int(values.get("FORMAL_BMC_APPEND","5")), multiclock=context.clocks.multiclock)
         cover=self.setup_design(top=top, filelists=common, properties_dir=props/"cover", mode="cover", engine=values.get("FORMAL_COVER_ENGINE","btor btormc"), output=runs/"properties"/"cover"/f"{top}_cover.sby", depth=int(values.get("FORMAL_DEPTH","20")), multiclock=context.clocks.multiclock)
         csr_prove=self.setup_csr(top=top, filelists=common, properties_dir=paths.formal/"csr"/"prove", generated=paths.formal/"csr"/"prove"/f"{top}_csr_auto_prove.sv", mode="prove", engine=values.get("FORMAL_PROVE_ENGINE","abc pdr"), output=runs/"csr"/"prove"/f"{top}_csr_prove.sby", depth=int(values.get("FORMAL_DEPTH","20")), bmc_engine=values.get("FORMAL_BMC_ENGINE","smtbmc bitwuzla"), bmc_depth=int(values.get("FORMAL_BMC_DEPTH","30")), bmc_append=int(values.get("FORMAL_BMC_APPEND","5")), multiclock=context.clocks.multiclock)

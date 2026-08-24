@@ -1107,6 +1107,27 @@ def execute_activity(
     summary_path = summary_root / "summary.json"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if action == "all":
+        workload_width = max([8, *(len(str(report.get("workload", report.get("spec", "n/a")))) for report in reports)])
+        test_width = max([4, *(len(str(report.get("test", "n/a"))) for report in reports)])
+        print(f"[summary] {label} · workloads={len(reports)}", flush=True)
+        header = (
+            f"{'workload':<{workload_width}} {'test':<{test_width}} "
+            f"{'backend':<7} {'timing':<7} {'status':<6}"
+        )
+        print(f"[summary] {header}", flush=True)
+        print(f"[summary] {'-' * len(header)}", flush=True)
+        for report in reports:
+            workload = str(report.get("workload", report.get("spec", "n/a")))
+            test = str(report.get("test", "n/a"))
+            backend = str(report.get("backend", "n/a"))
+            timing = str(report.get("timing_mode", "n/a"))
+            status = str(report.get("status", "fail")).upper()
+            print(
+                f"[summary] {workload:<{workload_width}} {test:<{test_width}} "
+                f"{backend:<7} {timing:<7} {status:<6}",
+                flush=True,
+            )
     print(f"[{label}] {passed}/{len(reports)} PASS", flush=True)
     print(f"[report] machine_summary={summary_path}", flush=True)
     return 0 if reports and passed == len(reports) else 2

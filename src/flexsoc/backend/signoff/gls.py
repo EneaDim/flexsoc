@@ -1034,6 +1034,34 @@ def execute_all(project_root: Path, values: Mapping[str, str], stage: str = "pos
     summary_path = summary_dir / f"summary_{backend}.json"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    scenario_names = [timing_scenario(mode) for mode in modes]
+    widths = [max(4, len(name)) for name in scenario_names]
+    test_width = max([4, *(len(test) for test in tests)])
+    status_by_case = {
+        (str(report.get("test_name", "")), str(report.get("timing_mode", ""))):
+            str(report.get("status", "fail")).upper()
+        for report in reports
+    }
+    print(f"[summary] {label} · stage={stage} · backend={backend}", flush=True)
+    header = f"{'test':<{test_width}} " + " ".join(
+        f"{name:>{width}}" for name, width in zip(scenario_names, widths)
+    )
+    print(f"[summary] {header}", flush=True)
+    print(f"[summary] {'-' * len(header)}", flush=True)
+    for test in tests:
+        cells = [
+            status_by_case.get((test, mode), "MISS")
+            for mode in modes
+        ]
+        row = f"{test:<{test_width}} " + " ".join(
+            f"{cell:>{width}}" for cell, width in zip(cells, widths)
+        )
+        print(f"[summary] {row}", flush=True)
+    print(
+        f"[summary] total={len(cases)} pass={len(cases) - failures} fail={failures}",
+        flush=True,
+    )
     print(f"[report] machine_summary={summary_path}", flush=True)
     return 0 if cases and failures == 0 else 2
 
