@@ -887,7 +887,11 @@ class _TargetRouter:
         if target == "metrics":
             return report.write_metrics(self.paths.top, self.paths.run, self.paths.metrics, pdk=self.paths.pdk)
         if target == "manifest":
-            return report.write_manifest(top=self.paths.top, run_top=self.paths.run_top, run_id=self.paths.run_id, repo_root=self.client.project_root, output=self.paths.manifest)
+            return report.write_manifest(
+                top=self.paths.top, run_top=self.paths.run_top, run_id=self.paths.run_id,
+                repo_root=self.client.project_root, output=self.paths.manifest,
+                pdk=self.paths.pdk, run_root=self.paths.run,
+            )
         if target == "manifest_show":
             return report.show_manifest(self.paths.manifest)
         return report.check(self.paths.metrics)

@@ -1497,6 +1497,32 @@ def test_manifest_lists_only_existing_artifact_directories(
         "status": "pass", "clock_model": "propagated", "interconnect": "spef"
     }
 
+def test_manifest_explicit_context_survives_native_router_without_environment(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    run = tmp_path / "runs" / "demo" / "dev"
+    syn = run / "syn" / "sky130"
+    syn.mkdir(parents=True)
+    lock = tmp_path / "src" / "flexsoc" / "backend" / "core" / "toolchain.lock"
+    lock.parent.mkdir(parents=True)
+    lock.write_text("KLAYOUT_VERSION=0.30.7\n", encoding="utf-8")
+    monkeypatch.delenv("FLEXSOC_PDK", raising=False)
+    monkeypatch.delenv("FLEXSOC_RUN_ROOT", raising=False)
+
+    data = collect_manifest(
+        top="demo",
+        run_top="demo",
+        run_id="dev",
+        repo_root=tmp_path,
+        pdk="sky130",
+        run_root=run,
+    )
+
+    assert data["run"]["pdk"] == "sky130"
+    assert data["run"]["run_root"] == str(run)
+    assert data["run"]["artifacts"] == {"synthesis": str(syn.resolve())}
+    assert data["environment"]["toolchain_lock_sha256"] is not None
+
 
 def _write_formal_stage(run: Path, top: str, suite: str, stage: str) -> None:
     formal = run / "dv" / "formal" / "runs"

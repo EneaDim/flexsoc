@@ -1771,14 +1771,16 @@ def collect_manifest(
     run_top: str,
     run_id: str,
     repo_root: Path,
+    pdk: str | None = None,
+    run_root: Path | None = None,
 ) -> dict[str, object]:
     """Collect run identity, source revision, environment, and tool versions."""
 
     environment = collect_environment(repo_root)
     commit = _git(repo_root, "rev-parse", "HEAD")
     status = _git(repo_root, "status", "--porcelain")
-    pdk = os.environ.get("FLEXSOC_PDK") or None
-    run_root_value = os.environ.get("FLEXSOC_RUN_ROOT") or None
+    pdk = pdk or os.environ.get("FLEXSOC_PDK") or None
+    run_root_value = str(run_root) if run_root is not None else (os.environ.get("FLEXSOC_RUN_ROOT") or None)
     artifact_paths: dict[str, str] | None = None
     analysis: dict[str, object] | None = None
     signoff: dict[str, object] | None = None
@@ -1839,7 +1841,9 @@ def collect_manifest(
             "platform": platform.platform(),
             "machine": platform.machine(),
             "uv_lock_sha256": _file_sha256(repo_root / "uv.lock"),
-            "toolchain_lock_sha256": _file_sha256(repo_root / "src" / "flexsoc" / "backend" / "toolchain.lock"),
+            "toolchain_lock_sha256": _file_sha256(
+                repo_root / "src" / "flexsoc" / "backend" / "core" / "toolchain.lock"
+            ),
         },
         "toolchain": environment.get("toolchain_lock", {}),
         "analysis": analysis,
@@ -2101,10 +2105,15 @@ class Reporting:
         run_top: str,
         run_id: str,
         repo_root: Path,
+        pdk: str | None = None,
+        run_root: Path | None = None,
     ) -> dict[str, object]:
         """Collect immutable run/tool identity."""
 
-        return collect_manifest(top=top, run_top=run_top, run_id=run_id, repo_root=repo_root)
+        return collect_manifest(
+            top=top, run_top=run_top, run_id=run_id, repo_root=repo_root,
+            pdk=pdk, run_root=run_root,
+        )
 
     def write_manifest(
         self,
@@ -2114,10 +2123,15 @@ class Reporting:
         run_id: str,
         repo_root: Path,
         output: Path,
+        pdk: str | None = None,
+        run_root: Path | None = None,
     ) -> Path:
         """Collect and write manifest JSON."""
 
-        data = self.manifest(top=top, run_top=run_top, run_id=run_id, repo_root=repo_root)
+        data = self.manifest(
+            top=top, run_top=run_top, run_id=run_id, repo_root=repo_root,
+            pdk=pdk, run_root=run_root,
+        )
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         return output
