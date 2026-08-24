@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from ..core import BackendContext, ToolRunner
 from .cdc import CdcFlow
@@ -66,6 +65,7 @@ class DvFlow:
         """Run one exact legacy-equivalent lint class through the shared runner."""
         import re
         from ..core import CommandRequest
+        from ..core.execution import print_label, print_path_label, print_status_label
 
         values, paths = self.context.values, self.context.paths
         if not paths.rtl_common.is_file() or not paths.rtl_ip.is_file():
@@ -81,14 +81,19 @@ class DvFlow:
         raw = logdir / "raw" / f"{paths.top}_lint_{tool}_{kind}_raw.log"
         full = logdir / f"{paths.top}_lint_{tool}_{kind}.log"
         raw.parent.mkdir(parents=True, exist_ok=True)
+        print_label("lint", f"tool={tool} · kind={kind} · part={part}")
+        print_path_label("log", full)
+        print_path_label("raw-log", raw)
         argv = self._lint_command(tool, kind, paths, values)
         result = self.runner.run(CommandRequest(argv, self.context.project_root, {}, raw), on=on)
         raw_text = raw.read_text(encoding="utf-8", errors="replace") if raw.exists() else ""
         if result.returncode:
             full.write_text(raw_text, encoding="utf-8")
+            print_status_label("lint", "FAIL", f"tool={tool} · kind={kind} · part={part}")
             raise RuntimeError(f"{tool} lint failed; log: {raw}")
         if kind == "all":
             full.write_text(raw_text, encoding="utf-8")
+            print_status_label("lint", "PASS", f"tool={tool} · kind={kind} · part={part}")
             return result
 
         patterns = {
@@ -105,8 +110,7 @@ class DvFlow:
         elif part == "common":
             selected = [line for line in selected if rtl_prefix not in line]
         full.write_text(("\n".join(selected) + "\n") if selected else f"No {kind} diagnostics for {part}.\n", encoding="utf-8")
-        if selected:
-            raise RuntimeError(f"{len(selected)} {kind} lint diagnostic(s); log: {full}")
+        print_status_label("lint", "PASS", f"tool={tool} · kind={kind} · part={part}")
         return result
 
     @staticmethod

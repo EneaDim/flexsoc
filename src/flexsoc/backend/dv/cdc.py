@@ -1728,10 +1728,12 @@ class CdcFlow:
     def flow_from_context(self, context, *, on: str = "local"):
 
         """Prepare and run CDC/RDC from one BackendContext."""
-        paths=context.paths; values=context.values
+        paths = context.paths
+        values = context.values
         analysis=paths.run / "analysis" / "cdc_rdc"
         logs=paths.logs / "analysis" / "cdc_rdc"
-        script=analysis / "extract.ys"; design_json=analysis / "design.json"
+        script = analysis / "extract.ys"
+        design_json = analysis / "design.json"
         filelists=(paths.rtl_common, paths.rtl_ip)
         self.setup(top=paths.top, script=script, design_json=design_json, repo_root=context.project_root, filelists=filelists)
         return self.run(top=paths.top, script=script, design_json=design_json, analysis_dir=analysis, log_dir=logs, yosys=values.get("YOSYS","yosys"), n_clocks=int(values.get("N_CLOCKS","1")), clock_domains=values.get("CLOCK_DOMAINS",""), clock_relationships=values.get("CLOCK_RELATIONSHIPS",""), clk_period=float(values.get("CLK_PERIOD","20")), heartbeat=float(values.get("CDC_RDC_HEARTBEAT","5")), strict=values.get("CDC_RDC_STRICT","0") in {"1","true","yes"}, on=on)

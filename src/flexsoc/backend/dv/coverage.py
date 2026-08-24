@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 RESET = "\033[0m"
 WHITE = "\033[97m"
@@ -28,6 +29,46 @@ DISPLAY_TYPE_GROUPS = {
     "fsm": ("fsm_state", "fsm_arc"),
     "user": ("user", "covergroup"),
 }
+
+
+def _resolve_verilator_coverage(values: object) -> str:
+    """Resolve verilator_coverage from settings, PATH, or the Verilator install tree."""
+
+    import os
+    import shutil
+
+    mapping = values if isinstance(values, dict) else values
+    get = getattr(mapping, "get", lambda _key, default=None: default)
+    explicit = str(get("VERILATOR_COVERAGE", "") or "").strip()
+    if explicit:
+        return explicit
+
+    if found := shutil.which("verilator_coverage"):
+        return found
+
+    verilator = str(get("VERILATOR", "verilator") or "verilator").strip()
+    resolved = shutil.which(verilator)
+    candidates: list[Path] = []
+    if resolved:
+        executable = Path(resolved).expanduser()
+        candidates.extend((
+            executable.with_name("verilator_coverage"),
+            executable.resolve().with_name("verilator_coverage"),
+        ))
+    elif Path(verilator).expanduser().is_file():
+        executable = Path(verilator).expanduser()
+        candidates.extend((
+            executable.with_name("verilator_coverage"),
+            executable.resolve().with_name("verilator_coverage"),
+        ))
+
+    if root := os.environ.get("VERILATOR_ROOT"):
+        candidates.append(Path(root).expanduser() / "bin" / "verilator_coverage")
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return "verilator_coverage"
 
 
 @dataclass(frozen=True)
@@ -355,10 +396,45 @@ class CoverageFlow:
         *,
         annotated_dir: Path | None = None,
     ) -> dict[str, object]:
-        """Write the scoped coverage summary."""
+        """Write and print the scoped coverage summary."""
 
-        points = scoped_points(annotated_points(annotated_dir) if annotated_dir else [], filelists)
-        return write_summary(data, points, output)
+        from flexsoc.backend.core.execution import (
+            print_label,
+            print_path_label,
+            print_status_label,
+        )
+
+        if len(filelists) < 2:
+            raise ValueError("coverage reporting requires IP and common RTL filelists")
+        if not data.is_file():
+            raise FileNotFoundError(f"coverage database missing: {data}")
+
+        ip_files = filelist_basenames(filelists[0])
+        common_files = filelist_basenames(filelists[1])
+        points = annotated_points(annotated_dir) if annotated_dir else []
+        json_output = output.with_suffix(".json")
+
+        print_label("coverage", f"stage=report · points={len(points)}")
+        print_path_label("summary", output)
+        print_path_label("json", json_output)
+        try:
+            summary = coverage_summary_data(
+                points,
+                ip_files=ip_files,
+                common_files=common_files,
+            )
+            write_summary(
+                points,
+                ip_files=ip_files,
+                common_files=common_files,
+                output=output,
+                json_output=json_output,
+            )
+        except Exception:
+            print_status_label("coverage", "FAIL", "stage=report")
+            raise
+        print_status_label("coverage", "PASS", "stage=report")
+        return summary
 
     def detail(
         self,
@@ -369,13 +445,30 @@ class CoverageFlow:
         limit: int = 0,
         output: Path | None = None,
     ) -> list[str]:
-        """Return uncovered authored-RTL points."""
+        """Print and return uncovered authored-RTL coverage points."""
 
-        points = scoped_points(annotated_points(annotated_dir) if annotated_dir else [], filelists)
-        lines = detail_lines(data, points, limit=limit)
+        if len(filelists) < 2:
+            raise ValueError("coverage detail requires IP and common RTL filelists")
+        if not data.is_file():
+            raise FileNotFoundError(f"coverage database missing: {data}")
+
+        ip_files = filelist_basenames(filelists[0])
+        common_files = filelist_basenames(filelists[1])
+        points = annotated_points(annotated_dir) if annotated_dir else []
+        selected = scoped_points(
+            points,
+            "design",
+            ip_files=ip_files,
+            common_files=common_files,
+        )
+        lines = detail_lines(selected, limit=limit, scope="design")
         if output is not None:
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        print()
+        for line in lines:
+            print(line)
         return lines
     def collect(
         self,
@@ -391,10 +484,28 @@ class CoverageFlow:
             raise FileNotFoundError(f"no Verilator coverage data in {coverage_dir}")
         output = coverage_dir / "merged.dat"
         log = coverage_dir / "merge.log"
+        argv = (tool, "--write", str(output), *(str(path) for path in files))
+        from flexsoc.backend.core.execution import print_label, print_path_label, print_status_label
+        import shlex
+
+        print_label("coverage", f"stage=merge · inputs={len(files)} · tool={tool}")
+        print_path_label("log", log)
+        print_label("command", shlex.join(argv))
         runner = self.runner or ToolRunner()
-        result = runner.run(CommandRequest((tool, "--write", str(output), *(str(path) for path in files)), coverage_dir, {}, log, inputs=files, outputs=(output,)), on=on)
+        try:
+            result = runner.run(
+                CommandRequest(argv, coverage_dir, {}, log, inputs=files, outputs=(output,)),
+                on=on,
+            )
+        except OSError as exc:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text(f"{exc}\n", encoding="utf-8")
+            print_status_label("coverage", "FAIL", "stage=merge")
+            raise
         if result.returncode:
+            print_status_label("coverage", "FAIL", "stage=merge")
             raise RuntimeError(f"coverage merge failed; log: {log}")
+        print_status_label("coverage", "PASS", "stage=merge")
         return output
 
     def annotate(
@@ -411,18 +522,39 @@ class CoverageFlow:
         shutil.rmtree(output, ignore_errors=True)
         output.mkdir(parents=True, exist_ok=True)
         log = output.parent / "annotate.log"
+        argv = (
+            tool, "--annotate", str(output), "--annotate-all",
+            "--annotate-points", "--annotate-min", "1", str(data),
+        )
+        from flexsoc.backend.core.execution import print_label, print_path_label, print_status_label
+        import shlex
+
+        print_label("coverage", f"stage=annotate · tool={tool}")
+        print_path_label("log", log)
+        print_label("command", shlex.join(argv))
         runner = self.runner or ToolRunner()
-        argv=(tool, "--annotate", str(output), "--annotate-all", "--annotate-points", "--annotate-min", "1", str(data))
-        result=runner.run(CommandRequest(tuple(argv), output.parent, {}, log, inputs=(data,), outputs=(output,)), on=on)
+        try:
+            result = runner.run(
+                CommandRequest(argv, output.parent, {}, log, inputs=(data,), outputs=(output,)),
+                on=on,
+            )
+        except OSError as exc:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text(f"{exc}\n", encoding="utf-8")
+            print_status_label("coverage", "FAIL", "stage=annotate")
+            raise
         if result.returncode:
+            print_status_label("coverage", "FAIL", "stage=annotate")
             raise RuntimeError(f"coverage annotation failed; log: {log}")
+        print_status_label("coverage", "PASS", "stage=annotate")
         return output
 
     def flow_from_context(self, context, *, detail: bool = True, on: str = "local"):
         """Merge, annotate and report coverage for one configured run."""
         paths=context.paths
-        merged=self.collect(paths.coverage, tool=context.values.get("VERILATOR_COVERAGE", "verilator_coverage"), on=on)
-        annotated=self.annotate(merged, paths.coverage / "annotated", tool=context.values.get("VERILATOR_COVERAGE", "verilator_coverage"), on=on)
+        tool = _resolve_verilator_coverage(context.values)
+        merged=self.collect(paths.coverage, tool=tool, on=on)
+        annotated=self.annotate(merged, paths.coverage / "annotated", tool=tool, on=on)
         summary=self.report(merged, (paths.rtl_ip, paths.rtl_common), paths.coverage / "summary.txt", annotated_dir=annotated)
         if detail:
             self.detail(merged, (paths.rtl_ip, paths.rtl_common), annotated_dir=annotated, limit=int(context.values.get("COVERAGE_DETAIL_LIMIT", "0")), output=paths.logs / "dv" / "functional" / "coverage" / f"{paths.top}_coverage_detail.log")

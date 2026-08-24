@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import shlex
@@ -672,6 +671,35 @@ class _TargetRouter:
     def _words(self, key: str, default: str = "") -> tuple[str, ...]:
         return tuple(part for part in self.values.get(key, default).replace(",", " ").split() if part)
 
+    def _slang_inputs(self) -> tuple[Path, Path, tuple[Path, ...], str]:
+        root = self._path("SLANG_ROOT", self.paths.rtl)
+        top_file = self._path("SLANG_TOP_FILE", root / f"{self.paths.top}.sv")
+        tokens = iter(shlex.split(self.values.get("SLANG_SEARCH_ARGS", "")))
+        roots, extra = [], []
+        for token in tokens:
+            if token == "--search-root":
+                try:
+                    roots.append(Path(next(tokens)).expanduser().resolve())
+                except StopIteration as exc:
+                    raise ValueError("SLANG_SEARCH_ARGS: --search-root requires a path") from exc
+            elif token.startswith("--search-root="):
+                roots.append(Path(token.split("=", 1)[1]).expanduser().resolve())
+            else:
+                extra.append(token)
+        if not roots:
+            for filelist in (self.paths.rtl_common, self.paths.rtl_ip):
+                if not filelist.is_file():
+                    continue
+                for raw in filelist.read_text(encoding="utf-8").splitlines():
+                    item = raw.strip()
+                    if not item or item.startswith(("#", "+define+")):
+                        continue
+                    items = item.removeprefix("+incdir+").split("+") if item.startswith("+incdir+") else [str(Path(item).parent)]
+                    roots.extend((root / path if not path.is_absolute() else path).resolve() for path in map(Path, items) if str(path))
+            roots = list(dict.fromkeys(roots)) or [self.paths.rtl, self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"]
+        args = [*shlex.split(self.values.get("SLANG_ARGS", "")), *extra]
+        return root, top_file, tuple(roots), shlex.join(args)
+
     def _run_cmd(self, argv, *, cwd: Path | None = None, log: Path | None = None, inputs=(), outputs=()) -> int:
         from .backend.core import CommandRequest
 
@@ -705,7 +733,7 @@ class _TargetRouter:
             output=self.paths.tb / "cocotb",
             rtl_dir=self.paths.rtl,
             ips_root=self.client.project_root / "hw" / "ips",
-            simulator=self.values.get("GLS_SIMULATOR", self.values.get("COMPILER", "iverilog")),
+            simulator=self.values.get("COMPILER", "verilator"),
             period_ns=period,
             vsv=self.values.get("VSV", "sv"),
             force=self._bool(self.values.get("FORCE")),
@@ -882,12 +910,13 @@ class _TargetRouter:
             if not vendor:
                 raise ValueError("fetch requires VENDOR=<name>")
             return b.design.rtl.fetch_vendor(self.client.project_root / "vendor" / f"{vendor}.vendor.hjson", target_dir=self.client.project_root, force=force, on=self.on)
-        if target == "slang_hier":
-            return b.design.rtl.show_hierarchy(root=self.client.project_root, top_file=p.rtl / f"{top}.sv", output=p.run / "lint" / f"{top}_hier.txt", search_roots=(p.rtl, self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), top=top, slang_hier=v.get("SLANG_HIER", "slang-hier"), on=self.on)
-        if target == "slang_ast":
-            return b.design.rtl.show_ast(root=self.client.project_root, top_file=p.rtl / f"{top}.sv", output=p.run / "lint" / f"{top}_ast.json", search_roots=(p.rtl, self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), top=top, slang=v.get("SLANG", "slang"), scope=v.get("SLANG_AST_SCOPE"), on=self.on)
+        if target in {"slang_hier", "slang_ast"}:
+            root, top_file, search_roots, extra_args = self._slang_inputs()
+            output = p.run / "analysis" / "slang" / f"{top}_{'hier.txt' if target == 'slang_hier' else 'ast.json'}"
+            if target == "slang_hier":
+                return b.design.rtl.show_hierarchy(root=root, top_file=top_file, output=output, search_roots=search_roots, top=v.get("SLANG_TOP", top), extra_args=extra_args, slang_hier=v.get("SLANG_HIER", "slang-hier"), on=self.on)
+            return b.design.rtl.show_ast(root=root, top_file=top_file, output=output, search_roots=search_roots, top=v.get("SLANG_TOP", top), extra_args=extra_args, slang=v.get("SLANG", "slang"), scope=v.get("SLANG_AST_SCOPE"), on=self.on)
         if target == "setup_model":
-            b.design.regs.generate_regmap_py(top, p.data, p.model, force=force)
             return b.design.model.flow(top, p.data, p.model, p.rtl, force=force, clocks=self.context.clocks)
         if target in {"setup_tb", "setup_cocotb"}:
             sv, cocotb = self._tb_configs()
@@ -904,12 +933,18 @@ class _TargetRouter:
 
         if target.startswith("lint") or target == "_lint_run":
             kind = target.removeprefix("lint_") if target.startswith("lint_") else "all"
-            if target == "lint_slang": return b.dv.lint_slang(on=self.on)
-            if target == "lint_verilator": return b.dv.lint_verilator(on=self.on)
-            if target == "lint_slang_suite": return b.dv.lint_suite(tools=("slang",), on=self.on)
-            if target == "lint_verilator_suite": return b.dv.lint_suite(tools=("verilator",), on=self.on)
-            if target in {"lint", "lint_suite"}: return b.dv.lint_suite(on=self.on)
-            if target in {"lint_v", "lint_sv"}: return b.dv.lint_verilator(kind="all", on=self.on)
+            if target == "lint_slang":
+                return b.dv.lint_slang(on=self.on)
+            if target == "lint_verilator":
+                return b.dv.lint_verilator(on=self.on)
+            if target == "lint_slang_suite":
+                return b.dv.lint_suite(tools=("slang",), on=self.on)
+            if target == "lint_verilator_suite":
+                return b.dv.lint_suite(tools=("verilator",), on=self.on)
+            if target in {"lint", "lint_suite"}:
+                return b.dv.lint_suite(on=self.on)
+            if target in {"lint_v", "lint_sv"}:
+                return b.dv.lint_verilator(kind="all", on=self.on)
             return b.dv.lint_suite(tools=(v.get("LINT_TOOL", "slang"),), part=v.get("LINT_PART", "ip"), on=self.on) if kind not in {"latch","undriven","width","unconnected","unused"} else (b.dv.lint_slang(kind=kind, part=v.get("LINT_PART","ip"), on=self.on), b.dv.lint_verilator(kind=kind, part=v.get("LINT_PART","ip"), on=self.on))
 
         if target in {"setup_cdc_rdc", "cdc_rdc"}:
@@ -927,8 +962,8 @@ class _TargetRouter:
             return b.dv.functional.run_regression(top=top, test_root=p.tests, tb_dir=p.tb, sim_dir=p.sim / "rtl", common_filelist=p.rtl_common, ip_filelist=p.rtl_ip, rtl_sources=self._rtl_sources(), compiler=v.get("COMPILER","verilator"), backends=("sv",), seed=int(v.get("SEED","1")), log_dir=p.logs / "dv" / "functional", on=self.on)
         if target in {"cocotb", "cocotb_tests"}:
             if target == "cocotb_tests":
-                return b.dv.functional.run_regression(top=top, test_root=p.tests, tb_dir=p.tb, sim_dir=p.sim / "rtl", common_filelist=p.rtl_common, ip_filelist=p.rtl_ip, rtl_sources=self._rtl_sources(), backends=("cocotb",), seed=int(v.get("SEED","1")), log_dir=p.logs / "dv" / "functional", on=self.on)
-            return b.dv.functional.run_cocotb(top=top, test_root=p.tests, tb_dir=p.tb, rtl_sources=self._rtl_sources(), test_name=v.get("TEST_NAME","smoke"), seed=int(v.get("SEED","1")), waves=self._bool(v.get("COCOTB_WAVES"), True), log=p.logs / "dv" / "functional" / f"{top}_cocotb_{v.get('TEST_NAME','smoke')}.log", on=self.on)
+                return b.dv.functional.run_regression(top=top, test_root=p.tests, tb_dir=p.tb, sim_dir=p.sim / "rtl", common_filelist=p.rtl_common, ip_filelist=p.rtl_ip, rtl_sources=self._rtl_sources(), compiler=v.get("COMPILER","verilator"), backends=("cocotb",), seed=int(v.get("SEED","1")), log_dir=p.logs / "dv" / "functional", on=self.on)
+            return b.dv.functional.run_cocotb(top=top, test_root=p.tests, tb_dir=p.tb, rtl_sources=self._rtl_sources(), test_name=v.get("TEST_NAME","smoke"), simulator=v.get("COMPILER","verilator"), seed=int(v.get("SEED","1")), waves=self._bool(v.get("COCOTB_WAVES"), True), log=p.logs / "dv" / "functional" / f"{top}_cocotb_{v.get('TEST_NAME','smoke')}.log", on=self.on)
         if target == "regression":
             return b.dv.functional.flow_from_context(self.context, on=self.on)
         if target in {"coverage", "coverage_detail"}:
@@ -936,7 +971,8 @@ class _TargetRouter:
 
         if target in {"setup_formal", "setup_formal_prove", "setup_formal_cover", "setup_formal_csr_prove", "setup_formal_csr_cover"}:
             b.dv.formal.setup_scaffold(top, p.formal)
-            if target == "setup_formal": return 0
+            if target == "setup_formal":
+                return 0
             csr = "csr" in target
             mode = "cover" if target.endswith("cover") else "prove"
             return self._formal_setup(csr=csr, mode=mode)
@@ -966,14 +1002,22 @@ class _TargetRouter:
             return (pre.setup_sdc(), pre.setup_sta(), pre.setup_sdf(), pre.setup_power(), pre.setup_fusion())
         if target == "setup_signoff_post_pnr":
             return (post.setup_sta(), post.setup_sdf(), post.setup_power(), post.setup_fusion())
-        if target in {"sta", "sta_corners"}: return pre.run_sta(on=self.on)
-        if target == "sdf": return pre.write_sdf(on=self.on)
-        if target in {"power_estimate", "power_estimate_corners"}: return pre.run_power_estimate(on=self.on)
-        if target == "power_analysis": return pre.run_power_activity(all_workloads=False, on=self.on)
-        if target == "power_analysis_all": return pre.run_power_activity(all_workloads=True, on=self.on)
-        if target == "fusion_analysis": return pre.run_fusion(all_workloads=False, on=self.on)
-        if target == "fusion_analysis_all": return pre.run_fusion(all_workloads=True, on=self.on)
-        if target == "signoff_corners": return (pre.write_sdf(on=self.on), pre.run_sta(on=self.on), pre.run_power_estimate(on=self.on))
+        if target in {"sta", "sta_corners"}:
+            return pre.run_sta(on=self.on)
+        if target == "sdf":
+            return pre.write_sdf(on=self.on)
+        if target in {"power_estimate", "power_estimate_corners"}:
+            return pre.run_power_estimate(on=self.on)
+        if target == "power_analysis":
+            return pre.run_power_activity(all_workloads=False, on=self.on)
+        if target == "power_analysis_all":
+            return pre.run_power_activity(all_workloads=True, on=self.on)
+        if target == "fusion_analysis":
+            return pre.run_fusion(all_workloads=False, on=self.on)
+        if target == "fusion_analysis_all":
+            return pre.run_fusion(all_workloads=True, on=self.on)
+        if target == "signoff_corners":
+            return (pre.write_sdf(on=self.on), pre.run_sta(on=self.on), pre.run_power_estimate(on=self.on))
         if target in {"compile_syn", "compile_post_syn", "sim_syn", "sim_post_syn", "sim_post_syn_all"}:
             timing = v.get("TIMING_MODE", "zero")
             test = v.get("TEST_NAME", "smoke")
@@ -983,30 +1027,43 @@ class _TargetRouter:
         if target in {"compile_post_pnr", "sim_post_pnr", "sim_post_pnr_all"}:
             timing = v.get("TIMING_MODE", "zero")
             test = v.get("TEST_NAME", "smoke")
-            if target == "compile_post_pnr": return post.gls.compile(test=test, timing=timing, backend=v.get("GLS_BACKEND","sv"), on=self.on)
+            if target == "compile_post_pnr":
+                return post.gls.compile(test=test, timing=timing, backend=v.get("GLS_BACKEND","sv"), on=self.on)
             return post.gls.flow(on=self.on) if target.endswith("_all") else post.run_gls(test=test, timing=timing, backend=v.get("GLS_BACKEND","sv"), on=self.on)
-        if target in {"sta_post_pnr"}: return post.run_sta(on=self.on)
-        if target in {"sdf_post_pnr"}: return post.write_sdf(on=self.on)
-        if target == "power_estimate_post_pnr": return post.run_power_estimate(on=self.on)
-        if target == "power_analysis_post_pnr": return post.run_power_activity(all_workloads=False, on=self.on)
-        if target == "power_analysis_post_pnr_all": return post.run_power_activity(all_workloads=True, on=self.on)
-        if target == "fusion_analysis_post_pnr": return post.run_fusion(all_workloads=False, on=self.on)
-        if target == "fusion_analysis_post_pnr_all": return post.run_fusion(all_workloads=True, on=self.on)
-        if target == "signoff_post_pnr": return post.flow(on=self.on)
+        if target in {"sta_post_pnr"}:
+            return post.run_sta(on=self.on)
+        if target in {"sdf_post_pnr"}:
+            return post.write_sdf(on=self.on)
+        if target == "power_estimate_post_pnr":
+            return post.run_power_estimate(on=self.on)
+        if target == "power_analysis_post_pnr":
+            return post.run_power_activity(all_workloads=False, on=self.on)
+        if target == "power_analysis_post_pnr_all":
+            return post.run_power_activity(all_workloads=True, on=self.on)
+        if target == "fusion_analysis_post_pnr":
+            return post.run_fusion(all_workloads=False, on=self.on)
+        if target == "fusion_analysis_post_pnr_all":
+            return post.run_fusion(all_workloads=True, on=self.on)
+        if target == "signoff_post_pnr":
+            return post.flow(on=self.on)
         if target == "sta_violators":
             return pre.run_sta(on=self.on)
         if target == "path_view":
             path = self._path("PATH_VIEW_FILE", p.signoff / "path_view" / "paths.json")
             return self._run_cmd((sys.executable, str(self.client.project_root / "src" / "util" / "plot_path.py"), str(path)), log=p.logs / "signoff" / p.pdk / "path_view.log", inputs=(path,))
 
-        if target == "setup_pnr": return self._setup_pnr()
-        if target == "pnr": return self._run_pnr()
-        if target == "pnr_gui": return self._run_pnr(gui=True)
+        if target == "setup_pnr":
+            return self._setup_pnr()
+        if target == "pnr":
+            return self._run_pnr()
+        if target == "pnr_gui":
+            return self._run_pnr(gui=True)
         if target == "physical_signoff":
             makefile, config = self._orfs()
             return post.run_physical(makefile=makefile, config=config, workdir=p.impl, top=top, output=p.signoff / "physical" / "summary.json", log=p.logs / "signoff" / p.pdk / "physical" / "physical_signoff.log", on=self.on)
 
-        if target in {"metrics", "manifest", "manifest_show", "check"}: return self._report(target)
+        if target in {"metrics", "manifest", "manifest_show", "check"}:
+            return self._report(target)
         if target == "ip_load":
             return b.package.load(
                 ip_name=v.get("IP_NAME", top), run_top=p.run_top, run_id=p.run_id,
@@ -1187,12 +1244,18 @@ class _TargetRouter:
         p, v = self.paths, self.values
         name = v.get("FSM", "fsm_example")
         flow = FsmFlow(p.run, self.runner)
-        if target in {"fsm_init", "fsm_setup"}: return flow.setup(name)
-        if target == "fsm_example_load": return flow.load_example(name)
-        if target == "fsm_gen": return flow.generate(name, clock_mhz=int(v.get("F_CLK","32")))
-        if target == "fsm_plot": return flow.plot(name, on=self.on)
-        if target == "fsm_flow": return flow.flow(name, clock_mhz=int(v.get("F_CLK","32")), plot=True, on=self.on)
-        if target in {"fsm_install", "fsm2rtl"}: return flow.install(name, rtl_dir=p.rtl, tb_dir=p.tb / "sv", sim_dir=p.sim / "rtl")
+        if target in {"fsm_init", "fsm_setup"}:
+            return flow.setup(name)
+        if target == "fsm_example_load":
+            return flow.load_example(name)
+        if target == "fsm_gen":
+            return flow.generate(name, clock_mhz=int(v.get("F_CLK","32")))
+        if target == "fsm_plot":
+            return flow.plot(name, on=self.on)
+        if target == "fsm_flow":
+            return flow.flow(name, clock_mhz=int(v.get("F_CLK","32")), plot=True, on=self.on)
+        if target in {"fsm_install", "fsm2rtl"}:
+            return flow.install(name, rtl_dir=p.rtl, tb_dir=p.tb / "sv", sim_dir=p.sim / "rtl")
         raise ValueError(target)
 
     def _soc(self, target: str) -> object:
@@ -1206,22 +1269,28 @@ class _TargetRouter:
             cfg = soc.resolve_config(workspace=self.client.workdir, run_top=p.run_top, run_id=p.run_id, default_host=host, mode=v.get("SOC_CFG_MODE","builtin"))
             print(cfg)
             return cfg
-        if target == "sw_soc": return soc.generate_software(SoCSoftwareConfig(self.client.workdir, p.run_top, p.run_id, host))
-        if target == "fsoc_init": return soc.generate_fusesoc(v.get("PRJ","flexsoc"), p.top, p.rtl, p.run / "fusesoc" / host / "cores")
+        if target == "sw_soc":
+            return soc.generate_software(SoCSoftwareConfig(self.client.workdir, p.run_top, p.run_id, host))
+        if target == "fsoc_init":
+            return soc.generate_fusesoc(v.get("PRJ","flexsoc"), p.top, p.rtl, p.run / "fusesoc" / host / "cores")
         if target == "soc_vendor_deps":
             for vendor in ("lowrisc_ip", "lowrisc_ibex"):
                 if not (self.client.project_root / "vendor" / vendor).is_dir():
-                    old = self.values.get("VENDOR"); self.values["VENDOR"] = vendor
+                    old = self.values.get("VENDOR")
+                    self.values["VENDOR"] = vendor
                     self.execute("fetch")
-                    if old is None: self.values.pop("VENDOR", None)
-                    else: self.values["VENDOR"] = old
+                    if old is None:
+                        self.values.pop("VENDOR", None)
+                    else:
+                        self.values["VENDOR"] = old
             return 0
         if target in {"xbar_init", "xbar"}:
             cfg = soc.resolve_config(workspace=self.client.workdir, run_top=p.run_top, run_id=p.run_id, default_host=host, mode=v.get("SOC_CFG_MODE","builtin"))
             devices = tuple(parse_device_rows([list(device.args()) for device in cfg.devices]))
             out = p.run / "soc" / "xbar.hjson"
             result = soc.init_xbar(XbarConfig(host, devices), out)
-            if target == "xbar": self._soc("xbar_build")
+            if target == "xbar":
+                self._soc("xbar_build")
             return result
         if target == "xbar_build":
             cfg = p.run / "soc" / "xbar.hjson"
@@ -1232,7 +1301,8 @@ class _TargetRouter:
             cfg = soc.resolve_config(self.client.workdir, p.run_top, p.run_id, host=("ibex" if target == "soc_ibex_gen" else "uart" if target == "soc_uart_gen" else host), mode=v.get("SOC_CFG_MODE","builtin"))
             devices = tuple(SoCModule(d.name, d.base, d.size, d.from_lr.strip().lower() in {"1", "true", "yes", "on"}) for d in cfg.devices)
             return soc.generate(SoCGenerationConfig(cfg.host, devices, p.run, p.rtl / "soc.sv"))
-        if target in {"soc_flist", "soc_stage_tops"}: return self.execute("flist")
+        if target in {"soc_flist", "soc_stage_tops"}:
+            return self.execute("flist")
         if target == "soc_flow":
             return (self._soc("xbar"), self._soc("soc"), self._soc("soc_flist"))
         if target in {"fsoc", "soc_sim", "soc_prepare"}:
@@ -1240,12 +1310,14 @@ class _TargetRouter:
             argv=(v.get("FUSESOC","fusesoc"), f"--cores-root={self.client.project_root}", f"--cores-root={root/'cores'}", "run", "--setup", "--build", "--target", v.get("TARGET","sim" if target != "fsoc" else "default"), "--build-root", str(root/"build"), v.get("SOC_CORE_VLNV","enea:soc:main"))
             return soc.run_tool(argv, cwd=root, log=p.logs/"soc"/f"{target}.log", on=self.on).returncode
         if target == "soc_build_sw":
-            self._soc("soc_prepare"); self._soc("sw_soc")
+            self._soc("soc_prepare")
+            self._soc("sw_soc")
             return soc.run_tool(("make", "-C", str(p.run/"sw")), cwd=p.run, log=p.logs/"soc"/"build_sw.log", on=self.on).returncode
         if target in {"soc_run", "soc_run_only"}:
             exe=p.run/"fusesoc"/host/"build"/"sim-verilator"/"Vtop_verilator"
             return soc.run_tool((str(exe),), cwd=exe.parent, log=p.logs/"soc"/"run.log", inputs=(exe,), on=self.on).returncode
-        if target == "soc_view": return self._view("view")
+        if target == "soc_view":
+            return self._view("view")
         raise ValueError(target)
 
     def _tutorial(self, target: str) -> object:
@@ -1263,7 +1335,8 @@ class _TargetRouter:
             self._tutorial("soc_ibex_fetch")
             return self._soc("soc_run")
         sequence = sequences.get(target)
-        if sequence is None: raise ValueError(target)
+        if sequence is None:
+            raise ValueError(target)
         return tuple(self.execute(name) for name in sequence)
 
     def _ip_flow(self, target: str) -> object:

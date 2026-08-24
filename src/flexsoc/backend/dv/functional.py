@@ -5,15 +5,37 @@ from __future__ import annotations
 import ast
 import random
 import re
+import shlex
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
 from flexsoc.backend.core import ensure_dir, safe_write_file
+from flexsoc.backend.core.execution import print_label, print_path_label, print_status_label
 
 TEST_NAMES = ("smoke", "corners", "random")
 WRITABLE_SWACCESS = {"rw", "wo", "w1c", "w1s", "rw1c", "rw1s", "rw0c", "rw0w1c"}
 Hjson = dict[str, Any]
+
+
+def _print_command(argv: Sequence[str]) -> None:
+    """Print the exact external command before handing it to the runner."""
+
+    print_label("command", shlex.join(str(item) for item in argv))
+
+
+def _print_failure_tail(log: Path, *, lines: int = 40) -> None:
+    """Print a compact tail immediately when one regression command fails."""
+
+    if not log.is_file():
+        return
+    content = log.read_text(encoding="utf-8", errors="replace").splitlines()
+    print_label("failure-tail", f"last {min(lines, len(content))} lines · {log.resolve()}")
+    for line in content[-lines:]:
+        print(line, flush=True)
+
 
 try:
     import hjson  # type: ignore
@@ -281,6 +303,22 @@ class FunctionalFlow:
 
     runner: object | None = None
 
+    @staticmethod
+    def _run_generator(base_dir: Path, top: str, suffix: str, *args: str) -> None:
+        """Run one model-owned vector generator without modifying its source."""
+
+        model_dir = Path(base_dir).parent / "model"
+        script = model_dir / f"{top}_{suffix}.py"
+        if not script.is_file():
+            raise FileNotFoundError(f"missing vector generator: {script}")
+        result = subprocess.run(
+            (sys.executable, str(script), "--tests-dir", str(base_dir), *args),
+            cwd=model_dir,
+            check=False,
+        )
+        if result.returncode:
+            raise RuntimeError(f"vector generator failed ({result.returncode}): {script}")
+
     def generate_tests(
         self,
         base_dir: Path,
@@ -290,9 +328,11 @@ class FunctionalFlow:
         *,
         force: bool = False,
     ) -> list[Path]:
-        """Generate the canonical functional test catalogue."""
+        """Materialize authored scenarios plus generated ``auto_toggle`` vectors."""
 
-        return write_verification_tests(base_dir, top, hjson_path, signature, force=force)
+        self._run_generator(base_dir, top, "tests")
+        self._run_generator(base_dir, top, "regmap_tests")
+        return sorted(path for path in Path(base_dir).rglob("*") if path.is_file())
 
     def generate_test(
         self,
@@ -304,22 +344,12 @@ class FunctionalFlow:
         *,
         force: bool = False,
     ) -> list[Path]:
-        """Generate one named test without touching unrelated tests."""
+        """Materialize one scenario without touching unrelated vectors."""
 
-        if name not in TEST_NAMES:
-            raise ValueError(f"unknown generated test: {name}")
-        root = Path(base_dir)
-        registers = _register_entries(hjson_path)
-        test_dir = root / name
-        ensure_dir(test_dir)
-        files = {
-            test_dir / "config.regs": render_reg_config(top, name, registers),
-            test_dir / "data_in.vec": render_data_in(top, name, signature),
-            test_dir / "data_out.vec": render_data_out(top, name, signature),
-        }
-        for path, content in files.items():
-            safe_write_file(path, content, overwrite=force)
-        return list(files)
+        suffix = "regmap_tests" if name == "auto_toggle" else "tests"
+        self._run_generator(base_dir, top, suffix, "--test", name)
+        root = Path(base_dir) / name
+        return sorted(path for path in root.iterdir() if path.is_file())
 
     def tests(self, base_dir: Path) -> tuple[str, ...]:
         """Return generated tests in deterministic order."""
@@ -357,25 +387,37 @@ class FunctionalFlow:
         from flexsoc.backend.core import CommandRequest, ToolRunner
         runner = self.runner or ToolRunner()
         testbench = f"{top}_tb"
-        source = tb_dir / "sv" / f"{testbench}.sv"
+        sv_dir = tb_dir / "sv"
+        source = sv_dir / f"{testbench}.sv"
         if not source.is_file():
             raise FileNotFoundError(f"testbench not found: {source}")
         sim_dir.mkdir(parents=True, exist_ok=True)
+        rtl_dir = ip_filelist.parent.resolve()
         if compiler == "iverilog":
-            argv = ("iverilog", "-g2012", "-v", "-o", str(sim_dir / f"{testbench}.vvp"), str(source))
+            argv = (
+                "iverilog", "-g2012", "-v",
+                "-I", str(sv_dir), "-I", str(rtl_dir),
+                "-f", str(common_filelist), "-f", str(ip_filelist),
+                "-o", str(sim_dir / f"{testbench}.vvp"), str(source),
+            )
         elif compiler == "verilator":
             build = sim_dir / compiler
             argv = (
                 "verilator", "-Wall", "-Wno-fatal", "--binary", "--timing",
                 "--Mdir", str(build), "--trace-fst", "--trace-structs",
                 *( ("--coverage",) if coverage else () ),
+                f"-I{sv_dir}", f"-I{rtl_dir}",
                 "-f", str(common_filelist), "-f", str(ip_filelist), str(source),
                 "--top-module", testbench,
             )
         else:
             raise ValueError("compiler must be iverilog or verilator")
-        inputs = tuple(path for path in (common_filelist, ip_filelist, source) if path.exists())
-        return runner.run(CommandRequest(tuple(argv), tb_dir, {}, log, inputs=inputs), on=on)
+        tb_inputs = tuple(sorted(path for path in sv_dir.rglob("*") if path.is_file()))
+        inputs = tuple(
+            path for path in (common_filelist, ip_filelist, *tb_inputs) if path.exists()
+        )
+        _print_command(argv)
+        return runner.run(CommandRequest(tuple(argv), sv_dir, {}, log, inputs=inputs), on=on)
 
     def run_systemverilog(
         self,
@@ -417,6 +459,7 @@ class FunctionalFlow:
                 argv += (f"+verilator+coverage+file+{coverage_file}",)
         else:
             raise ValueError("compiler must be iverilog or verilator")
+        _print_command(argv)
         return runner.run(CommandRequest(tuple(argv), tb_dir, env, log, inputs=required, outputs=(wave,)), on=on)
 
     def run_cocotb(
@@ -427,6 +470,7 @@ class FunctionalFlow:
         tb_dir: Path,
         rtl_sources: tuple[Path, ...],
         test_name: str = "smoke",
+        simulator: str = "verilator",
         seed: int = 1,
         waves: bool = True,
         coverage_file: Path | None = None,
@@ -447,15 +491,18 @@ class FunctionalFlow:
         if any(not path.is_file() for path in required):
             raise FileNotFoundError(f"functional test not found: {test_dir}")
         wave = wave_file or cocotb_dir / f"{top}_tb_{test_name}.fst"
+        if coverage_file is not None:
+            coverage_file.parent.mkdir(parents=True, exist_ok=True)
         argv = (
             "make", "--no-print-dir", "-C", str(cocotb_dir),
-            f"TEST_NAME={test_name}", f"SEED={seed}",
+            f"SIM={simulator}", f"TEST_NAME={test_name}", f"SEED={seed}",
             f"HDL_COVERAGE={1 if coverage_file else 0}",
             f"COVERAGE_FILE={coverage_file or ''}", f"WAVE_FILE={wave}",
             f"WAVES={1 if waves else 0}",
             "VERILOG_SOURCES=" + " ".join(str(path) for path in (*rtl_sources, wrapper)),
         )
         inputs = (*required, makefile, wrapper, *rtl_sources)
+        _print_command(argv)
         return runner.run(CommandRequest(tuple(argv), cocotb_dir, {}, log, inputs=tuple(inputs), outputs=(wave,)), on=on)
 
     def run_regression(
@@ -480,28 +527,66 @@ class FunctionalFlow:
         if not tests:
             raise FileNotFoundError(f"no generated tests under {test_root}")
         results = []
+        sv_logs = log_dir / "sv"
+        cocotb_logs = log_dir / "cocotb"
         if "sv" in backends:
-            results.append(self.compile_systemverilog(
+            compile_log = sv_logs / f"{top}_sv_compile.log"
+            print_label("regression", f"backend=sv · compiler={compiler} · test=compile")
+            print_path_label("log", compile_log)
+            print_status_label("regression", "RUNNING", f"backend=sv · compiler={compiler} · test=compile")
+            compile_result = self.compile_systemverilog(
                 top=top, tb_dir=tb_dir, sim_dir=sim_dir,
                 common_filelist=common_filelist, ip_filelist=ip_filelist,
                 compiler=compiler, coverage=coverage_dir is not None,
-                log=log_dir / f"{top}_sv_compile.log", on=on,
-            ))
+                log=compile_log, on=on,
+            )
+            results.append(compile_result)
+            compile_status = "PASS" if compile_result.returncode == 0 else "FAIL"
+            print_status_label(
+                "regression", compile_status,
+                f"backend=sv · compiler={compiler} · test=compile",
+            )
+            if compile_result.returncode != 0:
+                _print_failure_tail(compile_log)
+                return tuple(results)
         for name in tests:
             if "sv" in backends:
                 cov = coverage_dir / "sv" / f"{name}.dat" if coverage_dir else None
-                results.append(self.run_systemverilog(
+                run_log = sv_logs / f"{top}_sv_sim_{name}.log"
+                print_label("regression", f"backend=sv · compiler={compiler} · test={name}")
+                print_path_label("log", run_log)
+                print_status_label("regression", "RUNNING", f"backend=sv · compiler={compiler} · test={name}")
+                result = self.run_systemverilog(
                     top=top, test_root=test_root, tb_dir=tb_dir, sim_dir=sim_dir,
                     test_name=name, compiler=compiler, seed=seed, coverage_file=cov,
-                    log=log_dir / f"{top}_sv_sim_{name}.log", on=on,
-                ))
+                    log=run_log, on=on,
+                )
+                results.append(result)
+                print_status_label(
+                    "regression", "PASS" if result.returncode == 0 else "FAIL",
+                    f"backend=sv · compiler={compiler} · test={name}",
+                )
+                if result.returncode != 0:
+                    _print_failure_tail(run_log)
             if "cocotb" in backends:
                 cov = coverage_dir / "cocotb" / f"{name}.dat" if coverage_dir else None
-                results.append(self.run_cocotb(
+                run_log = cocotb_logs / f"{top}_cocotb_{name}.log"
+                print_label("regression", f"backend=cocotb · simulator={compiler} · test={name}")
+                print_path_label("log", run_log)
+                print_status_label("regression", "RUNNING", f"backend=cocotb · simulator={compiler} · test={name}")
+                print_label("follow", f"tail -f {shlex.quote(str(run_log.resolve()))}")
+                result = self.run_cocotb(
                     top=top, test_root=test_root, tb_dir=tb_dir, rtl_sources=rtl_sources,
-                    test_name=name, seed=seed, coverage_file=cov,
-                    log=log_dir / f"{top}_cocotb_{name}.log", on=on,
-                ))
+                    test_name=name, simulator=compiler, seed=seed, coverage_file=cov,
+                    log=run_log, on=on,
+                )
+                results.append(result)
+                print_status_label(
+                    "regression", "PASS" if result.returncode == 0 else "FAIL",
+                    f"backend=cocotb · simulator={compiler} · test={name}",
+                )
+                if result.returncode != 0:
+                    _print_failure_tail(run_log)
         return tuple(results)
 
     def flow_from_context(self, context, *, on: str = "local"):

@@ -9,7 +9,10 @@ from textwrap import dedent
 from typing import Any, Sequence
 
 from flexsoc.backend.core import ClockConfig, clock_config
-from .functional import TEST_NAMES, _candidate_hjson_path, _register_entries, _register_lookup_entries
+from .functional import (
+    TEST_NAMES, _candidate_hjson_path, _register_entries, _register_lookup_entries,
+    _vector_inputs, _vector_outputs,
+)
 
 from flexsoc.backend.core import (
     ensure_dir,
@@ -3353,23 +3356,18 @@ def _generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, f
 
 def generate_nclock_testbench(
     top: str, output: Path, clocks: ClockConfig, *, force: bool
-) -> None:
+) -> tuple[Path, ...]:
     """Recreate the complete machine-owned N-clock SystemVerilog scaffold."""
 
     with replace_generated_tree(output):
         _generate_nclock_testbench(top, output, clocks, force=force)
-
-
-import re
-from dataclasses import dataclass, replace
-from pathlib import Path
-from textwrap import dedent
-from typing import Sequence
-
-from flexsoc.backend.core import ClockConfig, clock_config
-
-from flexsoc.backend.core import replace_generated_tree
-from .functional import _candidate_hjson_path, _register_entries
+    return (
+        output / f"include_{top}_tb.sv",
+        output / "drivers" / f"{top}_tlul_driver.svh",
+        output / "drivers" / f"{top}_vec_monitor.svh",
+        output / "drivers" / f"{top}_vec_driver.svh",
+        output / f"{top}_tb.sv",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -3393,9 +3391,9 @@ class CocotbConfig:
 
 
 def repo_root() -> Path:
-    """Return the repository root inferred from the installed backend module."""
+    """Return the checkout root inferred from ``src/flexsoc/backend/dv``."""
 
-    return Path(__file__).resolve().parents[3]
+    return Path(__file__).resolve().parents[4]
 
 
 def find_top_file(rtl_dir: Path, top: str) -> Path | None:
@@ -3593,7 +3591,13 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
     repo = repo_root()
     out_dir = cfg.output.resolve()
     rtl_dir = cfg.rtl_dir.resolve()
-    include_dirs = [repo / "hw/ips/pkgs", repo / "hw/ips/prim", repo / "hw/ips/prim_opentitan", repo / "hw/ips/tlul"]
+    ips_root = (cfg.ips_root or repo / "hw" / "ips").resolve()
+    include_dirs = [
+        ips_root / "pkgs",
+        ips_root / "prim",
+        ips_root / "prim_opentitan",
+        ips_root / "tlul",
+    ]
     includes = " ".join(f"-I{path}" for path in [rtl_dir, *include_dirs])
     gate = render_gls_make_block(f"../../../../syn/$(PDK)/{cfg.top}_synth.v")
     return dedent(
@@ -4703,6 +4707,9 @@ def write_cocotb_scaffold(
 ) -> list[Path]:
     """Recreate the complete machine-owned cocotb scaffold."""
 
+    clocks = clocks or clock_config()
+    if clocks.multiclock:
+        return write_nclock_cocotb(config, clocks)
     with replace_generated_tree(config.output):
         written = _write_cocotb_scaffold_impl(config, clocks)
         if config.interface == "tlul":
@@ -4831,12 +4838,32 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
     endmodule
     """)
 
-def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
-    """Render a cocotb Makefile for the N-clock wrapper."""
+def cocotb_makefile_text(
+    top: str,
+    rtl_dir: Path,
+    *,
+    ips_root: Path | None = None,
+    simulator: str = "verilator",
+) -> str:
+    """Render a cocotb Makefile bound to the current run and checkout paths."""
 
+    rtl_dir = rtl_dir.resolve()
+    ips_root = (ips_root or repo_root() / "hw" / "ips").resolve()
+    include_args = " ".join(
+        f"-I{path}"
+        for path in (
+            rtl_dir,
+            ips_root / "pkgs",
+            ips_root / "prim",
+            ips_root / "prim_opentitan",
+            ips_root / "tlul",
+        )
+    )
+    common_filelist = rtl_dir / "rtl_common.f"
+    ip_filelist = rtl_dir / "rtl_ip.f"
     gate = render_gls_make_block(f"../../../../syn/$(PDK)/{top}_synth.v")
     return dedent(f"""\
-    SIM ?= verilator
+    SIM ?= {simulator}
     TOPLEVEL_LANG ?= verilog
     COCOTB_TOPLEVEL = {top}_tb
     COCOTB_TEST_MODULES = {top}_tb
@@ -4845,8 +4872,9 @@ def cocotb_makefile_text(top: str, rtl_dir: Path) -> str:
     {gate}
     else
     SIM_BUILD ?= sim_build/rtl
-    EXTRA_ARGS += -f $(PWD)/../../../../rtl/rtl_common.f
-    EXTRA_ARGS += -f $(PWD)/../../../../rtl/rtl_ip.f
+    EXTRA_ARGS += -f {common_filelist}
+    EXTRA_ARGS += -f {ip_filelist}
+    EXTRA_ARGS += {include_args}
     EXTRA_ARGS += -Wno-fatal
     endif
 
@@ -5261,7 +5289,12 @@ def _write_nclock_cocotb_tree(cfg: CocotbConfig, clocks: ClockConfig) -> list[Pa
 
     out, drivers = cfg.output, cfg.output / "drivers"
     files = {
-        out / "Makefile": cocotb_makefile_text(cfg.top, cfg.rtl_dir),
+        out / "Makefile": cocotb_makefile_text(
+            cfg.top,
+            cfg.rtl_dir,
+            ips_root=cfg.ips_root,
+            simulator=cfg.simulator,
+        ),
         out / f"{cfg.top}_tb.sv": cocotb_sv_text(cfg.top, clocks),
         drivers / "__init__.py": "",
         drivers / "reg_driver.py": cocotb_reg_driver_py_text(cfg.top, clocks),
@@ -5288,6 +5321,15 @@ class TestbenchFlow:
     def setup_systemverilog(self, config: TestbenchConfig, *, clocks: ClockConfig | None = None) -> tuple[Path, ...]:
         """Generate the SystemVerilog testbench and canonical drivers."""
 
+        clocks = clocks or clock_config()
+        if clocks.multiclock:
+            canonical = _with_canonical_sv_output(config)
+            return generate_nclock_testbench(
+                canonical.top,
+                Path(canonical.output),
+                clocks,
+                force=canonical.force,
+            )
         return generate_testbench_files(config, clocks=clocks)
 
     def setup_cocotb(self, config: CocotbConfig, *, clocks: ClockConfig | None = None) -> list[Path]:

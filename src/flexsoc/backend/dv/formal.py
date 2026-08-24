@@ -622,7 +622,9 @@ class FormalFlow:
 
     def flow_from_context(self, context, *, on: str = "local"):
         """Prepare and run the canonical CSR + authored formal sequence."""
-        paths=context.paths; values=context.values; top=paths.top
+        paths = context.paths
+        values = context.values
+        top = paths.top
         common=(paths.rtl_common, paths.rtl_ip)
         props=paths.formal / "properties"
         runs=paths.formal / "runs"
