@@ -8,7 +8,7 @@ import shlex
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .backend.signoff.sta import SDF_MODE_TO_CORNER
 
@@ -570,9 +570,18 @@ TECHNOLOGY_TARGETS = {
 
 
 AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
-    # Functional testbench setup is always explicit: it may be refreshed after
-    # a technology switch without rewriting authored tests or vectors.
     # Setup targets encode their own setup-only dependencies once.
+    # Functional consumers refresh only the scaffold(s) they actually use.
+    "compile": ("setup_tb",),
+    "compile_v": ("setup_tb",),
+    "compile_sv": ("setup_tb",),
+    "sim": ("setup_tb",),
+    "sim_v": ("setup_tb",),
+    "sim_sv": ("setup_tb",),
+    "sim_tests": ("setup_tb",),
+    "cocotb": ("setup_cocotb",),
+    "cocotb_tests": ("setup_cocotb",),
+    "regression": ("setup_tb", "setup_cocotb"),
     "syn": ("setup_syn",),
     "syn_v": ("setup_syn",),
     "syn_sv": ("setup_syn",),
@@ -605,6 +614,7 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "power_analysis_all": ("setup_signoff",),
     "fusion_analysis": ("setup_signoff",),
     "fusion_analysis_all": ("setup_signoff",),
+    "signoff_corners": ("setup_signoff",),
     "setup_pnr": ("syn", "setup_signoff"),
     "pnr": ("setup_pnr",),
     "pnr_gui": ("setup_pnr",),
@@ -636,6 +646,18 @@ NATIVE_TARGETS: dict[str, tuple[str, str]] = {
     "sim_post_pnr": ("sim", "post_pnr"),
     "sim_post_pnr_all": ("sim_all", "post_pnr"),
 }
+
+def _auto_setup_dependencies(target: str, timing_mode: str) -> tuple[str, ...]:
+    """Return setup-only prerequisites for one target."""
+
+    deps = AUTO_SETUP_TARGETS.get(target, ())
+    if timing_mode in SDF_MODE_TO_CORNER:
+        if target in {"compile_post_syn", "sim_post_syn"}:
+            return (*deps, "sdf")
+        if target in {"compile_post_pnr", "sim_post_pnr"}:
+            return (*deps, "sdf_post_pnr")
+    return deps
+
 
 TARGET_ALIASES = {
     "setup_signoff_post_pnr": "setup_signoff",
@@ -1411,6 +1433,25 @@ class _TargetRouter:
             return self._view("view")
         raise ValueError(target)
 
+    def _execute_sequence(self, sequence: Sequence[str]) -> tuple[object, ...]:
+        """Execute a composite flow through the same setup dependency graph as `run()`."""
+
+        timing_mode = self.values.get("TIMING_MODE", "zero").strip().lower()
+        expanded: list[str] = []
+        seen: set[str] = set()
+
+        def append(name: str) -> None:
+            if name in seen:
+                return
+            for dependency in _auto_setup_dependencies(name, timing_mode):
+                append(dependency)
+            expanded.append(name)
+            seen.add(name)
+
+        for name in sequence:
+            append(name)
+        return tuple(self.execute(name) for name in expanded)
+
     def _tutorial(self, target: str) -> object:
         """Compose tutorials from real flow operations instead of Make recipes."""
         sequences = {
@@ -1428,7 +1469,7 @@ class _TargetRouter:
         sequence = sequences.get(target)
         if sequence is None:
             raise ValueError(target)
-        return tuple(self.execute(name) for name in sequence)
+        return self._execute_sequence(sequence)
 
     def _ip_flow(self, target: str) -> object:
         """Compose high-level IP flows from the new domain APIs."""
@@ -1452,8 +1493,13 @@ class _TargetRouter:
                 "metrics", "check",
             )
         else:
-            sequence = ("ip_flow", "pnr", "pnr_gui")
-        return tuple(self.execute(name) for name in sequence)
+            sequence = (
+                "reg", "doc", "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc",
+                "regression", "coverage_detail", "formal", "setup_syn", "syn",
+                "setup_eqy", "eqy", "signoff_corners", "manifest", "manifest_show",
+                "metrics", "check", "pnr", "pnr_gui",
+            )
+        return self._execute_sequence(sequence)
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -1633,13 +1679,7 @@ class FlexSoC:
         ).strip().lower()
 
         def dependencies(target: str) -> tuple[str, ...]:
-            deps = AUTO_SETUP_TARGETS.get(target, ())
-            if timing_mode in SDF_MODE_TO_CORNER:
-                if target in {"compile_post_syn", "sim_post_syn"}:
-                    return (*deps, "sdf")
-                if target in {"compile_post_pnr", "sim_post_pnr"}:
-                    return (*deps, "sdf_post_pnr")
-            return deps
+            return _auto_setup_dependencies(target, timing_mode)
 
         def append(target: str) -> None:
             if target in seen:

@@ -15,6 +15,7 @@ from typing import Mapping, Sequence
 
 from flexsoc.backend.signoff.sta import scenario_corner
 from flexsoc.backend.core import layout_from_values
+from flexsoc.backend.impl.impl import resolve_orfs_artifact
 
 
 STAGES = {"post_syn", "post_pnr"}
@@ -270,12 +271,7 @@ def timing_config(values: Mapping[str, str]) -> TimingConfig:
 
 
 def _discover_pnr_netlist(pnr_dir: Path, top: str, platform: str) -> Path | None:
-    base = pnr_dir / "results"
-    direct = base / platform / top / "base" / "6_final.v"
-    if direct.is_file():
-        return direct.resolve()
-    candidates = sorted(base.glob(f"**/{top}/**/6_final.v")) if base.is_dir() else []
-    return candidates[-1].resolve() if candidates else None
+    return resolve_orfs_artifact(pnr_dir, "results", top, "6_final.v", platform)
 
 
 def _post_syn_sdf(layout, top: str, values: Mapping[str, str], mode: str) -> Path:

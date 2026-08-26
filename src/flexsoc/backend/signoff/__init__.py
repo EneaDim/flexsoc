@@ -11,7 +11,7 @@ from typing import Mapping
 
 from flexsoc.backend.core.execution import CommandRequest, ToolRunner, print_label, print_log, print_path_label
 from flexsoc.backend.core.toolchain import orfs_environment, validate_orfs_klayout
-from flexsoc.backend.impl.impl import orfs_make_argv
+from flexsoc.backend.impl.impl import orfs_make_argv, resolve_orfs_branch
 
 from .fusion import FusionAnalysis
 from .gls import GateLevelSimulation
@@ -37,10 +37,8 @@ _WORST_IR = re.compile(r"Worstcase IR drop:\s*([0-9.eE+-]+)\s*V", re.IGNORECASE)
 _ANT_TOTAL = re.compile(r"FLEXSOC_ANTENNA_VIOLATIONS\s*=\s*(\d+)", re.IGNORECASE)
 
 
-def _branch(root: Path, kind: str, top: str) -> Path | None:
-    base = root / kind
-    matches = sorted(base.glob(f"*/{top}/base")) if base.is_dir() else []
-    return matches[0] if matches else None
+def _branch(root: Path, kind: str, top: str, platform: str | None = None) -> Path | None:
+    return resolve_orfs_branch(root, kind, top, platform)
 
 
 def _route_drc(path: Path | None) -> dict[str, object]:
@@ -138,10 +136,12 @@ def _overall(checks: dict[str, dict[str, object]]) -> str:
     return "pass"
 
 
-def collect(*, workdir: Path, top: str, antenna_report: Path | None = None) -> dict[str, object]:
-    reports = _branch(workdir, "reports", top)
-    results = _branch(workdir, "results", top)
-    logs = _branch(workdir, "logs", top)
+def collect(
+    *, workdir: Path, top: str, platform: str | None = None, antenna_report: Path | None = None
+) -> dict[str, object]:
+    reports = _branch(workdir, "reports", top, platform)
+    results = _branch(workdir, "results", top, platform)
+    logs = _branch(workdir, "logs", top, platform)
     antenna = antenna_report if antenna_report is not None else (reports / "antenna.log" if reports else None)
     checks = {
         "route_drc": _route_drc(reports / "5_route_drc.rpt" if reports else None),
@@ -154,14 +154,16 @@ def collect(*, workdir: Path, top: str, antenna_report: Path | None = None) -> d
 
 
 
-def _run_antenna(*, workdir: Path, top: str, output_dir: Path, runner, on: str) -> Path | None:
+def _run_antenna(
+    *, workdir: Path, top: str, platform: str | None, output_dir: Path, runner, on: str
+) -> Path | None:
     """Run a deterministic antenna check from the final ODB when ORFS has no report."""
 
-    reports = _branch(workdir, "reports", top)
+    reports = _branch(workdir, "reports", top, platform)
     native = reports / "antenna.log" if reports else None
     if native is not None and native.is_file():
         return native
-    results = _branch(workdir, "results", top)
+    results = _branch(workdir, "results", top, platform)
     odb = results / "6_final.odb" if results else None
     if odb is None or not odb.is_file():
         return None
@@ -183,7 +185,11 @@ def _run_antenna(*, workdir: Path, top: str, output_dir: Path, runner, on: str) 
     result = runner.run(request, on=on)
     return log if result.returncode == 0 and log.is_file() else None
 
-def _run_physical(*, makefile: Path, config: Path, workdir: Path, top: str, output: Path, log: Path, targets: tuple[str, ...] = ("drc", "lvs"), runner=None, on: str = "local") -> int:
+def _run_physical(
+    *, makefile: Path, config: Path, workdir: Path, top: str, output: Path, log: Path,
+    platform: str | None = None, targets: tuple[str, ...] = ("drc", "lvs"), runner=None,
+    on: str = "local",
+) -> int:
     makefile = makefile.expanduser().resolve()
     config = config.expanduser().resolve()
     workdir = workdir.expanduser().resolve()
@@ -217,9 +223,11 @@ def _run_physical(*, makefile: Path, config: Path, workdir: Path, top: str, outp
     )
     returncode = runner.run(request, on=on).returncode
     antenna_report = _run_antenna(
-        workdir=workdir, top=top, output_dir=output.parent, runner=runner, on=on,
+        workdir=workdir, top=top, platform=platform, output_dir=output.parent, runner=runner, on=on,
     )
-    summary = collect(workdir=workdir, top=top, antenna_report=antenna_report)
+    summary = collect(
+        workdir=workdir, top=top, platform=platform, antenna_report=antenna_report
+    )
     summary.update({"orfs_returncode": returncode, "log": str(log)})
     output.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print_path_label("report", output, details={"kind": "post-signoff-physical"})
@@ -308,6 +316,7 @@ class SignoffFlow:
             top=top,
             output=output,
             log=log,
+            platform=self.values.get("ORS_TECH", self.values.get("PDK")),
             targets=targets,
             runner=self.runner,
             on=on,
@@ -321,7 +330,8 @@ class SignoffFlow:
 
         return self._physical(
             makefile=makefile, config=config, workdir=workdir, top=top,
-            output=output, log=log, targets=("drc",), on=on,
+            output=output, log=log,
+            targets=("drc",), on=on,
         )
 
     def run_lvs(
@@ -332,7 +342,8 @@ class SignoffFlow:
 
         return self._physical(
             makefile=makefile, config=config, workdir=workdir, top=top,
-            output=output, log=log, targets=("lvs",), on=on,
+            output=output, log=log,
+            targets=("lvs",), on=on,
         )
 
     def run_physical(
@@ -343,13 +354,17 @@ class SignoffFlow:
 
         return self._physical(
             makefile=makefile, config=config, workdir=workdir, top=top,
-            output=output, log=log, targets=("drc", "lvs"), on=on,
+            output=output, log=log,
+            targets=("drc", "lvs"), on=on,
         )
 
     def collect_physical(self, *, workdir: Path, top: str) -> dict[str, object]:
         if self.stage is not SignoffStage.POST_IMPL:
             raise ValueError("physical sign-off is only valid post implementation")
-        return collect(workdir=workdir, top=top)
+        return collect(
+            workdir=workdir, top=top,
+            platform=self.values.get("ORS_TECH", self.values.get("PDK")),
+        )
 
     def flow(self, *, physical: dict | None = None, on: str = "local") -> int:
         """Run sign-off in lifecycle order; post-implementation starts with physical closure."""

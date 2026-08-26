@@ -16,6 +16,7 @@ from typing import Any, Mapping, Sequence
 
 from flexsoc.backend.core import ClockConfig, ClockDomain, clock_config, layout_from_values
 from flexsoc.backend.core.execution import print_label, print_script
+from flexsoc.backend.impl.impl import resolve_orfs_artifact
 
 TEMPLATE = """current_design {top}
 
@@ -673,26 +674,19 @@ def _stage_inputs(project_root: Path, values: Mapping[str, str]) -> tuple[Path, 
         raise ValueError(f"SIGNOFF_STAGE must be post_syn or post_route, got {stage!r}")
     top = values.get("TOP", "test")
     if stage == "post_route":
+        platform = values.get("ORS_TECH", values.get("PDK", "")).strip() or None
         raw_netlist = values.get("NETLIST") or values.get("PNR_NETLIST")
-        if raw_netlist:
-            netlist = Path(raw_netlist)
-        else:
-            candidates = sorted((layout.pnr_dir / "results").glob(f"**/{top}/**/6_final.v"))
-            if not candidates:
-                candidates = sorted((layout.pnr_dir / "results").glob("**/6_final.v"))
-            if not candidates:
-                raise ValueError(f"post-route netlist not found under {layout.pnr_dir / 'results'}")
-            netlist = candidates[-1]
+        netlist = Path(raw_netlist) if raw_netlist else resolve_orfs_artifact(
+            layout.pnr_dir, "results", top, "6_final.v", platform
+        )
+        if netlist is None:
+            raise ValueError(f"post-route netlist not found under {layout.pnr_dir / 'results'}")
         raw_spef = values.get("SPEF_FILE", "").strip()
-        if raw_spef:
-            spef = Path(raw_spef)
-        else:
-            candidates = sorted((layout.pnr_dir / "results").glob(f"**/{top}/**/6_final.spef"))
-            if not candidates:
-                candidates = sorted((layout.pnr_dir / "results").glob("**/6_final.spef"))
-            if not candidates:
-                raise ValueError(f"post-route SPEF not found under {layout.pnr_dir / 'results'}")
-            spef = candidates[-1]
+        spef = Path(raw_spef) if raw_spef else resolve_orfs_artifact(
+            layout.pnr_dir, "results", top, "6_final.spef", platform
+        )
+        if spef is None:
+            raise ValueError(f"post-route SPEF not found under {layout.pnr_dir / 'results'}")
         return _require_file(netlist, "post-route netlist"), _require_file(spef, "SPEF")
     netlist = Path(values.get("NETLIST") or layout.syn_dir / f"{top}_synth.v")
     raw_spef = values.get("SPEF_FILE", "").strip()
@@ -708,12 +702,11 @@ def _stage_sdc(project_root: Path, values: Mapping[str, str]) -> Path:
         return _require_file(Path(raw), "SDC")
     if values.get("SIGNOFF_STAGE", "post_syn") == "post_route":
         top = values.get("TOP", "test")
-        candidates = sorted((layout.pnr_dir / "results").glob(f"**/{top}/**/6_final.sdc"))
-        if not candidates:
-            candidates = sorted((layout.pnr_dir / "results").glob("**/6_final.sdc"))
-        if not candidates:
+        platform = values.get("ORS_TECH", values.get("PDK", "")).strip() or None
+        sdc = resolve_orfs_artifact(layout.pnr_dir, "results", top, "6_final.sdc", platform)
+        if sdc is None:
             raise ValueError(f"post-route SDC not found under {layout.pnr_dir / 'results'}")
-        return _require_file(candidates[-1], "post-route SDC")
+        return _require_file(sdc, "post-route SDC")
     return _require_file(layout.signoff_sdc, "SDC")
 
 def _base_context(

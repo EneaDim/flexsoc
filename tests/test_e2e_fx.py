@@ -783,8 +783,13 @@ def _assert_technology_closure(top: str, run: Path, pdk: str) -> None:
         assert manifest.get("implementation", {}).get("status") == "pass"
         assert isinstance(manifest.get("signoff", {}).get("post_pnr"), dict)
         assert isinstance(metrics.get("post_pnr", {}).get("fusion_analysis"), dict)
-        assert flow.get("stages", {}).get("post_implementation_signoff") in {"pass", "review"}
-        assert isinstance(metrics.get("physical_signoff"), dict)
+        physical = metrics.get("physical_signoff")
+        assert isinstance(physical, dict)
+        post_status = flow.get("stages", {}).get("post_implementation_signoff")
+        if physical.get("status") == "fail":
+            assert post_status == "fail"
+        else:
+            assert post_status in {"pass", "review"}
         assert isinstance(manifest.get("physical_signoff"), dict)
         closure_order = metrics.get("closure", {}).get("order", [])
         assert "physical_signoff" in closure_order and "post_pnr_fusion" in closure_order

@@ -95,6 +95,35 @@ def checkpoint(line: str) -> str | None:
     return _PHASE.get(match.group(1)) if match else None
 
 
+def resolve_orfs_branch(
+    workdir: Path, kind: str, top: str, platform: str | None = None
+) -> Path | None:
+    """Return one canonical ORFS branch, rejecting ambiguous fallbacks."""
+
+    base = workdir.expanduser().resolve() / kind
+    if platform:
+        direct = base / platform / top / "base"
+        if direct.is_dir():
+            return direct.resolve()
+    matches = sorted({path.resolve() for path in base.glob(f"**/{top}/base") if path.is_dir()})
+    if len(matches) > 1:
+        raise ValueError(
+            f"ambiguous ORFS {kind} branch for {top}: "
+            + ", ".join(str(path) for path in matches)
+        )
+    return matches[0] if matches else None
+
+
+def resolve_orfs_artifact(
+    workdir: Path, kind: str, top: str, filename: str, platform: str | None = None
+) -> Path | None:
+    """Resolve one final ORFS artifact from the canonical branch."""
+
+    branch = resolve_orfs_branch(workdir, kind, top, platform)
+    path = branch / filename if branch else None
+    return path.resolve() if path is not None and path.is_file() else None
+
+
 def _final_artifacts(workdir: Path) -> tuple[tuple[str, Path], ...]:
     results = workdir / "results"
     names = (

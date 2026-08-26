@@ -343,7 +343,7 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
 
     assert "setup_syn" not in AUTO_SETUP_TARGETS
     assert AUTO_SETUP_TARGETS["syn"] == ("setup_syn",)
-    assert "regression" not in AUTO_SETUP_TARGETS
+    assert AUTO_SETUP_TARGETS["regression"] == ("setup_tb", "setup_cocotb")
     assert AUTO_SETUP_TARGETS["setup_pnr"] == ("syn", "setup_signoff")
     assert AUTO_SETUP_TARGETS["pnr"] == ("setup_pnr",)
     assert "physical_signoff" in TARGETS
@@ -352,7 +352,9 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     assert AUTO_SETUP_TARGETS["setup_formal_prove"] == ("setup_formal",)
     assert AUTO_SETUP_TARGETS["formal_bmc"] == ("setup_formal_prove",)
     assert [command.target for command in fx.commands("syn")] == ["setup_syn", "syn"]
-    assert [command.target for command in fx.commands("regression")] == ["regression"]
+    assert [command.target for command in fx.commands("regression")] == [
+        "setup_tb", "setup_cocotb", "regression"
+    ]
     assert [command.target for command in fx.commands("sdf", "sta", "power_estimate", "fusion_analysis")] == [
         "setup_signoff", "sdf", "sta", "power_estimate", "fusion_analysis"
     ]
@@ -383,6 +385,21 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
         command.target
         for command in fx.commands("sim_post_pnr", TIMING_MODE="typ", auto_setup=False)
     ] == ["sim_post_pnr"]
+
+    router = api_module._TargetRouter(fx, fx.values())
+    calls = []
+    router.execute = lambda name: calls.append(name) or 0
+    router._execute_sequence(("regression", "signoff_corners"))
+    assert calls == [
+        "setup_tb", "setup_cocotb", "regression",
+        "setup_signoff", "signoff_corners",
+    ]
+
+    calls.clear()
+    router._ip_flow("ip_flow_all")
+    assert calls.count("syn") == 1
+    assert calls.count("setup_signoff") == 1
+    assert calls.index("setup_pnr") < calls.index("pnr")
 
 
 def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
@@ -1343,7 +1360,9 @@ def test_cli_auto_setup_and_no_setup_dry_run(
 
     assert app(["regression", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert len(lines) == 1 and lines[0].split()[1] == "regression"
+    assert [line.split()[1] for line in lines] == [
+        "setup_tb", "setup_cocotb", "regression"
+    ]
 
     assert app(["regression", "--no-setup", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
@@ -2848,6 +2867,34 @@ def test_formal_scaffold_uses_explicit_multiclock_context(tmp_path: Path) -> Non
     assert "pipe_q1" not in prove_text
     assert "cfg_clk_i" in cover_text
     assert "rx_clk_i" in cover_text
+
+
+def test_formal_scaffold_rejects_untouched_stale_clock_topology(tmp_path: Path) -> None:
+    from flexsoc.backend.dv.formal import generate_scaffold
+
+    generate_scaffold("tri_stream_dsp", tmp_path, multiclock=False)
+    with pytest.raises(ValueError, match="formal scaffold topology changed"):
+        generate_scaffold("tri_stream_dsp", tmp_path, multiclock=True)
+
+
+def test_orfs_artifact_resolution_prefers_platform_and_rejects_ambiguity(
+    tmp_path: Path,
+) -> None:
+    from flexsoc.backend.impl.impl import resolve_orfs_artifact
+
+    for platform in ("sky130hd", "ihp-sg13g2"):
+        branch = tmp_path / "results" / platform / "demo" / "base"
+        branch.mkdir(parents=True)
+        (branch / "6_final.v").write_text(f"// {platform}\n", encoding="utf-8")
+
+    selected = resolve_orfs_artifact(
+        tmp_path, "results", "demo", "6_final.v", "ihp-sg13g2"
+    )
+    assert selected == (
+        tmp_path / "results" / "ihp-sg13g2" / "demo" / "base" / "6_final.v"
+    ).resolve()
+    with pytest.raises(ValueError, match="ambiguous ORFS results branch"):
+        resolve_orfs_artifact(tmp_path, "results", "demo", "6_final.v")
 
 
 def test_cordic_signoff_sdc_default_uses_lighter_io_budget(tmp_path: Path) -> None:

@@ -378,12 +378,18 @@ def render_design_cover(top: str, *, multiclock: bool) -> str:
     """)
 
 
-def _write_scaffold(path: Path, text: str) -> Path:
-    """Create one designer-owned starter file without replacing existing work."""
+def _write_scaffold(path: Path, text: str, *, incompatible: str | None = None) -> Path:
+    """Create one designer-owned starter and reject an untouched stale topology."""
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    if not path.exists():
-        path.write_text(text, encoding="utf-8")
+    if path.exists():
+        if incompatible is not None and path.read_text(encoding="utf-8") == incompatible:
+            raise ValueError(
+                f"formal scaffold topology changed: {path}; preserve authored work, "
+                "then remove or update the stale generated starter"
+            )
+        return path.resolve()
+    path.write_text(text, encoding="utf-8")
     return path.resolve()
 
 
@@ -397,10 +403,12 @@ def generate_scaffold(
     prove = _write_scaffold(
         root / "prove" / f"{top}_prove.sv",
         render_design_prove(top, multiclock=is_multiclock),
+        incompatible=render_design_prove(top, multiclock=not is_multiclock),
     )
     cover = _write_scaffold(
         root / "cover" / f"{top}_cover.sv",
         render_design_cover(top, multiclock=is_multiclock),
+        incompatible=render_design_cover(top, multiclock=not is_multiclock),
     )
     return prove, cover
 
