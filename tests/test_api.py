@@ -57,6 +57,8 @@ from flexsoc.backend.core.reporting import (
 from flexsoc.backend.signoff.gls import _cocotb_wrapper, execute_all
 from flexsoc.backend.dv.testbench import (
     CocotbConfig,
+    cocotb_reg_driver_py_text,
+    cocotb_vec_driver_py_text,
     render_gls_make_block,
     render_reg_driver_py,
     render_tlul_interface,
@@ -1533,11 +1535,37 @@ def test_tlul_tb_scaffolds_drive_negedge_sample_posedge() -> None:
     cocotb = render_reg_driver_py()
     assert "async def _drive_cycle(clk):" in cocotb
     assert "await FallingEdge(clk)" in cocotb
-    assert "async def _sample_cycle(clk):" in cocotb
-    assert "await RisingEdge(clk)" in cocotb
+    assert (
+        'async def _sample_cycle(clk):\n'
+        '    """Sample DUT outputs at the rising edge before the handshake is consumed."""\n\n'
+        "    await RisingEdge(clk)\n"
+        "\n\nasync def _drive_cycle(clk):"
+    ) in cocotb
     assert cocotb.index("await _drive_cycle(clk)") < cocotb.index(
         '_get(dut, "tl_i_a_valid").value = 1'
     )
+    assert cocotb.count("await RisingEdge(clk)") == 1
+    assert cocotb.count("await FallingEdge(clk)") == 1
+    assert "await _cycle(" not in cocotb
+    assert "await _wait_cycles(_clock(dut, clk), wait_cycles)" in cocotb
+
+    multi_cocotb = cocotb_reg_driver_py_text("tri_stream_dsp", clocks)
+    assert multi_cocotb.count("await RisingEdge(clk)") == 1
+    assert multi_cocotb.count("await FallingEdge(clk)") == 1
+    assert "Sample one TL-UL handshake only on rising edges." in multi_cocotb
+    assert "await _sample_cycle(clk)" in multi_cocotb
+    assert "await _drive_cycle(clk)" in multi_cocotb
+    assert (
+        'await _wait_high(dut, f"{domain}_d_valid", clk)\n'
+        '    data = int(getattr(dut, f"{domain}_d_data").value)'
+    ) in multi_cocotb
+    assert "TL-UL write error on {domain}" in multi_cocotb
+
+    multi_vectors = cocotb_vec_driver_py_text("tri_stream_dsp")
+    assert "FallingEdge" not in multi_vectors
+    assert "RisingEdge" not in multi_vectors
+    assert "await _drive_cycle(dut.rx_clk_i)" in multi_vectors
+    assert "await _sample_cycle(dut.rx_clk_i)" in multi_vectors
 
 
 def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:

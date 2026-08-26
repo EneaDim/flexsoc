@@ -3870,17 +3870,23 @@ def _clock(dut, clk=None):
 
 
 async def _sample_cycle(clk):
-    """Sample DUT outputs on the rising edge, after delta-cycle settling."""
+    """Sample DUT outputs at the rising edge before the handshake is consumed."""
 
     await RisingEdge(clk)
-    await Timer(1, unit="ps")
 
 
 async def _drive_cycle(clk):
-    """Drive DUT inputs on the falling edge, away from the active edge."""
+    """Drive DUT inputs just after the falling edge, away from the active edge."""
 
     await FallingEdge(clk)
     await Timer(1, unit="ps")
+
+
+async def _wait_cycles(clk, count=1):
+    """Advance whole protocol cycles using the sampling edge only."""
+
+    for _ in range(max(0, int(count))):
+        await _sample_cycle(clk)
 
 
 def _known_int(dut, name, context):
@@ -4053,8 +4059,7 @@ async def run_register_config(dut, cfg_path, *, regmap=None, clk=None):
         await write_register(dut, reg, data, mask, regmap=merged_map, clk=clk)
         writes += 1
 
-        for _ in range(max(0, wait_cycles)):
-            await _cycle(_clock(dut, clk))
+        await _wait_cycles(_clock(dut, clk), wait_cycles)
 
     if writes == 0:
         dut._log.info("no register config writes from %s; continuing", path)
@@ -4936,7 +4941,7 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
 
     from pathlib import Path
 
-    from cocotb.triggers import Combine, FallingEdge, RisingEdge
+    from cocotb.triggers import Combine, FallingEdge, RisingEdge, Timer
 
 
     CLOCKS = __CLOCK_MAP__
@@ -4959,6 +4964,23 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
             "RESULT": 0xC,
         },
     }
+
+
+    async def _sample_cycle(clk):
+        "Sample protocol outputs on the rising edge."
+        await RisingEdge(clk)
+
+
+    async def _drive_cycle(clk):
+        "Drive protocol inputs just after the falling edge."
+        await FallingEdge(clk)
+        await Timer(1, unit="ps")
+
+
+    async def _wait_cycles(clk, count=1):
+        "Advance whole protocol cycles using the sampling edge only."
+        for _ in range(max(0, int(count))):
+            await _sample_cycle(clk)
 
 
     def rows(path: str):
@@ -5016,24 +5038,21 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
         for _, signal, polarity in selected:
             getattr(dut, signal).value = int(polarity == "low")
         set_defaults(dut)
-        for _ in range(8):
-            await RisingEdge(getattr(dut, PRIMARY_CLOCK))
+        await _wait_cycles(getattr(dut, PRIMARY_CLOCK), 8)
 
 
     async def _wait_high(dut, signal: str, clk, limit: int = 256):
-        "Wait for one TL-UL handshake without missing an already-high response."
+        "Sample one TL-UL handshake only on rising edges."
         for _ in range(limit):
+            await _sample_cycle(clk)
             if bool(getattr(dut, signal).value):
                 return
-            await RisingEdge(clk)
-        if bool(getattr(dut, signal).value):
-            return
         raise TimeoutError(f"timeout waiting for {signal}")
 
 
     async def _tlul_write(dut, domain: str, clk, addr: int, data: int):
-        "Issue one simple PutFullData write through scalar TL-UL proxies."
-        await FallingEdge(clk)
+        "Issue one PutFullData write using the common edge contract."
+        await _drive_cycle(clk)
         _set_domain_defaults(dut, domain)
         getattr(dut, f"{domain}_a_valid").value = 1
         getattr(dut, f"{domain}_a_opcode").value = 0
@@ -5044,16 +5063,18 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
         getattr(dut, f"{domain}_a_mask").value = 0xF
         getattr(dut, f"{domain}_a_data").value = data & 0xFFFFFFFF
         await _wait_high(dut, f"{domain}_a_ready", clk)
-        await FallingEdge(clk)
+        await _drive_cycle(clk)
         getattr(dut, f"{domain}_a_valid").value = 0
         await _wait_high(dut, f"{domain}_d_valid", clk)
-        await FallingEdge(clk)
+        if int(getattr(dut, f"{domain}_d_error").value):
+            raise AssertionError(f"TL-UL write error on {domain} addr=0x{addr:08x}")
+        await _drive_cycle(clk)
         _set_domain_defaults(dut, domain)
 
 
     async def _tlul_read(dut, domain: str, clk, addr: int) -> int:
-        "Issue one simple Get read through scalar TL-UL proxies."
-        await FallingEdge(clk)
+        "Issue one Get read using the common edge contract."
+        await _drive_cycle(clk)
         _set_domain_defaults(dut, domain)
         getattr(dut, f"{domain}_a_valid").value = 1
         getattr(dut, f"{domain}_a_opcode").value = 4
@@ -5063,15 +5084,15 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
         getattr(dut, f"{domain}_a_address").value = addr & 0xFFFFFFFF
         getattr(dut, f"{domain}_a_mask").value = 0xF
         await _wait_high(dut, f"{domain}_a_ready", clk)
-        await FallingEdge(clk)
+        await _drive_cycle(clk)
         getattr(dut, f"{domain}_a_valid").value = 0
         await _wait_high(dut, f"{domain}_d_valid", clk)
-        await FallingEdge(clk)
         data = int(getattr(dut, f"{domain}_d_data").value) & 0xFFFFFFFF
         error = int(getattr(dut, f"{domain}_d_error").value)
-        _set_domain_defaults(dut, domain)
         if error:
             raise AssertionError(f"TL-UL read error on {domain} addr=0x{addr:08x}")
+        await _drive_cycle(clk)
+        _set_domain_defaults(dut, domain)
         return data
 
 
@@ -5117,8 +5138,7 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
 
     async def settle(dut, cycles: int = 8):
         "Allow synchronized controls to propagate into the datapath."
-        for _ in range(cycles):
-            await RisingEdge(getattr(dut, SETTLE_CLOCK))
+        await _wait_cycles(getattr(dut, SETTLE_CLOCK), cycles)
 
 
     async def apply_config(dut, path: str):
@@ -5139,23 +5159,24 @@ def cocotb_vec_driver_py_text(top: str) -> str:
     return dedent("""\
     from __future__ import annotations
 
-    from cocotb.triggers import FallingEdge, RisingEdge
-
-    from .reg_driver import apply_reg, expect_reg, reset, rows, settle
+    from .reg_driver import (
+        _drive_cycle, _sample_cycle, apply_reg, expect_reg, reset, rows, settle,
+    )
 
 
     async def send_sample(dut, sample: int, coeff: int):
-        "Send one RX-domain input transaction."
-        timeout = 0
-        while not bool(dut.rx_ready_o.value) and timeout < 64:
-            await RisingEdge(dut.rx_clk_i)
-            timeout += 1
-        assert bool(dut.rx_ready_o.value), "rx_ready_o timeout"
-        await FallingEdge(dut.rx_clk_i)
+        "Hold one RX transaction across a sampled ready/valid handshake."
+        await _drive_cycle(dut.rx_clk_i)
         dut.rx_sample_i.value = sample & 0xFFFF
         dut.rx_coeff_i.value = coeff & 0xFFFF
         dut.rx_valid_i.value = 1
-        await FallingEdge(dut.rx_clk_i)
+        for _ in range(64):
+            await _sample_cycle(dut.rx_clk_i)
+            if bool(dut.rx_ready_o.value):
+                break
+        else:
+            raise TimeoutError("rx_ready_o timeout")
+        await _drive_cycle(dut.rx_clk_i)
         dut.rx_valid_i.value = 0
 
 
