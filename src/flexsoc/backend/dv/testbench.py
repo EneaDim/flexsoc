@@ -1678,8 +1678,13 @@ interface tlul_if (
   modport drv (output h2d, input d2h);
   modport dut (input h2d, output d2h);
 
-  task automatic cycle();
+  // TB timing contract: drive DUT inputs on negedge, sample DUT outputs on posedge.
+  task automatic sample_cycle();
     @(posedge clk_i);
+  endtask
+
+  task automatic drive_cycle();
+    @(negedge clk_i);
   endtask
 
   task automatic drive_idle();
@@ -1689,13 +1694,13 @@ interface tlul_if (
 
   task automatic init();
     drive_idle();
-    cycle();
+    sample_cycle();
   endtask
 
   task automatic wait_d2h_high(input integer bit_index, input string signal_name);
     integer guard;
     guard = 0;
-    cycle();
+    sample_cycle();
     while (d2h[bit_index] !== 1'b1) begin
       if (d2h[bit_index] !== 1'b0)
         $fatal(1, "[%0t] TLUL %s is X/Z; check reset and gate-level cell model mode",
@@ -1703,7 +1708,7 @@ interface tlul_if (
       guard++;
       if (guard > 1000)
         $fatal(1, "[%0t] TLUL timeout waiting for %s", $time, signal_name);
-      cycle();
+      sample_cycle();
     end
   endtask
 
@@ -1716,18 +1721,18 @@ interface tlul_if (
     logic [2:0] opcode;
     $display("[%0t] TLUL WRITE: Addr = 0x%08x, Data = 0x%08x", $time, addr, data);
     opcode = (mask == 4'hf) ? FLEXSOC_TL_PUT_FULL : FLEXSOC_TL_PUT_PARTIAL;
-    drive_idle();
-    cycle();
+    drive_cycle();
     h2d <= flexsoc_tlul_h2d(1'b1, opcode, 3'b0, 2'd2, source,
                             addr, mask, data, 1'b1);
     wait_d2h_high(0, "write a_ready");
+    drive_cycle();
     h2d[108] <= 1'b0;
     wait_d2h_high(65, "write d_valid");
     if (d2h[1])
       $fatal(1, "[%0t] TLUL WRITE ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
-    cycle();
+    drive_cycle();
     drive_idle();
-    cycle();
+    sample_cycle();
     #1;
   endtask
 
@@ -1738,19 +1743,19 @@ interface tlul_if (
   );
     $display("[%0t] TLUL READ: Addr = 0x%08x", $time, addr);
     data = '0;
-    drive_idle();
-    cycle();
+    drive_cycle();
     h2d <= flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_GET, 3'b0, 2'd2, source,
                             addr, 4'hf, 32'b0, 1'b1);
     wait_d2h_high(0, "read a_ready");
+    drive_cycle();
     h2d[108] <= 1'b0;
     wait_d2h_high(65, "read d_valid");
     data = d2h[47:16];
     if (d2h[1])
       $fatal(1, "[%0t] TLUL READ ERROR: Addr = 0x%08x, d_error = 1", $time, addr);
-    cycle();
+    drive_cycle();
     drive_idle();
-    cycle();
+    sample_cycle();
     #1;
   endtask
 
@@ -2716,6 +2721,7 @@ def _sv_driver_text_string(top: str, clocks: ClockConfig) -> str:
     )
     primary = clocks.domains[0].signal
     text = dedent("""\
+      // TB timing contract: drive DUT inputs on negedge, sample DUT outputs on posedge.
       task automatic apply_defaults();
         cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
                                     32'b0, 4'b0, 32'b0, 1'b1);
@@ -3863,13 +3869,15 @@ def _clock(dut, clk=None):
     raise AttributeError("cannot infer cocotb clock; expected clk_i")
 
 
-async def _cycle(clk):
+async def _sample_cycle(clk):
+    """Sample DUT outputs on the rising edge, after delta-cycle settling."""
+
     await RisingEdge(clk)
     await Timer(1, unit="ps")
 
 
-async def _response_sample_phase(clk):
-    """Sample a TL-UL response after unit-delay combinational paths settle."""
+async def _drive_cycle(clk):
+    """Drive DUT inputs on the falling edge, away from the active edge."""
 
     await FallingEdge(clk)
     await Timer(1, unit="ps")
@@ -3903,7 +3911,7 @@ async def init_register_bus(dut, clk=None):
 
     clk = _clock(dut, clk)
     _drive_idle(dut)
-    await _cycle(clk)
+    await _sample_cycle(clk)
 
 
 async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None, clk=None):
@@ -3919,9 +3927,7 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
 
     dut._log.info("reg write addr=0x%08x data=0x%08x mask=0x%x", addr, data, mask)
 
-    _drive_idle(dut)
-    await _cycle(clk)
-
+    await _drive_cycle(clk)
     _get(dut, "tl_i_d_ready").value = 1
     _get(dut, "tl_i_a_valid").value = 1
     _get(dut, "tl_i_a_opcode").value = 0 if mask == 0xF else 1  # PutFullData / PutPartialData
@@ -3933,28 +3939,32 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
     _get(dut, "tl_i_a_data").value = data
 
     guard = 0
-    while _known_int(dut, "tl_o_a_ready", f"waiting write a_ready addr=0x{addr:08x}") == 0:
-        await _cycle(clk)
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_a_ready", f"waiting write a_ready addr=0x{addr:08x}"):
+            break
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting a_ready on write addr=0x{addr:08x}")
 
-    await _cycle(clk)
+    await _drive_cycle(clk)
     _get(dut, "tl_i_a_valid").value = 0
 
     guard = 0
-    while _known_int(dut, "tl_o_d_valid", f"waiting write d_valid addr=0x{addr:08x}") == 0:
-        await _cycle(clk)
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_d_valid", f"waiting write d_valid addr=0x{addr:08x}"):
+            break
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting d_valid on write addr=0x{addr:08x}")
 
-    await _response_sample_phase(clk)
     if _known_int(dut, "tl_o_d_error", f"checking write response addr=0x{addr:08x}"):
         raise AssertionError(f"TL-UL write error at addr=0x{addr:08x}")
 
+    await _drive_cycle(clk)
     _drive_idle(dut)
-    await _cycle(clk)
+    await _sample_cycle(clk)
 
 
 async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
@@ -3966,9 +3976,7 @@ async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
 
     dut._log.info("reg read addr=0x%08x", addr)
 
-    _drive_idle(dut)
-    await _cycle(clk)
-
+    await _drive_cycle(clk)
     _get(dut, "tl_i_d_ready").value = 1
     _get(dut, "tl_i_a_valid").value = 1
     _get(dut, "tl_i_a_opcode").value = 4  # Get
@@ -3980,31 +3988,35 @@ async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
     _get(dut, "tl_i_a_data").value = 0
 
     guard = 0
-    while _known_int(dut, "tl_o_a_ready", f"waiting read a_ready addr=0x{addr:08x}") == 0:
-        await _cycle(clk)
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_a_ready", f"waiting read a_ready addr=0x{addr:08x}"):
+            break
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting a_ready on read addr=0x{addr:08x}")
 
-    await _cycle(clk)
+    await _drive_cycle(clk)
     _get(dut, "tl_i_a_valid").value = 0
 
     guard = 0
-    while _known_int(dut, "tl_o_d_valid", f"waiting read d_valid addr=0x{addr:08x}") == 0:
-        await _cycle(clk)
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_d_valid", f"waiting read d_valid addr=0x{addr:08x}"):
+            break
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting d_valid on read addr=0x{addr:08x}")
 
-    await _response_sample_phase(clk)
     if _known_int(dut, "tl_o_d_error", f"checking read response addr=0x{addr:08x}"):
         raise AssertionError(f"TL-UL read error at addr=0x{addr:08x}")
 
     data = _known_int(dut, "tl_o_d_data", f"reading response data addr=0x{addr:08x}") & 0xFFFFFFFF
     dut._log.info("reg read addr=0x%08x data=0x%08x", addr, data)
 
+    await _drive_cycle(clk)
     _drive_idle(dut)
-    await _cycle(clk)
+    await _sample_cycle(clk)
 
     return data
 

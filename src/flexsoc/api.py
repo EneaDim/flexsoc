@@ -69,7 +69,7 @@ SIM = (
     "WAVE_FORMAT",
     "WAVE_FILE",
 )
-VIEW = (*COMMON, "WAVE_VIEWER", "SURFER_BACKEND")
+VIEW = (*COMMON, "PDK", "SIGNOFF_STAGE", "SIM_NAME", "WAVE_VIEWER", "SURFER_BACKEND")
 SYN = (*COMMON, "PDK", "PDK_ROOT", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT", "VSV", "LIB_SYN", "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS")
 FORMAL = (
     *COMMON,
@@ -236,7 +236,7 @@ TARGETS: dict[str, TargetSpec] = {
     "regression": ("DV functional", "Run all tests on selected backends with Verilator coverage", SIM),
     "coverage": ("DV functional", "Merge and report existing Verilator coverage data", SIM),
     "coverage_detail": ("DV functional", "Show uncovered Verilator coverage points", SIM),
-    "view": ("Viewing", "Open latest waveform", VIEW),
+    "view": ("Viewing", "Open selected or latest waveform", VIEW),
     "view_cocotb": ("Viewing", "Open latest cocotb waveform", VIEW),
     "view_syn": ("Viewing", "Reserved synthesis waveform viewer target", VIEW),
     "plot_postsyn": ("Viewing", "Open post-synthesis graph", VIEW),
@@ -494,6 +494,45 @@ def _safe_log_name(value: str) -> str:
     return safe.strip("._") or "target"
 
 
+def _select_waveform(directory: Path, top: str, sim_name: str = "") -> Path:
+    """Select one generated waveform by simulation name, or the latest one."""
+
+    candidates = [*directory.glob("*.fst"), *directory.glob("*.vcd")]
+    if not candidates:
+        raise FileNotFoundError(
+            f"no waveform available in {directory}; run the matching simulation first"
+        )
+    if not sim_name:
+        return max(candidates, key=lambda path: path.stat().st_mtime)
+
+    requested = Path(sim_name).name
+    if Path(requested).suffix.lower() in {".fst", ".vcd"}:
+        requested = Path(requested).stem
+    stems = {requested, f"{top}_tb_{requested}"}
+    matches = [path for path in candidates if path.stem in stems]
+    if matches:
+        return max(matches, key=lambda path: path.stat().st_mtime)
+
+    prefix = f"{top}_tb_"
+    available = ", ".join(sorted(path.stem.removeprefix(prefix) for path in candidates))
+    raise FileNotFoundError(
+        f"SIM_NAME={sim_name!r} not found in {directory}; available: {available or 'none'}"
+    )
+
+
+def _viewer_environment(viewer: str, surfer_backend: str = "auto") -> dict[str, str]:
+    """Return viewer-specific environment overrides."""
+
+    if Path(viewer).name.lower().removesuffix(".exe") != "surfer":
+        return {}
+    backend = surfer_backend.strip().lower() or "auto"
+    if backend not in {"auto", "x11", "wayland"}:
+        raise ValueError("SURFER_BACKEND must be auto, x11, or wayland")
+    if backend == "x11" or (backend == "auto" and os.environ.get("WSL_DISTRO_NAME")):
+        return {"WAYLAND_DISPLAY": ""}
+    return {}
+
+
 
 
 def _scenario_log_value(value: str) -> str:
@@ -705,12 +744,12 @@ class _TargetRouter:
         args = [*shlex.split(self.values.get("SLANG_ARGS", "")), *extra]
         return root, top_file, tuple(roots), shlex.join(args)
 
-    def _run_cmd(self, argv, *, cwd: Path | None = None, log: Path | None = None, inputs=(), outputs=()) -> int:
+    def _run_cmd(self, argv, *, cwd: Path | None = None, log: Path | None = None, env=None, inputs=(), outputs=()) -> int:
         from .backend.core import CommandRequest
 
         cwd = (cwd or self.client.project_root).resolve()
         log = log or self.paths.logs / "commands" / f"{_safe_log_name(str(argv[0]))}.log"
-        request = CommandRequest(tuple(str(x) for x in argv), cwd, {}, log, tuple(inputs), tuple(outputs))
+        request = CommandRequest(tuple(str(x) for x in argv), cwd, dict(env or {}), log, tuple(inputs), tuple(outputs))
         return self.runner.run(request, on=self.on).returncode
 
     def _tb_configs(self):
@@ -1147,13 +1186,38 @@ class _TargetRouter:
         if target == "tb_view":
             print(p.functional / "saved")
             return 0
-        patterns = ["*.fst", "*.vcd"]
-        candidates = [x for pat in patterns for x in p.functional.rglob(pat)]
-        if not candidates:
-            raise FileNotFoundError("no waveform available")
-        wave = max(candidates, key=lambda x: x.stat().st_mtime)
+        sim_name = v.get("SIM_NAME", "").strip() if target == "view" else ""
+        if sim_name:
+            stage = v.get("SIGNOFF_STAGE", "post_syn").strip().lower()
+            layout = self.context.layout
+            if stage == "post_syn":
+                directory = layout.post_syn_sim_dir
+            elif stage in {"post_route", "post_pnr"}:
+                directory = layout.post_pnr_sim_dir
+            else:
+                raise ValueError("SIGNOFF_STAGE must be post_syn, post_route, or post_pnr for view")
+            print(
+                f"[wave] stage={stage} pdk={v.get('PDK', '')} sim={sim_name} directory={directory}",
+                flush=True,
+            )
+            try:
+                wave = _select_waveform(directory, p.top, sim_name)
+            except FileNotFoundError as exc:
+                print(f"[wave] error={exc}", flush=True)
+                raise
+        else:
+            candidates = [x for pattern in ("*.fst", "*.vcd") for x in p.functional.rglob(pattern)]
+            if not candidates:
+                raise FileNotFoundError("no waveform available")
+            wave = max(candidates, key=lambda path: path.stat().st_mtime)
+
         viewer = v.get("WAVE_VIEWER", "surfer")
-        return self._run_cmd((viewer, str(wave)), cwd=wave.parent, log=p.logs / "viewer" / f"{target}.log", inputs=(wave,))
+        env = _viewer_environment(viewer, v.get("SURFER_BACKEND", "auto"))
+        print(f"[wave] {wave}", flush=True)
+        return self._run_cmd(
+            (viewer, str(wave)), cwd=wave.parent, env=env,
+            log=p.logs / "viewer" / f"{target}.log", inputs=(wave,),
+        )
 
     def _clean(self, target: str) -> int:
         """Remove only artifacts owned by the selected cleanup operation."""
@@ -1562,8 +1626,20 @@ class FlexSoC:
         expanded: list[str] = []
         seen: set[str] = set()
 
+        timing_mode = str(
+            _upper({**self.settings, **overrides}).get(
+                "TIMING_MODE", DEFAULT_SETTINGS["TIMING_MODE"]
+            )
+        ).strip().lower()
+
         def dependencies(target: str) -> tuple[str, ...]:
-            return AUTO_SETUP_TARGETS.get(target, ())
+            deps = AUTO_SETUP_TARGETS.get(target, ())
+            if timing_mode in SDF_MODE_TO_CORNER:
+                if target in {"compile_post_syn", "sim_post_syn"}:
+                    return (*deps, "sdf")
+                if target in {"compile_post_pnr", "sim_post_pnr"}:
+                    return (*deps, "sdf_post_pnr")
+            return deps
 
         def append(target: str) -> None:
             if target in seen:
@@ -1647,7 +1723,7 @@ class FlexSoC:
             def flush(self) -> None:
                 if not self.log.closed:
                     self.log.flush()
-                if self.console is not None:
+                if self.console is not None and not getattr(self.console, "closed", False):
                     if self.compact and self._console_pending:
                         pending = self._console_pending
                         self._console_pending = ""
@@ -1708,12 +1784,17 @@ class FlexSoC:
                         log.write(strip_ansi((stdout.getvalue() if stdout else "") + (stderr.getvalue() if stderr else "")))
             except Exception as exc:
                 rc, error = 2, exc
+                message = f"[error] {exc}\n"
                 if capture and stderr is not None:
-                    stderr.write(str(exc) + "\n")
+                    stderr.write(message)
                     log_path.write_text(
                         strip_ansi((stdout.getvalue() if stdout else "") + stderr.getvalue()),
                         encoding="utf-8",
                     )
+                else:
+                    with log_path.open("a", encoding="utf-8") as log:
+                        log.write(strip_ansi(message))
+                    print(message, end="", flush=True)
 
             if not capture:
                 print_target_result(command.target, rc)

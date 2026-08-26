@@ -198,6 +198,7 @@ Use `fx commands` to list every backend target.
         "REG_ITF": "Generated register bus/interface type.",
         "TESTBENCH": "Testbench module/base name.",
         "TEST_NAME": "Select one functional or GLS test by name.",
+        "SIM_NAME": "Select one generated waveform by simulation suffix, for example smoke_sv_tt.",
         "TEST_NAMES": "Select multiple functional tests.",
         "TEST_ROOT": "Override the generated vector-test directory.",
         "REGCFG": "Override the test config.regs input.",
@@ -208,6 +209,8 @@ Use `fx commands` to list every backend target.
         "SEED": "Deterministic simulation or vector-generation seed.",
         "WAVE_FORMAT": "Waveform format: fst or vcd.",
         "WAVE_FILE": "Explicit waveform output path.",
+        "WAVE_VIEWER": "Waveform viewer executable, normally surfer or gtkwave.",
+        "SURFER_BACKEND": "Surfer GUI backend policy: auto, x11, or wayland; auto avoids Wayland under WSL.",
         "COCOTB_WAVES": "Enable cocotb waveform generation.",
         "COVERAGE": "Enable or select coverage collection.",
         "COVERAGE_DETAIL_LIMIT": "Maximum uncovered points printed by coverage_detail.",
@@ -223,7 +226,7 @@ Use `fx commands` to list every backend target.
         "SDF_FILE": "Explicit SDF file used for GLS.",
         "SDF_CORNER": "Corner selected for SDF generation or annotation.",
         "NETLIST": "Explicit synthesized or post-route netlist.",
-        "SIGNOFF_STAGE": "Sign-off source stage: post_syn or post_route.",
+        "SIGNOFF_STAGE": "Sign-off source stage: post_syn or post_route; view also accepts post_pnr.",
         "SDC_CLOCK_PERIOD_NS": "Generated sign-off SDC clock period in nanoseconds; defaults to 20 for every declared domain.",
         "SPEF_FILE": "Extracted parasitics for post-route timing/power.",
         "PNR_SDC_FILE": "Post-route SDC override.",
@@ -282,6 +285,12 @@ Use `fx commands` to list every backend target.
         "sim": ("fx sim --set TEST_NAME=smoke --set COMPILER=verilator",),
         "cocotb": ("fx cocotb --set TEST_NAME=smoke --set COCOTB_WAVES=1",),
         "regression": ("fx regression --no-setup",),
+        "view": (
+            "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_syn "
+            "--set SIM_NAME=smoke_sv_tt --set WAVE_VIEWER=surfer",
+            "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_pnr "
+            "--set SIM_NAME=smoke_sv_tt --set WAVE_VIEWER=surfer",
+        ),
         "syn": ("fx syn", "fx setup_syn && fx syn --no-setup"),
         "eqy": ("fx eqy", "fx setup_eqy && fx eqy --no-setup"),
         "cdc_rdc": ("fx cdc_rdc", "fx cdc_rdc --live", "fx cdc_rdc --set CDC_RDC_STRICT=1"),

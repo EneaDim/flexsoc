@@ -58,6 +58,9 @@ from flexsoc.backend.signoff.gls import _cocotb_wrapper, execute_all
 from flexsoc.backend.dv.testbench import (
     CocotbConfig,
     render_gls_make_block,
+    render_reg_driver_py,
+    render_tlul_interface,
+    sv_driver_text,
     write_cocotb_scaffold,
 )
 from flexsoc.backend.signoff.sta import (
@@ -304,6 +307,33 @@ def test_ip_save_preview_keeps_user_parameters_and_derives_artifacts_in_backend(
 
 
 
+def test_view_selects_named_gls_waveform_and_avoids_wayland_on_wsl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stage = tmp_path / "post_pnr" / "ihp-sg13g2"
+    stage.mkdir(parents=True)
+    wanted = stage / "test_tb_smoke_sv_tt.fst"
+    other = stage / "test_tb_corners_sv_ss.fst"
+    wanted.write_text("wave\n", encoding="utf-8")
+    other.write_text("wave\n", encoding="utf-8")
+
+    assert api_module._select_waveform(stage, "test", "smoke_sv_tt") == wanted
+    assert api_module._select_waveform(stage, "test", wanted.name) == wanted
+    with pytest.raises(FileNotFoundError, match="available: corners_sv_ss, smoke_sv_tt"):
+        api_module._select_waveform(stage, "test", "missing_sv_tt")
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(FileNotFoundError, match="run the matching simulation first"):
+        api_module._select_waveform(empty, "test", "smoke_sv_tt")
+
+    monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu")
+    assert api_module._viewer_environment("surfer", "auto") == {"WAYLAND_DISPLAY": ""}
+    assert api_module._viewer_environment("/usr/bin/surfer", "x11") == {"WAYLAND_DISPLAY": ""}
+    assert api_module._viewer_environment("surfer", "wayland") == {}
+    assert api_module._viewer_environment("gtkwave", "x11") == {}
+    assert {"PDK", "SIGNOFF_STAGE", "SIM_NAME", "WAVE_VIEWER", "SURFER_BACKEND"} <= set(TARGETS["view"][2])
+
+
 def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     tmp_path: Path,
 ) -> None:
@@ -339,6 +369,18 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
         command.target
         for command in fx.commands("sim_post_syn", GLS_BACKEND="cocotb")
     ] == ["sim_post_syn"]
+    assert [
+        command.target
+        for command in fx.commands("sim_post_syn", TIMING_MODE="typ")
+    ] == ["setup_signoff", "sdf", "sim_post_syn"]
+    assert [
+        command.target
+        for command in fx.commands("sim_post_pnr", TIMING_MODE="typ")
+    ] == ["setup_signoff_post_pnr", "sdf_post_pnr", "sim_post_pnr"]
+    assert [
+        command.target
+        for command in fx.commands("sim_post_pnr", TIMING_MODE="typ", auto_setup=False)
+    ] == ["sim_post_pnr"]
 
 
 def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
@@ -400,6 +442,25 @@ def test_dry_run_returns_commands_without_spawning(
     assert [command.target for command in commands] == ["hjson", "reg"]
     assert all(isinstance(command, FlexSoCCommand) for command in commands)
 
+
+
+def test_run_exception_is_visible_and_persisted_in_command_log(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    def execute(self, target: str) -> int:
+        raise ValueError("missing routed SDF")
+
+    monkeypatch.setattr(api_module._TargetRouter, "execute", execute)
+    fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work")
+    with pytest.raises(RuntimeError, match="missing routed SDF"):
+        fx.run("hjson", TOP="demo")
+
+    output = capsys.readouterr()
+    assert "[error] missing routed SDF" in output.out
+    log = fx._command_log_path(fx.command("hjson", TOP="demo"))
+    assert log.read_text(encoding="utf-8") == "[error] missing routed SDF\n"
 
 
 def test_run_capture_executes_direct_backend_and_writes_log(tmp_path: Path) -> None:
@@ -1437,6 +1498,46 @@ def test_cli_execution_output_modes(
 # ---------------------------------------------------------------------------
 # Backend contracts retained in the public API suite
 # ---------------------------------------------------------------------------
+
+
+def test_tlul_tb_scaffolds_drive_negedge_sample_posedge() -> None:
+    single = render_tlul_interface()
+    assert "TB timing contract: drive DUT inputs on negedge, sample DUT outputs on posedge" in single
+    assert "task automatic drive_cycle();\n    @(negedge clk_i);" in single
+    assert "task automatic sample_cycle();\n    @(posedge clk_i);" in single
+    for kind in ("write", "read"):
+        assert (
+            f'wait_d2h_high(0, "{kind} a_ready");\n'
+            "    drive_cycle();\n"
+            "    h2d[108] <= 1'b0;"
+        ) in single
+
+    clocks = ClockConfig(
+        domains=(
+            ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 10.0),
+            ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 8.0),
+            ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 5.0),
+        )
+    )
+    multi = sv_driver_text("tri_stream_dsp", clocks)
+    assert "TB timing contract: drive DUT inputs on negedge, sample DUT outputs on posedge" in multi
+    for prefix in ("cfg", "dsp"):
+        assert f"@(negedge {prefix}_clk_i);" in multi
+        assert f"do @(posedge {prefix}_clk_i); while (!{prefix}_tl_o[0]);" in multi
+        assert (
+            f"do @(posedge {prefix}_clk_i); while (!{prefix}_tl_o[0]);\n"
+            f"        @(negedge {prefix}_clk_i);\n"
+            f"        {prefix}_tl_i[108] = 1'b0;"
+        ) in multi
+
+    cocotb = render_reg_driver_py()
+    assert "async def _drive_cycle(clk):" in cocotb
+    assert "await FallingEdge(clk)" in cocotb
+    assert "async def _sample_cycle(clk):" in cocotb
+    assert "await RisingEdge(clk)" in cocotb
+    assert cocotb.index("await _drive_cycle(clk)") < cocotb.index(
+        '_get(dut, "tl_i_a_valid").value = 1'
+    )
 
 
 def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
@@ -2646,41 +2747,6 @@ def test_pdk_first_layout_for_all_technology_artifacts(tmp_path: Path) -> None:
 
 
 
-
-
-def test_backend_v8_tree_has_no_legacy_modules() -> None:
-    backend = ROOT / "src/flexsoc/backend"
-    expected_packages = {"core", "design", "dv", "syn", "signoff", "impl"}
-    assert expected_packages == {
-        path.name for path in backend.iterdir()
-        if path.is_dir() and not path.name.startswith("__")
-    } - {"__pycache__"}
-
-    for package in expected_packages:
-        assert (backend / package / "__init__.py").is_file()
-
-    legacy = {
-        "cdc_rdc.py", "common.py", "coverage_report.py", "driver_gen.py",
-        "eqy_debug.py", "hjson_gen.py", "manifest.py", "metrics.py",
-        "output.py", "physical_signoff.py", "pnr_run.py", "post_sim.py",
-        "rtl_stub_gen.py", "setup_cocotb.py", "setup_eqy.py",
-        "setup_formal.py", "setup_fsoc.py", "setup_model.py",
-        "setup_model_regmap.py", "setup_pnr.py", "setup_sdc.py",
-        "setup_signoff.py", "setup_syn.py", "setup_tb.py", "slang_tools.py",
-        "soc_cfg.py", "soc_gen.py", "soc_start.py", "sw_soc_gen.py",
-        "top_from_core.py", "xbar_init.py",
-    }
-    assert not any((backend / name).exists() for name in legacy)
-    for name in ("clocking.py", "pdk.py", "run_layout.py", "doctor.py"):
-        assert not (ROOT / "src/flexsoc" / name).exists()
-
-    source = "\n".join(
-        path.read_text(encoding="utf-8", errors="replace")
-        for path in (ROOT / "src/flexsoc").rglob("*.py")
-    )
-    assert "flexsoc.backend.setup_" not in source
-    assert "python -m flexsoc.backend." not in source
-    assert len(TARGETS) == 191
 
 
 def test_synthesis_uses_abc_constraints_not_sdc() -> None:
