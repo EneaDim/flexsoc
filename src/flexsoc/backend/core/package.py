@@ -147,11 +147,11 @@ class PackageFlow:
                 staged.mkdir(parents=True)
 
             self._stage_synthesis(staged, pdk, synth_dir, top)
+            self._stage_signoff(staged, pdk, signoff_dir, sdc_file, top)
             self._stage_equivalence(
                 staged, pdk, top, eqy_config, eqy_view, filelists,
                 netlist, liberty, cell_models, clock_gate_model,
             )
-            self._stage_signoff(staged, pdk, signoff_dir, sdc_file, top)
             if impl_dir and Path(impl_dir).is_dir():
                 self._replace_tree(Path(impl_dir), staged / "impl" / pdk)
             self._stage_optional_reports(
@@ -216,15 +216,33 @@ class PackageFlow:
 
     @staticmethod
     def _stage_signoff(staged: Path, pdk: str, source: Path, sdc: Path, top: str) -> None:
+        """Save canonical setup scripts plus final sign-off evidence.
+
+        Scenario-local Tcl files are runtime copies of setup-owned collateral;
+        they are useful inside a run but must not become reusable package state.
+        """
+
         destination = staged / "signoff" / pdk
+        if destination.exists():
+            shutil.rmtree(destination)
         destination.mkdir(parents=True, exist_ok=True)
         shutil.copy2(sdc, destination / f"{top}.sdc")
+        canonical_tcl = {
+            Path("sta/sta.tcl"),
+            Path("sdf/write_sdf.tcl"),
+            Path("power/estimate/power_estimate.tcl"),
+            Path("power/analysis/power_analysis.tcl"),
+            Path("fusion/fusion_analysis.tcl"),
+        }
         for path in Path(source).rglob("*"):
             if not path.is_file() or path.name.startswith("."):
                 continue
+            relative = path.relative_to(source)
+            if path.suffix == ".tcl" and relative not in canonical_tcl:
+                continue
             if path.suffix not in {".tcl", ".rpt", ".json", ".sdf"}:
                 continue
-            target = destination / path.relative_to(source)
+            target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, target)
 

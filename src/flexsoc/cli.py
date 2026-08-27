@@ -272,7 +272,8 @@ Use `fx commands` to list every backend target.
         "SOC_CFG_MODE": "SoC configuration mode.",
         "DEVLIST": "SoC device/IP list.",
         "TARGET_SYN": "Yosys synthesis target/profile.",
-        "TARGET_OPT": "Yosys optimization target/profile.",
+        "TARGET_OPT": "Yosys/ABC synthesis profile: area0..area3 or delay0..delay4.",
+        "STAGE": "Generated setup stage whose manually modified collateral is being validated.",
         "ORS": "OpenROAD-flow-scripts root.",
         "ORS_TECH": "OpenROAD platform/technology name.",
     }
@@ -293,7 +294,15 @@ Use `fx commands` to list every backend target.
             "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_pnr "
             "--set SIM_NAME=smoke_sv_tt --set WAVE_VIEWER=surfer",
         ),
-        "syn": ("fx syn", "fx setup_syn && fx syn --no-setup"),
+        "setup_syn": (
+            "fx setup_syn",
+            "fx setup_syn --set TARGET_OPT=delay1",
+        ),
+        "syn": (
+            "fx syn",
+            "fx syn --set TARGET_OPT=delay1",
+            "fx settings TARGET_OPT=delay1 && fx setup_syn && fx syn --no-setup",
+        ),
         "eqy": ("fx eqy", "fx setup_eqy && fx eqy --no-setup"),
         "cdc_rdc": ("fx cdc_rdc", "fx cdc_rdc --live", "fx cdc_rdc --set CDC_RDC_STRICT=1"),
         "compile_post_syn": (
@@ -326,6 +335,10 @@ Use `fx commands` to list every backend target.
         "fusion_analysis_all": (
             "fx fusion_analysis_all --no-setup --set POWER_TEST_NAMES=all "
             "--set POWER_GLS_BACKENDS=all --set POWER_TIMING_MODES=all",
+        ),
+        "validate_override": (
+            "fx validate_override --set STAGE=setup_syn",
+            "fx check",
         ),
         "ip_load": ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic",),
         "ip_save": ("fx ip_save --set IP_NAME=cordic_release", "fx ip_save --force --set IP_NAME=cordic_release"),
@@ -455,6 +468,46 @@ Use `fx commands` to list every backend target.
         return (command,)
 
     TARGET_HELP_SECTIONS = {
+        "setup_syn": (
+            (
+                "TARGET_OPT and provenance",
+                (
+                    ("one command", "Prefer `fx syn --set TARGET_OPT=delay1`; automatic setup uses the same one-shot override."),
+                    ("explicit pipeline", "Repeat the same --set on setup and consumer, or persist it first with `fx settings TARGET_OPT=delay1`."),
+                    ("STALE", "The effective configuration/source/parent lineage differs from the recorded setup; regenerate setup, do not validate it."),
+                    ("MODIFIED", "A generated setup file was edited manually; only this state is eligible for validate_override."),
+                ),
+            ),
+        ),
+        "syn": (
+            (
+                "Synthesis profile workflow",
+                (
+                    ("one-shot", "`fx syn --set TARGET_OPT=delay1` runs setup_syn and syn with one coherent effective configuration."),
+                    ("persistent", "For several commands, use `fx settings TARGET_OPT=delay1` once, then run setup/synthesis/sign-off normally."),
+                    ("--no-setup", "The existing setup must match the exact effective settings of this invocation; STALE collateral is rejected."),
+                ),
+            ),
+        ),
+        "validate_override": (
+            (
+                "When to use it",
+                (
+                    ("MODIFIED", "Use validate_override only after intentionally editing a generated setup artifact by hand."),
+                    ("STALE", "Configuration, source, or parent lineage changed. Rerun the setup target with the intended settings; do not validate."),
+                    ("INVALID", "Required files/provenance are missing or inconsistent. Repair inputs and rerun setup."),
+                    ("CLEAN", "Nothing to validate; the generated collateral already matches its canonical setup."),
+                    ("VALIDATED_OVERRIDE", "The exact manual edit is already accepted for the current lineage."),
+                ),
+            ),
+            (
+                "Typical flows",
+                (
+                    ("change TARGET_OPT", "`fx settings TARGET_OPT=delay1` → `fx setup_syn` → `fx syn --no-setup`."),
+                    ("manual .abc edit", "Run setup_syn, edit the generated .abc, then validate_override STAGE=setup_syn before --no-setup execution."),
+                ),
+            ),
+        ),
         "cdc_rdc": (
             (
                 "Summary fields",

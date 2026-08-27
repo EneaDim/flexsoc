@@ -26,7 +26,7 @@ DEFAULT_SETTINGS = {
     "RUN_ID": "default",
     "N_CLOCKS": "1",
     "PDK": "sky130",
-    "TARGET_OPT": "area",
+    "TARGET_OPT": "area0",
     "WAVE_FORMAT": "fst",
     "GLS_SIMULATOR": "iverilog",
     "GLS_BACKEND": "sv",
@@ -1047,10 +1047,15 @@ class FlexSoCTarget:
         for stage in self._setup_stages(target):
             state = self._provenance_state(stage)
             if state not in {"CLEAN", "VALIDATED_OVERRIDE"}:
-                action = (
-                    f"fx validate_override --set STAGE={stage}"
-                    if state == "MODIFIED" else "rerun without --no-setup"
-                )
+                if state == "MODIFIED":
+                    action = f"fx validate_override --set STAGE={stage}"
+                elif state == "STALE":
+                    action = (
+                        f"rerun `fx {stage}` with the same effective settings, or run `{target}` "
+                        "without --no-setup"
+                    )
+                else:
+                    action = f"rerun `fx {stage}` after repairing missing/inconsistent inputs"
                 raise RuntimeError(f"{target}: {stage} provenance is {state}; {action}")
 
     def _validate_override(self) -> str:
@@ -1081,7 +1086,7 @@ class FlexSoCTarget:
         return flow.setup_asic(
             top=self.paths.top, topdir=self.paths.rtl, liberty=liberty,
             clk_period_ns=period, output=self.paths.syn,
-            opt=self.values.get("TARGET_OPT", "area"),
+            opt=self.values.get("TARGET_OPT", "area0"),
             filelists=(self.paths.rtl_common, self.paths.rtl_ip),
             tie_hi=self._tuple("TIEHI_CELL_AND_PORT", 2),
             tie_lo=self._tuple("TIELO_CELL_AND_PORT", 2),
@@ -1365,7 +1370,7 @@ class FlexSoCTarget:
         if target in {"syn", "syn_v", "syn_sv"}:
             return b.syn.synthesis.run_asic(
                 output=p.syn, top=top, log_dir=p.logs / "synthesis" / p.pdk,
-                opt=v.get("TARGET_OPT", "area"), yosys=v.get("YOSYS", "yosys"),
+                opt=v.get("TARGET_OPT", "area0"), yosys=v.get("YOSYS", "yosys"),
                 systemverilog=(target != "syn_v" and v.get("VSV", "sv") != "v"),
                 inputs=self._execution_inputs("setup_syn"), on=self.on,
             )

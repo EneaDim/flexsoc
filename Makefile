@@ -26,6 +26,7 @@ help: ## Show this help
 		'  make test                              Run full E2E on sky130 + ihp-sg13g2' \
 		'  make test TESTS=cordic                 Run only the matching CORDIC E2E' \
 		'  make test TESTS="cordic uart"          Run only CORDIC + UART E2E' \
+		'  make test TESTS=cordic TARGET_OPT=delay1  Override the CORDIC synthesis profile' \
 		'  make test-smoke                        Run E2E without formal/synthesis/signoff' \
 		'  make test E2E_ROOT=~/flexsoc-e2e       Choose where E2E workspaces are created' \
 		'  make test E2E_ORS=~/OpenROAD-flow-scripts/flow  Select the ORFS flow root' \
@@ -74,15 +75,17 @@ E2E_ROOT ?= /tmp
 E2E_ORS ?=
 SIGNOFF ?= 1
 TESTS ?=
+TARGET_OPT ?=
 empty :=
 space := $(empty) $(empty)
 E2E_TEST_EXPR := $(subst $(space), or ,$(strip $(TESTS)))
 E2E_TEST_ARG := $(if $(strip $(TESTS)),-k "$(E2E_TEST_EXPR)",)
 E2E_SIGNOFF_ARG := $(if $(filter 1 true yes on,$(SIGNOFF)),,--no-signoff)
 E2E_ORS_ARG := $(if $(strip $(E2E_ORS)),--e2e-ors "$(E2E_ORS)",)
+E2E_TARGET_OPT_ENV := $(if $(strip $(TARGET_OPT)),FLEXSOC_E2E_TARGET_OPT="$(TARGET_OPT)",)
 
 test: ## Run full E2E closure on SKY130 and IHP (SIGNOFF=1, E2E_ROOT=/tmp)
-	$(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_TEST_ARG) $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
+	$(E2E_TARGET_OPT_ENV) $(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_TEST_ARG) $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
 
 test-smoke: ## Run E2E without formal/synthesis/signoff
 	$(MAKE) test SIGNOFF=0 E2E_ROOT="$(E2E_ROOT)"

@@ -2162,6 +2162,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
     n_clocks = 1
     clock_domains = SINGLE_CLOCK_DOMAINS
     clock_relationships = ""
+    target_opt = os.environ.get("FLEXSOC_E2E_TARGET_OPT", "delay1")
 
     with _preserve_project_settings(), _temporary_workspace(
         "flexsoc-cordic-e2e-", _e2e_root(request)
@@ -2176,7 +2177,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
             _run(
                 (
                     f"uv run --no-sync fx settings --reset TOP={top} RUN_TOP={top} "
-                    f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} TARGET_OPT=delay "
+                    f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} TARGET_OPT={target_opt} "
                     f"CLOCK_DOMAINS={clock_domains} "
                     f"CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}"
                 ),
@@ -2715,6 +2716,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
     n_clocks = 1
     clock_domains = SINGLE_CLOCK_DOMAINS
     clock_relationships = ""
+    target_opt = os.environ.get("FLEXSOC_E2E_TARGET_OPT", "area0")
 
     with _preserve_project_settings(), _temporary_workspace(
         "flexsoc-uart-e2e-", _e2e_root(request)
@@ -2729,7 +2731,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
             _run(
                 (
                     f"uv run --no-sync fx settings --reset TOP={top} RUN_TOP={top} "
-                    f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} "
+                    f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} TARGET_OPT={target_opt} "
                     f"CLOCK_DOMAINS={clock_domains} "
                     f"CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}"
                 ),

@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import Sequence
 
 
+SYNTHESIS_PROFILES = (
+    "area0", "area1", "area2", "area3",
+    "delay0", "delay1", "delay2", "delay3", "delay4",
+)
+
+
 def _repo_root() -> Path:
     """Return the repository root used for generated synthesis paths."""
 
@@ -40,7 +46,7 @@ class SynthesisConfig:
     output: Path = Path("syn")
     liberty: Path | None = None
     sdcdir: Path | None = None
-    opt: str = "area"
+    opt: str = "area0"
     filelists: tuple[Path, ...] = (Path("rtl_common.f"), Path("rtl_ip.f"))
     tie_hi: tuple[str, str] | None = None
     tie_lo: tuple[str, str] | None = None
@@ -61,53 +67,123 @@ def write_text(path: Path, text: str) -> Path:
     return path
 
 
-def abc_script_area() -> str:
-    """Render the area-oriented ABC recipe."""
+def _validate_profile(opt: str) -> str:
+    """Return a canonical synthesis profile or reject an unknown value."""
 
-    return "\n".join(
-        [
-            "# AREA-oriented ABC script (portable)",
-            "strash",
-            "dch",
-            "balance",
-            "rewrite",
-            "refactor",
-            "rewrite -z",
-            "balance",
-            "dch",
-            "map -a",
-            "topo",
-            "dnsize -c",
-            "stime -p",
-            "print_stats -m",
-            "",
-        ]
-    )
+    profile = opt.strip().lower()
+    if profile not in SYNTHESIS_PROFILES:
+        choices = ", ".join(SYNTHESIS_PROFILES)
+        raise ValueError(f"TARGET_OPT must be one of: {choices}")
+    return profile
 
 
-def abc_script_delay(clk_ns: float) -> str:
-    """Render the delay-oriented ABC recipe for one clock period."""
+def _abc_command_comment(command: str) -> str:
+    """Explain one generated ABC command in plain synthesis terms."""
 
-    return "\n".join(
-        [
-            f"# DELAY-oriented ABC script (portable) - target {clk_ns} ns",
-            "strash",
-            "balance",
-            "rewrite",
-            "refactor",
-            "rewrite -z",
-            "balance",
-            "dch",
-            "# retime -o",
-            "map",
-            "topo",
-            "upsize -c",
-            "buffer -c",
-            "stime -p",
-            "print_stats -m",
-            "",
-        ]
-    )
+    if command == "strash":
+        return "Convert the current logic network to a structurally hashed AIG."
+    if command == "dch":
+        return "Compute don't-care information so later optimization can simplify more logic."
+    if command == "balance":
+        return "Balance AIG depth to shorten long Boolean logic chains."
+    if command == "rewrite":
+        return "Rewrite local AIG cones to reduce logic while preserving function."
+    if command == "rewrite -z":
+        return "Rewrite again allowing zero-cost moves that can expose later improvements."
+    if command == "refactor":
+        return "Refactor larger logic cones into alternative equivalent structures."
+    if command.startswith("resub -K "):
+        return "Resubstitute logic using bounded cuts to remove redundant nodes."
+    if command == "map -a":
+        return "Map to standard cells with area as the primary optimization objective."
+    if command.startswith("map -B "):
+        return "Map to standard cells with an explicit delay-weight bias."
+    if command.startswith("map -D "):
+        return "Map to standard cells against the explicit delay target in picoseconds."
+    if command == "topo":
+        return "Recompute topological order before timing-driven sizing and buffering."
+    if command == "stime -c":
+        return "Recompute mapped-network timing using the active library constraints."
+    if command.startswith("buffer -c -N "):
+        return "Insert timing-aware buffers and cap each buffered branch at the requested fanout."
+    if command == "upsize -c":
+        return "Upsize timing-critical cells while honoring the active constraints."
+    if command.startswith("upsize "):
+        return "Upsize timing-critical cells toward the explicit delay target in picoseconds."
+    if command == "dnsize -c":
+        return "Recover area by downsizing cells while honoring the active constraints."
+    if command.startswith("dnsize "):
+        return "Recover area while preserving the explicit delay target in picoseconds."
+    if command == "stime -p":
+        return "Print final mapped timing so the synthesis log records the achieved delay."
+    if command == "print_stats -m":
+        return "Print final mapped network statistics for area/profile comparison."
+    return f"Run ABC command: {command}."
+
+
+def abc_script(profile: str, clk_ns: float) -> str:
+    """Render one self-documenting ABC optimization profile.
+
+    Yosys substitutes ``{D}`` only in its built-in ABC command strings. Custom
+    ``-script <file>`` recipes are sourced by ABC as ordinary files, so FlexSoC
+    writes the numeric picosecond target directly into delay-oriented commands.
+    """
+
+    profile = _validate_profile(profile)
+    delay_ps = int(round(clk_ns * 1000.0))
+    recipes: dict[str, tuple[str, ...]] = {
+        "area0": (
+            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
+            "balance", "dch", "map -a", "topo", "dnsize -c",
+        ),
+        "area1": (
+            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
+            "balance", "rewrite", "refactor", "rewrite -z", "dch",
+            "map -a", "topo", "dnsize -c",
+        ),
+        "area2": (
+            "strash", "dch", "balance", "resub -K 6", "rewrite", "refactor",
+            "resub -K 8", "rewrite -z", "balance", "dch", "map -a", "topo",
+            "buffer -c -N 32", "dnsize -c",
+        ),
+        "area3": (
+            "strash", "dch", "map -B 0.9", "topo", "stime -c",
+            "buffer -c -N 24", "upsize -c", "dnsize -c",
+        ),
+        "delay0": (
+            "strash", "balance", "rewrite", "refactor", "rewrite -z", "balance",
+            "dch", f"map -D {delay_ps}", "topo", f"upsize {delay_ps}",
+        ),
+        "delay1": (
+            "strash", "dch", "balance", "rewrite", "refactor", "dch",
+            f"map -D {delay_ps}", "topo", "buffer -c -N 32",
+            f"upsize {delay_ps}", f"dnsize {delay_ps}",
+        ),
+        "delay2": (
+            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
+            "balance", "dch", f"map -D {delay_ps}", "topo", "stime -c",
+            "buffer -c -N 32", f"upsize {delay_ps}",
+        ),
+        "delay3": (
+            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
+            "balance", "rewrite", "refactor", "dch", f"map -D {delay_ps}", "topo",
+            "stime -c", "buffer -c -N 24", f"upsize {delay_ps}", f"dnsize {delay_ps}",
+        ),
+        "delay4": (
+            "strash", "dch", "balance", "rewrite", "refactor", "rewrite -z",
+            "balance", "rewrite", "refactor", "rewrite -z", "dch",
+            f"map -D {delay_ps}", "topo", "stime -c", "buffer -c -N 16",
+            f"upsize {delay_ps}",
+        ),
+    }
+    title = profile.upper().replace("AREA", "AREA ").replace("DELAY", "DELAY ")
+    lines = [
+        f"# {title} ABC profile",
+        f"# Clock target: {clk_ns:g} ns ({delay_ps} ps).",
+    ]
+    for command in (*recipes[profile], "stime -p", "print_stats -m"):
+        lines.extend((f"# {_abc_command_comment(command)}", command))
+    return "\n".join((*lines, ""))
 
 
 def render_abc_constraints(driving_cell: str = "", load: float = 10.0) -> str:
@@ -120,10 +196,10 @@ def render_abc_constraints(driving_cell: str = "", load: float = 10.0) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _abc_script_name(opt: str) -> str | None:
-    """Return the ABC script file name selected by an optimization mode."""
+def _abc_script_name(opt: str) -> str:
+    """Return the ABC script file name selected by a synthesis profile."""
 
-    return {"area": "area.abc", "delay": "delay.abc"}.get(opt)
+    return f"{_validate_profile(opt)}.abc"
 
 
 def _abc_constraint_arg(cfg: SynthesisConfig) -> str:
@@ -132,24 +208,18 @@ def _abc_constraint_arg(cfg: SynthesisConfig) -> str:
     return f"\n    -constr {pjoin(cfg.output, 'abc.constr')}"
 
 
-def render_abc_command(cfg: SynthesisConfig, script_name: str | None) -> str:
+def render_abc_command(cfg: SynthesisConfig, script_name: str) -> str:
     """Render the ABC command for one ASIC synthesis script."""
 
     if cfg.liberty is None:
         raise ValueError("ASIC synthesis requires a Liberty file.")
 
-    if script_name is None:
-        delay_ps = int(round(cfg.clk_period_ns * 1000.0))
-        return f"abc -keepff -D {delay_ps} -liberty {cfg.liberty.as_posix()}"
-
+    _validate_profile(cfg.opt)
     base = f"abc -keepff -liberty {cfg.liberty.as_posix()}"
-    if cfg.opt == "delay":
-        delay_ps = int(round(cfg.clk_period_ns * 1000.0))
-        base = f"abc -keepff -D {delay_ps} -liberty {cfg.liberty.as_posix()}"
     return f"{base} -script {pjoin(cfg.output, script_name)} \\" + _abc_constraint_arg(cfg)
 
 
-def _asic_tail(cfg: SynthesisConfig, script_name: str | None) -> list[str]:
+def _asic_tail(cfg: SynthesisConfig, script_name: str) -> list[str]:
     """Return shared ASIC mapping, cleanup, and output commands."""
 
     if cfg.liberty is None:
@@ -218,18 +288,19 @@ def yosys_synth_asic_verilog(
 ) -> str:
     """Render a Verilog-only ASIC Yosys script."""
 
+    profile = _validate_profile(opt)
     cfg = SynthesisConfig(
-        top, topdir, "asic", clk_ns, outdir, liberty, sdcdir, opt,
+        top, topdir, "asic", clk_ns, outdir, liberty, sdcdir, profile,
         tie_hi=tie_hi, tie_lo=tie_lo, min_buffer=min_buffer,
     )
-    script_name = _abc_script_name(opt)
+    script_name = _abc_script_name(profile)
     lines = [
         "# read target standard cells as library modules for mapped-cell pin directions",
         f"read_liberty -overwrite -setattr liberty_cell -lib {liberty.as_posix()}",
         "# read files",
         f"read_verilog {pjoin(topdir, top + '.v')}",
         "# basic synth",
-        f"synth -top {top}" + (" -noabc" if opt in {"area", "delay"} else ""),
+        f"synth -top {top} -noabc",
         f"show -width -format dot -prefix {pjoin(outdir, 'plots', top + '_postsyn')}",
         *_asic_tail(cfg, script_name),
     ]
@@ -251,11 +322,12 @@ def yosys_synth_asic_slang(
 ) -> str:
     """Render a SystemVerilog ASIC Yosys script through slang."""
 
+    profile = _validate_profile(opt)
     cfg = SynthesisConfig(
-        top, Path("rtl"), "asic", clk_ns, outdir, liberty, sdcdir, opt, tuple(filelists),
+        top, Path("rtl"), "asic", clk_ns, outdir, liberty, sdcdir, profile, tuple(filelists),
         tie_hi=tie_hi, tie_lo=tie_lo, min_buffer=min_buffer,
     )
-    script_name = _abc_script_name(opt)
+    script_name = _abc_script_name(profile)
     lines = [
         "# read target standard cells as library modules for mapped-cell pin directions",
         f"read_liberty -overwrite -setattr liberty_cell -lib {liberty.as_posix()}",
@@ -270,7 +342,7 @@ def yosys_synth_asic_slang(
         f"           --top {top}",
         "",
         "# basic synth",
-        f"synth -top {top}" + (" -noabc" if opt in {"area", "delay"} else ""),
+        f"synth -top {top} -noabc",
         *_asic_tail(cfg, script_name),
     ]
     return _rewrite_hw_ip_include_paths("\n".join(lines))
@@ -333,17 +405,14 @@ def generate_synthesis_scripts(cfg: SynthesisConfig) -> tuple[Path, ...]:
     if cfg.target == "asic":
         if cfg.liberty is None:
             raise ValueError("For target=asic you must provide a Liberty file.")
-        if cfg.opt == "area":
-            written.append(write_text(cfg.output / "area.abc", abc_script_area()))
-        elif cfg.opt == "delay":
-            written.append(write_text(cfg.output / "delay.abc", abc_script_delay(cfg.clk_period_ns)))
-        if cfg.opt in {"area", "delay"}:
-            written.append(
-                write_text(
-                    cfg.output / "abc.constr",
-                    render_abc_constraints(os.environ.get("FLEXSOC_DRIVING_CELL", "")),
-                )
+        profile = _validate_profile(cfg.opt)
+        written.append(write_text(cfg.output / f"{profile}.abc", abc_script(profile, cfg.clk_period_ns)))
+        written.append(
+            write_text(
+                cfg.output / "abc.constr",
+                render_abc_constraints(os.environ.get("FLEXSOC_DRIVING_CELL", "")),
             )
+        )
         written.append(write_text(
             cfg.output / "synth.ys",
             yosys_synth_asic_verilog(
@@ -388,7 +457,7 @@ class SynthesisFlow:
         liberty: Path,
         clk_period_ns: float,
         output: Path,
-        opt: str = "area",
+        opt: str = "area0",
         filelists: Sequence[Path] = (Path("rtl_common.f"), Path("rtl_ip.f")),
         tie_hi: tuple[str, str] | None = None,
         tie_lo: tuple[str, str] | None = None,
@@ -472,7 +541,7 @@ class SynthesisFlow:
         output: Path,
         top: str,
         log_dir: Path,
-        opt: str = "area",
+        opt: str = "area0",
         yosys: str = "yosys",
         systemverilog: bool = True,
         on: str = "local",

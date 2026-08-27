@@ -1633,7 +1633,8 @@ def show_metrics(path: Path) -> None:
             normalized = str(state).upper()
             action = (
                 f"fx validate_override --set STAGE={stage}" if normalized == "MODIFIED"
-                else "rerun setup" if normalized in {"STALE", "INVALID"}
+                else f"fx {stage}" if normalized == "STALE"
+                else f"repair inputs; fx {stage}" if normalized == "INVALID"
                 else "accepted for current lineage" if normalized == "VALIDATED_OVERRIDE"
                 else "-"
             )
@@ -2018,7 +2019,22 @@ class Provenance:
 
         state = self.state(stage, inputs=inputs, config=config, parents=parents)
         if state != "MODIFIED":
-            raise ValueError(f"{stage}: override cannot be validated from state {state}")
+            if state == "STALE":
+                raise ValueError(
+                    f"{stage}: provenance is STALE; source, configuration, or parent lineage changed. "
+                    f"Rerun `fx {stage}` with the intended effective settings; for a multi-command "
+                    "flow persist them with `fx settings ...`. validate_override is only for manually "
+                    "MODIFIED generated collateral."
+                )
+            if state == "INVALID":
+                raise ValueError(
+                    f"{stage}: provenance is INVALID; required inputs, generated files, or provenance "
+                    f"metadata are missing/inconsistent. Rerun `fx {stage}` after repairing the inputs."
+                )
+            raise ValueError(
+                f"{stage}: override cannot be validated from state {state}; "
+                "validate_override only accepts MODIFIED generated collateral."
+            )
         data = self._load()
         record = data["stages"][stage]
         for item in record["generated"]:

@@ -423,11 +423,39 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     assert calls == ["syn", "eqy"]
 
 
-def test_delay_synthesis_uses_timing_oriented_abc_recipe() -> None:
-    script = setup_syn_module.abc_script_delay(10.0)
-    assert "upsize -c" in script
-    assert "buffer -c" in script
-    assert "dnsize -c" not in script
+def test_synthesis_profiles_cover_area_delay_tradeoffs() -> None:
+    assert setup_syn_module.SYNTHESIS_PROFILES == (
+        "area0", "area1", "area2", "area3",
+        "delay0", "delay1", "delay2", "delay3", "delay4",
+    )
+    assert "map -a" in setup_syn_module.abc_script("area0", 10.0)
+    assert "buffer -c -N 24" in setup_syn_module.abc_script("area3", 10.0)
+    assert "buffer -c -N 32" in setup_syn_module.abc_script("delay2", 10.0)
+    delay4 = setup_syn_module.abc_script("delay4", 10.0)
+    assert "buffer -c -N 16" in delay4
+    assert "map -D 10000" in delay4
+    assert "upsize 10000" in delay4
+    assert "{D}" not in delay4
+    assert "dnsize -c" not in delay4
+    for profile in setup_syn_module.SYNTHESIS_PROFILES:
+        lines = [
+            line for line in setup_syn_module.abc_script(profile, 10.0).splitlines()
+            if line
+        ]
+        assert "{D}" not in "\n".join(lines)
+        for index, line in enumerate(lines):
+            if not line.startswith("#"):
+                assert index > 0 and lines[index - 1].startswith("#")
+    cfg = setup_syn_module.SynthesisConfig(
+        top="demo", topdir=Path("rtl"), target="asic", clk_period_ns=10.0,
+        liberty=Path("cells.lib"), opt="delay4",
+    )
+    command = setup_syn_module.render_abc_command(cfg, "delay4.abc")
+    assert "abc -keepff -liberty cells.lib" in command
+    assert "abc -keepff -D" not in command
+    assert "-script syn/delay4.abc" in command
+    with pytest.raises(ValueError, match="TARGET_OPT must be one of"):
+        setup_syn_module.abc_script("delay", 10.0)
 
 
 def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
@@ -444,7 +472,7 @@ def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp
         tie_lo=("TIELO", "Y"),
         min_buffer=("BUF", "A", "Y"),
     )
-    assert cfg.opt == "area"
+    assert cfg.opt == "area0"
     script = setup_syn_module.yosys_synth_asic_verilog(
         cfg.top, cfg.topdir, liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
         tie_hi=cfg.tie_hi, tie_lo=cfg.tie_lo, min_buffer=cfg.min_buffer,
@@ -460,6 +488,7 @@ def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp
     assert "insbuf -buf BUF A Y" in script
     assert "check -assert -mapped" in script
     assert "write_verilog -nohex -nodec" in script
+    assert "area0.abc" in script
 
 
 def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
@@ -1158,8 +1187,22 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
     (synth / f"{top}_generic.il").write_text("checkpoint\n", encoding="utf-8")
     sdc = signoff / f"{top}.sdc"
     sdc.write_text("create_clock -period 10 clk_i\n", encoding="utf-8")
-    (signoff / "sta").mkdir()
-    (signoff / "sta/sta.tcl").write_text("# sta\n", encoding="utf-8")
+    canonical_tcl = (
+        "sta/sta.tcl",
+        "sdf/write_sdf.tcl",
+        "power/estimate/power_estimate.tcl",
+        "power/analysis/power_analysis.tcl",
+        "fusion/fusion_analysis.tcl",
+    )
+    for relative in canonical_tcl:
+        path = signoff / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# canonical {relative}\n", encoding="utf-8")
+    runtime_tcl = signoff / "sta/ss/setup/sta.tcl"
+    runtime_tcl.parent.mkdir(parents=True)
+    runtime_tcl.write_text("# runtime copy\n", encoding="utf-8")
+    runtime_report = signoff / "sta/ss/setup/timing.rpt"
+    runtime_report.write_text("wns 0.1\n", encoding="utf-8")
     config = eqy / f"{top}_rtl_vs_syn.eqy"
     view = eqy / f"{top}_eqy_view.sv"
     config.write_text("[gold]\n", encoding="utf-8")
@@ -1193,6 +1236,14 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
     )
     assert not (saved / "impl" / pdk).exists()
     assert not (saved / "syn" / pdk / f"{top}_generic.il").exists()
+    saved_signoff = saved / "signoff" / pdk
+    saved_tcl = {
+        path.relative_to(saved_signoff).as_posix()
+        for path in saved_signoff.rglob("*.tcl")
+    }
+    assert saved_tcl == set(canonical_tcl)
+    assert not (saved_signoff / "sta/ss/setup/sta.tcl").exists()
+    assert (saved_signoff / "sta/ss/setup/timing.rpt").is_file()
 
     implementation = run / "impl" / pdk
     implementation.mkdir(parents=True)
@@ -1216,6 +1267,33 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
         force=True,
     )
     assert (saved / "impl" / pdk / "config.mk").is_file()
+    stale_runtime = saved / "signoff" / pdk / "fusion/stale/setup/fusion_analysis.tcl"
+    stale_runtime.parent.mkdir(parents=True)
+    stale_runtime.write_text("# stale runtime copy\n", encoding="utf-8")
+    flow.save(
+        ip_name=top,
+        top=top,
+        pdk=pdk,
+        library_root=library,
+        synth_dir=synth,
+        signoff_dir=signoff,
+        sdc_file=sdc,
+        eqy_config=config,
+        eqy_view=view,
+        filelists=(flist,),
+        netlist=synth / f"{top}_synth.v",
+        liberty=liberty,
+        cell_models=(model,),
+        clock_gate_model=gate,
+        impl_dir=implementation,
+        force=True,
+    )
+    assert not stale_runtime.exists()
+    saved_tcl = {
+        path.relative_to(saved_signoff).as_posix()
+        for path in saved_signoff.rglob("*.tcl")
+    }
+    assert saved_tcl == set(canonical_tcl)
 
     e2e = (ROOT / "tests/test_e2e_fx.py").read_text(encoding="utf-8")
     assert 'for target in ("power_analysis", "fusion_analysis")' in e2e
@@ -1225,6 +1303,7 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
     assert "E2E ip_save must not write repository IPs" in e2e
     assert e2e.count("IP_LIBRARY_ROOT={saved_library_arg}") == e2e.count("fx ip_save")
     assert e2e.count("fx ip_save --force") == e2e.count("fx ip_save")
+    assert 'os.environ.get("FLEXSOC_E2E_TARGET_OPT", "delay1")' in e2e
     assert "fx power_analysis --no-setup" not in e2e
     assert "fx fusion_analysis --no-setup" not in e2e
 
@@ -1326,6 +1405,17 @@ def test_cli_dedicated_help_aliases_and_signoff_selectors(
     assert app(["pdk", "--help"]) == 0
     pdk_help = capsys.readouterr().out
     assert "fx pdk list" in pdk_help and "fx pdk use sky130" in pdk_help
+
+    assert app(["validate_override", "--help"]) == 0
+    provenance_help = capsys.readouterr().out
+    assert "MODIFIED" in provenance_help
+    assert "STALE" in provenance_help and "Rerun the setup target" in provenance_help
+    assert "change TARGET_OPT" in provenance_help
+
+    assert app(["syn", "--help"]) == 0
+    syn_help = capsys.readouterr().out
+    assert "fx syn --set TARGET_OPT=delay1" in syn_help
+    assert "--no-setup" in syn_help and "STALE" in syn_help
 
 
 def test_cli_settings_persist_reset_unset_and_derive_paths(
@@ -3936,12 +4026,10 @@ def test_provenance_derives_override_and_parent_lineage_states(tmp_path: Path) -
             "setup_signoff", inputs=(source,), config={"clock": "8"}
         )
     }
-    assert (
-        store.state(
-            "setup_syn", inputs=(source,), config={"opt": "area"}, parents=current_parent
-        )
-        == "STALE"
-    )
+    stale_args = dict(inputs=(source,), config={"opt": "area"}, parents=current_parent)
+    assert store.state("setup_syn", **stale_args) == "STALE"
+    with pytest.raises(ValueError, match=r"provenance is STALE.*Rerun `fx setup_syn`"):
+        store.validate("setup_syn", **stale_args)
 
 
 def test_provenance_tracks_generated_symlink_binding_not_its_target(tmp_path: Path) -> None:
@@ -4001,7 +4089,10 @@ def test_router_provenance_guards_no_setup_without_regenerating(tmp_path: Path) 
     assert "local override" not in script.read_text(encoding="utf-8")
 
     source.write_text("module demo(input clk, input rst_n); endmodule\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="setup_cdc_rdc provenance is STALE"):
+    with pytest.raises(
+        RuntimeError,
+        match=r"setup_cdc_rdc provenance is STALE.*rerun `fx setup_cdc_rdc`",
+    ):
         no_setup._require_provenance("cdc_rdc")
 
 
