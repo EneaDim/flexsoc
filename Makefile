@@ -1,12 +1,10 @@
-# Root development Makefile
-#
-# Repository-level developer tasks only. Hardware flow execution lives in the Python backend and is normally reached
-# through the fx command; src/flexsoc/backend/Makefile is a compatibility shim.
+# FlexSoC development workflows.
+# Hardware lifecycle commands are executed with fx; this file groups common
+# repository setup, quality, test, and cleanup commands for contributors.
 
 .DEFAULT_GOAL := help
 
 UV ?= uv
-PYTHON ?= python3
 RUFF ?= ruff
 PYTEST ?= $(UV) run --no-sync pytest
 LINT_PATHS ?= src/flexsoc/api.py src/flexsoc/backend tests
@@ -26,6 +24,8 @@ help: ## Show this help
 		'  make doctor                            Check Python lock and local EDA tools' \
 		'  make check                             Run Ruff + full E2E closure' \
 		'  make test                              Run full E2E on sky130 + ihp-sg13g2' \
+		'  make test TESTS=cordic                 Run only the matching CORDIC E2E' \
+		'  make test TESTS="cordic uart"          Run only CORDIC + UART E2E' \
 		'  make test-smoke                        Run E2E without formal/synthesis/signoff' \
 		'  make test E2E_ROOT=~/flexsoc-e2e       Choose where E2E workspaces are created' \
 		'  make test E2E_ORS=~/OpenROAD-flow-scripts/flow  Select the ORFS flow root' \
@@ -45,7 +45,7 @@ sync: ## Install exactly the Python environment recorded in uv.lock
 	$(UV) sync --locked
 
 doctor: ## Check Python lock and local EDA tools
-	PYTHONPATH=src $(PYTHON) -m flexsoc doctor
+	$(UV) run --no-sync fx doctor
 
 venv: sync ## Create or update the local uv virtualenv
 
@@ -66,18 +66,23 @@ check: lint test ## Run Ruff + full E2E closure
 ##@ Tests
 # E2E is the default test surface. Shared RTL/DV/formal runs once, then every
 # test qualifies SKY130 and IHP. SIGNOFF=0 is an explicit smoke/debug opt-out.
-# The workspace
-# root can be moved outside /tmp when a run should be inspected or retained.
+# TESTS selects one or more E2E names by substring (for example: cordic uart).
+# The workspace root can be moved outside /tmp when a run should be inspected.
 .PHONY: test test-smoke test-api
 
 E2E_ROOT ?= /tmp
 E2E_ORS ?=
 SIGNOFF ?= 1
+TESTS ?=
+empty :=
+space := $(empty) $(empty)
+E2E_TEST_EXPR := $(subst $(space), or ,$(strip $(TESTS)))
+E2E_TEST_ARG := $(if $(strip $(TESTS)),-k "$(E2E_TEST_EXPR)",)
 E2E_SIGNOFF_ARG := $(if $(filter 1 true yes on,$(SIGNOFF)),,--no-signoff)
 E2E_ORS_ARG := $(if $(strip $(E2E_ORS)),--e2e-ors "$(E2E_ORS)",)
 
 test: ## Run full E2E closure on SKY130 and IHP (SIGNOFF=1, E2E_ROOT=/tmp)
-	$(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
+	$(PYTEST) -s -m e2e tests/test_e2e_fx.py $(E2E_TEST_ARG) $(E2E_SIGNOFF_ARG) $(E2E_ORS_ARG) --e2e-root "$(E2E_ROOT)"
 
 test-smoke: ## Run E2E without formal/synthesis/signoff
 	$(MAKE) test SIGNOFF=0 E2E_ROOT="$(E2E_ROOT)"
