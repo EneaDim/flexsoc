@@ -27,7 +27,6 @@ from flexsoc import (
     FlexSoCCommand,
     FlexSoCConfig,
     FlexSoCResult,
-    FlexSoCTarget,
     FlexSoCTargetInfo,
 )
 from flexsoc.api import (
@@ -60,7 +59,6 @@ from flexsoc.backend.signoff.gls import _cocotb_wrapper, execute_all
 from flexsoc.backend.dv.testbench import (
     CocotbConfig,
     cocotb_reg_driver_py_text,
-    cocotb_vec_driver_py_text,
     render_gls_make_block,
     render_reg_driver_py,
     render_tlul_interface,
