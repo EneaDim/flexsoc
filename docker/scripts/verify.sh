@@ -42,13 +42,13 @@ docker run --rm \
     echo
     echo "===== Commands ====="
 
-    command -v yosys
-    command -v verilator
-    command -v iverilog
-    command -v sby
-    command -v sv2v
-    command -v openroad
-    command -v klayout
+    for command_name in \
+      slang slang-hier verilator \
+      bitwuzla boolector btormc btorsim eqy sby yosys \
+      fst2vcd gtkwave iverilog surfer sv2v \
+      openroad sta klayout; do
+      command -v "$command_name"
+    done
 
     echo
     echo "===== Physical implementation ====="
@@ -78,8 +78,13 @@ docker run --rm \
     test -s /opt/flexsoc/toolchain/.flexsoc/orfs.ref
     openroad_ref=$(cat /opt/flexsoc/toolchain/.flexsoc/openroad.ref)
     orfs_ref=$(cat /opt/flexsoc/toolchain/.flexsoc/orfs.ref)
-    case "$openroad_ref" in "$OPENROAD_REF_PREFIX"*) ;; *) echo "OpenROAD ref mismatch: $openroad_ref" >&2; exit 2 ;; esac
-    case "$orfs_ref" in "$ORFS_REF_PREFIX"*) ;; *) echo "ORFS ref mismatch: $orfs_ref" >&2; exit 2 ;; esac
+    test "$openroad_ref" = "$OPENROAD_REF_PREFIX" || { echo "OpenROAD ref mismatch: $openroad_ref" >&2; exit 2; }
+    test "$orfs_ref" = "$ORFS_REF_PREFIX" || { echo "ORFS ref mismatch: $orfs_ref" >&2; exit 2; }
+    openroad_version=$(openroad -version 2>&1)
+    [[ "$openroad_version" == *"${OPENROAD_REF_PREFIX:0:10}"* ]] || {
+      echo "OpenROAD version does not identify locked ref: $openroad_version" >&2
+      exit 2
+    }
     printf 'OpenROAD ref: %s\nORFS ref:     %s\n' "$openroad_ref" "$orfs_ref"
 
     echo

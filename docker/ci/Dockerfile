@@ -169,6 +169,8 @@ RUN --mount=from=implementation-builder,source=/,target=/mnt/implementation,ro \
       for soname in $missing; do \
         source=; \
         for directory in \
+          /mnt/implementation/opt/or-tools/lib \
+          /mnt/implementation/opt/or-tools/lib64 \
           /mnt/implementation/opt/openroad-deps/lib \
           /mnt/implementation/opt/openroad-deps/lib64 \
           /mnt/implementation/usr/local/lib \
@@ -240,7 +242,7 @@ ENV DEPS_MODE=system \
     PYTHON_EXE=/usr/bin/python3 \
     VIRTUAL_ENV=/opt/flexsoc-venv \
     PATH=/opt/flexsoc/toolchain/bin:/opt/flexsoc-venv/bin:/opt/uv/bin:${PATH} \
-    LD_LIBRARY_PATH=/opt/flexsoc/toolchain/lib:/opt/flexsoc/toolchain/lib64 \
+    LD_LIBRARY_PATH=/opt/flexsoc/toolchain/lib/openroad:/opt/flexsoc/toolchain/lib:/opt/flexsoc/toolchain/lib64 \
     CMAKE_PREFIX_PATH=/opt/flexsoc/toolchain \
     PKG_CONFIG_PATH=/opt/flexsoc/toolchain/lib/pkgconfig:/opt/flexsoc/toolchain/lib64/pkgconfig:/opt/flexsoc/toolchain/share/pkgconfig \
     PYTHONUNBUFFERED=1 \

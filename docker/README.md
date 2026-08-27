@@ -6,14 +6,16 @@ Python dependencies required by the project.
 Image creation and project testing are intentionally separated:
 
 ```text
-Manual image workflow:
-build → verify locked versions/capabilities → publish → generate/commit image.lock → dispatch CI
+Toolchain gate:
+validate frozen image → build/verify/publish only when stale → dispatch CI
 
 Project CI:
 checkout commit → validate/pull locked image → mount source code → make lint/test
 ```
 
-The Docker image workflow does not run the FlexSoC pytest suite.
+The Docker workflow validates only the EDA/runtime environment. It never runs
+the FlexSoC project test suite. Once the frozen image is current, normal pushes
+reuse its immutable digest and go directly to `ci.yml`.
 
 ---
 
@@ -103,6 +105,26 @@ Contains shared functions for:
 
 ---
 
+
+### GitHub-hosted build cache
+
+The manual image workflow logs in to GHCR and uses a dedicated BuildKit registry
+cache. A full build first persists the expensive `toolchain-installed` stage,
+then builds OpenROAD/ORFS and the final runtime image from that cache. If a later
+OpenROAD step fails, a retry does not need to rebuild the already completed base
+toolchain from source.
+
+The cache is an optimization only. `image.lock` still records the verified
+runtime image by immutable digest and remains the authority used by project CI.
+
+### OpenROAD runtime closure
+
+The pinned OpenROAD dependency installer keeps OR-Tools and its matching Abseil
+runtime in a dedicated `/opt/or-tools` prefix. The final FlexSoC image copies the
+shared libraries required by `openroad` into the private toolchain runtime path
+and verifies the result with `ldd`. This avoids depending on build-only paths in
+the final image.
+
 ### ORFS / KLayout compatibility contract
 
 The implementation image treats the selected ORFS checkout as the authority for
@@ -124,26 +146,58 @@ The image workflow is defined in:
 .github/workflows/toolchain-image.yml
 ```
 
-It is manual-only:
+It is the **toolchain gate** for `main` and is also available manually:
 
 ```yaml
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 ```
 
-It is not triggered by normal source-code pushes or pull requests.
+Its only responsibility is the Docker/EDA environment. It does **not** run the
+FlexSoC project test suite.
 
-The workflow executes:
+For every push to `main` it first checks:
+
+1. whether `docker/ci/image.lock` matches the current image inputs;
+2. whether the immutable `repository@sha256:digest` still exists on GHCR.
+
+If both checks pass, the toolchain is already frozen:
 
 ```text
 checkout
-→ build.sh
-→ verify.sh
-→ publish.sh
-→ upload image.lock
-→ commit image.lock on the selected branch
-→ dispatch ci.yml on that branch
+→ validate image.lock
+→ verify frozen digest exists on GHCR
+→ no build
+→ no image verification rerun
+→ dispatch ci.yml
 ```
+
+This is the normal path for source-only FlexSoC changes.
+
+If the lock is stale, missing, or the frozen digest is unavailable, the workflow
+refreshes the toolchain:
+
+```text
+checkout
+→ build Docker toolchain
+→ verify tool versions/capabilities
+→ publish runtime image
+→ resolve immutable digest
+→ update + commit image.lock
+→ dispatch ci.yml
+```
+
+The image is therefore built only when one of its declared inputs changes. A
+normal push does not rebuild Yosys, Verilator, OpenROAD, etc.
+
+`workflow_dispatch` also provides `force_rebuild=true` for an explicit rebuild
+of the same input set, plus the optional `checkpoint_ref` used to resume from an
+installed checkpoint.
+
+GitHub BuildKit registry cache is used only when a build is actually necessary,
+so a failed long OpenROAD build can reuse completed layers on the next attempt.
 
 ### Building from an existing checkpoint
 
@@ -164,7 +218,7 @@ The checkpoint image ends with:
 -installed
 ```
 
-The final runtime image does not:
+The final frozen runtime image does not:
 
 ```text
 ghcr.io/eneadim/flexsoc/flexsoc-ci:toolchain-<inputs-hash>
@@ -180,29 +234,37 @@ The project CI workflow is defined in:
 .github/workflows/ci.yml
 ```
 
-It is triggered by:
-
-- a push to `main`;
-- a pull request;
-- a manual workflow dispatch.
+On `main`, `ci.yml` is dispatched **only after the toolchain gate is green**.
+It is also available directly for pull requests and manual runs.
 
 The workflow executes:
 
 ```text
-checkout the requested commit
-→ read and validate image.lock
-→ pull the image by immutable digest
+checkout requested branch/commit
+→ validate image.lock
+→ pull repository@immutable-digest
 → mount the repository at /workspace
-→ install the current source tree
-→ run Ruff and pytest
+→ install the current FlexSoC source tree
+→ run Ruff / API / E2E tests
 ```
 
-The source code is not permanently copied into the Docker image.
+Toolchain creation and project testing stay separate:
 
-GitHub Actions checks out the exact commit being tested, and `run-ci.sh` mounts
-that checkout into the container.
+```text
+main push
+   ↓
+toolchain-image.yml
+   ├─ frozen image current → no-op
+   └─ toolchain changed    → build + verify + freeze
+   ↓
+ci.yml
+   ↓
+all FlexSoC tests inside the frozen image
+```
 
-No `git pull` is performed inside the container.
+The source code is not permanently copied into the Docker image. GitHub Actions
+checks out the current FlexSoC source and `run-ci.sh` mounts it into the frozen
+environment. No `git pull` is performed inside the container.
 
 ---
 
@@ -214,9 +276,7 @@ The file:
 docker/ci/image.lock
 ```
 
-records the final image using its immutable registry digest.
-
-Example:
+records the final verified image by immutable registry digest:
 
 ```text
 schema=1
@@ -226,20 +286,13 @@ tag=toolchain-<short-input-hash>
 digest=sha256:<registry-digest>
 ```
 
-The tag is useful for humans, but CI uses:
+The human-readable tag is not the CI contract. Project CI consumes:
 
 ```text
 repository@sha256:digest
 ```
 
-This ensures that CI always uses the exact image that was verified and
-published.
-
-Whenever one of the image inputs changes, CI rejects the stale lock. Run the
-manual toolchain-image workflow with `publish=true`; it publishes the runtime
-image, commits the new `image.lock`, and dispatches CI on the same branch.
-
-The image inputs are:
+The image inputs are intentionally narrow:
 
 ```text
 docker/ci/Dockerfile
@@ -250,8 +303,10 @@ pyproject.toml
 uv.lock
 ```
 
-Ordinary changes to FlexSoC source files or tests do not require rebuilding the
-Docker image.
+Changes to normal FlexSoC Python/RTL/test sources therefore do not rebuild the
+EDA image. Changes to the Docker environment, locked tool versions, or Python
+runtime dependencies invalidate the lock and cause one new frozen image to be
+built.
 
 ---
 

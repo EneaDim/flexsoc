@@ -50,6 +50,16 @@ build_args=(
   --build-arg "SOURCE_URL=$source_url"
 )
 
+cache_args=()
+cache_ref=${BUILDX_CACHE_REF:-}
+if [[ -n "$cache_ref" ]]; then
+  printf 'Build cache:\n  %s\n' "$cache_ref"
+  cache_args+=(
+    --cache-from "type=registry,ref=$cache_ref"
+    --cache-to "type=registry,ref=$cache_ref,mode=max"
+  )
+fi
+
 runtime_context=()
 external_checkpoint=${TOOLCHAIN_CHECKPOINT_IMAGE:-}
 complete_checkpoint=0
@@ -80,10 +90,20 @@ if (( complete_checkpoint )); then
   docker image tag "$external_checkpoint" "$checkpoint_ref"
   docker image tag "$external_checkpoint" "$registry_checkpoint"
 else
+  if [[ -n "$cache_ref" ]]; then
+    printf 'Persisting base toolchain cache before the OpenROAD build.\n'
+    docker buildx build \
+      "${build_args[@]}" \
+      "${cache_args[@]}" \
+      --target toolchain-installed \
+      "$REPO_ROOT"
+  fi
+
   printf 'Building implementation checkpoint:\n  %s\n' "$checkpoint_ref"
 
   docker buildx build \
     "${build_args[@]}" \
+    "${cache_args[@]}" \
     "${runtime_context[@]}" \
     --target implementation-installed \
     --load \
@@ -111,6 +131,7 @@ printf 'Building runtime image:\n  %s\n' "$local_ref"
 
 docker buildx build \
   "${build_args[@]}" \
+  "${cache_args[@]}" \
   "${runtime_context[@]}" \
   --target runtime \
   --load \

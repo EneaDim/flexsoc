@@ -1,10 +1,12 @@
 name: FlexSoC toolchain image
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
-      publish:
-        description: Push the verified image to GHCR, commit image.lock, and dispatch CI
+      force_rebuild:
+        description: Rebuild even when the frozen image is already current
         required: true
         type: boolean
         default: false
@@ -32,7 +34,48 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check frozen toolchain image
+        id: frozen
+        shell: bash
+        env:
+          FORCE_REBUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.force_rebuild || false }}
+        run: |
+          current=false
+          image_ref=
+
+          if [[ "$FORCE_REBUILD" != true ]]; then
+            if image_ref=$(bash -lc 'source docker/scripts/common.sh; validate_lock' 2>/tmp/flexsoc-lock-error); then
+              if docker buildx imagetools inspect "$image_ref" >/dev/null 2>&1; then
+                current=true
+              else
+                echo "Frozen image is missing from GHCR: $image_ref"
+              fi
+            else
+              cat /tmp/flexsoc-lock-error || true
+            fi
+          fi
+
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+
+          if [[ "$current" == true ]]; then
+            echo "Toolchain image is already frozen and current: $image_ref"
+          else
+            echo "Toolchain image refresh required."
+          fi
+
       - name: Free runner disk space
+        if: steps.frozen.outputs.current != 'true'
         run: |
           sudo rm -rf \
             /usr/local/lib/android \
@@ -43,37 +86,37 @@ jobs:
           docker system prune --all --force || true
 
       - name: Show runner resources
+        if: steps.frozen.outputs.current != 'true'
         run: |
           df -h
           free -h
           docker system df
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+      - name: Configure registry build cache
+        if: steps.frozen.outputs.current != 'true'
+        shell: bash
+        run: |
+          cache_ref=$(bash -lc 'source docker/scripts/common.sh; printf "%s:buildcache\n" "$(registry_repository)"')
+          echo "BUILDX_CACHE_REF=$cache_ref" >> "$GITHUB_ENV"
+          echo "Build cache: $cache_ref"
 
-      - name: Log in to GHCR
-        if: inputs.publish || inputs.checkpoint_ref != ''
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build image
+      - name: Build toolchain image
+        if: steps.frozen.outputs.current != 'true'
         env:
           FLEXSOC_JOBS: "2"
           TOOLCHAIN_CHECKPOINT_IMAGE: ${{ inputs.checkpoint_ref }}
         run: docker/scripts/build.sh
 
-      - name: Verify image
+      - name: Verify toolchain image
+        if: steps.frozen.outputs.current != 'true'
         run: docker/scripts/verify.sh
 
-      - name: Publish image
-        if: inputs.publish
+      - name: Publish and freeze toolchain image
+        if: steps.frozen.outputs.current != 'true'
         run: docker/scripts/publish.sh
 
       - name: Upload image lock
-        if: inputs.publish
+        if: steps.frozen.outputs.current != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: flexsoc-ci-image-lock
@@ -81,7 +124,7 @@ jobs:
           if-no-files-found: error
 
       - name: Commit image lock
-        if: inputs.publish && github.ref_type == 'branch'
+        if: steps.frozen.outputs.current != 'true' && github.ref_type == 'branch'
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
@@ -100,8 +143,8 @@ jobs:
             git push origin "HEAD:$BRANCH"
           fi
 
-      - name: Run CI on locked image
-        if: inputs.publish && github.ref_type == 'branch'
+      - name: Dispatch project CI on frozen image
+        if: github.ref_type == 'branch'
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
