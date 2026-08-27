@@ -11,19 +11,43 @@ from pathlib import Path
 from time import monotonic
 from typing import Any, Callable, Mapping, Protocol, TextIO
 
+from pygments.style import Style
+from pygments.token import Comment, Keyword, Name, Number, Operator, Punctuation, String, Text
 from rich.console import Console
-from rich.syntax import Syntax
+from rich.syntax import PygmentsSyntaxTheme, Syntax
 
 
 _ANSI = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 _ORANGE = "\x1b[38;5;208m"
-_BLUE = "\x1b[94m"
+_CYAN = "\x1b[38;5;81m"
+_BLUE = "\x1b[38;5;117m"
+_PALE_BLUE = "\x1b[38;5;153m"
 _GREEN = "\x1b[92m"
 _YELLOW = "\x1b[93m"
 _RED = "\x1b[91m"
-_GRAY = "\x1b[90m"
 _RESET = "\x1b[0m"
 _STRUCTURED = re.compile(r"^\s*\[(log|script|report|technology)\]\s*(.*?)(?:\r?\n)?$")
+
+
+class _FlexSoCTclStyle(Style):
+    """Readable Tcl palette aligned with the FlexSoC CLI."""
+
+    background_color = None
+    styles = {
+        Text: "#d7e3f4",
+        Comment: "italic #87a7c4",
+        Keyword: "bold #5fd7ff",
+        Name: "#87d7ff",
+        Name.Builtin: "bold #87afff",
+        Name.Variable: "#87d7ff",
+        String: "#ffaf5f",
+        Number: "#5fd7ff",
+        Operator: "#87afff",
+        Punctuation: "#d7e3f4",
+    }
+
+
+_TCL_THEME = PygmentsSyntaxTheme(_FlexSoCTclStyle)
 
 
 def strip_ansi(text: str) -> str:
@@ -66,7 +90,7 @@ def print_path_label(
     text = f"{resolved}" + (f" · {suffix}" if suffix else "")
     use_color = color_enabled(stream) if color is None else color
     if use_color:
-        print(f"{_ORANGE}[{label}]{_RESET} {_BLUE}{text}{_RESET}", file=stream)
+        print(f"{_ORANGE}[{label}]{_RESET} {_CYAN}{text}{_RESET}", file=stream)
     else:
         print(f"[{label}] {text}", file=stream)
 
@@ -84,7 +108,10 @@ def print_target_start(
     stream = stream or sys.stdout
     use_color = color_enabled(stream) if color is None else color
     if use_color:
-        print(f"{_ORANGE}→ {target}{_RESET}: {_BLUE}{description}{_RESET}", file=stream, flush=True)
+        print(
+            f"{_ORANGE}→ {target}{_RESET}: {_BLUE}{description}{_RESET}",
+            file=stream, flush=True,
+        )
     else:
         print(f"→ {target}: {description}", file=stream, flush=True)
 
@@ -126,7 +153,7 @@ def print_label(
     stream = stream or sys.stdout
     use_color = color_enabled(stream) if color is None else color
     if use_color:
-        print(f"{_ORANGE}[{label}]{_RESET} {_BLUE}{text}{_RESET}", file=stream, flush=True)
+        print(f"{_ORANGE}[{label}]{_RESET} {_CYAN}{text}{_RESET}", file=stream, flush=True)
     else:
         print(f"[{label}] {text}", file=stream, flush=True)
 
@@ -153,7 +180,7 @@ def print_status_label(
     if use_color:
         print(
             f"{_ORANGE}[{label}]{_RESET} {status_color}{status.upper()}{_RESET}"
-            f"{_BLUE}{suffix}{_RESET}",
+            f"{_CYAN}{suffix}{_RESET}",
             file=stream,
             flush=True,
         )
@@ -184,7 +211,7 @@ def print_script(
     text = resolved.read_text(encoding="utf-8", errors="replace")
     if use_color:
         Console(file=stream, force_terminal=True, color_system="256", soft_wrap=True).print(
-            Syntax(text.rstrip("\n"), "tcl", theme="ansi_dark", word_wrap=False)
+            Syntax(text.rstrip("\n"), "tcl", theme=_TCL_THEME, word_wrap=False)
         )
     else:
         stream.write(text)
@@ -216,7 +243,7 @@ def print_live_line(
         print_label(label, text, stream=stream, color=use_color)
         return
     if use_color:
-        stream.write(line if _ANSI.search(line) else f"{_GRAY}{plain}{_RESET}")
+        stream.write(line if _ANSI.search(line) else f"{_PALE_BLUE}{plain}{_RESET}")
     else:
         stream.write(plain)
     stream.flush()
@@ -270,7 +297,7 @@ class ExecutionTarget:
     def remote_path(self, local: Path, project_root: Path | None = None) -> Path:
         """Map a local path into the declared remote workspace."""
 
-        local = local.expanduser().resolve()
+        local = Path(os.path.abspath(local.expanduser()))
         if self.kind == "local" or self.sync == "shared":
             return local
         pairs = sorted(
@@ -382,28 +409,30 @@ class SshExecutor:
             check=True,
         )
         for source in request.inputs:
-            source = source.resolve()
+            source = Path(os.path.abspath(source.expanduser()))
             target = self._remote(source)
-            subprocess.run(
-                ["ssh", self.target.host, "mkdir", "-p", str(target.parent)],
-                check=True,
-            )
-            subprocess.run(
-                ["rsync", "-a", str(source), f"{self.target.host}:{target}"],
-                check=True,
-            )
+            mkdir = target if source.is_dir() else target.parent
+            subprocess.run(["ssh", self.target.host, "mkdir", "-p", str(mkdir)], check=True)
+            src = f"{source}/" if source.is_dir() else str(source)
+            dst = f"{self.target.host}:{target}{'/' if source.is_dir() else ''}"
+            subprocess.run(["rsync", "-aL", src, dst], check=True)
 
     def _sync_outputs(self, request: CommandRequest) -> None:
         if self.target.sync != "rsync":
             return
         for output in request.outputs:
             target = output.resolve()
-            target.parent.mkdir(parents=True, exist_ok=True)
             remote = self._remote(target)
-            subprocess.run(
-                ["rsync", "-a", f"{self.target.host}:{remote}", str(target)],
-                check=True,
-            )
+            is_dir = subprocess.run(
+                ["ssh", self.target.host, "test", "-d", str(remote)], check=False
+            ).returncode == 0
+            if is_dir:
+                target.mkdir(parents=True, exist_ok=True)
+                source, destination = f"{self.target.host}:{remote}/", f"{target}/"
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source, destination = f"{self.target.host}:{remote}", str(target)
+            subprocess.run(["rsync", "-a", source, destination], check=True)
 
     def run(self, request: CommandRequest) -> CommandResult:
         import shlex

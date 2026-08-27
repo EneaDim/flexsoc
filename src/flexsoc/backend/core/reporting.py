@@ -12,7 +12,7 @@ import tomllib
 from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from rich.console import Console
 from rich.table import Table
@@ -49,11 +49,13 @@ def line_count(path: Path) -> int:
     return sum(1 for line in read_text(path).splitlines() if line.strip())
 
 
-def latest(paths: Sequence[Path]) -> Path | None:
-    """Return the newest existing path."""
+def unique_file(paths: Sequence[Path], *, label: str) -> Path | None:
+    """Return one existing artifact, rejecting ambiguous fallbacks."""
 
-    existing = [path for path in paths if path.is_file()]
-    return max(existing, key=lambda path: path.stat().st_mtime) if existing else None
+    existing = sorted(path for path in paths if path.is_file())
+    if len(existing) > 1:
+        raise ValueError(f"ambiguous {label}: " + ", ".join(str(path) for path in existing))
+    return existing[0] if existing else None
 
 
 def last_number(pattern: str, text: str, cast: type[int] | type[float]) -> int | float | None:
@@ -330,7 +332,7 @@ def collect_synthesis(top: str, run_dir: Path, pdk: str) -> dict[str, Any] | Non
     """Collect useful statistics from the selected PDK synthesis log."""
 
     log_dir = pdk_run_layout(run_dir, pdk=pdk, top=top).synthesis_log_dir
-    log = latest(tuple(log_dir.glob(f"{top}_synth_opt_*.log")))
+    log = unique_file(tuple(log_dir.glob(f"{top}_synth_opt_*.log")), label=f"synthesis log for {top}")
     if log is None:
         return None
 
@@ -936,8 +938,15 @@ def collect_implementation(top: str, run_dir: Path, pdk: str) -> dict[str, Any] 
     """Collect final ORFS implementation artifacts for one PDK."""
 
     layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
-    roots = sorted((layout.pnr_dir / "results").glob(f"*/{top}/base"))
-    roots = [root for root in roots if root.is_dir()]
+    roots = sorted(
+        root.resolve()
+        for root in (layout.pnr_dir / "results").glob(f"*/{top}/base")
+        if root.is_dir()
+    )
+    if len(roots) > 1:
+        raise ValueError(
+            f"ambiguous ORFS results for {top}: " + ", ".join(str(root) for root in roots)
+        )
     if not roots:
         return None
     root = roots[0]
@@ -989,6 +998,8 @@ def _phase_status(*values: str | None) -> str:
     statuses = [str(value or "missing") for value in values]
     if any(value in {"fail", "error"} for value in statuses):
         return "fail"
+    if "unsupported" in statuses:
+        return "unsupported"
     if any(value in {"review", "warn"} for value in statuses):
         return "review"
     if any(value in {"missing", "partial", "unknown", "incomplete"} for value in statuses):
@@ -1275,13 +1286,14 @@ def collect_metrics(
     run_dir: Path,
     *,
     pdk: str | None = None,
+    provenance: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Collect one logical run plus the selected PDK-scoped implementation."""
 
     selected_pdk = pdk or "sky130"
     layout = pdk_run_layout(run_dir, pdk=selected_pdk, top=top)
     metrics: dict[str, Any] = {
-        "schema_version": 17,
+        "schema_version": 18,
         "top": top,
         "run_root": str(run_dir.resolve()),
         "technology": {
@@ -1347,6 +1359,9 @@ def collect_metrics(
     metrics["signoff"] = signoff_summary(metrics)
     metrics["flow"] = flow_summary(metrics)
     metrics["closure"] = closure_status(metrics)
+    metrics["technical_status"] = technical_status(metrics)
+    if provenance is not None:
+        metrics["provenance"] = dict(provenance)
     return metrics
 
 
@@ -1427,33 +1442,73 @@ def metric_table() -> Table:
     """Return one compact two-column metrics table."""
 
     table = Table(show_header=False, box=None, pad_edge=False)
-    table.add_column("Metric", style="cyan", no_wrap=True)
-    table.add_column("Value")
+    table.add_column("Metric", style="bright_cyan", no_wrap=True)
+    table.add_column("Value", style="white")
     return table
 
 
 def status_markup(status: str) -> str:
-    """Return a compact colored status label."""
+    """Return a compact colored technical status label."""
 
     colors = {
         "pass": "bold green",
         "fail": "bold red",
         "error": "bold red",
-        "partial": "bold yellow",
-        "review": "bold yellow",
-        "warn": "bold yellow",
-        "safe": "bold green",
-        "missing": "bold grey70",
-        "unknown": "bold grey70",
+        "review": "bold orange1",
+        "partial": "bold orange1",
+        "warn": "bold orange1",
+        "safe": "bold bright_cyan",
+        "unsupported": "bold bright_cyan",
+        "missing": "bold bright_cyan",
+        "unknown": "bold bright_cyan",
+        "incomplete": "bold orange1",
     }
-    color = colors.get(status, "grey70")
-    return f"[{color}]{status.upper()}[/{color}]"
+    normalized = status.strip().lower()
+    color = colors.get(normalized, "bright_cyan")
+    return f"[{color}]{normalized.upper()}[/{color}]"
+
+
+def technical_status(metrics: Mapping[str, Any]) -> str:
+    """Normalize flow closure to the public technical status contract."""
+
+    flow = metrics.get("flow")
+    status = str(
+        flow.get("status", "incomplete") if isinstance(flow, dict) else "incomplete"
+    ).lower()
+    if status in {"fail", "error"}:
+        return "FAIL"
+    if status == "unsupported":
+        return "UNSUPPORTED"
+    return "PASS" if status == "pass" else "REVIEW"
+
+
+def provenance_summary(states: Mapping[str, str]) -> dict[str, Any]:
+    """Return deterministic setup states and the strongest provenance condition."""
+
+    normalized = {stage: str(state).upper() for stage, state in sorted(states.items())}
+    order = ("INVALID", "STALE", "MODIFIED", "VALIDATED_OVERRIDE", "CLEAN")
+    overall = next((state for state in order if state in normalized.values()), "INVALID")
+    return {"status": overall, "stages": normalized}
+
+
+def provenance_markup(status: str) -> str:
+    """Render provenance independently from technical PASS/FAIL semantics."""
+
+    normalized = status.strip().upper()
+    color = {
+        "CLEAN": "bold bright_cyan",
+        "VALIDATED_OVERRIDE": "bold #87afff",
+        "MODIFIED": "bold orange1",
+        "STALE": "bold orange1",
+        "INVALID": "bold red",
+    }.get(normalized, "bold bright_cyan")
+    return f"[{color}]{normalized}[/{color}]"
 
 
 def _show_signoff_stage(console: Console, title: str, stage: dict[str, Any]) -> None:
     """Render one compact sign-off stage in execution order."""
 
-    console.print(f"\n[bold cyan]{title}[/bold cyan]")
+    console.print(f"\n[bold orange1]{title}[/bold orange1]")
     table = metric_table()
 
     physical = stage.get("physical", {})
@@ -1527,14 +1582,23 @@ def show_metrics(path: Path) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     console = Console()
     console.print(
-        f"[bold cyan]FlexSoC run check[/bold cyan] · "
-        f"[bold white]{data.get('top', 'unknown')}[/bold white]"
+        f"[bold orange1]FlexSoC run check[/bold orange1] · "
+        f"[bold bright_cyan]{data.get('top', 'unknown')}[/bold bright_cyan]"
+    )
+    provenance = data.get("provenance", {})
+    provenance_status = (
+        str(provenance.get("status", "INVALID")) if isinstance(provenance, dict) else "INVALID"
+    )
+    console.print(
+        f"[bright_cyan]Technical[/bright_cyan] "
+        f"{status_markup(str(data.get('technical_status', technical_status(data))))} · "
+        f"[bright_cyan]Provenance[/bright_cyan] {provenance_markup(provenance_status)}"
     )
 
     flow = data.get("flow", {})
     if isinstance(flow, dict) and flow:
-        console.print("\n[bold cyan]Flow[/bold cyan]")
-        table = Table(box=None, pad_edge=False, header_style="bold cyan")
+        console.print("\n[bold orange1]Flow[/bold orange1]")
+        table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
         table.add_column("Main step")
         table.add_column("Status")
         labels = {
@@ -1553,13 +1617,36 @@ def show_metrics(path: Path) -> None:
             table.add_row(labels.get(name, name), status_markup(status))
         console.print(table)
         overall = str(flow.get("status", "incomplete"))
-        style = {"pass": "green", "review": "yellow", "fail": "red"}.get(overall, "grey70")
-        console.print(f"[grey70]Run status:[/grey70] [bold {style}]{overall.upper()}[/bold {style}]")
+        style = {"pass": "green", "review": "orange1", "fail": "red"}.get(overall, "bright_cyan")
+        console.print(
+            f"[bright_cyan]Run status:[/bright_cyan] "
+            f"[bold {style}]{overall.upper()}[/bold {style}]"
+        )
+
+    if isinstance(provenance, dict) and isinstance(provenance.get("stages"), dict):
+        console.print("\n[bold orange1]Provenance[/bold orange1]")
+        table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
+        table.add_column("Setup", style="bright_cyan", no_wrap=True)
+        table.add_column("State")
+        table.add_column("Action", style="#87d7ff")
+        for stage, state in provenance["stages"].items():
+            normalized = str(state).upper()
+            action = (
+                f"fx validate_override --set STAGE={stage}" if normalized == "MODIFIED"
+                else "rerun setup" if normalized in {"STALE", "INVALID"}
+                else "accepted for current lineage" if normalized == "VALIDATED_OVERRIDE"
+                else "-"
+            )
+            table.add_row(str(stage), provenance_markup(normalized), action)
+        console.print(table)
 
     lint = data.get("lint")
     if isinstance(lint, dict):
-        console.print("\n[bold cyan]RTL lint[/bold cyan]  [cyan]Slang → Verilator[/cyan]")
-        table = Table(box=None, pad_edge=False, header_style="bold cyan")
+        console.print(
+            "\n[bold orange1]RTL lint[/bold orange1]  "
+            "[bright_cyan]Slang → Verilator[/bright_cyan]"
+        )
+        table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
         table.add_column("Tool")
         table.add_column("Status")
         table.add_column("Errors", justify="right")
@@ -1586,7 +1673,10 @@ def show_metrics(path: Path) -> None:
 
     cdc_rdc = data.get("cdc_rdc")
     if isinstance(cdc_rdc, dict):
-        console.print("\n[bold cyan]CDC / RDC[/bold cyan]  [cyan]post-lint structural analysis[/cyan]")
+        console.print(
+            "\n[bold orange1]CDC / RDC[/bold orange1]  "
+            "[bright_cyan]post-lint structural analysis[/bright_cyan]"
+        )
         table = metric_table()
         table.add_row("Status", status_markup(str(cdc_rdc.get("status", "unknown"))))
         table.add_row(
@@ -1609,7 +1699,7 @@ def show_metrics(path: Path) -> None:
 
     regression = data.get("regression")
     if isinstance(regression, dict):
-        console.print("\n[bold cyan]Functional verification[/bold cyan]")
+        console.print("\n[bold orange1]Functional verification[/bold orange1]")
         table = metric_table()
         table.add_row("Status", status_markup(str(regression.get("status", "unknown"))))
         table.add_row("Generated tests", str(regression.get("test_count", 0)))
@@ -1628,8 +1718,8 @@ def show_metrics(path: Path) -> None:
 
     formal = data.get("formal")
     if isinstance(formal, dict):
-        console.print("\n[bold cyan]Formal verification[/bold cyan]")
-        table = Table(box=None, pad_edge=False, header_style="bold cyan")
+        console.print("\n[bold orange1]Formal verification[/bold orange1]")
+        table = Table(box=None, pad_edge=False, header_style="bold bright_cyan")
         table.add_column("Suite")
         table.add_column("Stage")
         table.add_column("Status")
@@ -1653,7 +1743,7 @@ def show_metrics(path: Path) -> None:
 
     synthesis = data.get("synthesis")
     if isinstance(synthesis, dict):
-        console.print("\n[bold cyan]Synthesis[/bold cyan]")
+        console.print("\n[bold orange1]Synthesis[/bold orange1]")
         table = metric_table()
         table.add_row("Strategy", str(synthesis.get("strategy", "unknown")))
         table.add_row("Netlist", str(synthesis.get("netlist", "missing")))
@@ -1668,7 +1758,7 @@ def show_metrics(path: Path) -> None:
 
     equiv = data.get("equivalence")
     if isinstance(equiv, dict):
-        console.print("\n[bold cyan]RTL ↔ synthesis equivalence[/bold cyan]")
+        console.print("\n[bold orange1]RTL ↔ synthesis equivalence[/bold orange1]")
         table = metric_table()
         table.add_row("Status", status_markup(str(equiv.get("status", "unknown"))))
         partitions = equiv.get("partitions", {})
@@ -1693,7 +1783,7 @@ def show_metrics(path: Path) -> None:
 
     implementation = data.get("implementation")
     if isinstance(implementation, dict):
-        console.print("\n[bold cyan]Implementation / PnR[/bold cyan]")
+        console.print("\n[bold orange1]Implementation / PnR[/bold orange1]")
         table = metric_table()
         table.add_row("Status", status_markup(str(implementation.get("status", "unknown"))))
         table.add_row("Results", str(implementation.get("platform_root", "-")))
@@ -1713,7 +1803,7 @@ def show_metrics(path: Path) -> None:
         if routed:
             _show_signoff_stage(console, "Post Sign-Off", routed)
 
-    console.print(f"\n[grey70]Detailed metrics:[/grey70] {path}")
+    console.print(f"\n[bright_cyan]Detailed metrics:[/bright_cyan] [#87d7ff]{path}[/#87d7ff]")
 
 
 def _git(root: Path, *args: str) -> str | None:
@@ -1736,6 +1826,206 @@ def _file_sha256(path: Path) -> str | None:
     if not path.is_file():
         return None
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _path_sha256(path: Path) -> str | None:
+    """Hash one file or directory tree without embedding its absolute path."""
+
+    path = path.expanduser().absolute()
+    if path.is_file():
+        return _file_sha256(path)
+    if not path.is_dir():
+        return None
+    digest = hashlib.sha256()
+    for item in sorted(candidate for candidate in path.rglob("*") if candidate.is_file()):
+        digest.update(item.relative_to(path).as_posix().encode())
+        digest.update(bytes.fromhex(_file_sha256(item) or ""))
+    return digest.hexdigest()
+
+
+def _json_sha256(data: object) -> str:
+    """Hash canonical JSON for deterministic configuration fingerprints."""
+
+    payload = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+@dataclass(slots=True)
+class Provenance:
+    """Track generated collateral against effective inputs and validated overrides."""
+
+    path: Path
+    run_root: Path
+
+    def _load(self) -> dict[str, Any]:
+        if not self.path.is_file():
+            return {"schema_version": 1, "stages": {}}
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"invalid provenance manifest {self.path}: {exc}") from exc
+        if data.get("schema_version") != 1 or not isinstance(data.get("stages"), dict):
+            raise ValueError(f"invalid provenance manifest: {self.path}")
+        return data
+
+    def _write(self, data: Mapping[str, Any]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temp = self.path.with_name(f".{self.path.name}.{os.getpid()}.tmp")
+        temp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temp.replace(self.path)
+
+    def _key(self, path: Path) -> str:
+        resolved = path.expanduser().absolute()
+        try:
+            return resolved.relative_to(self.run_root.resolve()).as_posix()
+        except ValueError:
+            return str(resolved)
+
+    def _resolve(self, key: str) -> Path:
+        path = Path(key)
+        return path if path.is_absolute() else self.run_root / path
+
+    def _snapshot(self, paths: Sequence[Path]) -> list[dict[str, str | None]]:
+        return [{"path": self._key(path), "sha256": _path_sha256(path)} for path in paths]
+
+    @staticmethod
+    def _fingerprint(record: Mapping[str, Any]) -> str:
+        return _json_sha256({
+            "config": record.get("config", {}),
+            "parents": record.get("parents", {}),
+            "inputs": [item.get("sha256") for item in record.get("inputs", ())],
+            "input_paths_match": record.get("input_paths_match", True),
+            "generated": [
+                (item.get("path"), item.get("effective_sha256"))
+                for item in record.get("generated", ())
+            ],
+        })
+
+    def current_fingerprint(
+        self, stage: str, *, inputs: Sequence[Path], config: Mapping[str, object],
+        parents: Mapping[str, str | None] | None = None,
+    ) -> str | None:
+        """Fingerprint the effective stage state, including unsaved upstream changes."""
+
+        record = self._load()["stages"].get(stage)
+        if not isinstance(record, dict):
+            return None
+        current_inputs = self._snapshot(inputs)
+        current = {
+            "config": dict(sorted(config.items())),
+            "parents": dict(parents or {}),
+            "inputs": current_inputs,
+            "input_paths_match": [item.get("path") for item in record.get("inputs", ())]
+            == [item["path"] for item in current_inputs],
+            "generated": [
+                {
+                    "path": item.get("path"),
+                    "effective_sha256": _path_sha256(
+                        self._resolve(str(item.get("path", "")))
+                    ),
+                }
+                for item in record.get("generated", ())
+            ],
+        }
+        return self._fingerprint(current)
+
+    def record(
+        self, stage: str, *, inputs: Sequence[Path], generated: Sequence[Path],
+        config: Mapping[str, object], parents: Mapping[str, str | None] | None = None,
+    ) -> str:
+        """Record one successful canonical setup and return its fingerprint."""
+
+        generated_state = self._snapshot(generated)
+        missing = [item["path"] for item in generated_state if item["sha256"] is None]
+        if missing:
+            raise FileNotFoundError(f"{stage}: generated artifact missing: {', '.join(missing)}")
+        data = self._load()
+        record: dict[str, Any] = {
+            "config": dict(sorted(config.items())),
+            "parents": dict(parents or {}),
+            "inputs": self._snapshot(inputs),
+            "input_paths_match": True,
+            "generated": [
+                {
+                    "path": item["path"],
+                    "generated_sha256": item["sha256"],
+                    "effective_sha256": item["sha256"],
+                }
+                for item in generated_state
+            ],
+        }
+        record["fingerprint"] = self._fingerprint(record)
+        data["stages"][stage] = record
+        self._write(data)
+        return str(record["fingerprint"])
+
+    def generated(self, stage: str) -> tuple[Path, ...]:
+        """Return generated artifacts recorded for one stage."""
+
+        record = self._load()["stages"].get(stage)
+        if not isinstance(record, dict):
+            return ()
+        return tuple(
+            self._resolve(str(item["path"]))
+            for item in record.get("generated", ())
+            if isinstance(item, dict) and item.get("path")
+        )
+
+    def stages(self) -> tuple[str, ...]:
+        """Return recorded setup stages in deterministic order."""
+
+        return tuple(sorted(self._load()["stages"]))
+
+    def state(
+        self, stage: str, *, inputs: Sequence[Path], config: Mapping[str, object],
+        parents: Mapping[str, str | None] | None = None,
+    ) -> str:
+        """Derive the current stage state from disk; stored status is never trusted."""
+
+        record = self._load()["stages"].get(stage)
+        if not isinstance(record, dict):
+            return "INVALID"
+        generated = record.get("generated")
+        if not isinstance(generated, list) or not generated:
+            return "INVALID"
+        current_inputs = self._snapshot(inputs)
+        if (
+            record.get("config") != dict(sorted(config.items()))
+            or record.get("parents") != dict(parents or {})
+        ):
+            return "STALE"
+        if record.get("inputs") != current_inputs:
+            return "INVALID" if any(item["sha256"] is None for item in current_inputs) else "STALE"
+
+        overridden = False
+        for item in generated:
+            current = _path_sha256(self._resolve(str(item.get("path", ""))))
+            if current is None:
+                return "INVALID"
+            canonical = item.get("generated_sha256")
+            if current == canonical:
+                continue
+            if current != item.get("effective_sha256"):
+                return "MODIFIED"
+            overridden = True
+        return "VALIDATED_OVERRIDE" if overridden else "CLEAN"
+
+    def validate(
+        self, stage: str, *, inputs: Sequence[Path], config: Mapping[str, object],
+        parents: Mapping[str, str | None] | None = None,
+    ) -> str:
+        """Accept only current generated-file edits; stale lineage remains rejected."""
+
+        state = self.state(stage, inputs=inputs, config=config, parents=parents)
+        if state != "MODIFIED":
+            raise ValueError(f"{stage}: override cannot be validated from state {state}")
+        data = self._load()
+        record = data["stages"][stage]
+        for item in record["generated"]:
+            item["effective_sha256"] = _path_sha256(self._resolve(item["path"]))
+        record["fingerprint"] = self._fingerprint(record)
+        self._write(data)
+        return "VALIDATED_OVERRIDE"
 
 
 def _flexsoc_version(repo_root: Path) -> str:
@@ -2090,10 +2380,13 @@ def show_manifest(path: Path) -> None:
 class Reporting:
     """Collect and render lifecycle evidence without executing EDA."""
 
-    def metrics(self, top: str, run_dir: Path, *, pdk: str | None = None) -> dict[str, Any]:
+    def metrics(
+        self, top: str, run_dir: Path, *, pdk: str | None = None,
+        provenance: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Collect normalized flow metrics."""
 
-        return collect_metrics(top, run_dir, pdk=pdk)
+        return collect_metrics(top, run_dir, pdk=pdk, provenance=provenance)
 
     def write_metrics(
         self,
@@ -2102,10 +2395,11 @@ class Reporting:
         output: Path,
         *,
         pdk: str | None = None,
+        provenance: Mapping[str, Any] | None = None,
     ) -> Path:
         """Collect and write metrics JSON."""
 
-        data = self.metrics(top, run_dir, pdk=pdk)
+        data = self.metrics(top, run_dir, pdk=pdk, provenance=provenance)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         return output

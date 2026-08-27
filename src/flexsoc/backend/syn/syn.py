@@ -449,13 +449,19 @@ class SynthesisFlow:
         yosys: str = "yosys",
         on: str = "local",
         sv: bool = False,
+        inputs: Sequence[Path] = (),
+        outputs: Sequence[Path] = (),
     ) -> int:
         """Execute one generated Yosys script through the execution layer."""
 
         from flexsoc.backend.core.execution import CommandRequest
 
         argv = (yosys, "-s", str(script)) if sv else (yosys, str(script))
-        request = CommandRequest(argv, script.parent, {}, log)
+        request = CommandRequest(
+            argv, script.parent, {}, log,
+            inputs=tuple(dict.fromkeys((script.resolve(), *(path.resolve() for path in inputs)))),
+            outputs=tuple(path.resolve() for path in outputs),
+        )
         result = self.runner.run(request, on=on)
         self._diagnostics(log)
         return result.returncode
@@ -470,6 +476,7 @@ class SynthesisFlow:
         yosys: str = "yosys",
         systemverilog: bool = True,
         on: str = "local",
+        inputs: Sequence[Path] = (),
     ) -> int:
         """Run the mapped ASIC synthesis script."""
 
@@ -477,7 +484,17 @@ class SynthesisFlow:
         if not script.is_file():
             raise FileNotFoundError(f"missing synthesis script: {script}")
         log = log_dir / f"{top}_synth_opt_{opt}.log"
-        return self.run_script(script, log=log, yosys=yosys, on=on, sv=systemverilog)
+        artifacts = tuple(output / f"{top}{suffix}" for suffix in (
+            "_generic.il", "_dffmap.il", "_abc.il", "_clean.il", "_synth.v", "_synth.json",
+        ))
+        support = tuple(
+            _repo_root() / "hw" / "ips" / name
+            for name in ("pkgs", "prim", "prim_opentitan", "tlul")
+        ) if systemverilog else ()
+        return self.run_script(
+            script, log=log, yosys=yosys, on=on, sv=systemverilog,
+            inputs=(*inputs, *support), outputs=artifacts,
+        )
 
     def run_yosys_vgen(
         self,

@@ -2419,9 +2419,11 @@ def generate_testbench_files(
 
     canonical = _with_canonical_sv_output(config)
     with replace_generated_tree(canonical.output):
-        written = _generate_testbench_files(canonical, clocks)
+        _generate_testbench_files(canonical, clocks)
         _normalize_generated_sv_layout(canonical)
-        return written
+        return tuple(
+            sorted(path for path in Path(canonical.output).rglob("*") if path.is_file())
+        )
 
 
 # Generated layout normalization

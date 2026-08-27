@@ -722,12 +722,21 @@ def _run(
     cwd: Path,
     log: Path,
     env: Mapping[str, str] | None = None,
+    inputs: Sequence[Path] = (),
+    outputs: Sequence[Path] = (),
     runner=None,
     on: str = "local",
 ) -> int:
     if runner is not None:
         from flexsoc.backend.core.execution import CommandRequest
-        result = runner.run(CommandRequest(tuple(command), cwd, dict(env or {}), log), on=on)
+        result = runner.run(
+            CommandRequest(
+                tuple(command), cwd, dict(env or {}), log,
+                inputs=tuple(dict.fromkeys(path.resolve() for path in inputs)),
+                outputs=tuple(path.resolve() for path in outputs),
+            ),
+            on=on,
+        )
         text = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
         ignored = sum(bool(_SDF_EXPECTED_WARNING.search(line)) for line in text.splitlines())
         if ignored:
@@ -1061,6 +1070,29 @@ def execute_all(project_root: Path, values: Mapping[str, str], stage: str = "pos
     print(f"[report] machine_summary={summary_path}", flush=True)
     return 0 if cases and failures == 0 else 2
 
+def _command_files(
+    project_root: Path, values: Mapping[str, str], paths: GateSimPaths, *, runtime: bool
+) -> tuple[Path, ...]:
+    """Return GLS files/directories required by compile or runtime execution."""
+
+    timing = timing_config(values)
+    tests = resolve_test_inputs(values, paths)
+    models = _simulation_models(values, paths, timing)
+    if runtime:
+        files = [paths.executable, tests.config, tests.data_in, tests.data_out]
+        if paths.sdf is not None:
+            files.append(paths.sdf)
+        return tuple(dict.fromkeys(path.resolve() for path in files))
+
+    include_dirs = (
+        project_root / "hw" / "ips" / "pkgs", project_root / "hw" / "ips" / "prim",
+        project_root / "hw" / "ips" / "prim_opentitan", project_root / "hw" / "ips" / "tlul",
+        paths.run_root / "rtl", paths.tb.parent, paths.stage_dir,
+    )
+    files = (*include_dirs, *models, paths.netlist, paths.tb, tests.config, tests.data_in, tests.data_out)
+    return tuple(dict.fromkeys(path.resolve() for path in files))
+
+
 def execute(action: str, stage: str, project_root: Path, values: Mapping[str, str], *, runner=None, on: str = "local") -> int:
     """Compile or run GLS at one gate stage."""
 
@@ -1069,7 +1101,11 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
     if driver == "sv":
         compile_cmd = compile_command(project_root, values, stage, paths)
         compile_log = paths.log.with_name(paths.log.stem + "_compile.log")
-        rc = _run(compile_cmd, cwd=project_root, log=compile_log, runner=runner, on=on)
+        rc = _run(
+            compile_cmd, cwd=project_root, log=compile_log,
+            inputs=_command_files(project_root, values, paths, runtime=False),
+            outputs=(paths.executable,), runner=runner, on=on,
+        )
         if rc:
             paths.log.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(compile_log, paths.log)
@@ -1083,13 +1119,20 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
             cwd=project_root,
             log=paths.log,
             env=run_environment(values),
-            runner=runner,
-            on=on,
+            inputs=_command_files(project_root, values, paths, runtime=True),
+            outputs=(paths.wave,), runner=runner, on=on,
         )
     else:
         command = cocotb_command(action, values, stage, paths)
         log = paths.log.with_name(paths.log.stem + "_compile.log") if action == "compile" else paths.log
-        rc = _run(command, cwd=project_root, log=log, runner=runner, on=on)
+        cocotb_outputs = (
+            paths.stage_dir / "cocotb_build", paths.stage_dir / "cocotb_results.xml",
+        )
+        rc = _run(
+            command, cwd=project_root, log=log,
+            inputs=_command_files(project_root, values, paths, runtime=False),
+            outputs=cocotb_outputs, runner=runner, on=on,
+        )
         if action == "compile":
             return rc
         if rc == 0:

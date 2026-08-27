@@ -590,6 +590,7 @@ class FormalFlow:
         run_name: str | None,
         log: Path,
         sby: str = "sby",
+        inputs: Sequence[Path] = (),
         on: str = "local",
     ):
         """Execute one SBY task with deterministic cwd and logging."""
@@ -597,40 +598,79 @@ class FormalFlow:
         runner = self.runner or ToolRunner()
         if not config.is_file():
             raise FileNotFoundError(f"formal configuration not found: {config}")
-        argv=[sby, "-f"]
+        argv = [sby, "-f"]
         if run_name:
             argv += ["-d", run_name]
         argv.append(config.name)
         if task:
             argv.append(task)
-        result=runner.run(CommandRequest(tuple(argv), config.parent, {}, log, inputs=(config,)), on=on)
+        declared = tuple(
+            dict.fromkeys((config.resolve(), *(path.resolve() for path in inputs)))
+        )
+        output = config.parent / (run_name or config.stem)
+        result = runner.run(
+            CommandRequest(
+                tuple(argv), config.parent, {}, log, inputs=declared, outputs=(output,),
+            ),
+            on=on,
+        )
         if result.returncode:
             raise RuntimeError(f"formal task failed; log: {log}")
         return result
 
-    def run_bmc(self, config: Path, *, top: str, log: Path, sby: str = "sby", on: str = "local"):
+    def run_bmc(
+        self, config: Path, *, top: str, log: Path,
+        sby: str = "sby", inputs: Sequence[Path] = (), on: str = "local",
+    ):
         """Run authored-property bounded model checking."""
-        return self._run_sby(config, task="bmc", run_name=f"{top}_bmc", log=log, sby=sby, on=on)
+        return self._run_sby(
+            config, task="bmc", run_name=f"{top}_bmc", log=log, sby=sby, inputs=inputs, on=on
+        )
 
-    def run_prove(self, config: Path, *, top: str, log: Path, sby: str = "sby", on: str = "local"):
+    def run_prove(
+        self, config: Path, *, top: str, log: Path,
+        sby: str = "sby", inputs: Sequence[Path] = (), on: str = "local",
+    ):
         """Run authored-property induction/PDR proof."""
-        return self._run_sby(config, task="prove", run_name=f"{top}_prove", log=log, sby=sby, on=on)
+        return self._run_sby(
+            config, task="prove", run_name=f"{top}_prove", log=log, sby=sby, inputs=inputs, on=on
+        )
 
-    def run_cover(self, config: Path, *, log: Path, sby: str = "sby", on: str = "local"):
+    def run_cover(
+        self, config: Path, *, log: Path,
+        sby: str = "sby", inputs: Sequence[Path] = (), on: str = "local",
+    ):
         """Run authored-property cover analysis."""
-        return self._run_sby(config, task=None, run_name=None, log=log, sby=sby, on=on)
+        return self._run_sby(
+            config, task=None, run_name=None, log=log, sby=sby, inputs=inputs, on=on
+        )
 
-    def run_csr_bmc(self, config: Path, *, top: str, log: Path, sby: str = "sby", on: str = "local"):
+    def run_csr_bmc(
+        self, config: Path, *, top: str, log: Path,
+        sby: str = "sby", inputs: Sequence[Path] = (), on: str = "local",
+    ):
         """Run automatic CSR bounded model checking."""
-        return self._run_sby(config, task="bmc", run_name=f"{top}_csr_bmc", log=log, sby=sby, on=on)
+        return self._run_sby(
+            config, task="bmc", run_name=f"{top}_csr_bmc", log=log, sby=sby, inputs=inputs, on=on
+        )
 
-    def run_csr_prove(self, config: Path, *, top: str, log: Path, sby: str = "sby", on: str = "local"):
+    def run_csr_prove(
+        self, config: Path, *, top: str, log: Path,
+        sby: str = "sby", inputs: Sequence[Path] = (), on: str = "local",
+    ):
         """Run automatic CSR proof."""
-        return self._run_sby(config, task="prove", run_name=f"{top}_csr_prove", log=log, sby=sby, on=on)
+        return self._run_sby(
+            config, task="prove", run_name=f"{top}_csr_prove", log=log, sby=sby, inputs=inputs, on=on
+        )
 
-    def run_csr_cover(self, config: Path, *, log: Path, sby: str = "sby", on: str = "local"):
+    def run_csr_cover(
+        self, config: Path, *, log: Path,
+        sby: str = "sby", inputs: Sequence[Path] = (), on: str = "local",
+    ):
         """Run automatic CSR cover analysis."""
-        return self._run_sby(config, task=None, run_name=None, log=log, sby=sby, on=on)
+        return self._run_sby(
+            config, task=None, run_name=None, log=log, sby=sby, inputs=inputs, on=on
+        )
 
     def flow_from_context(self, context, *, on: str = "local"):
         """Prepare and run the canonical CSR + authored formal sequence."""

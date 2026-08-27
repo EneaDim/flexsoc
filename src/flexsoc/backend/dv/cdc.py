@@ -1451,7 +1451,9 @@ def _detail(live: bool, label: str, text: str) -> None:
         print_label(label, text)
 
 
-def run_analysis(args: Any, *, runner=None, on: str = "local") -> int:
+def run_analysis(
+    args: Any, *, runner=None, inputs: Sequence[Path] = (), on: str = "local"
+) -> int:
     """Run structural CDC/RDC, setup, glitch, and protocol-candidate checks."""
 
     live = _live()
@@ -1476,7 +1478,8 @@ def run_analysis(args: Any, *, runner=None, on: str = "local") -> int:
         driver_log = log_dir / "extract_driver.log"
         request = CommandRequest(
             command, script.parent, {}, driver_log,
-            inputs=(script,), outputs=(design_json, extract_log),
+            inputs=tuple(dict.fromkeys((script, *(path.resolve() for path in inputs)))),
+            outputs=(design_json, extract_log),
         )
         return runner.run(request, on=on)
 
@@ -1704,6 +1707,7 @@ class CdcFlow:
         clk_period: float = 10.0,
         heartbeat: float = 5.0,
         strict: bool = False,
+        inputs: Sequence[Path] = (),
         on: str = "local",
     ) -> int:
         """Run CDC/RDC and write normalized reports."""
@@ -1723,18 +1727,35 @@ class CdcFlow:
             clk_period=str(clk_period),
             heartbeat=heartbeat,
             strict=strict,
-        ), runner=self.runner, on=on)
+        ), runner=self.runner, inputs=inputs, on=on)
+
+    def run_from_context(
+        self, context, *, inputs: Sequence[Path] = (), on: str = "local"
+    ):
+        """Run CDC/RDC from an already prepared extraction script."""
+
+        paths, values = context.paths, context.values
+        analysis = paths.run / "analysis" / "cdc_rdc"
+        return self.run(
+            top=paths.top, script=analysis / "extract.ys", design_json=analysis / "design.json",
+            analysis_dir=analysis, log_dir=paths.logs / "analysis" / "cdc_rdc",
+            yosys=values.get("YOSYS", "yosys"), n_clocks=int(values.get("N_CLOCKS", "1")),
+            clock_domains=values.get("CLOCK_DOMAINS", ""),
+            clock_relationships=values.get("CLOCK_RELATIONSHIPS", ""),
+            clk_period=float(values.get("CLK_PERIOD", "20")),
+            heartbeat=float(values.get("CDC_RDC_HEARTBEAT", "5")),
+            strict=values.get("CDC_RDC_STRICT", "0") in {"1", "true", "yes"},
+            inputs=inputs, on=on,
+        )
 
     def flow_from_context(self, context, *, on: str = "local"):
-
         """Prepare and run CDC/RDC from one BackendContext."""
+
         paths = context.paths
-        values = context.values
-        analysis=paths.run / "analysis" / "cdc_rdc"
-        logs=paths.logs / "analysis" / "cdc_rdc"
-        script = analysis / "extract.ys"
-        design_json = analysis / "design.json"
-        filelists=(paths.rtl_common, paths.rtl_ip)
-        self.setup(top=paths.top, script=script, design_json=design_json, repo_root=context.project_root, filelists=filelists)
-        return self.run(top=paths.top, script=script, design_json=design_json, analysis_dir=analysis, log_dir=logs, yosys=values.get("YOSYS","yosys"), n_clocks=int(values.get("N_CLOCKS","1")), clock_domains=values.get("CLOCK_DOMAINS",""), clock_relationships=values.get("CLOCK_RELATIONSHIPS",""), clk_period=float(values.get("CLK_PERIOD","20")), heartbeat=float(values.get("CDC_RDC_HEARTBEAT","5")), strict=values.get("CDC_RDC_STRICT","0") in {"1","true","yes"}, on=on)
+        analysis = paths.run / "analysis" / "cdc_rdc"
+        self.setup(
+            top=paths.top, script=analysis / "extract.ys", design_json=analysis / "design.json",
+            repo_root=context.project_root, filelists=(paths.rtl_common, paths.rtl_ip),
+        )
+        return self.run_from_context(context, on=on)
 

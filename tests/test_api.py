@@ -51,8 +51,10 @@ from flexsoc.backend.core.reporting import (
     collect_sta,
     formal_stage,
     flow_summary,
+    provenance_summary,
     signoff_summary,
     status_word,
+    technical_status,
 )
 from flexsoc.backend.signoff.gls import _cocotb_wrapper, execute_all
 from flexsoc.backend.dv.testbench import (
@@ -321,6 +323,8 @@ def test_view_selects_named_gls_waveform_and_avoids_wayland_on_wsl(
 
     assert api_module._select_waveform(stage, "test", "smoke_sv_tt") == wanted
     assert api_module._select_waveform(stage, "test", wanted.name) == wanted
+    with pytest.raises(FileNotFoundError, match="ambiguous waveform.*set SIM_NAME"):
+        api_module._select_waveform(stage, "test")
     with pytest.raises(FileNotFoundError, match="available: corners_sv_ss, smoke_sv_tt"):
         api_module._select_waveform(stage, "test", "missing_sv_tt")
     empty = tmp_path / "empty"
@@ -351,6 +355,11 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     assert AUTO_SETUP_TARGETS["sim_post_syn_all"] == ("sdf",)
     assert AUTO_SETUP_TARGETS["setup_formal_prove"] == ("setup_formal",)
     assert AUTO_SETUP_TARGETS["formal_bmc"] == ("setup_formal_prove",)
+    assert AUTO_SETUP_TARGETS["formal"] == (
+        "setup_formal_prove", "setup_formal_cover",
+        "setup_formal_csr_prove", "setup_formal_csr_cover",
+    )
+    assert AUTO_SETUP_TARGETS["signoff_post_pnr"] == ("setup_signoff_post_pnr",)
     assert [command.target for command in fx.commands("syn")] == ["setup_syn", "syn"]
     assert [command.target for command in fx.commands("regression")] == [
         "setup_tb", "setup_cocotb", "regression"
@@ -365,6 +374,14 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     assert [
         command.target for command in fx.commands("eqy", auto_setup=False)
     ] == ["eqy"]
+    assert [command.target for command in fx.commands("formal")] == [
+        "setup_formal", "setup_formal_prove", "setup_formal_cover",
+        "setup_formal_csr_prove", "setup_formal_csr_cover", "formal",
+    ]
+    assert [command.target for command in fx.commands("formal", auto_setup=False)] == ["formal"]
+    assert [command.target for command in fx.commands("signoff_post_pnr")] == [
+        "setup_signoff_post_pnr", "signoff_post_pnr",
+    ]
     assert [
         command.target
         for command in fx.commands("sim_post_syn", GLS_BACKEND="sv")
@@ -400,6 +417,12 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     assert calls.count("syn") == 1
     assert calls.count("setup_signoff") == 1
     assert calls.index("setup_pnr") < calls.index("pnr")
+
+    no_setup = api_module._TargetRouter(fx, fx.values(), auto_setup=False)
+    calls.clear()
+    no_setup.execute = lambda name: calls.append(name) or 0
+    no_setup._execute_sequence(("setup_syn", "syn", "setup_eqy", "eqy"))
+    assert calls == ["syn", "eqy"]
 
 
 def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
@@ -575,10 +598,30 @@ def test_terminal_rendering_uses_one_semantic_palette() -> None:
     text = stream.getvalue()
 
     assert "\x1b[38;5;208m→ sta\x1b[0m" in text
-    assert "\x1b[38;5;208m[log]\x1b[0m \x1b[94m/tmp/sta.log\x1b[0m" in text
-    assert "\x1b[38;5;208m[report]\x1b[0m \x1b[94m/tmp/timing.rpt\x1b[0m" in text
+    assert "\x1b[38;5;117mRun STA\x1b[0m" in text
+    assert "\x1b[38;5;208m[log]\x1b[0m \x1b[38;5;81m/tmp/sta.log\x1b[0m" in text
+    assert "\x1b[38;5;208m[report]\x1b[0m \x1b[38;5;81m/tmp/timing.rpt\x1b[0m" in text
     assert "\x1b[92m✓\x1b[0m \x1b[38;5;208msta\x1b[0m: \x1b[92mdone\x1b[0m" in text
 
+
+def test_check_status_contract_keeps_technical_and_provenance_independent() -> None:
+    assert technical_status({"flow": {"status": "pass"}}) == "PASS"
+    assert technical_status({"flow": {"status": "review"}}) == "REVIEW"
+    assert technical_status({"flow": {"status": "incomplete"}}) == "REVIEW"
+    assert technical_status({"flow": {"status": "fail"}}) == "FAIL"
+    assert technical_status({"flow": {"status": "unsupported"}}) == "UNSUPPORTED"
+
+    summary = provenance_summary({
+        "setup_syn": "CLEAN",
+        "setup_eqy": "VALIDATED_OVERRIDE",
+    })
+    assert summary == {
+        "status": "VALIDATED_OVERRIDE",
+        "stages": {"setup_eqy": "VALIDATED_OVERRIDE", "setup_syn": "CLEAN"},
+    }
+    assert provenance_summary({"setup_syn": "MODIFIED"})["status"] == "MODIFIED"
+    assert provenance_summary({"setup_syn": "STALE"})["status"] == "STALE"
+    assert provenance_summary({})["status"] == "INVALID"
 
 
 def test_sim_post_syn_all_discovers_matrix_and_writes_dv_summary(
@@ -1585,6 +1628,34 @@ def test_tlul_tb_scaffolds_drive_negedge_sample_posedge() -> None:
     assert "RisingEdge" not in multi_vectors
     assert "await _drive_cycle(dut.rx_clk_i)" in multi_vectors
     assert "await _sample_cycle(dut.rx_clk_i)" in multi_vectors
+
+
+def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -> None:
+    from flexsoc.backend.dv.testbench import TestbenchConfig, generate_testbench_files
+
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    (rtl / "demo.sv").write_text(
+        "module demo(input logic clk_i, input logic rst_ni, input logic [7:0] data_i, "
+        "output logic [7:0] data_o); assign data_o = data_i; endmodule\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "tb" / "sv"
+    generated = generate_testbench_files(TestbenchConfig(
+        top="demo", rtldir=rtl, simdir=tmp_path / "sim", syndir=tmp_path / "syn",
+        prims=(), clk_period_ns=10, compiler="verilator", interface="simple",
+        output=output, force=True,
+    ))
+
+    assert generated
+    assert all(path.is_file() for path in generated)
+    assert {path.relative_to(output).as_posix() for path in generated} == {
+        "demo_tb.sv",
+        "include_demo_tb.sv",
+        "drivers/demo_reg_driver.svh",
+        "drivers/demo_vec_driver.svh",
+        "drivers/demo_vec_monitor.svh",
+    }
 
 
 def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
@@ -2771,6 +2842,31 @@ def test_signoff_execution_rejects_truncated_zero_exit_and_stale_reports(
     assert not stale.exists()
 
 
+def test_signoff_execution_uses_scenario_copy_without_mutating_setup_template(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = _context(tmp_path, analysis="sta", mode="setup")
+    template = tmp_path / "sta.tcl"
+    template.write_text("# validated setup template\n", encoding="utf-8")
+    original = template.read_bytes()
+
+    def fake_run(command: object, *, cwd: Path, log: Path) -> int:
+        del cwd
+        assert Path(command[-1]) == ctx.report_dir / "sta.tcl"
+        ctx.report_dir.joinpath("timing.rpt").write_text("wns max 0.1\n", encoding="utf-8")
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(signoff_sta_module._completion_marker(ctx) + "\n", encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(signoff_sta_module, "_run_sta", fake_run)
+    assert signoff_sta_module._execute_script(
+        tmp_path, {"STA": "sta"}, analysis="sta", ctx=ctx, script=template,
+        log=tmp_path / "sta.log",
+    ) == 0
+    assert template.read_bytes() == original
+    assert (ctx.report_dir / "sta.tcl").is_file()
+
+
 def test_signoff_render_appends_deterministic_completion_marker(tmp_path: Path) -> None:
     ctx = _context(tmp_path, analysis="fusion_analysis", mode="hold")
     script = signoff_sta_module._render("fusion_analysis", ctx)
@@ -2896,6 +2992,22 @@ def test_orfs_artifact_resolution_prefers_platform_and_rejects_ambiguity(
     ).resolve()
     with pytest.raises(ValueError, match="ambiguous ORFS results branch"):
         resolve_orfs_artifact(tmp_path, "results", "demo", "6_final.v")
+
+
+def test_orfs_final_artifacts_stay_on_selected_platform(tmp_path: Path) -> None:
+    from flexsoc.backend.impl.impl import _final_artifacts
+
+    for platform in ("sky130hd", "ihp-sg13g2"):
+        branch = tmp_path / "results" / platform / "demo" / "base"
+        branch.mkdir(parents=True)
+        for name in ("6_final.v", "6_final.sdc", "6_final.spef", "6_final.odb", "6_final.gds"):
+            (branch / name).write_text(platform, encoding="utf-8")
+
+    artifacts = dict(_final_artifacts(tmp_path, "demo", "sky130hd"))
+    assert set(artifacts) == {"netlist", "sdc", "spef", "odb", "gds"}
+    assert all("/sky130hd/demo/base/" in path.as_posix() for path in artifacts.values())
+    with pytest.raises(ValueError, match="ambiguous ORFS results branch"):
+        _final_artifacts(tmp_path, "demo")
 
 
 def test_signoff_sdc_uses_clock_intent_and_standard_io_budget(tmp_path: Path) -> None:
@@ -3279,6 +3391,209 @@ def test_flow_summary_merges_physical_into_post_signoff() -> None:
     assert flow["stages"]["post_implementation_signoff"] == "review"
 
 
+def test_ssh_rsync_preserves_declared_directory_shape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flexsoc.backend.core import CommandRequest, ExecutionTarget
+    from flexsoc.backend.core.execution import SshExecutor
+
+    source_dir = tmp_path / "input"
+    source_dir.mkdir()
+    (source_dir / "a.txt").write_text("a", encoding="utf-8")
+    output_dir = tmp_path / "output"
+    calls: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(map(str, argv)))
+        return Result()
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    executor = SshExecutor(
+        ExecutionTarget(name="remote", kind="ssh", host="eda", work_root="/remote", sync="rsync"),
+        project_root=tmp_path,
+    )
+    request = CommandRequest(("true",), tmp_path, {}, tmp_path / "run.log", inputs=(source_dir,), outputs=(output_dir,))
+    executor._sync_inputs(request)
+    executor._sync_outputs(request)
+
+    rsync = [call for call in calls if call[0] == "rsync"]
+    assert rsync[0][-2:] == [f"{source_dir.resolve()}/", "eda:/remote/input/"]
+    assert rsync[1][-2:] == ["eda:/remote/output/", f"{output_dir.resolve()}/"]
+
+
+def test_ssh_rsync_dereferences_input_symlink_at_declared_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flexsoc.backend.core import CommandRequest, ExecutionTarget
+    from flexsoc.backend.core.execution import SshExecutor
+
+    source = tmp_path / "source.f"
+    source.write_text("demo.sv\n", encoding="utf-8")
+    binding = tmp_path / "eqy" / "rtl_common.f"
+    binding.parent.mkdir()
+    binding.symlink_to(source)
+    calls: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda argv, **kwargs: calls.append(list(map(str, argv))) or Result(),
+    )
+    executor = SshExecutor(
+        ExecutionTarget(name="remote", kind="ssh", host="eda", work_root="/remote", sync="rsync"),
+        project_root=tmp_path,
+    )
+    executor._sync_inputs(CommandRequest(("true",), tmp_path, {}, tmp_path / "run.log", inputs=(binding,)))
+
+    rsync = next(call for call in calls if call[0] == "rsync")
+    assert rsync[:2] == ["rsync", "-aL"]
+    assert rsync[-2:] == [str(binding), "eda:/remote/eqy/rtl_common.f"]
+
+
+def test_pnr_request_declares_config_inputs_and_result_trees(tmp_path: Path) -> None:
+    from flexsoc.backend.impl.impl import ImplementationFlow, write_config
+
+    makefile = tmp_path / "orfs" / "flow" / "Makefile"
+    makefile.parent.mkdir(parents=True)
+    makefile.write_text("all:\n", encoding="utf-8")
+    netlist = tmp_path / "demo.v"
+    sdc = tmp_path / "demo.sdc"
+    netlist.write_text("module demo; endmodule\n", encoding="utf-8")
+    sdc.write_text("create_clock -period 10 [get_ports clk]\n", encoding="utf-8")
+    workdir = tmp_path / "run"
+    config = write_config("demo", workdir, "sky130hd", netlist, sdc)
+
+    class Runner:
+        request = None
+        def run(self, request, *, on="local"):
+            self.request = request
+            return type("Result", (), {"returncode": 1})()
+
+    runner = Runner()
+    rc = ImplementationFlow(runner).run(
+        makefile=makefile, config=config, workdir=workdir, log=tmp_path / "pnr.log"
+    )
+    assert rc == 1
+    assert runner.request.inputs == (makefile.resolve(), config.resolve(), netlist.resolve(), sdc.resolve())
+    assert runner.request.outputs == (workdir / "results", workdir / "reports", workdir / "logs")
+
+
+def test_eda_requests_declare_effective_inputs_and_outputs(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from flexsoc.backend.dv.formal import FormalFlow
+    from flexsoc.backend.syn.eqy import EquivalenceFlow
+    from flexsoc.backend.syn.syn import SynthesisFlow
+
+    class Runner:
+        def __init__(self):
+            self.requests = []
+
+        def run(self, request, *, on="local"):
+            self.requests.append(request)
+            return SimpleNamespace(returncode=0)
+
+    source = tmp_path / "rtl" / "demo.sv"
+    source.parent.mkdir()
+    source.write_text("module demo; endmodule\n", encoding="utf-8")
+    runner = Runner()
+
+    syn = tmp_path / "syn"
+    syn.mkdir()
+    (syn / "synth_sv.ys").write_text("# synth\n", encoding="utf-8")
+    assert SynthesisFlow(runner).run_asic(
+        output=syn, top="demo", log_dir=tmp_path / "logs", inputs=(source,)
+    ) == 0
+    request = runner.requests[-1]
+    assert request.inputs[:2] == ((syn / "synth_sv.ys").resolve(), source.resolve())
+    assert {path.name for path in request.inputs[2:]} == {"pkgs", "prim", "prim_opentitan", "tlul"}
+    assert syn / "demo_synth.v" in request.outputs
+    assert syn / "demo_synth.json" in request.outputs
+
+    eqy = tmp_path / "eqy" / "demo.eqy"
+    view = tmp_path / "eqy" / "demo_view.sv"
+    eqy.parent.mkdir()
+    eqy.write_text("[gold]\n", encoding="utf-8")
+    view.symlink_to(source)
+    assert EquivalenceFlow(runner).run(
+        config=eqy, log=tmp_path / "eqy.log", inputs=(view, source)
+    ) == 0
+    request = runner.requests[-1]
+    assert request.inputs == (eqy.absolute(), view.absolute(), source.absolute())
+    assert request.outputs == ((eqy.parent / eqy.stem).resolve(),)
+
+    sby = tmp_path / "formal" / "demo_prove.sby"
+    sby.parent.mkdir()
+    sby.write_text("[options]\nmode prove\n", encoding="utf-8")
+    FormalFlow(runner).run_prove(
+        sby, top="demo", log=tmp_path / "formal.log", inputs=(source,)
+    )
+    request = runner.requests[-1]
+    assert request.inputs == (sby.resolve(), source.resolve())
+    assert request.outputs == (sby.parent / "demo_prove",)
+
+
+def test_signoff_command_inputs_include_all_resolved_artifacts(tmp_path: Path) -> None:
+    from flexsoc.backend.signoff.sta import SignoffContext, _command_inputs
+
+    files = {name: tmp_path / name for name in (
+        "run.tcl", "demo.v", "demo.sdc", "std.lib", "macro.lib", "demo.spef", "activity.vcd", "gls.json"
+    )}
+    for path in files.values():
+        path.write_text("x\n", encoding="utf-8")
+    ctx = SignoffContext(
+        analysis="sta", design="demo", variant="dev", pdk="sky130", stage="post_route",
+        corner="ss", mode="setup", workload="", top="demo", liberty=files["std.lib"],
+        macro_liberties=(files["macro.lib"],), netlist=files["demo.v"], sdc=files["demo.sdc"],
+        report_dir=tmp_path / "reports", spef=files["demo.spef"],
+        activity_file=files["activity.vcd"], gls_report=files["gls.json"],
+    )
+    assert set(_command_inputs(ctx, files["run.tcl"])) == {path.resolve() for path in files.values()}
+
+
+def test_gls_command_files_include_gate_models_and_vectors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from flexsoc.backend.signoff import gls
+
+    run = tmp_path / "run"
+    tb = run / "tb" / "sv" / "demo_tb.sv"
+    netlist = run / "syn" / "demo_synth.v"
+    test = run / "dv" / "functional" / "tests" / "smoke"
+    model = tmp_path / "model.v"
+    for path in (tb, netlist, test / "config.regs", test / "data_in.vec", test / "data_out.vec", model):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x\n", encoding="utf-8")
+    paths = gls.GateSimPaths(
+        run, run / "impl", run / "gls", tb, netlist, None, run / "wave.fst",
+        run / "sim.vvp", run / "sim.log", run / "sim.json",
+    )
+    monkeypatch.setattr(gls, "_simulation_models", lambda values, paths, timing: (model,))
+    values = {"TOP": "demo", "TEST_NAME": "smoke", "TEST_ROOT": str(test.parent), "TIMING_MODE": "zero"}
+    declared = set(gls._command_files(tmp_path, values, paths, runtime=False))
+    assert {tb.resolve(), netlist.resolve(), model.resolve(), *(path.resolve() for path in test.iterdir())} <= declared
+
+
+def test_gate_sim_validates_explicit_driver_provenance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import flexsoc.api as api_module
+
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = api_module._TargetRouter(client, values)
+    seen: list[str] = []
+    monkeypatch.setattr(router, "_require_provenance", seen.append)
+    monkeypatch.setattr(router, "_execute_target", lambda target: 0)
+    assert router.execute("sim_post_syn") == 0
+    assert seen == ["sim_post_syn"]
+    assert router._setup_stages("sim_post_syn") == ("setup_tb",)
+    router.values["GLS_BACKEND"] = "cocotb"
+    assert router._setup_stages("sim_post_syn") == ("setup_cocotb",)
+
+
 def test_tool_runner_rejects_unknown_execution_target(tmp_path: Path) -> None:
     from flexsoc.backend.core import CommandRequest, ToolRunner
 
@@ -3293,6 +3608,24 @@ def test_make_shim_forwards_command_line_overrides() -> None:
     assert "FLEXSOC_SET_ARGS" in makefile
     assert "--set $(key)=$($(key))" in makefile
     assert "export FLEXSOC_$(key)" not in makefile
+
+
+def test_eqy_request_declares_config_and_result_tree(tmp_path: Path) -> None:
+    from flexsoc.backend.syn.eqy import EquivalenceFlow
+
+    class Runner:
+        request = None
+
+        def run(self, request, *, on="local"):
+            self.request = request
+            return type("Result", (), {"returncode": 0})()
+
+    config = tmp_path / "demo.eqy"
+    config.write_text("[gold]\n", encoding="utf-8")
+    runner = Runner()
+    assert EquivalenceFlow(runner).run(config=config, log=tmp_path / "eqy.log") == 0
+    assert runner.request.inputs == (config,)
+    assert runner.request.outputs == (tmp_path / "demo",)
 
 
 def test_eqy_explicit_pdk_and_multiclock_contract(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3566,3 +3899,178 @@ def test_post_impl_signoff_maps_lifecycle_stage_to_post_pnr_gls(tmp_path: Path) 
     assert post.stage.value == "post_route"
     assert post.gls.stage == "post_pnr"
 
+
+
+def test_provenance_derives_override_and_parent_lineage_states(tmp_path: Path) -> None:
+    from flexsoc.backend.core.reporting import Provenance
+
+    run = tmp_path / "run"
+    source = run / "rtl" / "demo.sv"
+    generated = run / "syn" / "synth.ys"
+    parent_generated = run / "signoff" / "demo.sdc"
+    for path, text in (
+        (source, "module demo; endmodule\n"),
+        (generated, "read_verilog demo.sv\n"),
+        (parent_generated, "create_clock -period 10 clk\n"),
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    store = Provenance(run / "meta" / "provenance.json", run)
+    store.record(
+        "setup_signoff", inputs=(source,), generated=(parent_generated,), config={"clock": "10"}
+    )
+    parent = {
+        "setup_signoff": store.current_fingerprint(
+            "setup_signoff", inputs=(source,), config={"clock": "10"}
+        )
+    }
+    store.record(
+        "setup_syn", inputs=(source,), generated=(generated,),
+        config={"opt": "area"}, parents=parent,
+    )
+    args = dict(inputs=(source,), config={"opt": "area"}, parents=parent)
+    assert store.generated("setup_syn") == (generated,)
+    assert store.state("setup_syn", **args) == "CLEAN"
+
+    generated.write_text("read_verilog demo.sv\nopt_clean\n", encoding="utf-8")
+    assert store.state("setup_syn", **args) == "MODIFIED"
+    assert store.validate("setup_syn", **args) == "VALIDATED_OVERRIDE"
+    assert store.state("setup_syn", **args) == "VALIDATED_OVERRIDE"
+
+    parent_generated.write_text("create_clock -period 8 clk\n", encoding="utf-8")
+    store.record(
+        "setup_signoff", inputs=(source,), generated=(parent_generated,), config={"clock": "8"}
+    )
+    current_parent = {
+        "setup_signoff": store.current_fingerprint(
+            "setup_signoff", inputs=(source,), config={"clock": "8"}
+        )
+    }
+    assert (
+        store.state(
+            "setup_syn", inputs=(source,), config={"opt": "area"}, parents=current_parent
+        )
+        == "STALE"
+    )
+
+
+def test_provenance_tracks_generated_symlink_binding_not_its_target(tmp_path: Path) -> None:
+    from flexsoc.backend.core.reporting import Provenance
+
+    run = tmp_path / "run"
+    target = run / "rtl" / "source.f"
+    binding = run / "signoff" / "eqy" / "rtl_common.f"
+    target.parent.mkdir(parents=True)
+    binding.parent.mkdir(parents=True)
+    target.write_text("demo.sv\n", encoding="utf-8")
+    binding.symlink_to(target)
+    store = Provenance(run / "meta" / "provenance.json", run)
+    args = dict(inputs=(), config={})
+
+    store.record("setup_eqy", generated=(binding,), **args)
+    assert store.generated("setup_eqy") == (binding,)
+    assert store.state("setup_eqy", **args) == "CLEAN"
+    binding.unlink()
+    assert target.is_file()
+    assert store.state("setup_eqy", **args) == "INVALID"
+
+
+def test_router_provenance_guards_no_setup_without_regenerating(tmp_path: Path) -> None:
+    import flexsoc.api as api_module
+
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo",
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+    }
+    router = api_module._TargetRouter(client, values)
+    router.paths.ensure()
+    source = router.paths.rtl / "demo.sv"
+    source.write_text("module demo(input clk); endmodule\n", encoding="utf-8")
+    router.paths.rtl_common.write_text("", encoding="utf-8")
+    router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
+
+    router.execute("setup_cdc_rdc")
+    assert router._provenance_state("setup_cdc_rdc") == "CLEAN"
+    script = router.paths.run / "analysis" / "cdc_rdc" / "extract.ys"
+    script.write_text(script.read_text(encoding="utf-8") + "# local override\n", encoding="utf-8")
+
+    no_setup = api_module._TargetRouter(client, values, auto_setup=False)
+    with pytest.raises(RuntimeError, match="setup_cdc_rdc provenance is MODIFIED"):
+        no_setup._require_provenance("cdc_rdc")
+    no_setup.values["STAGE"] = "setup_cdc_rdc"
+    assert no_setup._validate_override() == "VALIDATED_OVERRIDE"
+    no_setup._require_provenance("cdc_rdc")
+
+    router.execute("setup_cdc_rdc")
+    assert router._provenance_state("setup_cdc_rdc") == "CLEAN"
+    assert "local override" not in script.read_text(encoding="utf-8")
+
+    source.write_text("module demo(input clk, input rst_n); endmodule\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="setup_cdc_rdc provenance is STALE"):
+        no_setup._require_provenance("cdc_rdc")
+
+
+def test_check_refreshes_current_provenance_in_metrics(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo",
+        "RUN_TOP": "demo",
+        "RUN_ID": "dev",
+    }
+    router = api_module._TargetRouter(client, values)
+    router.paths.ensure()
+    source = router.paths.rtl / "demo.sv"
+    source.write_text("module demo(input clk); endmodule\n", encoding="utf-8")
+    router.paths.rtl_common.write_text("", encoding="utf-8")
+    router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
+
+    router.execute("setup_cdc_rdc")
+    router._report("check")
+    metrics = json.loads(router.paths.metrics.read_text(encoding="utf-8"))
+    assert metrics["technical_status"] == "REVIEW"
+    assert metrics["provenance"]["status"] == "CLEAN"
+
+    script = router.paths.run / "analysis" / "cdc_rdc" / "extract.ys"
+    script.write_text(script.read_text(encoding="utf-8") + "# override\n", encoding="utf-8")
+    router._report("check")
+    metrics = json.loads(router.paths.metrics.read_text(encoding="utf-8"))
+    assert metrics["provenance"]["status"] == "MODIFIED"
+    assert metrics["provenance"]["stages"]["setup_cdc_rdc"] == "MODIFIED"
+
+
+def test_formal_run_uses_existing_config_without_regeneration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import flexsoc.api as api_module
+
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = api_module._TargetRouter(client, values, auto_setup=False)
+    config = router._formal_config(csr=False, mode="prove")
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("[options]\nmode prove\n", encoding="utf-8")
+    monkeypatch.setattr(
+        router,
+        "_formal_setup",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("formal setup must not run")),
+    )
+    seen: list[Path] = []
+    monkeypatch.setattr(
+        type(router.backend.dv.formal),
+        "run_prove",
+        lambda self, path, **kwargs: seen.append(path) or 0,
+    )
+
+    assert router._run_formal("formal_prove") == 0
+    assert seen == [config]

@@ -165,6 +165,7 @@ SOC = (*COMMON, "HOST", "SOC_CFG_MODE", "DEVLIST")
 FSM = (*BASE, "FSM", "FORCE")
 TUTORIAL = ("TUTORIAL_WS", "TUTORIAL_RUN_ID", *COMMON)
 CLEAN = (*BASE, "RUN_TOP")
+PROVENANCE = (*COMMON, "STAGE")
 DEPS = ("DEPS_MODE", "DEPS_PROFILE", "DEPS_JOBS", "DEPS_PRUNE_APPLY", "DEPS_PRUNE_CACHE")
 
 
@@ -295,7 +296,10 @@ TARGETS: dict[str, TargetSpec] = {
     "metrics": ("Run metadata", "Collect functional/formal/synthesis/signoff metrics", COMMON),
     "manifest": ("Run metadata", "Collect automatic run identity into meta/manifest.json", COMMON),
     "manifest_show": ("Run metadata", "Show the current run manifest in color", COMMON),
-    "check": ("Run metadata", "Show existing complete run closure status and metrics", COMMON),
+    "check": ("Run metadata", "Refresh and show technical closure plus provenance status", COMMON),
+    "validate_override": (
+        "Run metadata", "Accept modified generated collateral for the current lineage", PROVENANCE
+    ),
     "setup_pnr": ("Implementation", "Generate OpenROAD implementation config", PNR),
     "pnr": ("Implementation", "Run OpenROAD implementation", PNR),
     "pnr_gui": ("Implementation", "Open OpenROAD GUI", PNR),
@@ -494,23 +498,29 @@ def _safe_log_name(value: str) -> str:
 
 
 def _select_waveform(directory: Path, top: str, sim_name: str = "") -> Path:
-    """Select one generated waveform by simulation name, or the latest one."""
+    """Select one waveform by explicit name, rejecting ambiguous fallbacks."""
 
-    candidates = [*directory.glob("*.fst"), *directory.glob("*.vcd")]
+    candidates = [path for pattern in ("*.fst", "*.vcd") for path in directory.rglob(pattern)]
     if not candidates:
         raise FileNotFoundError(
             f"no waveform available in {directory}; run the matching simulation first"
         )
     if not sim_name:
-        return max(candidates, key=lambda path: path.stat().st_mtime)
+        if len(candidates) == 1:
+            return candidates[0]
+        names = ", ".join(sorted(path.relative_to(directory).as_posix() for path in candidates))
+        raise FileNotFoundError(f"ambiguous waveform in {directory}; set SIM_NAME; candidates: {names}")
 
     requested = Path(sim_name).name
     if Path(requested).suffix.lower() in {".fst", ".vcd"}:
         requested = Path(requested).stem
     stems = {requested, f"{top}_tb_{requested}"}
     matches = [path for path in candidates if path.stem in stems]
-    if matches:
-        return max(matches, key=lambda path: path.stat().st_mtime)
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        names = ", ".join(sorted(path.relative_to(directory).as_posix() for path in matches))
+        raise FileNotFoundError(f"SIM_NAME={sim_name!r} is ambiguous in {directory}: {names}")
 
     prefix = f"{top}_tb_"
     available = ", ".join(sorted(path.stem.removeprefix(prefix) for path in candidates))
@@ -592,6 +602,8 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "formal_bmc": ("setup_formal_prove",),
     "formal_prove": ("setup_formal_prove",),
     "formal_cover": ("setup_formal_cover",),
+    "formal_csr": ("setup_formal_csr_prove", "setup_formal_csr_cover"),
+    "formal": ("setup_formal_prove", "setup_formal_cover", "setup_formal_csr_prove", "setup_formal_csr_cover"),
     "eqy": ("setup_eqy",),
     "cdc_rdc": ("setup_cdc_rdc",),
     "sim_post_syn_all": ("sdf",),
@@ -603,6 +615,7 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "power_analysis_post_pnr_all": ("setup_signoff_post_pnr",),
     "fusion_analysis_post_pnr": ("setup_signoff_post_pnr",),
     "fusion_analysis_post_pnr_all": ("setup_signoff_post_pnr",),
+    "signoff_post_pnr": ("setup_signoff_post_pnr",),
     "sta": ("setup_signoff",),
     "sta_corners": ("setup_signoff",),
     "sdf": ("setup_signoff",),
@@ -617,6 +630,55 @@ AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
     "setup_pnr": ("syn", "setup_signoff"),
     "pnr": ("setup_pnr",),
     "pnr_gui": ("setup_pnr",),
+}
+
+
+GLS_PROVENANCE_TARGETS = {
+    "compile_syn", "sim_syn", "compile_post_syn", "sim_post_syn", "sim_post_syn_all",
+    "compile_post_pnr", "sim_post_pnr", "sim_post_pnr_all",
+}
+
+PROVENANCE_SETUPS = {
+    "setup_tb", "setup_cocotb", "setup_cdc_rdc",
+    "setup_formal_prove", "setup_formal_cover",
+    "setup_formal_csr_prove", "setup_formal_csr_cover",
+    "setup_syn", "setup_eqy", "setup_signoff",
+    "setup_signoff_post_pnr", "setup_pnr",
+}
+PROVENANCE_PARENTS = {
+    "setup_eqy": ("setup_syn",),
+    "setup_pnr": ("setup_syn", "setup_signoff"),
+    "setup_signoff_post_pnr": ("setup_pnr",),
+}
+PROVENANCE_CONFIG_KEYS = {
+    "setup_tb": (*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV"),
+    "setup_cocotb": (*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV"),
+    "setup_cdc_rdc": (*CLOCKS, "TOP", "CLK_PERIOD"),
+    "setup_formal_prove": (
+        *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
+        "FORMAL_BMC_ENGINE", "FORMAL_PROVE_ENGINE",
+    ),
+    "setup_formal_cover": (*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE"),
+    "setup_formal_csr_prove": (
+        *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
+        "FORMAL_BMC_ENGINE", "FORMAL_PROVE_ENGINE",
+    ),
+    "setup_formal_csr_cover": (*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE"),
+    "setup_syn": (
+        *CLOCKS, "TOP", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT",
+        "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS",
+    ),
+    "setup_eqy": (
+        *CLOCKS, "TOP", "EQY_DEPTH", "EQY_SAT_DEPTH", "EQY_ENGINE", "EQY_USE_SAT",
+        "EQY_SPLITNETS", "EQY_USE_PDR", "EQY_PDR_ENGINE", "EQY_SMT_ENGINE",
+        "EQY_SMT_DEPTH", "EQY_XPROP", "EQY_JOIN_OUTPUTS", "EQY_STRATEGY_ORDER",
+        "EQY_RESET_NORMALIZE", "EQY_RESET_CYCLES",
+    ),
+    "setup_signoff": (
+        *CLOCKS, "TOP", "PDK", "CLK_PERIOD", "SDC_IO_DELAY_PCT", "SDC_CLOCK_PERIOD_NS",
+    ),
+    "setup_signoff_post_pnr": (*CLOCKS, "TOP", "PDK", "CLK_PERIOD", "ORS_TECH", "SDC_IO_DELAY_PCT"),
+    "setup_pnr": (*CLOCKS, "TOP", "PDK", "ORS_TECH"),
 }
 
 
@@ -711,13 +773,17 @@ def _target_object(name: str) -> FlexSoCTarget:
 class _TargetRouter:
     """Map historical CLI targets to the new object-oriented backend API."""
 
-    def __init__(self, client: "FlexSoC", values: Mapping[str, str], *, on: str = "local"):
+    def __init__(
+        self, client: "FlexSoC", values: Mapping[str, str], *, on: str = "local",
+        auto_setup: bool = True,
+    ):
         from .backend import Backend, BackendContext
         from .backend.core import ToolRunner
 
         self.client = client
         self.values = dict(values)
         self.on = on
+        self.auto_setup = auto_setup
         self.context = BackendContext(client.project_root, client.workdir, self.values)
         self.runner = ToolRunner(client.execution_targets, project_root=client.project_root)
         self.backend = Backend(self.context, self.runner)
@@ -790,7 +856,7 @@ class _TargetRouter:
             interface=interface,
             vsv=self.values.get("VSV", "sv"),
             output=self.paths.tb / "sv",
-            force=self._bool(self.values.get("FORCE")),
+            force=True,
         )
         cocotb = CocotbConfig(
             top=top,
@@ -801,7 +867,7 @@ class _TargetRouter:
             simulator=self.values.get("COMPILER", "verilator"),
             period_ns=period,
             vsv=self.values.get("VSV", "sv"),
-            force=self._bool(self.values.get("FORCE")),
+            force=True,
         )
         return sv, cocotb
 
@@ -815,6 +881,194 @@ class _TargetRouter:
                 if item and not item.startswith(("#", "+", "-")):
                     sources.append(Path(item))
         return tuple(sources)
+
+    def _provenance(self):
+        """Return the run-local provenance store."""
+
+        from .backend.core.reporting import Provenance
+
+        return Provenance(self.paths.meta / "provenance.json", self.paths.run)
+
+    def _provenance_config(self, stage: str) -> dict[str, str]:
+        """Select only semantic setup values; artifact paths are hashed as inputs."""
+
+        return {key: self.values.get(key, "") for key in PROVENANCE_CONFIG_KEYS[stage]}
+
+    def _configured_paths(self, *keys: str) -> tuple[Path, ...]:
+        paths: list[Path] = []
+        for key in keys:
+            for token in self._words(key):
+                path = Path(token).expanduser()
+                resolved = self.client.project_root / path if not path.is_absolute() else path
+                paths.append(resolved.resolve())
+        return tuple(paths)
+
+    def _provenance_inputs(self, stage: str) -> tuple[Path, ...]:
+        """Return effective source artifacts consumed by one generated setup."""
+
+        p = self.paths
+        rtl = (p.rtl_common, p.rtl_ip, *self._rtl_sources())
+        if stage in {"setup_tb", "setup_cocotb"}:
+            inputs = (p.data / f"{p.top}.hjson",)
+        elif stage == "setup_cdc_rdc":
+            inputs = rtl
+        elif stage in {"setup_formal_prove", "setup_formal_cover"}:
+            mode = "cover" if stage.endswith("cover") else "prove"
+            inputs = (*rtl, p.formal / "properties" / mode)
+        elif stage.startswith("setup_formal_csr_"):
+            inputs = rtl
+        elif stage == "setup_syn":
+            inputs = (*rtl, *self._configured_paths("LIB_SYN"))
+        elif stage == "setup_eqy":
+            inputs = (
+                *rtl, p.syn / f"{p.top}_synth.v",
+                *self._configured_paths("LIB_SYN", "PRIM", "FORMAL_PDK_PROC"),
+            )
+        elif stage == "setup_signoff":
+            inputs = (
+                p.syn / f"{p.top}_synth.v",
+                *self._configured_paths("LIBS", "LIB_SYN", "PRIM", "MACRO_LIBS"),
+            )
+        elif stage == "setup_pnr":
+            inputs = (p.syn / f"{p.top}_synth.v", p.sdc)
+        elif stage == "setup_signoff_post_pnr":
+            from .backend.signoff.sta import _stage_inputs, _stage_sdc
+
+            values = {**self.values, "SIGNOFF_STAGE": "post_route"}
+            netlist, spef = _stage_inputs(self.client.project_root, values)
+            inputs = (
+                netlist, _stage_sdc(self.client.project_root, values),
+                *(() if spef is None else (spef,)),
+                *self._configured_paths("LIBS", "LIB_SYN", "PRIM", "MACRO_LIBS"),
+            )
+        else:
+            raise ValueError(f"provenance is not defined for {stage}")
+        return tuple(dict.fromkeys(Path(path).expanduser().resolve() for path in inputs))
+
+    @staticmethod
+    def _result_paths(value: object) -> tuple[Path, ...]:
+        if isinstance(value, Path):
+            return (value,)
+        if isinstance(value, (tuple, list)):
+            return tuple(path for item in value for path in _TargetRouter._result_paths(item))
+        return ()
+
+    def _generated_paths(self, stage: str, result: object) -> tuple[Path, ...]:
+        paths = self._result_paths(result)
+        if stage == "setup_cdc_rdc":
+            paths = (self.paths.run / "analysis" / "cdc_rdc" / "extract.ys",)
+        elif stage == "setup_eqy":
+            out = self.context.layout.equivalence_dir
+            bindings = [
+                *(out / path.name for path in (self.paths.rtl_common, self.paths.rtl_ip)),
+                *(out / f"cell_model_{index}{Path(model).suffix or '.v'}"
+                  for index, model in enumerate(self._words("PRIM"))),
+                out / "netlist.v", out / "library.lib",
+                out / "sky130_clock_gates_formal.v", out / "formal_pdk.v",
+            ]
+            paths += tuple(path for path in bindings if path.exists() or path.is_symlink())
+        elif stage.startswith("setup_formal_csr_"):
+            mode = "cover" if stage.endswith("cover") else "prove"
+            paths += (self.paths.formal / "csr" / mode / f"{self.paths.top}_csr_auto_{mode}.sv",)
+        return tuple(dict.fromkeys(path.expanduser().absolute() for path in paths))
+
+    def _setup_stages(self, target: str) -> tuple[str, ...]:
+        """Resolve only provenance-bearing setup dependencies for a runtime target."""
+
+        timing = self.values.get("TIMING_MODE", "zero").strip().lower()
+        found: list[str] = []
+
+        def visit(name: str) -> None:
+            for dependency in _auto_setup_dependencies(name, timing):
+                if dependency in PROVENANCE_SETUPS:
+                    if dependency not in found:
+                        found.append(dependency)
+                else:
+                    visit(dependency)
+
+        visit(target)
+        if target in GLS_PROVENANCE_TARGETS:
+            driver_setup = (
+                "setup_cocotb"
+                if self.values.get("GLS_BACKEND", "sv").strip().lower() == "cocotb"
+                else "setup_tb"
+            )
+            if driver_setup not in found:
+                found.append(driver_setup)
+        return tuple(found)
+
+    def _provenance_parents(self, stage: str) -> dict[str, str | None]:
+        store = self._provenance()
+        return {
+            parent: store.current_fingerprint(
+                parent, inputs=self._provenance_inputs(parent),
+                config=self._provenance_config(parent),
+                parents=self._provenance_parents(parent),
+            )
+            for parent in PROVENANCE_PARENTS.get(stage, ())
+        }
+
+    def _execution_inputs(self, stage: str) -> tuple[Path, ...]:
+        """Return canonical setup artifacts plus their effective source inputs."""
+
+        paths = (*self._provenance_inputs(stage), *self._provenance().generated(stage))
+        return tuple(dict.fromkeys(path.absolute() for path in paths))
+
+    def _provenance_state(self, stage: str) -> str:
+        return self._provenance().state(
+            stage, inputs=self._provenance_inputs(stage),
+            config=self._provenance_config(stage),
+            parents=self._provenance_parents(stage),
+        )
+
+    def _provenance_summary(self) -> dict[str, object]:
+        """Return current states only for setup stages recorded in this run."""
+
+        from .backend.core.reporting import provenance_summary
+
+        store = self._provenance()
+        states = {
+            stage: self._provenance_state(stage)
+            for stage in store.stages()
+            if stage in PROVENANCE_SETUPS
+        }
+        return provenance_summary(states)
+
+    def _record_provenance(self, stage: str, result: object) -> None:
+        generated = self._generated_paths(stage, result)
+        if not generated:
+            raise ValueError(f"{stage}: setup returned no generated artifacts")
+        self._provenance().record(
+            stage, inputs=self._provenance_inputs(stage), generated=generated,
+            config=self._provenance_config(stage),
+            parents=self._provenance_parents(stage),
+        )
+
+    def _require_provenance(self, target: str) -> None:
+        for stage in self._setup_stages(target):
+            state = self._provenance_state(stage)
+            if state not in {"CLEAN", "VALIDATED_OVERRIDE"}:
+                action = (
+                    f"fx validate_override --set STAGE={stage}"
+                    if state == "MODIFIED" else "rerun without --no-setup"
+                )
+                raise RuntimeError(f"{target}: {stage} provenance is {state}; {action}")
+
+    def _validate_override(self) -> str:
+        stage = self.values.get("STAGE", "").strip().replace("-", "_")
+        if stage not in PROVENANCE_SETUPS:
+            candidates = self._setup_stages(stage) if stage in TARGETS else ()
+            if len(candidates) != 1:
+                choices = ", ".join(sorted(PROVENANCE_SETUPS))
+                raise ValueError(f"STAGE must name one generated setup: {choices}")
+            stage = candidates[0]
+        state = self._provenance().validate(
+            stage, inputs=self._provenance_inputs(stage),
+            config=self._provenance_config(stage),
+            parents=self._provenance_parents(stage),
+        )
+        print(f"[provenance] {stage} state={state}")
+        return state
 
     def _setup_synthesis(self) -> object:
         flow = self.backend.syn.synthesis
@@ -859,7 +1113,7 @@ class _TargetRouter:
             sat_depth=int(self.values.get("EQY_SAT_DEPTH", "20")),
             config=config,
             formal_pdk_proc=Path(formal_proc) if formal_proc else None,
-            force=self._bool(self.values.get("FORCE")),
+            force=True,
             pdr_engine=self.values.get("EQY_PDR_ENGINE", "abc pdr"),
             on=self.on,
             pdk=self.values.get("PDK", ""),
@@ -877,16 +1131,21 @@ class _TargetRouter:
             log=layout.equivalence_log,
             jobs=int(self.values.get("EQY_JOBS", "1")),
             eqy=self.values.get("EQY", "eqy"),
+            inputs=self._execution_inputs("setup_eqy"),
             on=self.on,
         )
+
+    def _formal_config(self, *, csr: bool, mode: str) -> Path:
+        kind = "csr" if csr else "properties"
+        name = f"{self.paths.top}_{'csr_' if csr else ''}{mode}.sby"
+        return self.paths.formal / "runs" / kind / mode / name
 
     def _formal_setup(self, *, csr: bool, mode: str) -> Path:
         flow = self.backend.dv.formal
         top = self.paths.top
         props = self.paths.formal / ("csr" if csr else "properties") / mode
-        runs = self.paths.formal / "runs" / ("csr" if csr else "properties") / mode
-        runs.mkdir(parents=True, exist_ok=True)
-        output = runs / f"{top}_{'csr_' if csr else ''}{mode}.sby"
+        output = self._formal_config(csr=csr, mode=mode)
+        output.parent.mkdir(parents=True, exist_ok=True)
         common = (self.paths.rtl_common, self.paths.rtl_ip)
         kwargs = dict(
             top=top, filelists=common, properties_dir=props, mode=mode,
@@ -909,13 +1168,21 @@ class _TargetRouter:
         sby = self.values.get("SBY", "sby")
         if target.startswith("formal_csr_"):
             mode = target.rsplit("_", 1)[-1]
-            config = self._formal_setup(csr=True, mode="cover" if mode == "cover" else "prove")
+            config = self._formal_config(csr=True, mode="cover" if mode == "cover" else "prove")
             log = logs / "csr" / f"{top}_{mode}.log"
-            return getattr(flow, f"run_csr_{mode}")(config, **({} if mode == "cover" else {"top": top}), log=log, sby=sby, on=self.on)
+            setup = "setup_formal_csr_cover" if mode == "cover" else "setup_formal_csr_prove"
+            return getattr(flow, f"run_csr_{mode}")(
+                config, **({} if mode == "cover" else {"top": top}), log=log, sby=sby,
+                inputs=self._execution_inputs(setup), on=self.on,
+            )
         mode = target.rsplit("_", 1)[-1]
-        config = self._formal_setup(csr=False, mode="cover" if mode == "cover" else "prove")
+        config = self._formal_config(csr=False, mode="cover" if mode == "cover" else "prove")
         log = logs / "properties" / f"{top}_{mode}.log"
-        return getattr(flow, f"run_{mode}")(config, **({} if mode == "cover" else {"top": top}), log=log, sby=sby, on=self.on)
+        setup = "setup_formal_cover" if mode == "cover" else "setup_formal_prove"
+        return getattr(flow, f"run_{mode}")(
+            config, **({} if mode == "cover" else {"top": top}), log=log, sby=sby,
+            inputs=self._execution_inputs(setup), on=self.on,
+        )
 
     def _setup_pnr(self) -> Path:
         ors_tech = self.values.get("ORS_TECH", self.values.get("PDK", "sky130"))
@@ -944,8 +1211,12 @@ class _TargetRouter:
 
     def _report(self, target: str) -> object:
         report = self.backend.reporting
-        if target == "metrics":
-            return report.write_metrics(self.paths.top, self.paths.run, self.paths.metrics, pdk=self.paths.pdk)
+        if target in {"metrics", "check"}:
+            metrics = report.write_metrics(
+                self.paths.top, self.paths.run, self.paths.metrics, pdk=self.paths.pdk,
+                provenance=self._provenance_summary(),
+            )
+            return metrics if target == "metrics" else report.check(metrics)
         if target == "manifest":
             return report.write_manifest(
                 top=self.paths.top, run_top=self.paths.run_top, run_id=self.paths.run_id,
@@ -954,9 +1225,25 @@ class _TargetRouter:
             )
         if target == "manifest_show":
             return report.show_manifest(self.paths.manifest)
-        return report.check(self.paths.metrics)
+        raise ValueError(f"unsupported report target: {target}")
 
     def execute(self, target: str) -> object:
+        """Apply setup/provenance policy, then execute one backend target."""
+
+        if target == "validate_override":
+            return self._validate_override()
+        if (
+            (not self.auto_setup or target in GLS_PROVENANCE_TARGETS)
+            and target not in PROVENANCE_SETUPS
+            and not target.startswith("setup_")
+        ):
+            self._require_provenance(target)
+        result = self._execute_target(target)
+        if target in PROVENANCE_SETUPS:
+            self._record_provenance(target, result)
+        return result
+
+    def _execute_target(self, target: str) -> object:
         """Execute one public target without invoking the backend Makefile."""
         b, p, v = self.backend, self.paths, self.values
         top, force = p.top, self._bool(v.get("FORCE"))
@@ -1031,7 +1318,9 @@ class _TargetRouter:
             script, design_json = analysis / "extract.ys", analysis / "design.json"
             if target == "setup_cdc_rdc":
                 return b.dv.cdc.setup(top=top, script=script, design_json=design_json, repo_root=self.client.project_root, filelists=(p.rtl_common, p.rtl_ip))
-            return b.dv.cdc.flow_from_context(self.context, on=self.on)
+            return b.dv.cdc.run_from_context(
+                self.context, inputs=self._execution_inputs("setup_cdc_rdc"), on=self.on
+            )
 
         if target in {"compile", "compile_v", "compile_sv"}:
             return b.dv.functional.compile_systemverilog(top=top, tb_dir=p.tb, sim_dir=p.sim / "rtl", common_filelist=p.rtl_common, ip_filelist=p.rtl_ip, test_name=v.get("TEST_NAME","smoke"), compiler=v.get("COMPILER","verilator"), coverage=self._bool(v.get("COVERAGE")), log=p.logs / "dv" / "functional" / f"{top}_compile.log", on=self.on)
@@ -1058,14 +1347,26 @@ class _TargetRouter:
         if target in {"formal_bmc", "formal_prove", "formal_cover", "formal_csr_bmc", "formal_csr_prove", "formal_csr_cover"}:
             return self._run_formal(target)
         if target == "formal_csr":
-            return (self._run_formal("formal_csr_bmc"), self._run_formal("formal_csr_prove"), self._run_formal("formal_csr_cover"))
+            return self._execute_sequence(
+                ("formal_csr_bmc", "formal_csr_prove", "formal_csr_cover"),
+                auto_setup=False,
+            )
         if target == "formal":
-            return b.dv.formal.flow_from_context(self.context, on=self.on)
+            return self._execute_sequence(
+                ("formal_csr_bmc", "formal_bmc", "formal_csr_prove", "formal_prove",
+                 "formal_csr_cover", "formal_cover"),
+                auto_setup=False,
+            )
 
         if target == "setup_syn":
             return self._setup_synthesis()
         if target in {"syn", "syn_v", "syn_sv"}:
-            return b.syn.synthesis.run_asic(output=p.syn, top=top, log_dir=p.logs / "synthesis" / p.pdk, opt=v.get("TARGET_OPT","area"), yosys=v.get("YOSYS","yosys"), systemverilog=(target != "syn_v" and v.get("VSV","sv") != "v"), on=self.on)
+            return b.syn.synthesis.run_asic(
+                output=p.syn, top=top, log_dir=p.logs / "synthesis" / p.pdk,
+                opt=v.get("TARGET_OPT", "area"), yosys=v.get("YOSYS", "yosys"),
+                systemverilog=(target != "syn_v" and v.get("VSV", "sv") != "v"),
+                inputs=self._execution_inputs("setup_syn"), on=self.on,
+            )
         if target == "yosys-vgen":
             return b.syn.synthesis.run_yosys_vgen(top=top, cwd=p.run, output=p.rtl / f"{top}.v", yosys=v.get("YOSYS","yosys"), on=self.on)
         if target == "sv2v":
@@ -1124,7 +1425,12 @@ class _TargetRouter:
         if target == "fusion_analysis_post_pnr_all":
             return post.run_fusion(all_workloads=True, on=self.on)
         if target == "signoff_post_pnr":
-            return post.flow(on=self.on)
+            return self._execute_sequence(
+                ("sdf_post_pnr", "sta_post_pnr", "sim_post_pnr_all",
+                 "power_estimate_post_pnr", "power_analysis_post_pnr_all",
+                 "fusion_analysis_post_pnr_all"),
+                auto_setup=False,
+            )
         if target == "sta_violators":
             return pre.run_sta(on=self.on)
         if target == "path_view":
@@ -1227,10 +1533,7 @@ class _TargetRouter:
                 print(f"[wave] error={exc}", flush=True)
                 raise
         else:
-            candidates = [x for pattern in ("*.fst", "*.vcd") for x in p.functional.rglob(pattern)]
-            if not candidates:
-                raise FileNotFoundError("no waveform available")
-            wave = max(candidates, key=lambda path: path.stat().st_mtime)
+            wave = _select_waveform(p.functional, p.top)
 
         viewer = v.get("WAVE_VIEWER", "surfer")
         env = _viewer_environment(viewer, v.get("SURFER_BACKEND", "auto"))
@@ -1432,18 +1735,22 @@ class _TargetRouter:
             return self._view("view")
         raise ValueError(target)
 
-    def _execute_sequence(self, sequence: Sequence[str]) -> tuple[object, ...]:
-        """Execute a composite flow through the same setup dependency graph as `run()`."""
+    def _execute_sequence(
+        self, sequence: Sequence[str], *, auto_setup: bool | None = None
+    ) -> tuple[object, ...]:
+        """Execute a composite flow through the shared setup dependency graph."""
 
         timing_mode = self.values.get("TIMING_MODE", "zero").strip().lower()
+        expand_setup = self.auto_setup if auto_setup is None else auto_setup
         expanded: list[str] = []
         seen: set[str] = set()
 
         def append(name: str) -> None:
-            if name in seen:
+            if name in seen or (not expand_setup and (name == "setup" or name.startswith("setup_"))):
                 return
-            for dependency in _auto_setup_dependencies(name, timing_mode):
-                append(dependency)
+            if expand_setup:
+                for dependency in _auto_setup_dependencies(name, timing_mode):
+                    append(dependency)
             expanded.append(name)
             seen.add(name)
 
@@ -1810,7 +2117,9 @@ class FlexSoC:
                     os.environ["FLEXSOC_LIVE"] = "1" if live else "0"
                     os.environ["PYTHONUNBUFFERED"] = "1"
                     try:
-                        value = _TargetRouter(self, command.values, on=on).execute(command.target)
+                        value = _TargetRouter(
+                            self, command.values, on=on, auto_setup=auto_setup
+                        ).execute(command.target)
                         rc = self._returncode(value)
                     finally:
                         for key, value in previous.items():

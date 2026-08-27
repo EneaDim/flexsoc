@@ -975,7 +975,7 @@ def analyze_activity_spec(
                     "status": "pass" if ok else "fail",
                     "returncode": rc,
                     "liberty": str(liberty),
-                    "script": str(script),
+                    "script": str(report_dir / script.name),
                     "log": str(log),
                     "report": str(primary),
                     "activity_annotation_count": annotated,

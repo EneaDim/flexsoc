@@ -124,8 +124,14 @@ def resolve_orfs_artifact(
     return path.resolve() if path is not None and path.is_file() else None
 
 
-def _final_artifacts(workdir: Path) -> tuple[tuple[str, Path], ...]:
-    results = workdir / "results"
+def _final_artifacts(
+    workdir: Path, top: str, platform: str | None = None
+) -> tuple[tuple[str, Path], ...]:
+    """Return final artifacts only from the canonical ORFS result branch."""
+
+    branch = resolve_orfs_branch(workdir, "results", top, platform)
+    if branch is None:
+        return ()
     names = (
         ("netlist", "6_final.v"),
         ("sdc", "6_final.sdc"),
@@ -133,12 +139,26 @@ def _final_artifacts(workdir: Path) -> tuple[tuple[str, Path], ...]:
         ("odb", "6_final.odb"),
         ("gds", "6_final.gds"),
     )
-    found: list[tuple[str, Path]] = []
-    for kind, name in names:
-        candidates = sorted(results.glob(f"**/{name}")) if results.is_dir() else []
-        if candidates:
-            found.append((kind, candidates[-1]))
-    return tuple(found)
+    return tuple((kind, path) for kind, name in names if (path := branch / name).is_file())
+
+
+def _config_value(config: Path, key: str) -> str:
+    """Read one generated ORFS config value."""
+
+    pattern = re.compile(rf"\s*export\s+{re.escape(key)}\s*:?=\s*(.+?)\s*$")
+    for line in config.read_text(encoding="utf-8").splitlines():
+        if match := pattern.match(line):
+            return match.group(1)
+    raise ValueError(f"{key} missing from OpenROAD config: {config}")
+
+
+def _config_inputs(config: Path) -> tuple[Path, ...]:
+    """Return FlexSoC artifacts referenced by generated config.mk."""
+
+    return tuple(
+        Path(_config_value(config, key)).expanduser().resolve()
+        for key in ("SYNTH_NETLIST_FILES", "SDC_FILE")
+    )
 
 
 
@@ -225,18 +245,24 @@ class ImplementationFlow:
             workdir,
             orfs_environment(),
             log,
+            inputs=(makefile, config, *_config_inputs(config)),
+            outputs=(workdir / "results", workdir / "reports", workdir / "logs"),
             line_callback=on_line,
         )
         result = self.runner.run(request, on=on)
         if result.returncode == 0:
-            for kind, path in _final_artifacts(workdir):
+            top = _config_value(config, "DESIGN_NAME")
+            platform = _config_value(config, "PLATFORM")
+            for kind, path in _final_artifacts(workdir, top, platform):
                 print_path_label("report", path, details={"kind": kind})
         return result.returncode
 
-    def collect(self, workdir: Path) -> dict[str, Path]:
+    def collect(
+        self, workdir: Path, *, top: str, platform: str | None = None
+    ) -> dict[str, Path]:
         """Return canonical final ORFS artifacts by kind."""
 
-        return {kind: path for kind, path in _final_artifacts(workdir.expanduser().resolve())}
+        return dict(_final_artifacts(workdir.expanduser().resolve(), top, platform))
 
     def view(
         self,

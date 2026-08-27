@@ -10,7 +10,9 @@ derived artifact, quality gate, and handoff explicit enough for production use.
 The exhaustive syntax and lifecycle role of every command is maintained in the
 [FlexSoC command reference](command_reference.md). The generated scaffold
 architecture, file ownership, and stage-by-stage implementation reasoning are
-documented in [IP development guide](ip_development_guide.md).
+documented in [IP development guide](ip_development_guide.md). The Python/backend
+structure and execution/provenance contracts are mapped in
+[Architecture](architecture.md).
 
 > **Core rule:** edit the design intent, regenerate the smallest derived
 > boundary, and rerun every gate whose assumptions changed.
@@ -146,8 +148,25 @@ SDC/sign-off, synthesis, EQY, STA, SDF, power, and implementation scripts
 metrics and manifests
 ```
 
-`--force` is appropriate for generated files. It must not become a habit that
-overwrites authored model, tests, or RTL without review.
+Generated does not mean "uneditable". It means FlexSoC owns the canonical form. A designer may intentionally experiment with generated collateral through the controlled override lifecycle:
+
+```text
+canonical setup
+    ↓
+manual edit
+    ↓
+consumer --no-setup → blocked as MODIFIED
+    ↓
+fx validate_override --set STAGE=<setup_target>
+    ↓
+consumer --no-setup → runs as VALIDATED_OVERRIDE
+    ↓
+restore canonical bytes → CLEAN
+```
+
+The validation applies only to the exact effective hash and current parent/input lineage. A different edit is not implicitly trusted, and source/config/parent changes make the setup `STALE`. Execution stages must treat setup collateral as immutable: runtime/scenario copies may be generated, but a run must not rewrite the canonical files tracked by provenance.
+
+`--force` is appropriate when deliberately regenerating machine-owned files. It must not become a habit that overwrites authored model, tests, or RTL without review.
 
 ---
 

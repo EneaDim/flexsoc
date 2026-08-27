@@ -788,6 +788,13 @@ def _completion_marker(ctx: SignoffContext) -> str:
         f"mode={ctx.mode or 'n/a'} workload={ctx.workload or 'n/a'}"
     )
 
+def _command_inputs(ctx: SignoffContext, script: Path) -> tuple[Path, ...]:
+    """Return every file consumed by one generated OpenSTA script."""
+
+    paths = [script, ctx.netlist, ctx.sdc, ctx.liberty, *ctx.macro_liberties]
+    paths.extend(path for path in (ctx.spef, ctx.activity_file, ctx.gls_report) if path is not None)
+    return tuple(dict.fromkeys(path.resolve() for path in paths))
+
 def _render(analysis: str, ctx: SignoffContext) -> str:
     """Render one analysis through its owning sign-off engine."""
 
@@ -936,9 +943,10 @@ def _execute_script(
     elif ctx.report_dir.exists():
         shutil.rmtree(ctx.report_dir)
     ctx.report_dir.mkdir(parents=True)
-    _write(script, _render(analysis, ctx))
+    runtime_script = ctx.report_dir / script.name
+    _write(runtime_script, _render(analysis, ctx))
     print_script(
-        script,
+        runtime_script,
         details={
             "analysis": analysis,
             "stage": ctx.stage,
@@ -949,12 +957,18 @@ def _execute_script(
             "report_dir": ctx.report_dir,
         },
     )
-    command = [values.get("STA", "sta"), "-exit", "-no_init", str(script)]
+    command = [values.get("STA", "sta"), "-exit", "-no_init", str(runtime_script)]
     if runner is None:
         rc = _run_sta(command, cwd=project_root, log=log)
     else:
         from flexsoc.backend.core import CommandRequest
-        result = runner.run(CommandRequest(tuple(command), project_root, {}, log, inputs=(script,), outputs=(ctx.report_dir,)), on=on)
+        result = runner.run(
+            CommandRequest(
+                tuple(command), project_root, {}, log,
+                inputs=_command_inputs(ctx, runtime_script), outputs=(ctx.report_dir,),
+            ),
+            on=on,
+        )
         rc = result.returncode
     if rc != 0:
         return rc

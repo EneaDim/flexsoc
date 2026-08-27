@@ -151,6 +151,7 @@ asynchronous.
 ## Documentation
 
 - [Quickstart](docs/quickstart.md) — the shortest runnable single-clock and N-clock workflows.
+- [Architecture](docs/architecture.md) — code structure, backend responsibilities, execution/provenance contracts, and end-to-end data flow.
 - [Project lifecycle](docs/project_lifecycle.md) — the complete ASIC design, verification, implementation, sign-off, change-propagation, troubleshooting, reuse, and release guide.
 - [IP development guide](docs/ip_development_guide.md) — the detailed scaffold architecture, ownership boundaries, artifacts, rationale, failure recovery, GLS model policy, and activity-power flow.
 - [Command reference](docs/command_reference.md) — every `fx` pseudo-command, backend target, option, variable, lifecycle role, and diagnostic workflow.
@@ -169,7 +170,7 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 ├── impl/<pdk>/
 ├── signoff/          # equivalence, STA, SDF, power
 ├── logs/
-└── meta/             # manifest and metrics
+└── meta/             # manifest, metrics, and <pdk>/provenance.json
 ```
 
 ## API and end-to-end regression

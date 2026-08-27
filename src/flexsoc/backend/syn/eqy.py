@@ -843,13 +843,13 @@ def discover_result_dir(
         return expected
 
     base = expected.parent
-    candidates = sorted(
-        (path for path in base.glob("*_rtl_vs_syn") if path.is_dir()),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    ) if base.is_dir() else []
-    if candidates:
+    candidates = sorted(path for path in base.glob("*_rtl_vs_syn") if path.is_dir()) if base.is_dir() else []
+    if len(candidates) == 1:
         return candidates[0]
+    if len(candidates) > 1:
+        raise FileNotFoundError(
+            f"ambiguous EQY result beside {expected}: " + ", ".join(str(path) for path in candidates)
+        )
 
     technology = f" PDK={pdk}" if pdk else " legacy-layout"
     raise FileNotFoundError(
@@ -1874,6 +1874,7 @@ class EquivalenceFlow:
         log: Path,
         jobs: int = 1,
         eqy: str = "eqy",
+        inputs: Sequence[Path] = (),
         on: str = "local",
     ) -> int:
         """Run EQY using the prepared profile."""
@@ -1888,6 +1889,8 @@ class EquivalenceFlow:
             config.parent,
             {},
             log,
+            inputs=tuple(dict.fromkeys((config.absolute(), *(path.absolute() for path in inputs)))),
+            outputs=(result_dir.resolve(),),
         )
         return self.runner.run(request, on=on).returncode
 
