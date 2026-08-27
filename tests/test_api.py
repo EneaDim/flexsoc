@@ -3372,6 +3372,7 @@ def test_ci_toolchain_contract() -> None:
     assert "IVERILOG_VERSION=13.0" in lock and "IVERILOG_MIN_VERSION=13.0" in lock
     assert "iverilog -g2012 -ginterconnect -V" in deps
     assert "orfs-klayout.version" in dockerfile
+    assert "libyaml-cpp0.8" in dockerfile
     assert 'test "$required_klayout" = "$KLAYOUT_VERSION"' in dockerfile
     assert 'orfs_klayout_required=$(cat /opt/flexsoc/toolchain/.flexsoc/orfs-klayout.version)' in verify
     assert 'test "$orfs_klayout_required" = "$KLAYOUT_VERSION"' in verify

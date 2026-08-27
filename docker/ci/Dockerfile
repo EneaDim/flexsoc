@@ -144,7 +144,7 @@ RUN --mount=type=cache,id=flexsoc-apt-cache,target=/var/cache/apt,sharing=locked
     . /tmp/implementation-toolchain.lock; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      bc ca-certificates curl file jq patchelf rsync ruby time \
+      bc ca-certificates curl file jq libyaml-cpp0.8 patchelf rsync ruby time \
       tcl-tclreadline \
       python3-click python3-numpy python3-pandas python3-yaml python3-yamlfix; \
     curl --fail --location --retry 3 "$KLAYOUT_URL" -o /tmp/klayout.deb; \
