@@ -364,9 +364,21 @@ def collect_sta(
         text = read_text(report)
         wns = last_number(r"^\s*wns(?:\s+\w+)?\s+(" + FLOAT + r")\s*$", text, float)
         tns = last_number(r"^\s*tns(?:\s+\w+)?\s+(" + FLOAT + r")\s*$", text, float)
+        violating = (
+            marked_section(text, "=== Violating paths ===", "=== Near-critical paths ===") or text
+        )
+        if wns is None:
+            slacks = re.findall(
+                r"^\s*(" + FLOAT + r")\s+slack\s+\(VIOLATED\)",
+                violating,
+                flags=re.IGNORECASE | re.MULTILINE,
+            )
+            wns = min(map(float, slacks)) if slacks else None
         unconstrained = text.split("=== Unconstrained paths ===", 1)[-1] if "=== Unconstrained paths ===" in text else ""
         data: dict[str, Any] = {
-            "reported_violating_paths": len(re.findall(r"slack\s*\(VIOLATED\)", text, flags=re.IGNORECASE)),
+            "reported_violating_paths": len(
+                re.findall(r"slack\s*\(VIOLATED\)", violating, flags=re.IGNORECASE)
+            ),
             "reported_unconstrained_paths": len(re.findall(r"^Startpoint:", unconstrained, flags=re.MULTILINE)),
             "report": relative(report, run_dir),
             "log": relative(log_root / "sta" / corner / mode / f"{top}.log", run_dir),

@@ -227,7 +227,10 @@ Use `fx commands` to list every backend target.
         "SDF_CORNER": "Corner selected for SDF generation or annotation.",
         "NETLIST": "Explicit synthesized or post-route netlist.",
         "SIGNOFF_STAGE": "Sign-off source stage: post_syn or post_route; view also accepts post_pnr.",
-        "SDC_CLOCK_PERIOD_NS": "Generated sign-off SDC clock period in nanoseconds; defaults to 20 for every declared domain.",
+        "SDC_CLOCK_PERIOD_NS": (
+            "Optional single-clock sign-off period override; "
+            "multi-clock periods come from CLOCK_DOMAINS."
+        ),
         "SPEF_FILE": "Extracted parasitics for post-route timing/power.",
         "PNR_SDC_FILE": "Post-route SDC override.",
         "LIBS": "Corner Liberty list or mapping.",

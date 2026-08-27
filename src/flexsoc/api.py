@@ -35,7 +35,6 @@ DEFAULT_SETTINGS = {
     "SDF_STRICT": "1",
     "FST2VCD": "fst2vcd",
     "SIGNOFF_STAGE": "post_syn",
-    "SDC_CLOCK_PERIOD_NS": "20",
     "POWER_VCD_SCOPE": "auto",
     "POWER_DUT_INSTANCE": "auto",
 }

@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from flexsoc.backend.core import ClockConfig, ClockDomain, clock_config, layout_from_values
+from flexsoc.backend.core import ClockConfig, clock_config, layout_from_values
 from flexsoc.backend.core.execution import print_label, print_script
 from flexsoc.backend.impl.impl import resolve_orfs_artifact
 
@@ -276,14 +276,32 @@ def _returncode_text(returncode: int) -> str:
         name = "UNKNOWN"
     return f"signal {number} ({name})"
 
+def _report_section(text: str, start: str, end: str) -> str:
+    """Return one generated report section, or the full report for legacy output."""
+
+    if start not in text:
+        return text
+    section = text.split(start, 1)[1]
+    return section.split(end, 1)[0] if end in section else section
+
+
 def _timing_values(text: str) -> dict[str, float]:
-    """Extract public ``report_wns``/``report_tns`` values when available."""
+    """Extract WNS/TNS and recover WNS from explicit violating path slack."""
 
     values: dict[str, float] = {}
     for name, pattern in (("wns", WNS_RE), ("tns", TNS_RE)):
         match = pattern.search(text)
         if match:
             values[name] = float(match.group(1))
+    if "wns" not in values:
+        section = _report_section(text, "=== Violating paths ===", "=== Near-critical paths ===")
+        slacks = [
+            float(match.group(1))
+            for match in PATH_SLACK_RE.finditer(section)
+            if match.group(2) == "VIOLATED"
+        ]
+        if slacks:
+            values["wns"] = min(slacks)
     return values
 
 def _header(ctx: SignoffContext, limitations: Sequence[str]) -> str:
@@ -794,29 +812,19 @@ def generate_signoff_sdc(project_root: Path, values: Mapping[str, str]) -> Path:
     layout = layout_from_values(project_root, values)
     top = values.get("TOP", "test")
     cfg = clock_config(values)
-    is_cordic = top.strip().lower() == "cordic"
-    default_io_delay_pct = "0.1" if is_cordic else "0.2"
-    io_delay_pct = float(values.get("SDC_IO_DELAY_PCT", default_io_delay_pct))
-    signoff_period_ns = float(values.get("SDC_CLOCK_PERIOD_NS", "20"))
-    if signoff_period_ns <= 0.0:
-        raise ValueError("SDC_CLOCK_PERIOD_NS must be positive")
-    cfg = ClockConfig(
-        tuple(
-            ClockDomain(
-                domain.name,
-                domain.signal,
-                domain.reset,
-                signoff_period_ns,
-                domain.reset_polarity,
+    io_delay_pct = float(values.get("SDC_IO_DELAY_PCT", "0.2"))
+    period_override = values.get("SDC_CLOCK_PERIOD_NS", "").strip()
+    if period_override:
+        if cfg.multiclock:
+            raise ValueError(
+                "SDC_CLOCK_PERIOD_NS is single-clock only; set periods in CLOCK_DOMAINS"
             )
-            for domain in cfg.domains
-        ),
-        cfg.relationships,
-    )
-    print_label(
-        "timing",
-        f"sdc_clock_period={signoff_period_ns:g}ns · io_delay_pct={io_delay_pct:g}",
-    )
+        period_ns = float(period_override)
+        if period_ns <= 0.0:
+            raise ValueError("SDC_CLOCK_PERIOD_NS must be positive")
+        cfg = ClockConfig((replace(cfg.domains[0], period_ns=period_ns),), cfg.relationships)
+    periods = ",".join(f"{domain.name}:{domain.period_ns:g}ns" for domain in cfg.domains)
+    print_label("timing", f"clock_periods={periods} · io_delay_pct={io_delay_pct:g}")
     text = render_clock_config_sdc(top, cfg, io_delay_pct)
     path = write_sdc(layout.signoff_sdc, text)
     print_script(
@@ -976,9 +984,9 @@ def _sta_report_violation(path: Path) -> tuple[bool, float | None, int]:
     """Return whether one STA report contains a real negative-slack violation."""
 
     text = path.read_text(encoding="utf-8", errors="replace")
-    timing = _timing_values(text)
-    wns = timing.get("wns")
-    violated = len(re.findall(r"\bslack\s+\(VIOLATED\)", text, re.IGNORECASE))
+    section = _report_section(text, "=== Violating paths ===", "=== Near-critical paths ===")
+    wns = _timing_values(text).get("wns")
+    violated = len(re.findall(r"\bslack\s+\(VIOLATED\)", section, re.IGNORECASE))
     return bool(violated or (wns is not None and wns < 0.0)), wns, violated
 
 def execute_static(analysis: str, project_root: Path, values: Mapping[str, str], *, runner=None, on: str = "local") -> int:

@@ -2737,11 +2737,12 @@ def test_activity_analysis_rejects_incoherent_corner_selection(
         )
 
 
-def test_timing_summary_parser_accepts_opensta_wns_tns() -> None:
-    assert _timing_values("wns max -0.125\ntns max -1.250\n") == {
-        "wns": -0.125,
-        "tns": -1.25,
-    }
+def test_timing_summary_parser_accepts_summary_and_path_fallback() -> None:
+    assert _timing_values("wns max -0.125\ntns max -1.250\n") == {"wns": -0.125, "tns": -1.25}
+    assert _timing_values(
+        "=== Violating paths ===\n-0.494083 slack (VIOLATED)\n-0.125 slack (VIOLATED)\n"
+        "=== Near-critical paths ===\n"
+    ) == {"wns": -0.494083}
 
 def test_signoff_execution_rejects_truncated_zero_exit_and_stale_reports(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2897,12 +2898,11 @@ def test_orfs_artifact_resolution_prefers_platform_and_rejects_ambiguity(
         resolve_orfs_artifact(tmp_path, "results", "demo", "6_final.v")
 
 
-def test_cordic_signoff_sdc_default_uses_lighter_io_budget(tmp_path: Path) -> None:
+def test_signoff_sdc_uses_clock_intent_and_standard_io_budget(tmp_path: Path) -> None:
     from flexsoc.backend.signoff.sta import generate_signoff_sdc
 
-    workspace = tmp_path / "workspace"
     values = {
-        "WORKSPACE": str(workspace),
+        "WORKSPACE": str(tmp_path / "workspace"),
         "RUN_TOP": "cordic",
         "RUN_ID": "dev",
         "TOP": "cordic",
@@ -2911,11 +2911,15 @@ def test_cordic_signoff_sdc_default_uses_lighter_io_budget(tmp_path: Path) -> No
         "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
     }
     text = generate_signoff_sdc(tmp_path, values).read_text(encoding="utf-8")
-    assert "create_clock -name core -period 20" in text
-    assert "set_input_delay [expr 20 * 0.1]" in text
-    assert "set_output_delay [expr 20 * 0.1]" in text
+    assert "create_clock -name core -period 10" in text
+    assert "set_input_delay [expr 10 * 0.2]" in text
+    assert "set_output_delay [expr 10 * 0.2]" in text
 
-def test_signoff_sdc_defaults_every_domain_to_20ns_and_allows_override(tmp_path: Path) -> None:
+    values["SDC_CLOCK_PERIOD_NS"] = "25"
+    assert "-period 25" in generate_signoff_sdc(tmp_path, values).read_text(encoding="utf-8")
+
+
+def test_multiclock_signoff_sdc_preserves_domain_periods(tmp_path: Path) -> None:
     from flexsoc.backend.signoff.sta import generate_signoff_sdc
 
     values = {
@@ -2929,10 +2933,13 @@ def test_signoff_sdc_defaults_every_domain_to_20ns_and_allows_override(tmp_path:
         "CLOCK_RELATIONSHIPS": "async:cfg:rx,async:cfg:dsp,async:rx:dsp",
     }
     text = generate_signoff_sdc(tmp_path, values).read_text(encoding="utf-8")
-    assert text.count("-period 20") == 3
+    for name, period in (("cfg", 20), ("rx", 16), ("dsp", 30)):
+        assert f"create_clock -name {name} -period {period}" in text
+    assert text.count("set_clock_groups -asynchronous") == 3
+
     values["SDC_CLOCK_PERIOD_NS"] = "25"
-    text = generate_signoff_sdc(tmp_path, values).read_text(encoding="utf-8")
-    assert text.count("-period 25") == 3
+    with pytest.raises(ValueError, match="single-clock only"):
+        generate_signoff_sdc(tmp_path, values)
 
 
 def test_setup_signoff_generates_five_families_without_activity_scripts(
@@ -2966,7 +2973,7 @@ def test_setup_signoff_generates_five_families_without_activity_scripts(
     }
     sdc = run / "signoff/sky130/demo.sdc"
     assert sdc.is_file()
-    assert "create_clock -name core -period 20 [get_ports clk_i]" in sdc.read_text(encoding="utf-8")
+    assert "create_clock -name core -period 10 [get_ports clk_i]" in sdc.read_text(encoding="utf-8")
     sta_template = run / "signoff/sky130/sta/sta.tcl"
     assert str(run / "syn/sky130/demo_synth.v") in sta_template.read_text(encoding="utf-8")
     assert not (run / "syn/sky130/demo_synth.v").exists()
@@ -3066,8 +3073,9 @@ def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
     timing = run / "signoff/sky130/sta/ss/setup/timing.rpt"
     timing.parent.mkdir(parents=True)
     timing.write_text(
-        "wns max -0.125\ntns max -1.250\n"
-        "=== Violating paths ===\nslack (VIOLATED)\n"
+        "=== Worst routed paths ===\n-0.125 slack (VIOLATED)\n"
+        "=== Violating paths ===\n-0.125 slack (VIOLATED)\n-0.050 slack (VIOLATED)\n"
+        "=== Near-critical paths ===\n"
         "=== Unconstrained paths ===\nStartpoint: floating\n",
         encoding="utf-8",
     )
@@ -3081,8 +3089,8 @@ def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
     sta = collect_sta("demo", run, "sky130")
     assert sta is not None
     assert sta["ss"]["setup"]["wns"] == -0.125
-    assert sta["ss"]["setup"]["tns"] == -1.25
-    assert sta["ss"]["setup"]["reported_violating_paths"] == 1
+    assert "tns" not in sta["ss"]["setup"]
+    assert sta["ss"]["setup"]["reported_violating_paths"] == 2
     assert sta["ss"]["setup"]["reported_unconstrained_paths"] == 1
     assert sta["ss"]["setup"]["report"].endswith("timing.rpt")
 
