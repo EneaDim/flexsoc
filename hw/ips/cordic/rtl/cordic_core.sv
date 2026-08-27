@@ -119,6 +119,7 @@ module cordic_core
   logic signed [INT_W-1:0]   x_q, x_d;
   logic signed [INT_W-1:0]   y_q, y_d;
   logic signed [ANGLE_W-1:0] z_q, z_d;
+  logic signed [ANGLE_W-1:0] atan_q, atan_d;
 
   logic [ITER_W-1:0] iter_q, iter_d;
   logic [7:0]        n_iter_q, n_iter_d;
@@ -284,6 +285,9 @@ module cordic_core
   // ---------------------------------------------------------------------------
   // One iterative CORDIC step
   // ---------------------------------------------------------------------------
+  // atan_q is prefetched one cycle ahead from AtanLut. The z arithmetic sees
+  // only this registered value, breaking the LUT-select -> z-adder path while
+  // preserving one completed CORDIC iteration per StRun cycle.
   always_comb begin
     x_shift = x_q >>> iter_q;
     y_shift = y_q >>> iter_q;
@@ -297,22 +301,22 @@ module cordic_core
       if (z_q >= 0) begin
         x_step = x_q - y_shift;
         y_step = y_q + x_shift;
-        z_step = z_q - AtanLut[iter_q];
+        z_step = z_q - atan_q;
       end else begin
         x_step = x_q + y_shift;
         y_step = y_q - x_shift;
-        z_step = z_q + AtanLut[iter_q];
+        z_step = z_q + atan_q;
       end
     end else begin
       // Vectoring mode
       if (y_q >= 0) begin
         x_step = x_q + y_shift;
         y_step = y_q - x_shift;
-        z_step = z_q + AtanLut[iter_q];
+        z_step = z_q + atan_q;
       end else begin
         x_step = x_q - y_shift;
         y_step = y_q + x_shift;
-        z_step = z_q - AtanLut[iter_q];
+        z_step = z_q - atan_q;
       end
     end
   end
@@ -340,6 +344,7 @@ module cordic_core
     x_d            = x_q;
     y_d            = y_q;
     z_d            = z_q;
+    atan_d         = atan_q;
     iter_d         = iter_q;
     n_iter_d       = n_iter_q;
     mode_d         = mode_q;
@@ -357,6 +362,7 @@ module cordic_core
           x_d            = x_init;
           y_d            = y_init;
           z_d            = z_init;
+          atan_d         = AtanLut[0];
           iter_d         = '0;
           n_iter_d       = n_iter_eff;
           mode_d         = ctrl_mode;
@@ -376,6 +382,7 @@ module cordic_core
           status_valid_d = 1'b1;
         end else begin
           iter_d = iter_q + 1'b1;
+          atan_d = AtanLut[iter_q + 1'b1];
         end
       end
 
@@ -402,6 +409,7 @@ module cordic_core
       x_q           <= '0;
       y_q           <= '0;
       z_q           <= '0;
+      atan_q        <= '0;
       iter_q        <= '0;
       n_iter_q      <= MAX_ITER_U8;
       mode_q        <= 1'b0;
@@ -415,6 +423,7 @@ module cordic_core
       x_q           <= '0;
       y_q           <= '0;
       z_q           <= '0;
+      atan_q        <= '0;
       iter_q        <= '0;
       n_iter_q      <= MAX_ITER_U8;
       mode_q        <= 1'b0;
@@ -428,6 +437,7 @@ module cordic_core
       x_q          <= x_d;
       y_q          <= y_d;
       z_q          <= z_d;
+      atan_q       <= atan_d;
       iter_q       <= iter_d;
       n_iter_q     <= n_iter_d;
       mode_q       <= mode_d;

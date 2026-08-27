@@ -873,7 +873,10 @@ def _assert_pre_impl_ip_branch(top: str, run: Path, pdk: str) -> None:
     # A loaded package may carry prior EQY metrics; the missing current-run EQY
     # log above is the source of truth that this qualification branch skipped it.
     assert flow.get("implementation") == "missing"
-    assert flow.get("post_implementation_signoff") == "missing"
+    assert flow.get("post_implementation_signoff") == "incomplete"
+    assert metrics.get("technical_status") == "REVIEW"
+    provenance = metrics.get("provenance", {})
+    assert isinstance(provenance, dict) and provenance.get("status") == "CLEAN"
 
 
 def _assert_saved_signoff_scripts(
@@ -2173,7 +2176,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
             _run(
                 (
                     f"uv run --no-sync fx settings --reset TOP={top} RUN_TOP={top} "
-                    f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} "
+                    f"RUN_ID={run_id} HOST={host} N_CLOCKS={n_clocks} TARGET_OPT=delay "
                     f"CLOCK_DOMAINS={clock_domains} "
                     f"CLOCK_RELATIONSHIPS={clock_relationships} --workdir {workdir}"
                 ),
