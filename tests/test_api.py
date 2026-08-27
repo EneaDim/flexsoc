@@ -3377,7 +3377,7 @@ def test_ci_toolchain_contract() -> None:
     assert 'orfs_klayout_required=$(cat /opt/flexsoc/toolchain/.flexsoc/orfs-klayout.version)' in verify
     assert 'test "$orfs_klayout_required" = "$KLAYOUT_VERSION"' in verify
     assert 'make test E2E_ORS="$ORFS_ROOT/flow"' in run_ci
-    assert "gh workflow run ci.yml" in workflow
+    assert "gh workflow run ci.yml" in workflow and "steps.lock.outputs.changed" not in workflow
 
 
 

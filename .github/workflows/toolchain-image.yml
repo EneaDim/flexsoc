@@ -119,7 +119,6 @@ jobs:
           if-no-files-found: error
 
       - name: Commit image lock
-        id: lock
         if: steps.frozen.outputs.current != 'true' && github.ref_type == 'branch'
         env:
           BRANCH: ${{ github.ref_name }}
@@ -134,15 +133,13 @@ jobs:
           git add docker/ci/image.lock
           if git diff --cached --quiet; then
             echo "image.lock is already current"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             git commit -m "ci: lock verified toolchain image"
             git push origin "HEAD:$BRANCH"
-            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Dispatch project CI on frozen image
-        if: github.ref_type == 'branch' && (steps.frozen.outputs.current == 'true' || steps.lock.outputs.changed != 'true')
+        if: github.ref_type == 'branch'
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
