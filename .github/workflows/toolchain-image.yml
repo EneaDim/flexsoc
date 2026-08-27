@@ -105,15 +105,15 @@ jobs:
         env:
           FLEXSOC_JOBS: "2"
           TOOLCHAIN_CHECKPOINT_IMAGE: ${{ inputs.checkpoint_ref }}
-        run: docker/scripts/build.sh
+        run: bash docker/scripts/build.sh
 
       - name: Verify toolchain image
         if: steps.frozen.outputs.current != 'true'
-        run: docker/scripts/verify.sh
+        run: bash docker/scripts/verify.sh
 
       - name: Publish and freeze toolchain image
         if: steps.frozen.outputs.current != 'true'
-        run: docker/scripts/publish.sh
+        run: bash docker/scripts/publish.sh
 
       - name: Upload image lock
         if: steps.frozen.outputs.current != 'true'
@@ -124,6 +124,7 @@ jobs:
           if-no-files-found: error
 
       - name: Commit image lock
+        id: lock
         if: steps.frozen.outputs.current != 'true' && github.ref_type == 'branch'
         env:
           BRANCH: ${{ github.ref_name }}
@@ -138,13 +139,15 @@ jobs:
           git add docker/ci/image.lock
           if git diff --cached --quiet; then
             echo "image.lock is already current"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             git commit -m "ci: lock verified toolchain image"
             git push origin "HEAD:$BRANCH"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Dispatch project CI on frozen image
-        if: github.ref_type == 'branch'
+        if: github.ref_type == 'branch' && (steps.frozen.outputs.current == 'true' || steps.lock.outputs.changed != 'true')
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
