@@ -7,6 +7,8 @@ REPO_ROOT=$(cd "$DOCKER_DIR/.." && pwd)
 STATE_DIR="$DOCKER_DIR/.state"
 LOCK_FILE="$DOCKER_DIR/ci/image.lock"
 DOCKERFILE="$DOCKER_DIR/ci/Dockerfile"
+TOOLCHAIN_LOCK="$REPO_ROOT/src/flexsoc/backend/core/toolchain.lock"
+DEPS_SCRIPT="$REPO_ROOT/src/flexsoc/backend/core/deps.sh"
 
 mkdir -p "$STATE_DIR"
 
@@ -36,6 +38,51 @@ inputs_sha256() {
   ) |
     sha256sum |
     awk '{print $1}'
+}
+
+docker_stage_text() {
+  local stage=$1
+  awk -v stage="$stage" '
+    /^FROM[[:space:]]/ {
+      if (capture) exit
+      capture = ($(NF - 1) == "AS" && $NF == stage)
+    }
+    capture { print }
+  ' "$DOCKERFILE"
+}
+
+base_lock_text() {
+  awk '/^# impl / {exit} {print}' "$TOOLCHAIN_LOCK"
+}
+
+implementation_lock_text() {
+  grep -E '^(ORFS_REPO|ORFS_REF_PREFIX|OPENROAD_REPO|OPENROAD_REF_PREFIX|OPENROAD_INSTALL_MODE)=' \
+    "$TOOLCHAIN_LOCK"
+}
+
+checkpoint_sha256() {
+  local checkpoint=$1
+  case "$checkpoint" in
+    base)
+      {
+        docker_stage_text toolchain-prereqs
+        docker_stage_text toolchain-installed
+        base_lock_text
+        cat "$DEPS_SCRIPT"
+      } | sha256sum | awk '{print $1}'
+      ;;
+    openroad)
+      {
+        docker_stage_text implementation-builder
+        docker_stage_text openroad-checkpoint
+        implementation_lock_text
+      } | sha256sum | awk '{print $1}'
+      ;;
+    *)
+      echo "unknown checkpoint: $checkpoint" >&2
+      return 2
+      ;;
+  esac
 }
 
 image_tag() {
@@ -107,6 +154,22 @@ registry_checkpoint_ref() {
   printf '%s:%s-installed\n' \
     "$(registry_repository)" \
     "$(image_tag)"
+}
+
+registry_base_checkpoint_ref() {
+  printf '%s:checkpoint-base-%s\n' \
+    "$(registry_repository)" \
+    "$(checkpoint_sha256 base | cut -c1-16)"
+}
+
+registry_openroad_checkpoint_ref() {
+  printf '%s:checkpoint-openroad-%s\n' \
+    "$(registry_repository)" \
+    "$(checkpoint_sha256 openroad | cut -c1-16)"
+}
+
+registry_image_exists() {
+  docker buildx imagetools inspect "$1" >/dev/null 2>&1
 }
 
 require_docker() {

@@ -55,12 +55,16 @@ if [[ -n "$token" ]]; then
       --password-stdin
 fi
 
-docker image inspect "$checkpoint_ref" >/dev/null 2>&1 || {
-  echo "implementation checkpoint is missing: $checkpoint_ref" >&2
+if docker image inspect "$checkpoint_ref" >/dev/null 2>&1; then
+  docker image tag "$checkpoint_ref" "$registry_checkpoint"
+  docker push "$registry_checkpoint"
+elif registry_image_exists "$registry_checkpoint"; then
+  printf 'Implementation checkpoint already persisted: %s\n' "$registry_checkpoint"
+else
+  echo "implementation checkpoint is missing: $registry_checkpoint" >&2
   exit 6
-}
+fi
 
-docker push "$registry_checkpoint"
 docker push "$registry_ref"
 
 digest=$(

@@ -43,10 +43,9 @@ docker/
 
 Builds the Docker image.
 
-It can either:
-
-- build the complete EDA toolchain from source; or
-- reuse an existing `toolchain-installed` checkpoint image.
+It builds the runtime image from deterministic toolchain stages. In GitHub CI,
+completed expensive stages are persisted automatically as GHCR checkpoints and
+reused when their own inputs are unchanged.
 
 It produces the final local runtime image but does not run the project tests.
 
@@ -106,24 +105,34 @@ Contains shared functions for:
 ---
 
 
-### GitHub-hosted build cache
+### GitHub-hosted checkpoints and build cache
 
-The manual image workflow logs in to GHCR and uses a dedicated BuildKit registry
-cache. A full build first persists the expensive `toolchain-installed` stage,
-then builds OpenROAD/ORFS and the final runtime image from that cache. If a later
-OpenROAD step fails, a retry does not need to rebuild the already completed base
-toolchain from source.
+When an image refresh is required, GitHub persists three independent checkpoints:
 
-The cache is an optimization only. `image.lock` still records the verified
-runtime image by immutable digest and remains the authority used by project CI.
+```text
+base toolchain → OpenROAD/ORFS builder → implementation image → runtime image
+```
+
+The base and OpenROAD tags are derived only from the inputs of those stages. A
+change in a later runtime-copy step therefore does not invalidate a completed
+45+ minute OpenROAD build. `build.sh` checks GHCR before each expensive stage and
+uses Docker named build contexts to replace an already completed Dockerfile stage
+with the frozen checkpoint image.
+
+BuildKit registry cache remains enabled as a secondary optimization for layers
+inside a stage. The explicit checkpoint images are the retry boundary; they are
+useful even when a later build command fails before BuildKit can export its cache.
+
+`image.lock` still records only the final verified runtime image digest. Stage
+checkpoints are build artifacts, not the project CI runtime contract.
 
 ### OpenROAD runtime closure
 
-The pinned OpenROAD dependency installer keeps OR-Tools and its matching Abseil
-runtime in a dedicated `/opt/or-tools` prefix. The final FlexSoC image copies the
-shared libraries required by `openroad` into the private toolchain runtime path
-and verifies the result with `ldd`. This avoids depending on build-only paths in
-the final image.
+The pinned OpenROAD dependency installer is invoked with
+`-prefix=/opt/openroad-deps`, so its OR-Tools runtime is nested under
+`/opt/openroad-deps/or-tools/lib`. The final image copies only shared libraries
+required by `openroad` into the private FlexSoC toolchain runtime path and verifies
+the result with `ldd`.
 
 ### ORFS / KLayout compatibility contract
 
@@ -192,37 +201,9 @@ checkout
 The image is therefore built only when one of its declared inputs changes. A
 normal push does not rebuild Yosys, Verilator, OpenROAD, etc.
 
-`workflow_dispatch` also provides `force_rebuild=true` for an explicit rebuild
-of the same input set, plus the optional `checkpoint_ref` used to resume from an
-installed checkpoint.
-
-GitHub BuildKit registry cache is used only when a build is actually necessary,
-so a failed long OpenROAD build can reuse completed layers on the next attempt.
-
-### Building from an existing checkpoint
-
-The workflow accepts an optional `checkpoint_ref`.
-
-Example:
-
-```text
-ghcr.io/eneadim/flexsoc/flexsoc-ci:toolchain-e6a29bb60fbb64ce-installed
-```
-
-When this value is supplied, the workflow reuses the installed EDA toolchain
-instead of rebuilding it from source.
-
-The checkpoint image ends with:
-
-```text
--installed
-```
-
-The final frozen runtime image does not:
-
-```text
-ghcr.io/eneadim/flexsoc/flexsoc-ci:toolchain-<inputs-hash>
-```
+`workflow_dispatch` also provides `force_rebuild=true` for an explicit refresh
+of the final image. Expensive stage checkpoints are discovered and reused
+automatically; no checkpoint reference needs to be supplied manually.
 
 ---
 
@@ -318,13 +299,11 @@ built.
 FLEXSOC_JOBS=2 docker/scripts/build.sh
 ```
 
-### Build from an existing checkpoint
+### Build checkpoints
 
-```bash
-TOOLCHAIN_CHECKPOINT_IMAGE=\
-ghcr.io/eneadim/flexsoc/flexsoc-ci:toolchain-e6a29bb60fbb64ce-installed \
-docker/scripts/build.sh
-```
+On GitHub, stage checkpoints are automatic. `build.sh` probes GHCR and only
+builds a checkpoint whose stage-specific hash is missing. A local build can
+still use the ordinary BuildKit layer cache; no checkpoint reference is needed.
 
 ### Verify the image runtime
 
@@ -381,15 +360,14 @@ When the Dockerfile, toolchain lock, dependency installer, `pyproject.toml`, or
 
 ```text
 push the source changes to a branch
-→ run the manual toolchain-image workflow on that branch with publish=true
+→ run the manual toolchain-image workflow on that branch with `force_rebuild=true` only when an explicit refresh is required
 → GitHub builds and verifies the runtime image
 → GitHub publishes it and commits image.lock on the same branch
 → the image workflow dispatches ci.yml on the locked commit
 ```
 
-Leave `checkpoint_ref` empty after a tool revision changes so the first image is
-rebuilt from the pinned sources. Reuse a checkpoint only when its installed
-toolchain is known to match the current lock.
+After a tool revision changes, only checkpoints whose stage-specific inputs still
+match are reused. A changed revision automatically rebuilds the affected stage.
 
 ### Normal source-code update
 

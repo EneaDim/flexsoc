@@ -78,6 +78,16 @@ RUN set -eux; \
     cmake --install /tmp/openroad-build --strip; \
     /opt/openroad-install/bin/openroad -version
 
+# Persist only the OpenROAD/ORFS outputs needed by later stages. This stage is
+# pushed independently in CI so failures after the 45+ minute build resume here.
+FROM ubuntu:24.04 AS openroad-checkpoint
+COPY --from=implementation-builder /opt/openroad-install /opt/openroad-install
+COPY --from=implementation-builder /opt/openroad-deps /opt/openroad-deps
+COPY --from=implementation-builder /src/orfs/flow /src/orfs/flow
+COPY --from=implementation-builder /src/orfs.ref /src/orfs.ref
+COPY --from=implementation-builder /src/orfs-klayout.version /src/orfs-klayout.version
+COPY --from=implementation-builder /src/openroad.ref /src/openroad.ref
+
 FROM ubuntu:24.04 AS toolchain-prereqs
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -148,7 +158,7 @@ RUN --mount=type=cache,id=flexsoc-apt-cache,target=/var/cache/apt,sharing=locked
     rm -f /tmp/klayout.deb; \
     rm -rf /var/lib/apt/lists/*
 
-RUN --mount=from=implementation-builder,source=/,target=/mnt/implementation,ro \
+RUN --mount=from=openroad-checkpoint,source=/,target=/mnt/implementation,ro \
     set -eux; \
     prefix="$(readlink -f /opt/flexsoc/toolchain)"; \
     private_lib="$prefix/lib/openroad"; \
@@ -169,8 +179,8 @@ RUN --mount=from=implementation-builder,source=/,target=/mnt/implementation,ro \
       for soname in $missing; do \
         source=; \
         for directory in \
-          /mnt/implementation/opt/or-tools/lib \
-          /mnt/implementation/opt/or-tools/lib64 \
+          /mnt/implementation/opt/openroad-deps/or-tools/lib \
+          /mnt/implementation/opt/openroad-deps/or-tools/lib64 \
           /mnt/implementation/opt/openroad-deps/lib \
           /mnt/implementation/opt/openroad-deps/lib64 \
           /mnt/implementation/usr/local/lib \

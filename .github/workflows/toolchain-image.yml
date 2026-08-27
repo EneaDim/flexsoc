@@ -10,11 +10,6 @@ on:
         required: true
         type: boolean
         default: false
-      checkpoint_ref:
-        description: Existing toolchain-installed image; leave empty for a full build
-        required: false
-        type: string
-        default: ""
 
 permissions:
   actions: write
@@ -104,7 +99,7 @@ jobs:
         if: steps.frozen.outputs.current != 'true'
         env:
           FLEXSOC_JOBS: "2"
-          TOOLCHAIN_CHECKPOINT_IMAGE: ${{ inputs.checkpoint_ref }}
+          PERSIST_BUILD_CHECKPOINTS: "1"
         run: bash docker/scripts/build.sh
 
       - name: Verify toolchain image
