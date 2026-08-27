@@ -3365,12 +3365,14 @@ def test_ci_toolchain_contract() -> None:
 
     lock = (ROOT / "src/flexsoc/backend/core/toolchain.lock").read_text(encoding="utf-8")
     deps = (ROOT / "src/flexsoc/backend/core/deps.sh").read_text(encoding="utf-8")
+    toolchain = (ROOT / "src/flexsoc/backend/core/toolchain.py").read_text(encoding="utf-8")
     dockerfile = (ROOT / "docker/ci/Dockerfile").read_text(encoding="utf-8")
     verify = (ROOT / "docker/scripts/verify.sh").read_text(encoding="utf-8")
     run_ci = (ROOT / "docker/scripts/run-ci.sh").read_text(encoding="utf-8")
     workflow = (ROOT / ".github/workflows/toolchain-image.yml").read_text(encoding="utf-8")
     assert "IVERILOG_VERSION=13.0" in lock and "IVERILOG_MIN_VERSION=13.0" in lock
     assert "iverilog -g2012 -ginterconnect -V" in deps
+    assert 'argv = ["bash", str(script), action, "--profile", profile]' in toolchain
     assert "orfs-klayout.version" in dockerfile
     assert "libyaml-cpp0.8" in dockerfile
     assert 'test "$required_klayout" = "$KLAYOUT_VERSION"' in dockerfile

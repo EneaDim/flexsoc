@@ -410,7 +410,7 @@ class Toolchain:
         if action not in allowed:
             raise ValueError(f"unsupported dependency action: {action}")
         script = Path(__file__).with_name("deps.sh")
-        argv = [str(script), action, "--profile", profile]
+        argv = ["bash", str(script), action, "--profile", profile]
         if jobs is not None:
             argv += ["--jobs", str(jobs)]
         if action == "prune" and apply:
