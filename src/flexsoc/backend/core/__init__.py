@@ -5,7 +5,7 @@ from .core import (
     PDKRunLayout, PDKSpec, PDKViews, PdkManager, build_ordered_sources,
     clock_config, colorize, describe, discover_views, ensure_dir, fetch, flow_paths,
     has_reg_pkg, json_text, list_data,
-    layout_from_values, make_overrides, normalize_name, parse_sv_signature, pdk_make_paths,
+    layout_from_values, normalize_name, parse_sv_signature, pdk_paths, pdk_settings,
     pdk_run_layout, replace_generated_tree, run_root, safe_write_file,
 )
 from .execution import (
@@ -22,8 +22,8 @@ __all__ = [
     "build_ordered_sources", "clock_config", "colorize", "describe",
     "discover_views", "ensure_dir", "fetch",
     "flow_paths", "has_reg_pkg", "json_text", "list_data",
-    "layout_from_values", "make_overrides", "normalize_name",
-    "parse_sv_signature", "pdk_make_paths", "pdk_run_layout",
+    "layout_from_values", "normalize_name", "pdk_settings",
+    "parse_sv_signature", "pdk_paths", "pdk_run_layout",
     "replace_generated_tree", "run_root", "safe_write_file",
     "CommandRequest", "CommandResult", "ExecutionTarget", "LocalExecutor",
     "SshExecutor", "ToolRunner", "PackageFlow", "Reporting", "Toolchain",

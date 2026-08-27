@@ -37,7 +37,6 @@ if _MISSING:  # pragma: no cover - exercised only in incomplete envs.
         )
         return 2
 
-    main = app
 
 else:
     console = Console()
@@ -191,7 +190,7 @@ Use `fx commands` to list every backend target.
         "FORCE": "Allow regeneration of generator-owned outputs; prefer --force.",
         "N_CLOCKS": "Number of declared clock domains.",
         "CLOCK_DOMAINS": "Comma-separated name:clock:reset:period:polarity domain declarations.",
-        "CLOCK_RELATIONSHIPS": "Explicit sync/async/exclusive relationships between domains.",
+        "CLOCK_RELATIONSHIPS": "Explicit async/sync/generated relationships between domains.",
         "PDK": "Active technology profile name.",
         "PDK_ROOT": "Root of an already installed PDK.",
         "CLK_PERIOD": "Primary clock period override in nanoseconds.",
@@ -364,6 +363,10 @@ Use `fx commands` to list every backend target.
             ("--workdir PATH",),
         ),
     }
+
+    # -----------------------------------------------------------------------
+    # Human-readable guide and command help
+    # -----------------------------------------------------------------------
 
     def _guide() -> None:
         """Print the canonical IP lifecycle in execution order."""
@@ -600,7 +603,7 @@ Use `fx commands` to list every backend target.
         return None
 
     # -----------------------------------------------------------------------
-    # Persistent settings
+    # Persistent project settings and clock/reset intent
     # -----------------------------------------------------------------------
 
     def _upper(values: Mapping[str, Any]) -> dict[str, str]:
@@ -721,15 +724,13 @@ Use `fx commands` to list every backend target.
         if "PDK" in updates and "PDK_ROOT" not in updates:
             values.pop("PDK_ROOT", None)
         clock_updates = {"N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS"} & updates.keys()
-        for legacy in ("CLOCK_MODE", "MULTICLOCK", "MULTICLOCK_DOMAINS"):
-            values.pop(legacy, None)
         if {"N_CLOCKS", "CLOCK_DOMAINS"} & updates.keys() and "CLOCK_RELATIONSHIPS" not in updates:
             values.pop("CLOCK_RELATIONSHIPS", None)
         values.update(updates)
         if clock_updates:
             from .backend.core import clock_config
 
-            values.update(clock_config(values).make_values())
+            values.update(clock_config(values).to_settings())
         if reset or unsets or sets or items:
             _write_settings(root, values)
         display = dict(values)
@@ -742,6 +743,10 @@ Use `fx commands` to list every backend target.
         display["IMPL_DIR"] = str(layout.pnr_dir)
         _print_settings(display, as_json)
 
+    # -----------------------------------------------------------------------
+    # Technology and equivalence diagnostics
+    # -----------------------------------------------------------------------
+
     def _pdk(
         root: Path,
         args: tuple[str, ...],
@@ -752,7 +757,9 @@ Use `fx commands` to list every backend target.
     ) -> int:
         """List, inspect, fetch, or activate a PDK profile."""
 
-        from .backend.core import describe, discover_views, fetch, json_text, list_data, make_overrides, normalize_name
+        from .backend.core import (
+            describe, discover_views, fetch, json_text, list_data, normalize_name, pdk_settings,
+        )
 
         action = args[0] if args else "list"
         name = args[1] if len(args) > 1 else None
@@ -830,7 +837,7 @@ Use `fx commands` to list every backend target.
         current = _read_settings(root)
         current.update({"PDK": canonical, "PDK_ROOT": str(install)})
         _write_settings(root, current)
-        derived = make_overrides(root, canonical, install)
+        derived = pdk_settings(root, canonical, install)
         if as_json:
             print(json_text({"active": canonical, "settings": current, "derived": derived}))
         else:
@@ -1136,8 +1143,12 @@ Use `fx commands` to list every backend target.
         console.print(f"[grey70]Artifacts:[/grey70] [white]fx eqy_debug --files {item.partition}[/white]")
         return 0
 
+    # -----------------------------------------------------------------------
+    # Target invocation and one-shot overrides
+    # -----------------------------------------------------------------------
+
     def _overrides(sets: tuple[str, ...], tool: str | None, force: bool) -> dict[str, str]:
-        """Collect one-shot Make-variable overrides."""
+        """Collect one-shot FlexSoC setting overrides."""
 
         values = _assignments(sets)
         if tool:
@@ -1204,6 +1215,10 @@ Use `fx commands` to list every backend target.
             print("".join(item.stdout or "" for item in items), end="")
         failed = [item for item in items if not item.ok]
         return failed[0].returncode if failed else 0
+
+    # -----------------------------------------------------------------------
+    # Interactive shell
+    # -----------------------------------------------------------------------
 
     def _shell(root: Path, workdir: Path | None) -> int:
         """Open a Prompt Toolkit shell with command completion."""
@@ -1442,11 +1457,3 @@ Use `fx commands` to list every backend target.
             error_console.print("\n[red]interrupted[/red]")
             return 130
 
-    def main(argv: list[str] | None = None) -> int:
-        """Alias app for standard console script names."""
-
-        return app(argv)
-
-
-if __name__ == "__main__":
-    raise SystemExit(app())

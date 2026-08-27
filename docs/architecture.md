@@ -39,7 +39,7 @@ user / CI / Python caller
     public API
    flexsoc/api.py
         ↓
-  _TargetRouter / FlexSoC
+  FlexSoCTarget / FlexSoC
         ↓
  Backend domain facade
  design / dv / syn / signoff / impl
@@ -76,7 +76,7 @@ FlexSoCConfig
           ↓
        FlexSoC
           ↓
-    _TargetRouter
+    FlexSoCTarget
           ↓
         Backend
   ┌───────┼────────┬────────┬─────────┐
@@ -182,7 +182,7 @@ Technology-independent design/DV state and technology-dependent implementation/s
 
 ## 6. Clock/reset intent
 
-`ClockConfig` in `backend/core/core.py` is the canonical Python representation of:
+`ClockConfig` in `backend/core/core.py` is the canonical Python representation of the three user-facing settings:
 
 ```text
 N_CLOCKS
@@ -190,9 +190,72 @@ CLOCK_DOMAINS
 CLOCK_RELATIONSHIPS
 ```
 
-The same intent is consumed by testbench generation, CDC/RDC, formal, synthesis timing configuration, SDC generation, PnR and post-PnR sign-off. Single-clock and N-clock are therefore configurations of one pipeline, not separate backend architectures.
+### 6.1 Configure from the CLI
 
-Do not reintroduce parallel `*_multi` flows or a second clock vocabulary.
+Persist the design intent with `fx settings`. The values are stored in `.flexsoc/settings.json` and reused by later commands.
+
+Single clock:
+
+```bash
+fx settings \
+  N_CLOCKS=1 \
+  CLOCK_DOMAINS=core:clk_i:rst_ni:10:low
+```
+
+Multiple clocks:
+
+```bash
+fx settings \
+  N_CLOCKS=3 \
+  'CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:20:low,rx:rx_clk_i:rx_rst_ni:16:low,dsp:dsp_clk_i:dsp_rst_ni:30:low' \
+  'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
+```
+
+Inspect the effective persistent configuration with:
+
+```bash
+fx settings
+fx settings --json
+```
+
+For an intentional one-command experiment, use `--set` instead of changing the persistent project settings:
+
+```bash
+fx sta --set N_CLOCKS=1 --set CLOCK_DOMAINS=core:clk_i:rst_ni:12:low
+```
+
+### 6.2 Syntax and validation
+
+Each `CLOCK_DOMAINS` entry is:
+
+```text
+name:clock_port:reset_port:period_ns[:low|high]
+```
+
+Each `CLOCK_RELATIONSHIPS` entry is one of:
+
+```text
+async:source:target
+sync:source:target
+generated:source:target[:divide_by]
+```
+
+`N_CLOCKS` must match the number of domain entries. Domain names and clock signals must be unique. When clock domains are updated without explicitly supplying `CLOCK_RELATIONSHIPS`, FlexSoC clears the previous relationships instead of silently applying them to a new topology.
+
+`CLK_PERIOD` is a derived scalar equal to the fastest configured period. The per-domain periods in `CLOCK_DOMAINS` remain authoritative for N-clock flows.
+
+The same `ClockConfig` is consumed by testbench generation, CDC/RDC, formal, synthesis timing configuration, SDC generation, PnR and post-PnR sign-off. Single-clock and N-clock are therefore configurations of one pipeline, not separate backend architectures.
+
+`SDC_IO_DELAY_PCT` is part of that same timing intent. For each domain the generated functional and gate-level testbenches use identical phases:
+
+```text
+drive input  = period * SDC_IO_DELAY_PCT
+sample output = period * (1 - SDC_IO_DELAY_PCT)
+```
+
+The SDC uses the corresponding input/output delay value. Functional RTL, post-synthesis GLS and post-PnR GLS therefore keep the same driver/monitor structure; the DUT representation and optional SDF change, not the interface timing contract. Reset assertion/deassertion remains a dedicated sequencing contract rather than being treated as ordinary data IO. The generated phase model requires `0 < SDC_IO_DELAY_PCT < 0.5` so drive and sample phases remain ordered within one cycle.
+
+Do not create parallel `*_multi` flows or a second clock/timing vocabulary.
 
 ---
 
@@ -257,7 +320,7 @@ This section maps the source tree by responsibility. Saved IP/generated trees un
 | `README.md` | Project entry point, capabilities, installation, minimal flow and documentation index. |
 | `pyproject.toml` | Python package metadata, CLI entry points and Python dependencies. |
 | `uv.lock` | Reproducible Python dependency lock. |
-| `Makefile` | Repository-level developer/CI convenience targets. |
+| `Makefile` | Common contributor workflows for environment setup, lint, API/E2E tests and cleanup. Hardware lifecycle commands themselves are `fx` commands. |
 | `LICENCE` | Project license. |
 | `.gitignore` | Repository ignore policy for generated/cache/run data. |
 | `.github/workflows/ci.yml` | CI qualification orchestration. |
@@ -273,9 +336,8 @@ This section maps the source tree by responsibility. Saved IP/generated trees un
 | File | Responsibility |
 | --- | --- |
 | `__init__.py` | Lazy public exports of the main API objects. Keeps import cost/coupling small. |
-| `__main__.py` | `python -m flexsoc` entry point; delegates to the CLI. |
 | `cli.py` | Typer/Rich front-end: parses user options, renders help/status, then delegates behavior to the public API. It should not contain ASIC backend algorithms. |
-| `api.py` | Public orchestration API. Defines settings/targets, automatic setup dependencies, provenance setup relationships, `_TargetRouter`, `FlexSoCConfig`, `FlexSoC` and result objects. This is the main lifecycle/router boundary, not an EDA implementation module. |
+| `api.py` | Public orchestration API. Defines target metadata, `FlexSoCTarget` execution/routing, setup dependencies, provenance relationships, `FlexSoCConfig`, `FlexSoC` and result objects. This is the lifecycle boundary, not an EDA implementation module. |
 
 ### `api.py` flow
 
@@ -284,13 +346,15 @@ CLI target name
    ↓
 TARGETS / aliases
    ↓
-_TargetRouter
+FlexSoCTarget
    ├─ setup target: generate → provenance record
    ├─ execution target: validate provenance → backend run
    └─ composite target: ordered lifecycle operations
 ```
 
 Keep tool-specific Tcl/Yosys/SBY generation out of `api.py`; it belongs in the domain module that owns the stage.
+
+Large Python modules use visible section headers (`# ---`) to keep responsibilities readable in-place. In particular, `api.py`, `cli.py`, and `backend/core/core.py` are divided into data/configuration, routing, settings, technology, execution and shared-infrastructure zones. Section comments describe ownership; they should not narrate obvious individual statements.
 
 ---
 
@@ -299,7 +363,6 @@ Keep tool-specific Tcl/Yosys/SBY generation out of `api.py`; it belongs in the d
 | File | Responsibility |
 | --- | --- |
 | `backend/__init__.py` | Defines `Backend`, the small facade composing design, DV, synthesis, sign-off, implementation, reporting, packaging and toolchain domains. |
-| `backend/Makefile` | Compatibility shim mapping historical Make targets to `python -m flexsoc`. Python remains the backend source of truth. |
 
 The subpackages are organized by ASIC lifecycle responsibility rather than by EDA executable.
 
@@ -691,19 +754,19 @@ docker/ci/Dockerfile
     deterministic CI/EDA image definition
 
 docker/ci/image.lock
-    image/tool identity lock
+    immutable verified runtime-image identity
 
 docker/scripts/*.sh
     build, publish, verify and CI-run helpers
 
-.github/workflows/ci.yml
-    repository qualification
-
 .github/workflows/toolchain-image.yml
-    toolchain image build/publish
+    frozen-toolchain gate: no-op when image.lock + GHCR digest are current
+
+.github/workflows/ci.yml
+    repository qualification inside the frozen image
 ```
 
-CI should invoke the same `fx`/pytest contracts used locally. Container scripts own environment assembly; Python backend stages should not contain container-specific branches.
+Toolchain construction and project testing are separate. A normal source push reuses the frozen image; EDA tools are rebuilt only when declared Docker/toolchain inputs change. CI invokes the same `fx`/pytest contracts used locally. Container scripts own environment assembly; Python backend stages should not contain container-specific branches.
 
 ---
 

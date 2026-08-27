@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-__all__ = ["FlexSoC", "FlexSoCCommand", "FlexSoCConfig", "FlexSoCResult", "FlexSoCTarget"]
+__all__ = [
+    "FlexSoC", "FlexSoCCommand", "FlexSoCConfig", "FlexSoCResult",
+    "FlexSoCTarget", "FlexSoCTargetInfo",
+]
 
 
 def __getattr__(name: str) -> object:

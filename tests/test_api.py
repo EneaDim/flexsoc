@@ -28,6 +28,7 @@ from flexsoc import (
     FlexSoCConfig,
     FlexSoCResult,
     FlexSoCTarget,
+    FlexSoCTargetInfo,
 )
 from flexsoc.api import (
     ACTIVITY_ANALYSIS_TARGETS,
@@ -37,7 +38,6 @@ from flexsoc.api import (
     STREAM_BY_DEFAULT_TARGETS,
     TARGETS,
     TECHNOLOGY_TARGETS,
-    main as api_main,
 )
 from flexsoc.backend.core.package import PackageFlow
 from flexsoc.backend.core.reporting import collect_manifest
@@ -141,10 +141,10 @@ def test_pnr_resolves_orfs_tools_from_active_path(monkeypatch: pytest.MonkeyPatc
 
 
 def test_public_value_objects_are_serializable(tmp_path: Path) -> None:
-    target = FlexSoCTarget("lint", "RTL", "Lint RTL", ("TOP",))
+    target = FlexSoCTargetInfo("lint", "RTL", "Lint RTL", ("TOP",))
     command = FlexSoCCommand(
         "lint",
-        ("make", "lint", "TOP=demo"),
+        ("fx", "lint", "--set", "TOP=demo"),
         tmp_path,
         {"PATH": "/bin"},
         {"TOP": "demo"},
@@ -157,13 +157,13 @@ def test_public_value_objects_are_serializable(tmp_path: Path) -> None:
         "description": "Lint RTL",
         "params": ["TOP"],
     }
-    assert command.shell_line() == "make lint TOP=demo"
+    assert command.shell_line() == "fx lint --set TOP=demo"
     assert command.to_dict() == {
         "target": "lint",
-        "argv": ["make", "lint", "TOP=demo"],
+        "argv": ["fx", "lint", "--set", "TOP=demo"],
         "cwd": str(tmp_path),
         "values": {"TOP": "demo"},
-        "shell": "make lint TOP=demo",
+        "shell": "fx lint --set TOP=demo",
     }
     assert result.ok
     assert result.to_dict()["log_path"] == str(tmp_path / "lint.log")
@@ -173,12 +173,10 @@ def test_config_describe_set_and_override(tmp_path: Path) -> None:
     config = FlexSoCConfig(
         project_root=tmp_path,
         workdir=tmp_path / "work",
-        options={"TOP": "legacy", "RUN_ID": "dev"},
-        values={"TOP": "demo"},
+        values={"TOP": "demo", "RUN_ID": "dev"},
     )
     fx = FlexSoC(config, HOST="uart")
 
-    assert config.make_values() == {"TOP": "demo", "RUN_ID": "dev"}
     assert fx.describe() == {
         "package": "flexsoc",
         "project_root": str(tmp_path.resolve()),
@@ -403,7 +401,7 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
         for command in fx.commands("sim_post_pnr", TIMING_MODE="typ", auto_setup=False)
     ] == ["sim_post_pnr"]
 
-    router = api_module._TargetRouter(fx, fx.values())
+    router = api_module.FlexSoCTarget(fx, fx.values())
     calls = []
     router.execute = lambda name: calls.append(name) or 0
     router._execute_sequence(("regression", "signoff_corners"))
@@ -418,11 +416,18 @@ def test_auto_setup_expansion_is_ordered_deduplicated_and_optional(
     assert calls.count("setup_signoff") == 1
     assert calls.index("setup_pnr") < calls.index("pnr")
 
-    no_setup = api_module._TargetRouter(fx, fx.values(), auto_setup=False)
+    no_setup = api_module.FlexSoCTarget(fx, fx.values(), auto_setup=False)
     calls.clear()
     no_setup.execute = lambda name: calls.append(name) or 0
     no_setup._execute_sequence(("setup_syn", "syn", "setup_eqy", "eqy"))
     assert calls == ["syn", "eqy"]
+
+
+def test_delay_synthesis_uses_timing_oriented_abc_recipe() -> None:
+    script = setup_syn_module.abc_script_delay(10.0)
+    assert "upsize -c" in script
+    assert "buffer -c" in script
+    assert "dnsize -c" not in script
 
 
 def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
@@ -494,7 +499,7 @@ def test_run_exception_is_visible_and_persisted_in_command_log(
     def execute(self, target: str) -> int:
         raise ValueError("missing routed SDF")
 
-    monkeypatch.setattr(api_module._TargetRouter, "execute", execute)
+    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", execute)
     fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work")
     with pytest.raises(RuntimeError, match="missing routed SDF"):
         fx.run("hjson", TOP="demo")
@@ -955,7 +960,7 @@ def test_sim_post_syn_all_continues_after_one_failed_case(
 def test_run_check_and_nonchecking_failure_modes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(api_module._TargetRouter, "execute", lambda self, target: 7)
+    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", lambda self, target: 7)
     fx = FlexSoC(project_root=tmp_path)
 
     with pytest.raises(RuntimeError, match="exit code 7"):
@@ -977,7 +982,7 @@ def test_live_run_streams_direct_backend_and_keeps_plain_log(
         print("\033[38;5;208m[script]\033[0m file.tcl")
         return 0
 
-    monkeypatch.setattr(api_module._TargetRouter, "execute", execute)
+    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", execute)
     result, = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work").run(
         "hjson", live=True, TOP="demo"
     )
@@ -1006,7 +1011,7 @@ def test_sim_post_syn_all_prints_uniform_header_artifacts_and_done(
         print("[report] machine_summary=/tmp/summary_sv.json")
         return 0
 
-    monkeypatch.setattr(api_module._TargetRouter, "execute", execute)
+    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", execute)
     pdk = _fake_pdk(tmp_path / "pdk")
     result, = FlexSoC(
         project_root=tmp_path,
@@ -1053,7 +1058,7 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
         print("[report] tt/setup /tmp/fusion.rpt")
         return 0
 
-    monkeypatch.setattr(api_module._TargetRouter, "execute", execute)
+    monkeypatch.setattr(api_module.FlexSoCTarget, "execute", execute)
     pdk = _fake_pdk(tmp_path / "pdk")
     result, = FlexSoC(
         project_root=tmp_path,
@@ -1252,11 +1257,6 @@ def test_uart_eqy_flow_is_consistent_across_pdks() -> None:
         "gold-match cio_tx_en_o",
     ]
     assert not any("*" in line for line in matches)
-
-def test_api_main_delegates_to_cli(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(cli_module, "app", lambda argv=None: 23)
-    assert api_main(["commands"]) == 23
-
 
 # ---------------------------------------------------------------------------
 # Command-line interface
@@ -1564,17 +1564,14 @@ def test_cli_execution_output_modes(
 # ---------------------------------------------------------------------------
 
 
-def test_tlul_tb_scaffolds_drive_negedge_sample_posedge() -> None:
-    single = render_tlul_interface()
-    assert "TB timing contract: drive DUT inputs on negedge, sample DUT outputs on posedge" in single
-    assert "task automatic drive_cycle();\n    @(negedge clk_i);" in single
-    assert "task automatic sample_cycle();\n    @(posedge clk_i);" in single
-    for kind in ("write", "read"):
-        assert (
-            f'wait_d2h_high(0, "{kind} a_ready");\n'
-            "    drive_cycle();\n"
-            "    h2d[108] <= 1'b0;"
-        ) in single
+def test_generated_testbenches_share_sdc_io_timing_phases() -> None:
+    single = render_tlul_interface(period_ns=10.0, io_delay_pct=0.2)
+    assert "Shared timing intent: drive at input-delay phase, sample at output-deadline phase" in single
+    assert "FLEXSOC_TB_DRIVE_NS  = 2" in single
+    assert "FLEXSOC_TB_SAMPLE_NS = 8" in single
+    assert "@flexsoc_tb_drive_phase" in single
+    assert "@flexsoc_tb_sample_phase" in single
+    assert "@(negedge clk_i)" not in single
 
     clocks = ClockConfig(
         domains=(
@@ -1583,51 +1580,50 @@ def test_tlul_tb_scaffolds_drive_negedge_sample_posedge() -> None:
             ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 5.0),
         )
     )
-    multi = sv_driver_text("tri_stream_dsp", clocks)
-    assert "TB timing contract: drive DUT inputs on negedge, sample DUT outputs on posedge" in multi
-    for prefix in ("cfg", "dsp"):
-        assert f"@(negedge {prefix}_clk_i);" in multi
-        assert f"do @(posedge {prefix}_clk_i); while (!{prefix}_tl_o[0]);" in multi
-        assert (
-            f"do @(posedge {prefix}_clk_i); while (!{prefix}_tl_o[0]);\n"
-            f"        @(negedge {prefix}_clk_i);\n"
-            f"        {prefix}_tl_i[108] = 1'b0;"
-        ) in multi
+    multi = sv_driver_text("tri_stream_dsp", clocks, 0.2)
+    assert "Shared timing intent: every domain drives/samples" in multi
+    assert "#(2) -> flexsoc_cfg_drive_phase" in multi
+    assert "#(8) -> flexsoc_cfg_sample_phase" in multi
+    assert "#(1.6) -> flexsoc_rx_drive_phase" in multi
+    assert "#(6.4) -> flexsoc_rx_sample_phase" in multi
+    assert "#(1) -> flexsoc_dsp_drive_phase" in multi
+    assert "#(4) -> flexsoc_dsp_sample_phase" in multi
+    assert "do cfg_sample_cycle(); while (!cfg_tl_o[0]);" in multi
+    assert "do dsp_sample_cycle(); while (!dsp_tl_o[65]);" in multi
 
-    cocotb = render_reg_driver_py()
-    assert "async def _drive_cycle(clk):" in cocotb
-    assert "await FallingEdge(clk)" in cocotb
-    assert (
-        'async def _sample_cycle(clk):\n'
-        '    """Sample DUT outputs at the rising edge before the handshake is consumed."""\n\n'
-        "    await RisingEdge(clk)\n"
-        "\n\nasync def _drive_cycle(clk):"
-    ) in cocotb
-    assert cocotb.index("await _drive_cycle(clk)") < cocotb.index(
-        '_get(dut, "tl_i_a_valid").value = 1'
-    )
-    assert cocotb.count("await RisingEdge(clk)") == 1
-    assert cocotb.count("await FallingEdge(clk)") == 1
-    assert "await _cycle(" not in cocotb
-    assert "await _wait_cycles(_clock(dut, clk), wait_cycles)" in cocotb
+    cocotb = render_reg_driver_py(period_ns=10.0, io_delay_pct=0.2)
+    assert "TB_PERIOD_PS = 10000" in cocotb
+    assert "TB_DRIVE_PS = 2000" in cocotb
+    assert "TB_SAMPLE_PS = 8000" in cocotb
+    assert "await _wait_phase(clk, TB_DRIVE_PS)" in cocotb
+    assert "await _wait_phase(clk, TB_SAMPLE_PS)" in cocotb
+    assert "FallingEdge(clk)" not in cocotb
 
-    multi_cocotb = cocotb_reg_driver_py_text("tri_stream_dsp", clocks)
-    assert multi_cocotb.count("await RisingEdge(clk)") == 1
-    assert multi_cocotb.count("await FallingEdge(clk)") == 1
-    assert "Sample one TL-UL handshake only on rising edges." in multi_cocotb
-    assert "await _sample_cycle(clk)" in multi_cocotb
-    assert "await _drive_cycle(clk)" in multi_cocotb
-    assert (
-        'await _wait_high(dut, f"{domain}_d_valid", clk)\n'
-        '    data = int(getattr(dut, f"{domain}_d_data").value)'
-    ) in multi_cocotb
-    assert "TL-UL write error on {domain}" in multi_cocotb
+    multi_cocotb = cocotb_reg_driver_py_text("tri_stream_dsp", clocks, 0.2)
+    assert "'cfg_clk_i': 2000" in multi_cocotb
+    assert "'cfg_clk_i': 8000" in multi_cocotb
+    assert "'rx_clk_i': 1600" in multi_cocotb
+    assert "'rx_clk_i': 6400" in multi_cocotb
+    assert "'dsp_clk_i': 1000" in multi_cocotb
+    assert "'dsp_clk_i': 4000" in multi_cocotb
 
-    multi_vectors = cocotb_vec_driver_py_text("tri_stream_dsp")
-    assert "FallingEdge" not in multi_vectors
-    assert "RisingEdge" not in multi_vectors
-    assert "await _drive_cycle(dut.rx_clk_i)" in multi_vectors
-    assert "await _sample_cycle(dut.rx_clk_i)" in multi_vectors
+    with pytest.raises(ValueError, match="SDC_IO_DELAY_PCT"):
+        render_tlul_interface(period_ns=10.0, io_delay_pct=0.5)
+
+
+def test_saved_cordic_registers_atan_before_z_arithmetic() -> None:
+    core = (ROOT / "hw/ips/cordic/rtl/cordic_core.sv").read_text(encoding="utf-8")
+
+    assert "logic signed [ANGLE_W-1:0] atan_q, atan_d;" in core
+    assert "atan_d         = AtanLut[0];" in core
+    assert "atan_d = AtanLut[iter_q + 1'b1];" in core
+    assert "z_step = z_q - atan_q;" in core
+    assert "z_step = z_q + atan_q;" in core
+    assert "z_step = z_q - AtanLut[iter_q];" not in core
+    assert "z_step = z_q + AtanLut[iter_q];" not in core
+    assert "StRun" in core
+    assert "StAtan" not in core
+    assert "StExecute" not in core
 
 
 def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -> None:
@@ -2894,12 +2890,8 @@ def test_pdk_first_layout_for_all_technology_artifacts(tmp_path: Path) -> None:
 
 
 def test_synthesis_uses_abc_constraints_not_sdc() -> None:
-    makefile = (ROOT / "src/flexsoc/backend/Makefile").read_text(encoding="utf-8")
     synthesis = (ROOT / "src/flexsoc/backend/syn/syn.py").read_text(encoding="utf-8")
 
-    assert "setup_syn:" not in makefile
-    assert "python -m flexsoc.backend" not in makefile
-    assert "compatibility Make shim" in makefile
     assert "read_sdc" not in synthesis
     assert "SIGNOFF_SDC_FILE" not in synthesis
     assert "abc.constr" in synthesis
@@ -3583,7 +3575,7 @@ def test_gate_sim_validates_explicit_driver_provenance(tmp_path: Path, monkeypat
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module._TargetRouter(client, values)
+    router = api_module.FlexSoCTarget(client, values)
     seen: list[str] = []
     monkeypatch.setattr(router, "_require_provenance", seen.append)
     monkeypatch.setattr(router, "_execute_target", lambda target: 0)
@@ -3602,12 +3594,9 @@ def test_tool_runner_rejects_unknown_execution_target(tmp_path: Path) -> None:
         ToolRunner(project_root=tmp_path).run(request, on="missing")
 
 
-def test_make_shim_forwards_command_line_overrides() -> None:
-    makefile = (ROOT / "src/flexsoc/backend/Makefile").read_text(encoding="utf-8")
-
-    assert "FLEXSOC_SET_ARGS" in makefile
-    assert "--set $(key)=$($(key))" in makefile
-    assert "export FLEXSOC_$(key)" not in makefile
+def test_backend_has_no_parallel_command_router() -> None:
+    assert not (ROOT / "src/flexsoc/backend/Makefile").exists()
+    assert not (ROOT / "src/flexsoc/__main__.py").exists()
 
 
 def test_eqy_request_declares_config_and_result_tree(tmp_path: Path) -> None:
@@ -3687,7 +3676,7 @@ def test_router_setup_pnr_leaves_platform_physical_views_to_orfs(tmp_path: Path)
         "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
         "PDK": "sky130", "ORS_TECH": "sky130hd",
     }
-    router = api_module._TargetRouter(client, values)
+    router = api_module.FlexSoCTarget(client, values)
     router.paths.syn.mkdir(parents=True, exist_ok=True)
     (router.paths.syn / "demo_synth.v").write_text(
         "module demo; endmodule\n", encoding="utf-8"
@@ -3988,7 +3977,7 @@ def test_router_provenance_guards_no_setup_without_regenerating(tmp_path: Path) 
         "RUN_TOP": "demo",
         "RUN_ID": "dev",
     }
-    router = api_module._TargetRouter(client, values)
+    router = api_module.FlexSoCTarget(client, values)
     router.paths.ensure()
     source = router.paths.rtl / "demo.sv"
     source.write_text("module demo(input clk); endmodule\n", encoding="utf-8")
@@ -4000,7 +3989,7 @@ def test_router_provenance_guards_no_setup_without_regenerating(tmp_path: Path) 
     script = router.paths.run / "analysis" / "cdc_rdc" / "extract.ys"
     script.write_text(script.read_text(encoding="utf-8") + "# local override\n", encoding="utf-8")
 
-    no_setup = api_module._TargetRouter(client, values, auto_setup=False)
+    no_setup = api_module.FlexSoCTarget(client, values, auto_setup=False)
     with pytest.raises(RuntimeError, match="setup_cdc_rdc provenance is MODIFIED"):
         no_setup._require_provenance("cdc_rdc")
     no_setup.values["STAGE"] = "setup_cdc_rdc"
@@ -4026,7 +4015,7 @@ def test_check_refreshes_current_provenance_in_metrics(tmp_path: Path) -> None:
         "RUN_TOP": "demo",
         "RUN_ID": "dev",
     }
-    router = api_module._TargetRouter(client, values)
+    router = api_module.FlexSoCTarget(client, values)
     router.paths.ensure()
     source = router.paths.rtl / "demo.sv"
     source.write_text("module demo(input clk); endmodule\n", encoding="utf-8")
@@ -4056,7 +4045,7 @@ def test_formal_run_uses_existing_config_without_regeneration(
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module._TargetRouter(client, values, auto_setup=False)
+    router = api_module.FlexSoCTarget(client, values, auto_setup=False)
     config = router._formal_config(csr=False, mode="prove")
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("[options]\nmode prove\n", encoding="utf-8")

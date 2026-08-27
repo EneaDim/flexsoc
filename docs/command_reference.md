@@ -24,13 +24,13 @@ fx syn eqy --set EQY_JOBS=8 --live
 fx setup_signoff --dry-run --script
 ```
 
-Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=VALUE` overrides affect only the current invocation. `--workdir` selects the workspace without changing the repository used as the Make working directory.
+Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=VALUE` overrides affect only the current invocation. `--workdir` selects the workspace while `--project-root` selects the FlexSoC project checkout.
 
 ### 1.1 Pseudo-commands
 
 | Command | Purpose | Important behavior |
 | --- | --- | --- |
-| `fx`, `fx help`, `fx -h`, `fx --help` | Show the lifecycle-ordered IP guide. | Does not execute Make. |
+| `fx`, `fx help`, `fx -h`, `fx --help` | Show the lifecycle-ordered IP guide. | Does not execute a lifecycle target. |
 | `fx <command> --help` | Show dedicated help, examples, automatic setup, and accepted variables. | `fx <command> -h`, `fx <command> help`, `fx <command> info`, and `fx help <command>` are equivalent. |
 | `fx commands` | List all backend targets, groups, descriptions, and accepted variables. | Add `--json` for machine-readable metadata. |
 | `fx settings [KEY=VALUE ...]` | Show or update persistent project settings and derived run paths. | Supports `--set`, `--unset`, `--reset`, `--workdir`, and `--json`. Clock relationships are cleared automatically when domains change unless explicitly supplied. |
@@ -46,10 +46,10 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 
 | Option | Scope | Meaning |
 | --- | --- | --- |
-| `--set KEY=VALUE`, `-s` | Any target; also settings | Add a one-shot Make/config override. Repeatable. |
+| `--set KEY=VALUE`, `-s` | Any target; also settings | Add a one-shot FlexSoC setting override. Repeatable. |
 | `--unset KEY` | `settings` | Remove a persisted setting. Repeatable. |
 | `--reset` | `settings` | Reset persisted settings to defaults before applying updates. |
-| `--project-root PATH` | Any command | Use another FlexSoC checkout as the repository/Make root. |
+| `--project-root PATH` | Any command | Use another FlexSoC project checkout. |
 | `--workdir PATH` | Any run command | Select the external workspace passed as `WORKSPACE`. |
 | `--tool NAME` | Lint targets | Shortcut for `--set LINT_TOOL=NAME`. |
 | `--user` / `--system` | Dependency targets only | Select rootless user or shared/system installation mode. |
@@ -99,22 +99,71 @@ Execution targets must not rewrite their setup collateral. Scenario-specific run
 
 Execution backends consume the same validated setup artifacts and effective source inputs recorded by provenance; remote `rsync` execution therefore transfers declared inputs rather than relying on undeclared files already present on the remote host. Path identity is preserved for workspace bindings such as EQY symlinks: the declared binding path remains the contract even when rsync dereferences its content. GLS driver setup remains explicit, but gate-level execution validates the selected `setup_tb` or `setup_cocotb` provenance before using it; it never regenerates that driver implicitly.
 
-After `ip_load`, and again after each `pdk use` before GLS, run `setup_tb` and `setup_cocotb` explicitly. Each command replaces its complete generated tree (`tb/sv/**` or `tb/cocotb/**`) from the current RTL signature, RegMap, and clock/reset configuration, so saved-IP files cannot mix with a newer generator. These trees are entirely machine-owned; `--force` is accepted for CLI compatibility but is not required.
+After `ip_load`, and again after each `pdk use` before GLS, run `setup_tb` and `setup_cocotb` explicitly. Each command replaces its complete generated tree (`tb/sv/**` or `tb/cocotb/**`) from the current RTL signature, RegMap, and clock/reset configuration, so saved-IP files cannot mix with a newer generator. These trees are entirely machine-owned; `--force` is optional and normally unnecessary for their complete regeneration.
 
-### 1.4 Canonical run configuration
+### 1.4 Run identity and clock/reset intent
 
-The variables below define the identity and clock model consumed by every backend:
+Use `fx settings` for design intent that should persist across commands. `TOP`, `RUN_TOP`, `RUN_ID`, and the clock model are the most important persistent settings.
+
+#### Single-clock project
 
 ```bash
 fx settings \
   TOP=my_ip RUN_TOP=my_ip RUN_ID=dev \
   N_CLOCKS=1 \
-  CLOCK_DOMAINS=core:clk_i:rst_ni:10:low \
-  CLOCK_RELATIONSHIPS=
+  CLOCK_DOMAINS=core:clk_i:rst_ni:10:low
 ```
 
-For N-clock designs, list every domain and declare only real relationships. FlexSoC does not infer that all domains are asynchronous.
+`CLOCK_DOMAINS` syntax:
 
+```text
+name:clock_port:reset_port:period_ns[:low|high]
+```
+
+The reset polarity defaults to `low` if omitted. `N_CLOCKS` must equal the number of domain entries.
+
+#### N-clock project
+
+```bash
+fx settings \
+  TOP=tri_stream_dsp RUN_TOP=tri_stream_dsp RUN_ID=dev \
+  N_CLOCKS=3 \
+  'CLOCK_DOMAINS=cfg:cfg_clk_i:cfg_rst_ni:20:low,rx:rx_clk_i:rx_rst_ni:16:low,dsp:dsp_clk_i:dsp_rst_ni:30:low' \
+  'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
+```
+
+Relationship syntax is explicit:
+
+```text
+async:source:target
+sync:source:target
+generated:source:target[:divide_by]
+```
+
+FlexSoC does not infer that unrelated domains are asynchronous. If `N_CLOCKS` or `CLOCK_DOMAINS` changes and no new `CLOCK_RELATIONSHIPS` value is supplied, the old relationship list is cleared.
+
+Inspect what is currently persisted and the derived run paths with:
+
+```bash
+fx settings
+fx settings --json
+```
+
+For a one-command experiment, do not rewrite persistent settings; use repeatable `--set` overrides:
+
+```bash
+fx sta \
+  --set N_CLOCKS=1 \
+  --set CLOCK_DOMAINS=core:clk_i:rst_ni:12:low
+```
+
+`ClockConfig` validates and normalizes these settings once. Testbench generation, formal, CDC/RDC, synthesis timing, SDC, PnR and post-PnR sign-off consume that same model. `CLK_PERIOD` is derived from the fastest configured clock for consumers that still need one scalar period; per-domain periods remain authoritative.
+
+`SDC_IO_DELAY_PCT` defines the shared interface timing phase. With a 10 ns clock and the default `0.2`, generated SV and cocotb drivers change DUT inputs at 2 ns after the active edge and sample DUT outputs at 8 ns. The same generated testbench timing is used for RTL functional simulation and for post-synthesis/post-PnR GLS; SDF changes the DUT timing model, not the driver/monitor schedule. Reset sequencing remains edge-based and separate. Values must satisfy `0 < SDC_IO_DELAY_PCT < 0.5`.
+
+```bash
+fx settings SDC_IO_DELAY_PCT=0.2
+```
 
 ### 1.5 Changing technology inside one logical run
 
@@ -821,6 +870,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `N_CLOCKS` | Number of declared clock domains. |
 | `CLOCK_DOMAINS` | `name:clock:reset:period_ns:polarity` entries, comma-separated. |
 | `CLOCK_RELATIONSHIPS` | Explicit `async`, `sync`, or `generated` domain relationships. |
+| `SDC_IO_DELAY_PCT` | Fraction of each clock period used for interface input/output delay and generated TB drive/sample phasing; default `0.2`, valid range `0 < value < 0.5` for generated testbenches. |
 | `RUN_TOP` | Run namespace; defaults to `TOP` when omitted. |
 | `FORCE` | Overwrite machine-generated collateral where the target supports regeneration. |
 | `HOST` | SoC host selection, normally `uart` or `ibex`. |
@@ -1467,66 +1517,22 @@ unconstrained paths, coverage, waivers, tool/PDK identity, and the production
 sign-off limitations recorded in the lifecycle documents.
 
 
-## 11. Docker-only toolchain authority
+## 11. Frozen Docker toolchain and project CI
 
-For a workstation that uses the container as the authoritative EDA environment:
+Docker environment creation and FlexSoC project qualification are separate workflows. The complete image contract is documented in [`docker/README.md`](../docker/README.md).
 
-```bash
-docker/scripts/system-inventory.sh
-docker/scripts/preflight.sh
-FLEXSOC_JOBS=2 docker/scripts/build.sh
-docker/scripts/verify.sh
-FULL_E2E=1 docker/scripts/verify.sh
+On a push to `main`, `.github/workflows/toolchain-image.yml` acts only as the toolchain gate:
+
+```text
+validate docker/ci/image.lock + immutable GHCR digest
+    ├─ current  → no rebuild
+    └─ changed  → build → verify tools → publish → freeze new digest
 ```
 
-`system-inventory.sh` excludes `~/.local/share/flexsoc` and reports host executables while excluding FlexSoC managed prefixes and the repository virtual environment. Presence on the host is a compatibility fallback, not proof that the versions match `toolchain.lock`. `preflight.sh` reports WSL detection, Docker-visible memory, repository free space, Docker root, and `docker system df` before a long source build.
+Once the frozen image is valid, `.github/workflows/ci.yml` runs the repository qualification inside that exact image. Toolchain construction does not run the project test suite; project CI does not rebuild EDA tools.
 
-After the image has been verified, preview and then remove the redundant user-managed native toolchain:
+For local inspection of the Docker environment use the scripts under `docker/scripts/`; for normal development use the common root `Makefile` workflows or the direct `fx`/pytest commands documented above.
 
-```bash
-docker/scripts/cleanup-managed-toolchain.sh
-APPLY=1 docker/scripts/cleanup-managed-toolchain.sh
-```
-
-Cleanup is guarded by the current Docker verification record and image ID. It removes only `~/.local/share/flexsoc/toolchains`, the stable FlexSoC toolchain symlink, and `~/.cache/flexsoc`; it preserves `.venv`, `/usr`, `/usr/local`, and Docker storage.
-
-## 12. Resumable Docker toolchain builds
-
-`docker/scripts/build.sh` performs two builds in sequence. It first materializes
-and tags the `toolchain-installed` stage, then continues to the verified
-`runtime` stage. This ordering is deliberate: an error in `deps doctor`, uv, or
-the project verification does not erase the expensive EDA installation.
-
-```bash
-FLEXSOC_JOBS=2 docker/scripts/build.sh
-docker/scripts/inspect.sh
-```
-
-A retry uses the retained `*-installed` image and the named BuildKit caches.
-The caches preserve downloads, Git sources, intermediate build trees, and the
-per-tool completion markers written by `deps.sh`. Avoid pruning the builder
-while recovering a failed build. The checkpoint is diagnostic only; publication
-still requires the final runtime image and both verification steps.
-
-The base profile requires the Python `click` module because SymbiYosys imports
-it at startup. On Ubuntu this dependency is supplied by `python3-click` and is
-checked before installation as `python:click`.
-
-The SBY and EQY launcher versions are deterministic as well. Their upstream
-Makefiles normally derive the release from Git description metadata, which is
-not available in shallow detached checkouts without reachable tags. FlexSoC
-passes `YOSYS_RELEASE_VERSION="SBY v<locked-version>"` and
-`YOSYS_RELEASE_VERSION="EQY v<locked-version>"` during installation. If an
-older checkpoint reports only `SBY` or `EQY`, the next
-`docker/scripts/build.sh` repairs the affected launcher/plugin install and
-resumes at doctor without recompiling the remaining EDA tools.
-
-GTKWave is a graphical GTK application, so `deps doctor` never launches
-`gtkwave --version` inside a headless Docker build. The installer writes a
-lock-derived `gtkwave.version` receipt beside the source marker. Doctor checks
-that receipt, requires both prefix-local `gtkwave` and `fst2vcd`, and runs
-`ldd` on the viewer to reject unresolved shared libraries. This validates the
-pinned installation without requiring `DISPLAY`, Xvfb, or host GUI access.
 ## 13. EQY protocol partitioning and reset normalization
 
 For single-clock IPs, `fx eqy` now proves the normal post-reset hardware contract by default. The generated configuration initializes both gold and gate designs through the clock/reset declared in `CLOCK_DOMAINS` before partition proofs begin:
@@ -1571,7 +1577,7 @@ runs/<design>/<variant>/
 
 `activity/` contains only VCD/SAIF captures and conversion logs. Each analysis
 family owns one canonical Tcl under its stage root; scenario-workload/mode
-directories contain reports only. There is no `activity/scripts` directory and
+directories contain the scenario-local script and its reports. There is no `activity/scripts` directory and
 no additional activity manifest.
 
 The backend ownership follows the lifecycle domains directly:
@@ -1585,13 +1591,12 @@ signoff/fusion.py -> timing/power correlation
 impl/impl.py       -> ORFS/OpenROAD physical implementation only
 ```
 
-The Python API dispatches directly to these flow objects; the backend Makefile
-is only a command-line compatibility shim. The sign-off facade exposes the same
+The Python API dispatches directly to these flow objects. `FlexSoCTarget` owns lifecycle routing while each domain object owns its EDA semantics. The sign-off facade exposes the same
 engines as `signoff.pre` and `signoff.post`, with ideal/no-SPEF timing before
 implementation and propagated-clock/SPEF timing after routing.
 
 The OpenSTA Tcl families are prepared by the explicit sign-off setup methods.
-Static analyses create concrete per-corner scripts when executed. Workload
+Static analyses execute concrete per-corner copies so setup-owned templates remain immutable. Workload
 analyses run only after a qualified GLS report and VCD/SAIF exist.
 
 Each scenario has one primary human-readable artifact: `timing.rpt` for STA,

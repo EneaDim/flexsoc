@@ -170,7 +170,7 @@ DEPS = ("DEPS_MODE", "DEPS_PROFILE", "DEPS_JOBS", "DEPS_PRUNE_APPLY", "DEPS_PRUN
 
 
 # ---------------------------------------------------------------------------
-# Make targets: one row per callable backend target
+# Target catalogue: one row per callable lifecycle operation
 # ---------------------------------------------------------------------------
 
 TARGETS: dict[str, TargetSpec] = {
@@ -385,22 +385,16 @@ TARGETS: dict[str, TargetSpec] = {
 
 @dataclass(slots=True)
 class FlexSoCConfig:
-    """Store project paths and default Make variables."""
+    """Store project paths and default FlexSoC settings."""
 
     project_root: PathLike = None
     workdir: PathLike = None
     values: Mapping[str, Any] = field(default_factory=dict)
-    options: Mapping[str, Any] = field(default_factory=dict)
-
-    def make_values(self) -> dict[str, Any]:
-        """Merge the new values field with the old options alias."""
-
-        return {**dict(self.options), **dict(self.values)}
 
 
 @dataclass(frozen=True, slots=True)
-class FlexSoCTarget:
-    """Describe one callable Make target."""
+class FlexSoCTargetInfo:
+    """Describe one callable FlexSoC target."""
 
     name: str
     group: str
@@ -420,7 +414,7 @@ class FlexSoCTarget:
 
 @dataclass(frozen=True, slots=True)
 class FlexSoCCommand:
-    """Preview one Make invocation."""
+    """Preview one direct ``fx`` invocation."""
 
     target: str
     argv: tuple[str, ...]
@@ -485,7 +479,7 @@ def _path(value: PathLike, fallback: Path) -> Path:
 
 
 def _upper(values: Mapping[str, Any]) -> dict[str, str]:
-    """Convert settings to Make-style uppercase strings."""
+    """Normalize setting names to uppercase strings."""
 
     return {str(key).upper(): str(value) for key, value in values.items() if value is not None}
 
@@ -695,9 +689,7 @@ TECHNOLOGY_PATH_KEYS = {
 
 
 NATIVE_TARGETS: dict[str, tuple[str, str]] = {
-    # Existing fx names are intentionally routed away from the legacy Make
-    # implementation, which is VCD/SKY130-specific. Direct `make compile_syn`
-    # remains available for compatibility while `fx` uses this backend.
+    # Gate-simulation target names share one implementation selected by stage.
     "compile_syn": ("compile", "post_syn"),
     "sim_syn": ("sim", "post_syn"),
     "compile_post_syn": ("compile", "post_syn"),
@@ -763,15 +755,19 @@ def _target(name: str) -> str:
     raise ValueError(f"unknown target {name!r}; run `fx commands` to list targets")
 
 
-def _target_object(name: str) -> FlexSoCTarget:
+def _target_object(name: str) -> FlexSoCTargetInfo:
     """Build one target object from the unified table."""
 
     group, description, params = TARGETS[name]
-    return FlexSoCTarget(name, group, description, params)
+    return FlexSoCTargetInfo(name, group, description, params)
 
 
-class _TargetRouter:
-    """Map historical CLI targets to the new object-oriented backend API."""
+# ---------------------------------------------------------------------------
+# Target execution and lifecycle routing
+# ---------------------------------------------------------------------------
+
+class FlexSoCTarget:
+    """Execute one FlexSoC lifecycle target through the domain backend."""
 
     def __init__(
         self, client: "FlexSoC", values: Mapping[str, str], *, on: str = "local",
@@ -845,6 +841,7 @@ class _TargetRouter:
         top = self.paths.top
         period = float(self.values.get("CLK_PERIOD", "20"))
         interface = self.values.get("REG_ITF", "tlul")
+        io_delay_pct = float(self.values.get("SDC_IO_DELAY_PCT", "0.2"))
         sv = TestbenchConfig(
             top=top,
             rtldir=self.paths.rtl,
@@ -852,6 +849,7 @@ class _TargetRouter:
             syndir=self.paths.syn,
             prims=self._words("PRIM"),
             clk_period_ns=max(1, int(period)),
+            io_delay_pct=io_delay_pct,
             compiler=self.values.get("COMPILER", "verilator"),
             interface=interface,
             vsv=self.values.get("VSV", "sv"),
@@ -866,6 +864,7 @@ class _TargetRouter:
             ips_root=self.client.project_root / "hw" / "ips",
             simulator=self.values.get("COMPILER", "verilator"),
             period_ns=period,
+            io_delay_pct=io_delay_pct,
             vsv=self.values.get("VSV", "sv"),
             force=True,
         )
@@ -950,7 +949,7 @@ class _TargetRouter:
         if isinstance(value, Path):
             return (value,)
         if isinstance(value, (tuple, list)):
-            return tuple(path for item in value for path in _TargetRouter._result_paths(item))
+            return tuple(path for item in value for path in FlexSoCTarget._result_paths(item))
         return ()
 
     def _generated_paths(self, stage: str, result: object) -> tuple[Path, ...]:
@@ -1244,11 +1243,12 @@ class _TargetRouter:
         return result
 
     def _execute_target(self, target: str) -> object:
-        """Execute one public target without invoking the backend Makefile."""
+        """Execute one public target through the owning backend domain."""
         b, p, v = self.backend, self.paths, self.values
         top, force = p.top, self._bool(v.get("FORCE"))
         interface = v.get("REG_ITF", "tlul")
 
+        # Project setup, RTL, register and model generation.
         if target.startswith("help"):
             print(TARGETS[target][1])
             return 0
@@ -1297,6 +1297,7 @@ class _TargetRouter:
                 return b.dv.functional.generate_test(v.get("TEST_NAME", "smoke"), p.tests, top, hjson, force=force)
             return b.dv.functional.generate_tests(p.tests, top, hjson, force=force)
 
+        # RTL analysis, CDC/RDC and functional verification.
         if target.startswith("lint") or target == "_lint_run":
             kind = target.removeprefix("lint_") if target.startswith("lint_") else "all"
             if target == "lint_slang":
@@ -1337,6 +1338,7 @@ class _TargetRouter:
         if target in {"coverage", "coverage_detail"}:
             return b.dv.coverage.flow_from_context(self.context, detail=target == "coverage_detail", on=self.on)
 
+        # Formal verification, synthesis and logical equivalence.
         if target in {"setup_formal", "setup_formal_prove", "setup_formal_cover", "setup_formal_csr_prove", "setup_formal_csr_cover"}:
             b.dv.formal.setup_scaffold(top, p.formal, multiclock=self.context.clocks.multiclock)
             if target == "setup_formal":
@@ -1378,6 +1380,7 @@ class _TargetRouter:
 
         pre = b.signoff.pre
         post = b.signoff.post
+        # Pre/post-layout sign-off, SDF, GLS, timing and power.
         if target == "setup_signoff":
             return (pre.setup_sdc(), pre.setup_sta(), pre.setup_sdf(), pre.setup_power(), pre.setup_fusion())
         if target == "setup_signoff_post_pnr":
@@ -1437,6 +1440,7 @@ class _TargetRouter:
             path = self._path("PATH_VIEW_FILE", p.signoff / "path_view" / "paths.json")
             return self._run_cmd((sys.executable, str(self.client.project_root / "src" / "util" / "plot_path.py"), str(path)), log=p.logs / "signoff" / p.pdk / "path_view.log", inputs=(path,))
 
+        # Physical implementation and routed sign-off evidence.
         if target == "setup_pnr":
             return self._setup_pnr()
         if target == "pnr":
@@ -1455,6 +1459,7 @@ class _TargetRouter:
                 on=self.on,
             )
 
+        # Reporting, packaging and higher-level workflow helpers.
         if target in {"metrics", "manifest", "manifest_show", "check"}:
             return self._report(target)
         if target == "ip_load":
@@ -1497,8 +1502,10 @@ class _TargetRouter:
             return self._ip_flow(target)
         raise NotImplementedError(f"direct target mapping missing: {target}")
 
+    # Viewer and cleanup helpers ------------------------------------------------
+
     def _view(self, target: str) -> int:
-        """Open or save one viewer artifact without Make indirection."""
+        """Open or save one viewer artifact directly."""
         import shutil
         p, v = self.paths, self.values
         if target == "tb_save":
@@ -1653,6 +1660,8 @@ class _TargetRouter:
                 self._clean(name)
         return 0
 
+    # Optional FSM and SoC domains --------------------------------------------
+
     def _fsm(self, target: str) -> object:
         """Dispatch FSM targets to the run-local reusable generator."""
         from .backend.design.fsm_gen import FsmFlow
@@ -1735,6 +1744,8 @@ class _TargetRouter:
             return self._view("view")
         raise ValueError(target)
 
+    # Composite workflows ------------------------------------------------------
+
     def _execute_sequence(
         self, sequence: Sequence[str], *, auto_setup: bool | None = None
     ) -> tuple[object, ...]:
@@ -1759,7 +1770,7 @@ class _TargetRouter:
         return tuple(self.execute(name) for name in expanded)
 
     def _tutorial(self, target: str) -> object:
-        """Compose tutorials from real flow operations instead of Make recipes."""
+        """Compose tutorials from the same flow operations used by normal targets."""
         sequences = {
             "soc_ibex_fetch": ("fetch",),
             "full_tutorial": ("ip_start", "ip_flow", "pnr", "pnr_gui"),
@@ -1825,14 +1836,15 @@ class FlexSoC:
         """Create a client with paths and initial backend settings."""
 
         base = config or FlexSoCConfig()
+        base_values = dict(base.values)
         self.config = FlexSoCConfig(
             project_root if project_root is not None else base.project_root,
             workdir if workdir is not None else base.workdir,
-            base.make_values(),
+            base_values,
         )
         known = set(DEFAULT_SETTINGS) | {key for _, _, params in TARGETS.values() for key in params}
         env_values = {key: os.environ[f"FLEXSOC_{key}"] for key in known if f"FLEXSOC_{key}" in os.environ}
-        self.settings = _upper({**self.config.make_values(), **env_values, **values})
+        self.settings = _upper({**base_values, **env_values, **values})
         self.execution_targets = dict(execution_targets or {}) or None
 
     @property
@@ -1883,7 +1895,7 @@ class FlexSoC:
             **values,
         )
 
-    def targets(self) -> tuple[FlexSoCTarget, ...]:
+    def targets(self) -> tuple[FlexSoCTargetInfo, ...]:
         """List every backend target exposed by fx."""
 
         return tuple(_target_object(name) for name in TARGETS)
@@ -1893,7 +1905,7 @@ class FlexSoC:
 
         return tuple(TARGETS)
 
-    def target_info(self, target: str) -> FlexSoCTarget:
+    def target_info(self, target: str) -> FlexSoCTargetInfo:
         """Return metadata for one target."""
 
         return _target_object(_target(target))
@@ -1917,9 +1929,9 @@ class FlexSoC:
         pdk_values: dict[str, str] = {}
         pdk_name = explicit.get("PDK", DEFAULT_SETTINGS["PDK"])
         try:
-            from .backend.core import make_overrides
+            from .backend.core import pdk_settings
 
-            pdk_values = make_overrides(
+            pdk_values = pdk_settings(
                 self.project_root,
                 pdk_name,
                 explicit.get("PDK_ROOT"),
@@ -1932,17 +1944,17 @@ class FlexSoC:
 
         values = _upper({"WORKSPACE": self.workdir, **pdk_values, **explicit})
         from .backend.core import clock_config
-        from .backend.core import pdk_make_paths
+        from .backend.core import pdk_paths
 
-        values.update(clock_config(values).make_values())
-        values.update(pdk_make_paths(self.project_root, values))
+        values.update(clock_config(values).to_settings())
+        values.update(pdk_paths(self.project_root, values))
         fmt = values.get("WAVE_FORMAT", "fst").lower()
         if fmt not in {"fst", "vcd"}:
             raise ValueError("WAVE_FORMAT must be 'fst' or 'vcd'")
         values["WAVE_FORMAT"] = fmt
         values.setdefault("WAVE_EXT", fmt)
-        # Make's packaged default is FST-only. Override it from the Python
-        # surface so WAVE_FORMAT=vcd genuinely changes Verilator's trace
+        # The generated simulator defaults to FST. Override it here so
+        # WAVE_FORMAT=vcd genuinely changes Verilator's trace
         # backend instead of merely changing the filename extension.
         trace_flag = "--trace-fst" if fmt == "fst" else "--trace-vcd"
         values.setdefault(
@@ -2117,7 +2129,7 @@ class FlexSoC:
                     os.environ["FLEXSOC_LIVE"] = "1" if live else "0"
                     os.environ["PYTHONUNBUFFERED"] = "1"
                     try:
-                        value = _TargetRouter(
+                        value = FlexSoCTarget(
                             self, command.values, on=on, auto_setup=auto_setup
                         ).execute(command.target)
                         rc = self._returncode(value)
@@ -2268,18 +2280,3 @@ class FlexSoC:
                 env[key] = value
         return env
 
-
-# ---------------------------------------------------------------------------
-# Backward-compatible script hook
-# ---------------------------------------------------------------------------
-
-def main(argv: list[str] | None = None) -> int:
-    """Delegate old script entry points to the CLI module."""
-
-    from .cli import app
-
-    return app(argv)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

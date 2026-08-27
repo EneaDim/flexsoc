@@ -15,6 +15,10 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 
+# ---------------------------------------------------------------------------
+# Clock/reset intent
+# ---------------------------------------------------------------------------
+
 @dataclass(frozen=True, slots=True)
 class ClockDomain:
     """One named clock/reset domain."""
@@ -62,8 +66,8 @@ class ClockConfig:
     def fastest_period_ns(self) -> float:
         return min(domain.period_ns for domain in self.domains)
 
-    def make_values(self) -> dict[str, str]:
-        """Return the canonical Make/Python clock values."""
+    def to_settings(self) -> dict[str, str]:
+        """Return canonical FlexSoC clock settings."""
 
         return {
             "N_CLOCKS": str(self.n_clocks),
@@ -150,6 +154,10 @@ def clock_config(values: Mapping[str, object] | None = None) -> ClockConfig:
     relationships = _relationships(relationships_text, {domain.name for domain in domains})
     return ClockConfig(domains, relationships)
 
+
+# ---------------------------------------------------------------------------
+# PDK catalogue, installation and discovered views
+# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True, slots=True)
 class PDKSpec:
@@ -447,8 +455,8 @@ def discover_views(root: Path, name: str) -> PDKViews:
     )
 
 
-def make_overrides(project_root: Path, name: str, root: str | Path | None = None) -> dict[str, str]:
-    """Return PDK-dependent Make variables when usable views are available."""
+def pdk_settings(project_root: Path, name: str, root: str | Path | None = None) -> dict[str, str]:
+    """Return PDK-dependent FlexSoC settings for discovered views."""
 
     item = spec(name)
     install = installed_root(project_root, item.name, root)
@@ -761,6 +769,10 @@ def run_root(workspace: Path, *, run_top: str, run_id: str) -> Path:
     return workspace.expanduser().resolve() / "runs" / _slug(run_top) / _slug(run_id)
 
 
+# ---------------------------------------------------------------------------
+# Canonical run and PDK-scoped artifact layout
+# ---------------------------------------------------------------------------
+
 @dataclass(frozen=True, slots=True)
 class PDKRunLayout:
     """Technology-dependent artifact locations for one selected PDK."""
@@ -927,8 +939,8 @@ def layout_from_values(project_root: Path, values: Mapping[str, str]) -> PDKRunL
     return pdk_run_layout(shared, pdk=pdk, top=top)
 
 
-def pdk_make_paths(project_root: Path, values: Mapping[str, str]) -> dict[str, str]:
-    """Return Make-path overrides for technology-dependent outputs."""
+def pdk_paths(project_root: Path, values: Mapping[str, str]) -> dict[str, str]:
+    """Return canonical technology-dependent run paths as settings."""
 
     layout = layout_from_values(project_root, values)
     return {
@@ -960,6 +972,10 @@ def pdk_make_paths(project_root: Path, values: Mapping[str, str]) -> dict[str, s
         "COMMAND_LOGDIR": str(layout.command_log_dir),
     }
 
+
+# ---------------------------------------------------------------------------
+# Generated-file and SystemVerilog helpers
+# ---------------------------------------------------------------------------
 
 def colorize(text: str, color_code: str = "\033[38;5;214m") -> str:
     """Return colored text when stdout supports color output."""
@@ -1161,6 +1177,10 @@ def list_hdl_files(root: str | os.PathLike[str], *, recursive: bool = True) -> l
     files = [p.resolve() for p in it if p.is_file() and p.suffix.lower() in exts]
     return sorted(set(files))
 
+
+# ---------------------------------------------------------------------------
+# RTL discovery, dependency resolution and ordered filelists
+# ---------------------------------------------------------------------------
 
 def gather_rtl_sources(root: Path) -> list[Path]:
     """Return all RTL source files under a root directory."""
@@ -1531,6 +1551,10 @@ def build_ordered_sources(
     return final
 
 
+# ---------------------------------------------------------------------------
+# Shared backend context and canonical flow paths
+# ---------------------------------------------------------------------------
+
 @dataclass(frozen=True, slots=True)
 class BackendContext:
     """Immutable inputs shared by backend flow objects."""
@@ -1569,7 +1593,7 @@ class PdkManager:
         return fetch(self.project_root, name, force=force, version=version)
 
     def use(self, name: str, root: str | Path | None = None) -> dict[str, str]:
-        return make_overrides(self.project_root, name, root)
+        return pdk_settings(self.project_root, name, root)
 
     def views(self, name: str, root: str | Path | None = None) -> PDKViews:
         canonical = normalize_name(name)

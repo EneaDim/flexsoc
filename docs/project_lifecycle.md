@@ -746,7 +746,7 @@ cycle are coalesced into one atomic batch, driven together before the active
 clock edge, and checked after the same generated settling interval. A command
 row (`@write`, `@cfg`, or `@reset`) cannot share a cycle with another command or
 a direct signal drive. Newly generated scaffold vectors serialize every
-transaction on one line, while legacy one-signal-per-line files remain valid.
+transaction on one line; the parser also accepts one-signal-per-line files.
 
 Runtime reset rows are backend-neutral:
 
@@ -1262,7 +1262,7 @@ final runtime image must still pass the managed doctor and complete E2E.
 A doctor-only version-reporting failure must be repaired above the checkpoint,
 not by discarding it. SymbiYosys and EQY are installed with release strings
 from `toolchain.lock` rather than relying on `git describe` in shallow detached
-checkouts. If a legacy checkpoint prints only `SBY` or `EQY`, rerun the build:
+checkouts. If a retained checkpoint prints only `SBY` or `EQY`, rerun the build:
 FlexSoC reinstalls only the affected launcher/plugin files and resumes at doctor
 while retaining the compiled EDA prefix.
 
@@ -1325,8 +1325,7 @@ signoff/fusion.py -> timing/power correlation
 impl/impl.py       -> ORFS/OpenROAD physical implementation only
 ```
 
-The Python API dispatches directly to these flow objects; the backend Makefile
-is only a command-line compatibility shim. The sign-off facade exposes the same
+The Python API dispatches directly to these flow objects. `FlexSoCTarget` owns lifecycle routing while each domain object owns its EDA semantics. The sign-off facade exposes the same
 engines as `signoff.pre` and `signoff.post`, with ideal/no-SPEF timing before
 implementation and propagated-clock/SPEF timing after routing.
 

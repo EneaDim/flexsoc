@@ -135,9 +135,7 @@ fx settings \
   'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 ```
 
-The command vocabulary remains the same for one or many clocks. Clock
-relationships are explicit; FlexSoC does not silently infer that every pair is
-asynchronous.
+The command vocabulary remains the same for one or many clocks. Persist clock/reset intent with `fx settings`; use `--set` only for intentional one-command overrides. `CLOCK_DOMAINS` uses `name:clock:reset:period_ns[:low|high]`, and relationships use `async|sync|generated:source:target[:divide_by]`. FlexSoC does not silently infer asynchronous relationships.
 
 ## Development principles
 

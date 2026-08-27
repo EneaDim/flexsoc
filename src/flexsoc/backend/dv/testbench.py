@@ -886,9 +886,12 @@ def _render_sv_vec_driver_string(
     outputs: Sequence[str],
     reset_polarity: str = "low",
     reset_domain: str = "core",
+    period_ns: float = 10.0,
+    io_delay_pct: float = 0.2,
 ) -> str:
     """Render generic input-vector drive tasks from data_in.vec."""
 
+    drive_ns, sample_ns = _tb_phases(period_ns, io_delay_pct)
     drives = ["  if (1'b0) begin\n    tb_vector_apply_count = tb_vector_apply_count;\n  end"]
     for name in inputs:
         drives.append(
@@ -907,6 +910,28 @@ def _render_sv_vec_driver_string(
 // data_in.vec supports signal drives, @write, @cfg, and @reset.
 
 int tb_vector_apply_count;
+
+// Same IO phase contract used by TL-UL, functional simulation and GLS.
+localparam realtime FLEXSOC_VEC_DRIVE_NS  = {drive_ns:g};
+localparam realtime FLEXSOC_VEC_SAMPLE_NS = {sample_ns:g};
+event flexsoc_vec_drive_phase;
+event flexsoc_vec_sample_phase;
+
+initial forever begin
+  @(posedge {clk});
+  fork
+    begin #(FLEXSOC_VEC_DRIVE_NS)  -> flexsoc_vec_drive_phase;  end
+    begin #(FLEXSOC_VEC_SAMPLE_NS) -> flexsoc_vec_sample_phase; end
+  join_none
+end
+
+task automatic tb_wait_drive_phase();
+  @flexsoc_vec_drive_phase;
+endtask
+
+task automatic tb_wait_sample_phase();
+  @flexsoc_vec_sample_phase;
+endtask
 
 task automatic tb_drive_input(input string name, input logic [31:0] value);
 {drives_text}
@@ -953,7 +978,7 @@ task automatic tb_apply_reg_write(input string reg_key, input string data_raw, i
 endtask
 
 task automatic tb_step(input string data_out_path, inout int now_cycle);
-  @(posedge {clk}); #1;
+  tb_wait_sample_phase();
   now_cycle++;
   tb_check_outputs(data_out_path, now_cycle);
 endtask
@@ -992,7 +1017,7 @@ task automatic tb_wait_before_drive(input int target_cycle, input string data_ou
   while (now_cycle < target_cycle - 1) begin
     tb_step(data_out_path, now_cycle);
   end
-  @(negedge {clk}); #1;
+  tb_wait_drive_phase();
 endtask
 
 task automatic tb_drive_signal_pairs(
@@ -1394,9 +1419,11 @@ def render_sv_vec_driver(
     outputs: Sequence[str],
     reset_polarity: str = "low",
     reset_domain: str = "core",
+    period_ns: float = 10.0,
+    io_delay_pct: float = 0.2,
 ) -> str:
     string_parser = _STRING_RENDER_SV_VEC_DRIVER(
-        top, clk, rst, inputs, outputs, reset_polarity, reset_domain
+        top, clk, rst, inputs, outputs, reset_polarity, reset_domain, period_ns, io_delay_pct
     )
     return _sv_parser_variants(string_parser, _packed_vec_driver(string_parser))
 
@@ -1436,6 +1463,8 @@ def write_sv_verification_helpers(
     force: bool,
     reset_polarity: str = "low",
     reset_domain: str = "core",
+    period_ns: float = 10.0,
+    io_delay_pct: float = 0.2,
 ) -> list[Path]:
     """Write SystemVerilog driver/monitor/config helper include files."""
 
@@ -1463,7 +1492,7 @@ def write_sv_verification_helpers(
     if bus_active or (inputs and outputs):
         files[stale_vec_files[0]] = render_sv_vec_monitor(top, outputs)
         files[stale_vec_files[1]] = render_sv_vec_driver(
-            top, clk, rst, inputs, outputs, reset_polarity, reset_domain
+            top, clk, rst, inputs, outputs, reset_polarity, reset_domain, period_ns, io_delay_pct
         )
     else:
         for stale in stale_vec_files:
@@ -1475,6 +1504,18 @@ def write_sv_verification_helpers(
         safe_write_file(path, text, overwrite=True)
 
     return list(files)
+
+def _tb_phases(period_ns: float, io_delay_pct: float) -> tuple[float, float]:
+    """Return input-drive and output-sample offsets for one clock period."""
+
+    period = float(period_ns)
+    pct = float(io_delay_pct)
+    if period <= 0.0:
+        raise ValueError("testbench clock period must be positive")
+    if not 0.0 < pct < 0.5:
+        raise ValueError("SDC_IO_DELAY_PCT must be between 0 and 0.5 for testbench phasing")
+    return period * pct, period * (1.0 - pct)
+
 
 @dataclass(frozen=True, slots=True)
 class TestbenchConfig:
@@ -1491,6 +1532,7 @@ class TestbenchConfig:
     clk_period_ns: int
     compiler: str
     interface: str
+    io_delay_pct: float = 0.2
     vsv: str = "sv"
     output: str | Path = "tb"
     devices: tuple[tuple[str, str, str, str], ...] = ()
@@ -1659,9 +1701,10 @@ endfunction
     return "\n".join(indent + line if line else "" for line in body.splitlines())
 
 
-def render_tlul_interface() -> str:
-    """Render a package-free, simulator-neutral TL-UL interface and driver."""
+def render_tlul_interface(period_ns: float = 10.0, io_delay_pct: float = 0.2) -> str:
+    """Render a package-free TL-UL interface using the shared IO timing intent."""
 
+    drive_ns, sample_ns = _tb_phases(period_ns, io_delay_pct)
     helpers = render_packed_tlul_helpers("  ")
     return f"""`timescale 1ns/1ps
 
@@ -1678,13 +1721,26 @@ interface tlul_if (
   modport drv (output h2d, input d2h);
   modport dut (input h2d, output d2h);
 
-  // TB timing contract: drive DUT inputs on negedge, sample DUT outputs on posedge.
-  task automatic sample_cycle();
+  // Shared timing intent: drive at input-delay phase, sample at output-deadline phase.
+  localparam realtime FLEXSOC_TB_DRIVE_NS  = {drive_ns:g};
+  localparam realtime FLEXSOC_TB_SAMPLE_NS = {sample_ns:g};
+  event flexsoc_tb_drive_phase;
+  event flexsoc_tb_sample_phase;
+
+  initial forever begin
     @(posedge clk_i);
+    fork
+      begin #(FLEXSOC_TB_DRIVE_NS)  -> flexsoc_tb_drive_phase;  end
+      begin #(FLEXSOC_TB_SAMPLE_NS) -> flexsoc_tb_sample_phase; end
+    join_none
+  end
+
+  task automatic sample_cycle();
+    @flexsoc_tb_sample_phase;
   endtask
 
   task automatic drive_cycle();
-    @(negedge clk_i);
+    @flexsoc_tb_drive_phase;
   endtask
 
   task automatic drive_idle();
@@ -2297,7 +2353,7 @@ def write_bus_helpers(config: TestbenchConfig, *, reg_pkg: bool, simple_mode: bo
 
     outdir = Path(config.output)
     helpers = {
-        "tlul": (("tlul_if.sv", render_tlul_interface()),),
+        "tlul": (("tlul_if.sv", render_tlul_interface(config.clk_period_ns, config.io_delay_pct)),),
         "reg_iface": (
             (("reg_if.sv", render_reg_interface(config.top)), ("reg_utils.sv", render_reg_utils(config.top)))
             if config.compiler == "verilator" else ()
@@ -2365,6 +2421,8 @@ def _generate_testbench_files(
             force=True,
             reset_polarity=reset_domain.reset_polarity,
             reset_domain=reset_domain.name,
+            period_ns=config.clk_period_ns,
+            io_delay_pct=config.io_delay_pct,
         )
     )
 
@@ -2691,7 +2749,7 @@ def sv_include_text(top: str) -> str:
     """)
 
 
-def _sv_driver_text_string(top: str, clocks: ClockConfig) -> str:
+def _sv_driver_text_string(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
     """Render package-free TL-UL access and reset tasks for the N-clock scaffold."""
 
     resets = {domain.reset: domain.reset_polarity for domain in clocks.domains}
@@ -2722,8 +2780,28 @@ def _sv_driver_text_string(top: str, clocks: ClockConfig) -> str:
         for domain in clocks.domains
     )
     primary = clocks.domains[0].signal
-    text = dedent("""\
-      // TB timing contract: drive DUT inputs on negedge, sample DUT outputs on posedge.
+    phase_helpers = []
+    for domain in clocks.domains:
+        drive_ns, sample_ns = _tb_phases(domain.period_ns, io_delay_pct)
+        phase_helpers.append(dedent(f"""\
+          event flexsoc_{domain.name}_drive_phase;
+          event flexsoc_{domain.name}_sample_phase;
+          initial forever begin
+            @(posedge {domain.signal});
+            fork
+              begin #({drive_ns:g}) -> flexsoc_{domain.name}_drive_phase; end
+              begin #({sample_ns:g}) -> flexsoc_{domain.name}_sample_phase; end
+            join_none
+          end
+          task automatic {domain.name}_drive_cycle();
+            @flexsoc_{domain.name}_drive_phase;
+          endtask
+          task automatic {domain.name}_sample_cycle();
+            @flexsoc_{domain.name}_sample_phase;
+          endtask
+        """).rstrip())
+    text = "\n\n".join(phase_helpers) + "\n\n" + dedent("""\
+      // Shared timing intent: every domain drives/samples from its clock period and IO delay.
       task automatic apply_defaults();
         cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
                                     32'b0, 4'b0, 32'b0, 1'b1);
@@ -2757,59 +2835,59 @@ __NAMED_RESET_BRANCHES__
       endtask
 
       task automatic cfg_write(input logic [31:0] addr, input logic [31:0] data);
-        @(negedge cfg_clk_i);
+        cfg_drive_cycle();
         cfg_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_PUT_FULL, 3'b0, 2'd2, 8'b0,
                                     addr, 4'hf, data, 1'b1);
-        do @(posedge cfg_clk_i); while (!cfg_tl_o[0]);
-        @(negedge cfg_clk_i);
+        do cfg_sample_cycle(); while (!cfg_tl_o[0]);
+        cfg_drive_cycle();
         cfg_tl_i[108] = 1'b0;
-        do @(posedge cfg_clk_i); while (!cfg_tl_o[65]);
+        do cfg_sample_cycle(); while (!cfg_tl_o[65]);
         if (cfg_tl_o[1]) errors++;
-        @(negedge cfg_clk_i);
+        cfg_drive_cycle();
         cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
                                     32'b0, 4'b0, 32'b0, 1'b1);
       endtask
 
       task automatic dsp_write(input logic [31:0] addr, input logic [31:0] data);
-        @(negedge dsp_clk_i);
+        dsp_drive_cycle();
         dsp_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_PUT_FULL, 3'b0, 2'd2, 8'b0,
                                     addr, 4'hf, data, 1'b1);
-        do @(posedge dsp_clk_i); while (!dsp_tl_o[0]);
-        @(negedge dsp_clk_i);
+        do dsp_sample_cycle(); while (!dsp_tl_o[0]);
+        dsp_drive_cycle();
         dsp_tl_i[108] = 1'b0;
-        do @(posedge dsp_clk_i); while (!dsp_tl_o[65]);
+        do dsp_sample_cycle(); while (!dsp_tl_o[65]);
         if (dsp_tl_o[1]) errors++;
-        @(negedge dsp_clk_i);
+        dsp_drive_cycle();
         dsp_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
                                     32'b0, 4'b0, 32'b0, 1'b1);
       endtask
 
       task automatic cfg_read(input logic [31:0] addr, output logic [31:0] data);
-        @(negedge cfg_clk_i);
+        cfg_drive_cycle();
         cfg_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
                                     addr, 4'hf, 32'b0, 1'b1);
-        do @(posedge cfg_clk_i); while (!cfg_tl_o[0]);
-        @(negedge cfg_clk_i);
+        do cfg_sample_cycle(); while (!cfg_tl_o[0]);
+        cfg_drive_cycle();
         cfg_tl_i[108] = 1'b0;
-        do @(posedge cfg_clk_i); while (!cfg_tl_o[65]);
+        do cfg_sample_cycle(); while (!cfg_tl_o[65]);
         data = cfg_tl_o[47:16];
         if (cfg_tl_o[1]) errors++;
-        @(negedge cfg_clk_i);
+        cfg_drive_cycle();
         cfg_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
                                     32'b0, 4'b0, 32'b0, 1'b1);
       endtask
 
       task automatic dsp_read(input logic [31:0] addr, output logic [31:0] data);
-        @(negedge dsp_clk_i);
+        dsp_drive_cycle();
         dsp_tl_i = flexsoc_tlul_h2d(1'b1, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
                                     addr, 4'hf, 32'b0, 1'b1);
-        do @(posedge dsp_clk_i); while (!dsp_tl_o[0]);
-        @(negedge dsp_clk_i);
+        do dsp_sample_cycle(); while (!dsp_tl_o[0]);
+        dsp_drive_cycle();
         dsp_tl_i[108] = 1'b0;
-        do @(posedge dsp_clk_i); while (!dsp_tl_o[65]);
+        do dsp_sample_cycle(); while (!dsp_tl_o[65]);
         data = dsp_tl_o[47:16];
         if (dsp_tl_o[1]) errors++;
-        @(negedge dsp_clk_i);
+        dsp_drive_cycle();
         dsp_tl_i = flexsoc_tlul_h2d(1'b0, FLEXSOC_TL_GET, 3'b0, 2'd2, 8'b0,
                                     32'b0, 4'b0, 32'b0, 1'b1);
       endtask
@@ -2902,8 +2980,10 @@ __NAMED_RESET_BRANCHES__
                 .replace("__NAMED_RESET_BRANCHES__", named_reset)
                 .replace("__PRIMARY_CLOCK__", primary))
 
-def _sv_vec_driver_text_string(top: str) -> str:
+def _sv_vec_driver_text_string(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
     """Render N-clock vector commands, including CSR and reset actions."""
+
+    del clocks, io_delay_pct
 
     return dedent("""\
       task automatic send_sample(input logic signed [15:0] sample, input logic signed [15:0] coeff);
@@ -2911,7 +2991,7 @@ def _sv_vec_driver_text_string(top: str) -> str:
         begin : send_sample_body
         timeout = 0;
         while (!rx_ready_o && timeout < 64) begin
-          @(posedge rx_clk_i);
+          rx_sample_cycle();
           timeout++;
         end
         if (!rx_ready_o) begin
@@ -2919,11 +2999,11 @@ def _sv_vec_driver_text_string(top: str) -> str:
           errors++;
           disable send_sample_body;
         end
-        @(negedge rx_clk_i);
+        rx_drive_cycle();
         rx_sample_i = sample;
         rx_coeff_i = coeff;
         rx_valid_i = 1'b1;
-        @(negedge rx_clk_i);
+        rx_drive_cycle();
         rx_valid_i = 1'b0;
         end
       endtask
@@ -3056,8 +3136,8 @@ def _sv_monitor_text_string(top: str) -> str:
         timeout = 0;
         dsp_ready_i = 1'b1;
         while (got_count < exp_count && timeout < 4096) begin
-          // Sample halfway through the DSP cycle, after sequential updates.
-          @(negedge dsp_clk_i);
+          // Sample at the shared output-deadline phase.
+          dsp_sample_cycle();
           if (dsp_valid_o) begin
             if ($unsigned(dsp_result_o) !== exp_result[got_count]) begin
               $display("[TB][ERROR] result[%0d] got=0x%08x exp=0x%08x", got_count, $unsigned(dsp_result_o), exp_result[got_count]);
@@ -3088,8 +3168,8 @@ _STRING_SV_VEC_DRIVER_TEXT = _sv_vec_driver_text_string
 _STRING_SV_MONITOR_TEXT = _sv_monitor_text_string
 
 
-def _packed_sv_driver_text(top: str, clocks: ClockConfig) -> str:
-    text = _STRING_SV_DRIVER_TEXT(top, clocks)
+def _packed_sv_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
+    text = _STRING_SV_DRIVER_TEXT(top, clocks, io_delay_pct)
     text = text.replace("input string reg_name", "input tb_token_t reg_name")
     text = text.replace("  string reg_name;", "  tb_token_t reg_name;")
     text = text.replace("  string line;\n", "")
@@ -3116,8 +3196,8 @@ def _packed_sv_driver_text(top: str, clocks: ClockConfig) -> str:
     return _PACKED_TOKEN_SUPPORT + "\n" + text
 
 
-def _packed_sv_vec_driver_text(top: str) -> str:
-    text = _STRING_SV_VEC_DRIVER_TEXT(top)
+def _packed_sv_vec_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
+    text = _STRING_SV_VEC_DRIVER_TEXT(top, clocks, io_delay_pct)
     text = text.replace("  string token;", "  tb_token_t token;")
     text = text.replace("  string reg_name;", "  tb_token_t reg_name;")
     text = text.replace("  string line;\n", "")
@@ -3151,21 +3231,21 @@ def _packed_sv_monitor_text(top: str) -> str:
     return text
 
 
-def sv_driver_text(top: str, clocks: ClockConfig) -> str:
+def sv_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
     """Render an N-clock driver with simulator-specific file parsing."""
 
     return _sv_parser_variants(
-        _STRING_SV_DRIVER_TEXT(top, clocks),
-        _packed_sv_driver_text(top, clocks),
+        _STRING_SV_DRIVER_TEXT(top, clocks, io_delay_pct),
+        _packed_sv_driver_text(top, clocks, io_delay_pct),
     )
 
 
-def sv_vec_driver_text(top: str) -> str:
+def sv_vec_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
     """Render N-clock vector input parsing for Verilator and Icarus."""
 
     return _sv_parser_variants(
-        _STRING_SV_VEC_DRIVER_TEXT(top),
-        _packed_sv_vec_driver_text(top),
+        _STRING_SV_VEC_DRIVER_TEXT(top, clocks, io_delay_pct),
+        _packed_sv_vec_driver_text(top, clocks, io_delay_pct),
     )
 
 
@@ -3345,7 +3425,7 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
 # cocotb scaffold
 
 
-def _generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, force: bool) -> None:
+def _generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, force: bool, io_delay_pct: float = 0.2) -> None:
     """Write the generated N-clock SV testbench and split drivers."""
 
     del force
@@ -3353,8 +3433,8 @@ def _generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, f
     drivers.mkdir(parents=True, exist_ok=True)
     files = {
         output / f"include_{top}_tb.sv": sv_include_text(top),
-        drivers / f"{top}_tlul_driver.svh": sv_driver_text(top, clocks),
-        drivers / f"{top}_vec_driver.svh": sv_vec_driver_text(top),
+        drivers / f"{top}_tlul_driver.svh": sv_driver_text(top, clocks, io_delay_pct),
+        drivers / f"{top}_vec_driver.svh": sv_vec_driver_text(top, clocks, io_delay_pct),
         drivers / f"{top}_vec_monitor.svh": sv_monitor_text(top),
         output / f"{top}_tb.sv": sv_tb_text(top, f"{top}_tb", clocks),
     }
@@ -3363,12 +3443,12 @@ def _generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, f
 
 
 def generate_nclock_testbench(
-    top: str, output: Path, clocks: ClockConfig, *, force: bool
+    top: str, output: Path, clocks: ClockConfig, *, force: bool, io_delay_pct: float = 0.2
 ) -> tuple[Path, ...]:
     """Recreate the complete machine-owned N-clock SystemVerilog scaffold."""
 
     with replace_generated_tree(output):
-        _generate_nclock_testbench(top, output, clocks, force=force)
+        _generate_nclock_testbench(top, output, clocks, force=force, io_delay_pct=io_delay_pct)
     return (
         output / f"include_{top}_tb.sv",
         output / "drivers" / f"{top}_tlul_driver.svh",
@@ -3392,6 +3472,7 @@ class CocotbConfig:
     rst: str = "rst_ni"
     rst_active: str = "low"
     period_ns: float = 10.0
+    io_delay_pct: float = 0.2
     nbit: int = 32
     n_op: int = 10
     vsv: str = "sv"
@@ -3747,22 +3828,28 @@ def _normalise_register_entries(registers) -> dict[str, int]:
     return regmap
 
 
-def render_reg_driver_py(registers=None) -> str:
-    """Render generic cocotb register read/write helpers."""
+def render_reg_driver_py(registers=None, period_ns: float = 10.0, io_delay_pct: float = 0.2) -> str:
+    """Render generic cocotb register helpers using the shared IO timing intent."""
 
     register_addrs = _normalise_register_entries(registers)
+    drive_ns, sample_ns = _tb_phases(period_ns, io_delay_pct)
 
     body = r'''
 from __future__ import annotations
 
 from pathlib import Path
 
-from cocotb.triggers import FallingEdge, RisingEdge, Timer
+from cocotb.triggers import RisingEdge, Timer
+from cocotb.simtime import get_sim_time
 
 WRITE_TOKENS = {"@write", "write", "@reg_write", "reg_write"}
 READ_TOKENS = {"@read", "read", "@reg_read", "reg_read"}
 
 REGISTER_ADDRS = __REGISTER_ADDRS__
+TB_PERIOD_PS = __TB_PERIOD_PS__
+TB_DRIVE_PS = __TB_DRIVE_PS__
+TB_SAMPLE_PS = __TB_SAMPLE_PS__
+_PHASE_ORIGINS = {}
 
 
 def parse_u32(text):
@@ -3871,17 +3958,33 @@ def _clock(dut, clk=None):
     raise AttributeError("cannot infer cocotb clock; expected clk_i")
 
 
-async def _sample_cycle(clk):
-    """Sample DUT outputs at the rising edge before the handshake is consumed."""
+def _clock_key(clk):
+    return getattr(clk, "_name", str(clk))
 
-    await RisingEdge(clk)
+
+async def _wait_phase(clk, offset_ps):
+    key = _clock_key(clk)
+    if key not in _PHASE_ORIGINS:
+        await RisingEdge(clk)
+        _PHASE_ORIGINS[key] = int(get_sim_time(unit="ps"))
+    now = int(get_sim_time(unit="ps"))
+    phase = (now - _PHASE_ORIGINS[key]) % TB_PERIOD_PS
+    delta = (offset_ps - phase) % TB_PERIOD_PS
+    if delta == 0:
+        delta = TB_PERIOD_PS
+    await Timer(delta, unit="ps")
+
+
+async def _sample_cycle(clk):
+    """Sample DUT outputs at the SDC output-deadline phase."""
+
+    await _wait_phase(clk, TB_SAMPLE_PS)
 
 
 async def _drive_cycle(clk):
-    """Drive DUT inputs just after the falling edge, away from the active edge."""
+    """Drive DUT inputs at the SDC input-delay phase."""
 
-    await FallingEdge(clk)
-    await Timer(1, unit="ps")
+    await _wait_phase(clk, TB_DRIVE_PS)
 
 
 async def _wait_cycles(clk, count=1):
@@ -4067,7 +4170,13 @@ async def run_register_config(dut, cfg_path, *, regmap=None, clk=None):
         dut._log.info("no register config writes from %s; continuing", path)
 '''
 
-    return body.lstrip().replace("__REGISTER_ADDRS__", repr(register_addrs))
+    return (
+        body.lstrip()
+        .replace("__REGISTER_ADDRS__", repr(register_addrs))
+        .replace("__TB_PERIOD_PS__", str(int(round(period_ns * 1000))))
+        .replace("__TB_DRIVE_PS__", str(int(round(drive_ns * 1000))))
+        .replace("__TB_SAMPLE_PS__", str(int(round(sample_ns * 1000))))
+    )
 
 def render_vec_monitor_py() -> str:
     """Render a generic cocotb expected-output monitor."""
@@ -4209,9 +4318,9 @@ import os
 import re
 from pathlib import Path
 
-from cocotb.triggers import Combine, FallingEdge, RisingEdge, Timer
+from cocotb.triggers import Combine, FallingEdge, RisingEdge
 
-from drivers.reg_driver import WRITE_TOKENS, parse_u32
+from drivers.reg_driver import WRITE_TOKENS, _drive_cycle, _sample_cycle, parse_u32
 
 CONFIG_TOKENS = {"@cfg", "cfg", "@config", "config"}
 RESET_TOKENS = {"@reset", "reset"}
@@ -4313,7 +4422,7 @@ def _coalesce_rows(rows):
 
 async def _advance(clk, count=1):
     for _ in range(max(0, int(count))):
-        await RisingEdge(clk)
+        await _sample_cycle(clk)
 
 
 def _configured_reset_domains():
@@ -4389,8 +4498,7 @@ async def drive_vectors(
             if monitor is not None:
                 await monitor.check(now)
 
-        await FallingEdge(clk)
-        await Timer(1, unit="ps")
+        await _drive_cycle(clk)
 
         dut._log.info("vector cycle=%d", cycle)
 
@@ -4430,8 +4538,7 @@ async def drive_vectors(
             if await _drive_one(dut, name, item[1]):
                 applied += 1
 
-        await RisingEdge(clk)
-        await Timer(1, unit="ns")
+        await _sample_cycle(clk)
         now = cycle
 
         if monitor is not None:
@@ -4673,7 +4780,7 @@ def _write_cocotb_scaffold_impl(
     registers = _register_entries(hjson_path)
     files = {
         out_dir / "Makefile": render_makefile(cfg, sources),
-        drivers / "reg_driver.py": render_reg_driver_py(registers),
+        drivers / "reg_driver.py": render_reg_driver_py(registers, cfg.period_ns, cfg.io_delay_pct),
         drivers / "vec_driver.py": render_vec_driver_py(),
         drivers / "vec_monitor.py": render_vec_monitor_py(),
         out_dir / f"{cfg.top}_tb.py": render_python_test(
@@ -4928,7 +5035,7 @@ def cocotb_makefile_text(
     """)
 
 
-def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
+def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
     """Render TL-UL helpers bound to the canonical clock/reset domains."""
 
     clock_map = {domain.name: domain.signal for domain in clocks.domains}
@@ -4944,9 +5051,14 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
     from pathlib import Path
 
     from cocotb.triggers import Combine, FallingEdge, RisingEdge, Timer
+    from cocotb.simtime import get_sim_time
 
 
     CLOCKS = __CLOCK_MAP__
+    CLOCK_PERIOD_PS = __CLOCK_PERIOD_PS__
+    CLOCK_DRIVE_PS = __CLOCK_DRIVE_PS__
+    CLOCK_SAMPLE_PS = __CLOCK_SAMPLE_PS__
+    _PHASE_ORIGINS = {}
     RESET_DOMAINS = __RESET_MAP__
     PRIMARY_CLOCK = __PRIMARY_CLOCK__
     SETTLE_CLOCK = __SETTLE_CLOCK__
@@ -4968,15 +5080,34 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
     }
 
 
+    def _clock_key(clk):
+        return getattr(clk, "_name", str(clk))
+
+
+    async def _wait_phase(clk, offsets):
+        key = _clock_key(clk)
+        if key not in CLOCK_PERIOD_PS:
+            raise KeyError(f"unknown generated clock: {key}")
+        if key not in _PHASE_ORIGINS:
+            await RisingEdge(clk)
+            _PHASE_ORIGINS[key] = int(get_sim_time(unit="ps"))
+        period = CLOCK_PERIOD_PS[key]
+        now = int(get_sim_time(unit="ps"))
+        phase = (now - _PHASE_ORIGINS[key]) % period
+        delta = (offsets[key] - phase) % period
+        if delta == 0:
+            delta = period
+        await Timer(delta, unit="ps")
+
+
     async def _sample_cycle(clk):
-        "Sample protocol outputs on the rising edge."
-        await RisingEdge(clk)
+        "Sample protocol outputs at the output-deadline phase."
+        await _wait_phase(clk, CLOCK_SAMPLE_PS)
 
 
     async def _drive_cycle(clk):
-        "Drive protocol inputs just after the falling edge."
-        await FallingEdge(clk)
-        await Timer(1, unit="ps")
+        "Drive protocol inputs at the input-delay phase."
+        await _wait_phase(clk, CLOCK_DRIVE_PS)
 
 
     async def _wait_cycles(clk, count=1):
@@ -5151,7 +5282,17 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig) -> str:
                 await apply_reg(dut, parts[0], int(parts[1], 0), mask)
         await settle(dut)
     """)
+    period_ps = {domain.signal: int(round(domain.period_ns * 1000)) for domain in clocks.domains}
+    drive_ps = {}
+    sample_ps = {}
+    for domain in clocks.domains:
+        drive_ns, sample_ns = _tb_phases(domain.period_ns, io_delay_pct)
+        drive_ps[domain.signal] = int(round(drive_ns * 1000))
+        sample_ps[domain.signal] = int(round(sample_ns * 1000))
     return (text.replace("__CLOCK_MAP__", repr(clock_map))
+                .replace("__CLOCK_PERIOD_PS__", repr(period_ps))
+                .replace("__CLOCK_DRIVE_PS__", repr(drive_ps))
+                .replace("__CLOCK_SAMPLE_PS__", repr(sample_ps))
                 .replace("__RESET_MAP__", repr(reset_map))
                 .replace("__PRIMARY_CLOCK__", repr(primary))
                 .replace("__SETTLE_CLOCK__", repr(settle)))
@@ -5232,9 +5373,9 @@ def cocotb_monitor_py_text(top: str) -> str:
     return dedent("""\
     from __future__ import annotations
 
-    from cocotb.triggers import ReadOnly, RisingEdge
+    from cocotb.triggers import ReadOnly
 
-    from .reg_driver import rows
+    from .reg_driver import _sample_cycle, rows
 
 
     def expected_outputs(path: str):
@@ -5259,7 +5400,7 @@ def cocotb_monitor_py_text(top: str) -> str:
         got = 0
         timeout = 0
         while got < len(expected) and timeout < 4096:
-            await RisingEdge(dut.dsp_clk_i)
+            await _sample_cycle(dut.dsp_clk_i)
             await ReadOnly()
             if bool(dut.dsp_valid_o.value):
                 result = int(dut.dsp_result_o.value) & 0xFFFFFFFF
@@ -5332,7 +5473,7 @@ def _write_nclock_cocotb_tree(cfg: CocotbConfig, clocks: ClockConfig) -> list[Pa
         ),
         out / f"{cfg.top}_tb.sv": cocotb_sv_text(cfg.top, clocks),
         drivers / "__init__.py": "",
-        drivers / "reg_driver.py": cocotb_reg_driver_py_text(cfg.top, clocks),
+        drivers / "reg_driver.py": cocotb_reg_driver_py_text(cfg.top, clocks, cfg.io_delay_pct),
         drivers / "vec_driver.py": cocotb_vec_driver_py_text(cfg.top),
         drivers / "vec_monitor.py": cocotb_monitor_py_text(cfg.top),
         out / f"{cfg.top}_tb.py": cocotb_py_text(cfg.top, clocks),
@@ -5364,6 +5505,7 @@ class TestbenchFlow:
                 Path(canonical.output),
                 clocks,
                 force=canonical.force,
+                io_delay_pct=canonical.io_delay_pct,
             )
         return generate_testbench_files(config, clocks=clocks)
 

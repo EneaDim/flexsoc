@@ -1144,7 +1144,7 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
     print(
         f"[gate-sim] stage={stage} backend={report['backend']} scenario={report['scenario']} "
         + (f"sdf_mode={report['timing_mode']} " if report['timing_mode'] in SDF_MODES else "")
-        + f"wave={paths.wave} report={paths.report}"
+        + f"wave={paths.wave} log={paths.log}"
     )
     return rc
 

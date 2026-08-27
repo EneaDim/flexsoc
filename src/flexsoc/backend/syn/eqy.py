@@ -1365,7 +1365,7 @@ def _eqy_config_for_result(result_dir: Path) -> Path:
 
 
 def _probe_target(result_dir: Path, partition: str) -> str:
-    """Return the final generated Make target for one EQY partition."""
+    """Return the final generated strategy target for one EQY partition."""
 
     path = result_dir / "summary_targets.list"
     if not path.is_file():

@@ -82,7 +82,7 @@ edited model, test catalogue, core, or property file without review.
 
 ### 1.2 Execution and logging model
 
-A target may have Make prerequisites that remain fail-fast. Explicit top-level
+A target may have automatic setup dependencies that remain fail-fast. Explicit top-level
 targets written on the same command line are launched in the order supplied.
 Use shell `&&` or a composite target when later work must not run after a
 failure.
@@ -1441,8 +1441,7 @@ signoff/fusion.py -> timing/power correlation
 impl/impl.py       -> ORFS/OpenROAD physical implementation only
 ```
 
-The Python API dispatches directly to these flow objects; the backend Makefile
-is only a command-line compatibility shim. The sign-off facade exposes the same
+The Python API dispatches directly to these flow objects. `FlexSoCTarget` owns lifecycle routing while each domain object owns its EDA semantics. The sign-off facade exposes the same
 engines as `signoff.pre` and `signoff.post`, with ideal/no-SPEF timing before
 implementation and propagated-clock/SPEF timing after routing.
 
