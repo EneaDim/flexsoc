@@ -1,0 +1,65 @@
+[options]
+splitnets off
+
+[gold]
+read_slang -D SYNTHESIS --ignore-assertions -f rtl_common.f -f rtl_ip.f --top gpio
+rename gpio gpio__eqy_impl
+read_verilog -formal -sv gpio_eqy_view.sv
+
+[gate]
+read_verilog -formal -sv formal_pdk.v
+read_verilog -formal -sv netlist.v
+rename gpio gpio__eqy_impl
+read_verilog -formal -sv gpio_eqy_view.sv
+
+[script]
+hierarchy -check -top gpio
+proc
+prep -top gpio -flatten
+memory -nomap
+memory_map -formal
+async2sync
+# FlexSoC EQY reset normalization begin
+uniquify
+sim -clock clk_i -resetn rst_ni -rstlen 2 -n 2 -w
+# FlexSoC EQY reset normalization end
+
+[match gpio]
+nodefault
+gold-match clk_i
+gold-match rst_ni
+gold-match cio_gpio_i
+gold-match cio_gpio_o
+gold-match cio_gpio_en_o
+gold-match intr_gpio_o
+gold-match tl_i
+gold-match tl_o__flexsoc_eqy_handshake
+gold-match tl_o__flexsoc_eqy_d_ctrl
+gold-match tl_o__flexsoc_eqy_d_data
+gold-match tl_o__flexsoc_eqy_d_meta
+
+[collect gpio]
+join cio_gpio_o
+join cio_gpio_en_o
+join intr_gpio_o
+join tl_o__flexsoc_eqy_handshake
+join tl_o__flexsoc_eqy_d_ctrl
+join tl_o__flexsoc_eqy_d_data
+join tl_o__flexsoc_eqy_d_meta
+
+[strategy sat]
+use sat
+depth 20
+
+[strategy pdr]
+use sby
+engine abc pdr
+timeout 60
+xprop on
+
+[strategy smt]
+use sby
+engine smtbmc bitwuzla
+depth 2
+timeout 60
+xprop on

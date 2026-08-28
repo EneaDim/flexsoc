@@ -1,0 +1,1652 @@
+analysis=fusion_analysis corner=ss mode=hold stage=post_syn
+workload=reconfig_sv_ss
+methodology=staged_public_opensta
+path_power_semantics=average_instance_power_in_same_analysis_context
+activity_file=/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/power/activity/captures/gpio_ihp-sg13g2_reconfig_sv_ss.vcd
+activity_scope=gpio_tb/u_gpio
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_slow_1p35V_125C.lib
+netlist=/tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_synth.v
+sdc=/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/gpio.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1uA
+ power 1pW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Timing summary ===
+wns min wns min 0.00
+tns min tns min 0.00
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             7.17e-04   3.12e-06   3.69e-07   7.21e-04  97.9%
+Combinational          7.78e-06   7.31e-06   2.97e-07   1.54e-05   2.1%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  7.25e-04   1.04e-05   6.66e-07   7.36e-04 100.0%
+                          98.5%       1.4%       0.1%
+
+=== Worst timing paths (violated or met) ===
+Startpoint: _612_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _613_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _612_/CLK (sg13g2_dfrbpq_1)
+     1    0.001406    0.017258    0.148688    0.148688 v _612_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.gen_async.prim_flop_2sync.intq (net)
+                      0.017258    0.000000    0.148688 v _613_/D (sg13g2_dfrbpq_1)
+                                              0.148688   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _613_/CLK (sg13g2_dfrbpq_1)
+                                 -0.039513   -0.039513   library hold time
+                                             -0.039513   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.039513   data required time
+                                             -0.148688   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.188201   slack (MET)
+
+
+Startpoint: _619_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _620_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _619_/CLK (sg13g2_dfrbpq_1)
+     1    0.001406    0.017258    0.148688    0.148688 v _619_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.gen_async.prim_flop_2sync.intq (net)
+                      0.017258    0.000000    0.148688 v _620_/D (sg13g2_dfrbpq_1)
+                                              0.148688   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _620_/CLK (sg13g2_dfrbpq_1)
+                                 -0.039513   -0.039513   library hold time
+                                             -0.039513   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.039513   data required time
+                                             -0.148688   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.188201   slack (MET)
+
+
+Startpoint: _626_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _627_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _626_/CLK (sg13g2_dfrbpq_1)
+     1    0.001406    0.017258    0.148688    0.148688 v _626_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.gen_async.prim_flop_2sync.intq (net)
+                      0.017258    0.000000    0.148688 v _627_/D (sg13g2_dfrbpq_1)
+                                              0.148688   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _627_/CLK (sg13g2_dfrbpq_1)
+                                 -0.039513   -0.039513   library hold time
+                                             -0.039513   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.039513   data required time
+                                             -0.148688   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.188201   slack (MET)
+
+
+Startpoint: _633_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _634_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _633_/CLK (sg13g2_dfrbpq_1)
+     1    0.001406    0.017258    0.148688    0.148688 v _633_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.gen_async.prim_flop_2sync.intq (net)
+                      0.017258    0.000000    0.148688 v _634_/D (sg13g2_dfrbpq_1)
+                                              0.148688   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _634_/CLK (sg13g2_dfrbpq_1)
+                                 -0.039513   -0.039513   library hold time
+                                             -0.039513   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.039513   data required time
+                                             -0.148688   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.188201   slack (MET)
+
+
+Startpoint: _613_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _614_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _613_/CLK (sg13g2_dfrbpq_1)
+     4    0.010871    0.047962    0.175080    0.175080 v _613_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.filter_synced (net)
+                      0.047962    0.000000    0.175080 v _614_/D (sg13g2_dfrbpq_1)
+                                              0.175080   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _614_/CLK (sg13g2_dfrbpq_1)
+                                 -0.048466   -0.048466   library hold time
+                                             -0.048466   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.048466   data required time
+                                             -0.175080   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.223546   slack (MET)
+
+
+Startpoint: _620_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _621_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _620_/CLK (sg13g2_dfrbpq_1)
+     4    0.010871    0.047962    0.175080    0.175080 v _620_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.filter_synced (net)
+                      0.047962    0.000000    0.175080 v _621_/D (sg13g2_dfrbpq_1)
+                                              0.175080   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _621_/CLK (sg13g2_dfrbpq_1)
+                                 -0.048466   -0.048466   library hold time
+                                             -0.048466   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.048466   data required time
+                                             -0.175080   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.223546   slack (MET)
+
+
+Startpoint: _627_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _628_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _627_/CLK (sg13g2_dfrbpq_1)
+     4    0.010971    0.048287    0.175360    0.175360 v _627_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.filter_synced (net)
+                      0.048287    0.000000    0.175360 v _628_/D (sg13g2_dfrbpq_1)
+                                              0.175360   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _628_/CLK (sg13g2_dfrbpq_1)
+                                 -0.048560   -0.048560   library hold time
+                                             -0.048560   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.048560   data required time
+                                             -0.175360   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.223920   slack (MET)
+
+
+Startpoint: _634_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _635_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _634_/CLK (sg13g2_dfrbpq_1)
+     4    0.011268    0.049250    0.176187    0.176187 v _634_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.filter_synced (net)
+                      0.049250    0.000000    0.176187 v _635_/D (sg13g2_dfrbpq_1)
+                                              0.176187   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _635_/CLK (sg13g2_dfrbpq_1)
+                                 -0.048841   -0.048841   library hold time
+                                             -0.048841   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.048841   data required time
+                                             -0.176187   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.225028   slack (MET)
+
+
+Startpoint: _547_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _547_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _547_/CLK (sg13g2_dfrbpq_1)
+     1    0.002537    0.020926    0.151841    0.151841 v _547_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.stored_value_q (net)
+                      0.020926    0.000000    0.151841 v _505_/A (sg13g2_inv_1)
+     2    0.005321    0.032265    0.034055    0.185896 ^ _505_/Y (sg13g2_inv_1)
+                                                         _239_ (net)
+                      0.032265    0.000000    0.185896 ^ _509_/A1 (sg13g2_a21oi_1)
+     1    0.001406    0.018971    0.046291    0.232187 v _509_/Y (sg13g2_a21oi_1)
+                                                         _050_ (net)
+                      0.018971    0.000000    0.232187 v _547_/D (sg13g2_dfrbpq_1)
+                                              0.232187   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _547_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040013   -0.040013   library hold time
+                                             -0.040013   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040013   data required time
+                                             -0.232187   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.272200   slack (MET)
+
+
+Startpoint: _553_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _553_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _553_/CLK (sg13g2_dfrbpq_1)
+     2    0.005155    0.029421    0.159143    0.159143 v _553_/Q (sg13g2_dfrbpq_1)
+                                                         reg2hw[4] (net)
+                      0.029421    0.000000    0.159143 v _494_/B (sg13g2_nand2_1)
+     1    0.002801    0.029095    0.035273    0.194416 ^ _494_/Y (sg13g2_nand2_1)
+                                                         _235_ (net)
+                      0.029095    0.000000    0.194416 ^ _495_/B1 (sg13g2_o21ai_1)
+     1    0.001406    0.026158    0.035749    0.230165 v _495_/Y (sg13g2_o21ai_1)
+                                                         _043_ (net)
+                      0.026158    0.000000    0.230165 v _553_/D (sg13g2_dfrbpq_1)
+                                              0.230165   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _553_/CLK (sg13g2_dfrbpq_1)
+                                 -0.042108   -0.042108   library hold time
+                                             -0.042108   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.042108   data required time
+                                             -0.230165   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.272273   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _542_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _542_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _542_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _543_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _543_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _543_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _544_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _544_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _544_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _545_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _545_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _545_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _546_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _546_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _546_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _547_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _547_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _547_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _548_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _548_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _548_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _549_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _549_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _549_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _550_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _550_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _550_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+
+Startpoint: rst_ni (input port clocked by core)
+Endpoint: _551_ (removal check against rising-edge clock core)
+Path Group: asynchronous
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  2.000000    2.000000 ^ input external delay
+    98    0.429822    0.000000    0.000000    2.000000 ^ rst_ni (in)
+                                                         rst_ni (net)
+                      0.000000    0.000000    2.000000 ^ _551_/RESET_B (sg13g2_dfrbpq_1)
+                                              2.000000   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _551_/CLK (sg13g2_dfrbpq_1)
+                                 -0.097381   -0.097381   library removal time
+                                             -0.097381   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.097381   data required time
+                                             -2.000000   data arrival time
+---------------------------------------------------------------------------------------------
+                                              2.097381   slack (MET)
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.000725
+switching_power=1.04e-05
+dynamic_power=0.0007354
+leakage_power=6.66e-07
+total_power=0.000736
+
+=== Gate-level timing/power fusion ===
+power_semantics=average_instance_power_from_the_same_VCD_SAIF_context
+path_power_sum=unique_instance_average_power_sum_not_incremental_path_energy
+fanout_capacitance_source=OpenSTA_report_checks_output_pin_fields
+
+Worst path 1: status=met slack=0.188201 type=min group=core
+startpoint=_612_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_613_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.56395e-05 switching=1.8161e-08 dynamic=1.56577e-05 leakage=8.02091e-09 total=1.56657e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _612_ sg13g2_dfrbpq_1 CLK,Q 1 0.001406 0.017258 0.148688 0.148688 7.83127e-06 1.94939e-09 7.83322e-06 4.01039e-09 7.83723e-06
+2 _613_ sg13g2_dfrbpq_1 D - - 0.017258 0 0.148688 7.80823e-06 1.62116e-08 7.82444e-06 4.01052e-09 7.82845e-06
+
+Worst path 2: status=met slack=0.188201 type=min group=core
+startpoint=_619_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_620_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.56395e-05 switching=1.8161e-08 dynamic=1.56577e-05 leakage=8.02091e-09 total=1.56657e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _619_ sg13g2_dfrbpq_1 CLK,Q 1 0.001406 0.017258 0.148688 0.148688 7.83127e-06 1.94939e-09 7.83322e-06 4.01039e-09 7.83723e-06
+2 _620_ sg13g2_dfrbpq_1 D - - 0.017258 0 0.148688 7.80823e-06 1.62116e-08 7.82444e-06 4.01052e-09 7.82845e-06
+
+Worst path 3: status=met slack=0.188201 type=min group=core
+startpoint=_626_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_627_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.3477e-05 switching=0 dynamic=1.3477e-05 leakage=7.01487e-09 total=1.3484e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _626_ sg13g2_dfrbpq_1 CLK,Q 1 0.001406 0.017258 0.148688 0.148688 6.7385e-06 0 6.7385e-06 3.50743e-09 6.74201e-06
+2 _627_ sg13g2_dfrbpq_1 D - - 0.017258 0 0.148688 6.7385e-06 0 6.7385e-06 3.50743e-09 6.74201e-06
+
+Worst path 4: status=met slack=0.188201 type=min group=core
+startpoint=_633_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_634_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.3477e-05 switching=0 dynamic=1.3477e-05 leakage=7.01487e-09 total=1.3484e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _633_ sg13g2_dfrbpq_1 CLK,Q 1 0.001406 0.017258 0.148688 0.148688 6.7385e-06 0 6.7385e-06 3.50743e-09 6.74201e-06
+2 _634_ sg13g2_dfrbpq_1 D - - 0.017258 0 0.148688 6.7385e-06 0 6.7385e-06 3.50743e-09 6.74201e-06
+
+Worst path 5: status=met slack=0.223546 type=min group=core
+startpoint=_613_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_614_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.55918e-05 switching=2.27744e-08 dynamic=1.56146e-05 leakage=8.02054e-09 total=1.56226e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _613_ sg13g2_dfrbpq_1 CLK,Q 4 0.010871 0.047962 0.17508 0.17508 7.80823e-06 1.62116e-08 7.82444e-06 4.01052e-09 7.82845e-06
+2 _614_ sg13g2_dfrbpq_1 D - - 0.047962 0 0.17508 7.78358e-06 6.5628e-09 7.79015e-06 4.01001e-09 7.79416e-06
+
+Worst path 6: status=met slack=0.223546 type=min group=core
+startpoint=_620_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_621_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.55918e-05 switching=2.27744e-08 dynamic=1.56146e-05 leakage=8.02054e-09 total=1.56226e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _620_ sg13g2_dfrbpq_1 CLK,Q 4 0.010871 0.047962 0.17508 0.17508 7.80823e-06 1.62116e-08 7.82444e-06 4.01052e-09 7.82845e-06
+2 _621_ sg13g2_dfrbpq_1 D - - 0.047962 0 0.17508 7.78358e-06 6.5628e-09 7.79015e-06 4.01001e-09 7.79416e-06
+
+Worst path 7: status=met slack=0.22392 type=min group=core
+startpoint=_627_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_628_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.3477e-05 switching=0 dynamic=1.3477e-05 leakage=7.01487e-09 total=1.3484e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _627_ sg13g2_dfrbpq_1 CLK,Q 4 0.010971 0.048287 0.17536 0.17536 6.7385e-06 0 6.7385e-06 3.50743e-09 6.74201e-06
+2 _628_ sg13g2_dfrbpq_1 D - - 0.048287 0 0.17536 6.7385e-06 0 6.7385e-06 3.50743e-09 6.74201e-06
+
+Worst path 8: status=met slack=0.225028 type=min group=core
+startpoint=_634_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_635_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.3477e-05 switching=0 dynamic=1.3477e-05 leakage=7.01487e-09 total=1.3484e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _634_ sg13g2_dfrbpq_1 CLK,Q 4 0.011268 0.04925 0.176187 0.176187 6.7385e-06 0 6.7385e-06 3.50743e-09 6.74201e-06
+2 _635_ sg13g2_dfrbpq_1 D - - 0.04925 0 0.176187 6.7385e-06 0 6.7385e-06 3.50743e-09 6.74201e-06
+
+Worst path 9: status=met slack=0.2722 type=min group=core
+startpoint=_547_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_547_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=6.74579e-06 switching=4.70554e-09 dynamic=6.75049e-06 leakage=4.49667e-09 total=6.75499e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _547_ sg13g2_dfrbpq_1 CLK,Q 1 0.002537 0.020926 0.151841 0.151841 6.74389e-06 0 6.74389e-06 3.50743e-09 6.7474e-06
+2 _505_ sg13g2_inv_1 A,Y 2 0.005321 0.032265 0.034055 0.185896 0 3.73085e-09 3.73085e-09 2.05883e-10 3.93673e-09
+3 _509_ sg13g2_a21oi_1 A1,Y 1 0.001406 0.018971 0.046291 0.232187 1.89348e-09 9.74697e-10 2.86818e-09 7.83358e-10 3.65154e-09
+4 _547_ sg13g2_dfrbpq_1 D - - 0.018971 0 0.232187 6.74389e-06 0 6.74389e-06 3.50743e-09 6.7474e-06
+
+Worst path 10: status=met slack=0.272273 type=min group=core
+startpoint=_553_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_553_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=6.74553e-06 switching=3.03821e-09 dynamic=6.74857e-06 leakage=4.83859e-09 total=6.7534e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _553_ sg13g2_dfrbpq_1 CLK,Q 2 0.005155 0.029421 0.159143 0.159143 6.74389e-06 0 6.74389e-06 3.50743e-09 6.7474e-06
+2 _494_ sg13g2_nand2_1 B,Y 1 0.002801 0.029095 0.035273 0.194416 0 2.06351e-09 2.06351e-09 1.91128e-10 2.25464e-09
+3 _495_ sg13g2_o21ai_1 B1,Y 1 0.001406 0.026158 0.035749 0.230165 1.63897e-09 9.74697e-10 2.61367e-09 1.14003e-09 3.7537e-09
+4 _553_ sg13g2_dfrbpq_1 D - - 0.026158 0 0.230165 6.74389e-06 0 6.74389e-06 3.50743e-09 6.7474e-06
+
+Worst path 11: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_542_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=6.92505e-06 switching=6.50362e-09 dynamic=6.93156e-06 leakage=3.68956e-09 total=6.93524e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _542_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 6.92505e-06 6.50362e-09 6.93156e-06 3.68956e-09 6.93524e-06
+
+Worst path 12: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_543_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=6.74389e-06 switching=0 dynamic=6.74389e-06 leakage=3.50743e-09 total=6.7474e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _543_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 6.74389e-06 0 6.74389e-06 3.50743e-09 6.7474e-06
+
+Worst path 13: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_544_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=6.74389e-06 switching=0 dynamic=6.74389e-06 leakage=3.50743e-09 total=6.7474e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _544_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 6.74389e-06 0 6.74389e-06 3.50743e-09 6.7474e-06
+
+Worst path 14: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_545_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=6.74389e-06 switching=0 dynamic=6.74389e-06 leakage=3.50743e-09 total=6.7474e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _545_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 6.74389e-06 0 6.74389e-06 3.50743e-09 6.7474e-06
+
+Worst path 15: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_546_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=6.7439e-06 switching=0 dynamic=6.7439e-06 leakage=3.50743e-09 total=6.74741e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _546_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 6.7439e-06 0 6.7439e-06 3.50743e-09 6.74741e-06
+
+Worst path 16: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_547_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=6.74389e-06 switching=0 dynamic=6.74389e-06 leakage=3.50743e-09 total=6.7474e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _547_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 6.74389e-06 0 6.74389e-06 3.50743e-09 6.7474e-06
+
+Worst path 17: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_548_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=7.45323e-06 switching=7.32945e-09 dynamic=7.46056e-06 leakage=3.97103e-09 total=7.46453e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _548_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 7.45323e-06 7.32945e-09 7.46056e-06 3.97103e-09 7.46453e-06
+
+Worst path 18: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_549_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=6.7439e-06 switching=0 dynamic=6.7439e-06 leakage=3.50743e-09 total=6.74741e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _549_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 6.7439e-06 0 6.7439e-06 3.50743e-09 6.74741e-06
+
+Worst path 19: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_550_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=6.7439e-06 switching=0 dynamic=6.7439e-06 leakage=3.50743e-09 total=6.74741e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _550_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 6.7439e-06 0 6.7439e-06 3.50743e-09 6.74741e-06
+
+Worst path 20: status=met slack=2.09738 type=min group=asynchronous
+startpoint=rst_ni (input port clocked by core)
+endpoint=_551_ (removal check against rising-edge clock core)
+path_power_complete=true
+path_average_power_sum internal=6.7439e-06 switching=0 dynamic=6.7439e-06 leakage=3.50743e-09 total=6.74741e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _551_ sg13g2_dfrbpq_1 RESET_B - - 0 0 2 6.7439e-06 0 6.7439e-06 3.50743e-09 6.74741e-06
+
+=== Highest-power instances and worst path through each ===
+
+Hotspot 1: instance=_615_ selected_worst_paths=none internal=9.3631e-06 switching=5.97001e-07 dynamic=9.9601e-06 leakage=4.02213e-09 total=9.96413e-06
+Worst path through hotspot: status=met slack=0.287036 type=min group=core
+startpoint=_615_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_615_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=9.5687e-06 switching=6.64255e-07 dynamic=1.0233e-05 leakage=4.62031e-09 total=1.02376e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _615_ sg13g2_dfrbpq_1 CLK,Q 4 0.012914 0.067518 0.185904 0.185904 9.3631e-06 5.97001e-07 9.9601e-06 4.02213e-09 9.96413e-06
+2 _345_ sg13g2_a21oi_1 A2,Y 1 0.001406 0.01899 0.061114 0.247018 2.05597e-07 6.72541e-08 2.72851e-07 5.98177e-10 2.73449e-07
+3 _615_ sg13g2_dfrbpq_1 D - - 0.01899 0 0.247018 9.3631e-06 5.97001e-07 9.9601e-06 4.02213e-09 9.96413e-06
+OpenSTA targeted timing report:
+Startpoint: _615_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _615_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _615_/CLK (sg13g2_dfrbpq_1)
+     4    0.012914    0.067518    0.185904    0.185904 ^ _615_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[0] (net)
+                      0.067518    0.000000    0.185904 ^ _345_/A2 (sg13g2_a21oi_1)
+     1    0.001406    0.018990    0.061114    0.247018 v _345_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[0] (net)
+                      0.018990    0.000000    0.247018 v _615_/D (sg13g2_dfrbpq_1)
+                                              0.247018   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _615_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040018   -0.040018   library hold time
+                                             -0.040018   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040018   data required time
+                                             -0.247018   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.287036   slack (MET)
+
+Hotspot 2: instance=_622_ selected_worst_paths=none internal=9.36273e-06 switching=5.80792e-07 dynamic=9.94352e-06 leakage=4.02213e-09 total=9.94754e-06
+Worst path through hotspot: status=met slack=0.284553 type=min group=core
+startpoint=_622_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_622_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=9.56852e-06 switching=6.48046e-07 dynamic=1.02166e-05 leakage=4.62032e-09 total=1.02212e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _622_ sg13g2_dfrbpq_1 CLK,Q 4 0.01234 0.065161 0.184125 0.184125 9.36273e-06 5.80792e-07 9.94352e-06 4.02213e-09 9.94754e-06
+2 _329_ sg13g2_a21oi_1 A2,Y 1 0.001406 0.01899 0.06041 0.244535 2.05793e-07 6.72541e-08 2.73047e-07 5.98197e-10 2.73646e-07
+3 _622_ sg13g2_dfrbpq_1 D - - 0.01899 0 0.244535 9.36273e-06 5.80792e-07 9.94352e-06 4.02213e-09 9.94754e-06
+OpenSTA targeted timing report:
+Startpoint: _622_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _622_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _622_/CLK (sg13g2_dfrbpq_1)
+     4    0.012340    0.065161    0.184125    0.184125 ^ _622_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[0] (net)
+                      0.065161    0.000000    0.184125 ^ _329_/A2 (sg13g2_a21oi_1)
+     1    0.001406    0.018990    0.060410    0.244535 v _329_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[0] (net)
+                      0.018990    0.000000    0.244535 v _622_/D (sg13g2_dfrbpq_1)
+                                              0.244535   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _622_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040018   -0.040018   library hold time
+                                             -0.040018   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040018   data required time
+                                             -0.244535   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.284553   slack (MET)
+
+Hotspot 3: instance=_636_ selected_worst_paths=none internal=8.84747e-06 switching=3.18499e-07 dynamic=9.16597e-06 leakage=4.01298e-09 total=9.16999e-06
+Worst path through hotspot: status=met slack=0.284553 type=min group=core
+startpoint=_636_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_636_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=8.96142e-06 switching=3.54563e-07 dynamic=9.31598e-06 leakage=4.53127e-09 total=9.32051e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _636_ sg13g2_dfrbpq_1 CLK,Q 4 0.01234 0.065161 0.184125 0.184125 8.84747e-06 3.18499e-07 9.16597e-06 4.01298e-09 9.16999e-06
+2 _294_ sg13g2_a21oi_1 A2,Y 1 0.001406 0.01899 0.06041 0.244535 1.13945e-07 3.60638e-08 1.50009e-07 5.18289e-10 1.50527e-07
+3 _636_ sg13g2_dfrbpq_1 D - - 0.01899 0 0.244535 8.84747e-06 3.18499e-07 9.16597e-06 4.01298e-09 9.16999e-06
+OpenSTA targeted timing report:
+Startpoint: _636_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _636_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _636_/CLK (sg13g2_dfrbpq_1)
+     4    0.012340    0.065161    0.184125    0.184125 ^ _636_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[0] (net)
+                      0.065161    0.000000    0.184125 ^ _294_/A2 (sg13g2_a21oi_1)
+     1    0.001406    0.018990    0.060410    0.244535 v _294_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[0] (net)
+                      0.018990    0.000000    0.244535 v _636_/D (sg13g2_dfrbpq_1)
+                                              0.244535   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _636_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040018   -0.040018   library hold time
+                                             -0.040018   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040018   data required time
+                                             -0.244535   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.284553   slack (MET)
+
+Hotspot 4: instance=_629_ selected_worst_paths=none internal=8.84598e-06 switching=2.5448e-07 dynamic=9.10046e-06 leakage=4.01297e-09 total=9.10447e-06
+Worst path through hotspot: status=met slack=0.274495 type=min group=core
+startpoint=_629_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_629_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=8.95916e-06 switching=2.90544e-07 dynamic=9.2497e-06 leakage=4.53128e-09 total=9.25423e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _629_ sg13g2_dfrbpq_1 CLK,Q 3 0.009923 0.055233 0.176632 0.176632 8.84598e-06 2.5448e-07 9.10046e-06 4.01297e-09 9.10447e-06
+2 _312_ sg13g2_a21oi_1 A2,Y 1 0.001406 0.020364 0.057444 0.234076 1.13182e-07 3.60638e-08 1.49245e-07 5.18316e-10 1.49764e-07
+3 _629_ sg13g2_dfrbpq_1 D - - 0.020364 0 0.234076 8.84598e-06 2.5448e-07 9.10046e-06 4.01297e-09 9.10447e-06
+OpenSTA targeted timing report:
+Startpoint: _629_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _629_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _629_/CLK (sg13g2_dfrbpq_1)
+     3    0.009923    0.055233    0.176632    0.176632 ^ _629_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[0] (net)
+                      0.055233    0.000000    0.176632 ^ _312_/A2 (sg13g2_a21oi_1)
+     1    0.001406    0.020364    0.057444    0.234076 v _312_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[0] (net)
+                      0.020364    0.000000    0.234076 v _629_/D (sg13g2_dfrbpq_1)
+                                              0.234076   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _629_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040419   -0.040419   library hold time
+                                             -0.040419   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040419   data required time
+                                             -0.234076   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.274495   slack (MET)
+
+Hotspot 5: instance=_623_ selected_worst_paths=none internal=8.60577e-06 switching=1.89777e-07 dynamic=8.79555e-06 leakage=4.01191e-09 total=8.79956e-06
+Worst path through hotspot: status=met slack=0.302669 type=min group=core
+startpoint=_625_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_623_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.65845e-05 switching=2.67669e-07 dynamic=1.68521e-05 leakage=9.3884e-09 total=1.68615e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _625_ sg13g2_dfrbpq_1 CLK,Q 2 0.005155 0.029421 0.159143 0.159143 7.86404e-06 2.27166e-08 7.88675e-06 4.00913e-09 7.89076e-06
+2 _325_ sg13g2_nand2_1 B,Y 3 0.008154 0.048641 0.051984 0.211127 5.29971e-09 1.71623e-08 2.2462e-08 7.22859e-10 2.31849e-08
+3 _328_ sg13g2_a21oi_1 A1,Y 1 0.001406 0.01899 0.051524 0.262651 1.0937e-07 3.80132e-08 1.47383e-07 6.44491e-10 1.48027e-07
+4 _623_ sg13g2_dfrbpq_1 D - - 0.01899 0 0.262651 8.60577e-06 1.89777e-07 8.79555e-06 4.01191e-09 8.79956e-06
+OpenSTA targeted timing report:
+Startpoint: _625_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _623_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _625_/CLK (sg13g2_dfrbpq_1)
+     2    0.005155    0.029421    0.159143    0.159143 v _625_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[3] (net)
+                      0.029421    0.000000    0.159143 v _325_/B (sg13g2_nand2_1)
+     3    0.008154    0.048641    0.051984    0.211127 ^ _325_/Y (sg13g2_nand2_1)
+                                                         _117_ (net)
+                      0.048641    0.000000    0.211127 ^ _328_/A1 (sg13g2_a21oi_1)
+     1    0.001406    0.018990    0.051524    0.262651 v _328_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[1] (net)
+                      0.018990    0.000000    0.262651 v _623_/D (sg13g2_dfrbpq_1)
+                                              0.262651   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _623_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040018   -0.040018   library hold time
+                                             -0.040018   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040018   data required time
+                                             -0.262651   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.302669   slack (MET)
+
+Hotspot 6: instance=_616_ selected_worst_paths=none internal=8.60553e-06 switching=1.75059e-07 dynamic=8.78059e-06 leakage=4.01188e-09 total=8.7846e-06
+Worst path through hotspot: status=met slack=0.312751 type=min group=core
+startpoint=_618_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_616_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.66281e-05 switching=2.64503e-07 dynamic=1.68926e-05 leakage=9.38864e-09 total=1.6902e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _618_ sg13g2_dfrbpq_1 CLK,Q 3 0.007812 0.038039 0.16655 0.16655 7.90779e-06 3.42688e-08 7.94206e-06 4.00922e-09 7.94607e-06
+2 _341_ sg13g2_nand2_1 B,Y 3 0.008154 0.047387 0.055059 0.221609 5.33814e-09 1.71623e-08 2.25005e-08 7.22966e-10 2.32234e-08
+3 _344_ sg13g2_a21oi_1 A1,Y 1 0.001406 0.01899 0.051123 0.272733 1.09458e-07 3.80132e-08 1.47471e-07 6.44572e-10 1.48116e-07
+4 _616_ sg13g2_dfrbpq_1 D - - 0.01899 0 0.272733 8.60553e-06 1.75059e-07 8.78059e-06 4.01188e-09 8.7846e-06
+OpenSTA targeted timing report:
+Startpoint: _618_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _616_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _618_/CLK (sg13g2_dfrbpq_1)
+     3    0.007812    0.038039    0.166550    0.166550 v _618_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[3] (net)
+                      0.038039    0.000000    0.166550 v _341_/B (sg13g2_nand2_1)
+     3    0.008154    0.047387    0.055059    0.221609 ^ _341_/Y (sg13g2_nand2_1)
+                                                         _129_ (net)
+                      0.047387    0.000000    0.221609 ^ _344_/A1 (sg13g2_a21oi_1)
+     1    0.001406    0.018990    0.051123    0.272733 v _344_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[1] (net)
+                      0.018990    0.000000    0.272733 v _616_/D (sg13g2_dfrbpq_1)
+                                              0.272733   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _616_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040018   -0.040018   library hold time
+                                             -0.040018   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040018   data required time
+                                             -0.272733   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.312751   slack (MET)
+
+Hotspot 7: instance=_630_ selected_worst_paths=none internal=8.40916e-06 switching=1.27304e-07 dynamic=8.53647e-06 leakage=4.00838e-09 total=8.54048e-06
+Worst path through hotspot: status=met slack=0.301409 type=min group=core
+startpoint=_632_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_630_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.64538e-05 switching=1.87909e-07 dynamic=1.66417e-05 leakage=9.55903e-09 total=1.66513e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _632_ sg13g2_dfrbpq_1 CLK,Q 3 0.007793 0.037977 0.166497 0.166497 7.96466e-06 1.16194e-08 7.97628e-06 4.00792e-09 7.98029e-06
+2 _309_ sg13g2_nand2_1 B,Y 2 0.005354 0.038926 0.046073 0.21257 1.25686e-08 2.6567e-08 3.91355e-08 9.86091e-10 4.01216e-08
+3 _311_ sg13g2_a21oi_1 A1,Y 1 0.001406 0.020364 0.048419 0.26099 6.74203e-08 2.2418e-08 8.98383e-08 5.56642e-10 9.0395e-08
+4 _630_ sg13g2_dfrbpq_1 D - - 0.020364 0 0.26099 8.40916e-06 1.27304e-07 8.53647e-06 4.00838e-09 8.54048e-06
+OpenSTA targeted timing report:
+Startpoint: _632_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _630_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _632_/CLK (sg13g2_dfrbpq_1)
+     3    0.007793    0.037977    0.166497    0.166497 v _632_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[3] (net)
+                      0.037977    0.000000    0.166497 v _309_/B (sg13g2_nand2_1)
+     2    0.005354    0.038926    0.046073    0.212570 ^ _309_/Y (sg13g2_nand2_1)
+                                                         _105_ (net)
+                      0.038926    0.000000    0.212570 ^ _311_/A1 (sg13g2_a21oi_1)
+     1    0.001406    0.020364    0.048419    0.260990 v _311_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[1] (net)
+                      0.020364    0.000000    0.260990 v _630_/D (sg13g2_dfrbpq_1)
+                                              0.260990   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _630_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040419   -0.040419   library hold time
+                                             -0.040419   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040419   data required time
+                                             -0.260990   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.301409   slack (MET)
+
+Hotspot 8: instance=_637_ selected_worst_paths=none internal=8.40862e-06 switching=1.0047e-07 dynamic=8.50909e-06 leakage=4.00838e-09 total=8.5131e-06
+Worst path through hotspot: status=met slack=0.302669 type=min group=core
+startpoint=_639_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_637_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.6446e-05 switching=1.47623e-07 dynamic=1.65936e-05 leakage=9.55915e-09 total=1.66032e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _639_ sg13g2_dfrbpq_1 CLK,Q 2 0.005155 0.029421 0.159143 0.159143 7.96454e-06 7.57219e-09 7.97211e-06 4.00792e-09 7.97612e-06
+2 _290_ sg13g2_nand2_1 B,Y 3 0.008154 0.048641 0.051984 0.211127 5.21045e-09 1.71623e-08 2.23728e-08 9.86234e-10 2.3359e-08
+3 _293_ sg13g2_a21oi_1 A1,Y 1 0.001406 0.01899 0.051524 0.262651 6.76239e-08 2.2418e-08 9.00419e-08 5.56621e-10 9.05985e-08
+4 _637_ sg13g2_dfrbpq_1 D - - 0.01899 0 0.262651 8.40862e-06 1.0047e-07 8.50909e-06 4.00838e-09 8.5131e-06
+OpenSTA targeted timing report:
+Startpoint: _639_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _637_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _639_/CLK (sg13g2_dfrbpq_1)
+     2    0.005155    0.029421    0.159143    0.159143 v _639_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[3] (net)
+                      0.029421    0.000000    0.159143 v _290_/B (sg13g2_nand2_1)
+     3    0.008154    0.048641    0.051984    0.211127 ^ _290_/Y (sg13g2_nand2_1)
+                                                         _090_ (net)
+                      0.048641    0.000000    0.211127 ^ _293_/A1 (sg13g2_a21oi_1)
+     1    0.001406    0.018990    0.051524    0.262651 v _293_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[1] (net)
+                      0.018990    0.000000    0.262651 v _637_/D (sg13g2_dfrbpq_1)
+                                              0.262651   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _637_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040018   -0.040018   library hold time
+                                             -0.040018   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040018   data required time
+                                             -0.262651   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.302669   slack (MET)
+
+Hotspot 9: instance=_617_ selected_worst_paths=none internal=8.14998e-06 switching=5.68827e-08 dynamic=8.20686e-06 leakage=4.0092e-09 total=8.21087e-06
+Worst path through hotspot: status=met slack=0.290396 type=min group=core
+startpoint=_617_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_618_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.61414e-05 switching=2.04943e-07 dynamic=1.63464e-05 leakage=9.30337e-09 total=1.63557e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _617_ sg13g2_dfrbpq_1 CLK,Q 2 0.005469 0.030438 0.160017 0.160017 8.14998e-06 5.68827e-08 8.20686e-06 4.0092e-09 8.21087e-06
+2 _335_ sg13g2_nand2_1 B,Y 2 0.0052 0.035309 0.043097 0.203114 4.97725e-08 9.91712e-08 1.48944e-07 7.69541e-10 1.49713e-07
+3 _346_ sg13g2_a21oi_1 A1,Y 1 0.001406 0.01899 0.047264 0.250378 3.38915e-08 1.46204e-08 4.8512e-08 5.15409e-10 4.90274e-08
+4 _618_ sg13g2_dfrbpq_1 D - - 0.01899 0 0.250378 7.90779e-06 3.42688e-08 7.94206e-06 4.00922e-09 7.94607e-06
+OpenSTA targeted timing report:
+Startpoint: _617_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _618_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _617_/CLK (sg13g2_dfrbpq_1)
+     2    0.005469    0.030438    0.160017    0.160017 v _617_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[2] (net)
+                      0.030438    0.000000    0.160017 v _335_/B (sg13g2_nand2_1)
+     2    0.005200    0.035309    0.043097    0.203114 ^ _335_/Y (sg13g2_nand2_1)
+                                                         _124_ (net)
+                      0.035309    0.000000    0.203114 ^ _346_/A1 (sg13g2_a21oi_1)
+     1    0.001406    0.018990    0.047264    0.250378 v _346_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[3] (net)
+                      0.018990    0.000000    0.250378 v _618_/D (sg13g2_dfrbpq_1)
+                                              0.250378   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _618_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040018   -0.040018   library hold time
+                                             -0.040018   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040018   data required time
+                                             -0.250378   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.290396   slack (MET)
+
+Hotspot 10: instance=_624_ selected_worst_paths=none internal=8.1065e-06 switching=5.61642e-08 dynamic=8.16266e-06 leakage=4.00925e-09 total=8.16667e-06
+Worst path through hotspot: status=met slack=0.300215 type=min group=core
+startpoint=_625_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_624_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.6025e-05 switching=1.70661e-07 dynamic=1.61957e-05 leakage=9.20112e-09 total=1.62049e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _625_ sg13g2_dfrbpq_1 CLK,Q 2 0.005155 0.029421 0.159143 0.159143 7.86404e-06 2.27166e-08 7.88675e-06 4.00913e-09 7.89076e-06
+2 _321_ sg13g2_inv_1 A,Y 2 0.005289 0.033709 0.03623 0.195373 9.07265e-09 2.66424e-08 3.57151e-08 6.00706e-10 3.63158e-08
+3 _324_ sg13g2_a21oi_1 A2,Y 2 0.004054 0.025033 0.063061 0.258435 4.5393e-08 6.51381e-08 1.10531e-07 5.82026e-10 1.11113e-07
+4 _624_ sg13g2_dfrbpq_1 D - - 0.025033 0 0.258435 8.1065e-06 5.61642e-08 8.16266e-06 4.00925e-09 8.16667e-06
+OpenSTA targeted timing report:
+Startpoint: _625_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _624_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _625_/CLK (sg13g2_dfrbpq_1)
+     2    0.005155    0.029421    0.159143    0.159143 v _625_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[3] (net)
+                      0.029421    0.000000    0.159143 v _321_/A (sg13g2_inv_1)
+     2    0.005289    0.033709    0.036230    0.195373 ^ _321_/Y (sg13g2_inv_1)
+                                                         _114_ (net)
+                      0.033709    0.000000    0.195373 ^ _324_/A2 (sg13g2_a21oi_1)
+     2    0.004054    0.025033    0.063061    0.258435 v _324_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[2] (net)
+                      0.025033    0.000000    0.258435 v _624_/D (sg13g2_dfrbpq_1)
+                                              0.258435   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _624_/CLK (sg13g2_dfrbpq_1)
+                                 -0.041780   -0.041780   library hold time
+                                             -0.041780   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.041780   data required time
+                                             -0.258435   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.300215   slack (MET)
+
+Hotspot 11: instance=_638_ selected_worst_paths=none internal=8.08582e-06 switching=2.40704e-08 dynamic=8.10989e-06 leakage=4.00795e-09 total=8.1139e-06
+Worst path through hotspot: status=met slack=0.300215 type=min group=core
+startpoint=_639_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_638_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.60761e-05 switching=7.42138e-08 dynamic=1.61503e-05 leakage=9.19911e-09 total=1.61595e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _639_ sg13g2_dfrbpq_1 CLK,Q 2 0.005155 0.029421 0.159143 0.159143 7.96454e-06 7.57219e-09 7.97211e-06 4.00792e-09 7.97612e-06
+2 _286_ sg13g2_inv_1 A,Y 2 0.005289 0.033709 0.03623 0.195373 3.88828e-09 1.14182e-08 1.53065e-08 6.5519e-10 1.59617e-08
+3 _289_ sg13g2_a21oi_1 A2,Y 2 0.004054 0.025033 0.063061 0.258435 2.18413e-08 3.1153e-08 5.29944e-08 5.28048e-10 5.35224e-08
+4 _638_ sg13g2_dfrbpq_1 D - - 0.025033 0 0.258435 8.08582e-06 2.40704e-08 8.10989e-06 4.00795e-09 8.1139e-06
+OpenSTA targeted timing report:
+Startpoint: _639_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _638_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _639_/CLK (sg13g2_dfrbpq_1)
+     2    0.005155    0.029421    0.159143    0.159143 v _639_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[3] (net)
+                      0.029421    0.000000    0.159143 v _286_/A (sg13g2_inv_1)
+     2    0.005289    0.033709    0.036230    0.195373 ^ _286_/Y (sg13g2_inv_1)
+                                                         _087_ (net)
+                      0.033709    0.000000    0.195373 ^ _289_/A2 (sg13g2_a21oi_1)
+     2    0.004054    0.025033    0.063061    0.258435 v _289_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[2] (net)
+                      0.025033    0.000000    0.258435 v _638_/D (sg13g2_dfrbpq_1)
+                                              0.258435   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _638_/CLK (sg13g2_dfrbpq_1)
+                                 -0.041780   -0.041780   library hold time
+                                             -0.041780   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.041780   data required time
+                                             -0.258435   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.300215   slack (MET)
+
+Hotspot 12: instance=_631_ selected_worst_paths=none internal=8.08567e-06 switching=1.12043e-08 dynamic=8.09688e-06 leakage=4.00794e-09 total=8.10088e-06
+Worst path through hotspot: status=met slack=0.304171 type=min group=core
+startpoint=_632_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_631_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.60752e-05 switching=5.0389e-08 dynamic=1.61256e-05 leakage=9.21399e-09 total=1.61348e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _632_ sg13g2_dfrbpq_1 CLK,Q 3 0.007793 0.037977 0.166497 0.166497 7.96466e-06 1.16194e-08 7.97628e-06 4.00792e-09 7.98029e-06
+2 _297_ sg13g2_inv_1 A,Y 3 0.008025 0.046681 0.047501 0.213998 3.99795e-09 1.68436e-08 2.08416e-08 6.55184e-10 2.14968e-08
+3 _308_ sg13g2_a21oi_1 A1,Y 1 0.001406 0.016441 0.050898 0.264895 2.08946e-08 1.07217e-08 3.16163e-08 5.42945e-10 3.21592e-08
+4 _631_ sg13g2_dfrbpq_1 D - - 0.016441 0 0.264895 8.08567e-06 1.12043e-08 8.09688e-06 4.00794e-09 8.10088e-06
+OpenSTA targeted timing report:
+Startpoint: _632_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _631_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _632_/CLK (sg13g2_dfrbpq_1)
+     3    0.007793    0.037977    0.166497    0.166497 v _632_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[3] (net)
+                      0.037977    0.000000    0.166497 v _297_/A (sg13g2_inv_1)
+     3    0.008025    0.046681    0.047501    0.213998 ^ _297_/Y (sg13g2_inv_1)
+                                                         _094_ (net)
+                      0.046681    0.000000    0.213998 ^ _308_/A1 (sg13g2_a21oi_1)
+     1    0.001406    0.016441    0.050898    0.264895 v _308_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[2] (net)
+                      0.016441    0.000000    0.264895 v _631_/D (sg13g2_dfrbpq_1)
+                                              0.264895   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _631_/CLK (sg13g2_dfrbpq_1)
+                                 -0.039275   -0.039275   library hold time
+                                             -0.039275   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.039275   data required time
+                                             -0.264895   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.304171   slack (MET)
+
+Hotspot 13: instance=_632_ selected_worst_paths=none internal=7.96466e-06 switching=1.16194e-08 dynamic=7.97628e-06 leakage=4.00792e-09 total=7.98029e-06
+Worst path through hotspot: status=met slack=0.301409 type=min group=core
+startpoint=_632_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_629_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.69364e-05 switching=3.2873e-07 dynamic=1.72651e-05 leakage=9.52529e-09 total=1.72746e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _632_ sg13g2_dfrbpq_1 CLK,Q 3 0.007793 0.037977 0.166497 0.166497 7.96466e-06 1.16194e-08 7.97628e-06 4.00792e-09 7.98029e-06
+2 _309_ sg13g2_nand2_1 B,Y 2 0.005354 0.038926 0.046073 0.21257 1.25686e-08 2.6567e-08 3.91355e-08 9.86091e-10 4.01216e-08
+3 _312_ sg13g2_a21oi_1 A1,Y 1 0.001406 0.020364 0.048419 0.26099 1.13182e-07 3.60638e-08 1.49245e-07 5.18316e-10 1.49764e-07
+4 _629_ sg13g2_dfrbpq_1 D - - 0.020364 0 0.26099 8.84598e-06 2.5448e-07 9.10046e-06 4.01297e-09 9.10447e-06
+OpenSTA targeted timing report:
+Startpoint: _632_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _629_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _632_/CLK (sg13g2_dfrbpq_1)
+     3    0.007793    0.037977    0.166497    0.166497 v _632_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[3] (net)
+                      0.037977    0.000000    0.166497 v _309_/B (sg13g2_nand2_1)
+     2    0.005354    0.038926    0.046073    0.212570 ^ _309_/Y (sg13g2_nand2_1)
+                                                         _105_ (net)
+                      0.038926    0.000000    0.212570 ^ _312_/A1 (sg13g2_a21oi_1)
+     1    0.001406    0.020364    0.048419    0.260990 v _312_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[0] (net)
+                      0.020364    0.000000    0.260990 v _629_/D (sg13g2_dfrbpq_1)
+                                              0.260990   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _629_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040419   -0.040419   library hold time
+                                             -0.040419   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040419   data required time
+                                             -0.260990   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.301409   slack (MET)
+
+Hotspot 14: instance=_639_ selected_worst_paths=none internal=7.96454e-06 switching=7.57219e-09 dynamic=7.97211e-06 leakage=4.00792e-09 total=7.97612e-06
+Worst path through hotspot: status=met slack=0.299677 type=min group=core
+startpoint=_639_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_639_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=7.97572e-06 switching=2.75759e-08 dynamic=8.0033e-06 leakage=5.08535e-09 total=8.00839e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _639_ sg13g2_dfrbpq_1 CLK,Q 2 0.005155 0.029421 0.159143 0.159143 7.96454e-06 7.57219e-09 7.97211e-06 4.00792e-09 7.97612e-06
+2 _286_ sg13g2_inv_1 A,Y 2 0.005289 0.033709 0.03623 0.195373 3.88828e-09 1.14182e-08 1.53065e-08 6.5519e-10 1.59617e-08
+3 _296_ sg13g2_a21oi_1 A2,Y 2 0.003815 0.026924 0.061972 0.257346 7.29731e-09 8.58552e-09 1.58828e-08 4.22244e-10 1.63051e-08
+4 _639_ sg13g2_dfrbpq_1 D - - 0.026924 0 0.257346 7.96454e-06 7.57219e-09 7.97211e-06 4.00792e-09 7.97612e-06
+OpenSTA targeted timing report:
+Startpoint: _639_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _639_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _639_/CLK (sg13g2_dfrbpq_1)
+     2    0.005155    0.029421    0.159143    0.159143 v _639_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[3] (net)
+                      0.029421    0.000000    0.159143 v _286_/A (sg13g2_inv_1)
+     2    0.005289    0.033709    0.036230    0.195373 ^ _286_/Y (sg13g2_inv_1)
+                                                         _087_ (net)
+                      0.033709    0.000000    0.195373 ^ _296_/A2 (sg13g2_a21oi_1)
+     2    0.003815    0.026924    0.061972    0.257346 v _296_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[3] (net)
+                      0.026924    0.000000    0.257346 v _639_/D (sg13g2_dfrbpq_1)
+                                              0.257346   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _639_/CLK (sg13g2_dfrbpq_1)
+                                 -0.042331   -0.042331   library hold time
+                                             -0.042331   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.042331   data required time
+                                             -0.257346   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.299677   slack (MET)
+
+Hotspot 15: instance=_618_ selected_worst_paths=none internal=7.90779e-06 switching=3.42688e-08 dynamic=7.94206e-06 leakage=4.00922e-09 total=7.94607e-06
+Worst path through hotspot: status=met slack=0.290396 type=min group=core
+startpoint=_617_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_618_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.61414e-05 switching=2.04943e-07 dynamic=1.63464e-05 leakage=9.30337e-09 total=1.63557e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _617_ sg13g2_dfrbpq_1 CLK,Q 2 0.005469 0.030438 0.160017 0.160017 8.14998e-06 5.68827e-08 8.20686e-06 4.0092e-09 8.21087e-06
+2 _335_ sg13g2_nand2_1 B,Y 2 0.0052 0.035309 0.043097 0.203114 4.97725e-08 9.91712e-08 1.48944e-07 7.69541e-10 1.49713e-07
+3 _346_ sg13g2_a21oi_1 A1,Y 1 0.001406 0.01899 0.047264 0.250378 3.38915e-08 1.46204e-08 4.8512e-08 5.15409e-10 4.90274e-08
+4 _618_ sg13g2_dfrbpq_1 D - - 0.01899 0 0.250378 7.90779e-06 3.42688e-08 7.94206e-06 4.00922e-09 7.94607e-06
+OpenSTA targeted timing report:
+Startpoint: _617_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _618_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _617_/CLK (sg13g2_dfrbpq_1)
+     2    0.005469    0.030438    0.160017    0.160017 v _617_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[2] (net)
+                      0.030438    0.000000    0.160017 v _335_/B (sg13g2_nand2_1)
+     2    0.005200    0.035309    0.043097    0.203114 ^ _335_/Y (sg13g2_nand2_1)
+                                                         _124_ (net)
+                      0.035309    0.000000    0.203114 ^ _346_/A1 (sg13g2_a21oi_1)
+     1    0.001406    0.018990    0.047264    0.250378 v _346_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[3] (net)
+                      0.018990    0.000000    0.250378 v _618_/D (sg13g2_dfrbpq_1)
+                                              0.250378   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _618_/CLK (sg13g2_dfrbpq_1)
+                                 -0.040018   -0.040018   library hold time
+                                             -0.040018   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.040018   data required time
+                                             -0.250378   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.290396   slack (MET)
+
+Hotspot 16: instance=_625_ selected_worst_paths=none internal=7.86404e-06 switching=2.27166e-08 dynamic=7.88675e-06 leakage=4.00913e-09 total=7.89076e-06
+Worst path through hotspot: status=met slack=0.299677 type=min group=core
+startpoint=_625_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_625_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=7.88922e-06 switching=6.93919e-08 dynamic=7.95862e-06 leakage=5.1255e-09 total=7.96374e-06
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _625_ sg13g2_dfrbpq_1 CLK,Q 2 0.005155 0.029421 0.159143 0.159143 7.86404e-06 2.27166e-08 7.88675e-06 4.00913e-09 7.89076e-06
+2 _321_ sg13g2_inv_1 A,Y 2 0.005289 0.033709 0.03623 0.195373 9.07265e-09 2.66424e-08 3.57151e-08 6.00706e-10 3.63158e-08
+3 _331_ sg13g2_a21oi_1 A2,Y 2 0.003815 0.026924 0.061972 0.257346 1.61138e-08 2.00329e-08 3.61467e-08 5.15655e-10 3.66623e-08
+4 _625_ sg13g2_dfrbpq_1 D - - 0.026924 0 0.257346 7.86404e-06 2.27166e-08 7.88675e-06 4.00913e-09 7.89076e-06
+OpenSTA targeted timing report:
+Startpoint: _625_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _625_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _625_/CLK (sg13g2_dfrbpq_1)
+     2    0.005155    0.029421    0.159143    0.159143 v _625_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[3] (net)
+                      0.029421    0.000000    0.159143 v _321_/A (sg13g2_inv_1)
+     2    0.005289    0.033709    0.036230    0.195373 ^ _321_/Y (sg13g2_inv_1)
+                                                         _114_ (net)
+                      0.033709    0.000000    0.195373 ^ _331_/A2 (sg13g2_a21oi_1)
+     2    0.003815    0.026924    0.061972    0.257346 v _331_/Y (sg13g2_a21oi_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[3] (net)
+                      0.026924    0.000000    0.257346 v _625_/D (sg13g2_dfrbpq_1)
+                                              0.257346   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _625_/CLK (sg13g2_dfrbpq_1)
+                                 -0.042331   -0.042331   library hold time
+                                             -0.042331   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.042331   data required time
+                                             -0.257346   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.299677   slack (MET)
+
+Hotspot 17: instance=_612_ selected_worst_paths=1 internal=7.83127e-06 switching=1.94939e-09 dynamic=7.83322e-06 leakage=4.01039e-09 total=7.83723e-06
+Worst path through hotspot: status=met slack=0.188201 type=min group=core
+startpoint=_612_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_613_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.56395e-05 switching=1.8161e-08 dynamic=1.56577e-05 leakage=8.02091e-09 total=1.56657e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _612_ sg13g2_dfrbpq_1 CLK,Q 1 0.001406 0.017258 0.148688 0.148688 7.83127e-06 1.94939e-09 7.83322e-06 4.01039e-09 7.83723e-06
+2 _613_ sg13g2_dfrbpq_1 D - - 0.017258 0 0.148688 7.80823e-06 1.62116e-08 7.82444e-06 4.01052e-09 7.82845e-06
+OpenSTA targeted timing report:
+Startpoint: _612_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _613_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _612_/CLK (sg13g2_dfrbpq_1)
+     1    0.001406    0.017258    0.148688    0.148688 v _612_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.gen_async.prim_flop_2sync.intq (net)
+                      0.017258    0.000000    0.148688 v _613_/D (sg13g2_dfrbpq_1)
+                                              0.148688   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _613_/CLK (sg13g2_dfrbpq_1)
+                                 -0.039513   -0.039513   library hold time
+                                             -0.039513   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.039513   data required time
+                                             -0.148688   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.188201   slack (MET)
+
+Hotspot 18: instance=_619_ selected_worst_paths=2 internal=7.83127e-06 switching=1.94939e-09 dynamic=7.83322e-06 leakage=4.01039e-09 total=7.83723e-06
+Worst path through hotspot: status=met slack=0.188201 type=min group=core
+startpoint=_619_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_620_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.56395e-05 switching=1.8161e-08 dynamic=1.56577e-05 leakage=8.02091e-09 total=1.56657e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _619_ sg13g2_dfrbpq_1 CLK,Q 1 0.001406 0.017258 0.148688 0.148688 7.83127e-06 1.94939e-09 7.83322e-06 4.01039e-09 7.83723e-06
+2 _620_ sg13g2_dfrbpq_1 D - - 0.017258 0 0.148688 7.80823e-06 1.62116e-08 7.82444e-06 4.01052e-09 7.82845e-06
+OpenSTA targeted timing report:
+Startpoint: _619_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _620_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _619_/CLK (sg13g2_dfrbpq_1)
+     1    0.001406    0.017258    0.148688    0.148688 v _619_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.gen_async.prim_flop_2sync.intq (net)
+                      0.017258    0.000000    0.148688 v _620_/D (sg13g2_dfrbpq_1)
+                                              0.148688   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _620_/CLK (sg13g2_dfrbpq_1)
+                                 -0.039513   -0.039513   library hold time
+                                             -0.039513   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.039513   data required time
+                                             -0.148688   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.188201   slack (MET)
+
+Hotspot 19: instance=_613_ selected_worst_paths=1,5 internal=7.80823e-06 switching=1.62116e-08 dynamic=7.82444e-06 leakage=4.01052e-09 total=7.82845e-06
+Worst path through hotspot: status=met slack=0.188201 type=min group=core
+startpoint=_612_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_613_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.56395e-05 switching=1.8161e-08 dynamic=1.56577e-05 leakage=8.02091e-09 total=1.56657e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _612_ sg13g2_dfrbpq_1 CLK,Q 1 0.001406 0.017258 0.148688 0.148688 7.83127e-06 1.94939e-09 7.83322e-06 4.01039e-09 7.83723e-06
+2 _613_ sg13g2_dfrbpq_1 D - - 0.017258 0 0.148688 7.80823e-06 1.62116e-08 7.82444e-06 4.01052e-09 7.82845e-06
+OpenSTA targeted timing report:
+Startpoint: _612_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _613_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _612_/CLK (sg13g2_dfrbpq_1)
+     1    0.001406    0.017258    0.148688    0.148688 v _612_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[0].u_filter.gen_async.prim_flop_2sync.intq (net)
+                      0.017258    0.000000    0.148688 v _613_/D (sg13g2_dfrbpq_1)
+                                              0.148688   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _613_/CLK (sg13g2_dfrbpq_1)
+                                 -0.039513   -0.039513   library hold time
+                                             -0.039513   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.039513   data required time
+                                             -0.148688   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.188201   slack (MET)
+
+Hotspot 20: instance=_620_ selected_worst_paths=2,6 internal=7.80823e-06 switching=1.62116e-08 dynamic=7.82444e-06 leakage=4.01052e-09 total=7.82845e-06
+Worst path through hotspot: status=met slack=0.188201 type=min group=core
+startpoint=_619_ (rising edge-triggered flip-flop clocked by core)
+endpoint=_620_ (rising edge-triggered flip-flop clocked by core)
+path_power_complete=true
+path_average_power_sum internal=1.56395e-05 switching=1.8161e-08 dynamic=1.56577e-05 leakage=8.02091e-09 total=1.56657e-05
+stage instance cell pins fanout capacitance slew delay arrival internal switching dynamic leakage total
+1 _619_ sg13g2_dfrbpq_1 CLK,Q 1 0.001406 0.017258 0.148688 0.148688 7.83127e-06 1.94939e-09 7.83322e-06 4.01039e-09 7.83723e-06
+2 _620_ sg13g2_dfrbpq_1 D - - 0.017258 0 0.148688 7.80823e-06 1.62116e-08 7.82444e-06 4.01052e-09 7.82845e-06
+OpenSTA targeted timing report:
+Startpoint: _619_ (rising edge-triggered flip-flop clocked by core)
+Endpoint: _620_ (rising edge-triggered flip-flop clocked by core)
+Path Group: core
+Path Type: min
+
+Fanout         Cap        Slew       Delay        Time   Description
+---------------------------------------------------------------------------------------------
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                      0.000000    0.000000    0.000000 ^ _619_/CLK (sg13g2_dfrbpq_1)
+     1    0.001406    0.017258    0.148688    0.148688 v _619_/Q (sg13g2_dfrbpq_1)
+                                                         u_gpio_core.gen_input_filter[1].u_filter.gen_async.prim_flop_2sync.intq (net)
+                      0.017258    0.000000    0.148688 v _620_/D (sg13g2_dfrbpq_1)
+                                              0.148688   data arrival time
+
+                      0.000000    0.000000    0.000000   clock core (rise edge)
+                                  0.000000    0.000000   clock network delay (ideal)
+                                  0.000000    0.000000   clock reconvergence pessimism
+                                              0.000000 ^ _620_/CLK (sg13g2_dfrbpq_1)
+                                 -0.039513   -0.039513   library hold time
+                                             -0.039513   data required time
+---------------------------------------------------------------------------------------------
+                                             -0.039513   data required time
+                                             -0.148688   data arrival time
+---------------------------------------------------------------------------------------------
+                                              0.188201   slack (MET)

@@ -91,34 +91,31 @@ module gpio_reg_top
   // Define SW related signals
   // Format: <reg>_<field>_{wd|we|qs}
   //        or <reg>_{wd|we|qs} if field == 1 or 0
-  logic [1:0] data_in_qs;
+  logic [3:0] data_in_qs;
   logic direct_re;
   logic direct_we;
-  logic [1:0] direct_gpio_o_qs;
-  logic [1:0] direct_gpio_o_wd;
-  logic [1:0] direct_gpio_oe_qs;
-  logic [1:0] direct_gpio_oe_wd;
+  logic [3:0] direct_gpio_o_qs;
+  logic [3:0] direct_gpio_o_wd;
+  logic [3:0] direct_gpio_oe_qs;
+  logic [3:0] direct_gpio_oe_wd;
   logic intr_ctrl_we;
-  logic [1:0] intr_ctrl_en_rising_qs;
-  logic [1:0] intr_ctrl_en_rising_wd;
-  logic [1:0] intr_ctrl_en_falling_qs;
-  logic [1:0] intr_ctrl_en_falling_wd;
-  logic [1:0] intr_ctrl_en_lvlhigh_qs;
-  logic [1:0] intr_ctrl_en_lvlhigh_wd;
-  logic [1:0] intr_ctrl_en_lvllow_qs;
-  logic [1:0] intr_ctrl_en_lvllow_wd;
-  logic [1:0] intr_ctrl_en_input_filter_qs;
-  logic [1:0] intr_ctrl_en_input_filter_wd;
-  logic ctrl_en_input_filter_we;
-  logic [3:0] ctrl_en_input_filter_qs;
-  logic [3:0] ctrl_en_input_filter_wd;
+  logic [3:0] intr_ctrl_en_rising_qs;
+  logic [3:0] intr_ctrl_en_rising_wd;
+  logic [3:0] intr_ctrl_en_falling_qs;
+  logic [3:0] intr_ctrl_en_falling_wd;
+  logic [3:0] intr_ctrl_en_lvlhigh_qs;
+  logic [3:0] intr_ctrl_en_lvlhigh_wd;
+  logic [3:0] intr_ctrl_en_lvllow_qs;
+  logic [3:0] intr_ctrl_en_lvllow_wd;
+  logic [3:0] intr_ctrl_en_input_filter_qs;
+  logic [3:0] intr_ctrl_en_input_filter_wd;
 
   // Register instances
   // R[data_in]: V(False)
   prim_subreg #(
-    .DW      (2),
+    .DW      (4),
     .SwAccess(prim_subreg_pkg::SwAccessRO),
-    .RESVAL  (2'h0),
+    .RESVAL  (4'h0),
     .Mubi    (1'b0)
   ) u_data_in (
     .clk_i   (clk_i),
@@ -146,9 +143,9 @@ module gpio_reg_top
   logic direct_qe;
   logic [1:0] direct_flds_we;
   assign direct_qe = &direct_flds_we;
-  //   F[gpio_o]: 1:0
+  //   F[gpio_o]: 3:0
   prim_subreg_ext #(
-    .DW    (2)
+    .DW    (4)
   ) u_direct_gpio_o (
     .re     (direct_re),
     .we     (direct_we),
@@ -162,9 +159,9 @@ module gpio_reg_top
   );
   assign reg2hw.direct.gpio_o.qe = direct_qe;
 
-  //   F[gpio_oe]: 3:2
+  //   F[gpio_oe]: 7:4
   prim_subreg_ext #(
-    .DW    (2)
+    .DW    (4)
   ) u_direct_gpio_oe (
     .re     (direct_re),
     .we     (direct_we),
@@ -180,11 +177,11 @@ module gpio_reg_top
 
 
   // R[intr_ctrl]: V(False)
-  //   F[en_rising]: 1:0
+  //   F[en_rising]: 3:0
   prim_subreg #(
-    .DW      (2),
+    .DW      (4),
     .SwAccess(prim_subreg_pkg::SwAccessRW),
-    .RESVAL  (2'h0),
+    .RESVAL  (4'h0),
     .Mubi    (1'b0)
   ) u_intr_ctrl_en_rising (
     .clk_i   (clk_i),
@@ -207,11 +204,11 @@ module gpio_reg_top
     .qs     (intr_ctrl_en_rising_qs)
   );
 
-  //   F[en_falling]: 3:2
+  //   F[en_falling]: 7:4
   prim_subreg #(
-    .DW      (2),
+    .DW      (4),
     .SwAccess(prim_subreg_pkg::SwAccessRW),
-    .RESVAL  (2'h0),
+    .RESVAL  (4'h0),
     .Mubi    (1'b0)
   ) u_intr_ctrl_en_falling (
     .clk_i   (clk_i),
@@ -234,11 +231,11 @@ module gpio_reg_top
     .qs     (intr_ctrl_en_falling_qs)
   );
 
-  //   F[en_lvlhigh]: 5:4
+  //   F[en_lvlhigh]: 11:8
   prim_subreg #(
-    .DW      (2),
+    .DW      (4),
     .SwAccess(prim_subreg_pkg::SwAccessRW),
-    .RESVAL  (2'h0),
+    .RESVAL  (4'h0),
     .Mubi    (1'b0)
   ) u_intr_ctrl_en_lvlhigh (
     .clk_i   (clk_i),
@@ -261,11 +258,11 @@ module gpio_reg_top
     .qs     (intr_ctrl_en_lvlhigh_qs)
   );
 
-  //   F[en_lvllow]: 7:6
+  //   F[en_lvllow]: 15:12
   prim_subreg #(
-    .DW      (2),
+    .DW      (4),
     .SwAccess(prim_subreg_pkg::SwAccessRW),
-    .RESVAL  (2'h0),
+    .RESVAL  (4'h0),
     .Mubi    (1'b0)
   ) u_intr_ctrl_en_lvllow (
     .clk_i   (clk_i),
@@ -288,11 +285,11 @@ module gpio_reg_top
     .qs     (intr_ctrl_en_lvllow_qs)
   );
 
-  //   F[en_input_filter]: 9:8
+  //   F[en_input_filter]: 19:16
   prim_subreg #(
-    .DW      (2),
+    .DW      (4),
     .SwAccess(prim_subreg_pkg::SwAccessRW),
-    .RESVAL  (2'h0),
+    .RESVAL  (4'h0),
     .Mubi    (1'b0)
   ) u_intr_ctrl_en_input_filter (
     .clk_i   (clk_i),
@@ -316,42 +313,13 @@ module gpio_reg_top
   );
 
 
-  // R[ctrl_en_input_filter]: V(False)
-  prim_subreg #(
-    .DW      (4),
-    .SwAccess(prim_subreg_pkg::SwAccessRW),
-    .RESVAL  (4'h0),
-    .Mubi    (1'b0)
-  ) u_ctrl_en_input_filter (
-    .clk_i   (clk_i),
-    .rst_ni  (rst_ni),
 
-    // from register interface
-    .we     (ctrl_en_input_filter_we),
-    .wd     (ctrl_en_input_filter_wd),
-
-    // from internal hardware
-    .de     (1'b0),
-    .d      ('0),
-
-    // to internal hardware
-    .qe     (),
-    .q      (reg2hw.ctrl_en_input_filter.q),
-    .ds     (),
-
-    // to register interface (read)
-    .qs     (ctrl_en_input_filter_qs)
-  );
-
-
-
-  logic [3:0] addr_hit;
+  logic [2:0] addr_hit;
   always_comb begin
     addr_hit = '0;
     addr_hit[0] = (reg_addr == GPIO_DATA_IN_OFFSET);
     addr_hit[1] = (reg_addr == GPIO_DIRECT_OFFSET);
     addr_hit[2] = (reg_addr == GPIO_INTR_CTRL_OFFSET);
-    addr_hit[3] = (reg_addr == GPIO_CTRL_EN_INPUT_FILTER_OFFSET);
   end
 
   assign addrmiss = (reg_re || reg_we) ? ~|addr_hit : 1'b0 ;
@@ -361,55 +329,47 @@ module gpio_reg_top
     wr_err = (reg_we &
               ((addr_hit[0] & (|(GPIO_PERMIT[0] & ~reg_be))) |
                (addr_hit[1] & (|(GPIO_PERMIT[1] & ~reg_be))) |
-               (addr_hit[2] & (|(GPIO_PERMIT[2] & ~reg_be))) |
-               (addr_hit[3] & (|(GPIO_PERMIT[3] & ~reg_be)))));
+               (addr_hit[2] & (|(GPIO_PERMIT[2] & ~reg_be)))));
   end
 
   // Generate write-enables
   assign direct_re = addr_hit[1] & reg_re & !reg_error;
   assign direct_we = addr_hit[1] & reg_we & !reg_error;
 
-  assign direct_gpio_o_wd = reg_wdata[1:0];
+  assign direct_gpio_o_wd = reg_wdata[3:0];
 
-  assign direct_gpio_oe_wd = reg_wdata[3:2];
+  assign direct_gpio_oe_wd = reg_wdata[7:4];
   assign intr_ctrl_we = addr_hit[2] & reg_we & !reg_error;
 
-  assign intr_ctrl_en_rising_wd = reg_wdata[1:0];
+  assign intr_ctrl_en_rising_wd = reg_wdata[3:0];
 
-  assign intr_ctrl_en_falling_wd = reg_wdata[3:2];
+  assign intr_ctrl_en_falling_wd = reg_wdata[7:4];
 
-  assign intr_ctrl_en_lvlhigh_wd = reg_wdata[5:4];
+  assign intr_ctrl_en_lvlhigh_wd = reg_wdata[11:8];
 
-  assign intr_ctrl_en_lvllow_wd = reg_wdata[7:6];
+  assign intr_ctrl_en_lvllow_wd = reg_wdata[15:12];
 
-  assign intr_ctrl_en_input_filter_wd = reg_wdata[9:8];
-  assign ctrl_en_input_filter_we = addr_hit[3] & reg_we & !reg_error;
-
-  assign ctrl_en_input_filter_wd = reg_wdata[3:0];
+  assign intr_ctrl_en_input_filter_wd = reg_wdata[19:16];
 
   // Read data return
   always_comb begin
     reg_rdata_next = '0;
     unique case (1'b1)
       addr_hit[0]: begin
-        reg_rdata_next[1:0] = data_in_qs;
+        reg_rdata_next[3:0] = data_in_qs;
       end
 
       addr_hit[1]: begin
-        reg_rdata_next[1:0] = direct_gpio_o_qs;
-        reg_rdata_next[3:2] = direct_gpio_oe_qs;
+        reg_rdata_next[3:0] = direct_gpio_o_qs;
+        reg_rdata_next[7:4] = direct_gpio_oe_qs;
       end
 
       addr_hit[2]: begin
-        reg_rdata_next[1:0] = intr_ctrl_en_rising_qs;
-        reg_rdata_next[3:2] = intr_ctrl_en_falling_qs;
-        reg_rdata_next[5:4] = intr_ctrl_en_lvlhigh_qs;
-        reg_rdata_next[7:6] = intr_ctrl_en_lvllow_qs;
-        reg_rdata_next[9:8] = intr_ctrl_en_input_filter_qs;
-      end
-
-      addr_hit[3]: begin
-        reg_rdata_next[3:0] = ctrl_en_input_filter_qs;
+        reg_rdata_next[3:0] = intr_ctrl_en_rising_qs;
+        reg_rdata_next[7:4] = intr_ctrl_en_falling_qs;
+        reg_rdata_next[11:8] = intr_ctrl_en_lvlhigh_qs;
+        reg_rdata_next[15:12] = intr_ctrl_en_lvllow_qs;
+        reg_rdata_next[19:16] = intr_ctrl_en_input_filter_qs;
       end
 
       default: begin

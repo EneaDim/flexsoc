@@ -1,0 +1,46 @@
+analysis=power_analysis corner=tt stage=post_syn
+workload=random_seed_1_sv_tt
+gls_report=/tmp/flexsoc-develop-gpio/runs/gpio/develop/dv/functional/sim/post_syn/sky130/gpio_post_syn_random_seed_1_sv_tt.json
+activity_file=/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/sky130/power/activity/captures/gpio_sky130_random_seed_1_sv_tt.vcd
+activity_scope=gpio_tb/u_gpio
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
+netlist=/tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/sky130/gpio_synth.v
+sdc=/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/sky130/gpio.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1mA
+ power 1nW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Activity annotation ===
+annotated_percent=100.00%
+Unannotated pins: none
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             4.18e-04   2.94e-06   3.66e-07   4.21e-04  92.9%
+Combinational          1.60e-05   1.57e-05   4.03e-07   3.22e-05   7.1%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  4.34e-04   1.87e-05   7.69e-07   4.53e-04 100.0%
+                          95.7%       4.1%       0.2%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.000434
+switching_power=1.87e-05
+dynamic_power=0.0004527
+leakage_power=7.69e-07
+total_power=0.000453

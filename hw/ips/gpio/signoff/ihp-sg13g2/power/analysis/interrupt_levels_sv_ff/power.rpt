@@ -1,0 +1,46 @@
+analysis=power_analysis corner=ff stage=post_syn
+workload=interrupt_levels_sv_ff
+gls_report=/tmp/flexsoc-develop-gpio/runs/gpio/develop/dv/functional/sim/post_syn/ihp-sg13g2/gpio_post_syn_interrupt_levels_sv_ff.json
+activity_file=/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/power/activity/captures/gpio_ihp-sg13g2_interrupt_levels_sv_ff.vcd
+activity_scope=gpio_tb/u_gpio
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib
+netlist=/tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_synth.v
+sdc=/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/gpio.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1uA
+ power 1pW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Activity annotation ===
+annotated_percent=100.00%
+Unannotated pins: none
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             1.02e-03   7.42e-06   4.45e-07   1.03e-03  96.8%
+Combinational          1.70e-05   1.65e-05   3.95e-07   3.39e-05   3.2%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  1.04e-03   2.40e-05   8.40e-07   1.06e-03 100.0%
+                          97.7%       2.2%       0.1%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00104
+switching_power=2.4e-05
+dynamic_power=0.0010639999999999998
+leakage_power=8.4e-07
+total_power=0.00106

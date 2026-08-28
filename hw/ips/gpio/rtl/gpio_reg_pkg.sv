@@ -18,87 +18,79 @@ package gpio_reg_pkg;
 
   typedef struct packed {
     struct packed {
-      logic [1:0]  q;
+      logic [3:0]  q;
       logic        qe;
     } gpio_oe;
     struct packed {
-      logic [1:0]  q;
+      logic [3:0]  q;
       logic        qe;
     } gpio_o;
   } gpio_reg2hw_direct_reg_t;
 
   typedef struct packed {
     struct packed {
-      logic [1:0]  q;
+      logic [3:0]  q;
     } en_input_filter;
     struct packed {
-      logic [1:0]  q;
+      logic [3:0]  q;
     } en_lvllow;
     struct packed {
-      logic [1:0]  q;
+      logic [3:0]  q;
     } en_lvlhigh;
     struct packed {
-      logic [1:0]  q;
+      logic [3:0]  q;
     } en_falling;
     struct packed {
-      logic [1:0]  q;
+      logic [3:0]  q;
     } en_rising;
   } gpio_reg2hw_intr_ctrl_reg_t;
 
   typedef struct packed {
-    logic [3:0]  q;
-  } gpio_reg2hw_ctrl_en_input_filter_reg_t;
-
-  typedef struct packed {
-    logic [1:0]  d;
+    logic [3:0]  d;
     logic        de;
   } gpio_hw2reg_data_in_reg_t;
 
   typedef struct packed {
     struct packed {
-      logic [1:0]  d;
+      logic [3:0]  d;
     } gpio_o;
     struct packed {
-      logic [1:0]  d;
+      logic [3:0]  d;
     } gpio_oe;
   } gpio_hw2reg_direct_reg_t;
 
   // Register -> HW type
   typedef struct packed {
-    gpio_reg2hw_direct_reg_t direct; // [19:14]
-    gpio_reg2hw_intr_ctrl_reg_t intr_ctrl; // [13:4]
-    gpio_reg2hw_ctrl_en_input_filter_reg_t ctrl_en_input_filter; // [3:0]
+    gpio_reg2hw_direct_reg_t direct; // [29:20]
+    gpio_reg2hw_intr_ctrl_reg_t intr_ctrl; // [19:0]
   } gpio_reg2hw_t;
 
   // HW -> register type
   typedef struct packed {
-    gpio_hw2reg_data_in_reg_t data_in; // [6:4]
-    gpio_hw2reg_direct_reg_t direct; // [3:0]
+    gpio_hw2reg_data_in_reg_t data_in; // [12:8]
+    gpio_hw2reg_direct_reg_t direct; // [7:0]
   } gpio_hw2reg_t;
 
   // Register offsets
   parameter logic [BlockAw-1:0] GPIO_DATA_IN_OFFSET = 4'h 0;
   parameter logic [BlockAw-1:0] GPIO_DIRECT_OFFSET = 4'h 4;
   parameter logic [BlockAw-1:0] GPIO_INTR_CTRL_OFFSET = 4'h 8;
-  parameter logic [BlockAw-1:0] GPIO_CTRL_EN_INPUT_FILTER_OFFSET = 4'h c;
 
   // Reset values for hwext registers and their fields
-  parameter logic [3:0] GPIO_DIRECT_RESVAL = 4'h 0;
+  parameter logic [7:0] GPIO_DIRECT_RESVAL = 8'h 0;
 
   // Register index
   typedef enum int {
     GPIO_DATA_IN,
     GPIO_DIRECT,
-    GPIO_INTR_CTRL,
-    GPIO_CTRL_EN_INPUT_FILTER
+    GPIO_INTR_CTRL
   } gpio_id_e;
 
   // Register width information to check illegal writes
-  parameter logic [3:0] GPIO_PERMIT [4] = '{
+  parameter logic [3:0] GPIO_PERMIT [3] = '{
     4'b 0001, // index[0] GPIO_DATA_IN
     4'b 0001, // index[1] GPIO_DIRECT
-    4'b 0011, // index[2] GPIO_INTR_CTRL
-    4'b 0001  // index[3] GPIO_CTRL_EN_INPUT_FILTER
+    4'b 0111  // index[2] GPIO_INTR_CTRL
   };
 
   parameter type reg_req_t = struct packed {

@@ -1,0 +1,28 @@
+# DELAY 1 ABC profile
+# Clock target: 10 ns (10000 ps).
+# Convert the current logic network to a structurally hashed AIG.
+strash
+# Compute don't-care information so later optimization can simplify more logic.
+dch
+# Balance AIG depth to shorten long Boolean logic chains.
+balance
+# Rewrite local AIG cones to reduce logic while preserving function.
+rewrite
+# Refactor larger logic cones into alternative equivalent structures.
+refactor
+# Compute don't-care information so later optimization can simplify more logic.
+dch
+# Map to standard cells against the explicit delay target in picoseconds.
+map -D 10000
+# Recompute topological order before timing-driven sizing and buffering.
+topo
+# Insert timing-aware buffers and cap each buffered branch at the requested fanout.
+buffer -c -N 32
+# Upsize timing-critical cells toward the explicit delay target in picoseconds.
+upsize 10000
+# Recover area while preserving the explicit delay target in picoseconds.
+dnsize 10000
+# Print final mapped timing so the synthesis log records the achieved delay.
+stime -p
+# Print final mapped network statistics for area/profile comparison.
+print_stats -m
