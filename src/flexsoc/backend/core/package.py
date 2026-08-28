@@ -36,6 +36,32 @@ def _clean_python_cache(root: Path) -> None:
             path.unlink(missing_ok=True)
 
 
+def _portable_filelists(root: Path, project_root: Path, run_root: Path) -> None:
+    """Store operational filelists without checkout/workspace absolute paths."""
+
+    run_rtl = (run_root / "rtl").resolve()
+    project = project_root.resolve()
+    for filelist in (root / "rtl" / "rtl_common.f", root / "rtl" / "rtl_ip.f"):
+        if not filelist.is_file():
+            continue
+        lines = []
+        for line in filelist.read_text(encoding="utf-8").splitlines():
+            prefix, value = ("+incdir+", line[8:]) if line.startswith("+incdir+") else ("", line)
+            if not value or value.startswith(("#", "+")):
+                lines.append(line)
+                continue
+            path = Path(value)
+            try:
+                value = (Path("rtl") / path.resolve().relative_to(run_rtl)).as_posix()
+            except ValueError:
+                try:
+                    value = path.resolve().relative_to(project).as_posix()
+                except ValueError:
+                    pass
+            lines.append(prefix + value)
+        filelist.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _rebind_filelists(destination: Path, project_root: Path) -> None:
     """Bind copied saved-IP filelists to the current checkout and run."""
 
@@ -60,10 +86,19 @@ def _rebind_filelists(destination: Path, project_root: Path) -> None:
                     if len(matches) == 1:
                         rebound = matches[0]
             else:
-                for marker, base in (("/hw/ips/", project_root / "hw" / "ips"), ("/vendor/", project_root / "vendor")):
-                    if marker in normalized:
-                        rebound = base / normalized.split(marker, 1)[1]
+                relative = normalized.removeprefix("./")
+                for prefix_path in ("hw/ips/", "vendor/"):
+                    if relative.startswith(prefix_path):
+                        rebound = project_root / relative
                         break
+                if rebound is None:
+                    for marker, base in (
+                        ("/hw/ips/", project_root / "hw" / "ips"),
+                        ("/vendor/", project_root / "vendor"),
+                    ):
+                        if marker in normalized:
+                            rebound = base / normalized.split(marker, 1)[1]
+                            break
             lines.append(prefix + (rebound.resolve().as_posix() if rebound else value))
         filelist.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -161,6 +196,7 @@ class PackageFlow:
                 staged, pdk, post_syn_sim_dir, coverage_dir,
                 manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
             )
+            _portable_filelists(staged, self.project_root, run)
             self._write_package_manifest(staged, ip_name, top)
             _clean_python_cache(staged)
 
