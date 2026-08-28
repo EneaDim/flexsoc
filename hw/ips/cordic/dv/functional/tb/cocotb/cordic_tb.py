@@ -5,7 +5,7 @@ from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, Timer
+from cocotb.triggers import Combine, FallingEdge, RisingEdge, Timer
 
 from drivers.reg_driver import (
     init_register_bus,
@@ -18,23 +18,45 @@ from drivers.vec_driver import drive_vectors, load_vectors
 from drivers.vec_monitor import LatencyMonitor
 
 
-async def reset_dut(dut):
-    cocotb.start_soon(Clock(dut.clk_i, 10, units="ns").start())
+RESET_DOMAINS = {'core': ('clk_i', 'rst_ni', 'low')}
 
-    if hasattr(dut, "rst_ni"):
-        dut.rst_ni.value = 0
-    await Timer(25, units="ns")
-    await RisingEdge(dut.clk_i)
-    if hasattr(dut, "rst_ni"):
-        dut.rst_ni.value = 1
-    await RisingEdge(dut.clk_i)
-    await Timer(1, units="ns")
+
+def _selected_resets(selector):
+    clean = str(selector or "all")
+    if clean in {"all", "*"}:
+        return tuple(RESET_DOMAINS.values())
+    for domain, item in RESET_DOMAINS.items():
+        if clean in {domain, item[1]}:
+            return (item,)
+    raise AssertionError(f"unknown reset selector: {clean}")
+
+
+async def apply_reset(dut, selector="all", cycles=5):
+    selected = _selected_resets(selector)
+    for name in ("cio_rx_i", "uart_rx_i", "serial_rx_i"):
+        if hasattr(dut, name):
+            getattr(dut, name).value = 1
+    for _, reset, polarity in selected:
+        getattr(dut, reset).value = int(polarity == "high")
+    for _ in range(max(1, int(cycles))):
+        await Combine(*(RisingEdge(getattr(dut, clock)) for clock, _, _ in selected))
+    await Combine(*(FallingEdge(getattr(dut, clock)) for clock, _, _ in selected))
+    for _, reset, polarity in selected:
+        getattr(dut, reset).value = int(polarity == "low")
+    await Timer(1, unit="ns")
 
 
 @cocotb.test()
 async def cordic_generated_test(dut):
-    await reset_dut(dut)
+    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
+    for _, reset, polarity in RESET_DOMAINS.values():
+        getattr(dut, reset).value = int(polarity == "low")
     await init_register_bus(dut, dut.clk_i)
+    reset_cycles = max(1, int(os.environ.get("INITIAL_RESET_CYCLES", "5")))
+    dut._log.info("initial reset cycles=%d", reset_cycles)
+    await apply_reset(dut, "all", reset_cycles)
+    for _ in range(2):
+        await RisingEdge(dut.clk_i)
 
     test_name = os.environ.get("TEST_NAME", "smoke")
     test_root = Path(os.environ.get("TEST_ROOT", "tests"))
@@ -60,6 +82,9 @@ async def cordic_generated_test(dut):
     async def do_read(reg):
         return await read_register(dut, reg, regmap=regmap, clk=dut.clk_i)
 
+    async def do_reset(selector, cycles):
+        await apply_reset(dut, selector, cycles)
+
     await apply_config(cfg_path)
 
     await drive_vectors(
@@ -69,4 +94,5 @@ async def cordic_generated_test(dut):
         LatencyMonitor(dut, data_out, register_reader=do_read),
         config_runner=apply_config,
         register_writer=do_write,
+        reset_runner=do_reset,
     )

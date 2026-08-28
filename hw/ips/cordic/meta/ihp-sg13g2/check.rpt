@@ -1,60 +1,50 @@
 FlexSoC run check · cordic
+Technical REVIEW · Provenance CLEAN
 
-Closure
-Stage           Status
-lint            PASS  
-regression      PASS  
-formal          PASS  
-synthesis       PASS  
-equivalence     PASS  
-sdf             PASS  
-sta             PASS  
-power           PASS  
-post_syn_gls    PASS  
-power_activity  PASS  
-Standard closure: PASS
+Flow
+Main step                    Status    
+RTL lint                     PASS      
+CDC / RDC                    REVIEW    
+Functional verification      PARTIAL   
+Formal verification          PASS      
+Synthesis                    PASS      
+RTL ↔ synthesis equivalence  PARTIAL   
+Pre-implementation sign-off  PASS      
+Implementation / PnR         MISSING   
+Post Sign-Off                INCOMPLETE
+Run status: REVIEW
 
-Verification summary
-Functional regression  PASS              
-Functional coverage    6783/15751  43.06%
-Design coverage        1923/2568  74.88% 
-Formal stages          6/6  PASS         
-Formal BMC             2/2  PASS         
-Formal PROVE           2/2  PASS         
-Formal COVER           2/2  PASS         
+Provenance
+Setup          State  Action
+setup_cocotb   CLEAN  -     
+setup_signoff  CLEAN  -     
+setup_syn      CLEAN  -     
+setup_tb       CLEAN  -     
 
-Sign-off summary
-RTL ↔ synthesis     10/10  100.00%  PASS
-SDF                 PASS                
-STA                 PASS                
-Power estimate      PASS                
-Post-synthesis GLS  50/50  PASS         
-Activity power      30/30  PASS         
-
-Lint  Slang → Verilator
+RTL lint  Slang → Verilator
 Tool       Status  Errors  Warnings  Latch  Width  Unused
-slang      PASS         0         0      0      0       0
-verilator  PASS         0       122      0      6      11
+slang      PASS         0         1      0      0       0
+verilator  PASS         0       180      0      0       0
 
-Functional regression
-Status           PASS              
+CDC / RDC  post-lint structural analysis
+Status       REVIEW                                      
+Domains      clocks=1 · resets=1 · sequential=29         
+CDC          raw=0 · safe=0 · review=0 · warn=0 · error=0
+RDC          raw=0 · safe=0 · review=1 · warn=0 · error=0
+Obligations  1                                           
+Log          logs/analysis/cdc_rdc/cdc_rdc.log           
+
+Functional verification
+Status           PARTIAL           
 Generated tests  10                
-sv logs          10                
-cocotb logs      10                
+sv logs          0                 
+cocotb logs      0                 
 Coverage all     6783/15751  43.06%
 Coverage design  1923/2568  74.88% 
 
-Functional coverage — scope × type
-Scope                  line             toggle             expr           branch  fsm  user               total
-design      115/132  87.12%  1757/2360  74.45%     8/11  72.73%    43/65  66.15%    -     -   1923/2568  74.88%
-registers     53/55  96.36%  1572/2256  69.68%    33/59  55.93%     2/2  100.00%    -     -   1660/2372  69.98%
-common       49/1707  2.87%  1978/3558  55.59%  112/3423  3.27%   67/152  44.08%    -     -   2206/8840  24.95%
-other       515/663  77.68%    310/772  40.16%   76/185  41.08%   93/351  26.50%    -     -    994/1971  50.43%
-all        732/2557  28.63%  5617/8946  62.79%  229/3678  6.23%  205/570  35.96%    -     -  6783/15751  43.06%
-
-Formal
+Formal verification
 Suite       Stage  Status  Time  Traces
-csr         bmc    PASS      4s       0
+csr         bmc    PASS      5s       0
 csr         prove  PASS      0s       0
 csr         cover  PASS      0s       8
 properties  bmc    PASS      3s       0
@@ -62,94 +52,29 @@ properties  prove  PASS      0s       0
 properties  cover  PASS      0s       8
 
 Synthesis
-Strategy         area                         
+Strategy         delay1                       
 Netlist          syn/ihp-sg13g2/cordic_synth.v
-Cells            2597                         
-Area             33493.2948                   
-Sequential area  14353.7184                   
+Cells            2668                         
+Area             35531.622                    
+Sequential area  14990.5728                   
 Errors           0                            
 Warnings         0                            
 
 RTL ↔ synthesis equivalence
-Status             PASS                                                     
-Partitions proven  10/10  100.00%                                           
-Partitions failed  0                                                        
-Engine errors      0                                                        
-Timeouts           0                                                        
-Unknown            0                                                        
-Strategy sat       4/10 proven                                              
-Strategy pdr       6/6 proven                                               
-Log                logs/signoff/ihp-sg13g2/equivalence/cordic_rtl_vs_syn.log
+Status             PARTIAL   
+Partitions proven  0/6  0.00%
+Partitions failed  0         
+Engine errors      0         
+Timeouts           0         
+Unknown            6         
+Log                None      
 
-SDF
-Corner    Bytes  Artifact                               
-ff      1355638  signoff/ihp-sg13g2/sdf/ff/cordic_ff.sdf
-ss      1355638  signoff/ihp-sg13g2/sdf/ss/cordic_ss.sdf
-tt      1355636  signoff/ihp-sg13g2/sdf/tt/cordic_tt.sdf
+Pre-implementation sign-off
+SDF                    PASS · corners=3               
+STA                    PASS · ideal clock · none      
+Gate-level simulation  50/50  PASS · interconnect none
+Power estimate         PASS                           
+Activity power         30/30  PASS                    
+Timing / power fusion  30/30  PASS                    
 
-Post-synthesis GLS · ihp-sg13g2
-Status     PASS                                                                                                                       
-Results    50/50 passed · 0 failed · 0 missing                                                                                        
-Tests      auto_toggle, corners, quadrant_sweep, random_seed_1, random_seed_2, random_small, reconfig, rotate_45deg, smoke, smoke_zero
-Backends   sv                                                                                                                         
-Scenarios  zero, unit, ff, tt, ss                                                                                                     
-Artifacts  dv/functional/sim/post_syn/ihp-sg13g2                                                                                      
-
-Post-synthesis GLS results
-Scenario          sv     Closure
-zero      10/10 PASS  10/10 PASS
-unit      10/10 PASS  10/10 PASS
-ff        10/10 PASS  10/10 PASS
-tt        10/10 PASS  10/10 PASS
-ss        10/10 PASS  10/10 PASS
-
-Post-GLS activity power
-Status        PASS                                          
-Analyses      30/30 passed · 0 failed                       
-Summary JSON  signoff/ihp-sg13g2/power/analysis/summary.json
-Test            Backend  GLS  Corner  Activity  Total W  Status
-auto_toggle     sv       ff   ff       100.00%  0.00289  PASS  
-corners         sv       ff   ff       100.00%  0.00306  PASS  
-quadrant_sweep  sv       ff   ff       100.00%  0.00308  PASS  
-random_seed_1   sv       ff   ff       100.00%  0.00329  PASS  
-random_seed_2   sv       ff   ff       100.00%  0.00327  PASS  
-random_small    sv       ff   ff       100.00%  0.00329  PASS  
-reconfig        sv       ff   ff       100.00%  0.00307  PASS  
-rotate_45deg    sv       ff   ff       100.00%  0.00307  PASS  
-smoke           sv       ff   ff       100.00%  0.00297  PASS  
-smoke_zero      sv       ff   ff       100.00%  0.00297  PASS  
-auto_toggle     sv       tt   tt       100.00%  0.00248  PASS  
-corners         sv       tt   tt       100.00%   0.0026  PASS  
-quadrant_sweep  sv       tt   tt       100.00%  0.00261  PASS  
-random_seed_1   sv       tt   tt       100.00%  0.00276  PASS  
-random_seed_2   sv       tt   tt       100.00%  0.00274  PASS  
-random_small    sv       tt   tt       100.00%  0.00276  PASS  
-reconfig        sv       tt   tt       100.00%  0.00261  PASS  
-rotate_45deg    sv       tt   tt       100.00%  0.00261  PASS  
-smoke           sv       tt   tt       100.00%  0.00253  PASS  
-smoke_zero      sv       tt   tt       100.00%  0.00253  PASS  
-auto_toggle     sv       ss   ss       100.00%  0.00204  PASS  
-corners         sv       ss   ss       100.00%  0.00212  PASS  
-quadrant_sweep  sv       ss   ss       100.00%  0.00213  PASS  
-random_seed_1   sv       ss   ss       100.00%  0.00226  PASS  
-random_seed_2   sv       ss   ss       100.00%  0.00224  PASS  
-random_small    sv       ss   ss       100.00%  0.00226  PASS  
-reconfig        sv       ss   ss       100.00%  0.00215  PASS  
-rotate_45deg    sv       ss   ss       100.00%  0.00213  PASS  
-smoke           sv       ss   ss       100.00%  0.00207  PASS  
-smoke_zero      sv       ss   ss       100.00%  0.00207  PASS  
-
-STA
-Corner  Mode   WNS  TNS  Viol.  Unconstr.
-ff      hold     -    -      0        632
-ff      setup    -    -      0        632
-ss      hold     -    -      0        632
-ss      setup    -    -      0        632
-tt      hold     -    -      0        632
-tt      setup    -    -      0        632
-
-Power estimate
-Corner  Total W  Internal W  Switching W  Leakage W
-ff      0.00703     0.00479      0.00223    3.7e-06
-ss      0.00436     0.00311      0.00125   2.63e-06
-tt      0.00555     0.00387      0.00167   1.14e-06
+Detailed metrics: /tmp/flexsoc-reference-ips/.ip-save.cordic._iotdwnc/cordic/meta/ihp-sg13g2/metrics.json

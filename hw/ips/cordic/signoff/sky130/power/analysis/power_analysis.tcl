@@ -3,24 +3,24 @@
 #
 # Analysis : power_analysis
 # Design   : cordic
-# Variant  : dev
+# Variant  : reference
 # PDK      : sky130
 # Stage    : post_syn
-# Corner   : ss
+# Corner   : tt
 # Mode     : not applicable
-# Workload : smoke_zero_sv_ss
+# Workload : GLS_WORKLOAD_REQUIRED
 # Top      : cordic
 #
 # Inputs:
-#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc
+#   Netlist       : /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v
+#   SDC           : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_smoke_zero_sv_ss.vcd
-#   Activity scope: cordic_tb/u_cordic
-#   GLS report    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/dv/functional/sim/post_syn/sky130/cordic_post_syn_smoke_zero_sv_ss.json
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/analysis/smoke_zero_sv_ss
+#   VCD or SAIF   : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
+#   Activity scope: DUT_SCOPE_REQUIRED
+#   GLS report    : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/analysis/template_reports
 #
 # Limitations:
 #   - Power is average cell power derived from the selected Liberty models and annotated activity.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/analysis/smoke_zero_sv_ss}
+set report_dir {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/analysis/template_reports}
 file mkdir $report_dir
-set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib}
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc}
+set netlist {/tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v}
+set sdc {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -200,8 +200,8 @@ proc flexsoc_append_activity_coverage {path} {
 }
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_smoke_zero_sv_ss.vcd}
-set activity_scope {cordic_tb/u_cordic}
+set activity_file {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
 puts "activity_scope=$activity_scope"
@@ -221,11 +221,11 @@ if {$activity_ext eq ".saif"} {
 # Create one compact workload-driven power report after GLS activity has been annotated.
 set report [file join $report_dir power.rpt]
 set fp [open $report w]
-puts $fp "analysis=power_analysis corner=ss stage=post_syn"
-puts $fp "workload=smoke_zero_sv_ss"
-puts $fp "gls_report=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/dv/functional/sim/post_syn/sky130/cordic_post_syn_smoke_zero_sv_ss.json"
-puts $fp "activity_file=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/activity/captures/cordic_sky130_smoke_zero_sv_ss.vcd"
-puts $fp "activity_scope=cordic_tb/u_cordic"
+puts $fp "analysis=power_analysis corner=tt stage=post_syn"
+puts $fp "workload=GLS_WORKLOAD_REQUIRED"
+puts $fp "gls_report=/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json"
+puts $fp "activity_file=/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
 puts $fp "sdc=$sdc"
@@ -243,8 +243,5 @@ flexsoc_append_activity_coverage $report
 flexsoc_section $report {Power summary}
 # Report average internal, switching, leakage, and total cell power for the complete design.
 flexsoc_append_opensta $report report_power
-flexsoc_section $report {Highest-power instances}
-# Rank the highest-power instances to expose the dominant contributors in this corner/workload.
-flexsoc_append_opensta $report report_power -highest_power_instances 20
 puts "report=$report"
-puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_analysis corner=ss mode=n/a workload=smoke_zero_sv_ss}
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_analysis corner=tt mode=n/a workload=GLS_WORKLOAD_REQUIRED}

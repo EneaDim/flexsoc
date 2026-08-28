@@ -3,24 +3,24 @@
 #
 # Analysis : sdf
 # Design   : cordic
-# Variant  : dev
+# Variant  : reference
 # PDK      : sky130
 # Stage    : post_syn
-# Corner   : ff
+# Corner   : tt
 # Mode     : not applicable
 # Workload : not applicable
 # Top      : cordic
 #
 # Inputs:
-#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc
+#   Netlist       : /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v
+#   SDC           : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/sdf/ff
+#   Report dir    : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/sdf/template_reports
 #
 # Limitations:
 #   - SDF reflects the linked netlist and timing model for the selected corner.
@@ -42,12 +42,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/sdf/ff}
+set report_dir {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/sdf/template_reports}
 file mkdir $report_dir
-set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib}
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc}
+set netlist {/tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v}
+set sdc {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -139,7 +139,55 @@ check_setup -verbose
 puts "=== Step 7/7: Analysis-specific reporting ==="
 
 # write_sdf serializes the linked timing model for gate-level simulation.
-set sdf_file {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/sdf/ff/cordic_ff.sdf}
+set sdf_file {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/sdf/template_reports/cordic_tt.sdf}
 puts "sdf=$sdf_file"
-write_sdf -divider . -include_typ $sdf_file
-puts {FLEXSOC_SIGNOFF_COMPLETE analysis=sdf corner=ff mode=n/a workload=n/a}
+write_sdf -divider . -include_typ -no_timestamp -no_version $sdf_file
+proc flexsoc_complete_sdf_typ_header {path} {
+  set fp [open $path r]
+  set text [read $fp]
+  close $fp
+  # OpenSTA 3.1 leaves PVT header typ empty even with -include_typ.
+  regsub -all {(\(VOLTAGE[ \t]+)([-+0-9.eE]+)::([-+0-9.eE]+)(\))} $text {\1\2:\2:\3\4} text
+  regsub -all {(\(PROCESS[ \t]+")([-+0-9.eE]+)::([-+0-9.eE]+)("\))} $text {\1\2:\2:\3\4} text
+  regsub -all {(\(TEMPERATURE[ \t]+)([-+0-9.eE]+)::([-+0-9.eE]+)(\))} $text {\1\2:\2:\3\4} text
+  set fp [open $path w]
+  puts -nonewline $fp $text
+  close $fp
+}
+flexsoc_complete_sdf_typ_header $sdf_file
+proc flexsoc_strip_sdf_interconnect_cell {path} {
+  set fp [open $path r]
+  set lines [split [read $fp] "
+"]
+  close $fp
+  set out {}
+  set skipping 0
+  set skipped 0
+  set depth 0
+  set removed 0
+  foreach line $lines {
+  if {!$skipped && !$skipping && [string trim $line] eq "(CELL"} {set skipping 1}
+  if {$skipping} {
+    incr removed [regexp -all {\(INTERCONNECT[ 	]} $line]
+    set opens [regexp -all {\(} $line]
+    set closes [regexp -all {\)} $line]
+    incr depth [expr {$opens - $closes}]
+    if {$depth == 0} {set skipping 0; set skipped 1}
+    continue
+  }
+  lappend out $line
+  }
+  if {!$skipped} {puts stderr "ERROR: OpenSTA SDF interconnect cell not found: $path"; exit 2}
+  set fp [open $path w]
+  puts -nonewline $fp [join $out "
+"]
+  close $fp
+  puts "sdf_interconnect=omitted count=$removed stage=post_syn"
+}
+if {$stage eq "post_syn"} {
+  # Pre-implementation timing intentionally has no extracted interconnect model.
+  flexsoc_strip_sdf_interconnect_cell $sdf_file
+} else {
+  puts "sdf_interconnect=retained stage=post_route"
+}
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=sdf corner=tt mode=n/a workload=n/a}

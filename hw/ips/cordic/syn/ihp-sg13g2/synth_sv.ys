@@ -1,3 +1,5 @@
+# read target standard cells as library modules for mapped-cell pin directions
+read_liberty -overwrite -setattr liberty_cell -lib /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 # read files (SystemVerilog via slang)
 read_slang -I /home/eneadim/github/flexsoc/hw/ips/pkgs \
            -I /home/eneadim/github/flexsoc/hw/ips/prim \
@@ -5,33 +7,42 @@ read_slang -I /home/eneadim/github/flexsoc/hw/ips/pkgs \
            -I /home/eneadim/github/flexsoc/hw/ips/tlul \
            -D SYNTHESIS \
            --ignore-assertions \
-           -f /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/rtl/rtl_common.f \
-           -f /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/rtl/rtl_ip.f \
+           -f /tmp/flexsoc-reference-cordic/runs/cordic/reference/rtl/rtl_common.f \
+           -f /tmp/flexsoc-reference-cordic/runs/cordic/reference/rtl/rtl_ip.f \
            --top cordic
 
 # basic synth
 synth -top cordic -noabc
 
 # technology-boundary checkpoints used by equivalence diagnostics
-write_rtlil /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_generic.il
+write_rtlil /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/cordic_generic.il
 
-# map internal register types to the ones from the cell library
-dfflibmap -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
-write_rtlil /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_dffmap.il
+# prepare FF types while keeping Yosys FF boundaries visible to ABC
+dfflibmap -prepare -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+write_rtlil /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/cordic_dffmap.il
 
-# map logic to the selected cell library
-abc -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib -script /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/area.abc \
-    -constr /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/abc.constr
-write_rtlil /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_abc.il
+# map combinational logic and preserve FF output wires used by EQY
+abc -keepff -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib -script /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/delay1.abc \
+    -constr /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/abc.constr
+write_rtlil /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/cordic_abc.il
 
-# Clean while preserving public/internal names used by EQY matching and debug
-opt_clean
-write_rtlil /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_clean.il
+# bind the prepared FF types to final technology cells after ABC
+dfflibmap -map-only -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+
+# Validate mapped connectivity before physical-only netlist finalization
+check -assert
+
+# Finalize the implementation-ready technology netlist
+splitnets
+opt_clean -purge
+hilomap -singleton -hicell sg13g2_tiehi L_HI -locell sg13g2_tielo L_LO
+insbuf -buf sg13g2_buf_1 A X
+check -assert -mapped
+write_rtlil /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/cordic_clean.il
 
 # Basic stats of std cells and area
 stat -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 
-# write verilog
-write_verilog /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
-# write json
-write_json /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.json
+# Final netlist consumed directly by physical implementation
+write_verilog -nohex -nodec /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/cordic_synth.v
+write_json /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/cordic_synth.json

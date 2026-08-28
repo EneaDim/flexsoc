@@ -3,24 +3,24 @@
 #
 # Analysis : power_estimate
 # Design   : cordic
-# Variant  : dev
+# Variant  : reference
 # PDK      : sky130
 # Stage    : post_syn
-# Corner   : ff
+# Corner   : tt
 # Mode     : not applicable
 # Workload : not applicable
 # Top      : cordic
 #
 # Inputs:
-#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc
+#   Netlist       : /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v
+#   SDC           : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/estimate/ff
+#   Report dir    : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/estimate/template_reports
 #
 # Limitations:
 #   - This is a vectorless estimate; it does not represent a simulated workload.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/power/estimate/ff}
+set report_dir {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/estimate/template_reports}
 file mkdir $report_dir
-set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib}
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/sky130/cordic_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/sky130/cordic.sdc}
+set netlist {/tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v}
+set sdc {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -148,7 +148,7 @@ puts $fp "analysis=power_estimate activity_source=input_assumption"
 puts $fp "activity_model=input"
 puts $fp "activity=0.1"
 puts $fp "duty=0.5"
-puts $fp "corner=ff stage=post_syn"
+puts $fp "corner=tt stage=post_syn"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
 puts $fp "sdc=$sdc"
@@ -163,8 +163,5 @@ flexsoc_append_opensta $report check_setup -verbose
 flexsoc_section $report {Power summary}
 # Report average internal, switching, leakage, and total cell power for the complete design.
 flexsoc_append_opensta $report report_power
-flexsoc_section $report {Highest-power instances}
-# Rank the highest-power instances to expose the dominant contributors in this corner/workload.
-flexsoc_append_opensta $report report_power -highest_power_instances 20
 puts "report=$report"
-puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_estimate corner=ff mode=n/a workload=n/a}
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_estimate corner=tt mode=n/a workload=n/a}

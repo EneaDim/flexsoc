@@ -3,7 +3,7 @@
 #
 # Analysis : fusion_analysis
 # Design   : cordic
-# Variant  : dev
+# Variant  : reference
 # PDK      : ihp-sg13g2
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc
+#   Netlist       : /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/cordic_synth.v
+#   SDC           : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/ihp-sg13g2/cordic.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd
+#   VCD or SAIF   : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd
 #   Activity scope: DUT_SCOPE_REQUIRED
-#   GLS report    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/GLS_REPORT_REQUIRED.json
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/fusion/template_reports
+#   GLS report    : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/ihp-sg13g2/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/ihp-sg13g2/fusion/template_reports
 #
 # Limitations:
 #   - Timing and average power use the same netlist, corner, mode and activity trace.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/fusion/template_reports}
+set report_dir {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/ihp-sg13g2/fusion/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/syn/ihp-sg13g2/cordic_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/cordic.sdc}
+set netlist {/tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/ihp-sg13g2/cordic_synth.v}
+set sdc {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/ihp-sg13g2/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -200,7 +200,7 @@ proc flexsoc_append_activity_coverage {path} {
 }
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_file {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd}
 set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
@@ -227,7 +227,7 @@ puts $fp "analysis=fusion_analysis corner=tt mode=setup stage=post_syn"
 puts $fp "workload=GLS_WORKLOAD_REQUIRED"
 puts $fp "methodology=staged_public_opensta"
 puts $fp "path_power_semantics=average_instance_power_in_same_analysis_context"
-puts $fp "activity_file=/home/eneadim/github/flexsoc/workspace/runs/cordic/dev/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "activity_file=/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd"
 puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
@@ -253,9 +253,10 @@ flexsoc_append_opensta $report report_power
 flexsoc_section $report {Worst timing paths (violated or met)}
 # Discover the worst paths even when timing is met; Python later correlates their gates with instance power.
 flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count $endpoint_path_limit -endpoint_path_count 1 -unique_paths_to_endpoint -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6
-# Discover the highest-power instances into a transient machine-parsed report used by the second fusion pass.
+# Collect public per-instance power rows; Python ranks the hottest instances for the second fusion pass.
 set highest_power_report [file join $report_dir .highest_power.rpt]
 file delete -force $highest_power_report
-flexsoc_append_opensta $highest_power_report report_power -highest_power_instances 20 -digits 12
+set all_instances [get_cells -hierarchical *]
+flexsoc_append_opensta $highest_power_report report_power -instances $all_instances -digits 12
 puts "report=$report"
 puts {FLEXSOC_SIGNOFF_COMPLETE analysis=fusion_analysis corner=tt mode=setup workload=GLS_WORKLOAD_REQUIRED}
