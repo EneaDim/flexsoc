@@ -1,8 +1,18 @@
 # 🧭 FlexSoC command reference
 
-This is the complete user-facing reference for the `fx` command line and every backend target currently exposed by FlexSoC. It follows the same lifecycle as [Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify it, synthesize it, prove equivalence, analyze timing and power, implement it, and collect release evidence.
+This is the complete user-facing reference for the `fx` command line and every
+backend target currently exposed by FlexSoC. The commands are the interface to
+the same controlled build and qualification lifecycle defined in
+[Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify
+it, synthesize it, prove equivalence, analyze timing and power, implement it,
+and collect qualification evidence.
 
-The reference explains what each command owns. The generated scaffold architecture and design reasoning are described in [IP development guide](ip_development_guide.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
+The reference explains what each command owns. The generated scaffold architecture
+and design reasoning are described in [IP development guide](ip_development_guide.md).
+The underlying EDA tools remain authoritative for their analyses; this reference
+does not replace their logs or manuals. Use `fx <command> --help` (also `-h`,
+`help`, or `info`) for dedicated command help, and `fx commands --json` when a
+script needs live metadata from the installed checkout.
 
 > **Execution model:** `fx target_a target_b` launches separate backend targets in order. Atomic execution targets prepend their generated setup steps by default: for example, `fx syn` prepends `setup_syn`; `fx eqy` runs `setup_eqy`, then `eqy`. Functional simulation setup remains explicit: run `setup_tb` and `setup_cocotb` when the drivers must be refreshed, including after a PDK switch before GLS. Use `--no-setup` when the setup commands are already written explicitly, as in the E2E pipelines. Setup expansion follows setup-only dependencies recursively, remains ordered, and is deduplicated across one invocation. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
 

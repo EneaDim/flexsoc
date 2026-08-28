@@ -2,7 +2,9 @@
 
 This document describes the **current repository architecture**: how the Python code is split, how one `fx` command travels through the system, which module owns each lifecycle responsibility, how artifacts and provenance are tracked, and where new functionality should be added.
 
-It is intentionally descriptive rather than aspirational. FlexSoC should remain a **small, readable build and qualification system above EDA tools**, not become a second EDA framework.
+It is intentionally descriptive rather than aspirational. FlexSoC should remain a
+**small, readable controlled build and qualification system for digital IP above
+EDA tools**, not become a second EDA framework.
 
 ## 1. Architectural goals
 

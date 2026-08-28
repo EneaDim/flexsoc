@@ -1,11 +1,13 @@
 # 🚀 FlexSoC quickstart
 
-This is the shortest practical path through the current IP flow. The complete
-engineering rationale, quality gates, solver guidance, change workflows, and
-release policy are in [Project lifecycle](project_lifecycle.md). The generated
-scaffold architecture, ownership rules, and detailed reasoning behind every
-stage are in [IP development guide](ip_development_guide.md). Exact syntax,
-options, variables, and the complete target catalogue are in
+This is the shortest practical path through FlexSoC's controlled build and
+qualification lifecycle for digital IP. It uses the same command vocabulary and
+run model as the reference IPs and project CI.
+
+The canonical engineering contract and release policy are in
+[Project lifecycle](project_lifecycle.md). Scaffold ownership and stage-by-stage
+implementation guidance are in [IP development guide](ip_development_guide.md).
+Exact syntax and the complete target catalogue are in
 [Command reference](command_reference.md).
 
 ## 1. Install
@@ -131,7 +133,7 @@ fx eqy --force
 EQY selects a solver portfolio automatically:
 
 ```text
-single clock: SAT → SMTBMC → PDR
+single clock: SAT → PDR → SMTBMC
 N clocks:     PDR → SMTBMC
 ```
 

@@ -1,7 +1,8 @@
 # 🧩 FlexSoC IP development guide
 
-This document explains how FlexSoC turns an IP idea into reproducible design,
-verification, synthesis, sign-off, and release evidence. It follows the same
+This document explains how FlexSoC turns authored digital-IP intent into
+reproducible generated collateral, qualification evidence, and a release package.
+It follows the same
 order as [Project lifecycle](project_lifecycle.md) and
 [Command reference](command_reference.md), but focuses on the implementation
 model behind the commands:
@@ -31,10 +32,11 @@ Use the documents together:
 
 ## 1. FlexSoC mental model
 
-FlexSoC is a framework around a run workspace. It is not a monolithic compiler
-and it does not hide the underlying EDA tools. Each `fx` target establishes one
-small boundary, generates a script or scaffold where needed, executes the
-selected tool, and archives evidence under one run identity.
+FlexSoC is a controlled build and qualification system centered on a run
+workspace. It is not a monolithic compiler and it does not hide the underlying
+EDA tools. Each `fx` target establishes one small boundary, generates a script or
+scaffold where needed, executes the selected tool, and archives evidence under
+one run identity.
 
 ```text
 repository checkout

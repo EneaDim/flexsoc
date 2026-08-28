@@ -1,12 +1,11 @@
 # 🔄 FlexSoC project lifecycle
 
-This document is the canonical engineering guide for developing, verifying,
-implementing, signing off, reusing, and releasing a digital ASIC IP or small SoC
-with FlexSoC.
+This document is the canonical engineering contract for taking digital IP from
+design intent to a reproducible qualified package with FlexSoC.
 
-It combines the design theory with the practical `fx` workflow. The aim is not
+It combines design reasoning with the practical `fx` workflow. The aim is not
 to prescribe one microarchitecture; it is to make every source of truth,
-derived artifact, quality gate, and handoff explicit enough for production use.
+derived artifact, quality gate, evidence item, and handoff explicit.
 The exhaustive syntax and lifecycle role of every command is maintained in the
 [FlexSoC command reference](command_reference.md). The generated scaffold
 architecture, file ownership, and stage-by-stage implementation reasoning are
@@ -21,8 +20,8 @@ structure and execution/provenance contracts are mapped in
 
 ## 1. Final goal
 
-The output of the flow is not merely synthesizable RTL. A qualified release
-needs evidence that:
+The output of the flow is not merely synthesizable RTL or a successful EDA run.
+A qualified digital-IP package needs evidence that:
 
 - the implemented behavior matches the IP requirements;
 - configuration and status are represented consistently in hardware and software-visible metadata;
@@ -33,7 +32,8 @@ needs evidence that:
 - synthesis preserves the RTL behavior;
 - timing and power constraints are explicit;
 - physical implementation is feasible;
-- final netlist, timing parasitics, and release collateral are traceable to one configuration.
+- final netlist, timing parasitics, and release collateral are traceable to one configuration;
+- the resulting package can be understood and reproduced without relying on accidental workspace state.
 
 FlexSoC organizes that evidence under a reproducible run identity:
 
@@ -610,7 +610,7 @@ functional test and it is not code coverage.
 FlexSoC applies a strategy portfolio:
 
 ```text
-single-clock default: SAT → SMTBMC → PDR
+single-clock default: SAT → PDR → SMTBMC
 N-clock default:      PDR → SMTBMC
 ```
 

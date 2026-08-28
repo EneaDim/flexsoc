@@ -4,31 +4,30 @@
 
 # ⚡ FlexSoC
 
-FlexSoC is an open-source orchestration framework for developing digital ASIC IP
-and small SoCs through one command-line interface: `fx`.
+FlexSoC is an open-source **controlled build and qualification system for digital IP**.
+It uses existing EDA tools as specialized engines and connects them through one
+explicit, reproducible lifecycle exposed by the `fx` command line.
 
-Its purpose is not to hide the EDA tools. Its purpose is to keep the design
-intent, generated collateral, verification environments, constraints,
-implementation data, reports, and logs synchronized while the IP evolves.
+FlexSoC does not hide the silicon engineering. It keeps design intent, authored
+and generated collateral, verification, constraints, implementation evidence,
+provenance, and qualification status synchronized while the IP evolves.
 
 ```text
-requirements and architecture
-        ↓
-CSR / register map + RTL interfaces + RTL behavior
-        ↓
-functional DV + property formal + structural CDC/RDC analysis
-        ↓
-constraints + synthesis
-        ↓
-RTL ↔ synthesized-netlist equivalence
-        ↓
-post-synthesis SDF / GLS / STA / power estimate
-        ↓
-OpenROAD implementation
-        ↓
-post-layout timing / SDF / GLS / power / physical sign-off
-        ↓
-qualified reusable IP or SoC release
+design intent
+    ↓
+authored + generated design collateral
+    ↓
+DV / formal / CDC-RDC
+    ↓
+synthesis / equivalence
+    ↓
+STA / SDF / GLS
+    ↓
+physical implementation / sign-off
+    ↓
+qualification evidence
+    ↓
+reproducible digital-IP package
 ```
 
 ## Why FlexSoC
@@ -49,8 +48,9 @@ FlexSoC makes those dependencies explicit:
 - synthesis, STA, SDF, power, and OpenROAD runs share one run identity;
 - failed runs retain logs and tool workspaces for diagnosis.
 
-The final goal is a repeatable path from an IP requirement to evidence that the
-implemented hardware still matches its specification and RTL intent.
+The final goal is a reproducible digital-IP package whose sources, design intent,
+verification collateral, implementation evidence, provenance, and qualification
+status make the release understandable and repeatable.
 
 ## Main capabilities
 
@@ -149,10 +149,12 @@ The command vocabulary remains the same for one or many clocks. Persist clock/re
 ## Documentation
 
 - [Quickstart](docs/quickstart.md) — the shortest runnable single-clock and N-clock workflows.
-- [Architecture](docs/architecture.md) — code structure, backend responsibilities, execution/provenance contracts, and end-to-end data flow.
-- [Project lifecycle](docs/project_lifecycle.md) — the complete ASIC design, verification, implementation, sign-off, change-propagation, troubleshooting, reuse, and release guide.
-- [IP development guide](docs/ip_development_guide.md) — the detailed scaffold architecture, ownership boundaries, artifacts, rationale, failure recovery, GLS model policy, and activity-power flow.
-- [Command reference](docs/command_reference.md) — every `fx` pseudo-command, backend target, option, variable, lifecycle role, and diagnostic workflow.
+- [Project lifecycle](docs/project_lifecycle.md) — the canonical engineering contract from design intent to qualified release.
+- [IP development guide](docs/ip_development_guide.md) — scaffold ownership, generated/authored boundaries, failure recovery, GLS, and activity-power flow.
+- [Architecture](docs/architecture.md) — contributor-facing Python/backend structure, execution, artifact, and provenance contracts.
+- [Command reference](docs/command_reference.md) — exact `fx` commands, targets, options, variables, lifecycle roles, and diagnostics.
+- [Detailed ASIC flow guide](docs/flexsoc_asic_flow_guide.md) — deeper English engineering reference for the complete open-source ASIC flow.
+- [Guida dettagliata al flow ASIC](docs/flexsoc_asic_flow_guide_it.md) — approfondimento tecnico in italiano sullo stesso flow.
 
 ## Run layout
 
@@ -166,9 +168,9 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 ├── dv/               # functional and property-formal collateral
 ├── syn/<pdk>/        # synthesized implementation
 ├── impl/<pdk>/
-├── signoff/          # equivalence, STA, SDF, power
+├── signoff/<pdk>/    # equivalence, STA, SDF, power, post-PnR sign-off
 ├── logs/
-└── meta/             # manifest, metrics, and <pdk>/provenance.json
+└── meta/<pdk>/       # manifest, metrics, provenance, qualification state
 ```
 
 ## API and end-to-end regression
