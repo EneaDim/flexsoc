@@ -17,6 +17,17 @@ goal is to build a small set of reliable guides that an IP author can follow.
 
 ## Current guides
 
+### [HJSON register description](hjson.md)
+
+How to author the software-visible register contract, including:
+
+- the canonical scaffold/header structure;
+- required identity, clocking, bus, and register fields;
+- `swaccess` / `hwaccess` ownership patterns;
+- `hwext` and write-event (`qe`) use;
+- field naming, bit allocation, and description discipline;
+- validation through RTL, documentation, Python regmap, and C driver generation.
+
 ### [Formal verification](formal_verification.md)
 
 How to write and maintain design-specific formal properties, including:
@@ -36,7 +47,6 @@ Additional guides should be added only after their contracts have been validated
 through real IP development. Expected areas include:
 
 ```text
-register description (HJSON)
 RTL/core structure
 functional reference model
 functional scenario/test generation
