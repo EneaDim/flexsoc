@@ -46,7 +46,7 @@ class SynthesisConfig:
     output: Path = Path("syn")
     liberty: Path | None = None
     sdcdir: Path | None = None
-    opt: str = "area0"
+    opt: str = "delay1"
     filelists: tuple[Path, ...] = (Path("rtl_common.f"), Path("rtl_ip.f"))
     tie_hi: tuple[str, str] | None = None
     tie_lo: tuple[str, str] | None = None
@@ -457,7 +457,7 @@ class SynthesisFlow:
         liberty: Path,
         clk_period_ns: float,
         output: Path,
-        opt: str = "area0",
+        opt: str = "delay1",
         filelists: Sequence[Path] = (Path("rtl_common.f"), Path("rtl_ip.f")),
         tie_hi: tuple[str, str] | None = None,
         tie_lo: tuple[str, str] | None = None,
@@ -541,7 +541,7 @@ class SynthesisFlow:
         output: Path,
         top: str,
         log_dir: Path,
-        opt: str = "area0",
+        opt: str = "delay1",
         yosys: str = "yosys",
         systemverilog: bool = True,
         on: str = "local",

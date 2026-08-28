@@ -26,7 +26,7 @@ DEFAULT_SETTINGS = {
     "RUN_ID": "default",
     "N_CLOCKS": "1",
     "PDK": "sky130",
-    "TARGET_OPT": "area0",
+    "TARGET_OPT": "delay1",
     "WAVE_FORMAT": "fst",
     "GLS_SIMULATOR": "iverilog",
     "GLS_BACKEND": "sv",
@@ -1086,7 +1086,7 @@ class FlexSoCTarget:
         return flow.setup_asic(
             top=self.paths.top, topdir=self.paths.rtl, liberty=liberty,
             clk_period_ns=period, output=self.paths.syn,
-            opt=self.values.get("TARGET_OPT", "area0"),
+            opt=self.values.get("TARGET_OPT", "delay1"),
             filelists=(self.paths.rtl_common, self.paths.rtl_ip),
             tie_hi=self._tuple("TIEHI_CELL_AND_PORT", 2),
             tie_lo=self._tuple("TIELO_CELL_AND_PORT", 2),
@@ -1370,7 +1370,7 @@ class FlexSoCTarget:
         if target in {"syn", "syn_v", "syn_sv"}:
             return b.syn.synthesis.run_asic(
                 output=p.syn, top=top, log_dir=p.logs / "synthesis" / p.pdk,
-                opt=v.get("TARGET_OPT", "area0"), yosys=v.get("YOSYS", "yosys"),
+                opt=v.get("TARGET_OPT", "delay1"), yosys=v.get("YOSYS", "yosys"),
                 systemverilog=(target != "syn_v" and v.get("VSV", "sv") != "v"),
                 inputs=self._execution_inputs("setup_syn"), on=self.on,
             )

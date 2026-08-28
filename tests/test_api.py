@@ -456,7 +456,7 @@ def test_synthesis_profiles_cover_area_delay_tradeoffs() -> None:
         setup_syn_module.abc_script("delay", 10.0)
 
 
-def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
+def test_synthesis_defaults_to_delay_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
     liberty = tmp_path / "cells.lib"
     liberty.write_text("library(test) {}\n", encoding="utf-8")
     cfg = setup_syn_module.SynthesisConfig(
@@ -470,7 +470,7 @@ def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp
         tie_lo=("TIELO", "Y"),
         min_buffer=("BUF", "A", "Y"),
     )
-    assert cfg.opt == "area0"
+    assert cfg.opt == "delay1"
     script = setup_syn_module.yosys_synth_asic_verilog(
         cfg.top, cfg.topdir, liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
         tie_hi=cfg.tie_hi, tie_lo=cfg.tie_lo, min_buffer=cfg.min_buffer,
@@ -486,7 +486,7 @@ def test_synthesis_defaults_to_area_and_finishes_for_physical_implementation(tmp
     assert "insbuf -buf BUF A Y" in script
     assert "check -assert -mapped" in script
     assert "write_verilog -nohex -nodec" in script
-    assert "area0.abc" in script
+    assert "delay1.abc" in script
 
 
 def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:

@@ -36,6 +36,16 @@ def _clean_python_cache(root: Path) -> None:
             path.unlink(missing_ok=True)
 
 
+def _clean_hidden_paths(root: Path) -> None:
+    """Remove dotfiles and dot-directories from a reusable package."""
+
+    for path in sorted(root.rglob(".*"), key=lambda item: len(item.parts), reverse=True):
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            path.unlink(missing_ok=True)
+
+
 def _portable_filelists(root: Path, project_root: Path, run_root: Path) -> None:
     """Store operational filelists without checkout/workspace absolute paths."""
 
@@ -197,8 +207,9 @@ class PackageFlow:
                 manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
             )
             _portable_filelists(staged, self.project_root, run)
-            self._write_package_manifest(staged, ip_name, top)
             _clean_python_cache(staged)
+            _clean_hidden_paths(staged)
+            self._write_package_manifest(staged, ip_name, top)
 
             backup = library_root / f".{ip_name}.backup"
             if backup.exists():

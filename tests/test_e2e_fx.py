@@ -2716,7 +2716,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
     n_clocks = 1
     clock_domains = SINGLE_CLOCK_DOMAINS
     clock_relationships = ""
-    target_opt = os.environ.get("FLEXSOC_E2E_TARGET_OPT", "area0")
+    target_opt = os.environ.get("FLEXSOC_E2E_TARGET_OPT", "delay1")
 
     with _preserve_project_settings(), _temporary_workspace(
         "flexsoc-uart-e2e-", _e2e_root(request)
