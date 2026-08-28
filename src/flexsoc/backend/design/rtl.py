@@ -772,6 +772,26 @@ def _default_timescale_args(top_file: Path) -> list[str]:
     return ["--timescale", f"{match.group(1)}/{match.group(2)}"]
 
 
+def _slang_failure_detail(log: Path, *, context: int = 4, tail: int = 20) -> str:
+    """Return a compact actionable excerpt from a failed Slang log."""
+
+    if not log.is_file():
+        return ""
+    lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
+    error_re = re.compile(r"(?i)(?:^|[:\s])(?:fatal|error)(?:[:\s]|$)")
+    for index, line in enumerate(lines):
+        if error_re.search(line):
+            start = max(0, index - context)
+            stop = min(len(lines), index + context + 1)
+            excerpt = lines[start:stop]
+            break
+    else:
+        excerpt = lines[-tail:]
+    if not excerpt:
+        return ""
+    return "\n--- Slang diagnostic ---\n" + "\n".join(excerpt)
+
+
 def _run_slang(
     *,
     slang: str,
@@ -820,7 +840,11 @@ def _run_slang(
     )
     result = runner.run(request, on=on)
     if result.returncode:
-        raise RuntimeError(f"Slang failed ({result.returncode}); log: {log}")
+        detail = _slang_failure_detail(log)
+        raise RuntimeError(
+            f"Slang failed ({result.returncode}) while elaborating {top_name} from {top_file}; "
+            f"log: {log}{detail}"
+        )
     log.unlink(missing_ok=True)
     return top_name
 
