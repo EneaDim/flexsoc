@@ -3,11 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from cocotb.triggers import RisingEdge, Timer
+from cocotb.simtime import get_sim_time
 
 WRITE_TOKENS = {"@write", "write", "@reg_write", "reg_write"}
 READ_TOKENS = {"@read", "read", "@reg_read", "reg_read"}
 
 REGISTER_ADDRS = {'WDATA': 12, 'FIFO_CTRL': 16}
+TB_PERIOD_PS = 10000
+TB_DRIVE_PS = 2000
+TB_SAMPLE_PS = 8000
+_PHASE_ORIGINS = {}
 
 
 def parse_u32(text):
@@ -116,9 +121,50 @@ def _clock(dut, clk=None):
     raise AttributeError("cannot infer cocotb clock; expected clk_i")
 
 
-async def _cycle(clk):
-    await RisingEdge(clk)
-    await Timer(1, units="ps")
+def _clock_key(clk):
+    return getattr(clk, "_name", str(clk))
+
+
+async def _wait_phase(clk, offset_ps):
+    key = _clock_key(clk)
+    if key not in _PHASE_ORIGINS:
+        await RisingEdge(clk)
+        _PHASE_ORIGINS[key] = int(get_sim_time(unit="ps"))
+    now = int(get_sim_time(unit="ps"))
+    phase = (now - _PHASE_ORIGINS[key]) % TB_PERIOD_PS
+    delta = (offset_ps - phase) % TB_PERIOD_PS
+    if delta == 0:
+        delta = TB_PERIOD_PS
+    await Timer(delta, unit="ps")
+
+
+async def _sample_cycle(clk):
+    """Sample DUT outputs at the SDC output-deadline phase."""
+
+    await _wait_phase(clk, TB_SAMPLE_PS)
+
+
+async def _drive_cycle(clk):
+    """Drive DUT inputs at the SDC input-delay phase."""
+
+    await _wait_phase(clk, TB_DRIVE_PS)
+
+
+async def _wait_cycles(clk, count=1):
+    """Advance whole protocol cycles using the sampling edge only."""
+
+    for _ in range(max(0, int(count))):
+        await _sample_cycle(clk)
+
+
+def _known_int(dut, name, context):
+    value = _get(dut, name).value
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise AssertionError(
+            f"{name} is X/Z while {context}; check reset and gate-level cell model mode"
+        ) from exc
 
 
 def _drive_idle(dut):
@@ -139,7 +185,7 @@ async def init_register_bus(dut, clk=None):
 
     clk = _clock(dut, clk)
     _drive_idle(dut)
-    await _cycle(clk)
+    await _sample_cycle(clk)
 
 
 async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None, clk=None):
@@ -150,15 +196,15 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
     addr = resolve_register(reg_or_addr, regmap)
     data = parse_u32(data)
     mask = parse_u32(mask) & 0xF
+    if not mask:
+        raise ValueError(f"TL-UL write mask is zero at addr=0x{addr:08x}")
 
     dut._log.info("reg write addr=0x%08x data=0x%08x mask=0x%x", addr, data, mask)
 
-    _drive_idle(dut)
-    await _cycle(clk)
-
+    await _drive_cycle(clk)
     _get(dut, "tl_i_d_ready").value = 1
     _get(dut, "tl_i_a_valid").value = 1
-    _get(dut, "tl_i_a_opcode").value = 0  # PutFullData
+    _get(dut, "tl_i_a_opcode").value = 0 if mask == 0xF else 1  # PutFullData / PutPartialData
     _get(dut, "tl_i_a_param").value = 0
     _get(dut, "tl_i_a_size").value = 2
     _get(dut, "tl_i_a_source").value = 0
@@ -167,27 +213,32 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
     _get(dut, "tl_i_a_data").value = data
 
     guard = 0
-    while int(_get(dut, "tl_o_a_ready").value) == 0:
-        await _cycle(clk)
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_a_ready", f"waiting write a_ready addr=0x{addr:08x}"):
+            break
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting a_ready on write addr=0x{addr:08x}")
 
-    await _cycle(clk)
+    await _drive_cycle(clk)
     _get(dut, "tl_i_a_valid").value = 0
 
     guard = 0
-    while int(_get(dut, "tl_o_d_valid").value) == 0:
-        await _cycle(clk)
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_d_valid", f"waiting write d_valid addr=0x{addr:08x}"):
+            break
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting d_valid on write addr=0x{addr:08x}")
 
-    if int(_get(dut, "tl_o_d_error").value):
+    if _known_int(dut, "tl_o_d_error", f"checking write response addr=0x{addr:08x}"):
         raise AssertionError(f"TL-UL write error at addr=0x{addr:08x}")
 
+    await _drive_cycle(clk)
     _drive_idle(dut)
-    await _cycle(clk)
+    await _sample_cycle(clk)
 
 
 async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
@@ -199,9 +250,7 @@ async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
 
     dut._log.info("reg read addr=0x%08x", addr)
 
-    _drive_idle(dut)
-    await _cycle(clk)
-
+    await _drive_cycle(clk)
     _get(dut, "tl_i_d_ready").value = 1
     _get(dut, "tl_i_a_valid").value = 1
     _get(dut, "tl_i_a_opcode").value = 4  # Get
@@ -213,30 +262,35 @@ async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
     _get(dut, "tl_i_a_data").value = 0
 
     guard = 0
-    while int(_get(dut, "tl_o_a_ready").value) == 0:
-        await _cycle(clk)
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_a_ready", f"waiting read a_ready addr=0x{addr:08x}"):
+            break
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting a_ready on read addr=0x{addr:08x}")
 
-    await _cycle(clk)
+    await _drive_cycle(clk)
     _get(dut, "tl_i_a_valid").value = 0
 
     guard = 0
-    while int(_get(dut, "tl_o_d_valid").value) == 0:
-        await _cycle(clk)
+    while True:
+        await _sample_cycle(clk)
+        if _known_int(dut, "tl_o_d_valid", f"waiting read d_valid addr=0x{addr:08x}"):
+            break
         guard += 1
         if guard > 1000:
             raise TimeoutError(f"timeout waiting d_valid on read addr=0x{addr:08x}")
 
-    if int(_get(dut, "tl_o_d_error").value):
+    if _known_int(dut, "tl_o_d_error", f"checking read response addr=0x{addr:08x}"):
         raise AssertionError(f"TL-UL read error at addr=0x{addr:08x}")
 
-    data = int(_get(dut, "tl_o_d_data").value) & 0xFFFFFFFF
+    data = _known_int(dut, "tl_o_d_data", f"reading response data addr=0x{addr:08x}") & 0xFFFFFFFF
     dut._log.info("reg read addr=0x%08x data=0x%08x", addr, data)
 
+    await _drive_cycle(clk)
     _drive_idle(dut)
-    await _cycle(clk)
+    await _sample_cycle(clk)
 
     return data
 
@@ -273,8 +327,7 @@ async def run_register_config(dut, cfg_path, *, regmap=None, clk=None):
         await write_register(dut, reg, data, mask, regmap=merged_map, clk=clk)
         writes += 1
 
-        for _ in range(max(0, wait_cycles)):
-            await _cycle(_clock(dut, clk))
+        await _wait_cycles(_clock(dut, clk), wait_cycles)
 
     if writes == 0:
         dut._log.info("no register config writes from %s; continuing", path)

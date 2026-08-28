@@ -3,24 +3,24 @@
 #
 # Analysis : power_estimate
 # Design   : uart
-# Variant  : dev
+# Variant  : reference
 # PDK      : ihp-sg13g2
 # Stage    : post_syn
-# Corner   : ff
+# Corner   : tt
 # Mode     : not applicable
 # Workload : not applicable
 # Top      : uart
 #
 # Inputs:
-#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/ihp-sg13g2/uart_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/uart.sdc
+#   Netlist       : /tmp/flexsoc-reference-uart/runs/uart/reference/syn/ihp-sg13g2/uart_synth.v
+#   SDC           : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/uart.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/power/estimate/ff
+#   Report dir    : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/power/estimate/template_reports
 #
 # Limitations:
 #   - This is a vectorless estimate; it does not represent a simulated workload.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/power/estimate/ff}
+set report_dir {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/power/estimate/template_reports}
 file mkdir $report_dir
-set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib}
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/ihp-sg13g2/uart_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/uart.sdc}
+set netlist {/tmp/flexsoc-reference-uart/runs/uart/reference/syn/ihp-sg13g2/uart_synth.v}
+set sdc {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/uart.sdc}
 set spef {}
 set top {uart}
 set stage {post_syn}
@@ -148,7 +148,7 @@ puts $fp "analysis=power_estimate activity_source=input_assumption"
 puts $fp "activity_model=input"
 puts $fp "activity=0.1"
 puts $fp "duty=0.5"
-puts $fp "corner=ff stage=post_syn"
+puts $fp "corner=tt stage=post_syn"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
 puts $fp "sdc=$sdc"
@@ -163,8 +163,5 @@ flexsoc_append_opensta $report check_setup -verbose
 flexsoc_section $report {Power summary}
 # Report average internal, switching, leakage, and total cell power for the complete design.
 flexsoc_append_opensta $report report_power
-flexsoc_section $report {Highest-power instances}
-# Rank the highest-power instances to expose the dominant contributors in this corner/workload.
-flexsoc_append_opensta $report report_power -highest_power_instances 20
 puts "report=$report"
-puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_estimate corner=ff mode=n/a workload=n/a}
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=power_estimate corner=tt mode=n/a workload=n/a}

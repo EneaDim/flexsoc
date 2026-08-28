@@ -3,24 +3,24 @@
 #
 # Analysis : sta
 # Design   : uart
-# Variant  : dev
+# Variant  : reference
 # PDK      : ihp-sg13g2
 # Stage    : post_syn
-# Corner   : ff
-# Mode     : hold
+# Corner   : tt
+# Mode     : setup
 # Workload : not applicable
 # Top      : uart
 #
 # Inputs:
-#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/ihp-sg13g2/uart_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/uart.sdc
+#   Netlist       : /tmp/flexsoc-reference-uart/runs/uart/reference/syn/ihp-sg13g2/uart_synth.v
+#   SDC           : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/uart.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/sta/ff/hold
+#   Report dir    : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/sta/template_reports
 #
 # Limitations:
 #   - Violating, near-critical and unconstrained paths are separate sections of one report.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/sta/ff/hold}
+set report_dir {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/sta/template_reports}
 file mkdir $report_dir
-set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_fast_1p65V_m40C.lib}
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/ihp-sg13g2/uart_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/ihp-sg13g2/uart.sdc}
+set netlist {/tmp/flexsoc-reference-uart/runs/uart/reference/syn/ihp-sg13g2/uart_synth.v}
+set sdc {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/uart.sdc}
 set spef {}
 set top {uart}
 set stage {post_syn}
@@ -139,14 +139,14 @@ check_setup -verbose
 
 puts "=== Step 7/7: Analysis-specific reporting ==="
 
-set delay_type min
+set delay_type max
 set endpoint_group_limit 10000
 set endpoint_path_limit 10
-set near_critical_limit 0.100000
+set near_critical_limit 0.200000
 # Create one compact timing report for this corner/mode and write its analysis context first.
 set report [file join $report_dir timing.rpt]
 set fp [open $report w]
-puts $fp "analysis=sta corner=ff mode=hold stage=post_syn"
+puts $fp "analysis=sta corner=tt mode=setup stage=post_syn"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
 puts $fp "sdc=$sdc"
@@ -155,6 +155,11 @@ close $fp
 flexsoc_section $report Units
 # Record the unit system used by all timing, slew, and capacitance values below.
 flexsoc_append_opensta $report report_units
+flexsoc_section $report {Delay model}
+set fp [open $report a]
+puts $fp "clock_network=ideal"
+puts $fp "interconnect=none"
+close $fp
 flexsoc_section $report {Timing summary}
 flexsoc_label $report "wns $delay_type"
 # Report worst negative slack for the selected max/setup or min/hold analysis.
@@ -177,4 +182,4 @@ flexsoc_section $report {Unconstrained paths}
 # Report paths with no valid timing requirement; review these instead of treating them as passing timing.
 flexsoc_append_opensta $report report_checks -unconstrained -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count 1 -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6
 puts "report=$report"
-puts {FLEXSOC_SIGNOFF_COMPLETE analysis=sta corner=ff mode=hold workload=n/a}
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=sta corner=tt mode=setup workload=n/a}

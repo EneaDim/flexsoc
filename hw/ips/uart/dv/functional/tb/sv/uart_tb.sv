@@ -5,14 +5,17 @@
 
 module uart_tb;
   // Parameters
-  parameter int CLK_PERIOD = 20; // ns
+  parameter int CLK_PERIOD = 10; // ns
+  parameter int INITIAL_RESET_CYCLES = 5;
 
   // Inputs
   logic clk_i;
   logic rst_ni;
+  logic [108:0] tl_i;
   logic cio_rx_i;
 
   // Outputs
+  logic [65:0] tl_o;
   logic cio_tx_o;
   logic cio_tx_en_o;
 
@@ -41,30 +44,35 @@ module uart_tb;
     forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
   end
 
-  // Dump VCD
-  string vcd_path;
+  string wave_path;
   initial begin
-    if (!$value$plusargs("VCD=%s", vcd_path)) begin
-      `ifndef SYN
-        vcd_path = "";
-      `else
-        vcd_path = "";
-      `endif
+    if (!$value$plusargs("WAVE=%s", wave_path)) begin
+      if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
     end
-    $display("[TB] dumpfile = %s", vcd_path);
-    $dumpfile(vcd_path);
-    $dumpvars(0, uart_tb);
+    if (wave_path != "") begin
+      $display("[TB] dumpfile = %s", wave_path);
+      $dumpfile(wave_path);
+      $dumpvars(0, uart_tb);
+    end
   end
 
   // SDF backannotation
-  `ifndef VERILATOR
+  `ifdef FLEXSOC_ENABLE_SDF
     string sdf_path;
     initial begin
-      if (!$value$plusargs("SDF=%s", sdf_path)) begin
-        sdf_path = "";
+      if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+      if (sdf_path != "") begin
+        `ifdef FLEXSOC_SDF_MIN
+          $display("[TB] sdf = %s (MINIMUM)", sdf_path);
+          $sdf_annotate(sdf_path, uart_tb.u_uart);
+        `elsif FLEXSOC_SDF_TYP
+          $display("[TB] sdf = %s (TYPICAL)", sdf_path);
+          $sdf_annotate(sdf_path, uart_tb.u_uart);
+        `else
+          $display("[TB] sdf = %s (MAXIMUM)", sdf_path);
+          $sdf_annotate(sdf_path, uart_tb.u_uart);
+        `endif
       end
-      $display("[TB] sdf = %s", sdf_path);
-      $sdf_annotate(sdf_path, uart_tb.u_uart, , , "MAXIMUM");
     end
   `endif
 
@@ -104,11 +112,18 @@ module uart_tb;
     error_count = 0;
     tb_select_test(cfg_path, data_in_path, data_out_path);
     rst_ni = '0;
+    tl_i = '0;
+    cio_rx_i = '1;
     tl_if.init();
-    cio_rx_i = '0;
-    #(CLK_PERIOD);
     rst_ni = 1'b1;
-    #(CLK_PERIOD);
+    repeat (2) @(posedge clk_i);
+    @(negedge clk_i); #1;
+    rst_ni = 1'b0;
+    $display("[TB] initial reset pulse cycles=%0d", INITIAL_RESET_CYCLES);
+    repeat (INITIAL_RESET_CYCLES) @(posedge clk_i);
+    @(negedge clk_i); #1;
+    rst_ni = 1'b1;
+    repeat (2) @(posedge clk_i);
     $display("\nRunning...\n");
     #(CLK_PERIOD*10);
     run_reg_config(cfg_path);

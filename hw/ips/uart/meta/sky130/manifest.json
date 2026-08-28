@@ -1,26 +1,26 @@
 {
-  "schema_version": 5,
+  "schema_version": 9,
   "run": {
     "top": "uart",
     "run_top": "uart",
-    "run_id": "dev",
+    "run_id": "reference",
     "pdk": "sky130",
-    "run_root": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev",
+    "run_root": "/tmp/flexsoc-reference-uart/runs/uart/reference",
     "artifacts": {
-      "synthesis": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130",
-      "equivalence": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/equivalence/rtl_vs_syn",
-      "post_syn_sim": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/dv/functional/sim/post_syn/sky130",
-      "implementation": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/impl/sky130",
-      "sdc": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/uart.sdc",
-      "sta": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/sta",
-      "power": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/power",
-      "fusion": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/fusion",
-      "sdf": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/sdf",
-      "meta": "/home/eneadim/github/flexsoc/workspace/runs/uart/dev/meta/sky130"
+      "synthesis": "/tmp/flexsoc-reference-uart/runs/uart/reference/syn/sky130",
+      "equivalence": "/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/equivalence/rtl_vs_syn",
+      "post_syn_sim": "/tmp/flexsoc-reference-uart/runs/uart/reference/dv/functional/sim/post_syn/sky130",
+      "implementation": "/tmp/flexsoc-reference-uart/runs/uart/reference/impl/sky130",
+      "sdc": "/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/uart.sdc",
+      "sta": "/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/sta",
+      "power": "/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/power",
+      "fusion": "/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/fusion",
+      "sdf": "/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/sdf",
+      "meta": "/tmp/flexsoc-reference-uart/runs/uart/reference/meta/sky130"
     }
   },
   "git": {
-    "commit": "7361e5a1e6ade97c195fbabc9c2508af22cc963d",
+    "commit": "34907310f0ed75e9eee5d9c0a909149b7996e7ec",
     "dirty": true
   },
   "environment": {
@@ -29,12 +29,12 @@
     "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.39",
     "machine": "x86_64",
     "uv_lock_sha256": "8ca2bb2cfb58290c0be8e6a7afe0505b588a2ed372ef50942d958fa3af223ab2",
-    "toolchain_lock_sha256": "f07f17ef2360cc259ca53e71377d09f41680181924e18c2b4863e1d5cbf98dbc"
+    "toolchain_lock_sha256": "17e1e89c390337ba0c45ca6a6fefd32ac6a4604e204ba39f8e4c054d550775b8"
   },
   "toolchain": {
     "ok": true,
-    "path": "/home/eneadim/github/flexsoc/src/flexsoc/backend/toolchain.lock",
-    "sha256": "f07f17ef2360cc259ca53e71377d09f41680181924e18c2b4863e1d5cbf98dbc",
+    "path": "/home/eneadim/github/flexsoc/src/flexsoc/backend/core/toolchain.lock",
+    "sha256": "17e1e89c390337ba0c45ca6a6fefd32ac6a4604e204ba39f8e4c054d550775b8",
     "lock_version": "3",
     "expected": {
       "slang": {
@@ -66,12 +66,13 @@
         "locked_version": "3.2.4"
       },
       "sta": {
-        "locked_version": "d5761004",
+        "locked_version": "3.1.0",
+        "minimum_version": "3.1.0",
         "ref": "d5761004cd2cd2bcfa85d73327867966c279c83d"
       },
       "iverilog": {
         "locked_version": "13.0",
-        "minimum_version": "12.0"
+        "minimum_version": "13.0"
       },
       "gtkwave": {
         "locked_version": "3.3.127"
@@ -88,10 +89,145 @@
         "ref": "d3518f1b5c996a876b72a1a984bb39d3572c47dc"
       },
       "openroad": {
-        "ref_prefix": "5cee43de602ff83936130928481ac7b94840dc50",
+        "ref_prefix": "f552262465b0bfef8f097e258f94bc501d01e19d",
         "install_mode": "source-ubuntu24"
+      },
+      "klayout": {
+        "locked_version": "0.30.7"
       }
     }
+  },
+  "analysis": {
+    "lint": {
+      "path": "logs/lint"
+    },
+    "cdc_rdc": {
+      "path": "analysis/cdc_rdc/summary.json",
+      "sha256": "a440a983c628c3921cc5290ffe0a351a5a02b65f58699bf38a62b9ac75f75705",
+      "status": "review",
+      "cdc_raw": 0,
+      "rdc_raw": 0,
+      "obligations": 1
+    }
+  },
+  "flow": {
+    "order": [
+      "lint",
+      "cdc_rdc",
+      "functional",
+      "formal",
+      "synthesis",
+      "equivalence",
+      "pre_implementation_signoff",
+      "implementation",
+      "post_implementation_signoff"
+    ],
+    "stages": {
+      "lint": "pass",
+      "cdc_rdc": "review",
+      "functional": "pass",
+      "formal": "pass",
+      "synthesis": "pass",
+      "equivalence": "partial",
+      "pre_implementation_signoff": "pass",
+      "implementation": "missing",
+      "post_implementation_signoff": "incomplete"
+    },
+    "status": "review",
+    "complete": false
+  },
+  "implementation": null,
+  "signoff": {
+    "equivalence": {
+      "status": "partial",
+      "proven": 0,
+      "failed": 0,
+      "errors": 0,
+      "timeouts": 0,
+      "unknown": 8,
+      "total": 8,
+      "percent": 0.0,
+      "strategies": {}
+    },
+    "sdf": {
+      "status": "pass",
+      "count": 3
+    },
+    "sta": {
+      "status": "pass",
+      "clock_model": "ideal",
+      "interconnect": "none"
+    },
+    "power": {
+      "status": "pass"
+    },
+    "power_activity": {
+      "status": "pass",
+      "passed": 30,
+      "total": 30
+    },
+    "fusion": {
+      "status": "pass",
+      "passed": 30,
+      "total": 30
+    },
+    "post_syn_gls": {
+      "status": "pass",
+      "passed": 50,
+      "total": 50,
+      "failed": 0,
+      "missing": 0,
+      "interconnect_delays": "none"
+    }
+  },
+  "physical_signoff": null,
+  "closure": {
+    "order": [
+      "lint",
+      "cdc_rdc",
+      "formal",
+      "regression",
+      "synthesis",
+      "equivalence",
+      "sdf",
+      "sta",
+      "power",
+      "post_syn_gls",
+      "power_activity",
+      "fusion",
+      "implementation",
+      "physical_signoff",
+      "post_pnr_sdf",
+      "post_pnr_sta",
+      "post_pnr_gls",
+      "post_pnr_power",
+      "post_pnr_power_activity",
+      "post_pnr_fusion"
+    ],
+    "stages": {
+      "lint": "pass",
+      "cdc_rdc": "review",
+      "regression": "pass",
+      "formal": "pass",
+      "synthesis": "pass",
+      "equivalence": "partial",
+      "sdf": "pass",
+      "sta": "pass",
+      "power": "pass",
+      "post_syn_gls": "pass",
+      "power_activity": "pass",
+      "fusion": "pass",
+      "implementation": "missing",
+      "physical_signoff": "missing",
+      "post_pnr_sdf": "missing",
+      "post_pnr_sta": "missing",
+      "post_pnr_power": "missing",
+      "post_pnr_gls": "missing",
+      "post_pnr_power_activity": "missing",
+      "post_pnr_fusion": "missing"
+    },
+    "status": "incomplete",
+    "complete": false
   },
   "tools": {
     "uv": {
@@ -185,7 +321,7 @@
       "install_mode": null
     },
     "btorsim": {
-      "version": "*** 'btorsim' error: invalid command line option '--version' (try '-h')",
+      "version": "installed \u00b7 version not exposed",
       "path": "/usr/local/bin/btorsim",
       "version_ok": true,
       "lock_match": null,
@@ -195,21 +331,21 @@
       "install_mode": null
     },
     "sta": {
-      "version": "2.7.0",
-      "path": "/usr/local/OpenROAD/bin/sta",
-      "version_ok": true,
-      "lock_match": false,
-      "minimum_version": null,
-      "locked_version": "d5761004",
+      "version": "3.1.0",
+      "path": "/usr/local/bin/sta",
+      "version_ok": false,
+      "lock_match": true,
+      "minimum_version": "3.1.0",
+      "locked_version": "3.1.0",
       "locked_ref": "d5761004cd2cd2bcfa85d73327867966c279c83d",
       "install_mode": "managed"
     },
     "iverilog": {
-      "version": "Icarus Verilog version 12.0 (stable) ()",
-      "path": "/usr/bin/iverilog",
+      "version": "Icarus Verilog version 13.0 (stable) (v13_0-dirty)",
+      "path": "/usr/local/bin/iverilog",
       "version_ok": true,
-      "lock_match": false,
-      "minimum_version": "12.0",
+      "lock_match": true,
+      "minimum_version": "13.0",
       "locked_version": "13.0",
       "locked_ref": null,
       "install_mode": "managed"
@@ -265,24 +401,24 @@
       "install_mode": "managed"
     },
     "openroad": {
-      "version": "v2.0-26328-gd6e98657f1",
-      "path": "/usr/local/OpenROAD/bin/openroad",
+      "version": "26Q3-1305-gf552262465",
+      "path": "/usr/local/bin/openroad",
       "version_ok": true,
       "lock_match": false,
       "minimum_version": null,
       "locked_version": null,
-      "locked_ref": "5cee43de602ff83936130928481ac7b94840dc50",
+      "locked_ref": "f552262465b0bfef8f097e258f94bc501d01e19d",
       "install_mode": "source-ubuntu24"
     },
     "klayout": {
-      "version": "KLayout 0.28.16",
+      "version": "KLayout 0.30.7",
       "path": "/usr/bin/klayout",
       "version_ok": true,
-      "lock_match": null,
+      "lock_match": true,
       "minimum_version": null,
-      "locked_version": null,
+      "locked_version": "0.30.7",
       "locked_ref": null,
-      "install_mode": null
+      "install_mode": "managed"
     }
   }
 }

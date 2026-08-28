@@ -3,24 +3,24 @@
 #
 # Analysis : fusion_analysis
 # Design   : uart
-# Variant  : dev
+# Variant  : reference
 # PDK      : sky130
 # Stage    : post_syn
-# Corner   : ss
-# Mode     : hold
-# Workload : smoke_sv_ss
+# Corner   : tt
+# Mode     : setup
+# Workload : GLS_WORKLOAD_REQUIRED
 # Top      : uart
 #
 # Inputs:
-#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib
+#   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/uart_synth.v
-#   SDC           : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/uart.sdc
+#   Netlist       : /tmp/flexsoc-reference-uart/runs/uart/reference/syn/sky130/uart_synth.v
+#   SDC           : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/uart.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/power/activity/captures/uart_sky130_smoke_sv_ss.vcd
-#   Activity scope: uart_tb/u_uart
-#   GLS report    : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/dv/functional/sim/post_syn/sky130/uart_post_syn_smoke_sv_ss.json
-#   Report dir    : /home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/fusion/smoke_sv_ss/hold
+#   VCD or SAIF   : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
+#   Activity scope: DUT_SCOPE_REQUIRED
+#   GLS report    : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/fusion/template_reports
 #
 # Limitations:
 #   - Timing and average power use the same netlist, corner, mode and activity trace.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/fusion/smoke_sv_ss/hold}
+set report_dir {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/fusion/template_reports}
 file mkdir $report_dir
-set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib}
+set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/syn/sky130/uart_synth.v}
-set sdc {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/uart.sdc}
+set netlist {/tmp/flexsoc-reference-uart/runs/uart/reference/syn/sky130/uart_synth.v}
+set sdc {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/uart.sdc}
 set spef {}
 set top {uart}
 set stage {post_syn}
@@ -200,8 +200,8 @@ proc flexsoc_append_activity_coverage {path} {
 }
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/power/activity/captures/uart_sky130_smoke_sv_ss.vcd}
-set activity_scope {uart_tb/u_uart}
+set activity_file {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
 puts "activity_scope=$activity_scope"
@@ -218,17 +218,17 @@ if {$activity_ext eq ".saif"} {
   exit 2
 }
 
-set delay_type min
+set delay_type max
 set endpoint_path_limit 10
 # Create the discovery report that keeps timing and power in the same netlist/corner/mode/activity context.
 set report [file join $report_dir fusion.rpt]
 set fp [open $report w]
-puts $fp "analysis=fusion_analysis corner=ss mode=hold stage=post_syn"
-puts $fp "workload=smoke_sv_ss"
+puts $fp "analysis=fusion_analysis corner=tt mode=setup stage=post_syn"
+puts $fp "workload=GLS_WORKLOAD_REQUIRED"
 puts $fp "methodology=staged_public_opensta"
 puts $fp "path_power_semantics=average_instance_power_in_same_analysis_context"
-puts $fp "activity_file=/home/eneadim/github/flexsoc/workspace/runs/uart/dev/signoff/sky130/power/activity/captures/uart_sky130_smoke_sv_ss.vcd"
-puts $fp "activity_scope=uart_tb/u_uart"
+puts $fp "activity_file=/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
 puts $fp "sdc=$sdc"
@@ -253,9 +253,10 @@ flexsoc_append_opensta $report report_power
 flexsoc_section $report {Worst timing paths (violated or met)}
 # Discover the worst paths even when timing is met; Python later correlates their gates with instance power.
 flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count $endpoint_path_limit -endpoint_path_count 1 -unique_paths_to_endpoint -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6
-# Discover the highest-power instances into a transient machine-parsed report used by the second fusion pass.
+# Collect public per-instance power rows; Python ranks the hottest instances for the second fusion pass.
 set highest_power_report [file join $report_dir .highest_power.rpt]
 file delete -force $highest_power_report
-flexsoc_append_opensta $highest_power_report report_power -highest_power_instances 20 -digits 12
+set all_instances [get_cells -hierarchical *]
+flexsoc_append_opensta $highest_power_report report_power -instances $all_instances -digits 12
 puts "report=$report"
-puts {FLEXSOC_SIGNOFF_COMPLETE analysis=fusion_analysis corner=ss mode=hold workload=smoke_sv_ss}
+puts {FLEXSOC_SIGNOFF_COMPLETE analysis=fusion_analysis corner=tt mode=setup workload=GLS_WORKLOAD_REQUIRED}

@@ -1,90 +1,151 @@
-`timescale 1ns/1ps
+      `timescale 1ns/1ps
+      module uart_tb;
+        logic clk_i;
+        logic rst_ni;
+        logic cio_rx_i;
+logic cio_tx_o;
+logic cio_tx_en_o;
+        logic         tl_i_a_valid;
+        logic [2:0]   tl_i_a_opcode;
+        logic [2:0]   tl_i_a_param;
+        logic [1:0]   tl_i_a_size;
+        logic [7:0]   tl_i_a_source;
+        logic [31:0]  tl_i_a_address;
+        logic [3:0]   tl_i_a_mask;
+        logic [31:0]  tl_i_a_data;
+        logic         tl_i_d_ready;
+        logic         tl_o_d_valid;
+        logic [2:0]   tl_o_d_opcode;
+        logic [31:0]  tl_o_d_data;
+        logic         tl_o_d_error;
+        logic         tl_o_a_ready;
+        logic [108:0] tl_i;
+        logic [65:0]  tl_o;
 
-// Auto-generated Cocotb TL-UL wrapper for uart.
-// Edit setup_cocotb.py instead of this generated file.
-module uart_tb;
+        localparam logic [2:0] FLEXSOC_TL_PUT_FULL    = 3'h0;
+localparam logic [2:0] FLEXSOC_TL_PUT_PARTIAL = 3'h1;
+localparam logic [2:0] FLEXSOC_TL_GET         = 3'h4;
 
-  // Clock and reset.
-  logic clk_i;
-  logic rst_ni;
-
-  // Scalar DUT ports discovered from the RTL header.
-  logic cio_rx_i;
-  logic cio_tx_o;
-  logic cio_tx_en_o;
-
-  // TL-UL request channel fields driven from Cocotb.
-  logic                       tl_i_a_valid;
-  tlul_pkg::tl_a_op_e         tl_i_a_opcode;
-  logic [2:0]                 tl_i_a_param;
-  logic [top_pkg::TL_SZW-1:0] tl_i_a_size;
-  logic [top_pkg::TL_AIW-1:0] tl_i_a_source;
-  logic [top_pkg::TL_AW-1:0]  tl_i_a_address;
-  logic [top_pkg::TL_DBW-1:0] tl_i_a_mask;
-  logic [top_pkg::TL_DW-1:0]  tl_i_a_data;
-  logic                       tl_i_d_ready;
-
-  // TL-UL response channel fields sampled by Cocotb.
-  logic                       tl_o_d_valid;
-  tlul_pkg::tl_d_op_e         tl_o_d_opcode;
-  logic [top_pkg::TL_DW-1:0]  tl_o_d_data;
-  logic                       tl_o_d_error;
-  logic                       tl_o_a_ready;
-
-  // Packed TL-UL buses connected to the DUT.
-  tlul_pkg::tl_h2d_t          tl_i;
-  tlul_pkg::tl_d2h_t          tl_o;
-
-  assign tl_i.a_valid   = tl_i_a_valid;
-  assign tl_i.a_opcode  = tl_i_a_opcode;
-  assign tl_i.a_param   = tl_i_a_param;
-  assign tl_i.a_size    = tl_i_a_size;
-  assign tl_i.a_source  = tl_i_a_source;
-  assign tl_i.a_address = tl_i_a_address;
-  assign tl_i.a_mask    = tl_i_a_mask;
-  assign tl_i.a_data    = tl_i_a_data;
-  assign tl_i.d_ready   = tl_i_d_ready;
-
-  // Generate TL-UL integrity sideband values from the unpacked fields.
-  logic [tlul_pkg::H2DCmdIntgWidth-1:0] cmd_intg_calc;
-  logic [tlul_pkg::DataIntgWidth-1:0]   data_intg_calc;
-
-  always_comb begin
-    /* verilator lint_off IMPLICITSTATIC */
-    tlul_pkg::tl_h2d_t t = '0;
-    /* verilator lint_on */
-
-    t.a_address         = tl_i_a_address;
-    t.a_opcode          = tl_i_a_opcode;
-    t.a_mask            = tl_i_a_mask;
-    t.a_user.instr_type = prim_mubi_pkg::MuBi4False;
-
-    cmd_intg_calc       = tlul_pkg::get_cmd_intg(t);
-    data_intg_calc      = tlul_pkg::get_data_intg(tl_i_a_data);
+function automatic logic [6:0] flexsoc_tlul_data_intg(input logic [31:0] data_i);
+  logic [38:0] data_o;
+  begin
+    data_o = {7'b0, data_i};
+    data_o[32] = ^(data_o & 39'h002606BD25);
+    data_o[33] = ^(data_o & 39'h00DEBA8050);
+    data_o[34] = ^(data_o & 39'h00413D89AA);
+    data_o[35] = ^(data_o & 39'h0031234ED1);
+    data_o[36] = ^(data_o & 39'h00C2C1323B);
+    data_o[37] = ^(data_o & 39'h002DCC624C);
+    data_o[38] = ^(data_o & 39'h0098505586);
+    data_o = data_o ^ 39'h2A00000000;
+    flexsoc_tlul_data_intg = data_o[38:32];
   end
+endfunction
 
-  assign tl_i.a_user.instr_type = prim_mubi_pkg::MuBi4False;
-  assign tl_i.a_user.cmd_intg   = cmd_intg_calc;
-  assign tl_i.a_user.data_intg  = data_intg_calc;
-
-  assign tl_o_d_valid  = tl_o.d_valid;
-  assign tl_o_d_opcode = tl_o.d_opcode;
-  assign tl_o_d_data   = tl_o.d_data;
-  assign tl_o_d_error  = tl_o.d_error;
-  assign tl_o_a_ready  = tl_o.a_ready;
-
-  // Wave dump for local debug.
-  initial begin
-    $dumpfile("uart_tb.vcd");
-    $dumpvars(0, uart_tb);
-    #1;
+function automatic logic [6:0] flexsoc_tlul_cmd_intg(
+  input logic [2:0] opcode,
+  input logic [31:0] address,
+  input logic [3:0] mask
+);
+  logic [56:0] payload;
+  logic [63:0] data_o;
+  begin
+    payload = {14'b0, 4'h9, address, opcode, mask};
+    data_o = {7'b0, payload};
+    data_o[57] = ^(data_o & 64'h0103FFF800007FFF);
+    data_o[58] = ^(data_o & 64'h017C1FF801FF801F);
+    data_o[59] = ^(data_o & 64'h01BDE1F87E0781E1);
+    data_o[60] = ^(data_o & 64'h01DEEE3B8E388E22);
+    data_o[61] = ^(data_o & 64'h01EF76CDB2C93244);
+    data_o[62] = ^(data_o & 64'h01F7BB56D5525488);
+    data_o[63] = ^(data_o & 64'h01FBDDA769A46910);
+    data_o = data_o ^ 64'h5400000000000000;
+    flexsoc_tlul_cmd_intg = data_o[63:57];
   end
+endfunction
 
-  // Device under test.
-  uart u_uart (
-    .clk_i(clk_i),
-    .rst_ni(rst_ni),
-    .*
-  );
+function automatic logic [108:0] flexsoc_tlul_h2d(
+  input logic valid,
+  input logic [2:0] opcode,
+  input logic [2:0] param,
+  input logic [1:0] size,
+  input logic [7:0] source,
+  input logic [31:0] address,
+  input logic [3:0] mask,
+  input logic [31:0] data,
+  input logic ready
+);
+  logic [108:0] value;
+  begin
+    value = '0;
+    value[108]     = valid;
+    value[107:105] = opcode;
+    value[104:102] = param;
+    value[101:100] = size;
+    value[99:92]   = source;
+    value[91:60]   = address;
+    value[59:56]   = mask;
+    value[55:24]   = data;
+    value[23:19]   = 5'b0;
+    value[18:15]   = 4'h9;
+    value[14:8]    = flexsoc_tlul_cmd_intg(opcode, address, mask);
+    value[7:1]     = flexsoc_tlul_data_intg(data);
+    value[0]       = ready;
+    flexsoc_tlul_h2d = value;
+  end
+endfunction
 
-endmodule
+        initial begin
+          cio_rx_i = '1;
+        end
+
+        assign tl_i = flexsoc_tlul_h2d(
+          tl_i_a_valid, tl_i_a_opcode, tl_i_a_param, tl_i_a_size,
+          tl_i_a_source, tl_i_a_address, tl_i_a_mask, tl_i_a_data, tl_i_d_ready
+        );
+        assign tl_o_d_valid  = tl_o[65];
+        assign tl_o_d_opcode = tl_o[64:62];
+        assign tl_o_d_data   = tl_o[47:16];
+        assign tl_o_d_error  = tl_o[1];
+        assign tl_o_a_ready  = tl_o[0];
+
+        string wave_path;
+        initial begin
+          if (!$value$plusargs("WAVE=%s", wave_path)) begin
+            if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
+          end
+          if (wave_path != "") begin
+            `ifdef FLEXSOC_COCOTB_WAVE_OWNER
+              $display("[TB] dumpfile = %s owner=cocotb", wave_path);
+            `else
+              $display("[TB] dumpfile = %s owner=wrapper", wave_path);
+              $dumpfile(wave_path);
+              $dumpvars(0, uart_tb);
+            `endif
+          end
+          #1;
+        end
+        `ifdef FLEXSOC_ENABLE_SDF
+          string sdf_path;
+          initial begin
+            if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+            if (sdf_path != "") begin
+              `ifdef FLEXSOC_SDF_MIN
+                $display("[TB] sdf = %s scope=u_uart mode=MINIMUM", sdf_path);
+                $sdf_annotate(sdf_path, u_uart);
+              `elsif FLEXSOC_SDF_TYP
+                $display("[TB] sdf = %s scope=u_uart mode=TYPICAL", sdf_path);
+                $sdf_annotate(sdf_path, u_uart);
+              `else
+                $display("[TB] sdf = %s scope=u_uart mode=MAXIMUM", sdf_path);
+                $sdf_annotate(sdf_path, u_uart);
+              `endif
+            end
+          end
+        `endif
+        uart u_uart (
+          .clk_i(clk_i),
+          .rst_ni(rst_ni),
+          .*
+        );
+      endmodule

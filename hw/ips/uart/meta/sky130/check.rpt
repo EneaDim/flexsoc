@@ -1,58 +1,53 @@
 FlexSoC run check · uart
+Technical REVIEW · Provenance CLEAN
 
-Closure
-Stage           Status
-lint            PASS  
-regression      PASS  
-formal          PASS  
-synthesis       PASS  
-equivalence     PASS  
-sdf             PASS  
-sta             PASS  
-power           PASS  
-post_syn_gls    PASS  
-power_activity  PASS  
-Standard closure: PASS
+Flow
+Main step                    Status    
+RTL lint                     PASS      
+CDC / RDC                    REVIEW    
+Functional verification      PASS      
+Formal verification          PASS      
+Synthesis                    PASS      
+RTL ↔ synthesis equivalence  PARTIAL   
+Pre-implementation sign-off  PASS      
+Implementation / PnR         MISSING   
+Post Sign-Off                INCOMPLETE
+Run status: REVIEW
 
-Verification summary
-Functional regression  PASS              
-Functional coverage    4661/13419  34.73%
-Design coverage        975/1574  61.94%  
-Formal stages          6/6  PASS         
-Formal BMC             2/2  PASS         
-Formal PROVE           2/2  PASS         
-Formal COVER           2/2  PASS         
+Provenance
+Setup                   State  Action
+setup_cdc_rdc           CLEAN  -     
+setup_cocotb            CLEAN  -     
+setup_formal_cover      CLEAN  -     
+setup_formal_csr_cover  CLEAN  -     
+setup_formal_csr_prove  CLEAN  -     
+setup_formal_prove      CLEAN  -     
+setup_signoff           CLEAN  -     
+setup_syn               CLEAN  -     
+setup_tb                CLEAN  -     
 
-Sign-off summary
-RTL ↔ synthesis     20/20  100.00%  PASS
-SDF                 PASS                
-STA                 PASS                
-Power estimate      PASS                
-Post-synthesis GLS  50/50  PASS         
-Activity power      30/30  PASS         
-
-Lint  Slang → Verilator
+RTL lint  Slang → Verilator
 Tool       Status  Errors  Warnings  Latch  Width  Unused
-slang      PASS         0         0      0      0       0
-verilator  PASS         0       143      0      0      29
+slang      PASS         0         1      0      0       0
+verilator  PASS         0       202      0      0       0
 
-Functional regression
+CDC / RDC  post-lint structural analysis
+Status       REVIEW                                      
+Domains      clocks=1 · resets=1 · sequential=66         
+CDC          raw=0 · safe=0 · review=0 · warn=0 · error=0
+RDC          raw=0 · safe=0 · review=1 · warn=0 · error=0
+Obligations  1                                           
+Log          logs/analysis/cdc_rdc/cdc_rdc.log           
+
+Functional verification
 Status           PASS              
 Generated tests  10                
 sv logs          10                
 cocotb logs      10                
-Coverage all     4661/13419  34.73%
-Coverage design  975/1574  61.94%  
+Coverage all     5011/13437  37.29%
+Coverage design  977/1574  62.07%  
 
-Functional coverage — scope × type
-Scope                  line             toggle             expr           branch  fsm  user               total
-design       35/35  100.00%   775/1358  57.07%    83/89  93.26%    82/92  89.13%    -     -    975/1574  61.94%
-registers     45/47  95.74%   739/1446  51.11%    24/47  51.06%     2/2  100.00%    -     -    810/1542  52.53%
-common       76/1742  4.36%  1461/2908  50.24%  158/3482  4.54%   97/188  51.60%    -     -   1792/8320  21.54%
-other       578/680  85.00%    283/778  36.38%   85/185  45.95%  138/340  40.59%    -     -   1084/1983  54.66%
-all        734/2504  29.31%  3258/6490  50.20%  350/3803  9.20%  319/622  51.29%    -     -  4661/13419  34.73%
-
-Formal
+Formal verification
 Suite       Stage  Status  Time  Traces
 csr         bmc    PASS      3s       0
 csr         prove  PASS      0s       0
@@ -62,94 +57,29 @@ properties  prove  PASS      0s       0
 properties  cover  PASS      0s       8
 
 Synthesis
-Strategy         area                   
+Strategy         area0                  
 Netlist          syn/sky130/uart_synth.v
-Cells            1311                   
-Area             14348.7616             
+Cells            1380                   
+Area             14859.2512             
 Sequential area  9680.5344              
 Errors           0                      
 Warnings         0                      
 
 RTL ↔ synthesis equivalence
-Status             PASS                                               
-Partitions proven  20/20  100.00%                                     
-Partitions failed  0                                                  
-Engine errors      0                                                  
-Timeouts           0                                                  
-Unknown            0                                                  
-Strategy sat       12/20 proven                                       
-Strategy pdr       8/8 proven                                         
-Log                logs/signoff/sky130/equivalence/uart_rtl_vs_syn.log
+Status             PARTIAL   
+Partitions proven  0/8  0.00%
+Partitions failed  0         
+Engine errors      0         
+Timeouts           0         
+Unknown            8         
+Log                None      
 
-SDF
-Corner   Bytes  Artifact                         
-ff      690661  signoff/sky130/sdf/ff/uart_ff.sdf
-ss      690508  signoff/sky130/sdf/ss/uart_ss.sdf
-tt      690508  signoff/sky130/sdf/tt/uart_tt.sdf
+Pre-implementation sign-off
+SDF                    PASS · corners=3               
+STA                    PASS · ideal clock · none      
+Gate-level simulation  50/50  PASS · interconnect none
+Power estimate         PASS                           
+Activity power         30/30  PASS                    
+Timing / power fusion  30/30  PASS                    
 
-Post-synthesis GLS · sky130
-Status     PASS                                                                                                                      
-Results    50/50 passed · 0 failed · 0 missing                                                                                       
-Tests      auto_toggle, corners, line_loopback, noise_filter, parity_reconfig, random_seed_1, random_seed_2, reconfig, rx_fifo, smoke
-Backends   sv                                                                                                                        
-Scenarios  zero, unit, ff, tt, ss                                                                                                    
-Artifacts  dv/functional/sim/post_syn/sky130                                                                                         
-
-Post-synthesis GLS results
-Scenario          sv     Closure
-zero      10/10 PASS  10/10 PASS
-unit      10/10 PASS  10/10 PASS
-ff        10/10 PASS  10/10 PASS
-tt        10/10 PASS  10/10 PASS
-ss        10/10 PASS  10/10 PASS
-
-Post-GLS activity power
-Status        PASS                                      
-Analyses      30/30 passed · 0 failed                   
-Summary JSON  signoff/sky130/power/analysis/summary.json
-Test             Backend  GLS  Corner  Activity  Total W  Status
-auto_toggle      sv       ff   ff       100.00%  0.00179  PASS  
-corners          sv       ff   ff       100.00%  0.00179  PASS  
-line_loopback    sv       ff   ff       100.00%   0.0018  PASS  
-noise_filter     sv       ff   ff       100.00%  0.00179  PASS  
-parity_reconfig  sv       ff   ff       100.00%  0.00179  PASS  
-random_seed_1    sv       ff   ff       100.00%  0.00179  PASS  
-random_seed_2    sv       ff   ff       100.00%  0.00179  PASS  
-reconfig         sv       ff   ff       100.00%  0.00179  PASS  
-rx_fifo          sv       ff   ff       100.00%  0.00179  PASS  
-smoke            sv       ff   ff       100.00%   0.0018  PASS  
-auto_toggle      sv       tt   tt       100.00%  0.00157  PASS  
-corners          sv       tt   tt       100.00%  0.00156  PASS  
-line_loopback    sv       tt   tt       100.00%  0.00158  PASS  
-noise_filter     sv       tt   tt       100.00%  0.00156  PASS  
-parity_reconfig  sv       tt   tt       100.00%  0.00157  PASS  
-random_seed_1    sv       tt   tt       100.00%  0.00156  PASS  
-random_seed_2    sv       tt   tt       100.00%  0.00156  PASS  
-reconfig         sv       tt   tt       100.00%  0.00157  PASS  
-rx_fifo          sv       tt   tt       100.00%  0.00156  PASS  
-smoke            sv       tt   tt       100.00%  0.00157  PASS  
-auto_toggle      sv       ss   ss       100.00%  0.00147  PASS  
-corners          sv       ss   ss       100.00%  0.00147  PASS  
-line_loopback    sv       ss   ss       100.00%  0.00148  PASS  
-noise_filter     sv       ss   ss       100.00%  0.00147  PASS  
-parity_reconfig  sv       ss   ss       100.00%  0.00147  PASS  
-random_seed_1    sv       ss   ss       100.00%  0.00147  PASS  
-random_seed_2    sv       ss   ss       100.00%  0.00147  PASS  
-reconfig         sv       ss   ss       100.00%  0.00147  PASS  
-rx_fifo          sv       ss   ss       100.00%  0.00147  PASS  
-smoke            sv       ss   ss       100.00%  0.00148  PASS  
-
-STA
-Corner  Mode   WNS  TNS  Viol.  Unconstr.
-ff      hold     -    -      0        740
-ff      setup    -    -      0        740
-ss      hold     -    -      0        740
-ss      setup    -    -      0        740
-tt      hold     -    -      0        740
-tt      setup    -    -      0        740
-
-Power estimate
-Corner  Total W  Internal W  Switching W  Leakage W
-ff       0.0028     0.00232     0.000479    9.8e-09
-ss      0.00228     0.00191     0.000369   2.93e-09
-tt      0.00249     0.00208     0.000412   1.72e-06
+Detailed metrics: /tmp/flexsoc-reference-ips/.ip-save.uart.qrdm_vkn/uart/meta/sky130/metrics.json

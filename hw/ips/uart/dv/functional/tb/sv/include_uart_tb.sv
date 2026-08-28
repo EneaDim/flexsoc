@@ -8,7 +8,9 @@
   `include "tlul_if.sv"
   `include "uart.sv"
 `else
-  `include "primitives.v"
-  `include "sky130_fd_sc_hd.no_tc.v"
+  `ifndef FLEXSOC_GLS_EXTERNAL_MODELS
+    `include "sg13g2_udp.v"
+    `include "sg13g2_stdcell.v"
+  `endif
   `include "uart_synth.v"
 `endif

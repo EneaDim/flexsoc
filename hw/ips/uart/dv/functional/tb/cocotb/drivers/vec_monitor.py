@@ -17,6 +17,8 @@ class LatencyMonitor:
     def __init__(self, dut, expected_path=None, *, register_reader=None):
         self.dut = dut
         self.expected = defaultdict(list)
+        self.guarded = []
+        self.last_cycle = -1
         self.register_reader = register_reader
         self._load(expected_path)
 
@@ -35,9 +37,31 @@ class LatencyMonitor:
 
             parts = line.split()
             if len(parts) < 3:
-                raise ValueError(f"{path}:{lineno}: expected cycle and command/pairs")
+                raise ValueError(
+                    f"{path}:{lineno}: expected cycle/valid signal and command/pairs"
+                )
 
-            cycle = parse_u32(parts[0])
+            first = parts[0]
+            try:
+                cycle = parse_u32(first)
+            except ValueError:
+                if not _looks_like_signal(first):
+                    raise ValueError(f"{path}:{lineno}: invalid cycle/valid token: {first}")
+                if (len(parts) - 1) % 2 != 0:
+                    raise ValueError(
+                        f"{path}:{lineno}: valid-guarded row must be "
+                        "<valid_signal> <signal> <expected> [<signal> <expected> ...]"
+                    )
+                checks = []
+                for idx in range(1, len(parts), 2):
+                    name = parts[idx]
+                    if not _looks_like_signal(name):
+                        raise ValueError(f"{path}:{lineno}: invalid signal name: {name}")
+                    checks.append((name, parse_u32(parts[idx + 1])))
+                self.guarded.append((first, checks))
+                continue
+
+            self.last_cycle = max(self.last_cycle, cycle)
             command = parts[1]
 
             if command in READ_TOKENS:
@@ -55,6 +79,22 @@ class LatencyMonitor:
                 if not _looks_like_signal(name):
                     raise ValueError(f"{path}:{lineno}: invalid signal name: {name}")
                 self.expected[cycle].append((name, parse_u32(parts[idx + 1])))
+
+    def has_pending_guarded(self):
+        return bool(self.guarded)
+
+    def _read_signal(self, name):
+        if not hasattr(self.dut, name):
+            raise AssertionError(f"unknown expected-output vector signal: {name}")
+        return int(getattr(self.dut, name).value) & 0xFFFFFFFF
+
+    def _check_signal(self, cycle, name, expected):
+        got = self._read_signal(name)
+        if got != expected:
+            raise AssertionError(
+                f"cycle={cycle} {name}: got 0x{got:08x}, expected 0x{expected:08x}"
+            )
+        self.dut._log.info("check %s == 0x%08x", name, expected)
 
     async def check(self, cycle):
         for item in self.expected.pop(cycle, []):
@@ -75,14 +115,12 @@ class LatencyMonitor:
                 self.dut._log.info("read check %s == 0x%08x mask=0x%08x", reg, expected, mask)
                 continue
 
-            expected = item[1]
-            if not hasattr(self.dut, name):
-                raise AssertionError(f"unknown expected-output vector signal: {name}")
+            self._check_signal(cycle, name, item[1])
 
-            got = int(getattr(self.dut, name).value) & 0xFFFFFFFF
-            if got != expected:
-                raise AssertionError(
-                    f"cycle={cycle} {name}: got 0x{got:08x}, expected 0x{expected:08x}"
-                )
-
-            self.dut._log.info("check %s == 0x%08x", name, expected)
+        if self.guarded:
+            valid_signal, checks = self.guarded[0]
+            if self._read_signal(valid_signal) & 0x1:
+                for name, expected in checks:
+                    self._check_signal(cycle, name, expected)
+                self.dut._log.info("guarded output row consumed on %s", valid_signal)
+                self.guarded.pop(0)
