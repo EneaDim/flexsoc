@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -146,6 +147,8 @@ class PackageFlow:
             else:
                 staged.mkdir(parents=True)
 
+            run = Path(synth_dir).parents[1]
+            self._stage_sources(staged, run)
             self._stage_synthesis(staged, pdk, synth_dir, top)
             self._stage_signoff(staged, pdk, signoff_dir, sdc_file, top)
             self._stage_equivalence(
@@ -156,8 +159,9 @@ class PackageFlow:
                 self._replace_tree(Path(impl_dir), staged / "impl" / pdk)
             self._stage_optional_reports(
                 staged, pdk, post_syn_sim_dir, coverage_dir,
-                manifest_json, metrics_json,
+                manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
             )
+            self._write_package_manifest(staged, ip_name, top)
             _clean_python_cache(staged)
 
             backup = library_root / f".{ip_name}.backup"
@@ -180,6 +184,58 @@ class PackageFlow:
             shutil.rmtree(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(source, destination, symlinks=True)
+
+    def _stage_sources(self, staged: Path, run: Path) -> None:
+        """Copy reusable source and generated collateral from the current run."""
+
+        for relative in (
+            "data", "rtl", "doc", "drivers",
+            "dv/formal/properties",
+            "dv/functional/model", "dv/functional/tests", "dv/functional/tb",
+        ):
+            source = run / relative
+            if source.is_dir():
+                self._replace_tree(source, staged / relative)
+
+    def _write_package_manifest(self, staged: Path, ip_name: str, top: str) -> None:
+        """Write the minimal native package index without duplicating design intent."""
+
+        content = {}
+        for key, relative in (
+            ("registers", "data"), ("rtl", "rtl"), ("documentation", "doc"),
+            ("drivers", "drivers"), ("functional_model", "dv/functional/model"),
+            ("functional_tests", "dv/functional/tests"),
+            ("functional_tb", "dv/functional/tb"),
+            ("formal_properties", "dv/formal/properties"),
+        ):
+            if (staged / relative).is_dir():
+                content[key] = relative
+
+        qualification = {}
+        meta = staged / "meta"
+        if meta.is_dir():
+            for branch in sorted(path for path in meta.iterdir() if path.is_dir()):
+                evidence = {}
+                for key, name in (
+                    ("manifest", "manifest.json"), ("metrics", "metrics.json"),
+                    ("provenance", "provenance.json"), ("check", "check.rpt"),
+                ):
+                    if (branch / name).is_file():
+                        evidence[key] = f"meta/{branch.name}/{name}"
+                if evidence:
+                    qualification[branch.name] = evidence
+
+        data = {
+            "schema": 1,
+            "format": "flexsoc-ip",
+            "name": ip_name,
+            "top": top,
+            "content": content,
+            "qualification": qualification,
+        }
+        (staged / "ip.json").write_text(
+            json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
     def _stage_synthesis(self, staged: Path, pdk: str, source: Path, top: str) -> None:
         destination = staged / "syn" / pdk
@@ -254,6 +310,7 @@ class PackageFlow:
         coverage_dir: Path | None,
         manifest_json: Path | None,
         metrics_json: Path | None,
+        provenance_json: Path | None,
     ) -> None:
         if post_syn_sim_dir and Path(post_syn_sim_dir).is_dir():
             reports = list(Path(post_syn_sim_dir).glob("*.json"))
@@ -270,7 +327,10 @@ class PackageFlow:
                 target.mkdir(parents=True, exist_ok=True)
                 for report in reports:
                     shutil.copy2(report, target / report.name)
-        if not any(path and Path(path).is_file() for path in (manifest_json, metrics_json)):
+        if not any(
+            path and Path(path).is_file()
+            for path in (manifest_json, metrics_json, provenance_json)
+        ):
             return
         target = staged / "meta" / pdk
         target.mkdir(parents=True, exist_ok=True)
@@ -283,3 +343,5 @@ class PackageFlow:
             with contextlib.redirect_stdout(buffer):
                 Reporting().show_metrics(metrics)
             (target / "check.rpt").write_text(buffer.getvalue(), encoding="utf-8")
+        if provenance_json and Path(provenance_json).is_file():
+            shutil.copy2(provenance_json, target / "provenance.json")
