@@ -389,34 +389,34 @@ def render_uart_source(module_name: str) -> str:
 
 int {module_name}_init({module_name}_t base) {{
   uint32_t nco = (uint32_t)(((uint64_t)BAUD_RATE << 20) / SYSCLK_FREQ);
-  DEV_WRITE(base + UART_CTRL_REG_OFFSET, (nco << 16) | 0x3U);
+  DEV_WRITE(base + {upper}_CTRL_REG_OFFSET, (nco << 16) | 0x3U);
   return 0;
 }}
 
 int {module_name}_in({module_name}_t base) {{
   int res = UART_EOF;
-#ifdef UART_STATUS_REG_OFFSET
-#ifdef UART_STATUS_RXEMPTY_BIT
-  if (!(DEV_READ(base + UART_STATUS_REG_OFFSET) & (1u << UART_STATUS_RXEMPTY_BIT))) {{
-    res = (int)DEV_READ(base + UART_RDATA_REG_OFFSET);
+#ifdef {upper}_STATUS_REG_OFFSET
+#ifdef {upper}_STATUS_RXEMPTY_BIT
+  if (!(DEV_READ(base + {upper}_STATUS_REG_OFFSET) & (1u << {upper}_STATUS_RXEMPTY_BIT))) {{
+    res = (int)DEV_READ(base + {upper}_RDATA_REG_OFFSET);
   }}
 #else
-  res = (int)DEV_READ(base + UART_RDATA_REG_OFFSET);
+  res = (int)DEV_READ(base + {upper}_RDATA_REG_OFFSET);
 #endif
 #else
-  res = (int)DEV_READ(base + UART_RDATA_REG_OFFSET);
+  res = (int)DEV_READ(base + {upper}_RDATA_REG_OFFSET);
 #endif
   return res;
 }}
 
 void {module_name}_out({module_name}_t base, char c) {{
-#ifdef UART_STATUS_REG_OFFSET
-#ifdef UART_STATUS_TXFULL_BIT
-  while (DEV_READ(base + UART_STATUS_REG_OFFSET) & (1u << UART_STATUS_TXFULL_BIT)) {{
+#ifdef {upper}_STATUS_REG_OFFSET
+#ifdef {upper}_STATUS_TXFULL_BIT
+  while (DEV_READ(base + {upper}_STATUS_REG_OFFSET) & (1u << {upper}_STATUS_TXFULL_BIT)) {{
   }}
 #endif
 #endif
-  DEV_WRITE(base + UART_WDATA_REG_OFFSET, (uint32_t)(uint8_t)c);
+  DEV_WRITE(base + {upper}_WDATA_REG_OFFSET, (uint32_t)(uint8_t)c);
 }}
 
 int {module_name}_putchar(int c) {{
@@ -488,7 +488,7 @@ def write_source(module_name: str, output_dir: str | Path) -> Path:
     """Write the selected C driver body and return the generated path."""
 
     path = Path(output_dir) / f"{module_name}.c"
-    renderer = render_uart_source if module_name == "uart" else render_generic_source
+    renderer = render_uart_source if module_name.startswith("uart") else render_generic_source
     path.write_text(renderer(module_name), encoding="utf-8")
     return path
 
@@ -1078,8 +1078,15 @@ class RegsFlow:
         *,
         base_address: str = "0x0",
     ) -> tuple[Path, Path]:
-        """Generate the C register driver from one HJSON map."""
+        """Generate the C register header and FlexSoC driver source."""
 
+        module_name = str(load_hjson(hjson_file)["name"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        header = output_dir / f"{module_name}.h"
+        log = output_dir / f".{module_name}_regtool.log"
+        argv = ["--cdefines", "-o", str(header), str(hjson_file)]
+        if self._run_regtool(argv, cwd=self.project_root, log=log):
+            raise RuntimeError(f"regtool C header generation failed: {hjson_file}")
         return generate_driver(hjson_file, output_dir, base_address)
 
     def generate_regmap_py(
