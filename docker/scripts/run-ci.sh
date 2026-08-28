@@ -44,6 +44,10 @@ docker run --rm \
     uv run --no-sync pytest --collect-only -q tests/test_e2e_fx.py
 
     if [[ ${FLEXSOC_RUN_E2E:-0} == 1 ]]; then
+      for pdk in sky130 ihp-sg13g2; do
+        fx pdk info "$pdk" --json | jq -e '.views.usable == true' >/dev/null ||
+          fx pdk fetch "$pdk" --force
+      done
       make test E2E_ORS="$ORFS_ROOT/flow"
     fi
   '
