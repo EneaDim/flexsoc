@@ -1,0 +1,76 @@
+FlexSoC run check · uart_master
+Technical REVIEW · Provenance CLEAN
+
+Flow
+Main step                    Status    
+RTL lint                     PASS      
+CDC / RDC                    REVIEW    
+Functional verification      PASS      
+Formal verification          PASS      
+Synthesis                    PASS      
+RTL ↔ synthesis equivalence  MISSING   
+Pre-implementation sign-off  PASS      
+Implementation / PnR         MISSING   
+Post Sign-Off                INCOMPLETE
+Run status: REVIEW
+
+Provenance
+Setup                   State  Action
+setup_cdc_rdc           CLEAN  -     
+setup_cocotb            CLEAN  -     
+setup_formal_cover      CLEAN  -     
+setup_formal_csr_cover  CLEAN  -     
+setup_formal_csr_prove  CLEAN  -     
+setup_formal_prove      CLEAN  -     
+setup_signoff           CLEAN  -     
+setup_syn               CLEAN  -     
+setup_tb                CLEAN  -     
+
+RTL lint  Slang → Verilator
+Tool       Status  Errors  Warnings  Latch  Width  Unused
+slang      PASS         0         0      0      0       0
+verilator  PASS         0       144      0      0       0
+
+CDC / RDC  post-lint structural analysis
+Status       REVIEW                                      
+Domains      clocks=1 · resets=1 · sequential=80         
+CDC          raw=0 · safe=0 · review=0 · warn=0 · error=0
+RDC          raw=0 · safe=0 · review=1 · warn=0 · error=0
+Obligations  1                                           
+Log          logs/analysis/cdc_rdc/cdc_rdc.log           
+
+Functional verification
+Status           PASS              
+Generated tests  10                
+sv logs          10                
+cocotb logs      10                
+Coverage all     6256/15369  40.71%
+Coverage design  1982/3257  60.85% 
+
+Formal verification
+Suite       Stage  Status  Time  Traces
+csr         bmc    PASS      3s       0
+csr         prove  PASS      0s       0
+csr         cover  PASS      0s       6
+properties  bmc    PASS      5s       0
+properties  prove  PASS      0s       0
+properties  cover  PASS      0s       4
+
+Synthesis
+Strategy         delay1                        
+Netlist          syn/sky130/uart_master_synth.v
+Cells            2082                          
+Area             21573.1904                    
+Sequential area  13395.3472                    
+Errors           0                             
+Warnings         0                             
+
+Pre-implementation sign-off
+SDF                    PASS · corners=3               
+STA                    PASS · ideal clock · none      
+Gate-level simulation  50/50  PASS · interconnect none
+Power estimate         PASS                           
+Activity power         30/30  PASS                    
+Timing / power fusion  30/30  PASS                    
+
+Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/.ip-save.uart_master.dtwf4f2w/uart_master/meta/sky130/metrics.json

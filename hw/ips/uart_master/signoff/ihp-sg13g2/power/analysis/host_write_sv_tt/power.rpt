@@ -1,0 +1,46 @@
+analysis=power_analysis corner=tt stage=post_syn
+workload=host_write_sv_tt
+gls_report=/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/dv/functional/sim/post_syn/ihp-sg13g2/uart_master_post_syn_host_write_sv_tt.json
+activity_file=/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/ihp-sg13g2/power/activity/captures/uart_master_ihp-sg13g2_host_write_sv_tt.vcd
+activity_scope=uart_master_tb/u_uart_master
+liberty=/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
+netlist=/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/ihp-sg13g2/uart_master_synth.v
+sdc=/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/ihp-sg13g2/uart_master.sdc
+spef=
+
+=== Units ===
+ time 1ns
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1uA
+ power 1pW
+ distance 1um
+
+=== Constraint validation ===
+
+=== Activity annotation ===
+annotated_percent=100.00%
+Unannotated pins: none
+
+=== Power summary ===
+Group                  Internal  Switching    Leakage      Total
+                          Power      Power      Power      Power (Watts)
+----------------------------------------------------------------
+Sequential             4.21e-03   4.95e-06   7.27e-07   4.22e-03  99.5%
+Combinational          1.06e-05   9.54e-06   6.68e-07   2.08e-05   0.5%
+Clock                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Macro                  0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+Pad                    0.00e+00   0.00e+00   0.00e+00   0.00e+00   0.0%
+----------------------------------------------------------------
+Total                  4.22e-03   1.45e-05   1.39e-06   4.24e-03 100.0%
+                          99.6%       0.3%       0.0%
+
+=== FlexSoC normalized power fields ===
+dynamic_power_definition=internal_power+switching_power
+power_unit=OpenSTA report unit; see Units section
+internal_power=0.00422
+switching_power=1.45e-05
+dynamic_power=0.0042344999999999995
+leakage_power=1.39e-06
+total_power=0.00424

@@ -1,0 +1,7 @@
+# UART master checks: host request, serial outputs and CSR reads.
+# <cycle> <signal> <expected> or <cycle> @read <reg> <expected> [mask]
+400 @read clk_i.FIFO_STATUS 0x00010000 0x00ff00ff
+400 @read clk_i.RDATA 0x0000005a 0x000000ff
+488 @read clk_i.CTRL 0x800000d3 0xffff00f7
+920 @read clk_i.FIFO_STATUS 0x00010000 0x00ff00ff
+920 @read clk_i.RDATA 0x000000c3 0x000000ff

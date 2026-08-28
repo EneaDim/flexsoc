@@ -1,0 +1,15 @@
+# UART master checks: host request, serial outputs and CSR reads.
+# <cycle> <signal> <expected> or <cycle> @read <reg> <expected> [mask]
+0 cio_tx_o 0x00000001
+0 cio_tx_en_o 0x00000001
+8 cio_tx_o 0x00000000
+8 cio_tx_en_o 0x00000001
+16 cio_tx_o 0x00000001
+16 cio_tx_en_o 0x00000001
+24 cio_tx_o 0x00000000
+24 cio_tx_en_o 0x00000001
+32 cio_tx_o 0x00000001
+32 cio_tx_en_o 0x00000001
+80 @read clk_i.CTRL 0x80000023 0xffff00f7
+80 @read clk_i.STATUS 0x0000003c 0x0000003f
+80 @read clk_i.FIFO_STATUS 0x00000000 0x00ff00ff

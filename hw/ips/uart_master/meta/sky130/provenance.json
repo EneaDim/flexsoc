@@ -1,0 +1,1443 @@
+{
+  "schema_version": 1,
+  "stages": {
+    "setup_cdc_rdc": {
+      "config": {
+        "CLK_PERIOD": "10",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "1",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "1ebdfa3c7b0b2666a94aa400eaa7f8ce0d12abae12479909cdde22447e44ff3f",
+      "generated": [
+        {
+          "effective_sha256": "90b1bfd98b854e95ebd3b670c37cb2f53917b5d3b48ef3722bc7818b31a5501f",
+          "generated_sha256": "90b1bfd98b854e95ebd3b670c37cb2f53917b5d3b48ef3722bc7818b31a5501f",
+          "path": "analysis/cdc_rdc/extract.ys"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "b6044248492d64c6f5c3b907bd66e01d90f36e68df6b69f8d91e8f960cbb47fa"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "145a183744c606162c97f3a9b983a26d2651650a92523c52d8a1f07f89684aed"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv",
+          "sha256": "74b3b327047b90682468614708bb4b1104b1f069c0dc3189e2b078622ac566b8"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv",
+          "sha256": "4588fda3fd5ebdd711c98f6900caaaaddddf1257337c5b931ca86de7fb0ef8ff"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv",
+          "sha256": "72e6154bb7a6673a5dceb9e329c80524666a4a4c785cda457b1415524eb5b672"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": "df5dad9f7800155fc13ada6ea76c68edc89238222a42e66521021c67eaf8a4cf"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_secded_pkg.sv",
+          "sha256": "7ad86eb447a32f5c3f650dd6958e7d24497bce4d9848a3795b6b37786f4db4e1"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/tlul_pkg.sv",
+          "sha256": "a6a456930c5a4218e172e750f4e39fde516ebb12d8effc76331ff95ce5337408"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_enc.sv",
+          "sha256": "28567bc5483eddcf20b51890bc82497f32728b6a46b134a43c01f7180a14c7a9"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_rsp_intg_gen.sv",
+          "sha256": "1ee08aeec4561b4c6b553abfc22b6d500b8ae6898b3dfbfe11ec682b71dfcb16"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv",
+          "sha256": "e598eef60254ac4a0e6899f6d1e4af5ae5bbd2ac22395ac53ee925296bc8a826"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv",
+          "sha256": "f07f26fd2375952e4ec7cfc1641cebcea373a8030d82dd5977a76f81c430cb12"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_dec.sv",
+          "sha256": "0df25d94c03bef617e6ef309375c2d40cbc27719a0696fb1119ca53c3a68d2cb"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_cmd_intg_chk.sv",
+          "sha256": "1b56b9fca7e0b8643110622f6e9d5e6d8bb263bec923a5836748ba3b6f7f76ad"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_err.sv",
+          "sha256": "26653ceb490112eb04acceefc5d0de4ef3f3f6ba26da15614bc71304dba25919"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv",
+          "sha256": "d72b28016650c7c2c52f87b9d4bb99bd424aa90387605347275edea5a4d5d501"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": "a38c3243535348fb4b0e5d233c0baa89eea3588b976d8bb050c7de4a2fd09bf0"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": "cbd0c82f8c2009a1e1a5de606fda402882af1fdcc76b313b827ce2da90430b39"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": "8e370e0ca72081804b67ef53b88aad3174fd193a8acbc37ed9ee4dfecbb7cee7"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": "eae06b86178defd9aa7353e285f42194d654eb12088e6fa964ac132e25407111"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": "6645d657b107b024f9211d3a0134890d1e20146f68ba1772bf62575f7b4e5549"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+          "sha256": "8e465ed25b7d59f29faf0f315243a774cf0e50d178ec2068d8c71983cb2f18df"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+          "sha256": "ca250480197b9558b8159072138eece290f1a678bcfe6be32e601c44931c898d"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": "597766461dbb9d1b122cdb116b091cbec2d8250a497e549157c3e9b2c177314f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+          "sha256": "fb312e711f1b3122474d5cd693376497828455b3feca978b65194968f71b5398"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+          "sha256": "997e3424f3e319be268b5903fd4258ef3499cf7ffaf17ae8d241388f42134e6b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": "a41ca8c73618754f954b8d04b0eac68f3411f8c47a7e53e482f8aacb8c6f8e06"
+        },
+        {
+          "path": "rtl/uart_master_reg_pkg.sv",
+          "sha256": "4e2426ebb0185ca019f6f9b16759f556e5e791772cf0086bf02097748f1ca685"
+        },
+        {
+          "path": "rtl/uart_master_reg_top.sv",
+          "sha256": "25286e54335d27219e4ba2a9711acf73f5fbdf24944c1a8d5ab08b6b0731024e"
+        },
+        {
+          "path": "rtl/uart_tx.sv",
+          "sha256": "1cd4f59b8a58bb8e99c2a24081aae093f6528ac1887abb7cb5f31b911f949241"
+        },
+        {
+          "path": "rtl/uart_rx.sv",
+          "sha256": "08a72a3f045562eee419f42fe2abb4f68f3282b90bb0a6e268872fd39748782b"
+        },
+        {
+          "path": "rtl/uart_core.sv",
+          "sha256": "8f7f79a0e30b97d599be814f3fdaa46b93489cc650f48c0ed45acc1c8cbff343"
+        },
+        {
+          "path": "rtl/uart_host_bridge.sv",
+          "sha256": "1772f4d7c0b9f8373c01bf4b9c6b36ad6155cdf93ef0270e66769514ddecca79"
+        },
+        {
+          "path": "rtl/uart_master_core.sv",
+          "sha256": "d709b0e2e0c292ec8ba1c8375de5690cf356a5287f4e04226d968b415ac9722a"
+        },
+        {
+          "path": "rtl/uart_master.sv",
+          "sha256": "07429efd3776d69f588b99924587e31e08b5eb859bbea3d1f13a3839ee1ae06e"
+        }
+      ],
+      "parents": {}
+    },
+    "setup_cocotb": {
+      "config": {
+        "CLK_PERIOD": "10",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "COMPILER": "",
+        "N_CLOCKS": "1",
+        "REG_ITF": "",
+        "TOP": "uart_master",
+        "VSV": ""
+      },
+      "fingerprint": "76b6ead806b611cb303e23ae0caf10c6e25e899c175b381c0c8365502ec82797",
+      "generated": [
+        {
+          "effective_sha256": "e505d20dc01ced94b34bbdbdae3eec1202f4f750e85ca7fa80585f10c2d5a960",
+          "generated_sha256": "e505d20dc01ced94b34bbdbdae3eec1202f4f750e85ca7fa80585f10c2d5a960",
+          "path": "dv/functional/tb/cocotb/Makefile"
+        },
+        {
+          "effective_sha256": "85083980114700a2dfba79a5691d0545e92367f44279aff7de0a28728b102eb8",
+          "generated_sha256": "85083980114700a2dfba79a5691d0545e92367f44279aff7de0a28728b102eb8",
+          "path": "dv/functional/tb/cocotb/drivers/reg_driver.py"
+        },
+        {
+          "effective_sha256": "3bdbe879f4de8f52e89012dcee18a2b403e0e1423f464441218eaf0947c25ac4",
+          "generated_sha256": "3bdbe879f4de8f52e89012dcee18a2b403e0e1423f464441218eaf0947c25ac4",
+          "path": "dv/functional/tb/cocotb/drivers/vec_driver.py"
+        },
+        {
+          "effective_sha256": "5afad3c9597b91117d773ded9a069f4a571adbef9a67bbbdc7ce7e06313f7d84",
+          "generated_sha256": "5afad3c9597b91117d773ded9a069f4a571adbef9a67bbbdc7ce7e06313f7d84",
+          "path": "dv/functional/tb/cocotb/drivers/vec_monitor.py"
+        },
+        {
+          "effective_sha256": "4576f9a061bc23282cf62e3ae635aae5fac40a4aa23060348e9c9abec83d50e3",
+          "generated_sha256": "4576f9a061bc23282cf62e3ae635aae5fac40a4aa23060348e9c9abec83d50e3",
+          "path": "dv/functional/tb/cocotb/uart_master_tb.py"
+        },
+        {
+          "effective_sha256": "12462589efb52dcb45be5592d9544d840d499f08e3d27ee3f9e928ba7f07eaa8",
+          "generated_sha256": "12462589efb52dcb45be5592d9544d840d499f08e3d27ee3f9e928ba7f07eaa8",
+          "path": "dv/functional/tb/cocotb/uart_master_tb.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "data/uart_master.hjson",
+          "sha256": "d94057a0c727a028e0eb1c670efb0e8524ceda3ad93f7bd17ac0e2227466b756"
+        }
+      ],
+      "parents": {}
+    },
+    "setup_eqy": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "EQY_DEPTH": "",
+        "EQY_ENGINE": "",
+        "EQY_JOIN_OUTPUTS": "",
+        "EQY_PDR_ENGINE": "",
+        "EQY_RESET_CYCLES": "",
+        "EQY_RESET_NORMALIZE": "",
+        "EQY_SAT_DEPTH": "",
+        "EQY_SMT_DEPTH": "",
+        "EQY_SMT_ENGINE": "",
+        "EQY_SPLITNETS": "",
+        "EQY_STRATEGY_ORDER": "",
+        "EQY_USE_PDR": "",
+        "EQY_USE_SAT": "",
+        "EQY_XPROP": "",
+        "N_CLOCKS": "1",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "841501880cff9ad1d0f89ff4ae7b6c1fa04cb8810c9aca772fca6d5900a062bb",
+      "generated": [
+        {
+          "effective_sha256": "9d4eb94ada16d86fd092001d85a64116be079cec1515da6f2e865a90cbdbd807",
+          "generated_sha256": "9d4eb94ada16d86fd092001d85a64116be079cec1515da6f2e865a90cbdbd807",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/uart_master_rtl_vs_syn.eqy"
+        },
+        {
+          "effective_sha256": "7ca9a4eddebf6e8c369754c4c26863a78502641cef1368bb9b780f0220f06b3b",
+          "generated_sha256": "7ca9a4eddebf6e8c369754c4c26863a78502641cef1368bb9b780f0220f06b3b",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/uart_master_eqy_view.sv"
+        },
+        {
+          "effective_sha256": "b6044248492d64c6f5c3b907bd66e01d90f36e68df6b69f8d91e8f960cbb47fa",
+          "generated_sha256": "b6044248492d64c6f5c3b907bd66e01d90f36e68df6b69f8d91e8f960cbb47fa",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/rtl_common.f"
+        },
+        {
+          "effective_sha256": "145a183744c606162c97f3a9b983a26d2651650a92523c52d8a1f07f89684aed",
+          "generated_sha256": "145a183744c606162c97f3a9b983a26d2651650a92523c52d8a1f07f89684aed",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/rtl_ip.f"
+        },
+        {
+          "effective_sha256": "7d4b1441d06b0f2b9662befa675a0484d77149e04eb42a5f1fa2d4cfded7b2ce",
+          "generated_sha256": "7d4b1441d06b0f2b9662befa675a0484d77149e04eb42a5f1fa2d4cfded7b2ce",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/cell_model_0.v"
+        },
+        {
+          "effective_sha256": "4a183a476baef9abb68d82808d24d8f2907ed7b6cdebff8d03002f45b12e7833",
+          "generated_sha256": "4a183a476baef9abb68d82808d24d8f2907ed7b6cdebff8d03002f45b12e7833",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/cell_model_1.v"
+        },
+        {
+          "effective_sha256": "9e94135461287ba693f46d98509c8189c3933a40821984e2a43d50c0d7bf7962",
+          "generated_sha256": "9e94135461287ba693f46d98509c8189c3933a40821984e2a43d50c0d7bf7962",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/netlist.v"
+        },
+        {
+          "effective_sha256": "7c6b9fc62d7e83b8317cdca883d79107d8f2ff1061b04519fda7d3088560015b",
+          "generated_sha256": "7c6b9fc62d7e83b8317cdca883d79107d8f2ff1061b04519fda7d3088560015b",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/library.lib"
+        },
+        {
+          "effective_sha256": "dc4c4f37ef4f302bc928773a4eda664f55f7a7dd3c8b426ca14a8e9737bcbfb3",
+          "generated_sha256": "dc4c4f37ef4f302bc928773a4eda664f55f7a7dd3c8b426ca14a8e9737bcbfb3",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/sky130_clock_gates_formal.v"
+        },
+        {
+          "effective_sha256": "b41f341f8a65fa277cd2f64d05fd0488c5aceb30c50f4d3e21b02195f61e97fb",
+          "generated_sha256": "b41f341f8a65fa277cd2f64d05fd0488c5aceb30c50f4d3e21b02195f61e97fb",
+          "path": "signoff/sky130/equivalence/rtl_vs_syn/formal_pdk.v"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "b6044248492d64c6f5c3b907bd66e01d90f36e68df6b69f8d91e8f960cbb47fa"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "145a183744c606162c97f3a9b983a26d2651650a92523c52d8a1f07f89684aed"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv",
+          "sha256": "74b3b327047b90682468614708bb4b1104b1f069c0dc3189e2b078622ac566b8"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv",
+          "sha256": "4588fda3fd5ebdd711c98f6900caaaaddddf1257337c5b931ca86de7fb0ef8ff"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv",
+          "sha256": "72e6154bb7a6673a5dceb9e329c80524666a4a4c785cda457b1415524eb5b672"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": "df5dad9f7800155fc13ada6ea76c68edc89238222a42e66521021c67eaf8a4cf"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_secded_pkg.sv",
+          "sha256": "7ad86eb447a32f5c3f650dd6958e7d24497bce4d9848a3795b6b37786f4db4e1"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/tlul_pkg.sv",
+          "sha256": "a6a456930c5a4218e172e750f4e39fde516ebb12d8effc76331ff95ce5337408"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_enc.sv",
+          "sha256": "28567bc5483eddcf20b51890bc82497f32728b6a46b134a43c01f7180a14c7a9"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_rsp_intg_gen.sv",
+          "sha256": "1ee08aeec4561b4c6b553abfc22b6d500b8ae6898b3dfbfe11ec682b71dfcb16"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv",
+          "sha256": "e598eef60254ac4a0e6899f6d1e4af5ae5bbd2ac22395ac53ee925296bc8a826"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv",
+          "sha256": "f07f26fd2375952e4ec7cfc1641cebcea373a8030d82dd5977a76f81c430cb12"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_dec.sv",
+          "sha256": "0df25d94c03bef617e6ef309375c2d40cbc27719a0696fb1119ca53c3a68d2cb"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_cmd_intg_chk.sv",
+          "sha256": "1b56b9fca7e0b8643110622f6e9d5e6d8bb263bec923a5836748ba3b6f7f76ad"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_err.sv",
+          "sha256": "26653ceb490112eb04acceefc5d0de4ef3f3f6ba26da15614bc71304dba25919"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv",
+          "sha256": "d72b28016650c7c2c52f87b9d4bb99bd424aa90387605347275edea5a4d5d501"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": "a38c3243535348fb4b0e5d233c0baa89eea3588b976d8bb050c7de4a2fd09bf0"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": "cbd0c82f8c2009a1e1a5de606fda402882af1fdcc76b313b827ce2da90430b39"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": "8e370e0ca72081804b67ef53b88aad3174fd193a8acbc37ed9ee4dfecbb7cee7"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": "eae06b86178defd9aa7353e285f42194d654eb12088e6fa964ac132e25407111"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": "6645d657b107b024f9211d3a0134890d1e20146f68ba1772bf62575f7b4e5549"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+          "sha256": "8e465ed25b7d59f29faf0f315243a774cf0e50d178ec2068d8c71983cb2f18df"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+          "sha256": "ca250480197b9558b8159072138eece290f1a678bcfe6be32e601c44931c898d"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": "597766461dbb9d1b122cdb116b091cbec2d8250a497e549157c3e9b2c177314f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+          "sha256": "fb312e711f1b3122474d5cd693376497828455b3feca978b65194968f71b5398"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+          "sha256": "997e3424f3e319be268b5903fd4258ef3499cf7ffaf17ae8d241388f42134e6b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": "a41ca8c73618754f954b8d04b0eac68f3411f8c47a7e53e482f8aacb8c6f8e06"
+        },
+        {
+          "path": "rtl/uart_master_reg_pkg.sv",
+          "sha256": "4e2426ebb0185ca019f6f9b16759f556e5e791772cf0086bf02097748f1ca685"
+        },
+        {
+          "path": "rtl/uart_master_reg_top.sv",
+          "sha256": "25286e54335d27219e4ba2a9711acf73f5fbdf24944c1a8d5ab08b6b0731024e"
+        },
+        {
+          "path": "rtl/uart_tx.sv",
+          "sha256": "1cd4f59b8a58bb8e99c2a24081aae093f6528ac1887abb7cb5f31b911f949241"
+        },
+        {
+          "path": "rtl/uart_rx.sv",
+          "sha256": "08a72a3f045562eee419f42fe2abb4f68f3282b90bb0a6e268872fd39748782b"
+        },
+        {
+          "path": "rtl/uart_core.sv",
+          "sha256": "8f7f79a0e30b97d599be814f3fdaa46b93489cc650f48c0ed45acc1c8cbff343"
+        },
+        {
+          "path": "rtl/uart_host_bridge.sv",
+          "sha256": "1772f4d7c0b9f8373c01bf4b9c6b36ad6155cdf93ef0270e66769514ddecca79"
+        },
+        {
+          "path": "rtl/uart_master_core.sv",
+          "sha256": "d709b0e2e0c292ec8ba1c8375de5690cf356a5287f4e04226d968b415ac9722a"
+        },
+        {
+          "path": "rtl/uart_master.sv",
+          "sha256": "07429efd3776d69f588b99924587e31e08b5eb859bbea3d1f13a3839ee1ae06e"
+        },
+        {
+          "path": "syn/sky130/uart_master_synth.v",
+          "sha256": "9e94135461287ba693f46d98509c8189c3933a40821984e2a43d50c0d7bf7962"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib",
+          "sha256": "7c6b9fc62d7e83b8317cdca883d79107d8f2ff1061b04519fda7d3088560015b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/verilog/primitives.v",
+          "sha256": "7d4b1441d06b0f2b9662befa675a0484d77149e04eb42a5f1fa2d4cfded7b2ce"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/verilog/sky130_fd_sc_hd.v",
+          "sha256": "4a183a476baef9abb68d82808d24d8f2907ed7b6cdebff8d03002f45b12e7833"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/.flexsoc-tools/sky130/formal_pdk_proc.py",
+          "sha256": "624a9f65e4ce92538bd4b90514bf5a7ced4913f7ed6489bbd742e4bc0daaf138"
+        }
+      ],
+      "parents": {
+        "setup_syn": "0689740f9c762ebf32c37fe729ad76edd52e261055a2343d07cc509955008859"
+      }
+    },
+    "setup_formal_cover": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_COVER_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "N_CLOCKS": "1",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "38518fecc94d8413fe864ad390061272be9570cf8f5ac43d87a463aefaeefb06",
+      "generated": [
+        {
+          "effective_sha256": "61b886bb5d2c099682a0f6a515c1125293e2e5fc1aac46295cf2b84a6f32e6f6",
+          "generated_sha256": "61b886bb5d2c099682a0f6a515c1125293e2e5fc1aac46295cf2b84a6f32e6f6",
+          "path": "dv/formal/runs/properties/cover/uart_master_cover.sby"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "b6044248492d64c6f5c3b907bd66e01d90f36e68df6b69f8d91e8f960cbb47fa"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "145a183744c606162c97f3a9b983a26d2651650a92523c52d8a1f07f89684aed"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv",
+          "sha256": "74b3b327047b90682468614708bb4b1104b1f069c0dc3189e2b078622ac566b8"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv",
+          "sha256": "4588fda3fd5ebdd711c98f6900caaaaddddf1257337c5b931ca86de7fb0ef8ff"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv",
+          "sha256": "72e6154bb7a6673a5dceb9e329c80524666a4a4c785cda457b1415524eb5b672"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": "df5dad9f7800155fc13ada6ea76c68edc89238222a42e66521021c67eaf8a4cf"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_secded_pkg.sv",
+          "sha256": "7ad86eb447a32f5c3f650dd6958e7d24497bce4d9848a3795b6b37786f4db4e1"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/tlul_pkg.sv",
+          "sha256": "a6a456930c5a4218e172e750f4e39fde516ebb12d8effc76331ff95ce5337408"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_enc.sv",
+          "sha256": "28567bc5483eddcf20b51890bc82497f32728b6a46b134a43c01f7180a14c7a9"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_rsp_intg_gen.sv",
+          "sha256": "1ee08aeec4561b4c6b553abfc22b6d500b8ae6898b3dfbfe11ec682b71dfcb16"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv",
+          "sha256": "e598eef60254ac4a0e6899f6d1e4af5ae5bbd2ac22395ac53ee925296bc8a826"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv",
+          "sha256": "f07f26fd2375952e4ec7cfc1641cebcea373a8030d82dd5977a76f81c430cb12"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_dec.sv",
+          "sha256": "0df25d94c03bef617e6ef309375c2d40cbc27719a0696fb1119ca53c3a68d2cb"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_cmd_intg_chk.sv",
+          "sha256": "1b56b9fca7e0b8643110622f6e9d5e6d8bb263bec923a5836748ba3b6f7f76ad"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_err.sv",
+          "sha256": "26653ceb490112eb04acceefc5d0de4ef3f3f6ba26da15614bc71304dba25919"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv",
+          "sha256": "d72b28016650c7c2c52f87b9d4bb99bd424aa90387605347275edea5a4d5d501"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": "a38c3243535348fb4b0e5d233c0baa89eea3588b976d8bb050c7de4a2fd09bf0"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": "cbd0c82f8c2009a1e1a5de606fda402882af1fdcc76b313b827ce2da90430b39"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": "8e370e0ca72081804b67ef53b88aad3174fd193a8acbc37ed9ee4dfecbb7cee7"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": "eae06b86178defd9aa7353e285f42194d654eb12088e6fa964ac132e25407111"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": "6645d657b107b024f9211d3a0134890d1e20146f68ba1772bf62575f7b4e5549"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+          "sha256": "8e465ed25b7d59f29faf0f315243a774cf0e50d178ec2068d8c71983cb2f18df"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+          "sha256": "ca250480197b9558b8159072138eece290f1a678bcfe6be32e601c44931c898d"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": "597766461dbb9d1b122cdb116b091cbec2d8250a497e549157c3e9b2c177314f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+          "sha256": "fb312e711f1b3122474d5cd693376497828455b3feca978b65194968f71b5398"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+          "sha256": "997e3424f3e319be268b5903fd4258ef3499cf7ffaf17ae8d241388f42134e6b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": "a41ca8c73618754f954b8d04b0eac68f3411f8c47a7e53e482f8aacb8c6f8e06"
+        },
+        {
+          "path": "rtl/uart_master_reg_pkg.sv",
+          "sha256": "4e2426ebb0185ca019f6f9b16759f556e5e791772cf0086bf02097748f1ca685"
+        },
+        {
+          "path": "rtl/uart_master_reg_top.sv",
+          "sha256": "25286e54335d27219e4ba2a9711acf73f5fbdf24944c1a8d5ab08b6b0731024e"
+        },
+        {
+          "path": "rtl/uart_tx.sv",
+          "sha256": "1cd4f59b8a58bb8e99c2a24081aae093f6528ac1887abb7cb5f31b911f949241"
+        },
+        {
+          "path": "rtl/uart_rx.sv",
+          "sha256": "08a72a3f045562eee419f42fe2abb4f68f3282b90bb0a6e268872fd39748782b"
+        },
+        {
+          "path": "rtl/uart_core.sv",
+          "sha256": "8f7f79a0e30b97d599be814f3fdaa46b93489cc650f48c0ed45acc1c8cbff343"
+        },
+        {
+          "path": "rtl/uart_host_bridge.sv",
+          "sha256": "1772f4d7c0b9f8373c01bf4b9c6b36ad6155cdf93ef0270e66769514ddecca79"
+        },
+        {
+          "path": "rtl/uart_master_core.sv",
+          "sha256": "d709b0e2e0c292ec8ba1c8375de5690cf356a5287f4e04226d968b415ac9722a"
+        },
+        {
+          "path": "rtl/uart_master.sv",
+          "sha256": "07429efd3776d69f588b99924587e31e08b5eb859bbea3d1f13a3839ee1ae06e"
+        },
+        {
+          "path": "dv/formal/properties/cover",
+          "sha256": "ace594ba79e87a2f115023f101681c8e8ae9f10e9b1df1f361f8fefcde7f9c52"
+        }
+      ],
+      "parents": {}
+    },
+    "setup_formal_csr_cover": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_COVER_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "N_CLOCKS": "1",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "7176701192d94fa4a413eb52e75132f76a4604f0f0d2190c0c107545b42e0b55",
+      "generated": [
+        {
+          "effective_sha256": "3d6f7445d7e1aae10bfb8123411df7017ee55804f5062022a4a52a844c34eb5c",
+          "generated_sha256": "3d6f7445d7e1aae10bfb8123411df7017ee55804f5062022a4a52a844c34eb5c",
+          "path": "dv/formal/runs/csr/cover/uart_master_csr_cover.sby"
+        },
+        {
+          "effective_sha256": "3aa3390d20d774a67e9a889345562e76bb888747589113f8618dcc34c6b7eb28",
+          "generated_sha256": "3aa3390d20d774a67e9a889345562e76bb888747589113f8618dcc34c6b7eb28",
+          "path": "dv/formal/csr/cover/uart_master_csr_auto_cover.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "b6044248492d64c6f5c3b907bd66e01d90f36e68df6b69f8d91e8f960cbb47fa"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "145a183744c606162c97f3a9b983a26d2651650a92523c52d8a1f07f89684aed"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv",
+          "sha256": "74b3b327047b90682468614708bb4b1104b1f069c0dc3189e2b078622ac566b8"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv",
+          "sha256": "4588fda3fd5ebdd711c98f6900caaaaddddf1257337c5b931ca86de7fb0ef8ff"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv",
+          "sha256": "72e6154bb7a6673a5dceb9e329c80524666a4a4c785cda457b1415524eb5b672"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": "df5dad9f7800155fc13ada6ea76c68edc89238222a42e66521021c67eaf8a4cf"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_secded_pkg.sv",
+          "sha256": "7ad86eb447a32f5c3f650dd6958e7d24497bce4d9848a3795b6b37786f4db4e1"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/tlul_pkg.sv",
+          "sha256": "a6a456930c5a4218e172e750f4e39fde516ebb12d8effc76331ff95ce5337408"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_enc.sv",
+          "sha256": "28567bc5483eddcf20b51890bc82497f32728b6a46b134a43c01f7180a14c7a9"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_rsp_intg_gen.sv",
+          "sha256": "1ee08aeec4561b4c6b553abfc22b6d500b8ae6898b3dfbfe11ec682b71dfcb16"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv",
+          "sha256": "e598eef60254ac4a0e6899f6d1e4af5ae5bbd2ac22395ac53ee925296bc8a826"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv",
+          "sha256": "f07f26fd2375952e4ec7cfc1641cebcea373a8030d82dd5977a76f81c430cb12"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_dec.sv",
+          "sha256": "0df25d94c03bef617e6ef309375c2d40cbc27719a0696fb1119ca53c3a68d2cb"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_cmd_intg_chk.sv",
+          "sha256": "1b56b9fca7e0b8643110622f6e9d5e6d8bb263bec923a5836748ba3b6f7f76ad"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_err.sv",
+          "sha256": "26653ceb490112eb04acceefc5d0de4ef3f3f6ba26da15614bc71304dba25919"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv",
+          "sha256": "d72b28016650c7c2c52f87b9d4bb99bd424aa90387605347275edea5a4d5d501"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": "a38c3243535348fb4b0e5d233c0baa89eea3588b976d8bb050c7de4a2fd09bf0"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": "cbd0c82f8c2009a1e1a5de606fda402882af1fdcc76b313b827ce2da90430b39"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": "8e370e0ca72081804b67ef53b88aad3174fd193a8acbc37ed9ee4dfecbb7cee7"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": "eae06b86178defd9aa7353e285f42194d654eb12088e6fa964ac132e25407111"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": "6645d657b107b024f9211d3a0134890d1e20146f68ba1772bf62575f7b4e5549"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+          "sha256": "8e465ed25b7d59f29faf0f315243a774cf0e50d178ec2068d8c71983cb2f18df"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+          "sha256": "ca250480197b9558b8159072138eece290f1a678bcfe6be32e601c44931c898d"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": "597766461dbb9d1b122cdb116b091cbec2d8250a497e549157c3e9b2c177314f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+          "sha256": "fb312e711f1b3122474d5cd693376497828455b3feca978b65194968f71b5398"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+          "sha256": "997e3424f3e319be268b5903fd4258ef3499cf7ffaf17ae8d241388f42134e6b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": "a41ca8c73618754f954b8d04b0eac68f3411f8c47a7e53e482f8aacb8c6f8e06"
+        },
+        {
+          "path": "rtl/uart_master_reg_pkg.sv",
+          "sha256": "4e2426ebb0185ca019f6f9b16759f556e5e791772cf0086bf02097748f1ca685"
+        },
+        {
+          "path": "rtl/uart_master_reg_top.sv",
+          "sha256": "25286e54335d27219e4ba2a9711acf73f5fbdf24944c1a8d5ab08b6b0731024e"
+        },
+        {
+          "path": "rtl/uart_tx.sv",
+          "sha256": "1cd4f59b8a58bb8e99c2a24081aae093f6528ac1887abb7cb5f31b911f949241"
+        },
+        {
+          "path": "rtl/uart_rx.sv",
+          "sha256": "08a72a3f045562eee419f42fe2abb4f68f3282b90bb0a6e268872fd39748782b"
+        },
+        {
+          "path": "rtl/uart_core.sv",
+          "sha256": "8f7f79a0e30b97d599be814f3fdaa46b93489cc650f48c0ed45acc1c8cbff343"
+        },
+        {
+          "path": "rtl/uart_host_bridge.sv",
+          "sha256": "1772f4d7c0b9f8373c01bf4b9c6b36ad6155cdf93ef0270e66769514ddecca79"
+        },
+        {
+          "path": "rtl/uart_master_core.sv",
+          "sha256": "d709b0e2e0c292ec8ba1c8375de5690cf356a5287f4e04226d968b415ac9722a"
+        },
+        {
+          "path": "rtl/uart_master.sv",
+          "sha256": "07429efd3776d69f588b99924587e31e08b5eb859bbea3d1f13a3839ee1ae06e"
+        }
+      ],
+      "parents": {}
+    },
+    "setup_formal_csr_prove": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_BMC_APPEND": "",
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "FORMAL_PROVE_ENGINE": "",
+        "N_CLOCKS": "1",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "422d445252dda9446b85995ea03dd28ff81944b42ee3ed5232ce13d9a122ba39",
+      "generated": [
+        {
+          "effective_sha256": "1c7bc6aa6211db90b5e96b5d29b5b10280d7f69e7a1d0ee49550c39ac7f47a72",
+          "generated_sha256": "1c7bc6aa6211db90b5e96b5d29b5b10280d7f69e7a1d0ee49550c39ac7f47a72",
+          "path": "dv/formal/runs/csr/prove/uart_master_csr_prove.sby"
+        },
+        {
+          "effective_sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389",
+          "generated_sha256": "7ab83274bab0f3b77658313e70df15b36b66d3d33b7f9435072864b103e45389",
+          "path": "dv/formal/csr/prove/uart_master_csr_auto_prove.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "b6044248492d64c6f5c3b907bd66e01d90f36e68df6b69f8d91e8f960cbb47fa"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "145a183744c606162c97f3a9b983a26d2651650a92523c52d8a1f07f89684aed"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv",
+          "sha256": "74b3b327047b90682468614708bb4b1104b1f069c0dc3189e2b078622ac566b8"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv",
+          "sha256": "4588fda3fd5ebdd711c98f6900caaaaddddf1257337c5b931ca86de7fb0ef8ff"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv",
+          "sha256": "72e6154bb7a6673a5dceb9e329c80524666a4a4c785cda457b1415524eb5b672"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": "df5dad9f7800155fc13ada6ea76c68edc89238222a42e66521021c67eaf8a4cf"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_secded_pkg.sv",
+          "sha256": "7ad86eb447a32f5c3f650dd6958e7d24497bce4d9848a3795b6b37786f4db4e1"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/tlul_pkg.sv",
+          "sha256": "a6a456930c5a4218e172e750f4e39fde516ebb12d8effc76331ff95ce5337408"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_enc.sv",
+          "sha256": "28567bc5483eddcf20b51890bc82497f32728b6a46b134a43c01f7180a14c7a9"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_rsp_intg_gen.sv",
+          "sha256": "1ee08aeec4561b4c6b553abfc22b6d500b8ae6898b3dfbfe11ec682b71dfcb16"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv",
+          "sha256": "e598eef60254ac4a0e6899f6d1e4af5ae5bbd2ac22395ac53ee925296bc8a826"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv",
+          "sha256": "f07f26fd2375952e4ec7cfc1641cebcea373a8030d82dd5977a76f81c430cb12"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_dec.sv",
+          "sha256": "0df25d94c03bef617e6ef309375c2d40cbc27719a0696fb1119ca53c3a68d2cb"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_cmd_intg_chk.sv",
+          "sha256": "1b56b9fca7e0b8643110622f6e9d5e6d8bb263bec923a5836748ba3b6f7f76ad"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_err.sv",
+          "sha256": "26653ceb490112eb04acceefc5d0de4ef3f3f6ba26da15614bc71304dba25919"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv",
+          "sha256": "d72b28016650c7c2c52f87b9d4bb99bd424aa90387605347275edea5a4d5d501"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": "a38c3243535348fb4b0e5d233c0baa89eea3588b976d8bb050c7de4a2fd09bf0"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": "cbd0c82f8c2009a1e1a5de606fda402882af1fdcc76b313b827ce2da90430b39"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": "8e370e0ca72081804b67ef53b88aad3174fd193a8acbc37ed9ee4dfecbb7cee7"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": "eae06b86178defd9aa7353e285f42194d654eb12088e6fa964ac132e25407111"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": "6645d657b107b024f9211d3a0134890d1e20146f68ba1772bf62575f7b4e5549"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+          "sha256": "8e465ed25b7d59f29faf0f315243a774cf0e50d178ec2068d8c71983cb2f18df"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+          "sha256": "ca250480197b9558b8159072138eece290f1a678bcfe6be32e601c44931c898d"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": "597766461dbb9d1b122cdb116b091cbec2d8250a497e549157c3e9b2c177314f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+          "sha256": "fb312e711f1b3122474d5cd693376497828455b3feca978b65194968f71b5398"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+          "sha256": "997e3424f3e319be268b5903fd4258ef3499cf7ffaf17ae8d241388f42134e6b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": "a41ca8c73618754f954b8d04b0eac68f3411f8c47a7e53e482f8aacb8c6f8e06"
+        },
+        {
+          "path": "rtl/uart_master_reg_pkg.sv",
+          "sha256": "4e2426ebb0185ca019f6f9b16759f556e5e791772cf0086bf02097748f1ca685"
+        },
+        {
+          "path": "rtl/uart_master_reg_top.sv",
+          "sha256": "25286e54335d27219e4ba2a9711acf73f5fbdf24944c1a8d5ab08b6b0731024e"
+        },
+        {
+          "path": "rtl/uart_tx.sv",
+          "sha256": "1cd4f59b8a58bb8e99c2a24081aae093f6528ac1887abb7cb5f31b911f949241"
+        },
+        {
+          "path": "rtl/uart_rx.sv",
+          "sha256": "08a72a3f045562eee419f42fe2abb4f68f3282b90bb0a6e268872fd39748782b"
+        },
+        {
+          "path": "rtl/uart_core.sv",
+          "sha256": "8f7f79a0e30b97d599be814f3fdaa46b93489cc650f48c0ed45acc1c8cbff343"
+        },
+        {
+          "path": "rtl/uart_host_bridge.sv",
+          "sha256": "1772f4d7c0b9f8373c01bf4b9c6b36ad6155cdf93ef0270e66769514ddecca79"
+        },
+        {
+          "path": "rtl/uart_master_core.sv",
+          "sha256": "d709b0e2e0c292ec8ba1c8375de5690cf356a5287f4e04226d968b415ac9722a"
+        },
+        {
+          "path": "rtl/uart_master.sv",
+          "sha256": "07429efd3776d69f588b99924587e31e08b5eb859bbea3d1f13a3839ee1ae06e"
+        }
+      ],
+      "parents": {}
+    },
+    "setup_formal_prove": {
+      "config": {
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "FORMAL_BMC_APPEND": "",
+        "FORMAL_BMC_DEPTH": "",
+        "FORMAL_BMC_ENGINE": "",
+        "FORMAL_DEPTH": "",
+        "FORMAL_PROVE_ENGINE": "",
+        "N_CLOCKS": "1",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "63848c675ec9c3a3769f535c568d8fa9ef894e9d9995fb32af7a87f8076fb03d",
+      "generated": [
+        {
+          "effective_sha256": "8c3fb50ed1c8ef31412514d7a23b60c9b1b154de9c8bc35740b3c8899d0ac56e",
+          "generated_sha256": "8c3fb50ed1c8ef31412514d7a23b60c9b1b154de9c8bc35740b3c8899d0ac56e",
+          "path": "dv/formal/runs/properties/prove/uart_master_prove.sby"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "b6044248492d64c6f5c3b907bd66e01d90f36e68df6b69f8d91e8f960cbb47fa"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "145a183744c606162c97f3a9b983a26d2651650a92523c52d8a1f07f89684aed"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv",
+          "sha256": "74b3b327047b90682468614708bb4b1104b1f069c0dc3189e2b078622ac566b8"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv",
+          "sha256": "4588fda3fd5ebdd711c98f6900caaaaddddf1257337c5b931ca86de7fb0ef8ff"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv",
+          "sha256": "72e6154bb7a6673a5dceb9e329c80524666a4a4c785cda457b1415524eb5b672"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": "df5dad9f7800155fc13ada6ea76c68edc89238222a42e66521021c67eaf8a4cf"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_secded_pkg.sv",
+          "sha256": "7ad86eb447a32f5c3f650dd6958e7d24497bce4d9848a3795b6b37786f4db4e1"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/tlul_pkg.sv",
+          "sha256": "a6a456930c5a4218e172e750f4e39fde516ebb12d8effc76331ff95ce5337408"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_enc.sv",
+          "sha256": "28567bc5483eddcf20b51890bc82497f32728b6a46b134a43c01f7180a14c7a9"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_rsp_intg_gen.sv",
+          "sha256": "1ee08aeec4561b4c6b553abfc22b6d500b8ae6898b3dfbfe11ec682b71dfcb16"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv",
+          "sha256": "e598eef60254ac4a0e6899f6d1e4af5ae5bbd2ac22395ac53ee925296bc8a826"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv",
+          "sha256": "f07f26fd2375952e4ec7cfc1641cebcea373a8030d82dd5977a76f81c430cb12"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_dec.sv",
+          "sha256": "0df25d94c03bef617e6ef309375c2d40cbc27719a0696fb1119ca53c3a68d2cb"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_cmd_intg_chk.sv",
+          "sha256": "1b56b9fca7e0b8643110622f6e9d5e6d8bb263bec923a5836748ba3b6f7f76ad"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_err.sv",
+          "sha256": "26653ceb490112eb04acceefc5d0de4ef3f3f6ba26da15614bc71304dba25919"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv",
+          "sha256": "d72b28016650c7c2c52f87b9d4bb99bd424aa90387605347275edea5a4d5d501"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": "a38c3243535348fb4b0e5d233c0baa89eea3588b976d8bb050c7de4a2fd09bf0"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": "cbd0c82f8c2009a1e1a5de606fda402882af1fdcc76b313b827ce2da90430b39"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": "8e370e0ca72081804b67ef53b88aad3174fd193a8acbc37ed9ee4dfecbb7cee7"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": "eae06b86178defd9aa7353e285f42194d654eb12088e6fa964ac132e25407111"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": "6645d657b107b024f9211d3a0134890d1e20146f68ba1772bf62575f7b4e5549"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+          "sha256": "8e465ed25b7d59f29faf0f315243a774cf0e50d178ec2068d8c71983cb2f18df"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+          "sha256": "ca250480197b9558b8159072138eece290f1a678bcfe6be32e601c44931c898d"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": "597766461dbb9d1b122cdb116b091cbec2d8250a497e549157c3e9b2c177314f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+          "sha256": "fb312e711f1b3122474d5cd693376497828455b3feca978b65194968f71b5398"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+          "sha256": "997e3424f3e319be268b5903fd4258ef3499cf7ffaf17ae8d241388f42134e6b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": "a41ca8c73618754f954b8d04b0eac68f3411f8c47a7e53e482f8aacb8c6f8e06"
+        },
+        {
+          "path": "rtl/uart_master_reg_pkg.sv",
+          "sha256": "4e2426ebb0185ca019f6f9b16759f556e5e791772cf0086bf02097748f1ca685"
+        },
+        {
+          "path": "rtl/uart_master_reg_top.sv",
+          "sha256": "25286e54335d27219e4ba2a9711acf73f5fbdf24944c1a8d5ab08b6b0731024e"
+        },
+        {
+          "path": "rtl/uart_tx.sv",
+          "sha256": "1cd4f59b8a58bb8e99c2a24081aae093f6528ac1887abb7cb5f31b911f949241"
+        },
+        {
+          "path": "rtl/uart_rx.sv",
+          "sha256": "08a72a3f045562eee419f42fe2abb4f68f3282b90bb0a6e268872fd39748782b"
+        },
+        {
+          "path": "rtl/uart_core.sv",
+          "sha256": "8f7f79a0e30b97d599be814f3fdaa46b93489cc650f48c0ed45acc1c8cbff343"
+        },
+        {
+          "path": "rtl/uart_host_bridge.sv",
+          "sha256": "1772f4d7c0b9f8373c01bf4b9c6b36ad6155cdf93ef0270e66769514ddecca79"
+        },
+        {
+          "path": "rtl/uart_master_core.sv",
+          "sha256": "d709b0e2e0c292ec8ba1c8375de5690cf356a5287f4e04226d968b415ac9722a"
+        },
+        {
+          "path": "rtl/uart_master.sv",
+          "sha256": "07429efd3776d69f588b99924587e31e08b5eb859bbea3d1f13a3839ee1ae06e"
+        },
+        {
+          "path": "dv/formal/properties/prove",
+          "sha256": "e25a0a1f204de1fd04ffd2138b348592a9859396238c3bff322ab691b54de226"
+        }
+      ],
+      "parents": {}
+    },
+    "setup_signoff": {
+      "config": {
+        "CLK_PERIOD": "10",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "N_CLOCKS": "1",
+        "PDK": "sky130",
+        "SDC_CLOCK_PERIOD_NS": "",
+        "SDC_IO_DELAY_PCT": "",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "106e45b9bca67072c2b527bc5b989ed213d72b5093835aebeed5b7980a635264",
+      "generated": [
+        {
+          "effective_sha256": "2986d4f943b17a33f394656915358a2fc61cb4e5bb5c81c7cc15e580aabab24e",
+          "generated_sha256": "2986d4f943b17a33f394656915358a2fc61cb4e5bb5c81c7cc15e580aabab24e",
+          "path": "signoff/sky130/uart_master.sdc"
+        },
+        {
+          "effective_sha256": "99d889ddbc33a754416b0d9aa7d3684f875832767806fe9462bbbdae0cdc48a5",
+          "generated_sha256": "99d889ddbc33a754416b0d9aa7d3684f875832767806fe9462bbbdae0cdc48a5",
+          "path": "signoff/sky130/sta/sta.tcl"
+        },
+        {
+          "effective_sha256": "08d00326b77a2d86948d255fbae04ffec0c0a078cdbd6e5ce74dfcb298b7ff7d",
+          "generated_sha256": "08d00326b77a2d86948d255fbae04ffec0c0a078cdbd6e5ce74dfcb298b7ff7d",
+          "path": "signoff/sky130/sdf/write_sdf.tcl"
+        },
+        {
+          "effective_sha256": "1f003d262aa87ed9d6b9658278dae64a91e2352491f2d14a042de1b424bc2344",
+          "generated_sha256": "1f003d262aa87ed9d6b9658278dae64a91e2352491f2d14a042de1b424bc2344",
+          "path": "signoff/sky130/power/estimate/power_estimate.tcl"
+        },
+        {
+          "effective_sha256": "0396c08e4366903509772021edb7c6caa5b943a09036e0abd484a6682471a809",
+          "generated_sha256": "0396c08e4366903509772021edb7c6caa5b943a09036e0abd484a6682471a809",
+          "path": "signoff/sky130/power/analysis/power_analysis.tcl"
+        },
+        {
+          "effective_sha256": "f261c699b08aa602250edb4b54d0de407a531dca5212a86a53fe10684381bd26",
+          "generated_sha256": "f261c699b08aa602250edb4b54d0de407a531dca5212a86a53fe10684381bd26",
+          "path": "signoff/sky130/fusion/fusion_analysis.tcl"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "syn/sky130/uart_master_synth.v",
+          "sha256": "9e94135461287ba693f46d98509c8189c3933a40821984e2a43d50c0d7bf7962"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_n40C_1v76.lib",
+          "sha256": "f4f16d4f7040623afb60d0480a035e4128c5c1212361ae3bd13c3a52d9692a84"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib",
+          "sha256": "7c6b9fc62d7e83b8317cdca883d79107d8f2ff1061b04519fda7d3088560015b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95_ccsnoise.lib",
+          "sha256": "425315ca7a49debcb1c715daf6e5e5a27bb78587cac6f3b358b1fe114c787132"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/verilog/primitives.v",
+          "sha256": "7d4b1441d06b0f2b9662befa675a0484d77149e04eb42a5f1fa2d4cfded7b2ce"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/verilog/sky130_fd_sc_hd.v",
+          "sha256": "4a183a476baef9abb68d82808d24d8f2907ed7b6cdebff8d03002f45b12e7833"
+        }
+      ],
+      "parents": {}
+    },
+    "setup_syn": {
+      "config": {
+        "CLK_PERIOD": "10",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "MIN_BUF_CELL_AND_PORTS": "sky130_fd_sc_hd__buf_4 A X",
+        "N_CLOCKS": "1",
+        "TARGET_OPT": "delay1",
+        "TARGET_SYN": "",
+        "TIEHI_CELL_AND_PORT": "sky130_fd_sc_hd__conb_1 HI",
+        "TIELO_CELL_AND_PORT": "sky130_fd_sc_hd__conb_1 LO",
+        "TOP": "uart_master"
+      },
+      "fingerprint": "0689740f9c762ebf32c37fe729ad76edd52e261055a2343d07cc509955008859",
+      "generated": [
+        {
+          "effective_sha256": "e56ab2f453f5186ab66e64c182d97722a4900f8fbe6534c28a66562d8d9ac56b",
+          "generated_sha256": "e56ab2f453f5186ab66e64c182d97722a4900f8fbe6534c28a66562d8d9ac56b",
+          "path": "syn/sky130/delay1.abc"
+        },
+        {
+          "effective_sha256": "80ead4181172049036370036fac6470c79e7152149861bbc2905bb45e5886806",
+          "generated_sha256": "80ead4181172049036370036fac6470c79e7152149861bbc2905bb45e5886806",
+          "path": "syn/sky130/abc.constr"
+        },
+        {
+          "effective_sha256": "f64901b2e213b64fc97d8bb6a33758a42397d3c695d9d228289ceb3f3814ee31",
+          "generated_sha256": "f64901b2e213b64fc97d8bb6a33758a42397d3c695d9d228289ceb3f3814ee31",
+          "path": "syn/sky130/synth.ys"
+        },
+        {
+          "effective_sha256": "a206b4b1edaf088442f92ca4118d1338b8dff56f217511c1a00a2b4aeda0bb28",
+          "generated_sha256": "a206b4b1edaf088442f92ca4118d1338b8dff56f217511c1a00a2b4aeda0bb28",
+          "path": "syn/sky130/synth_sv.ys"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "rtl/rtl_common.f",
+          "sha256": "b6044248492d64c6f5c3b907bd66e01d90f36e68df6b69f8d91e8f960cbb47fa"
+        },
+        {
+          "path": "rtl/rtl_ip.f",
+          "sha256": "145a183744c606162c97f3a9b983a26d2651650a92523c52d8a1f07f89684aed"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_enc.sv",
+          "sha256": "74b3b327047b90682468614708bb4b1104b1f069c0dc3189e2b078622ac566b8"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_enc.sv",
+          "sha256": "4588fda3fd5ebdd711c98f6900caaaaddddf1257337c5b931ca86de7fb0ef8ff"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/top_pkg.sv",
+          "sha256": "72e6154bb7a6673a5dceb9e329c80524666a4a4c785cda457b1415524eb5b672"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_mubi_pkg.sv",
+          "sha256": "df5dad9f7800155fc13ada6ea76c68edc89238222a42e66521021c67eaf8a4cf"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_secded_pkg.sv",
+          "sha256": "7ad86eb447a32f5c3f650dd6958e7d24497bce4d9848a3795b6b37786f4db4e1"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/tlul_pkg.sv",
+          "sha256": "a6a456930c5a4218e172e750f4e39fde516ebb12d8effc76331ff95ce5337408"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_enc.sv",
+          "sha256": "28567bc5483eddcf20b51890bc82497f32728b6a46b134a43c01f7180a14c7a9"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_rsp_intg_gen.sv",
+          "sha256": "1ee08aeec4561b4c6b553abfc22b6d500b8ae6898b3dfbfe11ec682b71dfcb16"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_64_57_dec.sv",
+          "sha256": "e598eef60254ac4a0e6899f6d1e4af5ae5bbd2ac22395ac53ee925296bc8a826"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_secded_inv_39_32_dec.sv",
+          "sha256": "f07f26fd2375952e4ec7cfc1641cebcea373a8030d82dd5977a76f81c430cb12"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_data_integ_dec.sv",
+          "sha256": "0df25d94c03bef617e6ef309375c2d40cbc27719a0696fb1119ca53c3a68d2cb"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_cmd_intg_chk.sv",
+          "sha256": "1b56b9fca7e0b8643110622f6e9d5e6d8bb263bec923a5836748ba3b6f7f76ad"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_err.sv",
+          "sha256": "26653ceb490112eb04acceefc5d0de4ef3f3f6ba26da15614bc71304dba25919"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv",
+          "sha256": "d72b28016650c7c2c52f87b9d4bb99bd424aa90387605347275edea5a4d5d501"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_subreg_pkg.sv",
+          "sha256": "a38c3243535348fb4b0e5d233c0baa89eea3588b976d8bb050c7de4a2fd09bf0"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_arb.sv",
+          "sha256": "cbd0c82f8c2009a1e1a5de606fda402882af1fdcc76b313b827ce2da90430b39"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv",
+          "sha256": "8e370e0ca72081804b67ef53b88aad3174fd193a8acbc37ed9ee4dfecbb7cee7"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg_ext.sv",
+          "sha256": "eae06b86178defd9aa7353e285f42194d654eb12088e6fa964ac132e25407111"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv",
+          "sha256": "6645d657b107b024f9211d3a0134890d1e20146f68ba1772bf62575f7b4e5549"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_count_pkg.sv",
+          "sha256": "8e465ed25b7d59f29faf0f315243a774cf0e50d178ec2068d8c71983cb2f18df"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_count.sv",
+          "sha256": "ca250480197b9558b8159072138eece290f1a678bcfe6be32e601c44931c898d"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/pkgs/prim_util_pkg.sv",
+          "sha256": "597766461dbb9d1b122cdb116b091cbec2d8250a497e549157c3e9b2c177314f"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv",
+          "sha256": "fb312e711f1b3122474d5cd693376497828455b3feca978b65194968f71b5398"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv",
+          "sha256": "997e3424f3e319be268b5903fd4258ef3499cf7ffaf17ae8d241388f42134e6b"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop_2sync.sv",
+          "sha256": "a41ca8c73618754f954b8d04b0eac68f3411f8c47a7e53e482f8aacb8c6f8e06"
+        },
+        {
+          "path": "rtl/uart_master_reg_pkg.sv",
+          "sha256": "4e2426ebb0185ca019f6f9b16759f556e5e791772cf0086bf02097748f1ca685"
+        },
+        {
+          "path": "rtl/uart_master_reg_top.sv",
+          "sha256": "25286e54335d27219e4ba2a9711acf73f5fbdf24944c1a8d5ab08b6b0731024e"
+        },
+        {
+          "path": "rtl/uart_tx.sv",
+          "sha256": "1cd4f59b8a58bb8e99c2a24081aae093f6528ac1887abb7cb5f31b911f949241"
+        },
+        {
+          "path": "rtl/uart_rx.sv",
+          "sha256": "08a72a3f045562eee419f42fe2abb4f68f3282b90bb0a6e268872fd39748782b"
+        },
+        {
+          "path": "rtl/uart_core.sv",
+          "sha256": "8f7f79a0e30b97d599be814f3fdaa46b93489cc650f48c0ed45acc1c8cbff343"
+        },
+        {
+          "path": "rtl/uart_host_bridge.sv",
+          "sha256": "1772f4d7c0b9f8373c01bf4b9c6b36ad6155cdf93ef0270e66769514ddecca79"
+        },
+        {
+          "path": "rtl/uart_master_core.sv",
+          "sha256": "d709b0e2e0c292ec8ba1c8375de5690cf356a5287f4e04226d968b415ac9722a"
+        },
+        {
+          "path": "rtl/uart_master.sv",
+          "sha256": "07429efd3776d69f588b99924587e31e08b5eb859bbea3d1f13a3839ee1ae06e"
+        },
+        {
+          "path": "/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib",
+          "sha256": "7c6b9fc62d7e83b8317cdca883d79107d8f2ff1061b04519fda7d3088560015b"
+        }
+      ],
+      "parents": {}
+    },
+    "setup_tb": {
+      "config": {
+        "CLK_PERIOD": "10",
+        "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
+        "CLOCK_RELATIONSHIPS": "",
+        "COMPILER": "",
+        "N_CLOCKS": "1",
+        "REG_ITF": "",
+        "TOP": "uart_master",
+        "VSV": ""
+      },
+      "fingerprint": "8e7437f27b3f8d234ae4eca878d4ce6b76732694bc419dab673f6909aa4f63b0",
+      "generated": [
+        {
+          "effective_sha256": "bb50a9e1b64bff11a670d6807b72ac2235551e4d1f115a4128f49acdfe6b201b",
+          "generated_sha256": "bb50a9e1b64bff11a670d6807b72ac2235551e4d1f115a4128f49acdfe6b201b",
+          "path": "dv/functional/tb/sv/drivers/uart_master_reg_driver.svh"
+        },
+        {
+          "effective_sha256": "7de93cbb0faf619502ed00c0b9e840ca24111c196cb5741a10e34b510598e503",
+          "generated_sha256": "7de93cbb0faf619502ed00c0b9e840ca24111c196cb5741a10e34b510598e503",
+          "path": "dv/functional/tb/sv/drivers/uart_master_vec_driver.svh"
+        },
+        {
+          "effective_sha256": "199391dc760e763792850fafcd3649e02523e54d28ee0c9aa0a2ec1b697ec6e4",
+          "generated_sha256": "199391dc760e763792850fafcd3649e02523e54d28ee0c9aa0a2ec1b697ec6e4",
+          "path": "dv/functional/tb/sv/drivers/uart_master_vec_monitor.svh"
+        },
+        {
+          "effective_sha256": "4277613172155803ef56b49f3d6bab27c98c353fbb36c189c77de4124fb97ba6",
+          "generated_sha256": "4277613172155803ef56b49f3d6bab27c98c353fbb36c189c77de4124fb97ba6",
+          "path": "dv/functional/tb/sv/include_uart_master_tb.sv"
+        },
+        {
+          "effective_sha256": "0de6e8e8e539781364fd37b5fb75e2e579ba751ff4ede99a99fd18fa29514c67",
+          "generated_sha256": "0de6e8e8e539781364fd37b5fb75e2e579ba751ff4ede99a99fd18fa29514c67",
+          "path": "dv/functional/tb/sv/tlul_if.sv"
+        },
+        {
+          "effective_sha256": "ef534c33d67d79bc715536ad93c826d4d2a86c630b2a5c7743d32a821df0350f",
+          "generated_sha256": "ef534c33d67d79bc715536ad93c826d4d2a86c630b2a5c7743d32a821df0350f",
+          "path": "dv/functional/tb/sv/uart_master_tb.sv"
+        }
+      ],
+      "input_paths_match": true,
+      "inputs": [
+        {
+          "path": "data/uart_master.hjson",
+          "sha256": "d94057a0c727a028e0eb1c670efb0e8524ceda3ad93f7bd17ac0e2227466b756"
+        }
+      ],
+      "parents": {}
+    }
+  }
+}

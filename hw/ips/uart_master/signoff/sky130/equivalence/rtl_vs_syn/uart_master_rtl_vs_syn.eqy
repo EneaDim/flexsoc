@@ -1,0 +1,73 @@
+[options]
+splitnets off
+
+[gold]
+read_slang -D SYNTHESIS --ignore-assertions -f rtl_common.f -f rtl_ip.f --top uart_master
+rename uart_master uart_master__eqy_impl
+read_verilog -formal -sv uart_master_eqy_view.sv
+
+[gate]
+read_verilog -formal -sv formal_pdk.v
+read_verilog -formal -sv netlist.v
+rename uart_master uart_master__eqy_impl
+read_verilog -formal -sv uart_master_eqy_view.sv
+
+[script]
+hierarchy -check -top uart_master
+proc
+prep -top uart_master -flatten
+memory -nomap
+memory_map -formal
+async2sync
+# FlexSoC EQY reset normalization begin
+uniquify
+sim -clock clk_i -resetn rst_ni -rstlen 2 -n 2 -w
+# FlexSoC EQY reset normalization end
+
+[match uart_master]
+nodefault
+gold-match clk_i
+gold-match rst_ni
+gold-match req_o
+gold-match gnt_i
+gold-match addr_o
+gold-match we_o
+gold-match wdata_o
+gold-match be_o
+gold-match valid_i
+gold-match rdata_i
+gold-match err_i
+gold-match cio_rx_i
+gold-match cio_tx_o
+gold-match cio_tx_en_o
+gold-match tl_i
+gold-match tl_o__flexsoc_eqy_handshake
+gold-match tl_o__flexsoc_eqy_d_ctrl
+gold-match tl_o__flexsoc_eqy_d_data
+gold-match tl_o__flexsoc_eqy_d_meta
+
+[collect uart_master]
+join addr_o
+join wdata_o
+join be_o
+join tl_o__flexsoc_eqy_handshake
+join tl_o__flexsoc_eqy_d_ctrl
+join tl_o__flexsoc_eqy_d_data
+join tl_o__flexsoc_eqy_d_meta
+
+[strategy sat]
+use sat
+depth 20
+
+[strategy pdr]
+use sby
+engine abc pdr
+timeout 60
+xprop on
+
+[strategy smt]
+use sby
+engine smtbmc bitwuzla
+depth 2
+timeout 60
+xprop on

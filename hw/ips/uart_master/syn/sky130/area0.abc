@@ -1,0 +1,28 @@
+# AREA 0 ABC profile
+# Clock target: 10 ns (10000 ps).
+# Convert the current logic network to a structurally hashed AIG.
+strash
+# Compute don't-care information so later optimization can simplify more logic.
+dch
+# Balance AIG depth to shorten long Boolean logic chains.
+balance
+# Rewrite local AIG cones to reduce logic while preserving function.
+rewrite
+# Refactor larger logic cones into alternative equivalent structures.
+refactor
+# Rewrite again allowing zero-cost moves that can expose later improvements.
+rewrite -z
+# Balance AIG depth to shorten long Boolean logic chains.
+balance
+# Compute don't-care information so later optimization can simplify more logic.
+dch
+# Map to standard cells with area as the primary optimization objective.
+map -a
+# Recompute topological order before timing-driven sizing and buffering.
+topo
+# Recover area by downsizing cells while honoring the active constraints.
+dnsize -c
+# Print final mapped timing so the synthesis log records the achieved delay.
+stime -p
+# Print final mapped network statistics for area/profile comparison.
+print_stats -m

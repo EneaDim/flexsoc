@@ -11,8 +11,8 @@ module uart_core (
   input                  clk_i,
   input                  rst_ni,
 
-  input  uart_reg_pkg::uart_reg2hw_t reg2hw,
-  output uart_reg_pkg::uart_hw2reg_t hw2reg,
+  input  uart_master_reg_pkg::uart_master_reg2hw_t reg2hw,
+  output uart_master_reg_pkg::uart_master_hw2reg_t hw2reg,
 
   // pin fisici
   input  logic           rx,
@@ -27,7 +27,7 @@ module uart_core (
   output logic           tx_ready_o
 );
 
-  import uart_reg_pkg::*;
+  import uart_master_reg_pkg::*;
 
   localparam int NcoWidth = $bits(reg2hw.ctrl.nco.q);
   localparam int TxFifoDepthW = $clog2(TxFifoDepth)+1;

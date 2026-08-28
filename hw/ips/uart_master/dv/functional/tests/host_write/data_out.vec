@@ -1,0 +1,11 @@
+# UART master checks: host request, serial outputs and CSR reads.
+# <cycle> <signal> <expected> or <cycle> @read <reg> <expected> [mask]
+4000 req_o 0x00000001
+4000 addr_o 0x10000080
+4000 we_o 0x00000001
+4000 wdata_o 0x12345678
+4000 be_o 0x0000000f
+4000 cio_tx_en_o 0x00000001
+4128 req_o 0x00000000
+4128 cio_tx_en_o 0x00000001
+4128 cio_tx_o 0x00000001
