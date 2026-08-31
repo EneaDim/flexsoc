@@ -28,6 +28,12 @@ class ClockDomain:
     reset: str
     period_ns: float
     reset_polarity: str = "low"
+    rise_ns: float = 0.0
+    fall_ns: float | None = None
+    source_latency_ns: float = 0.0
+    setup_uncertainty_ns: float = 0.0
+    hold_uncertainty_ns: float = 0.0
+    transition_ns: float = 0.0
 
     def encode(self) -> str:
         return f"{self.name}:{self.signal}:{self.reset}:{self.period_ns:g}:{self.reset_polarity}"
@@ -844,9 +850,9 @@ class PDKRunLayout:
 
     @property
     def signoff_sdc(self) -> Path:
-        """Return the canonical PDK-scoped SDC owned by sign-off setup."""
+        """Return the single authored SDC shared by every technology stage."""
 
-        return self.signoff_pdk_root / f"{self.top}.sdc"
+        return self.run_root / "constraints" / "design.sdc"
 
     @property
     def pnr_log_dir(self) -> Path:
@@ -1641,6 +1647,8 @@ class FlowPaths:
     @property
     def formal(self) -> Path: return self.dv / "formal"
     @property
+    def constraints(self) -> Path: return self.run / "constraints"
+    @property
     def syn(self) -> Path: return self.run / "syn" / self.pdk
     @property
     def signoff(self) -> Path: return self.run / "signoff" / self.pdk
@@ -1654,7 +1662,7 @@ class FlowPaths:
     @property
     def rtl_ip(self) -> Path: return self.rtl / "rtl_ip.f"
     @property
-    def sdc(self) -> Path: return self.signoff / f"{self.top}.sdc"
+    def sdc(self) -> Path: return self.constraints / "design.sdc"
     @property
     def metrics(self) -> Path: return self.meta / "metrics.json"
     @property
@@ -1665,7 +1673,7 @@ class FlowPaths:
         for path in (
             self.data, self.rtl, self.doc, self.drivers, self.logs,
             self.model, self.tests, self.tb, self.sim, self.coverage,
-            self.formal, self.syn, self.signoff, self.impl, self.meta,
+            self.formal, self.constraints, self.syn, self.signoff, self.impl, self.meta,
         ):
             path.mkdir(parents=True, exist_ok=True)
         return self

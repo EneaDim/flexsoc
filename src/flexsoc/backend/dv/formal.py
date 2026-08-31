@@ -511,12 +511,15 @@ class FormalFlow:
 
     runner: object | None = None
 
-    def setup_scaffold(
+    def init_properties(
         self, top: str, formal_dir: Path, *, multiclock: bool | None = None
     ) -> tuple[Path, ...]:
         """Create or preserve designer-owned property sources."""
 
         return generate_scaffold(top, formal_dir, multiclock=multiclock)
+
+    # Compatibility alias: property sources are authored initial content.
+    setup_scaffold = init_properties
 
     def setup_design(
         self,
@@ -681,7 +684,7 @@ class FormalFlow:
         props=paths.formal / "properties"
         runs=paths.formal / "runs"
         logs=paths.logs / "dv" / "formal"
-        self.setup_scaffold(top, paths.formal, multiclock=context.clocks.multiclock)
+        self.init_properties(top, paths.formal, multiclock=context.clocks.multiclock)
         prove=self.setup_design(top=top, filelists=common, properties_dir=props/"prove", mode="prove", engine=values.get("FORMAL_PROVE_ENGINE","abc pdr"), output=runs/"properties"/"prove"/f"{top}_prove.sby", depth=int(values.get("FORMAL_DEPTH","20")), bmc_engine=values.get("FORMAL_BMC_ENGINE","smtbmc bitwuzla"), bmc_depth=int(values.get("FORMAL_BMC_DEPTH","30")), bmc_append=int(values.get("FORMAL_BMC_APPEND","5")), multiclock=context.clocks.multiclock)
         cover=self.setup_design(top=top, filelists=common, properties_dir=props/"cover", mode="cover", engine=values.get("FORMAL_COVER_ENGINE","btor btormc"), output=runs/"properties"/"cover"/f"{top}_cover.sby", depth=int(values.get("FORMAL_DEPTH","20")), multiclock=context.clocks.multiclock)
         csr_prove=self.setup_csr(top=top, filelists=common, properties_dir=paths.formal/"csr"/"prove", generated=paths.formal/"csr"/"prove"/f"{top}_csr_auto_prove.sv", mode="prove", engine=values.get("FORMAL_PROVE_ENGINE","abc pdr"), output=runs/"csr"/"prove"/f"{top}_csr_prove.sby", depth=int(values.get("FORMAL_DEPTH","20")), bmc_engine=values.get("FORMAL_BMC_ENGINE","smtbmc bitwuzla"), bmc_depth=int(values.get("FORMAL_BMC_DEPTH","30")), bmc_append=int(values.get("FORMAL_BMC_APPEND","5")), multiclock=context.clocks.multiclock)

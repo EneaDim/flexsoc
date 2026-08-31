@@ -1,20 +1,10 @@
 # 🧭 FlexSoC command reference
 
-This is the complete user-facing reference for the `fx` command line and every
-backend target currently exposed by FlexSoC. The commands are the interface to
-the same controlled build and qualification lifecycle defined in
-[Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify
-it, synthesize it, prove equivalence, analyze timing and power, implement it,
-and collect qualification evidence.
+This is the complete user-facing reference for the `fx` command line and every backend target currently exposed by FlexSoC. It follows the same lifecycle as [Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify it, synthesize it, prove equivalence, analyze timing and power, implement it, and collect release evidence.
 
-The reference explains what each command owns. The generated scaffold architecture
-and design reasoning are described in [IP development guide](ip_development_guide.md).
-The underlying EDA tools remain authoritative for their analyses; this reference
-does not replace their logs or manuals. Use `fx <command> --help` (also `-h`,
-`help`, or `info`) for dedicated command help, and `fx commands --json` when a
-script needs live metadata from the installed checkout.
+The reference explains what each command owns. The generated scaffold architecture and design reasoning are described in [IP development guide](ip_development_guide.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
 
-> **Execution model:** `fx target_a target_b` launches separate backend targets in order. Atomic execution targets prepend their generated setup steps by default: for example, `fx syn` prepends `setup_syn`; `fx eqy` runs `setup_eqy`, then `eqy`. Functional simulation setup remains explicit: run `setup_tb` and `setup_cocotb` when the drivers must be refreshed, including after a PDK switch before GLS. Use `--no-setup` when the setup commands are already written explicitly, as in the E2E pipelines. Setup expansion follows setup-only dependencies recursively, remains ordered, and is deduplicated across one invocation. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
+> **Execution model:** `fx target_a target_b` launches exactly the requested backend targets in order. Execution targets are **run-only by default**: `fx syn` consumes an existing `setup_syn`, `fx eqy` consumes an existing `setup_eqy`, and sign-off/formal consumers behave the same way. Setup is generated explicitly once and then reused. Re-run a setup target with `--force` only when regeneration is intentional. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
 
 ---
 
@@ -41,14 +31,14 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | Command | Purpose | Important behavior |
 | --- | --- | --- |
 | `fx`, `fx help`, `fx -h`, `fx --help` | Show the lifecycle-ordered IP guide. | Does not execute a lifecycle target. |
-| `fx <command> --help` | Show dedicated help, examples, automatic setup, and accepted variables. | `fx <command> -h`, `fx <command> help`, `fx <command> info`, and `fx help <command>` are equivalent. |
+| `fx <command> --help` | Show dedicated help, examples, required setup, and accepted variables. | `fx <command> -h`, `fx <command> help`, `fx <command> info`, and `fx help <command>` are equivalent. |
 | `fx commands` | List all backend targets, groups, descriptions, and accepted variables. | Add `--json` for machine-readable metadata. |
 | `fx settings [KEY=VALUE ...]` | Show or update persistent project settings and derived run paths. | Supports `--set`, `--unset`, `--reset`, `--workdir`, and `--json`. Clock relationships are cleared automatically when domains change unless explicitly supplied. |
 | `fx doctor` | Check Python, lock files, and installed EDA tools. | Add `--json` for CI or provisioning scripts. |
 | `fx pdk list` | List known PDK profiles and local readiness. | `--json` returns the catalogue. |
 | `fx pdk info <name>` | Show source, node, digital views, OpenROAD platform, and formal adapter. | `--set PDK_ROOT=...` inspects a non-default installation. |
 | `fx pdk fetch <name>` | Fetch the configured PDK source/provider. | `--force` refreshes; `--set PDK_VERSION=...` selects a supported version. |
-| `fx pdk use <name>` | Validate digital views and persist the active PDK. | Shared RTL, DV, and formal remain valid; synthesis must be regenerated for the PDK, and the PDK-scoped SDC/sign-off collateral must be regenerated independently for the selected technology. |
+| `fx pdk use <name>` | Validate digital views and persist the active PDK. | Shared RTL, DV, formal, and the canonical authored `constraints/design.sdc` remain valid; regenerate only technology-dependent synthesis/sign-off collateral for the selected PDK. |
 | `fx eqy_debug [partition]` | Summarize EQY closure or diagnose one unresolved partition. | Supports `--wave`, `--files`, `--json`, and reset overrides through `--set`. |
 | `fx shell` | Open an interactive prompt with target completion and history. | `help`, `commands`, `exit`, and normal target lines are accepted. |
 
@@ -66,7 +56,7 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--profile base|impl|riscv` | Dependency targets only | Select the pinned dependency profile. |
 | `--jobs N` | Dependency targets only | Set dependency build jobs. EQY parallelism uses `--set EQY_JOBS=N`. |
 | `--force`, `--overwrite` | Generated targets | Set `FORCE=1`; authored files should still be reviewed before regeneration. |
-| `--no-setup` | Atomic execution targets | Run only the requested target names. Use this for literal pipelines that call their setup targets explicitly. |
+| `--no-setup` | Compatibility only | Deprecated no-op retained for old scripts. Requested targets are run-only by default. |
 | `--dry-run` | Backend targets | Print the exact command without executing it. |
 | `--script` | With `--dry-run` | Render the preview as a strict Bash script. |
 | `--capture` | Backend targets | Capture stdout/stderr and save a per-command log. |
@@ -74,62 +64,100 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--json` | Supported pseudo-commands and execution output | Emit machine-readable JSON. |
 | `--info` | Backend targets | Describe selected targets and accepted variables instead of running them. |
 
-### 1.3 Automatic setup and explicit pipelines
+### 1.2.1 Backend operation vocabulary
 
-The following atomic execution families prepare their generated support files by default:
+The backend uses `init_*` for designer-owned starter content, `setup_*` for machine-owned generated collateral, `run_*` for execution, `collect_*` for evidence collection, and `show_*`/`debug_*` for inspection and diagnostics. Existing CLI target names remain compatible; this vocabulary primarily makes backend flow APIs consistent while target aliases are migrated deliberately.
 
-| Execution family | Prepended targets |
+### 1.3 Explicit setup and run-only consumers
+
+FlexSoC separates generated setup collateral from execution. Setup targets create canonical machine-owned files; execution targets consume those files without regenerating them.
+
+| Execution family | Required setup |
 | --- | --- |
 | `syn`, `syn_v`, `syn_sv` | `setup_syn` |
-| CSR formal execution targets | their matching `setup_formal_csr_*` target |
-| Design formal execution targets | `setup_formal`, then their matching properties setup |
+| CSR formal execution targets | matching `setup_formal_csr_*` target |
+| Design formal execution targets | matching `setup_formal_*` target |
 | `eqy` | `setup_eqy` |
 | `sdf`, `sta*`, `power_estimate*` | `setup_signoff` |
-| `pnr`, `pnr_gui` | `setup_signoff`, `setup_pnr` |
+| `pnr`, `pnr_gui` | `setup_pnr` plus its upstream synthesis/sign-off results |
+| `cdc_rdc` | `setup_cdc_rdc` |
+| SV/cocotb execution | `setup_tb` / `setup_cocotb` as appropriate |
 
-This preparation regenerates only configuration or scripts. Functional SV and cocotb driver setup is deliberately excluded from automatic expansion and remains an explicit user step. It does not execute earlier result-producing stages such as synthesis before EQY or GLS before activity-power analysis. Composite lifecycle targets retain their own orchestration. Use `--dry-run` to inspect the expansion and `--no-setup` to execute only the names written by the caller.
-
-#### Provenance and `--no-setup`
-
-Generated setup collateral is tracked in `meta/<pdk>/provenance.json` using content hashes of the effective inputs, semantic configuration, parent lineage, and generated files. A normal setup rewrites machine-owned collateral canonically and records it as `CLEAN`.
-
-`--no-setup` never regenerates setup collateral. Before an execution target runs, FlexSoC verifies the required setup lineage:
-
-- `CLEAN`: generated files match the last canonical setup.
-- `MODIFIED`: a generated file changed after setup; execution is blocked.
-- `VALIDATED_OVERRIDE`: the current manual edit was explicitly accepted for the current lineage.
-- `STALE`: source/configuration or an upstream parent changed; rerun setup.
-- `INVALID`: required provenance or generated/input artifacts are missing or inconsistent.
-
-`validate_override` is only for `MODIFIED`: an intentional manual edit to generated collateral. It is **not** how a configuration change is accepted. `STALE` means the effective source/configuration/parent lineage changed and the setup must be regenerated.
-
-For synthesis, use one of these two patterns:
+The normal pattern is therefore explicit and stable:
 
 ```bash
-# One-command experiment: automatic setup sees the same one-shot override.
-fx syn --set TARGET_OPT=delay1
-
-# Multi-command lineage: persist the choice once.
-fx settings TARGET_OPT=delay1
 fx setup_syn
-fx syn --no-setup
+fx syn
+
+fx setup_eqy
+fx eqy
+
+fx setup_signoff
+fx sdf
+fx sta
 ```
 
-If you deliberately edit a generated file after setup, the stage becomes `MODIFIED`; only then use `fx validate_override --set STAGE=<setup_target>`. Restoring the exact canonical bytes returns the stage to `CLEAN`; changing source/config/parents later makes it `STALE` again.
+Calling `fx syn` does not rewrite `setup_syn`. Calling `fx setup_syn` again also preserves an existing valid setup. To regenerate it intentionally, use:
 
-Execution targets must not rewrite their setup collateral. Scenario-specific runtime files (for example per-corner OpenSTA Tcl) are written below the scenario/report directory, while the canonical setup templates tracked by provenance remain immutable. This keeps a validated override valid across a run and prevents a consumer from making its own setup state `MODIFIED`.
+```bash
+fx setup_syn --force
+```
 
-`fx metrics` records the current provenance summary with the technical metrics. `fx check` refreshes both before rendering them as two independent dimensions, so a historical technical PASS can still be visibly `STALE` or `MODIFIED` with respect to the current workspace.
+The same contract applies to every provenance-bearing `setup_*` target. `--no-setup` remains accepted only as a compatibility no-op for older scripts; new documentation and E2E flows do not use it.
 
-Execution backends consume the same validated setup artifacts and effective source inputs recorded by provenance; remote `rsync` execution therefore transfers declared inputs rather than relying on undeclared files already present on the remote host. Path identity is preserved for workspace bindings such as EQY symlinks: the declared binding path remains the contract even when rsync dereferences its content. GLS driver setup remains explicit, but gate-level execution validates the selected `setup_tb` or `setup_cocotb` provenance before using it; it never regenerates that driver implicitly.
+#### Provenance and controlled setup regeneration
 
-After `ip_load`, and again after each `pdk use` before GLS, run `setup_tb` and `setup_cocotb` explicitly. Each command replaces its complete generated tree (`tb/sv/**` or `tb/cocotb/**`) from the current RTL signature, RegMap, and clock/reset configuration, so saved-IP files cannot mix with a newer generator. These trees are entirely machine-owned; `--force` is optional and normally unnecessary for their complete regeneration.
+Generated setup collateral is tracked in `meta/<pdk>/provenance.json` using content hashes of effective inputs, semantic configuration, parent lineage, and generated files.
 
-### 1.4 Run identity and clock/reset intent
+Before a run target executes, FlexSoC verifies the required setup lineage:
 
-Use `fx settings` for design intent that should persist across commands. `TOP`, `RUN_TOP`, `RUN_ID`, and the clock model are the most important persistent settings.
+- `CLEAN`: generated files match the last canonical setup; execution is allowed.
+- `MODIFIED`: a generated file changed after setup; execution is blocked until the exact edit is validated or the setup is force-regenerated.
+- `VALIDATED_OVERRIDE`: the current manual edit was explicitly accepted for the current lineage; execution is allowed.
+- `STALE`: source, configuration, or upstream lineage changed; regenerate with `fx <setup_target> --force`.
+- `INVALID`: required provenance or generated/input artifacts are missing or inconsistent. If the setup has never been generated, run it once; otherwise repair the inputs and force-regenerate.
 
-#### Single-clock project
+A setup target itself follows the same policy:
+
+```text
+not recorded       → generate + record CLEAN
+CLEAN              → reuse, no rewrite
+VALIDATED_OVERRIDE → reuse, no rewrite
+MODIFIED           → block; validate_override or setup --force
+STALE              → block; setup --force
+INVALID            → block if previously recorded; repair + setup --force
+```
+
+`validate_override` is only for intentional edits to generated collateral. It is not a substitute for regenerating setup after a configuration/source change.
+
+For a persistent synthesis-profile change:
+
+```bash
+fx settings TARGET_OPT=delay1
+fx setup_syn --force
+fx syn
+```
+
+For a manual experiment on generated setup:
+
+```bash
+fx setup_syn
+# edit the generated setup collateral
+fx validate_override --set STAGE=setup_syn
+fx syn
+```
+
+Execution targets must not rewrite setup collateral. Scenario-specific runtime files may be generated below scenario/report directories, while canonical setup files tracked by provenance remain immutable.
+
+Composite lifecycle targets may list setup operations explicitly as part of their orchestration. Those setup operations still obey the reuse/`--force` policy; a composite flow therefore cannot silently erase a validated manual override.
+
+After `ip_load`, and again after each `pdk use` before GLS, generate or refresh `setup_tb` and `setup_cocotb` explicitly when required by the current RTL/register/clock interface. Their generated trees are machine-owned and are reused while provenance remains valid.
+
+### 1.4 Run identity, clock/reset bootstrap, and authored SDC
+
+Use `fx settings` for persistent run identity and bootstrap configuration. `TOP`, `RUN_TOP`, and `RUN_ID` identify the logical run. `N_CLOCKS`, `CLOCK_DOMAINS`, and `CLOCK_RELATIONSHIPS` describe the initial domain/reset topology so FlexSoC can scaffold a new project before an authored SDC exists. The project-local settings live in `.flexsoc/settings.json`; runs snapshot common intent in `meta/design_intent.json` and effective technology values in `meta/<pdk>/settings.json`.
+
+#### Single-clock bootstrap
 
 ```bash
 fx settings \
@@ -138,15 +166,9 @@ fx settings \
   CLOCK_DOMAINS=core:clk_i:rst_ni:10:low
 ```
 
-`CLOCK_DOMAINS` syntax:
+`CLOCK_DOMAINS` syntax is `name:clock_port:reset_port:period_ns[:low|high]`. The reset polarity defaults to `low` if omitted; `N_CLOCKS` must equal the number of entries.
 
-```text
-name:clock_port:reset_port:period_ns[:low|high]
-```
-
-The reset polarity defaults to `low` if omitted. `N_CLOCKS` must equal the number of domain entries.
-
-#### N-clock project
+#### N-clock bootstrap
 
 ```bash
 fx settings \
@@ -156,60 +178,43 @@ fx settings \
   'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 ```
 
-Relationship syntax is explicit:
+Relationships are explicit: `async:source:target`, `sync:source:target`, or `generated:source:target[:divide_by]`. FlexSoC does not infer that unrelated domains are asynchronous.
 
-```text
-async:source:target
-sync:source:target
-generated:source:target[:divide_by]
-```
-
-FlexSoC does not infer that unrelated domains are asynchronous. If `N_CLOCKS` or `CLOCK_DOMAINS` changes and no new `CLOCK_RELATIONSHIPS` value is supplied, the old relationship list is cleared.
-
-Inspect what is currently persisted and the derived run paths with:
+Inspect bootstrap/effective settings with:
 
 ```bash
 fx settings
 fx settings --json
 ```
 
-For a one-command experiment, do not rewrite persistent settings; use repeatable `--set` overrides:
+#### Initialize the timing source of truth
+
+After structural RTL/lint are clean, initialize the canonical SDC once:
 
 ```bash
-fx sta \
-  --set N_CLOCKS=1 \
-  --set CLOCK_DOMAINS=core:clk_i:rst_ni:12:low
+fx sdc --force
 ```
 
-`ClockConfig` validates and normalizes these settings once. Testbench generation, formal, CDC/RDC, synthesis timing, SDC, PnR and post-PnR sign-off consume that same model. `CLK_PERIOD` is derived from the fastest configured clock for consumers that still need one scalar period; per-domain periods remain authoritative.
+`constraints/design.sdc` is then designer-owned timing intent. Edit clock period/waveform, generated clocks, source latency, setup/hold uncertainty, clock transition, clock groups, I/O delay, drive/load, and reviewed exceptions there. Do not maintain the same timing fact in a parallel settings override after the SDC exists. `SDC_IO_DELAY_PCT` is a bootstrap/default phasing value used by the initial scaffold and generated vector drivers, not a replacement for authored SDC timing.
 
-`SDC_IO_DELAY_PCT` defines the shared interface timing phase. With a 10 ns clock and the default `0.2`, generated SV and cocotb drivers change DUT inputs at 2 ns after the active edge and sample DUT outputs at 8 ns. The same generated testbench timing is used for RTL functional simulation and for post-synthesis/post-PnR GLS; SDF changes the DUT timing model, not the driver/monitor schedule. Reset sequencing remains edge-based and separate. Values must satisfy `0 < SDC_IO_DELAY_PCT < 0.5`.
+The shared `sdc.py` adapter parses only the subset required by non-STA consumers. Functional SV/cocotb use SDC period/waveform/source latency and model `set_clock_uncertainty` as bounded uniform jitter of `±max(setup_uncertainty, hold_uncertainty)`, quantized at 1 ps. The existing run `SEED` drives the same xorshift32 sequence in both backends, so clock phase, duty cycle, relative skew, and jitter are reproducible. `set_clock_transition` remains an STA/electrical constraint rather than an analog slew model. CDC/RDC reads clock relationships from the SDC and combines them with reset ownership/polarity from bootstrap metadata. Synthesis derives `abc.constr` drive/load collateral from the same file. OpenSTA sources it directly.
 
-```bash
-fx settings SDC_IO_DELAY_PCT=0.2
-```
+If the **domain/reset topology** changes, update bootstrap settings and intentionally regenerate/review `fx sdc --force`. If only timing values or exceptions change, edit `design.sdc` directly and regenerate only the affected setup stages.
 
 ### 1.5 Changing technology inside one logical run
 
-The run root, RTL, functional DV, and property formal are technology independent. The canonical SDC is technology-scoped at `signoff/<pdk>/<top>.sdc` and is regenerated by `setup_signoff` from the shared clock configuration for each PDK. Yosys/ABC synthesis does not consume this SDC; ASIC mapping uses the generated `syn/<pdk>/abc.constr` plus the ABC delay target. After `fx pdk use <name>`, do **not** regenerate HJSON, registers, RTL, models, or model-derived tests. Regenerate only technology-dependent synthesis/sign-off collateral, including the PDK-scoped SDC. Run only:
+The run root, RTL, functional DV, property formal, and `constraints/design.sdc` are technology independent. `fx sdc` initializes that authored timing contract once from the bootstrap clock/reset settings. After that, functional TB, CDC/RDC, synthesis and STA consume the same file; `setup_syn` derives `syn/<pdk>/abc.constr` drive/load collateral from it and `setup_signoff` only generates tool scripts. After `fx pdk use <name>`, do **not** regenerate HJSON, registers, RTL, models, model-derived tests, or `design.sdc`. Regenerate only technology-dependent synthesis/sign-off collateral. Run only:
 
 ```bash
-# Convenience mode: each execution command prepares its generated scripts.
+# Generated collateral is explicit and persistent. Runs never regenerate it.
+fx setup_syn
 fx syn
+fx setup_eqy
 fx eqy
+fx setup_signoff
 fx sdf
 fx sta
 fx power_estimate
-
-# Literal E2E mode: keep every setup visible and disable expansion.
-fx setup_syn
-fx syn --no-setup
-fx setup_eqy
-fx eqy --no-setup
-fx setup_signoff
-fx sdf --no-setup
-fx sta --no-setup
-fx power_estimate --no-setup
 # compile_post_syn / sim_post_syn / power_analysis for every vector
 fx manifest
 fx metrics
@@ -227,10 +232,11 @@ Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv
 | Environment and technology | `fx doctor`, `fx deps-doctor`, `fx pdk info`, `fx pdk use` | Tool/PDK readiness |
 | Requirements to CSR/RTL entry | `fx setup`, `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`, `fx top_from_core` | Register collateral and authored RTL boundary |
 | RTL elaboration and lint | `fx flist`, `fx lint_suite`, `fx slang_hier`, `fx slang_ast` | Reachable hierarchy and clean structural RTL |
+| Timing intent | `fx sdc` | single authored `constraints/design.sdc` |
 | CDC/RDC | `fx setup_cdc_rdc`, `fx cdc_rdc` | Domain inventory, classified crossings, obligations, detailed log |
-| Property formal | `fx setup_formal`, `fx formal` | BMC/prove/cover closure |
+| Property formal | `fx setup_formal`, formal setup targets, `fx formal` | BMC/prove/cover closure |
 | Functional DV | `fx setup_model`, `fx tests_gen`, `fx setup_tb`, `fx setup_cocotb`, `fx regression`, `fx coverage_detail` | Passing scenarios, waves, coverage |
-| Sign-off constraints | `fx setup_signoff` | canonical `signoff/<pdk>/<top>.sdc` plus OpenSTA Tcl families |
+| Sign-off setup | `fx setup_signoff` | OpenSTA Tcl families consuming `constraints/design.sdc` |
 | Synthesis | `fx setup_syn`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
 | Logical sign-off | `fx setup_eqy`, `fx eqy`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
 | Post-synthesis sign-off | `fx setup_signoff`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
@@ -408,16 +414,12 @@ than skipping the stage.
 
 | Target | Action | Main overrides | Notes |
 | --- | --- | --- | --- |
-| `fx setup_cdc_rdc` | Generate the pre-technology Yosys extraction script. | clock settings | Automatically run by `fx cdc_rdc` unless `--no-setup` is used. |
+| `fx setup_cdc_rdc` | Generate the pre-technology Yosys extraction script. | clock settings | Must exist and have valid provenance before `fx cdc_rdc` runs. |
 | `fx cdc_rdc` | Extract, classify, report, and optionally gate CDC/RDC findings. | `CDC_RDC_HEARTBEAT`, `CDC_RDC_STRICT` | Runs automatically after `lint_suite`; prints the colored final summary and detailed log path by default. `--live` shows extraction, domains, checker counts, findings, obligations, and report paths; `fx cdc_rdc --help` explains every summary/status keyword. |
 
-The structural checks cover scalar N-FF synchronizers and their integrity,
-multi-bit transfers, synchronized controls, Gray/coherency obligations, async-FIFO
-and closed-loop-handshake candidates, synchronized reconvergence, undeclared or
-inconsistent clock/reset intent, combinational clock/reset paths, uncontrolled
-reset-domain crossings, reset synchronizers, asynchronous reset release, and
-reset-sequencing obligations. Results use `SAFE`, `WARN`, `ERROR`, and `REVIEW`;
-`REVIEW` records a property that structural analysis alone cannot prove.
+The checker executes the structural families in a fixed, readable order: (1) scalar and multi-bit CDC crossings, (2) async-FIFO candidates, (3) closed-loop handshakes, (4) synchronized reconvergence, (5) setup/domain and glitch checks, then (6) reset-domain crossings, (7) reset synchronizers, (8) asynchronous reset release, and (9) reset sequencing. This order is reflected directly in `cdc.py`; later checks reuse facts from earlier checks instead of re-discovering the design independently.
+
+The checks cover scalar N-FF synchronizers and their integrity, multi-bit transfers, synchronized controls, Gray/coherency obligations, undeclared or inconsistent clock/reset intent, combinational clock/reset paths, and uncontrolled reset-domain crossings. Results use `SAFE`, `WARN`, `ERROR`, and `REVIEW`; `REVIEW` records a property that structural analysis alone cannot prove.
 
 Main artifacts are under `analysis/cdc_rdc/` (`design.json`, CDC/RDC/setup/glitch
 reports, obligations, and `summary.json`) with detailed logs under
@@ -618,10 +620,10 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx signoff_corners` | Run SDF, multi-corner STA and estimated power. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Stops at STA when any configured corner/mode violates timing. |
 | `fx setup_eqy` | Generate RTL-vs-post-synthesis EQY configuration. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx eqy` | Prove RTL equivalent to the post-synthesis netlist with EQY. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Use `--info` for accepted overrides. |
-| `fx setup_signoff` | Generate the canonical `signoff/<pdk>/<top>.sdc` and sign-off Tcl families. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx setup_signoff` | Generate sign-off Tcl families that consume the authored `constraints/design.sdc`. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx compile_syn` | Compile post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sim_syn` | Run post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
-| `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Writes every corner/mode report, then fails if any report has negative WNS or a `VIOLATED` path. |
+| `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all resolved setup/hold scenarios and consolidates qualification into `signoff/<pdk>/sta/sta.rpt` plus `sta.json`; negative timing or unconstrained paths fail qualification. |
 | `fx sdf` | Write SDF timing files. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx power_estimate` | Estimate power using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx power_analysis` | Run workload-dependent OpenSTA power analysis for one qualified GLS trace in its aligned scenario. | `SIGNOFF_STAGE`, `POWER_TEST_NAME`, `POWER_GLS_BACKEND`, `POWER_TIMING_MODE`, `POWER_VCD_SCOPE`, `POWER_DUT_INSTANCE`, `MACRO_LIBS`, `SPEF_FILE` | Requires a passing direct GLS report and VCD/SAIF activity. |
@@ -641,9 +643,9 @@ Compile and run mapped or post-route gate-level simulations, optionally with SDF
 | --- | --- | --- | --- |
 | `fx compile_post_syn` | Compile post-synthesis gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 | `fx sim_post_syn` | Run one post-synthesis gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sim_post_syn_all` | Run all selected generated tests and timing modes with one GLS backend. | `TEST_NAMES`, `GLS_BACKEND`, `TIMING_MODES`, plus the `sim_post_syn` overrides | Defaults to all test directories, backend `sv`, and `zero unit min typ max`; normal auto-setup runs `sdf` first. Run the command once with `GLS_BACKEND=sv` and once with `GLS_BACKEND=cocotb` when both drivers must be qualified. Results and `summary_<backend>.json` stay under `dv/functional/sim/post_syn/<pdk>/`. |
+| `fx sim_post_syn_all` | Run all selected generated tests and timing modes with one GLS backend. | `TEST_NAMES`, `GLS_BACKEND`, `TIMING_MODES`, plus the `sim_post_syn` overrides | Defaults to all test directories, backend `sv`, and `zero unit min typ max`; run `sdf` explicitly first when timing modes require SDF. Run the command once with `GLS_BACKEND=sv` and once with `GLS_BACKEND=cocotb` when both drivers must be qualified. Results and `summary_<backend>.json` stay under `dv/functional/sim/post_syn/<pdk>/`. |
 | `fx compile_post_pnr` | Compile post-PnR gate-level simulation with Icarus. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
-| `fx sdf_post_pnr` | Export post-PnR SDF from final netlist, SDC and SPEF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
+| `fx sdf_post_pnr` | Export post-PnR SDF from final netlist, the authored SDC, and SPEF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 | `fx sim_post_pnr` | Run post-PnR gate-level simulation with optional SDF. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS`, `TESTBENCH`, `TEST_NAME`, `TEST_ROOT`, `REGCFG`, `DATA_IN`, `DATA_OUT` | Use `--info` for accepted overrides. |
 
 
@@ -758,7 +760,7 @@ Move authored IP sources between the reusable library and an isolated run worksp
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx ip_load` | Load an IP into a run workspace. | `IP_NAME` | Use `--info` for accepted overrides. |
-| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT`; use `--force` to replace existing destinations | Without `--force`, performs an atomic preflight and refuses to overwrite any existing destination, listing every conflicting package path and changing nothing. With `--force`, replaces the current-PDK/source-backed destinations while preserving unrelated PDK branches and any optional branch unavailable in the current run. Results stay in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, final `.rpt`/`.json`/`.sdf` under `signoff/<pdk>/`, reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC, exactly one canonical Tcl per sign-off family, and `meta/<pdk>`. Scenario/corner/workload-local Tcl copies are runtime collateral and are not packaged. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
+| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT`; use `--force` to replace existing destinations | Without `--force`, performs an atomic preflight and refuses to overwrite any existing destination, listing every conflicting package path and changing nothing. With `--force`, replaces the current-PDK/source-backed destinations while preserving unrelated PDK branches and any optional branch unavailable in the current run. Results stay in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, final `.rpt`/`.json`/`.sdf` under `signoff/<pdk>/`, reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC, exactly one canonical Tcl per sign-off family, and `meta/<pdk>` including `settings.json`; common `meta/design_intent.json` is retained once. Qualification also retains normalized lint evidence under `logs/lint/` and CDC/RDC evidence under `analysis/cdc_rdc/` plus its detail log under `logs/analysis/cdc_rdc/`; raw lint command dumps are excluded. Scenario/corner/workload-local Tcl copies are runtime collateral and are not packaged. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
 
 `ip_save` is intentionally non-destructive by default. A first save into missing destinations succeeds; if any destination that the current run would update already exists, the command exits before staging or replacing the package and prints the conflicting relative paths. Use `fx ip_save --force ...` only when those destinations are intended to be refreshed.
 
@@ -903,9 +905,9 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `RUN_ID` | Configuration/run revision inside `runs/<RUN_TOP>/`. |
 | `WORKSPACE` | External workspace root; set with `--workdir` for most CLI use. |
 | `N_CLOCKS` | Number of declared clock domains. |
-| `CLOCK_DOMAINS` | `name:clock:reset:period_ns:polarity` entries, comma-separated. |
-| `CLOCK_RELATIONSHIPS` | Explicit `async`, `sync`, or `generated` domain relationships. |
-| `SDC_IO_DELAY_PCT` | Fraction of each clock period used for interface input/output delay and generated TB drive/sample phasing; default `0.2`, valid range `0 < value < 0.5` for generated testbenches. |
+| `CLOCK_DOMAINS` | Bootstrap `name:clock:reset:period_ns:polarity` entries. After `design.sdc` exists, clock timing is authored in SDC; this metadata still owns reset-domain mapping. |
+| `CLOCK_RELATIONSHIPS` | Bootstrap `async`, `sync`, or `generated` relationships used to initialize the SDC. Afterward edit clock relationships in `constraints/design.sdc`. |
+| `SDC_IO_DELAY_PCT` | Bootstrap fraction used for initial single-clock SDC I/O delays and generated vector drive/sample phasing; default `0.2`. After SDC creation, timing intent itself is edited in `constraints/design.sdc`. |
 | `RUN_TOP` | Run namespace; defaults to `TOP` when omitted. |
 | `FORCE` | Overwrite machine-generated collateral where the target supports regeneration. |
 | `HOST` | SoC host selection, normally `uart` or `ibex`. |
@@ -927,7 +929,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `SDF_CORNER` | Selected SDF process/timing corner. |
 | `NETLIST` | Explicit mapped or final implementation netlist. |
 | `SPEF_FILE` | Extracted parasitic file for post-route analysis. |
-| `PNR_SDC_FILE` | Final implementation SDC for post-route timing/SDF. |
+| `PNR_SDC_FILE` | Explicit exceptional SDC override for post-route timing/SDF. Normal FlexSoC sign-off keeps `constraints/design.sdc` as the authored source of truth and changes netlist/SPEF/clock propagation by stage. |
 | `POWER_ACTIVITY` | Global switching activity assumption. |
 | `POWER_DUTY` | Global duty-cycle assumption. |
 | `PATH_VIEW_FILE` | Timing path data used by the interactive viewer. |
@@ -954,7 +956,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `DATA_OUT` | Expected-output vector file. |
 | `COMPILER` | Simulation compiler/backend selection. |
 | `COCOTB_WAVES` | Enable RTL cocotb waveform dumping, normally `1`. Post-synthesis cocotb GLS selects one waveform owner internally. |
-| `SEED` | Random or regression seed. |
+| `SEED` | Reproducible regression seed; also drives the deterministic functional clock-jitter sequence derived from SDC uncertainty. |
 | `REGRESSION_BACKENDS` | Space-separated RTL regression backends, normally `sv cocotb`. |
 | `COVERAGE` | Enable or configure coverage collection. |
 | `COVERAGE_DETAIL_LIMIT` | Maximum uncovered items printed by detailed coverage. |
@@ -1015,7 +1017,7 @@ test_fx_cordic_ip_load_debug
 test_fx_uart_ip_load_debug
 ```
 
-The dedicated provenance lifecycle E2E exercises the user-facing contract independently from the functional flow: one representative generated artifact per setup family is modified, its `--no-setup` consumer must reject `MODIFIED`, `validate_override` must permit the exact current edit, the consumer must leave the stage `VALIDATED_OVERRIDE`, and restoring the canonical bytes must return the stage to `CLEAN`. The normal single-/multi-clock flows therefore do not repeat exhaustive A→B→A override permutations; those combinations remain API-level regression coverage.
+The dedicated provenance lifecycle E2E exercises the user-facing contract independently from the functional flow: one representative generated artifact per setup family is modified, its run consumer must reject `MODIFIED`, `validate_override` must permit the exact current edit, the consumer must leave the stage `VALIDATED_OVERRIDE`, and restoring the canonical bytes must return the stage to `CLEAN`. The normal single-/multi-clock flows therefore do not repeat exhaustive A→B→A override permutations; those combinations remain API-level regression coverage.
 
 `make test` runs every pipeline without `--live`. Each `fx` invocation is written
 explicitly in the test, so pytest prints the exact `uv run --no-sync fx ...`
@@ -1078,20 +1080,40 @@ their direct command boundary.
 
 ```bash
 fx reg doc regmap_py tests_gen --force
-fx flist lint_suite
-fx regression formal
-fx syn eqy --force
+fx flist --force
+fx lint_suite
+fx setup_cdc_rdc --force
+fx cdc_rdc
+fx setup_tb setup_cocotb --force
+fx regression
+fx setup_formal_csr_prove setup_formal_csr_cover --force
+fx formal
+fx setup_syn --force
+fx syn
+fx setup_eqy --force
+fx eqy
 ```
 
 ### Change RTL behavior or latency
 
 ```bash
-fx flist lint_suite --force
+fx flist --force
+fx lint_suite
+fx setup_cdc_rdc --force
 fx cdc_rdc
+fx setup_formal_prove setup_formal_cover --force
 fx formal
-fx tests_gen regression --force
-fx syn eqy --force
-fx sdf sta power_estimate --force
+fx tests_gen --force
+fx setup_tb setup_cocotb --force
+fx regression
+fx setup_syn --force
+fx syn
+fx setup_eqy --force
+fx eqy
+fx setup_signoff --force
+fx sdf
+fx sta
+fx power_estimate
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
 fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=smoke
 ```
@@ -1099,9 +1121,18 @@ fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=s
 ### Change top-level ports
 
 ```bash
-fx top_from_core flist setup_tb setup_cocotb
-fx lint_suite cdc_rdc formal regression
-fx syn eqy --force
+fx top_from_core flist --force
+fx lint_suite
+# review constraints/design.sdc if interface timing changed
+fx setup_cdc_rdc setup_tb setup_cocotb --force
+fx cdc_rdc
+fx setup_formal_prove setup_formal_cover --force
+fx formal
+fx regression
+fx setup_syn --force
+fx syn
+fx setup_eqy --force
+fx eqy
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
 ```
 
@@ -1109,9 +1140,20 @@ fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smok
 
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
-fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
-fx flist lint_suite cdc_rdc formal regression
-fx syn eqy sdf sta power_estimate --force
+fx sdc --force
+# review/reapply authored constraints/design.sdc
+fx flist --force
+fx lint_suite
+fx setup_tb setup_cocotb setup_cdc_rdc setup_formal_prove setup_formal_cover setup_formal_csr_prove setup_formal_csr_cover --force
+fx cdc_rdc
+fx formal
+fx regression
+fx setup_syn setup_eqy setup_signoff --force
+fx syn
+fx eqy
+fx sdf
+fx sta
+fx power_estimate
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=unit --set TEST_NAME=smoke
 fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=smoke
 ```
@@ -1361,14 +1403,16 @@ fx formal_cover
 ### 8.7 SDC and synthesis setup failures
 
 ```bash
-fx setup_signoff --force
+# edit/review constraints/design.sdc first
 fx setup_syn --force
 fx syn --live
+fx setup_signoff --force
+fx sta --live
 ```
 
 | Symptom | Inspect | Repair |
 | --- | --- | --- |
-| clock not found | settings, top port, generated SDC | correct persistent clock model and regenerate clock-derived scaffolds |
+| clock not found | `constraints/design.sdc`, top port, bootstrap topology if recently changed | correct the authored SDC; regenerate the scaffold from bootstrap settings only when the topology itself changed |
 | unsupported RTL construct | synthesis log and ordered filelist | rewrite/explicitly lower while preserving behavior |
 | unexpected area/cell count | synthesis statistics | review widths, inferred storage, sharing, and optimization strategy |
 | netlist stale/wrong PDK | run path, manifest, PDK-specific synthesis leaf | rerun with explicit `PDK`/`PDK_ROOT` and correct run identity |
@@ -1438,7 +1482,7 @@ fx power_analysis_all --live --set POWER_TEST_NAMES=all
 
 | Failure | First checks |
 | --- | --- |
-| unconstrained paths | generated SDC, clocks, I/O delays, exceptions, linked top |
+| unconstrained paths | authored `constraints/design.sdc`, clocks, I/O delays, exceptions, linked top |
 | negative slack | mode/corner, constraints, architecture, mapping, path report |
 | vectorless power implausible | activity/duty, clocks, Liberty units/tables, netlist |
 | `fst2vcd` failure | conversion log and selected qualified FST |
@@ -1481,7 +1525,9 @@ pulls the recorded digest and intentionally does not rebuild the EDA toolchain.
 | `setup_formal` | formal configs/wrappers | generated config no; authored properties yes | hierarchy, clock/reset, CSR, property integration changes |
 | `setup_syn` | synthesis scripts | no | hierarchy, PDK, SDC, strategy changes |
 | `setup_eqy` | EQY configuration/adapters | no | RTL/netlist/reset/PDK/strategy changes |
-| `setup_signoff` | SDF/STA/power/GLS scripts | no | PDK, netlist, SDC, corners, sign-off policy changes |
+| `setup_signoff` | SDF/STA/power/GLS scripts | no | PDK, netlist, authored SDC, corners, sign-off policy changes |
+| `design intent` | `meta/design_intent.json` | evidence snapshot | refreshed from effective run intent |
+| `technology settings` | `meta/<pdk>/settings.json` | evidence snapshot | refreshed by technology-bound targets |
 | `manifest` | `meta/<pdk>/manifest.json` | no | refresh at release/evidence collection |
 | `metrics` | `meta/<pdk>/metrics.json` | no | refresh after stages change |
 
@@ -1502,12 +1548,24 @@ fx settings \
   CLOCK_RELATIONSHIPS=
 
 fx setup hjson reg doc rtl_stub flist --force
+fx lint_suite
+fx sdc --force
+# review/edit constraints/design.sdc
+fx setup_cdc_rdc --force
+fx cdc_rdc
 fx setup_model tests_gen setup_tb setup_cocotb --force
-fx lint_suite regression
-fx setup_formal formal --force
-fx setup_syn syn --force
-fx setup_eqy eqy --force
-fx setup_signoff sdf sta power_estimate --force
+fx regression
+fx setup_formal --force
+fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
+fx formal
+fx setup_syn
+fx syn
+fx setup_eqy
+fx eqy
+fx setup_signoff
+fx sdf
+fx sta
+fx power_estimate
 fx manifest metrics check
 ```
 
@@ -1619,7 +1677,8 @@ The backend ownership follows the lifecycle domains directly:
 
 ```text
 syn/eqy.py        -> RTL-to-netlist equivalence
-signoff/sta.py    -> SDC, STA and SDF
+signoff/sdc.py    -> authored SDC adapter/scaffold
+signoff/sta.py    -> STA and SDF
 signoff/gls.py    -> gate-level simulation
 signoff/power.py  -> vectorless and activity power
 signoff/fusion.py -> timing/power correlation
@@ -1634,12 +1693,7 @@ The OpenSTA Tcl families are prepared by the explicit sign-off setup methods.
 Static analyses execute concrete per-corner copies so setup-owned templates remain immutable. Workload
 analyses run only after a qualified GLS report and VCD/SAIF exist.
 
-Each scenario has one primary human-readable artifact: `timing.rpt` for STA,
-`power.rpt` for vectorless or workload power, and `fusion.rpt` for combined
-timing/power context. Fusion also writes one `fusion_table.rpt` per workload,
-with corner/mode status, WNS, TNS, power totals, annotation count, and the
-relative path to each detailed report. A single `summary.json` remains for CI
-and machine consumers.
+STA is consolidated rather than published as one primary report per scenario: `signoff/<pdk>/sta/sta.rpt` is the human QoR artifact and `sta.json` is its machine-readable companion. Power keeps `power.rpt` for vectorless/workload analysis, and fusion keeps `fusion.rpt` plus one `fusion_table.rpt` per workload. Scenario-local STA reports remain diagnostic execution artifacts, not separate release contracts.
 
 ### OpenSTA compatibility boundary
 

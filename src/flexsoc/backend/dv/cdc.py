@@ -278,7 +278,8 @@ def _relationship(clocks: ClockConfig, source: str | None, target: str | None) -
     for rel in clocks.relationships:
         if {rel.source, rel.target} == {source, target}:
             return rel.kind
-    return "unknown"
+    known = {domain.name for domain in clocks.domains}
+    return "sync" if source in known and target in known else "unknown"
 
 
 def _graph(ir: DesignIR) -> tuple[
@@ -820,8 +821,35 @@ def _reset_synchronizer_findings(ir: DesignIR, analysis: DomainAnalysis) -> tupl
     return tuple(findings)
 
 
-def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAnalysis:
-    """Run structural CDC/RDC checks over the shared graph."""
+CDC_CHECK_ORDER = (
+    "scalar_and_multibit_crossings",
+    "async_fifo_candidates",
+    "closed_loop_handshakes",
+    "synchronized_reconvergence",
+)
+
+SETUP_GLITCH_CHECK_ORDER = (
+    "domain_setup",
+    "glitch_hazards",
+)
+
+RDC_CHECK_ORDER = (
+    "reset_domain_crossings",
+    "reset_synchronizers",
+    "async_reset_release",
+    "reset_sequence",
+)
+
+
+def _classify_primary_cdc(
+    ir: DesignIR,
+    analysis: DomainAnalysis,
+) -> tuple[
+    list[DomainFinding],
+    list[DomainFinding],
+    dict[tuple[Endpoint, Endpoint], SynchronizerFinding | None],
+]:
+    """Classify scalar and multibit clock-domain crossings."""
 
     seq_by_name = {item.name: item for item in ir.sequential}
     groups = _crossing_groups(analysis.clock_crossings)
@@ -916,8 +944,15 @@ def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAna
         cdc.append(finding)
         multibit_findings.append(finding)
 
-    # Paired Gray-style buses in opposite directions are a strong async-FIFO
-    # signature, but structural recognition alone cannot prove Hamming-1.
+    return cdc, multibit_findings, all_sync_candidates
+
+
+def _check_async_fifo_candidates(
+    cdc: list[DomainFinding],
+    multibit_findings: Sequence[DomainFinding],
+) -> None:
+    """Append paired Gray-style bus candidates for asynchronous FIFOs."""
+
     for index, left in enumerate(multibit_findings):
         if left.classification != "multibit_nff_bus":
             continue
@@ -946,14 +981,31 @@ def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAna
                     primary=False,
                 ))
 
-    # Detect closed-loop handshake candidates only when each synchronized
-    # control causally influences the source of the return path.
-    clean_scalar = [
+
+def _clean_scalar_synchronizers(
+    cdc: Sequence[DomainFinding],
+    all_sync_candidates: Mapping[tuple[Endpoint, Endpoint], SynchronizerFinding | None],
+) -> list[tuple[DomainFinding, SynchronizerFinding]]:
+    """Return primary scalar synchronizers safe enough for protocol checks."""
+
+    return [
         (finding, sync)
-        for finding in cdc if finding.primary and finding.classification == "nff_synchronizer" and finding.status in {"SAFE", "WARN"}
+        for finding in cdc
+        if finding.primary
+        and finding.classification == "nff_synchronizer"
+        and finding.status in {"SAFE", "WARN"}
         for sync in [all_sync_candidates[(finding.crossings[0].source, finding.crossings[0].destination)]]
         if sync is not None
     ]
+
+
+def _check_closed_loop_handshakes(
+    cdc: list[DomainFinding],
+    analysis: DomainAnalysis,
+    clean_scalar: Sequence[tuple[DomainFinding, SynchronizerFinding]],
+) -> None:
+    """Append causally connected request/acknowledge handshake candidates."""
+
     dep_pairs = {(dep.source, dep.destination) for dep in analysis.dependencies}
     for index, (left, left_sync) in enumerate(clean_scalar):
         a = left.crossings[0]
@@ -976,8 +1028,14 @@ def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAna
                     primary=False,
                 ))
 
-    # Reconvergence after independent scalar synchronizers can create coherent
-    # sampling hazards even when each individual synchronizer is structurally safe.
+
+def _check_synchronized_reconvergence(
+    cdc: list[DomainFinding],
+    analysis: DomainAnalysis,
+    clean_scalar: Sequence[tuple[DomainFinding, SynchronizerFinding]],
+) -> None:
+    """Append coherency hazards after independent scalar synchronizers reconverge."""
+
     reconv: dict[tuple[Endpoint, str | None], list[tuple[DomainFinding, SynchronizerFinding]]] = {}
     for finding, sync in clean_scalar:
         origin = finding.crossings[0].source.clock_domain
@@ -998,7 +1056,12 @@ def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAna
             primary=False,
         ))
 
-    setup, glitch = _setup_and_glitch_findings(ir, analysis)
+
+def _classify_reset_domain_crossings(
+    analysis: DomainAnalysis,
+    cdc: Sequence[DomainFinding],
+) -> list[DomainFinding]:
+    """Classify reset-domain crossings against recognized CDC protection."""
 
     rdc: list[DomainFinding] = []
     for group in _crossing_groups(analysis.reset_crossings):
@@ -1027,9 +1090,17 @@ def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAna
                 issues=("different_reset_domains_without_recognized_protection",),
                 evidence=(f"width={len(group)}",),
             ))
+    return rdc
 
-    reset_sync = _reset_synchronizer_findings(ir, analysis)
-    rdc.extend(reset_sync)
+
+def _check_async_reset_release(
+    rdc: list[DomainFinding],
+    ir: DesignIR,
+    analysis: DomainAnalysis,
+    reset_sync: Sequence[DomainFinding],
+) -> None:
+    """Append review obligations for direct asynchronous reset release."""
+
     declared_reset_bits = {
         domain.name: _declared_port_bits(ir, {domain.reset}) for domain in ir.clocks
     }
@@ -1052,12 +1123,55 @@ def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAna
                 evidence=(f"clock_domain={domain.name}", f"reset={domain.reset}"),
                 primary=False,
             ))
+
+
+def _check_reset_sequence(
+    rdc: list[DomainFinding],
+    ir: DesignIR,
+    analysis: DomainAnalysis,
+) -> None:
+    """Append a sequencing obligation when multiple reset domains interact."""
+
     if len({seq.reset_signal for seq in ir.sequential if seq.reset_signal}) > 1 and analysis.reset_crossings:
         rdc.append(DomainFinding(
             "rdc", "REVIEW", "reset_sequence_or_control_required", (),
             obligations=("specify_reset_assertion_sequence_or_rdc_blocking_control",),
             primary=False,
         ))
+
+
+def classify_cdc_rdc(ir: DesignIR, analysis: DomainAnalysis) -> ComprehensiveAnalysis:
+    """Run the ordered structural CDC/RDC qualification checks."""
+
+    # CDC_CHECK_ORDER[0]: scalar and multibit crossing classification.
+    cdc, multibit_findings, all_sync_candidates = _classify_primary_cdc(ir, analysis)
+
+    # CDC_CHECK_ORDER[1]: paired bitwise synchronizers that resemble async FIFOs.
+    _check_async_fifo_candidates(cdc, multibit_findings)
+
+    clean_scalar = _clean_scalar_synchronizers(cdc, all_sync_candidates)
+
+    # CDC_CHECK_ORDER[2]: causal request/acknowledge loops.
+    _check_closed_loop_handshakes(cdc, analysis, clean_scalar)
+
+    # CDC_CHECK_ORDER[3]: independently synchronized controls/data that reconverge.
+    _check_synchronized_reconvergence(cdc, analysis, clean_scalar)
+
+    # SETUP_GLITCH_CHECK_ORDER: environment/domain setup and combinational hazards.
+    setup, glitch = _setup_and_glitch_findings(ir, analysis)
+
+    # RDC_CHECK_ORDER[0]: reset-domain crossings and their recognized protection.
+    rdc = _classify_reset_domain_crossings(analysis, cdc)
+
+    # RDC_CHECK_ORDER[1]: async-assert/synchronous-release reset synchronizers.
+    reset_sync = _reset_synchronizer_findings(ir, analysis)
+    rdc.extend(reset_sync)
+
+    # RDC_CHECK_ORDER[2]: direct asynchronous reset release obligations.
+    _check_async_reset_release(rdc, ir, analysis, reset_sync)
+
+    # RDC_CHECK_ORDER[3]: sequencing/control obligations across interacting resets.
+    _check_reset_sequence(rdc, ir, analysis)
 
     return ComprehensiveAnalysis(tuple(cdc), tuple(rdc), setup, glitch)
 
@@ -1736,13 +1850,16 @@ class CdcFlow:
 
         paths, values = context.paths, context.values
         analysis = paths.run / "analysis" / "cdc_rdc"
+        from flexsoc.backend.signoff.sdc import read_clock_config
+        clocks = read_clock_config(paths.sdc, context.clocks)
+        clock_values = clocks.to_settings()
         return self.run(
             top=paths.top, script=analysis / "extract.ys", design_json=analysis / "design.json",
             analysis_dir=analysis, log_dir=paths.logs / "analysis" / "cdc_rdc",
-            yosys=values.get("YOSYS", "yosys"), n_clocks=int(values.get("N_CLOCKS", "1")),
-            clock_domains=values.get("CLOCK_DOMAINS", ""),
-            clock_relationships=values.get("CLOCK_RELATIONSHIPS", ""),
-            clk_period=float(values.get("CLK_PERIOD", "20")),
+            yosys=values.get("YOSYS", "yosys"), n_clocks=clocks.n_clocks,
+            clock_domains=clock_values["CLOCK_DOMAINS"],
+            clock_relationships=clock_values["CLOCK_RELATIONSHIPS"],
+            clk_period=clocks.fastest_period_ns,
             heartbeat=float(values.get("CDC_RDC_HEARTBEAT", "5")),
             strict=values.get("CDC_RDC_STRICT", "0") in {"1", "true", "yes"},
             inputs=inputs, on=on,

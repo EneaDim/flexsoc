@@ -14,80 +14,9 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from flexsoc.backend.core import ClockConfig, clock_config, layout_from_values
+from flexsoc.backend.core import layout_from_values
 from flexsoc.backend.core.execution import print_label, print_script
 from flexsoc.backend.impl.impl import resolve_orfs_artifact
-
-TEMPLATE = """current_design {top}
-
-set clk_name {clk_name}
-set clk_port_name {clk_port_name}
-set clk_period {clk_period}
-set clk_io_pct {clk_io_pct}
-
-set clk_port [get_ports $clk_port_name]
-
-create_clock -name $clk_name -period $clk_period $clk_port
-
-set non_clock_inputs [all_inputs -no_clocks]
-
-set_input_delay [expr $clk_period * $clk_io_pct] -clock $clk_name $non_clock_inputs
-set_output_delay [expr $clk_period * $clk_io_pct] -clock $clk_name [all_outputs]
-"""
-
-def render_sdc(top: str, clk_period: float, clk_name: str = "core_clock", clk_port_name: str = "clk_i", clk_io_pct: float = 0.2) -> str:
-    """Render the SDC text for one top module and clock definition."""
-
-    return TEMPLATE.format(
-        top=top,
-        clk_name=clk_name,
-        clk_port_name=clk_port_name,
-        clk_period=f"{clk_period:g}",
-        clk_io_pct=f"{clk_io_pct:g}",
-    )
-
-def render_clock_config_sdc(top: str, cfg: ClockConfig, clk_io_pct: float = 0.2) -> str:
-    """Render SDC from the canonical clock model without inventing relationships."""
-
-    by_name = {domain.name: domain for domain in cfg.domains}
-    generated = {rel.target: rel for rel in cfg.relationships if rel.kind == "generated"}
-    lines = [f"current_design {top}", ""]
-    for domain in cfg.domains:
-        rel = generated.get(domain.name)
-        if rel:
-            source = by_name[rel.source]
-            lines.append(
-                f"create_generated_clock -name {domain.name} -source [get_ports {source.signal}] "
-                f"-divide_by {rel.divide_by} [get_ports {domain.signal}]"
-            )
-        else:
-            lines.append(f"create_clock -name {domain.name} -period {domain.period_ns:g} [get_ports {domain.signal}]")
-    lines.append("")
-    for rel in cfg.relationships:
-        if rel.kind == "async":
-            lines.append(
-                f"set_clock_groups -asynchronous -group [get_clocks {rel.source}] -group [get_clocks {rel.target}]"
-            )
-        elif rel.kind == "sync":
-            lines.append(f"# synchronous relationship: {rel.source} <-> {rel.target}")
-    if cfg.n_clocks == 1:
-        domain = cfg.domains[0]
-        lines += [
-            "",
-            "set non_clock_inputs [all_inputs -no_clocks]",
-            f"set_input_delay [expr {domain.period_ns:g} * {clk_io_pct:g}] -clock {domain.name} $non_clock_inputs",
-            f"set_output_delay [expr {domain.period_ns:g} * {clk_io_pct:g}] -clock {domain.name} [all_outputs]",
-        ]
-    else:
-        lines += ["", "# Multi-clock IO delays are integration-specific and are intentionally not inferred."]
-    return "\n".join(lines) + "\n"
-
-def write_sdc(path: Path, text: str) -> Path:
-    """Write SDC text to disk and return the resolved output path."""
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    return path.resolve()
 
 SIGNOFF_SCENARIOS = {
     "ff": "min",
@@ -155,6 +84,33 @@ class SignoffContext:
     near_critical_setup: float = 0.200
     near_critical_hold: float = 0.100
     power_top_instances: int = 20
+
+
+@dataclass(frozen=True, slots=True)
+class TimingScenario:
+    """One explicit STA scenario: analysis mode plus resolved timing view."""
+
+    name: str
+    corner: str
+    mode: str
+    liberty: Path
+    stage: str
+
+
+def timing_scenarios(
+    values: Mapping[str, str], liberties: Mapping[str, Path], stage: str
+) -> tuple[TimingScenario, ...]:
+    """Return deterministic setup/hold scenarios without inventing PDK views."""
+
+    corners = _selection(
+        values.get("SIGNOFF_CORNERS"), "ss tt ff", tuple(liberties), "sign-off corner"
+    )
+    modes = _selection(values.get("STA_MODES"), "setup hold", ("setup", "hold"), "STA mode")
+    return tuple(
+        TimingScenario(f"{mode}_{corner}", corner, mode, liberties[corner], stage)
+        for corner in corners
+        for mode in modes
+    )
 
 def liberty_corner(path: Path) -> str:
     """Infer ``ss``, ``tt`` or ``ff`` from a Liberty filename."""
@@ -282,6 +238,8 @@ def _report_section(text: str, start: str, end: str) -> str:
     if start not in text:
         return text
     section = text.split(start, 1)[1]
+    if not end:
+        return section
     return section.split(end, 1)[0] if end in section else section
 
 
@@ -581,6 +539,9 @@ def render_sta_tcl(ctx: SignoffContext) -> str:
             'flexsoc_label $report "tns $delay_type"',
             "# Report total negative slack across all violating endpoints for this analysis type.",
             "flexsoc_append_opensta $report report_tns -$delay_type",
+            "flexsoc_section $report {Clock QoR}",
+            "# OpenSTA reports minimum legal period and Fmax for every constrained clock.",
+            "flexsoc_append_opensta $report report_clock_min_period",
             "flexsoc_section $report {Constraint validation}",
             "# Append setup diagnostics so missing clocks, unconstrained endpoints, or invalid constraints stay visible.",
             "flexsoc_append_opensta $report check_setup -verbose",
@@ -712,20 +673,12 @@ def _stage_inputs(project_root: Path, values: Mapping[str, str]) -> tuple[Path, 
     return _require_file(netlist, "gate-level netlist"), _optional_file(spef, "SPEF")
 
 def _stage_sdc(project_root: Path, values: Mapping[str, str]) -> Path:
-    """Resolve the canonical pre-synthesis or final routed SDC."""
+    """Resolve the single authored design SDC for every sign-off stage."""
 
-    layout = layout_from_values(project_root, values)
     raw = values.get("PNR_SDC_FILE", "").strip()
     if raw:
         return _require_file(Path(raw), "SDC")
-    if values.get("SIGNOFF_STAGE", "post_syn") == "post_route":
-        top = values.get("TOP", "test")
-        platform = values.get("ORS_TECH", values.get("PDK", "")).strip() or None
-        sdc = resolve_orfs_artifact(layout.pnr_dir, "results", top, "6_final.sdc", platform)
-        if sdc is None:
-            raise ValueError(f"post-route SDC not found under {layout.pnr_dir / 'results'}")
-        return _require_file(sdc, "post-route SDC")
-    return _require_file(layout.signoff_sdc, "SDC")
+    return _require_file(layout_from_values(project_root, values).signoff_sdc, "design SDC")
 
 def _base_context(
     project_root: Path,
@@ -813,33 +766,6 @@ def _render(analysis: str, ctx: SignoffContext) -> str:
         raise ValueError(f"unsupported sign-off analysis: {analysis}")
     return script.rstrip() + f"\nputs {_quote(_completion_marker(ctx))}\n"
 
-def generate_signoff_sdc(project_root: Path, values: Mapping[str, str]) -> Path:
-    """Generate the canonical PDK-scoped SDC consumed by STA and physical implementation."""
-
-    layout = layout_from_values(project_root, values)
-    top = values.get("TOP", "test")
-    cfg = clock_config(values)
-    io_delay_pct = float(values.get("SDC_IO_DELAY_PCT", "0.2"))
-    period_override = values.get("SDC_CLOCK_PERIOD_NS", "").strip()
-    if period_override:
-        if cfg.multiclock:
-            raise ValueError(
-                "SDC_CLOCK_PERIOD_NS is single-clock only; set periods in CLOCK_DOMAINS"
-            )
-        period_ns = float(period_override)
-        if period_ns <= 0.0:
-            raise ValueError("SDC_CLOCK_PERIOD_NS must be positive")
-        cfg = ClockConfig((replace(cfg.domains[0], period_ns=period_ns),), cfg.relationships)
-    periods = ",".join(f"{domain.name}:{domain.period_ns:g}ns" for domain in cfg.domains)
-    print_label("timing", f"clock_periods={periods} · io_delay_pct={io_delay_pct:g}")
-    text = render_clock_config_sdc(top, cfg, io_delay_pct)
-    path = write_sdc(layout.signoff_sdc, text)
-    print_script(
-        path,
-        details={"owner": "signoff", "pdk": values.get("PDK", "sky130")},
-    )
-    return path
-
 def generate_family(project_root: Path, values: Mapping[str, str], analysis: str) -> Path:
     """Generate one canonical sign-off Tcl family without side effects elsewhere."""
 
@@ -904,10 +830,8 @@ def generate_family(project_root: Path, values: Mapping[str, str], analysis: str
 
 
 def generate_families(project_root: Path, values: Mapping[str, str]) -> tuple[Path, ...]:
-    """Generate SDC and every canonical Tcl family in lifecycle order."""
+    """Generate every canonical sign-off Tcl family in lifecycle order."""
 
-    if values.get("SIGNOFF_STAGE", "post_syn") == "post_syn":
-        generate_signoff_sdc(project_root, values)
     order = ("sta", "sdf", "power_estimate", "power_analysis", "fusion_analysis")
     return tuple(generate_family(project_root, values, analysis) for analysis in order)
 
@@ -1003,8 +927,126 @@ def _sta_report_violation(path: Path) -> tuple[bool, float | None, int]:
     violated = len(re.findall(r"\bslack\s+\(VIOLATED\)", section, re.IGNORECASE))
     return bool(violated or (wns is not None and wns < 0.0)), wns, violated
 
+def _sta_scenario_summary(ctx: SignoffContext, report: Path) -> dict[str, Any]:
+    """Normalize one scenario report into compact machine-readable QoR."""
+
+    text = report.read_text(encoding="utf-8", errors="replace")
+    timing = _timing_values(text)
+    violating = _report_section(text, "=== Violating paths ===", "=== Near-critical paths ===")
+    unconstrained = _report_section(text, "=== Unconstrained paths ===", "")
+    clock_qor = _report_section(text, "=== Clock QoR ===", "=== Constraint validation ===")
+    clocks = []
+    for match in re.finditer(
+        r"^\s*(\S+)\s+period_min\s*=\s*([-+0-9.eE]+)\s+fmax\s*=\s*(INF|[-+0-9.eE]+)\s*$",
+        clock_qor,
+        flags=re.IGNORECASE | re.MULTILINE,
+    ):
+        fmax = None if match.group(3).upper() == "INF" else float(match.group(3))
+        clocks.append({
+            "name": match.group(1),
+            "minimum_period": float(match.group(2)),
+            "fmax_mhz": fmax,
+        })
+    violation_count = len(re.findall(r"slack\s+\(VIOLATED\)", violating, flags=re.IGNORECASE))
+    unconstrained_count = len(re.findall(r"^Startpoint:", unconstrained, flags=re.MULTILINE))
+    return {
+        "id": f"{ctx.mode}_{ctx.corner}",
+        "corner": ctx.corner,
+        "mode": ctx.mode,
+        "stage": ctx.stage,
+        "liberty": str(ctx.liberty),
+        "spef": str(ctx.spef) if ctx.spef else None,
+        "wns": timing.get("wns"),
+        "tns": timing.get("tns"),
+        "violating_paths": violation_count,
+        "unconstrained_paths": unconstrained_count,
+        "clocks": clocks,
+        "status": "fail" if violation_count or unconstrained_count or (timing.get("wns") or 0.0) < 0.0 else "pass",
+        "detail_report": str(report),
+    }
+
+
+def _write_sta_qor(
+    root: Path,
+    *,
+    top: str,
+    pdk: str,
+    stage: str,
+    sdc: Path,
+    scenarios: Sequence[dict[str, Any]],
+    failures: Sequence[str],
+) -> tuple[Path, Path]:
+    """Write the two canonical STA evidence files: human report plus JSON."""
+
+    sta_root = root / "sta"
+    sta_root.mkdir(parents=True, exist_ok=True)
+    json_path = sta_root / "sta.json"
+    report_path = sta_root / "sta.rpt"
+    finite_wns = [float(item["wns"]) for item in scenarios if item.get("wns") is not None]
+    finite_tns = [float(item["tns"]) for item in scenarios if item.get("tns") is not None]
+    status = "fail" if failures or any(item.get("status") == "fail" for item in scenarios) else "pass"
+    data = {
+        "schema": 1,
+        "top": top,
+        "pdk": pdk,
+        "stage": stage,
+        "sdc": str(sdc),
+        "status": status,
+        "qor": {
+            "scenario_count": len(scenarios),
+            "failing_scenarios": sum(item.get("status") == "fail" for item in scenarios),
+            "worst_wns": min(finite_wns) if finite_wns else None,
+            "worst_tns": min(finite_tns) if finite_tns else None,
+            "violating_paths": sum(int(item.get("violating_paths", 0)) for item in scenarios),
+            "unconstrained_paths": sum(int(item.get("unconstrained_paths", 0)) for item in scenarios),
+        },
+        "failures": list(failures),
+        "scenarios": list(scenarios),
+    }
+    json_path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    lines = [
+        "FlexSoC Static Timing Analysis",
+        "=" * 78,
+        f"design      : {top}",
+        f"pdk         : {pdk}",
+        f"stage       : {stage}",
+        f"sdc         : {sdc}",
+        f"status      : {status.upper()}",
+        "",
+        "QoR",
+        "-" * 78,
+        f"scenarios             : {data['qor']['scenario_count']}",
+        f"failing scenarios     : {data['qor']['failing_scenarios']}",
+        f"worst WNS             : {data['qor']['worst_wns']}",
+        f"worst TNS             : {data['qor']['worst_tns']}",
+        f"violating paths       : {data['qor']['violating_paths']}",
+        f"unconstrained paths   : {data['qor']['unconstrained_paths']}",
+        "",
+        "Scenarios",
+        "-" * 78,
+        f"{'scenario':18} {'mode':8} {'corner':8} {'WNS':>12} {'TNS':>12} {'viol':>6} {'uncon':>6} status",
+    ]
+    for item in scenarios:
+        lines.append(
+            f"{item['id']:18} {item['mode']:8} {item['corner']:8} "
+            f"{str(item.get('wns')):>12} {str(item.get('tns')):>12} "
+            f"{int(item.get('violating_paths', 0)):>6} {int(item.get('unconstrained_paths', 0)):>6} {item['status']}"
+        )
+    if failures:
+        lines += ["", "Execution failures", "-" * 78, *failures]
+    lines += ["", "Details", "=" * 78]
+    for item in scenarios:
+        detail = Path(item["detail_report"])
+        lines += ["", f"[{item['id']}]", "-" * 78]
+        if detail.is_file():
+            lines.append(detail.read_text(encoding="utf-8", errors="replace").rstrip())
+    report_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return report_path, json_path
+
+
 def execute_static(analysis: str, project_root: Path, values: Mapping[str, str], *, runner=None, on: str = "local") -> int:
-    """Generate and execute STA, SDF or vectorless power at every configured corner."""
+    """Execute static analysis across explicit timing scenarios and collect canonical QoR."""
 
     if analysis not in {"sta", "sdf", "power_estimate"}:
         raise ValueError(f"static analysis is not supported: {analysis}")
@@ -1013,66 +1055,81 @@ def execute_static(analysis: str, project_root: Path, values: Mapping[str, str],
     root = layout.signoff_stage_root(stage)
     log_root = layout.signoff_stage_log_root(stage)
     liberties = _liberties(values)
-    corners = _selection(
-        values.get("SIGNOFF_CORNERS"), "ss tt ff", tuple(liberties), "sign-off corner"
-    )
-    modes = (
-        _selection(values.get("STA_MODES"), "setup hold", ("setup", "hold"), "STA mode")
-        if analysis == "sta"
-        else ("",)
-    )
+    if analysis == "sta":
+        scenarios = timing_scenarios(values, liberties, stage)
+        work = tuple((scenario.corner, scenario.mode, scenario.liberty) for scenario in scenarios)
+    else:
+        corners = _selection(
+            values.get("SIGNOFF_CORNERS"), "ss tt ff", tuple(liberties), "sign-off corner"
+        )
+        work = tuple((corner, "", liberties[corner]) for corner in corners)
+
     failures: list[str] = []
     violations: list[str] = []
-    for corner in corners:
-        for mode in modes:
-            if analysis == "sta":
-                report_dir = root / "sta" / corner / mode
-                script = root / "sta" / "sta.tcl"
-                log = log_root / "sta" / corner / mode / f"{values.get('TOP', 'test')}.log"
-            elif analysis == "sdf":
-                report_dir = root / "sdf" / corner
-                script = root / "sdf" / "write_sdf.tcl"
-                log = log_root / "sdf" / corner / f"{values.get('TOP', 'test')}.log"
-            else:
-                report_dir = root / "power" / "estimate" / corner
-                script = root / "power" / "estimate" / "power_estimate.tcl"
-                log = log_root / "power" / "estimate" / corner / f"{values.get('TOP', 'test')}.log"
-            ctx = _base_context(
+    sta_summaries: list[dict[str, Any]] = []
+    for corner, mode, liberty in work:
+        if analysis == "sta":
+            report_dir = root / "sta" / corner / mode
+            script = root / "sta" / "sta.tcl"
+            log = log_root / "sta" / corner / mode / f"{values.get('TOP', 'test')}.log"
+        elif analysis == "sdf":
+            report_dir = root / "sdf" / corner
+            script = root / "sdf" / "write_sdf.tcl"
+            log = log_root / "sdf" / corner / f"{values.get('TOP', 'test')}.log"
+        else:
+            report_dir = root / "power" / "estimate" / corner
+            script = root / "power" / "estimate" / "power_estimate.tcl"
+            log = log_root / "power" / "estimate" / corner / f"{values.get('TOP', 'test')}.log"
+        ctx = _base_context(
+            project_root,
+            values,
+            analysis=analysis,
+            corner=corner,
+            mode=mode,
+            report_dir=report_dir,
+            liberty=liberty,
+        )
+        try:
+            rc = _execute_script(
                 project_root,
                 values,
                 analysis=analysis,
-                corner=corner,
-                mode=mode,
-                report_dir=report_dir,
-                liberty=liberties[corner],
+                ctx=ctx,
+                script=script,
+                log=log,
+                runner=runner,
+                on=on,
             )
-            try:
-                rc = _execute_script(
-                    project_root,
-                    values,
-                    analysis=analysis,
-                    ctx=ctx,
-                    script=script,
-                    log=log,
-                    runner=runner,
-                    on=on,
-                )
-            except (OSError, ValueError, subprocess.SubprocessError) as exc:
-                failures.append(f"{corner}/{mode or analysis}: {exc}")
-                continue
-            if rc != 0:
-                failures.append(f"{corner}/{mode or analysis}: OpenSTA return code {rc}; log={log}")
-            else:
-                for report in _required_reports(analysis, ctx):
-                    print(f"[report] {corner}/{mode or analysis} {report}", flush=True)
-                    if analysis == "sta":
-                        violated, wns, path_count = _sta_report_violation(report)
-                        if violated:
-                            wns_text = "n/a" if wns is None else f"{wns:g}"
-                            violations.append(
-                                f"{corner}/{mode}: timing violation wns={wns_text} "
-                                f"violating_paths={path_count}; report={report}"
-                            )
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            failures.append(f"{corner}/{mode or analysis}: {exc}")
+            continue
+        if rc != 0:
+            failures.append(f"{corner}/{mode or analysis}: OpenSTA return code {rc}; log={log}")
+            continue
+        for report in _required_reports(analysis, ctx):
+            print(f"[report] {corner}/{mode or analysis} {report}", flush=True)
+            if analysis == "sta":
+                summary = _sta_scenario_summary(ctx, report)
+                sta_summaries.append(summary)
+                if summary["status"] == "fail":
+                    violations.append(
+                        f"{corner}/{mode}: timing/constraint violation "
+                        f"wns={summary.get('wns')} violating_paths={summary['violating_paths']} "
+                        f"unconstrained_paths={summary['unconstrained_paths']}; report={report}"
+                    )
+
+    if analysis == "sta":
+        report, data = _write_sta_qor(
+            root,
+            top=values.get("TOP", "test"),
+            pdk=values.get("PDK", "unknown"),
+            stage=stage,
+            sdc=_stage_sdc(project_root, values),
+            scenarios=sta_summaries,
+            failures=failures,
+        )
+        print(f"[report] STA QoR {report}", flush=True)
+        print(f"[report] STA JSON {data}", flush=True)
     for failure in failures:
         print(f"ERROR: {failure}", file=sys.stderr)
     for violation in violations:
@@ -1090,16 +1147,11 @@ def execute_activity(analysis: str, action: str, project_root: Path, values: Map
 
 @dataclass(slots=True)
 class StaAnalysis:
-    """Generate SDC/STA/SDF collateral and execute static timing analyses."""
+    """Generate and execute STA/SDF collateral from authored SDC intent."""
 
     project_root: Path
     values: Mapping[str, str]
     runner: object | None = None
-
-    def setup_sdc(self) -> Path:
-        """Generate the canonical pre-implementation SDC."""
-
-        return generate_signoff_sdc(self.project_root, self.values)
 
     def setup_sta(self) -> Path:
         """Generate only the canonical STA Tcl template."""

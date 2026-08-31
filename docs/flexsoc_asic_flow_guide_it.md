@@ -131,7 +131,7 @@ FlexSoC cerca di evitare il classico problema dei flow ASIC in cui lo stesso dat
 | Informazione | Source of truth | Collateral derivato |
 | --- | --- | --- |
 | indirizzi CSR, campi, reset, policy di accesso | HJSON | register RTL, docs, Python regmap, driver, CSR formal |
-| domini clock/reset | `N_CLOCKS`, `CLOCK_DOMAINS`, `CLOCK_RELATIONSHIPS` | scaffold RTL, CDC/RDC, formal mode, SDC, clock di simulazione |
+| bootstrap clock/reset | `N_CLOCKS`, `CLOCK_DOMAINS`, `CLOCK_RELATIONSHIPS` | primo scaffold SDC, ownership/polarità reset, contesto formal/CDC reset-aware |
 | scenario funzionale | scenario/model generato o authored | `config.regs`, `data_in.vec`, `data_out.vec` |
 | mapping di sintesi | Liberty PDK + config sintesi | mapped netlist, checkpoint, report area/stat |
 | timing intent | SDC canonico FlexSoC | OpenSTA sign-off e ORFS implementation |
@@ -884,200 +884,141 @@ Lo scaffold delle proprietà viene creato solo se assente. Dopo la creazione è 
 
 ## Parte III — Sintesi ed equivalence logica
 
-## 10. Timing intent canonico: perché l'SDC non entra nella sintesi Yosys
+## 10. Intento timing canonico: un solo SDC authored, viste derivate minime
 
-FlexSoC separa intenzionalmente **technology mapping** e **timing constraint/sign-off**. Il timing intent nasce una sola volta dal modello canonico dei clock, ma viene tradotto in due forme diverse perché Yosys/ABC e OpenSTA/OpenROAD svolgono lavori differenti.
-
-```text
-ClockConfig FlexSoC
-  ├─ hint di sintesi
-  │    ├─ Liberty target
-  │    ├─ clock period più veloce, dove serve come target ABC
-  │    └─ abc.constr: driving cell + output load
-  │
-  └─ SDC canonico
-       ├─ OpenSTA pre-implementation
-       ├─ ORFS/OpenROAD implementation
-       └─ 6_final.sdc → OpenSTA post-implementation
-```
-
-Il punto importante è che **l'SDC non viene letto dagli script ASIC Yosys generati oggi da FlexSoC**. Questa non è una dimenticanza: è una scelta architetturale del flow corrente.
-
-### 10.1 Source of truth: il modello clock di FlexSoC
-
-La configurazione canonica viene costruita da `clock_config()` a partire da:
-
-- `N_CLOCKS`;
-- `CLOCK_DOMAINS`;
-- `CLOCK_RELATIONSHIPS`;
-- `CLK_PERIOD` per il caso single-clock/default;
-- per ogni dominio: nome, segnale clock, reset, periodo e polarità del reset.
-
-Esempio concettuale multi-clock:
+FlexSoC mantiene l'intento timing in un solo file di proprietà del designer: `constraints/design.sdc`. I formati specifici dei backend sono collateral derivato, non sorgenti di verità concorrenti.
 
 ```text
-CLOCK_DOMAINS =
-  cfg:clk_cfg_i:rst_cfg_ni:10:low,
-  rx:clk_rx_i:rst_rx_ni:8:low,
-  dsp:clk_dsp_i:rst_dsp_ni:5:low
-
-CLOCK_RELATIONSHIPS =
-  async:cfg:rx,
-  async:cfg:dsp,
-  async:rx:dsp
+settings bootstrap clock/reset
+        ↓
+fx sdc
+        ↓
+constraints/design.sdc
+        │
+        ├─ TB functional: waveform/fase/jitter del clock
+        ├─ CDC/RDC: clock + relazioni tra clock
+        ├─ Yosys/ABC: target di periodo + abc.constr drive/load derivato
+        ├─ ORFS/OpenROAD: input timing di implementazione
+        └─ OpenSTA: contratto timing completo
 ```
 
-Lo stesso oggetto `ClockConfig` alimenta CDC/RDC, generazione SDC e contesto di sintesi. I reset appartengono al modello canonico perché servono a CDC/RDC e agli altri backend; **l'SDC generato oggi non inventa automaticamente reset exceptions o recovery/removal policies** che non siano state esplicitamente modellate.
+La separazione è intenzionale: engine diversi consumano sottoinsiemi diversi, ma l'ingegnere scrive le assunzioni timing una sola volta.
 
-### 10.2 Cosa riceve davvero la sintesi
+### 10.1 Topologia bootstrap e timing authored
 
-`syn/syn.py` non emette `read_sdc` dentro `synth.ys` o `synth_sv.ys`. La sintesi ASIC riceve invece un sottoinsieme volutamente semplice del timing intent:
+Un nuovo progetto parte da `N_CLOCKS`, `CLOCK_DOMAINS` e `CLOCK_RELATIONSHIPS`, includendo per dominio segnale di clock, reset, periodo nominale e polarità del reset. Questi settings bastano per creare il primo scaffold SDC e mantenere la metadata dei reset domain; non devono restare un secondo database timing.
+
+Dopo che RTL e lint sono strutturalmente puliti:
+
+```bash
+fx sdc --force
+```
+
+Da quel momento periodo/waveform, generated clock, latency, uncertainty, transition, clock groups, I/O timing, drive/load ed eccezioni timing sono authored in `constraints/design.sdc`. Ownership e polarità dei reset restano fuori dall'SDC perché il normale SDC non le descrive.
+
+### 10.2 Contenuto dello scaffold SDC
+
+Lo scaffold è ordinato per rendere visibili le decisioni mancanti:
+
+1. primary clock;
+2. generated clock;
+3. source latency, setup/hold uncertainty e transition;
+4. relazioni tra clock;
+5. input delay min/max;
+6. input drive o driving cell opzionale;
+7. output delay min/max;
+8. output load;
+9. esempi commentati di false path e multicycle;
+10. design-rule constraints opzionali.
+
+False path e multicycle non vengono mai inferiti: sono assunzioni architetturali authored.
+
+### 10.3 Consumer functional e CDC
+
+`backend/signoff/sdc.py` interpreta solo il piccolo sottoinsieme di comandi attivi necessario fuori da STA. Non è un parser SDC generale.
+
+SV e cocotb usano `create_clock -period/-waveform`, `set_clock_latency -source` e `set_clock_uncertainty`. Il primo rising edge è waveform rise + source latency; il duty cycle deriva dalla waveform. I rising edge successivi ricevono jitter uniforme limitato a `±max(setup_uncertainty, hold_uncertainty)` con risoluzione 1 ps. Il `SEED` della run seleziona la stessa sequenza xorshift32 nei due backend, quindi fase, skew relativo, duty cycle non 50% e jitter restano riproducibili. `set_clock_transition` resta un vincolo STA/elettrico, non un modello analogico di slew in simulazione.
+
+CDC/RDC legge le relazioni tra clock dallo stesso SDC e le combina con ownership/polarità dei reset dalla metadata bootstrap.
+
+### 10.4 Cosa riceve davvero la sintesi
+
+Yosys/ABC non ha bisogno dell'intero timing graph SDC. FlexSoC deriva solo le informazioni utili al mapping:
 
 ```text
 RTL/SystemVerilog
-+ Liberty
-+ optimization strategy
-+ fastest_period_ns
-+ PDK driving-cell/load assumptions
++ Liberty target
++ strategia di ottimizzazione
++ target di clock
++ abc.constr drive/load derivato dall'SDC
         ↓
-Yosys + ABC technology mapping
+Yosys + ABC
 ```
 
-In particolare:
+`abc.constr` è un piccolo adapter machine-owned e non diventa mai proprietario dell'intento timing.
 
-- con strategia `delay`, FlexSoC passa ad ABC `-D <fastest_period_ps>` e `-constr abc.constr`;
-- con strategia `area`, usa la recipe `area.abc` più `abc.constr`, senza trasformare l'SDC in un timing graph di sintesi;
-- con strategia `none`, usa il mapping ABC diretto con `-D <fastest_period_ps>`;
-- `abc.constr` contiene solo `set_driving_cell` e `set_load`.
+### 10.5 `abc.constr` non è un SDC
 
-Il parametro `sdcdir` esiste ancora nel contratto Python di `SynthesisConfig`, ma **nel renderer ASIC corrente non viene consumato e non implica che Yosys stia leggendo un SDC**.
+L'input `-constr` di ABC è volutamente limitato. Non rappresenta generated clock, clock groups asincroni, I/O timing completo, false/multicycle path, propagazione del clock o parassiti. Queste semantiche restano in `design.sdc`.
 
-### 10.3 Perché questa separazione è voluta
+### 10.6 STA e implementazione usano lo stesso SDC authored
 
-Yosys/ABC in FlexSoC viene usato per **ottimizzare e mappare la logica**, non come timing sign-off engine. Per questo il mapper riceve hint sufficienti a prendere decisioni sensate sulle celle, mentre la semantica completa del timing viene lasciata a OpenSTA/OpenROAD.
-
-La separazione evita quattro problemi:
-
-- **duplicazione della semantica timing** — generated clocks, gruppi asincroni, I/O delays ed eventuali eccezioni devono avere una sola interpretazione autorevole;
-- **falsa precisione pre-layout** — prima di placement, CTS e routing non esistono ancora clock insertion delay e parassitiche routed;
-- **drift tra tool** — una traduzione parziale dell'SDC dentro la sintesi potrebbe divergere da ciò che OpenSTA e OpenROAD usano davvero;
-- **accoppiamento inutile** — la sintesi deve produrre un buon mapped netlist, mentre timing repair fisico, CTS e routing timing-driven appartengono all'implementation.
-
-Questa è una scelta del **flow FlexSoC attuale**, non un'affermazione che Yosys in assoluto non possa essere integrato con flow che usano timing constraint più ricchi.
-
-### 10.4 `abc.constr` non è un SDC
-
-È importante non confondere i due file. Il formato `-constr` del pass ABC di Yosys è volutamente minimale:
+Pre-implementation:
 
 ```text
-set_driving_cell <cell_name>
-set_load <load_ff>
+FlexSoC mapped netlist
++ Liberty timing views
++ constraints/design.sdc
+→ OpenSTA
 ```
 
-Serve a dire al mapper, in modo approssimato:
-
-- quanto è forte il driver esterno dei primary input;
-- quale carico vede ciascun primary output.
-
-Non contiene:
-
-- `create_clock`;
-- generated clocks;
-- asynchronous clock groups;
-- input/output delay associati ai clock;
-- false path o multicycle path;
-- propagated clock latency;
-- parassitiche.
-
-Questi concetti appartengono all'SDC/STA e, più avanti, al modello fisico.
-
-### 10.5 Come FlexSoC autogenera l'SDC canonico
-
-Il proprietario dell'SDC canonico è `signoff/sta.py`, esposto tramite `signoff.pre.setup_sdc()`. Il flusso è concettualmente:
+Implementazione:
 
 ```text
-clock_config(values)
-    ↓
-render_clock_config_sdc(top, cfg, SDC_IO_DELAY_PCT)
-    ↓
-write_sdc(signoff/<pdk>/<top>.sdc)
-```
-
-Per un **single-clock** il file contiene almeno:
-
-```tcl
-current_design test
-create_clock -name core -period 10 [get_ports clk_i]
-
-set non_clock_inputs [all_inputs -no_clocks]
-set_input_delay  [expr 10 * 0.2] -clock core $non_clock_inputs
-set_output_delay [expr 10 * 0.2] -clock core [all_outputs]
-```
-
-`0.2` deriva dal default `SDC_IO_DELAY_PCT=0.2`: è un'assunzione di integrazione modificabile, non una proprietà fisica universale del chip.
-
-Per un **multi-clock** FlexSoC genera invece, in base alle relationship dichiarate:
-
-- `create_clock` per i primary clock;
-- `create_generated_clock` per relationship `generated`;
-- `set_clock_groups -asynchronous` per relationship `async`;
-- nessuna falsa inferenza di I/O delay multi-clock: l'associazione porta→clock è integration-specific e deve essere dichiarata esplicitamente quando il flow verrà esteso in quella direzione.
-
-Una relationship `sync` viene oggi registrata senza introdurre automaticamente un'eccezione timing aggiuntiva.
-
-### 10.6 Dove entra l'SDC nel flow reale
-
-Una volta generato, l'SDC diventa l'autorità temporale pre-layout:
-
-```text
-mapped netlist FlexSoC
-        +
-canonical <top>.sdc
-        ↓
-OpenSTA pre-implementation
-        ↓
-impl/impl.py
-        ↓
 ORFS config.mk
-  SYNTH_NETLIST_FILES := <top>_synth.v
-  SDC_FILE             := <top>.sdc
+  SYNTH_NETLIST_FILES := FlexSoC mapped netlist
+  SDC_FILE             := constraints/design.sdc
+```
+
+ORFS/OpenROAD può produrre anche `6_final.sdc` come artifact del proprio result tree, ma FlexSoC non lo trasforma in un nuovo owner dell'intento. Il sign-off routed mantiene l'SDC authored e cambia il modello fisico:
+
+```text
+final routed netlist (6_final.v)
++ constraints/design.sdc
++ routed SPEF (6_final.spef)
++ propagated clocks
+→ OpenSTA post-route
+```
+
+### 10.7 Modello mentale corretto
+
+```text
+bootstrap clock/reset
         ↓
-OpenROAD physical implementation
+constraints/design.sdc
+        │
+  ┌─────┼─────────────┐
+  ▼     ▼             ▼
+ TB   CDC/RDC    adapter synthesis
+                    abc.constr
+                      │
+                      ▼
+                mapped netlist
+                      │
+             ┌────────┴───────┐
+             ▼                ▼
+        STA pre-route      ORFS/OpenROAD
+         design.sdc         design.sdc
+                                │
+                                ▼
+                       final netlist + SPEF
+                                │
+                                ▼
+                         STA post-route
+                           design.sdc
 ```
 
-Quindi ORFS **non risintetizza** il design: riceve il mapped netlist di FlexSoC e l'SDC canonico separatamente. Da quel momento OpenROAD può usare il timing intent durante placement timing-driven, timing repair, CTS e routing.
-
-Al termine dell'implementation ORFS produce anche:
-
-```text
-6_final.v
-6_final.sdc
-6_final.spef
-```
-
-Il sign-off post-implementation non torna al vecchio modello pre-layout: FlexSoC consuma **`6_final.sdc` + final netlist + SPEF**, abilita i propagated clocks e misura il design fisico realmente routed.
-
-### 10.7 Il modello mentale corretto
-
-La relazione completa è quindi:
-
-```text
-                  ┌─→ Yosys/ABC
-                  │    coarse mapping hints
-ClockConfig ──────┤    Liberty + period + driver/load
-                  │
-                  └─→ canonical SDC
-                       ↓
-                  OpenSTA pre-impl
-                       ↓
-                  ORFS/OpenROAD
-                       ↓
-                  6_final.sdc + SPEF
-                       ↓
-                  OpenSTA post-impl
-```
-
-In altre parole: **il clock intent è condiviso; il file SDC no, perché non tutti gli stage hanno bisogno della stessa rappresentazione**. La sintesi usa hint sufficienti al mapping; STA e implementation usano il contratto temporale completo.
+Un contratto authored, consumer piccoli e deliberati.
 
 ---
 
@@ -1092,7 +1033,8 @@ La sintesi ASIC consuma:
 - filelist RTL ordinate;
 - top selezionato;
 - Liberty target;
-- periodo del clock più veloce come hint di ottimizzazione ABC dove applicabile, **non l'SDC**;
+- target di clock derivato dall'SDC authored dove applicabile;
+- collateral ABC drive/load derivato dallo stesso SDC;
 - tie cell e minimum-buffer del PDK quando disponibili;
 - modalità `area`, `delay` o `none`.
 
@@ -1725,36 +1667,32 @@ Questi artifact definiscono il modello post-implementation. FlexSoC non rigenera
 
 ## Parte VI — Sign-off post-implementation
 
-## 20. Routed STA: final netlist + final SDC + SPEF
+## 20. Routed STA: final netlist + SDC authored + SPEF
 
-La STA post-implementation passa dal modello ideal/pre-layout al modello fisico/routed:
+La STA post-implementation passa dal modello ideal/pre-layout a quello fisico/routed mantenendo lo stesso intento timing:
 
 ```text
 read final Liberty corner
 → read 6_final.v
 → link design
-→ read 6_final.sdc
+→ read constraints/design.sdc
 → read 6_final.spef
 → set clocks propagated
 → analyze setup/hold/electrical constraints
 ```
 
-Il report dichiara:
+ORFS può produrre `6_final.sdc` nel proprio result tree, ma il contratto timing FlexSoC resta `constraints/design.sdc`. Un SDC post-route diverso viene usato solo come override eccezionale esplicito.
+
+Il modello routed è quindi:
 
 ```text
 clock_network=propagated
 interconnect=spef
 ```
 
-Sezioni routed aggiuntive:
+L'analisi aggiunge coverage di annotazione SPEF, latency/skew dei clock e path fisici dettagliati. L'evidence pubblica consolidata è `signoff/<pdk>/sta/sta.rpt` con `sta.json`; i report scenario-local sono artifact diagnostici runtime, non contratti separati di package.
 
-- coverage dell'annotazione SPEF / net non annotate;
-- clock latency;
-- setup/hold clock skew;
-- worst routed paths anche se timing-met;
-- path report espanso con slew, capacitance, net e fanout.
-
-È la differenza quantitativa principale rispetto alla STA post-synthesis: cell delay, wire delay routed e comportamento fisico della clock tree vengono analizzati insieme.
+La differenza quantitativa rispetto alla STA post-synthesis è nei parassiti routed e nel clock tree fisico, non in un cambio della sorgente di verità dell'intento timing.
 
 ---
 
@@ -2718,9 +2656,16 @@ fx regmap_py --force
 fx rtl_stub --force
 fx flist --force
 
-# Verifica pre-synthesis
+# Chiusura strutturale e intento timing authored
 fx lint_suite
+fx sdc --force
+# review/edit constraints/design.sdc
+
+# Verifica pre-synthesis
+fx setup_cdc_rdc --force
 fx cdc_rdc
+fx setup_formal --force
+fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
 fx formal
 fx tests_gen --force
 fx setup_tb setup_cocotb --force
@@ -2728,11 +2673,13 @@ fx regression
 fx coverage_detail
 
 # Technology mapping e proof logica
-fx setup_signoff --force
-fx syn --force
-fx eqy --force
+fx setup_syn
+fx syn
+fx setup_eqy
+fx eqy
 
 # Sign-off pre-implementation / gate verification
+fx setup_signoff
 fx sta
 fx sdf
 fx power_estimate

@@ -4,30 +4,31 @@
 
 # ⚡ FlexSoC
 
-FlexSoC is an open-source **controlled build and qualification system for digital IP**.
-It uses existing EDA tools as specialized engines and connects them through one
-explicit, reproducible lifecycle exposed by the `fx` command line.
+FlexSoC is an open-source orchestration framework for developing digital ASIC IP
+and small SoCs through one command-line interface: `fx`.
 
-FlexSoC does not hide the silicon engineering. It keeps design intent, authored
-and generated collateral, verification, constraints, implementation evidence,
-provenance, and qualification status synchronized while the IP evolves.
+Its purpose is not to hide the EDA tools. Its purpose is to keep the design
+intent, generated collateral, verification environments, constraints,
+implementation data, reports, and logs synchronized while the IP evolves.
 
 ```text
-design intent
-    ↓
-authored + generated design collateral
-    ↓
-DV / formal / CDC-RDC
-    ↓
-synthesis / equivalence
-    ↓
-STA / SDF / GLS
-    ↓
-physical implementation / sign-off
-    ↓
-qualification evidence
-    ↓
-reproducible digital-IP package
+requirements and architecture
+        ↓
+CSR / register map + RTL interfaces + RTL behavior
+        ↓
+functional DV + property formal + structural CDC/RDC analysis
+        ↓
+constraints + synthesis
+        ↓
+RTL ↔ synthesized-netlist equivalence
+        ↓
+post-synthesis SDF / GLS / STA / power estimate
+        ↓
+OpenROAD implementation
+        ↓
+post-layout timing / SDF / GLS / power / physical sign-off
+        ↓
+qualified reusable IP or SoC release
 ```
 
 ## Why FlexSoC
@@ -41,16 +42,15 @@ requirements, and implementation closure.
 FlexSoC makes those dependencies explicit:
 
 - authored sources stay separate from generated collateral;
-- `N_CLOCKS`, `CLOCK_DOMAINS`, and `CLOCK_RELATIONSHIPS` describe clock intent once;
+- bootstrap clock/reset settings initialize one authored `constraints/design.sdc`; after that the SDC is the timing source of truth;
 - Slang resolves the reachable RTL hierarchy and produces ordered filelists;
 - the same vector tests can drive SystemVerilog and cocotb environments;
 - functional coverage, property proof, and RTL/netlist equivalence remain separate metrics;
 - synthesis, STA, SDF, power, and OpenROAD runs share one run identity;
 - failed runs retain logs and tool workspaces for diagnosis.
 
-The final goal is a reproducible digital-IP package whose sources, design intent,
-verification collateral, implementation evidence, provenance, and qualification
-status make the release understandable and repeatable.
+The final goal is a repeatable path from an IP requirement to evidence that the
+implemented hardware still matches its specification and RTL intent.
 
 ## Main capabilities
 
@@ -76,8 +76,8 @@ status make the release understandable and repeatable.
 
 ### Implementation and sign-off
 
-- logical SDC generation;
-- Yosys synthesis;
+- one authored SDC timing contract shared by DV, CDC/RDC, synthesis setup, implementation, and STA;
+- Yosys synthesis with drive/load collateral derived from that SDC;
 - EQY RTL-to-mapped-netlist equivalence;
 - post-synthesis and post-PnR gate-level simulation;
 - SDF generation;
@@ -111,19 +111,38 @@ fx settings \
 fx setup --force
 fx hjson reg doc rtl_stub top_from_core flist --force
 fx lint_suite
+
+# Initialize once, then review/edit as authored timing intent.
+fx sdc --force
+
+fx setup_cdc_rdc --force
 fx cdc_rdc
 
 fx setup_model --force
-fx tests_gen setup_tb setup_cocotb --force
+fx tests_gen --force
+fx setup_tb setup_cocotb --force
 fx regression
 fx coverage_detail
+
+fx setup_formal --force
+fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
 fx formal
 
-fx setup_syn syn --force
-fx eqy --force
-fx sdf sta power_estimate --force
-fx manifest metrics check --force
+fx pdk use sky130
+fx setup_syn
+fx syn
+fx setup_eqy
+fx eqy
+fx setup_signoff
+fx sdf
+fx sta
+fx power_estimate
+fx manifest
+fx metrics
+fx check
 ```
+
+`fx sdc` is the handoff from bootstrap settings to authored timing intent. Functional SV/cocotb clocks, CDC/RDC clock relationships, synthesis drive/load setup, implementation, and STA all consume the same `constraints/design.sdc`. Functional clocks honor SDC waveform and source latency, and model `set_clock_uncertainty` as bounded reproducible jitter using the run `SEED`.
 
 ## Minimal N-clock configuration
 
@@ -135,7 +154,7 @@ fx settings \
   'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 ```
 
-The command vocabulary remains the same for one or many clocks. Persist clock/reset intent with `fx settings`; use `--set` only for intentional one-command overrides. `CLOCK_DOMAINS` uses `name:clock:reset:period_ns[:low|high]`, and relationships use `async|sync|generated:source:target[:divide_by]`. FlexSoC does not silently infer asynchronous relationships.
+The command vocabulary remains the same for one or many clocks. `N_CLOCKS`, `CLOCK_DOMAINS`, and `CLOCK_RELATIONSHIPS` are bootstrap/reset-domain metadata used to initialize the first SDC and retain reset ownership/polarity. Once `constraints/design.sdc` exists, edit clock timing and clock relationships there rather than maintaining a parallel timing configuration. FlexSoC does not silently infer asynchronous relationships.
 
 ## Development principles
 
@@ -149,12 +168,10 @@ The command vocabulary remains the same for one or many clocks. Persist clock/re
 ## Documentation
 
 - [Quickstart](docs/quickstart.md) — the shortest runnable single-clock and N-clock workflows.
-- [Project lifecycle](docs/project_lifecycle.md) — the canonical engineering contract from design intent to qualified release.
-- [IP development guide](docs/ip_development_guide.md) — scaffold ownership, generated/authored boundaries, failure recovery, GLS, and activity-power flow.
-- [Architecture](docs/architecture.md) — contributor-facing Python/backend structure, execution, artifact, and provenance contracts.
-- [Command reference](docs/command_reference.md) — exact `fx` commands, targets, options, variables, lifecycle roles, and diagnostics.
-- [Detailed ASIC flow guide](docs/flexsoc_asic_flow_guide.md) — deeper English engineering reference for the complete open-source ASIC flow.
-- [Guida dettagliata al flow ASIC](docs/flexsoc_asic_flow_guide_it.md) — approfondimento tecnico in italiano sullo stesso flow.
+- [Architecture](docs/architecture.md) — code structure, backend responsibilities, execution/provenance contracts, and end-to-end data flow.
+- [Project lifecycle](docs/project_lifecycle.md) — the complete ASIC design, verification, implementation, sign-off, change-propagation, troubleshooting, reuse, and release guide.
+- [IP development guide](docs/ip_development_guide.md) — the detailed scaffold architecture, ownership boundaries, artifacts, rationale, failure recovery, GLS model policy, and activity-power flow.
+- [Command reference](docs/command_reference.md) — every `fx` pseudo-command, backend target, option, variable, lifecycle role, and diagnostic workflow.
 
 ## Run layout
 
@@ -165,12 +182,14 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 ├── data/             # register specifications
 ├── rtl/              # RTL and ordered filelists
 ├── doc/              # generated register documentation
+├── constraints/      # authored design.sdc timing contract
 ├── dv/               # functional and property-formal collateral
+├── analysis/         # normalized CDC/RDC evidence
 ├── syn/<pdk>/        # synthesized implementation
 ├── impl/<pdk>/
-├── signoff/<pdk>/    # equivalence, STA, SDF, power, post-PnR sign-off
-├── logs/
-└── meta/<pdk>/       # manifest, metrics, provenance, qualification state
+├── signoff/          # equivalence, STA, SDF, power
+├── logs/             # tool logs, including packaged lint/CDC evidence
+└── meta/             # design intent + per-PDK settings/manifest/metrics/provenance
 ```
 
 ## API and end-to-end regression

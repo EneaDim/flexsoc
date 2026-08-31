@@ -1,8 +1,7 @@
 # 🧩 FlexSoC IP development guide
 
-This document explains how FlexSoC turns authored digital-IP intent into
-reproducible generated collateral, qualification evidence, and a release package.
-It follows the same
+This document explains how FlexSoC turns an IP idea into reproducible design,
+verification, synthesis, sign-off, and release evidence. It follows the same
 order as [Project lifecycle](project_lifecycle.md) and
 [Command reference](command_reference.md), but focuses on the implementation
 model behind the commands:
@@ -32,11 +31,10 @@ Use the documents together:
 
 ## 1. FlexSoC mental model
 
-FlexSoC is a controlled build and qualification system centered on a run
-workspace. It is not a monolithic compiler and it does not hide the underlying
-EDA tools. Each `fx` target establishes one small boundary, generates a script or
-scaffold where needed, executes the selected tool, and archives evidence under
-one run identity.
+FlexSoC is a framework around a run workspace. It is not a monolithic compiler
+and it does not hide the underlying EDA tools. Each `fx` target establishes one
+small boundary, generates a script or scaffold where needed, executes the
+selected tool, and archives evidence under one run identity.
 
 ```text
 repository checkout
@@ -76,7 +74,8 @@ by PDK so several technologies can coexist in one logical run.
 | Top wrapper around the core | generator | regenerate after port/CSR changes |
 | Ordered RTL filelists | elaboration | regenerate after hierarchy changes |
 | Vector files | scenario generator | regenerate from authored tests |
-| SV/cocotb/formal/synthesis/sign-off scaffolds | generator | regenerate after owning inputs change; `setup_signoff` owns the SDC |
+| `constraints/design.sdc` | author after first scaffold | initialize once with `fx sdc`; edit as timing intent; never regenerate on PDK switch |
+| SV/cocotb/formal/synthesis/sign-off scaffolds | generator | regenerate after their owning inputs change; they consume the authored SDC where relevant |
 | Tool scripts, reports, waves, metrics, manifests | run | retain as evidence; do not edit |
 
 `--force` is for machine-owned files. It is not permission to overwrite an
@@ -84,7 +83,7 @@ edited model, test catalogue, core, or property file without review.
 
 ### 1.2 Execution and logging model
 
-A target may have automatic setup dependencies that remain fail-fast. Explicit top-level
+Run targets have explicit setup requirements that remain fail-fast. They never generate those prerequisites implicitly. Explicit top-level
 targets written on the same command line are launched in the order supplied.
 Use shell `&&` or a composite target when later work must not run after a
 failure.
@@ -107,6 +106,10 @@ OpenSTA output stays in the run logs. `--live` streams the same output without
 removing the archived log.
 
 ---
+
+### Backend vocabulary used in this guide
+
+Internally, FlexSoC uses `init_*` for authored starter content, `setup_*` for generated collateral, `run_*` for execution, and `collect_*` for evidence. Existing CLI target names remain valid for compatibility, so this naming cleanup does not require rewriting established command lines.
 
 ## 2. Run workspace anatomy
 
@@ -133,7 +136,7 @@ runs/<RUN_TOP>/<RUN_ID>/
 │       ├── csr/                   generated CSR formal collateral
 │       ├── properties/            authored design properties/configuration
 │       └── runs/                  BMC/prove/cover results
-├── analysis/                     hierarchy and future CDC/RDC results
+├── analysis/cdc_rdc/             normalized CDC/RDC reports and obligations
 ├── syn/<pdk>/                    synthesis scripts, netlist, reports
 ├── impl/<pdk>/           physical implementation
 ├── signoff/
@@ -142,8 +145,9 @@ runs/<RUN_TOP>/<RUN_ID>/
 │   ├── sta/<pdk>/                timing scripts and reports
 │   ├── power/<pdk>/              vectorless and activity-based power
 │   └── path_view/<pdk>/          timing path views
-├── logs/                         command and stage logs
-└── meta/<pdk>/                   manifest and metrics
+├── logs/                         command/stage logs; release keeps lint + CDC/RDC evidence
+├── meta/design_intent.json      common technology-independent design intent
+└── meta/<pdk>/                  effective settings, manifest, provenance, metrics
 ```
 
 Do not diagnose a run by looking at only one report. The retained settings,
@@ -390,8 +394,10 @@ hierarchy can make every downstream stage analyze the wrong design.
 After an RTL repair, rerun at least:
 
 ```bash
-fx flist lint_suite --force
-fx cdc_rdc --force
+fx flist --force
+fx lint_suite
+fx setup_cdc_rdc --force
+fx cdc_rdc
 fx formal
 fx regression
 ```
@@ -448,11 +454,7 @@ builds one shared graph of sequential dependencies and reuses it for every check
 The analysis is independent of SKY130/IHP cell naming and is not skipped for a
 single-clock design.
 
-The checker groups findings instead of treating every bit as an unrelated error.
-It recognizes scalar N-FF synchronizers, qualified and synchronized multi-bit
-transfers, FIFO/Gray and handshake candidates, reconvergence, clock/reset setup
-problems, combinational clock/reset paths, uncontrolled RDC, reset synchronizers,
-and reset-release/sequence obligations. Structural facts can be `SAFE`, `WARN`, or
+The checker groups findings instead of treating every bit as an unrelated error. Its ordered pass is: scalar/multi-bit crossings → FIFO/Gray candidates → handshake candidates → reconvergence → setup/glitch → RDC crossings → reset synchronizers → reset release → reset sequencing. It recognizes scalar N-FF synchronizers, qualified and synchronized multi-bit transfers, clock/reset setup problems, combinational clock/reset paths, and uncontrolled RDC. Structural facts can be `SAFE`, `WARN`, or
 `ERROR`; protocol/timing properties that need assertions are reported as `REVIEW`
 with an explicit obligation.
 
@@ -706,11 +708,11 @@ semantics. Do not add a backend-specific expected result to make the test pass.
 
 ---
 
-## 11. Phase 8 — clocks, resets, and SDC
+## 11. Phase 8 — authored timing contract
 
-One `ClockConfig` feeds simulation, formal, synthesis, SDC, EQY, STA, and PnR.
+Clock/reset topology is bootstrapped from settings, but timing intent is authored in one file.
 
-Single clock:
+Single clock bootstrap:
 
 ```bash
 fx settings \
@@ -720,7 +722,7 @@ fx settings \
   CLOCK_RELATIONSHIPS=
 ```
 
-N clocks:
+N-clock bootstrap:
 
 ```bash
 fx settings \
@@ -730,33 +732,66 @@ fx settings \
   'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 ```
 
-Generate constraints:
+After RTL/filelist lint is clean, initialize the timing contract once:
 
 ```bash
-fx setup_signoff --force
+fx sdc --force
 ```
 
-The generated SDC creates declared clocks, generated clocks where specified,
-and explicit asynchronous groups. A real project may add reviewed input/output
-delays, uncertainty, latency, false paths, multicycle paths, case analysis, and
-transition/capacitance/fanout policy.
+Then review and edit `constraints/design.sdc`. The bootstrap settings remain useful for reset-domain ownership/polarity and for intentionally rebuilding the scaffold after a topology change, but they do not form a parallel authored timing database.
 
-### 11.1 CDC/RDC relationship to clock constraints
+The SDC scaffold is deliberately ordered and complete enough to expose the real design decisions:
 
-`fx cdc_rdc` runs earlier, after linting, but consumes the same declared
-`CLOCK_DOMAINS` and `CLOCK_RELATIONSHIPS` that drive the generated SDC. If clock or
-reset intent changes, regenerate the affected collateral and rerun CDC/RDC before
-synthesis/sign-off.
+1. primary clocks;
+2. generated clocks;
+3. source latency, uncertainty and transition;
+4. clock relationships;
+5. input min/max timing;
+6. input drive / optional driving cell;
+7. output min/max timing;
+8. output load;
+9. commented false-path/multicycle examples;
+10. optional design-rule limits.
 
-### 11.2 Constraint failure recovery
+False paths and multicycle paths are never inferred. They remain authored architectural intent.
+
+### 11.1 Shared clock semantics
+
+`backend/signoff/sdc.py` owns the small SDC adapter used by non-STA consumers. It does not try to implement a general SDC parser. STA sources `design.sdc` directly.
+
+Functional SV and cocotb derive digital clock stimulus from the same active SDC commands:
+
+```text
+create_clock -period/-waveform
+set_clock_latency -source
+set_clock_uncertainty -setup/-hold
+```
+
+The first rising edge is `waveform.rise + source_latency`; duty cycle comes from the waveform. Later rising edges receive uniform bounded jitter of `±max(setup_uncertainty, hold_uncertainty)` at 1 ps resolution. The existing run `SEED` drives the same xorshift32 sequence in SV and cocotb, so the functional clock is non-ideal but deterministic and reproducible. `set_clock_transition` remains an STA/electrical constraint rather than an analog slew simulation model.
+
+The vector driver/monitor timeline is independent of this clock perturbation. Expected `data.out` checks are evaluated on their scheduled cycles and may occur before later `data.in` events; there is no requirement to consume every input event before checking outputs.
+
+### 11.2 CDC/RDC relationship to SDC
+
+CDC/RDC runs after the SDC has been reviewed:
+
+```bash
+fx setup_cdc_rdc --force
+fx cdc_rdc
+```
+
+Clock relationships come from `design.sdc`; reset ownership and polarity come from the minimal bootstrap metadata that SDC does not express. If a clock relationship changes, update the SDC, regenerate the CDC extraction, and rerun CDC/RDC.
+
+### 11.3 Constraint failure recovery
 
 | Symptom | Repair |
 | --- | --- |
-| clock is not recognized | fix `CLOCK_DOMAINS`, top port names, or SDC generation inputs |
+| clock is not recognized | fix `design.sdc` clock/port names; if topology itself changed, update bootstrap metadata and intentionally regenerate/review the scaffold |
 | many unconstrained paths | add missing I/O/path constraints or correct hierarchy; do not call them passing |
 | false/multicycle exception fixes timing unexpectedly | prove the architectural reason and scope the exception narrowly |
-| simulation and STA use different periods | correct persistent settings and regenerate all clock-derived scaffolds |
-| clock relationship changes | regenerate TB, formal, synthesis, EQY, and sign-off scaffolds (including the SDC); review CDC/RDC |
+| functional TB and STA use different clock timing | inspect the single authored SDC and regenerate the affected TB/sign-off setup |
+| authored SDC clock/relationship changes | regenerate TB and CDC setup; regenerate synthesis/sign-off setup when their consumed timing fields changed |
+| reset domain/polarity changes | update bootstrap reset metadata, then rerun reset-aware TB/CDC/formal setup |
 
 ---
 
@@ -771,8 +806,8 @@ The synthesis scaffold consumes:
 
 - ordered RTL filelists;
 - selected top;
-- clock and reset configuration;
-- generated SDC;
+- clock optimization and I/O environment derived from authored `constraints/design.sdc`;
+- reset/topology metadata where required by the generated flow;
 - selected PDK profile and synthesis Liberty;
 - synthesis/optimization strategy.
 
@@ -799,7 +834,7 @@ or routability.
 | unmapped cell/operator | library availability and synthesis strategy | add correct technology view or rewrite unsupported RTL construct |
 | latch/memory unexpectedly inferred | RTL intent | make storage explicit or correct incomplete combinational logic |
 | area/cell explosion | arithmetic widths, duplicated logic, missing constraints | inspect statistics and architecture before adding tool-only optimization |
-| generated netlist is stale | timestamps/settings/PDK leaf | rerun `setup_syn syn --force` and verify run identity |
+| generated netlist is stale | provenance/settings/PDK lineage | run `fx setup_syn --force`, then `fx syn`, and verify run identity |
 
 After synthesis changes, always rerun equivalence.
 
@@ -878,13 +913,16 @@ records and that the intended file was requested by the simulator.
 
 ### 14.2 Pre-layout STA
 
-`fx sta` reads the mapped netlist, Liberty, SDC, and pre-layout interconnect
-assumptions. Setup and hold are checked separately for every configured corner.
-All reports are written even on failure, but `fx sta` returns non-zero when any
-corner/mode has negative WNS or a `VIOLATED` timing path.
+`fx sta` reads the mapped netlist, resolved Liberty views, and the authored `constraints/design.sdc`. Setup and hold are checked as explicit timing scenarios. The canonical evidence is intentionally compact:
 
-Unconstrained endpoints remain a separate coverage condition: they must be
-reviewed even when constrained paths meet timing.
+```text
+signoff/<pdk>/sta/sta.rpt
+signoff/<pdk>/sta/sta.json
+```
+
+`sta.rpt` is the human QoR view; `sta.json` carries the same scenario status for reporting, qualification and packaging. They include scenario identity, WNS/TNS, violations, unconstrained-path status, electrical checks, minimum clock period/Fmax when available, and detailed setup/hold timing context. Scenario-local reports may exist during execution for diagnosis but are not the public package contract.
+
+Unconstrained endpoints fail timing qualification: incomplete constraint coverage is not a timing PASS.
 
 ### 14.3 Vectorless power estimate
 
@@ -1195,21 +1233,31 @@ A standard closure PASS still does not imply final production physical sign-off.
 Review warnings, unconstrained timing paths, coverage, waivers, and current flow
 limitations in addition to the summary word.
 
-### 17.4 Automatic setup policy
+### 17.4 Explicit setup policy
 
-Normal CLI use favors convenience for generated script/configuration flows: `fx syn`, `fx eqy`, `fx sdf`, `fx sta`, `fx power_estimate`, `fx pnr`, and the formal execution targets prepend their matching setup commands. Functional and gate-level simulation never prepend `setup_tb` or `setup_cocotb`; those remain visible user steps, including after each PDK switch. The prepended targets do not fabricate earlier analysis results.
+Generated script/configuration setup is a separate lifecycle action. Run targets such as `syn`, `eqy`, `sdf`, `sta`, `power_estimate`, formal execution and `pnr` consume existing validated setup; they do not prepend or regenerate it. Functional and gate-level SV/cocotb drivers follow the same rule.
 
-Use `--no-setup` for a literal E2E pipeline:
+A normal visible pipeline is:
 
 ```bash
-fx setup_signoff
 fx setup_syn
-fx syn --no-setup
+fx syn
 fx setup_eqy
-fx eqy --no-setup
+fx eqy
+fx setup_signoff
+fx sdf
+fx sta
 ```
 
-This keeps every step readable while retaining convenient one-command interactive use.
+A repeated setup command reuses valid collateral. Use `--force` only when regeneration is intentional, for example after changing persistent design/technology settings:
+
+```bash
+fx settings TARGET_OPT=delay1
+fx setup_syn --force
+fx syn
+```
+
+`--no-setup` is retained only as a deprecated compatibility no-op for older scripts. New user flows and E2E tests should not use it.
 
 ### 17.5 Save reusable IP
 
@@ -1262,9 +1310,18 @@ constraints, and sign-off assumptions.
 fx reg doc regmap_py --force
 fx top_from_core flist --force
 fx tests_gen --force
-fx lint_suite cdc_rdc formal regression
-fx syn eqy --force
-fx sdf sta power_estimate --force
+fx lint_suite
+fx setup_cdc_rdc setup_tb setup_cocotb --force
+fx cdc_rdc
+fx regression
+fx setup_formal_csr_prove setup_formal_csr_cover --force
+fx formal
+fx setup_syn setup_eqy setup_signoff --force
+fx syn
+fx eqy
+fx sdf
+fx sta
+fx power_estimate
 ```
 
 Rerun representative GLS and activity power when the CSR affects runtime
@@ -1273,12 +1330,21 @@ configuration or switching.
 ### 18.2 RTL behavior or latency change
 
 ```bash
-fx flist lint_suite --force
+fx flist --force
+fx lint_suite
+fx setup_cdc_rdc --force
 fx cdc_rdc
+fx setup_formal_prove setup_formal_cover --force
 fx formal
-fx tests_gen regression --force
-fx syn eqy --force
-fx sdf sta power_estimate --force
+fx tests_gen --force
+fx setup_tb setup_cocotb --force
+fx regression
+fx setup_syn setup_eqy setup_signoff --force
+fx syn
+fx eqy
+fx sdf
+fx sta
+fx power_estimate
 ```
 
 Then qualify GLS. Start with `zero`, use `unit` if timing-ordering assumptions
@@ -1287,18 +1353,40 @@ are suspect, and run `typ,min,max` for SDF evidence.
 ### 18.3 Port change
 
 ```bash
-fx top_from_core flist setup_tb setup_cocotb --force
-fx lint_suite cdc_rdc formal regression
-fx syn eqy sdf sta power_estimate --force
+fx top_from_core flist --force
+fx lint_suite
+# review constraints/design.sdc if interface timing changed
+fx setup_tb setup_cocotb setup_cdc_rdc --force
+fx cdc_rdc
+fx setup_formal_prove setup_formal_cover --force
+fx formal
+fx regression
+fx setup_syn setup_eqy setup_signoff --force
+fx syn
+fx eqy
+fx sdf
+fx sta
+fx power_estimate
 ```
 
 ### 18.4 Clock/reset change
 
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
-fx setup_tb setup_cocotb setup_formal setup_syn setup_eqy setup_signoff --force
-fx flist lint_suite cdc_rdc formal regression
-fx syn eqy sdf sta power_estimate --force
+fx sdc --force
+# review/reapply authored constraints/design.sdc
+fx flist --force
+fx lint_suite
+fx setup_tb setup_cocotb setup_cdc_rdc setup_formal_prove setup_formal_cover setup_formal_csr_prove setup_formal_csr_cover --force
+fx cdc_rdc
+fx formal
+fx regression
+fx setup_syn setup_eqy setup_signoff --force
+fx syn
+fx eqy
+fx sdf
+fx sta
+fx power_estimate
 ```
 
 Review CDC/RDC and rerun every selected GLS command because reset and sampling behavior
@@ -1320,7 +1408,11 @@ complete.
 
 ```bash
 fx setup_syn setup_eqy setup_signoff --force
-fx syn eqy sdf sta power_estimate --force
+fx syn
+fx eqy
+fx sdf
+fx sta
+fx power_estimate
 ```
 
 A timing exception is an architectural change to the analysis contract and must
@@ -1437,7 +1529,8 @@ The backend ownership follows the lifecycle domains directly:
 
 ```text
 syn/eqy.py        -> RTL-to-netlist equivalence
-signoff/sta.py    -> SDC, STA and SDF
+signoff/sdc.py    -> authored SDC adapter/scaffold
+signoff/sta.py    -> STA and SDF
 signoff/gls.py    -> gate-level simulation
 signoff/power.py  -> vectorless and activity power
 signoff/fusion.py -> timing/power correlation
@@ -1452,9 +1545,7 @@ The OpenSTA Tcl families are prepared by the explicit sign-off setup methods.
 Static analyses create concrete per-corner scripts when executed. Workload
 analyses run only after a qualified GLS report and VCD/SAIF exist.
 
-Each scenario has one primary human-readable artifact: `timing.rpt` for STA,
-`power.rpt` for vectorless or workload power, and `fusion.rpt` for combined
-timing/power context. Fusion also writes one `fusion_table.rpt` per workload,
+STA is consolidated rather than exposed as one public report per scenario: `signoff/<pdk>/sta/sta.rpt` is the primary human timing artifact and `sta.json` is its machine-readable companion. Power retains `power.rpt` for vectorless/workload analysis, while fusion uses `fusion.rpt` plus one `fusion_table.rpt` per workload,
 with corner/mode status, WNS, TNS, power totals, annotation count, and the
 relative path to each detailed report. A single `summary.json` remains for CI
 and machine consumers.
@@ -1466,3 +1557,6 @@ and `report_activity_annotation` commands. It deliberately avoids private SWIG
 objects and does not claim per-path power attribution; timing paths and average
 power are reported for the same netlist, corner, mode, constraints, and activity
 trace.
+
+
+For timing qualification, inspect `signoff/<pdk>/sta/sta.rpt` first. It is the single human STA report. `sta/sta.json` contains the same scenario/QoR status for automated checks and packaging. Scenario-local timing reports are diagnostic execution artifacts, not package contract. Unconstrained paths fail qualification and must be fixed in the authored `constraints/design.sdc` or design structure.

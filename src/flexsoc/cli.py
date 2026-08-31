@@ -148,7 +148,8 @@ Use `fx commands` to list every backend target.
         (
             "6. Run post-synthesis sign-off",
             (
-                ("fx setup_signoff", "Generate the PDK-scoped SDC and OpenSTA Tcl families."),
+                ("fx sdc", "Initialize the single authored constraints/design.sdc timing contract."),
+                ("fx setup_signoff", "Generate OpenSTA Tcl families that consume constraints/design.sdc."),
                 ("fx sdf | fx sta | fx power_estimate", "Produce corner SDF, timing, and vectorless power."),
                 ("fx compile_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Compile one named GLS workload."),
                 ("fx sim_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Run one post-synthesis GLS workload."),
@@ -163,7 +164,7 @@ Use `fx commands` to list every backend target.
             (
                 ("fx pnr", "Run OpenROAD and produce the final netlist, SDC, SPEF, ODB, and GDS."),
                 ("fx physical_signoff", "Run ORFS physical closure first: route DRC, antenna evidence, GDS DRC, LVS, and IR/PDN evidence."),
-                ("fx setup_signoff_post_pnr | fx sdf_post_pnr | fx sta_post_pnr", "Write routed SDF, then consume routed SDC/SPEF for propagated-clock/interconnect timing."),
+                ("fx setup_signoff_post_pnr | fx sdf_post_pnr | fx sta_post_pnr", "Write routed SDF, then consume design.sdc plus routed SPEF for propagated-clock/interconnect timing."),
                 ("fx sim_post_pnr_all", "Run timing-aware post-PnR GLS across selected tests and scenarios."),
                 ("fx power_estimate_post_pnr", "Run vectorless routed power estimation."),
                 ("fx power_analysis_post_pnr_all | fx fusion_analysis_post_pnr_all", "Use routed GLS activity for activity power and timing/power correlation."),
@@ -287,7 +288,7 @@ Use `fx commands` to list every backend target.
         "tests": ("fx tests",),
         "sim": ("fx sim --set TEST_NAME=smoke --set COMPILER=verilator",),
         "cocotb": ("fx cocotb --set TEST_NAME=smoke --set COCOTB_WAVES=1",),
-        "regression": ("fx regression --no-setup",),
+        "regression": ("fx regression",),
         "view": (
             "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_syn "
             "--set SIM_NAME=smoke_sv_tt --set WAVE_VIEWER=surfer",
@@ -301,39 +302,39 @@ Use `fx commands` to list every backend target.
         "syn": (
             "fx syn",
             "fx syn --set TARGET_OPT=delay1",
-            "fx settings TARGET_OPT=delay1 && fx setup_syn && fx syn --no-setup",
+            "fx settings TARGET_OPT=delay1 && fx setup_syn && fx syn",
         ),
-        "eqy": ("fx eqy", "fx setup_eqy && fx eqy --no-setup"),
+        "eqy": ("fx eqy", "fx setup_eqy && fx eqy"),
         "cdc_rdc": ("fx cdc_rdc", "fx cdc_rdc --live", "fx cdc_rdc --set CDC_RDC_STRICT=1"),
         "compile_post_syn": (
-            "fx compile_post_syn --no-setup --set TEST_NAME=smoke "
+            "fx compile_post_syn --set TEST_NAME=smoke "
             "--set GLS_BACKEND=sv --set TIMING_MODE=typ",
         ),
         "sim_post_syn": (
-            "fx sim_post_syn --no-setup --set TEST_NAME=smoke "
+            "fx sim_post_syn --set TEST_NAME=smoke "
             "--set GLS_BACKEND=sv --set TIMING_MODE=typ --set SDF_STRICT=1",
         ),
         "sim_post_syn_all": (
             "fx sim_post_syn_all",
-            "fx sim_post_syn_all --no-setup --set TEST_NAMES=all "
+            "fx sim_post_syn_all --set TEST_NAMES=all "
             "--set GLS_BACKEND=sv --set TIMING_MODES=all",
-            "fx sim_post_syn_all --no-setup --set TEST_NAMES=all "
+            "fx sim_post_syn_all --set TEST_NAMES=all "
             "--set GLS_BACKEND=cocotb --set TIMING_MODES=all",
         ),
         "power_analysis": (
-            "fx power_analysis --no-setup --set POWER_TEST_NAME=smoke "
+            "fx power_analysis --set POWER_TEST_NAME=smoke "
             "--set POWER_GLS_BACKEND=sv --set POWER_TIMING_MODE=typ",
         ),
         "power_analysis_all": (
-            "fx power_analysis_all --no-setup --set POWER_TEST_NAMES=all "
+            "fx power_analysis_all --set POWER_TEST_NAMES=all "
             "--set POWER_GLS_BACKENDS=all --set POWER_TIMING_MODES=all",
         ),
         "fusion_analysis": (
-            "fx fusion_analysis --no-setup --set POWER_TEST_NAME=smoke "
+            "fx fusion_analysis --set POWER_TEST_NAME=smoke "
             "--set POWER_GLS_BACKEND=sv --set POWER_TIMING_MODE=typ",
         ),
         "fusion_analysis_all": (
-            "fx fusion_analysis_all --no-setup --set POWER_TEST_NAMES=all "
+            "fx fusion_analysis_all --set POWER_TEST_NAMES=all "
             "--set POWER_GLS_BACKENDS=all --set POWER_TIMING_MODES=all",
         ),
         "validate_override": (
@@ -423,7 +424,7 @@ Use `fx commands` to list every backend target.
                 "[bold bright_cyan]--set KEY=VALUE[/bold bright_cyan]  "
                 "[white]one-shot selector or backend override[/white]\n"
                 "[bold bright_cyan]--no-setup[/bold bright_cyan]  "
-                "[white]run only explicitly named targets[/white]",
+                "[grey70]deprecated compatibility no-op; run-only is now the default[/grey70]",
                 title="[bold orange1]Help and execution controls[/bold orange1]",
                 border_style="orange1",
                 padding=(1, 2),
@@ -472,8 +473,8 @@ Use `fx commands` to list every backend target.
             (
                 "TARGET_OPT and provenance",
                 (
-                    ("one command", "Prefer `fx syn --set TARGET_OPT=delay1`; automatic setup uses the same one-shot override."),
-                    ("explicit pipeline", "Repeat the same --set on setup and consumer, or persist it first with `fx settings TARGET_OPT=delay1`."),
+                    ("setup", "Run `fx setup_syn` once for the intended effective settings; rerun with `--force` only when regeneration is intentional."),
+                    ("run", "`fx syn` consumes the existing validated setup and never regenerates it."),
                     ("STALE", "The effective configuration/source/parent lineage differs from the recorded setup; regenerate setup, do not validate it."),
                     ("MODIFIED", "A generated setup file was edited manually; only this state is eligible for validate_override."),
                 ),
@@ -483,9 +484,9 @@ Use `fx commands` to list every backend target.
             (
                 "Synthesis profile workflow",
                 (
-                    ("one-shot", "`fx syn --set TARGET_OPT=delay1` runs setup_syn and syn with one coherent effective configuration."),
-                    ("persistent", "For several commands, use `fx settings TARGET_OPT=delay1` once, then run setup/synthesis/sign-off normally."),
-                    ("--no-setup", "The existing setup must match the exact effective settings of this invocation; STALE collateral is rejected."),
+                    ("run-only", "`fx syn` uses the existing setup; a one-shot configuration change makes that setup STALE until regenerated explicitly."),
+                    ("persistent", "Use `fx settings TARGET_OPT=delay1`, then `fx setup_syn --force` when the setup must be regenerated, followed by `fx syn`."),
+                    ("provenance", "The existing setup must match the exact effective settings of this invocation; STALE or MODIFIED collateral is rejected."),
                 ),
             ),
         ),
@@ -503,8 +504,8 @@ Use `fx commands` to list every backend target.
             (
                 "Typical flows",
                 (
-                    ("change TARGET_OPT", "`fx settings TARGET_OPT=delay1` → `fx setup_syn` → `fx syn --no-setup`."),
-                    ("manual .abc edit", "Run setup_syn, edit the generated .abc, then validate_override STAGE=setup_syn before --no-setup execution."),
+                    ("change TARGET_OPT", "`fx settings TARGET_OPT=delay1` → `fx setup_syn --force` → `fx syn`."),
+                    ("manual .abc edit", "Run setup_syn, edit the generated .abc, then validate_override STAGE=setup_syn before `fx syn`."),
                 ),
             ),
         ),
@@ -576,14 +577,14 @@ Use `fx commands` to list every backend target.
         setup = AUTO_SETUP_TARGETS.get(target)
         if setup:
             console.print(
-                "[bold orange1]Automatic setup[/bold orange1]  "
+                "[bold orange1]Required setup[/bold orange1]  "
                 f"[white]{', '.join(setup)}[/white] "
-                "[grey70](disable with --no-setup)[/grey70]"
+                "[grey70](generate explicitly before run; --force regenerates)[/grey70]"
             )
         else:
             console.print(
-                "[bold orange1]Automatic setup[/bold orange1]  "
-                "[grey70]none; prerequisites remain explicit[/grey70]"
+                "[bold orange1]Required setup[/bold orange1]  "
+                "[grey70]none[/grey70]"
             )
         console.print("[bold orange1]Accepted target variables[/bold orange1]")
         if params:
@@ -1243,7 +1244,7 @@ Use `fx commands` to list every backend target.
                 dry_run=dry_run,
                 capture=capture,
                 live=live,
-                auto_setup=not no_setup,
+                auto_setup=False,
                 on=on,
                 **values,
             )
@@ -1367,7 +1368,7 @@ Use `fx commands` to list every backend target.
             bool,
             typer.Option(
                 "--no-setup",
-                help="Run only the requested targets; do not prepend generated-script setup steps.",
+                help="Deprecated compatibility no-op; requested targets are run-only by default.",
                 rich_help_panel="Target options",
             ),
         ] = False,

@@ -772,26 +772,6 @@ def _default_timescale_args(top_file: Path) -> list[str]:
     return ["--timescale", f"{match.group(1)}/{match.group(2)}"]
 
 
-def _slang_failure_detail(log: Path, *, context: int = 4, tail: int = 20) -> str:
-    """Return a compact actionable excerpt from a failed Slang log."""
-
-    if not log.is_file():
-        return ""
-    lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
-    error_re = re.compile(r"(?i)(?:^|[:\s])(?:fatal|error)(?:[:\s]|$)")
-    for index, line in enumerate(lines):
-        if error_re.search(line):
-            start = max(0, index - context)
-            stop = min(len(lines), index + context + 1)
-            excerpt = lines[start:stop]
-            break
-    else:
-        excerpt = lines[-tail:]
-    if not excerpt:
-        return ""
-    return "\n--- Slang diagnostic ---\n" + "\n".join(excerpt)
-
-
 def _run_slang(
     *,
     slang: str,
@@ -840,11 +820,7 @@ def _run_slang(
     )
     result = runner.run(request, on=on)
     if result.returncode:
-        detail = _slang_failure_detail(log)
-        raise RuntimeError(
-            f"Slang failed ({result.returncode}) while elaborating {top_name} from {top_file}; "
-            f"log: {log}{detail}"
-        )
+        raise RuntimeError(f"Slang failed ({result.returncode}); log: {log}")
     log.unlink(missing_ok=True)
     return top_name
 
@@ -1143,7 +1119,7 @@ class RtlFlow:
         self.runner = runner or ToolRunner(project_root=self.project_root)
     """Create RTL scaffold, top wiring and canonical source views."""
 
-    def setup_scaffold(
+    def init_scaffold(
         self,
         hjson_file: Path | None,
         interface: str,
@@ -1168,7 +1144,7 @@ class RtlFlow:
             raise ValueError("hjson_file is required for a single-clock RTL scaffold")
         return generate_rtl_stubs(hjson_file, interface, output_dir, force=force)
 
-    def generate_top(
+    def setup_top(
         self,
         top: str,
         rtl_dir: Path,
@@ -1181,7 +1157,7 @@ class RtlFlow:
 
         return write_top_from_core(top, rtl_dir, interface, force=force, clocks=clocks)
 
-    def generate_filelists(
+    def setup_filelists(
         self,
         *,
         root: Path,
@@ -1213,6 +1189,11 @@ class RtlFlow:
             common_root=list(common_roots),
             synthesis=synthesis,
         ), runner=self.runner, on=on)
+
+    # Compatibility aliases for the pre-vocabulary backend API.
+    setup_scaffold = init_scaffold
+    generate_top = setup_top
+    generate_filelists = setup_filelists
 
     def show_hierarchy(
         self,
@@ -1299,7 +1280,7 @@ class RtlFlow:
     ) -> tuple[Path, Path]:
         """Run the canonical RTL scaffold/wrapper preparation."""
 
-        paths = self.setup_scaffold(
+        paths = self.init_scaffold(
             hjson_file,
             interface,
             rtl_dir,
@@ -1307,6 +1288,6 @@ class RtlFlow:
             force=force,
             clocks=clocks,
         )
-        self.generate_top(top, rtl_dir, interface, force=force, clocks=clocks)
+        self.setup_top(top, rtl_dir, interface, force=force, clocks=clocks)
         return paths
 

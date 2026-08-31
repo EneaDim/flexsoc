@@ -1089,7 +1089,7 @@ class ModelFlow:
         self.project_root = Path(project_root).resolve()
     """Create reference-model and authored model-test scaffolds."""
 
-    def setup_reference(
+    def init_reference(
         self,
         top: str,
         output: Path,
@@ -1110,7 +1110,7 @@ class ModelFlow:
             )
         return write_model(top, output, rtl_dir, force=force)
 
-    def setup_model_tests(
+    def init_model_tests(
         self,
         top: str,
         output: Path,
@@ -1130,6 +1130,10 @@ class ModelFlow:
             path.chmod(0o755)
             return path
         return write_tests(top, output, force=force)
+
+    # Compatibility aliases for authored scaffold creation.
+    setup_reference = init_reference
+    setup_model_tests = init_model_tests
 
     def setup_regmap_tests(
         self,
@@ -1157,8 +1161,8 @@ class ModelFlow:
 
         clocks = clocks or clock_config()
         regmap = generate_regmap(top, data_dir, output, force=force)
-        model = self.setup_reference(top, output, rtl_dir, force=force, clocks=clocks)
-        tests = self.setup_model_tests(top, output, force=force, clocks=clocks)
+        model = self.init_reference(top, output, rtl_dir, force=force, clocks=clocks)
+        tests = self.init_model_tests(top, output, force=force, clocks=clocks)
         regmap_tests = self.setup_regmap_tests(top, output, clocks=clocks)
         return regmap, model, tests, regmap_tests
 

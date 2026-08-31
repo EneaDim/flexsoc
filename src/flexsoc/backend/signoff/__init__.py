@@ -16,6 +16,7 @@ from flexsoc.backend.impl.impl import orfs_make_argv, resolve_orfs_branch
 from .fusion import FusionAnalysis
 from .gls import GateLevelSimulation
 from .power import ActivitySpec, PowerAnalysis
+from .sdc import init_sdc
 from .sta import SignoffContext, StaAnalysis
 
 
@@ -261,7 +262,18 @@ class SignoffFlow:
         self.fusion = FusionAnalysis(self.project_root, self.values, self.runner)
 
     def setup_sdc(self) -> Path:
-        return self.sta.setup_sdc()
+        """Initialize the single authored design SDC (compatibility method name)."""
+
+        from flexsoc.backend.core import clock_config, layout_from_values
+
+        layout = layout_from_values(self.project_root, self.values)
+        return init_sdc(
+            layout.signoff_sdc,
+            top=self.values.get("TOP", "test"),
+            clocks=clock_config(self.values),
+            io_delay_pct=float(self.values.get("SDC_IO_DELAY_PCT", "0.2")),
+            force=str(self.values.get("FORCE", "0")).lower() in {"1", "true", "yes", "on"},
+        )
 
     def setup_sta(self) -> Path:
         return self.sta.setup_sta()
@@ -278,8 +290,11 @@ class SignoffFlow:
     def run_sta(self, *, on: str = "local") -> int:
         return self.sta.run_sta(on=on)
 
-    def write_sdf(self, *, on: str = "local") -> int:
+    def run_sdf(self, *, on: str = "local") -> int:
         return self.sta.write_sdf(on=on)
+
+    # Compatibility alias; SDF generation is an executed sign-off stage.
+    write_sdf = run_sdf
 
     def run_gls(self, *, test: str | None = None, timing: str = "zero", backend: str = "sv", on: str = "local") -> int:
         if test is None:
@@ -380,7 +395,7 @@ class SignoffFlow:
         self.setup_power()
         self.setup_fusion()
         for action in (
-            lambda: self.write_sdf(on=on),
+            lambda: self.run_sdf(on=on),
             lambda: self.run_sta(on=on),
             lambda: self.gls.flow(on=on),
             lambda: self.run_power_estimate(on=on),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shlex
@@ -45,6 +46,7 @@ CLOCKS = ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")
 BASE = ("TOP", "RUN_ID", "WORKSPACE", *CLOCKS)
 COMMON = (*BASE, "RUN_TOP", "FORCE")
 IP_DEV = (*BASE, "REG_ITF", "FORCE")
+SDC_INTENT = (*BASE, "FORCE", "SDC_IO_DELAY_PCT")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
 IP_FULL = (*COMMON, "REG_ITF", "LINT_TOOL", "LINT_PART", "TARGET_SYN", "TARGET_OPT")
 LINT = (*COMMON, "LINT_TOOL", "LINT_PART", "VSV")
@@ -186,6 +188,7 @@ TARGETS: dict[str, TargetSpec] = {
     "power_estimate_corners": ("Signoff", "Estimate power for each corner using global activity", SIGNOFF),
     "signoff_corners": ("Signoff", "Run SDF, multi-corner STA and estimated power", SIGNOFF),
     "hjson": ("IP flow", "Generate an HJSON register template", IP_DEV),
+    "sdc": ("IP flow", "Initialize the canonical authored design.sdc timing intent", SDC_INTENT),
     "hjson_gen": ("IP flow", "Compatibility alias for HJSON generation", IP_DEV),
     "reg": ("IP flow", "Generate register RTL from HJSON", IP_DEV),
     "doc": ("IP flow", "Generate register documentation", IP_DEV),
@@ -266,7 +269,7 @@ TARGETS: dict[str, TargetSpec] = {
     "formal_cover": ("DV formal", "Reach authored cover properties with SymbiYosys", FORMAL),
     "setup_eqy": ("Signoff", "Generate RTL-vs-post-synthesis EQY configuration", EQUIV),
     "eqy": ("Signoff", "Prove RTL equivalent to the post-synthesis netlist with EQY", EQUIV),
-    "setup_signoff": ("Signoff", "Generate PDK-scoped SDC and signoff scripts", SIGNOFF),
+    "setup_signoff": ("Signoff", "Generate signoff scripts that consume authored design.sdc", SIGNOFF),
     "compile_syn": ("Signoff", "Compile post-synthesis simulation", SIGNOFF),
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
     "compile_post_syn": ("Gate simulation", "Compile post-synthesis gate-level simulation with Icarus", GATE_SIM),
@@ -675,6 +678,22 @@ PROVENANCE_CONFIG_KEYS = {
     "setup_pnr": (*CLOCKS, "TOP", "PDK", "ORS_TECH"),
 }
 
+DESIGN_INTENT_KEYS = (
+    "TOP", "RUN_TOP", "RUN_ID",
+    "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS",
+    "REG_ITF", "TARGET_SYN", "TARGET_OPT",
+)
+
+SETTINGS_EVIDENCE_KEYS = tuple(sorted({
+    *DEFAULT_SETTINGS, *DESIGN_INTENT_KEYS,
+    *(key for keys in PROVENANCE_CONFIG_KEYS.values() for key in keys),
+    "PDK", "PDK_ROOT", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT",
+    "LIB_SYN", "LIBS", "PRIM", "MACRO_LIBS",
+    "ORS", "ORS_TECH", "SDC_IO_DELAY_PCT", "SDC_CLOCK_PERIOD_NS",
+    "GLS_BACKEND", "GLS_SIMULATOR", "TIMING_MODE", "SDF_STRICT",
+}) )
+
+
 
 TECHNOLOGY_PATH_KEYS = {
     "RUN_ROOT", "SIGNOFF_SDC_FILE", "SYNDIR", "SYNTH_LOGDIR",
@@ -771,7 +790,7 @@ class FlexSoCTarget:
 
     def __init__(
         self, client: "FlexSoC", values: Mapping[str, str], *, on: str = "local",
-        auto_setup: bool = True,
+        auto_setup: bool = False,
     ):
         from .backend import Backend, BackendContext
         from .backend.core import ToolRunner
@@ -881,6 +900,54 @@ class FlexSoCTarget:
                     sources.append(Path(item))
         return tuple(sources)
 
+    @staticmethod
+    def _write_json_atomic(path: Path, data: Mapping[str, object]) -> None:
+        """Write one deterministic JSON evidence file atomically."""
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        temp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        temp.replace(path)
+
+    def _write_settings_evidence(self, target: str) -> None:
+        """Snapshot common design intent and PDK-scoped effective settings."""
+
+        intent = {
+            key: self.values.get(key, "")
+            for key in DESIGN_INTENT_KEYS
+            if key in self.values
+        }
+        self._write_json_atomic(
+            self.paths.run / "meta" / "design_intent.json",
+            {
+                "schema": 1,
+                "top": self.paths.top,
+                "run_top": self.paths.run_top,
+                "run_id": self.paths.run_id,
+                "design_intent": intent,
+            },
+        )
+        if target not in TECHNOLOGY_TARGETS:
+            return
+        effective = {
+            key: self.values[key]
+            for key in SETTINGS_EVIDENCE_KEYS
+            if key in self.values
+        }
+        self._write_json_atomic(
+            self.paths.meta / "settings.json",
+            {
+                "schema": 1,
+                "pdk": self.paths.pdk,
+                "top": self.paths.top,
+                "run_top": self.paths.run_top,
+                "run_id": self.paths.run_id,
+                "persistent": dict(sorted(self.client.settings.items())),
+                "design_intent": intent,
+                "effective": effective,
+            },
+        )
+
     def _provenance(self):
         """Return the run-local provenance store."""
 
@@ -908,16 +975,16 @@ class FlexSoCTarget:
         p = self.paths
         rtl = (p.rtl_common, p.rtl_ip, *self._rtl_sources())
         if stage in {"setup_tb", "setup_cocotb"}:
-            inputs = (p.data / f"{p.top}.hjson",)
+            inputs = (p.data / f"{p.top}.hjson", p.sdc)
         elif stage == "setup_cdc_rdc":
-            inputs = rtl
+            inputs = (*rtl, p.sdc)
         elif stage in {"setup_formal_prove", "setup_formal_cover"}:
             mode = "cover" if stage.endswith("cover") else "prove"
             inputs = (*rtl, p.formal / "properties" / mode)
         elif stage.startswith("setup_formal_csr_"):
             inputs = rtl
         elif stage == "setup_syn":
-            inputs = (*rtl, *self._configured_paths("LIB_SYN"))
+            inputs = (*rtl, p.sdc, *self._configured_paths("LIB_SYN"))
         elif stage == "setup_eqy":
             inputs = (
                 *rtl, p.syn / f"{p.top}_synth.v",
@@ -925,7 +992,7 @@ class FlexSoCTarget:
             )
         elif stage == "setup_signoff":
             inputs = (
-                p.syn / f"{p.top}_synth.v",
+                p.sdc, p.syn / f"{p.top}_synth.v",
                 *self._configured_paths("LIBS", "LIB_SYN", "PRIM", "MACRO_LIBS"),
             )
         elif stage == "setup_pnr":
@@ -1044,19 +1111,48 @@ class FlexSoCTarget:
         )
 
     def _require_provenance(self, target: str) -> None:
+        store = self._provenance()
+        recorded = set(store.stages())
         for stage in self._setup_stages(target):
             state = self._provenance_state(stage)
-            if state not in {"CLEAN", "VALIDATED_OVERRIDE"}:
-                if state == "MODIFIED":
-                    action = f"fx validate_override --set STAGE={stage}"
-                elif state == "STALE":
-                    action = (
-                        f"rerun `fx {stage}` with the same effective settings, or run `{target}` "
-                        "without --no-setup"
-                    )
-                else:
-                    action = f"rerun `fx {stage}` after repairing missing/inconsistent inputs"
-                raise RuntimeError(f"{target}: {stage} provenance is {state}; {action}")
+            if state in {"CLEAN", "VALIDATED_OVERRIDE"}:
+                continue
+            if state == "MODIFIED":
+                action = f"run `fx validate_override --set STAGE={stage}` or regenerate with `fx {stage} --force`"
+            elif state == "STALE":
+                action = f"regenerate the setup with `fx {stage} --force`"
+            elif stage not in recorded:
+                action = f"generate the setup first with `fx {stage}`"
+            else:
+                action = f"repair missing/inconsistent inputs, then regenerate with `fx {stage} --force`"
+            raise RuntimeError(f"{target}: {stage} provenance is {state}; {action}")
+
+    def _reuse_setup(self, stage: str) -> tuple[Path, ...] | None:
+        """Reuse an existing valid setup unless explicit --force requests regeneration."""
+
+        if self._bool(self.values.get("FORCE")):
+            return None
+        store = self._provenance()
+        if stage not in store.stages():
+            return None
+        state = self._provenance_state(stage)
+        if state in {"CLEAN", "VALIDATED_OVERRIDE"}:
+            generated = store.generated(stage)
+            print(f"[setup] {stage} state={state} reuse={len(generated)}")
+            return generated
+        if state == "MODIFIED":
+            raise RuntimeError(
+                f"{stage}: generated setup is MODIFIED; run `fx validate_override --set STAGE={stage}` "
+                f"to keep the edit, or `fx {stage} --force` to regenerate it"
+            )
+        if state == "STALE":
+            raise RuntimeError(
+                f"{stage}: generated setup is STALE; regenerate explicitly with `fx {stage} --force`"
+            )
+        raise RuntimeError(
+            f"{stage}: generated setup provenance is {state}; repair the inputs/artifacts and "
+            f"regenerate explicitly with `fx {stage} --force`"
+        )
 
     def _validate_override(self) -> str:
         stage = self.values.get("STAGE", "").strip().replace("-", "_")
@@ -1085,7 +1181,7 @@ class FlexSoCTarget:
         liberty = Path(self.values["LIB_SYN"])
         return flow.setup_asic(
             top=self.paths.top, topdir=self.paths.rtl, liberty=liberty,
-            clk_period_ns=period, output=self.paths.syn,
+            clk_period_ns=period, output=self.paths.syn, sdc=self.paths.sdc,
             opt=self.values.get("TARGET_OPT", "delay1"),
             filelists=(self.paths.rtl_common, self.paths.rtl_ip),
             tie_hi=self._tuple("TIEHI_CELL_AND_PORT", 2),
@@ -1117,7 +1213,7 @@ class FlexSoCTarget:
             sat_depth=int(self.values.get("EQY_SAT_DEPTH", "20")),
             config=config,
             formal_pdk_proc=Path(formal_proc) if formal_proc else None,
-            force=True,
+            force=self._bool(self.values.get("FORCE")),
             pdr_engine=self.values.get("EQY_PDR_ENGINE", "abc pdr"),
             on=self.on,
             pdk=self.values.get("PDK", ""),
@@ -1232,20 +1328,21 @@ class FlexSoCTarget:
         raise ValueError(f"unsupported report target: {target}")
 
     def execute(self, target: str) -> object:
-        """Apply setup/provenance policy, then execute one backend target."""
+        """Apply explicit setup/provenance policy, then execute one backend target."""
 
         if target == "validate_override":
             return self._validate_override()
-        if (
-            (not self.auto_setup or target in GLS_PROVENANCE_TARGETS)
-            and target not in PROVENANCE_SETUPS
-            and not target.startswith("setup_")
-        ):
-            self._require_provenance(target)
-        result = self._execute_target(target)
+        self._write_settings_evidence(target)
         if target in PROVENANCE_SETUPS:
+            reused = self._reuse_setup(target)
+            if reused is not None:
+                return reused
+            result = self._execute_target(target)
             self._record_provenance(target, result)
-        return result
+            return result
+        if not target.startswith("setup_"):
+            self._require_provenance(target)
+        return self._execute_target(target)
 
     def _execute_target(self, target: str) -> object:
         """Execute one public target through the owning backend domain."""
@@ -1259,23 +1356,25 @@ class FlexSoCTarget:
             return 0
         if target == "setup":
             return p.ensure()
+        if target == "sdc":
+            return b.signoff.pre.setup_sdc()
         if target in {"hjson", "hjson_gen"}:
-            return b.design.regs.setup_hjson(top, interface, p.data, force=force, clocks=self.context.clocks)
+            return b.design.regs.init_hjson(top, interface, p.data, force=force, clocks=self.context.clocks)
         if target == "reg":
-            return b.design.regs.generate_rtl(top, p.data, p.rtl, regmap=v.get("REGMAP"), on=self.on)
+            return b.design.regs.setup_rtl(top, p.data, p.rtl, regmap=v.get("REGMAP"), on=self.on)
         if target == "doc":
-            return b.design.regs.generate_docs(top, p.data, p.doc, regmap=v.get("REGMAP"), on=self.on)
+            return b.design.regs.setup_docs(top, p.data, p.doc, regmap=v.get("REGMAP"), on=self.on)
         if target == "driver":
-            return b.design.regs.generate_driver(p.data / f"{top}.hjson", p.drivers, base_address=v.get("BASE_ADDRESS", "0x0"))
+            return b.design.regs.setup_driver(p.data / f"{top}.hjson", p.drivers, base_address=v.get("BASE_ADDRESS", "0x0"))
         if target == "regmap_py":
-            return b.design.regs.generate_regmap_py(top, p.data, p.model, force=force, refresh_tests=True, clocks=self.context.clocks)
+            return b.design.regs.setup_regmap_py(top, p.data, p.model, force=force, refresh_tests=True, clocks=self.context.clocks)
         if target == "rtl_stub":
             hjson = p.data / f"{top}.hjson"
-            return b.design.rtl.setup_scaffold(hjson if hjson.exists() else None, interface, p.rtl, top=top, force=force, clocks=self.context.clocks)
+            return b.design.rtl.init_scaffold(hjson if hjson.exists() else None, interface, p.rtl, top=top, force=force, clocks=self.context.clocks)
         if target == "top_from_core":
-            return b.design.rtl.generate_top(top, p.rtl, interface, force=force, clocks=self.context.clocks)
+            return b.design.rtl.setup_top(top, p.rtl, interface, force=force, clocks=self.context.clocks)
         if target in {"flist", "slang_flist"}:
-            return b.design.rtl.generate_filelists(root=self.client.project_root, top_file=p.rtl / f"{top}.sv", common_out=p.rtl_common, ip_out=p.rtl_ip, search_roots=(p.rtl, self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), common_roots=(self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), top=top, slang=v.get("SLANG", "slang"), on=self.on)
+            return b.design.rtl.setup_filelists(root=self.client.project_root, top_file=p.rtl / f"{top}.sv", common_out=p.rtl_common, ip_out=p.rtl_ip, search_roots=(p.rtl, self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), common_roots=(self.client.project_root / "hw" / "ips", self.client.project_root / "vendor"), top=top, slang=v.get("SLANG", "slang"), on=self.on)
         if target == "fetch":
             vendor = v.get("VENDOR") or v.get("TARGET")
             if not vendor:
@@ -1290,8 +1389,10 @@ class FlexSoCTarget:
         if target == "setup_model":
             return b.design.model.flow(top, p.data, p.model, p.rtl, force=force, clocks=self.context.clocks)
         if target in {"setup_tb", "setup_cocotb"}:
+            from .backend.signoff.sdc import read_clock_config
             sv, cocotb = self._tb_configs()
-            return b.dv.testbench.setup_systemverilog(sv, clocks=self.context.clocks) if target == "setup_tb" else b.dv.testbench.setup_cocotb(cocotb, clocks=self.context.clocks)
+            clocks = read_clock_config(p.sdc, self.context.clocks)
+            return b.dv.testbench.setup_systemverilog(sv, clocks=clocks) if target == "setup_tb" else b.dv.testbench.setup_cocotb(cocotb, clocks=clocks)
         if target in {"tests_gen", "test_gen", "tests"}:
             if target == "tests":
                 tests = b.dv.functional.tests(p.tests)
@@ -1299,8 +1400,8 @@ class FlexSoCTarget:
                 return tests
             hjson = p.data / f"{top}.hjson"
             if target == "test_gen":
-                return b.dv.functional.generate_test(v.get("TEST_NAME", "smoke"), p.tests, top, hjson, force=force)
-            return b.dv.functional.generate_tests(p.tests, top, hjson, force=force)
+                return b.dv.functional.setup_test(v.get("TEST_NAME", "smoke"), p.tests, top, hjson, force=force)
+            return b.dv.functional.setup_tests(p.tests, top, hjson, force=force)
 
         # RTL analysis, CDC/RDC and functional verification.
         if target.startswith("lint") or target == "_lint_run":
@@ -1329,7 +1430,7 @@ class FlexSoCTarget:
             )
 
         if target in {"compile", "compile_v", "compile_sv"}:
-            return b.dv.functional.compile_systemverilog(top=top, tb_dir=p.tb, sim_dir=p.sim / "rtl", common_filelist=p.rtl_common, ip_filelist=p.rtl_ip, test_name=v.get("TEST_NAME","smoke"), compiler=v.get("COMPILER","verilator"), coverage=self._bool(v.get("COVERAGE")), log=p.logs / "dv" / "functional" / f"{top}_compile.log", on=self.on)
+            return b.dv.functional.run_compile_systemverilog(top=top, tb_dir=p.tb, sim_dir=p.sim / "rtl", common_filelist=p.rtl_common, ip_filelist=p.rtl_ip, test_name=v.get("TEST_NAME","smoke"), compiler=v.get("COMPILER","verilator"), coverage=self._bool(v.get("COVERAGE")), log=p.logs / "dv" / "functional" / f"{top}_compile.log", on=self.on)
         if target in {"sim", "sim_v", "sim_sv"}:
             return b.dv.functional.run_systemverilog(top=top, test_root=p.tests, tb_dir=p.tb, sim_dir=p.sim / "rtl", test_name=v.get("TEST_NAME","smoke"), compiler=v.get("COMPILER","verilator"), seed=int(v.get("SEED","1")), log=p.logs / "dv" / "functional" / f"{top}_sim_{v.get('TEST_NAME','smoke')}.log", on=self.on)
         if target == "sim_tests":
@@ -1345,7 +1446,7 @@ class FlexSoCTarget:
 
         # Formal verification, synthesis and logical equivalence.
         if target in {"setup_formal", "setup_formal_prove", "setup_formal_cover", "setup_formal_csr_prove", "setup_formal_csr_cover"}:
-            b.dv.formal.setup_scaffold(top, p.formal, multiclock=self.context.clocks.multiclock)
+            b.dv.formal.init_properties(top, p.formal, multiclock=self.context.clocks.multiclock)
             if target == "setup_formal":
                 return 0
             csr = "csr" in target
@@ -1387,13 +1488,13 @@ class FlexSoCTarget:
         post = b.signoff.post
         # Pre/post-layout sign-off, SDF, GLS, timing and power.
         if target == "setup_signoff":
-            return (pre.setup_sdc(), pre.setup_sta(), pre.setup_sdf(), pre.setup_power(), pre.setup_fusion())
+            return (pre.setup_sta(), pre.setup_sdf(), pre.setup_power(), pre.setup_fusion())
         if target == "setup_signoff_post_pnr":
             return (post.setup_sta(), post.setup_sdf(), post.setup_power(), post.setup_fusion())
         if target in {"sta", "sta_corners"}:
             return pre.run_sta(on=self.on)
         if target == "sdf":
-            return pre.write_sdf(on=self.on)
+            return pre.run_sdf(on=self.on)
         if target in {"power_estimate", "power_estimate_corners"}:
             return pre.run_power_estimate(on=self.on)
         if target == "power_analysis":
@@ -1405,7 +1506,7 @@ class FlexSoCTarget:
         if target == "fusion_analysis_all":
             return pre.run_fusion(all_workloads=True, on=self.on)
         if target == "signoff_corners":
-            return (pre.write_sdf(on=self.on), pre.run_sta(on=self.on), pre.run_power_estimate(on=self.on))
+            return (pre.run_sdf(on=self.on), pre.run_sta(on=self.on), pre.run_power_estimate(on=self.on))
         if target in {"compile_syn", "compile_post_syn", "sim_syn", "sim_post_syn", "sim_post_syn_all"}:
             timing = v.get("TIMING_MODE", "zero")
             test = v.get("TEST_NAME", "smoke")
@@ -1421,7 +1522,7 @@ class FlexSoCTarget:
         if target in {"sta_post_pnr"}:
             return post.run_sta(on=self.on)
         if target in {"sdf_post_pnr"}:
-            return post.write_sdf(on=self.on)
+            return post.run_sdf(on=self.on)
         if target == "power_estimate_post_pnr":
             return post.run_power_estimate(on=self.on)
         if target == "power_analysis_post_pnr":
@@ -1487,6 +1588,8 @@ class FlexSoCTarget:
                 impl_dir=p.impl if p.impl.is_dir() else None,
                 post_syn_sim_dir=self.context.layout.post_syn_sim_dir,
                 coverage_dir=p.coverage, manifest_json=p.manifest, metrics_json=p.metrics,
+                settings_json=p.meta / "settings.json",
+                design_intent_json=p.run / "meta" / "design_intent.json",
                 force=force,
             )
 
@@ -1762,7 +1865,7 @@ class FlexSoCTarget:
         seen: set[str] = set()
 
         def append(name: str) -> None:
-            if name in seen or (not expand_setup and (name == "setup" or name.startswith("setup_"))):
+            if name in seen:
                 return
             if expand_setup:
                 for dependency in _auto_setup_dependencies(name, timing_mode):
@@ -1803,23 +1906,34 @@ class FlexSoCTarget:
             )
         elif target == "ip_flow_noreg":
             sequence = (
-                "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc", "regression",
-                "coverage_detail", "formal", "setup_syn", "syn", "setup_eqy", "eqy",
-                "signoff_corners", "manifest", "manifest_show", "metrics", "check",
+                "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc",
+                "setup_tb", "setup_cocotb", "regression", "coverage_detail",
+                "setup_formal_prove", "setup_formal_cover",
+                "setup_formal_csr_prove", "setup_formal_csr_cover", "formal",
+                "setup_syn", "syn", "setup_eqy", "eqy",
+                "setup_signoff", "signoff_corners",
+                "manifest", "manifest_show", "metrics", "check",
             )
         elif target == "ip_flow":
             sequence = (
                 "reg", "doc", "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc",
-                "regression", "coverage_detail", "formal", "setup_syn", "syn",
-                "setup_eqy", "eqy", "signoff_corners", "manifest", "manifest_show",
-                "metrics", "check",
+                "setup_tb", "setup_cocotb", "regression", "coverage_detail",
+                "setup_formal_prove", "setup_formal_cover",
+                "setup_formal_csr_prove", "setup_formal_csr_cover", "formal",
+                "setup_syn", "syn", "setup_eqy", "eqy",
+                "setup_signoff", "signoff_corners",
+                "manifest", "manifest_show", "metrics", "check",
             )
         else:
             sequence = (
                 "reg", "doc", "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc",
-                "regression", "coverage_detail", "formal", "setup_syn", "syn",
-                "setup_eqy", "eqy", "signoff_corners", "manifest", "manifest_show",
-                "metrics", "check", "pnr", "pnr_gui",
+                "setup_tb", "setup_cocotb", "regression", "coverage_detail",
+                "setup_formal_prove", "setup_formal_cover",
+                "setup_formal_csr_prove", "setup_formal_csr_cover", "formal",
+                "setup_syn", "syn", "setup_eqy", "eqy",
+                "setup_signoff", "signoff_corners",
+                "manifest", "manifest_show", "metrics", "check",
+                "setup_pnr", "pnr", "pnr_gui",
             )
         return self._execute_sequence(sequence)
 
@@ -1986,10 +2100,10 @@ class FlexSoC:
     def commands(
         self,
         *targets: str,
-        auto_setup: bool = True,
+        auto_setup: bool = False,
         **overrides: Any,
     ) -> tuple[FlexSoCCommand, ...]:
-        """Build commands in user order, including setup steps by default."""
+        """Build commands in user order; setup expansion is compatibility opt-in."""
 
         requested = tuple(_target(target) for target in targets)
         expanded: list[str] = []
@@ -2024,7 +2138,7 @@ class FlexSoC:
         dry_run: bool = False,
         capture: bool = False,
         live: bool = False,
-        auto_setup: bool = True,
+        auto_setup: bool = False,
         on: str = "local",
         **overrides: Any,
     ) -> tuple[FlexSoCCommand | FlexSoCResult, ...]:

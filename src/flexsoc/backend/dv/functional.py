@@ -85,66 +85,54 @@ def _is_writable_register(reg: dict[str, Any]) -> bool:
             return True
     return False
 
-def _register_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
-    """Return every writable register with clock-qualified names and offsets."""
+def _normalized_register_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
+    """Return reggen-normalized software-visible registers.
 
-    if hjson_path is None or not hjson_path.exists():
-        return []
-    hj = _load_hjson(hjson_path)
-    entries: list[dict[str, Any]] = []
-    offset = 0
-    for reg in hj.get("registers", []) or []:
-        if not isinstance(reg, dict) or "name" not in reg:
-            continue
-        current = int(str(reg.get("offset", offset)), 0) if reg.get("offset") is not None else offset
-        name = str(reg["name"]).upper()
-        clock = _register_clock(hj, reg)
-        if _is_writable_register(reg):
-            swaccess = str(reg.get("swaccess", "rw")).lower()
-            entries.append(
-                {
-                    "name": name,
-                    "clock": clock,
-                    "key": f"{clock}.{name}",
-                    "addr": current,
-                    "swaccess": swaccess,
-                }
-            )
-        offset = current + 4
-    return entries
-
-def _register_lookup_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
-    """Return all registers for vector read/write name resolution."""
+    ``regmap_py`` already uses bundled reggen to flatten multiregs and compute
+    canonical offsets.  Reuse the same normalized view here so generated SV and
+    cocotb testbenches resolve exactly the same register names and addresses.
+    """
 
     if hjson_path is None or not hjson_path.exists():
         return []
 
-    hj = _load_hjson(hjson_path)
+    from flexsoc.backend.design.regs import _collect
+
+    source = Path(hjson_path)
+    _, registers = _collect(source.stem, source.parent)
+
     entries: list[dict[str, Any]] = []
-    offset = 0
-
-    for reg in hj.get("registers", []) or []:
-        if not isinstance(reg, dict) or "name" not in reg:
-            continue
-
-        current = int(str(reg.get("offset", offset)), 0) if reg.get("offset") is not None else offset
-        name = str(reg["name"]).upper()
-        clock = _register_clock(hj, reg)
-        swaccess = str(reg.get("swaccess", "rw")).lower()
-
+    for register in registers:
+        accesses = {field.swaccess for field in register.fields}
+        swaccess = next(iter(accesses)) if len(accesses) == 1 else "mixed"
         entries.append(
             {
-                "name": name,
-                "clock": clock,
-                "key": f"{clock}.{name}",
-                "addr": current,
+                "name": register.name,
+                "clock": register.domain,
+                "key": register.path,
+                "addr": register.offset,
                 "swaccess": swaccess,
+                "writable": register.writable,
             }
         )
-
-        offset = current + 4
-
     return entries
+
+
+def _register_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
+    """Return writable registers using the canonical reggen expansion."""
+
+    return [
+        entry
+        for entry in _normalized_register_entries(hjson_path)
+        if bool(entry["writable"])
+    ]
+
+
+def _register_lookup_entries(hjson_path: Path | None) -> list[dict[str, Any]]:
+    """Return all canonical registers for vector read/write name resolution."""
+
+    return _normalized_register_entries(hjson_path)
+
 
 def _mode_for_test(top: str, test: str) -> int:
     """Return the generated MODE.SEL value used by vector expectations."""
@@ -319,7 +307,7 @@ class FunctionalFlow:
         if result.returncode:
             raise RuntimeError(f"vector generator failed ({result.returncode}): {script}")
 
-    def generate_tests(
+    def setup_tests(
         self,
         base_dir: Path,
         top: str,
@@ -334,7 +322,7 @@ class FunctionalFlow:
         self._run_generator(base_dir, top, "regmap_tests")
         return sorted(path for path in Path(base_dir).rglob("*") if path.is_file())
 
-    def generate_test(
+    def setup_test(
         self,
         name: str,
         base_dir: Path,
@@ -350,6 +338,10 @@ class FunctionalFlow:
         self._run_generator(base_dir, top, suffix, "--test", name)
         root = Path(base_dir) / name
         return sorted(path for path in root.iterdir() if path.is_file())
+
+    # Compatibility aliases for the pre-vocabulary backend API.
+    generate_tests = setup_tests
+    generate_test = setup_test
 
     def tests(self, base_dir: Path) -> tuple[str, ...]:
         """Return generated tests in deterministic order."""
@@ -368,8 +360,8 @@ class FunctionalFlow:
     ) -> list[Path]:
         """Generate the standard functional test catalogue."""
 
-        return self.generate_tests(base_dir, top, hjson_path, signature, force=force)
-    def compile_systemverilog(
+        return self.setup_tests(base_dir, top, hjson_path, signature, force=force)
+    def run_compile_systemverilog(
         self,
         *,
         top: str,
@@ -419,6 +411,8 @@ class FunctionalFlow:
         _print_command(argv)
         return runner.run(CommandRequest(tuple(argv), sv_dir, {}, log, inputs=inputs), on=on)
 
+    compile_systemverilog = run_compile_systemverilog
+
     def run_systemverilog(
         self,
         *,
@@ -447,7 +441,7 @@ class FunctionalFlow:
         plusargs = (
             f"+TEST_NAME={test_name}", f"+TEST_ROOT={test_root}",
             f"+CFG={required[0]}", f"+DATA_IN={required[1]}", f"+DATA_OUT={required[2]}",
-            f"+WAVE={wave}",
+            f"+WAVE={wave}", f"+FLEXSOC_SEED={seed}",
         )
         env = {}
         if compiler == "iverilog":
@@ -534,7 +528,7 @@ class FunctionalFlow:
             print_label("regression", f"backend=sv · compiler={compiler} · test=compile")
             print_path_label("log", compile_log)
             print_status_label("regression", "RUNNING", f"backend=sv · compiler={compiler} · test=compile")
-            compile_result = self.compile_systemverilog(
+            compile_result = self.run_compile_systemverilog(
                 top=top, tb_dir=tb_dir, sim_dir=sim_dir,
                 common_filelist=common_filelist, ip_filelist=ip_filelist,
                 compiler=compiler, coverage=coverage_dir is not None,

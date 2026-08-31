@@ -389,34 +389,34 @@ def render_uart_source(module_name: str) -> str:
 
 int {module_name}_init({module_name}_t base) {{
   uint32_t nco = (uint32_t)(((uint64_t)BAUD_RATE << 20) / SYSCLK_FREQ);
-  DEV_WRITE(base + {upper}_CTRL_REG_OFFSET, (nco << 16) | 0x3U);
+  DEV_WRITE(base + UART_CTRL_REG_OFFSET, (nco << 16) | 0x3U);
   return 0;
 }}
 
 int {module_name}_in({module_name}_t base) {{
   int res = UART_EOF;
-#ifdef {upper}_STATUS_REG_OFFSET
-#ifdef {upper}_STATUS_RXEMPTY_BIT
-  if (!(DEV_READ(base + {upper}_STATUS_REG_OFFSET) & (1u << {upper}_STATUS_RXEMPTY_BIT))) {{
-    res = (int)DEV_READ(base + {upper}_RDATA_REG_OFFSET);
+#ifdef UART_STATUS_REG_OFFSET
+#ifdef UART_STATUS_RXEMPTY_BIT
+  if (!(DEV_READ(base + UART_STATUS_REG_OFFSET) & (1u << UART_STATUS_RXEMPTY_BIT))) {{
+    res = (int)DEV_READ(base + UART_RDATA_REG_OFFSET);
   }}
 #else
-  res = (int)DEV_READ(base + {upper}_RDATA_REG_OFFSET);
+  res = (int)DEV_READ(base + UART_RDATA_REG_OFFSET);
 #endif
 #else
-  res = (int)DEV_READ(base + {upper}_RDATA_REG_OFFSET);
+  res = (int)DEV_READ(base + UART_RDATA_REG_OFFSET);
 #endif
   return res;
 }}
 
 void {module_name}_out({module_name}_t base, char c) {{
-#ifdef {upper}_STATUS_REG_OFFSET
-#ifdef {upper}_STATUS_TXFULL_BIT
-  while (DEV_READ(base + {upper}_STATUS_REG_OFFSET) & (1u << {upper}_STATUS_TXFULL_BIT)) {{
+#ifdef UART_STATUS_REG_OFFSET
+#ifdef UART_STATUS_TXFULL_BIT
+  while (DEV_READ(base + UART_STATUS_REG_OFFSET) & (1u << UART_STATUS_TXFULL_BIT)) {{
   }}
 #endif
 #endif
-  DEV_WRITE(base + {upper}_WDATA_REG_OFFSET, (uint32_t)(uint8_t)c);
+  DEV_WRITE(base + UART_WDATA_REG_OFFSET, (uint32_t)(uint8_t)c);
 }}
 
 int {module_name}_putchar(int c) {{
@@ -488,7 +488,7 @@ def write_source(module_name: str, output_dir: str | Path) -> Path:
     """Write the selected C driver body and return the generated path."""
 
     path = Path(output_dir) / f"{module_name}.c"
-    renderer = render_uart_source if module_name.startswith("uart") else render_generic_source
+    renderer = render_uart_source if module_name == "uart" else render_generic_source
     path.write_text(renderer(module_name), encoding="utf-8")
     return path
 
@@ -975,7 +975,7 @@ class RegsFlow:
         self.project_root = Path(project_root or Path.cwd()).resolve()
         self.runner = runner or ToolRunner()
 
-    def setup_hjson(
+    def init_hjson(
         self,
         top: str,
         interface: str,
@@ -1023,7 +1023,7 @@ class RegsFlow:
         )
         return self.runner.run(request, on=on).returncode
 
-    def generate_rtl(
+    def setup_rtl(
         self,
         top: str,
         data_dir: Path,
@@ -1044,7 +1044,7 @@ class RegsFlow:
             outputs.append(source)
         return tuple(outputs)
 
-    def generate_docs(
+    def setup_docs(
         self,
         top: str,
         data_dir: Path,
@@ -1071,7 +1071,7 @@ class RegsFlow:
             outputs.extend((doc, interfaces))
         return tuple(outputs)
 
-    def generate_driver(
+    def setup_driver(
         self,
         hjson_file: Path,
         output_dir: Path,
@@ -1089,7 +1089,7 @@ class RegsFlow:
             raise RuntimeError(f"regtool C header generation failed: {hjson_file}")
         return generate_driver(hjson_file, output_dir, base_address)
 
-    def generate_regmap_py(
+    def setup_regmap_py(
         self,
         top: str,
         data_dir: Path,
@@ -1110,6 +1110,13 @@ class RegsFlow:
             write_regmap_tests(top, model_dir, safe_controls=resolved.multiclock)
         return path
 
+    # Compatibility aliases: backend callers should use init_/setup_ names.
+    setup_hjson = init_hjson
+    generate_rtl = setup_rtl
+    generate_docs = setup_docs
+    generate_driver = setup_driver
+    generate_regmap_py = setup_regmap_py
+
     def flow(
         self,
         top: str,
@@ -1127,9 +1134,9 @@ class RegsFlow:
     ) -> None:
         """Run the canonical register-collateral flow."""
 
-        self.setup_hjson(top, interface, data_dir, force=force, clocks=clocks)
-        self.generate_rtl(top, data_dir, rtl_dir, regmap=regmap, on=on)
-        self.generate_docs(top, data_dir, doc_dir, regmap=regmap, on=on)
-        self.generate_driver(data_dir / f"{top}.hjson", driver_dir)
-        self.generate_regmap_py(top, data_dir, model_dir, force=force, clocks=clocks)
+        self.init_hjson(top, interface, data_dir, force=force, clocks=clocks)
+        self.setup_rtl(top, data_dir, rtl_dir, regmap=regmap, on=on)
+        self.setup_docs(top, data_dir, doc_dir, regmap=regmap, on=on)
+        self.setup_driver(data_dir / f"{top}.hjson", driver_dir)
+        self.setup_regmap_py(top, data_dir, model_dir, force=force, clocks=clocks)
 

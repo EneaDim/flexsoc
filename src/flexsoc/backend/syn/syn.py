@@ -45,6 +45,7 @@ class SynthesisConfig:
     clk_period_ns: float
     output: Path = Path("syn")
     liberty: Path | None = None
+    sdc: Path | None = None
     sdcdir: Path | None = None
     opt: str = "delay1"
     filelists: tuple[Path, ...] = (Path("rtl_common.f"), Path("rtl_ip.f"))
@@ -187,7 +188,7 @@ def abc_script(profile: str, clk_ns: float) -> str:
 
 
 def render_abc_constraints(driving_cell: str = "", load: float = 10.0) -> str:
-    """Render technology-neutral ABC constraints."""
+    """Render the ABC subset derivable from authored SDC I/O intent."""
 
     lines: list[str] = []
     if driving_cell.strip():
@@ -407,10 +408,14 @@ def generate_synthesis_scripts(cfg: SynthesisConfig) -> tuple[Path, ...]:
             raise ValueError("For target=asic you must provide a Liberty file.")
         profile = _validate_profile(cfg.opt)
         written.append(write_text(cfg.output / f"{profile}.abc", abc_script(profile, cfg.clk_period_ns)))
+        if cfg.sdc is None or not cfg.sdc.is_file():
+            raise FileNotFoundError("ASIC synthesis requires the canonical design.sdc")
+        from flexsoc.backend.signoff.sdc import read_io_environment
+        io = read_io_environment(cfg.sdc)
         written.append(
             write_text(
                 cfg.output / "abc.constr",
-                render_abc_constraints(os.environ.get("FLEXSOC_DRIVING_CELL", "")),
+                render_abc_constraints(io.driving_cell or "", 10.0 if io.load is None else io.load),
             )
         )
         written.append(write_text(
@@ -457,13 +462,14 @@ class SynthesisFlow:
         liberty: Path,
         clk_period_ns: float,
         output: Path,
+        sdc: Path,
         opt: str = "delay1",
         filelists: Sequence[Path] = (Path("rtl_common.f"), Path("rtl_ip.f")),
         tie_hi: tuple[str, str] | None = None,
         tie_lo: tuple[str, str] | None = None,
         min_buffer: tuple[str, str, str] | None = None,
     ) -> tuple[Path, ...]:
-        """Generate ASIC Yosys/ABC scripts without consuming SDC."""
+        """Generate ASIC Yosys/ABC scripts from the canonical authored SDC."""
 
         cfg = SynthesisConfig(
             top=top,
@@ -472,6 +478,7 @@ class SynthesisFlow:
             clk_period_ns=clk_period_ns,
             output=output,
             liberty=liberty,
+            sdc=sdc,
             opt=opt,
             filelists=tuple(filelists),
             tie_hi=tie_hi,

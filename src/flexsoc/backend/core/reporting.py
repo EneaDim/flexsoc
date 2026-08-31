@@ -357,6 +357,30 @@ def collect_sta(
     layout = pdk_run_layout(run_dir, pdk=pdk, top=top)
     root = layout.signoff_stage_root(stage)
     log_root = layout.signoff_stage_log_root(stage)
+    canonical = root / "sta" / "sta.json"
+    if canonical.is_file():
+        payload = json.loads(canonical.read_text(encoding="utf-8"))
+        scenarios: dict[str, dict[str, Any]] = {}
+        for item in payload.get("scenarios", []):
+            corner = str(item.get("corner", ""))
+            mode = str(item.get("mode", ""))
+            if not corner or mode not in {"setup", "hold"}:
+                continue
+            data = {
+                "reported_violating_paths": int(item.get("violating_paths", 0)),
+                "reported_unconstrained_paths": int(item.get("unconstrained_paths", 0)),
+                "report": relative(root / "sta" / "sta.rpt", run_dir),
+                "log": relative(log_root / "sta" / corner / mode / f"{top}.log", run_dir),
+                "scenario": item.get("id", f"{mode}_{corner}"),
+                "status": item.get("status", "unknown"),
+            }
+            if item.get("wns") is not None:
+                data["wns"] = float(item["wns"])
+            if item.get("tns") is not None:
+                data["tns"] = float(item["tns"])
+            scenarios.setdefault(corner, {})[mode] = data
+        return scenarios or None
+
     scenarios: dict[str, dict[str, Any]] = {}
     for report in sorted((root / "sta").glob("*/*/timing.rpt")):
         corner = report.parent.parent.name

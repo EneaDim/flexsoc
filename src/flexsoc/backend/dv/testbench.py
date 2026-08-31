@@ -8,7 +8,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, Sequence
 
-from flexsoc.backend.core import ClockConfig, clock_config
+from flexsoc.backend.core import ClockConfig, ClockDomain, clock_config
 from .functional import (
     TEST_NAMES, _candidate_hjson_path, _register_entries, _register_lookup_entries,
     _vector_inputs, _vector_outputs,
@@ -1970,8 +1970,100 @@ def render_sv_test_selector(tests: Sequence[str] = TEST_NAMES) -> str:
   endtask
 """
 
+def _clock_waveform_times(domain: ClockDomain) -> tuple[float, float, float]:
+    """Return initial-low, high and nominal-low times for one SDC clock."""
+
+    fall = domain.fall_ns if domain.fall_ns is not None else domain.period_ns / 2.0
+    initial_low = domain.rise_ns + domain.source_latency_ns
+    high = fall - domain.rise_ns
+    low = domain.period_ns - high
+    if initial_low < 0.0 or high <= 0.0 or low <= 0.0:
+        raise ValueError(f"invalid functional clock waveform for {domain.name!r}")
+    return initial_low, high, low
+
+
+def _clock_jitter_bound_ps(domain: ClockDomain) -> int:
+    """Return the functional jitter bound derived from SDC uncertainty."""
+
+    uncertainty = max(domain.setup_uncertainty_ns, domain.hold_uncertainty_ns)
+    if domain.setup_uncertainty_ns < 0.0 or domain.hold_uncertainty_ns < 0.0:
+        raise ValueError(f"clock uncertainty must be non-negative for {domain.name!r}")
+    bound_ps = int(round(uncertainty * 1000.0))
+    _, _, low = _clock_waveform_times(domain)
+    low_ps = int(round(low * 1000.0))
+    if bound_ps and 2 * bound_ps >= low_ps:
+        raise ValueError(
+            f"clock uncertainty for {domain.name!r} is too large for functional jitter: "
+            f"2*{bound_ps}ps must be smaller than nominal low time {low_ps}ps"
+        )
+    return bound_ps
+
+
+def _clock_seed_salt(name: str) -> int:
+    """Return a stable per-clock FNV-1a salt shared by generated SV and Python."""
+
+    value = 0x811C9DC5
+    for byte in name.encode("utf-8"):
+        value ^= byte
+        value = (value * 0x01000193) & 0xFFFFFFFF
+    return value or 0x6D2B79F5
+
+
+def _render_sv_clock_driver(domain: ClockDomain) -> list[str]:
+    """Render one SDC clock with deterministic seeded uncertainty jitter."""
+
+    initial_low, high, low = _clock_waveform_times(domain)
+    bound_ps = _clock_jitter_bound_ps(domain)
+    if bound_ps == 0:
+        return [
+            "  initial begin",
+            f"    {domain.signal} = 1'b0;",
+            f"    #{initial_low:g};",
+            "    forever begin",
+            f"      {domain.signal} = 1'b1;",
+            f"      #{high:g};",
+            f"      {domain.signal} = 1'b0;",
+            f"      #{low:g};",
+            "    end",
+            "  end",
+        ]
+
+    low_ps = int(round(low * 1000.0))
+    span = 2 * bound_ps + 1
+    salt = _clock_seed_salt(domain.name)
+    return [
+        "  initial begin",
+        "    integer flexsoc_seed;",
+        "    integer jitter_prev_ps;",
+        "    integer jitter_next_ps;",
+        "    real low_delay_ns;",
+        "    logic [31:0] jitter_state;",
+        f"    {domain.signal} = 1'b0;",
+        '    if (!$value$plusargs("FLEXSOC_SEED=%d", flexsoc_seed)) flexsoc_seed = 1;',
+        f"    jitter_state = flexsoc_seed ^ 32'h{salt:08x};",
+        "    if (jitter_state == 0) jitter_state = 32'h6d2b79f5;",
+        "    jitter_prev_ps = 0;",
+        f'    $display("[FLEXSOC CLOCK] clock={domain.name} jitter=uniform bound_ps={bound_ps} seed=%0d", flexsoc_seed);',
+        f"    #{initial_low:g};",
+        "    forever begin",
+        f"      {domain.signal} = 1'b1;",
+        f"      #{high:g};",
+        f"      {domain.signal} = 1'b0;",
+        "      jitter_state = jitter_state ^ (jitter_state << 13);",
+        "      jitter_state = jitter_state ^ (jitter_state >> 17);",
+        "      jitter_state = jitter_state ^ (jitter_state << 5);",
+        f"      jitter_next_ps = (jitter_state % {span}) - {bound_ps};",
+        f"      low_delay_ns = ({low_ps} + jitter_next_ps - jitter_prev_ps) / 1000.0;",
+        '      if (low_delay_ns <= 0.0) $fatal(1, "invalid FlexSoC jittered clock delay");',
+        "      #(low_delay_ns);",
+        "      jitter_prev_ps = jitter_next_ps;",
+        "    end",
+        "  end",
+    ]
+
+
 def render_testbench(top: str,
-                     clk_period_ns: int,
+                     clock: ClockDomain,
                      simdir: str | Path,
                      syndir: str | Path,
                      interface: str,
@@ -2002,7 +2094,7 @@ def render_testbench(top: str,
     lines.append("")
     lines.append(f"module {top}_tb;")
     lines.append("  // Parameters")
-    lines.append(f"  parameter int CLK_PERIOD = {clk_period_ns}; // ns")
+    lines.append(f"  parameter real CLK_PERIOD = {clock.period_ns:g}; // ns")
     lines.append("  parameter int INITIAL_RESET_CYCLES = 5;")
     for name, val in params:
         lines.append(f"  parameter {name} = {val};")
@@ -2046,12 +2138,9 @@ def render_testbench(top: str,
     lines.extend(_connect_ports(ports_in, ports_out, top, interface))
     lines.append("  );\n")
 
-    # Clock gens
-    for c in clks:
-        lines.append("  initial begin")
-        lines.append(f"    {c} = 0;")
-        lines.append("    forever #(CLK_PERIOD / 2) " + f"{c} = ~{c};")
-        lines.append("  end\n")
+    # Clock generation follows the canonical SDC waveform and source latency.
+    lines.extend(_render_sv_clock_driver(clock))
+    lines.append("")
 
     # Wave path is simulator-independent; runtime selects FST or VCD encoding.
     # An empty path means no dump, so never invent a cwd-local filename.
@@ -2141,7 +2230,7 @@ def render_testbench(top: str,
 
 
 def render_simple_testbench(top: str,
-                            clk_period_ns: int,
+                            clock: ClockDomain,
                             devices: Sequence[Sequence[str]],
                             simdir: str | Path,
                             syndir: str | Path,
@@ -2167,7 +2256,7 @@ def render_simple_testbench(top: str,
         lines.append("`endif")
     lines.append("")
     lines.append(f"module {top}_tb;")
-    lines.append(f"  parameter int CLK_PERIOD = {clk_period_ns}; // ns")
+    lines.append(f"  parameter real CLK_PERIOD = {clock.period_ns:g}; // ns")
 
     for name, val in params:
         lines.append(f"  parameter {name} = {val};")
@@ -2200,12 +2289,9 @@ def render_simple_testbench(top: str,
         lines.append(_render_no_vector_task(top).rstrip())
     lines.append("")
 
-    # Clocks
-    for c in clks:
-        lines.append("  initial begin")
-        lines.append(f"    {c} = 1'b0;")
-        lines.append(f"    forever #(CLK_PERIOD/2) {c} = ~{c};")
-        lines.append("  end\n")
+    # Clock generation follows the canonical SDC waveform and source latency.
+    lines.extend(_render_sv_clock_driver(clock))
+    lines.append("")
 
     # Runtime-selected FST/VCD path; never fall back to a cwd-local dump.
     lines.append("  string wave_path;")
@@ -2410,6 +2496,10 @@ def _generate_testbench_files(
         (domain for domain in clocks.domains if domain.reset == primary_reset),
         clocks.domains[0],
     )
+    clock_domain = next(
+        (domain for domain in clocks.domains if domain.signal in (sig.get("clks") or [])),
+        reset_domain,
+    )
     written.extend(
         write_sv_verification_helpers(
             outdir,
@@ -2421,7 +2511,7 @@ def _generate_testbench_files(
             force=True,
             reset_polarity=reset_domain.reset_polarity,
             reset_domain=reset_domain.name,
-            period_ns=config.clk_period_ns,
+            period_ns=clock_domain.period_ns,
             io_delay_pct=config.io_delay_pct,
         )
     )
@@ -2445,7 +2535,7 @@ def _generate_testbench_files(
     body = (
         render_simple_testbench(
             config.top,
-            config.clk_period_ns,
+            clock_domain,
             config.devices,
             config.simdir,
             config.syndir,
@@ -2455,7 +2545,7 @@ def _generate_testbench_files(
         if simple_mode
         else render_testbench(
             config.top,
-            config.clk_period_ns,
+            clock_domain,
             config.simdir,
             config.syndir,
             config.interface,
@@ -3265,8 +3355,7 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
         f"  logic {domain.signal};\n  logic {domain.reset};" for domain in clocks.domains
     )
     clock_drivers = "\n".join(
-        f"  always #{domain.period_ns / 2:g} {domain.signal} = ~{domain.signal};"
-        for domain in clocks.domains
+        "\n".join(_render_sv_clock_driver(domain)) for domain in clocks.domains
     )
     clock_pins = ",\n".join(
         f"    .{signal:<25}({signal})"
@@ -4571,10 +4660,26 @@ def render_python_test(
     rst: str,
     rst_active: str,
     period_ns: float,
+    rise_ns: float = 0.0,
+    fall_ns: float | None = None,
+    source_latency_ns: float = 0.0,
     reset_domain: str = "core",
+    setup_uncertainty_ns: float = 0.0,
+    hold_uncertainty_ns: float = 0.0,
 ) -> str:
     """Render the generated single-clock cocotb test module."""
 
+    fall_ns = period_ns / 2.0 if fall_ns is None else fall_ns
+    clock = ClockDomain(
+        reset_domain, clk, rst, period_ns, rst_active,
+        rise_ns=rise_ns, fall_ns=fall_ns, source_latency_ns=source_latency_ns,
+        setup_uncertainty_ns=setup_uncertainty_ns,
+        hold_uncertainty_ns=hold_uncertainty_ns,
+    )
+    initial_low, high_ns, low_ns = _clock_waveform_times(clock)
+    jitter_bound_ps = _clock_jitter_bound_ps(clock)
+    clock_salt = _clock_seed_salt(clock.name)
+    low_ps = int(round(low_ns * 1000.0))
     reset_domains = {reset_domain: (clk, rst, rst_active)}
     return f"""from __future__ import annotations
 
@@ -4582,7 +4687,6 @@ import os
 from pathlib import Path
 
 import cocotb
-from cocotb.clock import Clock
 from cocotb.triggers import Combine, FallingEdge, RisingEdge, Timer
 
 from drivers.reg_driver import (
@@ -4597,6 +4701,45 @@ from drivers.vec_monitor import LatencyMonitor
 
 
 RESET_DOMAINS = {reset_domains!r}
+
+
+def _xorshift32(state):
+    state &= 0xFFFFFFFF
+    state ^= (state << 13) & 0xFFFFFFFF
+    state ^= state >> 17
+    state ^= (state << 5) & 0xFFFFFFFF
+    return state & 0xFFFFFFFF
+
+
+async def _flexsoc_clock(signal):
+    # Drive SDC waveform/phase plus bounded deterministic uncertainty jitter.
+
+    base_seed = int(os.environ.get("FLEXSOC_SEED", "1"), 0) & 0xFFFFFFFF
+    jitter_state = (base_seed ^ {clock_salt}) & 0xFFFFFFFF
+    if jitter_state == 0:
+        jitter_state = 0x6D2B79F5
+    jitter_prev_ps = 0
+    cocotb.log.info(
+        "[FLEXSOC CLOCK] clock={reset_domain} jitter=uniform bound_ps={jitter_bound_ps} seed=%d",
+        base_seed,
+    )
+    signal.value = 0
+    if {initial_low:g} > 0:
+        await Timer({initial_low:g}, unit="ns")
+    while True:
+        signal.value = 1
+        await Timer({high_ns:g}, unit="ns")
+        signal.value = 0
+        if {jitter_bound_ps}:
+            jitter_state = _xorshift32(jitter_state)
+            jitter_next_ps = int(jitter_state % {2 * jitter_bound_ps + 1}) - {jitter_bound_ps}
+        else:
+            jitter_next_ps = 0
+        low_delay_ps = {low_ps} + jitter_next_ps - jitter_prev_ps
+        if low_delay_ps <= 0:
+            raise AssertionError("invalid FlexSoC jittered clock delay")
+        await Timer(low_delay_ps, unit="ps")
+        jitter_prev_ps = jitter_next_ps
 
 
 def _selected_resets(selector):
@@ -4626,7 +4769,7 @@ async def apply_reset(dut, selector="all", cycles=5):
 
 @cocotb.test()
 async def {top}_generated_test(dut):
-    cocotb.start_soon(Clock(dut.{clk}, {period_ns:g}, unit="ns").start())
+    cocotb.start_soon(_flexsoc_clock(dut.{clk}))
     for _, reset, polarity in RESET_DOMAINS.values():
         getattr(dut, reset).value = int(polarity == "low")
     await init_register_bus(dut, dut.{clk})
@@ -4778,17 +4921,21 @@ def _write_cocotb_scaffold_impl(
     sources = collect_sources(cfg.top, cfg.rtl_dir.resolve(), cfg.ips_root)
     hjson_path = _candidate_hjson_path(cfg.rtl_dir, cfg.top)
     registers = _register_entries(hjson_path)
+    clock_domain = next(
+        (domain for domain in clocks.domains if domain.signal == cfg.clk or domain.reset == cfg.rst),
+        clocks.domains[0],
+    )
     files = {
         out_dir / "Makefile": render_makefile(cfg, sources),
-        drivers / "reg_driver.py": render_reg_driver_py(registers, cfg.period_ns, cfg.io_delay_pct),
+        drivers / "reg_driver.py": render_reg_driver_py(registers, clock_domain.period_ns, cfg.io_delay_pct),
         drivers / "vec_driver.py": render_vec_driver_py(),
         drivers / "vec_monitor.py": render_vec_monitor_py(),
         out_dir / f"{cfg.top}_tb.py": render_python_test(
-            cfg.top, cfg.clk, cfg.rst, cfg.rst_active, cfg.period_ns,
-            next(
-                (domain.name for domain in clocks.domains if domain.reset == cfg.rst),
-                clocks.domains[0].name,
-            ),
+            cfg.top, cfg.clk, cfg.rst, cfg.rst_active, clock_domain.period_ns,
+            clock_domain.rise_ns, clock_domain.fall_ns, clock_domain.source_latency_ns,
+            clock_domain.name,
+            setup_uncertainty_ns=clock_domain.setup_uncertainty_ns,
+            hold_uncertainty_ns=clock_domain.hold_uncertainty_ns,
         ),
         out_dir / f"{cfg.top}_tb.sv": render_tlul_wrapper(cfg),
     }
@@ -5419,7 +5566,7 @@ def cocotb_py_text(top: str, clocks: ClockConfig) -> str:
     """Render the N-clock cocotb test entry point."""
 
     starts = "\n".join(
-        f'    cocotb.start_soon(Clock(getattr(dut, {domain.signal!r}), {domain.period_ns:g}, units="ns").start())'
+        f'    cocotb.start_soon(_flexsoc_clock(getattr(dut, {domain.signal!r}), {domain.period_ns:g}, {domain.rise_ns:g}, {(domain.fall_ns if domain.fall_ns is not None else domain.period_ns / 2.0):g}, {domain.source_latency_ns:g}, {_clock_jitter_bound_ps(domain)}, {_clock_seed_salt(domain.name)}))'
         for domain in clocks.domains
     )
     template = dedent(f'''\
@@ -5430,11 +5577,48 @@ def cocotb_py_text(top: str, clocks: ClockConfig) -> str:
     import os
 
     import cocotb
-    from cocotb.clock import Clock
+    from cocotb.triggers import Timer
 
     from drivers.reg_driver import apply_config, reset, set_defaults
     from drivers.vec_driver import drive_inputs
     from drivers.vec_monitor import check_outputs, expected_outputs
+
+    def _xorshift32(state):
+        state &= 0xFFFFFFFF
+        state ^= (state << 13) & 0xFFFFFFFF
+        state ^= state >> 17
+        state ^= (state << 5) & 0xFFFFFFFF
+        return state & 0xFFFFFFFF
+
+
+    async def _flexsoc_clock(signal, period_ns, rise_ns, fall_ns, source_latency_ns, jitter_bound_ps, clock_salt):
+        """Drive SDC waveform/phase plus bounded deterministic uncertainty jitter."""
+
+        base_seed = int(os.environ.get("FLEXSOC_SEED", "1"), 0) & 0xFFFFFFFF
+        jitter_state = (base_seed ^ int(clock_salt)) & 0xFFFFFFFF
+        if jitter_state == 0:
+            jitter_state = 0x6D2B79F5
+        jitter_prev_ps = 0
+        signal.value = 0
+        initial_low = rise_ns + source_latency_ns
+        if initial_low > 0:
+            await Timer(initial_low, units="ns")
+        high_ns = fall_ns - rise_ns
+        low_ps = int(round((period_ns - high_ns) * 1000.0))
+        while True:
+            signal.value = 1
+            await Timer(high_ns, units="ns")
+            signal.value = 0
+            if jitter_bound_ps:
+                jitter_state = _xorshift32(jitter_state)
+                jitter_next_ps = int(jitter_state % (2 * jitter_bound_ps + 1)) - jitter_bound_ps
+            else:
+                jitter_next_ps = 0
+            low_delay_ps = low_ps + jitter_next_ps - jitter_prev_ps
+            if low_delay_ps <= 0:
+                raise AssertionError("invalid FlexSoC jittered clock delay")
+            await Timer(low_delay_ps, units="ps")
+            jitter_prev_ps = jitter_next_ps
 
 
     @cocotb.test()

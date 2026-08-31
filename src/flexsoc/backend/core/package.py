@@ -165,6 +165,8 @@ class PackageFlow:
         coverage_dir: Path | None = None,
         manifest_json: Path | None = None,
         metrics_json: Path | None = None,
+        settings_json: Path | None = None,
+        design_intent_json: Path | None = None,
         force: bool = False,
     ) -> Path:
         """Atomically update one PDK branch in the reusable IP library."""
@@ -194,6 +196,7 @@ class PackageFlow:
 
             run = Path(synth_dir).parents[1]
             self._stage_sources(staged, run)
+            self._stage_analysis_evidence(staged, run)
             self._stage_synthesis(staged, pdk, synth_dir, top)
             self._stage_signoff(staged, pdk, signoff_dir, sdc_file, top)
             self._stage_equivalence(
@@ -205,6 +208,7 @@ class PackageFlow:
             self._stage_optional_reports(
                 staged, pdk, post_syn_sim_dir, coverage_dir,
                 manifest_json, metrics_json, run / "meta" / pdk / "provenance.json",
+                settings_json, design_intent_json,
             )
             _portable_filelists(staged, self.project_root, run)
             _clean_python_cache(staged)
@@ -244,6 +248,35 @@ class PackageFlow:
             if source.is_dir():
                 self._replace_tree(source, staged / relative)
 
+    def _stage_analysis_evidence(self, staged: Path, run: Path) -> None:
+        """Retain normalized lint and CDC/RDC evidence at run-relative paths."""
+
+        lint = run / "logs" / "lint"
+        if lint.is_dir():
+            destination = staged / "logs" / "lint"
+            destination.mkdir(parents=True, exist_ok=True)
+            for source in sorted(lint.glob("*.log")):
+                if source.is_file() and not source.name.startswith("."):
+                    shutil.copy2(source, destination / source.name)
+
+        cdc = run / "analysis" / "cdc_rdc"
+        if cdc.is_dir():
+            destination = staged / "analysis" / "cdc_rdc"
+            destination.mkdir(parents=True, exist_ok=True)
+            for name in (
+                "summary.json", "cdc.json", "rdc.json", "setup.json",
+                "glitch.json", "obligations.json",
+            ):
+                source = cdc / name
+                if source.is_file():
+                    shutil.copy2(source, destination / name)
+
+        cdc_log = run / "logs" / "analysis" / "cdc_rdc" / "cdc_rdc.log"
+        if cdc_log.is_file():
+            destination = staged / "logs" / "analysis" / "cdc_rdc"
+            destination.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(cdc_log, destination / "cdc_rdc.log")
+
     def _write_package_manifest(self, staged: Path, ip_name: str, top: str) -> None:
         """Write the minimal native package index without duplicating design intent."""
 
@@ -258,6 +291,13 @@ class PackageFlow:
             if (staged / relative).is_dir():
                 content[key] = relative
 
+        if (staged / "constraints" / "design.sdc").is_file():
+            content["timing_constraints"] = "constraints/design.sdc"
+
+        design_intent = staged / "meta" / "design_intent.json"
+        if design_intent.is_file():
+            content["design_intent"] = "meta/design_intent.json"
+
         qualification = {}
         meta = staged / "meta"
         if meta.is_dir():
@@ -265,7 +305,8 @@ class PackageFlow:
                 evidence = {}
                 for key, name in (
                     ("manifest", "manifest.json"), ("metrics", "metrics.json"),
-                    ("provenance", "provenance.json"), ("check", "check.rpt"),
+                    ("provenance", "provenance.json"), ("settings", "settings.json"),
+                    ("check", "check.rpt"),
                 ):
                     if (branch / name).is_file():
                         evidence[key] = f"meta/{branch.name}/{name}"
@@ -329,7 +370,9 @@ class PackageFlow:
         if destination.exists():
             shutil.rmtree(destination)
         destination.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(sdc, destination / f"{top}.sdc")
+        constraints = staged / "constraints"
+        constraints.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(sdc, constraints / "design.sdc")
         canonical_tcl = {
             Path("sta/sta.tcl"),
             Path("sdf/write_sdf.tcl"),
@@ -342,6 +385,8 @@ class PackageFlow:
                 continue
             relative = path.relative_to(source)
             if path.suffix == ".tcl" and relative not in canonical_tcl:
+                continue
+            if path.name == "timing.rpt" and len(relative.parts) >= 4 and relative.parts[0] == "sta":
                 continue
             if path.suffix not in {".tcl", ".rpt", ".json", ".sdf"}:
                 continue
@@ -358,6 +403,8 @@ class PackageFlow:
         manifest_json: Path | None,
         metrics_json: Path | None,
         provenance_json: Path | None,
+        settings_json: Path | None,
+        design_intent_json: Path | None,
     ) -> None:
         if post_syn_sim_dir and Path(post_syn_sim_dir).is_dir():
             reports = list(Path(post_syn_sim_dir).glob("*.json"))
@@ -376,9 +423,13 @@ class PackageFlow:
                     shutil.copy2(report, target / report.name)
         if not any(
             path and Path(path).is_file()
-            for path in (manifest_json, metrics_json, provenance_json)
+            for path in (manifest_json, metrics_json, provenance_json, settings_json, design_intent_json)
         ):
             return
+        if design_intent_json and Path(design_intent_json).is_file():
+            common_meta = staged / "meta"
+            common_meta.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(design_intent_json, common_meta / "design_intent.json")
         target = staged / "meta" / pdk
         target.mkdir(parents=True, exist_ok=True)
         if manifest_json and Path(manifest_json).is_file():
@@ -392,3 +443,5 @@ class PackageFlow:
             (target / "check.rpt").write_text(buffer.getvalue(), encoding="utf-8")
         if provenance_json and Path(provenance_json).is_file():
             shutil.copy2(provenance_json, target / "provenance.json")
+        if settings_json and Path(settings_json).is_file():
+            shutil.copy2(settings_json, target / "settings.json")
