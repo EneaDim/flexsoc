@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Mapping
 
-from .api import AUTO_SETUP_TARGETS, DEFAULT_SETTINGS, TARGETS, FlexSoC, FlexSoCConfig
+from .api import AUTO_SETUP_TARGETS, DEBUG_TARGETS, DEFAULT_SETTINGS, TARGETS, FlexSoC, FlexSoCConfig
 
 try:  # Keep the entry point understandable if the new CLI deps are not installed yet.
     import click
@@ -60,6 +60,9 @@ else:
         "--script",
         "--capture",
         "--live",
+        "--debug",
+        "--save-output",
+        "-o",
         "--json",
         "--info",
         "--install-completion",
@@ -148,8 +151,8 @@ Use `fx commands` to list every backend target.
         (
             "6. Run post-synthesis sign-off",
             (
-                ("fx sdc", "Initialize the single authored constraints/design.sdc timing contract."),
-                ("fx setup_signoff", "Generate OpenSTA Tcl families that consume constraints/design.sdc."),
+                ("fx sdc", "Initialize the single authored constraints/<TOP>.sdc timing contract."),
+                ("fx setup_signoff", "Generate OpenSTA Tcl families that consume constraints/<TOP>.sdc."),
                 ("fx sdf | fx sta | fx power_estimate", "Produce corner SDF, timing, and vectorless power."),
                 ("fx compile_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Compile one named GLS workload."),
                 ("fx sim_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Run one post-synthesis GLS workload."),
@@ -164,11 +167,11 @@ Use `fx commands` to list every backend target.
             (
                 ("fx pnr", "Run OpenROAD and produce the final netlist, SDC, SPEF, ODB, and GDS."),
                 ("fx physical_signoff", "Run ORFS physical closure first: route DRC, antenna evidence, GDS DRC, LVS, and IR/PDN evidence."),
-                ("fx setup_signoff_post_pnr | fx sdf_post_pnr | fx sta_post_pnr", "Write routed SDF, then consume design.sdc plus routed SPEF for propagated-clock/interconnect timing."),
+                ("fx setup_signoff_post_pnr | fx sdf_post_pnr | fx sta_post_pnr", "Write routed SDF, then consume <TOP>.sdc plus routed SPEF for propagated-clock/interconnect timing."),
                 ("fx sim_post_pnr_all", "Run timing-aware post-PnR GLS across selected tests and scenarios."),
                 ("fx power_estimate_post_pnr", "Run vectorless routed power estimation."),
                 ("fx power_analysis_post_pnr_all | fx fusion_analysis_post_pnr_all", "Use routed GLS activity for activity power and timing/power correlation."),
-                ("fx manifest | fx metrics | fx check", "Collect release identity, metrics, and closure status."),
+                ("fx manifest | fx metrics | fx check", "Collect identity, snapshot metrics, then render the closure dashboard."),
                 ("fx ip_save", "Save a reusable IP package after closure."),
             ),
         ),
@@ -535,10 +538,11 @@ Use `fx commands` to list every backend target.
             (
                 "Output and reports",
                 (
-                    ("default", "Print only the colored final summary plus the detailed cdc_rdc.log path."),
-                    ("--live", "Show extraction progress, domains, checker counts, every finding and obligation, and report paths."),
-                    ("JSON", "Machine-readable inventory, CDC, RDC, setup, glitch, obligations, and summary reports are written under analysis/cdc_rdc/."),
-                    ("log", "The complete human-readable analysis is written under logs/analysis/cdc_rdc/cdc_rdc.log."),
+                    ("default", "Print the colored closure summary and paths to the two canonical analysis artifacts."),
+                    ("--live", "Show extraction progress, domains, checker counts, every finding and obligation while the same canonical reports are produced."),
+                    ("summary.json", "Complete machine-readable CDC/RDC analysis: counts, crossings, findings, and verification obligations."),
+                    ("cdc_rdc.rpt", "Complete human-readable CDC/RDC finding report."),
+                    ("raw evidence", "extract.ys, design.json, and extract.log retain the structural/tool evidence needed to reproduce or diagnose the analysis."),
                 ),
             ),
         ),
@@ -1222,6 +1226,8 @@ Use `fx commands` to list every backend target.
         script: bool,
         capture: bool,
         live: bool,
+        debug: bool,
+        save_output: Path | None,
         as_json: bool,
         info: bool,
         no_setup: bool,
@@ -1237,6 +1243,14 @@ Use `fx commands` to list every backend target.
             values = _overrides(sets, tool, force)
             if live:
                 values["LIVE"] = "1"
+            if debug:
+                if len(targets) != 1 or targets[0] not in DEBUG_TARGETS:
+                    raise typer.BadParameter("--debug requires exactly one STA, power, fusion, or GLS target")
+                values["DEBUG"] = "1"
+                if save_output is not None:
+                    values["DEBUG_OUTPUT"] = str(save_output)
+            elif save_output is not None:
+                raise typer.BadParameter("--save-output/-o requires --debug")
 
             result = client.run(
                 *targets,
@@ -1392,6 +1406,14 @@ Use `fx commands` to list every backend target.
             bool,
             typer.Option("--live", help="Show generated scripts and the command log while retaining a plain log file.", rich_help_panel="Output"),
         ] = False,
+        debug: Annotated[
+            bool,
+            typer.Option("--debug", help="Read existing target artifacts and print filtered diagnostics without rerunning the target.", rich_help_panel="Output"),
+        ] = False,
+        save_output: Annotated[
+            Path | None,
+            typer.Option("--save-output", "-o", help="Save filtered --debug output to a file or directory.", rich_help_panel="Output"),
+        ] = None,
         as_json: Annotated[
             bool,
             typer.Option("--json", help="Print machine-readable JSON.", rich_help_panel="Output"),
@@ -1456,6 +1478,8 @@ Use `fx commands` to list every backend target.
                 script=script,
                 capture=capture,
                 live=live,
+                debug=debug,
+                save_output=save_output,
                 as_json=as_json,
                 info=info,
                 no_setup=no_setup,

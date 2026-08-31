@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -249,7 +250,7 @@ def test_pdk_switch_keeps_shared_run_artifacts_and_reselects_technology_paths(
 
     assert sky130["RUN_ROOT"] == ihp["RUN_ROOT"]
     assert sky130["SIGNOFF_SDC_FILE"] == ihp["SIGNOFF_SDC_FILE"]
-    assert sky130["SIGNOFF_SDC_FILE"].endswith("constraints/design.sdc")
+    assert sky130["SIGNOFF_SDC_FILE"].endswith("constraints/demo.sdc")
     for key in (
         "SYNDIR",
         "EQUIVDIR",
@@ -437,6 +438,9 @@ def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(t
     assert "check -assert -mapped" in script
     assert "write_verilog -nohex -nodec" in script
     assert "delay1.abc" in script
+    assert "delay1.abc" in setup_syn_module.yosys_synth_asic_slang(
+        cfg.top, liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
+    )
 
 
 def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
@@ -1184,11 +1188,8 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
     (raw / f"{top}_lint_slang_all_raw.log").write_text("raw command\n", encoding="utf-8")
     cdc = run / "analysis" / "cdc_rdc"
     cdc.mkdir(parents=True)
-    for name in ("summary.json", "cdc.json", "rdc.json", "setup.json", "glitch.json", "obligations.json"):
-        (cdc / name).write_text(json.dumps({"top": top, "name": name}) + "\n", encoding="utf-8")
-    cdc_log = run / "logs" / "analysis" / "cdc_rdc"
-    cdc_log.mkdir(parents=True)
-    (cdc_log / "cdc_rdc.log").write_text("cdc pass\n", encoding="utf-8")
+    (cdc / "summary.json").write_text(json.dumps({"top": top, "status": "pass"}) + "\n", encoding="utf-8")
+    (cdc / "cdc_rdc.rpt").write_text("cdc pass\n", encoding="utf-8")
     library = tmp_path / "library"
 
     flow = PackageFlow(tmp_path, {})
@@ -1219,8 +1220,8 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
     assert (saved / "logs" / "lint" / f"{top}_lint_slang_all.log").is_file()
     assert not (saved / "logs" / "lint" / "raw").exists()
     assert (saved / "analysis" / "cdc_rdc" / "summary.json").is_file()
-    assert (saved / "analysis" / "cdc_rdc" / "obligations.json").is_file()
-    assert (saved / "logs" / "analysis" / "cdc_rdc" / "cdc_rdc.log").is_file()
+    assert (saved / "analysis" / "cdc_rdc" / "cdc_rdc.rpt").is_file()
+    assert not (saved / "logs" / "analysis" / "cdc_rdc").exists()
     assert not (saved / "syn" / pdk / f"{top}_generic.il").exists()
     saved_signoff = saved / "signoff" / pdk
     saved_tcl = {
@@ -1627,6 +1628,93 @@ def test_cli_execution_output_modes(
     assert capsys.readouterr().out == ""
     assert seen[-1]["live"] is True and seen[-1]["LIVE"] == "1"
 
+    out = tmp_path / "debug"
+    assert app(["sta", "--debug", "-o", str(out), "--project-root", str(tmp_path)]) == 0
+    assert capsys.readouterr().out == ""
+    assert seen[-1]["DEBUG"] == "1" and seen[-1]["DEBUG_OUTPUT"] == str(out)
+    assert app(["hjson", "--debug", "--project-root", str(tmp_path)]) == 2
+    capsys.readouterr()
+
+
+def test_signoff_debug_reads_filtered_artifacts_without_tools(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from flexsoc.backend.signoff import SignoffFlow, SignoffStage
+
+    workspace = tmp_path / "workspace"
+    values = {
+        "WORKSPACE": str(workspace), "RUN_TOP": "demo", "RUN_ID": "dev",
+        "TOP": "demo", "PDK": "sky130",
+    }
+    run = workspace / "runs/demo/dev"
+    layout = pdk_run_layout(run, pdk="sky130", top="demo")
+    sta = layout.signoff_stage_root("post_syn") / "sta/ss/setup/timing.rpt"
+    sta.parent.mkdir(parents=True)
+    sta.write_text(
+        "wns max -0.125\ntns max -0.250\n=== Clock QoR ===\n=== Constraint validation ===\n"
+        "Warning: There are 2 unconstrained endpoints.\n"
+        "max slew\nfoo -0.1 (VIOLATED)\n=== Violating paths ===\n"
+        "Startpoint: in\nEndpoint: reg (removal check against rising-edge clock core)\nPath Group: asynchronous\nPath Type: min\n"
+        "-0.125 slack (VIOLATED)\n=== Near-critical paths ===\nNOISE\n",
+        encoding="utf-8",
+    )
+    power = layout.signoff_stage_root("post_syn") / "power/estimate/ss/power.rpt"
+    power.parent.mkdir(parents=True)
+    power.write_text("analysis=power_estimate\ntotal_power=0.001\nNOISE\n", encoding="utf-8")
+    fusion = layout.signoff_stage_root("post_syn") / "fusion/smoke/setup/fusion.rpt"
+    fusion.parent.mkdir(parents=True)
+    fusion.write_text("analysis=fusion_analysis\nwns=-0.1\nNOISE\n", encoding="utf-8")
+    gls = layout.post_syn_sim_dir / "demo_post_syn_smoke_sv_tt.json"
+    wave = layout.post_syn_sim_dir / "smoke.fst"
+    log = layout.post_syn_sim_dir / "smoke.log"
+    gls.parent.mkdir(parents=True, exist_ok=True)
+    wave.write_text("wave", encoding="utf-8")
+    log.write_text("ERROR: simulated failure\nNOISE\n", encoding="utf-8")
+    gls.write_text(json.dumps({
+        "status": "fail", "test_name": "smoke", "backend": "sv", "timing_mode": "typ",
+        "timing_model": "icarus-path-delay-only", "wave": str(wave), "log": str(log),
+        "annotation": {"errors": ["SDF ERROR"], "warnings": [], "markers": []},
+    }), encoding="utf-8")
+
+    flow = SignoffFlow(tmp_path, values, SignoffStage.PRE_IMPL)
+    output = tmp_path / "debug-output"
+    assert flow.debug_sta(output=str(output)) == 0
+    assert flow.debug_power() == 0
+    assert flow.debug_fusion() == 0
+    assert flow.debug_gls() == 0
+    text = capsys.readouterr().out
+    assert "WNS (ns)" in text and "TNS (ns)" in text and "-0.250000" in text
+    assert "unconstrained_endpoints=2" in text
+    assert "removal checks=1" in text and "in → reg (removal check" in text
+    assert "total_power=0.001" in text
+    assert "Group                                  Slack" not in text
+    assert "fusion_analysis" in text and "surfer " in text and "SDF ERROR" in text
+    assert "NOISE" not in text
+    saved = output / "sta_debug.txt"
+    assert saved.is_file() and "unconstrained_endpoints=2" in saved.read_text(encoding="utf-8")
+    assert "STA debug" in text and "Corner" in text and "Unconstr" in text
+
+
+def test_metrics_tables_render_sta_gls_and_power_without_raw_report_parsing() -> None:
+    from flexsoc.backend.core.reporting import gls_matrix_table, power_estimate_table, sta_qor_table
+
+    sta = sta_qor_table({
+        "ss": {
+            "setup": {"status": "pass", "wns": 0.0, "tns": 0.0, "reported_violating_paths": 0, "reported_unconstrained_paths": 0},
+            "hold": {"status": "warn", "wns": -0.1, "tns": -0.2, "reported_violating_paths": 2, "reported_unconstrained_paths": 0},
+        }
+    })
+    gls = gls_matrix_table({
+        "tests": ["smoke"], "timing_modes": ["typ"],
+        "scenario_records": [{"test": "smoke", "timing_mode": "typ", "status": "pass", "backend": "sv"}],
+    })
+    power = power_estimate_table({
+        "corners": {"tt": {"internal_w": 0.001, "switching_w": 0.0002, "leakage_w": 1e-6, "total_w": 0.001201}}
+    })
+    assert sta is not None and sta.row_count == 2
+    assert gls is not None and gls.row_count == 1
+    assert power is not None and power.row_count == 1
+
 
 # ---------------------------------------------------------------------------
 # Backend contracts retained in the public API suite
@@ -1678,6 +1766,74 @@ def test_generated_testbenches_share_sdc_io_timing_phases() -> None:
 
     with pytest.raises(ValueError, match="SDC_IO_DELAY_PCT"):
         render_tlul_interface(period_ns=10.0, io_delay_pct=0.5)
+
+
+def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp_path: Path) -> None:
+    from flexsoc.backend.core.core import candidate_ips_in_order, resolve_ip_dependencies, select_used_ips_in_order
+    from flexsoc.backend.design.rtl import render_nclock_top, render_top_from_core
+
+    single_core = tmp_path / "demo_core.sv"
+    single_core.write_text(
+        "module demo_core(\n"
+        "  input logic clk_i,\n"
+        "  input logic rst_ni,\n"
+        "  input logic [31:0] reg2hw,\n"
+        "  output logic [31:0] hw2reg\n"
+        "); endmodule\n",
+        encoding="utf-8",
+    )
+    single = render_top_from_core(
+        "demo",
+        single_core,
+        "reg_iface",
+        clocks=ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),)),
+    )
+    assert "prim_reset_sync" not in single
+    assert "prim_ff_2sync #(" in single
+    assert ".ResetValue (1'b0)" in single
+    assert ".rst_ni(rst_ni)" in single
+    assert ".d_i   (1'b1)" in single
+    assert ".q_o   (core_rst_sync_ni)" in single
+    assert ".rst_ni(core_rst_sync_ni)" in single
+    assert ".rst_ni(core_rst_sync_ni)" in single.split("demo_core u_demo_core", 1)[1]
+
+    multi_core = tmp_path / "multi_core.sv"
+    multi_core.write_text(
+        "module multi_core(\n"
+        "  input logic cfg_clk_i,\n"
+        "  input logic cfg_rst_ni,\n"
+        "  input logic dsp_clk_i,\n"
+        "  input logic dsp_rst_ni,\n"
+        "  input logic [31:0] cfg_reg2hw_i,\n"
+        "  output logic [31:0] cfg_hw2reg_o,\n"
+        "  input logic [31:0] dsp_reg2hw_i,\n"
+        "  output logic [31:0] dsp_hw2reg_o\n"
+        "); endmodule\n",
+        encoding="utf-8",
+    )
+    clocks = ClockConfig((
+        ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 10.0),
+        ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 5.0),
+    ))
+    multi = render_nclock_top("multi", multi_core, clocks)
+    assert "prim_reset_sync" not in multi
+    assert multi.count("prim_ff_2sync #(") == 2
+    core_instance = "".join(multi.split("multi_core u_core", 1)[1].split())
+    assert ".cfg_rst_ni(cfg_rst_sync_ni)" in core_instance
+    assert ".dsp_rst_ni(dsp_rst_sync_ni)" in core_instance
+    assert ".rst_ni    (cfg_rst_sync_ni)" in multi
+    assert ".rst_ni    (dsp_rst_sync_ni)" in multi
+
+    rtl_root = tmp_path / "rtl"
+    rtl_root.mkdir()
+    (rtl_root / "multi.sv").write_text(multi, encoding="utf-8")
+    candidates = candidate_ips_in_order(ROOT / "hw/ips")
+    selected = select_used_ips_in_order(candidates, rtl_root)
+    resolved = resolve_ip_dependencies(selected, candidates)
+    stems = {path.stem for path in resolved}
+    assert {"prim_ff_2sync", "prim_flop"} <= stems
+    assert "prim_reset_sync" not in stems
+    assert not (ROOT / "hw/ips/prim/prim_reset_sync.sv").exists()
 
 
 def test_saved_cordic_registers_atan_before_z_arithmetic() -> None:
@@ -1963,6 +2119,8 @@ def test_sta_setup_hold_and_compact_report_contract(tmp_path: Path) -> None:
     assert "set delay_type min" in hold
     assert "flexsoc_append_opensta $report report_wns -$delay_type" in setup
     assert "flexsoc_append_opensta $report report_tns -$delay_type" in setup
+    assert 'flexsoc_label $report "wns $delay_type"' not in setup
+    assert 'flexsoc_label $report "tns $delay_type"' not in setup
     assert "flexsoc_append_opensta $report report_units" in setup
     assert "sta::" not in setup
     assert "# Report worst negative slack" in setup
@@ -1973,9 +2131,9 @@ def test_sta_setup_hold_and_compact_report_contract(tmp_path: Path) -> None:
         "Constraint validation",
         "Violating paths",
         "Near-critical paths",
-        "Unconstrained paths",
     ):
         assert section in setup
+    assert "report_checks -unconstrained" not in setup
     for obsolete in (
         "summary.rpt",
         "check_setup.rpt",
@@ -2947,7 +3105,7 @@ def test_pdk_first_layout_for_all_technology_artifacts(tmp_path: Path) -> None:
 
     assert layout.syn_dir == tmp_path / "run/syn/ihp-sg13g2"
     assert layout.pnr_dir == tmp_path / "run/impl/ihp-sg13g2"
-    assert layout.signoff_sdc == tmp_path / "run/constraints/design.sdc"
+    assert layout.signoff_sdc == tmp_path / "run/constraints/demo.sdc"
     assert layout.equivalence_dir == tmp_path / "run/signoff/ihp-sg13g2/equivalence/rtl_vs_syn"
     assert layout.sta_dir == tmp_path / "run/signoff/ihp-sg13g2/sta"
     assert layout.power_dir == tmp_path / "run/signoff/ihp-sg13g2/power"
@@ -2958,13 +3116,27 @@ def test_pdk_first_layout_for_all_technology_artifacts(tmp_path: Path) -> None:
 
 
 
-def test_synthesis_derives_abc_constraints_from_sdc() -> None:
+def test_synthesis_derives_abc_constraints_from_sdc(tmp_path: Path) -> None:
     synthesis = (ROOT / "src/flexsoc/backend/syn/syn.py").read_text(encoding="utf-8")
+    liberty = tmp_path / "cells.lib"
+    sdc = tmp_path / "demo.sdc"
+    output = tmp_path / "syn"
+    liberty.write_text('capacitive_load_unit (1.0000000000, "pf");\n', encoding="utf-8")
+    cfg = setup_syn_module.SynthesisConfig(
+        "demo", tmp_path, "asic", 10.0, output, liberty, sdc=sdc,
+    )
 
     assert "read_sdc" not in synthesis
     assert "abc.constr" in synthesis
-    assert "canonical design.sdc" in synthesis
+    assert "canonical SDC" in synthesis
     assert "-constr" in synthesis
+    for load, expected in ((0.023, "23"), (0.007, "7")):
+        sdc.write_text(f"set_load {load} [all_outputs]\n", encoding="utf-8")
+        setup_syn_module.generate_synthesis_scripts(cfg)
+        assert (output / "abc.constr").read_text(encoding="utf-8") == f"set_load {expected}\n"
+    sdc.write_text("set_drive 0.1 [all_inputs -no_clocks]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="must define set_load"):
+        setup_syn_module.generate_synthesis_scripts(cfg)
 
 
 
@@ -3079,14 +3251,14 @@ def test_canonical_sdc_scaffold_and_parser_share_clock_intent(tmp_path: Path) ->
         "N_CLOCKS": "1",
         "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low",
     })
-    path = tmp_path / "run/constraints/design.sdc"
+    path = tmp_path / "run/constraints/demo.sdc"
     init_sdc(path, top="demo", clocks=bootstrap, io_delay_pct=0.2)
     text = path.read_text(encoding="utf-8")
     assert "create_clock -name core -period 10 -waveform {0 5} [get_ports clk_i]" in text
     assert "set_input_delay -max 2 -clock core" in text
     assert "set_output_delay -max 2 -clock core" in text
-    assert "set_drive 0.0" in text
-    assert "set_load 10" in text
+    assert "set_drive 0.1" in text
+    assert "set_load 0.01" in text
     assert "# set_false_path" in text
     assert "# set_multicycle_path" in text
 
@@ -3102,8 +3274,8 @@ def test_canonical_sdc_scaffold_and_parser_share_clock_intent(tmp_path: Path) ->
     assert clock.source_latency_ns == 0.15
     assert clock.setup_uncertainty_ns == 0.1
     io = read_io_environment(path)
-    assert io.drive == 0.0
-    assert io.load == 10.0
+    assert io.drive == 0.1
+    assert io.load == 0.01
 
 
 def test_multiclock_sdc_async_relationship_is_canonical(tmp_path: Path) -> None:
@@ -3115,7 +3287,7 @@ def test_multiclock_sdc_async_relationship_is_canonical(tmp_path: Path) -> None:
         "CLOCK_DOMAINS": "core:clk_i:rst_ni:10:low,io:io_clk_i:io_rst_ni:20:low",
         "CLOCK_RELATIONSHIPS": "async:core:io",
     })
-    path = tmp_path / "run/constraints/design.sdc"
+    path = tmp_path / "run/constraints/demo.sdc"
     init_sdc(path, top="demo", clocks=bootstrap)
     parsed = read_clock_config(path, bootstrap)
     assert [clock.period_ns for clock in parsed.domains] == [10, 20]
@@ -3144,7 +3316,7 @@ def test_setup_signoff_generates_five_families_without_activity_scripts(
     }
     from flexsoc.backend.core import clock_config
     from flexsoc.backend.signoff.sdc import init_sdc
-    init_sdc(run / "constraints/design.sdc", top="demo", clocks=clock_config(values))
+    init_sdc(run / "constraints/demo.sdc", top="demo", clocks=clock_config(values))
 
     paths = generate_families(tmp_path, values)
 
@@ -3155,13 +3327,13 @@ def test_setup_signoff_generates_five_families_without_activity_scripts(
         "signoff/sky130/power/analysis/power_analysis.tcl",
         "signoff/sky130/fusion/fusion_analysis.tcl",
     }
-    sdc = run / "constraints/design.sdc"
+    sdc = run / "constraints/demo.sdc"
     assert sdc.is_file()
     assert "create_clock -name core -period 10 -waveform {0 5} [get_ports clk_i]" in sdc.read_text(encoding="utf-8")
     sta_template = run / "signoff/sky130/sta/sta.tcl"
     assert str(run / "syn/sky130/demo_synth.v") in sta_template.read_text(encoding="utf-8")
     assert not (run / "syn/sky130/demo_synth.v").exists()
-    assert (run / "constraints/design.sdc").is_file()
+    assert (run / "constraints/demo.sdc").is_file()
     assert not (run / "signoff/sky130/power/activity/scripts").exists()
 
 
@@ -3200,7 +3372,7 @@ def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path
     (results / "6_final.spef").write_text("*SPEF \"IEEE 1481-1998\"\n", encoding="utf-8")
     constraints = run / "constraints"
     constraints.mkdir(parents=True)
-    (constraints / "design.sdc").write_text(
+    (constraints / "demo.sdc").write_text(
         "create_clock -name core -period 10 -waveform {0 5} [get_ports clk_i]\n", encoding="utf-8"
     )
     liberty = tmp_path / "demo__tt_view.lib"
@@ -3220,7 +3392,7 @@ def test_post_route_context_uses_pnr_netlist_spef_and_propagated_clocks(tmp_path
     sta = next(path for path in paths if path.name == "sta.tcl").read_text(encoding="utf-8")
     assert str(results / "6_final.v") in sta
     assert str(results / "6_final.spef") in sta
-    assert str(run / "constraints/design.sdc") in sta
+    assert str(run / "constraints/demo.sdc") in sta
     assert "set_propagated_clock" in sta
     assert "report_parasitic_annotation -report_unannotated" in sta
     assert "report_clock_latency -include_internal_latency" in sta
@@ -3242,7 +3414,7 @@ def test_missing_configured_macro_liberty_is_an_error(tmp_path: Path) -> None:
     liberty.write_text("library(demo) {}\n", encoding="utf-8")
     from flexsoc.backend.core import clock_config
     from flexsoc.backend.signoff.sdc import init_sdc
-    init_sdc(run / "constraints/design.sdc", top="demo", clocks=clock_config({"N_CLOCKS": "1"}))
+    init_sdc(run / "constraints/demo.sdc", top="demo", clocks=clock_config({"N_CLOCKS": "1"}))
     with pytest.raises(ValueError, match="missing macro Liberty"):
         generate_families(
             tmp_path,
@@ -3271,9 +3443,9 @@ def test_sta_qor_is_one_canonical_report_plus_json(tmp_path: Path) -> None:
         "=== Clock QoR ===\n"
         "core period_min = 7.84 fmax = 127.55\n"
         "=== Constraint validation ===\n"
+        "Warning: There is 1 unconstrained endpoint.\n"
         "=== Violating paths ===\n-0.125 slack (VIOLATED)\n"
-        "=== Near-critical paths ===\n"
-        "=== Unconstrained paths ===\nStartpoint: floating\n",
+        "=== Near-critical paths ===\n",
         encoding="utf-8",
     )
     dummy = tmp_path / "dummy"
@@ -3300,6 +3472,20 @@ def test_sta_qor_is_one_canonical_report_plus_json(tmp_path: Path) -> None:
     assert "QoR" in rpt.read_text(encoding="utf-8")
     assert "Details" in rpt.read_text(encoding="utf-8")
 
+    hold = detail.with_name("hold.rpt")
+    hold.write_text(
+        "wns min -0.125\n"
+        "tns min -0.250\n"
+        "=== Clock QoR ===\n"
+        "=== Constraint validation ===\n"
+        "=== Violating paths ===\n-0.125 slack (VIOLATED)\n"
+        "=== Near-critical paths ===\n",
+        encoding="utf-8",
+    )
+    hold_ctx = replace(ctx, mode="hold")
+    assert _sta_scenario_summary(hold_ctx, hold)["status"] == "warn"
+    assert _sta_scenario_summary(replace(hold_ctx, stage="post_route"), hold)["status"] == "fail"
+
 
 def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
     run = tmp_path / "run"
@@ -3307,9 +3493,9 @@ def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
     timing.parent.mkdir(parents=True)
     timing.write_text(
         "=== Worst routed paths ===\n-0.125 slack (VIOLATED)\n"
+        "=== Constraint validation ===\nWarning: There is 1 unconstrained endpoint.\n"
         "=== Violating paths ===\n-0.125 slack (VIOLATED)\n-0.050 slack (VIOLATED)\n"
-        "=== Near-critical paths ===\n"
-        "=== Unconstrained paths ===\nStartpoint: floating\n",
+        "=== Near-critical paths ===\n",
         encoding="utf-8",
     )
     power = run / "signoff/sky130/power/estimate/ss/power.rpt"
@@ -4221,7 +4407,7 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
     assert ihp_json["effective"]["PDK"] == "ihp-sg13g2"
 
 
-def test_check_refreshes_current_provenance_in_metrics(tmp_path: Path) -> None:
+def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
@@ -4239,14 +4425,18 @@ def test_check_refreshes_current_provenance_in_metrics(tmp_path: Path) -> None:
     router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
 
     router.execute("setup_cdc_rdc")
-    router._report("check")
-    metrics = json.loads(router.paths.metrics.read_text(encoding="utf-8"))
+    router._report("metrics")
+    snapshot = router.paths.metrics.read_bytes()
+    metrics = json.loads(snapshot)
     assert metrics["technical_status"] == "REVIEW"
     assert metrics["provenance"]["status"] == "CLEAN"
 
     script = router.paths.run / "analysis" / "cdc_rdc" / "extract.ys"
     script.write_text(script.read_text(encoding="utf-8") + "# override\n", encoding="utf-8")
     router._report("check")
+    assert router.paths.metrics.read_bytes() == snapshot
+
+    router._report("metrics")
     metrics = json.loads(router.paths.metrics.read_text(encoding="utf-8"))
     assert metrics["provenance"]["status"] == "MODIFIED"
     assert metrics["provenance"]["stages"]["setup_cdc_rdc"] == "MODIFIED"

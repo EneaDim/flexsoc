@@ -188,7 +188,7 @@ TARGETS: dict[str, TargetSpec] = {
     "power_estimate_corners": ("Signoff", "Estimate power for each corner using global activity", SIGNOFF),
     "signoff_corners": ("Signoff", "Run SDF, multi-corner STA and estimated power", SIGNOFF),
     "hjson": ("IP flow", "Generate an HJSON register template", IP_DEV),
-    "sdc": ("IP flow", "Initialize the canonical authored design.sdc timing intent", SDC_INTENT),
+    "sdc": ("IP flow", "Initialize the canonical authored <TOP>.sdc timing intent", SDC_INTENT),
     "hjson_gen": ("IP flow", "Compatibility alias for HJSON generation", IP_DEV),
     "reg": ("IP flow", "Generate register RTL from HJSON", IP_DEV),
     "doc": ("IP flow", "Generate register documentation", IP_DEV),
@@ -269,7 +269,7 @@ TARGETS: dict[str, TargetSpec] = {
     "formal_cover": ("DV formal", "Reach authored cover properties with SymbiYosys", FORMAL),
     "setup_eqy": ("Signoff", "Generate RTL-vs-post-synthesis EQY configuration", EQUIV),
     "eqy": ("Signoff", "Prove RTL equivalent to the post-synthesis netlist with EQY", EQUIV),
-    "setup_signoff": ("Signoff", "Generate signoff scripts that consume authored design.sdc", SIGNOFF),
+    "setup_signoff": ("Signoff", "Generate signoff scripts that consume authored <TOP>.sdc", SIGNOFF),
     "compile_syn": ("Signoff", "Compile post-synthesis simulation", SIGNOFF),
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
     "compile_post_syn": ("Gate simulation", "Compile post-synthesis gate-level simulation with Icarus", GATE_SIM),
@@ -296,10 +296,10 @@ TARGETS: dict[str, TargetSpec] = {
     "fusion_analysis_all": ("Signoff", "Correlate timing and power for all aligned GLS scenarios", SIGNOFF),
     "sta_violators": ("Signoff", "Report timing violators", SIGNOFF),
     "path_view": ("Signoff", "Build interactive STA path view", SIGNOFF),
-    "metrics": ("Run metadata", "Collect functional/formal/synthesis/signoff metrics", COMMON),
+    "metrics": ("Run metadata", "Collect and save functional/formal/synthesis/signoff metrics", COMMON),
     "manifest": ("Run metadata", "Collect automatic run identity into meta/manifest.json", COMMON),
     "manifest_show": ("Run metadata", "Show the current run manifest in color", COMMON),
-    "check": ("Run metadata", "Refresh and show technical closure plus provenance status", COMMON),
+    "check": ("Run metadata", "Show saved metrics as the complete technical closure dashboard", COMMON),
     "validate_override": (
         "Run metadata", "Accept modified generated collateral for the current lineage", PROVENANCE
     ),
@@ -557,6 +557,16 @@ def _selector_log_suffix(selectors: tuple[tuple[str, str], ...]) -> str:
             continue
         parts.extend((label, _safe_log_name(text)))
     return "_".join(parts)
+
+
+DEBUG_TARGETS = {
+    "sta", "sta_corners", "sta_post_pnr",
+    "power_estimate", "power_estimate_corners", "power_analysis", "power_analysis_all",
+    "power_estimate_post_pnr", "power_analysis_post_pnr", "power_analysis_post_pnr_all",
+    "fusion_analysis", "fusion_analysis_all",
+    "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all",
+    "sim_syn", "sim_post_syn", "sim_post_syn_all", "sim_post_pnr", "sim_post_pnr_all",
+}
 
 
 TECHNOLOGY_TARGETS = {
@@ -1311,12 +1321,13 @@ class FlexSoCTarget:
 
     def _report(self, target: str) -> object:
         report = self.backend.reporting
-        if target in {"metrics", "check"}:
-            metrics = report.write_metrics(
+        if target == "metrics":
+            return report.write_metrics(
                 self.paths.top, self.paths.run, self.paths.metrics, pdk=self.paths.pdk,
                 provenance=self._provenance_summary(),
             )
-            return metrics if target == "metrics" else report.check(metrics)
+        if target == "check":
+            return report.check(self.paths.metrics)
         if target == "manifest":
             return report.write_manifest(
                 top=self.paths.top, run_top=self.paths.run_top, run_id=self.paths.run_id,
@@ -1332,6 +1343,10 @@ class FlexSoCTarget:
 
         if target == "validate_override":
             return self._validate_override()
+        if self._bool(self.values.get("DEBUG")):
+            if target not in DEBUG_TARGETS:
+                raise ValueError(f"--debug is not supported for target {target!r}")
+            return self._execute_target(target)
         self._write_settings_evidence(target)
         if target in PROVENANCE_SETUPS:
             reused = self._reuse_setup(target)
@@ -1486,6 +1501,18 @@ class FlexSoCTarget:
 
         pre = b.signoff.pre
         post = b.signoff.post
+        if self._bool(v.get("DEBUG")):
+            flow = post if target in POST_PNR_SIGNOFF_TARGETS else pre
+            output = v.get("DEBUG_OUTPUT") or None
+            if target in {"sta", "sta_corners", "sta_post_pnr"}:
+                return flow.debug_sta(output=output)
+            if target.startswith("power_"):
+                return flow.debug_power(activity=target.startswith("power_analysis"), output=output)
+            if target.startswith("fusion_analysis"):
+                return flow.debug_fusion(output=output)
+            if target in {"sim_syn", "sim_post_syn", "sim_post_syn_all", "sim_post_pnr", "sim_post_pnr_all"}:
+                return flow.debug_gls(output=output)
+            raise ValueError(f"--debug is not supported for target {target!r}")
         # Pre/post-layout sign-off, SDF, GLS, timing and power.
         if target == "setup_signoff":
             return (pre.setup_sta(), pre.setup_sdf(), pre.setup_power(), pre.setup_fusion())
@@ -2308,6 +2335,8 @@ class FlexSoC:
 
     def _preflight(self, command: FlexSoCCommand) -> None:
         """Validate technology requirements before any target mutates the run."""
+        if str(command.values.get("DEBUG", "")).strip().lower() in {"1", "true", "yes", "on"}:
+            return
         if command.target not in TECHNOLOGY_TARGETS:
             return
         root = command.values.get("PDK_ROOT")
@@ -2327,6 +2356,8 @@ class FlexSoC:
         run_top = values.get("RUN_TOP") or values.get("TOP") or "run"
         run_id = values.get("RUN_ID", "default")
         name = _safe_log_name(command.target)
+        if str(values.get("DEBUG", "")).strip().lower() in {"1", "true", "yes", "on"}:
+            name += "_debug"
         if command.target in {"sim", "sim_v", "sim_sv", "cocotb"} and values.get("TEST_NAME"):
             name = f"{name}_{_safe_log_name(values['TEST_NAME'])}"
         if command.target in {"sim_post_syn_all", "sim_post_pnr_all"}:

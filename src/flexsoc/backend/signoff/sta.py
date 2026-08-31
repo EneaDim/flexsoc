@@ -42,6 +42,9 @@ PATH_SLACK_RE = re.compile(
     r"^\s*(%s)\s+slack\s+\((MET|VIOLATED)\)" % FLOAT_RE.pattern,
     re.MULTILINE,
 )
+UNCONSTRAINED_ENDPOINT_RE = re.compile(
+    r"\bThere (?:is|are)\s+(\d+)\s+unconstrained endpoints?\b", re.IGNORECASE
+)
 
 def scenario_corner(timing_mode: str) -> str:
     """Return the Liberty corner aligned with one SDF timing mode."""
@@ -241,6 +244,14 @@ def _report_section(text: str, start: str, end: str) -> str:
     if not end:
         return section
     return section.split(end, 1)[0] if end in section else section
+
+
+def _unconstrained_endpoint_count(text: str) -> int:
+    """Return the real unconstrained endpoint count reported by ``check_setup``."""
+
+    section = _report_section(text, "=== Constraint validation ===", "=== Violating paths ===")
+    match = UNCONSTRAINED_ENDPOINT_RE.search(section)
+    return int(match.group(1)) if match else 0
 
 
 def _timing_values(text: str) -> dict[str, float]:
@@ -533,10 +544,9 @@ def render_sta_tcl(ctx: SignoffContext) -> str:
             f'puts $fp "interconnect={"spef" if ctx.stage == "post_route" else "none"}"',
             "close $fp",
             "flexsoc_section $report {Timing summary}",
-            'flexsoc_label $report "wns $delay_type"',
+            "# OpenSTA report_wns/report_tns already emit canonical 'wns <min|max>' and 'tns <min|max>' labels.",
             "# Report worst negative slack for the selected max/setup or min/hold analysis.",
             "flexsoc_append_opensta $report report_wns -$delay_type",
-            'flexsoc_label $report "tns $delay_type"',
             "# Report total negative slack across all violating endpoints for this analysis type.",
             "flexsoc_append_opensta $report report_tns -$delay_type",
             "flexsoc_section $report {Clock QoR}",
@@ -571,9 +581,6 @@ def render_sta_tcl(ctx: SignoffContext) -> str:
             "flexsoc_section $report {Near-critical paths}",
             "# Report met paths close to zero slack so timing margin is visible before it becomes a violation.",
             "flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count 3000 -endpoint_path_count 3 -unique_paths_to_endpoint -sort_by_slack -slack_min 0.0 -slack_max $near_critical_limit -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
-            "flexsoc_section $report {Unconstrained paths}",
-            "# Report paths with no valid timing requirement; review these instead of treating them as passing timing.",
-            "flexsoc_append_opensta $report report_checks -unconstrained -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count 1 -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6",
             'puts "report=$report"',
         ]
     )
@@ -933,7 +940,6 @@ def _sta_scenario_summary(ctx: SignoffContext, report: Path) -> dict[str, Any]:
     text = report.read_text(encoding="utf-8", errors="replace")
     timing = _timing_values(text)
     violating = _report_section(text, "=== Violating paths ===", "=== Near-critical paths ===")
-    unconstrained = _report_section(text, "=== Unconstrained paths ===", "")
     clock_qor = _report_section(text, "=== Clock QoR ===", "=== Constraint validation ===")
     clocks = []
     for match in re.finditer(
@@ -948,7 +954,14 @@ def _sta_scenario_summary(ctx: SignoffContext, report: Path) -> dict[str, Any]:
             "fmax_mhz": fmax,
         })
     violation_count = len(re.findall(r"slack\s+\(VIOLATED\)", violating, flags=re.IGNORECASE))
-    unconstrained_count = len(re.findall(r"^Startpoint:", unconstrained, flags=re.MULTILINE))
+    unconstrained_count = _unconstrained_endpoint_count(text)
+    timing_violation = bool(violation_count or (timing.get("wns") or 0.0) < 0.0)
+    blocking_timing = ctx.mode == "setup" or ctx.stage == "post_route"
+    status = (
+        "fail" if unconstrained_count or (blocking_timing and timing_violation)
+        else "warn" if timing_violation
+        else "pass"
+    )
     return {
         "id": f"{ctx.mode}_{ctx.corner}",
         "corner": ctx.corner,
@@ -961,7 +974,7 @@ def _sta_scenario_summary(ctx: SignoffContext, report: Path) -> dict[str, Any]:
         "violating_paths": violation_count,
         "unconstrained_paths": unconstrained_count,
         "clocks": clocks,
-        "status": "fail" if violation_count or unconstrained_count or (timing.get("wns") or 0.0) < 0.0 else "pass",
+        "status": status,
         "detail_report": str(report),
     }
 

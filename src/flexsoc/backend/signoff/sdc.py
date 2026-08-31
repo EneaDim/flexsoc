@@ -59,7 +59,7 @@ def render_sdc_scaffold(
     clocks: ClockConfig,
     *,
     io_delay_pct: float = 0.2,
-    output_load: float = 10.0,
+    output_load: float = 0.01,
 ) -> str:
     """Render one readable authored SDC scaffold from bootstrap clock/reset settings."""
 
@@ -152,7 +152,7 @@ def render_sdc_scaffold(
         "# ============================================================",
         "# 6. INPUT DRIVE",
         "# ============================================================",
-        "set_drive 0.0 [all_inputs -no_clocks]",
+        "set_drive 0.1 [all_inputs -no_clocks]",
         "# If the external driver is a known library cell, replace set_drive with:",
         "# set_driving_cell -lib_cell <driver_cell> -pin <output_pin> [all_inputs -no_clocks]",
         "",
@@ -218,7 +218,7 @@ def init_sdc(
     io_delay_pct: float = 0.2,
     force: bool = False,
 ) -> Path:
-    """Initialize the single canonical authored ``design.sdc``."""
+    """Initialize the single canonical authored ``<top>.sdc``."""
 
     return write_sdc(
         path,

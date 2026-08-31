@@ -263,19 +263,10 @@ class PackageFlow:
         if cdc.is_dir():
             destination = staged / "analysis" / "cdc_rdc"
             destination.mkdir(parents=True, exist_ok=True)
-            for name in (
-                "summary.json", "cdc.json", "rdc.json", "setup.json",
-                "glitch.json", "obligations.json",
-            ):
+            for name in ("summary.json", "cdc_rdc.rpt"):
                 source = cdc / name
                 if source.is_file():
                     shutil.copy2(source, destination / name)
-
-        cdc_log = run / "logs" / "analysis" / "cdc_rdc" / "cdc_rdc.log"
-        if cdc_log.is_file():
-            destination = staged / "logs" / "analysis" / "cdc_rdc"
-            destination.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(cdc_log, destination / "cdc_rdc.log")
 
     def _write_package_manifest(self, staged: Path, ip_name: str, top: str) -> None:
         """Write the minimal native package index without duplicating design intent."""
@@ -291,8 +282,9 @@ class PackageFlow:
             if (staged / relative).is_dir():
                 content[key] = relative
 
-        if (staged / "constraints" / "design.sdc").is_file():
-            content["timing_constraints"] = "constraints/design.sdc"
+        sdc = staged / "constraints" / f"{top}.sdc"
+        if sdc.is_file():
+            content["timing_constraints"] = f"constraints/{top}.sdc"
 
         design_intent = staged / "meta" / "design_intent.json"
         if design_intent.is_file():
@@ -372,7 +364,7 @@ class PackageFlow:
         destination.mkdir(parents=True, exist_ok=True)
         constraints = staged / "constraints"
         constraints.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(sdc, constraints / "design.sdc")
+        shutil.copy2(sdc, constraints / sdc.name)
         canonical_tcl = {
             Path("sta/sta.tcl"),
             Path("sdf/write_sdf.tcl"),
@@ -439,7 +431,7 @@ class PackageFlow:
             shutil.copy2(metrics_json, metrics)
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                Reporting().show_metrics(metrics)
+                Reporting().check(metrics)
             (target / "check.rpt").write_text(buffer.getvalue(), encoding="utf-8")
         if provenance_json and Path(provenance_json).is_file():
             shutil.copy2(provenance_json, target / "provenance.json")

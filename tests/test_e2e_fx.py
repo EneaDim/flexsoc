@@ -319,7 +319,7 @@ def _validate_ip_layout(top: str) -> None:
         f"dv/formal/properties/cover/{top}_cover.sv",
         "syn/sky130/synth.ys", "syn/sky130/synth_sv.ys",
         "syn/sky130/abc.constr", "syn/sky130/area.abc",
-        "constraints/design.sdc",
+        f"constraints/{top}.sdc",
     )
     missing = [
         path
@@ -525,8 +525,12 @@ def _assert_provenance_state(
     *, workspace: Path, top: str, run_id: str, run: Path, workdir: str,
     stage: str, expected: str,
 ) -> None:
-    """Refresh fx check and require one current provenance state."""
+    """Snapshot current metrics, render check, and require one provenance state."""
 
+    _run(
+        f"uv run --no-sync fx metrics --workdir {workdir}",
+        workspace=workspace, top=top, run_id=run_id,
+    )
     _run(
         f"uv run --no-sync fx check --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
@@ -755,7 +759,7 @@ def _run_implementation(
     cfg = impl / "config.mk"
     text = cfg.read_text(encoding="utf-8")
     netlist = (run / "syn" / pdk / f"{top}_synth.v").resolve()
-    sdc = (run / "constraints" / "design.sdc").resolve()
+    sdc = (run / "constraints" / f"{top}.sdc").resolve()
     assert f"SYNTH_NETLIST_FILES := {netlist}" in text
     assert f"SDC_FILE             := {sdc}" in text
     assert "VERILOG_FILES" not in text
@@ -827,18 +831,20 @@ def _assert_ast(top: str, run: Path) -> None:
     assert ast.is_file() and ast.stat().st_size > 0, f"missing or empty Slang AST: {ast}"
 
 def _assert_cdc_rdc_outputs(top: str, run: Path) -> None:
-    """Require the CDC/RDC stage to emit its summary, detail, and obligations."""
+    """Require one complete CDC/RDC JSON plus one human report and raw extraction evidence."""
 
     analysis = run / "analysis" / "cdc_rdc"
-    logs = run / "logs" / "analysis" / "cdc_rdc"
-    for name in ("summary.json", "cdc.json", "rdc.json", "obligations.json"):
+    for name in ("summary.json", "cdc_rdc.rpt", "extract.ys", "design.json"):
         path = analysis / name
         assert path.is_file() and path.stat().st_size > 0, f"missing CDC/RDC artifact: {path}"
     summary = json.loads((analysis / "summary.json").read_text(encoding="utf-8"))
-    assert summary.get("top") == top
-    assert "cdc" in summary and "rdc" in summary
-    detail = logs / "cdc_rdc.log"
-    assert detail.is_file() and detail.stat().st_size > 0, f"missing CDC/RDC detail log: {detail}"
+    assert summary.get("top") == top and summary.get("schema") == "flexsoc.cdc_rdc.v3"
+    assert "findings" in summary["cdc"] and "findings" in summary["rdc"]
+    assert isinstance(summary.get("obligations"), list)
+    for obsolete in ("inventory.json", "cdc.json", "rdc.json", "setup.json", "glitch.json", "obligations.json"):
+        assert not (analysis / obsolete).exists(), f"obsolete CDC/RDC artifact survived: {analysis / obsolete}"
+    extract_log = run / "logs" / "analysis" / "cdc_rdc" / "extract.log"
+    assert extract_log.is_file() and extract_log.stat().st_size > 0, f"missing CDC/RDC extraction log: {extract_log}"
 
 def _assert_design_formal_sources(top: str, run: Path) -> None:
     """Require real designer-owned prove and cover sources."""
@@ -941,7 +947,7 @@ def _assert_saved_signoff_scripts(
     pnr = root / "impl" / pdk
     assert not pnr.exists() or pnr.is_dir()
     signoff = root / "signoff" / pdk
-    assert (root / "constraints" / "design.sdc").is_file()
+    assert (root / "constraints" / f"{top}.sdc").is_file()
     assert not any(signoff.glob("*.sdc")), "SDC must not be duplicated in a PDK branch"
     assert (signoff / "equivalence" / "rtl_vs_syn").is_dir()
     canonical = {
@@ -981,13 +987,13 @@ def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
         assert (root / common).is_dir(), f"missing saved {top}/{common}"
     assert (root / "logs" / "lint").is_dir(), f"missing saved {top} lint evidence"
     assert (root / "analysis" / "cdc_rdc" / "summary.json").is_file(), f"missing saved {top} CDC/RDC summary"
-    assert (root / "analysis" / "cdc_rdc" / "obligations.json").is_file(), f"missing saved {top} CDC/RDC obligations"
-    assert (root / "logs" / "analysis" / "cdc_rdc" / "cdc_rdc.log").is_file(), f"missing saved {top} CDC/RDC log"
+    assert (root / "analysis" / "cdc_rdc" / "cdc_rdc.rpt").is_file(), f"missing saved {top} CDC/RDC report"
+    assert not (root / "logs" / "analysis" / "cdc_rdc").exists(), "CDC/RDC raw logs must not be packaged"
     assert not (root / "logs" / "lint" / "raw").exists(), "raw lint logs must not be packaged"
     design_intent = root / "meta" / "design_intent.json"
     assert design_intent.is_file(), f"missing saved {top} design intent"
     intent = json.loads(design_intent.read_text(encoding="utf-8"))["design_intent"]
-    assert (root / "constraints" / "design.sdc").is_file(), f"missing saved {top} canonical SDC"
+    assert (root / "constraints" / f"{top}.sdc").is_file(), f"missing saved {top} canonical SDC"
     settings_by_pdk = {}
     for pdk in ("sky130", "ihp-sg13g2"):
         assert (root / "syn" / pdk).is_dir(), f"missing saved {top} synthesis for {pdk}"
@@ -1050,11 +1056,6 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"uv run --no-sync fx sdc --force --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _configure_nonideal_single_clock_sdc(run / "constraints" / "design.sdc")
-        _run(
             f"uv run --no-sync fx hjson --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
@@ -1079,6 +1080,28 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
+            f"uv run --no-sync fx lint_slang_suite --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx sdc --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _configure_nonideal_single_clock_sdc(run / "constraints" / f"{top}.sdc")
+        _run(
+            f"uv run --no-sync fx setup_cdc_rdc --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id, required=False,
+        )
+        _assert_cdc_rdc_outputs(top, run)
+        _run(
             f"uv run --no-sync fx setup_model --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
@@ -1100,19 +1123,6 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
         )
         _assert_reset_driver_parity(run, top, multiclock=False)
         _assert_functional_clock_driver(run, top)
-        _run(
-            f"uv run --no-sync fx lint_slang_suite --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id, required=False,
-        )
-        _assert_cdc_rdc_outputs(top, run)
         _run(
             (
                 f"uv run --no-sync fx slang_hier --set {slang_root} "

@@ -852,7 +852,7 @@ class PDKRunLayout:
     def signoff_sdc(self) -> Path:
         """Return the single authored SDC shared by every technology stage."""
 
-        return self.run_root / "constraints" / "design.sdc"
+        return self.run_root / "constraints" / f"{self.top}.sdc"
 
     @property
     def pnr_log_dir(self) -> Path:
@@ -1662,7 +1662,7 @@ class FlowPaths:
     @property
     def rtl_ip(self) -> Path: return self.rtl / "rtl_ip.f"
     @property
-    def sdc(self) -> Path: return self.constraints / "design.sdc"
+    def sdc(self) -> Path: return self.constraints / f"{self.top}.sdc"
     @property
     def metrics(self) -> Path: return self.meta / "metrics.json"
     @property

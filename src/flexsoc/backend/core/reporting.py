@@ -137,11 +137,26 @@ def collect_cdc_rdc(top: str, run_dir: Path) -> dict[str, Any] | None:
         return None
     if not isinstance(summary, dict) or summary.get("top") != top:
         return None
-    result = dict(summary)
+    result = {
+        key: summary.get(key)
+        for key in (
+            "schema", "top", "status", "clock_domains", "reset_domains",
+            "sequential_elements", "dependencies", "verification_obligations",
+        )
+        if key in summary
+    }
+    for key in ("cdc", "rdc", "setup", "glitch"):
+        values = summary.get(key)
+        if isinstance(values, dict):
+            result[key] = {
+                name: value
+                for name, value in values.items()
+                if name not in {"findings", "crossings"}
+            }
     result["summary"] = relative(summary_path, run_dir)
-    detail_log = run_dir / "logs" / "analysis" / "cdc_rdc" / "cdc_rdc.log"
-    if detail_log.is_file():
-        result["log"] = relative(detail_log, run_dir)
+    report_path = run_dir / "analysis" / "cdc_rdc" / "cdc_rdc.rpt"
+    if report_path.is_file():
+        result["report"] = relative(report_path, run_dir)
     return result
 
 
@@ -400,12 +415,16 @@ def collect_sta(
                 flags=re.IGNORECASE | re.MULTILINE,
             )
             wns = min(map(float, slacks)) if slacks else None
-        unconstrained = text.split("=== Unconstrained paths ===", 1)[-1] if "=== Unconstrained paths ===" in text else ""
+        constraint = marked_section(text, "=== Constraint validation ===", "=== Violating paths ===") or ""
+        unconstrained = re.search(
+            r"\bThere (?:is|are)\s+(\d+)\s+unconstrained endpoints?\b",
+            constraint, flags=re.IGNORECASE,
+        )
         data: dict[str, Any] = {
             "reported_violating_paths": len(
                 re.findall(r"slack\s*\(VIOLATED\)", violating, flags=re.IGNORECASE)
             ),
-            "reported_unconstrained_paths": len(re.findall(r"^Startpoint:", unconstrained, flags=re.MULTILINE)),
+            "reported_unconstrained_paths": int(unconstrained.group(1)) if unconstrained else 0,
             "report": relative(report, run_dir),
             "log": relative(log_root / "sta" / corner / mode / f"{top}.log", run_dir),
         }
@@ -1492,6 +1511,135 @@ def status_markup(status: str) -> str:
     return f"[{color}]{normalized.upper()}[/{color}]"
 
 
+def _number_markup(value: object, *, digits: int = 6, scale: float = 1.0, suffix: str = "") -> str:
+    """Render one optional numeric QoR value with sign-aware color."""
+
+    if value is None:
+        return "[grey70]—[/grey70]"
+    number = float(value) * scale
+    color = "green" if number >= 0 else "red"
+    return f"[{color}]{number:+.{digits}f}{suffix}[/{color}]"
+
+
+def sta_qor_table(scenarios: Mapping[str, Any]) -> Table | None:
+    """Render one compact corner/mode STA matrix from normalized metrics."""
+
+    rows: list[tuple[str, str, Mapping[str, Any]]] = []
+    for corner in ("ss", "tt", "ff"):
+        modes = scenarios.get(corner)
+        if not isinstance(modes, Mapping):
+            continue
+        for mode in ("setup", "hold"):
+            values = modes.get(mode)
+            if isinstance(values, Mapping):
+                rows.append((corner, mode, values))
+    if not rows:
+        return None
+
+    table = Table(box=None, pad_edge=False, header_style="bold grey70")
+    table.add_column("Corner", style="white", no_wrap=True)
+    table.add_column("Mode", style="white", no_wrap=True)
+    table.add_column("Status", no_wrap=True)
+    table.add_column("WNS (ns)", justify="right", no_wrap=True)
+    table.add_column("TNS (ns)", justify="right", no_wrap=True)
+    table.add_column("Viol", justify="right", no_wrap=True)
+    table.add_column("Unconstr", justify="right", no_wrap=True)
+    for corner, mode, values in rows:
+        violations = int(values.get("reported_violating_paths", 0) or 0)
+        unconstrained = int(values.get("reported_unconstrained_paths", 0) or 0)
+        table.add_row(
+            corner, mode, status_markup(str(values.get("status", "unknown"))),
+            _number_markup(values.get("wns")), _number_markup(values.get("tns")),
+            f"[{count_color(violations, error=True)}]{violations}[/]",
+            f"[{count_color(unconstrained, error=True)}]{unconstrained}[/]",
+        )
+    return table
+
+
+def gls_matrix_table(gls: Mapping[str, Any]) -> Table | None:
+    """Render test × timing-mode GLS qualification without parsing raw reports."""
+
+    tests = [str(item) for item in gls.get("tests", [])]
+    modes = [str(item) for item in gls.get("timing_modes", [])]
+    records = gls.get("scenario_records")
+    if not tests or not modes or not isinstance(records, list):
+        return None
+    indexed = {
+        (str(item.get("test", "")), str(item.get("timing_mode", ""))): item
+        for item in records if isinstance(item, Mapping)
+    }
+    table = Table(box=None, pad_edge=False, header_style="bold grey70")
+    table.add_column("Test", style="white", no_wrap=True)
+    for mode in modes:
+        table.add_column(mode, justify="center", no_wrap=True)
+    for test in tests:
+        cells = []
+        for mode in modes:
+            record = indexed.get((test, mode))
+            if record is None:
+                cells.append("[grey70]—[/grey70]")
+                continue
+            status = str(record.get("status", "unknown"))
+            backend = str(record.get("backend") or "")
+            cell = status_markup(status)
+            if backend:
+                cell += f" [grey70]{backend}[/grey70]"
+            cells.append(cell)
+        table.add_row(test, *cells)
+    return table
+
+
+def power_estimate_table(power: Mapping[str, Any]) -> Table | None:
+    """Render vectorless power by corner in human units while keeping JSON in watts."""
+
+    corners = power.get("corners")
+    if not isinstance(corners, Mapping) or not corners:
+        return None
+    table = Table(box=None, pad_edge=False, header_style="bold grey70")
+    table.add_column("Corner", style="white", no_wrap=True)
+    table.add_column("Internal (mW)", justify="right")
+    table.add_column("Switching (mW)", justify="right")
+    table.add_column("Leakage (µW)", justify="right")
+    table.add_column("Total (mW)", justify="right")
+    for corner in ("ss", "tt", "ff"):
+        values = corners.get(corner)
+        if not isinstance(values, Mapping):
+            continue
+        table.add_row(
+            corner,
+            _number_markup(values.get("internal_w"), digits=3, scale=1e3),
+            _number_markup(values.get("switching_w"), digits=3, scale=1e3),
+            _number_markup(values.get("leakage_w"), digits=3, scale=1e6),
+            _number_markup(values.get("total_w"), digits=3, scale=1e3),
+        )
+    return table
+
+
+def workload_table(summary: Mapping[str, Any]) -> Table | None:
+    """Render one activity/fusion workload catalogue from its normalized reports."""
+
+    reports = summary.get("reports")
+    if not isinstance(reports, list) or not reports:
+        return None
+    table = Table(box=None, pad_edge=False, header_style="bold grey70")
+    table.add_column("Workload", style="white", no_wrap=True)
+    table.add_column("Test", style="grey70", no_wrap=True)
+    table.add_column("Backend", justify="center", no_wrap=True)
+    table.add_column("Timing", justify="center", no_wrap=True)
+    table.add_column("Status", no_wrap=True)
+    for report in reports:
+        if not isinstance(report, Mapping):
+            continue
+        table.add_row(
+            str(report.get("workload", report.get("spec", "-"))),
+            str(report.get("test", "-")),
+            str(report.get("backend", "-")),
+            str(report.get("timing_mode", "-")),
+            status_markup(str(report.get("status", "unknown"))),
+        )
+    return table
+
+
 def technical_status(metrics: Mapping[str, Any]) -> str:
     """Normalize flow closure to the public technical status contract."""
 
@@ -1597,8 +1745,8 @@ def _show_signoff_stage(console: Console, title: str, stage: dict[str, Any]) -> 
     console.print(table)
 
 
-def show_metrics(path: Path) -> None:
-    """Print one lifecycle-ordered end-of-run closure summary."""
+def show_check(path: Path) -> None:
+    """Render one lifecycle-ordered closure dashboard from saved metrics."""
 
     if not path.is_file():
         raise FileNotFoundError(f"metrics file not found: {path}; run: fx metrics")
@@ -1719,7 +1867,7 @@ def show_metrics(path: Path) -> None:
                     f"error={values.get('errors', 0)}",
                 )
         table.add_row("Obligations", str(cdc_rdc.get("verification_obligations", 0)))
-        table.add_row("Log", str(cdc_rdc.get("log", "-")))
+        table.add_row("Report", str(cdc_rdc.get("report", "-")))
         console.print(table)
 
     regression = data.get("regression")
@@ -1805,6 +1953,23 @@ def show_metrics(path: Path) -> None:
     signoff = data.get("signoff", {})
     if isinstance(signoff, dict) and signoff:
         _show_signoff_stage(console, "Pre-implementation sign-off", signoff)
+        sta_table = sta_qor_table(data.get("sta", {}))
+        if sta_table is not None:
+            console.print("[bold bright_cyan]STA QoR[/bold bright_cyan]")
+            console.print(sta_table)
+        gls_table = gls_matrix_table(data.get("post_syn_gls", {}))
+        if gls_table is not None:
+            console.print("[bold bright_cyan]GLS matrix[/bold bright_cyan]")
+            console.print(gls_table)
+        power_table = power_estimate_table(data.get("power_estimate", {}))
+        if power_table is not None:
+            console.print("[bold bright_cyan]Power estimate[/bold bright_cyan]")
+            console.print(power_table)
+        for label, key in (("Activity power workloads", "power_analysis"), ("Timing / power fusion workloads", "fusion_analysis")):
+            table = workload_table(data.get(key, {}))
+            if table is not None:
+                console.print(f"[bold bright_cyan]{label}[/bold bright_cyan]")
+                console.print(table)
 
     implementation = data.get("implementation")
     if isinstance(implementation, dict):
@@ -1827,6 +1992,25 @@ def show_metrics(path: Path) -> None:
             routed["physical"] = physical
         if routed:
             _show_signoff_stage(console, "Post Sign-Off", routed)
+            post_pnr = data.get("post_pnr", {})
+            if isinstance(post_pnr, dict):
+                sta_table = sta_qor_table(post_pnr.get("sta", {}))
+                if sta_table is not None:
+                    console.print("[bold bright_cyan]STA QoR[/bold bright_cyan]")
+                    console.print(sta_table)
+                gls_table = gls_matrix_table(post_pnr.get("gls", {}))
+                if gls_table is not None:
+                    console.print("[bold bright_cyan]GLS matrix[/bold bright_cyan]")
+                    console.print(gls_table)
+                power_table = power_estimate_table(post_pnr.get("power_estimate", {}))
+                if power_table is not None:
+                    console.print("[bold bright_cyan]Power estimate[/bold bright_cyan]")
+                    console.print(power_table)
+                for label, key in (("Activity power workloads", "power_analysis"), ("Timing / power fusion workloads", "fusion_analysis")):
+                    table = workload_table(post_pnr.get(key, {}))
+                    if table is not None:
+                        console.print(f"[bold bright_cyan]{label}[/bold bright_cyan]")
+                        console.print(table)
 
     console.print(f"\n[bright_cyan]Detailed metrics:[/bright_cyan] [#87d7ff]{path}[/#87d7ff]")
 
@@ -2482,18 +2666,13 @@ class Reporting:
         output.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         return output
 
-    def show_metrics(self, path: Path) -> None:
-        show_metrics(path)
-
     def show_manifest(self, path: Path) -> None:
         show_manifest(path)
 
     def check(self, path: Path) -> None:
-        """Render the existing closure status from metrics."""
+        """Render the saved metrics snapshot without recollecting evidence."""
 
-        if not path.is_file():
-            raise FileNotFoundError(f"metrics not found: {path}")
-        show_metrics(path)
+        show_check(path)
 
     def flow(
         self,

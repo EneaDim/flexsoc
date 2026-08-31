@@ -187,6 +187,20 @@ def abc_script(profile: str, clk_ns: float) -> str:
     return "\n".join((*lines, ""))
 
 
+def _abc_load_ff(liberty: Path, load: float) -> float:
+    """Convert an SDC load in Liberty units to ABC femtofarads."""
+
+    match = re.search(
+        r'capacitive_load_unit\s*\(\s*([-+0-9.eE]+)\s*,\s*"?([fpn]f)"?\s*\)',
+        liberty.read_text(encoding="utf-8", errors="replace"),
+        re.IGNORECASE,
+    )
+    if not match:
+        raise ValueError(f"Liberty capacitive_load_unit is missing or unsupported: {liberty}")
+    scale = {"ff": 1.0, "pf": 1e3, "nf": 1e6}[match.group(2).lower()]
+    return load * float(match.group(1)) * scale
+
+
 def render_abc_constraints(driving_cell: str = "", load: float = 10.0) -> str:
     """Render the ABC subset derivable from authored SDC I/O intent."""
 
@@ -291,7 +305,8 @@ def yosys_synth_asic_verilog(
 
     profile = _validate_profile(opt)
     cfg = SynthesisConfig(
-        top, topdir, "asic", clk_ns, outdir, liberty, sdcdir, profile,
+        top, topdir, "asic", clk_ns, outdir, liberty,
+        sdcdir=sdcdir, opt=profile,
         tie_hi=tie_hi, tie_lo=tie_lo, min_buffer=min_buffer,
     )
     script_name = _abc_script_name(profile)
@@ -325,7 +340,8 @@ def yosys_synth_asic_slang(
 
     profile = _validate_profile(opt)
     cfg = SynthesisConfig(
-        top, Path("rtl"), "asic", clk_ns, outdir, liberty, sdcdir, profile, tuple(filelists),
+        top, Path("rtl"), "asic", clk_ns, outdir, liberty,
+        sdcdir=sdcdir, opt=profile, filelists=tuple(filelists),
         tie_hi=tie_hi, tie_lo=tie_lo, min_buffer=min_buffer,
     )
     script_name = _abc_script_name(profile)
@@ -409,13 +425,18 @@ def generate_synthesis_scripts(cfg: SynthesisConfig) -> tuple[Path, ...]:
         profile = _validate_profile(cfg.opt)
         written.append(write_text(cfg.output / f"{profile}.abc", abc_script(profile, cfg.clk_period_ns)))
         if cfg.sdc is None or not cfg.sdc.is_file():
-            raise FileNotFoundError("ASIC synthesis requires the canonical design.sdc")
+            raise FileNotFoundError("ASIC synthesis requires the canonical SDC")
         from flexsoc.backend.signoff.sdc import read_io_environment
         io = read_io_environment(cfg.sdc)
+        if io.load is None:
+            raise ValueError(f"canonical SDC must define set_load for synthesis: {cfg.sdc}")
         written.append(
             write_text(
                 cfg.output / "abc.constr",
-                render_abc_constraints(io.driving_cell or "", 10.0 if io.load is None else io.load),
+                render_abc_constraints(
+                    io.driving_cell or "",
+                    _abc_load_ff(cfg.liberty, io.load),
+                ),
             )
         )
         written.append(write_text(

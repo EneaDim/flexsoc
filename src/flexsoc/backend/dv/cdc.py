@@ -13,7 +13,7 @@ import time
 from typing import Any, Callable, Mapping, Sequence, TypeVar
 
 from flexsoc.backend.core import ClockConfig, ClockDomain, clock_config
-from flexsoc.backend.core.execution import print_label, print_log, print_script, print_status_label
+from flexsoc.backend.core.execution import print_label, print_script, print_status_label
 _T = TypeVar("_T")
 
 
@@ -1288,18 +1288,6 @@ def _primary_by_crossing(findings: Sequence[DomainFinding]) -> dict[tuple[str, i
     return result
 
 
-def _inventory(ir: DesignIR) -> dict[str, Any]:
-    reset_names = sorted({item.reset_signal for item in ir.sequential if item.reset_signal})
-    return {
-        "schema": "flexsoc.domain_inventory.v2",
-        "top": ir.top,
-        "clock_domains": [asdict(domain) for domain in ir.clocks],
-        "reset_domains": reset_names,
-        "ports": [asdict(port) for port in ir.ports],
-        "sequential": [asdict(item) for item in ir.sequential],
-    }
-
-
 def _pair_counts(crossings: Sequence[Any], *, reset: bool = False) -> list[dict[str, Any]]:
     if reset:
         counter = Counter((item.source.reset_signal, item.destination.reset_signal) for item in crossings)
@@ -1420,32 +1408,16 @@ def write_reports(
     log_dir: Path,
     result: ComprehensiveAnalysis | None = None,
 ) -> dict[str, Any]:
-    """Write comprehensive structural findings and verification obligations."""
+    """Write one complete machine analysis and one human-readable report."""
 
     analysis_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
     classified = result if result is not None else classify_cdc_rdc(ir, analysis)
-    inventory = _inventory(ir)
     cdc_records = _finding_records(classified.cdc)
     rdc_records = _finding_records(classified.rdc)
     setup_records = _finding_records(classified.setup)
     glitch_records = _finding_records(classified.glitch)
     summary = _summary(ir, analysis, classified)
-
-    cdc = {
-        "schema": "flexsoc.cdc.v2",
-        "top": ir.top,
-        "status": summary["status"],
-        "findings": cdc_records,
-        "crossings": _crossing_records(analysis.clock_crossings, classified.cdc),
-    }
-    rdc = {
-        "schema": "flexsoc.rdc.v2",
-        "top": ir.top,
-        "status": summary["status"],
-        "findings": rdc_records,
-        "crossings": _crossing_records(analysis.reset_crossings, classified.rdc),
-    }
     obligations = [
         {
             "finding_id": record["id"],
@@ -1456,40 +1428,27 @@ def write_reports(
         for record in (*cdc_records, *rdc_records, *setup_records, *glitch_records)
         if record["obligations"]
     ]
-    _write_json(analysis_dir / "inventory.json", inventory)
-    _write_json(analysis_dir / "cdc.json", cdc)
-    _write_json(analysis_dir / "rdc.json", rdc)
-    _write_json(analysis_dir / "setup.json", {"schema": "flexsoc.domain_setup.v1", "findings": setup_records})
-    _write_json(analysis_dir / "glitch.json", {"schema": "flexsoc.glitch.v1", "findings": glitch_records})
-    _write_json(analysis_dir / "obligations.json", {"schema": "flexsoc.domain_obligations.v1", "items": obligations})
-    _write_json(analysis_dir / "summary.json", summary)
+    summary = {
+        **summary,
+        "schema": "flexsoc.cdc_rdc.v3",
+        "cdc": {
+            **summary["cdc"],
+            "findings": cdc_records,
+            "crossings": _crossing_records(analysis.clock_crossings, classified.cdc),
+        },
+        "rdc": {
+            **summary["rdc"],
+            "findings": rdc_records,
+            "crossings": _crossing_records(analysis.reset_crossings, classified.rdc),
+        },
+        "setup": {**summary["setup"], "findings": setup_records},
+        "glitch": {**summary["glitch"], "findings": glitch_records},
+        "obligations": obligations,
+    }
 
-    cdc_lines = [
-        "FlexSoC CDC structural analysis",
-        f"top={ir.top}",
-        f"status={summary['status']}",
-        f"raw={summary['cdc']['raw_crossings']} safe={summary['cdc']['safe']} "
-        f"review={summary['cdc']['review']} warn={summary['cdc']['warnings']} "
-        f"error={summary['cdc']['errors']}",
-        "",
-        "[findings]",
-        *(_finding_line(record) for record in cdc_records),
-    ]
-    (log_dir / "cdc.log").write_text("\n".join(cdc_lines) + "\n", encoding="utf-8")
-
-    rdc_lines = [
-        "FlexSoC RDC structural analysis",
-        f"top={ir.top}",
-        f"status={summary['status']}",
-        f"raw={summary['rdc']['raw_crossings']} safe={summary['rdc']['safe']} "
-        f"review={summary['rdc']['review']} warn={summary['rdc']['warnings']} "
-        f"error={summary['rdc']['errors']}",
-        "",
-        "[findings]",
-        *(_finding_line(record) for record in rdc_records),
-    ]
-    (log_dir / "rdc.log").write_text("\n".join(rdc_lines) + "\n", encoding="utf-8")
-
+    summary_path = analysis_dir / "summary.json"
+    report_path = analysis_dir / "cdc_rdc.rpt"
+    _write_json(summary_path, summary)
     lines = [
         "FlexSoC CDC/RDC structural analysis",
         f"top={ir.top}",
@@ -1512,7 +1471,16 @@ def write_reports(
         "[glitch]",
         *(_finding_line(record) for record in glitch_records),
     ]
-    (log_dir / "cdc_rdc.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # Clean outputs from the older split-report contract when rerunning an existing workspace.
+    for name in (
+        "inventory.json", "cdc.json", "rdc.json", "setup.json",
+        "glitch.json", "obligations.json",
+    ):
+        (analysis_dir / name).unlink(missing_ok=True)
+    for name in ("cdc.log", "rdc.log", "cdc_rdc.log"):
+        (log_dir / name).unlink(missing_ok=True)
     return summary
 
 
@@ -1733,10 +1701,6 @@ def run_analysis(
         log_dir=log_dir,
         result=result,
     )
-    if live:
-        print_label("report", f"summary={analysis_dir / 'summary.json'}")
-        print_label("report", f"obligations={analysis_dir / 'obligations.json'}")
-        print_label("report", f"detail={log_dir / 'cdc_rdc.log'}")
     print_status_label(
         "cdc_rdc",
         summary["status"],
@@ -1750,8 +1714,8 @@ def run_analysis(
         f"error={summary['rdc']['errors']} · "
         f"obligations={summary['verification_obligations']}",
     )
-    if not live:
-        print_log(log_dir / "cdc_rdc.log")
+    print_label("report", str(analysis_dir / "cdc_rdc.rpt"))
+    print_label("summary", str(analysis_dir / "summary.json"))
     return 2 if args.strict and summary["status"] == "fail" else 0
 
 
