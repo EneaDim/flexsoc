@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from flexsoc.backend.core import layout_from_values
-from flexsoc.backend.core.execution import print_label, print_script
+from flexsoc.backend.core.execution import print_script
 from flexsoc.backend.impl.impl import resolve_orfs_artifact
 
 SIGNOFF_SCENARIOS = {

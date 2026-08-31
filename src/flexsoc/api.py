@@ -1943,7 +1943,7 @@ class FlexSoCTarget:
             )
         elif target == "ip_flow":
             sequence = (
-                "reg", "doc", "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc",
+                "reg", "doc", "flist", "lint_suite", "sdc", "setup_cdc_rdc", "cdc_rdc",
                 "setup_tb", "setup_cocotb", "regression", "coverage_detail",
                 "setup_formal_prove", "setup_formal_cover",
                 "setup_formal_csr_prove", "setup_formal_csr_cover", "formal",
@@ -1953,7 +1953,7 @@ class FlexSoCTarget:
             )
         else:
             sequence = (
-                "reg", "doc", "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc",
+                "reg", "doc", "flist", "lint_suite", "sdc", "setup_cdc_rdc", "cdc_rdc",
                 "setup_tb", "setup_cocotb", "regression", "coverage_detail",
                 "setup_formal_prove", "setup_formal_cover",
                 "setup_formal_csr_prove", "setup_formal_csr_cover", "formal",

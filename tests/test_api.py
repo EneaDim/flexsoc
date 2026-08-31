@@ -61,7 +61,6 @@ from flexsoc.backend.signoff.gls import _cocotb_wrapper, execute_all
 from flexsoc.backend.dv.testbench import (
     CocotbConfig,
     cocotb_reg_driver_py_text,
-    cocotb_vec_driver_py_text,
     render_gls_make_block,
     render_reg_driver_py,
     render_tlul_interface,
@@ -3485,6 +3484,23 @@ def test_sta_qor_is_one_canonical_report_plus_json(tmp_path: Path) -> None:
     hold_ctx = replace(ctx, mode="hold")
     assert _sta_scenario_summary(hold_ctx, hold)["status"] == "warn"
     assert _sta_scenario_summary(replace(hold_ctx, stage="post_route"), hold)["status"] == "fail"
+
+
+def test_ip_flow_orders_sdc_before_cdc_setup() -> None:
+    target = object.__new__(FlexSoCTarget)
+    target._execute_sequence = lambda sequence: tuple(sequence)
+
+    generated = target._ip_flow("ip_flow")
+    assert generated.index("lint_suite") < generated.index("sdc")
+    assert generated.index("sdc") < generated.index("setup_cdc_rdc")
+    assert generated.index("setup_cdc_rdc") < generated.index("cdc_rdc")
+
+    generated_all = target._ip_flow("ip_flow_all")
+    assert generated_all.index("sdc") < generated_all.index("setup_cdc_rdc")
+
+    loaded = target._ip_flow("ip_flow_noreg")
+    assert "sdc" not in loaded
+    assert loaded.index("lint_suite") < loaded.index("setup_cdc_rdc")
 
 
 def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:

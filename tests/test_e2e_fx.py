@@ -1546,10 +1546,6 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"uv run --no-sync fx sdc --force --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
             f"uv run --no-sync fx hjson --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
@@ -1574,6 +1570,27 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
+            f"uv run --no-sync fx lint_slang_suite --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx sdc --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx setup_cdc_rdc --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id, required=False,
+        )
+        _assert_cdc_rdc_outputs(top, run)
+        _run(
             f"uv run --no-sync fx setup_model --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
@@ -1594,19 +1611,6 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _assert_reset_driver_parity(run, top, multiclock=True)
-        _run(
-            f"uv run --no-sync fx lint_slang_suite --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _run(
-            f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id, required=False,
-        )
-        _assert_cdc_rdc_outputs(top, run)
         _run(
             (
                 f"uv run --no-sync fx slang_hier --set {slang_root} "
@@ -2305,6 +2309,10 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
+                f"uv run --no-sync fx setup_cdc_rdc --force --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
                 f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id, required=False,
             )
@@ -2858,6 +2866,10 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
             )
             _run(
                 f"uv run --no-sync fx lint_verilator_suite --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _run(
+                f"uv run --no-sync fx setup_cdc_rdc --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
