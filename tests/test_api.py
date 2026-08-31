@@ -1422,9 +1422,10 @@ def test_cli_settings_persist_reset_unset_and_derive_paths(
         "--json",
     ]) == 0
     shown = json.loads(capsys.readouterr().out)
-    stored = json.loads((tmp_path / ".flexsoc/settings.json").read_text(encoding="utf-8"))
+    stored = json.loads((workdir / ".flexsoc/settings.json").read_text(encoding="utf-8"))
     assert stored["TOP"] == "demo"
     assert stored["WAVE_FORMAT"] == DEFAULT_SETTINGS["WAVE_FORMAT"]
+    assert not (tmp_path / ".flexsoc/settings.json").exists()
     assert shown["WORKSPACE"] == str(workdir.resolve())
     assert shown["RUN_ROOT"].startswith(str(workdir.resolve()))
 
@@ -1434,11 +1435,39 @@ def test_cli_settings_persist_reset_unset_and_derive_paths(
         "CLOCK_DOMAINS=core:clk_i:rst_ni:10:low",
         "--unset", "TOP",
         "--project-root", str(tmp_path),
+        "--workdir", str(workdir),
         "--json",
     ]) == 0
     updated = json.loads(capsys.readouterr().out)
     assert "TOP" not in updated
     assert updated["CLOCK_RELATIONSHIPS"] == ""
+
+
+def test_cli_workdir_settings_isolate_concurrent_flows(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    cordic = tmp_path / "cordic"
+    multi = tmp_path / "multi"
+
+    assert app([
+        "settings", "--reset", "TOP=cordic", "RUN_TOP=cordic",
+        "--project-root", str(tmp_path), "--workdir", str(cordic), "--json",
+    ]) == 0
+    capsys.readouterr()
+    assert app([
+        "settings", "--reset", "TOP=tri_stream_dsp", "RUN_TOP=tri_stream_dsp",
+        "--project-root", str(tmp_path), "--workdir", str(multi), "--json",
+    ]) == 0
+    capsys.readouterr()
+
+    assert app([
+        "settings", "--project-root", str(tmp_path), "--workdir", str(cordic), "--json",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out)["TOP"] == "cordic"
+    assert app([
+        "settings", "--project-root", str(tmp_path), "--workdir", str(multi), "--json",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out)["TOP"] == "tri_stream_dsp"
 
 
 def test_cli_target_info_dry_run_and_script_output(
@@ -1530,19 +1559,21 @@ def test_cli_pdk_list_info_and_use(capsys: pytest.CaptureFixture[str], tmp_path:
     assert json.loads(capsys.readouterr().out)["name"] == "sky130"
 
     pdk = _fake_pdk(tmp_path / "prepared-pdk")
+    workdir = tmp_path / "work"
     assert app([
         "pdk", "use", "sky130", "--set", f"PDK_ROOT={pdk}",
-        "--project-root", str(tmp_path), "--json",
+        "--project-root", str(tmp_path), "--workdir", str(workdir), "--json",
     ]) == 0
     selected = json.loads(capsys.readouterr().out)
-    settings = json.loads((tmp_path / ".flexsoc/settings.json").read_text(encoding="utf-8"))
+    settings = json.loads((workdir / ".flexsoc/settings.json").read_text(encoding="utf-8"))
     assert selected["active"] == "sky130"
     assert settings["PDK"] == "sky130"
     assert settings["PDK_ROOT"] == str(pdk.resolve())
+    assert not (tmp_path / ".flexsoc/settings.json").exists()
 
     assert app([
         "pdk", "use", "sky130", "--set", f"PDK_ROOT={pdk}",
-        "--project-root", str(tmp_path),
+        "--project-root", str(tmp_path), "--workdir", str(workdir),
     ]) == 0
     output = capsys.readouterr().out
     assert "Shared RTL, DV, formal, and SDC artifacts remain valid" in output
@@ -3288,11 +3319,52 @@ def test_multiclock_sdc_async_relationship_is_canonical(tmp_path: Path) -> None:
     })
     path = tmp_path / "run/constraints/demo.sdc"
     init_sdc(path, top="demo", clocks=bootstrap)
+    text = path.read_text(encoding="utf-8")
+    assert "set_clock_groups -asynchronous -group [get_clocks core] -group [get_clocks io]" in text
+    assert "Multi-clock I/O timing is interface-specific and must be authored explicitly." in text
+    assert "foreach " not in text
+    assert "remove_from_collection" not in text
     parsed = read_clock_config(path, bootstrap)
     assert [clock.period_ns for clock in parsed.domains] == [10, 20]
     assert parsed.relationships[0].kind == "async"
     assert parsed.relationships[0].source == "core"
     assert parsed.relationships[0].target == "io"
+
+
+def test_tri_stream_dsp_sdc_scaffold_is_explicit_and_complete(tmp_path: Path) -> None:
+    from flexsoc.backend.core import clock_config
+    from flexsoc.backend.signoff.sdc import init_sdc
+
+    bootstrap = clock_config({
+        "N_CLOCKS": "3",
+        "CLOCK_DOMAINS": (
+            "cfg:cfg_clk_i:cfg_rst_ni:20:low,"
+            "rx:rx_clk_i:rx_rst_ni:16:low,"
+            "dsp:dsp_clk_i:dsp_rst_ni:30:low"
+        ),
+        "CLOCK_RELATIONSHIPS": "async:cfg:rx,async:cfg:dsp,async:rx:dsp",
+    })
+    path = tmp_path / "run/constraints/tri_stream_dsp.sdc"
+    init_sdc(path, top="tri_stream_dsp", clocks=bootstrap)
+    text = path.read_text(encoding="utf-8")
+
+    assert "foreach " not in text
+    assert " if " not in text
+    assert "set_input_delay -max 4 -clock cfg [get_ports {cfg_tl_i}]" in text
+    assert (
+        "set_input_delay -max 3.2 -clock rx "
+        "[get_ports {rx_valid_i rx_sample_i rx_coeff_i}]"
+    ) in text
+    assert "set_input_delay -max 6 -clock dsp [get_ports {dsp_ready_i dsp_tl_i}]" in text
+    assert "set_output_delay -max 4 -clock cfg [get_ports {cfg_tl_o}]" in text
+    assert "set_output_delay -max 3.2 -clock rx [get_ports {rx_ready_o}]" in text
+    assert (
+        "set_output_delay -max 6 -clock dsp "
+        "[get_ports {dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o dsp_tl_o}]"
+    ) in text
+    assert "set_case_analysis 0 [get_ports test_en_i]" in text
+    assert "set_drive 0.1 [all_inputs -no_clocks]" in text
+    assert "set_load 0.01 [all_outputs]" in text
 
 def test_setup_signoff_generates_five_families_without_activity_scripts(
     tmp_path: Path,
@@ -3922,6 +3994,39 @@ def test_gls_command_files_include_gate_models_and_vectors(tmp_path: Path, monke
     values = {"TOP": "demo", "TEST_NAME": "smoke", "TEST_ROOT": str(test.parent), "TIMING_MODE": "zero"}
     declared = set(gls._command_files(tmp_path, values, paths, runtime=False))
     assert {tb.resolve(), netlist.resolve(), model.resolve(), *(path.resolve() for path in test.iterdir())} <= declared
+
+
+def test_flist_excludes_repository_copy_of_loaded_top(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    for name in ("cordic", "uart", "prim", "pkgs", "tlul"):
+        (project / "hw" / "ips" / name).mkdir(parents=True, exist_ok=True)
+    (project / "vendor").mkdir()
+
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "cordic", "RUN_TOP": "cordic", "RUN_ID": "dev",
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    seen: dict[str, object] = {}
+
+    def capture(**kwargs):
+        seen.update(kwargs)
+        return None
+
+    monkeypatch.setattr(router.backend.design.rtl, "setup_filelists", capture)
+    router._execute_target("flist")
+
+    search_roots = tuple(Path(path) for path in seen["search_roots"])
+    common_roots = tuple(Path(path) for path in seen["common_roots"])
+    assert router.paths.rtl in search_roots
+    assert project / "hw" / "ips" / "cordic" not in search_roots
+    assert project / "hw" / "ips" / "cordic" not in common_roots
+    assert project / "hw" / "ips" / "uart" in search_roots
+    assert project / "hw" / "ips" / "prim" in common_roots
+    assert project / "vendor" in common_roots
 
 
 def test_gate_sim_validates_explicit_driver_provenance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

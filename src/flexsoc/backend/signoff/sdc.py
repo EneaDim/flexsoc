@@ -144,8 +144,29 @@ def render_sdc_scaffold(
             f"set_input_delay -max {delay:g} -clock {clock.name} $non_clock_inputs",
             f"set_input_delay -min 0.0 -clock {clock.name} $non_clock_inputs",
         ]
+    elif top == "tri_stream_dsp":
+        domains = {domain.name: domain for domain in clocks.domains}
+        required = {"cfg", "rx", "dsp"}
+        if set(domains) != required:
+            raise ValueError("tri_stream_dsp scaffold requires cfg, rx, and dsp clock domains")
+        cfg_delay = domains["cfg"].period_ns * io_delay_pct
+        rx_delay = domains["rx"].period_ns * io_delay_pct
+        dsp_delay = domains["dsp"].period_ns * io_delay_pct
+        lines += [
+            f"set_input_delay -max {cfg_delay:g} -clock cfg [get_ports {{cfg_tl_i}}]",
+            "set_input_delay -min 0.0 -clock cfg [get_ports {cfg_tl_i}]",
+            f"set_input_delay -max {rx_delay:g} -clock rx [get_ports {{rx_valid_i rx_sample_i rx_coeff_i}}]",
+            "set_input_delay -min 0.0 -clock rx [get_ports {rx_valid_i rx_sample_i rx_coeff_i}]",
+            f"set_input_delay -max {dsp_delay:g} -clock dsp [get_ports {{dsp_ready_i dsp_tl_i}}]",
+            "set_input_delay -min 0.0 -clock dsp [get_ports {dsp_ready_i dsp_tl_i}]",
+        ]
     else:
-        lines.append("# Multi-clock input delays are interface-specific; add them explicitly here.")
+        lines += [
+            "# Multi-clock I/O timing is interface-specific and must be authored explicitly.",
+            "# Example:",
+            "# set_input_delay -max <delay> -clock <clock> [get_ports {<input_port> ...}]",
+            "# set_input_delay -min 0.0     -clock <clock> [get_ports {<input_port> ...}]",
+        ]
 
     lines += [
         "",
@@ -167,8 +188,29 @@ def render_sdc_scaffold(
             f"set_output_delay -max {delay:g} -clock {clock.name} [all_outputs]",
             f"set_output_delay -min 0.0 -clock {clock.name} [all_outputs]",
         ]
+    elif top == "tri_stream_dsp":
+        domains = {domain.name: domain for domain in clocks.domains}
+        cfg_delay = domains["cfg"].period_ns * io_delay_pct
+        rx_delay = domains["rx"].period_ns * io_delay_pct
+        dsp_delay = domains["dsp"].period_ns * io_delay_pct
+        lines += [
+            f"set_output_delay -max {cfg_delay:g} -clock cfg [get_ports {{cfg_tl_o}}]",
+            "set_output_delay -min 0.0 -clock cfg [get_ports {cfg_tl_o}]",
+            f"set_output_delay -max {rx_delay:g} -clock rx [get_ports {{rx_ready_o}}]",
+            "set_output_delay -min 0.0 -clock rx [get_ports {rx_ready_o}]",
+            f"set_output_delay -max {dsp_delay:g} -clock dsp [get_ports {{dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o dsp_tl_o}}]",
+            "set_output_delay -min 0.0 -clock dsp [get_ports {dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o dsp_tl_o}]",
+            "",
+            "# Functional timing mode: scan/test clock-gate override is inactive.",
+            "set_case_analysis 0 [get_ports test_en_i]",
+        ]
     else:
-        lines.append("# Multi-clock output delays are interface-specific; add them explicitly here.")
+        lines += [
+            "# Multi-clock output timing is interface-specific and must be authored explicitly.",
+            "# Example:",
+            "# set_output_delay -max <delay> -clock <clock> [get_ports {<output_port> ...}]",
+            "# set_output_delay -min 0.0     -clock <clock> [get_ports {<output_port> ...}]",
+        ]
 
     lines += [
         "",

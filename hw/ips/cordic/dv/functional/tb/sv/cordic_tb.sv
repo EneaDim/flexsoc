@@ -5,7 +5,7 @@
 
 module cordic_tb;
   // Parameters
-  parameter int CLK_PERIOD = 10; // ns
+  parameter real CLK_PERIOD = 10; // ns
   parameter int INITIAL_RESET_CYCLES = 5;
 
   // Inputs
@@ -36,8 +36,14 @@ module cordic_tb;
   );
 
   initial begin
-    clk_i = 0;
-    forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
+    clk_i = 1'b0;
+    #0;
+    forever begin
+      clk_i = 1'b1;
+      #5;
+      clk_i = 1'b0;
+      #5;
+    end
   end
 
   string wave_path;

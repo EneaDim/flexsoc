@@ -5,7 +5,7 @@ Flow
 Main step                    Status    
 RTL lint                     PASS      
 CDC / RDC                    REVIEW    
-Functional verification      PARTIAL   
+Functional verification      PASS      
 Formal verification          PASS      
 Synthesis                    PASS      
 RTL ↔ synthesis equivalence  PARTIAL   
@@ -18,6 +18,7 @@ Provenance
 Setup                   State  Action
 setup_cdc_rdc           CLEAN  -     
 setup_cocotb            CLEAN  -     
+setup_eqy               CLEAN  -     
 setup_formal_cover      CLEAN  -     
 setup_formal_csr_cover  CLEAN  -     
 setup_formal_csr_prove  CLEAN  -     
@@ -28,24 +29,24 @@ setup_tb                CLEAN  -
 
 RTL lint  Slang → Verilator
 Tool       Status  Errors  Warnings  Latch  Width  Unused
-slang      PASS         0         1      0      0       0
-verilator  PASS         0       180      0      0       0
+slang      PASS         0         0      0      0       0
+verilator  PASS         0       120      0      0       0
 
 CDC / RDC  post-lint structural analysis
 Status       REVIEW                                      
-Domains      clocks=1 · resets=1 · sequential=29         
+Domains      clocks=1 · resets=2 · sequential=31         
 CDC          raw=0 · safe=0 · review=0 · warn=0 · error=0
-RDC          raw=0 · safe=0 · review=1 · warn=0 · error=0
-Obligations  1                                           
-Log          logs/analysis/cdc_rdc/cdc_rdc.log           
+RDC          raw=0 · safe=1 · review=0 · warn=0 · error=0
+Obligations  0                                           
+Report       analysis/cdc_rdc/cdc_rdc.rpt                
 
 Functional verification
-Status           PARTIAL           
+Status           PASS              
 Generated tests  10                
-sv logs          0                 
-cocotb logs      0                 
-Coverage all     6783/15751  43.06%
-Coverage design  1923/2568  74.88% 
+sv logs          10                
+cocotb logs      10                
+Coverage all     7262/15856  45.80%
+Coverage design  2033/2640  77.01% 
 
 Formal verification
 Suite       Stage  Status  Time  Traces
@@ -59,9 +60,9 @@ properties  cover  PASS      0s       8
 Synthesis
 Strategy         delay1                   
 Netlist          syn/sky130/cordic_synth.v
-Cells            2634                     
-Area             19195.9104               
-Sequential area  7658.5952                
+Cells            2603                     
+Area             19506.208                
+Sequential area  7708.6432                
 Errors           0                        
 Warnings         0                        
 
@@ -81,5 +82,94 @@ Gate-level simulation  50/50  PASS · interconnect none
 Power estimate         PASS                           
 Activity power         30/30  PASS                    
 Timing / power fusion  30/30  PASS                    
+STA QoR
+Corner  Mode   Status   WNS (ns)      TNS (ns)  Viol  Unconstr
+ss      setup  FAIL    -4.520000  -1379.470000   306         0
+ss      hold   WARN    -0.480000     -0.960000     2         0
+tt      setup  PASS    +0.000000     +0.000000     0         0
+tt      hold   WARN    -0.290000     -0.590000     2         0
+ff      setup  PASS    +0.000000     +0.000000     0         0
+ff      hold   WARN    -0.180000     -0.370000     2         0
+GLS matrix
+Test             zero     unit      min      typ      max  
+auto_toggle     PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+corners         PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+quadrant_sweep  PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+random_seed_1   PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+random_seed_2   PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+random_small    PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+reconfig        PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+rotate_45deg    PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+smoke           PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+smoke_zero      PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+Power estimate
+Corner  Internal (mW)  Switching (mW)  Leakage (µW)  Total (mW)
+ss             +1.390          +0.162        +0.005      +1.550
+tt             +1.500          +0.179        +2.640      +1.680
+ff             +1.690          +0.208        +0.015      +1.900
+Activity power workloads
+Workload              Test            Backend  Timing  Status
+auto_toggle_sv_ff     auto_toggle       sv      min    PASS  
+corners_sv_ff         corners           sv      min    PASS  
+quadrant_sweep_sv_ff  quadrant_sweep    sv      min    PASS  
+random_seed_1_sv_ff   random_seed_1     sv      min    PASS  
+random_seed_2_sv_ff   random_seed_2     sv      min    PASS  
+random_small_sv_ff    random_small      sv      min    PASS  
+reconfig_sv_ff        reconfig          sv      min    PASS  
+rotate_45deg_sv_ff    rotate_45deg      sv      min    PASS  
+smoke_sv_ff           smoke             sv      min    PASS  
+smoke_zero_sv_ff      smoke_zero        sv      min    PASS  
+auto_toggle_sv_tt     auto_toggle       sv      typ    PASS  
+corners_sv_tt         corners           sv      typ    PASS  
+quadrant_sweep_sv_tt  quadrant_sweep    sv      typ    PASS  
+random_seed_1_sv_tt   random_seed_1     sv      typ    PASS  
+random_seed_2_sv_tt   random_seed_2     sv      typ    PASS  
+random_small_sv_tt    random_small      sv      typ    PASS  
+reconfig_sv_tt        reconfig          sv      typ    PASS  
+rotate_45deg_sv_tt    rotate_45deg      sv      typ    PASS  
+smoke_sv_tt           smoke             sv      typ    PASS  
+smoke_zero_sv_tt      smoke_zero        sv      typ    PASS  
+auto_toggle_sv_ss     auto_toggle       sv      max    PASS  
+corners_sv_ss         corners           sv      max    PASS  
+quadrant_sweep_sv_ss  quadrant_sweep    sv      max    PASS  
+random_seed_1_sv_ss   random_seed_1     sv      max    PASS  
+random_seed_2_sv_ss   random_seed_2     sv      max    PASS  
+random_small_sv_ss    random_small      sv      max    PASS  
+reconfig_sv_ss        reconfig          sv      max    PASS  
+rotate_45deg_sv_ss    rotate_45deg      sv      max    PASS  
+smoke_sv_ss           smoke             sv      max    PASS  
+smoke_zero_sv_ss      smoke_zero        sv      max    PASS  
+Timing / power fusion workloads
+Workload              Test            Backend  Timing  Status
+auto_toggle_sv_ff     auto_toggle       sv      min    PASS  
+corners_sv_ff         corners           sv      min    PASS  
+quadrant_sweep_sv_ff  quadrant_sweep    sv      min    PASS  
+random_seed_1_sv_ff   random_seed_1     sv      min    PASS  
+random_seed_2_sv_ff   random_seed_2     sv      min    PASS  
+random_small_sv_ff    random_small      sv      min    PASS  
+reconfig_sv_ff        reconfig          sv      min    PASS  
+rotate_45deg_sv_ff    rotate_45deg      sv      min    PASS  
+smoke_sv_ff           smoke             sv      min    PASS  
+smoke_zero_sv_ff      smoke_zero        sv      min    PASS  
+auto_toggle_sv_tt     auto_toggle       sv      typ    PASS  
+corners_sv_tt         corners           sv      typ    PASS  
+quadrant_sweep_sv_tt  quadrant_sweep    sv      typ    PASS  
+random_seed_1_sv_tt   random_seed_1     sv      typ    PASS  
+random_seed_2_sv_tt   random_seed_2     sv      typ    PASS  
+random_small_sv_tt    random_small      sv      typ    PASS  
+reconfig_sv_tt        reconfig          sv      typ    PASS  
+rotate_45deg_sv_tt    rotate_45deg      sv      typ    PASS  
+smoke_sv_tt           smoke             sv      typ    PASS  
+smoke_zero_sv_tt      smoke_zero        sv      typ    PASS  
+auto_toggle_sv_ss     auto_toggle       sv      max    PASS  
+corners_sv_ss         corners           sv      max    PASS  
+quadrant_sweep_sv_ss  quadrant_sweep    sv      max    PASS  
+random_seed_1_sv_ss   random_seed_1     sv      max    PASS  
+random_seed_2_sv_ss   random_seed_2     sv      max    PASS  
+random_small_sv_ss    random_small      sv      max    PASS  
+reconfig_sv_ss        reconfig          sv      max    PASS  
+rotate_45deg_sv_ss    rotate_45deg      sv      max    PASS  
+smoke_sv_ss           smoke             sv      max    PASS  
+smoke_zero_sv_ss      smoke_zero        sv      max    PASS  
 
-Detailed metrics: /tmp/flexsoc-reference-ips/.ip-save.cordic.iwfz1_0u/cordic/meta/sky130/metrics.json
+Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/.ip-save.cordic.r7i2ezhl/cordic/meta/sky130/metrics.json

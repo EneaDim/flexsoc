@@ -3,7 +3,7 @@
 #
 # Analysis : power_estimate
 # Design   : cordic
-# Variant  : reference
+# Variant  : dev
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v
-#   SDC           : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc
+#   Netlist       : /tmp/flexsoc-repack/cordic/runs/cordic/dev/syn/sky130/cordic_synth.v
+#   SDC           : /tmp/flexsoc-repack/cordic/runs/cordic/dev/constraints/cordic.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/estimate/template_reports
+#   Report dir    : /tmp/flexsoc-repack/cordic/runs/cordic/dev/signoff/sky130/power/estimate/template_reports
 #
 # Limitations:
 #   - This is a vectorless estimate; it does not represent a simulated workload.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/estimate/template_reports}
+set report_dir {/tmp/flexsoc-repack/cordic/runs/cordic/dev/signoff/sky130/power/estimate/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v}
-set sdc {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc}
+set netlist {/tmp/flexsoc-repack/cordic/runs/cordic/dev/syn/sky130/cordic_synth.v}
+set sdc {/tmp/flexsoc-repack/cordic/runs/cordic/dev/constraints/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}

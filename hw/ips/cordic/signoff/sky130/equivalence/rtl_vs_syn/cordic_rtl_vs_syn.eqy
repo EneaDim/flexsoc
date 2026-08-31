@@ -33,21 +33,6 @@ gold-match tl_o__flexsoc_eqy_handshake
 gold-match tl_o__flexsoc_eqy_d_ctrl
 gold-match tl_o__flexsoc_eqy_d_data
 gold-match tl_o__flexsoc_eqy_d_meta
-# FlexSoC CORDIC native-state cut-points begin
-gold-match *u_cordic_core.state_q
-gold-match *u_cordic_core.x_q
-gold-match *u_cordic_core.y_q
-gold-match *u_cordic_core.z_q
-gold-match *u_cordic_core.iter_q
-gold-match *u_cordic_core.n_iter_q
-gold-match *u_cordic_core.mode_q
-gold-match *u_cordic_core.status_valid
-gold-match *u_cordic_core.status_error
-gold-match *u_cordic_core.x_out_q
-gold-match *u_cordic_core.y_out_q
-gold-match *u_cordic_core.z_out_q
-gold-match *u_cordic_core.u_start_edge_detect.serial_q
-# FlexSoC CORDIC native-state cut-points end
 
 [collect cordic]
 join tl_o__flexsoc_eqy_handshake
@@ -57,7 +42,7 @@ join tl_o__flexsoc_eqy_d_meta
 
 [strategy sat]
 use sat
-depth 5
+depth 20
 
 [strategy pdr]
 use sby
@@ -71,4 +56,3 @@ engine smtbmc bitwuzla
 depth 2
 timeout 60
 xprop on
-

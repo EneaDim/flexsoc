@@ -3,7 +3,7 @@
 #
 # Analysis : fusion_analysis
 # Design   : cordic
-# Variant  : reference
+# Variant  : dev
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v
-#   SDC           : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc
+#   Netlist       : /tmp/flexsoc-repack/cordic/runs/cordic/dev/syn/sky130/cordic_synth.v
+#   SDC           : /tmp/flexsoc-repack/cordic/runs/cordic/dev/constraints/cordic.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
+#   VCD or SAIF   : /tmp/flexsoc-repack/cordic/runs/cordic/dev/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
 #   Activity scope: DUT_SCOPE_REQUIRED
-#   GLS report    : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
-#   Report dir    : /tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/fusion/template_reports
+#   GLS report    : /tmp/flexsoc-repack/cordic/runs/cordic/dev/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /tmp/flexsoc-repack/cordic/runs/cordic/dev/signoff/sky130/fusion/template_reports
 #
 # Limitations:
 #   - Timing and average power use the same netlist, corner, mode and activity trace.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/fusion/template_reports}
+set report_dir {/tmp/flexsoc-repack/cordic/runs/cordic/dev/signoff/sky130/fusion/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-reference-cordic/runs/cordic/reference/syn/sky130/cordic_synth.v}
-set sdc {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/cordic.sdc}
+set netlist {/tmp/flexsoc-repack/cordic/runs/cordic/dev/syn/sky130/cordic_synth.v}
+set sdc {/tmp/flexsoc-repack/cordic/runs/cordic/dev/constraints/cordic.sdc}
 set spef {}
 set top {cordic}
 set stage {post_syn}
@@ -200,7 +200,7 @@ proc flexsoc_append_activity_coverage {path} {
 }
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_file {/tmp/flexsoc-repack/cordic/runs/cordic/dev/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
 set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
@@ -227,7 +227,7 @@ puts $fp "analysis=fusion_analysis corner=tt mode=setup stage=post_syn"
 puts $fp "workload=GLS_WORKLOAD_REQUIRED"
 puts $fp "methodology=staged_public_opensta"
 puts $fp "path_power_semantics=average_instance_power_in_same_analysis_context"
-puts $fp "activity_file=/tmp/flexsoc-reference-cordic/runs/cordic/reference/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "activity_file=/tmp/flexsoc-repack/cordic/runs/cordic/dev/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
 puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
@@ -241,10 +241,9 @@ flexsoc_section $report {Constraint validation}
 # Re-check the timing setup before correlating paths with power.
 flexsoc_append_opensta $report check_setup -verbose
 flexsoc_section $report {Timing summary}
-flexsoc_label $report "wns $delay_type"
+# OpenSTA supplies canonical WNS/TNS labels; capture them verbatim for stable parsing.
 # Record worst negative slack for this setup/hold mode.
 flexsoc_append_opensta $report report_wns -$delay_type
-flexsoc_label $report "tns $delay_type"
 # Record total negative slack for the same mode and corner.
 flexsoc_append_opensta $report report_tns -$delay_type
 flexsoc_section $report {Power summary}

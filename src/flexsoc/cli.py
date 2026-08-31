@@ -669,22 +669,27 @@ Use `fx commands` to list every backend target.
 
         return {str(key).upper(): str(value) for key, value in values.items() if value is not None}
 
-    def _settings_path(root: Path) -> Path:
-        """Return the project-local settings file."""
+    def _settings_path(root: Path, workdir: Path | None = None) -> Path:
+        """Return the settings file for the selected project or workspace."""
 
-        return root / ".flexsoc" / "settings.json"
+        scope = workdir.expanduser().resolve() if workdir is not None else root
+        return scope / ".flexsoc" / "settings.json"
 
-    def _read_settings(root: Path) -> dict[str, str]:
-        """Read persisted settings merged over defaults."""
+    def _read_settings(root: Path, workdir: Path | None = None) -> dict[str, str]:
+        """Read workspace settings, falling back to project settings when absent."""
 
-        path = _settings_path(root)
+        path = _settings_path(root, workdir)
+        if workdir is not None and not path.exists():
+            path = _settings_path(root)
         values = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         return {**DEFAULT_SETTINGS, **_upper(values)}
 
-    def _write_settings(root: Path, values: Mapping[str, Any]) -> None:
-        """Write project-local settings."""
+    def _write_settings(
+        root: Path, values: Mapping[str, Any], workdir: Path | None = None
+    ) -> None:
+        """Write settings to the selected project or workspace scope."""
 
-        path = _settings_path(root)
+        path = _settings_path(root, workdir)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(_upper(values), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -775,7 +780,7 @@ Use `fx commands` to list every backend target.
 
         from .backend.core import layout_from_values
 
-        values = dict(DEFAULT_SETTINGS if reset else _read_settings(root))
+        values = dict(DEFAULT_SETTINGS if reset else _read_settings(root, workdir))
         for key in unsets:
             values.pop(key.upper(), None)
         updates = _assignments((*items, *sets))
@@ -790,7 +795,7 @@ Use `fx commands` to list every backend target.
 
             values.update(clock_config(values).to_settings())
         if reset or unsets or sets or items:
-            _write_settings(root, values)
+            _write_settings(root, values, workdir)
         display = dict(values)
         if workdir is not None:
             display["WORKSPACE"] = str(workdir.expanduser().resolve())
@@ -807,6 +812,7 @@ Use `fx commands` to list every backend target.
 
     def _pdk(
         root: Path,
+        workdir: Path | None,
         args: tuple[str, ...],
         sets: tuple[str, ...],
         *,
@@ -892,9 +898,9 @@ Use `fx commands` to list every backend target.
                 f"PDK {canonical} is not ready for digital flow under {install}; "
                 "need at least a typical Liberty and functional gate-level Verilog model"
             )
-        current = _read_settings(root)
+        current = _read_settings(root, workdir)
         current.update({"PDK": canonical, "PDK_ROOT": str(install)})
-        _write_settings(root, current)
+        _write_settings(root, current, workdir)
         derived = pdk_settings(root, canonical, install)
         if as_json:
             print(json_text({"active": canonical, "settings": current, "derived": derived}))
@@ -928,7 +934,7 @@ Use `fx commands` to list every backend target.
             scan, select, synthesis_boundary_diagnosis,
         )
 
-        settings = _read_settings(root)
+        settings = _read_settings(root, workdir)
         settings.update(_assignments(sets))
         top = settings.get("TOP", "test")
         run_top = settings.get("RUN_TOP") or top
@@ -1298,7 +1304,7 @@ Use `fx commands` to list every backend target.
         except ModuleNotFoundError:
             console.print("[red]missing dependency: prompt_toolkit[/red]")
             return 2
-        history = _settings_path(root).with_name("history")
+        history = _settings_path(root, workdir).with_name("history")
         history.parent.mkdir(parents=True, exist_ok=True)
         session = PromptSession(
             history=FileHistory(str(history)),
@@ -1447,7 +1453,7 @@ Use `fx commands` to list every backend target.
             if deps_jobs is not None:
                 dep_sets.append(f"DEPS_JOBS={deps_jobs}")
             set_args = (*set_args, *dep_sets)
-        client = FlexSoC(FlexSoCConfig(root, workdir), **_read_settings(root))
+        client = FlexSoC(FlexSoCConfig(root, workdir), **_read_settings(root, workdir))
         if not args:
             _guide()
             return
@@ -1462,7 +1468,7 @@ Use `fx commands` to list every backend target.
 
             raise typer.Exit(run_doctor(root, as_json=as_json))
         if args[0] == "pdk":
-            raise typer.Exit(_pdk(root, args[1:], set_args, force=force, as_json=as_json))
+            raise typer.Exit(_pdk(root, workdir, args[1:], set_args, force=force, as_json=as_json))
         if args[0] == "eqy_debug":
             raise typer.Exit(_eqy_debug(root, workdir, args[1:], set_args, as_json=as_json))
         if args[0] == "shell":
