@@ -2,7 +2,7 @@
 
 This is the complete user-facing reference for the `fx` command line and every backend target currently exposed by FlexSoC. It follows the same lifecycle as [Project lifecycle](project_lifecycle.md): configure the run, enter the IP, verify it, synthesize it, prove equivalence, analyze timing and power, implement it, and collect release evidence.
 
-The reference explains what each command owns. The generated scaffold architecture and design reasoning are described in [IP development guide](ip_development_guide.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
+The reference explains what each command owns. The detailed step-by-step procedure is in [IP development guide](ip_development_guide.md), while repository/backend structure is in [Architecture](architecture.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
 
 > **Execution model:** `fx target_a target_b` launches exactly the requested backend targets in order. Execution targets are **run-only by default**: `fx syn` consumes an existing `setup_syn`, `fx eqy` consumes an existing `setup_eqy`, and sign-off/formal consumers behave the same way. Setup is generated explicitly once and then reused. Re-run a setup target with `--force` only when regeneration is intentional. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
 
@@ -19,7 +19,12 @@ Examples:
 ```bash
 fx settings TOP=my_ip RUN_ID=dev
 fx hjson reg doc --force
-fx lint_suite cdc_rdc formal regression
+fx lint_suite
+fx sdc --force
+fx setup_cdc_rdc --force
+fx cdc_rdc
+fx formal
+fx regression
 fx syn eqy --set EQY_JOBS=8 --live
 fx setup_signoff --dry-run --script
 ```
@@ -38,7 +43,7 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `fx pdk list` | List known PDK profiles and local readiness. | `--json` returns the catalogue. |
 | `fx pdk info <name>` | Show source, node, digital views, OpenROAD platform, and formal adapter. | `--set PDK_ROOT=...` inspects a non-default installation. |
 | `fx pdk fetch <name>` | Fetch the configured PDK source/provider. | `--force` refreshes; `--set PDK_VERSION=...` selects a supported version. |
-| `fx pdk use <name>` | Validate digital views and persist the active PDK. | Shared RTL, DV, formal, and the canonical authored `constraints/design.sdc` remain valid; regenerate only technology-dependent synthesis/sign-off collateral for the selected PDK. |
+| `fx pdk use <name>` | Validate digital views and persist the active PDK. | Shared RTL, DV, formal, and the canonical authored `constraints/<TOP>.sdc` remain valid; regenerate only technology-dependent synthesis/sign-off collateral for the selected PDK. |
 | `fx eqy_debug [partition]` | Summarize EQY closure or diagnose one unresolved partition. | Supports `--wave`, `--files`, `--json`, and reset overrides through `--set`. |
 | `fx shell` | Open an interactive prompt with target completion and history. | `help`, `commands`, `exit`, and normal target lines are accepted. |
 
@@ -61,6 +66,8 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--script` | With `--dry-run` | Render the preview as a strict Bash script. |
 | `--capture` | Backend targets | Capture stdout/stderr and save a per-command log. |
 | `--live` | Backend targets | Stream complete tool output while retaining the command log and render generated script contents. Compact streaming targets show only their normal artifact lines unless `--live` is requested. |
+| `--debug` | STA, power, fusion, and GLS targets | Read existing analysis artifacts and render filtered diagnostics without rerunning the target. |
+| `--save-output PATH`, `-o PATH` | With `--debug` | Save the same filtered diagnostic view to a file or directory. |
 | `--json` | Supported pseudo-commands and execution output | Emit machine-readable JSON. |
 | `--info` | Backend targets | Describe selected targets and accepted variables instead of running them. |
 
@@ -195,15 +202,15 @@ After structural RTL/lint are clean, initialize the canonical SDC once:
 fx sdc --force
 ```
 
-`constraints/design.sdc` is then designer-owned timing intent. Edit clock period/waveform, generated clocks, source latency, setup/hold uncertainty, clock transition, clock groups, I/O delay, drive/load, and reviewed exceptions there. Do not maintain the same timing fact in a parallel settings override after the SDC exists. `SDC_IO_DELAY_PCT` is a bootstrap/default phasing value used by the initial scaffold and generated vector drivers, not a replacement for authored SDC timing.
+`constraints/<TOP>.sdc` is then designer-owned timing intent. Edit clock period/waveform, generated clocks, source latency, setup/hold uncertainty, clock transition, clock groups, I/O delay, drive/load, and reviewed exceptions there. Do not maintain the same timing fact in a parallel settings override after the SDC exists. `SDC_IO_DELAY_PCT` is a bootstrap/default phasing value used by the initial scaffold and generated vector drivers, not a replacement for authored SDC timing.
 
 The shared `sdc.py` adapter parses only the subset required by non-STA consumers. Functional SV/cocotb use SDC period/waveform/source latency and model `set_clock_uncertainty` as bounded uniform jitter of `±max(setup_uncertainty, hold_uncertainty)`, quantized at 1 ps. The existing run `SEED` drives the same xorshift32 sequence in both backends, so clock phase, duty cycle, relative skew, and jitter are reproducible. `set_clock_transition` remains an STA/electrical constraint rather than an analog slew model. CDC/RDC reads clock relationships from the SDC and combines them with reset ownership/polarity from bootstrap metadata. Synthesis derives `abc.constr` drive/load collateral from the same file. OpenSTA sources it directly.
 
-If the **domain/reset topology** changes, update bootstrap settings and intentionally regenerate/review `fx sdc --force`. If only timing values or exceptions change, edit `design.sdc` directly and regenerate only the affected setup stages.
+If the **domain/reset topology** changes, update bootstrap settings and intentionally regenerate/review `fx sdc --force`. If only timing values or exceptions change, edit `<TOP>.sdc` directly and regenerate only the affected setup stages.
 
 ### 1.5 Changing technology inside one logical run
 
-The run root, RTL, functional DV, property formal, and `constraints/design.sdc` are technology independent. `fx sdc` initializes that authored timing contract once from the bootstrap clock/reset settings. After that, functional TB, CDC/RDC, synthesis and STA consume the same file; `setup_syn` derives `syn/<pdk>/abc.constr` drive/load collateral from it and `setup_signoff` only generates tool scripts. After `fx pdk use <name>`, do **not** regenerate HJSON, registers, RTL, models, model-derived tests, or `design.sdc`. Regenerate only technology-dependent synthesis/sign-off collateral. Run only:
+The run root, RTL, functional DV, property formal, and `constraints/<TOP>.sdc` are technology independent. `fx sdc` initializes that authored timing contract once from the bootstrap clock/reset settings. After that, functional TB, CDC/RDC, synthesis and STA consume the same file; `setup_syn` derives `syn/<pdk>/abc.constr` drive/load collateral from it and `setup_signoff` only generates tool scripts. After `fx pdk use <name>`, do **not** regenerate HJSON, registers, RTL, models, model-derived tests, or `<TOP>.sdc`. Regenerate only technology-dependent synthesis/sign-off collateral. Run only:
 
 ```bash
 # Generated collateral is explicit and persistent. Runs never regenerate it.
@@ -232,17 +239,17 @@ Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv
 | Environment and technology | `fx doctor`, `fx deps-doctor`, `fx pdk info`, `fx pdk use` | Tool/PDK readiness |
 | Requirements to CSR/RTL entry | `fx setup`, `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`, `fx top_from_core` | Register collateral and authored RTL boundary |
 | RTL elaboration and lint | `fx flist`, `fx lint_suite`, `fx slang_hier`, `fx slang_ast` | Reachable hierarchy and clean structural RTL |
-| Timing intent | `fx sdc` | single authored `constraints/design.sdc` |
-| CDC/RDC | `fx setup_cdc_rdc`, `fx cdc_rdc` | Domain inventory, classified crossings, obligations, detailed log |
+| Timing intent | `fx sdc` | single authored `constraints/<TOP>.sdc` |
+| CDC/RDC | `fx setup_cdc_rdc`, `fx cdc_rdc` | `design.json`, `summary.json`, `cdc_rdc.rpt`, extraction setup/log |
 | Property formal | `fx setup_formal`, formal setup targets, `fx formal` | BMC/prove/cover closure |
 | Functional DV | `fx setup_model`, `fx tests_gen`, `fx setup_tb`, `fx setup_cocotb`, `fx regression`, `fx coverage_detail` | Passing scenarios, waves, coverage |
-| Sign-off setup | `fx setup_signoff` | OpenSTA Tcl families consuming `constraints/design.sdc` |
+| Sign-off setup | `fx setup_signoff` | OpenSTA Tcl families consuming `constraints/<TOP>.sdc` |
 | Synthesis | `fx setup_syn`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
 | Logical sign-off | `fx setup_eqy`, `fx eqy`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
 | Post-synthesis sign-off | `fx setup_signoff`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
 | Physical implementation | `fx setup_pnr`, `fx pnr`, `fx pnr_gui` | Placed/routed implementation |
-| Post-layout sign-off | `fx sdf_post_pnr`, `fx compile_post_pnr`, `fx sim_post_pnr`, external physical verification | Final timing-aware simulation and physical evidence |
-| Release | `fx manifest`, `fx metrics`, `fx check`, `fx ip_save` | Traceable release metadata and reusable authored sources |
+| Post-layout sign-off | `fx setup_signoff_post_pnr`, `fx sdf_post_pnr`, `fx sta_post_pnr`, routed GLS, `fx power_estimate_post_pnr`, activity/fusion post-PnR targets, `fx physical_signoff` | SPEF-aware timing, routed GLS/power/fusion, and physical evidence |
+| Release | `fx manifest`, `fx metrics`, `fx check`, `fx ip_save` | Immutable identity + normalized metrics snapshot + human closure dashboard + reusable package |
 
 The SV and cocotb vector drivers accept the same reset commands:
 
@@ -308,19 +315,23 @@ Do not uninstall distribution packages merely because a managed executable has t
 
 #### Docker and CI
 
-All container implementation files are grouped under `docker/`; only the GitHub workflow entry points remain under `.github/workflows/`, which is the directory GitHub requires for workflow discovery. The image definition is `docker/ci/Dockerfile`, its Dockerfile-specific ignore file is `docker/ci/Dockerfile.dockerignore`, and release operations are implemented by `docker/scripts/`.
+The complete ASIC toolchain is distributed as the immutable image recorded in `docker/ci/image.lock`. Normal project CI validates that lock, pulls the exact `repository@sha256:...` digest, mounts the current checkout, and runs `docker/scripts/run-ci.sh`; it does not rebuild EDA tools on ordinary source changes.
 
-Normal `.github/workflows/ci.yml` never builds the EDA image. It validates `docker/ci/image.lock`, pulls the exact `repository@sha256:...` digest, and executes `docker/scripts/run-ci.sh`. If the lock is missing, stale, or still marked `UNPUBLISHED`, CI fails with an actionable error instead of compiling Verilator, Slang, Yosys, and the other tools again.
+User-facing local execution is:
 
-Use the local release sequence before pushing a toolchain-image change:
+```bash
+IMAGE_REF="$(bash -lc 'source docker/scripts/common.sh; validate_lock')"
+docker pull "$IMAGE_REF"
+docker/scripts/run-ci.sh
+# Full E2E qualification:
+FULL_E2E=1 docker/scripts/run-ci.sh
+```
+
+Maintainers refresh the toolchain image only when declared image inputs change:
 
 ```bash
 docker/scripts/build.sh
 docker/scripts/verify.sh
-# Optional full qualification:
-FULL_E2E=1 docker/scripts/verify.sh
-
-docker/scripts/inspect.sh
 
 export GHCR_USER=<github-user>
 read -rsp 'GHCR token: ' GHCR_TOKEN; echo
@@ -328,20 +339,10 @@ export GHCR_TOKEN
 docker/scripts/publish.sh
 unset GHCR_TOKEN
 
-docker/scripts/check-lock.sh
 git add docker/ci/image.lock
 ```
 
-`publish.sh` refuses to push an image that was not verified from the current image inputs. After publishing, it resolves the registry digest, rewrites `docker/ci/image.lock`, pulls the digest-pinned image, and repeats the non-E2E verification. `.github/workflows/toolchain-image.yml` is manual-only and provides the same build/verify/publish sequence as a maintainer fallback; it is not part of normal CI.
-
-Run the committed image locally with:
-
-```bash
-docker/scripts/run-ci.sh
-FULL_E2E=1 docker/scripts/run-ci.sh
-```
-
-See `docker/README.md` for the directory layout and complete operating procedure.
+The currently implemented helper set is `build.sh`, `verify.sh`, `publish.sh`, `run-ci.sh`, and shared `common.sh`; documentation must not reference removed helper scripts. See [`docker/README.md`](../docker/README.md) for image construction and CI details.
 
 ### 3.2 Setup
 
@@ -415,17 +416,26 @@ than skipping the stage.
 | Target | Action | Main overrides | Notes |
 | --- | --- | --- | --- |
 | `fx setup_cdc_rdc` | Generate the pre-technology Yosys extraction script. | clock settings | Must exist and have valid provenance before `fx cdc_rdc` runs. |
-| `fx cdc_rdc` | Extract, classify, report, and optionally gate CDC/RDC findings. | `CDC_RDC_HEARTBEAT`, `CDC_RDC_STRICT` | Runs automatically after `lint_suite`; prints the colored final summary and detailed log path by default. `--live` shows extraction, domains, checker counts, findings, obligations, and report paths; `fx cdc_rdc --help` explains every summary/status keyword. |
+| `fx cdc_rdc` | Extract, classify, report, and optionally gate CDC/RDC findings. | `CDC_RDC_HEARTBEAT`, `CDC_RDC_STRICT` | Run-only consumer of valid `setup_cdc_rdc` provenance. Normal order is `lint_suite` → authored `<TOP>.sdc` → `setup_cdc_rdc` → `cdc_rdc`. |
 
 The checker executes the structural families in a fixed, readable order: (1) scalar and multi-bit CDC crossings, (2) async-FIFO candidates, (3) closed-loop handshakes, (4) synchronized reconvergence, (5) setup/domain and glitch checks, then (6) reset-domain crossings, (7) reset synchronizers, (8) asynchronous reset release, and (9) reset sequencing. This order is reflected directly in `cdc.py`; later checks reuse facts from earlier checks instead of re-discovering the design independently.
 
 The checks cover scalar N-FF synchronizers and their integrity, multi-bit transfers, synchronized controls, Gray/coherency obligations, undeclared or inconsistent clock/reset intent, combinational clock/reset paths, and uncontrolled reset-domain crossings. Results use `SAFE`, `WARN`, `ERROR`, and `REVIEW`; `REVIEW` records a property that structural analysis alone cannot prove.
 
-Main artifacts are under `analysis/cdc_rdc/` (`design.json`, CDC/RDC/setup/glitch
-reports, obligations, and `summary.json`) with detailed logs under
-`logs/analysis/cdc_rdc/`. The implementation is a custom FlexSoC checker; it does
-not yet implement the Accellera CDC/RDC interchange and hierarchical abstraction
-layer.
+Canonical CDC/RDC evidence is intentionally compact:
+
+```text
+analysis/cdc_rdc/
+├── extract.ys
+├── design.json
+├── summary.json
+└── cdc_rdc.rpt
+
+logs/analysis/cdc_rdc/
+└── extract.log
+```
+
+`summary.json` carries the complete machine-readable classifications, findings, setup/glitch checks, reset checks, and obligations; `cdc_rdc.rpt` is the human report. The implementation is a custom FlexSoC checker; it does not yet implement the Accellera CDC/RDC interchange and hierarchical abstraction layer.
 
 ### 3.6 DV formal
 
@@ -620,7 +630,7 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx signoff_corners` | Run SDF, multi-corner STA and estimated power. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Stops at STA when any configured corner/mode violates timing. |
 | `fx setup_eqy` | Generate RTL-vs-post-synthesis EQY configuration. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx eqy` | Prove RTL equivalent to the post-synthesis netlist with EQY. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Use `--info` for accepted overrides. |
-| `fx setup_signoff` | Generate sign-off Tcl families that consume the authored `constraints/design.sdc`. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx setup_signoff` | Generate sign-off Tcl families that consume the authored `constraints/<TOP>.sdc`. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx compile_syn` | Compile post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sim_syn` | Run post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all resolved setup/hold scenarios and consolidates qualification into `signoff/<pdk>/sta/sta.rpt` plus `sta.json`; negative timing or unconstrained paths fail qualification. |
@@ -739,17 +749,17 @@ Generate OpenROAD configuration, implement the design, and inspect the physical 
 
 ### 3.13 Run metadata
 
-Consolidate run identity, metrics, and closure status for review and release.
+Separate evidence collection from human rendering. Technology-scoped metadata lives under `meta/<pdk>/`.
 
-**Main result:** `meta/manifest.json`, metrics, and status summaries.
+**Main results:** `meta/<pdk>/manifest.json` and `meta/<pdk>/metrics.json`.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx metrics` | Collect lint, CDC/RDC, formal, functional, synthesis, and sign-off metrics. | Common run/clock settings only | CDC/RDC is reported immediately after lint in closure/check output. |
-| `fx manifest` | Collect automatic run identity and lightweight lint/CDC-RDC evidence into meta/manifest.json. | Common run/clock settings only | Use `--info` for accepted overrides. |
-| `fx manifest_show` | Show the current run manifest in color. | Common run/clock settings only | Use `--info` for accepted overrides. |
+| `fx metrics` | Collect lint, CDC/RDC, formal, functional, synthesis, implementation, and sign-off evidence into one normalized snapshot. | Common run/clock settings only | Writes `meta/<pdk>/metrics.json`; it does not render the closure dashboard. |
+| `fx manifest` | Collect run/tool/PDK identity and lightweight qualification evidence. | Common run/clock settings only | Writes `meta/<pdk>/manifest.json`. |
+| `fx manifest_show` | Show the current run manifest in color. | Common run/clock settings only | Read-only inspection of the saved manifest. |
 | `fx validate_override` | Accept an intentional manual edit to generated setup collateral for the current lineage. | `STAGE=<setup_target>` | Only `MODIFIED` can be accepted. `STALE` means rerun the setup target with the intended effective settings; `INVALID` means repair missing/inconsistent inputs and rerun setup. |
-| `fx check` | Refresh metrics, then show technical closure and current provenance independently. | `PDK` plus common run/clock settings | Technical status is `PASS/REVIEW/FAIL/UNSUPPORTED`; provenance is `CLEAN/VALIDATED_OVERRIDE/MODIFIED/STALE/INVALID`. Current setup states are recomputed from the workspace before rendering. |
+| `fx check` | Render the saved metrics snapshot as the lifecycle-ordered colored dashboard. | `PDK` plus common run/clock settings | Read-only with respect to `metrics.json`; run `fx metrics` first whenever you want a new snapshot. |
 
 ### 3.14 IP load/save
 
@@ -760,7 +770,7 @@ Move authored IP sources between the reusable library and an isolated run worksp
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
 | `fx ip_load` | Load an IP into a run workspace. | `IP_NAME` | Use `--info` for accepted overrides. |
-| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT`; use `--force` to replace existing destinations | Without `--force`, performs an atomic preflight and refuses to overwrite any existing destination, listing every conflicting package path and changing nothing. With `--force`, replaces the current-PDK/source-backed destinations while preserving unrelated PDK branches and any optional branch unavailable in the current run. Results stay in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, final `.rpt`/`.json`/`.sdf` under `signoff/<pdk>/`, reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC, exactly one canonical Tcl per sign-off family, and `meta/<pdk>` including `settings.json`; common `meta/design_intent.json` is retained once. Qualification also retains normalized lint evidence under `logs/lint/` and CDC/RDC evidence under `analysis/cdc_rdc/` plus its detail log under `logs/analysis/cdc_rdc/`; raw lint command dumps are excluded. Scenario/corner/workload-local Tcl copies are runtime collateral and are not packaged. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
+| `fx ip_save` | Save the current PDK reusable implementation/sign-off collateral and qualification metadata into the IP package. | `IP_NAME`, `IP_LIBRARY_ROOT`; use `--force` to replace existing destinations | Without `--force`, performs an atomic preflight and refuses to overwrite any existing destination, listing every conflicting package path and changing nothing. With `--force`, replaces the current-PDK/source-backed destinations while preserving unrelated PDK branches and any optional branch unavailable in the current run. Results stay in their native hierarchy: post-synthesis GLS JSON under `dv/functional/sim/post_syn/<pdk>/`, coverage `summary.txt/json` under `dv/functional/coverage/`, final `.rpt`/`.json`/`.sdf` under `signoff/<pdk>/`, reusable `syn/<pdk>`, optional `impl/<pdk>`, EQY/SDC, exactly one canonical Tcl per sign-off family, and `meta/<pdk>` including `settings.json`; common `meta/design_intent.json` is retained once. Qualification also retains normalized lint evidence under `logs/lint/` and the compact CDC/RDC package contract `analysis/cdc_rdc/summary.json` + `cdc_rdc.rpt`; extraction/runtime logs are not duplicated into the reusable package. Scenario/corner/workload-local Tcl copies are runtime collateral and are not packaged. Logs, waveforms, hidden transient sign-off reports, diagnostic RTLIL checkpoints, `__pycache__`, and `*.pyc`/`*.pyo` are excluded. |
 
 `ip_save` is intentionally non-destructive by default. A first save into missing destinations succeeds; if any destination that the current run would update already exists, the command exits before staging or replacing the package and prints the conflicting relative paths. Use `fx ip_save --force ...` only when those destinations are intended to be refreshed.
 
@@ -770,10 +780,11 @@ The saved technology branches mirror the PDK-first run layout:
 
 ```text
 hw/ips/<IP_NAME>/
+├── constraints/<TOP>.sdc
+├── analysis/cdc_rdc/
 ├── syn/<pdk>/
 ├── impl/<pdk>/
 └── signoff/<pdk>/
-    ├── <top>.sdc
     ├── equivalence/rtl_vs_syn/
     ├── sta/sta.tcl
     ├── sdf/write_sdf.tcl
@@ -905,9 +916,9 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `RUN_ID` | Configuration/run revision inside `runs/<RUN_TOP>/`. |
 | `WORKSPACE` | External workspace root; set with `--workdir` for most CLI use. |
 | `N_CLOCKS` | Number of declared clock domains. |
-| `CLOCK_DOMAINS` | Bootstrap `name:clock:reset:period_ns:polarity` entries. After `design.sdc` exists, clock timing is authored in SDC; this metadata still owns reset-domain mapping. |
-| `CLOCK_RELATIONSHIPS` | Bootstrap `async`, `sync`, or `generated` relationships used to initialize the SDC. Afterward edit clock relationships in `constraints/design.sdc`. |
-| `SDC_IO_DELAY_PCT` | Bootstrap fraction used for initial single-clock SDC I/O delays and generated vector drive/sample phasing; default `0.2`. After SDC creation, timing intent itself is edited in `constraints/design.sdc`. |
+| `CLOCK_DOMAINS` | Bootstrap `name:clock:reset:period_ns:polarity` entries. After `<TOP>.sdc` exists, clock timing is authored in SDC; this metadata still owns reset-domain mapping. |
+| `CLOCK_RELATIONSHIPS` | Bootstrap `async`, `sync`, or `generated` relationships used to initialize the SDC. Afterward edit clock relationships in `constraints/<TOP>.sdc`. |
+| `SDC_IO_DELAY_PCT` | Bootstrap fraction used for initial single-clock SDC I/O delays and generated vector drive/sample phasing; default `0.2`. After SDC creation, timing intent itself is edited in `constraints/<TOP>.sdc`. |
 | `RUN_TOP` | Run namespace; defaults to `TOP` when omitted. |
 | `FORCE` | Overwrite machine-generated collateral where the target supports regeneration. |
 | `HOST` | SoC host selection, normally `uart` or `ibex`. |
@@ -929,7 +940,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `SDF_CORNER` | Selected SDF process/timing corner. |
 | `NETLIST` | Explicit mapped or final implementation netlist. |
 | `SPEF_FILE` | Extracted parasitic file for post-route analysis. |
-| `PNR_SDC_FILE` | Explicit exceptional SDC override for post-route timing/SDF. Normal FlexSoC sign-off keeps `constraints/design.sdc` as the authored source of truth and changes netlist/SPEF/clock propagation by stage. |
+| `PNR_SDC_FILE` | Explicit exceptional SDC override for post-route timing/SDF. Normal FlexSoC sign-off keeps `constraints/<TOP>.sdc` as the authored source of truth and changes netlist/SPEF/clock propagation by stage. |
 | `POWER_ACTIVITY` | Global switching activity assumption. |
 | `POWER_DUTY` | Global duty-cycle assumption. |
 | `PATH_VIEW_FILE` | Timing path data used by the interactive viewer. |
@@ -1123,7 +1134,7 @@ fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=s
 ```bash
 fx top_from_core flist --force
 fx lint_suite
-# review constraints/design.sdc if interface timing changed
+# review constraints/<TOP>.sdc if interface timing changed
 fx setup_cdc_rdc setup_tb setup_cocotb --force
 fx cdc_rdc
 fx setup_formal_prove setup_formal_cover --force
@@ -1140,10 +1151,10 @@ fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smok
 
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
-fx sdc --force
-# review/reapply authored constraints/design.sdc
-fx flist --force
+fx top_from_core flist --force
 fx lint_suite
+fx sdc --force
+# review/reapply authored constraints/<TOP>.sdc
 fx setup_tb setup_cocotb setup_cdc_rdc setup_formal_prove setup_formal_cover setup_formal_csr_prove setup_formal_csr_cover --force
 fx cdc_rdc
 fx formal
@@ -1160,12 +1171,22 @@ fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=s
 
 ### Diagnose a failed target
 
+For STA, power, fusion, and GLS, prefer artifact-oriented debug first:
+
+```bash
+fx <target> --debug
+fx <target> --debug -o debug.txt
+```
+
+This reads existing artifacts and does not rerun the target. For deeper execution diagnosis:
+
 ```bash
 fx <target> --live
 fx <target> --dry-run --script
 fx <target> --info
-fx check
 ```
+
+`fx check` is the global lifecycle dashboard for the last saved `metrics.json`; it is not a replacement for target-local debug.
 
 For equivalence specifically:
 
@@ -1188,7 +1209,7 @@ fx eqy_debug --files <partition>
 6. Preview destructive cleanup and generated scripts with `--dry-run` before production runs.
 7. Use `fx commands --json` in automation instead of scraping terminal tables.
 
-See [Project lifecycle](project_lifecycle.md) for engineering rationale and [Quickstart](quickstart.md) for the shortest runnable flow.
+See [Project lifecycle](project_lifecycle.md) for the project narrative, [IP development guide](ip_development_guide.md) for the detailed procedure, and [Quickstart](quickstart.md) for the shortest runnable flow.
 
 
 ### 7.0 Pre-layout sign-off scenarios
@@ -1317,7 +1338,7 @@ fx pdk use <pdk>
 | tool missing | `fx doctor`, `fx deps-status`, `type -a <tool>` | activate the pinned toolchain/image or rebuild it |
 | wrong tool version | `fx manifest_show`, `fx deps-versions` | qualify with the locked image; do not mix release evidence |
 | PDK view not found | `fx pdk info`, `fx settings --json` | correct `PDK`, `PDK_ROOT`, provider/version, and view path |
-| Docker/WSL resource failure | `docker/scripts/preflight.sh`, `docker system df -v` | lower jobs, free build cache, or increase WSL memory/swap |
+| Docker/WSL resource failure | `docker system df -v`, `docker info` | lower build jobs, free build cache, or increase WSL/Docker memory/swap |
 
 ### 8.3 CSR and register collateral failures
 
@@ -1403,7 +1424,7 @@ fx formal_cover
 ### 8.7 SDC and synthesis setup failures
 
 ```bash
-# edit/review constraints/design.sdc first
+# edit/review constraints/<TOP>.sdc first
 fx setup_syn --force
 fx syn --live
 fx setup_signoff --force
@@ -1412,7 +1433,7 @@ fx sta --live
 
 | Symptom | Inspect | Repair |
 | --- | --- | --- |
-| clock not found | `constraints/design.sdc`, top port, bootstrap topology if recently changed | correct the authored SDC; regenerate the scaffold from bootstrap settings only when the topology itself changed |
+| clock not found | `constraints/<TOP>.sdc`, top port, bootstrap topology if recently changed | correct the authored SDC; regenerate the scaffold from bootstrap settings only when the topology itself changed |
 | unsupported RTL construct | synthesis log and ordered filelist | rewrite/explicitly lower while preserving behavior |
 | unexpected area/cell count | synthesis statistics | review widths, inferred storage, sharing, and optimization strategy |
 | netlist stale/wrong PDK | run path, manifest, PDK-specific synthesis leaf | rerun with explicit `PDK`/`PDK_ROOT` and correct run identity |
@@ -1482,7 +1503,7 @@ fx power_analysis_all --live --set POWER_TEST_NAMES=all
 
 | Failure | First checks |
 | --- | --- |
-| unconstrained paths | authored `constraints/design.sdc`, clocks, I/O delays, exceptions, linked top |
+| unconstrained paths | authored `constraints/<TOP>.sdc`, clocks, I/O delays, exceptions, linked top |
 | negative slack | mode/corner, constraints, architecture, mapping, path report |
 | vectorless power implausible | activity/duty, clocks, Liberty units/tables, netlist |
 | `fst2vcd` failure | conversion log and selected qualified FST |
@@ -1496,9 +1517,8 @@ fx manifest
 fx metrics
 fx check
 
-docker/scripts/check-lock.sh
-docker/scripts/inspect.sh
 docker/scripts/run-ci.sh
+# toolchain maintainers: docker/scripts/verify.sh
 ```
 
 A stale or unpublished `docker/ci/image.lock` is a release error. Normal CI
@@ -1547,10 +1567,10 @@ fx settings \
   CLOCK_DOMAINS=core:clk_i:rst_ni:10:low \
   CLOCK_RELATIONSHIPS=
 
-fx setup hjson reg doc rtl_stub flist --force
+fx setup hjson reg doc rtl_stub top_from_core flist --force
 fx lint_suite
 fx sdc --force
-# review/edit constraints/design.sdc
+# review/edit constraints/<TOP>.sdc
 fx setup_cdc_rdc --force
 fx cdc_rdc
 fx setup_model tests_gen setup_tb setup_cocotb --force
@@ -1558,6 +1578,7 @@ fx regression
 fx setup_formal --force
 fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
 fx formal
+fx pdk use sky130
 fx setup_syn
 fx syn
 fx setup_eqy
@@ -1566,7 +1587,9 @@ fx setup_signoff
 fx sdf
 fx sta
 fx power_estimate
-fx manifest metrics check
+fx manifest
+fx metrics
+fx check
 ```
 
 ### 10.2 Timing-oriented post-synthesis qualification
@@ -1601,11 +1624,11 @@ and check stages are rerun. Backend and timing-mode sweeps remain separate CI jo
 
 ```bash
 fx manifest
-fx metrics
-fx check
+fx metrics   # collect/write the snapshot
+fx check     # render that saved snapshot
 ```
 
-A PASS summary is the start of review, not the end: inspect warnings,
+A PASS dashboard is the start of review, not the end: inspect warnings,
 unconstrained paths, coverage, waivers, tool/PDK identity, and the production
 sign-off limitations recorded in the lifecycle documents.
 

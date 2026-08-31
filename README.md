@@ -7,26 +7,28 @@
 FlexSoC is an open-source orchestration framework for developing digital ASIC IP
 and small SoCs through one command-line interface: `fx`.
 
-Its purpose is not to hide the EDA tools. Its purpose is to keep the design
-intent, generated collateral, verification environments, constraints,
-implementation data, reports, and logs synchronized while the IP evolves.
+Its purpose is not to hide the EDA tools. Its purpose is to keep design intent,
+generated collateral, verification environments, constraints, implementation
+data, reports, and logs synchronized while the IP evolves.
 
 ```text
 requirements and architecture
         ↓
 CSR / register map + RTL interfaces + RTL behavior
         ↓
-functional DV + property formal + structural CDC/RDC analysis
+lint → authored timing contract → CDC/RDC
         ↓
-constraints + synthesis
+functional DV + property formal
         ↓
-RTL ↔ synthesized-netlist equivalence
+synthesis → RTL/netlist equivalence
         ↓
-post-synthesis SDF / GLS / STA / power estimate
+pre-layout SDF / GLS / STA / power
         ↓
 OpenROAD implementation
         ↓
-post-layout timing / SDF / GLS / power / physical sign-off
+post-route timing / SDF / GLS / power / physical sign-off
+        ↓
+metrics snapshot + human closure check
         ↓
 qualified reusable IP or SoC release
 ```
@@ -37,16 +39,17 @@ A hardware change rarely affects only one file. Adding a status register can
 change HJSON, generated register RTL, the Python CSR API, model behavior, tests,
 formal properties, synthesis, and software-visible documentation. Adding a
 clock domain changes constraints, testbench timing, formal assumptions, CDC/RDC
-requirements, and implementation closure.
+requirements, reset integration, and implementation closure.
 
 FlexSoC makes those dependencies explicit:
 
 - authored sources stay separate from generated collateral;
-- bootstrap clock/reset settings initialize one authored `constraints/design.sdc`; after that the SDC is the timing source of truth;
+- bootstrap clock/reset settings initialize one authored `constraints/<TOP>.sdc`; after that the SDC is the timing source of truth;
 - Slang resolves the reachable RTL hierarchy and produces ordered filelists;
-- the same vector tests can drive SystemVerilog and cocotb environments;
-- functional coverage, property proof, and RTL/netlist equivalence remain separate metrics;
-- synthesis, STA, SDF, power, and OpenROAD runs share one run identity;
+- the same scenario/model intent can drive SystemVerilog and cocotb environments;
+- functional coverage, property proof, and RTL/netlist equivalence remain separate evidence classes;
+- synthesis, STA, SDF, power, and OpenROAD runs share one logical run identity;
+- raw evidence is normalized into analysis JSON and one `metrics.json` snapshot;
 - failed runs retain logs and tool workspaces for diagnosis.
 
 The final goal is a repeatable path from an IP requirement to evidence that the
@@ -61,7 +64,8 @@ implemented hardware still matches its specification and RTL intent.
 - generated Python CSR/regmap API;
 - editable RTL core plus generated top wrapper;
 - single-clock and arbitrary N-clock configuration;
-- reusable IP loading and saving under `hw/ips/<top>/`.
+- per-domain asynchronous-assert/synchronous-release reset integration;
+- reusable IP loading and multi-PDK saving under `hw/ips/<top>/`.
 
 ### Design verification
 
@@ -72,7 +76,7 @@ implemented hardware still matches its specification and RTL intent.
 - automatic CSR formal checks;
 - authored assertions and covers through SymbiYosys;
 - custom structural CDC/RDC, protocol, reset, and glitch analysis;
-- waveform, log, and counterexample inspection.
+- waveform, log, counterexample, and filtered `--debug` inspection.
 
 ### Implementation and sign-off
 
@@ -81,23 +85,76 @@ implemented hardware still matches its specification and RTL intent.
 - EQY RTL-to-mapped-netlist equivalence;
 - post-synthesis and post-PnR gate-level simulation;
 - SDF generation;
-- OpenSTA timing and power estimation;
+- OpenSTA timing and power analysis;
 - OpenROAD physical implementation;
-- consolidated metrics and run manifests.
+- normalized metrics, manifests, and a colored lifecycle `fx check` dashboard.
 
-CDC/RDC analysis is an explicit post-lint lifecycle gate. DFT insertion and final
-foundry physical verification remain separate later-stage gates; none substitutes
-for functional verification or formal equivalence.
+CDC/RDC analysis is an explicit post-lint/post-SDC lifecycle gate. DFT insertion
+and final foundry physical verification remain separate later-stage gates; none
+substitutes for functional verification or formal equivalence.
 
-## Install
+## Install and run the toolchain
+
+The Python package alone is **not** the complete ASIC environment. `uv sync`
+installs FlexSoC and its Python dependencies, but full lint/formal/synthesis/STA/
+GLS/OpenROAD flows also require the pinned EDA toolchain.
+
+For normal full-flow use, the recommended path is the immutable Docker image
+recorded in `docker/ci/image.lock`.
+
+Clone the repository, then resolve and pull the exact verified image:
+
+```bash
+IMAGE_REF="$(bash -lc 'source docker/scripts/common.sh; validate_lock')"
+docker pull "$IMAGE_REF"
+```
+
+Open an interactive development shell with the current checkout mounted at
+`/workspace`:
+
+```bash
+docker run --rm -it \
+  --pull=missing \
+  --volume "$PWD:/workspace" \
+  --workdir /workspace \
+  --env PYTHONPATH=src \
+  --env DEPS_MODE=system \
+  "$IMAGE_REF" \
+  bash
+```
+
+Inside the container, bind the current source tree and verify the environment:
+
+```bash
+uv pip install --python "$VIRTUAL_ENV/bin/python" --no-deps --editable .
+fx deps-doctor
+fx doctor
+fx --help
+```
+
+For a non-interactive repository qualification using the same locked image:
+
+```bash
+docker/scripts/run-ci.sh
+```
+
+Run the full E2E qualification inside it with:
+
+```bash
+FULL_E2E=1 docker/scripts/run-ci.sh
+```
+
+A host installation is still useful for Python/API/documentation development:
 
 ```bash
 uv sync
 source .venv/bin/activate
-fx doctor
-fx --help
-fx commands
+make check
 ```
+
+but a host can run the complete ASIC flow only when the matching EDA toolchain is
+already installed and `fx doctor` reports it ready. Image build/publish details
+belong in [docker/README.md](docker/README.md).
 
 ## Minimal single-clock flow
 
@@ -114,6 +171,7 @@ fx lint_suite
 
 # Initialize once, then review/edit as authored timing intent.
 fx sdc --force
+# edit constraints/my_ip.sdc
 
 fx setup_cdc_rdc --force
 fx cdc_rdc
@@ -137,12 +195,21 @@ fx setup_signoff
 fx sdf
 fx sta
 fx power_estimate
+
 fx manifest
 fx metrics
 fx check
 ```
 
-`fx sdc` is the handoff from bootstrap settings to authored timing intent. Functional SV/cocotb clocks, CDC/RDC clock relationships, synthesis drive/load setup, implementation, and STA all consume the same `constraints/design.sdc`. Functional clocks honor SDC waveform and source latency, and model `set_clock_uncertainty` as bounded reproducible jitter using the run `SEED`.
+`fx sdc` is the handoff from bootstrap settings to authored timing intent.
+Functional SV/cocotb clocks, CDC/RDC clock relationships, synthesis drive/load
+setup, implementation, and STA all consume the same `constraints/<TOP>.sdc`.
+Functional clocks honor SDC waveform and source latency and model clock
+uncertainty as bounded reproducible jitter using the run `SEED`.
+
+`fx metrics` writes the normalized snapshot to `meta/<pdk>/metrics.json`.
+`fx check` reads that saved snapshot and renders the colored lifecycle dashboard;
+it does not recollect or modify metrics.
 
 ## Minimal N-clock configuration
 
@@ -154,24 +221,31 @@ fx settings \
   'CLOCK_RELATIONSHIPS=async:cfg:rx,async:cfg:dsp,async:rx:dsp'
 ```
 
-The command vocabulary remains the same for one or many clocks. `N_CLOCKS`, `CLOCK_DOMAINS`, and `CLOCK_RELATIONSHIPS` are bootstrap/reset-domain metadata used to initialize the first SDC and retain reset ownership/polarity. Once `constraints/design.sdc` exists, edit clock timing and clock relationships there rather than maintaining a parallel timing configuration. FlexSoC does not silently infer asynchronous relationships.
+The command vocabulary remains the same for one or many clocks. Bootstrap
+metadata initializes the first SDC and retains reset ownership/polarity. Once
+`constraints/tri_stream_dsp.sdc` exists, edit clock timing and relationships
+there rather than maintaining a parallel timing configuration. `top_from_core`
+adds one domain-local reset synchronizer per clock/reset domain using the common
+`prim_ff_2sync` primitive.
 
 ## Development principles
 
 1. Edit the real source of truth.
 2. Regenerate only the derived boundary that became stale.
-3. Preserve authored RTL, model, tests, and properties.
+3. Preserve authored RTL, model, tests, properties, and timing intent.
 4. Rerun every quality gate whose assumptions changed.
-5. Treat `PASS`, coverage, proof closure, timing closure, and physical closure as different evidence.
-6. Release only from a reproducible run with retained configuration, logs, metrics, and manifests.
+5. Treat lint, CDC/RDC, simulation, coverage, proof, equivalence, timing, power, and physical closure as different evidence.
+6. Prefer few complete artifacts over many overlapping reports.
+7. Release only from a reproducible run with retained configuration, provenance, metrics, and manifest.
 
 ## Documentation
 
 - [Quickstart](docs/quickstart.md) — the shortest runnable single-clock and N-clock workflows.
-- [Architecture](docs/architecture.md) — code structure, backend responsibilities, execution/provenance contracts, and end-to-end data flow.
-- [Project lifecycle](docs/project_lifecycle.md) — the complete ASIC design, verification, implementation, sign-off, change-propagation, troubleshooting, reuse, and release guide.
-- [IP development guide](docs/ip_development_guide.md) — the detailed scaffold architecture, ownership boundaries, artifacts, rationale, failure recovery, GLS model policy, and activity-power flow.
-- [Command reference](docs/command_reference.md) — every `fx` pseudo-command, backend target, option, variable, lifecycle role, and diagnostic workflow.
+- [Project lifecycle](docs/project_lifecycle.md) — what happens to a project from design intent through qualification and reusable release.
+- [IP development guide](docs/ip_development_guide.md) — detailed step-by-step IP development and qualification flow.
+- [Command reference](docs/command_reference.md) — exact `fx` commands, options, variables, target responsibilities, and diagnostics.
+- [Architecture](docs/architecture.md) — repository/backend structure, ownership boundaries, execution, provenance, and evidence model.
+- [Docker and CI](docker/README.md) — locked EDA image construction, verification, publication, and CI execution.
 
 ## Run layout
 
@@ -179,17 +253,19 @@ A run is isolated by `RUN_TOP` and `RUN_ID`:
 
 ```text
 <WORKDIR>/runs/<RUN_TOP>/<RUN_ID>/
-├── data/             # register specifications
-├── rtl/              # RTL and ordered filelists
-├── doc/              # generated register documentation
-├── constraints/      # authored design.sdc timing contract
-├── dv/               # functional and property-formal collateral
-├── analysis/         # normalized CDC/RDC evidence
-├── syn/<pdk>/        # synthesized implementation
-├── impl/<pdk>/
-├── signoff/          # equivalence, STA, SDF, power
-├── logs/             # tool logs, including packaged lint/CDC evidence
-└── meta/             # design intent + per-PDK settings/manifest/metrics/provenance
+├── data/                  register specifications
+├── rtl/                   RTL and ordered filelists
+├── doc/                   generated register documentation
+├── constraints/<TOP>.sdc  authored timing contract
+├── dv/                    functional and property-formal collateral
+├── analysis/cdc_rdc/      compact structural CDC/RDC evidence
+├── syn/<pdk>/             synthesis branch
+├── impl/<pdk>/            physical implementation branch
+├── signoff/<pdk>/         pre/post-route sign-off evidence
+├── logs/                  raw command/tool logs
+└── meta/
+    ├── design_intent.json
+    └── <pdk>/             settings/provenance/manifest/metrics
 ```
 
 ## API and end-to-end regression
@@ -200,19 +276,19 @@ Run the public API/CLI contract tests:
 pytest -q tests/test_api.py
 ```
 
-Run the complete generated flows:
+Run complete generated flows:
 
 ```bash
 pytest -s tests/test_e2e_fx.py
 ```
 
-Use a retained workspace while debugging:
+Retain E2E workspaces while debugging:
 
 ```bash
 pytest -s tests/test_e2e_fx.py --e2e-root ~/flexsoc-e2e
 ```
 
-Skip implementation and sign-off for frontend-only iterations:
+Skip implementation/sign-off for frontend-only iterations:
 
 ```bash
 pytest -s tests/test_e2e_fx.py --no-signoff --e2e-root ~/flexsoc-e2e

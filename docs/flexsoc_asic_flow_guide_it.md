@@ -491,6 +491,8 @@ Sono gate separati per scelta architetturale.
 
 ## 7. CDC/RDC: analisi strutturale clock/reset-domain
 
+Nel lifecycle eseguibile questo stage gira **dopo il lint e dopo la creazione dell'SDC authored `constraints/<TOP>.sdc`**: `lint_suite → sdc → setup_cdc_rdc → cdc_rdc`. La sezione 10 descrive il contratto timing più avanti per raggruppamento concettuale.
+
 FlexSoC implementa un pass CDC/RDC strutturale e technology-neutral, invece di affidarsi a semplici pattern testuali.
 
 ### 7.1 Stage di estrazione
@@ -886,14 +888,14 @@ Lo scaffold delle proprietà viene creato solo se assente. Dopo la creazione è 
 
 ## 10. Intento timing canonico: un solo SDC authored, viste derivate minime
 
-FlexSoC mantiene l'intento timing in un solo file di proprietà del designer: `constraints/design.sdc`. I formati specifici dei backend sono collateral derivato, non sorgenti di verità concorrenti.
+FlexSoC mantiene l'intento timing in un solo file di proprietà del designer: `constraints/<TOP>.sdc`. I formati specifici dei backend sono collateral derivato, non sorgenti di verità concorrenti.
 
 ```text
 settings bootstrap clock/reset
         ↓
 fx sdc
         ↓
-constraints/design.sdc
+constraints/<TOP>.sdc
         │
         ├─ TB functional: waveform/fase/jitter del clock
         ├─ CDC/RDC: clock + relazioni tra clock
@@ -914,7 +916,7 @@ Dopo che RTL e lint sono strutturalmente puliti:
 fx sdc --force
 ```
 
-Da quel momento periodo/waveform, generated clock, latency, uncertainty, transition, clock groups, I/O timing, drive/load ed eccezioni timing sono authored in `constraints/design.sdc`. Ownership e polarità dei reset restano fuori dall'SDC perché il normale SDC non le descrive.
+Da quel momento periodo/waveform, generated clock, latency, uncertainty, transition, clock groups, I/O timing, drive/load ed eccezioni timing sono authored in `constraints/<TOP>.sdc`. Ownership e polarità dei reset restano fuori dall'SDC perché il normale SDC non le descrive.
 
 ### 10.2 Contenuto dello scaffold SDC
 
@@ -959,7 +961,7 @@ Yosys + ABC
 
 ### 10.5 `abc.constr` non è un SDC
 
-L'input `-constr` di ABC è volutamente limitato. Non rappresenta generated clock, clock groups asincroni, I/O timing completo, false/multicycle path, propagazione del clock o parassiti. Queste semantiche restano in `design.sdc`.
+L'input `-constr` di ABC è volutamente limitato. Non rappresenta generated clock, clock groups asincroni, I/O timing completo, false/multicycle path, propagazione del clock o parassiti. Queste semantiche restano in `<TOP>.sdc`.
 
 ### 10.6 STA e implementazione usano lo stesso SDC authored
 
@@ -968,7 +970,7 @@ Pre-implementation:
 ```text
 FlexSoC mapped netlist
 + Liberty timing views
-+ constraints/design.sdc
++ constraints/<TOP>.sdc
 → OpenSTA
 ```
 
@@ -977,14 +979,14 @@ Implementazione:
 ```text
 ORFS config.mk
   SYNTH_NETLIST_FILES := FlexSoC mapped netlist
-  SDC_FILE             := constraints/design.sdc
+  SDC_FILE             := constraints/<TOP>.sdc
 ```
 
 ORFS/OpenROAD può produrre anche `6_final.sdc` come artifact del proprio result tree, ma FlexSoC non lo trasforma in un nuovo owner dell'intento. Il sign-off routed mantiene l'SDC authored e cambia il modello fisico:
 
 ```text
 final routed netlist (6_final.v)
-+ constraints/design.sdc
++ constraints/<TOP>.sdc
 + routed SPEF (6_final.spef)
 + propagated clocks
 → OpenSTA post-route
@@ -995,7 +997,7 @@ final routed netlist (6_final.v)
 ```text
 bootstrap clock/reset
         ↓
-constraints/design.sdc
+constraints/<TOP>.sdc
         │
   ┌─────┼─────────────┐
   ▼     ▼             ▼
@@ -1008,14 +1010,14 @@ constraints/design.sdc
              ┌────────┴───────┐
              ▼                ▼
         STA pre-route      ORFS/OpenROAD
-         design.sdc         design.sdc
+         <TOP>.sdc         <TOP>.sdc
                                 │
                                 ▼
                        final netlist + SPEF
                                 │
                                 ▼
                          STA post-route
-                           design.sdc
+                           <TOP>.sdc
 ```
 
 Un contratto authored, consumer piccoli e deliberati.
@@ -1675,13 +1677,13 @@ La STA post-implementation passa dal modello ideal/pre-layout a quello fisico/ro
 read final Liberty corner
 → read 6_final.v
 → link design
-→ read constraints/design.sdc
+→ read constraints/<TOP>.sdc
 → read 6_final.spef
 → set clocks propagated
 → analyze setup/hold/electrical constraints
 ```
 
-ORFS può produrre `6_final.sdc` nel proprio result tree, ma il contratto timing FlexSoC resta `constraints/design.sdc`. Un SDC post-route diverso viene usato solo come override eccezionale esplicito.
+ORFS può produrre `6_final.sdc` nel proprio result tree, ma il contratto timing FlexSoC resta `constraints/<TOP>.sdc`. Un SDC post-route diverso viene usato solo come override eccezionale esplicito.
 
 Il modello routed è quindi:
 
@@ -1975,7 +1977,7 @@ Physical sign-off
 
 ### 32.1 `metrics`
 
-Le metrics sono evidenza machine-readable:
+`fx metrics` raccoglie lo stato corrente e scrive lo snapshot normalizzato in `meta/<pdk>/metrics.json`; non renderizza la dashboard. Le metrics sono evidenza machine-readable:
 
 - conteggi di verifica;
 - coverage;
@@ -2000,7 +2002,7 @@ Il manifest collega la run a:
 
 ### 32.3 `check`
 
-`fx check` è la vista human-readable della closure.
+`fx check` è la vista human-readable della closure e legge lo snapshot `metrics.json` già salvato senza rigenerarlo.
 
 Non deve riversare ogni report a terminale; deve rispondere in ordine logico:
 
@@ -2659,7 +2661,7 @@ fx flist --force
 # Chiusura strutturale e intento timing authored
 fx lint_suite
 fx sdc --force
-# review/edit constraints/design.sdc
+# review/edit constraints/<TOP>.sdc
 
 # Verifica pre-synthesis
 fx setup_cdc_rdc --force

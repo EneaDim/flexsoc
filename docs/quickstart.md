@@ -1,21 +1,44 @@
 # 🚀 FlexSoC quickstart
 
-This is the shortest practical path through the current IP flow. The complete
-engineering rationale, quality gates, solver guidance, change workflows, and
-release policy are in [Project lifecycle](project_lifecycle.md). The generated
-scaffold architecture, ownership rules, and detailed reasoning behind every
-stage are in [IP development guide](ip_development_guide.md). Exact syntax,
+This is the shortest practical path through the current IP flow. The narrative
+of how a project evolves from design intent to qualified release is in
+[Project lifecycle](project_lifecycle.md). The detailed step-by-step engineering
+procedure is in [IP development guide](ip_development_guide.md). Exact syntax,
 options, variables, and the complete target catalogue are in
 [Command reference](command_reference.md).
 
 ## 1. Install
 
+For the complete ASIC flow, use the immutable Docker toolchain image recorded by
+the repository. A plain `uv sync` installs the Python package but does not install
+Yosys, OpenSTA, OpenROAD, Verilator, Slang, formal solvers, and the rest of the
+EDA stack.
+
+From the repository root:
+
 ```bash
-uv sync
-source .venv/bin/activate
+IMAGE_REF="$(bash -lc 'source docker/scripts/common.sh; validate_lock')"
+docker pull "$IMAGE_REF"
+docker run --rm -it \
+  --pull=missing \
+  --volume "$PWD:/workspace" \
+  --workdir /workspace \
+  --env PYTHONPATH=src \
+  --env DEPS_MODE=system \
+  "$IMAGE_REF" bash
+```
+
+Inside the container:
+
+```bash
+uv pip install --python "$VIRTUAL_ENV/bin/python" --no-deps --editable .
+fx deps-doctor
 fx doctor
 fx commands
 ```
+
+See the top-level [README](../README.md) for host-only development and
+[Docker documentation](../docker/README.md) for image maintenance.
 
 ## 2. Configure the run
 
@@ -82,7 +105,7 @@ Initialize the SDC once after RTL/lint are structurally clean:
 fx sdc --force
 ```
 
-Review and edit `constraints/design.sdc`. It is the timing source of truth for
+Review and edit `constraints/<TOP>.sdc`. It is the timing source of truth for
 functional clock generation, CDC/RDC clock relationships, synthesis I/O drive/load
 setup, implementation, and STA. The scaffold includes clocks, clock quality, I/O
 timing, drive/load, and commented sections for false paths and multicycle paths.
@@ -94,9 +117,10 @@ fx setup_cdc_rdc --force
 fx cdc_rdc
 ```
 
-The default output is a summary plus the detailed log path. Use `--live` for
-all domains, checks, findings, and obligations. Clock relationships come from
-`design.sdc`; reset ownership and polarity remain bootstrap metadata.
+Canonical CDC/RDC evidence is intentionally small: `analysis/cdc_rdc/design.json`
+(raw structure), `summary.json` (machine-readable findings/obligations),
+`cdc_rdc.rpt` (human report), plus the extraction script/log. Clock relationships
+come from `<TOP>.sdc`; reset ownership and polarity remain bootstrap metadata.
 
 ### 4.4 Property formal
 
@@ -128,7 +152,7 @@ fx coverage_detail
 ```
 
 Both functional backends derive clock period, waveform, source latency, and clock
-uncertainty from `design.sdc`. Clock uncertainty becomes bounded uniform jitter
+uncertainty from `<TOP>.sdc`. Clock uncertainty becomes bounded uniform jitter
 with 1 ps resolution; the run `SEED` makes the SV and cocotb stimulus reproducible.
 The waveform still owns duty cycle, and `set_clock_transition` remains an STA
 electrical constraint rather than an analog slew model.
@@ -150,7 +174,7 @@ fx setup_syn
 fx syn
 ```
 
-`setup_syn` consumes `constraints/design.sdc` and derives the small Yosys/ABC
+`setup_syn` consumes `constraints/<TOP>.sdc` and derives the small Yosys/ABC
 `abc.constr` drive/load boundary required by synthesis.
 
 ## 6. RTL-to-netlist equivalence
@@ -192,7 +216,7 @@ fx sta
 fx power_estimate
 ```
 
-STA sources `constraints/design.sdc` directly and writes the canonical human and
+STA sources `constraints/<TOP>.sdc` directly and writes the canonical human and
 machine-readable timing evidence to `signoff/<pdk>/sta/sta.rpt` and `sta.json`.
 The report is QoR-first: scenario status, WNS/TNS, minimum period/Fmax, constraint
 coverage, electrical checks, and detailed setup/hold paths without duplicating
@@ -213,30 +237,32 @@ fx pnr --force
 fx pnr_gui
 ```
 
-Post-PnR SDF/GLS requires the final implementation outputs:
+Post-PnR sign-off resolves the final netlist and SPEF from the canonical
+implementation branch:
 
 ```bash
 fx setup_signoff_post_pnr --force
-fx sdf_post_pnr \
-  --set NETLIST=/path/to/final_netlist.v \
-  --set SPEF_FILE=/path/to/final.spef
-
-fx sta_post_pnr \
-  --set NETLIST=/path/to/final_netlist.v \
-  --set SPEF_FILE=/path/to/final.spef
-
-fx compile_post_pnr --set NETLIST=/path/to/final_netlist.v
-fx sim_post_pnr --set NETLIST=/path/to/final_netlist.v
+fx sdf_post_pnr
+fx sta_post_pnr
+fx compile_post_pnr --force
+fx sim_post_pnr --force
 ```
+
+Use explicit `NETLIST`/`SPEF_FILE` overrides only for intentional exceptional
+analysis, not for the normal routed flow.
 
 ## 9. Consolidated status
 
 ```bash
-fx manifest --force
+fx manifest
 fx manifest_show
-fx metrics --force
-fx check --force
+fx metrics
+fx check
 ```
+
+`fx metrics` writes the current normalized snapshot to
+`meta/<pdk>/metrics.json`. `fx check` reads that saved snapshot and renders the
+colored lifecycle dashboard without recollecting metrics.
 
 ## 10. Common update loops
 
@@ -288,7 +314,7 @@ fx eqy
 # edit <top>_core.sv
 fx top_from_core flist --force
 fx lint_suite
-# review/update constraints/design.sdc if interface timing changed
+# review/update constraints/<TOP>.sdc if interface timing changed
 fx setup_cdc_rdc --force
 fx cdc_rdc
 fx setup_tb setup_cocotb --force
@@ -309,10 +335,10 @@ and regenerate every clock-derived setup.
 
 ```bash
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
-fx sdc --force
-# edit/review constraints/design.sdc before continuing
-fx flist --force
+fx top_from_core flist --force
 fx lint_suite
+fx sdc --force
+# edit/review constraints/<TOP>.sdc before continuing
 fx setup_cdc_rdc --force
 fx cdc_rdc
 fx setup_tb setup_cocotb --force
@@ -330,7 +356,7 @@ fx power_estimate
 ```
 
 If only timing values change (waveform, latency, uncertainty, I/O delays, drive/load,
-exceptions), edit `constraints/design.sdc` directly; do not change a parallel clock
+exceptions), edit `constraints/<TOP>.sdc` directly; do not change a parallel clock
 timing setting. Regenerate the affected TB/synthesis/sign-off setup and rerun CDC/RDC
 when clock relationships changed.
 
@@ -341,7 +367,7 @@ fx setup --force
 fx ip_load --force
 fx flist --force
 fx lint_suite
-# the package-owned constraints/design.sdc remains authored timing intent
+# the package-owned constraints/<TOP>.sdc remains authored timing intent
 fx setup_cdc_rdc --force
 fx cdc_rdc
 fx tests_gen --force

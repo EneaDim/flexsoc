@@ -58,10 +58,10 @@ user / CI / Python caller
         ↓
  Reporting + Provenance
         ↓
- metrics / manifest / check
+ manifest → metrics snapshot → check dashboard
 ```
 
-The EDA tools remain authoritative for analysis. FlexSoC owns the **wiring, state, inputs, artifact identity, lifecycle and reproducibility** around them. A status without its supporting artifact is incomplete evidence: release packaging therefore retains normalized lint and CDC/RDC reports/logs at the same run-relative paths consumed by reporting.
+The EDA tools remain authoritative for analysis. FlexSoC owns the **wiring, state, inputs, artifact identity, lifecycle and reproducibility** around them. A status without its supporting artifact is incomplete evidence: release packaging therefore retains normalized lint evidence plus the compact CDC/RDC `summary.json`/`cdc_rdc.rpt` contract at the same run-relative paths consumed by reporting, without copying every raw extraction log.
 
 ---
 
@@ -172,18 +172,22 @@ runs/<top>/<run_id>/
 ├── data/                      register/design input collateral
 ├── rtl/                       generated/copied RTL and ordered filelists
 ├── doc/                       generated documentation
+├── constraints/<TOP>.sdc      authored timing contract
 ├── dv/
 │   ├── functional/            model, tests, testbenches, simulation
-│   ├── formal/                SBY/property collateral and results
-│   └── cdc_rdc/               Yosys extraction and CDC/RDC reports
+│   └── formal/                SBY/property collateral and results
+├── analysis/cdc_rdc/          compact structural CDC/RDC evidence
 ├── syn/<pdk>/                 synthesis scripts, logs, mapped netlist
 ├── impl/<pdk>/                ORFS/OpenROAD implementation handoff/results
 ├── signoff/<pdk>/             EQY, STA, SDF, GLS, power, fusion
 ├── logs/                      command and tool logs
 └── meta/
-    ├── metrics.json
-    ├── manifest.json
-    └── <pdk>/provenance.json
+    ├── design_intent.json
+    └── <pdk>/
+        ├── settings.json
+        ├── provenance.json
+        ├── manifest.json
+        └── metrics.json
 ```
 
 Technology-independent design/DV state and technology-dependent implementation/sign-off state intentionally share one logical `RUN_ID` but use PDK-scoped branches where required.
@@ -202,7 +206,7 @@ fx settings
         ▼
 fx sdc
         ▼
-constraints/design.sdc
+constraints/<TOP>.sdc
         │
         │ authored timing source of truth
         ├── functional SV/cocotb clock generation
@@ -212,7 +216,7 @@ constraints/design.sdc
         └── OpenSTA pre-/post-route analysis
 ```
 
-`ClockConfig` remains the small normalized Python view used by consumers, but once `design.sdc` exists its clock timing fields are read from SDC. Reset signal ownership and polarity are merged from the bootstrap metadata because ordinary SDC does not describe them.
+`ClockConfig` remains the small normalized Python view used by consumers, but once `<TOP>.sdc` exists its clock timing fields are read from SDC. Reset signal ownership and polarity are merged from the bootstrap metadata because ordinary SDC does not describe them.
 
 ### 6.1 Bootstrap the topology
 
@@ -239,6 +243,8 @@ Each `CLOCK_DOMAINS` entry is `name:clock_port:reset_port:period_ns[:low|high]`;
 
 These values are authoritative while the run is being bootstrapped. They initialize the first SDC and retain the reset-domain information required by reset-aware backends. They are **not** a second authored timing database after the SDC exists.
 
+`top_from_core` also owns reset-release integration at the generated wrapper boundary. For each clock/reset domain it instantiates the existing `prim_ff_2sync` directly with reset value `0` and constant data `1`, producing asynchronous assertion and synchronous deassertion. The core and generated register block consume the synchronized domain reset. FlexSoC does not introduce a wrapper-only `prim_reset_sync` primitive because it would add no hardware behavior.
+
 ### 6.2 Initialize and author the SDC
 
 After RTL elaboration/lint are clean, initialize the timing contract once:
@@ -247,7 +253,7 @@ After RTL elaboration/lint are clean, initialize the timing contract once:
 fx sdc --force
 ```
 
-The resulting `constraints/design.sdc` is designer-owned timing intent. Its scaffold is deliberately complete and readable: primary/generated clocks, latency/uncertainty/transition, clock relationships, input/output delay, input drive, output load, and commented timing-exception/design-rule sections. False paths and multicycle paths are never inferred.
+The resulting `constraints/<TOP>.sdc` is designer-owned timing intent. Its scaffold is deliberately complete and readable: primary/generated clocks, latency/uncertainty/transition, clock relationships, input/output delay, input drive, output load, and commented timing-exception/design-rule sections. False paths and multicycle paths are never inferred.
 
 `SDC_IO_DELAY_PCT` is only a bootstrap value for the initial single-clock I/O-delay scaffold. After generation, edit the SDC itself instead of maintaining the same timing fact in settings.
 
@@ -267,7 +273,7 @@ The first rising edge is `waveform.rise + source_latency`; high time is `wavefor
 
 CDC/RDC derives clock relationships from the same SDC and combines them with reset metadata. Synthesis derives only the small `abc.constr` drive/load boundary required by Yosys/ABC. Pre- and post-route STA source the same authored SDC; the physical stage changes the netlist/parasitics/clock propagation, not the timing-intent file.
 
-When the clock/reset **topology** changes, update bootstrap metadata and intentionally regenerate/review `design.sdc`. When only timing values or exceptions change, edit `design.sdc` directly and regenerate only affected setup collateral.
+When the clock/reset **topology** changes, update bootstrap metadata and intentionally regenerate/review `<TOP>.sdc`. When only timing values or exceptions change, edit `<TOP>.sdc` directly and regenerate only affected setup collateral.
 
 Do not create parallel `*_multi` flows, per-PDK authored SDCs, or a second clock/timing vocabulary.
 
@@ -319,7 +325,7 @@ FAIL + CLEAN          current inputs, real technical failure
 REVIEW + MODIFIED     generated collateral changed and not accepted
 ```
 
-`fx metrics`, `fx manifest` and `fx check` are views over this collected evidence. `fx check` refreshes current provenance before rendering so it cannot hide a workspace modification behind stale metrics.
+`fx metrics` collects the current normalized evidence and writes `meta/<pdk>/metrics.json`. `fx check` is intentionally read-only with respect to that snapshot: it renders the saved JSON as the lifecycle dashboard and fails clearly when the snapshot is missing. `fx manifest` separately records run/tool/PDK identity. This separation makes a metrics file a stable comparison point instead of silently changing while it is being viewed.
 
 ---
 
@@ -596,7 +602,7 @@ Custom Yosys+Python CDC/RDC analysis:
 - deterministic reports;
 - `CdcFlow`.
 
-`ClockConfig` is the normalized reset-aware clock view assembled from the authored SDC plus bootstrap reset metadata; this module adds structural inference/classification, not a second clock configuration model.
+`ClockConfig` is the normalized reset-aware clock view assembled from the authored SDC plus bootstrap reset metadata; this module adds structural inference/classification, not a second clock configuration model. The public CDC/RDC artifact contract is deliberately small: `extract.ys`, raw `design.json`, one complete `summary.json`, one human `cdc_rdc.rpt`, and the raw extraction log. Findings are not split into overlapping per-check JSON files.
 
 ### `coverage.py`
 
@@ -655,7 +661,7 @@ Defines the reusable sign-off facade and `SignoffStage` abstraction for pre-/pos
 
 Owns the single authored timing-contract boundary:
 
-- readable `constraints/design.sdc` scaffold initialization;
+- readable `constraints/<TOP>.sdc` scaffold initialization;
 - small active-command parser for the subset shared by non-STA backends;
 - normalized clock period/waveform/latency/uncertainty/relationships;
 - input-drive/output-load extraction for synthesis collateral.
@@ -667,7 +673,7 @@ It intentionally does **not** implement a general SDC engine. False paths, multi
 Shared OpenSTA/SDF analysis engine:
 
 - timing-scenario construction from resolved PDK Liberty views and analysis mode;
-- STA/SDF Tcl generation that sources `constraints/design.sdc`;
+- STA/SDF Tcl generation that sources `constraints/<TOP>.sdc`;
 - deterministic post-synthesis/post-route input resolution;
 - WNS/TNS, violation, unconstrained-path, electrical, minimum-period/Fmax, and QoR extraction;
 - canonical `signoff/<pdk>/sta/sta.rpt` + `sta.json`;
@@ -712,7 +718,7 @@ Timing/power correlation for a workload and timing scenario. It reuses shared si
 
 ORFS/OpenROAD handoff and implementation:
 
-- generated `config.mk` from FlexSoC synthesis plus the canonical authored `constraints/design.sdc`;
+- generated `config.mk` from FlexSoC synthesis plus the canonical authored `constraints/<TOP>.sdc`;
 - canonical ORFS branch resolution;
 - deterministic final-artifact selection;
 - ORFS make invocation;
@@ -782,8 +788,8 @@ E2E pytest options/fixtures only. It is support code, not a separate test module
 | --- | --- |
 | `docs/quickstart.md` | Shortest runnable workflow. |
 | `docs/architecture.md` | This document: Python/repository architecture and flow. |
-| `docs/project_lifecycle.md` | Engineering lifecycle, ownership and change propagation. |
-| `docs/ip_development_guide.md` | Detailed IP-development methodology and failure recovery. |
+| `docs/project_lifecycle.md` | Narrative project evolution from design intent through qualification/reuse/release. |
+| `docs/ip_development_guide.md` | Detailed step-by-step IP development, qualification, debug, and save/load procedure. |
 | `docs/command_reference.md` | CLI/target/variable reference and operational playbook. |
 | `docs/flexsoc_asic_flow_guide.md` | Extended ASIC flow concepts and implementation/sign-off guide. |
 | `docs/flexsoc_asic_flow_guide_it.md` | Italian version of the extended ASIC flow guide. |
@@ -841,10 +847,12 @@ A typical IP lifecycle is:
 spec / HJSON / RTL core / model / properties
                     ↓
           design generation/setup
- reg → top_from_core → flist → setup_model/tests
+ reg → top_from_core → flist
                     ↓
                verification
- lint → CDC/RDC → functional SV+cocotb → formal
+ lint → authored SDC → setup_cdc_rdc → CDC/RDC
+                    ↓
+       functional SV+cocotb + formal
                     ↓
                  synthesis
              setup_syn → syn
@@ -863,7 +871,7 @@ spec / HJSON / RTL core / model / properties
      → STA / SDF / GLS / power / fusion
      → physical_signoff
                     ↓
-          metrics / manifest / check
+          manifest → metrics snapshot → check dashboard
                     ↓
              qualified package
 ```
@@ -913,9 +921,9 @@ This preserves the core design objective:
 
 ### Canonical SDC ownership
 
-FlexSoC keeps exactly one authored timing contract per run: `constraints/design.sdc`. `CLOCK_DOMAINS` and `CLOCK_RELATIONSHIPS` are bootstrap/reset-domain metadata used to create the first scaffold; they are not a second timing database. `sdc.py` owns initialization and the small normalized view needed outside STA. Functional TB consumes clock waveform/phase, CDC/RDC consumes clock relationships, synthesis derives ABC drive/load collateral, and STA sources the SDC directly. False paths and multicycle paths remain authored SDC intent and are never inferred.
+FlexSoC keeps exactly one authored timing contract per run: `constraints/<TOP>.sdc`. `CLOCK_DOMAINS` and `CLOCK_RELATIONSHIPS` are bootstrap/reset-domain metadata used to create the first scaffold; they are not a second timing database. `sdc.py` owns initialization and the small normalized view needed outside STA. Functional TB consumes clock waveform/phase, CDC/RDC consumes clock relationships, synthesis derives ABC drive/load collateral, and STA sources the SDC directly. False paths and multicycle paths remain authored SDC intent and are never inferred.
 
 
 ### STA scenario evidence
 
-STA keeps the scenario model deliberately small: one scenario is a resolved Liberty corner plus `setup` or `hold`, for one lifecycle stage. The same authored `constraints/design.sdc` is used in every scenario. OpenSTA scenario-local reports are execution diagnostics; canonical qualification evidence is only `sta/sta.rpt` and `sta/sta.json`. The report is QoR-first (scenario status, WNS/TNS, violating/unconstrained paths, clock minimum-period/Fmax) followed by detailed scenario content. This avoids report proliferation while retaining complete evidence.
+STA keeps the scenario model deliberately small: one scenario is a resolved Liberty corner plus `setup` or `hold`, for one lifecycle stage. The same authored `constraints/<TOP>.sdc` is used in every scenario. OpenSTA scenario-local reports are execution diagnostics; canonical qualification evidence is only `sta/sta.rpt` and `sta/sta.json`. The report is QoR-first (scenario status, WNS/TNS, violating/unconstrained paths, clock minimum-period/Fmax) followed by detailed scenario content. This avoids report proliferation while retaining complete evidence.

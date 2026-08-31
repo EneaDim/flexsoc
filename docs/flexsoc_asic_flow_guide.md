@@ -498,6 +498,8 @@ Those are separate gates by design.
 
 ## 7. CDC/RDC: structural clock/reset-domain analysis
 
+In the executable lifecycle this stage runs **after lint and after the authored `constraints/<TOP>.sdc` exists**: `lint_suite → sdc → setup_cdc_rdc → cdc_rdc`. Section 10 describes the timing contract in detail later for conceptual grouping.
+
 FlexSoC implements a technology-neutral structural CDC/RDC pass rather than relying on text-pattern matching.
 
 ### 7.1 Extraction stage
@@ -899,14 +901,14 @@ That is intentional: meaningful formal properties must evolve with the architect
 
 ## 10. Canonical timing intent: one authored SDC, small derived views
 
-FlexSoC keeps timing intent in one designer-owned file: `constraints/design.sdc`. Backend-specific formats are derived collateral, not competing sources of truth.
+FlexSoC keeps timing intent in one designer-owned file: `constraints/<TOP>.sdc`. Backend-specific formats are derived collateral, not competing sources of truth.
 
 ```text
 bootstrap domain/reset settings
         ↓
 fx sdc
         ↓
-constraints/design.sdc
+constraints/<TOP>.sdc
         │
         ├─ functional TB: clock waveform/phase/jitter view
         ├─ CDC/RDC: clocks + clock relationships
@@ -932,7 +934,7 @@ Those settings are sufficient to scaffold the first SDC and retain reset-domain 
 fx sdc --force
 ```
 
-From that point clock period/waveform, generated clocks, latency, uncertainty, transition, clock groups, I/O timing, drive/load, and timing exceptions are authored in `constraints/design.sdc`. Reset ownership/polarity remains separate because ordinary SDC does not model it.
+From that point clock period/waveform, generated clocks, latency, uncertainty, transition, clock groups, I/O timing, drive/load, and timing exceptions are authored in `constraints/<TOP>.sdc`. Reset ownership/polarity remains separate because ordinary SDC does not model it.
 
 ### 10.2 What the SDC scaffold contains
 
@@ -977,7 +979,7 @@ The generated `abc.constr` is a small machine-owned adapter. Depending on the au
 
 ### 10.5 `abc.constr` is not an SDC
 
-ABC's `-constr` input is intentionally narrow. It does not represent generated clocks, asynchronous clock groups, full I/O timing, false/multicycle paths, clock propagation, or parasitics. Those semantics remain in `design.sdc` and are consumed by engines that understand them.
+ABC's `-constr` input is intentionally narrow. It does not represent generated clocks, asynchronous clock groups, full I/O timing, false/multicycle paths, clock propagation, or parasitics. Those semantics remain in `<TOP>.sdc` and are consumed by engines that understand them.
 
 This avoids duplicated timing semantics and prevents synthesis-specific approximations from becoming a second constraint database.
 
@@ -988,7 +990,7 @@ Pre-implementation timing uses:
 ```text
 FlexSoC mapped netlist
 + selected Liberty timing views
-+ constraints/design.sdc
++ constraints/<TOP>.sdc
 → OpenSTA
 ```
 
@@ -997,14 +999,14 @@ Implementation receives the mapped netlist and the same authored SDC:
 ```text
 ORFS config.mk
   SYNTH_NETLIST_FILES := FlexSoC mapped netlist
-  SDC_FILE             := constraints/design.sdc
+  SDC_FILE             := constraints/<TOP>.sdc
 ```
 
 ORFS/OpenROAD may also emit `6_final.sdc` as an implementation artifact, but FlexSoC does not make that file a new design-intent owner. Routed FlexSoC sign-off keeps the authored SDC and changes the physical timing model instead:
 
 ```text
 final routed netlist (6_final.v)
-+ constraints/design.sdc
++ constraints/<TOP>.sdc
 + routed SPEF (6_final.spef)
 + propagated clocks
 → post-route OpenSTA
@@ -1017,7 +1019,7 @@ The stage therefore changes netlist, parasitics, and clock propagation while pre
 ```text
 bootstrap clock/reset topology
           ↓
-   constraints/design.sdc
+   constraints/<TOP>.sdc
           │
     ┌─────┼───────────────┐
     │     │               │
@@ -1032,14 +1034,14 @@ functional CDC/RDC   synthesis adapter
        ┌───────┴────────┐
        ▼                ▼
  pre-route STA      ORFS/OpenROAD
- design.sdc          design.sdc
+ <TOP>.sdc          <TOP>.sdc
                          │
                          ▼
                   final netlist + SPEF
                          │
                          ▼
                   post-route STA
-                    design.sdc
+                    <TOP>.sdc
 ```
 
 One authored contract, multiple deliberately small consumers.
@@ -1698,13 +1700,13 @@ Post-implementation STA changes the analysis model from ideal/pre-layout to phys
 read final Liberty corner
 → read 6_final.v
 → link design
-→ read constraints/design.sdc
+→ read constraints/<TOP>.sdc
 → read 6_final.spef
 → set clocks propagated
 → analyze setup/hold/electrical constraints
 ```
 
-ORFS may emit `6_final.sdc` as part of its own result tree, but the FlexSoC timing contract remains `constraints/design.sdc`. A dedicated post-route SDC is used only when an explicit exceptional override is supplied.
+ORFS may emit `6_final.sdc` as part of its own result tree, but the FlexSoC timing contract remains `constraints/<TOP>.sdc`. A dedicated post-route SDC is used only when an explicit exceptional override is supplied.
 
 The report explicitly records the routed timing model:
 
@@ -2008,7 +2010,7 @@ Physical sign-off
 
 ### 32.1 `metrics`
 
-Metrics are machine-readable evidence:
+`fx metrics` collects the current run state and writes the normalized snapshot to `meta/<pdk>/metrics.json`; it does not render the dashboard. Metrics are machine-readable evidence:
 
 - verification counts;
 - coverage;
@@ -2033,7 +2035,7 @@ It is the beginning of a tapeout/release bill of materials.
 
 ### 32.3 `check`
 
-`fx check` is the human-readable closure view.
+`fx check` is the human-readable closure view and reads the already saved `metrics.json` snapshot without recollecting it.
 
 Its purpose is not to dump every report. It should answer, in lifecycle order:
 
@@ -2694,7 +2696,7 @@ fx flist --force
 # Structural closure and authored timing intent
 fx lint_suite
 fx sdc --force
-# review/edit constraints/design.sdc
+# review/edit constraints/<TOP>.sdc
 
 # Pre-synthesis verification
 fx setup_cdc_rdc --force
