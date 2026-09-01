@@ -39,9 +39,37 @@ module uart_master_core (
   logic [7:0] tx_data;
   logic       tx_ready;
 
+  logic uart_rst_ni;
+  logic host_rst_ni;
+
+  // Local reset release chain.
+  //
+  // uart_master.rst_ni has already been synchronously released by the
+  // top-level reset chain.  Split the two functional reset islands here
+  // so neither island shares one high-fanout asynchronous reset net.
+  prim_flop #(
+    .Width      (1),
+    .ResetValue (1'b0)
+  ) u_uart_reset_stage (
+    .clk_i (clk_i),
+    .rst_ni(rst_ni),
+    .d_i   (1'b1),
+    .q_o   (uart_rst_ni)
+  );
+
+  prim_flop #(
+    .Width      (1),
+    .ResetValue (1'b0)
+  ) u_host_reset_stage (
+    .clk_i (clk_i),
+    .rst_ni(rst_ni),
+    .d_i   (uart_rst_ni),
+    .q_o   (host_rst_ni)
+  );
+
   uart_core u_uart_core (
     .clk_i,
-    .rst_ni,
+    .rst_ni(uart_rst_ni),
     .reg2hw,
     .hw2reg,
     .rx         (cio_rx_i),
@@ -56,7 +84,7 @@ module uart_master_core (
 
   uart_host_bridge u_host_bridge (
     .clk_i,
-    .rst_ni,
+    .rst_ni(host_rst_ni),
 
     .rx_valid_i (rx_valid),
     .rx_data_i  (rx_data),

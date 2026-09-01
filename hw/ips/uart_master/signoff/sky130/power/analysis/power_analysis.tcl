@@ -3,7 +3,7 @@
 #
 # Analysis : power_analysis
 # Design   : uart_master
-# Variant  : migrate
+# Variant  : dev
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_synth.v
-#   SDC           : /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/uart_master.sdc
+#   Netlist       : /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_synth.v
+#   SDC           : /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/constraints/uart_master.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
+#   VCD or SAIF   : /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd
 #   Activity scope: DUT_SCOPE_REQUIRED
-#   GLS report    : /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
-#   Report dir    : /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/power/analysis/template_reports
+#   GLS report    : /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/power/analysis/template_reports
 #
 # Limitations:
 #   - Power is average cell power derived from the selected Liberty models and annotated activity.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/power/analysis/template_reports}
+set report_dir {/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/power/analysis/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_synth.v}
-set sdc {/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/uart_master.sdc}
+set netlist {/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_synth.v}
+set sdc {/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/constraints/uart_master.sdc}
 set spef {}
 set top {uart_master}
 set stage {post_syn}
@@ -200,7 +200,7 @@ proc flexsoc_append_activity_coverage {path} {
 }
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_file {/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd}
 set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
@@ -223,8 +223,8 @@ set report [file join $report_dir power.rpt]
 set fp [open $report w]
 puts $fp "analysis=power_analysis corner=tt stage=post_syn"
 puts $fp "workload=GLS_WORKLOAD_REQUIRED"
-puts $fp "gls_report=/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json"
-puts $fp "activity_file=/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "gls_report=/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/power/activity/GLS_REPORT_REQUIRED.json"
+puts $fp "activity_file=/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/power/activity/ACTIVITY_REQUIRED.vcd"
 puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"

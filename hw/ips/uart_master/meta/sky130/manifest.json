@@ -3,23 +3,24 @@
   "run": {
     "top": "uart_master",
     "run_top": "uart_master",
-    "run_id": "migrate",
+    "run_id": "dev",
     "pdk": "sky130",
-    "run_root": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate",
+    "run_root": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev",
     "artifacts": {
-      "synthesis": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130",
-      "post_syn_sim": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/dv/functional/sim/post_syn/sky130",
-      "implementation": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/impl/sky130",
-      "sdc": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/uart_master.sdc",
-      "sta": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/sta",
-      "power": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/power",
-      "fusion": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/fusion",
-      "sdf": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/sdf",
-      "meta": "/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/meta/sky130"
+      "synthesis": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130",
+      "equivalence": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/equivalence/rtl_vs_syn",
+      "post_syn_sim": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/dv/functional/sim/post_syn/sky130",
+      "implementation": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/impl/sky130",
+      "sdc": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/constraints/uart_master.sdc",
+      "sta": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/sta",
+      "power": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/power",
+      "fusion": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/fusion",
+      "sdf": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/sdf",
+      "meta": "/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/meta/sky130"
     }
   },
   "git": {
-    "commit": "b442d42f56cf4468368fb054fe00329bf0e6f8b0",
+    "commit": "f2c2175dae01553165f7c560c9368f97982b44be",
     "dirty": true
   },
   "environment": {
@@ -102,10 +103,10 @@
     },
     "cdc_rdc": {
       "path": "analysis/cdc_rdc/summary.json",
-      "sha256": "35ef54d297615d7db763eb4ba0d5e3ba0e832e497ab144b06474f8793c8288d5",
-      "status": "review",
+      "sha256": "fd8c41eeeb0724ead8cec62e591ff88e8aa54a54de99442a11ef094b1a4db191",
+      "status": "fail",
       "cdc_raw": 0,
-      "rdc_raw": 0,
+      "rdc_raw": 2384,
       "obligations": 1
     }
   },
@@ -123,20 +124,38 @@
     ],
     "stages": {
       "lint": "pass",
-      "cdc_rdc": "review",
+      "cdc_rdc": "fail",
       "functional": "pass",
       "formal": "pass",
       "synthesis": "pass",
-      "equivalence": "missing",
+      "equivalence": "partial",
       "pre_implementation_signoff": "pass",
       "implementation": "missing",
       "post_implementation_signoff": "incomplete"
     },
-    "status": "review",
+    "status": "fail",
     "complete": false
   },
   "implementation": null,
   "signoff": {
+    "equivalence": {
+      "status": "partial",
+      "proven": 0,
+      "failed": 0,
+      "errors": 0,
+      "timeouts": 0,
+      "unknown": 11,
+      "total": 11,
+      "percent": 0.0,
+      "strategies": {
+        "sat": {
+          "attempts": 1,
+          "proved": 0,
+          "unproved": 0,
+          "errors": 0
+        }
+      }
+    },
     "sdf": {
       "status": "pass",
       "count": 3
@@ -194,11 +213,11 @@
     ],
     "stages": {
       "lint": "pass",
-      "cdc_rdc": "review",
+      "cdc_rdc": "fail",
       "regression": "pass",
       "formal": "pass",
       "synthesis": "pass",
-      "equivalence": "missing",
+      "equivalence": "partial",
       "sdf": "pass",
       "sta": "pass",
       "power": "pass",
@@ -214,7 +233,7 @@
       "post_pnr_power_activity": "missing",
       "post_pnr_fusion": "missing"
     },
-    "status": "incomplete",
+    "status": "fail",
     "complete": false
   },
   "tools": {

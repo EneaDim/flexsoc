@@ -23,9 +23,34 @@ module uart_master
   uart_master_reg2hw_t reg2hw;
   uart_master_hw2reg_t hw2reg;
 
+  logic reg_rst_sync_ni;
+  logic core_rst_sync_ni;
+  // Async assertion, synchronous release.
+  // The register island is released after the two-stage synchronizer.
+  // The functional core is released one cycle later.
+  prim_ff_2sync #(
+    .Width      (1),
+    .ResetValue (1'b0)
+  ) u_reset_sync (
+    .clk_i (clk_i),
+    .rst_ni(rst_ni),
+    .d_i   (1'b1),
+    .q_o   (reg_rst_sync_ni)
+  );
+
+  prim_flop #(
+    .Width      (1),
+    .ResetValue (1'b0)
+  ) u_core_reset_stage (
+    .clk_i (clk_i),
+    .rst_ni(rst_ni),
+    .d_i   (reg_rst_sync_ni),
+    .q_o   (core_rst_sync_ni)
+  );
+
   uart_master_reg_top u_uart_master_reg (
     .clk_i(clk_i),
-    .rst_ni(rst_ni),
+    .rst_ni(reg_rst_sync_ni),
     .tl_i(tl_i),
     .tl_o(tl_o),
     .reg2hw(reg2hw),
@@ -35,7 +60,7 @@ module uart_master
 
   uart_master_core u_uart_master_core (
     .clk_i(clk_i),
-    .rst_ni(rst_ni),
+    .rst_ni(core_rst_sync_ni),
     .reg2hw(reg2hw),
     .hw2reg(hw2reg),
     .req_o(req_o),

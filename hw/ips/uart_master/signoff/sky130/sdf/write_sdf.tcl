@@ -3,7 +3,7 @@
 #
 # Analysis : sdf
 # Design   : uart_master
-# Variant  : migrate
+# Variant  : dev
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_synth.v
-#   SDC           : /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/uart_master.sdc
+#   Netlist       : /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_synth.v
+#   SDC           : /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/constraints/uart_master.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/sdf/template_reports
+#   Report dir    : /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/sdf/template_reports
 #
 # Limitations:
 #   - SDF reflects the linked netlist and timing model for the selected corner.
@@ -42,12 +42,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/sdf/template_reports}
+set report_dir {/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/sdf/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_synth.v}
-set sdc {/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/uart_master.sdc}
+set netlist {/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_synth.v}
+set sdc {/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/constraints/uart_master.sdc}
 set spef {}
 set top {uart_master}
 set stage {post_syn}
@@ -139,7 +139,7 @@ check_setup -verbose
 puts "=== Step 7/7: Analysis-specific reporting ==="
 
 # write_sdf serializes the linked timing model for gate-level simulation.
-set sdf_file {/tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/signoff/sky130/sdf/template_reports/uart_master_tt.sdf}
+set sdf_file {/tmp/flexsoc-repack/uart_master/runs/uart_master/dev/signoff/sky130/sdf/template_reports/uart_master_tt.sdf}
 puts "sdf=$sdf_file"
 write_sdf -divider . -include_typ -no_timestamp -no_version $sdf_file
 proc flexsoc_complete_sdf_typ_header {path} {

@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 import cocotb
-from cocotb.clock import Clock
 from cocotb.triggers import Combine, FallingEdge, RisingEdge, Timer
 
 from drivers.reg_driver import (
@@ -19,6 +18,45 @@ from drivers.vec_monitor import LatencyMonitor
 
 
 RESET_DOMAINS = {'core': ('clk_i', 'rst_ni', 'low')}
+
+
+def _xorshift32(state):
+    state &= 0xFFFFFFFF
+    state ^= (state << 13) & 0xFFFFFFFF
+    state ^= state >> 17
+    state ^= (state << 5) & 0xFFFFFFFF
+    return state & 0xFFFFFFFF
+
+
+async def _flexsoc_clock(signal):
+    # Drive SDC waveform/phase plus bounded deterministic uncertainty jitter.
+
+    base_seed = int(os.environ.get("FLEXSOC_SEED", "1"), 0) & 0xFFFFFFFF
+    jitter_state = (base_seed ^ 3713949822) & 0xFFFFFFFF
+    if jitter_state == 0:
+        jitter_state = 0x6D2B79F5
+    jitter_prev_ps = 0
+    cocotb.log.info(
+        "[FLEXSOC CLOCK] clock=core jitter=uniform bound_ps=0 seed=%d",
+        base_seed,
+    )
+    signal.value = 0
+    if 0 > 0:
+        await Timer(0, unit="ns")
+    while True:
+        signal.value = 1
+        await Timer(5, unit="ns")
+        signal.value = 0
+        if 0:
+            jitter_state = _xorshift32(jitter_state)
+            jitter_next_ps = int(jitter_state % 1) - 0
+        else:
+            jitter_next_ps = 0
+        low_delay_ps = 5000 + jitter_next_ps - jitter_prev_ps
+        if low_delay_ps <= 0:
+            raise AssertionError("invalid FlexSoC jittered clock delay")
+        await Timer(low_delay_ps, unit="ps")
+        jitter_prev_ps = jitter_next_ps
 
 
 def _selected_resets(selector):
@@ -48,7 +86,7 @@ async def apply_reset(dut, selector="all", cycles=5):
 
 @cocotb.test()
 async def uart_master_generated_test(dut):
-    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
+    cocotb.start_soon(_flexsoc_clock(dut.clk_i))
     for _, reset, polarity in RESET_DOMAINS.values():
         getattr(dut, reset).value = int(polarity == "low")
     await init_register_bus(dut, dut.clk_i)

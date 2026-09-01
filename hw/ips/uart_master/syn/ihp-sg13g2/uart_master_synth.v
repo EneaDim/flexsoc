@@ -1999,16 +1999,38 @@ module uart_master(clk_i, rst_ni, req_o, gnt_i, addr_o, we_o, wdata_o, be_o, val
   wire _1928_;
   wire _1929_;
   wire _1930_;
-  (* init = 1'b1 *)
   wire _1931_;
-  (* init = 1'b1 *)
   wire _1932_;
-  (* init = 1'b1 *)
   wire _1933_;
-  (* init = 1'b1 *)
   wire _1934_;
   wire _1935_;
   wire _1936_;
+  wire _1937_;
+  wire _1938_;
+  wire _1939_;
+  wire _1940_;
+  wire _1941_;
+  wire _1942_;
+  wire _1943_;
+  wire _1944_;
+  wire _1945_;
+  wire _1946_;
+  wire _1947_;
+  wire _1948_;
+  wire _1949_;
+  wire _1950_;
+  (* init = 1'b1 *)
+  wire _1951_;
+  (* init = 1'b1 *)
+  wire _1952_;
+  (* init = 1'b1 *)
+  wire _1953_;
+  (* init = 1'b1 *)
+  wire _1954_;
+  wire _1955_;
+  wire _1956_;
+  (* hdlname = "core_rst_sync_ni" *)
+  wire core_rst_sync_ni;
   (* hdlname = "reg2hw" *)
   wire \reg2hw[0] ;
   (* hdlname = "reg2hw" *)
@@ -2057,6 +2079,10 @@ module uart_master(clk_i, rst_ni, req_o, gnt_i, addr_o, we_o, wdata_o, be_o, val
   wire \reg2hw[8] ;
   (* hdlname = "reg2hw" *)
   wire \reg2hw[9] ;
+  (* hdlname = "reg_rst_sync_ni" *)
+  wire reg_rst_sync_ni;
+  (* hdlname = "u_reset_sync intq" *)
+  wire \u_reset_sync.intq ;
   (* hdlname = "u_uart_master_core addr_o" *)
   wire \u_uart_master_core.addr_o[10] ;
   (* hdlname = "u_uart_master_core addr_o" *)
@@ -2125,6 +2151,8 @@ module uart_master(clk_i, rst_ni, req_o, gnt_i, addr_o, we_o, wdata_o, be_o, val
   wire \u_uart_master_core.be_o[2] ;
   (* hdlname = "u_uart_master_core be_o" *)
   wire \u_uart_master_core.be_o[3] ;
+  (* hdlname = "u_uart_master_core host_rst_ni" *)
+  wire \u_uart_master_core.host_rst_ni ;
   (* hdlname = "u_uart_master_core u_host_bridge any_err_q" *)
   wire \u_uart_master_core.u_host_bridge.any_err_q ;
   (* hdlname = "u_uart_master_core u_host_bridge idx_q" *)
@@ -2354,6 +2382,8 @@ module uart_master(clk_i, rst_ni, req_o, gnt_i, addr_o, we_o, wdata_o, be_o, val
   wire \u_uart_master_core.u_host_bridge.wdata_o[8] ;
   (* hdlname = "u_uart_master_core u_host_bridge wdata_o" *)
   wire \u_uart_master_core.u_host_bridge.wdata_o[9] ;
+  (* hdlname = "u_uart_master_core u_host_reset_stage d_i" *)
+  wire \u_uart_master_core.u_host_reset_stage.d_i ;
   (* hdlname = "u_uart_master_core u_uart_core nco_sum_q" *)
   wire \u_uart_master_core.u_uart_core.nco_sum_q[0] ;
   (* hdlname = "u_uart_master_core u_uart_core nco_sum_q" *)
@@ -2950,14195 +2980,14319 @@ module uart_master(clk_i, rst_ni, req_o, gnt_i, addr_o, we_o, wdata_o, be_o, val
   wire \u_uart_master_reg.tl_o[65] ;
   (* hdlname = "u_uart_master_reg u_wdata qe" *)
   wire \u_uart_master_reg.u_wdata.qe ;
-  sg13g2_nor2_1 _1937_ (
-    .A(_1042_),
+  sg13g2_nor2_1 _1957_ (
+    .A(\u_uart_master_core.u_host_bridge.op_q[4] ),
+    .B(_1025_),
+    .Y(_1027_)
+  );
+  sg13g2_a21oi_1 _1958_ (
+    .A1(_0867_),
+    .A2(_1025_),
+    .B1(_1027_),
+    .Y(_0105_)
+  );
+  sg13g2_nor2_1 _1959_ (
+    .A(\u_uart_master_core.u_host_bridge.op_q[3] ),
+    .B(_1025_),
+    .Y(_1028_)
+  );
+  sg13g2_a21oi_1 _1960_ (
+    .A1(_0897_),
+    .A2(_1025_),
+    .B1(_1028_),
+    .Y(_0106_)
+  );
+  sg13g2_nor2_1 _1961_ (
+    .A(\u_uart_master_core.u_host_bridge.op_q[2] ),
+    .B(_1025_),
+    .Y(_1029_)
+  );
+  sg13g2_a21oi_1 _1962_ (
+    .A1(_0928_),
+    .A2(_1025_),
+    .B1(_1029_),
+    .Y(_0107_)
+  );
+  sg13g2_nor2_1 _1963_ (
+    .A(\u_uart_master_core.u_host_bridge.op_q[1] ),
+    .B(_1025_),
+    .Y(_1030_)
+  );
+  sg13g2_a21oi_1 _1964_ (
+    .A1(_0958_),
+    .A2(_1025_),
+    .B1(_1030_),
+    .Y(_0108_)
+  );
+  sg13g2_nand2_1 _1965_ (
+    .A(_1025_),
+    .B(_0985_),
+    .Y(_1031_)
+  );
+  sg13g2_o21ai_1 _1966_ (
+    .A1(_0528_),
+    .A2(_1025_),
+    .B1(_1031_),
+    .Y(_0109_)
+  );
+  sg13g2_inv_1 _1967_ (
+    .A(\u_uart_master_core.u_host_bridge.idx_q[1] ),
+    .Y(_1032_)
+  );
+  sg13g2_nor4_1 _1968_ (
+    .A(_1032_),
+    .B(\u_uart_master_core.u_host_bridge.idx_q[0] ),
+    .C(_1022_),
+    .D(_1023_),
+    .Y(_1033_)
+  );
+  sg13g2_buf_1 _1969_ (
+    .A(_1033_),
+    .X(_1034_)
+  );
+  sg13g2_nor2_1 _1970_ (
+    .A(_1951_),
+    .B(_1034_),
+    .Y(_1035_)
+  );
+  sg13g2_a21oi_1 _1971_ (
+    .A1(_0929_),
+    .A2(_1034_),
+    .B1(_1035_),
+    .Y(_0110_)
+  );
+  sg13g2_nor2_1 _1972_ (
+    .A(_1952_),
+    .B(_1034_),
+    .Y(_1036_)
+  );
+  sg13g2_a21oi_1 _1973_ (
+    .A1(_0959_),
+    .A2(_1034_),
+    .B1(_1036_),
+    .Y(_0111_)
+  );
+  sg13g2_nor2_1 _1974_ (
+    .A(_1953_),
+    .B(_1034_),
+    .Y(_1037_)
+  );
+  sg13g2_a21oi_1 _1975_ (
+    .A1(_0985_),
+    .A2(_1034_),
+    .B1(_1037_),
+    .Y(_0112_)
+  );
+  sg13g2_nand2_1 _1976_ (
+    .A(_0524_),
+    .B(_0750_),
+    .Y(_1038_)
+  );
+  sg13g2_nor4_1 _1977_ (
+    .A(_1032_),
+    .B(_1019_),
+    .C(_1038_),
+    .D(_1023_),
+    .Y(_1039_)
+  );
+  sg13g2_buf_2 _1978_ (
+    .A(_1039_),
+    .X(_1040_)
+  );
+  sg13g2_buf_2 _1979_ (
+    .A(_1040_),
+    .X(_1041_)
+  );
+  sg13g2_mux2_1 _1980_ (
+    .A0(\u_uart_master_core.addr_o[30] ),
+    .A1(_0807_),
+    .S(_1041_),
+    .X(_0113_)
+  );
+  sg13g2_buf_2 _1981_ (
+    .A(_1040_),
+    .X(_1042_)
+  );
+  sg13g2_nor2_1 _1982_ (
+    .A(\u_uart_master_core.addr_o[29] ),
     .B(_1041_),
     .Y(_1043_)
   );
-  sg13g2_a21oi_1 _1938_ (
-    .A1(_1039_),
-    .A2(_1041_),
+  sg13g2_a21oi_1 _1983_ (
+    .A1(_0837_),
+    .A2(_1042_),
     .B1(_1043_),
+    .Y(_0114_)
+  );
+  sg13g2_nor2_1 _1984_ (
+    .A(\u_uart_master_core.addr_o[28] ),
+    .B(_1041_),
     .Y(_1044_)
   );
-  sg13g2_nand2_1 _1939_ (
-    .A(_1029_),
-    .B(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
+  sg13g2_a21oi_1 _1985_ (
+    .A1(_0867_),
+    .A2(_1042_),
+    .B1(_1044_),
+    .Y(_0115_)
+  );
+  sg13g2_nor2_1 _1986_ (
+    .A(\u_uart_master_core.addr_o[27] ),
+    .B(_1041_),
     .Y(_1045_)
   );
-  sg13g2_o21ai_1 _1940_ (
-    .A1(_1038_),
-    .A2(_1044_),
+  sg13g2_a21oi_1 _1987_ (
+    .A1(_0897_),
+    .A2(_1042_),
     .B1(_1045_),
-    .Y(_0093_)
+    .Y(_0116_)
   );
-  sg13g2_nand2_1 _1941_ (
-    .A(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
-    .B(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[0] ),
+  sg13g2_nor2_1 _1988_ (
+    .A(\u_uart_master_core.addr_o[26] ),
+    .B(_1041_),
     .Y(_1046_)
   );
-  sg13g2_nor2b_1 _1942_ (
-    .A(_1046_),
-    .B_N(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[1] ),
+  sg13g2_a21oi_1 _1989_ (
+    .A1(_0928_),
+    .A2(_1042_),
+    .B1(_1046_),
+    .Y(_0117_)
+  );
+  sg13g2_nor2_1 _1990_ (
+    .A(\u_uart_master_core.addr_o[25] ),
+    .B(_1041_),
     .Y(_1047_)
   );
-  sg13g2_xor2_1 _1943_ (
-    .A(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[2] ),
-    .B(_1047_),
-    .X(_0094_)
+  sg13g2_a21oi_1 _1991_ (
+    .A1(_0958_),
+    .A2(_1042_),
+    .B1(_1047_),
+    .Y(_0118_)
   );
-  sg13g2_xnor2_1 _1944_ (
-    .A(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[1] ),
-    .B(_1046_),
-    .Y(_0095_)
-  );
-  sg13g2_xor2_1 _1945_ (
-    .A(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
-    .B(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[0] ),
-    .X(_0096_)
-  );
-  sg13g2_inv_1 _1946_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
+  sg13g2_inv_1 _1992_ (
+    .A(_0985_),
     .Y(_1048_)
   );
-  sg13g2_o21ai_1 _1947_ (
-    .A1(\u_uart_master_core.u_host_bridge.tx_st_q[1] ),
-    .A2(\reg2hw[4] ),
-    .B1(_0554_),
+  sg13g2_nor2_1 _1993_ (
+    .A(\u_uart_master_core.addr_o[24] ),
+    .B(_1041_),
     .Y(_1049_)
   );
-  sg13g2_nor2_1 _1948_ (
-    .A(_0911_),
-    .B(_1049_),
+  sg13g2_a21oi_1 _1994_ (
+    .A1(_1048_),
+    .A2(_1042_),
+    .B1(_1049_),
+    .Y(_0119_)
+  );
+  sg13g2_inv_1 _1995_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[31] ),
     .Y(_1050_)
   );
-  sg13g2_inv_1 _1949_ (
-    .A(_1050_),
+  sg13g2_nor2_1 _1996_ (
+    .A(\u_uart_master_core.addr_o[23] ),
+    .B(_1041_),
     .Y(_1051_)
   );
-  sg13g2_nor2_1 _1950_ (
-    .A(_1048_),
-    .B(_1051_),
+  sg13g2_a21oi_1 _1997_ (
+    .A1(_1050_),
+    .A2(_1042_),
+    .B1(_1051_),
+    .Y(_0120_)
+  );
+  sg13g2_nor2_1 _1998_ (
+    .A(\u_uart_master_core.addr_o[22] ),
+    .B(_1041_),
     .Y(_1052_)
   );
-  sg13g2_inv_1 _1951_ (
-    .A(_1052_),
+  sg13g2_a21oi_1 _1999_ (
+    .A1(_0749_),
+    .A2(_1042_),
+    .B1(_1052_),
+    .Y(_0121_)
+  );
+  sg13g2_nor2_1 _2000_ (
+    .A(\u_uart_master_core.addr_o[21] ),
+    .B(_1041_),
     .Y(_1053_)
   );
-  sg13g2_nor2_1 _1952_ (
-    .A(_0548_),
-    .B(_1053_),
+  sg13g2_a21oi_1 _2001_ (
+    .A1(_0809_),
+    .A2(_1042_),
+    .B1(_1053_),
+    .Y(_0122_)
+  );
+  sg13g2_nor2_1 _2002_ (
+    .A(\u_uart_master_core.addr_o[20] ),
+    .B(_1041_),
     .Y(_1054_)
   );
-  sg13g2_buf_2 _1953_ (
-    .A(_1054_),
-    .X(_1055_)
+  sg13g2_a21oi_1 _2003_ (
+    .A1(_0840_),
+    .A2(_1042_),
+    .B1(_1054_),
+    .Y(_0123_)
   );
-  sg13g2_nor2_1 _1954_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .B(_0642_),
+  sg13g2_nor2_1 _2004_ (
+    .A(\u_uart_master_core.addr_o[19] ),
+    .B(_1041_),
+    .Y(_1055_)
+  );
+  sg13g2_a21oi_1 _2005_ (
+    .A1(_0870_),
+    .A2(_1042_),
+    .B1(_1055_),
+    .Y(_0124_)
+  );
+  sg13g2_nor2_1 _2006_ (
+    .A(\u_uart_master_core.addr_o[18] ),
+    .B(_1041_),
     .Y(_1056_)
   );
-  sg13g2_buf_1 _1955_ (
-    .A(_1056_),
-    .X(_1057_)
+  sg13g2_a21oi_1 _2007_ (
+    .A1(_0900_),
+    .A2(_1042_),
+    .B1(_1056_),
+    .Y(_0125_)
   );
-  sg13g2_nor3_1 _1956_ (
-    .A(_0639_),
-    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .C(_0646_),
+  sg13g2_nor2_1 _2008_ (
+    .A(\u_uart_master_core.addr_o[17] ),
+    .B(_1041_),
+    .Y(_1057_)
+  );
+  sg13g2_a21oi_1 _2009_ (
+    .A1(_0931_),
+    .A2(_1042_),
+    .B1(_1057_),
+    .Y(_0126_)
+  );
+  sg13g2_nor2_1 _2010_ (
+    .A(\u_uart_master_core.addr_o[16] ),
+    .B(_1041_),
     .Y(_1058_)
   );
-  sg13g2_buf_1 _1957_ (
-    .A(_1058_),
-    .X(_1059_)
+  sg13g2_a21oi_1 _2011_ (
+    .A1(_0961_),
+    .A2(_1042_),
+    .B1(_1058_),
+    .Y(_0127_)
   );
-  sg13g2_nor3_1 _1958_ (
-    .A(_0639_),
-    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .C(_0536_),
+  sg13g2_nor2_1 _2012_ (
+    .A(\u_uart_master_core.addr_o[15] ),
+    .B(_1040_),
+    .Y(_1059_)
+  );
+  sg13g2_a21oi_1 _2013_ (
+    .A1(_0987_),
+    .A2(_1042_),
+    .B1(_1059_),
+    .Y(_0128_)
+  );
+  sg13g2_nor2_1 _2014_ (
+    .A(\u_uart_master_core.addr_o[14] ),
+    .B(_1040_),
     .Y(_1060_)
   );
-  sg13g2_buf_1 _1959_ (
-    .A(_1060_),
-    .X(_1061_)
+  sg13g2_a21oi_1 _2015_ (
+    .A1(_0989_),
+    .A2(_1042_),
+    .B1(_1060_),
+    .Y(_0129_)
   );
-  sg13g2_a22oi_1 _1960_ (
-    .A1(_1059_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[30] ),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[6] ),
-    .B2(_1061_),
+  sg13g2_nor2_1 _2016_ (
+    .A(\u_uart_master_core.addr_o[13] ),
+    .B(_1040_),
+    .Y(_1061_)
+  );
+  sg13g2_a21oi_1 _2017_ (
+    .A1(_0991_),
+    .A2(_1042_),
+    .B1(_1061_),
+    .Y(_0130_)
+  );
+  sg13g2_nor2_1 _2018_ (
+    .A(\u_uart_master_core.addr_o[12] ),
+    .B(_1040_),
     .Y(_1062_)
   );
-  sg13g2_nor4_1 _1961_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[1] ),
-    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .C(_0639_),
-    .D(_0534_),
+  sg13g2_a21oi_1 _2019_ (
+    .A1(_0993_),
+    .A2(_1042_),
+    .B1(_1062_),
+    .Y(_0131_)
+  );
+  sg13g2_nor2_1 _2020_ (
+    .A(\u_uart_master_core.addr_o[11] ),
+    .B(_1040_),
     .Y(_1063_)
   );
-  sg13g2_buf_1 _1962_ (
-    .A(_1063_),
-    .X(_1064_)
+  sg13g2_a21oi_1 _2021_ (
+    .A1(_0995_),
+    .A2(_1042_),
+    .B1(_1063_),
+    .Y(_0132_)
   );
-  sg13g2_nor3_1 _1963_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
-    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .C(_0646_),
+  sg13g2_nor2_1 _2022_ (
+    .A(\u_uart_master_core.addr_o[10] ),
+    .B(_1040_),
+    .Y(_1064_)
+  );
+  sg13g2_a21oi_1 _2023_ (
+    .A1(_0997_),
+    .A2(_1042_),
+    .B1(_1064_),
+    .Y(_0133_)
+  );
+  sg13g2_nor2_1 _2024_ (
+    .A(\u_uart_master_core.addr_o[9] ),
+    .B(_1040_),
     .Y(_1065_)
   );
-  sg13g2_a21oi_1 _1964_ (
-    .A1(_1064_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[22] ),
+  sg13g2_a21oi_1 _2025_ (
+    .A1(_0999_),
+    .A2(_1042_),
     .B1(_1065_),
+    .Y(_0134_)
+  );
+  sg13g2_nor2_1 _2026_ (
+    .A(\u_uart_master_core.addr_o[8] ),
+    .B(_1040_),
     .Y(_1066_)
   );
-  sg13g2_nor4_1 _1965_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
-    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
-    .C(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .D(_0533_),
+  sg13g2_a21oi_1 _2027_ (
+    .A1(_1001_),
+    .A2(_1041_),
+    .B1(_1066_),
+    .Y(_0135_)
+  );
+  sg13g2_nor2_1 _2028_ (
+    .A(\u_uart_master_core.addr_o[7] ),
+    .B(_1040_),
     .Y(_1067_)
   );
-  sg13g2_buf_1 _1966_ (
-    .A(_1067_),
-    .X(_1068_)
+  sg13g2_a21oi_1 _2029_ (
+    .A1(_1003_),
+    .A2(_1041_),
+    .B1(_1067_),
+    .Y(_0136_)
   );
-  sg13g2_nor4_1 _1967_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
-    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .C(_0639_),
-    .D(_0533_),
+  sg13g2_nor2_1 _2030_ (
+    .A(\u_uart_master_core.addr_o[6] ),
+    .B(_1040_),
+    .Y(_1068_)
+  );
+  sg13g2_a21oi_1 _2031_ (
+    .A1(_1005_),
+    .A2(_1041_),
+    .B1(_1068_),
+    .Y(_0137_)
+  );
+  sg13g2_nor2_1 _2032_ (
+    .A(\u_uart_master_core.addr_o[5] ),
+    .B(_1040_),
     .Y(_1069_)
   );
-  sg13g2_buf_1 _1968_ (
-    .A(_1069_),
-    .X(_1070_)
+  sg13g2_a21oi_1 _2033_ (
+    .A1(_1007_),
+    .A2(_1041_),
+    .B1(_1069_),
+    .Y(_0138_)
   );
-  sg13g2_a22oi_1 _1969_ (
-    .A1(\u_uart_master_core.u_host_bridge.op_q[6] ),
-    .A2(_1068_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[14] ),
-    .B2(_1070_),
+  sg13g2_nor2_1 _2034_ (
+    .A(\u_uart_master_core.addr_o[4] ),
+    .B(_1040_),
+    .Y(_1070_)
+  );
+  sg13g2_a21oi_1 _2035_ (
+    .A1(_1009_),
+    .A2(_1041_),
+    .B1(_1070_),
+    .Y(_0139_)
+  );
+  sg13g2_nor2_1 _2036_ (
+    .A(\u_uart_master_core.addr_o[3] ),
+    .B(_1040_),
     .Y(_1071_)
   );
-  sg13g2_nand3_1 _1970_ (
-    .A(_1062_),
-    .B(_1066_),
-    .C(_1071_),
+  sg13g2_a21oi_1 _2037_ (
+    .A1(_1011_),
+    .A2(_1041_),
+    .B1(_1071_),
+    .Y(_0140_)
+  );
+  sg13g2_nor2_1 _2038_ (
+    .A(\u_uart_master_core.addr_o[2] ),
+    .B(_1040_),
     .Y(_1072_)
   );
-  sg13g2_a21oi_1 _1971_ (
-    .A1(_1057_),
-    .A2(_1072_),
-    .B1(\reg2hw[11] ),
+  sg13g2_a21oi_1 _2039_ (
+    .A1(_1013_),
+    .A2(_1041_),
+    .B1(_1072_),
+    .Y(_0141_)
+  );
+  sg13g2_inv_1 _2040_ (
+    .A(\u_uart_master_core.u_host_bridge.wdata_o[30] ),
     .Y(_1073_)
   );
-  sg13g2_buf_1 _1972_ (
-    .A(_1073_),
-    .X(_1074_)
+  sg13g2_a21oi_1 _2041_ (
+    .A1(\u_uart_master_core.u_host_bridge.idx_q[1] ),
+    .A2(\u_uart_master_core.u_host_bridge.idx_q[0] ),
+    .B1(_0751_),
+    .Y(_1074_)
   );
-  sg13g2_nor2_1 _1973_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[62] ),
-    .B(_1055_),
+  sg13g2_nor2_1 _2042_ (
+    .A(_1038_),
+    .B(_0531_),
     .Y(_1075_)
   );
-  sg13g2_a21oi_1 _1974_ (
-    .A1(_1055_),
-    .A2(_1074_),
-    .B1(_1075_),
-    .Y(_0097_)
-  );
-  sg13g2_nand2_1 _1975_ (
-    .A(_1061_),
-    .B(\u_uart_master_core.u_host_bridge.rdata_q[5] ),
+  sg13g2_nor2_1 _2043_ (
+    .A(_1074_),
+    .B(_1075_),
     .Y(_1076_)
   );
-  sg13g2_a22oi_1 _1976_ (
-    .A1(_1064_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[21] ),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[13] ),
-    .B2(_1070_),
+  sg13g2_inv_1 _2044_ (
+    .A(_1076_),
     .Y(_1077_)
   );
-  sg13g2_a22oi_1 _1977_ (
-    .A1(\u_uart_master_core.u_host_bridge.op_q[5] ),
-    .A2(_1068_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[29] ),
-    .B2(_1059_),
+  sg13g2_nor2_1 _2045_ (
+    .A(_0751_),
+    .B(_1077_),
     .Y(_1078_)
   );
-  sg13g2_nand3_1 _1978_ (
-    .A(_1076_),
-    .B(_1077_),
-    .C(_1078_),
+  sg13g2_inv_1 _2046_ (
+    .A(_1078_),
     .Y(_1079_)
   );
-  sg13g2_a21oi_1 _1979_ (
-    .A1(_1057_),
-    .A2(_1079_),
-    .B1(\reg2hw[10] ),
+  sg13g2_nor2_1 _2047_ (
+    .A(_1079_),
+    .B(_1023_),
     .Y(_1080_)
   );
-  sg13g2_buf_1 _1980_ (
+  sg13g2_buf_1 _2048_ (
     .A(_1080_),
     .X(_1081_)
   );
-  sg13g2_nor2_1 _1981_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[61] ),
-    .B(_1055_),
+  sg13g2_nor4_1 _2049_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
+    .B(_0523_),
+    .C(_1020_),
+    .D(_1077_),
     .Y(_1082_)
   );
-  sg13g2_a21oi_1 _1982_ (
-    .A1(_1055_),
-    .A2(_1081_),
-    .B1(_1082_),
-    .Y(_0098_)
-  );
-  sg13g2_a22oi_1 _1983_ (
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[20] ),
-    .A2(_1064_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[4] ),
-    .B2(_1061_),
+  sg13g2_nand2_1 _2050_ (
+    .A(_0769_),
+    .B(_1082_),
     .Y(_1083_)
   );
-  sg13g2_a21oi_1 _1984_ (
-    .A1(_1070_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[12] ),
-    .B1(_1065_),
-    .Y(_1084_)
+  sg13g2_buf_1 _2051_ (
+    .A(_1083_),
+    .X(_1084_)
   );
-  sg13g2_a22oi_1 _1985_ (
-    .A1(\u_uart_master_core.u_host_bridge.op_q[4] ),
-    .A2(_1068_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[28] ),
-    .B2(_1059_),
+  sg13g2_inv_1 _2052_ (
+    .A(_1084_),
     .Y(_1085_)
   );
-  sg13g2_nand3_1 _1986_ (
-    .A(_1083_),
-    .B(_1084_),
-    .C(_1085_),
+  sg13g2_nand2_1 _2053_ (
+    .A(_1085_),
+    .B(_0807_),
     .Y(_1086_)
   );
-  sg13g2_a21oi_1 _1987_ (
-    .A1(_1057_),
-    .A2(_1086_),
-    .B1(\reg2hw[9] ),
-    .Y(_1087_)
+  sg13g2_o21ai_1 _2054_ (
+    .A1(_1073_),
+    .A2(_1081_),
+    .B1(_1086_),
+    .Y(_0142_)
   );
-  sg13g2_buf_1 _1988_ (
-    .A(_1087_),
-    .X(_1088_)
+  sg13g2_buf_2 _2055_ (
+    .A(_1084_),
+    .X(_1087_)
   );
-  sg13g2_nor2_1 _1989_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[60] ),
-    .B(_1055_),
-    .Y(_1089_)
+  sg13g2_inv_1 _2056_ (
+    .A(_1081_),
+    .Y(_1088_)
   );
-  sg13g2_a21oi_1 _1990_ (
-    .A1(_1055_),
-    .A2(_1088_),
-    .B1(_1089_),
-    .Y(_0099_)
+  sg13g2_buf_4 _2057_ (
+    .A(_1088_),
+    .X(_1089_)
   );
-  sg13g2_a22oi_1 _1991_ (
-    .A1(_1059_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[27] ),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[3] ),
-    .B2(_1061_),
+  sg13g2_nand2_1 _2058_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[29] ),
     .Y(_1090_)
   );
-  sg13g2_a22oi_1 _1992_ (
-    .A1(\u_uart_master_core.u_host_bridge.op_q[3] ),
-    .A2(_1068_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[19] ),
-    .B2(_1064_),
+  sg13g2_o21ai_1 _2059_ (
+    .A1(_1087_),
+    .A2(_0837_),
+    .B1(_1090_),
+    .Y(_0143_)
+  );
+  sg13g2_nand2_1 _2060_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[28] ),
     .Y(_1091_)
   );
-  sg13g2_a21oi_1 _1993_ (
-    .A1(_1070_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[11] ),
-    .B1(_1065_),
+  sg13g2_o21ai_1 _2061_ (
+    .A1(_0867_),
+    .A2(_1087_),
+    .B1(_1091_),
+    .Y(_0144_)
+  );
+  sg13g2_nand2_1 _2062_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[27] ),
     .Y(_1092_)
   );
-  sg13g2_nand3_1 _1994_ (
-    .A(_1090_),
-    .B(_1091_),
-    .C(_1092_),
+  sg13g2_o21ai_1 _2063_ (
+    .A1(_0897_),
+    .A2(_1087_),
+    .B1(_1092_),
+    .Y(_0145_)
+  );
+  sg13g2_nand2_1 _2064_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[26] ),
     .Y(_1093_)
   );
-  sg13g2_a21oi_1 _1995_ (
-    .A1(_1057_),
-    .A2(_1093_),
-    .B1(\reg2hw[8] ),
+  sg13g2_o21ai_1 _2065_ (
+    .A1(_0928_),
+    .A2(_1087_),
+    .B1(_1093_),
+    .Y(_0146_)
+  );
+  sg13g2_nand2_1 _2066_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[25] ),
     .Y(_1094_)
   );
-  sg13g2_buf_1 _1996_ (
-    .A(_1094_),
-    .X(_1095_)
+  sg13g2_o21ai_1 _2067_ (
+    .A1(_0958_),
+    .A2(_1087_),
+    .B1(_1094_),
+    .Y(_0147_)
   );
-  sg13g2_nor2_1 _1997_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[59] ),
-    .B(_1055_),
+  sg13g2_nand2_1 _2068_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[24] ),
+    .Y(_1095_)
+  );
+  sg13g2_o21ai_1 _2069_ (
+    .A1(_1048_),
+    .A2(_1087_),
+    .B1(_1095_),
+    .Y(_0148_)
+  );
+  sg13g2_nand2_1 _2070_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[23] ),
     .Y(_1096_)
   );
-  sg13g2_a21oi_1 _1998_ (
-    .A1(_1055_),
-    .A2(_1095_),
+  sg13g2_o21ai_1 _2071_ (
+    .A1(_1050_),
+    .A2(_1087_),
     .B1(_1096_),
-    .Y(_0100_)
+    .Y(_0149_)
   );
-  sg13g2_nand2_1 _1999_ (
-    .A(_1061_),
-    .B(\u_uart_master_core.u_host_bridge.rdata_q[2] ),
+  sg13g2_nand2_1 _2072_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[22] ),
     .Y(_1097_)
   );
-  sg13g2_a22oi_1 _2000_ (
-    .A1(\u_uart_master_core.u_host_bridge.op_q[2] ),
-    .A2(_1068_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[18] ),
-    .B2(_1064_),
+  sg13g2_o21ai_1 _2073_ (
+    .A1(_0749_),
+    .A2(_1087_),
+    .B1(_1097_),
+    .Y(_0150_)
+  );
+  sg13g2_nand2_1 _2074_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[21] ),
     .Y(_1098_)
   );
-  sg13g2_a22oi_1 _2001_ (
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[10] ),
-    .A2(_1070_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[26] ),
-    .B2(_1059_),
+  sg13g2_o21ai_1 _2075_ (
+    .A1(_0809_),
+    .A2(_1087_),
+    .B1(_1098_),
+    .Y(_0151_)
+  );
+  sg13g2_nand2_1 _2076_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[20] ),
     .Y(_1099_)
   );
-  sg13g2_nand3_1 _2002_ (
-    .A(_1097_),
-    .B(_1098_),
-    .C(_1099_),
+  sg13g2_o21ai_1 _2077_ (
+    .A1(_0840_),
+    .A2(_1087_),
+    .B1(_1099_),
+    .Y(_0152_)
+  );
+  sg13g2_nand2_1 _2078_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[19] ),
     .Y(_1100_)
   );
-  sg13g2_a21oi_1 _2003_ (
-    .A1(_1057_),
-    .A2(_1100_),
-    .B1(\reg2hw[7] ),
+  sg13g2_o21ai_1 _2079_ (
+    .A1(_0870_),
+    .A2(_1087_),
+    .B1(_1100_),
+    .Y(_0153_)
+  );
+  sg13g2_nand2_1 _2080_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[18] ),
     .Y(_1101_)
   );
-  sg13g2_buf_1 _2004_ (
-    .A(_1101_),
-    .X(_1102_)
+  sg13g2_o21ai_1 _2081_ (
+    .A1(_0900_),
+    .A2(_1087_),
+    .B1(_1101_),
+    .Y(_0154_)
   );
-  sg13g2_nor2_1 _2005_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[58] ),
-    .B(_1055_),
+  sg13g2_nand2_1 _2082_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[17] ),
+    .Y(_1102_)
+  );
+  sg13g2_o21ai_1 _2083_ (
+    .A1(_0931_),
+    .A2(_1087_),
+    .B1(_1102_),
+    .Y(_0155_)
+  );
+  sg13g2_nand2_1 _2084_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[16] ),
     .Y(_1103_)
   );
-  sg13g2_a21oi_1 _2006_ (
-    .A1(_1055_),
-    .A2(_1102_),
+  sg13g2_o21ai_1 _2085_ (
+    .A1(_0961_),
+    .A2(_1087_),
     .B1(_1103_),
-    .Y(_0101_)
+    .Y(_0156_)
   );
-  sg13g2_a22oi_1 _2007_ (
-    .A1(_1059_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[25] ),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[1] ),
-    .B2(_1061_),
+  sg13g2_nand2_1 _2086_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[15] ),
     .Y(_1104_)
   );
-  sg13g2_a22oi_1 _2008_ (
-    .A1(\u_uart_master_core.u_host_bridge.op_q[1] ),
-    .A2(_1068_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[17] ),
-    .B2(_1064_),
+  sg13g2_o21ai_1 _2087_ (
+    .A1(_0987_),
+    .A2(_1087_),
+    .B1(_1104_),
+    .Y(_0157_)
+  );
+  sg13g2_nand2_1 _2088_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[14] ),
     .Y(_1105_)
   );
-  sg13g2_a21oi_1 _2009_ (
-    .A1(_1070_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[9] ),
-    .B1(_1065_),
+  sg13g2_o21ai_1 _2089_ (
+    .A1(_0989_),
+    .A2(_1087_),
+    .B1(_1105_),
+    .Y(_0158_)
+  );
+  sg13g2_nand2_1 _2090_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[13] ),
     .Y(_1106_)
   );
-  sg13g2_nand3_1 _2010_ (
-    .A(_1104_),
-    .B(_1105_),
-    .C(_1106_),
+  sg13g2_o21ai_1 _2091_ (
+    .A1(_0991_),
+    .A2(_1087_),
+    .B1(_1106_),
+    .Y(_0159_)
+  );
+  sg13g2_nand2_1 _2092_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[12] ),
     .Y(_1107_)
   );
-  sg13g2_a21oi_1 _2011_ (
-    .A1(_1057_),
-    .A2(_1107_),
-    .B1(\reg2hw[6] ),
+  sg13g2_o21ai_1 _2093_ (
+    .A1(_0993_),
+    .A2(_1087_),
+    .B1(_1107_),
+    .Y(_0160_)
+  );
+  sg13g2_nand2_1 _2094_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[11] ),
     .Y(_1108_)
   );
-  sg13g2_buf_1 _2012_ (
-    .A(_1108_),
-    .X(_1109_)
+  sg13g2_o21ai_1 _2095_ (
+    .A1(_0995_),
+    .A2(_1087_),
+    .B1(_1108_),
+    .Y(_0161_)
   );
-  sg13g2_nor2_1 _2013_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[57] ),
-    .B(_1055_),
+  sg13g2_nand2_1 _2096_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[10] ),
+    .Y(_1109_)
+  );
+  sg13g2_o21ai_1 _2097_ (
+    .A1(_0997_),
+    .A2(_1087_),
+    .B1(_1109_),
+    .Y(_0162_)
+  );
+  sg13g2_nand2_1 _2098_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[9] ),
     .Y(_1110_)
   );
-  sg13g2_a21oi_1 _2014_ (
-    .A1(_1055_),
-    .A2(_1109_),
+  sg13g2_o21ai_1 _2099_ (
+    .A1(_0999_),
+    .A2(_1084_),
     .B1(_1110_),
-    .Y(_0102_)
+    .Y(_0163_)
   );
-  sg13g2_a22oi_1 _2015_ (
-    .A1(_1059_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[24] ),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[0] ),
-    .B2(_1061_),
+  sg13g2_nand2_1 _2100_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[8] ),
     .Y(_1111_)
   );
-  sg13g2_nand2_1 _2016_ (
-    .A(_1064_),
-    .B(\u_uart_master_core.u_host_bridge.rdata_q[16] ),
+  sg13g2_o21ai_1 _2101_ (
+    .A1(_1001_),
+    .A2(_1084_),
+    .B1(_1111_),
+    .Y(_0164_)
+  );
+  sg13g2_nand2_1 _2102_ (
+    .A(_1089_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[7] ),
     .Y(_1112_)
   );
-  sg13g2_nor3_1 _2017_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
-    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .C(_0534_),
+  sg13g2_o21ai_1 _2103_ (
+    .A1(_1003_),
+    .A2(_1084_),
+    .B1(_1112_),
+    .Y(_0165_)
+  );
+  sg13g2_nand2_1 _2104_ (
+    .A(_1088_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[6] ),
     .Y(_1113_)
   );
-  sg13g2_o21ai_1 _2018_ (
-    .A1(_0533_),
-    .A2(\u_uart_master_core.u_host_bridge.any_err_q ),
+  sg13g2_o21ai_1 _2105_ (
+    .A1(_1005_),
+    .A2(_1084_),
     .B1(_1113_),
+    .Y(_0166_)
+  );
+  sg13g2_nand2_1 _2106_ (
+    .A(_1088_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[5] ),
     .Y(_1114_)
   );
-  sg13g2_a22oi_1 _2019_ (
-    .A1(\u_uart_master_core.u_host_bridge.op_q[0] ),
-    .A2(_1068_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[8] ),
-    .B2(_1070_),
+  sg13g2_o21ai_1 _2107_ (
+    .A1(_1007_),
+    .A2(_1084_),
+    .B1(_1114_),
+    .Y(_0167_)
+  );
+  sg13g2_nand2_1 _2108_ (
+    .A(_1088_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[4] ),
     .Y(_1115_)
   );
-  sg13g2_nand4_1 _2020_ (
-    .A(_1111_),
-    .B(_1112_),
-    .C(_1114_),
-    .D(_1115_),
+  sg13g2_o21ai_1 _2109_ (
+    .A1(_1009_),
+    .A2(_1084_),
+    .B1(_1115_),
+    .Y(_0168_)
+  );
+  sg13g2_nand2_1 _2110_ (
+    .A(_1088_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[3] ),
     .Y(_1116_)
   );
-  sg13g2_a21oi_1 _2021_ (
-    .A1(_1057_),
-    .A2(_1116_),
-    .B1(\reg2hw[5] ),
+  sg13g2_o21ai_1 _2111_ (
+    .A1(_1011_),
+    .A2(_1084_),
+    .B1(_1116_),
+    .Y(_0169_)
+  );
+  sg13g2_nand2_1 _2112_ (
+    .A(_1088_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[2] ),
     .Y(_1117_)
   );
-  sg13g2_buf_1 _2022_ (
-    .A(_1117_),
-    .X(_1118_)
+  sg13g2_o21ai_1 _2113_ (
+    .A1(_1013_),
+    .A2(_1084_),
+    .B1(_1117_),
+    .Y(_0170_)
   );
-  sg13g2_nor2_1 _2023_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[56] ),
-    .B(_1055_),
+  sg13g2_nand2_1 _2114_ (
+    .A(_1088_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[1] ),
+    .Y(_1118_)
+  );
+  sg13g2_o21ai_1 _2115_ (
+    .A1(_1015_),
+    .A2(_1084_),
+    .B1(_1118_),
+    .Y(_0171_)
+  );
+  sg13g2_nand2_1 _2116_ (
+    .A(_1088_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[0] ),
     .Y(_1119_)
   );
-  sg13g2_a21oi_1 _2024_ (
-    .A1(_1055_),
-    .A2(_1118_),
+  sg13g2_o21ai_1 _2117_ (
+    .A1(_1017_),
+    .A2(_1084_),
     .B1(_1119_),
-    .Y(_0103_)
+    .Y(_0172_)
   );
-  sg13g2_inv_1 _2025_ (
-    .A(_1049_),
+  sg13g2_nor3_1 _2118_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .B(_0547_),
+    .C(_0661_),
     .Y(_1120_)
   );
-  sg13g2_nand2_1 _2026_ (
+  sg13g2_buf_1 _2119_ (
     .A(_1120_),
-    .B(_0911_),
-    .Y(_1121_)
+    .X(_1121_)
   );
-  sg13g2_nor3_1 _2027_ (
-    .A(_1048_),
-    .B(_0548_),
-    .C(_1121_),
+  sg13g2_nor2_1 _2120_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[38] ),
+    .B(_1121_),
     .Y(_1122_)
   );
-  sg13g2_buf_1 _2028_ (
-    .A(_1122_),
-    .X(_1123_)
+  sg13g2_a21oi_1 _2121_ (
+    .A1(_0682_),
+    .A2(_1121_),
+    .B1(_1122_),
+    .Y(_0173_)
   );
-  sg13g2_nor2_1 _2029_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[54] ),
-    .B(_1123_),
+  sg13g2_nor2_1 _2122_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[37] ),
+    .B(_1121_),
+    .Y(_1123_)
+  );
+  sg13g2_a21oi_1 _2123_ (
+    .A1(_0689_),
+    .A2(_1121_),
+    .B1(_1123_),
+    .Y(_0174_)
+  );
+  sg13g2_nor2_1 _2124_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[36] ),
+    .B(_1121_),
     .Y(_1124_)
   );
-  sg13g2_a21oi_1 _2030_ (
-    .A1(_1074_),
-    .A2(_1123_),
+  sg13g2_a21oi_1 _2125_ (
+    .A1(_0696_),
+    .A2(_1121_),
     .B1(_1124_),
-    .Y(_0104_)
+    .Y(_0175_)
   );
-  sg13g2_nor2_1 _2031_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[53] ),
-    .B(_1123_),
+  sg13g2_nor2_1 _2126_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[35] ),
+    .B(_1121_),
     .Y(_1125_)
   );
-  sg13g2_a21oi_1 _2032_ (
-    .A1(_1081_),
-    .A2(_1123_),
+  sg13g2_a21oi_1 _2127_ (
+    .A1(_0703_),
+    .A2(_1121_),
     .B1(_1125_),
-    .Y(_0105_)
+    .Y(_0176_)
   );
-  sg13g2_nor2_1 _2033_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[52] ),
-    .B(_1123_),
+  sg13g2_nor2_1 _2128_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[34] ),
+    .B(_1121_),
     .Y(_1126_)
   );
-  sg13g2_a21oi_1 _2034_ (
-    .A1(_1088_),
-    .A2(_1123_),
+  sg13g2_a21oi_1 _2129_ (
+    .A1(_0710_),
+    .A2(_1121_),
     .B1(_1126_),
-    .Y(_0106_)
+    .Y(_0177_)
   );
-  sg13g2_nor2_1 _2035_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[51] ),
-    .B(_1123_),
+  sg13g2_nor2_1 _2130_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[33] ),
+    .B(_1121_),
     .Y(_1127_)
   );
-  sg13g2_a21oi_1 _2036_ (
-    .A1(_1095_),
-    .A2(_1123_),
+  sg13g2_a21oi_1 _2131_ (
+    .A1(_0717_),
+    .A2(_1121_),
     .B1(_1127_),
-    .Y(_0107_)
+    .Y(_0178_)
   );
-  sg13g2_nor2_1 _2037_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[50] ),
-    .B(_1123_),
+  sg13g2_nor2_1 _2132_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[32] ),
+    .B(_1121_),
     .Y(_1128_)
   );
-  sg13g2_a21oi_1 _2038_ (
-    .A1(_1102_),
-    .A2(_1123_),
+  sg13g2_a21oi_1 _2133_ (
+    .A1(_0726_),
+    .A2(_1121_),
     .B1(_1128_),
-    .Y(_0108_)
+    .Y(_0179_)
   );
-  sg13g2_nor2_1 _2039_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[49] ),
-    .B(_1123_),
+  sg13g2_nand2_1 _2134_ (
+    .A(_1085_),
+    .B(_1951_),
     .Y(_1129_)
   );
-  sg13g2_a21oi_1 _2040_ (
-    .A1(_1109_),
-    .A2(_1123_),
+  sg13g2_o21ai_1 _2135_ (
+    .A1(\u_uart_master_core.be_o[2] ),
+    .A2(_1081_),
     .B1(_1129_),
-    .Y(_0109_)
+    .Y(_0180_)
   );
-  sg13g2_nor2_1 _2041_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[48] ),
-    .B(_1123_),
+  sg13g2_nand2_1 _2136_ (
+    .A(_1085_),
+    .B(_1952_),
     .Y(_1130_)
   );
-  sg13g2_a21oi_1 _2042_ (
-    .A1(_1118_),
-    .A2(_1123_),
+  sg13g2_o21ai_1 _2137_ (
+    .A1(\u_uart_master_core.be_o[1] ),
+    .A2(_1081_),
     .B1(_1130_),
-    .Y(_0110_)
+    .Y(_0181_)
   );
-  sg13g2_nor3_1 _2043_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .B(_0548_),
-    .C(_1051_),
+  sg13g2_nand2_1 _2138_ (
+    .A(_1085_),
+    .B(_1953_),
     .Y(_1131_)
   );
-  sg13g2_buf_1 _2044_ (
-    .A(_1131_),
-    .X(_1132_)
+  sg13g2_o21ai_1 _2139_ (
+    .A1(\u_uart_master_core.be_o[0] ),
+    .A2(_1081_),
+    .B1(_1131_),
+    .Y(_0182_)
   );
-  sg13g2_nor2_1 _2045_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[46] ),
-    .B(_1132_),
-    .Y(_1133_)
+  sg13g2_nor2_1 _2140_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .B(_0730_),
+    .Y(_1132_)
   );
-  sg13g2_a21oi_1 _2046_ (
-    .A1(_1074_),
-    .A2(_1132_),
-    .B1(_1133_),
-    .Y(_0111_)
+  sg13g2_buf_1 _2141_ (
+    .A(_1132_),
+    .X(_1133_)
   );
-  sg13g2_nor2_1 _2047_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[45] ),
-    .B(_1132_),
+  sg13g2_nor2_1 _2142_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[30] ),
+    .B(_1133_),
     .Y(_1134_)
   );
-  sg13g2_a21oi_1 _2048_ (
-    .A1(_1081_),
-    .A2(_1132_),
+  sg13g2_a21oi_1 _2143_ (
+    .A1(_0682_),
+    .A2(_1133_),
     .B1(_1134_),
-    .Y(_0112_)
+    .Y(_0183_)
   );
-  sg13g2_nor2_1 _2049_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[44] ),
-    .B(_1132_),
+  sg13g2_nor2_1 _2144_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[29] ),
+    .B(_1133_),
     .Y(_1135_)
   );
-  sg13g2_a21oi_1 _2050_ (
-    .A1(_1088_),
-    .A2(_1132_),
+  sg13g2_a21oi_1 _2145_ (
+    .A1(_0689_),
+    .A2(_1133_),
     .B1(_1135_),
-    .Y(_0113_)
+    .Y(_0184_)
   );
-  sg13g2_nor2_1 _2051_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[43] ),
-    .B(_1132_),
+  sg13g2_nor2_1 _2146_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[28] ),
+    .B(_1133_),
     .Y(_1136_)
   );
-  sg13g2_a21oi_1 _2052_ (
-    .A1(_1095_),
-    .A2(_1132_),
+  sg13g2_a21oi_1 _2147_ (
+    .A1(_0696_),
+    .A2(_1133_),
     .B1(_1136_),
-    .Y(_0114_)
+    .Y(_0185_)
   );
-  sg13g2_nor2_1 _2053_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[42] ),
-    .B(_1132_),
+  sg13g2_nor2_1 _2148_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[27] ),
+    .B(_1133_),
     .Y(_1137_)
   );
-  sg13g2_a21oi_1 _2054_ (
-    .A1(_1102_),
-    .A2(_1132_),
+  sg13g2_a21oi_1 _2149_ (
+    .A1(_0703_),
+    .A2(_1133_),
     .B1(_1137_),
-    .Y(_0115_)
+    .Y(_0186_)
   );
-  sg13g2_nor2_1 _2055_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[41] ),
-    .B(_1132_),
+  sg13g2_nor2_1 _2150_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[26] ),
+    .B(_1133_),
     .Y(_1138_)
   );
-  sg13g2_a21oi_1 _2056_ (
-    .A1(_1109_),
-    .A2(_1132_),
+  sg13g2_a21oi_1 _2151_ (
+    .A1(_0710_),
+    .A2(_1133_),
     .B1(_1138_),
-    .Y(_0116_)
+    .Y(_0187_)
   );
-  sg13g2_nor2_1 _2057_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[40] ),
-    .B(_1132_),
+  sg13g2_nor2_1 _2152_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[25] ),
+    .B(_1133_),
     .Y(_1139_)
   );
-  sg13g2_a21oi_1 _2058_ (
-    .A1(_1118_),
-    .A2(_1132_),
+  sg13g2_a21oi_1 _2153_ (
+    .A1(_0717_),
+    .A2(_1133_),
     .B1(_1139_),
-    .Y(_0117_)
+    .Y(_0188_)
   );
-  sg13g2_nor3_1 _2059_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .B(_0548_),
-    .C(_1121_),
+  sg13g2_nor2_1 _2154_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[24] ),
+    .B(_1133_),
     .Y(_1140_)
   );
-  sg13g2_buf_1 _2060_ (
-    .A(_1140_),
+  sg13g2_a21oi_1 _2155_ (
+    .A1(_0726_),
+    .A2(_1133_),
+    .B1(_1140_),
+    .Y(_0189_)
+  );
+  sg13g2_buf_1 _2156_ (
+    .A(_0527_),
     .X(_1141_)
   );
-  sg13g2_nor2_1 _2061_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[38] ),
-    .B(_1141_),
-    .Y(_1142_)
+  sg13g2_mux2_1 _2157_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[30] ),
+    .A1(rdata_i[30]),
+    .S(_1141_),
+    .X(_0190_)
   );
-  sg13g2_a21oi_1 _2062_ (
-    .A1(_1074_),
-    .A2(_1141_),
-    .B1(_1142_),
-    .Y(_0118_)
+  sg13g2_mux2_1 _2158_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[29] ),
+    .A1(rdata_i[29]),
+    .S(_1141_),
+    .X(_0191_)
   );
-  sg13g2_nor2_1 _2063_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[37] ),
-    .B(_1141_),
+  sg13g2_mux2_1 _2159_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[28] ),
+    .A1(rdata_i[28]),
+    .S(_1141_),
+    .X(_0192_)
+  );
+  sg13g2_mux2_1 _2160_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[27] ),
+    .A1(rdata_i[27]),
+    .S(_1141_),
+    .X(_0193_)
+  );
+  sg13g2_mux2_1 _2161_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[26] ),
+    .A1(rdata_i[26]),
+    .S(_1141_),
+    .X(_0194_)
+  );
+  sg13g2_mux2_1 _2162_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[25] ),
+    .A1(rdata_i[25]),
+    .S(_1141_),
+    .X(_0195_)
+  );
+  sg13g2_mux2_1 _2163_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[24] ),
+    .A1(rdata_i[24]),
+    .S(_1141_),
+    .X(_0196_)
+  );
+  sg13g2_mux2_1 _2164_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[23] ),
+    .A1(rdata_i[23]),
+    .S(_1141_),
+    .X(_0197_)
+  );
+  sg13g2_mux2_1 _2165_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[22] ),
+    .A1(rdata_i[22]),
+    .S(_1141_),
+    .X(_0198_)
+  );
+  sg13g2_mux2_1 _2166_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[21] ),
+    .A1(rdata_i[21]),
+    .S(_1141_),
+    .X(_0199_)
+  );
+  sg13g2_mux2_1 _2167_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[20] ),
+    .A1(rdata_i[20]),
+    .S(_1141_),
+    .X(_0200_)
+  );
+  sg13g2_mux2_1 _2168_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[19] ),
+    .A1(rdata_i[19]),
+    .S(_1141_),
+    .X(_0201_)
+  );
+  sg13g2_mux2_1 _2169_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[18] ),
+    .A1(rdata_i[18]),
+    .S(_1141_),
+    .X(_0202_)
+  );
+  sg13g2_mux2_1 _2170_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[17] ),
+    .A1(rdata_i[17]),
+    .S(_1141_),
+    .X(_0203_)
+  );
+  sg13g2_buf_1 _2171_ (
+    .A(_0527_),
+    .X(_1142_)
+  );
+  sg13g2_nand2_1 _2172_ (
+    .A(_1142_),
+    .B(rdata_i[16]),
     .Y(_1143_)
   );
-  sg13g2_a21oi_1 _2064_ (
-    .A1(_1081_),
+  sg13g2_o21ai_1 _2173_ (
+    .A1(_0720_),
     .A2(_1141_),
     .B1(_1143_),
-    .Y(_0119_)
+    .Y(_0204_)
   );
-  sg13g2_nor2_1 _2065_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[36] ),
-    .B(_1141_),
+  sg13g2_mux2_1 _2174_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[15] ),
+    .A1(rdata_i[15]),
+    .S(_1141_),
+    .X(_0205_)
+  );
+  sg13g2_mux2_1 _2175_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[14] ),
+    .A1(rdata_i[14]),
+    .S(_1141_),
+    .X(_0206_)
+  );
+  sg13g2_mux2_1 _2176_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[13] ),
+    .A1(rdata_i[13]),
+    .S(_1142_),
+    .X(_0207_)
+  );
+  sg13g2_mux2_1 _2177_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[12] ),
+    .A1(rdata_i[12]),
+    .S(_1142_),
+    .X(_0208_)
+  );
+  sg13g2_mux2_1 _2178_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[11] ),
+    .A1(rdata_i[11]),
+    .S(_1142_),
+    .X(_0209_)
+  );
+  sg13g2_mux2_1 _2179_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[10] ),
+    .A1(rdata_i[10]),
+    .S(_1142_),
+    .X(_0210_)
+  );
+  sg13g2_mux2_1 _2180_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[9] ),
+    .A1(rdata_i[9]),
+    .S(_1142_),
+    .X(_0211_)
+  );
+  sg13g2_mux2_1 _2181_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[8] ),
+    .A1(rdata_i[8]),
+    .S(_1142_),
+    .X(_0212_)
+  );
+  sg13g2_mux2_1 _2182_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[7] ),
+    .A1(rdata_i[7]),
+    .S(_1142_),
+    .X(_0213_)
+  );
+  sg13g2_mux2_1 _2183_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[6] ),
+    .A1(rdata_i[6]),
+    .S(_1142_),
+    .X(_0214_)
+  );
+  sg13g2_mux2_1 _2184_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[5] ),
+    .A1(rdata_i[5]),
+    .S(_1142_),
+    .X(_0215_)
+  );
+  sg13g2_mux2_1 _2185_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[4] ),
+    .A1(rdata_i[4]),
+    .S(_1142_),
+    .X(_0216_)
+  );
+  sg13g2_mux2_1 _2186_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[3] ),
+    .A1(rdata_i[3]),
+    .S(_1142_),
+    .X(_0217_)
+  );
+  sg13g2_mux2_1 _2187_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[2] ),
+    .A1(rdata_i[2]),
+    .S(_1142_),
+    .X(_0218_)
+  );
+  sg13g2_mux2_1 _2188_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[1] ),
+    .A1(rdata_i[1]),
+    .S(_1142_),
+    .X(_0219_)
+  );
+  sg13g2_mux2_1 _2189_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[0] ),
+    .A1(rdata_i[0]),
+    .S(_1142_),
+    .X(_0220_)
+  );
+  sg13g2_nand2_1 _2190_ (
+    .A(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[0] ),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
     .Y(_1144_)
   );
-  sg13g2_a21oi_1 _2066_ (
-    .A1(_1088_),
-    .A2(_1141_),
-    .B1(_1144_),
-    .Y(_0120_)
-  );
-  sg13g2_nor2_1 _2067_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[35] ),
-    .B(_1141_),
+  sg13g2_nor2b_1 _2191_ (
+    .A(_1144_),
+    .B_N(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[1] ),
     .Y(_1145_)
   );
-  sg13g2_a21oi_1 _2068_ (
-    .A1(_1095_),
-    .A2(_1141_),
-    .B1(_1145_),
-    .Y(_0121_)
+  sg13g2_xor2_1 _2192_ (
+    .A(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[2] ),
+    .B(_1145_),
+    .X(_0221_)
   );
-  sg13g2_nor2_1 _2069_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[34] ),
-    .B(_1141_),
+  sg13g2_xnor2_1 _2193_ (
+    .A(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[1] ),
+    .B(_1144_),
+    .Y(_0222_)
+  );
+  sg13g2_xor2_1 _2194_ (
+    .A(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[0] ),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
+    .X(_0223_)
+  );
+  sg13g2_inv_1 _2195_ (
+    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[2] ),
     .Y(_1146_)
   );
-  sg13g2_a21oi_1 _2070_ (
-    .A1(_1102_),
-    .A2(_1141_),
-    .B1(_1146_),
-    .Y(_0122_)
-  );
-  sg13g2_nor2_1 _2071_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[33] ),
-    .B(_1141_),
+  sg13g2_inv_1 _2196_ (
+    .A(\reg2hw[34] ),
     .Y(_1147_)
   );
-  sg13g2_a21oi_1 _2072_ (
-    .A1(_1109_),
-    .A2(_1141_),
-    .B1(_1147_),
-    .Y(_0123_)
-  );
-  sg13g2_nor2_1 _2073_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[32] ),
-    .B(_1141_),
+  sg13g2_nor2_1 _2197_ (
+    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
+    .B(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[1] ),
     .Y(_1148_)
   );
-  sg13g2_a21oi_1 _2074_ (
-    .A1(_1118_),
-    .A2(_1141_),
-    .B1(_1148_),
-    .Y(_0124_)
-  );
-  sg13g2_nor2_1 _2075_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .B(_1053_),
+  sg13g2_inv_1 _2198_ (
+    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[3] ),
     .Y(_1149_)
   );
-  sg13g2_buf_2 _2076_ (
-    .A(_1149_),
-    .X(_1150_)
+  sg13g2_nand3_1 _2199_ (
+    .A(_1148_),
+    .B(_1146_),
+    .C(_1149_),
+    .Y(_1150_)
   );
-  sg13g2_nor2_1 _2077_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[30] ),
-    .B(_1150_),
+  sg13g2_nand2_1 _2200_ (
+    .A(_1150_),
+    .B(\u_uart_master_core.u_uart_core.uart_tx.tick_baud_q ),
     .Y(_1151_)
   );
-  sg13g2_a21oi_1 _2078_ (
-    .A1(_1074_),
-    .A2(_1150_),
-    .B1(_1151_),
-    .Y(_0125_)
-  );
-  sg13g2_nor2_1 _2079_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[29] ),
-    .B(_1150_),
+  sg13g2_inv_1 _2201_ (
+    .A(_1151_),
     .Y(_1152_)
   );
-  sg13g2_a21oi_1 _2080_ (
-    .A1(_1081_),
-    .A2(_1150_),
-    .B1(_1152_),
-    .Y(_0126_)
-  );
-  sg13g2_nor2_1 _2081_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[28] ),
-    .B(_1150_),
+  sg13g2_nor2_1 _2202_ (
+    .A(_1147_),
+    .B(_1152_),
     .Y(_1153_)
   );
-  sg13g2_a21oi_1 _2082_ (
-    .A1(_1088_),
-    .A2(_1150_),
-    .B1(_1153_),
-    .Y(_0127_)
-  );
-  sg13g2_nor2_1 _2083_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[27] ),
-    .B(_1150_),
+  sg13g2_inv_1 _2203_ (
+    .A(_1153_),
     .Y(_1154_)
   );
-  sg13g2_a21oi_1 _2084_ (
-    .A1(_1095_),
-    .A2(_1150_),
-    .B1(_1154_),
-    .Y(_0128_)
-  );
-  sg13g2_nor2_1 _2085_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[26] ),
-    .B(_1150_),
+  sg13g2_nand2_1 _2204_ (
+    .A(_0553_),
+    .B(_0554_),
     .Y(_1155_)
   );
-  sg13g2_a21oi_1 _2086_ (
-    .A1(_1102_),
-    .A2(_1150_),
-    .B1(_1155_),
-    .Y(_0129_)
-  );
-  sg13g2_nor2_1 _2087_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[25] ),
-    .B(_1150_),
+  sg13g2_nand2_1 _2205_ (
+    .A(_1155_),
+    .B(_0043_),
     .Y(_1156_)
   );
-  sg13g2_a21oi_1 _2088_ (
-    .A1(_1109_),
-    .A2(_1150_),
-    .B1(_1156_),
-    .Y(_0130_)
-  );
-  sg13g2_nor2_1 _2089_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[24] ),
-    .B(_1150_),
+  sg13g2_nand2_1 _2206_ (
+    .A(_1150_),
+    .B(\reg2hw[34] ),
     .Y(_1157_)
   );
-  sg13g2_a21oi_1 _2090_ (
-    .A1(_1118_),
-    .A2(_1150_),
-    .B1(_1157_),
-    .Y(_0131_)
-  );
-  sg13g2_nor3_1 _2091_ (
-    .A(_1048_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .C(_1121_),
+  sg13g2_nor2b_1 _2207_ (
+    .A(_1156_),
+    .B_N(_1157_),
     .Y(_1158_)
   );
-  sg13g2_buf_1 _2092_ (
+  sg13g2_buf_2 _2208_ (
     .A(_1158_),
     .X(_1159_)
   );
-  sg13g2_nor2_1 _2093_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[22] ),
+  sg13g2_nor2_1 _2209_ (
+    .A(_1154_),
     .B(_1159_),
     .Y(_1160_)
   );
-  sg13g2_a21oi_1 _2094_ (
-    .A1(_1074_),
-    .A2(_1159_),
-    .B1(_1160_),
-    .Y(_0132_)
-  );
-  sg13g2_nor2_1 _2095_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[21] ),
-    .B(_1159_),
-    .Y(_1161_)
-  );
-  sg13g2_a21oi_1 _2096_ (
-    .A1(_1081_),
-    .A2(_1159_),
-    .B1(_1161_),
-    .Y(_0133_)
-  );
-  sg13g2_nor2_1 _2097_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[20] ),
-    .B(_1159_),
-    .Y(_1162_)
-  );
-  sg13g2_a21oi_1 _2098_ (
-    .A1(_1088_),
-    .A2(_1159_),
-    .B1(_1162_),
-    .Y(_0134_)
-  );
-  sg13g2_nor2_1 _2099_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[19] ),
-    .B(_1159_),
-    .Y(_1163_)
-  );
-  sg13g2_a21oi_1 _2100_ (
-    .A1(_1095_),
-    .A2(_1159_),
-    .B1(_1163_),
-    .Y(_0135_)
-  );
-  sg13g2_nor2_1 _2101_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[18] ),
-    .B(_1159_),
-    .Y(_1164_)
-  );
-  sg13g2_a21oi_1 _2102_ (
-    .A1(_1102_),
-    .A2(_1159_),
-    .B1(_1164_),
-    .Y(_0136_)
-  );
-  sg13g2_nor2_1 _2103_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[17] ),
-    .B(_1159_),
-    .Y(_1165_)
-  );
-  sg13g2_a21oi_1 _2104_ (
-    .A1(_1109_),
-    .A2(_1159_),
-    .B1(_1165_),
-    .Y(_0137_)
-  );
-  sg13g2_nor2_1 _2105_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[16] ),
-    .B(_1159_),
-    .Y(_1166_)
-  );
-  sg13g2_a21oi_1 _2106_ (
-    .A1(_1118_),
-    .A2(_1159_),
-    .B1(_1166_),
-    .Y(_0138_)
-  );
-  sg13g2_nor3_1 _2107_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .C(_1051_),
-    .Y(_1167_)
-  );
-  sg13g2_buf_1 _2108_ (
-    .A(_1167_),
-    .X(_1168_)
-  );
-  sg13g2_nor2_1 _2109_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[14] ),
-    .B(_1168_),
-    .Y(_1169_)
-  );
-  sg13g2_a21oi_1 _2110_ (
-    .A1(_1074_),
-    .A2(_1168_),
-    .B1(_1169_),
-    .Y(_0139_)
-  );
-  sg13g2_nor2_1 _2111_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[13] ),
-    .B(_1168_),
-    .Y(_1170_)
-  );
-  sg13g2_a21oi_1 _2112_ (
-    .A1(_1081_),
-    .A2(_1168_),
-    .B1(_1170_),
-    .Y(_0140_)
-  );
-  sg13g2_nor2_1 _2113_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[12] ),
-    .B(_1168_),
-    .Y(_1171_)
-  );
-  sg13g2_a21oi_1 _2114_ (
-    .A1(_1088_),
-    .A2(_1168_),
-    .B1(_1171_),
-    .Y(_0141_)
-  );
-  sg13g2_nor2_1 _2115_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[11] ),
-    .B(_1168_),
-    .Y(_1172_)
-  );
-  sg13g2_a21oi_1 _2116_ (
-    .A1(_1095_),
-    .A2(_1168_),
-    .B1(_1172_),
-    .Y(_0142_)
-  );
-  sg13g2_nor2_1 _2117_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[10] ),
-    .B(_1168_),
-    .Y(_1173_)
-  );
-  sg13g2_a21oi_1 _2118_ (
-    .A1(_1102_),
-    .A2(_1168_),
-    .B1(_1173_),
-    .Y(_0143_)
-  );
-  sg13g2_nor2_1 _2119_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[9] ),
-    .B(_1168_),
-    .Y(_1174_)
-  );
-  sg13g2_a21oi_1 _2120_ (
-    .A1(_1109_),
-    .A2(_1168_),
-    .B1(_1174_),
-    .Y(_0144_)
-  );
-  sg13g2_nor2_1 _2121_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[8] ),
-    .B(_1168_),
-    .Y(_1175_)
-  );
-  sg13g2_a21oi_1 _2122_ (
-    .A1(_1118_),
-    .A2(_1168_),
-    .B1(_1175_),
-    .Y(_0145_)
-  );
-  sg13g2_nor3_1 _2123_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .C(_1121_),
-    .Y(_1176_)
-  );
-  sg13g2_buf_1 _2124_ (
-    .A(_1176_),
-    .X(_1177_)
-  );
-  sg13g2_nor2_1 _2125_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[6] ),
-    .B(_1177_),
-    .Y(_1178_)
-  );
-  sg13g2_a21oi_1 _2126_ (
-    .A1(_1074_),
-    .A2(_1177_),
-    .B1(_1178_),
-    .Y(_0146_)
-  );
-  sg13g2_nor2_1 _2127_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[5] ),
-    .B(_1177_),
-    .Y(_1179_)
-  );
-  sg13g2_a21oi_1 _2128_ (
-    .A1(_1081_),
-    .A2(_1177_),
-    .B1(_1179_),
-    .Y(_0147_)
-  );
-  sg13g2_nor2_1 _2129_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[4] ),
-    .B(_1177_),
-    .Y(_1180_)
-  );
-  sg13g2_a21oi_1 _2130_ (
-    .A1(_1088_),
-    .A2(_1177_),
-    .B1(_1180_),
-    .Y(_0148_)
-  );
-  sg13g2_nor2_1 _2131_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[3] ),
-    .B(_1177_),
-    .Y(_1181_)
-  );
-  sg13g2_a21oi_1 _2132_ (
-    .A1(_1095_),
-    .A2(_1177_),
-    .B1(_1181_),
-    .Y(_0149_)
-  );
-  sg13g2_nor2_1 _2133_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[2] ),
-    .B(_1177_),
-    .Y(_1182_)
-  );
-  sg13g2_a21oi_1 _2134_ (
-    .A1(_1102_),
-    .A2(_1177_),
-    .B1(_1182_),
-    .Y(_0150_)
-  );
-  sg13g2_nor2_1 _2135_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[1] ),
-    .B(_1177_),
-    .Y(_1183_)
-  );
-  sg13g2_a21oi_1 _2136_ (
-    .A1(_1109_),
-    .A2(_1177_),
-    .B1(_1183_),
-    .Y(_0151_)
-  );
-  sg13g2_nor2_1 _2137_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[0] ),
-    .B(_1177_),
-    .Y(_1184_)
-  );
-  sg13g2_a21oi_1 _2138_ (
-    .A1(_1118_),
-    .A2(_1177_),
-    .B1(_1184_),
-    .Y(_0152_)
-  );
-  sg13g2_inv_1 _2139_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
-    .Y(_1185_)
-  );
-  sg13g2_inv_1 _2140_ (
-    .A(\u_uart_master_core.u_uart_core.rx_tick_baud ),
-    .Y(_1186_)
-  );
-  sg13g2_nor2_1 _2141_ (
-    .A(_0844_),
-    .B(_1186_),
-    .Y(_1187_)
-  );
-  sg13g2_inv_1 _2142_ (
-    .A(\reg2hw[37] ),
-    .Y(_1188_)
-  );
-  sg13g2_nor2_1 _2143_ (
-    .A(_0045_),
-    .B(_0950_),
-    .Y(_1189_)
-  );
-  sg13g2_nor2b_1 _2144_ (
-    .A(_1189_),
-    .B_N(_0047_),
-    .Y(_1190_)
-  );
-  sg13g2_a21oi_1 _2145_ (
-    .A1(\reg2hw[36] ),
-    .A2(_0045_),
-    .B1(_0047_),
-    .Y(_1191_)
-  );
-  sg13g2_nor3_1 _2146_ (
-    .A(\reg2hw[38] ),
-    .B(\reg2hw[37] ),
-    .C(_1191_),
-    .Y(_1192_)
-  );
-  sg13g2_o21ai_1 _2147_ (
-    .A1(_0046_),
-    .A2(_1190_),
-    .B1(_1192_),
-    .Y(_1193_)
-  );
-  sg13g2_o21ai_1 _2148_ (
-    .A1(_0520_),
-    .A2(_1188_),
-    .B1(_1193_),
-    .Y(_1194_)
-  );
-  sg13g2_nand2_1 _2149_ (
-    .A(_1194_),
-    .B(_0844_),
-    .Y(_1195_)
-  );
-  sg13g2_inv_1 _2150_ (
-    .A(_1195_),
-    .Y(_1196_)
-  );
-  sg13g2_nor2_1 _2151_ (
-    .A(_1187_),
-    .B(_1196_),
-    .Y(_1197_)
-  );
-  sg13g2_inv_1 _2152_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
-    .Y(_1198_)
-  );
-  sg13g2_inv_1 _2153_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[3] ),
-    .Y(_1199_)
-  );
-  sg13g2_xor2_1 _2154_ (
-    .A(\reg2hw[39] ),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[0] ),
-    .X(_1200_)
-  );
-  sg13g2_nor4_1 _2155_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
-    .B(_1198_),
-    .C(_1199_),
-    .D(_1200_),
-    .Y(_1201_)
-  );
-  sg13g2_nand2b_1 _2156_ (
-    .A_N(_1194_),
-    .B(_1201_),
-    .Y(_1202_)
-  );
-  sg13g2_nor2b_1 _2157_ (
-    .A(_1197_),
-    .B_N(_1202_),
-    .Y(_1203_)
-  );
-  sg13g2_buf_1 _2158_ (
-    .A(_1203_),
-    .X(_1204_)
-  );
-  sg13g2_inv_1 _2159_ (
-    .A(_1187_),
-    .Y(_1205_)
-  );
-  sg13g2_nor2b_1 _2160_ (
-    .A(_1205_),
-    .B_N(_1202_),
-    .Y(_1206_)
-  );
-  sg13g2_buf_1 _2161_ (
-    .A(_1206_),
-    .X(_1207_)
-  );
-  sg13g2_nand2_1 _2162_ (
-    .A(_1207_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[10] ),
-    .Y(_1208_)
-  );
-  sg13g2_o21ai_1 _2163_ (
-    .A1(_1185_),
-    .A2(_1204_),
-    .B1(_1208_),
-    .Y(_0153_)
-  );
-  sg13g2_inv_1 _2164_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
-    .Y(_1209_)
-  );
-  sg13g2_nand2_1 _2165_ (
-    .A(_1207_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
-    .Y(_1210_)
-  );
-  sg13g2_o21ai_1 _2166_ (
-    .A1(_1209_),
-    .A2(_1204_),
-    .B1(_1210_),
-    .Y(_0154_)
-  );
-  sg13g2_inv_1 _2167_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
-    .Y(_1211_)
-  );
-  sg13g2_nand2_1 _2168_ (
-    .A(_1207_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
-    .Y(_1212_)
-  );
-  sg13g2_o21ai_1 _2169_ (
-    .A1(_1211_),
-    .A2(_1204_),
-    .B1(_1212_),
-    .Y(_0155_)
-  );
-  sg13g2_inv_1 _2170_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
-    .Y(_1213_)
-  );
-  sg13g2_nand2_1 _2171_ (
-    .A(_1207_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
-    .Y(_1214_)
-  );
-  sg13g2_o21ai_1 _2172_ (
-    .A1(_1213_),
-    .A2(_1204_),
-    .B1(_1214_),
-    .Y(_0156_)
-  );
-  sg13g2_inv_1 _2173_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
-    .Y(_1215_)
-  );
-  sg13g2_nand2_1 _2174_ (
-    .A(_1207_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
-    .Y(_1216_)
-  );
-  sg13g2_o21ai_1 _2175_ (
-    .A1(_1215_),
-    .A2(_1204_),
-    .B1(_1216_),
-    .Y(_0157_)
-  );
-  sg13g2_inv_1 _2176_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
-    .Y(_1217_)
-  );
-  sg13g2_nand2_1 _2177_ (
-    .A(_1207_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
-    .Y(_1218_)
-  );
-  sg13g2_o21ai_1 _2178_ (
-    .A1(_1217_),
-    .A2(_1204_),
-    .B1(_1218_),
-    .Y(_0158_)
-  );
-  sg13g2_inv_1 _2179_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
-    .Y(_1219_)
-  );
-  sg13g2_nand2_1 _2180_ (
-    .A(_1207_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
-    .Y(_1220_)
-  );
-  sg13g2_o21ai_1 _2181_ (
-    .A1(_1219_),
-    .A2(_1204_),
-    .B1(_1220_),
-    .Y(_0159_)
-  );
-  sg13g2_inv_1 _2182_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
-    .Y(_1221_)
-  );
-  sg13g2_nand2_1 _2183_ (
-    .A(_1207_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
-    .Y(_1222_)
-  );
-  sg13g2_o21ai_1 _2184_ (
-    .A1(_1221_),
-    .A2(_1204_),
-    .B1(_1222_),
-    .Y(_0160_)
-  );
-  sg13g2_inv_1 _2185_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[1] ),
-    .Y(_1223_)
-  );
-  sg13g2_nand2_1 _2186_ (
-    .A(_1207_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
-    .Y(_1224_)
-  );
-  sg13g2_o21ai_1 _2187_ (
-    .A1(_1223_),
-    .A2(_1204_),
-    .B1(_1224_),
-    .Y(_0161_)
-  );
-  sg13g2_inv_1 _2188_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
-    .Y(_1225_)
-  );
-  sg13g2_inv_1 _2189_ (
-    .A(_1197_),
-    .Y(_1226_)
-  );
-  sg13g2_nor3_1 _2190_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[0] ),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
-    .C(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
-    .Y(_1227_)
-  );
-  sg13g2_inv_1 _2191_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[0] ),
-    .Y(_1228_)
-  );
-  sg13g2_a21oi_1 _2192_ (
-    .A1(_1228_),
-    .A2(_1198_),
-    .B1(_1225_),
-    .Y(_1229_)
-  );
-  sg13g2_o21ai_1 _2193_ (
-    .A1(_1227_),
-    .A2(_1229_),
-    .B1(_1207_),
-    .Y(_1230_)
-  );
-  sg13g2_o21ai_1 _2194_ (
-    .A1(_1225_),
-    .A2(_1226_),
-    .B1(_1230_),
-    .Y(_0162_)
-  );
-  sg13g2_nor2_1 _2195_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
-    .B(_1228_),
-    .Y(_1231_)
-  );
-  sg13g2_inv_1 _2196_ (
-    .A(_1231_),
-    .Y(_1232_)
-  );
-  sg13g2_nand2_1 _2197_ (
-    .A(_1228_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
-    .Y(_1233_)
-  );
-  sg13g2_nand3_1 _2198_ (
-    .A(_1207_),
-    .B(_1232_),
-    .C(_1233_),
-    .Y(_1234_)
-  );
-  sg13g2_a21oi_1 _2199_ (
-    .A1(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
-    .A2(_1205_),
-    .B1(_1196_),
-    .Y(_1235_)
-  );
-  sg13g2_nand2_1 _2200_ (
-    .A(_1234_),
-    .B(_1235_),
-    .Y(_0163_)
-  );
-  sg13g2_a22oi_1 _2201_ (
-    .A1(\reg2hw[39] ),
-    .A2(_1196_),
-    .B1(_1228_),
-    .B2(_1207_),
-    .Y(_1236_)
-  );
-  sg13g2_o21ai_1 _2202_ (
-    .A1(_1228_),
-    .A2(_1226_),
-    .B1(_1236_),
-    .Y(_0164_)
-  );
-  sg13g2_inv_1 _2203_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[2] ),
-    .Y(_1237_)
-  );
-  sg13g2_and2_1 _2204_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[0] ),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
-    .X(_1238_)
-  );
-  sg13g2_buf_1 _2205_ (
-    .A(_1238_),
-    .X(_1239_)
-  );
-  sg13g2_nand2_1 _2206_ (
-    .A(_1239_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[1] ),
-    .Y(_1240_)
-  );
-  sg13g2_nor2_1 _2207_ (
-    .A(_1237_),
-    .B(_1240_),
-    .Y(_1241_)
-  );
-  sg13g2_nor2_1 _2208_ (
-    .A(_1241_),
-    .B(_1196_),
-    .Y(_1242_)
-  );
-  sg13g2_inv_1 _2209_ (
-    .A(_1242_),
-    .Y(_1243_)
-  );
-  sg13g2_a21oi_1 _2210_ (
-    .A1(_1237_),
-    .A2(_1240_),
-    .B1(_1243_),
-    .Y(_0165_)
+  sg13g2_buf_1 _2210_ (
+    .A(_1160_),
+    .X(_1161_)
   );
   sg13g2_inv_1 _2211_ (
-    .A(_1240_),
-    .Y(_1244_)
+    .A(_1161_),
+    .Y(_1162_)
   );
   sg13g2_nor2_1 _2212_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[1] ),
-    .B(_1239_),
-    .Y(_1245_)
+    .A(_1147_),
+    .B(_1161_),
+    .Y(_1163_)
   );
-  sg13g2_nor3_1 _2213_ (
-    .A(_1244_),
-    .B(_1245_),
-    .C(_1196_),
-    .Y(_0166_)
+  sg13g2_buf_1 _2213_ (
+    .A(_1163_),
+    .X(_1164_)
   );
-  sg13g2_nor2_1 _2214_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[0] ),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
-    .Y(_1246_)
+  sg13g2_inv_1 _2214_ (
+    .A(_1159_),
+    .Y(_1165_)
   );
-  sg13g2_nor3_1 _2215_ (
-    .A(_1239_),
-    .B(_1246_),
-    .C(_1196_),
-    .Y(_0167_)
+  sg13g2_xnor2_1 _2215_ (
+    .A(_1146_),
+    .B(_1148_),
+    .Y(_1166_)
   );
-  sg13g2_or2_1 _2216_ (
-    .A(tl_i[60]),
-    .B(tl_i[61]),
-    .X(_1247_)
+  sg13g2_nand3_1 _2216_ (
+    .A(_1164_),
+    .B(_1165_),
+    .C(_1166_),
+    .Y(_1167_)
   );
-  sg13g2_nand2b_1 _2217_ (
-    .A_N(_1247_),
-    .B(_0661_),
-    .Y(_1248_)
+  sg13g2_o21ai_1 _2217_ (
+    .A1(_1146_),
+    .A2(_1162_),
+    .B1(_1167_),
+    .Y(_0224_)
   );
-  sg13g2_nand3_1 _2218_ (
-    .A(_0713_),
-    .B(tl_i[63]),
-    .C(tl_i[62]),
-    .Y(_1249_)
+  sg13g2_inv_1 _2218_ (
+    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[1] ),
+    .Y(_1168_)
   );
-  sg13g2_nand2_1 _2219_ (
-    .A(tl_i[58]),
-    .B(tl_i[57]),
-    .Y(_1250_)
+  sg13g2_a21oi_1 _2219_ (
+    .A1(\reg2hw[34] ),
+    .A2(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
+    .B1(_1161_),
+    .Y(_1169_)
   );
-  sg13g2_o21ai_1 _2220_ (
-    .A1(_0714_),
-    .A2(_0655_),
-    .B1(_1250_),
-    .Y(_1251_)
+  sg13g2_nand2_1 _2220_ (
+    .A(_1164_),
+    .B(_1148_),
+    .Y(_1170_)
   );
-  sg13g2_nand2b_1 _2221_ (
-    .A_N(tl_i[59]),
-    .B(_0655_),
-    .Y(_1252_)
+  sg13g2_o21ai_1 _2221_ (
+    .A1(_1168_),
+    .A2(_1169_),
+    .B1(_1170_),
+    .Y(_0225_)
   );
-  sg13g2_nand4_1 _2222_ (
-    .A(_1251_),
-    .B(tl_i[56]),
-    .C(_0659_),
-    .D(_1252_),
-    .Y(_1253_)
+  sg13g2_inv_1 _2222_ (
+    .A(_1164_),
+    .Y(_1171_)
   );
   sg13g2_inv_1 _2223_ (
-    .A(tl_i[107]),
-    .Y(_1254_)
+    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
+    .Y(_1172_)
   );
-  sg13g2_nor4_1 _2224_ (
-    .A(tl_i[105]),
-    .B(tl_i[106]),
-    .C(_1254_),
-    .D(_0649_),
-    .Y(_1255_)
+  sg13g2_nor2_1 _2224_ (
+    .A(_1147_),
+    .B(_1165_),
+    .Y(_1173_)
   );
   sg13g2_inv_1 _2225_ (
-    .A(_1255_),
+    .A(_1173_),
+    .Y(_1174_)
+  );
+  sg13g2_inv_1 _2226_ (
+    .A(\reg2hw[39] ),
+    .Y(_1175_)
+  );
+  sg13g2_nor2_1 _2227_ (
+    .A(_1175_),
+    .B(_1174_),
+    .Y(_1176_)
+  );
+  sg13g2_a21oi_1 _2228_ (
+    .A1(_1172_),
+    .A2(_1174_),
+    .B1(_1176_),
+    .Y(_1177_)
+  );
+  sg13g2_nand2_1 _2229_ (
+    .A(_1161_),
+    .B(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
+    .Y(_1178_)
+  );
+  sg13g2_o21ai_1 _2230_ (
+    .A1(_1171_),
+    .A2(_1177_),
+    .B1(_1178_),
+    .Y(_0226_)
+  );
+  sg13g2_nor3_1 _2231_ (
+    .A(_0657_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .C(_0661_),
+    .Y(_1179_)
+  );
+  sg13g2_buf_1 _2232_ (
+    .A(_1179_),
+    .X(_1180_)
+  );
+  sg13g2_nor2_1 _2233_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[22] ),
+    .B(_1180_),
+    .Y(_1181_)
+  );
+  sg13g2_a21oi_1 _2234_ (
+    .A1(_0682_),
+    .A2(_1180_),
+    .B1(_1181_),
+    .Y(_0227_)
+  );
+  sg13g2_nor2_1 _2235_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[21] ),
+    .B(_1180_),
+    .Y(_1182_)
+  );
+  sg13g2_a21oi_1 _2236_ (
+    .A1(_0689_),
+    .A2(_1180_),
+    .B1(_1182_),
+    .Y(_0228_)
+  );
+  sg13g2_nor2_1 _2237_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[20] ),
+    .B(_1180_),
+    .Y(_1183_)
+  );
+  sg13g2_a21oi_1 _2238_ (
+    .A1(_0696_),
+    .A2(_1180_),
+    .B1(_1183_),
+    .Y(_0229_)
+  );
+  sg13g2_nor2_1 _2239_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[19] ),
+    .B(_1180_),
+    .Y(_1184_)
+  );
+  sg13g2_a21oi_1 _2240_ (
+    .A1(_0703_),
+    .A2(_1180_),
+    .B1(_1184_),
+    .Y(_0230_)
+  );
+  sg13g2_nor2_1 _2241_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[18] ),
+    .B(_1180_),
+    .Y(_1185_)
+  );
+  sg13g2_a21oi_1 _2242_ (
+    .A1(_0710_),
+    .A2(_1180_),
+    .B1(_1185_),
+    .Y(_0231_)
+  );
+  sg13g2_nor2_1 _2243_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[17] ),
+    .B(_1180_),
+    .Y(_1186_)
+  );
+  sg13g2_a21oi_1 _2244_ (
+    .A1(_0717_),
+    .A2(_1180_),
+    .B1(_1186_),
+    .Y(_0232_)
+  );
+  sg13g2_nor2_1 _2245_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[16] ),
+    .B(_1180_),
+    .Y(_1187_)
+  );
+  sg13g2_a21oi_1 _2246_ (
+    .A1(_0726_),
+    .A2(_1180_),
+    .B1(_1187_),
+    .Y(_0233_)
+  );
+  sg13g2_nor3_1 _2247_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .C(_0728_),
+    .Y(_1188_)
+  );
+  sg13g2_buf_1 _2248_ (
+    .A(_1188_),
+    .X(_1189_)
+  );
+  sg13g2_nor2_1 _2249_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[14] ),
+    .B(_1189_),
+    .Y(_1190_)
+  );
+  sg13g2_a21oi_1 _2250_ (
+    .A1(_0682_),
+    .A2(_1189_),
+    .B1(_1190_),
+    .Y(_0234_)
+  );
+  sg13g2_nor2_1 _2251_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[13] ),
+    .B(_1189_),
+    .Y(_1191_)
+  );
+  sg13g2_a21oi_1 _2252_ (
+    .A1(_0689_),
+    .A2(_1189_),
+    .B1(_1191_),
+    .Y(_0235_)
+  );
+  sg13g2_nor2_1 _2253_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[12] ),
+    .B(_1189_),
+    .Y(_1192_)
+  );
+  sg13g2_a21oi_1 _2254_ (
+    .A1(_0696_),
+    .A2(_1189_),
+    .B1(_1192_),
+    .Y(_0236_)
+  );
+  sg13g2_nor2_1 _2255_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[11] ),
+    .B(_1189_),
+    .Y(_1193_)
+  );
+  sg13g2_a21oi_1 _2256_ (
+    .A1(_0703_),
+    .A2(_1189_),
+    .B1(_1193_),
+    .Y(_0237_)
+  );
+  sg13g2_nor2_1 _2257_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[10] ),
+    .B(_1189_),
+    .Y(_1194_)
+  );
+  sg13g2_a21oi_1 _2258_ (
+    .A1(_0710_),
+    .A2(_1189_),
+    .B1(_1194_),
+    .Y(_0238_)
+  );
+  sg13g2_nor2_1 _2259_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[9] ),
+    .B(_1189_),
+    .Y(_1195_)
+  );
+  sg13g2_a21oi_1 _2260_ (
+    .A1(_0717_),
+    .A2(_1189_),
+    .B1(_1195_),
+    .Y(_0239_)
+  );
+  sg13g2_nor2_1 _2261_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[8] ),
+    .B(_1189_),
+    .Y(_1196_)
+  );
+  sg13g2_a21oi_1 _2262_ (
+    .A1(_0726_),
+    .A2(_1189_),
+    .B1(_1196_),
+    .Y(_0240_)
+  );
+  sg13g2_inv_1 _2263_ (
+    .A(\u_uart_master_reg.tl_o[65] ),
+    .Y(\u_uart_master_reg.tl_o[0] )
+  );
+  sg13g2_nand2_1 _2264_ (
+    .A(\u_uart_master_reg.tl_o[0] ),
+    .B(tl_i[108]),
+    .Y(_1197_)
+  );
+  sg13g2_buf_1 _2265_ (
+    .A(_1197_),
+    .X(_1198_)
+  );
+  sg13g2_mux2_1 _2266_ (
+    .A0(tl_i[98]),
+    .A1(\u_uart_master_reg.tl_o[55] ),
+    .S(_1198_),
+    .X(_0241_)
+  );
+  sg13g2_mux2_1 _2267_ (
+    .A0(tl_i[97]),
+    .A1(\u_uart_master_reg.tl_o[54] ),
+    .S(_1198_),
+    .X(_0242_)
+  );
+  sg13g2_mux2_1 _2268_ (
+    .A0(tl_i[96]),
+    .A1(\u_uart_master_reg.tl_o[53] ),
+    .S(_1198_),
+    .X(_0243_)
+  );
+  sg13g2_mux2_1 _2269_ (
+    .A0(tl_i[95]),
+    .A1(\u_uart_master_reg.tl_o[52] ),
+    .S(_1198_),
+    .X(_0244_)
+  );
+  sg13g2_mux2_1 _2270_ (
+    .A0(tl_i[94]),
+    .A1(\u_uart_master_reg.tl_o[51] ),
+    .S(_1198_),
+    .X(_0245_)
+  );
+  sg13g2_mux2_1 _2271_ (
+    .A0(tl_i[93]),
+    .A1(\u_uart_master_reg.tl_o[50] ),
+    .S(_1198_),
+    .X(_0246_)
+  );
+  sg13g2_mux2_1 _2272_ (
+    .A0(tl_i[92]),
+    .A1(\u_uart_master_reg.tl_o[49] ),
+    .S(_1198_),
+    .X(_0247_)
+  );
+  sg13g2_mux2_1 _2273_ (
+    .A0(tl_i[100]),
+    .A1(\u_uart_master_reg.tl_o[57] ),
+    .S(_1198_),
+    .X(_0248_)
+  );
+  sg13g2_nor3_1 _2274_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .C(_0661_),
+    .Y(_1199_)
+  );
+  sg13g2_buf_1 _2275_ (
+    .A(_1199_),
+    .X(_1200_)
+  );
+  sg13g2_nor2_1 _2276_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[6] ),
+    .B(_1200_),
+    .Y(_1201_)
+  );
+  sg13g2_a21oi_1 _2277_ (
+    .A1(_0682_),
+    .A2(_1200_),
+    .B1(_1201_),
+    .Y(_0249_)
+  );
+  sg13g2_nor2_1 _2278_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[5] ),
+    .B(_1200_),
+    .Y(_1202_)
+  );
+  sg13g2_a21oi_1 _2279_ (
+    .A1(_0689_),
+    .A2(_1200_),
+    .B1(_1202_),
+    .Y(_0250_)
+  );
+  sg13g2_nor2_1 _2280_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[4] ),
+    .B(_1200_),
+    .Y(_1203_)
+  );
+  sg13g2_a21oi_1 _2281_ (
+    .A1(_0696_),
+    .A2(_1200_),
+    .B1(_1203_),
+    .Y(_0251_)
+  );
+  sg13g2_nor2_1 _2282_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[3] ),
+    .B(_1200_),
+    .Y(_1204_)
+  );
+  sg13g2_a21oi_1 _2283_ (
+    .A1(_0703_),
+    .A2(_1200_),
+    .B1(_1204_),
+    .Y(_0252_)
+  );
+  sg13g2_nor2_1 _2284_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[2] ),
+    .B(_1200_),
+    .Y(_1205_)
+  );
+  sg13g2_a21oi_1 _2285_ (
+    .A1(_0710_),
+    .A2(_1200_),
+    .B1(_1205_),
+    .Y(_0253_)
+  );
+  sg13g2_nor2_1 _2286_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[1] ),
+    .B(_1200_),
+    .Y(_1206_)
+  );
+  sg13g2_a21oi_1 _2287_ (
+    .A1(_0717_),
+    .A2(_1200_),
+    .B1(_1206_),
+    .Y(_0254_)
+  );
+  sg13g2_nor2_1 _2288_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[0] ),
+    .B(_1200_),
+    .Y(_1207_)
+  );
+  sg13g2_a21oi_1 _2289_ (
+    .A1(_0726_),
+    .A2(_1200_),
+    .B1(_1207_),
+    .Y(_0255_)
+  );
+  sg13g2_inv_1 _2290_ (
+    .A(\u_uart_master_reg.tl_o[46] ),
+    .Y(_1208_)
+  );
+  sg13g2_buf_1 _2291_ (
+    .A(_1198_),
+    .X(_1209_)
+  );
+  sg13g2_nor2_1 _2292_ (
+    .A(tl_i[63]),
+    .B(tl_i[62]),
+    .Y(_1210_)
+  );
+  sg13g2_inv_1 _2293_ (
+    .A(tl_i[64]),
+    .Y(_1211_)
+  );
+  sg13g2_nand2_1 _2294_ (
+    .A(_1210_),
+    .B(_1211_),
+    .Y(_1212_)
+  );
+  sg13g2_inv_1 _2295_ (
+    .A(_1212_),
+    .Y(_1213_)
+  );
+  sg13g2_buf_1 _2296_ (
+    .A(_1213_),
+    .X(_1214_)
+  );
+  sg13g2_inv_1 _2297_ (
+    .A(_0022_),
+    .Y(_1215_)
+  );
+  sg13g2_nand2_1 _2298_ (
+    .A(_1214_),
+    .B(_1215_),
+    .Y(_1216_)
+  );
+  sg13g2_nor3_1 _2299_ (
+    .A(tl_i[106]),
+    .B(tl_i[107]),
+    .C(_1197_),
+    .Y(_1217_)
+  );
+  sg13g2_inv_1 _2300_ (
+    .A(_1217_),
+    .Y(_1218_)
+  );
+  sg13g2_inv_1 _2301_ (
+    .A(_1197_),
+    .Y(_1219_)
+  );
+  sg13g2_nand2_1 _2302_ (
+    .A(tl_i[63]),
+    .B(tl_i[64]),
+    .Y(_1220_)
+  );
+  sg13g2_nand3_1 _2303_ (
+    .A(_1218_),
+    .B(_1219_),
+    .C(_1220_),
+    .Y(_1221_)
+  );
+  sg13g2_buf_1 _2304_ (
+    .A(_1221_),
+    .X(_1222_)
+  );
+  sg13g2_inv_1 _2305_ (
+    .A(_1222_),
+    .Y(_1223_)
+  );
+  sg13g2_buf_1 _2306_ (
+    .A(_1223_),
+    .X(_1224_)
+  );
+  sg13g2_a22oi_1 _2307_ (
+    .A1(_1208_),
+    .A2(_1209_),
+    .B1(_1216_),
+    .B2(_1224_),
+    .Y(_0256_)
+  );
+  sg13g2_inv_1 _2308_ (
+    .A(\u_uart_master_reg.tl_o[45] ),
+    .Y(_1225_)
+  );
+  sg13g2_nand2_1 _2309_ (
+    .A(_1214_),
+    .B(\reg2hw[54] ),
+    .Y(_1226_)
+  );
+  sg13g2_a22oi_1 _2310_ (
+    .A1(_1225_),
+    .A2(_1209_),
+    .B1(_1226_),
+    .B2(_1224_),
+    .Y(_0257_)
+  );
+  sg13g2_inv_1 _2311_ (
+    .A(\u_uart_master_reg.tl_o[44] ),
+    .Y(_1227_)
+  );
+  sg13g2_nand2_1 _2312_ (
+    .A(_1214_),
+    .B(\reg2hw[53] ),
+    .Y(_1228_)
+  );
+  sg13g2_a22oi_1 _2313_ (
+    .A1(_1227_),
+    .A2(_1209_),
+    .B1(_1228_),
+    .B2(_1224_),
+    .Y(_0258_)
+  );
+  sg13g2_inv_1 _2314_ (
+    .A(\u_uart_master_reg.tl_o[43] ),
+    .Y(_1229_)
+  );
+  sg13g2_inv_1 _2315_ (
+    .A(_0023_),
+    .Y(_1230_)
+  );
+  sg13g2_nand2_1 _2316_ (
+    .A(_1214_),
+    .B(_1230_),
+    .Y(_1231_)
+  );
+  sg13g2_a22oi_1 _2317_ (
+    .A1(_1229_),
+    .A2(_1209_),
+    .B1(_1231_),
+    .B2(_1224_),
+    .Y(_0259_)
+  );
+  sg13g2_inv_1 _2318_ (
+    .A(\u_uart_master_reg.tl_o[42] ),
+    .Y(_1232_)
+  );
+  sg13g2_nand2_1 _2319_ (
+    .A(_1214_),
+    .B(\reg2hw[51] ),
+    .Y(_1233_)
+  );
+  sg13g2_a22oi_1 _2320_ (
+    .A1(_1232_),
+    .A2(_1209_),
+    .B1(_1233_),
+    .B2(_1224_),
+    .Y(_0260_)
+  );
+  sg13g2_inv_1 _2321_ (
+    .A(\u_uart_master_reg.tl_o[41] ),
+    .Y(_1234_)
+  );
+  sg13g2_nand2_1 _2322_ (
+    .A(_1214_),
+    .B(_0609_),
+    .Y(_1235_)
+  );
+  sg13g2_a22oi_1 _2323_ (
+    .A1(_1234_),
+    .A2(_1209_),
+    .B1(_1235_),
+    .B2(_1224_),
+    .Y(_0261_)
+  );
+  sg13g2_inv_1 _2324_ (
+    .A(\u_uart_master_reg.tl_o[40] ),
+    .Y(_1236_)
+  );
+  sg13g2_nand2_1 _2325_ (
+    .A(_1214_),
+    .B(_0616_),
+    .Y(_1237_)
+  );
+  sg13g2_a22oi_1 _2326_ (
+    .A1(_1236_),
+    .A2(_1209_),
+    .B1(_1237_),
+    .B2(_1224_),
+    .Y(_0262_)
+  );
+  sg13g2_inv_1 _2327_ (
+    .A(\u_uart_master_reg.tl_o[39] ),
+    .Y(_1238_)
+  );
+  sg13g2_nand2_1 _2328_ (
+    .A(_1214_),
+    .B(\reg2hw[48] ),
+    .Y(_1239_)
+  );
+  sg13g2_a22oi_1 _2329_ (
+    .A1(_1238_),
+    .A2(_1209_),
+    .B1(_1239_),
+    .B2(_1224_),
+    .Y(_0263_)
+  );
+  sg13g2_inv_1 _2330_ (
+    .A(\u_uart_master_reg.tl_o[38] ),
+    .Y(_1240_)
+  );
+  sg13g2_nand2_1 _2331_ (
+    .A(_1214_),
+    .B(_0597_),
+    .Y(_1241_)
+  );
+  sg13g2_a22oi_1 _2332_ (
+    .A1(_1240_),
+    .A2(_1209_),
+    .B1(_1241_),
+    .B2(_1224_),
+    .Y(_0264_)
+  );
+  sg13g2_inv_1 _2333_ (
+    .A(\u_uart_master_reg.tl_o[37] ),
+    .Y(_1242_)
+  );
+  sg13g2_nand2_1 _2334_ (
+    .A(_1214_),
+    .B(_0567_),
+    .Y(_1243_)
+  );
+  sg13g2_a22oi_1 _2335_ (
+    .A1(_1242_),
+    .A2(_1209_),
+    .B1(_1243_),
+    .B2(_1224_),
+    .Y(_0265_)
+  );
+  sg13g2_inv_1 _2336_ (
+    .A(\u_uart_master_reg.tl_o[36] ),
+    .Y(_1244_)
+  );
+  sg13g2_a21oi_1 _2337_ (
+    .A1(_0569_),
+    .A2(_1214_),
+    .B1(_1222_),
+    .Y(_1245_)
+  );
+  sg13g2_inv_1 _2338_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
+    .Y(_1246_)
+  );
+  sg13g2_a21oi_1 _2339_ (
+    .A1(_1246_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B1(_0757_),
+    .Y(_1247_)
+  );
+  sg13g2_a21oi_1 _2340_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .A2(_0819_),
+    .B1(_1247_),
+    .Y(_1248_)
+  );
+  sg13g2_nor2_1 _2341_ (
+    .A(_0754_),
+    .B(_1248_),
+    .Y(_1249_)
+  );
+  sg13g2_a21oi_1 _2342_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .A2(_0785_),
+    .B1(_1249_),
+    .Y(_1250_)
+  );
+  sg13g2_inv_1 _2343_ (
+    .A(_1250_),
+    .Y(_1251_)
+  );
+  sg13g2_inv_1 _2344_ (
+    .A(_0761_),
+    .Y(_1252_)
+  );
+  sg13g2_a21oi_1 _2345_ (
+    .A1(_1251_),
+    .A2(_1252_),
+    .B1(_0759_),
+    .Y(_1253_)
+  );
+  sg13g2_o21ai_1 _2346_ (
+    .A1(_0764_),
+    .A2(_0765_),
+    .B1(_1253_),
+    .Y(_1254_)
+  );
+  sg13g2_o21ai_1 _2347_ (
+    .A1(_0765_),
+    .A2(_1253_),
+    .B1(_1254_),
+    .Y(_1255_)
+  );
+  sg13g2_inv_1 _2348_ (
+    .A(tl_i[62]),
     .Y(_1256_)
   );
-  sg13g2_o21ai_1 _2226_ (
-    .A1(_0659_),
-    .A2(_1256_),
-    .B1(_1248_),
+  sg13g2_nor3_1 _2349_ (
+    .A(tl_i[63]),
+    .B(_1256_),
+    .C(_1211_),
     .Y(_1257_)
   );
-  sg13g2_nand2_1 _2227_ (
-    .A(_1253_),
+  sg13g2_nand2_1 _2350_ (
+    .A(_1255_),
     .B(_1257_),
     .Y(_1258_)
   );
-  sg13g2_inv_1 _2228_ (
-    .A(_1258_),
+  sg13g2_a22oi_1 _2351_ (
+    .A1(_1244_),
+    .A2(_1209_),
+    .B1(_1245_),
+    .B2(_1258_),
+    .Y(_0266_)
+  );
+  sg13g2_inv_1 _2352_ (
+    .A(\u_uart_master_reg.tl_o[35] ),
     .Y(_1259_)
   );
-  sg13g2_nor3_1 _2229_ (
-    .A(_1248_),
-    .B(_1249_),
-    .C(_1259_),
+  sg13g2_inv_1 _2353_ (
+    .A(_0029_),
     .Y(_1260_)
   );
-  sg13g2_buf_1 _2230_ (
-    .A(_1260_),
-    .X(\u_uart_master_reg.u_wdata.qe )
-  );
-  sg13g2_mux2_1 _2231_ (
-    .A0(\reg2hw[11] ),
-    .A1(tl_i[30]),
-    .S(\u_uart_master_reg.u_wdata.qe ),
-    .X(_0168_)
-  );
-  sg13g2_mux2_1 _2232_ (
-    .A0(\reg2hw[10] ),
-    .A1(tl_i[29]),
-    .S(\u_uart_master_reg.u_wdata.qe ),
-    .X(_0169_)
-  );
-  sg13g2_mux2_1 _2233_ (
-    .A0(\reg2hw[9] ),
-    .A1(tl_i[28]),
-    .S(\u_uart_master_reg.u_wdata.qe ),
-    .X(_0170_)
-  );
-  sg13g2_mux2_1 _2234_ (
-    .A0(\reg2hw[8] ),
-    .A1(tl_i[27]),
-    .S(\u_uart_master_reg.u_wdata.qe ),
-    .X(_0171_)
-  );
-  sg13g2_mux2_1 _2235_ (
-    .A0(\reg2hw[7] ),
-    .A1(tl_i[26]),
-    .S(\u_uart_master_reg.u_wdata.qe ),
-    .X(_0172_)
-  );
-  sg13g2_mux2_1 _2236_ (
-    .A0(\reg2hw[6] ),
-    .A1(tl_i[25]),
-    .S(\u_uart_master_reg.u_wdata.qe ),
-    .X(_0173_)
-  );
-  sg13g2_mux2_1 _2237_ (
-    .A0(\reg2hw[5] ),
-    .A1(tl_i[24]),
-    .S(\u_uart_master_reg.u_wdata.qe ),
-    .X(_0174_)
-  );
-  sg13g2_inv_1 _2238_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_a21oi_1 _2354_ (
+    .A1(_1260_),
+    .A2(_1214_),
+    .B1(_1222_),
     .Y(_1261_)
   );
-  sg13g2_buf_2 _2239_ (
-    .A(_1261_),
-    .X(_1262_)
+  sg13g2_nand2_1 _2355_ (
+    .A(_1251_),
+    .B(_0762_),
+    .Y(_1262_)
   );
-  sg13g2_nor2_1 _2240_ (
-    .A(_1262_),
-    .B(_1041_),
+  sg13g2_nand2_1 _2356_ (
+    .A(_1250_),
+    .B(_0763_),
     .Y(_1263_)
   );
-  sg13g2_nand2_1 _2241_ (
-    .A(_1263_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+  sg13g2_inv_1 _2357_ (
+    .A(_1257_),
     .Y(_1264_)
   );
-  sg13g2_nor2_1 _2242_ (
-    .A(_0546_),
-    .B(_1264_),
+  sg13g2_nand2b_1 _2358_ (
+    .A_N(_0765_),
+    .B(_0764_),
     .Y(_1265_)
   );
-  sg13g2_nand2_1 _2243_ (
-    .A(\reg2hw[0] ),
-    .B(\reg2hw[3] ),
+  sg13g2_nor2b_1 _2359_ (
+    .A(_1264_),
+    .B_N(_1265_),
     .Y(_1266_)
   );
-  sg13g2_inv_1 _2244_ (
-    .A(_1266_),
+  sg13g2_nand3_1 _2360_ (
+    .A(_1262_),
+    .B(_1263_),
+    .C(_1266_),
     .Y(_1267_)
   );
-  sg13g2_inv_1 _2245_ (
-    .A(_1264_),
+  sg13g2_a22oi_1 _2361_ (
+    .A1(_1259_),
+    .A2(_1209_),
+    .B1(_1261_),
+    .B2(_1267_),
+    .Y(_0267_)
+  );
+  sg13g2_inv_1 _2362_ (
+    .A(\u_uart_master_reg.tl_o[34] ),
     .Y(_1268_)
   );
-  sg13g2_nor2_1 _2246_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .B(_1268_),
+  sg13g2_a21oi_1 _2363_ (
+    .A1(_0570_),
+    .A2(_1214_),
+    .B1(_1222_),
     .Y(_1269_)
   );
-  sg13g2_nor3_1 _2247_ (
-    .A(_1265_),
-    .B(_1267_),
-    .C(_1269_),
-    .Y(_0175_)
-  );
-  sg13g2_o21ai_1 _2248_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .A2(_1263_),
-    .B1(_1266_),
+  sg13g2_nand2_1 _2364_ (
+    .A(_1248_),
+    .B(_0754_),
     .Y(_1270_)
   );
-  sg13g2_nor2_1 _2249_ (
-    .A(_1270_),
-    .B(_1268_),
-    .Y(_0176_)
-  );
-  sg13g2_o21ai_1 _2250_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_1040_),
-    .B1(_1266_),
+  sg13g2_nand3b_1 _2365_ (
+    .A_N(_1249_),
+    .B(_1266_),
+    .C(_1270_),
     .Y(_1271_)
   );
-  sg13g2_nor2_1 _2251_ (
-    .A(_1271_),
-    .B(_1263_),
-    .Y(_0177_)
+  sg13g2_a22oi_1 _2366_ (
+    .A1(_1268_),
+    .A2(_1209_),
+    .B1(_1269_),
+    .B2(_1271_),
+    .Y(_0268_)
   );
-  sg13g2_inv_1 _2252_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
+  sg13g2_inv_1 _2367_ (
+    .A(\u_uart_master_reg.tl_o[33] ),
     .Y(_1272_)
   );
-  sg13g2_xnor2_1 _2253_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[1] ),
+  sg13g2_a21oi_1 _2368_ (
+    .A1(_0572_),
+    .A2(_1214_),
+    .B1(_1222_),
     .Y(_1273_)
   );
-  sg13g2_xor2_1 _2254_ (
-    .A(\reg2hw[40] ),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
-    .X(_1274_)
+  sg13g2_nand3_1 _2369_ (
+    .A(_0757_),
+    .B(_1246_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_1274_)
   );
-  sg13g2_xor2_1 _2255_ (
-    .A(_1273_),
-    .B(_1274_),
-    .X(_1275_)
+  sg13g2_nand3b_1 _2370_ (
+    .A_N(_1247_),
+    .B(_1266_),
+    .C(_1274_),
+    .Y(_1275_)
   );
-  sg13g2_xor2_1 _2256_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
-    .X(_1276_)
+  sg13g2_a22oi_1 _2371_ (
+    .A1(_1272_),
+    .A2(_1209_),
+    .B1(_1273_),
+    .B2(_1275_),
+    .Y(_0269_)
   );
-  sg13g2_xnor2_1 _2257_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
+  sg13g2_inv_1 _2372_ (
+    .A(\u_uart_master_reg.tl_o[32] ),
+    .Y(_1276_)
+  );
+  sg13g2_a22oi_1 _2373_ (
+    .A1(_0755_),
+    .A2(_1257_),
+    .B1(_0575_),
+    .B2(_1214_),
     .Y(_1277_)
   );
-  sg13g2_xnor2_1 _2258_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
+  sg13g2_a22oi_1 _2374_ (
+    .A1(_1276_),
+    .A2(_1209_),
+    .B1(_1277_),
+    .B2(_1224_),
+    .Y(_0270_)
+  );
+  sg13g2_inv_1 _2375_ (
+    .A(\u_uart_master_reg.tl_o[24] ),
     .Y(_1278_)
   );
-  sg13g2_xor2_1 _2259_ (
-    .A(_1277_),
-    .B(_1278_),
-    .X(_1279_)
+  sg13g2_a21oi_1 _2376_ (
+    .A1(_1278_),
+    .A2(_1209_),
+    .B1(_1224_),
+    .Y(_0271_)
   );
-  sg13g2_xnor2_1 _2260_ (
-    .A(_1276_),
-    .B(_1279_),
+  sg13g2_inv_1 _2377_ (
+    .A(\u_uart_master_reg.tl_o[23] ),
+    .Y(_1279_)
+  );
+  sg13g2_a21oi_1 _2378_ (
+    .A1(\reg2hw[40] ),
+    .A2(_1214_),
+    .B1(_1222_),
     .Y(_1280_)
   );
-  sg13g2_a21oi_1 _2261_ (
-    .A1(_1280_),
-    .A2(_1275_),
-    .B1(_1042_),
+  sg13g2_inv_1 _2379_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[79] ),
     .Y(_1281_)
   );
-  sg13g2_o21ai_1 _2262_ (
-    .A1(_1275_),
-    .A2(_1280_),
-    .B1(_1281_),
+  sg13g2_o21ai_1 _2380_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[71] ),
+    .B1(_0819_),
     .Y(_1282_)
   );
-  sg13g2_inv_1 _2263_ (
-    .A(_0959_),
+  sg13g2_a21oi_1 _2381_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1281_),
+    .B1(_1282_),
     .Y(_1283_)
   );
-  sg13g2_nand4_1 _2264_ (
-    .A(_1282_),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[10] ),
-    .C(\u_uart_master_core.u_uart_core.rx_valid ),
-    .D(_1283_),
-    .Y(_1284_)
+  sg13g2_and2_1 _2382_ (
+    .A(_0793_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[87] ),
+    .X(_1284_)
   );
-  sg13g2_buf_1 _2265_ (
-    .A(_1284_),
-    .X(_1285_)
+  sg13g2_inv_1 _2383_ (
+    .A(_0783_),
+    .Y(_1285_)
   );
-  sg13g2_nor3_1 _2266_ (
-    .A(_1272_),
-    .B(_0690_),
-    .C(_1285_),
+  sg13g2_nor2b_1 _2384_ (
+    .A(_1285_),
+    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[95] ),
     .Y(_1286_)
   );
-  sg13g2_nand2_1 _2267_ (
-    .A(_1286_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .Y(_1287_)
+  sg13g2_or4_1 _2385_ (
+    .A(_0760_),
+    .B(_1283_),
+    .C(_1284_),
+    .D(_1286_),
+    .X(_1287_)
   );
-  sg13g2_nor2_1 _2268_ (
-    .A(_0701_),
-    .B(_1287_),
+  sg13g2_a221oi_1 _2386_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[23] ),
+    .B1(_0794_),
+    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[31] ),
+    .C1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
     .Y(_1288_)
   );
-  sg13g2_buf_2 _2269_ (
-    .A(_1288_),
-    .X(_1289_)
+  sg13g2_inv_1 _2387_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[15] ),
+    .Y(_1289_)
   );
-  sg13g2_nand2_1 _2270_ (
-    .A(\reg2hw[1] ),
-    .B(\reg2hw[0] ),
+  sg13g2_a21oi_1 _2388_ (
+    .A1(_1289_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1290_)
   );
-  sg13g2_inv_1 _2271_ (
-    .A(_1290_),
+  sg13g2_o21ai_1 _2389_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[7] ),
+    .B1(_1290_),
     .Y(_1291_)
   );
-  sg13g2_inv_1 _2272_ (
-    .A(_1287_),
+  sg13g2_a21oi_1 _2390_ (
+    .A1(_1288_),
+    .A2(_1291_),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_1292_)
   );
-  sg13g2_nor2_1 _2273_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .B(_1292_),
+  sg13g2_a221oi_1 _2391_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[119] ),
+    .B1(_0794_),
+    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[127] ),
+    .C1(_0760_),
     .Y(_1293_)
   );
-  sg13g2_nor3_1 _2274_ (
-    .A(_1289_),
-    .B(_1291_),
-    .C(_1293_),
-    .Y(_0178_)
-  );
-  sg13g2_nor2_1 _2275_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .B(_1286_),
+  sg13g2_inv_1 _2392_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[103] ),
     .Y(_1294_)
   );
-  sg13g2_nor3_1 _2276_ (
-    .A(_1291_),
-    .B(_1294_),
-    .C(_1292_),
-    .Y(_0179_)
-  );
-  sg13g2_nand2_1 _2277_ (
-    .A(_1285_),
-    .B(_1290_),
+  sg13g2_a21oi_1 _2393_ (
+    .A1(_0811_),
+    .A2(_1294_),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1295_)
   );
-  sg13g2_nor2_1 _2278_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .B(_0690_),
+  sg13g2_nand2b_1 _2394_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[111] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1296_)
   );
-  sg13g2_nor2_1 _2279_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
-    .B(_1272_),
+  sg13g2_nand2_1 _2395_ (
+    .A(_1295_),
+    .B(_1296_),
     .Y(_1297_)
   );
-  sg13g2_nor2_1 _2280_ (
-    .A(_1291_),
-    .B(_1285_),
+  sg13g2_inv_1 _2396_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[47] ),
     .Y(_1298_)
   );
-  sg13g2_o21ai_1 _2281_ (
-    .A1(_1296_),
-    .A2(_1297_),
-    .B1(_1298_),
+  sg13g2_a21oi_1 _2397_ (
+    .A1(_1298_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1299_)
   );
-  sg13g2_o21ai_1 _2282_ (
-    .A1(_1272_),
-    .A2(_1295_),
+  sg13g2_o21ai_1 _2398_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[39] ),
     .B1(_1299_),
-    .Y(_0180_)
-  );
-  sg13g2_nand2_1 _2283_ (
-    .A(_1298_),
-    .B(_0690_),
     .Y(_1300_)
   );
-  sg13g2_o21ai_1 _2284_ (
-    .A1(_0690_),
-    .A2(_1295_),
-    .B1(_1300_),
-    .Y(_0181_)
-  );
-  sg13g2_inv_1 _2285_ (
-    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
+  sg13g2_a221oi_1 _2399_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[55] ),
+    .B1(_0794_),
+    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[63] ),
+    .C1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
     .Y(_1301_)
   );
-  sg13g2_inv_1 _2286_ (
-    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
+  sg13g2_a221oi_1 _2400_ (
+    .A1(_1293_),
+    .A2(_1297_),
+    .B1(_1300_),
+    .B2(_1301_),
+    .C1(_0785_),
     .Y(_1302_)
   );
-  sg13g2_nand3_1 _2287_ (
-    .A(_0522_),
-    .B(_1301_),
-    .C(_1302_),
+  sg13g2_a21oi_1 _2401_ (
+    .A1(_1287_),
+    .A2(_1292_),
+    .B1(_1302_),
     .Y(_1303_)
   );
-  sg13g2_a21oi_1 _2288_ (
-    .A1(_1255_),
-    .A2(_0776_),
-    .B1(_1303_),
+  sg13g2_nor2_1 _2402_ (
+    .A(_0768_),
+    .B(_1303_),
     .Y(_1304_)
   );
-  sg13g2_nor2_1 _2289_ (
-    .A(_1304_),
-    .B(_0840_),
-    .Y(_1305_)
+  sg13g2_and3_1 _2403_ (
+    .A(_1256_),
+    .B(_1211_),
+    .C(tl_i[63]),
+    .X(_1305_)
   );
-  sg13g2_nand2_1 _2290_ (
+  sg13g2_buf_1 _2404_ (
     .A(_1305_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1306_)
+    .X(_1306_)
   );
-  sg13g2_nor2_1 _2291_ (
-    .A(_0689_),
+  sg13g2_nand2_1 _2405_ (
+    .A(_1304_),
     .B(_1306_),
     .Y(_1307_)
   );
-  sg13g2_nand2_1 _2292_ (
-    .A(_1307_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .Y(_1308_)
-  );
-  sg13g2_nor2_1 _2293_ (
-    .A(_0698_),
-    .B(_1308_),
-    .Y(_1309_)
-  );
-  sg13g2_inv_1 _2294_ (
-    .A(_1308_),
-    .Y(_1310_)
-  );
-  sg13g2_nor2_1 _2295_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .B(_1310_),
-    .Y(_1311_)
-  );
-  sg13g2_nor3_1 _2296_ (
-    .A(_1291_),
-    .B(_1309_),
-    .C(_1311_),
-    .Y(_0182_)
-  );
-  sg13g2_o21ai_1 _2297_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .A2(_1307_),
-    .B1(_1290_),
-    .Y(_1312_)
-  );
-  sg13g2_nor2_1 _2298_ (
-    .A(_1312_),
-    .B(_1310_),
-    .Y(_0183_)
-  );
-  sg13g2_inv_1 _2299_ (
-    .A(_1306_),
-    .Y(_1313_)
-  );
-  sg13g2_nor2_1 _2300_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .B(_1313_),
-    .Y(_1314_)
-  );
-  sg13g2_nor3_1 _2301_ (
-    .A(_1291_),
-    .B(_1307_),
-    .C(_1314_),
-    .Y(_0184_)
-  );
-  sg13g2_inv_1 _2302_ (
-    .A(_1309_),
-    .Y(_1315_)
-  );
-  sg13g2_a21oi_1 _2303_ (
-    .A1(_1315_),
-    .A2(_1305_),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1316_)
-  );
-  sg13g2_nor3_1 _2304_ (
-    .A(_1291_),
-    .B(_1313_),
-    .C(_1316_),
-    .Y(_0185_)
-  );
-  sg13g2_nor2_1 _2305_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .B(_1052_),
-    .Y(_1317_)
-  );
-  sg13g2_nor3_1 _2306_ (
-    .A(_1267_),
-    .B(_1317_),
-    .C(_1055_),
-    .Y(_0186_)
-  );
-  sg13g2_o21ai_1 _2307_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .A2(_1050_),
-    .B1(_1266_),
-    .Y(_1318_)
-  );
-  sg13g2_nor2_1 _2308_ (
-    .A(_1318_),
-    .B(_1052_),
-    .Y(_0187_)
-  );
-  sg13g2_nor2_1 _2309_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[0] ),
-    .B(_1120_),
-    .Y(_1319_)
-  );
-  sg13g2_nor3_1 _2310_ (
-    .A(_1050_),
-    .B(_1267_),
-    .C(_1319_),
-    .Y(_0188_)
-  );
-  sg13g2_nor3_1 _2311_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .C(_1285_),
-    .Y(_1320_)
-  );
-  sg13g2_nand3_1 _2312_ (
-    .A(_1320_),
-    .B(_1272_),
-    .C(_0690_),
-    .Y(_1321_)
-  );
-  sg13g2_buf_2 _2313_ (
-    .A(_1321_),
-    .X(_1322_)
-  );
-  sg13g2_nand2_1 _2314_ (
-    .A(_1211_),
-    .B(\reg2hw[39] ),
-    .Y(_1323_)
-  );
-  sg13g2_o21ai_1 _2315_ (
-    .A1(\reg2hw[39] ),
-    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
-    .B1(_1323_),
-    .Y(_1324_)
-  );
-  sg13g2_buf_1 _2316_ (
-    .A(_1324_),
-    .X(_1325_)
-  );
-  sg13g2_nand2_1 _2317_ (
-    .A(_1322_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[6] ),
-    .Y(_1326_)
-  );
-  sg13g2_o21ai_1 _2318_ (
-    .A1(_1322_),
-    .A2(_1325_),
-    .B1(_1326_),
-    .Y(_0189_)
-  );
-  sg13g2_nand2_1 _2319_ (
-    .A(_1213_),
-    .B(\reg2hw[39] ),
-    .Y(_1327_)
-  );
-  sg13g2_o21ai_1 _2320_ (
-    .A1(\reg2hw[39] ),
-    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
-    .B1(_1327_),
-    .Y(_1328_)
-  );
-  sg13g2_buf_1 _2321_ (
-    .A(_1328_),
-    .X(_1329_)
-  );
-  sg13g2_nand2_1 _2322_ (
-    .A(_1322_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[5] ),
-    .Y(_1330_)
-  );
-  sg13g2_o21ai_1 _2323_ (
-    .A1(_1322_),
-    .A2(_1329_),
-    .B1(_1330_),
-    .Y(_0190_)
-  );
-  sg13g2_nand2_1 _2324_ (
-    .A(_1215_),
-    .B(\reg2hw[39] ),
-    .Y(_1331_)
-  );
-  sg13g2_o21ai_1 _2325_ (
-    .A1(\reg2hw[39] ),
-    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
-    .B1(_1331_),
-    .Y(_1332_)
-  );
-  sg13g2_buf_1 _2326_ (
-    .A(_1332_),
-    .X(_1333_)
-  );
-  sg13g2_nand2_1 _2327_ (
-    .A(_1322_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[4] ),
-    .Y(_1334_)
-  );
-  sg13g2_o21ai_1 _2328_ (
-    .A1(_1322_),
-    .A2(_1333_),
-    .B1(_1334_),
-    .Y(_0191_)
-  );
-  sg13g2_nand2_1 _2329_ (
-    .A(_1217_),
-    .B(\reg2hw[39] ),
-    .Y(_1335_)
-  );
-  sg13g2_o21ai_1 _2330_ (
-    .A1(\reg2hw[39] ),
-    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
-    .B1(_1335_),
-    .Y(_1336_)
-  );
-  sg13g2_buf_1 _2331_ (
-    .A(_1336_),
-    .X(_1337_)
-  );
-  sg13g2_nand2_1 _2332_ (
-    .A(_1322_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[3] ),
-    .Y(_1338_)
-  );
-  sg13g2_o21ai_1 _2333_ (
-    .A1(_1322_),
-    .A2(_1337_),
-    .B1(_1338_),
-    .Y(_0192_)
-  );
-  sg13g2_nand2_1 _2334_ (
-    .A(_1219_),
-    .B(\reg2hw[39] ),
-    .Y(_1339_)
-  );
-  sg13g2_o21ai_1 _2335_ (
-    .A1(\reg2hw[39] ),
-    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
-    .B1(_1339_),
-    .Y(_1340_)
-  );
-  sg13g2_buf_1 _2336_ (
-    .A(_1340_),
-    .X(_1341_)
-  );
-  sg13g2_nand2_1 _2337_ (
-    .A(_1322_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[2] ),
-    .Y(_1342_)
-  );
-  sg13g2_o21ai_1 _2338_ (
-    .A1(_1322_),
-    .A2(_1341_),
-    .B1(_1342_),
-    .Y(_0193_)
-  );
-  sg13g2_nand2_1 _2339_ (
-    .A(_1221_),
-    .B(\reg2hw[39] ),
-    .Y(_1343_)
-  );
-  sg13g2_o21ai_1 _2340_ (
-    .A1(\reg2hw[39] ),
-    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
-    .B1(_1343_),
-    .Y(_1344_)
-  );
-  sg13g2_buf_1 _2341_ (
-    .A(_1344_),
-    .X(_1345_)
-  );
-  sg13g2_nand2_1 _2342_ (
-    .A(_1322_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[1] ),
-    .Y(_1346_)
-  );
-  sg13g2_o21ai_1 _2343_ (
-    .A1(_1322_),
-    .A2(_1345_),
-    .B1(_1346_),
-    .Y(_0194_)
-  );
-  sg13g2_nand2_1 _2344_ (
-    .A(_1223_),
-    .B(\reg2hw[39] ),
-    .Y(_1347_)
-  );
-  sg13g2_o21ai_1 _2345_ (
-    .A1(\reg2hw[39] ),
-    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
-    .B1(_1347_),
-    .Y(_1348_)
-  );
-  sg13g2_buf_1 _2346_ (
-    .A(_1348_),
-    .X(_1349_)
-  );
-  sg13g2_nand2_1 _2347_ (
-    .A(_1322_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[0] ),
-    .Y(_1350_)
-  );
-  sg13g2_o21ai_1 _2348_ (
-    .A1(_1322_),
-    .A2(_1349_),
-    .B1(_1350_),
-    .Y(_0195_)
-  );
-  sg13g2_nand2_1 _2349_ (
-    .A(_1320_),
-    .B(_1296_),
-    .Y(_1351_)
-  );
-  sg13g2_buf_2 _2350_ (
-    .A(_1351_),
-    .X(_1352_)
-  );
-  sg13g2_nand2_1 _2351_ (
-    .A(_1352_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[14] ),
-    .Y(_1353_)
-  );
-  sg13g2_o21ai_1 _2352_ (
-    .A1(_1325_),
-    .A2(_1352_),
-    .B1(_1353_),
-    .Y(_0196_)
-  );
-  sg13g2_nand2_1 _2353_ (
-    .A(_1352_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[13] ),
-    .Y(_1354_)
-  );
-  sg13g2_o21ai_1 _2354_ (
-    .A1(_1329_),
-    .A2(_1352_),
-    .B1(_1354_),
-    .Y(_0197_)
-  );
-  sg13g2_nand2_1 _2355_ (
-    .A(_1352_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[12] ),
-    .Y(_1355_)
-  );
-  sg13g2_o21ai_1 _2356_ (
-    .A1(_1333_),
-    .A2(_1352_),
-    .B1(_1355_),
-    .Y(_0198_)
-  );
-  sg13g2_nand2_1 _2357_ (
-    .A(_1352_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[11] ),
-    .Y(_1356_)
-  );
-  sg13g2_o21ai_1 _2358_ (
-    .A1(_1337_),
-    .A2(_1352_),
-    .B1(_1356_),
-    .Y(_0199_)
-  );
-  sg13g2_nand2_1 _2359_ (
-    .A(_1352_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[10] ),
-    .Y(_1357_)
-  );
-  sg13g2_o21ai_1 _2360_ (
-    .A1(_1341_),
-    .A2(_1352_),
-    .B1(_1357_),
-    .Y(_0200_)
-  );
-  sg13g2_nand2_1 _2361_ (
-    .A(_1352_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[9] ),
-    .Y(_1358_)
-  );
-  sg13g2_o21ai_1 _2362_ (
-    .A1(_1345_),
-    .A2(_1352_),
-    .B1(_1358_),
-    .Y(_0201_)
-  );
-  sg13g2_nand2_1 _2363_ (
-    .A(_1352_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[8] ),
-    .Y(_1359_)
-  );
-  sg13g2_o21ai_1 _2364_ (
-    .A1(_1349_),
-    .A2(_1352_),
-    .B1(_1359_),
-    .Y(_0202_)
-  );
-  sg13g2_nand2_1 _2365_ (
-    .A(_1320_),
-    .B(_1297_),
-    .Y(_1360_)
-  );
-  sg13g2_buf_2 _2366_ (
-    .A(_1360_),
-    .X(_1361_)
-  );
-  sg13g2_nand2_1 _2367_ (
-    .A(_1361_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[22] ),
-    .Y(_1362_)
-  );
-  sg13g2_o21ai_1 _2368_ (
-    .A1(_1325_),
-    .A2(_1361_),
-    .B1(_1362_),
-    .Y(_0203_)
-  );
-  sg13g2_nand2_1 _2369_ (
-    .A(_1361_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[21] ),
-    .Y(_1363_)
-  );
-  sg13g2_o21ai_1 _2370_ (
-    .A1(_1329_),
-    .A2(_1361_),
-    .B1(_1363_),
-    .Y(_0204_)
-  );
-  sg13g2_nand2_1 _2371_ (
-    .A(_1361_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[20] ),
-    .Y(_1364_)
-  );
-  sg13g2_o21ai_1 _2372_ (
-    .A1(_1333_),
-    .A2(_1361_),
-    .B1(_1364_),
-    .Y(_0205_)
-  );
-  sg13g2_nand2_1 _2373_ (
-    .A(_1361_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[19] ),
-    .Y(_1365_)
-  );
-  sg13g2_o21ai_1 _2374_ (
-    .A1(_1337_),
-    .A2(_1361_),
-    .B1(_1365_),
-    .Y(_0206_)
-  );
-  sg13g2_nand2_1 _2375_ (
-    .A(_1361_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[18] ),
-    .Y(_1366_)
-  );
-  sg13g2_o21ai_1 _2376_ (
-    .A1(_1341_),
-    .A2(_1361_),
-    .B1(_1366_),
-    .Y(_0207_)
-  );
-  sg13g2_nand2_1 _2377_ (
-    .A(_1361_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[17] ),
-    .Y(_1367_)
-  );
-  sg13g2_o21ai_1 _2378_ (
-    .A1(_1345_),
-    .A2(_1361_),
-    .B1(_1367_),
-    .Y(_0208_)
-  );
-  sg13g2_nand2_1 _2379_ (
-    .A(_1361_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[16] ),
-    .Y(_1368_)
-  );
-  sg13g2_o21ai_1 _2380_ (
-    .A1(_1349_),
-    .A2(_1361_),
-    .B1(_1368_),
-    .Y(_0209_)
-  );
-  sg13g2_nand3_1 _2381_ (
-    .A(_1320_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
-    .Y(_1369_)
-  );
-  sg13g2_buf_2 _2382_ (
-    .A(_1369_),
-    .X(_1370_)
-  );
-  sg13g2_nand2_1 _2383_ (
-    .A(_1370_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[30] ),
-    .Y(_1371_)
-  );
-  sg13g2_o21ai_1 _2384_ (
-    .A1(_1325_),
-    .A2(_1370_),
-    .B1(_1371_),
-    .Y(_0210_)
-  );
-  sg13g2_nand2_1 _2385_ (
-    .A(_1370_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[29] ),
-    .Y(_1372_)
-  );
-  sg13g2_o21ai_1 _2386_ (
-    .A1(_1329_),
-    .A2(_1370_),
-    .B1(_1372_),
-    .Y(_0211_)
-  );
-  sg13g2_nand2_1 _2387_ (
-    .A(_1370_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[28] ),
-    .Y(_1373_)
-  );
-  sg13g2_o21ai_1 _2388_ (
-    .A1(_1333_),
-    .A2(_1370_),
-    .B1(_1373_),
-    .Y(_0212_)
-  );
-  sg13g2_nand2_1 _2389_ (
-    .A(_1370_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[27] ),
-    .Y(_1374_)
-  );
-  sg13g2_o21ai_1 _2390_ (
-    .A1(_1337_),
-    .A2(_1370_),
-    .B1(_1374_),
-    .Y(_0213_)
-  );
-  sg13g2_nand2_1 _2391_ (
-    .A(_1370_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[26] ),
-    .Y(_1375_)
-  );
-  sg13g2_o21ai_1 _2392_ (
-    .A1(_1341_),
-    .A2(_1370_),
-    .B1(_1375_),
-    .Y(_0214_)
-  );
-  sg13g2_nand2_1 _2393_ (
-    .A(_1370_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[25] ),
-    .Y(_1376_)
-  );
-  sg13g2_o21ai_1 _2394_ (
-    .A1(_1345_),
-    .A2(_1370_),
-    .B1(_1376_),
-    .Y(_0215_)
-  );
-  sg13g2_nand2_1 _2395_ (
-    .A(_1370_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[24] ),
-    .Y(_1377_)
-  );
-  sg13g2_o21ai_1 _2396_ (
-    .A1(_1349_),
-    .A2(_1370_),
-    .B1(_1377_),
-    .Y(_0216_)
-  );
-  sg13g2_nor3_1 _2397_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
-    .C(_1285_),
-    .Y(_1378_)
-  );
-  sg13g2_nand3_1 _2398_ (
-    .A(_1378_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .C(_0701_),
-    .Y(_1379_)
-  );
-  sg13g2_buf_1 _2399_ (
-    .A(_1379_),
-    .X(_1380_)
-  );
-  sg13g2_nand2_1 _2400_ (
-    .A(_1380_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[38] ),
-    .Y(_1381_)
-  );
-  sg13g2_o21ai_1 _2401_ (
-    .A1(_1325_),
-    .A2(_1380_),
-    .B1(_1381_),
-    .Y(_0217_)
-  );
-  sg13g2_nand2_1 _2402_ (
-    .A(_1380_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[37] ),
-    .Y(_1382_)
-  );
-  sg13g2_o21ai_1 _2403_ (
-    .A1(_1329_),
-    .A2(_1380_),
-    .B1(_1382_),
-    .Y(_0218_)
-  );
-  sg13g2_nand2_1 _2404_ (
-    .A(_1380_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[36] ),
-    .Y(_1383_)
-  );
-  sg13g2_o21ai_1 _2405_ (
-    .A1(_1333_),
-    .A2(_1380_),
-    .B1(_1383_),
-    .Y(_0219_)
-  );
-  sg13g2_nand2_1 _2406_ (
-    .A(_1380_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[35] ),
-    .Y(_1384_)
-  );
-  sg13g2_o21ai_1 _2407_ (
-    .A1(_1337_),
-    .A2(_1380_),
-    .B1(_1384_),
-    .Y(_0220_)
-  );
-  sg13g2_nand2_1 _2408_ (
-    .A(_1380_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[34] ),
-    .Y(_1385_)
-  );
-  sg13g2_o21ai_1 _2409_ (
-    .A1(_1341_),
-    .A2(_1380_),
-    .B1(_1385_),
-    .Y(_0221_)
-  );
-  sg13g2_nand2_1 _2410_ (
-    .A(_1380_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[33] ),
-    .Y(_1386_)
-  );
-  sg13g2_o21ai_1 _2411_ (
-    .A1(_1345_),
-    .A2(_1380_),
-    .B1(_1386_),
-    .Y(_0222_)
-  );
-  sg13g2_nand2_1 _2412_ (
-    .A(_1380_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[32] ),
-    .Y(_1387_)
-  );
-  sg13g2_o21ai_1 _2413_ (
-    .A1(_1349_),
-    .A2(_1380_),
-    .B1(_1387_),
-    .Y(_0223_)
-  );
-  sg13g2_nor2b_1 _2414_ (
-    .A(_1285_),
-    .B_N(_1296_),
-    .Y(_1388_)
-  );
-  sg13g2_nand3_1 _2415_ (
-    .A(_1388_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .C(_0701_),
-    .Y(_1389_)
-  );
-  sg13g2_buf_1 _2416_ (
-    .A(_1389_),
-    .X(_1390_)
-  );
-  sg13g2_nand2_1 _2417_ (
-    .A(_1390_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[46] ),
-    .Y(_1391_)
-  );
-  sg13g2_o21ai_1 _2418_ (
-    .A1(_1325_),
-    .A2(_1390_),
-    .B1(_1391_),
-    .Y(_0224_)
-  );
-  sg13g2_nand2_1 _2419_ (
-    .A(_1390_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[45] ),
-    .Y(_1392_)
-  );
-  sg13g2_o21ai_1 _2420_ (
-    .A1(_1329_),
-    .A2(_1390_),
-    .B1(_1392_),
-    .Y(_0225_)
-  );
-  sg13g2_nand2_1 _2421_ (
-    .A(_1390_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[44] ),
-    .Y(_1393_)
-  );
-  sg13g2_o21ai_1 _2422_ (
-    .A1(_1333_),
-    .A2(_1390_),
-    .B1(_1393_),
-    .Y(_0226_)
-  );
-  sg13g2_nand2_1 _2423_ (
-    .A(_1390_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[43] ),
-    .Y(_1394_)
-  );
-  sg13g2_o21ai_1 _2424_ (
-    .A1(_1337_),
-    .A2(_1390_),
-    .B1(_1394_),
-    .Y(_0227_)
-  );
-  sg13g2_nand2_1 _2425_ (
-    .A(_1390_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[42] ),
-    .Y(_1395_)
-  );
-  sg13g2_o21ai_1 _2426_ (
-    .A1(_1341_),
-    .A2(_1390_),
-    .B1(_1395_),
-    .Y(_0228_)
-  );
-  sg13g2_nand2_1 _2427_ (
-    .A(_1390_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[41] ),
-    .Y(_1396_)
-  );
-  sg13g2_o21ai_1 _2428_ (
-    .A1(_1345_),
-    .A2(_1390_),
-    .B1(_1396_),
-    .Y(_0229_)
-  );
-  sg13g2_nand2_1 _2429_ (
-    .A(_1390_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[40] ),
-    .Y(_1397_)
-  );
-  sg13g2_o21ai_1 _2430_ (
-    .A1(_1349_),
-    .A2(_1390_),
-    .B1(_1397_),
-    .Y(_0230_)
-  );
-  sg13g2_nor2b_1 _2431_ (
-    .A(_1285_),
-    .B_N(_1297_),
-    .Y(_1398_)
-  );
-  sg13g2_nand3_1 _2432_ (
-    .A(_1398_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .C(_0701_),
-    .Y(_1399_)
-  );
-  sg13g2_buf_1 _2433_ (
-    .A(_1399_),
-    .X(_1400_)
-  );
-  sg13g2_nand2_1 _2434_ (
-    .A(_1400_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[54] ),
-    .Y(_1401_)
-  );
-  sg13g2_o21ai_1 _2435_ (
-    .A1(_1325_),
-    .A2(_1400_),
-    .B1(_1401_),
-    .Y(_0231_)
-  );
-  sg13g2_nand2_1 _2436_ (
-    .A(_1400_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[53] ),
-    .Y(_1402_)
-  );
-  sg13g2_o21ai_1 _2437_ (
-    .A1(_1329_),
-    .A2(_1400_),
-    .B1(_1402_),
-    .Y(_0232_)
-  );
-  sg13g2_nand2_1 _2438_ (
-    .A(_1400_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[52] ),
-    .Y(_1403_)
-  );
-  sg13g2_o21ai_1 _2439_ (
-    .A1(_1333_),
-    .A2(_1400_),
-    .B1(_1403_),
-    .Y(_0233_)
-  );
-  sg13g2_nand2_1 _2440_ (
-    .A(_1400_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[51] ),
-    .Y(_1404_)
-  );
-  sg13g2_o21ai_1 _2441_ (
-    .A1(_1337_),
-    .A2(_1400_),
-    .B1(_1404_),
-    .Y(_0234_)
-  );
-  sg13g2_nand2_1 _2442_ (
-    .A(_1400_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[50] ),
-    .Y(_1405_)
-  );
-  sg13g2_o21ai_1 _2443_ (
-    .A1(_1341_),
-    .A2(_1400_),
-    .B1(_1405_),
-    .Y(_0235_)
-  );
-  sg13g2_nand2_1 _2444_ (
-    .A(_1400_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[49] ),
-    .Y(_1406_)
-  );
-  sg13g2_o21ai_1 _2445_ (
-    .A1(_1345_),
-    .A2(_1400_),
-    .B1(_1406_),
-    .Y(_0236_)
-  );
-  sg13g2_nand2_1 _2446_ (
-    .A(_1400_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[48] ),
-    .Y(_1407_)
-  );
-  sg13g2_o21ai_1 _2447_ (
-    .A1(_1349_),
-    .A2(_1400_),
-    .B1(_1407_),
-    .Y(_0237_)
-  );
-  sg13g2_nand2_1 _2448_ (
-    .A(_1292_),
-    .B(_0701_),
-    .Y(_1408_)
-  );
-  sg13g2_buf_2 _2449_ (
-    .A(_1408_),
-    .X(_1409_)
-  );
-  sg13g2_nand2_1 _2450_ (
-    .A(_1409_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[62] ),
-    .Y(_1410_)
-  );
-  sg13g2_o21ai_1 _2451_ (
-    .A1(_1325_),
-    .A2(_1409_),
-    .B1(_1410_),
-    .Y(_0238_)
-  );
-  sg13g2_nand2_1 _2452_ (
-    .A(_1409_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[61] ),
-    .Y(_1411_)
-  );
-  sg13g2_o21ai_1 _2453_ (
-    .A1(_1329_),
-    .A2(_1409_),
-    .B1(_1411_),
-    .Y(_0239_)
-  );
-  sg13g2_nand2_1 _2454_ (
-    .A(_1409_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[60] ),
-    .Y(_1412_)
-  );
-  sg13g2_o21ai_1 _2455_ (
-    .A1(_1333_),
-    .A2(_1409_),
-    .B1(_1412_),
-    .Y(_0240_)
-  );
-  sg13g2_nand2_1 _2456_ (
-    .A(_1409_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[59] ),
-    .Y(_1413_)
-  );
-  sg13g2_o21ai_1 _2457_ (
-    .A1(_1337_),
-    .A2(_1409_),
-    .B1(_1413_),
-    .Y(_0241_)
-  );
-  sg13g2_nand2_1 _2458_ (
-    .A(_1409_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[58] ),
-    .Y(_1414_)
-  );
-  sg13g2_o21ai_1 _2459_ (
-    .A1(_1341_),
-    .A2(_1409_),
-    .B1(_1414_),
-    .Y(_0242_)
-  );
-  sg13g2_nand2_1 _2460_ (
-    .A(_1409_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[57] ),
-    .Y(_1415_)
-  );
-  sg13g2_o21ai_1 _2461_ (
-    .A1(_1345_),
-    .A2(_1409_),
-    .B1(_1415_),
-    .Y(_0243_)
-  );
-  sg13g2_nand2_1 _2462_ (
-    .A(_1409_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[56] ),
-    .Y(_1416_)
-  );
-  sg13g2_o21ai_1 _2463_ (
-    .A1(_1349_),
-    .A2(_1409_),
-    .B1(_1416_),
-    .Y(_0244_)
-  );
-  sg13g2_inv_1 _2464_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .Y(_1417_)
-  );
-  sg13g2_nand3_1 _2465_ (
-    .A(_1378_),
-    .B(_1417_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .Y(_1418_)
-  );
-  sg13g2_buf_1 _2466_ (
-    .A(_1418_),
-    .X(_1419_)
-  );
-  sg13g2_nand2_1 _2467_ (
-    .A(_1419_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[70] ),
-    .Y(_1420_)
-  );
-  sg13g2_o21ai_1 _2468_ (
-    .A1(_1325_),
-    .A2(_1419_),
-    .B1(_1420_),
-    .Y(_0245_)
-  );
-  sg13g2_nand2_1 _2469_ (
-    .A(_1419_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[69] ),
-    .Y(_1421_)
-  );
-  sg13g2_o21ai_1 _2470_ (
-    .A1(_1329_),
-    .A2(_1419_),
-    .B1(_1421_),
-    .Y(_0246_)
-  );
-  sg13g2_nand2_1 _2471_ (
-    .A(_1419_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[68] ),
-    .Y(_1422_)
-  );
-  sg13g2_o21ai_1 _2472_ (
-    .A1(_1333_),
-    .A2(_1419_),
-    .B1(_1422_),
-    .Y(_0247_)
-  );
-  sg13g2_nand2_1 _2473_ (
-    .A(_1419_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[67] ),
-    .Y(_1423_)
-  );
-  sg13g2_o21ai_1 _2474_ (
-    .A1(_1337_),
-    .A2(_1419_),
-    .B1(_1423_),
-    .Y(_0248_)
-  );
-  sg13g2_nand2_1 _2475_ (
-    .A(_1419_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[66] ),
-    .Y(_1424_)
-  );
-  sg13g2_o21ai_1 _2476_ (
-    .A1(_1341_),
-    .A2(_1419_),
-    .B1(_1424_),
-    .Y(_0249_)
-  );
-  sg13g2_nand2_1 _2477_ (
-    .A(_1419_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[65] ),
-    .Y(_1425_)
-  );
-  sg13g2_o21ai_1 _2478_ (
-    .A1(_1345_),
-    .A2(_1419_),
-    .B1(_1425_),
-    .Y(_0250_)
-  );
-  sg13g2_nand2_1 _2479_ (
-    .A(_1419_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[64] ),
-    .Y(_1426_)
-  );
-  sg13g2_o21ai_1 _2480_ (
-    .A1(_1349_),
-    .A2(_1419_),
-    .B1(_1426_),
-    .Y(_0251_)
-  );
-  sg13g2_nand3_1 _2481_ (
-    .A(_1388_),
-    .B(_1417_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .Y(_1427_)
-  );
-  sg13g2_buf_1 _2482_ (
-    .A(_1427_),
-    .X(_1428_)
-  );
-  sg13g2_nand2_1 _2483_ (
-    .A(_1428_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[78] ),
-    .Y(_1429_)
-  );
-  sg13g2_o21ai_1 _2484_ (
-    .A1(_1325_),
-    .A2(_1428_),
-    .B1(_1429_),
-    .Y(_0252_)
-  );
-  sg13g2_nand2_1 _2485_ (
-    .A(_1428_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[77] ),
-    .Y(_1430_)
-  );
-  sg13g2_o21ai_1 _2486_ (
-    .A1(_1329_),
-    .A2(_1428_),
-    .B1(_1430_),
-    .Y(_0253_)
-  );
-  sg13g2_nand2_1 _2487_ (
-    .A(_1428_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[76] ),
-    .Y(_1431_)
-  );
-  sg13g2_o21ai_1 _2488_ (
-    .A1(_1333_),
-    .A2(_1428_),
-    .B1(_1431_),
-    .Y(_0254_)
-  );
-  sg13g2_nand2_1 _2489_ (
-    .A(_1428_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[75] ),
-    .Y(_1432_)
-  );
-  sg13g2_o21ai_1 _2490_ (
-    .A1(_1337_),
-    .A2(_1428_),
-    .B1(_1432_),
-    .Y(_0255_)
-  );
-  sg13g2_nand2_1 _2491_ (
-    .A(_1428_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[74] ),
-    .Y(_1433_)
-  );
-  sg13g2_o21ai_1 _2492_ (
-    .A1(_1341_),
-    .A2(_1428_),
-    .B1(_1433_),
-    .Y(_0256_)
-  );
-  sg13g2_nand2_1 _2493_ (
-    .A(_1428_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[73] ),
-    .Y(_1434_)
-  );
-  sg13g2_o21ai_1 _2494_ (
-    .A1(_1345_),
-    .A2(_1428_),
-    .B1(_1434_),
-    .Y(_0257_)
-  );
-  sg13g2_nand2_1 _2495_ (
-    .A(_1428_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[72] ),
-    .Y(_1435_)
-  );
-  sg13g2_o21ai_1 _2496_ (
-    .A1(_1349_),
-    .A2(_1428_),
-    .B1(_1435_),
-    .Y(_0258_)
-  );
-  sg13g2_nand3_1 _2497_ (
-    .A(_1398_),
-    .B(_1417_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .Y(_1436_)
-  );
-  sg13g2_buf_1 _2498_ (
-    .A(_1436_),
-    .X(_1437_)
-  );
-  sg13g2_nand2_1 _2499_ (
-    .A(_1437_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[86] ),
-    .Y(_1438_)
-  );
-  sg13g2_o21ai_1 _2500_ (
-    .A1(_1325_),
-    .A2(_1437_),
-    .B1(_1438_),
-    .Y(_0259_)
-  );
-  sg13g2_nand2_1 _2501_ (
-    .A(_1437_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[85] ),
-    .Y(_1439_)
-  );
-  sg13g2_o21ai_1 _2502_ (
-    .A1(_1329_),
-    .A2(_1437_),
-    .B1(_1439_),
-    .Y(_0260_)
-  );
-  sg13g2_nand2_1 _2503_ (
-    .A(_1437_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[84] ),
-    .Y(_1440_)
-  );
-  sg13g2_o21ai_1 _2504_ (
-    .A1(_1333_),
-    .A2(_1437_),
-    .B1(_1440_),
-    .Y(_0261_)
-  );
-  sg13g2_nand2_1 _2505_ (
-    .A(_1437_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[83] ),
-    .Y(_1441_)
-  );
-  sg13g2_o21ai_1 _2506_ (
-    .A1(_1337_),
-    .A2(_1437_),
-    .B1(_1441_),
-    .Y(_0262_)
-  );
-  sg13g2_nand2_1 _2507_ (
-    .A(_1437_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[82] ),
-    .Y(_1442_)
-  );
-  sg13g2_o21ai_1 _2508_ (
-    .A1(_1341_),
-    .A2(_1437_),
-    .B1(_1442_),
-    .Y(_0263_)
-  );
-  sg13g2_nand2_1 _2509_ (
-    .A(_1437_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[81] ),
-    .Y(_1443_)
-  );
-  sg13g2_o21ai_1 _2510_ (
-    .A1(_1345_),
-    .A2(_1437_),
-    .B1(_1443_),
-    .Y(_0264_)
-  );
-  sg13g2_nand2_1 _2511_ (
-    .A(_1437_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[80] ),
-    .Y(_1444_)
-  );
-  sg13g2_o21ai_1 _2512_ (
-    .A1(_1349_),
-    .A2(_1437_),
-    .B1(_1444_),
-    .Y(_0265_)
-  );
-  sg13g2_nand3_1 _2513_ (
-    .A(_1286_),
-    .B(_1417_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .Y(_1445_)
-  );
-  sg13g2_buf_1 _2514_ (
-    .A(_1445_),
-    .X(_1446_)
-  );
-  sg13g2_nand2_1 _2515_ (
-    .A(_1446_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[94] ),
-    .Y(_1447_)
-  );
-  sg13g2_o21ai_1 _2516_ (
-    .A1(_1325_),
-    .A2(_1446_),
-    .B1(_1447_),
-    .Y(_0266_)
-  );
-  sg13g2_nand2_1 _2517_ (
-    .A(_1446_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[93] ),
-    .Y(_1448_)
-  );
-  sg13g2_o21ai_1 _2518_ (
-    .A1(_1329_),
-    .A2(_1446_),
-    .B1(_1448_),
-    .Y(_0267_)
-  );
-  sg13g2_nand2_1 _2519_ (
-    .A(_1446_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[92] ),
-    .Y(_1449_)
-  );
-  sg13g2_o21ai_1 _2520_ (
-    .A1(_1333_),
-    .A2(_1446_),
-    .B1(_1449_),
-    .Y(_0268_)
-  );
-  sg13g2_nand2_1 _2521_ (
-    .A(_1446_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[91] ),
-    .Y(_1450_)
-  );
-  sg13g2_o21ai_1 _2522_ (
-    .A1(_1337_),
-    .A2(_1446_),
-    .B1(_1450_),
-    .Y(_0269_)
-  );
-  sg13g2_nand2_1 _2523_ (
-    .A(_1446_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[90] ),
-    .Y(_1451_)
-  );
-  sg13g2_o21ai_1 _2524_ (
-    .A1(_1341_),
-    .A2(_1446_),
-    .B1(_1451_),
-    .Y(_0270_)
-  );
-  sg13g2_nand2_1 _2525_ (
-    .A(_1446_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[89] ),
-    .Y(_1452_)
-  );
-  sg13g2_o21ai_1 _2526_ (
-    .A1(_1345_),
-    .A2(_1446_),
-    .B1(_1452_),
-    .Y(_0271_)
-  );
-  sg13g2_nand2_1 _2527_ (
-    .A(_1446_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[88] ),
-    .Y(_1453_)
-  );
-  sg13g2_o21ai_1 _2528_ (
-    .A1(_1349_),
-    .A2(_1446_),
-    .B1(_1453_),
+  sg13g2_a22oi_1 _2406_ (
+    .A1(_1279_),
+    .A2(_1209_),
+    .B1(_1280_),
+    .B2(_1307_),
     .Y(_0272_)
   );
-  sg13g2_nand3_1 _2529_ (
-    .A(_1378_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .Y(_1454_)
+  sg13g2_inv_1 _2407_ (
+    .A(\u_uart_master_reg.tl_o[22] ),
+    .Y(_1308_)
   );
-  sg13g2_buf_1 _2530_ (
-    .A(_1454_),
-    .X(_1455_)
+  sg13g2_a21oi_1 _2408_ (
+    .A1(\reg2hw[39] ),
+    .A2(_1214_),
+    .B1(_1222_),
+    .Y(_1309_)
   );
-  sg13g2_nand2_1 _2531_ (
-    .A(_1455_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[102] ),
-    .Y(_1456_)
+  sg13g2_nand2_1 _2409_ (
+    .A(_0807_),
+    .B(_1306_),
+    .Y(_1310_)
   );
-  sg13g2_o21ai_1 _2532_ (
-    .A1(_1325_),
-    .A2(_1455_),
-    .B1(_1456_),
+  sg13g2_a22oi_1 _2410_ (
+    .A1(_1308_),
+    .A2(_1209_),
+    .B1(_1309_),
+    .B2(_1310_),
     .Y(_0273_)
   );
-  sg13g2_nand2_1 _2533_ (
-    .A(_1455_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[101] ),
-    .Y(_1457_)
+  sg13g2_inv_1 _2411_ (
+    .A(\u_uart_master_reg.tl_o[21] ),
+    .Y(_1311_)
   );
-  sg13g2_o21ai_1 _2534_ (
-    .A1(_1329_),
-    .A2(_1455_),
-    .B1(_1457_),
+  sg13g2_nand2_1 _2412_ (
+    .A(_0838_),
+    .B(_1306_),
+    .Y(_1312_)
+  );
+  sg13g2_nor3_1 _2413_ (
+    .A(tl_i[63]),
+    .B(tl_i[64]),
+    .C(_1256_),
+    .Y(_1313_)
+  );
+  sg13g2_a221oi_1 _2414_ (
+    .A1(\reg2hw[38] ),
+    .A2(_1214_),
+    .B1(_1023_),
+    .B2(_1313_),
+    .C1(_1222_),
+    .Y(_1314_)
+  );
+  sg13g2_a22oi_1 _2415_ (
+    .A1(_1311_),
+    .A2(_1209_),
+    .B1(_1312_),
+    .B2(_1314_),
     .Y(_0274_)
   );
-  sg13g2_nand2_1 _2535_ (
-    .A(_1455_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[100] ),
-    .Y(_1458_)
+  sg13g2_inv_1 _2416_ (
+    .A(\u_uart_master_reg.tl_o[20] ),
+    .Y(_1315_)
   );
-  sg13g2_o21ai_1 _2536_ (
-    .A1(_1333_),
-    .A2(_1455_),
-    .B1(_1458_),
+  sg13g2_inv_1 _2417_ (
+    .A(_0044_),
+    .Y(_1316_)
+  );
+  sg13g2_a221oi_1 _2418_ (
+    .A1(_1316_),
+    .A2(_1313_),
+    .B1(\reg2hw[37] ),
+    .B2(_1214_),
+    .C1(_1222_),
+    .Y(_1317_)
+  );
+  sg13g2_nand2_1 _2419_ (
+    .A(_0868_),
+    .B(_1306_),
+    .Y(_1318_)
+  );
+  sg13g2_a22oi_1 _2420_ (
+    .A1(_1315_),
+    .A2(_1209_),
+    .B1(_1317_),
+    .B2(_1318_),
     .Y(_0275_)
   );
-  sg13g2_nand2_1 _2537_ (
-    .A(_1455_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[99] ),
-    .Y(_1459_)
+  sg13g2_inv_1 _2421_ (
+    .A(\u_uart_master_reg.tl_o[19] ),
+    .Y(_1319_)
   );
-  sg13g2_o21ai_1 _2538_ (
-    .A1(_1337_),
-    .A2(_1455_),
-    .B1(_1459_),
+  sg13g2_nand2_1 _2422_ (
+    .A(_0898_),
+    .B(_1306_),
+    .Y(_1320_)
+  );
+  sg13g2_nand2_1 _2423_ (
+    .A(_1156_),
+    .B(_1313_),
+    .Y(_1321_)
+  );
+  sg13g2_inv_1 _2424_ (
+    .A(_1321_),
+    .Y(_1322_)
+  );
+  sg13g2_inv_1 _2425_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_1323_)
+  );
+  sg13g2_buf_1 _2426_ (
+    .A(_1323_),
+    .X(_1324_)
+  );
+  sg13g2_a21oi_1 _2427_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_0660_),
+    .B1(_0552_),
+    .Y(_1325_)
+  );
+  sg13g2_a21oi_1 _2428_ (
+    .A1(_1324_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .B1(_1325_),
+    .Y(_1326_)
+  );
+  sg13g2_nor2_1 _2429_ (
+    .A(_0546_),
+    .B(_1326_),
+    .Y(_1327_)
+  );
+  sg13g2_nor2_1 _2430_ (
+    .A(_0548_),
+    .B(_1327_),
+    .Y(_1328_)
+  );
+  sg13g2_inv_1 _2431_ (
+    .A(_1328_),
+    .Y(_1329_)
+  );
+  sg13g2_a21oi_1 _2432_ (
+    .A1(_1329_),
+    .A2(_0554_),
+    .B1(_1264_),
+    .Y(_1330_)
+  );
+  sg13g2_nand3b_1 _2433_ (
+    .A_N(_0553_),
+    .B(_1328_),
+    .C(_0555_),
+    .Y(_1331_)
+  );
+  sg13g2_a221oi_1 _2434_ (
+    .A1(_1157_),
+    .A2(_1322_),
+    .B1(_1330_),
+    .B2(_1331_),
+    .C1(_1222_),
+    .Y(_1332_)
+  );
+  sg13g2_a22oi_1 _2435_ (
+    .A1(_1319_),
+    .A2(_1209_),
+    .B1(_1320_),
+    .B2(_1332_),
     .Y(_0276_)
   );
-  sg13g2_nand2_1 _2539_ (
-    .A(_1455_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[98] ),
-    .Y(_1460_)
+  sg13g2_inv_1 _2436_ (
+    .A(\u_uart_master_reg.tl_o[18] ),
+    .Y(_1333_)
   );
-  sg13g2_o21ai_1 _2540_ (
-    .A1(_1341_),
-    .A2(_1455_),
-    .B1(_1460_),
+  sg13g2_nand2_1 _2437_ (
+    .A(_0929_),
+    .B(_1306_),
+    .Y(_1334_)
+  );
+  sg13g2_inv_1 _2438_ (
+    .A(\reg2hw[36] ),
+    .Y(_1335_)
+  );
+  sg13g2_nor2_1 _2439_ (
+    .A(_1335_),
+    .B(_1212_),
+    .Y(_1336_)
+  );
+  sg13g2_nor2_1 _2440_ (
+    .A(_0546_),
+    .B(_0548_),
+    .Y(_1337_)
+  );
+  sg13g2_xnor2_1 _2441_ (
+    .A(_1337_),
+    .B(_1326_),
+    .Y(_1338_)
+  );
+  sg13g2_and3_1 _2442_ (
+    .A(_1338_),
+    .B(_0556_),
+    .C(_1257_),
+    .X(_1339_)
+  );
+  sg13g2_nor4_1 _2443_ (
+    .A(_1222_),
+    .B(_1322_),
+    .C(_1336_),
+    .D(_1339_),
+    .Y(_1340_)
+  );
+  sg13g2_a22oi_1 _2444_ (
+    .A1(_1333_),
+    .A2(_1198_),
+    .B1(_1334_),
+    .B2(_1340_),
     .Y(_0277_)
   );
-  sg13g2_nand2_1 _2541_ (
-    .A(_1455_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[97] ),
-    .Y(_1461_)
+  sg13g2_inv_1 _2445_ (
+    .A(\u_uart_master_reg.tl_o[17] ),
+    .Y(_1341_)
   );
-  sg13g2_o21ai_1 _2542_ (
-    .A1(_1345_),
-    .A2(_1455_),
-    .B1(_1461_),
+  sg13g2_nand2_1 _2446_ (
+    .A(_1265_),
+    .B(_0043_),
+    .Y(_1342_)
+  );
+  sg13g2_nand3_1 _2447_ (
+    .A(_0552_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .C(_0660_),
+    .Y(_1343_)
+  );
+  sg13g2_nand3b_1 _2448_ (
+    .A_N(_1325_),
+    .B(_1257_),
+    .C(_1343_),
+    .Y(_1344_)
+  );
+  sg13g2_nand2_1 _2449_ (
+    .A(_1214_),
+    .B(\reg2hw[35] ),
+    .Y(_1345_)
+  );
+  sg13g2_nand3_1 _2450_ (
+    .A(_1344_),
+    .B(_1224_),
+    .C(_1345_),
+    .Y(_1346_)
+  );
+  sg13g2_a21oi_1 _2451_ (
+    .A1(_1342_),
+    .A2(_1313_),
+    .B1(_1346_),
+    .Y(_1347_)
+  );
+  sg13g2_nand2_1 _2452_ (
+    .A(_0959_),
+    .B(_1306_),
+    .Y(_1348_)
+  );
+  sg13g2_a22oi_1 _2453_ (
+    .A1(_1341_),
+    .A2(_1198_),
+    .B1(_1347_),
+    .B2(_1348_),
     .Y(_0278_)
   );
-  sg13g2_nand2_1 _2543_ (
-    .A(_1455_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[96] ),
-    .Y(_1462_)
+  sg13g2_inv_1 _2454_ (
+    .A(\u_uart_master_reg.tl_o[16] ),
+    .Y(_1349_)
   );
-  sg13g2_o21ai_1 _2544_ (
+  sg13g2_a22oi_1 _2455_ (
+    .A1(\reg2hw[34] ),
+    .A2(_1214_),
+    .B1(_1257_),
+    .B2(_0550_),
+    .Y(_1350_)
+  );
+  sg13g2_nand2_1 _2456_ (
+    .A(_1224_),
+    .B(_1350_),
+    .Y(_1351_)
+  );
+  sg13g2_a21oi_1 _2457_ (
+    .A1(_0557_),
+    .A2(_1313_),
+    .B1(_1351_),
+    .Y(_1352_)
+  );
+  sg13g2_nand2_1 _2458_ (
+    .A(_0985_),
+    .B(_1306_),
+    .Y(_1353_)
+  );
+  sg13g2_a22oi_1 _2459_ (
     .A1(_1349_),
-    .A2(_1455_),
-    .B1(_1462_),
+    .A2(_1198_),
+    .B1(_1352_),
+    .B2(_1353_),
     .Y(_0279_)
   );
-  sg13g2_nand3_1 _2545_ (
-    .A(_1388_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .Y(_1463_)
+  sg13g2_inv_1 _2460_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_1354_)
   );
-  sg13g2_buf_1 _2546_ (
-    .A(_1463_),
-    .X(_1464_)
+  sg13g2_buf_1 _2461_ (
+    .A(_1354_),
+    .X(_1355_)
   );
-  sg13g2_nand2_1 _2547_ (
-    .A(_1464_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[110] ),
-    .Y(_1465_)
+  sg13g2_nor2_1 _2462_ (
+    .A(_1355_),
+    .B(_1174_),
+    .Y(_1356_)
   );
-  sg13g2_o21ai_1 _2548_ (
-    .A1(_1325_),
-    .A2(_1464_),
-    .B1(_1465_),
+  sg13g2_nand2_1 _2463_ (
+    .A(_1356_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_1357_)
+  );
+  sg13g2_nor2_1 _2464_ (
+    .A(_0545_),
+    .B(_1357_),
+    .Y(_1358_)
+  );
+  sg13g2_inv_1 _2465_ (
+    .A(\reg2hw[3] ),
+    .Y(_1359_)
+  );
+  sg13g2_inv_1 _2466_ (
+    .A(\reg2hw[0] ),
+    .Y(_1360_)
+  );
+  sg13g2_nor2_1 _2467_ (
+    .A(_1359_),
+    .B(_1360_),
+    .Y(_1361_)
+  );
+  sg13g2_buf_1 _2468_ (
+    .A(_1361_),
+    .X(_1362_)
+  );
+  sg13g2_inv_1 _2469_ (
+    .A(_1357_),
+    .Y(_1363_)
+  );
+  sg13g2_nor2_1 _2470_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .B(_1363_),
+    .Y(_1364_)
+  );
+  sg13g2_nor3_1 _2471_ (
+    .A(_1358_),
+    .B(_1362_),
+    .C(_1364_),
     .Y(_0280_)
   );
-  sg13g2_nand2_1 _2549_ (
-    .A(_1464_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[109] ),
-    .Y(_1466_)
+  sg13g2_nor2_1 _2472_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .B(_1356_),
+    .Y(_1365_)
   );
-  sg13g2_o21ai_1 _2550_ (
-    .A1(_1329_),
-    .A2(_1464_),
-    .B1(_1466_),
+  sg13g2_nor3_1 _2473_ (
+    .A(_1362_),
+    .B(_1365_),
+    .C(_1363_),
     .Y(_0281_)
   );
-  sg13g2_nand2_1 _2551_ (
-    .A(_1464_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[108] ),
-    .Y(_1467_)
+  sg13g2_nor2_1 _2474_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B(_1173_),
+    .Y(_1366_)
   );
-  sg13g2_o21ai_1 _2552_ (
-    .A1(_1333_),
-    .A2(_1464_),
-    .B1(_1467_),
+  sg13g2_nor3_1 _2475_ (
+    .A(_1362_),
+    .B(_1366_),
+    .C(_1356_),
     .Y(_0282_)
   );
-  sg13g2_nand2_1 _2553_ (
-    .A(_1464_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[107] ),
-    .Y(_1468_)
+  sg13g2_nor2_1 _2476_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .B(_0729_),
+    .Y(_1367_)
   );
-  sg13g2_o21ai_1 _2554_ (
-    .A1(_1337_),
-    .A2(_1464_),
-    .B1(_1468_),
+  sg13g2_nor3_1 _2477_ (
+    .A(_1362_),
+    .B(_1367_),
+    .C(_0732_),
     .Y(_0283_)
   );
-  sg13g2_nand2_1 _2555_ (
-    .A(_1464_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[106] ),
-    .Y(_1469_)
+  sg13g2_inv_1 _2478_ (
+    .A(_0728_),
+    .Y(_1368_)
   );
-  sg13g2_o21ai_1 _2556_ (
-    .A1(_1341_),
-    .A2(_1464_),
-    .B1(_1469_),
+  sg13g2_nor2_1 _2479_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .B(_1368_),
+    .Y(_1369_)
+  );
+  sg13g2_nor3_1 _2480_ (
+    .A(_0729_),
+    .B(_1362_),
+    .C(_1369_),
     .Y(_0284_)
   );
-  sg13g2_nand2_1 _2557_ (
-    .A(_1464_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[105] ),
-    .Y(_1470_)
+  sg13g2_nor2_1 _2481_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[0] ),
+    .B(_0659_),
+    .Y(_1370_)
   );
-  sg13g2_o21ai_1 _2558_ (
-    .A1(_1345_),
-    .A2(_1464_),
-    .B1(_1470_),
+  sg13g2_nor3_1 _2482_ (
+    .A(_1362_),
+    .B(_1370_),
+    .C(_1368_),
     .Y(_0285_)
   );
-  sg13g2_nand2_1 _2559_ (
-    .A(_1464_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[104] ),
-    .Y(_1471_)
+  sg13g2_nand3_1 _2483_ (
+    .A(_0838_),
+    .B(_0043_),
+    .C(_0806_),
+    .Y(_1371_)
   );
-  sg13g2_o21ai_1 _2560_ (
-    .A1(_1349_),
-    .A2(_1464_),
-    .B1(_1471_),
+  sg13g2_nor4_1 _2484_ (
+    .A(_0866_),
+    .B(_0896_),
+    .C(_0928_),
+    .D(_1371_),
+    .Y(_1372_)
+  );
+  sg13g2_nor3_1 _2485_ (
+    .A(_0957_),
+    .B(_1303_),
+    .C(_0984_),
+    .Y(_1373_)
+  );
+  sg13g2_nand2_1 _2486_ (
+    .A(_1372_),
+    .B(_1373_),
+    .Y(_1374_)
+  );
+  sg13g2_nand2_1 _2487_ (
+    .A(_0523_),
+    .B(_1020_),
+    .Y(_1375_)
+  );
+  sg13g2_nor2_1 _2488_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
+    .B(_1375_),
+    .Y(_1376_)
+  );
+  sg13g2_inv_1 _2489_ (
+    .A(_0770_),
+    .Y(_1377_)
+  );
+  sg13g2_nor2_1 _2490_ (
+    .A(_1022_),
+    .B(_0769_),
+    .Y(_1378_)
+  );
+  sg13g2_inv_1 _2491_ (
+    .A(_1378_),
+    .Y(_1379_)
+  );
+  sg13g2_inv_1 _2492_ (
+    .A(_0525_),
+    .Y(_1380_)
+  );
+  sg13g2_and2_1 _2493_ (
+    .A(req_o),
+    .B(gnt_i),
+    .X(_1381_)
+  );
+  sg13g2_nor4_1 _2494_ (
+    .A(_0750_),
+    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
+    .C(_1020_),
+    .D(_1381_),
+    .Y(_1382_)
+  );
+  sg13g2_a21oi_1 _2495_ (
+    .A1(_1380_),
+    .A2(_0522_),
+    .B1(_1382_),
+    .Y(_1383_)
+  );
+  sg13g2_nor2_1 _2496_ (
+    .A(\u_uart_master_core.u_host_bridge.idx_q[0] ),
+    .B(_1032_),
+    .Y(_1384_)
+  );
+  sg13g2_nor2_1 _2497_ (
+    .A(_1384_),
+    .B(_1022_),
+    .Y(_1385_)
+  );
+  sg13g2_nor2_1 _2498_ (
+    .A(_1074_),
+    .B(_1385_),
+    .Y(_1386_)
+  );
+  sg13g2_nand4_1 _2499_ (
+    .A(_1377_),
+    .B(_1379_),
+    .C(_1383_),
+    .D(_1386_),
+    .Y(_1387_)
+  );
+  sg13g2_a21oi_1 _2500_ (
+    .A1(_1374_),
+    .A2(_1376_),
+    .B1(_1387_),
+    .Y(_1388_)
+  );
+  sg13g2_a21oi_1 _2501_ (
+    .A1(_0523_),
+    .A2(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
+    .B1(_1075_),
+    .Y(_1389_)
+  );
+  sg13g2_nor2_1 _2502_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
+    .B(_1388_),
+    .Y(_1390_)
+  );
+  sg13g2_a21oi_1 _2503_ (
+    .A1(_1388_),
+    .A2(_1389_),
+    .B1(_1390_),
     .Y(_0286_)
   );
-  sg13g2_nand3_1 _2561_ (
-    .A(_1398_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .Y(_1472_)
+  sg13g2_nand3_1 _2504_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
+    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
+    .C(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
+    .Y(_1391_)
   );
-  sg13g2_buf_1 _2562_ (
-    .A(_1472_),
-    .X(_1473_)
+  sg13g2_nand2_1 _2505_ (
+    .A(_1375_),
+    .B(_1391_),
+    .Y(_1392_)
   );
-  sg13g2_nand2_1 _2563_ (
-    .A(_1473_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[118] ),
-    .Y(_1474_)
+  sg13g2_o21ai_1 _2506_ (
+    .A1(_1075_),
+    .A2(_1392_),
+    .B1(_1388_),
+    .Y(_1393_)
   );
-  sg13g2_o21ai_1 _2564_ (
-    .A1(_1325_),
-    .A2(_1473_),
-    .B1(_1474_),
+  sg13g2_o21ai_1 _2507_ (
+    .A1(_1020_),
+    .A2(_1388_),
+    .B1(_1393_),
     .Y(_0287_)
   );
-  sg13g2_nand2_1 _2565_ (
-    .A(_1473_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[117] ),
-    .Y(_1475_)
+  sg13g2_inv_1 _2508_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
+    .Y(_1394_)
   );
-  sg13g2_o21ai_1 _2566_ (
-    .A1(_1329_),
-    .A2(_1473_),
-    .B1(_1475_),
+  sg13g2_inv_1 _2509_ (
+    .A(\u_uart_master_core.u_uart_core.rx_tick_baud ),
+    .Y(_1395_)
+  );
+  sg13g2_nor2_1 _2510_ (
+    .A(_1316_),
+    .B(_1395_),
+    .Y(_1396_)
+  );
+  sg13g2_inv_1 _2511_ (
+    .A(\reg2hw[37] ),
+    .Y(_1397_)
+  );
+  sg13g2_o21ai_1 _2512_ (
+    .A1(_0045_),
+    .A2(_1335_),
+    .B1(_0047_),
+    .Y(_1398_)
+  );
+  sg13g2_nand2b_1 _2513_ (
+    .A_N(_0046_),
+    .B(_1398_),
+    .Y(_1399_)
+  );
+  sg13g2_inv_1 _2514_ (
+    .A(\reg2hw[38] ),
+    .Y(_1400_)
+  );
+  sg13g2_a21o_1 _2515_ (
+    .A1(\reg2hw[36] ),
+    .A2(_0045_),
+    .B1(_0047_),
+    .X(_1401_)
+  );
+  sg13g2_nand4_1 _2516_ (
+    .A(_1399_),
+    .B(_1400_),
+    .C(_1397_),
+    .D(_1401_),
+    .Y(_1402_)
+  );
+  sg13g2_o21ai_1 _2517_ (
+    .A1(_0520_),
+    .A2(_1397_),
+    .B1(_1402_),
+    .Y(_1403_)
+  );
+  sg13g2_nand2_1 _2518_ (
+    .A(_1403_),
+    .B(_1316_),
+    .Y(_1404_)
+  );
+  sg13g2_inv_1 _2519_ (
+    .A(_1404_),
+    .Y(_1405_)
+  );
+  sg13g2_nor2_1 _2520_ (
+    .A(_1396_),
+    .B(_1405_),
+    .Y(_1406_)
+  );
+  sg13g2_inv_1 _2521_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
+    .Y(_1407_)
+  );
+  sg13g2_inv_1 _2522_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[3] ),
+    .Y(_1408_)
+  );
+  sg13g2_xor2_1 _2523_ (
+    .A(\reg2hw[39] ),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[0] ),
+    .X(_1409_)
+  );
+  sg13g2_nor4_1 _2524_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
+    .B(_1407_),
+    .C(_1408_),
+    .D(_1409_),
+    .Y(_1410_)
+  );
+  sg13g2_nand2b_1 _2525_ (
+    .A_N(_1403_),
+    .B(_1410_),
+    .Y(_1411_)
+  );
+  sg13g2_nor2b_1 _2526_ (
+    .A(_1406_),
+    .B_N(_1411_),
+    .Y(_1412_)
+  );
+  sg13g2_buf_1 _2527_ (
+    .A(_1412_),
+    .X(_1413_)
+  );
+  sg13g2_inv_1 _2528_ (
+    .A(_1396_),
+    .Y(_1414_)
+  );
+  sg13g2_nor2b_1 _2529_ (
+    .A(_1414_),
+    .B_N(_1411_),
+    .Y(_1415_)
+  );
+  sg13g2_buf_1 _2530_ (
+    .A(_1415_),
+    .X(_1416_)
+  );
+  sg13g2_nand2_1 _2531_ (
+    .A(_1416_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[10] ),
+    .Y(_1417_)
+  );
+  sg13g2_o21ai_1 _2532_ (
+    .A1(_1394_),
+    .A2(_1413_),
+    .B1(_1417_),
     .Y(_0288_)
   );
-  sg13g2_nand2_1 _2567_ (
-    .A(_1473_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[116] ),
-    .Y(_1476_)
+  sg13g2_inv_1 _2533_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
+    .Y(_1418_)
   );
-  sg13g2_o21ai_1 _2568_ (
-    .A1(_1333_),
-    .A2(_1473_),
-    .B1(_1476_),
+  sg13g2_nand2_1 _2534_ (
+    .A(_1416_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
+    .Y(_1419_)
+  );
+  sg13g2_o21ai_1 _2535_ (
+    .A1(_1418_),
+    .A2(_1413_),
+    .B1(_1419_),
     .Y(_0289_)
   );
-  sg13g2_nand2_1 _2569_ (
-    .A(_1473_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[115] ),
-    .Y(_1477_)
+  sg13g2_inv_1 _2536_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
+    .Y(_1420_)
   );
-  sg13g2_o21ai_1 _2570_ (
-    .A1(_1337_),
-    .A2(_1473_),
-    .B1(_1477_),
+  sg13g2_nand2_1 _2537_ (
+    .A(_1416_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
+    .Y(_1421_)
+  );
+  sg13g2_o21ai_1 _2538_ (
+    .A1(_1420_),
+    .A2(_1413_),
+    .B1(_1421_),
     .Y(_0290_)
   );
-  sg13g2_nand2_1 _2571_ (
-    .A(_1473_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[114] ),
-    .Y(_1478_)
+  sg13g2_inv_1 _2539_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
+    .Y(_1422_)
   );
-  sg13g2_o21ai_1 _2572_ (
-    .A1(_1341_),
-    .A2(_1473_),
-    .B1(_1478_),
+  sg13g2_nand2_1 _2540_ (
+    .A(_1416_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
+    .Y(_1423_)
+  );
+  sg13g2_o21ai_1 _2541_ (
+    .A1(_1422_),
+    .A2(_1413_),
+    .B1(_1423_),
     .Y(_0291_)
   );
-  sg13g2_nand2_1 _2573_ (
-    .A(_1473_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[113] ),
-    .Y(_1479_)
+  sg13g2_inv_1 _2542_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
+    .Y(_1424_)
   );
-  sg13g2_o21ai_1 _2574_ (
-    .A1(_1345_),
-    .A2(_1473_),
-    .B1(_1479_),
+  sg13g2_nand2_1 _2543_ (
+    .A(_1416_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
+    .Y(_1425_)
+  );
+  sg13g2_o21ai_1 _2544_ (
+    .A1(_1424_),
+    .A2(_1413_),
+    .B1(_1425_),
     .Y(_0292_)
   );
-  sg13g2_nand2_1 _2575_ (
-    .A(_1473_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[112] ),
-    .Y(_1480_)
+  sg13g2_inv_1 _2545_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
+    .Y(_1426_)
   );
-  sg13g2_o21ai_1 _2576_ (
-    .A1(_1349_),
-    .A2(_1473_),
-    .B1(_1480_),
+  sg13g2_nand2_1 _2546_ (
+    .A(_1416_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
+    .Y(_1427_)
+  );
+  sg13g2_o21ai_1 _2547_ (
+    .A1(_1426_),
+    .A2(_1413_),
+    .B1(_1427_),
     .Y(_0293_)
   );
-  sg13g2_nor2_1 _2577_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[126] ),
-    .B(_1289_),
-    .Y(_1481_)
+  sg13g2_inv_1 _2548_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
+    .Y(_1428_)
   );
-  sg13g2_a21oi_1 _2578_ (
-    .A1(_1289_),
-    .A2(_1325_),
-    .B1(_1481_),
+  sg13g2_nand2_1 _2549_ (
+    .A(_1416_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
+    .Y(_1429_)
+  );
+  sg13g2_o21ai_1 _2550_ (
+    .A1(_1428_),
+    .A2(_1413_),
+    .B1(_1429_),
     .Y(_0294_)
   );
-  sg13g2_nor2_1 _2579_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[125] ),
-    .B(_1289_),
-    .Y(_1482_)
+  sg13g2_inv_1 _2551_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
+    .Y(_1430_)
   );
-  sg13g2_a21oi_1 _2580_ (
-    .A1(_1289_),
-    .A2(_1329_),
-    .B1(_1482_),
+  sg13g2_nand2_1 _2552_ (
+    .A(_1416_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
+    .Y(_1431_)
+  );
+  sg13g2_o21ai_1 _2553_ (
+    .A1(_1430_),
+    .A2(_1413_),
+    .B1(_1431_),
     .Y(_0295_)
   );
-  sg13g2_nor2_1 _2581_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[124] ),
-    .B(_1289_),
-    .Y(_1483_)
+  sg13g2_inv_1 _2554_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[1] ),
+    .Y(_1432_)
   );
-  sg13g2_a21oi_1 _2582_ (
-    .A1(_1289_),
-    .A2(_1333_),
-    .B1(_1483_),
+  sg13g2_nand2_1 _2555_ (
+    .A(_1416_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
+    .Y(_1433_)
+  );
+  sg13g2_o21ai_1 _2556_ (
+    .A1(_1432_),
+    .A2(_1413_),
+    .B1(_1433_),
     .Y(_0296_)
   );
-  sg13g2_nor2_1 _2583_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[123] ),
-    .B(_1289_),
-    .Y(_1484_)
+  sg13g2_inv_1 _2557_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
+    .Y(_1434_)
   );
-  sg13g2_a21oi_1 _2584_ (
-    .A1(_1289_),
-    .A2(_1337_),
-    .B1(_1484_),
+  sg13g2_inv_1 _2558_ (
+    .A(_1406_),
+    .Y(_1435_)
+  );
+  sg13g2_nor3_1 _2559_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[0] ),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
+    .C(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
+    .Y(_1436_)
+  );
+  sg13g2_inv_1 _2560_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[0] ),
+    .Y(_1437_)
+  );
+  sg13g2_a21oi_1 _2561_ (
+    .A1(_1437_),
+    .A2(_1407_),
+    .B1(_1434_),
+    .Y(_1438_)
+  );
+  sg13g2_o21ai_1 _2562_ (
+    .A1(_1436_),
+    .A2(_1438_),
+    .B1(_1416_),
+    .Y(_1439_)
+  );
+  sg13g2_o21ai_1 _2563_ (
+    .A1(_1434_),
+    .A2(_1435_),
+    .B1(_1439_),
     .Y(_0297_)
   );
-  sg13g2_nor2_1 _2585_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[122] ),
-    .B(_1289_),
-    .Y(_1485_)
+  sg13g2_nor2_1 _2564_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
+    .B(_1437_),
+    .Y(_1440_)
   );
-  sg13g2_a21oi_1 _2586_ (
-    .A1(_1289_),
-    .A2(_1341_),
-    .B1(_1485_),
+  sg13g2_inv_1 _2565_ (
+    .A(_1440_),
+    .Y(_1441_)
+  );
+  sg13g2_nand2_1 _2566_ (
+    .A(_1437_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
+    .Y(_1442_)
+  );
+  sg13g2_nand3_1 _2567_ (
+    .A(_1416_),
+    .B(_1441_),
+    .C(_1442_),
+    .Y(_1443_)
+  );
+  sg13g2_a21oi_1 _2568_ (
+    .A1(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
+    .A2(_1414_),
+    .B1(_1405_),
+    .Y(_1444_)
+  );
+  sg13g2_nand2_1 _2569_ (
+    .A(_1443_),
+    .B(_1444_),
     .Y(_0298_)
   );
-  sg13g2_nor2_1 _2587_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[121] ),
-    .B(_1289_),
-    .Y(_1486_)
+  sg13g2_a22oi_1 _2570_ (
+    .A1(\reg2hw[39] ),
+    .A2(_1405_),
+    .B1(_1437_),
+    .B2(_1416_),
+    .Y(_1445_)
   );
-  sg13g2_a21oi_1 _2588_ (
-    .A1(_1289_),
-    .A2(_1345_),
-    .B1(_1486_),
+  sg13g2_o21ai_1 _2571_ (
+    .A1(_1437_),
+    .A2(_1435_),
+    .B1(_1445_),
     .Y(_0299_)
   );
-  sg13g2_nor2_1 _2589_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[120] ),
-    .B(_1289_),
-    .Y(_1487_)
+  sg13g2_inv_1 _2572_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[2] ),
+    .Y(_1446_)
   );
-  sg13g2_a21oi_1 _2590_ (
-    .A1(_1289_),
-    .A2(_1349_),
-    .B1(_1487_),
+  sg13g2_and2_1 _2573_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[0] ),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
+    .X(_1447_)
+  );
+  sg13g2_buf_1 _2574_ (
+    .A(_1447_),
+    .X(_1448_)
+  );
+  sg13g2_nand2_1 _2575_ (
+    .A(_1448_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[1] ),
+    .Y(_1449_)
+  );
+  sg13g2_nor2_1 _2576_ (
+    .A(_1446_),
+    .B(_1449_),
+    .Y(_1450_)
+  );
+  sg13g2_nor2_1 _2577_ (
+    .A(_1450_),
+    .B(_1405_),
+    .Y(_1451_)
+  );
+  sg13g2_inv_1 _2578_ (
+    .A(_1451_),
+    .Y(_1452_)
+  );
+  sg13g2_a21oi_1 _2579_ (
+    .A1(_1446_),
+    .A2(_1449_),
+    .B1(_1452_),
     .Y(_0300_)
   );
-  sg13g2_nor3_1 _2591_ (
-    .A(_0951_),
-    .B(_1248_),
-    .C(_1253_),
-    .Y(_1488_)
+  sg13g2_inv_1 _2580_ (
+    .A(_1449_),
+    .Y(_1453_)
   );
-  sg13g2_buf_2 _2592_ (
-    .A(_1488_),
-    .X(_1489_)
+  sg13g2_nor2_1 _2581_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[1] ),
+    .B(_1448_),
+    .Y(_1454_)
   );
-  sg13g2_buf_2 _2593_ (
-    .A(_1489_),
-    .X(_1490_)
-  );
-  sg13g2_nand2b_1 _2594_ (
-    .A_N(tl_i[54]),
-    .B(_1489_),
-    .Y(_1491_)
-  );
-  sg13g2_o21ai_1 _2595_ (
-    .A1(_0657_),
-    .A2(_1490_),
-    .B1(_1491_),
+  sg13g2_nor3_1 _2582_ (
+    .A(_1453_),
+    .B(_1454_),
+    .C(_1405_),
     .Y(_0301_)
   );
-  sg13g2_nand2_1 _2596_ (
-    .A(_1489_),
-    .B(tl_i[53]),
-    .Y(_1492_)
+  sg13g2_nor2_1 _2583_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[0] ),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
+    .Y(_1455_)
   );
-  sg13g2_o21ai_1 _2597_ (
-    .A1(_0557_),
-    .A2(_1490_),
-    .B1(_1492_),
+  sg13g2_nor3_1 _2584_ (
+    .A(_1448_),
+    .B(_1455_),
+    .C(_1405_),
     .Y(_0302_)
   );
-  sg13g2_nand2_1 _2598_ (
-    .A(_1489_),
-    .B(tl_i[52]),
-    .Y(_1493_)
+  sg13g2_nor2_1 _2585_ (
+    .A(tl_i[60]),
+    .B(tl_i[61]),
+    .Y(_1456_)
   );
-  sg13g2_o21ai_1 _2599_ (
-    .A1(_0618_),
-    .A2(_1490_),
-    .B1(_1493_),
-    .Y(_0303_)
+  sg13g2_nor2b_1 _2586_ (
+    .A(_1218_),
+    .B_N(_1456_),
+    .Y(_1457_)
   );
-  sg13g2_nand2b_1 _2600_ (
-    .A_N(tl_i[51]),
-    .B(_1489_),
-    .Y(_1494_)
+  sg13g2_inv_1 _2587_ (
+    .A(_1457_),
+    .Y(_1458_)
   );
-  sg13g2_o21ai_1 _2601_ (
-    .A1(_0610_),
-    .A2(_1490_),
-    .B1(_1494_),
-    .Y(_0304_)
+  sg13g2_nand3_1 _2588_ (
+    .A(_1211_),
+    .B(tl_i[63]),
+    .C(tl_i[62]),
+    .Y(_1459_)
   );
-  sg13g2_mux2_1 _2602_ (
-    .A0(\reg2hw[51] ),
-    .A1(tl_i[50]),
-    .S(_1490_),
+  sg13g2_nor2_1 _2589_ (
+    .A(tl_i[59]),
+    .B(_1212_),
+    .Y(_1460_)
+  );
+  sg13g2_nand2_1 _2590_ (
+    .A(_1220_),
+    .B(tl_i[56]),
+    .Y(_1461_)
+  );
+  sg13g2_a22oi_1 _2591_ (
+    .A1(tl_i[58]),
+    .A2(tl_i[57]),
+    .B1(_1212_),
+    .B2(_1264_),
+    .Y(_1462_)
+  );
+  sg13g2_nor3_1 _2592_ (
+    .A(_1460_),
+    .B(_1461_),
+    .C(_1462_),
+    .Y(_1463_)
+  );
+  sg13g2_inv_1 _2593_ (
+    .A(_1463_),
+    .Y(_1464_)
+  );
+  sg13g2_nor3_1 _2594_ (
+    .A(_1458_),
+    .B(_1459_),
+    .C(_1464_),
+    .Y(_1465_)
+  );
+  sg13g2_buf_1 _2595_ (
+    .A(_1465_),
+    .X(\u_uart_master_reg.u_wdata.qe )
+  );
+  sg13g2_mux2_1 _2596_ (
+    .A0(\reg2hw[11] ),
+    .A1(tl_i[30]),
+    .S(\u_uart_master_reg.u_wdata.qe ),
+    .X(_0303_)
+  );
+  sg13g2_mux2_1 _2597_ (
+    .A0(\reg2hw[10] ),
+    .A1(tl_i[29]),
+    .S(\u_uart_master_reg.u_wdata.qe ),
+    .X(_0304_)
+  );
+  sg13g2_mux2_1 _2598_ (
+    .A0(\reg2hw[9] ),
+    .A1(tl_i[28]),
+    .S(\u_uart_master_reg.u_wdata.qe ),
     .X(_0305_)
   );
-  sg13g2_nand2b_1 _2603_ (
-    .A_N(tl_i[49]),
-    .B(_1489_),
-    .Y(_1495_)
+  sg13g2_mux2_1 _2599_ (
+    .A0(\reg2hw[8] ),
+    .A1(tl_i[27]),
+    .S(\u_uart_master_reg.u_wdata.qe ),
+    .X(_0306_)
   );
-  sg13g2_o21ai_1 _2604_ (
-    .A1(_0566_),
-    .A2(_1490_),
-    .B1(_1495_),
-    .Y(_0306_)
+  sg13g2_mux2_1 _2600_ (
+    .A0(\reg2hw[7] ),
+    .A1(tl_i[26]),
+    .S(\u_uart_master_reg.u_wdata.qe ),
+    .X(_0307_)
   );
-  sg13g2_nand2b_1 _2605_ (
-    .A_N(tl_i[48]),
-    .B(_1489_),
-    .Y(_1496_)
-  );
-  sg13g2_o21ai_1 _2606_ (
-    .A1(_0564_),
-    .A2(_1490_),
-    .B1(_1496_),
-    .Y(_0307_)
-  );
-  sg13g2_mux2_1 _2607_ (
-    .A0(\reg2hw[48] ),
-    .A1(tl_i[47]),
-    .S(_1490_),
+  sg13g2_mux2_1 _2601_ (
+    .A0(\reg2hw[6] ),
+    .A1(tl_i[25]),
+    .S(\u_uart_master_reg.u_wdata.qe ),
     .X(_0308_)
   );
-  sg13g2_nand2b_1 _2608_ (
-    .A_N(tl_i[46]),
-    .B(_1489_),
-    .Y(_1497_)
+  sg13g2_mux2_1 _2602_ (
+    .A0(\reg2hw[5] ),
+    .A1(tl_i[24]),
+    .S(\u_uart_master_reg.u_wdata.qe ),
+    .X(_0309_)
   );
-  sg13g2_o21ai_1 _2609_ (
-    .A1(_0602_),
-    .A2(_1490_),
-    .B1(_1497_),
-    .Y(_0309_)
+  sg13g2_inv_1 _2603_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .Y(_1466_)
   );
-  sg13g2_nand2b_1 _2610_ (
-    .A_N(tl_i[45]),
-    .B(_1489_),
-    .Y(_1498_)
+  sg13g2_xnor2_1 _2604_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[1] ),
+    .Y(_1467_)
   );
-  sg13g2_o21ai_1 _2611_ (
-    .A1(_0576_),
-    .A2(_1490_),
-    .B1(_1498_),
-    .Y(_0310_)
+  sg13g2_xor2_1 _2605_ (
+    .A(\reg2hw[40] ),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
+    .X(_1468_)
   );
-  sg13g2_nand2b_1 _2612_ (
-    .A_N(tl_i[44]),
-    .B(_1489_),
-    .Y(_1499_)
+  sg13g2_xor2_1 _2606_ (
+    .A(_1467_),
+    .B(_1468_),
+    .X(_1469_)
+  );
+  sg13g2_xor2_1 _2607_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
+    .X(_1470_)
+  );
+  sg13g2_xnor2_1 _2608_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
+    .Y(_1471_)
+  );
+  sg13g2_xnor2_1 _2609_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
+    .Y(_1472_)
+  );
+  sg13g2_xor2_1 _2610_ (
+    .A(_1471_),
+    .B(_1472_),
+    .X(_1473_)
+  );
+  sg13g2_xnor2_1 _2611_ (
+    .A(_1470_),
+    .B(_1473_),
+    .Y(_1474_)
+  );
+  sg13g2_a21oi_1 _2612_ (
+    .A1(_1474_),
+    .A2(_1469_),
+    .B1(_1175_),
+    .Y(_1475_)
   );
   sg13g2_o21ai_1 _2613_ (
-    .A1(_0575_),
-    .A2(_1490_),
-    .B1(_1499_),
-    .Y(_0311_)
+    .A1(_1469_),
+    .A2(_1474_),
+    .B1(_1475_),
+    .Y(_1476_)
   );
-  sg13g2_nand2b_1 _2614_ (
-    .A_N(tl_i[43]),
-    .B(_1489_),
-    .Y(_1500_)
+  sg13g2_inv_1 _2614_ (
+    .A(_1342_),
+    .Y(_1477_)
   );
-  sg13g2_o21ai_1 _2615_ (
-    .A1(_0579_),
-    .A2(_1490_),
-    .B1(_1500_),
-    .Y(_0312_)
+  sg13g2_nand4_1 _2615_ (
+    .A(_1476_),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[10] ),
+    .C(\u_uart_master_core.u_uart_core.rx_valid ),
+    .D(_1477_),
+    .Y(_1478_)
   );
-  sg13g2_nand2b_1 _2616_ (
-    .A_N(tl_i[42]),
-    .B(_1489_),
-    .Y(_1501_)
+  sg13g2_buf_1 _2616_ (
+    .A(_1478_),
+    .X(_1479_)
   );
-  sg13g2_o21ai_1 _2617_ (
-    .A1(_0581_),
-    .A2(_1490_),
-    .B1(_1501_),
-    .Y(_0313_)
+  sg13g2_nor3_1 _2617_ (
+    .A(_1466_),
+    .B(_1246_),
+    .C(_1479_),
+    .Y(_1480_)
   );
-  sg13g2_nand2b_1 _2618_ (
-    .A_N(tl_i[41]),
-    .B(_1489_),
-    .Y(_1502_)
+  sg13g2_nand2_1 _2618_ (
+    .A(_1480_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .Y(_1481_)
   );
-  sg13g2_o21ai_1 _2619_ (
-    .A1(_0583_),
-    .A2(_1490_),
-    .B1(_1502_),
-    .Y(_0314_)
+  sg13g2_nor2_1 _2619_ (
+    .A(_0758_),
+    .B(_1481_),
+    .Y(_1482_)
   );
-  sg13g2_nand2b_1 _2620_ (
-    .A_N(tl_i[40]),
-    .B(_1489_),
-    .Y(_1503_)
+  sg13g2_buf_2 _2620_ (
+    .A(_1482_),
+    .X(_1483_)
   );
-  sg13g2_o21ai_1 _2621_ (
-    .A1(_0586_),
-    .A2(_1490_),
-    .B1(_1503_),
-    .Y(_0315_)
+  sg13g2_inv_1 _2621_ (
+    .A(\reg2hw[1] ),
+    .Y(_1484_)
   );
-  sg13g2_nand2_1 _2622_ (
-    .A(_1301_),
-    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
-    .Y(_1504_)
+  sg13g2_nor2_1 _2622_ (
+    .A(_1360_),
+    .B(_1484_),
+    .Y(_1485_)
   );
-  sg13g2_nand2b_1 _2623_ (
-    .A_N(_1504_),
-    .B(_0840_),
-    .Y(_1505_)
+  sg13g2_inv_1 _2623_ (
+    .A(_1481_),
+    .Y(_1486_)
   );
   sg13g2_nor2_1 _2624_ (
-    .A(_0540_),
-    .B(_0773_),
-    .Y(_1506_)
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .B(_1486_),
+    .Y(_1487_)
   );
   sg13g2_nor3_1 _2625_ (
-    .A(_0805_),
-    .B(_1015_),
-    .C(_0984_),
-    .Y(_1507_)
+    .A(_1483_),
+    .B(_1485_),
+    .C(_1487_),
+    .Y(_0310_)
   );
-  sg13g2_nand3_1 _2626_ (
-    .A(_1506_),
-    .B(_0837_),
-    .C(_1507_),
-    .Y(_1508_)
+  sg13g2_nor2_1 _2626_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .B(_1480_),
+    .Y(_1488_)
   );
-  sg13g2_nor4_1 _2627_ (
-    .A(_0870_),
-    .B(_0899_),
-    .C(_0947_),
-    .D(_1508_),
-    .Y(_1509_)
+  sg13g2_nor3_1 _2627_ (
+    .A(_1485_),
+    .B(_1488_),
+    .C(_1486_),
+    .Y(_0311_)
   );
-  sg13g2_a21oi_1 _2628_ (
-    .A1(_1303_),
-    .A2(_1505_),
-    .B1(_1509_),
-    .Y(_1510_)
+  sg13g2_inv_1 _2628_ (
+    .A(_1485_),
+    .Y(_1489_)
   );
-  sg13g2_nor4_1 _2629_ (
-    .A(valid_i),
-    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
-    .C(_0522_),
-    .D(_1301_),
-    .Y(_1511_)
+  sg13g2_nand2_1 _2629_ (
+    .A(_1479_),
+    .B(_1489_),
+    .Y(_1490_)
   );
-  sg13g2_nand3_1 _2630_ (
-    .A(_0522_),
-    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
-    .C(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
-    .Y(_1512_)
+  sg13g2_nor2_1 _2630_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .B(_1246_),
+    .Y(_1491_)
   );
-  sg13g2_a21oi_1 _2631_ (
-    .A1(req_o),
-    .A2(gnt_i),
-    .B1(_1512_),
-    .Y(_1513_)
+  sg13g2_nor2_1 _2631_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
+    .B(_1466_),
+    .Y(_1492_)
   );
   sg13g2_nor2_1 _2632_ (
-    .A(_1511_),
-    .B(_1513_),
-    .Y(_1514_)
+    .A(_1485_),
+    .B(_1479_),
+    .Y(_1493_)
   );
-  sg13g2_inv_1 _2633_ (
-    .A(\u_uart_master_core.u_host_bridge.idx_q[1] ),
-    .Y(_1515_)
+  sg13g2_o21ai_1 _2633_ (
+    .A1(_1491_),
+    .A2(_1492_),
+    .B1(_1493_),
+    .Y(_1494_)
   );
-  sg13g2_nor2_1 _2634_ (
-    .A(\u_uart_master_core.u_host_bridge.idx_q[0] ),
-    .B(_1515_),
-    .Y(_1516_)
+  sg13g2_o21ai_1 _2634_ (
+    .A1(_1466_),
+    .A2(_1490_),
+    .B1(_1494_),
+    .Y(_0312_)
   );
-  sg13g2_nor3_1 _2635_ (
-    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
-    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
-    .C(_1302_),
-    .Y(_1517_)
+  sg13g2_nand2_1 _2635_ (
+    .A(_1493_),
+    .B(_1246_),
+    .Y(_1495_)
   );
-  sg13g2_inv_1 _2636_ (
-    .A(_1517_),
-    .Y(_1518_)
+  sg13g2_o21ai_1 _2636_ (
+    .A1(_1246_),
+    .A2(_1490_),
+    .B1(_1495_),
+    .Y(_0313_)
   );
-  sg13g2_nor2_1 _2637_ (
-    .A(_1516_),
-    .B(_1518_),
-    .Y(_1519_)
+  sg13g2_inv_1 _2637_ (
+    .A(tl_i[107]),
+    .Y(_1496_)
   );
-  sg13g2_inv_1 _2638_ (
-    .A(\u_uart_master_core.u_host_bridge.idx_q[0] ),
-    .Y(_1520_)
+  sg13g2_nor4_1 _2638_ (
+    .A(tl_i[105]),
+    .B(tl_i[106]),
+    .C(_1496_),
+    .D(_1197_),
+    .Y(_1497_)
   );
-  sg13g2_nor2_1 _2639_ (
-    .A(_1520_),
-    .B(_1515_),
-    .Y(_1521_)
+  sg13g2_inv_1 _2639_ (
+    .A(_1376_),
+    .Y(_1498_)
   );
-  sg13g2_nor2_1 _2640_ (
-    .A(_1504_),
-    .B(_1521_),
-    .Y(_1522_)
+  sg13g2_a21oi_1 _2640_ (
+    .A1(_1497_),
+    .A2(_1306_),
+    .B1(_1498_),
+    .Y(_1499_)
   );
   sg13g2_nor2_1 _2641_ (
+    .A(_1499_),
+    .B(_1023_),
+    .Y(_1500_)
+  );
+  sg13g2_inv_1 _2642_ (
+    .A(_1500_),
+    .Y(_1501_)
+  );
+  sg13g2_nor2_1 _2643_ (
+    .A(_1285_),
+    .B(_1501_),
+    .Y(_1502_)
+  );
+  sg13g2_nand2_1 _2644_ (
+    .A(_1502_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .Y(_1503_)
+  );
+  sg13g2_nor2_1 _2645_ (
+    .A(_0760_),
+    .B(_1503_),
+    .Y(_1504_)
+  );
+  sg13g2_inv_1 _2646_ (
+    .A(_1503_),
+    .Y(_1505_)
+  );
+  sg13g2_nor2_1 _2647_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+    .B(_1505_),
+    .Y(_1506_)
+  );
+  sg13g2_nor3_1 _2648_ (
+    .A(_1485_),
+    .B(_1504_),
+    .C(_1506_),
+    .Y(_0314_)
+  );
+  sg13g2_o21ai_1 _2649_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .A2(_1502_),
+    .B1(_1489_),
+    .Y(_1507_)
+  );
+  sg13g2_nor2_1 _2650_ (
+    .A(_1507_),
+    .B(_1505_),
+    .Y(_0315_)
+  );
+  sg13g2_inv_1 _2651_ (
+    .A(_1504_),
+    .Y(_1508_)
+  );
+  sg13g2_a21oi_1 _2652_ (
+    .A1(_0819_),
+    .A2(_0811_),
+    .B1(_1485_),
+    .Y(_1509_)
+  );
+  sg13g2_nand4_1 _2653_ (
+    .A(_1508_),
+    .B(_1285_),
+    .C(_1500_),
+    .D(_1509_),
+    .Y(_1510_)
+  );
+  sg13g2_nand3_1 _2654_ (
+    .A(_1501_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .C(_1489_),
+    .Y(_1511_)
+  );
+  sg13g2_nand2_1 _2655_ (
+    .A(_1510_),
+    .B(_1511_),
+    .Y(_0316_)
+  );
+  sg13g2_a21oi_1 _2656_ (
+    .A1(_1508_),
+    .A2(_1500_),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_1512_)
+  );
+  sg13g2_a221oi_1 _2657_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1500_),
+    .B1(\reg2hw[0] ),
+    .B2(\reg2hw[1] ),
+    .C1(_1512_),
+    .Y(_0317_)
+  );
+  sg13g2_nor3_1 _2658_ (
+    .A(_1078_),
+    .B(_1378_),
+    .C(_0772_),
+    .Y(_1513_)
+  );
+  sg13g2_nor2b_1 _2659_ (
+    .A(_1385_),
+    .B_N(_0751_),
+    .Y(_1514_)
+  );
+  sg13g2_nor2b_1 _2660_ (
+    .A(_1514_),
+    .B_N(_1513_),
+    .Y(_1515_)
+  );
+  sg13g2_nand2_1 _2661_ (
+    .A(_1515_),
+    .B(_1019_),
+    .Y(_1516_)
+  );
+  sg13g2_o21ai_1 _2662_ (
+    .A1(_1019_),
+    .A2(_1513_),
+    .B1(_1516_),
+    .Y(_0318_)
+  );
+  sg13g2_nor3_1 _2663_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .C(_1479_),
+    .Y(_1517_)
+  );
+  sg13g2_nand3_1 _2664_ (
+    .A(_1517_),
+    .B(_1466_),
+    .C(_1246_),
+    .Y(_1518_)
+  );
+  sg13g2_buf_1 _2665_ (
     .A(_1518_),
-    .B(_0839_),
+    .X(_1519_)
+  );
+  sg13g2_nand2_1 _2666_ (
+    .A(_1420_),
+    .B(\reg2hw[39] ),
+    .Y(_1520_)
+  );
+  sg13g2_o21ai_1 _2667_ (
+    .A1(\reg2hw[39] ),
+    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
+    .B1(_1520_),
+    .Y(_1521_)
+  );
+  sg13g2_buf_1 _2668_ (
+    .A(_1521_),
+    .X(_1522_)
+  );
+  sg13g2_nand2_1 _2669_ (
+    .A(_1519_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[6] ),
     .Y(_1523_)
   );
-  sg13g2_nor3_1 _2642_ (
-    .A(_1519_),
-    .B(_1522_),
-    .C(_1523_),
+  sg13g2_o21ai_1 _2670_ (
+    .A1(_1519_),
+    .A2(_1522_),
+    .B1(_1523_),
+    .Y(_0319_)
+  );
+  sg13g2_nand2_1 _2671_ (
+    .A(_1422_),
+    .B(\reg2hw[39] ),
     .Y(_1524_)
   );
-  sg13g2_nand3b_1 _2643_ (
-    .A_N(_1510_),
-    .B(_1514_),
-    .C(_1524_),
+  sg13g2_o21ai_1 _2672_ (
+    .A1(\reg2hw[39] ),
+    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
+    .B1(_1524_),
     .Y(_1525_)
   );
-  sg13g2_buf_1 _2644_ (
+  sg13g2_buf_1 _2673_ (
     .A(_1525_),
     .X(_1526_)
   );
-  sg13g2_nand2_1 _2645_ (
-    .A(_0523_),
-    .B(_1301_),
+  sg13g2_nand2_1 _2674_ (
+    .A(_1519_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[5] ),
     .Y(_1527_)
   );
-  sg13g2_inv_1 _2646_ (
-    .A(_1527_),
+  sg13g2_o21ai_1 _2675_ (
+    .A1(_1519_),
+    .A2(_1526_),
+    .B1(_1527_),
+    .Y(_0320_)
+  );
+  sg13g2_nand2_1 _2676_ (
+    .A(_1424_),
+    .B(\reg2hw[39] ),
     .Y(_1528_)
   );
-  sg13g2_a221oi_1 _2647_ (
-    .A1(_0522_),
-    .A2(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
-    .B1(_0530_),
-    .B2(_1528_),
-    .C1(_1526_),
+  sg13g2_o21ai_1 _2677_ (
+    .A1(\reg2hw[39] ),
+    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
+    .B1(_1528_),
     .Y(_1529_)
   );
-  sg13g2_a21oi_1 _2648_ (
-    .A1(_0522_),
-    .A2(_1526_),
-    .B1(_1529_),
-    .Y(_0316_)
+  sg13g2_buf_1 _2678_ (
+    .A(_1529_),
+    .X(_1530_)
   );
-  sg13g2_nand2_1 _2649_ (
-    .A(_0530_),
-    .B(_1528_),
-    .Y(_1530_)
-  );
-  sg13g2_nand2_1 _2650_ (
-    .A(_0522_),
-    .B(_1302_),
+  sg13g2_nand2_1 _2679_ (
+    .A(_1519_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[4] ),
     .Y(_1531_)
   );
-  sg13g2_nand3_1 _2651_ (
-    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
-    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
-    .C(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
+  sg13g2_o21ai_1 _2680_ (
+    .A1(_1519_),
+    .A2(_1530_),
+    .B1(_1531_),
+    .Y(_0321_)
+  );
+  sg13g2_nand2_1 _2681_ (
+    .A(_1426_),
+    .B(\reg2hw[39] ),
     .Y(_1532_)
   );
-  sg13g2_nand3_1 _2652_ (
-    .A(_1530_),
-    .B(_1531_),
-    .C(_1532_),
+  sg13g2_o21ai_1 _2682_ (
+    .A1(\reg2hw[39] ),
+    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
+    .B1(_1532_),
     .Y(_1533_)
   );
-  sg13g2_nor2_1 _2653_ (
+  sg13g2_buf_1 _2683_ (
     .A(_1533_),
-    .B(_1526_),
-    .Y(_1534_)
+    .X(_1534_)
   );
-  sg13g2_a21oi_1 _2654_ (
-    .A1(_1302_),
-    .A2(_1526_),
-    .B1(_1534_),
-    .Y(_0317_)
-  );
-  sg13g2_inv_1 _2655_ (
-    .A(_0530_),
+  sg13g2_nand2_1 _2684_ (
+    .A(_1519_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[3] ),
     .Y(_1535_)
   );
-  sg13g2_nor3_1 _2656_ (
-    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
-    .B(_0522_),
-    .C(_1302_),
+  sg13g2_o21ai_1 _2685_ (
+    .A1(_1519_),
+    .A2(_1534_),
+    .B1(_1535_),
+    .Y(_0322_)
+  );
+  sg13g2_nand2_1 _2686_ (
+    .A(_1428_),
+    .B(\reg2hw[39] ),
     .Y(_1536_)
   );
-  sg13g2_a21oi_1 _2657_ (
-    .A1(_1535_),
-    .A2(_1528_),
+  sg13g2_o21ai_1 _2687_ (
+    .A1(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
+    .A2(\reg2hw[39] ),
     .B1(_1536_),
     .Y(_1537_)
   );
-  sg13g2_nor2b_1 _2658_ (
+  sg13g2_buf_1 _2688_ (
     .A(_1537_),
-    .B_N(_1521_),
-    .Y(_1538_)
+    .X(_1538_)
   );
-  sg13g2_nand2_1 _2659_ (
-    .A(_1505_),
-    .B(_1301_),
+  sg13g2_nand2_1 _2689_ (
+    .A(_1519_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[2] ),
     .Y(_1539_)
   );
-  sg13g2_nor3_1 _2660_ (
-    .A(_1523_),
-    .B(_1538_),
-    .C(_1539_),
+  sg13g2_o21ai_1 _2690_ (
+    .A1(_1519_),
+    .A2(_1538_),
+    .B1(_1539_),
+    .Y(_0323_)
+  );
+  sg13g2_nand2_1 _2691_ (
+    .A(_1430_),
+    .B(\reg2hw[39] ),
     .Y(_1540_)
   );
-  sg13g2_nor2b_1 _2661_ (
-    .A(_1519_),
-    .B_N(_1504_),
+  sg13g2_o21ai_1 _2692_ (
+    .A1(\reg2hw[39] ),
+    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
+    .B1(_1540_),
     .Y(_1541_)
   );
-  sg13g2_nor2b_1 _2662_ (
+  sg13g2_buf_1 _2693_ (
     .A(_1541_),
-    .B_N(_1540_),
-    .Y(_1542_)
+    .X(_1542_)
   );
-  sg13g2_nand2_1 _2663_ (
-    .A(_1542_),
-    .B(_1520_),
+  sg13g2_nand2_1 _2694_ (
+    .A(_1519_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[1] ),
     .Y(_1543_)
   );
-  sg13g2_o21ai_1 _2664_ (
-    .A1(_1520_),
-    .A2(_1540_),
+  sg13g2_o21ai_1 _2695_ (
+    .A1(_1519_),
+    .A2(_1542_),
     .B1(_1543_),
-    .Y(_0318_)
+    .Y(_0324_)
   );
-  sg13g2_inv_1 _2665_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[30] ),
+  sg13g2_nand2_1 _2696_ (
+    .A(_1432_),
+    .B(\reg2hw[39] ),
     .Y(_1544_)
   );
-  sg13g2_a21oi_1 _2666_ (
-    .A1(_0522_),
-    .A2(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
-    .B1(_1539_),
+  sg13g2_o21ai_1 _2697_ (
+    .A1(\reg2hw[39] ),
+    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
+    .B1(_1544_),
     .Y(_1545_)
   );
-  sg13g2_buf_4 _2667_ (
+  sg13g2_buf_1 _2698_ (
     .A(_1545_),
     .X(_1546_)
   );
-  sg13g2_nor2_1 _2668_ (
-    .A(_0522_),
-    .B(_1539_),
+  sg13g2_nand2_1 _2699_ (
+    .A(_1519_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[0] ),
     .Y(_1547_)
   );
-  sg13g2_buf_2 _2669_ (
-    .A(_1547_),
-    .X(_1548_)
-  );
-  sg13g2_nand2_1 _2670_ (
-    .A(_1548_),
-    .B(_0807_),
-    .Y(_1549_)
-  );
-  sg13g2_o21ai_1 _2671_ (
-    .A1(_1544_),
+  sg13g2_o21ai_1 _2700_ (
+    .A1(_1519_),
     .A2(_1546_),
-    .B1(_1549_),
-    .Y(_0319_)
-  );
-  sg13g2_inv_1 _2672_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[29] ),
-    .Y(_1550_)
-  );
-  sg13g2_nand2_1 _2673_ (
-    .A(_1548_),
-    .B(_0837_),
-    .Y(_1551_)
-  );
-  sg13g2_o21ai_1 _2674_ (
-    .A1(_1550_),
-    .A2(_1546_),
-    .B1(_1551_),
-    .Y(_0320_)
-  );
-  sg13g2_inv_1 _2675_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[28] ),
-    .Y(_1552_)
-  );
-  sg13g2_nand2_1 _2676_ (
-    .A(_1548_),
-    .B(_0870_),
-    .Y(_1553_)
-  );
-  sg13g2_o21ai_1 _2677_ (
-    .A1(_1552_),
-    .A2(_1546_),
-    .B1(_1553_),
-    .Y(_0321_)
-  );
-  sg13g2_inv_1 _2678_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[27] ),
-    .Y(_1554_)
-  );
-  sg13g2_nand2_1 _2679_ (
-    .A(_1548_),
-    .B(_0899_),
-    .Y(_1555_)
-  );
-  sg13g2_o21ai_1 _2680_ (
-    .A1(_1554_),
-    .A2(_1546_),
-    .B1(_1555_),
-    .Y(_0322_)
-  );
-  sg13g2_inv_1 _2681_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[26] ),
-    .Y(_1556_)
-  );
-  sg13g2_nand2_1 _2682_ (
-    .A(_1548_),
-    .B(_0948_),
-    .Y(_1557_)
-  );
-  sg13g2_o21ai_1 _2683_ (
-    .A1(_1556_),
-    .A2(_1546_),
-    .B1(_1557_),
-    .Y(_0323_)
-  );
-  sg13g2_inv_1 _2684_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[25] ),
-    .Y(_1558_)
-  );
-  sg13g2_nand2_1 _2685_ (
-    .A(_1548_),
-    .B(_0986_),
-    .Y(_1559_)
-  );
-  sg13g2_o21ai_1 _2686_ (
-    .A1(_1558_),
-    .A2(_1546_),
-    .B1(_1559_),
-    .Y(_0324_)
-  );
-  sg13g2_inv_1 _2687_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[24] ),
-    .Y(_1560_)
-  );
-  sg13g2_nand2_1 _2688_ (
-    .A(_1548_),
-    .B(_1016_),
-    .Y(_1561_)
-  );
-  sg13g2_o21ai_1 _2689_ (
-    .A1(_1560_),
-    .A2(_1546_),
-    .B1(_1561_),
+    .B1(_1547_),
     .Y(_0325_)
   );
-  sg13g2_inv_1 _2690_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[23] ),
-    .Y(_1562_)
+  sg13g2_nand2_1 _2701_ (
+    .A(_1517_),
+    .B(_1491_),
+    .Y(_1548_)
   );
-  sg13g2_nand2_1 _2691_ (
+  sg13g2_buf_1 _2702_ (
     .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[31] ),
-    .Y(_1563_)
-  );
-  sg13g2_o21ai_1 _2692_ (
-    .A1(_1562_),
-    .A2(_1546_),
-    .B1(_1563_),
-    .Y(_0326_)
-  );
-  sg13g2_inv_1 _2693_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[22] ),
-    .Y(_1564_)
-  );
-  sg13g2_nand2_1 _2694_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[30] ),
-    .Y(_1565_)
-  );
-  sg13g2_o21ai_1 _2695_ (
-    .A1(_1564_),
-    .A2(_1546_),
-    .B1(_1565_),
-    .Y(_0327_)
-  );
-  sg13g2_inv_1 _2696_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[21] ),
-    .Y(_1566_)
-  );
-  sg13g2_nand2_1 _2697_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[29] ),
-    .Y(_1567_)
-  );
-  sg13g2_o21ai_1 _2698_ (
-    .A1(_1566_),
-    .A2(_1546_),
-    .B1(_1567_),
-    .Y(_0328_)
-  );
-  sg13g2_inv_1 _2699_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[20] ),
-    .Y(_1568_)
-  );
-  sg13g2_nand2_1 _2700_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[28] ),
-    .Y(_1569_)
-  );
-  sg13g2_o21ai_1 _2701_ (
-    .A1(_1568_),
-    .A2(_1546_),
-    .B1(_1569_),
-    .Y(_0329_)
-  );
-  sg13g2_inv_1 _2702_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[19] ),
-    .Y(_1570_)
+    .X(_1549_)
   );
   sg13g2_nand2_1 _2703_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[27] ),
-    .Y(_1571_)
+    .A(_1549_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[14] ),
+    .Y(_1550_)
   );
   sg13g2_o21ai_1 _2704_ (
-    .A1(_1570_),
-    .A2(_1546_),
-    .B1(_1571_),
-    .Y(_0330_)
+    .A1(_1522_),
+    .A2(_1549_),
+    .B1(_1550_),
+    .Y(_0326_)
   );
-  sg13g2_inv_1 _2705_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[18] ),
-    .Y(_1572_)
+  sg13g2_nand2_1 _2705_ (
+    .A(_1549_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[13] ),
+    .Y(_1551_)
   );
-  sg13g2_nand2_1 _2706_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[26] ),
-    .Y(_1573_)
+  sg13g2_o21ai_1 _2706_ (
+    .A1(_1526_),
+    .A2(_1549_),
+    .B1(_1551_),
+    .Y(_0327_)
   );
-  sg13g2_o21ai_1 _2707_ (
-    .A1(_1572_),
-    .A2(_1546_),
-    .B1(_1573_),
-    .Y(_0331_)
+  sg13g2_nand2_1 _2707_ (
+    .A(_1549_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[12] ),
+    .Y(_1552_)
   );
-  sg13g2_inv_1 _2708_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[17] ),
-    .Y(_1574_)
+  sg13g2_o21ai_1 _2708_ (
+    .A1(_1530_),
+    .A2(_1549_),
+    .B1(_1552_),
+    .Y(_0328_)
   );
   sg13g2_nand2_1 _2709_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[25] ),
-    .Y(_1575_)
+    .A(_1549_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[11] ),
+    .Y(_1553_)
   );
   sg13g2_o21ai_1 _2710_ (
-    .A1(_1574_),
-    .A2(_1546_),
-    .B1(_1575_),
-    .Y(_0332_)
+    .A1(_1534_),
+    .A2(_1549_),
+    .B1(_1553_),
+    .Y(_0329_)
   );
-  sg13g2_inv_1 _2711_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[16] ),
-    .Y(_1576_)
+  sg13g2_nand2_1 _2711_ (
+    .A(_1549_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[10] ),
+    .Y(_1554_)
   );
-  sg13g2_nand2_1 _2712_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[24] ),
-    .Y(_1577_)
+  sg13g2_o21ai_1 _2712_ (
+    .A1(_1538_),
+    .A2(_1549_),
+    .B1(_1554_),
+    .Y(_0330_)
   );
-  sg13g2_o21ai_1 _2713_ (
-    .A1(_1576_),
-    .A2(_1546_),
-    .B1(_1577_),
-    .Y(_0333_)
+  sg13g2_nand2_1 _2713_ (
+    .A(_1549_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[9] ),
+    .Y(_1555_)
   );
-  sg13g2_inv_1 _2714_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[15] ),
-    .Y(_1578_)
+  sg13g2_o21ai_1 _2714_ (
+    .A1(_1542_),
+    .A2(_1549_),
+    .B1(_1555_),
+    .Y(_0331_)
   );
   sg13g2_nand2_1 _2715_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[23] ),
-    .Y(_1579_)
+    .A(_1549_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[8] ),
+    .Y(_1556_)
   );
   sg13g2_o21ai_1 _2716_ (
-    .A1(_1578_),
-    .A2(_1546_),
-    .B1(_1579_),
-    .Y(_0334_)
+    .A1(_1546_),
+    .A2(_1549_),
+    .B1(_1556_),
+    .Y(_0332_)
   );
-  sg13g2_inv_1 _2717_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[14] ),
-    .Y(_1580_)
+  sg13g2_nand2_1 _2717_ (
+    .A(_1517_),
+    .B(_1492_),
+    .Y(_1557_)
   );
-  sg13g2_nand2_1 _2718_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[22] ),
-    .Y(_1581_)
+  sg13g2_buf_1 _2718_ (
+    .A(_1557_),
+    .X(_1558_)
   );
-  sg13g2_o21ai_1 _2719_ (
-    .A1(_1580_),
-    .A2(_1546_),
-    .B1(_1581_),
-    .Y(_0335_)
+  sg13g2_nand2_1 _2719_ (
+    .A(_1558_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[22] ),
+    .Y(_1559_)
   );
-  sg13g2_inv_1 _2720_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[13] ),
-    .Y(_1582_)
+  sg13g2_o21ai_1 _2720_ (
+    .A1(_1522_),
+    .A2(_1558_),
+    .B1(_1559_),
+    .Y(_0333_)
   );
   sg13g2_nand2_1 _2721_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[21] ),
-    .Y(_1583_)
+    .A(_1558_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[21] ),
+    .Y(_1560_)
   );
   sg13g2_o21ai_1 _2722_ (
-    .A1(_1582_),
-    .A2(_1546_),
-    .B1(_1583_),
+    .A1(_1526_),
+    .A2(_1558_),
+    .B1(_1560_),
+    .Y(_0334_)
+  );
+  sg13g2_nand2_1 _2723_ (
+    .A(_1558_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[20] ),
+    .Y(_1561_)
+  );
+  sg13g2_o21ai_1 _2724_ (
+    .A1(_1530_),
+    .A2(_1558_),
+    .B1(_1561_),
+    .Y(_0335_)
+  );
+  sg13g2_nand2_1 _2725_ (
+    .A(_1558_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[19] ),
+    .Y(_1562_)
+  );
+  sg13g2_o21ai_1 _2726_ (
+    .A1(_1534_),
+    .A2(_1558_),
+    .B1(_1562_),
     .Y(_0336_)
   );
-  sg13g2_inv_1 _2723_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[12] ),
-    .Y(_1584_)
-  );
-  sg13g2_nand2_1 _2724_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[20] ),
-    .Y(_1585_)
-  );
-  sg13g2_o21ai_1 _2725_ (
-    .A1(_1584_),
-    .A2(_1546_),
-    .B1(_1585_),
-    .Y(_0337_)
-  );
-  sg13g2_inv_1 _2726_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[11] ),
-    .Y(_1586_)
-  );
   sg13g2_nand2_1 _2727_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[19] ),
-    .Y(_1587_)
+    .A(_1558_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[18] ),
+    .Y(_1563_)
   );
   sg13g2_o21ai_1 _2728_ (
-    .A1(_1586_),
-    .A2(_1546_),
-    .B1(_1587_),
+    .A1(_1538_),
+    .A2(_1558_),
+    .B1(_1563_),
+    .Y(_0337_)
+  );
+  sg13g2_nand2_1 _2729_ (
+    .A(_1558_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[17] ),
+    .Y(_1564_)
+  );
+  sg13g2_o21ai_1 _2730_ (
+    .A1(_1542_),
+    .A2(_1558_),
+    .B1(_1564_),
     .Y(_0338_)
   );
-  sg13g2_inv_1 _2729_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[10] ),
-    .Y(_1588_)
+  sg13g2_nand2_1 _2731_ (
+    .A(_1558_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[16] ),
+    .Y(_1565_)
   );
-  sg13g2_nand2_1 _2730_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[18] ),
-    .Y(_1589_)
-  );
-  sg13g2_o21ai_1 _2731_ (
-    .A1(_1588_),
-    .A2(_1546_),
-    .B1(_1589_),
+  sg13g2_o21ai_1 _2732_ (
+    .A1(_1546_),
+    .A2(_1558_),
+    .B1(_1565_),
     .Y(_0339_)
   );
-  sg13g2_inv_1 _2732_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[9] ),
-    .Y(_1590_)
+  sg13g2_nand3_1 _2733_ (
+    .A(_1517_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
+    .Y(_1566_)
   );
-  sg13g2_nand2_1 _2733_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[17] ),
-    .Y(_1591_)
+  sg13g2_buf_1 _2734_ (
+    .A(_1566_),
+    .X(_1567_)
   );
-  sg13g2_o21ai_1 _2734_ (
-    .A1(_1590_),
-    .A2(_1545_),
-    .B1(_1591_),
+  sg13g2_nand2_1 _2735_ (
+    .A(_1567_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[30] ),
+    .Y(_1568_)
+  );
+  sg13g2_o21ai_1 _2736_ (
+    .A1(_1522_),
+    .A2(_1567_),
+    .B1(_1568_),
     .Y(_0340_)
   );
-  sg13g2_inv_1 _2735_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[8] ),
-    .Y(_1592_)
+  sg13g2_nand2_1 _2737_ (
+    .A(_1567_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[29] ),
+    .Y(_1569_)
   );
-  sg13g2_nand2_1 _2736_ (
-    .A(_1548_),
-    .B(\u_uart_master_core.u_host_bridge.sh_q[16] ),
-    .Y(_1593_)
-  );
-  sg13g2_o21ai_1 _2737_ (
-    .A1(_1592_),
-    .A2(_1545_),
-    .B1(_1593_),
+  sg13g2_o21ai_1 _2738_ (
+    .A1(_1526_),
+    .A2(_1567_),
+    .B1(_1569_),
     .Y(_0341_)
   );
-  sg13g2_nor2_1 _2738_ (
-    .A(\u_uart_master_core.u_host_bridge.idx_q[1] ),
-    .B(_1520_),
-    .Y(_1594_)
+  sg13g2_nand2_1 _2739_ (
+    .A(_1567_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[28] ),
+    .Y(_1570_)
   );
-  sg13g2_nand3_1 _2739_ (
-    .A(_0839_),
-    .B(_1517_),
-    .C(_1594_),
-    .Y(_1595_)
-  );
-  sg13g2_buf_1 _2740_ (
-    .A(_1595_),
-    .X(_1596_)
-  );
-  sg13g2_nand2_1 _2741_ (
-    .A(_1596_),
-    .B(\u_uart_master_core.u_host_bridge.op_q[6] ),
-    .Y(_1597_)
-  );
-  sg13g2_o21ai_1 _2742_ (
-    .A1(_0806_),
-    .A2(_1596_),
-    .B1(_1597_),
+  sg13g2_o21ai_1 _2740_ (
+    .A1(_1530_),
+    .A2(_1567_),
+    .B1(_1570_),
     .Y(_0342_)
   );
-  sg13g2_nand2_1 _2743_ (
-    .A(_1596_),
-    .B(\u_uart_master_core.u_host_bridge.op_q[5] ),
-    .Y(_1598_)
+  sg13g2_nand2_1 _2741_ (
+    .A(_1567_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[27] ),
+    .Y(_1571_)
   );
-  sg13g2_o21ai_1 _2744_ (
-    .A1(_0836_),
-    .A2(_1596_),
-    .B1(_1598_),
+  sg13g2_o21ai_1 _2742_ (
+    .A1(_1534_),
+    .A2(_1567_),
+    .B1(_1571_),
     .Y(_0343_)
   );
-  sg13g2_nand2_1 _2745_ (
-    .A(_1596_),
-    .B(\u_uart_master_core.u_host_bridge.op_q[4] ),
-    .Y(_1599_)
+  sg13g2_nand2_1 _2743_ (
+    .A(_1567_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[26] ),
+    .Y(_1572_)
   );
-  sg13g2_o21ai_1 _2746_ (
-    .A1(_0869_),
-    .A2(_1596_),
-    .B1(_1599_),
+  sg13g2_o21ai_1 _2744_ (
+    .A1(_1538_),
+    .A2(_1567_),
+    .B1(_1572_),
     .Y(_0344_)
   );
-  sg13g2_nand2_1 _2747_ (
-    .A(_1596_),
-    .B(\u_uart_master_core.u_host_bridge.op_q[3] ),
-    .Y(_1600_)
+  sg13g2_nand2_1 _2745_ (
+    .A(_1567_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[25] ),
+    .Y(_1573_)
   );
-  sg13g2_o21ai_1 _2748_ (
-    .A1(_0898_),
-    .A2(_1596_),
-    .B1(_1600_),
+  sg13g2_o21ai_1 _2746_ (
+    .A1(_1542_),
+    .A2(_1567_),
+    .B1(_1573_),
     .Y(_0345_)
   );
-  sg13g2_nand2_1 _2749_ (
-    .A(_1596_),
-    .B(\u_uart_master_core.u_host_bridge.op_q[2] ),
-    .Y(_1601_)
+  sg13g2_nand2_1 _2747_ (
+    .A(_1567_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[24] ),
+    .Y(_1574_)
   );
-  sg13g2_o21ai_1 _2750_ (
-    .A1(_0947_),
-    .A2(_1596_),
-    .B1(_1601_),
+  sg13g2_o21ai_1 _2748_ (
+    .A1(_1546_),
+    .A2(_1567_),
+    .B1(_1574_),
     .Y(_0346_)
   );
-  sg13g2_nand2_1 _2751_ (
-    .A(_1596_),
-    .B(\u_uart_master_core.u_host_bridge.op_q[1] ),
-    .Y(_1602_)
+  sg13g2_nor3_1 _2749_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
+    .C(_1479_),
+    .Y(_1575_)
   );
-  sg13g2_o21ai_1 _2752_ (
-    .A1(_0985_),
-    .A2(_1596_),
-    .B1(_1602_),
+  sg13g2_nand3_1 _2750_ (
+    .A(_1575_),
+    .B(_0758_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .Y(_1576_)
+  );
+  sg13g2_buf_1 _2751_ (
+    .A(_1576_),
+    .X(_1577_)
+  );
+  sg13g2_nand2_1 _2752_ (
+    .A(_1577_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[38] ),
+    .Y(_1578_)
+  );
+  sg13g2_o21ai_1 _2753_ (
+    .A1(_1522_),
+    .A2(_1577_),
+    .B1(_1578_),
     .Y(_0347_)
   );
-  sg13g2_inv_1 _2753_ (
-    .A(_1016_),
-    .Y(_1603_)
-  );
   sg13g2_nand2_1 _2754_ (
-    .A(_1596_),
-    .B(\u_uart_master_core.u_host_bridge.op_q[0] ),
-    .Y(_1604_)
+    .A(_1577_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[37] ),
+    .Y(_1579_)
   );
   sg13g2_o21ai_1 _2755_ (
-    .A1(_1596_),
-    .A2(_1603_),
-    .B1(_1604_),
+    .A1(_1526_),
+    .A2(_1577_),
+    .B1(_1579_),
     .Y(_0348_)
   );
-  sg13g2_inv_1 _2756_ (
-    .A(_1931_),
-    .Y(_1605_)
+  sg13g2_nand2_1 _2756_ (
+    .A(_1577_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[36] ),
+    .Y(_1580_)
   );
-  sg13g2_nor4_1 _2757_ (
-    .A(\u_uart_master_core.u_host_bridge.idx_q[0] ),
-    .B(_1515_),
-    .C(_1518_),
-    .D(_0840_),
-    .Y(_1606_)
-  );
-  sg13g2_buf_1 _2758_ (
-    .A(_1606_),
-    .X(_1607_)
-  );
-  sg13g2_nand2_1 _2759_ (
-    .A(_1607_),
-    .B(_0947_),
-    .Y(_1608_)
-  );
-  sg13g2_o21ai_1 _2760_ (
-    .A1(_1605_),
-    .A2(_1607_),
-    .B1(_1608_),
+  sg13g2_o21ai_1 _2757_ (
+    .A1(_1530_),
+    .A2(_1577_),
+    .B1(_1580_),
     .Y(_0349_)
   );
-  sg13g2_inv_1 _2761_ (
-    .A(_1932_),
-    .Y(_1609_)
+  sg13g2_nand2_1 _2758_ (
+    .A(_1577_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[35] ),
+    .Y(_1581_)
   );
-  sg13g2_nand2_1 _2762_ (
-    .A(_1607_),
-    .B(_0985_),
-    .Y(_1610_)
-  );
-  sg13g2_o21ai_1 _2763_ (
-    .A1(_1609_),
-    .A2(_1607_),
-    .B1(_1610_),
+  sg13g2_o21ai_1 _2759_ (
+    .A1(_1534_),
+    .A2(_1577_),
+    .B1(_1581_),
     .Y(_0350_)
   );
-  sg13g2_inv_1 _2764_ (
-    .A(_1933_),
-    .Y(_1611_)
+  sg13g2_nand2_1 _2760_ (
+    .A(_1577_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[34] ),
+    .Y(_1582_)
   );
-  sg13g2_nand2_1 _2765_ (
-    .A(_1607_),
-    .B(_1603_),
-    .Y(_1612_)
-  );
-  sg13g2_o21ai_1 _2766_ (
-    .A1(_1611_),
-    .A2(_1607_),
-    .B1(_1612_),
+  sg13g2_o21ai_1 _2761_ (
+    .A1(_1538_),
+    .A2(_1577_),
+    .B1(_1582_),
     .Y(_0351_)
   );
-  sg13g2_inv_1 _2767_ (
-    .A(_0807_),
+  sg13g2_nand2_1 _2762_ (
+    .A(_1577_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[33] ),
+    .Y(_1583_)
+  );
+  sg13g2_o21ai_1 _2763_ (
+    .A1(_1542_),
+    .A2(_1577_),
+    .B1(_1583_),
+    .Y(_0352_)
+  );
+  sg13g2_nand2_1 _2764_ (
+    .A(_1577_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[32] ),
+    .Y(_1584_)
+  );
+  sg13g2_o21ai_1 _2765_ (
+    .A1(_1546_),
+    .A2(_1577_),
+    .B1(_1584_),
+    .Y(_0353_)
+  );
+  sg13g2_nor2b_1 _2766_ (
+    .A(_1479_),
+    .B_N(_1491_),
+    .Y(_1585_)
+  );
+  sg13g2_nand3_1 _2767_ (
+    .A(_1585_),
+    .B(_0758_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .Y(_1586_)
+  );
+  sg13g2_buf_1 _2768_ (
+    .A(_1586_),
+    .X(_1587_)
+  );
+  sg13g2_nand2_1 _2769_ (
+    .A(_1587_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[46] ),
+    .Y(_1588_)
+  );
+  sg13g2_o21ai_1 _2770_ (
+    .A1(_1522_),
+    .A2(_1587_),
+    .B1(_1588_),
+    .Y(_0354_)
+  );
+  sg13g2_nand2_1 _2771_ (
+    .A(_1587_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[45] ),
+    .Y(_1589_)
+  );
+  sg13g2_o21ai_1 _2772_ (
+    .A1(_1526_),
+    .A2(_1587_),
+    .B1(_1589_),
+    .Y(_0355_)
+  );
+  sg13g2_nand2_1 _2773_ (
+    .A(_1587_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[44] ),
+    .Y(_1590_)
+  );
+  sg13g2_o21ai_1 _2774_ (
+    .A1(_1530_),
+    .A2(_1587_),
+    .B1(_1590_),
+    .Y(_0356_)
+  );
+  sg13g2_nand2_1 _2775_ (
+    .A(_1587_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[43] ),
+    .Y(_1591_)
+  );
+  sg13g2_o21ai_1 _2776_ (
+    .A1(_1534_),
+    .A2(_1587_),
+    .B1(_1591_),
+    .Y(_0357_)
+  );
+  sg13g2_nand2_1 _2777_ (
+    .A(_1587_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[42] ),
+    .Y(_1592_)
+  );
+  sg13g2_o21ai_1 _2778_ (
+    .A1(_1538_),
+    .A2(_1587_),
+    .B1(_1592_),
+    .Y(_0358_)
+  );
+  sg13g2_nand2_1 _2779_ (
+    .A(_1587_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[41] ),
+    .Y(_1593_)
+  );
+  sg13g2_o21ai_1 _2780_ (
+    .A1(_1542_),
+    .A2(_1587_),
+    .B1(_1593_),
+    .Y(_0359_)
+  );
+  sg13g2_nand2_1 _2781_ (
+    .A(_1587_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[40] ),
+    .Y(_1594_)
+  );
+  sg13g2_o21ai_1 _2782_ (
+    .A1(_1546_),
+    .A2(_1587_),
+    .B1(_1594_),
+    .Y(_0360_)
+  );
+  sg13g2_nor2b_1 _2783_ (
+    .A(_1479_),
+    .B_N(_1492_),
+    .Y(_1595_)
+  );
+  sg13g2_nand3_1 _2784_ (
+    .A(_1595_),
+    .B(_0758_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .Y(_1596_)
+  );
+  sg13g2_buf_1 _2785_ (
+    .A(_1596_),
+    .X(_1597_)
+  );
+  sg13g2_nand2_1 _2786_ (
+    .A(_1597_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[54] ),
+    .Y(_1598_)
+  );
+  sg13g2_o21ai_1 _2787_ (
+    .A1(_1522_),
+    .A2(_1597_),
+    .B1(_1598_),
+    .Y(_0361_)
+  );
+  sg13g2_nand2_1 _2788_ (
+    .A(_1597_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[53] ),
+    .Y(_1599_)
+  );
+  sg13g2_o21ai_1 _2789_ (
+    .A1(_1526_),
+    .A2(_1597_),
+    .B1(_1599_),
+    .Y(_0362_)
+  );
+  sg13g2_nand2_1 _2790_ (
+    .A(_1597_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[52] ),
+    .Y(_1600_)
+  );
+  sg13g2_o21ai_1 _2791_ (
+    .A1(_1530_),
+    .A2(_1597_),
+    .B1(_1600_),
+    .Y(_0363_)
+  );
+  sg13g2_nand2_1 _2792_ (
+    .A(_1597_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[51] ),
+    .Y(_1601_)
+  );
+  sg13g2_o21ai_1 _2793_ (
+    .A1(_1534_),
+    .A2(_1597_),
+    .B1(_1601_),
+    .Y(_0364_)
+  );
+  sg13g2_nand2_1 _2794_ (
+    .A(_1597_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[50] ),
+    .Y(_1602_)
+  );
+  sg13g2_o21ai_1 _2795_ (
+    .A1(_1538_),
+    .A2(_1597_),
+    .B1(_1602_),
+    .Y(_0365_)
+  );
+  sg13g2_nand2_1 _2796_ (
+    .A(_1597_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[49] ),
+    .Y(_1603_)
+  );
+  sg13g2_o21ai_1 _2797_ (
+    .A1(_1542_),
+    .A2(_1597_),
+    .B1(_1603_),
+    .Y(_0366_)
+  );
+  sg13g2_nand2_1 _2798_ (
+    .A(_1597_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[48] ),
+    .Y(_1604_)
+  );
+  sg13g2_o21ai_1 _2799_ (
+    .A1(_1546_),
+    .A2(_1597_),
+    .B1(_1604_),
+    .Y(_0367_)
+  );
+  sg13g2_nand2_1 _2800_ (
+    .A(_1486_),
+    .B(_0758_),
+    .Y(_1605_)
+  );
+  sg13g2_buf_1 _2801_ (
+    .A(_1605_),
+    .X(_1606_)
+  );
+  sg13g2_nand2_1 _2802_ (
+    .A(_1606_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[62] ),
+    .Y(_1607_)
+  );
+  sg13g2_o21ai_1 _2803_ (
+    .A1(_1522_),
+    .A2(_1606_),
+    .B1(_1607_),
+    .Y(_0368_)
+  );
+  sg13g2_nand2_1 _2804_ (
+    .A(_1606_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[61] ),
+    .Y(_1608_)
+  );
+  sg13g2_o21ai_1 _2805_ (
+    .A1(_1526_),
+    .A2(_1606_),
+    .B1(_1608_),
+    .Y(_0369_)
+  );
+  sg13g2_nand2_1 _2806_ (
+    .A(_1606_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[60] ),
+    .Y(_1609_)
+  );
+  sg13g2_o21ai_1 _2807_ (
+    .A1(_1530_),
+    .A2(_1606_),
+    .B1(_1609_),
+    .Y(_0370_)
+  );
+  sg13g2_nand2_1 _2808_ (
+    .A(_1606_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[59] ),
+    .Y(_1610_)
+  );
+  sg13g2_o21ai_1 _2809_ (
+    .A1(_1534_),
+    .A2(_1606_),
+    .B1(_1610_),
+    .Y(_0371_)
+  );
+  sg13g2_nand2_1 _2810_ (
+    .A(_1606_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[58] ),
+    .Y(_1611_)
+  );
+  sg13g2_o21ai_1 _2811_ (
+    .A1(_1538_),
+    .A2(_1606_),
+    .B1(_1611_),
+    .Y(_0372_)
+  );
+  sg13g2_nand2_1 _2812_ (
+    .A(_1606_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[57] ),
+    .Y(_1612_)
+  );
+  sg13g2_o21ai_1 _2813_ (
+    .A1(_1542_),
+    .A2(_1606_),
+    .B1(_1612_),
+    .Y(_0373_)
+  );
+  sg13g2_nand2_1 _2814_ (
+    .A(_1606_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[56] ),
     .Y(_1613_)
   );
-  sg13g2_nand3_1 _2768_ (
-    .A(_0839_),
-    .B(_1528_),
-    .C(_1521_),
+  sg13g2_o21ai_1 _2815_ (
+    .A1(_1546_),
+    .A2(_1606_),
+    .B1(_1613_),
+    .Y(_0374_)
+  );
+  sg13g2_inv_1 _2816_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
     .Y(_1614_)
   );
-  sg13g2_buf_2 _2769_ (
-    .A(_1614_),
-    .X(_1615_)
+  sg13g2_nand3_1 _2817_ (
+    .A(_1575_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .C(_1614_),
+    .Y(_1615_)
   );
-  sg13g2_buf_2 _2770_ (
+  sg13g2_buf_1 _2818_ (
     .A(_1615_),
     .X(_1616_)
   );
-  sg13g2_buf_2 _2771_ (
-    .A(_1615_),
-    .X(_1617_)
-  );
-  sg13g2_nand2_1 _2772_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[30] ),
-    .Y(_1618_)
-  );
-  sg13g2_o21ai_1 _2773_ (
-    .A1(_1613_),
-    .A2(_1616_),
-    .B1(_1618_),
-    .Y(_0352_)
-  );
-  sg13g2_nand2_1 _2774_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[29] ),
-    .Y(_1619_)
-  );
-  sg13g2_o21ai_1 _2775_ (
-    .A1(_0836_),
-    .A2(_1616_),
-    .B1(_1619_),
-    .Y(_0353_)
-  );
-  sg13g2_nand2_1 _2776_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[28] ),
-    .Y(_1620_)
-  );
-  sg13g2_o21ai_1 _2777_ (
-    .A1(_0869_),
-    .A2(_1616_),
-    .B1(_1620_),
-    .Y(_0354_)
-  );
-  sg13g2_nand2_1 _2778_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[27] ),
-    .Y(_1621_)
-  );
-  sg13g2_o21ai_1 _2779_ (
-    .A1(_0898_),
-    .A2(_1616_),
-    .B1(_1621_),
-    .Y(_0355_)
-  );
-  sg13g2_nand2_1 _2780_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[26] ),
-    .Y(_1622_)
-  );
-  sg13g2_o21ai_1 _2781_ (
-    .A1(_0947_),
-    .A2(_1616_),
-    .B1(_1622_),
-    .Y(_0356_)
-  );
-  sg13g2_nand2_1 _2782_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[25] ),
-    .Y(_1623_)
-  );
-  sg13g2_o21ai_1 _2783_ (
-    .A1(_0985_),
-    .A2(_1616_),
-    .B1(_1623_),
-    .Y(_0357_)
-  );
-  sg13g2_nand2_1 _2784_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[24] ),
-    .Y(_1624_)
-  );
-  sg13g2_o21ai_1 _2785_ (
-    .A1(_1616_),
-    .A2(_1603_),
-    .B1(_1624_),
-    .Y(_0358_)
-  );
-  sg13g2_inv_1 _2786_ (
-    .A(\u_uart_master_core.u_host_bridge.sh_q[31] ),
-    .Y(_1625_)
-  );
-  sg13g2_nand2_1 _2787_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[23] ),
-    .Y(_1626_)
-  );
-  sg13g2_o21ai_1 _2788_ (
-    .A1(_1625_),
-    .A2(_1616_),
-    .B1(_1626_),
-    .Y(_0359_)
-  );
-  sg13g2_nand2_1 _2789_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[22] ),
-    .Y(_1627_)
-  );
-  sg13g2_o21ai_1 _2790_ (
-    .A1(_1544_),
-    .A2(_1616_),
-    .B1(_1627_),
-    .Y(_0360_)
-  );
-  sg13g2_nand2_1 _2791_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[21] ),
-    .Y(_1628_)
-  );
-  sg13g2_o21ai_1 _2792_ (
-    .A1(_1550_),
-    .A2(_1616_),
-    .B1(_1628_),
-    .Y(_0361_)
-  );
-  sg13g2_nand2_1 _2793_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[20] ),
-    .Y(_1629_)
-  );
-  sg13g2_o21ai_1 _2794_ (
-    .A1(_1552_),
-    .A2(_1616_),
-    .B1(_1629_),
-    .Y(_0362_)
-  );
-  sg13g2_nand2_1 _2795_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[19] ),
-    .Y(_1630_)
-  );
-  sg13g2_o21ai_1 _2796_ (
-    .A1(_1554_),
-    .A2(_1616_),
-    .B1(_1630_),
-    .Y(_0363_)
-  );
-  sg13g2_nand2_1 _2797_ (
-    .A(_1617_),
-    .B(\u_uart_master_core.addr_o[18] ),
-    .Y(_1631_)
-  );
-  sg13g2_o21ai_1 _2798_ (
-    .A1(_1556_),
-    .A2(_1616_),
-    .B1(_1631_),
-    .Y(_0364_)
-  );
-  sg13g2_nand2_1 _2799_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[17] ),
-    .Y(_1632_)
-  );
-  sg13g2_o21ai_1 _2800_ (
-    .A1(_1558_),
-    .A2(_1616_),
-    .B1(_1632_),
-    .Y(_0365_)
-  );
-  sg13g2_nand2_1 _2801_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[16] ),
-    .Y(_1633_)
-  );
-  sg13g2_o21ai_1 _2802_ (
-    .A1(_1560_),
-    .A2(_1616_),
-    .B1(_1633_),
-    .Y(_0366_)
-  );
-  sg13g2_nand2_1 _2803_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[15] ),
-    .Y(_1634_)
-  );
-  sg13g2_o21ai_1 _2804_ (
-    .A1(_1562_),
-    .A2(_1616_),
-    .B1(_1634_),
-    .Y(_0367_)
-  );
-  sg13g2_nand2_1 _2805_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[14] ),
-    .Y(_1635_)
-  );
-  sg13g2_o21ai_1 _2806_ (
-    .A1(_1564_),
-    .A2(_1616_),
-    .B1(_1635_),
-    .Y(_0368_)
-  );
-  sg13g2_nand2_1 _2807_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[13] ),
-    .Y(_1636_)
-  );
-  sg13g2_o21ai_1 _2808_ (
-    .A1(_1566_),
-    .A2(_1616_),
-    .B1(_1636_),
-    .Y(_0369_)
-  );
-  sg13g2_nand2_1 _2809_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[12] ),
-    .Y(_1637_)
-  );
-  sg13g2_o21ai_1 _2810_ (
-    .A1(_1568_),
-    .A2(_1616_),
-    .B1(_1637_),
-    .Y(_0370_)
-  );
-  sg13g2_nand2_1 _2811_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[11] ),
-    .Y(_1638_)
-  );
-  sg13g2_o21ai_1 _2812_ (
-    .A1(_1570_),
-    .A2(_1616_),
-    .B1(_1638_),
-    .Y(_0371_)
-  );
-  sg13g2_nand2_1 _2813_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[10] ),
-    .Y(_1639_)
-  );
-  sg13g2_o21ai_1 _2814_ (
-    .A1(_1572_),
-    .A2(_1617_),
-    .B1(_1639_),
-    .Y(_0372_)
-  );
-  sg13g2_nand2_1 _2815_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[9] ),
-    .Y(_1640_)
-  );
-  sg13g2_o21ai_1 _2816_ (
-    .A1(_1574_),
-    .A2(_1617_),
-    .B1(_1640_),
-    .Y(_0373_)
-  );
-  sg13g2_nand2_1 _2817_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[8] ),
-    .Y(_1641_)
-  );
-  sg13g2_o21ai_1 _2818_ (
-    .A1(_1576_),
-    .A2(_1617_),
-    .B1(_1641_),
-    .Y(_0374_)
-  );
   sg13g2_nand2_1 _2819_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[7] ),
-    .Y(_1642_)
+    .A(_1616_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[70] ),
+    .Y(_1617_)
   );
   sg13g2_o21ai_1 _2820_ (
-    .A1(_1578_),
-    .A2(_1617_),
-    .B1(_1642_),
+    .A1(_1522_),
+    .A2(_1616_),
+    .B1(_1617_),
     .Y(_0375_)
   );
   sg13g2_nand2_1 _2821_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[6] ),
-    .Y(_1643_)
+    .A(_1616_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[69] ),
+    .Y(_1618_)
   );
   sg13g2_o21ai_1 _2822_ (
-    .A1(_1580_),
-    .A2(_1617_),
-    .B1(_1643_),
+    .A1(_1526_),
+    .A2(_1616_),
+    .B1(_1618_),
     .Y(_0376_)
   );
   sg13g2_nand2_1 _2823_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[5] ),
-    .Y(_1644_)
+    .A(_1616_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[68] ),
+    .Y(_1619_)
   );
   sg13g2_o21ai_1 _2824_ (
-    .A1(_1582_),
-    .A2(_1617_),
-    .B1(_1644_),
+    .A1(_1530_),
+    .A2(_1616_),
+    .B1(_1619_),
     .Y(_0377_)
   );
   sg13g2_nand2_1 _2825_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[4] ),
-    .Y(_1645_)
+    .A(_1616_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[67] ),
+    .Y(_1620_)
   );
   sg13g2_o21ai_1 _2826_ (
-    .A1(_1584_),
-    .A2(_1617_),
-    .B1(_1645_),
+    .A1(_1534_),
+    .A2(_1616_),
+    .B1(_1620_),
     .Y(_0378_)
   );
   sg13g2_nand2_1 _2827_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[3] ),
-    .Y(_1646_)
+    .A(_1616_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[66] ),
+    .Y(_1621_)
   );
   sg13g2_o21ai_1 _2828_ (
-    .A1(_1586_),
-    .A2(_1617_),
-    .B1(_1646_),
+    .A1(_1538_),
+    .A2(_1616_),
+    .B1(_1621_),
     .Y(_0379_)
   );
   sg13g2_nand2_1 _2829_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[2] ),
-    .Y(_1647_)
+    .A(_1616_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[65] ),
+    .Y(_1622_)
   );
   sg13g2_o21ai_1 _2830_ (
-    .A1(_1588_),
-    .A2(_1617_),
-    .B1(_1647_),
+    .A1(_1542_),
+    .A2(_1616_),
+    .B1(_1622_),
     .Y(_0380_)
   );
   sg13g2_nand2_1 _2831_ (
-    .A(_0839_),
-    .B(_1538_),
+    .A(_1616_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[64] ),
+    .Y(_1623_)
+  );
+  sg13g2_o21ai_1 _2832_ (
+    .A1(_1546_),
+    .A2(_1616_),
+    .B1(_1623_),
+    .Y(_0381_)
+  );
+  sg13g2_nand3_1 _2833_ (
+    .A(_1585_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .C(_1614_),
+    .Y(_1624_)
+  );
+  sg13g2_buf_1 _2834_ (
+    .A(_1624_),
+    .X(_1625_)
+  );
+  sg13g2_nand2_1 _2835_ (
+    .A(_1625_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[78] ),
+    .Y(_1626_)
+  );
+  sg13g2_o21ai_1 _2836_ (
+    .A1(_1522_),
+    .A2(_1625_),
+    .B1(_1626_),
+    .Y(_0382_)
+  );
+  sg13g2_nand2_1 _2837_ (
+    .A(_1625_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[77] ),
+    .Y(_1627_)
+  );
+  sg13g2_o21ai_1 _2838_ (
+    .A1(_1526_),
+    .A2(_1625_),
+    .B1(_1627_),
+    .Y(_0383_)
+  );
+  sg13g2_nand2_1 _2839_ (
+    .A(_1625_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[76] ),
+    .Y(_1628_)
+  );
+  sg13g2_o21ai_1 _2840_ (
+    .A1(_1530_),
+    .A2(_1625_),
+    .B1(_1628_),
+    .Y(_0384_)
+  );
+  sg13g2_nand2_1 _2841_ (
+    .A(_1625_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[75] ),
+    .Y(_1629_)
+  );
+  sg13g2_o21ai_1 _2842_ (
+    .A1(_1534_),
+    .A2(_1625_),
+    .B1(_1629_),
+    .Y(_0385_)
+  );
+  sg13g2_nand2_1 _2843_ (
+    .A(_1625_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[74] ),
+    .Y(_1630_)
+  );
+  sg13g2_o21ai_1 _2844_ (
+    .A1(_1538_),
+    .A2(_1625_),
+    .B1(_1630_),
+    .Y(_0386_)
+  );
+  sg13g2_nand2_1 _2845_ (
+    .A(_1625_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[73] ),
+    .Y(_1631_)
+  );
+  sg13g2_o21ai_1 _2846_ (
+    .A1(_1542_),
+    .A2(_1625_),
+    .B1(_1631_),
+    .Y(_0387_)
+  );
+  sg13g2_nand2_1 _2847_ (
+    .A(_1625_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[72] ),
+    .Y(_1632_)
+  );
+  sg13g2_o21ai_1 _2848_ (
+    .A1(_1546_),
+    .A2(_1625_),
+    .B1(_1632_),
+    .Y(_0388_)
+  );
+  sg13g2_nand3_1 _2849_ (
+    .A(_1595_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .C(_1614_),
+    .Y(_1633_)
+  );
+  sg13g2_buf_1 _2850_ (
+    .A(_1633_),
+    .X(_1634_)
+  );
+  sg13g2_nand2_1 _2851_ (
+    .A(_1634_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[86] ),
+    .Y(_1635_)
+  );
+  sg13g2_o21ai_1 _2852_ (
+    .A1(_1522_),
+    .A2(_1634_),
+    .B1(_1635_),
+    .Y(_0389_)
+  );
+  sg13g2_nand2_1 _2853_ (
+    .A(_1634_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[85] ),
+    .Y(_1636_)
+  );
+  sg13g2_o21ai_1 _2854_ (
+    .A1(_1526_),
+    .A2(_1634_),
+    .B1(_1636_),
+    .Y(_0390_)
+  );
+  sg13g2_nand2_1 _2855_ (
+    .A(_1634_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[84] ),
+    .Y(_1637_)
+  );
+  sg13g2_o21ai_1 _2856_ (
+    .A1(_1530_),
+    .A2(_1634_),
+    .B1(_1637_),
+    .Y(_0391_)
+  );
+  sg13g2_nand2_1 _2857_ (
+    .A(_1634_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[83] ),
+    .Y(_1638_)
+  );
+  sg13g2_o21ai_1 _2858_ (
+    .A1(_1534_),
+    .A2(_1634_),
+    .B1(_1638_),
+    .Y(_0392_)
+  );
+  sg13g2_nand2_1 _2859_ (
+    .A(_1634_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[82] ),
+    .Y(_1639_)
+  );
+  sg13g2_o21ai_1 _2860_ (
+    .A1(_1538_),
+    .A2(_1634_),
+    .B1(_1639_),
+    .Y(_0393_)
+  );
+  sg13g2_nand2_1 _2861_ (
+    .A(_1634_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[81] ),
+    .Y(_1640_)
+  );
+  sg13g2_o21ai_1 _2862_ (
+    .A1(_1542_),
+    .A2(_1634_),
+    .B1(_1640_),
+    .Y(_0394_)
+  );
+  sg13g2_nand2_1 _2863_ (
+    .A(_1634_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[80] ),
+    .Y(_1641_)
+  );
+  sg13g2_o21ai_1 _2864_ (
+    .A1(_1546_),
+    .A2(_1634_),
+    .B1(_1641_),
+    .Y(_0395_)
+  );
+  sg13g2_nand3_1 _2865_ (
+    .A(_1480_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .C(_1614_),
+    .Y(_1642_)
+  );
+  sg13g2_buf_1 _2866_ (
+    .A(_1642_),
+    .X(_1643_)
+  );
+  sg13g2_nand2_1 _2867_ (
+    .A(_1643_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[94] ),
+    .Y(_1644_)
+  );
+  sg13g2_o21ai_1 _2868_ (
+    .A1(_1522_),
+    .A2(_1643_),
+    .B1(_1644_),
+    .Y(_0396_)
+  );
+  sg13g2_nand2_1 _2869_ (
+    .A(_1643_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[93] ),
+    .Y(_1645_)
+  );
+  sg13g2_o21ai_1 _2870_ (
+    .A1(_1526_),
+    .A2(_1643_),
+    .B1(_1645_),
+    .Y(_0397_)
+  );
+  sg13g2_nand2_1 _2871_ (
+    .A(_1643_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[92] ),
+    .Y(_1646_)
+  );
+  sg13g2_o21ai_1 _2872_ (
+    .A1(_1530_),
+    .A2(_1643_),
+    .B1(_1646_),
+    .Y(_0398_)
+  );
+  sg13g2_nand2_1 _2873_ (
+    .A(_1643_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[91] ),
+    .Y(_1647_)
+  );
+  sg13g2_o21ai_1 _2874_ (
+    .A1(_1534_),
+    .A2(_1643_),
+    .B1(_1647_),
+    .Y(_0399_)
+  );
+  sg13g2_nand2_1 _2875_ (
+    .A(_1643_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[90] ),
     .Y(_1648_)
   );
-  sg13g2_buf_2 _2832_ (
-    .A(_1648_),
-    .X(_1649_)
+  sg13g2_o21ai_1 _2876_ (
+    .A1(_1538_),
+    .A2(_1643_),
+    .B1(_1648_),
+    .Y(_0400_)
   );
-  sg13g2_inv_1 _2833_ (
-    .A(_1649_),
+  sg13g2_nand2_1 _2877_ (
+    .A(_1643_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[89] ),
+    .Y(_1649_)
+  );
+  sg13g2_o21ai_1 _2878_ (
+    .A1(_1542_),
+    .A2(_1643_),
+    .B1(_1649_),
+    .Y(_0401_)
+  );
+  sg13g2_nand2_1 _2879_ (
+    .A(_1643_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[88] ),
     .Y(_1650_)
   );
-  sg13g2_nand2_1 _2834_ (
-    .A(_1650_),
-    .B(_1536_),
+  sg13g2_o21ai_1 _2880_ (
+    .A1(_1546_),
+    .A2(_1643_),
+    .B1(_1650_),
+    .Y(_0402_)
+  );
+  sg13g2_nand3_1 _2881_ (
+    .A(_1575_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
     .Y(_1651_)
   );
-  sg13g2_buf_4 _2835_ (
+  sg13g2_buf_1 _2882_ (
     .A(_1651_),
     .X(_1652_)
   );
-  sg13g2_buf_8 _2836_ (
+  sg13g2_nand2_1 _2883_ (
     .A(_1652_),
-    .X(_1653_)
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[102] ),
+    .Y(_1653_)
   );
-  sg13g2_buf_2 _2837_ (
-    .A(_1649_),
-    .X(_1654_)
-  );
-  sg13g2_nand2_1 _2838_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[30] ),
-    .Y(_1655_)
-  );
-  sg13g2_o21ai_1 _2839_ (
-    .A1(_1613_),
-    .A2(_1653_),
-    .B1(_1655_),
-    .Y(_0381_)
-  );
-  sg13g2_nand2_1 _2840_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[29] ),
-    .Y(_1656_)
-  );
-  sg13g2_o21ai_1 _2841_ (
-    .A1(_0836_),
-    .A2(_1653_),
-    .B1(_1656_),
-    .Y(_0382_)
-  );
-  sg13g2_nand2_1 _2842_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[28] ),
-    .Y(_1657_)
-  );
-  sg13g2_o21ai_1 _2843_ (
-    .A1(_0869_),
-    .A2(_1653_),
-    .B1(_1657_),
-    .Y(_0383_)
-  );
-  sg13g2_nand2_1 _2844_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[27] ),
-    .Y(_1658_)
-  );
-  sg13g2_o21ai_1 _2845_ (
-    .A1(_0898_),
-    .A2(_1653_),
-    .B1(_1658_),
-    .Y(_0384_)
-  );
-  sg13g2_nand2_1 _2846_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[26] ),
-    .Y(_1659_)
-  );
-  sg13g2_o21ai_1 _2847_ (
-    .A1(_0947_),
-    .A2(_1653_),
-    .B1(_1659_),
-    .Y(_0385_)
-  );
-  sg13g2_nand2_1 _2848_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[25] ),
-    .Y(_1660_)
-  );
-  sg13g2_o21ai_1 _2849_ (
-    .A1(_0985_),
-    .A2(_1653_),
-    .B1(_1660_),
-    .Y(_0386_)
-  );
-  sg13g2_nand2_1 _2850_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[24] ),
-    .Y(_1661_)
-  );
-  sg13g2_o21ai_1 _2851_ (
-    .A1(_1603_),
-    .A2(_1653_),
-    .B1(_1661_),
-    .Y(_0387_)
-  );
-  sg13g2_nand2_1 _2852_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[23] ),
-    .Y(_1662_)
-  );
-  sg13g2_o21ai_1 _2853_ (
-    .A1(_1625_),
-    .A2(_1653_),
-    .B1(_1662_),
-    .Y(_0388_)
-  );
-  sg13g2_nand2_1 _2854_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[22] ),
-    .Y(_1663_)
-  );
-  sg13g2_o21ai_1 _2855_ (
-    .A1(_1544_),
-    .A2(_1653_),
-    .B1(_1663_),
-    .Y(_0389_)
-  );
-  sg13g2_nand2_1 _2856_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[21] ),
-    .Y(_1664_)
-  );
-  sg13g2_o21ai_1 _2857_ (
-    .A1(_1550_),
-    .A2(_1653_),
-    .B1(_1664_),
-    .Y(_0390_)
-  );
-  sg13g2_nand2_1 _2858_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[20] ),
-    .Y(_1665_)
-  );
-  sg13g2_o21ai_1 _2859_ (
-    .A1(_1552_),
-    .A2(_1653_),
-    .B1(_1665_),
-    .Y(_0391_)
-  );
-  sg13g2_nand2_1 _2860_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[19] ),
-    .Y(_1666_)
-  );
-  sg13g2_o21ai_1 _2861_ (
-    .A1(_1554_),
-    .A2(_1653_),
-    .B1(_1666_),
-    .Y(_0392_)
-  );
-  sg13g2_nand2_1 _2862_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[18] ),
-    .Y(_1667_)
-  );
-  sg13g2_o21ai_1 _2863_ (
-    .A1(_1556_),
-    .A2(_1653_),
-    .B1(_1667_),
-    .Y(_0393_)
-  );
-  sg13g2_nand2_1 _2864_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[17] ),
-    .Y(_1668_)
-  );
-  sg13g2_o21ai_1 _2865_ (
-    .A1(_1558_),
-    .A2(_1653_),
-    .B1(_1668_),
-    .Y(_0394_)
-  );
-  sg13g2_nand2_1 _2866_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[16] ),
-    .Y(_1669_)
-  );
-  sg13g2_o21ai_1 _2867_ (
-    .A1(_1560_),
-    .A2(_1653_),
-    .B1(_1669_),
-    .Y(_0395_)
-  );
-  sg13g2_nand2_1 _2868_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[15] ),
-    .Y(_1670_)
-  );
-  sg13g2_o21ai_1 _2869_ (
-    .A1(_1562_),
-    .A2(_1653_),
-    .B1(_1670_),
-    .Y(_0396_)
-  );
-  sg13g2_nand2_1 _2870_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[14] ),
-    .Y(_1671_)
-  );
-  sg13g2_o21ai_1 _2871_ (
-    .A1(_1564_),
-    .A2(_1653_),
-    .B1(_1671_),
-    .Y(_0397_)
-  );
-  sg13g2_nand2_1 _2872_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[13] ),
-    .Y(_1672_)
-  );
-  sg13g2_o21ai_1 _2873_ (
-    .A1(_1566_),
-    .A2(_1653_),
-    .B1(_1672_),
-    .Y(_0398_)
-  );
-  sg13g2_nand2_1 _2874_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[12] ),
-    .Y(_1673_)
-  );
-  sg13g2_o21ai_1 _2875_ (
-    .A1(_1568_),
-    .A2(_1653_),
-    .B1(_1673_),
-    .Y(_0399_)
-  );
-  sg13g2_nand2_1 _2876_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[11] ),
-    .Y(_1674_)
-  );
-  sg13g2_o21ai_1 _2877_ (
-    .A1(_1570_),
-    .A2(_1653_),
-    .B1(_1674_),
-    .Y(_0400_)
-  );
-  sg13g2_nand2_1 _2878_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[10] ),
-    .Y(_1675_)
-  );
-  sg13g2_o21ai_1 _2879_ (
-    .A1(_1572_),
+  sg13g2_o21ai_1 _2884_ (
+    .A1(_1522_),
     .A2(_1652_),
-    .B1(_1675_),
-    .Y(_0401_)
-  );
-  sg13g2_nand2_1 _2880_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[9] ),
-    .Y(_1676_)
-  );
-  sg13g2_o21ai_1 _2881_ (
-    .A1(_1574_),
-    .A2(_1652_),
-    .B1(_1676_),
-    .Y(_0402_)
-  );
-  sg13g2_nand2_1 _2882_ (
-    .A(_1654_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[8] ),
-    .Y(_1677_)
-  );
-  sg13g2_o21ai_1 _2883_ (
-    .A1(_1576_),
-    .A2(_1652_),
-    .B1(_1677_),
+    .B1(_1653_),
     .Y(_0403_)
   );
-  sg13g2_nand2_1 _2884_ (
-    .A(_1649_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[7] ),
-    .Y(_1678_)
+  sg13g2_nand2_1 _2885_ (
+    .A(_1652_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[101] ),
+    .Y(_1654_)
   );
-  sg13g2_o21ai_1 _2885_ (
-    .A1(_1578_),
+  sg13g2_o21ai_1 _2886_ (
+    .A1(_1526_),
     .A2(_1652_),
-    .B1(_1678_),
+    .B1(_1654_),
     .Y(_0404_)
   );
-  sg13g2_nand2_1 _2886_ (
-    .A(_1649_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[6] ),
-    .Y(_1679_)
+  sg13g2_nand2_1 _2887_ (
+    .A(_1652_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[100] ),
+    .Y(_1655_)
   );
-  sg13g2_o21ai_1 _2887_ (
-    .A1(_1580_),
+  sg13g2_o21ai_1 _2888_ (
+    .A1(_1530_),
     .A2(_1652_),
-    .B1(_1679_),
+    .B1(_1655_),
     .Y(_0405_)
   );
-  sg13g2_nand2_1 _2888_ (
-    .A(_1649_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[5] ),
-    .Y(_1680_)
+  sg13g2_nand2_1 _2889_ (
+    .A(_1652_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[99] ),
+    .Y(_1656_)
   );
-  sg13g2_o21ai_1 _2889_ (
-    .A1(_1582_),
+  sg13g2_o21ai_1 _2890_ (
+    .A1(_1534_),
     .A2(_1652_),
-    .B1(_1680_),
+    .B1(_1656_),
     .Y(_0406_)
   );
-  sg13g2_nand2_1 _2890_ (
-    .A(_1649_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[4] ),
-    .Y(_1681_)
+  sg13g2_nand2_1 _2891_ (
+    .A(_1652_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[98] ),
+    .Y(_1657_)
   );
-  sg13g2_o21ai_1 _2891_ (
-    .A1(_1584_),
+  sg13g2_o21ai_1 _2892_ (
+    .A1(_1538_),
     .A2(_1652_),
-    .B1(_1681_),
+    .B1(_1657_),
     .Y(_0407_)
   );
-  sg13g2_nand2_1 _2892_ (
-    .A(_1649_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[3] ),
-    .Y(_1682_)
+  sg13g2_nand2_1 _2893_ (
+    .A(_1652_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[97] ),
+    .Y(_1658_)
   );
-  sg13g2_o21ai_1 _2893_ (
-    .A1(_1586_),
+  sg13g2_o21ai_1 _2894_ (
+    .A1(_1542_),
     .A2(_1652_),
-    .B1(_1682_),
+    .B1(_1658_),
     .Y(_0408_)
   );
-  sg13g2_nand2_1 _2894_ (
-    .A(_1649_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[2] ),
-    .Y(_1683_)
+  sg13g2_nand2_1 _2895_ (
+    .A(_1652_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[96] ),
+    .Y(_1659_)
   );
-  sg13g2_o21ai_1 _2895_ (
-    .A1(_1588_),
+  sg13g2_o21ai_1 _2896_ (
+    .A1(_1546_),
     .A2(_1652_),
-    .B1(_1683_),
+    .B1(_1659_),
     .Y(_0409_)
   );
-  sg13g2_nand2_1 _2896_ (
-    .A(_1649_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[1] ),
-    .Y(_1684_)
+  sg13g2_nand3_1 _2897_ (
+    .A(_1585_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .Y(_1660_)
   );
-  sg13g2_o21ai_1 _2897_ (
-    .A1(_1590_),
-    .A2(_1652_),
-    .B1(_1684_),
+  sg13g2_buf_1 _2898_ (
+    .A(_1660_),
+    .X(_1661_)
+  );
+  sg13g2_nand2_1 _2899_ (
+    .A(_1661_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[110] ),
+    .Y(_1662_)
+  );
+  sg13g2_o21ai_1 _2900_ (
+    .A1(_1522_),
+    .A2(_1661_),
+    .B1(_1662_),
     .Y(_0410_)
   );
-  sg13g2_nand2_1 _2898_ (
-    .A(_1649_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[0] ),
-    .Y(_1685_)
+  sg13g2_nand2_1 _2901_ (
+    .A(_1661_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[109] ),
+    .Y(_1663_)
   );
-  sg13g2_o21ai_1 _2899_ (
-    .A1(_1592_),
-    .A2(_1652_),
-    .B1(_1685_),
+  sg13g2_o21ai_1 _2902_ (
+    .A1(_1526_),
+    .A2(_1661_),
+    .B1(_1663_),
     .Y(_0411_)
   );
-  sg13g2_nand2_1 _2900_ (
-    .A(_1649_),
-    .B(_0030_),
-    .Y(_1686_)
+  sg13g2_nand2_1 _2903_ (
+    .A(_1661_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[108] ),
+    .Y(_1664_)
   );
-  sg13g2_o21ai_1 _2901_ (
-    .A1(_1605_),
-    .A2(_1652_),
-    .B1(_1686_),
+  sg13g2_o21ai_1 _2904_ (
+    .A1(_1530_),
+    .A2(_1661_),
+    .B1(_1664_),
     .Y(_0412_)
   );
-  sg13g2_nand2_1 _2902_ (
-    .A(_1649_),
-    .B(_0031_),
-    .Y(_1687_)
+  sg13g2_nand2_1 _2905_ (
+    .A(_1661_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[107] ),
+    .Y(_1665_)
   );
-  sg13g2_o21ai_1 _2903_ (
-    .A1(_1609_),
-    .A2(_1652_),
-    .B1(_1687_),
+  sg13g2_o21ai_1 _2906_ (
+    .A1(_1534_),
+    .A2(_1661_),
+    .B1(_1665_),
     .Y(_0413_)
   );
-  sg13g2_nand2_1 _2904_ (
-    .A(_1649_),
-    .B(_0032_),
-    .Y(_1688_)
+  sg13g2_nand2_1 _2907_ (
+    .A(_1661_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[106] ),
+    .Y(_1666_)
   );
-  sg13g2_o21ai_1 _2905_ (
-    .A1(_1611_),
-    .A2(_1652_),
-    .B1(_1688_),
+  sg13g2_o21ai_1 _2908_ (
+    .A1(_1538_),
+    .A2(_1661_),
+    .B1(_1666_),
     .Y(_0414_)
   );
-  sg13g2_buf_2 _2906_ (
-    .A(_0525_),
-    .X(_1689_)
+  sg13g2_nand2_1 _2909_ (
+    .A(_1661_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[105] ),
+    .Y(_1667_)
   );
-  sg13g2_buf_1 _2907_ (
-    .A(_1689_),
-    .X(_1690_)
+  sg13g2_o21ai_1 _2910_ (
+    .A1(_1542_),
+    .A2(_1661_),
+    .B1(_1667_),
+    .Y(_0415_)
   );
-  sg13g2_mux2_1 _2908_ (
-    .A0(rdata_i[30]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[30] ),
-    .S(_1690_),
-    .X(_0415_)
+  sg13g2_nand2_1 _2911_ (
+    .A(_1661_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[104] ),
+    .Y(_1668_)
   );
-  sg13g2_mux2_1 _2909_ (
-    .A0(rdata_i[29]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[29] ),
-    .S(_1690_),
-    .X(_0416_)
+  sg13g2_o21ai_1 _2912_ (
+    .A1(_1546_),
+    .A2(_1661_),
+    .B1(_1668_),
+    .Y(_0416_)
   );
-  sg13g2_mux2_1 _2910_ (
-    .A0(rdata_i[28]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[28] ),
-    .S(_1690_),
-    .X(_0417_)
+  sg13g2_nand3_1 _2913_ (
+    .A(_1595_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .Y(_1669_)
   );
-  sg13g2_mux2_1 _2911_ (
-    .A0(rdata_i[27]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[27] ),
-    .S(_1690_),
-    .X(_0418_)
+  sg13g2_buf_1 _2914_ (
+    .A(_1669_),
+    .X(_1670_)
   );
-  sg13g2_mux2_1 _2912_ (
-    .A0(rdata_i[26]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[26] ),
-    .S(_1690_),
-    .X(_0419_)
+  sg13g2_nand2_1 _2915_ (
+    .A(_1670_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[118] ),
+    .Y(_1671_)
   );
-  sg13g2_mux2_1 _2913_ (
-    .A0(rdata_i[25]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[25] ),
-    .S(_1690_),
-    .X(_0420_)
+  sg13g2_o21ai_1 _2916_ (
+    .A1(_1522_),
+    .A2(_1670_),
+    .B1(_1671_),
+    .Y(_0417_)
   );
-  sg13g2_mux2_1 _2914_ (
-    .A0(rdata_i[24]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[24] ),
-    .S(_1690_),
-    .X(_0421_)
+  sg13g2_nand2_1 _2917_ (
+    .A(_1670_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[117] ),
+    .Y(_1672_)
   );
-  sg13g2_mux2_1 _2915_ (
-    .A0(rdata_i[23]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[23] ),
-    .S(_1690_),
-    .X(_0422_)
+  sg13g2_o21ai_1 _2918_ (
+    .A1(_1526_),
+    .A2(_1670_),
+    .B1(_1672_),
+    .Y(_0418_)
   );
-  sg13g2_mux2_1 _2916_ (
-    .A0(rdata_i[22]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[22] ),
-    .S(_1690_),
-    .X(_0423_)
+  sg13g2_nand2_1 _2919_ (
+    .A(_1670_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[116] ),
+    .Y(_1673_)
   );
-  sg13g2_mux2_1 _2917_ (
-    .A0(rdata_i[21]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[21] ),
-    .S(_1690_),
-    .X(_0424_)
+  sg13g2_o21ai_1 _2920_ (
+    .A1(_1530_),
+    .A2(_1670_),
+    .B1(_1673_),
+    .Y(_0419_)
   );
-  sg13g2_mux2_1 _2918_ (
-    .A0(rdata_i[20]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[20] ),
-    .S(_1690_),
-    .X(_0425_)
+  sg13g2_nand2_1 _2921_ (
+    .A(_1670_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[115] ),
+    .Y(_1674_)
   );
-  sg13g2_mux2_1 _2919_ (
-    .A0(rdata_i[19]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[19] ),
-    .S(_1690_),
-    .X(_0426_)
+  sg13g2_o21ai_1 _2922_ (
+    .A1(_1534_),
+    .A2(_1670_),
+    .B1(_1674_),
+    .Y(_0420_)
   );
-  sg13g2_mux2_1 _2920_ (
-    .A0(rdata_i[18]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[18] ),
-    .S(_1690_),
-    .X(_0427_)
+  sg13g2_nand2_1 _2923_ (
+    .A(_1670_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[114] ),
+    .Y(_1675_)
   );
-  sg13g2_mux2_1 _2921_ (
-    .A0(rdata_i[17]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[17] ),
-    .S(_1690_),
-    .X(_0428_)
+  sg13g2_o21ai_1 _2924_ (
+    .A1(_1538_),
+    .A2(_1670_),
+    .B1(_1675_),
+    .Y(_0421_)
   );
-  sg13g2_mux2_1 _2922_ (
-    .A0(rdata_i[16]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[16] ),
-    .S(_1690_),
-    .X(_0429_)
+  sg13g2_nand2_1 _2925_ (
+    .A(_1670_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[113] ),
+    .Y(_1676_)
   );
-  sg13g2_mux2_1 _2923_ (
-    .A0(rdata_i[15]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[15] ),
-    .S(_1690_),
-    .X(_0430_)
+  sg13g2_o21ai_1 _2926_ (
+    .A1(_1542_),
+    .A2(_1670_),
+    .B1(_1676_),
+    .Y(_0422_)
   );
-  sg13g2_mux2_1 _2924_ (
-    .A0(rdata_i[14]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[14] ),
-    .S(_1690_),
-    .X(_0431_)
+  sg13g2_nand2_1 _2927_ (
+    .A(_1670_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[112] ),
+    .Y(_1677_)
   );
-  sg13g2_mux2_1 _2925_ (
-    .A0(rdata_i[13]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[13] ),
-    .S(_1689_),
-    .X(_0432_)
+  sg13g2_o21ai_1 _2928_ (
+    .A1(_1546_),
+    .A2(_1670_),
+    .B1(_1677_),
+    .Y(_0423_)
   );
-  sg13g2_mux2_1 _2926_ (
-    .A0(rdata_i[12]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[12] ),
-    .S(_1689_),
-    .X(_0433_)
+  sg13g2_nor2_1 _2929_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[126] ),
+    .B(_1483_),
+    .Y(_1678_)
   );
-  sg13g2_mux2_1 _2927_ (
-    .A0(rdata_i[11]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[11] ),
-    .S(_1689_),
-    .X(_0434_)
+  sg13g2_a21oi_1 _2930_ (
+    .A1(_1483_),
+    .A2(_1522_),
+    .B1(_1678_),
+    .Y(_0424_)
   );
-  sg13g2_mux2_1 _2928_ (
-    .A0(rdata_i[10]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[10] ),
-    .S(_1689_),
-    .X(_0435_)
+  sg13g2_nor2_1 _2931_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[125] ),
+    .B(_1483_),
+    .Y(_1679_)
   );
-  sg13g2_mux2_1 _2929_ (
-    .A0(rdata_i[9]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[9] ),
-    .S(_1689_),
-    .X(_0436_)
+  sg13g2_a21oi_1 _2932_ (
+    .A1(_1483_),
+    .A2(_1526_),
+    .B1(_1679_),
+    .Y(_0425_)
   );
-  sg13g2_mux2_1 _2930_ (
-    .A0(rdata_i[8]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[8] ),
-    .S(_1689_),
-    .X(_0437_)
+  sg13g2_nor2_1 _2933_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[124] ),
+    .B(_1483_),
+    .Y(_1680_)
   );
-  sg13g2_mux2_1 _2931_ (
-    .A0(rdata_i[7]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[7] ),
-    .S(_1689_),
-    .X(_0438_)
+  sg13g2_a21oi_1 _2934_ (
+    .A1(_1483_),
+    .A2(_1530_),
+    .B1(_1680_),
+    .Y(_0426_)
   );
-  sg13g2_mux2_1 _2932_ (
-    .A0(rdata_i[6]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[6] ),
-    .S(_1689_),
-    .X(_0439_)
+  sg13g2_nor2_1 _2935_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[123] ),
+    .B(_1483_),
+    .Y(_1681_)
   );
-  sg13g2_mux2_1 _2933_ (
-    .A0(rdata_i[5]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[5] ),
-    .S(_1689_),
-    .X(_0440_)
+  sg13g2_a21oi_1 _2936_ (
+    .A1(_1483_),
+    .A2(_1534_),
+    .B1(_1681_),
+    .Y(_0427_)
   );
-  sg13g2_mux2_1 _2934_ (
-    .A0(rdata_i[4]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[4] ),
-    .S(_1689_),
-    .X(_0441_)
+  sg13g2_nor2_1 _2937_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[122] ),
+    .B(_1483_),
+    .Y(_1682_)
   );
-  sg13g2_mux2_1 _2935_ (
-    .A0(rdata_i[3]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[3] ),
-    .S(_1689_),
-    .X(_0442_)
+  sg13g2_a21oi_1 _2938_ (
+    .A1(_1483_),
+    .A2(_1538_),
+    .B1(_1682_),
+    .Y(_0428_)
   );
-  sg13g2_mux2_1 _2936_ (
-    .A0(rdata_i[2]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[2] ),
-    .S(_1689_),
-    .X(_0443_)
+  sg13g2_nor2_1 _2939_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[121] ),
+    .B(_1483_),
+    .Y(_1683_)
   );
-  sg13g2_mux2_1 _2937_ (
-    .A0(rdata_i[1]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[1] ),
-    .S(_1689_),
-    .X(_0444_)
+  sg13g2_a21oi_1 _2940_ (
+    .A1(_1483_),
+    .A2(_1542_),
+    .B1(_1683_),
+    .Y(_0429_)
   );
-  sg13g2_mux2_1 _2938_ (
-    .A0(rdata_i[0]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[0] ),
-    .S(_1689_),
-    .X(_0445_)
+  sg13g2_nor2_1 _2941_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[120] ),
+    .B(_1483_),
+    .Y(_1684_)
   );
-  sg13g2_nand2b_1 _2939_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[39] ),
-    .B(_1261_),
-    .Y(_1691_)
+  sg13g2_a21oi_1 _2942_ (
+    .A1(_1483_),
+    .A2(_1546_),
+    .B1(_1684_),
+    .Y(_0430_)
   );
-  sg13g2_nand2b_1 _2940_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[47] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1692_)
+  sg13g2_nor3_1 _2943_ (
+    .A(_1212_),
+    .B(_1458_),
+    .C(_1464_),
+    .Y(_1685_)
   );
-  sg13g2_nand3_1 _2941_ (
-    .A(_1691_),
-    .B(_1692_),
-    .C(_0910_),
-    .Y(_1693_)
+  sg13g2_buf_1 _2944_ (
+    .A(_1685_),
+    .X(_1686_)
   );
-  sg13g2_nand2b_1 _2942_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[55] ),
-    .B(_1261_),
-    .Y(_1694_)
-  );
-  sg13g2_nand2b_1 _2943_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[63] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1695_)
-  );
-  sg13g2_nand3_1 _2944_ (
-    .A(_1694_),
-    .B(_1695_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1696_)
-  );
-  sg13g2_nand3_1 _2945_ (
-    .A(_1693_),
-    .B(_1696_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .Y(_1697_)
+  sg13g2_buf_1 _2945_ (
+    .A(_1685_),
+    .X(_1687_)
   );
   sg13g2_nand2b_1 _2946_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[7] ),
-    .B(_1261_),
-    .Y(_1698_)
+    .A_N(tl_i[54]),
+    .B(_1687_),
+    .Y(_1688_)
   );
-  sg13g2_nand2b_1 _2947_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[15] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1699_)
+  sg13g2_o21ai_1 _2947_ (
+    .A1(_1215_),
+    .A2(_1686_),
+    .B1(_1688_),
+    .Y(_0431_)
   );
-  sg13g2_nand3_1 _2948_ (
-    .A(_1698_),
-    .B(_1699_),
-    .C(_0910_),
-    .Y(_1700_)
+  sg13g2_nand2_1 _2948_ (
+    .A(_1687_),
+    .B(tl_i[53]),
+    .Y(_1689_)
   );
-  sg13g2_nand2b_1 _2949_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[23] ),
-    .B(_1261_),
-    .Y(_1701_)
+  sg13g2_o21ai_1 _2949_ (
+    .A1(_0560_),
+    .A2(_1686_),
+    .B1(_1689_),
+    .Y(_0432_)
   );
-  sg13g2_nand2b_1 _2950_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[31] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1702_)
+  sg13g2_nand2_1 _2950_ (
+    .A(_1687_),
+    .B(tl_i[52]),
+    .Y(_1690_)
   );
-  sg13g2_nand3_1 _2951_ (
-    .A(_1701_),
-    .B(_1702_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1703_)
+  sg13g2_o21ai_1 _2951_ (
+    .A1(_0627_),
+    .A2(_1686_),
+    .B1(_1690_),
+    .Y(_0433_)
   );
-  sg13g2_nand3_1 _2952_ (
-    .A(_1700_),
-    .B(_1703_),
-    .C(_0546_),
-    .Y(_1704_)
+  sg13g2_nand2b_1 _2952_ (
+    .A_N(tl_i[51]),
+    .B(_1687_),
+    .Y(_1691_)
   );
-  sg13g2_nand2_1 _2953_ (
-    .A(_1697_),
-    .B(_1704_),
-    .Y(_1705_)
+  sg13g2_o21ai_1 _2953_ (
+    .A1(_1230_),
+    .A2(_1686_),
+    .B1(_1691_),
+    .Y(_0434_)
   );
-  sg13g2_inv_1 _2954_ (
-    .A(_0042_),
-    .Y(_1706_)
+  sg13g2_nand2_1 _2954_ (
+    .A(_1687_),
+    .B(tl_i[50]),
+    .Y(_1692_)
   );
-  sg13g2_nor2_1 _2955_ (
-    .A(_1706_),
-    .B(_1027_),
-    .Y(_1707_)
+  sg13g2_o21ai_1 _2955_ (
+    .A1(_0622_),
+    .A2(_1686_),
+    .B1(_1692_),
+    .Y(_0435_)
   );
-  sg13g2_a21oi_1 _2956_ (
-    .A1(_1027_),
-    .A2(_1705_),
-    .B1(_1707_),
-    .Y(_1708_)
+  sg13g2_nand2b_1 _2956_ (
+    .A_N(tl_i[49]),
+    .B(_1687_),
+    .Y(_1693_)
   );
-  sg13g2_nand2_1 _2957_ (
-    .A(_1029_),
-    .B(_0033_),
-    .Y(_1709_)
+  sg13g2_o21ai_1 _2957_ (
+    .A1(_0609_),
+    .A2(_1686_),
+    .B1(_1693_),
+    .Y(_0436_)
   );
-  sg13g2_o21ai_1 _2958_ (
-    .A1(_1708_),
-    .A2(_1038_),
-    .B1(_1709_),
-    .Y(_0446_)
+  sg13g2_nand2b_1 _2958_ (
+    .A_N(tl_i[48]),
+    .B(_1687_),
+    .Y(_1694_)
   );
-  sg13g2_inv_1 _2959_ (
-    .A(_0034_),
-    .Y(_1710_)
+  sg13g2_o21ai_1 _2959_ (
+    .A1(_0616_),
+    .A2(_1686_),
+    .B1(_1694_),
+    .Y(_0437_)
   );
-  sg13g2_nor2b_1 _2960_ (
-    .A(_1027_),
-    .B_N(_0033_),
-    .Y(_1711_)
+  sg13g2_nand2_1 _2960_ (
+    .A(_1687_),
+    .B(tl_i[47]),
+    .Y(_1695_)
   );
-  sg13g2_nand2b_1 _2961_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[38] ),
-    .B(_1262_),
-    .Y(_1712_)
+  sg13g2_o21ai_1 _2961_ (
+    .A1(_0592_),
+    .A2(_1686_),
+    .B1(_1695_),
+    .Y(_0438_)
   );
   sg13g2_nand2b_1 _2962_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[46] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1713_)
+    .A_N(tl_i[46]),
+    .B(_1687_),
+    .Y(_1696_)
   );
-  sg13g2_nand3_1 _2963_ (
-    .A(_1712_),
-    .B(_1713_),
-    .C(_0910_),
-    .Y(_1714_)
+  sg13g2_o21ai_1 _2963_ (
+    .A1(_0597_),
+    .A2(_1686_),
+    .B1(_1696_),
+    .Y(_0439_)
   );
   sg13g2_nand2b_1 _2964_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[54] ),
-    .B(_1261_),
-    .Y(_1715_)
+    .A_N(tl_i[45]),
+    .B(_1687_),
+    .Y(_1697_)
   );
-  sg13g2_nand2b_1 _2965_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[62] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1716_)
+  sg13g2_o21ai_1 _2965_ (
+    .A1(_0567_),
+    .A2(_1686_),
+    .B1(_1697_),
+    .Y(_0440_)
   );
-  sg13g2_nand3_1 _2966_ (
-    .A(_1715_),
-    .B(_1716_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1717_)
+  sg13g2_nand2b_1 _2966_ (
+    .A_N(tl_i[44]),
+    .B(_1687_),
+    .Y(_1698_)
   );
-  sg13g2_nand3_1 _2967_ (
-    .A(_1714_),
-    .B(_1717_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .Y(_1718_)
+  sg13g2_o21ai_1 _2967_ (
+    .A1(_0569_),
+    .A2(_1686_),
+    .B1(_1698_),
+    .Y(_0441_)
   );
   sg13g2_nand2b_1 _2968_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[6] ),
-    .B(_1262_),
-    .Y(_1719_)
+    .A_N(tl_i[43]),
+    .B(_1687_),
+    .Y(_1699_)
   );
-  sg13g2_nand2b_1 _2969_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[14] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1720_)
+  sg13g2_o21ai_1 _2969_ (
+    .A1(_1260_),
+    .A2(_1686_),
+    .B1(_1699_),
+    .Y(_0442_)
   );
-  sg13g2_nand3_1 _2970_ (
-    .A(_1719_),
-    .B(_1720_),
-    .C(_0910_),
-    .Y(_1721_)
+  sg13g2_nand2b_1 _2970_ (
+    .A_N(tl_i[42]),
+    .B(_1687_),
+    .Y(_1700_)
   );
-  sg13g2_nand2b_1 _2971_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[22] ),
-    .B(_1261_),
-    .Y(_1722_)
+  sg13g2_o21ai_1 _2971_ (
+    .A1(_0570_),
+    .A2(_1686_),
+    .B1(_1700_),
+    .Y(_0443_)
   );
   sg13g2_nand2b_1 _2972_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[30] ),
+    .A_N(tl_i[41]),
+    .B(_1687_),
+    .Y(_1701_)
+  );
+  sg13g2_o21ai_1 _2973_ (
+    .A1(_0572_),
+    .A2(_1686_),
+    .B1(_1701_),
+    .Y(_0444_)
+  );
+  sg13g2_nand2b_1 _2974_ (
+    .A_N(tl_i[40]),
+    .B(_1685_),
+    .Y(_1702_)
+  );
+  sg13g2_o21ai_1 _2975_ (
+    .A1(_0575_),
+    .A2(_1686_),
+    .B1(_1702_),
+    .Y(_0445_)
+  );
+  sg13g2_nand2b_1 _2976_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[39] ),
+    .B(_1354_),
+    .Y(_1703_)
+  );
+  sg13g2_nand2b_1 _2977_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[47] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1723_)
+    .Y(_1704_)
   );
-  sg13g2_nand3_1 _2973_ (
-    .A(_1722_),
-    .B(_1723_),
+  sg13g2_nand3_1 _2978_ (
+    .A(_1703_),
+    .B(_1704_),
+    .C(_1324_),
+    .Y(_1705_)
+  );
+  sg13g2_nand2b_1 _2979_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[55] ),
+    .B(_1354_),
+    .Y(_1706_)
+  );
+  sg13g2_nand2b_1 _2980_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[63] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_1707_)
+  );
+  sg13g2_nand3_1 _2981_ (
+    .A(_1706_),
+    .B(_1707_),
     .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1724_)
+    .Y(_1708_)
   );
-  sg13g2_nand3_1 _2974_ (
-    .A(_1721_),
-    .B(_1724_),
-    .C(_0546_),
-    .Y(_1725_)
+  sg13g2_nand3_1 _2982_ (
+    .A(_1705_),
+    .B(_1708_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .Y(_1709_)
   );
-  sg13g2_nand2_1 _2975_ (
-    .A(_1718_),
-    .B(_1725_),
-    .Y(_1726_)
+  sg13g2_nand2b_1 _2983_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[7] ),
+    .B(_1355_),
+    .Y(_1710_)
   );
-  sg13g2_nor2b_1 _2976_ (
-    .A(_1026_),
-    .B_N(_1726_),
-    .Y(_1727_)
+  sg13g2_nand2b_1 _2984_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[15] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_1711_)
   );
-  sg13g2_o21ai_1 _2977_ (
-    .A1(_1711_),
-    .A2(_1727_),
-    .B1(_1032_),
-    .Y(_1728_)
-  );
-  sg13g2_o21ai_1 _2978_ (
-    .A1(_1710_),
-    .A2(_1030_),
-    .B1(_1728_),
-    .Y(_0447_)
-  );
-  sg13g2_inv_1 _2979_ (
-    .A(_0035_),
-    .Y(_1729_)
-  );
-  sg13g2_nor2_1 _2980_ (
+  sg13g2_nand3_1 _2985_ (
     .A(_1710_),
-    .B(_1027_),
-    .Y(_1730_)
-  );
-  sg13g2_inv_1 _2981_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[45] ),
-    .Y(_1731_)
-  );
-  sg13g2_o21ai_1 _2982_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[37] ),
-    .B1(_0910_),
-    .Y(_1732_)
-  );
-  sg13g2_a21oi_1 _2983_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_1731_),
-    .B1(_1732_),
-    .Y(_1733_)
-  );
-  sg13g2_nor2_1 _2984_ (
-    .A(_0546_),
-    .B(_1733_),
-    .Y(_1734_)
-  );
-  sg13g2_nand2b_1 _2985_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[53] ),
-    .B(_1262_),
-    .Y(_1735_)
+    .B(_1711_),
+    .C(_1324_),
+    .Y(_1712_)
   );
   sg13g2_nand2b_1 _2986_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[61] ),
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[23] ),
+    .B(_1354_),
+    .Y(_1713_)
+  );
+  sg13g2_nand2b_1 _2987_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[31] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1736_)
+    .Y(_1714_)
   );
-  sg13g2_nand3_1 _2987_ (
-    .A(_1735_),
-    .B(_1736_),
+  sg13g2_nand3_1 _2988_ (
+    .A(_1713_),
+    .B(_1714_),
     .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1737_)
+    .Y(_1715_)
   );
-  sg13g2_nand2b_1 _2988_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[21] ),
-    .B(_1262_),
-    .Y(_1738_)
+  sg13g2_nand3_1 _2989_ (
+    .A(_1712_),
+    .B(_1715_),
+    .C(_0545_),
+    .Y(_1716_)
   );
-  sg13g2_nand2b_1 _2989_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[29] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1739_)
-  );
-  sg13g2_nand3_1 _2990_ (
-    .A(_1738_),
-    .B(_1739_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1740_)
+  sg13g2_nand2_1 _2990_ (
+    .A(_1709_),
+    .B(_1716_),
+    .Y(_1717_)
   );
   sg13g2_inv_1 _2991_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[13] ),
-    .Y(_1741_)
+    .A(_0042_),
+    .Y(_1718_)
   );
-  sg13g2_o21ai_1 _2992_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[5] ),
-    .B1(_0910_),
-    .Y(_1742_)
+  sg13g2_nor2_1 _2992_ (
+    .A(_1718_),
+    .B(_1159_),
+    .Y(_1719_)
   );
   sg13g2_a21oi_1 _2993_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_1741_),
-    .B1(_1742_),
-    .Y(_1743_)
+    .A1(_1159_),
+    .A2(_1717_),
+    .B1(_1719_),
+    .Y(_1720_)
   );
-  sg13g2_nor2_1 _2994_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .B(_1743_),
-    .Y(_1744_)
+  sg13g2_nand2_1 _2994_ (
+    .A(_1161_),
+    .B(_0033_),
+    .Y(_1721_)
   );
-  sg13g2_a22oi_1 _2995_ (
-    .A1(_1734_),
-    .A2(_1737_),
-    .B1(_1740_),
-    .B2(_1744_),
-    .Y(_1745_)
+  sg13g2_o21ai_1 _2995_ (
+    .A1(_1720_),
+    .A2(_1171_),
+    .B1(_1721_),
+    .Y(_0446_)
   );
-  sg13g2_nor2_1 _2996_ (
-    .A(_1745_),
-    .B(_1026_),
-    .Y(_1746_)
+  sg13g2_inv_1 _2996_ (
+    .A(_0034_),
+    .Y(_1722_)
   );
-  sg13g2_o21ai_1 _2997_ (
-    .A1(_1730_),
-    .A2(_1746_),
-    .B1(_1032_),
-    .Y(_1747_)
+  sg13g2_nand2b_1 _2997_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[38] ),
+    .B(_1355_),
+    .Y(_1723_)
   );
-  sg13g2_o21ai_1 _2998_ (
-    .A1(_1729_),
-    .A2(_1030_),
-    .B1(_1747_),
-    .Y(_0448_)
+  sg13g2_nand2b_1 _2998_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[46] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_1724_)
   );
-  sg13g2_inv_1 _2999_ (
-    .A(_0036_),
-    .Y(_1748_)
+  sg13g2_nand3_1 _2999_ (
+    .A(_1723_),
+    .B(_1724_),
+    .C(_1324_),
+    .Y(_1725_)
   );
-  sg13g2_nor2_1 _3000_ (
-    .A(_1729_),
-    .B(_1027_),
-    .Y(_1749_)
+  sg13g2_nand2b_1 _3000_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[54] ),
+    .B(_1355_),
+    .Y(_1726_)
   );
-  sg13g2_inv_1 _3001_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[44] ),
-    .Y(_1750_)
+  sg13g2_nand2b_1 _3001_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[62] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_1727_)
   );
-  sg13g2_o21ai_1 _3002_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[36] ),
-    .B1(_0910_),
-    .Y(_1751_)
+  sg13g2_nand3_1 _3002_ (
+    .A(_1726_),
+    .B(_1727_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_1728_)
   );
-  sg13g2_a21oi_1 _3003_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_1750_),
-    .B1(_1751_),
-    .Y(_1752_)
+  sg13g2_nand3_1 _3003_ (
+    .A(_1725_),
+    .B(_1728_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .Y(_1729_)
   );
-  sg13g2_nor2_1 _3004_ (
-    .A(_0546_),
-    .B(_1752_),
-    .Y(_1753_)
+  sg13g2_nand2b_1 _3004_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[6] ),
+    .B(_1355_),
+    .Y(_1730_)
   );
   sg13g2_nand2b_1 _3005_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[52] ),
-    .B(_1262_),
-    .Y(_1754_)
-  );
-  sg13g2_nand2b_1 _3006_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[60] ),
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[14] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1755_)
+    .Y(_1731_)
   );
-  sg13g2_nand3_1 _3007_ (
-    .A(_1754_),
-    .B(_1755_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1756_)
+  sg13g2_nand3_1 _3006_ (
+    .A(_1730_),
+    .B(_1731_),
+    .C(_1324_),
+    .Y(_1732_)
+  );
+  sg13g2_nand2b_1 _3007_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[22] ),
+    .B(_1355_),
+    .Y(_1733_)
   );
   sg13g2_nand2b_1 _3008_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[20] ),
-    .B(_1262_),
-    .Y(_1757_)
-  );
-  sg13g2_nand2b_1 _3009_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[28] ),
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[30] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1758_)
+    .Y(_1734_)
+  );
+  sg13g2_nand3_1 _3009_ (
+    .A(_1733_),
+    .B(_1734_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_1735_)
   );
   sg13g2_nand3_1 _3010_ (
-    .A(_1757_),
-    .B(_1758_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1759_)
+    .A(_1732_),
+    .B(_1735_),
+    .C(_0545_),
+    .Y(_1736_)
   );
-  sg13g2_inv_1 _3011_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[12] ),
-    .Y(_1760_)
+  sg13g2_nand2_1 _3011_ (
+    .A(_1729_),
+    .B(_1736_),
+    .Y(_1737_)
   );
-  sg13g2_o21ai_1 _3012_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[4] ),
-    .B1(_0910_),
-    .Y(_1761_)
+  sg13g2_nand2b_1 _3012_ (
+    .A_N(_1737_),
+    .B(_1159_),
+    .Y(_1738_)
   );
-  sg13g2_a21oi_1 _3013_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_1760_),
-    .B1(_1761_),
-    .Y(_1762_)
+  sg13g2_nand2b_1 _3013_ (
+    .A_N(_0033_),
+    .B(_1165_),
+    .Y(_1739_)
   );
-  sg13g2_nor2_1 _3014_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .B(_1762_),
-    .Y(_1763_)
+  sg13g2_nand3_1 _3014_ (
+    .A(_1164_),
+    .B(_1738_),
+    .C(_1739_),
+    .Y(_1740_)
   );
-  sg13g2_a22oi_1 _3015_ (
-    .A1(_1753_),
-    .A2(_1756_),
-    .B1(_1759_),
-    .B2(_1763_),
-    .Y(_1764_)
+  sg13g2_o21ai_1 _3015_ (
+    .A1(_1722_),
+    .A2(_1162_),
+    .B1(_1740_),
+    .Y(_0447_)
   );
-  sg13g2_nor2_1 _3016_ (
-    .A(_1764_),
-    .B(_1026_),
-    .Y(_1765_)
+  sg13g2_inv_1 _3016_ (
+    .A(_0035_),
+    .Y(_1741_)
   );
-  sg13g2_o21ai_1 _3017_ (
-    .A1(_1749_),
-    .A2(_1765_),
-    .B1(_1032_),
-    .Y(_1766_)
+  sg13g2_inv_1 _3017_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[45] ),
+    .Y(_1742_)
   );
   sg13g2_o21ai_1 _3018_ (
-    .A1(_1748_),
-    .A2(_1030_),
-    .B1(_1766_),
-    .Y(_0449_)
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[37] ),
+    .B1(_1324_),
+    .Y(_1743_)
   );
-  sg13g2_inv_1 _3019_ (
-    .A(_0037_),
-    .Y(_1767_)
+  sg13g2_a21oi_1 _3019_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1742_),
+    .B1(_1743_),
+    .Y(_1744_)
   );
   sg13g2_nor2_1 _3020_ (
-    .A(_1748_),
-    .B(_1027_),
-    .Y(_1768_)
+    .A(_0545_),
+    .B(_1744_),
+    .Y(_1745_)
   );
   sg13g2_nand2b_1 _3021_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[35] ),
-    .B(_1262_),
-    .Y(_1769_)
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[53] ),
+    .B(_1355_),
+    .Y(_1746_)
   );
   sg13g2_nand2b_1 _3022_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[43] ),
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[61] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1770_)
+    .Y(_1747_)
   );
   sg13g2_nand3_1 _3023_ (
-    .A(_1769_),
-    .B(_1770_),
-    .C(_0910_),
-    .Y(_1771_)
+    .A(_1746_),
+    .B(_1747_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_1748_)
   );
   sg13g2_nand2b_1 _3024_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[51] ),
-    .B(_1262_),
-    .Y(_1772_)
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[21] ),
+    .B(_1355_),
+    .Y(_1749_)
   );
   sg13g2_nand2b_1 _3025_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[59] ),
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[29] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1773_)
+    .Y(_1750_)
   );
   sg13g2_nand3_1 _3026_ (
-    .A(_1772_),
-    .B(_1773_),
+    .A(_1749_),
+    .B(_1750_),
     .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1774_)
+    .Y(_1751_)
   );
-  sg13g2_nand3_1 _3027_ (
-    .A(_1771_),
-    .B(_1774_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .Y(_1775_)
+  sg13g2_inv_1 _3027_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[13] ),
+    .Y(_1752_)
   );
-  sg13g2_nand2b_1 _3028_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[3] ),
-    .B(_1262_),
-    .Y(_1776_)
+  sg13g2_o21ai_1 _3028_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[5] ),
+    .B1(_1324_),
+    .Y(_1753_)
   );
-  sg13g2_nand2b_1 _3029_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[11] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1777_)
+  sg13g2_a21oi_1 _3029_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1752_),
+    .B1(_1753_),
+    .Y(_1754_)
   );
-  sg13g2_nand3_1 _3030_ (
-    .A(_1776_),
-    .B(_1777_),
-    .C(_0910_),
-    .Y(_1778_)
+  sg13g2_nor2_1 _3030_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .B(_1754_),
+    .Y(_1755_)
   );
-  sg13g2_nand2b_1 _3031_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[19] ),
-    .B(_1262_),
-    .Y(_1779_)
+  sg13g2_a22oi_1 _3031_ (
+    .A1(_1745_),
+    .A2(_1748_),
+    .B1(_1751_),
+    .B2(_1755_),
+    .Y(_1756_)
   );
-  sg13g2_nand2b_1 _3032_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[27] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_1780_)
+  sg13g2_nand2_1 _3032_ (
+    .A(_1159_),
+    .B(_1756_),
+    .Y(_1757_)
   );
-  sg13g2_nand3_1 _3033_ (
-    .A(_1779_),
-    .B(_1780_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_1781_)
+  sg13g2_nand2_1 _3033_ (
+    .A(_1165_),
+    .B(_1722_),
+    .Y(_1758_)
   );
   sg13g2_nand3_1 _3034_ (
-    .A(_1778_),
-    .B(_1781_),
-    .C(_0546_),
+    .A(_1164_),
+    .B(_1757_),
+    .C(_1758_),
+    .Y(_1759_)
+  );
+  sg13g2_o21ai_1 _3035_ (
+    .A1(_1741_),
+    .A2(_1162_),
+    .B1(_1759_),
+    .Y(_0448_)
+  );
+  sg13g2_inv_1 _3036_ (
+    .A(_0036_),
+    .Y(_1760_)
+  );
+  sg13g2_inv_1 _3037_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[44] ),
+    .Y(_1761_)
+  );
+  sg13g2_o21ai_1 _3038_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[36] ),
+    .B1(_1324_),
+    .Y(_1762_)
+  );
+  sg13g2_a21oi_1 _3039_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1761_),
+    .B1(_1762_),
+    .Y(_1763_)
+  );
+  sg13g2_nor2_1 _3040_ (
+    .A(_0545_),
+    .B(_1763_),
+    .Y(_1764_)
+  );
+  sg13g2_nand2b_1 _3041_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[52] ),
+    .B(_1355_),
+    .Y(_1765_)
+  );
+  sg13g2_nand2b_1 _3042_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[60] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_1766_)
+  );
+  sg13g2_nand3_1 _3043_ (
+    .A(_1765_),
+    .B(_1766_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_1767_)
+  );
+  sg13g2_nand2b_1 _3044_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[20] ),
+    .B(_1355_),
+    .Y(_1768_)
+  );
+  sg13g2_nand2b_1 _3045_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[28] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_1769_)
+  );
+  sg13g2_nand3_1 _3046_ (
+    .A(_1768_),
+    .B(_1769_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_1770_)
+  );
+  sg13g2_inv_1 _3047_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[12] ),
+    .Y(_1771_)
+  );
+  sg13g2_o21ai_1 _3048_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[4] ),
+    .B1(_1324_),
+    .Y(_1772_)
+  );
+  sg13g2_a21oi_1 _3049_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1771_),
+    .B1(_1772_),
+    .Y(_1773_)
+  );
+  sg13g2_nor2_1 _3050_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .B(_1773_),
+    .Y(_1774_)
+  );
+  sg13g2_a22oi_1 _3051_ (
+    .A1(_1764_),
+    .A2(_1767_),
+    .B1(_1770_),
+    .B2(_1774_),
+    .Y(_1775_)
+  );
+  sg13g2_nand2_1 _3052_ (
+    .A(_1159_),
+    .B(_1775_),
+    .Y(_1776_)
+  );
+  sg13g2_nand2_1 _3053_ (
+    .A(_1165_),
+    .B(_1741_),
+    .Y(_1777_)
+  );
+  sg13g2_nand3_1 _3054_ (
+    .A(_1164_),
+    .B(_1776_),
+    .C(_1777_),
+    .Y(_1778_)
+  );
+  sg13g2_o21ai_1 _3055_ (
+    .A1(_1760_),
+    .A2(_1162_),
+    .B1(_1778_),
+    .Y(_0449_)
+  );
+  sg13g2_inv_1 _3056_ (
+    .A(_0037_),
+    .Y(_1779_)
+  );
+  sg13g2_inv_1 _3057_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[43] ),
+    .Y(_1780_)
+  );
+  sg13g2_o21ai_1 _3058_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[35] ),
+    .B1(_1324_),
+    .Y(_1781_)
+  );
+  sg13g2_a21oi_1 _3059_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1780_),
+    .B1(_1781_),
     .Y(_1782_)
   );
-  sg13g2_nand2_1 _3035_ (
-    .A(_1775_),
+  sg13g2_nor2_1 _3060_ (
+    .A(_0545_),
     .B(_1782_),
     .Y(_1783_)
   );
-  sg13g2_nor2b_1 _3036_ (
-    .A(_1026_),
-    .B_N(_1783_),
+  sg13g2_nand2b_1 _3061_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[51] ),
+    .B(_1355_),
     .Y(_1784_)
   );
-  sg13g2_o21ai_1 _3037_ (
-    .A1(_1768_),
-    .A2(_1784_),
-    .B1(_1032_),
+  sg13g2_nand2b_1 _3062_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[59] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1785_)
   );
-  sg13g2_o21ai_1 _3038_ (
-    .A1(_1767_),
-    .A2(_1030_),
-    .B1(_1785_),
-    .Y(_0450_)
-  );
-  sg13g2_inv_1 _3039_ (
-    .A(_0038_),
+  sg13g2_nand3_1 _3063_ (
+    .A(_1784_),
+    .B(_1785_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1786_)
   );
-  sg13g2_nor2_1 _3040_ (
-    .A(_1767_),
-    .B(_1027_),
+  sg13g2_nand2b_1 _3064_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[19] ),
+    .B(_1355_),
     .Y(_1787_)
   );
-  sg13g2_nand2b_1 _3041_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[34] ),
-    .B(_1262_),
+  sg13g2_nand2b_1 _3065_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[27] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1788_)
   );
-  sg13g2_nand2b_1 _3042_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[42] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand3_1 _3066_ (
+    .A(_1787_),
+    .B(_1788_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1789_)
   );
-  sg13g2_nand3_1 _3043_ (
-    .A(_1788_),
-    .B(_1789_),
-    .C(_0910_),
+  sg13g2_inv_1 _3067_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[11] ),
     .Y(_1790_)
   );
-  sg13g2_nand2b_1 _3044_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[50] ),
-    .B(_1262_),
+  sg13g2_o21ai_1 _3068_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[3] ),
+    .B1(_1324_),
     .Y(_1791_)
   );
-  sg13g2_nand2b_1 _3045_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[58] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_a21oi_1 _3069_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1790_),
+    .B1(_1791_),
     .Y(_1792_)
   );
-  sg13g2_nand3_1 _3046_ (
-    .A(_1791_),
+  sg13g2_nor2_1 _3070_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
     .B(_1792_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1793_)
   );
-  sg13g2_nand3_1 _3047_ (
-    .A(_1790_),
-    .B(_1793_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_a22oi_1 _3071_ (
+    .A1(_1783_),
+    .A2(_1786_),
+    .B1(_1789_),
+    .B2(_1793_),
     .Y(_1794_)
   );
-  sg13g2_nand2b_1 _3048_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[2] ),
-    .B(_1262_),
+  sg13g2_nand2_1 _3072_ (
+    .A(_1159_),
+    .B(_1794_),
     .Y(_1795_)
   );
-  sg13g2_nand2b_1 _3049_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[10] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand2_1 _3073_ (
+    .A(_1165_),
+    .B(_1760_),
     .Y(_1796_)
   );
-  sg13g2_nand3_1 _3050_ (
-    .A(_1795_),
-    .B(_1796_),
-    .C(_0910_),
+  sg13g2_nand3_1 _3074_ (
+    .A(_1164_),
+    .B(_1795_),
+    .C(_1796_),
     .Y(_1797_)
   );
-  sg13g2_nand2b_1 _3051_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[18] ),
-    .B(_1262_),
+  sg13g2_o21ai_1 _3075_ (
+    .A1(_1779_),
+    .A2(_1162_),
+    .B1(_1797_),
+    .Y(_0450_)
+  );
+  sg13g2_inv_1 _3076_ (
+    .A(_0038_),
     .Y(_1798_)
   );
-  sg13g2_nand2b_1 _3052_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[26] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_inv_1 _3077_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[42] ),
     .Y(_1799_)
   );
-  sg13g2_nand3_1 _3053_ (
-    .A(_1798_),
-    .B(_1799_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+  sg13g2_o21ai_1 _3078_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[34] ),
+    .B1(_1324_),
     .Y(_1800_)
   );
-  sg13g2_nand3_1 _3054_ (
-    .A(_1797_),
-    .B(_1800_),
-    .C(_0546_),
+  sg13g2_a21oi_1 _3079_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1799_),
+    .B1(_1800_),
     .Y(_1801_)
   );
-  sg13g2_nand2_1 _3055_ (
-    .A(_1794_),
+  sg13g2_nor2_1 _3080_ (
+    .A(_0545_),
     .B(_1801_),
     .Y(_1802_)
   );
-  sg13g2_nor2b_1 _3056_ (
-    .A(_1026_),
-    .B_N(_1802_),
+  sg13g2_nand2b_1 _3081_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[50] ),
+    .B(_1355_),
     .Y(_1803_)
   );
-  sg13g2_o21ai_1 _3057_ (
-    .A1(_1787_),
-    .A2(_1803_),
-    .B1(_1032_),
+  sg13g2_nand2b_1 _3082_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[58] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1804_)
   );
-  sg13g2_o21ai_1 _3058_ (
-    .A1(_1786_),
-    .A2(_1030_),
-    .B1(_1804_),
-    .Y(_0451_)
-  );
-  sg13g2_inv_1 _3059_ (
-    .A(_0039_),
+  sg13g2_nand3_1 _3083_ (
+    .A(_1803_),
+    .B(_1804_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1805_)
   );
-  sg13g2_nor2_1 _3060_ (
-    .A(_1786_),
-    .B(_1027_),
+  sg13g2_nand2b_1 _3084_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[18] ),
+    .B(_1355_),
     .Y(_1806_)
   );
-  sg13g2_nand2b_1 _3061_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[33] ),
-    .B(_1262_),
+  sg13g2_nand2b_1 _3085_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[26] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1807_)
   );
-  sg13g2_nand2b_1 _3062_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[41] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand3_1 _3086_ (
+    .A(_1806_),
+    .B(_1807_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1808_)
   );
-  sg13g2_nand3_1 _3063_ (
-    .A(_1807_),
-    .B(_1808_),
-    .C(_0910_),
+  sg13g2_inv_1 _3087_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[10] ),
     .Y(_1809_)
   );
-  sg13g2_nand2b_1 _3064_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[49] ),
-    .B(_1262_),
+  sg13g2_o21ai_1 _3088_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[2] ),
+    .B1(_1324_),
     .Y(_1810_)
   );
-  sg13g2_nand2b_1 _3065_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[57] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_a21oi_1 _3089_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(_1809_),
+    .B1(_1810_),
     .Y(_1811_)
   );
-  sg13g2_nand3_1 _3066_ (
-    .A(_1810_),
+  sg13g2_nor2_1 _3090_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
     .B(_1811_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1812_)
   );
-  sg13g2_nand3_1 _3067_ (
-    .A(_1809_),
-    .B(_1812_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_a22oi_1 _3091_ (
+    .A1(_1802_),
+    .A2(_1805_),
+    .B1(_1808_),
+    .B2(_1812_),
     .Y(_1813_)
   );
-  sg13g2_nand2b_1 _3068_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[1] ),
-    .B(_1262_),
+  sg13g2_nand2_1 _3092_ (
+    .A(_1159_),
+    .B(_1813_),
     .Y(_1814_)
   );
-  sg13g2_nand2b_1 _3069_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[9] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand2_1 _3093_ (
+    .A(_1165_),
+    .B(_1779_),
     .Y(_1815_)
   );
-  sg13g2_nand3_1 _3070_ (
-    .A(_1814_),
-    .B(_1815_),
-    .C(_0910_),
+  sg13g2_nand3_1 _3094_ (
+    .A(_1164_),
+    .B(_1814_),
+    .C(_1815_),
     .Y(_1816_)
   );
-  sg13g2_nand2b_1 _3071_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[17] ),
-    .B(_1262_),
+  sg13g2_o21ai_1 _3095_ (
+    .A1(_1798_),
+    .A2(_1162_),
+    .B1(_1816_),
+    .Y(_0451_)
+  );
+  sg13g2_inv_1 _3096_ (
+    .A(_0039_),
     .Y(_1817_)
   );
-  sg13g2_nand2b_1 _3072_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[25] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand2b_1 _3097_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[33] ),
+    .B(_1355_),
     .Y(_1818_)
   );
-  sg13g2_nand3_1 _3073_ (
-    .A(_1817_),
-    .B(_1818_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+  sg13g2_nand2b_1 _3098_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[41] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1819_)
   );
-  sg13g2_nand3_1 _3074_ (
-    .A(_1816_),
+  sg13g2_nand3_1 _3099_ (
+    .A(_1818_),
     .B(_1819_),
-    .C(_0546_),
+    .C(_1324_),
     .Y(_1820_)
   );
-  sg13g2_nand2_1 _3075_ (
-    .A(_1813_),
-    .B(_1820_),
+  sg13g2_nand2b_1 _3100_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[49] ),
+    .B(_1355_),
     .Y(_1821_)
   );
-  sg13g2_nor2b_1 _3076_ (
-    .A(_1026_),
-    .B_N(_1821_),
+  sg13g2_nand2b_1 _3101_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[57] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1822_)
   );
-  sg13g2_o21ai_1 _3077_ (
-    .A1(_1806_),
-    .A2(_1822_),
-    .B1(_1032_),
+  sg13g2_nand3_1 _3102_ (
+    .A(_1821_),
+    .B(_1822_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1823_)
   );
-  sg13g2_o21ai_1 _3078_ (
-    .A1(_1805_),
-    .A2(_1030_),
-    .B1(_1823_),
-    .Y(_0452_)
-  );
-  sg13g2_nand2_1 _3079_ (
-    .A(_1026_),
-    .B(_0039_),
+  sg13g2_nand3_1 _3103_ (
+    .A(_1820_),
+    .B(_1823_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_1824_)
   );
-  sg13g2_nand2b_1 _3080_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[32] ),
-    .B(_1262_),
+  sg13g2_nand2b_1 _3104_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[1] ),
+    .B(_1355_),
     .Y(_1825_)
   );
-  sg13g2_nand2b_1 _3081_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[40] ),
+  sg13g2_nand2b_1 _3105_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[9] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1826_)
   );
-  sg13g2_nand3_1 _3082_ (
+  sg13g2_nand3_1 _3106_ (
     .A(_1825_),
     .B(_1826_),
-    .C(_0910_),
+    .C(_1324_),
     .Y(_1827_)
   );
-  sg13g2_nand2b_1 _3083_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[48] ),
-    .B(_1261_),
+  sg13g2_nand2b_1 _3107_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[17] ),
+    .B(_1355_),
     .Y(_1828_)
   );
-  sg13g2_nand2b_1 _3084_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[56] ),
+  sg13g2_nand2b_1 _3108_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[25] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1829_)
   );
-  sg13g2_nand3_1 _3085_ (
+  sg13g2_nand3_1 _3109_ (
     .A(_1828_),
     .B(_1829_),
     .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1830_)
   );
-  sg13g2_nand3_1 _3086_ (
+  sg13g2_nand3_1 _3110_ (
     .A(_1827_),
     .B(_1830_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .C(_0545_),
     .Y(_1831_)
   );
-  sg13g2_nand2b_1 _3087_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[0] ),
-    .B(_1262_),
+  sg13g2_nand2_1 _3111_ (
+    .A(_1824_),
+    .B(_1831_),
     .Y(_1832_)
   );
-  sg13g2_nand2b_1 _3088_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[8] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand2b_1 _3112_ (
+    .A_N(_1832_),
+    .B(_1159_),
     .Y(_1833_)
   );
-  sg13g2_nand3_1 _3089_ (
-    .A(_1832_),
-    .B(_1833_),
-    .C(_0910_),
+  sg13g2_nand2_1 _3113_ (
+    .A(_1165_),
+    .B(_1798_),
     .Y(_1834_)
   );
-  sg13g2_nand2b_1 _3090_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[16] ),
-    .B(_1262_),
+  sg13g2_nand3_1 _3114_ (
+    .A(_1164_),
+    .B(_1833_),
+    .C(_1834_),
     .Y(_1835_)
   );
-  sg13g2_nand2b_1 _3091_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[24] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_o21ai_1 _3115_ (
+    .A1(_1817_),
+    .A2(_1162_),
+    .B1(_1835_),
+    .Y(_0452_)
+  );
+  sg13g2_inv_1 _3116_ (
+    .A(_0040_),
     .Y(_1836_)
   );
-  sg13g2_nand3_1 _3092_ (
-    .A(_1835_),
-    .B(_1836_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+  sg13g2_nand2b_1 _3117_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[32] ),
+    .B(_1355_),
     .Y(_1837_)
   );
-  sg13g2_nand3_1 _3093_ (
-    .A(_1834_),
-    .B(_1837_),
-    .C(_0546_),
+  sg13g2_nand2b_1 _3118_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[40] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1838_)
   );
-  sg13g2_nand2_1 _3094_ (
-    .A(_1831_),
+  sg13g2_nand3_1 _3119_ (
+    .A(_1837_),
     .B(_1838_),
+    .C(_1324_),
     .Y(_1839_)
   );
-  sg13g2_nand2_1 _3095_ (
-    .A(_1027_),
-    .B(_1839_),
+  sg13g2_nand2b_1 _3120_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[48] ),
+    .B(_1355_),
     .Y(_1840_)
   );
-  sg13g2_a21oi_1 _3096_ (
-    .A1(_1824_),
-    .A2(_1840_),
-    .B1(_1038_),
+  sg13g2_nand2b_1 _3121_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[56] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1841_)
   );
-  sg13g2_a21o_1 _3097_ (
-    .A1(_0040_),
-    .A2(_1029_),
-    .B1(_1841_),
-    .X(_0453_)
-  );
-  sg13g2_inv_1 _3098_ (
-    .A(_0041_),
+  sg13g2_nand3_1 _3122_ (
+    .A(_1840_),
+    .B(_1841_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_1842_)
   );
-  sg13g2_o21ai_1 _3099_ (
-    .A1(_0040_),
-    .A2(_1027_),
-    .B1(_1032_),
+  sg13g2_nand3_1 _3123_ (
+    .A(_1839_),
+    .B(_1842_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_1843_)
   );
-  sg13g2_o21ai_1 _3100_ (
-    .A1(_1842_),
-    .A2(_1030_),
-    .B1(_1843_),
-    .Y(_0454_)
-  );
-  sg13g2_inv_1 _3101_ (
-    .A(\reg2hw[40] ),
+  sg13g2_nand2b_1 _3124_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[0] ),
+    .B(_1355_),
     .Y(_1844_)
   );
-  sg13g2_xnor2_1 _3102_ (
-    .A(_1705_),
-    .B(_1726_),
+  sg13g2_nand2b_1 _3125_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[8] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1845_)
   );
-  sg13g2_xnor2_1 _3103_ (
-    .A(_1745_),
-    .B(_1764_),
+  sg13g2_nand3_1 _3126_ (
+    .A(_1844_),
+    .B(_1845_),
+    .C(_1324_),
     .Y(_1846_)
   );
-  sg13g2_xnor2_1 _3104_ (
-    .A(_1845_),
-    .B(_1846_),
+  sg13g2_nand2b_1 _3127_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[16] ),
+    .B(_1355_),
     .Y(_1847_)
   );
-  sg13g2_xnor2_1 _3105_ (
-    .A(_1821_),
-    .B(_1839_),
+  sg13g2_nand2b_1 _3128_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[24] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_1848_)
   );
-  sg13g2_xor2_1 _3106_ (
-    .A(_1783_),
-    .B(_1802_),
-    .X(_1849_)
+  sg13g2_nand3_1 _3129_ (
+    .A(_1847_),
+    .B(_1848_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_1849_)
   );
-  sg13g2_xor2_1 _3107_ (
-    .A(_1848_),
+  sg13g2_nand3_1 _3130_ (
+    .A(_1846_),
     .B(_1849_),
-    .X(_1850_)
-  );
-  sg13g2_a22oi_1 _3108_ (
-    .A1(_0552_),
-    .A2(_0541_),
-    .B1(_1847_),
-    .B2(_1850_),
-    .Y(_1851_)
-  );
-  sg13g2_o21ai_1 _3109_ (
-    .A1(_1847_),
-    .A2(_1850_),
-    .B1(_1851_),
-    .Y(_1852_)
-  );
-  sg13g2_xnor2_1 _3110_ (
-    .A(_1844_),
-    .B(_1852_),
-    .Y(_1853_)
-  );
-  sg13g2_nand2_1 _3111_ (
-    .A(_1853_),
-    .B(_1043_),
-    .Y(_1854_)
-  );
-  sg13g2_o21ai_1 _3112_ (
-    .A1(_1706_),
-    .A2(_1030_),
-    .B1(_1854_),
-    .Y(_0455_)
-  );
-  sg13g2_mux2_1 _3113_ (
-    .A0(\reg2hw[56] ),
-    .A1(tl_i[55]),
-    .S(_1489_),
-    .X(_0456_)
-  );
-  sg13g2_nand2_1 _3114_ (
-    .A(_1489_),
-    .B(tl_i[31]),
-    .Y(_1855_)
-  );
-  sg13g2_o21ai_1 _3115_ (
-    .A1(_1844_),
-    .A2(_1490_),
-    .B1(_1855_),
-    .Y(_0457_)
-  );
-  sg13g2_nand2_1 _3116_ (
-    .A(_1047_),
-    .B(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[2] ),
-    .Y(_1856_)
-  );
-  sg13g2_nor2b_1 _3117_ (
-    .A(_1856_),
-    .B_N(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[3] ),
-    .Y(_1930_)
-  );
-  sg13g2_nand2_1 _3118_ (
-    .A(_1209_),
-    .B(\reg2hw[39] ),
-    .Y(_1857_)
-  );
-  sg13g2_o21ai_1 _3119_ (
-    .A1(\reg2hw[39] ),
-    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
-    .B1(_1857_),
-    .Y(_1858_)
-  );
-  sg13g2_buf_1 _3120_ (
-    .A(_1858_),
-    .X(_1859_)
-  );
-  sg13g2_nor2_1 _3121_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[127] ),
-    .B(_1289_),
-    .Y(_1860_)
-  );
-  sg13g2_a21oi_1 _3122_ (
-    .A1(_1289_),
-    .A2(_1859_),
-    .B1(_1860_),
-    .Y(_0458_)
-  );
-  sg13g2_nand2_1 _3123_ (
-    .A(_1473_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[119] ),
-    .Y(_1861_)
-  );
-  sg13g2_o21ai_1 _3124_ (
-    .A1(_1473_),
-    .A2(_1859_),
-    .B1(_1861_),
-    .Y(_0459_)
-  );
-  sg13g2_nand2_1 _3125_ (
-    .A(_1464_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[111] ),
-    .Y(_1862_)
-  );
-  sg13g2_o21ai_1 _3126_ (
-    .A1(_1464_),
-    .A2(_1859_),
-    .B1(_1862_),
-    .Y(_0460_)
-  );
-  sg13g2_nand2_1 _3127_ (
-    .A(_1455_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[103] ),
-    .Y(_1863_)
-  );
-  sg13g2_o21ai_1 _3128_ (
-    .A1(_1455_),
-    .A2(_1859_),
-    .B1(_1863_),
-    .Y(_0461_)
-  );
-  sg13g2_nand2_1 _3129_ (
-    .A(_1446_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[95] ),
-    .Y(_1864_)
-  );
-  sg13g2_o21ai_1 _3130_ (
-    .A1(_1446_),
-    .A2(_1859_),
-    .B1(_1864_),
-    .Y(_0462_)
+    .C(_0545_),
+    .Y(_1850_)
   );
   sg13g2_nand2_1 _3131_ (
-    .A(_1437_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[87] ),
-    .Y(_1865_)
+    .A(_1843_),
+    .B(_1850_),
+    .Y(_1851_)
   );
-  sg13g2_o21ai_1 _3132_ (
-    .A1(_1437_),
-    .A2(_1859_),
-    .B1(_1865_),
-    .Y(_0463_)
+  sg13g2_nand2b_1 _3132_ (
+    .A_N(_1851_),
+    .B(_1159_),
+    .Y(_1852_)
   );
   sg13g2_nand2_1 _3133_ (
-    .A(_1428_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[79] ),
+    .A(_1165_),
+    .B(_1817_),
+    .Y(_1853_)
+  );
+  sg13g2_nand3_1 _3134_ (
+    .A(_1164_),
+    .B(_1852_),
+    .C(_1853_),
+    .Y(_1854_)
+  );
+  sg13g2_o21ai_1 _3135_ (
+    .A1(_1836_),
+    .A2(_1162_),
+    .B1(_1854_),
+    .Y(_0453_)
+  );
+  sg13g2_a21oi_1 _3136_ (
+    .A1(_1836_),
+    .A2(_1165_),
+    .B1(_1171_),
+    .Y(_1855_)
+  );
+  sg13g2_a21o_1 _3137_ (
+    .A1(_0041_),
+    .A2(_1161_),
+    .B1(_1855_),
+    .X(_0454_)
+  );
+  sg13g2_inv_1 _3138_ (
+    .A(\reg2hw[40] ),
+    .Y(_1856_)
+  );
+  sg13g2_xor2_1 _3139_ (
+    .A(_1832_),
+    .B(_1851_),
+    .X(_1857_)
+  );
+  sg13g2_xnor2_1 _3140_ (
+    .A(_1794_),
+    .B(_1813_),
+    .Y(_1858_)
+  );
+  sg13g2_xnor2_1 _3141_ (
+    .A(_1857_),
+    .B(_1858_),
+    .Y(_1859_)
+  );
+  sg13g2_xnor2_1 _3142_ (
+    .A(_1717_),
+    .B(_1737_),
+    .Y(_1860_)
+  );
+  sg13g2_xnor2_1 _3143_ (
+    .A(_1756_),
+    .B(_1775_),
+    .Y(_1861_)
+  );
+  sg13g2_xnor2_1 _3144_ (
+    .A(_1860_),
+    .B(_1861_),
+    .Y(_1862_)
+  );
+  sg13g2_nand2b_1 _3145_ (
+    .A_N(_1859_),
+    .B(_1862_),
+    .Y(_1863_)
+  );
+  sg13g2_nand2b_1 _3146_ (
+    .A_N(_1862_),
+    .B(_1859_),
+    .Y(_1864_)
+  );
+  sg13g2_nand3_1 _3147_ (
+    .A(_1863_),
+    .B(_1864_),
+    .C(_1155_),
+    .Y(_1865_)
+  );
+  sg13g2_xnor2_1 _3148_ (
+    .A(_1856_),
+    .B(_1865_),
     .Y(_1866_)
   );
-  sg13g2_o21ai_1 _3134_ (
-    .A1(_1428_),
-    .A2(_1859_),
-    .B1(_1866_),
-    .Y(_0464_)
-  );
-  sg13g2_nand2_1 _3135_ (
-    .A(_1419_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[71] ),
+  sg13g2_nand2_1 _3149_ (
+    .A(_1866_),
+    .B(_1176_),
     .Y(_1867_)
   );
-  sg13g2_o21ai_1 _3136_ (
-    .A1(_1419_),
-    .A2(_1859_),
-    .B1(_1867_),
-    .Y(_0465_)
-  );
-  sg13g2_nand2_1 _3137_ (
-    .A(_1409_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[63] ),
-    .Y(_1868_)
-  );
-  sg13g2_o21ai_1 _3138_ (
-    .A1(_1409_),
-    .A2(_1859_),
-    .B1(_1868_),
-    .Y(_0466_)
-  );
-  sg13g2_nand2_1 _3139_ (
-    .A(_1400_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[55] ),
-    .Y(_1869_)
-  );
-  sg13g2_o21ai_1 _3140_ (
-    .A1(_1400_),
-    .A2(_1859_),
-    .B1(_1869_),
-    .Y(_0467_)
-  );
-  sg13g2_nand2_1 _3141_ (
-    .A(_1390_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[47] ),
-    .Y(_1870_)
-  );
-  sg13g2_o21ai_1 _3142_ (
-    .A1(_1390_),
-    .A2(_1859_),
-    .B1(_1870_),
-    .Y(_0468_)
-  );
-  sg13g2_nand2_1 _3143_ (
-    .A(_1380_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[39] ),
-    .Y(_1871_)
-  );
-  sg13g2_o21ai_1 _3144_ (
-    .A1(_1380_),
-    .A2(_1859_),
-    .B1(_1871_),
-    .Y(_0469_)
-  );
-  sg13g2_nand2_1 _3145_ (
-    .A(_1370_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[31] ),
-    .Y(_1872_)
-  );
-  sg13g2_o21ai_1 _3146_ (
-    .A1(_1370_),
-    .A2(_1859_),
-    .B1(_1872_),
-    .Y(_0470_)
-  );
-  sg13g2_nand2_1 _3147_ (
-    .A(_1361_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[23] ),
-    .Y(_1873_)
-  );
-  sg13g2_o21ai_1 _3148_ (
-    .A1(_1361_),
-    .A2(_1859_),
-    .B1(_1873_),
-    .Y(_0471_)
-  );
-  sg13g2_nand2_1 _3149_ (
-    .A(_1352_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[15] ),
-    .Y(_1874_)
-  );
   sg13g2_o21ai_1 _3150_ (
-    .A1(_1352_),
-    .A2(_1859_),
-    .B1(_1874_),
-    .Y(_0472_)
+    .A1(_1718_),
+    .A2(_1162_),
+    .B1(_1867_),
+    .Y(_0455_)
   );
   sg13g2_nand2_1 _3151_ (
-    .A(_1489_),
-    .B(tl_i[30]),
-    .Y(_1875_)
+    .A(_1418_),
+    .B(\reg2hw[39] ),
+    .Y(_1868_)
   );
   sg13g2_o21ai_1 _3152_ (
-    .A1(_1042_),
-    .A2(_1490_),
-    .B1(_1875_),
-    .Y(_0473_)
+    .A1(\reg2hw[39] ),
+    .A2(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
+    .B1(_1868_),
+    .Y(_1869_)
   );
-  sg13g2_nand2_1 _3153_ (
-    .A(_1322_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[7] ),
-    .Y(_1876_)
+  sg13g2_buf_1 _3153_ (
+    .A(_1869_),
+    .X(_1870_)
   );
-  sg13g2_o21ai_1 _3154_ (
-    .A1(_1322_),
-    .A2(_1859_),
-    .B1(_1876_),
-    .Y(_0474_)
+  sg13g2_nand2_1 _3154_ (
+    .A(_1616_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[71] ),
+    .Y(_1871_)
   );
-  sg13g2_inv_1 _3155_ (
-    .A(_1934_),
-    .Y(_1877_)
+  sg13g2_o21ai_1 _3155_ (
+    .A1(_1616_),
+    .A2(_1870_),
+    .B1(_1871_),
+    .Y(_0456_)
   );
   sg13g2_nand2_1 _3156_ (
-    .A(_1607_),
-    .B(_0898_),
-    .Y(_1878_)
+    .A(_1606_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[63] ),
+    .Y(_1872_)
   );
   sg13g2_o21ai_1 _3157_ (
-    .A1(_1877_),
-    .A2(_1607_),
-    .B1(_1878_),
-    .Y(_0475_)
+    .A1(_1606_),
+    .A2(_1870_),
+    .B1(_1872_),
+    .Y(_0457_)
   );
-  sg13g2_nor4_1 _3158_ (
-    .A(_0713_),
-    .B(_0654_),
-    .C(_1248_),
-    .D(_1259_),
-    .Y(\u_uart_master_reg.fifo_ctrl_flds_we[0] )
+  sg13g2_nand2_1 _3158_ (
+    .A(_1597_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[55] ),
+    .Y(_1873_)
   );
-  sg13g2_mux2_1 _3159_ (
-    .A0(\reg2hw[1] ),
-    .A1(tl_i[24]),
-    .S(\u_uart_master_reg.fifo_ctrl_flds_we[0] ),
-    .X(_0476_)
+  sg13g2_o21ai_1 _3159_ (
+    .A1(_1597_),
+    .A2(_1870_),
+    .B1(_1873_),
+    .Y(_0458_)
   );
-  sg13g2_a21o_1 _3160_ (
-    .A1(\u_uart_master_reg.tl_o[62] ),
-    .A2(_0650_),
-    .B1(_1255_),
-    .X(_0477_)
+  sg13g2_nand2_1 _3160_ (
+    .A(_1587_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[47] ),
+    .Y(_1874_)
   );
-  sg13g2_inv_1 _3161_ (
-    .A(_0774_),
-    .Y(_1879_)
+  sg13g2_o21ai_1 _3161_ (
+    .A1(_1587_),
+    .A2(_1870_),
+    .B1(_1874_),
+    .Y(_0459_)
   );
   sg13g2_nand2_1 _3162_ (
-    .A(_1649_),
-    .B(\u_uart_master_core.u_host_bridge.wdata_o[31] ),
-    .Y(_1880_)
+    .A(_1577_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[39] ),
+    .Y(_1875_)
   );
   sg13g2_o21ai_1 _3163_ (
-    .A1(_1879_),
-    .A2(_1652_),
-    .B1(_1880_),
-    .Y(_0478_)
+    .A1(_1577_),
+    .A2(_1870_),
+    .B1(_1875_),
+    .Y(_0460_)
   );
-  sg13g2_nor2_1 _3164_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[3] ),
-    .B(_1055_),
-    .Y(_1881_)
+  sg13g2_nand2_1 _3164_ (
+    .A(_1567_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[31] ),
+    .Y(_1876_)
   );
-  sg13g2_a21oi_1 _3165_ (
-    .A1(_1055_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[3] ),
-    .B1(_1267_),
-    .Y(_1882_)
+  sg13g2_o21ai_1 _3165_ (
+    .A1(_1567_),
+    .A2(_1870_),
+    .B1(_1876_),
+    .Y(_0461_)
   );
-  sg13g2_nor2b_1 _3166_ (
-    .A(_1881_),
-    .B_N(_1882_),
-    .Y(_0479_)
+  sg13g2_nand2_1 _3166_ (
+    .A(_1558_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[23] ),
+    .Y(_1877_)
   );
   sg13g2_o21ai_1 _3167_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[4] ),
-    .A2(_1309_),
-    .B1(_1290_),
-    .Y(_1883_)
+    .A1(_1558_),
+    .A2(_1870_),
+    .B1(_1877_),
+    .Y(_0462_)
   );
-  sg13g2_a21oi_1 _3168_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[4] ),
-    .A2(_1309_),
-    .B1(_1883_),
-    .Y(_0480_)
+  sg13g2_nand2_1 _3168_ (
+    .A(_1549_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[15] ),
+    .Y(_1878_)
   );
-  sg13g2_mux2_1 _3169_ (
-    .A0(\reg2hw[3] ),
-    .A1(tl_i[25]),
-    .S(\u_uart_master_reg.fifo_ctrl_flds_we[0] ),
-    .X(_0481_)
+  sg13g2_o21ai_1 _3169_ (
+    .A1(_1549_),
+    .A2(_1870_),
+    .B1(_1878_),
+    .Y(_0463_)
   );
-  sg13g2_o21ai_1 _3170_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[4] ),
-    .A2(_1289_),
-    .B1(_1290_),
-    .Y(_1884_)
+  sg13g2_nand2_1 _3170_ (
+    .A(_1519_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[7] ),
+    .Y(_1879_)
   );
-  sg13g2_a21oi_1 _3171_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[4] ),
-    .A2(_1289_),
-    .B1(_1884_),
-    .Y(_0482_)
+  sg13g2_o21ai_1 _3171_ (
+    .A1(_1519_),
+    .A2(_1870_),
+    .B1(_1879_),
+    .Y(_0464_)
   );
-  sg13g2_mux2_1 _3172_ (
-    .A0(\reg2hw[38] ),
-    .A1(tl_i[29]),
-    .S(_1489_),
-    .X(_0483_)
+  sg13g2_nor2_1 _3172_ (
+    .A(\u_uart_master_core.u_host_bridge.idx_q[1] ),
+    .B(_1019_),
+    .Y(_1880_)
   );
-  sg13g2_nand2_1 _3173_ (
-    .A(_1489_),
-    .B(tl_i[28]),
-    .Y(_1885_)
+  sg13g2_o21ai_1 _3173_ (
+    .A1(_1880_),
+    .A2(_1384_),
+    .B1(_1515_),
+    .Y(_1881_)
   );
   sg13g2_o21ai_1 _3174_ (
-    .A1(_1188_),
-    .A2(_1490_),
-    .B1(_1885_),
-    .Y(_0484_)
+    .A1(_1032_),
+    .A2(_1513_),
+    .B1(_1881_),
+    .Y(_0465_)
   );
-  sg13g2_o21ai_1 _3175_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[3] ),
-    .A2(_1265_),
-    .B1(_1266_),
-    .Y(_1886_)
+  sg13g2_nand2_1 _3175_ (
+    .A(_1687_),
+    .B(tl_i[31]),
+    .Y(_1882_)
   );
-  sg13g2_a21oi_1 _3176_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[3] ),
-    .A2(_1265_),
-    .B1(_1886_),
-    .Y(_0485_)
+  sg13g2_o21ai_1 _3176_ (
+    .A1(_1856_),
+    .A2(_1686_),
+    .B1(_1882_),
+    .Y(_0466_)
   );
-  sg13g2_mux2_1 _3177_ (
-    .A0(rdata_i[31]),
-    .A1(\u_uart_master_core.u_host_bridge.rdata_q[31] ),
-    .S(_1689_),
-    .X(_0486_)
+  sg13g2_a21o_1 _3177_ (
+    .A1(\u_uart_master_reg.tl_o[62] ),
+    .A2(_1198_),
+    .B1(_1497_),
+    .X(_0467_)
   );
   sg13g2_o21ai_1 _3178_ (
-    .A1(_0641_),
-    .A2(_0555_),
-    .B1(\u_uart_master_core.u_host_bridge.tx_st_q[1] ),
-    .Y(_1887_)
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[4] ),
+    .A2(_1504_),
+    .B1(_1489_),
+    .Y(_1883_)
   );
-  sg13g2_o21ai_1 _3179_ (
-    .A1(_0018_),
-    .A2(_0532_),
-    .B1(_1887_),
-    .Y(_0052_)
+  sg13g2_a21oi_1 _3179_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[4] ),
+    .A2(_1504_),
+    .B1(_1883_),
+    .Y(_0468_)
   );
-  sg13g2_mux2_1 _3180_ (
+  sg13g2_nand2_1 _3180_ (
+    .A(_1687_),
+    .B(tl_i[30]),
+    .Y(_1884_)
+  );
+  sg13g2_o21ai_1 _3181_ (
+    .A1(_1175_),
+    .A2(_1686_),
+    .B1(_1884_),
+    .Y(_0469_)
+  );
+  sg13g2_o21ai_1 _3182_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[4] ),
+    .A2(_1483_),
+    .B1(_1489_),
+    .Y(_1885_)
+  );
+  sg13g2_a21oi_1 _3183_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[4] ),
+    .A2(_1483_),
+    .B1(_1885_),
+    .Y(_0470_)
+  );
+  sg13g2_mux2_1 _3184_ (
     .A0(\reg2hw[12] ),
     .A1(tl_i[31]),
     .S(\u_uart_master_reg.u_wdata.qe ),
-    .X(_0487_)
+    .X(_0471_)
   );
-  sg13g2_nand2_1 _3181_ (
-    .A(_1489_),
-    .B(tl_i[26]),
-    .Y(_1888_)
+  sg13g2_nor2_1 _3185_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[127] ),
+    .B(_1483_),
+    .Y(_1886_)
   );
-  sg13g2_o21ai_1 _3182_ (
-    .A1(_0950_),
-    .A2(_1490_),
-    .B1(_1888_),
-    .Y(_0488_)
+  sg13g2_a21oi_1 _3186_ (
+    .A1(_1483_),
+    .A2(_1870_),
+    .B1(_1886_),
+    .Y(_0472_)
   );
-  sg13g2_nand2_1 _3183_ (
-    .A(_1489_),
-    .B(tl_i[25]),
-    .Y(_1889_)
+  sg13g2_nand2_1 _3187_ (
+    .A(_1687_),
+    .B(tl_i[29]),
+    .Y(_1887_)
   );
-  sg13g2_o21ai_1 _3184_ (
-    .A1(_0960_),
-    .A2(_1490_),
-    .B1(_1889_),
-    .Y(_0489_)
-  );
-  sg13g2_nor4_1 _3185_ (
-    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
-    .B(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[3] ),
-    .C(_1186_),
-    .D(_1232_),
-    .Y(_0000_)
-  );
-  sg13g2_nor2_1 _3186_ (
-    .A(_0844_),
-    .B(_0000_),
-    .Y(_1890_)
-  );
-  sg13g2_o21ai_1 _3187_ (
-    .A1(_1186_),
-    .A2(_1202_),
-    .B1(_1890_),
-    .Y(_1891_)
-  );
-  sg13g2_nand2_1 _3188_ (
-    .A(_1891_),
-    .B(_1195_),
-    .Y(_0490_)
+  sg13g2_o21ai_1 _3188_ (
+    .A1(_1400_),
+    .A2(_1686_),
+    .B1(_1887_),
+    .Y(_0473_)
   );
   sg13g2_nand2_1 _3189_ (
-    .A(_1547_),
-    .B(_0774_),
-    .Y(_1892_)
+    .A(_1687_),
+    .B(tl_i[28]),
+    .Y(_1888_)
   );
   sg13g2_o21ai_1 _3190_ (
-    .A1(_1625_),
-    .A2(_1545_),
-    .B1(_1892_),
-    .Y(_0491_)
+    .A1(_1397_),
+    .A2(_1686_),
+    .B1(_1888_),
+    .Y(_0474_)
   );
   sg13g2_nand2_1 _3191_ (
-    .A(_1489_),
-    .B(tl_i[24]),
-    .Y(_1893_)
+    .A(_1687_),
+    .B(tl_i[26]),
+    .Y(_1889_)
   );
   sg13g2_o21ai_1 _3192_ (
-    .A1(_1020_),
-    .A2(_1490_),
-    .B1(_1893_),
-    .Y(_0492_)
+    .A1(_1335_),
+    .A2(_1686_),
+    .B1(_1889_),
+    .Y(_0475_)
   );
-  sg13g2_inv_1 _3193_ (
+  sg13g2_nand3_1 _3193_ (
+    .A(_1457_),
+    .B(tl_i[64]),
+    .C(_1210_),
+    .Y(_1890_)
+  );
+  sg13g2_nor2_1 _3194_ (
+    .A(_1890_),
+    .B(_1464_),
+    .Y(\u_uart_master_reg.fifo_ctrl_flds_we[0] )
+  );
+  sg13g2_nand2_1 _3195_ (
+    .A(\u_uart_master_reg.fifo_ctrl_flds_we[0] ),
+    .B(tl_i[24]),
+    .Y(_1891_)
+  );
+  sg13g2_o21ai_1 _3196_ (
+    .A1(_1484_),
+    .A2(\u_uart_master_reg.fifo_ctrl_flds_we[0] ),
+    .B1(_1891_),
+    .Y(_0476_)
+  );
+  sg13g2_mux2_1 _3197_ (
+    .A0(\reg2hw[35] ),
+    .A1(tl_i[25]),
+    .S(_1687_),
+    .X(_0477_)
+  );
+  sg13g2_nor4_1 _3198_ (
+    .A(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
+    .B(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[3] ),
+    .C(_1395_),
+    .D(_1441_),
+    .Y(_0000_)
+  );
+  sg13g2_nor2_1 _3199_ (
+    .A(_1316_),
+    .B(_0000_),
+    .Y(_1892_)
+  );
+  sg13g2_o21ai_1 _3200_ (
+    .A1(_1395_),
+    .A2(_1411_),
+    .B1(_1892_),
+    .Y(_1893_)
+  );
+  sg13g2_nand2_1 _3201_ (
+    .A(_1893_),
+    .B(_1404_),
+    .Y(_0478_)
+  );
+  sg13g2_a21oi_1 _3202_ (
+    .A1(_0650_),
+    .A2(_0646_),
+    .B1(_0671_),
+    .Y(\u_uart_master_core.u_host_bridge.tx_idx_d[3] )
+  );
+  sg13g2_inv_1 _3203_ (
     .A(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[3] ),
     .Y(_1894_)
   );
-  sg13g2_nor4_1 _3194_ (
-    .A(_1237_),
-    .B(_1894_),
-    .C(_1240_),
-    .D(_1196_),
+  sg13g2_nor4_1 _3204_ (
+    .A(_1894_),
+    .B(_1446_),
+    .C(_1449_),
+    .D(_1405_),
     .Y(\u_uart_master_core.u_uart_core.uart_rx.tick_baud_d )
   );
-  sg13g2_a21oi_1 _3195_ (
+  sg13g2_a21oi_1 _3205_ (
     .A1(_1894_),
-    .A2(_1242_),
+    .A2(_1451_),
     .B1(\u_uart_master_core.u_uart_core.uart_rx.tick_baud_d ),
-    .Y(_0493_)
+    .Y(_0479_)
   );
-  sg13g2_xnor2_1 _3196_ (
-    .A(_1199_),
-    .B(_1227_),
+  sg13g2_xnor2_1 _3206_ (
+    .A(_1408_),
+    .B(_1436_),
     .Y(_1895_)
   );
-  sg13g2_a21oi_1 _3197_ (
-    .A1(_1195_),
-    .A2(_1199_),
-    .B1(_1187_),
+  sg13g2_a21oi_1 _3207_ (
+    .A1(_1404_),
+    .A2(_1408_),
+    .B1(_1396_),
     .Y(_1896_)
   );
-  sg13g2_a21o_1 _3198_ (
-    .A1(_1207_),
+  sg13g2_a21o_1 _3208_ (
+    .A1(_1416_),
     .A2(_1895_),
     .B1(_1896_),
-    .X(_0494_)
+    .X(_0480_)
   );
-  sg13g2_inv_1 _3199_ (
+  sg13g2_inv_1 _3209_ (
     .A(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[10] ),
     .Y(_1897_)
   );
-  sg13g2_nand2b_1 _3200_ (
-    .A_N(_1194_),
-    .B(_1207_),
+  sg13g2_nand2b_1 _3210_ (
+    .A_N(_1403_),
+    .B(_1416_),
     .Y(_1898_)
   );
-  sg13g2_o21ai_1 _3201_ (
+  sg13g2_o21ai_1 _3211_ (
     .A1(_1897_),
-    .A2(_1204_),
+    .A2(_1413_),
     .B1(_1898_),
-    .Y(_0495_)
+    .Y(_0481_)
   );
-  sg13g2_nand2_1 _3202_ (
-    .A(_1596_),
-    .B(\u_uart_master_core.u_host_bridge.op_q[7] ),
+  sg13g2_nand2_1 _3212_ (
+    .A(_1687_),
+    .B(tl_i[24]),
     .Y(_1899_)
   );
-  sg13g2_o21ai_1 _3203_ (
-    .A1(_0773_),
-    .A2(_1596_),
+  sg13g2_o21ai_1 _3213_ (
+    .A1(_1147_),
+    .A2(_1686_),
     .B1(_1899_),
-    .Y(_0496_)
+    .Y(_0482_)
   );
-  sg13g2_nor2_1 _3204_ (
-    .A(_0640_),
-    .B(_0643_),
+  sg13g2_nor2_1 _3214_ (
+    .A(_0751_),
+    .B(_1075_),
     .Y(_1900_)
   );
-  sg13g2_nor2b_1 _3205_ (
-    .A(_1900_),
-    .B_N(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .Y(\u_uart_master_core.u_host_bridge.tx_idx_d[3] )
-  );
-  sg13g2_nand2_1 _3206_ (
-    .A(_0522_),
+  sg13g2_nand2_1 _3215_ (
+    .A(_0523_),
     .B(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
     .Y(_1901_)
   );
-  sg13g2_a21oi_1 _3207_ (
-    .A1(_1537_),
-    .A2(_1901_),
-    .B1(_1526_),
+  sg13g2_nor2b_1 _3216_ (
+    .A(_1900_),
+    .B_N(_1901_),
     .Y(_1902_)
   );
-  sg13g2_nand2b_1 _3208_ (
-    .A_N(_1902_),
-    .B(_1514_),
-    .Y(_0497_)
+  sg13g2_o21ai_1 _3217_ (
+    .A1(_1902_),
+    .A2(_1387_),
+    .B1(_1383_),
+    .Y(_0483_)
   );
-  sg13g2_o21ai_1 _3209_ (
-    .A1(_1901_),
-    .A2(_1513_),
-    .B1(req_o),
+  sg13g2_nor2_1 _3218_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[3] ),
+    .B(_0732_),
     .Y(_1903_)
   );
-  sg13g2_o21ai_1 _3210_ (
-    .A1(_1301_),
-    .A2(_1531_),
-    .B1(_1903_),
-    .Y(_0498_)
+  sg13g2_and2_1 _3219_ (
+    .A(_0732_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[3] ),
+    .X(_1904_)
   );
-  sg13g2_nand2_1 _3211_ (
-    .A(_1303_),
-    .B(we_o),
-    .Y(_1904_)
-  );
-  sg13g2_o21ai_1 _3212_ (
-    .A1(_1650_),
-    .A2(_1904_),
-    .B1(_1653_),
-    .Y(_0499_)
-  );
-  sg13g2_nand2_1 _3213_ (
-    .A(_1615_),
-    .B(\u_uart_master_core.addr_o[31] ),
-    .Y(_1905_)
-  );
-  sg13g2_o21ai_1 _3214_ (
-    .A1(_1616_),
-    .A2(_1879_),
-    .B1(_1905_),
-    .Y(_0500_)
-  );
-  sg13g2_nand2_1 _3215_ (
-    .A(_1061_),
-    .B(\u_uart_master_core.u_host_bridge.rdata_q[7] ),
-    .Y(_1906_)
-  );
-  sg13g2_a22oi_1 _3216_ (
-    .A1(_1064_),
-    .A2(\u_uart_master_core.u_host_bridge.rdata_q[23] ),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[15] ),
-    .B2(_1070_),
-    .Y(_1907_)
-  );
-  sg13g2_a22oi_1 _3217_ (
-    .A1(\u_uart_master_core.u_host_bridge.op_q[7] ),
-    .A2(_1068_),
-    .B1(\u_uart_master_core.u_host_bridge.rdata_q[31] ),
-    .B2(_1059_),
-    .Y(_1908_)
-  );
-  sg13g2_nand3_1 _3218_ (
-    .A(_1906_),
-    .B(_1907_),
-    .C(_1908_),
-    .Y(_1909_)
-  );
-  sg13g2_a21oi_1 _3219_ (
-    .A1(_1057_),
-    .A2(_1909_),
-    .B1(\reg2hw[12] ),
-    .Y(_1910_)
-  );
-  sg13g2_buf_1 _3220_ (
-    .A(_1910_),
-    .X(_1911_)
+  sg13g2_nor3_1 _3220_ (
+    .A(_1362_),
+    .B(_1903_),
+    .C(_1904_),
+    .Y(_0484_)
   );
   sg13g2_nor2_1 _3221_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[7] ),
-    .B(_1177_),
-    .Y(_1912_)
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[3] ),
+    .B(_1358_),
+    .Y(_1905_)
   );
-  sg13g2_a21oi_1 _3222_ (
-    .A1(_1911_),
-    .A2(_1177_),
-    .B1(_1912_),
-    .Y(_0501_)
+  sg13g2_and2_1 _3222_ (
+    .A(_1358_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[3] ),
+    .X(_1906_)
   );
-  sg13g2_nor2_1 _3223_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[15] ),
-    .B(_1168_),
-    .Y(_1913_)
+  sg13g2_nor3_1 _3223_ (
+    .A(_1362_),
+    .B(_1905_),
+    .C(_1906_),
+    .Y(_0485_)
   );
-  sg13g2_a21oi_1 _3224_ (
-    .A1(_1168_),
-    .A2(_1911_),
-    .B1(_1913_),
-    .Y(_0502_)
+  sg13g2_nand2_1 _3224_ (
+    .A(\u_uart_master_reg.fifo_ctrl_flds_we[0] ),
+    .B(tl_i[25]),
+    .Y(_1907_)
   );
-  sg13g2_nor2_1 _3225_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[23] ),
-    .B(_1159_),
-    .Y(_1914_)
+  sg13g2_o21ai_1 _3225_ (
+    .A1(_1359_),
+    .A2(\u_uart_master_reg.fifo_ctrl_flds_we[0] ),
+    .B1(_1907_),
+    .Y(_0486_)
   );
-  sg13g2_a21oi_1 _3226_ (
-    .A1(_1911_),
-    .A2(_1159_),
-    .B1(_1914_),
-    .Y(_0503_)
+  sg13g2_nand2_1 _3226_ (
+    .A(_1670_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[119] ),
+    .Y(_1908_)
   );
-  sg13g2_nor2_1 _3227_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[31] ),
-    .B(_1150_),
-    .Y(_1915_)
+  sg13g2_o21ai_1 _3227_ (
+    .A1(_1670_),
+    .A2(_1870_),
+    .B1(_1908_),
+    .Y(_0487_)
   );
-  sg13g2_a21oi_1 _3228_ (
-    .A1(_1150_),
-    .A2(_1911_),
-    .B1(_1915_),
-    .Y(_0504_)
+  sg13g2_nand2_1 _3228_ (
+    .A(_1661_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[111] ),
+    .Y(_1909_)
   );
-  sg13g2_nor2_1 _3229_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[39] ),
-    .B(_1141_),
-    .Y(_1916_)
+  sg13g2_o21ai_1 _3229_ (
+    .A1(_1661_),
+    .A2(_1870_),
+    .B1(_1909_),
+    .Y(_0488_)
   );
-  sg13g2_a21oi_1 _3230_ (
-    .A1(_1911_),
-    .A2(_1141_),
-    .B1(_1916_),
-    .Y(_0505_)
-  );
-  sg13g2_nor2_1 _3231_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[47] ),
-    .B(_1132_),
-    .Y(_1917_)
-  );
-  sg13g2_a21oi_1 _3232_ (
-    .A1(_1132_),
-    .A2(_1911_),
-    .B1(_1917_),
-    .Y(_0506_)
-  );
-  sg13g2_nor2_1 _3233_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[55] ),
-    .B(_1123_),
-    .Y(_1918_)
-  );
-  sg13g2_a21oi_1 _3234_ (
-    .A1(_1911_),
-    .A2(_1123_),
-    .B1(_1918_),
-    .Y(_0507_)
-  );
-  sg13g2_nor2_1 _3235_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[63] ),
-    .B(_1055_),
-    .Y(_1919_)
-  );
-  sg13g2_a21oi_1 _3236_ (
-    .A1(_1055_),
-    .A2(_1911_),
-    .B1(_1919_),
-    .Y(_0508_)
-  );
-  sg13g2_xnor2_1 _3237_ (
-    .A(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[3] ),
-    .B(_1856_),
-    .Y(_0509_)
-  );
-  sg13g2_a21oi_1 _3238_ (
-    .A1(_0901_),
-    .A2(_0902_),
-    .B1(_1020_),
-    .Y(_1920_)
-  );
-  sg13g2_o21ai_1 _3239_ (
-    .A1(_1920_),
-    .A2(_1029_),
-    .B1(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[3] ),
-    .Y(_1921_)
-  );
-  sg13g2_nand2_1 _3240_ (
-    .A(_1921_),
-    .B(_1041_),
-    .Y(_0510_)
-  );
-  sg13g2_nand2_1 _3241_ (
+  sg13g2_nand2_1 _3230_ (
     .A(cio_rx_i),
     .B(\reg2hw[38] ),
-    .Y(_1922_)
+    .Y(_1910_)
   );
-  sg13g2_o21ai_1 _3242_ (
+  sg13g2_o21ai_1 _3231_ (
     .A1(\reg2hw[38] ),
     .A2(_0049_),
-    .B1(_1922_),
+    .B1(_1910_),
     .Y(cio_tx_o)
   );
-  sg13g2_inv_1 _3243_ (
-    .A(\u_uart_master_reg.tl_o[1] ),
-    .Y(_1923_)
+  sg13g2_nand2_1 _3232_ (
+    .A(_1652_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[103] ),
+    .Y(_1911_)
   );
-  sg13g2_a21oi_1 _3244_ (
-    .A1(_0661_),
-    .A2(_1247_),
-    .B1(_0650_),
-    .Y(_1924_)
+  sg13g2_o21ai_1 _3233_ (
+    .A1(_1652_),
+    .A2(_1870_),
+    .B1(_1911_),
+    .Y(_0489_)
   );
-  sg13g2_a22oi_1 _3245_ (
-    .A1(_1923_),
-    .A2(_0650_),
-    .B1(_1924_),
-    .B2(_1258_),
-    .Y(_0511_)
+  sg13g2_nand2_1 _3234_ (
+    .A(_1643_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[95] ),
+    .Y(_1912_)
   );
-  sg13g2_inv_1 _3246_ (
+  sg13g2_o21ai_1 _3235_ (
+    .A1(_1643_),
+    .A2(_1870_),
+    .B1(_1912_),
+    .Y(_0490_)
+  );
+  sg13g2_nand2_1 _3236_ (
+    .A(_1634_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[87] ),
+    .Y(_1913_)
+  );
+  sg13g2_o21ai_1 _3237_ (
+    .A1(_1634_),
+    .A2(_1870_),
+    .B1(_1913_),
+    .Y(_0491_)
+  );
+  sg13g2_inv_1 _3238_ (
+    .A(_1497_),
+    .Y(_1914_)
+  );
+  sg13g2_nor2_1 _3239_ (
+    .A(_1220_),
+    .B(_1914_),
+    .Y(_1915_)
+  );
+  sg13g2_o21ai_1 _3240_ (
+    .A1(_1915_),
+    .A2(_1457_),
+    .B1(_1464_),
+    .Y(_1916_)
+  );
+  sg13g2_nand2_1 _3241_ (
+    .A(_1198_),
+    .B(\u_uart_master_reg.tl_o[1] ),
+    .Y(_1917_)
+  );
+  sg13g2_nand2b_1 _3242_ (
+    .A_N(_1456_),
+    .B(_1217_),
+    .Y(_1918_)
+  );
+  sg13g2_nand3_1 _3243_ (
+    .A(_1916_),
+    .B(_1917_),
+    .C(_1918_),
+    .Y(_0492_)
+  );
+  sg13g2_inv_1 _3244_ (
     .A(\u_uart_master_reg.tl_o[47] ),
-    .Y(_1925_)
+    .Y(_1919_)
+  );
+  sg13g2_nand2_1 _3245_ (
+    .A(_1214_),
+    .B(\reg2hw[56] ),
+    .Y(_1920_)
+  );
+  sg13g2_a22oi_1 _3246_ (
+    .A1(_1919_),
+    .A2(_1198_),
+    .B1(_1920_),
+    .B2(_1224_),
+    .Y(_0493_)
   );
   sg13g2_nand2_1 _3247_ (
-    .A(_0656_),
-    .B(\reg2hw[56] ),
+    .A(_1145_),
+    .B(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[2] ),
+    .Y(_1921_)
+  );
+  sg13g2_nor2b_1 _3248_ (
+    .A(_1921_),
+    .B_N(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[3] ),
+    .Y(_1950_)
+  );
+  sg13g2_a22oi_1 _3249_ (
+    .A1(\u_uart_master_core.u_host_bridge.rdata_q[15] ),
+    .A2(_0677_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[23] ),
+    .B2(_0674_),
+    .Y(_1922_)
+  );
+  sg13g2_nand2_1 _3250_ (
+    .A(_0541_),
+    .B(\u_uart_master_core.u_host_bridge.rdata_q[7] ),
+    .Y(_1923_)
+  );
+  sg13g2_a22oi_1 _3251_ (
+    .A1(_0670_),
+    .A2(\u_uart_master_core.u_host_bridge.op_q[7] ),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[31] ),
+    .B2(_0667_),
+    .Y(_1924_)
+  );
+  sg13g2_nand3_1 _3252_ (
+    .A(_1922_),
+    .B(_1923_),
+    .C(_1924_),
+    .Y(_1925_)
+  );
+  sg13g2_a21oi_1 _3253_ (
+    .A1(_0665_),
+    .A2(_1925_),
+    .B1(\reg2hw[12] ),
     .Y(_1926_)
   );
-  sg13g2_a22oi_1 _3248_ (
-    .A1(_1925_),
-    .A2(_0650_),
-    .B1(_1926_),
-    .B2(_0663_),
-    .Y(_0512_)
+  sg13g2_buf_1 _3254_ (
+    .A(_1926_),
+    .X(_1927_)
   );
-  sg13g2_nand3_1 _3249_ (
-    .A(_1022_),
-    .B(_0041_),
-    .C(\reg2hw[34] ),
-    .Y(_1927_)
-  );
-  sg13g2_o21ai_1 _3250_ (
-    .A1(_0520_),
-    .A2(_1024_),
-    .B1(_1927_),
-    .Y(_0513_)
-  );
-  sg13g2_nand2_1 _3251_ (
-    .A(_1649_),
-    .B(_0051_),
+  sg13g2_nor2_1 _3255_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[7] ),
+    .B(_1200_),
     .Y(_1928_)
   );
-  sg13g2_o21ai_1 _3252_ (
-    .A1(_1877_),
-    .A2(_1652_),
+  sg13g2_a21oi_1 _3256_ (
+    .A1(_1200_),
+    .A2(_1927_),
     .B1(_1928_),
-    .Y(_0514_)
+    .Y(_0494_)
   );
-  sg13g2_mux2_1 _3253_ (
+  sg13g2_mux2_1 _3257_ (
     .A0(tl_i[101]),
     .A1(\u_uart_master_reg.tl_o[58] ),
-    .S(_0650_),
-    .X(_0515_)
-  );
-  sg13g2_mux2_1 _3254_ (
-    .A0(tl_i[99]),
-    .A1(\u_uart_master_reg.tl_o[56] ),
-    .S(_0650_),
-    .X(_0516_)
-  );
-  sg13g2_o21ai_1 _3255_ (
-    .A1(\u_uart_master_reg.tl_o[0] ),
-    .A2(tl_i[0]),
-    .B1(_0652_),
-    .Y(_0517_)
-  );
-  sg13g2_o21ai_1 _3256_ (
-    .A1(_1516_),
-    .A2(_1594_),
-    .B1(_1542_),
-    .Y(_1929_)
-  );
-  sg13g2_o21ai_1 _3257_ (
-    .A1(_1515_),
-    .A2(_1540_),
-    .B1(_1929_),
-    .Y(_0518_)
+    .S(_1198_),
+    .X(_0495_)
   );
   sg13g2_mux2_1 _3258_ (
-    .A0(err_i),
-    .A1(\u_uart_master_core.u_host_bridge.any_err_q ),
-    .S(_1689_),
-    .X(_0519_)
+    .A0(tl_i[99]),
+    .A1(\u_uart_master_reg.tl_o[56] ),
+    .S(_1198_),
+    .X(_0496_)
   );
-  sg13g2_inv_1 _3259_ (
+  sg13g2_o21ai_1 _3259_ (
+    .A1(_0542_),
+    .A2(_0557_),
+    .B1(\u_uart_master_core.u_host_bridge.tx_st_q[1] ),
+    .Y(_1929_)
+  );
+  sg13g2_o21ai_1 _3260_ (
+    .A1(_0018_),
+    .A2(_0532_),
+    .B1(_1929_),
+    .Y(_0052_)
+  );
+  sg13g2_o21ai_1 _3261_ (
+    .A1(\u_uart_master_reg.tl_o[0] ),
+    .A2(tl_i[0]),
+    .B1(_1209_),
+    .Y(_0497_)
+  );
+  sg13g2_nor2_1 _3262_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[15] ),
+    .B(_1189_),
+    .Y(_1930_)
+  );
+  sg13g2_a21oi_1 _3263_ (
+    .A1(_1189_),
+    .A2(_1927_),
+    .B1(_1930_),
+    .Y(_0498_)
+  );
+  sg13g2_nand3_1 _3264_ (
+    .A(_1152_),
+    .B(_0041_),
+    .C(\reg2hw[34] ),
+    .Y(_1931_)
+  );
+  sg13g2_o21ai_1 _3265_ (
+    .A1(_0520_),
+    .A2(_1154_),
+    .B1(_1931_),
+    .Y(_0499_)
+  );
+  sg13g2_nor2_1 _3266_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[23] ),
+    .B(_1180_),
+    .Y(_1932_)
+  );
+  sg13g2_a21oi_1 _3267_ (
+    .A1(_1180_),
+    .A2(_1927_),
+    .B1(_1932_),
+    .Y(_0500_)
+  );
+  sg13g2_a21oi_1 _3268_ (
+    .A1(_1148_),
+    .A2(_1146_),
+    .B1(_1147_),
+    .Y(_1933_)
+  );
+  sg13g2_o21ai_1 _3269_ (
+    .A1(_1933_),
+    .A2(_1161_),
+    .B1(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[3] ),
+    .Y(_1934_)
+  );
+  sg13g2_nand2_1 _3270_ (
+    .A(_1934_),
+    .B(_1174_),
+    .Y(_0501_)
+  );
+  sg13g2_mux2_1 _3271_ (
+    .A0(\u_uart_master_core.u_host_bridge.any_err_q ),
+    .A1(err_i),
+    .S(_1142_),
+    .X(_0502_)
+  );
+  sg13g2_xnor2_1 _3272_ (
+    .A(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[3] ),
+    .B(_1921_),
+    .Y(_0503_)
+  );
+  sg13g2_mux2_1 _3273_ (
+    .A0(\u_uart_master_core.u_host_bridge.rdata_q[31] ),
+    .A1(rdata_i[31]),
+    .S(_1142_),
+    .X(_0504_)
+  );
+  sg13g2_nor2_1 _3274_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[31] ),
+    .B(_1133_),
+    .Y(_1935_)
+  );
+  sg13g2_a21oi_1 _3275_ (
+    .A1(_1133_),
+    .A2(_1927_),
+    .B1(_1935_),
+    .Y(_0505_)
+  );
+  sg13g2_o21ai_1 _3276_ (
+    .A1(_1901_),
+    .A2(_1382_),
+    .B1(req_o),
+    .Y(_1936_)
+  );
+  sg13g2_o21ai_1 _3277_ (
+    .A1(_0750_),
+    .A2(_1375_),
+    .B1(_1936_),
+    .Y(_0506_)
+  );
+  sg13g2_nand2_1 _3278_ (
+    .A(_0774_),
+    .B(_1076_),
+    .Y(_1937_)
+  );
+  sg13g2_a21o_1 _3279_ (
+    .A1(_1937_),
+    .A2(we_o),
+    .B1(_1085_),
+    .X(_0507_)
+  );
+  sg13g2_nand2_1 _3280_ (
+    .A(_1085_),
+    .B(_1954_),
+    .Y(_1938_)
+  );
+  sg13g2_o21ai_1 _3281_ (
+    .A1(\u_uart_master_core.be_o[3] ),
+    .A2(_1081_),
+    .B1(_1938_),
+    .Y(_0508_)
+  );
+  sg13g2_mux2_1 _3282_ (
+    .A0(\reg2hw[56] ),
+    .A1(tl_i[55]),
+    .S(_1687_),
+    .X(_0509_)
+  );
+  sg13g2_nor2_1 _3283_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[39] ),
+    .B(_1121_),
+    .Y(_1939_)
+  );
+  sg13g2_a21oi_1 _3284_ (
+    .A1(_1121_),
+    .A2(_1927_),
+    .B1(_1939_),
+    .Y(_0510_)
+  );
+  sg13g2_inv_1 _3285_ (
+    .A(_1304_),
+    .Y(_1940_)
+  );
+  sg13g2_nand2_1 _3286_ (
+    .A(_1088_),
+    .B(\u_uart_master_core.u_host_bridge.wdata_o[31] ),
+    .Y(_1941_)
+  );
+  sg13g2_o21ai_1 _3287_ (
+    .A1(_1087_),
+    .A2(_1940_),
+    .B1(_1941_),
+    .Y(_0511_)
+  );
+  sg13g2_nor2_1 _3288_ (
+    .A(\u_uart_master_core.addr_o[31] ),
+    .B(_1040_),
+    .Y(_1942_)
+  );
+  sg13g2_a21oi_1 _3289_ (
+    .A1(_1042_),
+    .A2(_1303_),
+    .B1(_1942_),
+    .Y(_0512_)
+  );
+  sg13g2_nor2_1 _3290_ (
+    .A(_1954_),
+    .B(_1034_),
+    .Y(_1943_)
+  );
+  sg13g2_a21oi_1 _3291_ (
+    .A1(_0898_),
+    .A2(_1034_),
+    .B1(_1943_),
+    .Y(_0513_)
+  );
+  sg13g2_nor2_1 _3292_ (
+    .A(\u_uart_master_core.u_host_bridge.op_q[7] ),
+    .B(_1025_),
+    .Y(_1944_)
+  );
+  sg13g2_a21oi_1 _3293_ (
+    .A1(_1940_),
+    .A2(_1025_),
+    .B1(_1944_),
+    .Y(_0514_)
+  );
+  sg13g2_nand2_1 _3294_ (
+    .A(_1625_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[79] ),
+    .Y(_1945_)
+  );
+  sg13g2_o21ai_1 _3295_ (
+    .A1(_1625_),
+    .A2(_1870_),
+    .B1(_1945_),
+    .Y(_0515_)
+  );
+  sg13g2_nand2_1 _3296_ (
+    .A(_0776_),
+    .B(_1304_),
+    .Y(_1946_)
+  );
+  sg13g2_o21ai_1 _3297_ (
+    .A1(_1050_),
+    .A2(_0774_),
+    .B1(_1946_),
+    .Y(_0516_)
+  );
+  sg13g2_nor2_1 _3298_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[47] ),
+    .B(_0741_),
+    .Y(_1947_)
+  );
+  sg13g2_a21oi_1 _3299_ (
+    .A1(_0741_),
+    .A2(_1927_),
+    .B1(_1947_),
+    .Y(_0517_)
+  );
+  sg13g2_nor2_1 _3300_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[63] ),
+    .B(_0732_),
+    .Y(_1948_)
+  );
+  sg13g2_a21oi_1 _3301_ (
+    .A1(_0732_),
+    .A2(_1927_),
+    .B1(_1948_),
+    .Y(_0518_)
+  );
+  sg13g2_nor2_1 _3302_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[55] ),
+    .B(_0663_),
+    .Y(_1949_)
+  );
+  sg13g2_a21oi_1 _3303_ (
+    .A1(_0663_),
+    .A2(_1927_),
+    .B1(_1949_),
+    .Y(_0519_)
+  );
+  sg13g2_inv_1 _3304_ (
     .A(_0051_),
     .Y(\u_uart_master_core.be_o[3] )
   );
-  sg13g2_inv_1 _3260_ (
+  sg13g2_inv_1 _3305_ (
     .A(_0050_),
     .Y(_0520_)
   );
-  sg13g2_nor2_1 _3261_ (
+  sg13g2_nor2_1 _3306_ (
     .A(\reg2hw[37] ),
     .B(_0520_),
     .Y(_0058_)
   );
-  sg13g2_inv_1 _3262_ (
+  sg13g2_inv_1 _3307_ (
     .A(cio_rx_i),
     .Y(_0057_)
   );
-  sg13g2_buf_1 _3263_ (
+  sg13g2_buf_1 _3308_ (
     .A(_0048_),
     .X(_0056_)
   );
-  sg13g2_buf_1 _3264_ (
+  sg13g2_buf_1 _3309_ (
     .A(_0047_),
     .X(_0055_)
   );
-  sg13g2_buf_1 _3265_ (
+  sg13g2_buf_1 _3310_ (
     .A(_0046_),
     .X(_0054_)
   );
-  sg13g2_inv_1 _3266_ (
-    .A(_0032_),
+  sg13g2_inv_1 _3311_ (
+    .A(_0021_),
     .Y(\u_uart_master_core.be_o[0] )
   );
-  sg13g2_inv_1 _3267_ (
-    .A(_0031_),
+  sg13g2_inv_1 _3312_ (
+    .A(_0020_),
     .Y(\u_uart_master_core.be_o[1] )
   );
-  sg13g2_inv_1 _3268_ (
-    .A(_0030_),
+  sg13g2_inv_1 _3313_ (
+    .A(_0019_),
     .Y(\u_uart_master_core.be_o[2] )
   );
-  sg13g2_inv_1 _3269_ (
+  sg13g2_inv_1 _3314_ (
     .A(_0018_),
     .Y(_0521_)
   );
-  sg13g2_inv_1 _3270_ (
-    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
+  sg13g2_inv_1 _3315_ (
+    .A(valid_i),
     .Y(_0522_)
   );
-  sg13g2_nor2_1 _3271_ (
-    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
-    .B(_0522_),
+  sg13g2_inv_1 _3316_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
     .Y(_0523_)
   );
-  sg13g2_nand3_1 _3272_ (
-    .A(_0523_),
-    .B(valid_i),
-    .C(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
+  sg13g2_nor2_1 _3317_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
+    .B(_0523_),
     .Y(_0524_)
   );
-  sg13g2_buf_1 _3273_ (
+  sg13g2_nand2_1 _3318_ (
     .A(_0524_),
-    .X(_0525_)
+    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
+    .Y(_0525_)
   );
-  sg13g2_nor2_1 _3274_ (
-    .A(\u_uart_master_core.u_host_bridge.op_q[2] ),
-    .B(\u_uart_master_core.u_host_bridge.op_q[3] ),
+  sg13g2_nor2_1 _3319_ (
+    .A(_0522_),
+    .B(_0525_),
     .Y(_0526_)
   );
-  sg13g2_nand3b_1 _3275_ (
-    .A_N(\u_uart_master_core.u_host_bridge.op_q[1] ),
-    .B(_0526_),
-    .C(\u_uart_master_core.u_host_bridge.op_q[0] ),
-    .Y(_0527_)
+  sg13g2_buf_1 _3320_ (
+    .A(_0526_),
+    .X(_0527_)
   );
-  sg13g2_nor4_1 _3276_ (
+  sg13g2_inv_1 _3321_ (
+    .A(\u_uart_master_core.u_host_bridge.op_q[0] ),
+    .Y(_0528_)
+  );
+  sg13g2_nor4_1 _3322_ (
+    .A(\u_uart_master_core.u_host_bridge.op_q[2] ),
+    .B(\u_uart_master_core.u_host_bridge.op_q[3] ),
+    .C(\u_uart_master_core.u_host_bridge.op_q[1] ),
+    .D(_0528_),
+    .Y(_0529_)
+  );
+  sg13g2_nor4_1 _3323_ (
     .A(\u_uart_master_core.u_host_bridge.op_q[6] ),
     .B(\u_uart_master_core.u_host_bridge.op_q[7] ),
     .C(\u_uart_master_core.u_host_bridge.op_q[4] ),
     .D(\u_uart_master_core.u_host_bridge.op_q[5] ),
-    .Y(_0528_)
+    .Y(_0530_)
   );
-  sg13g2_nor2b_1 _3277_ (
-    .A(_0527_),
-    .B_N(_0528_),
-    .Y(_0529_)
-  );
-  sg13g2_buf_1 _3278_ (
+  sg13g2_nand2_1 _3324_ (
     .A(_0529_),
-    .X(_0530_)
-  );
-  sg13g2_nor2_1 _3279_ (
-    .A(_0525_),
     .B(_0530_),
     .Y(_0531_)
   );
-  sg13g2_inv_1 _3280_ (
-    .A(_0531_),
+  sg13g2_nand2_1 _3325_ (
+    .A(_0527_),
+    .B(_0531_),
     .Y(_0532_)
   );
-  sg13g2_inv_1 _3281_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[1] ),
+  sg13g2_inv_1 _3326_ (
+    .A(_0531_),
     .Y(_0533_)
   );
-  sg13g2_inv_1 _3282_ (
+  sg13g2_inv_1 _3327_ (
     .A(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
     .Y(_0534_)
   );
-  sg13g2_nor2_1 _3283_ (
-    .A(_0533_),
-    .B(_0534_),
+  sg13g2_inv_1 _3328_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[1] ),
     .Y(_0535_)
   );
-  sg13g2_inv_1 _3284_ (
-    .A(_0535_),
+  sg13g2_nor2_1 _3329_ (
+    .A(_0534_),
+    .B(_0535_),
     .Y(_0536_)
   );
-  sg13g2_nor2_1 _3285_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
-    .B(_0530_),
+  sg13g2_inv_1 _3330_ (
+    .A(_0536_),
     .Y(_0537_)
   );
-  sg13g2_nor3_1 _3286_ (
+  sg13g2_nor3_1 _3331_ (
     .A(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .B(_0536_),
+    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
     .C(_0537_),
     .Y(_0538_)
   );
-  sg13g2_inv_1 _3287_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_st_q[1] ),
+  sg13g2_inv_1 _3332_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
     .Y(_0539_)
   );
-  sg13g2_inv_1 _3288_ (
-    .A(_0043_),
+  sg13g2_nor3_1 _3333_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
+    .B(_0539_),
+    .C(_0537_),
     .Y(_0540_)
   );
-  sg13g2_xnor2_1 _3289_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[3] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[3] ),
-    .Y(_0541_)
+  sg13g2_buf_1 _3334_ (
+    .A(_0540_),
+    .X(_0541_)
   );
-  sg13g2_xnor2_1 _3290_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[0] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_a21oi_1 _3335_ (
+    .A1(_0533_),
+    .A2(_0538_),
+    .B1(_0541_),
     .Y(_0542_)
   );
-  sg13g2_inv_1 _3291_ (
+  sg13g2_inv_1 _3336_ (
     .A(_0542_),
     .Y(_0543_)
   );
-  sg13g2_xnor2_1 _3292_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+  sg13g2_inv_1 _3337_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_st_q[1] ),
     .Y(_0544_)
   );
-  sg13g2_inv_1 _3293_ (
-    .A(_0544_),
+  sg13g2_inv_1 _3338_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_0545_)
   );
-  sg13g2_inv_2 _3294_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_nor2_1 _3339_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .B(_0545_),
     .Y(_0546_)
   );
-  sg13g2_nor2_1 _3295_ (
+  sg13g2_inv_1 _3340_ (
     .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .B(_0546_),
     .Y(_0547_)
   );
-  sg13g2_inv_1 _3296_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
+  sg13g2_nor2_1 _3341_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .B(_0547_),
     .Y(_0548_)
   );
-  sg13g2_nor2_1 _3297_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .B(_0548_),
+  sg13g2_xnor2_1 _3342_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[0] ),
     .Y(_0549_)
   );
-  sg13g2_nor2_1 _3298_ (
-    .A(_0547_),
-    .B(_0549_),
+  sg13g2_inv_1 _3343_ (
+    .A(_0549_),
     .Y(_0550_)
   );
-  sg13g2_inv_1 _3299_ (
-    .A(_0550_),
+  sg13g2_xnor2_1 _3344_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
     .Y(_0551_)
   );
-  sg13g2_nor3_1 _3300_ (
-    .A(_0543_),
-    .B(_0545_),
-    .C(_0551_),
+  sg13g2_inv_1 _3345_ (
+    .A(_0551_),
     .Y(_0552_)
   );
-  sg13g2_nor2b_1 _3301_ (
-    .A(_0541_),
-    .B_N(_0552_),
+  sg13g2_nor4_1 _3346_ (
+    .A(_0546_),
+    .B(_0548_),
+    .C(_0550_),
+    .D(_0552_),
     .Y(_0553_)
   );
-  sg13g2_nor2_1 _3302_ (
-    .A(_0540_),
-    .B(_0553_),
+  sg13g2_xnor2_1 _3347_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[3] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[3] ),
     .Y(_0554_)
   );
-  sg13g2_inv_1 _3303_ (
+  sg13g2_inv_1 _3348_ (
     .A(_0554_),
     .Y(_0555_)
   );
-  sg13g2_nor2_1 _3304_ (
-    .A(_0539_),
+  sg13g2_nand2_1 _3349_ (
+    .A(_0553_),
     .B(_0555_),
     .Y(_0556_)
   );
-  sg13g2_a22oi_1 _3305_ (
-    .A1(_0521_),
-    .A2(_0532_),
-    .B1(_0538_),
-    .B2(_0556_),
-    .Y(_0053_)
-  );
-  sg13g2_inv_1 _3306_ (
-    .A(\reg2hw[54] ),
+  sg13g2_nand2_1 _3350_ (
+    .A(_0556_),
+    .B(_0043_),
     .Y(_0557_)
   );
-  sg13g2_inv_1 _3307_ (
-    .A(\u_uart_master_core.u_uart_core.nco_sum_q[13] ),
+  sg13g2_nor2_1 _3351_ (
+    .A(_0544_),
+    .B(_0557_),
     .Y(_0558_)
   );
-  sg13g2_nor2_1 _3308_ (
-    .A(_0557_),
-    .B(_0558_),
+  sg13g2_a22oi_1 _3352_ (
+    .A1(_0521_),
+    .A2(_0532_),
+    .B1(_0543_),
+    .B2(_0558_),
+    .Y(_0053_)
+  );
+  sg13g2_xnor2_1 _3353_ (
+    .A(_0022_),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[14] ),
     .Y(_0559_)
   );
-  sg13g2_nand2_1 _3309_ (
-    .A(_0557_),
-    .B(_0558_),
+  sg13g2_inv_1 _3354_ (
+    .A(\reg2hw[54] ),
     .Y(_0560_)
   );
-  sg13g2_nand2b_1 _3310_ (
-    .A_N(_0559_),
-    .B(_0560_),
+  sg13g2_inv_1 _3355_ (
+    .A(\u_uart_master_core.u_uart_core.nco_sum_q[13] ),
     .Y(_0561_)
   );
-  sg13g2_xor2_1 _3311_ (
-    .A(\reg2hw[53] ),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[12] ),
-    .X(_0562_)
+  sg13g2_nor2_1 _3356_ (
+    .A(_0560_),
+    .B(_0561_),
+    .Y(_0562_)
   );
-  sg13g2_nand2b_1 _3312_ (
-    .A_N(_0561_),
-    .B(_0562_),
+  sg13g2_nand2_1 _3357_ (
+    .A(_0560_),
+    .B(_0561_),
     .Y(_0563_)
   );
-  sg13g2_inv_1 _3313_ (
-    .A(_0022_),
+  sg13g2_nor2b_1 _3358_ (
+    .A(_0562_),
+    .B_N(_0563_),
     .Y(_0564_)
   );
-  sg13g2_nand2_1 _3314_ (
-    .A(_0564_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[8] ),
-    .Y(_0565_)
+  sg13g2_xor2_1 _3359_ (
+    .A(\reg2hw[53] ),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[12] ),
+    .X(_0565_)
   );
-  sg13g2_inv_1 _3315_ (
-    .A(_0021_),
+  sg13g2_nand2_1 _3360_ (
+    .A(_0564_),
+    .B(_0565_),
     .Y(_0566_)
   );
-  sg13g2_nor2_1 _3316_ (
-    .A(\u_uart_master_core.u_uart_core.nco_sum_q[9] ),
-    .B(_0566_),
+  sg13g2_inv_1 _3361_ (
+    .A(_0027_),
     .Y(_0567_)
   );
-  sg13g2_nor2b_1 _3317_ (
-    .A(_0021_),
-    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[9] ),
+  sg13g2_nor2_1 _3362_ (
+    .A(\u_uart_master_core.u_uart_core.nco_sum_q[5] ),
+    .B(_0567_),
     .Y(_0568_)
   );
-  sg13g2_inv_1 _3318_ (
-    .A(_0568_),
+  sg13g2_inv_1 _3363_ (
+    .A(_0028_),
     .Y(_0569_)
   );
-  sg13g2_o21ai_1 _3319_ (
-    .A1(_0565_),
-    .A2(_0567_),
-    .B1(_0569_),
+  sg13g2_inv_16 _3364_ (
+    .A(_0030_),
     .Y(_0570_)
   );
-  sg13g2_nand2b_1 _3320_ (
-    .A_N(_0567_),
-    .B(_0569_),
+  sg13g2_nor2b_2 _3365_ (
+    .A(_0031_),
+    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[1] ),
     .Y(_0571_)
   );
-  sg13g2_xnor2_1 _3321_ (
-    .A(_0022_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[8] ),
+  sg13g2_inv_1 _3366_ (
+    .A(_0031_),
     .Y(_0572_)
   );
-  sg13g2_inv_1 _3322_ (
-    .A(_0572_),
+  sg13g2_nor2_1 _3367_ (
+    .A(\u_uart_master_core.u_uart_core.nco_sum_q[1] ),
+    .B(_0572_),
     .Y(_0573_)
   );
-  sg13g2_inv_1 _3323_ (
-    .A(\u_uart_master_core.u_uart_core.nco_sum_q[5] ),
-    .Y(_0574_)
-  );
-  sg13g2_inv_1 _3324_ (
-    .A(_0025_),
-    .Y(_0575_)
-  );
-  sg13g2_inv_1 _3325_ (
-    .A(_0024_),
-    .Y(_0576_)
-  );
-  sg13g2_a22oi_1 _3326_ (
-    .A1(_0575_),
-    .A2(\u_uart_master_core.u_uart_core.nco_sum_q[4] ),
-    .B1(\u_uart_master_core.u_uart_core.nco_sum_q[5] ),
-    .B2(_0576_),
-    .Y(_0577_)
-  );
-  sg13g2_nor2b_1 _3327_ (
-    .A(_0026_),
-    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[3] ),
-    .Y(_0578_)
-  );
-  sg13g2_inv_1 _3328_ (
-    .A(_0026_),
-    .Y(_0579_)
-  );
-  sg13g2_nor2_1 _3329_ (
-    .A(\u_uart_master_core.u_uart_core.nco_sum_q[3] ),
-    .B(_0579_),
-    .Y(_0580_)
-  );
-  sg13g2_inv_1 _3330_ (
-    .A(_0027_),
-    .Y(_0581_)
-  );
-  sg13g2_nor2b_2 _3331_ (
-    .A(_0028_),
-    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[1] ),
-    .Y(_0582_)
-  );
-  sg13g2_inv_1 _3332_ (
-    .A(_0028_),
-    .Y(_0583_)
-  );
-  sg13g2_nor2_1 _3333_ (
-    .A(\u_uart_master_core.u_uart_core.nco_sum_q[1] ),
-    .B(_0583_),
-    .Y(_0584_)
-  );
-  sg13g2_nor2_2 _3334_ (
-    .A(_0582_),
-    .B(_0584_),
-    .Y(_0585_)
-  );
-  sg13g2_inv_2 _3335_ (
-    .A(_0029_),
-    .Y(_0586_)
-  );
-  sg13g2_nand2_1 _3336_ (
-    .A(_0586_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[0] ),
-    .Y(_0587_)
-  );
-  sg13g2_inv_1 _3337_ (
-    .A(_0587_),
-    .Y(_0588_)
-  );
-  sg13g2_a21oi_2 _3338_ (
-    .A1(_0585_),
-    .A2(_0588_),
-    .B1(_0582_),
-    .Y(_0589_)
-  );
-  sg13g2_xnor2_1 _3339_ (
-    .A(_0027_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[2] ),
-    .Y(_0590_)
-  );
-  sg13g2_nor2b_2 _3340_ (
-    .A(_0589_),
-    .B_N(_0590_),
-    .Y(_0591_)
-  );
-  sg13g2_a21oi_2 _3341_ (
-    .A1(_0581_),
-    .A2(\u_uart_master_core.u_uart_core.nco_sum_q[2] ),
-    .B1(_0591_),
-    .Y(_0592_)
-  );
-  sg13g2_nor2_2 _3342_ (
-    .A(_0580_),
-    .B(_0592_),
-    .Y(_0593_)
-  );
-  sg13g2_xnor2_1 _3343_ (
-    .A(_0025_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[4] ),
-    .Y(_0594_)
-  );
-  sg13g2_o21ai_1 _3344_ (
-    .A1(_0578_),
-    .A2(_0593_),
-    .B1(_0594_),
-    .Y(_0595_)
-  );
-  sg13g2_a22oi_1 _3345_ (
-    .A1(_0024_),
-    .A2(_0574_),
-    .B1(_0577_),
-    .B2(_0595_),
-    .Y(_0596_)
-  );
-  sg13g2_xor2_1 _3346_ (
-    .A(_0023_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[6] ),
-    .X(_0597_)
-  );
-  sg13g2_nor2_1 _3347_ (
-    .A(\reg2hw[48] ),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[7] ),
-    .Y(_0598_)
-  );
-  sg13g2_nand2_1 _3348_ (
-    .A(\reg2hw[48] ),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[7] ),
-    .Y(_0599_)
-  );
-  sg13g2_nand2b_1 _3349_ (
-    .A_N(_0598_),
-    .B(_0599_),
-    .Y(_0600_)
-  );
-  sg13g2_nor2_1 _3350_ (
-    .A(_0597_),
-    .B(_0600_),
-    .Y(_0601_)
-  );
-  sg13g2_inv_1 _3351_ (
-    .A(_0023_),
-    .Y(_0602_)
-  );
-  sg13g2_nand2_1 _3352_ (
-    .A(_0602_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[6] ),
-    .Y(_0603_)
-  );
-  sg13g2_o21ai_1 _3353_ (
-    .A1(_0598_),
-    .A2(_0603_),
-    .B1(_0599_),
-    .Y(_0604_)
-  );
-  sg13g2_a21oi_2 _3354_ (
-    .A1(_0596_),
-    .A2(_0601_),
-    .B1(_0604_),
-    .Y(_0605_)
-  );
-  sg13g2_nor3_2 _3355_ (
+  sg13g2_nor2_2 _3368_ (
     .A(_0571_),
     .B(_0573_),
-    .C(_0605_),
+    .Y(_0574_)
+  );
+  sg13g2_inv_2 _3369_ (
+    .A(_0032_),
+    .Y(_0575_)
+  );
+  sg13g2_nand2_1 _3370_ (
+    .A(_0575_),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[0] ),
+    .Y(_0576_)
+  );
+  sg13g2_inv_1 _3371_ (
+    .A(_0576_),
+    .Y(_0577_)
+  );
+  sg13g2_a21oi_2 _3372_ (
+    .A1(_0574_),
+    .A2(_0577_),
+    .B1(_0571_),
+    .Y(_0578_)
+  );
+  sg13g2_xnor2_1 _3373_ (
+    .A(_0030_),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[2] ),
+    .Y(_0579_)
+  );
+  sg13g2_nor2b_2 _3374_ (
+    .A(_0578_),
+    .B_N(_0579_),
+    .Y(_0580_)
+  );
+  sg13g2_a21o_2 _3375_ (
+    .A1(_0570_),
+    .A2(\u_uart_master_core.u_uart_core.nco_sum_q[2] ),
+    .B1(_0580_),
+    .X(_0581_)
+  );
+  sg13g2_inv_1 _3376_ (
+    .A(\u_uart_master_core.u_uart_core.nco_sum_q[3] ),
+    .Y(_0582_)
+  );
+  sg13g2_nand2_1 _3377_ (
+    .A(_0582_),
+    .B(_0029_),
+    .Y(_0583_)
+  );
+  sg13g2_nor2_1 _3378_ (
+    .A(_0029_),
+    .B(_0582_),
+    .Y(_0584_)
+  );
+  sg13g2_a21oi_2 _3379_ (
+    .A1(_0581_),
+    .A2(_0583_),
+    .B1(_0584_),
+    .Y(_0585_)
+  );
+  sg13g2_xnor2_1 _3380_ (
+    .A(_0028_),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[4] ),
+    .Y(_0586_)
+  );
+  sg13g2_nor2b_2 _3381_ (
+    .A(_0585_),
+    .B_N(_0586_),
+    .Y(_0587_)
+  );
+  sg13g2_a21oi_2 _3382_ (
+    .A1(_0569_),
+    .A2(\u_uart_master_core.u_uart_core.nco_sum_q[4] ),
+    .B1(_0587_),
+    .Y(_0588_)
+  );
+  sg13g2_nand2_1 _3383_ (
+    .A(_0567_),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[5] ),
+    .Y(_0589_)
+  );
+  sg13g2_o21ai_1 _3384_ (
+    .A1(_0568_),
+    .A2(_0588_),
+    .B1(_0589_),
+    .Y(_0590_)
+  );
+  sg13g2_nor2_1 _3385_ (
+    .A(\reg2hw[48] ),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[7] ),
+    .Y(_0591_)
+  );
+  sg13g2_inv_1 _3386_ (
+    .A(\reg2hw[48] ),
+    .Y(_0592_)
+  );
+  sg13g2_nor2b_1 _3387_ (
+    .A(_0592_),
+    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[7] ),
+    .Y(_0593_)
+  );
+  sg13g2_nor2_1 _3388_ (
+    .A(_0591_),
+    .B(_0593_),
+    .Y(_0594_)
+  );
+  sg13g2_xnor2_1 _3389_ (
+    .A(_0026_),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[6] ),
+    .Y(_0595_)
+  );
+  sg13g2_nand3_1 _3390_ (
+    .A(_0590_),
+    .B(_0594_),
+    .C(_0595_),
+    .Y(_0596_)
+  );
+  sg13g2_inv_1 _3391_ (
+    .A(_0026_),
+    .Y(_0597_)
+  );
+  sg13g2_nand2_1 _3392_ (
+    .A(_0597_),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[6] ),
+    .Y(_0598_)
+  );
+  sg13g2_inv_1 _3393_ (
+    .A(_0598_),
+    .Y(_0599_)
+  );
+  sg13g2_inv_1 _3394_ (
+    .A(_0591_),
+    .Y(_0600_)
+  );
+  sg13g2_a21oi_1 _3395_ (
+    .A1(_0599_),
+    .A2(_0600_),
+    .B1(_0593_),
+    .Y(_0601_)
+  );
+  sg13g2_nand2_2 _3396_ (
+    .A(_0596_),
+    .B(_0601_),
+    .Y(_0602_)
+  );
+  sg13g2_inv_1 _3397_ (
+    .A(\u_uart_master_core.u_uart_core.nco_sum_q[11] ),
+    .Y(_0603_)
+  );
+  sg13g2_nor2_1 _3398_ (
+    .A(_0023_),
+    .B(_0603_),
+    .Y(_0604_)
+  );
+  sg13g2_nand2_1 _3399_ (
+    .A(_0603_),
+    .B(_0023_),
+    .Y(_0605_)
+  );
+  sg13g2_nor2b_2 _3400_ (
+    .A(_0604_),
+    .B_N(_0605_),
     .Y(_0606_)
   );
-  sg13g2_nor2_2 _3356_ (
-    .A(_0570_),
-    .B(_0606_),
-    .Y(_0607_)
+  sg13g2_xor2_1 _3401_ (
+    .A(\reg2hw[51] ),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[10] ),
+    .X(_0607_)
   );
-  sg13g2_inv_2 _3357_ (
-    .A(_0607_),
+  sg13g2_nor2b_1 _3402_ (
+    .A(_0024_),
+    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[9] ),
     .Y(_0608_)
   );
-  sg13g2_xnor2_1 _3358_ (
-    .A(\reg2hw[51] ),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[10] ),
+  sg13g2_inv_1 _3403_ (
+    .A(_0024_),
     .Y(_0609_)
   );
-  sg13g2_inv_1 _3359_ (
-    .A(_0020_),
+  sg13g2_nor2_1 _3404_ (
+    .A(\u_uart_master_core.u_uart_core.nco_sum_q[9] ),
+    .B(_0609_),
     .Y(_0610_)
   );
-  sg13g2_nor2_1 _3360_ (
-    .A(\u_uart_master_core.u_uart_core.nco_sum_q[11] ),
-    .B(_0610_),
+  sg13g2_xnor2_1 _3405_ (
+    .A(_0025_),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[8] ),
     .Y(_0611_)
   );
-  sg13g2_nand2_1 _3361_ (
-    .A(_0610_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[11] ),
+  sg13g2_inv_1 _3406_ (
+    .A(_0611_),
     .Y(_0612_)
   );
-  sg13g2_nand2b_1 _3362_ (
-    .A_N(_0611_),
-    .B(_0612_),
+  sg13g2_nor3_1 _3407_ (
+    .A(_0608_),
+    .B(_0610_),
+    .C(_0612_),
     .Y(_0613_)
   );
-  sg13g2_nor2_1 _3363_ (
-    .A(_0609_),
-    .B(_0613_),
+  sg13g2_nand4_1 _3408_ (
+    .A(_0602_),
+    .B(_0606_),
+    .C(_0607_),
+    .D(_0613_),
     .Y(_0614_)
   );
-  sg13g2_nand2_1 _3364_ (
-    .A(\reg2hw[51] ),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[10] ),
+  sg13g2_inv_1 _3409_ (
+    .A(_0610_),
     .Y(_0615_)
   );
-  sg13g2_o21ai_1 _3365_ (
-    .A1(_0615_),
-    .A2(_0611_),
-    .B1(_0612_),
+  sg13g2_inv_1 _3410_ (
+    .A(_0025_),
     .Y(_0616_)
   );
-  sg13g2_a21oi_2 _3366_ (
-    .A1(_0608_),
-    .A2(_0614_),
-    .B1(_0616_),
+  sg13g2_nand2_1 _3411_ (
+    .A(_0616_),
+    .B(\u_uart_master_core.u_uart_core.nco_sum_q[8] ),
     .Y(_0617_)
   );
-  sg13g2_inv_1 _3367_ (
-    .A(\reg2hw[53] ),
+  sg13g2_inv_1 _3412_ (
+    .A(_0617_),
     .Y(_0618_)
   );
-  sg13g2_nor2b_1 _3368_ (
-    .A(_0618_),
-    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[12] ),
+  sg13g2_a21oi_1 _3413_ (
+    .A1(_0615_),
+    .A2(_0618_),
+    .B1(_0608_),
     .Y(_0619_)
   );
-  sg13g2_a21oi_1 _3369_ (
-    .A1(_0560_),
-    .A2(_0619_),
-    .B1(_0559_),
+  sg13g2_inv_1 _3414_ (
+    .A(_0619_),
     .Y(_0620_)
   );
-  sg13g2_o21ai_1 _3370_ (
-    .A1(_0563_),
-    .A2(_0617_),
-    .B1(_0620_),
+  sg13g2_nand3_1 _3415_ (
+    .A(_0620_),
+    .B(_0606_),
+    .C(_0607_),
     .Y(_0621_)
   );
-  sg13g2_xnor2_1 _3371_ (
-    .A(_0019_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[14] ),
+  sg13g2_inv_1 _3416_ (
+    .A(\reg2hw[51] ),
     .Y(_0622_)
   );
-  sg13g2_nor2b_1 _3372_ (
-    .A(_0019_),
-    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[14] ),
+  sg13g2_nor2b_1 _3417_ (
+    .A(_0622_),
+    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[10] ),
     .Y(_0623_)
   );
-  sg13g2_a21oi_2 _3373_ (
-    .A1(_0621_),
-    .A2(_0622_),
-    .B1(_0623_),
+  sg13g2_a21oi_1 _3418_ (
+    .A1(_0623_),
+    .A2(_0605_),
+    .B1(_0604_),
     .Y(_0624_)
   );
-  sg13g2_nand2_1 _3374_ (
+  sg13g2_and3_1 _3419_ (
+    .A(_0614_),
+    .B(_0621_),
+    .C(_0624_),
+    .X(_0625_)
+  );
+  sg13g2_buf_2 _3420_ (
+    .A(_0625_),
+    .X(_0626_)
+  );
+  sg13g2_inv_1 _3421_ (
+    .A(\reg2hw[53] ),
+    .Y(_0627_)
+  );
+  sg13g2_nor2b_1 _3422_ (
+    .A(_0627_),
+    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[12] ),
+    .Y(_0628_)
+  );
+  sg13g2_o21ai_1 _3423_ (
+    .A1(_0628_),
+    .A2(_0562_),
+    .B1(_0563_),
+    .Y(_0629_)
+  );
+  sg13g2_o21ai_1 _3424_ (
+    .A1(_0566_),
+    .A2(_0626_),
+    .B1(_0629_),
+    .Y(_0630_)
+  );
+  sg13g2_xor2_1 _3425_ (
+    .A(_0559_),
+    .B(_0630_),
+    .X(_0007_)
+  );
+  sg13g2_nor2_1 _3426_ (
     .A(\reg2hw[56] ),
     .B(\u_uart_master_core.u_uart_core.nco_sum_q[15] ),
-    .Y(_0625_)
+    .Y(_0631_)
   );
-  sg13g2_nor2_1 _3375_ (
+  sg13g2_nand2_1 _3427_ (
     .A(\reg2hw[56] ),
     .B(\u_uart_master_core.u_uart_core.nco_sum_q[15] ),
-    .Y(_0626_)
+    .Y(_0632_)
   );
-  sg13g2_a21oi_1 _3376_ (
-    .A1(_0624_),
-    .A2(_0625_),
-    .B1(_0626_),
-    .Y(_0001_)
+  sg13g2_nor2b_1 _3428_ (
+    .A(_0631_),
+    .B_N(_0632_),
+    .Y(_0633_)
   );
-  sg13g2_xnor2_1 _3377_ (
-    .A(_0029_),
+  sg13g2_nor2b_1 _3429_ (
+    .A(_0022_),
+    .B_N(\u_uart_master_core.u_uart_core.nco_sum_q[14] ),
+    .Y(_0634_)
+  );
+  sg13g2_a21oi_2 _3430_ (
+    .A1(_0630_),
+    .A2(_0559_),
+    .B1(_0634_),
+    .Y(_0635_)
+  );
+  sg13g2_xnor2_1 _3431_ (
+    .A(_0633_),
+    .B(_0635_),
+    .Y(_0008_)
+  );
+  sg13g2_xnor2_1 _3432_ (
+    .A(_0565_),
+    .B(_0626_),
+    .Y(_0005_)
+  );
+  sg13g2_nor2b_1 _3433_ (
+    .A(_0626_),
+    .B_N(_0565_),
+    .Y(_0636_)
+  );
+  sg13g2_nor2_1 _3434_ (
+    .A(_0628_),
+    .B(_0636_),
+    .Y(_0637_)
+  );
+  sg13g2_xnor2_1 _3435_ (
+    .A(_0564_),
+    .B(_0637_),
+    .Y(_0006_)
+  );
+  sg13g2_a21oi_1 _3436_ (
+    .A1(_0602_),
+    .A2(_0613_),
+    .B1(_0620_),
+    .Y(_0638_)
+  );
+  sg13g2_xnor2_1 _3437_ (
+    .A(_0607_),
+    .B(_0638_),
+    .Y(_0003_)
+  );
+  sg13g2_nor2b_1 _3438_ (
+    .A(_0638_),
+    .B_N(_0607_),
+    .Y(_0639_)
+  );
+  sg13g2_nor2_1 _3439_ (
+    .A(_0623_),
+    .B(_0639_),
+    .Y(_0640_)
+  );
+  sg13g2_xnor2_1 _3440_ (
+    .A(_0606_),
+    .B(_0640_),
+    .Y(_0004_)
+  );
+  sg13g2_a21oi_1 _3441_ (
+    .A1(_0596_),
+    .A2(_0601_),
+    .B1(_0612_),
+    .Y(_0641_)
+  );
+  sg13g2_nor2_1 _3442_ (
+    .A(_0611_),
+    .B(_0602_),
+    .Y(_0642_)
+  );
+  sg13g2_nor2_1 _3443_ (
+    .A(_0641_),
+    .B(_0642_),
+    .Y(_0016_)
+  );
+  sg13g2_nor2_1 _3444_ (
+    .A(_0608_),
+    .B(_0610_),
+    .Y(_0643_)
+  );
+  sg13g2_nor2_1 _3445_ (
+    .A(_0618_),
+    .B(_0641_),
+    .Y(_0644_)
+  );
+  sg13g2_xnor2_1 _3446_ (
+    .A(_0643_),
+    .B(_0644_),
+    .Y(_0017_)
+  );
+  sg13g2_xor2_1 _3447_ (
+    .A(_0595_),
+    .B(_0590_),
+    .X(_0014_)
+  );
+  sg13g2_a21oi_1 _3448_ (
+    .A1(_0590_),
+    .A2(_0595_),
+    .B1(_0599_),
+    .Y(_0645_)
+  );
+  sg13g2_xnor2_1 _3449_ (
+    .A(_0594_),
+    .B(_0645_),
+    .Y(_0015_)
+  );
+  sg13g2_xnor2_1 _3450_ (
+    .A(_0576_),
+    .B(_0574_),
+    .Y(_0009_)
+  );
+  sg13g2_xnor2_1 _3451_ (
+    .A(_0032_),
     .B(\u_uart_master_core.u_uart_core.nco_sum_q[0] ),
     .Y(_0002_)
   );
-  sg13g2_xor2_1 _3378_ (
-    .A(_0622_),
-    .B(_0621_),
-    .X(_0007_)
+  sg13g2_a21oi_2 _3452_ (
+    .A1(_0635_),
+    .A2(_0632_),
+    .B1(_0631_),
+    .Y(_0001_)
   );
-  sg13g2_xnor2_1 _3379_ (
-    .A(_0562_),
-    .B(_0617_),
-    .Y(_0005_)
-  );
-  sg13g2_nor2b_1 _3380_ (
-    .A(_0626_),
-    .B_N(_0625_),
-    .Y(_0627_)
-  );
-  sg13g2_xnor2_1 _3381_ (
-    .A(_0627_),
-    .B(_0624_),
-    .Y(_0008_)
-  );
-  sg13g2_nor2b_1 _3382_ (
-    .A(_0617_),
-    .B_N(_0562_),
-    .Y(_0628_)
-  );
-  sg13g2_nor2_1 _3383_ (
-    .A(_0619_),
-    .B(_0628_),
-    .Y(_0629_)
-  );
-  sg13g2_xor2_1 _3384_ (
-    .A(_0561_),
-    .B(_0629_),
-    .X(_0006_)
-  );
-  sg13g2_o21ai_1 _3385_ (
-    .A1(_0573_),
-    .A2(_0605_),
-    .B1(_0565_),
-    .Y(_0630_)
-  );
-  sg13g2_xnor2_1 _3386_ (
-    .A(_0571_),
-    .B(_0630_),
-    .Y(_0017_)
-  );
-  sg13g2_nor2b_1 _3387_ (
-    .A(_0597_),
-    .B_N(_0596_),
-    .Y(_0631_)
-  );
-  sg13g2_nor2b_1 _3388_ (
-    .A(_0631_),
-    .B_N(_0603_),
-    .Y(_0632_)
-  );
-  sg13g2_xor2_1 _3389_ (
-    .A(_0600_),
-    .B(_0632_),
-    .X(_0015_)
-  );
-  sg13g2_o21ai_1 _3390_ (
-    .A1(_0609_),
-    .A2(_0607_),
-    .B1(_0615_),
-    .Y(_0633_)
-  );
-  sg13g2_xnor2_1 _3391_ (
-    .A(_0613_),
-    .B(_0633_),
-    .Y(_0004_)
-  );
-  sg13g2_xor2_1 _3392_ (
-    .A(_0609_),
-    .B(_0607_),
-    .X(_0003_)
-  );
-  sg13g2_xnor2_1 _3393_ (
-    .A(_0572_),
-    .B(_0605_),
-    .Y(_0016_)
-  );
-  sg13g2_xnor2_1 _3394_ (
-    .A(_0587_),
-    .B(_0585_),
-    .Y(_0009_)
-  );
-  sg13g2_nor3_1 _3395_ (
-    .A(_0594_),
-    .B(_0578_),
-    .C(_0593_),
-    .Y(_0634_)
-  );
-  sg13g2_nor2b_1 _3396_ (
-    .A(_0634_),
-    .B_N(_0595_),
-    .Y(_0012_)
-  );
-  sg13g2_xnor2_1 _3397_ (
-    .A(_0590_),
-    .B(_0589_),
-    .Y(_0010_)
-  );
-  sg13g2_xnor2_1 _3398_ (
-    .A(_0597_),
-    .B(_0596_),
-    .Y(_0014_)
-  );
-  sg13g2_xor2_1 _3399_ (
-    .A(_0024_),
-    .B(\u_uart_master_core.u_uart_core.nco_sum_q[5] ),
-    .X(_0635_)
-  );
-  sg13g2_inv_1 _3400_ (
-    .A(\u_uart_master_core.u_uart_core.nco_sum_q[4] ),
-    .Y(_0636_)
-  );
-  sg13g2_o21ai_1 _3401_ (
-    .A1(_0025_),
-    .A2(_0636_),
-    .B1(_0595_),
-    .Y(_0637_)
-  );
-  sg13g2_xnor2_1 _3402_ (
-    .A(_0635_),
-    .B(_0637_),
-    .Y(_0013_)
-  );
-  sg13g2_nor2_1 _3403_ (
-    .A(_0578_),
-    .B(_0580_),
-    .Y(_0638_)
-  );
-  sg13g2_xnor2_1 _3404_ (
-    .A(_0638_),
-    .B(_0592_),
-    .Y(_0011_)
-  );
-  sg13g2_inv_1 _3405_ (
-    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
-    .Y(_0639_)
-  );
-  sg13g2_nor2_1 _3406_ (
-    .A(_0531_),
-    .B(_0556_),
-    .Y(_0640_)
-  );
-  sg13g2_inv_1 _3407_ (
-    .A(_0538_),
-    .Y(_0641_)
-  );
-  sg13g2_inv_1 _3408_ (
-    .A(_0556_),
-    .Y(_0642_)
-  );
-  sg13g2_a21oi_1 _3409_ (
-    .A1(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
-    .A2(_0535_),
-    .B1(_0642_),
-    .Y(_0643_)
-  );
-  sg13g2_a22oi_1 _3410_ (
-    .A1(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
-    .A2(_0640_),
-    .B1(_0641_),
-    .B2(_0643_),
-    .Y(_0644_)
-  );
-  sg13g2_a21oi_1 _3411_ (
-    .A1(_0639_),
-    .A2(_0536_),
-    .B1(_0644_),
-    .Y(\u_uart_master_core.u_host_bridge.tx_idx_d[2] )
-  );
-  sg13g2_inv_1 _3412_ (
-    .A(_0640_),
-    .Y(_0645_)
-  );
-  sg13g2_nand2_1 _3413_ (
-    .A(_0533_),
-    .B(_0534_),
+  sg13g2_o21ai_1 _3453_ (
+    .A1(_0539_),
+    .A2(_0537_),
+    .B1(_0558_),
     .Y(_0646_)
   );
-  sg13g2_nand3_1 _3414_ (
-    .A(_0556_),
-    .B(_0536_),
-    .C(_0646_),
+  sg13g2_o21ai_1 _3454_ (
+    .A1(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
+    .A2(_0536_),
+    .B1(_0542_),
     .Y(_0647_)
   );
-  sg13g2_o21ai_1 _3415_ (
-    .A1(_0533_),
-    .A2(_0645_),
-    .B1(_0647_),
-    .Y(\u_uart_master_core.u_host_bridge.tx_idx_d[1] )
-  );
-  sg13g2_nand2_1 _3416_ (
-    .A(_0640_),
-    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
+  sg13g2_inv_1 _3455_ (
+    .A(_0558_),
     .Y(_0648_)
   );
-  sg13g2_o21ai_1 _3417_ (
-    .A1(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
-    .A2(_0642_),
-    .B1(_0648_),
-    .Y(\u_uart_master_core.u_host_bridge.tx_idx_d[0] )
-  );
-  sg13g2_inv_1 _3418_ (
-    .A(\u_uart_master_reg.tl_o[65] ),
-    .Y(\u_uart_master_reg.tl_o[0] )
-  );
-  sg13g2_nand2_1 _3419_ (
-    .A(\u_uart_master_reg.tl_o[0] ),
-    .B(tl_i[108]),
+  sg13g2_nand3_1 _3456_ (
+    .A(_0648_),
+    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
+    .C(_0532_),
     .Y(_0649_)
   );
-  sg13g2_buf_1 _3420_ (
-    .A(_0649_),
-    .X(_0650_)
+  sg13g2_o21ai_1 _3457_ (
+    .A1(_0646_),
+    .A2(_0647_),
+    .B1(_0649_),
+    .Y(\u_uart_master_core.u_host_bridge.tx_idx_d[2] )
   );
-  sg13g2_mux2_1 _3421_ (
-    .A0(tl_i[98]),
-    .A1(\u_uart_master_reg.tl_o[55] ),
-    .S(_0650_),
-    .X(_0059_)
+  sg13g2_nand2_1 _3458_ (
+    .A(_0648_),
+    .B(_0532_),
+    .Y(_0650_)
   );
-  sg13g2_mux2_1 _3422_ (
-    .A0(tl_i[97]),
-    .A1(\u_uart_master_reg.tl_o[54] ),
-    .S(_0650_),
-    .X(_0060_)
-  );
-  sg13g2_mux2_1 _3423_ (
-    .A0(tl_i[96]),
-    .A1(\u_uart_master_reg.tl_o[53] ),
-    .S(_0650_),
-    .X(_0061_)
-  );
-  sg13g2_mux2_1 _3424_ (
-    .A0(tl_i[95]),
-    .A1(\u_uart_master_reg.tl_o[52] ),
-    .S(_0650_),
-    .X(_0062_)
-  );
-  sg13g2_mux2_1 _3425_ (
-    .A0(tl_i[94]),
-    .A1(\u_uart_master_reg.tl_o[51] ),
-    .S(_0650_),
-    .X(_0063_)
-  );
-  sg13g2_mux2_1 _3426_ (
-    .A0(tl_i[93]),
-    .A1(\u_uart_master_reg.tl_o[50] ),
-    .S(_0650_),
-    .X(_0064_)
-  );
-  sg13g2_mux2_1 _3427_ (
-    .A0(tl_i[92]),
-    .A1(\u_uart_master_reg.tl_o[49] ),
-    .S(_0650_),
-    .X(_0065_)
-  );
-  sg13g2_mux2_1 _3428_ (
-    .A0(tl_i[100]),
-    .A1(\u_uart_master_reg.tl_o[57] ),
-    .S(_0650_),
-    .X(_0066_)
-  );
-  sg13g2_inv_1 _3429_ (
-    .A(\u_uart_master_reg.tl_o[46] ),
+  sg13g2_nor2_1 _3459_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
+    .B(_0535_),
     .Y(_0651_)
   );
-  sg13g2_buf_1 _3430_ (
-    .A(_0650_),
-    .X(_0652_)
+  sg13g2_nor2_1 _3460_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[1] ),
+    .B(_0534_),
+    .Y(_0652_)
   );
-  sg13g2_nor2_1 _3431_ (
-    .A(tl_i[63]),
-    .B(tl_i[62]),
+  sg13g2_o21ai_1 _3461_ (
+    .A1(_0651_),
+    .A2(_0652_),
+    .B1(_0558_),
     .Y(_0653_)
   );
-  sg13g2_inv_1 _3432_ (
-    .A(_0653_),
+  sg13g2_o21ai_1 _3462_ (
+    .A1(_0535_),
+    .A2(_0650_),
+    .B1(_0653_),
+    .Y(\u_uart_master_core.u_host_bridge.tx_idx_d[1] )
+  );
+  sg13g2_nor2_1 _3463_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
+    .B(_0558_),
     .Y(_0654_)
   );
-  sg13g2_nor2_1 _3433_ (
-    .A(tl_i[64]),
-    .B(_0654_),
+  sg13g2_a21oi_1 _3464_ (
+    .A1(_0650_),
+    .A2(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
+    .B1(_0654_),
+    .Y(\u_uart_master_core.u_host_bridge.tx_idx_d[0] )
+  );
+  sg13g2_xnor2_1 _3465_ (
+    .A(_0586_),
+    .B(_0585_),
+    .Y(_0012_)
+  );
+  sg13g2_nand2b_1 _3466_ (
+    .A_N(_0584_),
+    .B(_0583_),
     .Y(_0655_)
   );
-  sg13g2_buf_2 _3434_ (
+  sg13g2_xnor2_1 _3467_ (
     .A(_0655_),
-    .X(_0656_)
+    .B(_0581_),
+    .Y(_0011_)
   );
-  sg13g2_inv_1 _3435_ (
-    .A(_0019_),
+  sg13g2_nor2b_1 _3468_ (
+    .A(_0568_),
+    .B_N(_0589_),
+    .Y(_0656_)
+  );
+  sg13g2_xnor2_1 _3469_ (
+    .A(_0656_),
+    .B(_0588_),
+    .Y(_0013_)
+  );
+  sg13g2_xnor2_1 _3470_ (
+    .A(_0579_),
+    .B(_0578_),
+    .Y(_0010_)
+  );
+  sg13g2_inv_1 _3471_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
     .Y(_0657_)
   );
-  sg13g2_nand2_1 _3436_ (
-    .A(_0656_),
-    .B(_0657_),
+  sg13g2_inv_1 _3472_ (
+    .A(\reg2hw[4] ),
     .Y(_0658_)
   );
-  sg13g2_nand2_1 _3437_ (
-    .A(tl_i[63]),
-    .B(tl_i[64]),
+  sg13g2_a21oi_1 _3473_ (
+    .A1(_0544_),
+    .A2(_0658_),
+    .B1(_0557_),
     .Y(_0659_)
   );
-  sg13g2_nand3_1 _3438_ (
-    .A(_0659_),
-    .B(\u_uart_master_reg.tl_o[0] ),
-    .C(tl_i[108]),
+  sg13g2_inv_1 _3474_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[0] ),
     .Y(_0660_)
   );
-  sg13g2_nor3_1 _3439_ (
-    .A(tl_i[106]),
-    .B(tl_i[107]),
-    .C(_0649_),
+  sg13g2_nand2_1 _3475_ (
+    .A(_0659_),
+    .B(_0660_),
     .Y(_0661_)
   );
-  sg13g2_nor2_1 _3440_ (
-    .A(_0660_),
-    .B(_0661_),
+  sg13g2_nor3_1 _3476_ (
+    .A(_0657_),
+    .B(_0547_),
+    .C(_0661_),
     .Y(_0662_)
   );
-  sg13g2_buf_1 _3441_ (
+  sg13g2_buf_1 _3477_ (
     .A(_0662_),
     .X(_0663_)
   );
-  sg13g2_a22oi_1 _3442_ (
-    .A1(_0651_),
-    .A2(_0652_),
-    .B1(_0658_),
-    .B2(_0663_),
-    .Y(_0067_)
-  );
-  sg13g2_inv_1 _3443_ (
-    .A(\u_uart_master_reg.tl_o[45] ),
+  sg13g2_nor2_1 _3478_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
+    .B(_0648_),
     .Y(_0664_)
   );
-  sg13g2_nand2_1 _3444_ (
-    .A(_0656_),
-    .B(\reg2hw[54] ),
-    .Y(_0665_)
+  sg13g2_buf_1 _3479_ (
+    .A(_0664_),
+    .X(_0665_)
   );
-  sg13g2_a22oi_1 _3445_ (
-    .A1(_0664_),
-    .A2(_0652_),
-    .B1(_0665_),
-    .B2(_0663_),
-    .Y(_0068_)
-  );
-  sg13g2_inv_1 _3446_ (
-    .A(\u_uart_master_reg.tl_o[44] ),
+  sg13g2_nor4_1 _3480_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
+    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
+    .C(\u_uart_master_core.u_host_bridge.tx_idx_q[1] ),
+    .D(_0539_),
     .Y(_0666_)
   );
-  sg13g2_nand2_1 _3447_ (
-    .A(_0656_),
-    .B(\reg2hw[53] ),
-    .Y(_0667_)
+  sg13g2_buf_1 _3481_ (
+    .A(_0666_),
+    .X(_0667_)
   );
-  sg13g2_a22oi_1 _3448_ (
-    .A1(_0666_),
-    .A2(_0652_),
-    .B1(_0667_),
-    .B2(_0663_),
-    .Y(_0069_)
-  );
-  sg13g2_inv_1 _3449_ (
-    .A(\u_uart_master_reg.tl_o[43] ),
+  sg13g2_a22oi_1 _3482_ (
+    .A1(_0667_),
+    .A2(\u_uart_master_core.u_host_bridge.rdata_q[30] ),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[6] ),
+    .B2(_0541_),
     .Y(_0668_)
   );
-  sg13g2_nand2_1 _3450_ (
-    .A(_0656_),
-    .B(_0610_),
+  sg13g2_nor4_1 _3483_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
+    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
+    .C(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
+    .D(_0535_),
     .Y(_0669_)
   );
-  sg13g2_a22oi_1 _3451_ (
-    .A1(_0668_),
-    .A2(_0652_),
-    .B1(_0669_),
-    .B2(_0663_),
-    .Y(_0070_)
+  sg13g2_buf_1 _3484_ (
+    .A(_0669_),
+    .X(_0670_)
   );
-  sg13g2_inv_1 _3452_ (
-    .A(\u_uart_master_reg.tl_o[42] ),
-    .Y(_0670_)
-  );
-  sg13g2_nand2_1 _3453_ (
-    .A(_0656_),
-    .B(\reg2hw[51] ),
+  sg13g2_inv_1 _3485_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
     .Y(_0671_)
   );
-  sg13g2_a22oi_1 _3454_ (
-    .A1(_0670_),
-    .A2(_0652_),
-    .B1(_0671_),
-    .B2(_0663_),
-    .Y(_0071_)
-  );
-  sg13g2_inv_1 _3455_ (
-    .A(\u_uart_master_reg.tl_o[41] ),
+  sg13g2_nand2_1 _3486_ (
+    .A(_0652_),
+    .B(_0671_),
     .Y(_0672_)
   );
-  sg13g2_nand2_1 _3456_ (
-    .A(_0656_),
-    .B(_0566_),
+  sg13g2_nor2_1 _3487_ (
+    .A(_0539_),
+    .B(_0672_),
     .Y(_0673_)
   );
-  sg13g2_a22oi_1 _3457_ (
-    .A1(_0672_),
-    .A2(_0652_),
-    .B1(_0673_),
-    .B2(_0663_),
-    .Y(_0072_)
+  sg13g2_buf_1 _3488_ (
+    .A(_0673_),
+    .X(_0674_)
   );
-  sg13g2_inv_1 _3458_ (
-    .A(\u_uart_master_reg.tl_o[40] ),
-    .Y(_0674_)
-  );
-  sg13g2_nand2_1 _3459_ (
-    .A(_0656_),
-    .B(_0564_),
+  sg13g2_a22oi_1 _3489_ (
+    .A1(\u_uart_master_core.u_host_bridge.op_q[6] ),
+    .A2(_0670_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[22] ),
+    .B2(_0674_),
     .Y(_0675_)
   );
-  sg13g2_a22oi_1 _3460_ (
-    .A1(_0674_),
-    .A2(_0652_),
-    .B1(_0675_),
-    .B2(_0663_),
-    .Y(_0073_)
-  );
-  sg13g2_inv_1 _3461_ (
-    .A(\u_uart_master_reg.tl_o[39] ),
+  sg13g2_nor4_1 _3490_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
+    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
+    .C(_0539_),
+    .D(_0535_),
     .Y(_0676_)
   );
-  sg13g2_nand2_1 _3462_ (
-    .A(_0656_),
-    .B(\reg2hw[48] ),
-    .Y(_0677_)
+  sg13g2_buf_1 _3491_ (
+    .A(_0676_),
+    .X(_0677_)
   );
-  sg13g2_a22oi_1 _3463_ (
-    .A1(_0676_),
-    .A2(_0652_),
-    .B1(_0677_),
-    .B2(_0663_),
-    .Y(_0074_)
-  );
-  sg13g2_inv_1 _3464_ (
-    .A(\u_uart_master_reg.tl_o[38] ),
+  sg13g2_nor4_1 _3492_ (
+    .A(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
+    .B(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
+    .C(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
+    .D(\u_uart_master_core.u_host_bridge.tx_idx_q[1] ),
     .Y(_0678_)
   );
-  sg13g2_nand2_1 _3465_ (
-    .A(_0656_),
-    .B(_0602_),
+  sg13g2_a21oi_1 _3493_ (
+    .A1(_0677_),
+    .A2(\u_uart_master_core.u_host_bridge.rdata_q[14] ),
+    .B1(_0678_),
     .Y(_0679_)
   );
-  sg13g2_a22oi_1 _3466_ (
-    .A1(_0678_),
-    .A2(_0652_),
-    .B1(_0679_),
-    .B2(_0663_),
-    .Y(_0075_)
-  );
-  sg13g2_inv_1 _3467_ (
-    .A(\u_uart_master_reg.tl_o[37] ),
+  sg13g2_nand3_1 _3494_ (
+    .A(_0668_),
+    .B(_0675_),
+    .C(_0679_),
     .Y(_0680_)
   );
-  sg13g2_nand2_1 _3468_ (
-    .A(_0656_),
-    .B(_0576_),
+  sg13g2_a21oi_1 _3495_ (
+    .A1(_0665_),
+    .A2(_0680_),
+    .B1(\reg2hw[11] ),
     .Y(_0681_)
   );
-  sg13g2_a22oi_1 _3469_ (
-    .A1(_0680_),
-    .A2(_0652_),
-    .B1(_0681_),
-    .B2(_0663_),
-    .Y(_0076_)
+  sg13g2_buf_1 _3496_ (
+    .A(_0681_),
+    .X(_0682_)
   );
-  sg13g2_inv_1 _3470_ (
-    .A(\u_uart_master_reg.tl_o[36] ),
-    .Y(_0682_)
-  );
-  sg13g2_inv_1 _3471_ (
-    .A(_0663_),
+  sg13g2_nor2_1 _3497_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[54] ),
+    .B(_0663_),
     .Y(_0683_)
   );
-  sg13g2_a21oi_1 _3472_ (
-    .A1(_0575_),
-    .A2(_0656_),
+  sg13g2_a21oi_1 _3498_ (
+    .A1(_0663_),
+    .A2(_0682_),
     .B1(_0683_),
+    .Y(_0059_)
+  );
+  sg13g2_a22oi_1 _3499_ (
+    .A1(\u_uart_master_core.u_host_bridge.op_q[5] ),
+    .A2(_0670_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[21] ),
+    .B2(_0674_),
     .Y(_0684_)
   );
-  sg13g2_inv_1 _3473_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_nand2_1 _3500_ (
+    .A(_0541_),
+    .B(\u_uart_master_core.u_host_bridge.rdata_q[5] ),
     .Y(_0685_)
   );
-  sg13g2_xnor2_1 _3474_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_a22oi_1 _3501_ (
+    .A1(\u_uart_master_core.u_host_bridge.rdata_q[29] ),
+    .A2(_0667_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[13] ),
+    .B2(_0677_),
     .Y(_0686_)
   );
-  sg13g2_inv_1 _3475_ (
-    .A(_0686_),
+  sg13g2_nand3_1 _3502_ (
+    .A(_0684_),
+    .B(_0685_),
+    .C(_0686_),
     .Y(_0687_)
   );
-  sg13g2_inv_2 _3476_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
+  sg13g2_a21oi_1 _3503_ (
+    .A1(_0665_),
+    .A2(_0687_),
+    .B1(\reg2hw[10] ),
     .Y(_0688_)
   );
-  sg13g2_buf_2 _3477_ (
+  sg13g2_buf_1 _3504_ (
     .A(_0688_),
     .X(_0689_)
   );
-  sg13g2_inv_1 _3478_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
+  sg13g2_nor2_1 _3505_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[53] ),
+    .B(_0663_),
     .Y(_0690_)
   );
-  sg13g2_xnor2_1 _3479_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
+  sg13g2_a21oi_1 _3506_ (
+    .A1(_0663_),
+    .A2(_0689_),
+    .B1(_0690_),
+    .Y(_0060_)
+  );
+  sg13g2_a22oi_1 _3507_ (
+    .A1(_0667_),
+    .A2(\u_uart_master_core.u_host_bridge.rdata_q[28] ),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[4] ),
+    .B2(_0541_),
     .Y(_0691_)
   );
-  sg13g2_inv_1 _3480_ (
-    .A(_0691_),
+  sg13g2_a22oi_1 _3508_ (
+    .A1(\u_uart_master_core.u_host_bridge.rdata_q[12] ),
+    .A2(_0677_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[20] ),
+    .B2(_0674_),
     .Y(_0692_)
   );
-  sg13g2_a21oi_1 _3481_ (
-    .A1(_0690_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B1(_0692_),
+  sg13g2_a21oi_1 _3509_ (
+    .A1(_0670_),
+    .A2(\u_uart_master_core.u_host_bridge.op_q[4] ),
+    .B1(_0678_),
     .Y(_0693_)
   );
-  sg13g2_a21oi_1 _3482_ (
-    .A1(_0689_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .B1(_0693_),
+  sg13g2_nand3_1 _3510_ (
+    .A(_0691_),
+    .B(_0692_),
+    .C(_0693_),
     .Y(_0694_)
   );
-  sg13g2_nor2_1 _3483_ (
-    .A(_0687_),
-    .B(_0694_),
+  sg13g2_a21oi_1 _3511_ (
+    .A1(_0665_),
+    .A2(_0694_),
+    .B1(\reg2hw[9] ),
     .Y(_0695_)
   );
-  sg13g2_a21oi_1 _3484_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .A2(_0685_),
-    .B1(_0695_),
-    .Y(_0696_)
+  sg13g2_buf_1 _3512_ (
+    .A(_0695_),
+    .X(_0696_)
   );
-  sg13g2_inv_1 _3485_ (
-    .A(_0696_),
+  sg13g2_nor2_1 _3513_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[52] ),
+    .B(_0663_),
     .Y(_0697_)
   );
-  sg13g2_inv_2 _3486_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+  sg13g2_a21oi_1 _3514_ (
+    .A1(_0663_),
+    .A2(_0696_),
+    .B1(_0697_),
+    .Y(_0061_)
+  );
+  sg13g2_a22oi_1 _3515_ (
+    .A1(\u_uart_master_core.u_host_bridge.rdata_q[11] ),
+    .A2(_0677_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[3] ),
+    .B2(_0541_),
     .Y(_0698_)
   );
-  sg13g2_nor2_1 _3487_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .B(_0698_),
+  sg13g2_a22oi_1 _3516_ (
+    .A1(\u_uart_master_core.u_host_bridge.op_q[3] ),
+    .A2(_0670_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[19] ),
+    .B2(_0674_),
     .Y(_0699_)
   );
-  sg13g2_inv_1 _3488_ (
-    .A(_0699_),
+  sg13g2_a21oi_1 _3517_ (
+    .A1(_0667_),
+    .A2(\u_uart_master_core.u_host_bridge.rdata_q[27] ),
+    .B1(_0678_),
     .Y(_0700_)
   );
-  sg13g2_inv_1 _3489_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+  sg13g2_nand3_1 _3518_ (
+    .A(_0698_),
+    .B(_0699_),
+    .C(_0700_),
     .Y(_0701_)
   );
-  sg13g2_nor2_1 _3490_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .B(_0701_),
+  sg13g2_a21oi_1 _3519_ (
+    .A1(_0665_),
+    .A2(_0701_),
+    .B1(\reg2hw[8] ),
     .Y(_0702_)
   );
-  sg13g2_a21oi_1 _3491_ (
-    .A1(_0697_),
-    .A2(_0700_),
-    .B1(_0702_),
-    .Y(_0703_)
+  sg13g2_buf_1 _3520_ (
+    .A(_0702_),
+    .X(_0703_)
   );
-  sg13g2_xnor2_1 _3492_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[4] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[4] ),
+  sg13g2_nor2_1 _3521_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[51] ),
+    .B(_0663_),
     .Y(_0704_)
   );
-  sg13g2_inv_1 _3493_ (
-    .A(_0704_),
-    .Y(_0705_)
-  );
-  sg13g2_xnor2_1 _3494_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_0706_)
-  );
-  sg13g2_inv_1 _3495_ (
-    .A(_0706_),
-    .Y(_0707_)
-  );
-  sg13g2_nor2_1 _3496_ (
-    .A(_0702_),
-    .B(_0699_),
-    .Y(_0708_)
-  );
-  sg13g2_inv_1 _3497_ (
-    .A(_0708_),
-    .Y(_0709_)
-  );
-  sg13g2_nor4_2 _3498_ (
-    .A(_0692_),
-    .B(_0687_),
-    .C(_0707_),
-    .D(_0709_),
-    .Y(_0710_)
-  );
-  sg13g2_nor2_1 _3499_ (
-    .A(_0704_),
-    .B(_0710_),
-    .Y(_0711_)
-  );
-  sg13g2_inv_1 _3500_ (
-    .A(tl_i[62]),
-    .Y(_0712_)
-  );
-  sg13g2_inv_1 _3501_ (
-    .A(tl_i[64]),
-    .Y(_0713_)
-  );
-  sg13g2_nor3_1 _3502_ (
-    .A(tl_i[63]),
-    .B(_0712_),
-    .C(_0713_),
-    .Y(_0714_)
-  );
-  sg13g2_inv_1 _3503_ (
-    .A(_0714_),
-    .Y(_0715_)
-  );
-  sg13g2_a21oi_1 _3504_ (
-    .A1(_0703_),
-    .A2(_0711_),
-    .B1(_0715_),
-    .Y(_0716_)
-  );
-  sg13g2_o21ai_1 _3505_ (
-    .A1(_0703_),
-    .A2(_0705_),
-    .B1(_0716_),
-    .Y(_0717_)
-  );
-  sg13g2_a22oi_1 _3506_ (
-    .A1(_0682_),
-    .A2(_0652_),
-    .B1(_0684_),
-    .B2(_0717_),
-    .Y(_0077_)
-  );
-  sg13g2_inv_1 _3507_ (
-    .A(\u_uart_master_reg.tl_o[35] ),
-    .Y(_0718_)
-  );
-  sg13g2_a21oi_1 _3508_ (
-    .A1(_0579_),
-    .A2(_0656_),
-    .B1(_0683_),
-    .Y(_0719_)
-  );
-  sg13g2_nand2_1 _3509_ (
-    .A(_0697_),
-    .B(_0708_),
-    .Y(_0720_)
-  );
-  sg13g2_a21oi_1 _3510_ (
-    .A1(_0710_),
-    .A2(_0705_),
-    .B1(_0715_),
-    .Y(_0721_)
-  );
-  sg13g2_nand2_1 _3511_ (
-    .A(_0696_),
-    .B(_0709_),
-    .Y(_0722_)
-  );
-  sg13g2_nand3_1 _3512_ (
-    .A(_0720_),
-    .B(_0721_),
-    .C(_0722_),
-    .Y(_0723_)
-  );
-  sg13g2_a22oi_1 _3513_ (
-    .A1(_0718_),
-    .A2(_0652_),
-    .B1(_0719_),
-    .B2(_0723_),
-    .Y(_0078_)
-  );
-  sg13g2_inv_1 _3514_ (
-    .A(\u_uart_master_reg.tl_o[34] ),
-    .Y(_0724_)
-  );
-  sg13g2_a21oi_1 _3515_ (
-    .A1(_0581_),
-    .A2(_0656_),
-    .B1(_0683_),
-    .Y(_0725_)
-  );
-  sg13g2_nand2_1 _3516_ (
-    .A(_0694_),
-    .B(_0687_),
-    .Y(_0726_)
-  );
-  sg13g2_nand3b_1 _3517_ (
-    .A_N(_0695_),
-    .B(_0721_),
-    .C(_0726_),
-    .Y(_0727_)
-  );
-  sg13g2_a22oi_1 _3518_ (
-    .A1(_0724_),
-    .A2(_0652_),
-    .B1(_0725_),
-    .B2(_0727_),
-    .Y(_0079_)
-  );
-  sg13g2_inv_1 _3519_ (
-    .A(\u_uart_master_reg.tl_o[33] ),
-    .Y(_0728_)
-  );
-  sg13g2_a21oi_1 _3520_ (
-    .A1(_0583_),
-    .A2(_0656_),
-    .B1(_0683_),
-    .Y(_0729_)
-  );
-  sg13g2_nand3_1 _3521_ (
-    .A(_0692_),
-    .B(_0690_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_0730_)
-  );
-  sg13g2_nand3b_1 _3522_ (
-    .A_N(_0693_),
-    .B(_0721_),
-    .C(_0730_),
-    .Y(_0731_)
+  sg13g2_a21oi_1 _3522_ (
+    .A1(_0663_),
+    .A2(_0703_),
+    .B1(_0704_),
+    .Y(_0062_)
   );
   sg13g2_a22oi_1 _3523_ (
-    .A1(_0728_),
-    .A2(_0652_),
-    .B1(_0729_),
-    .B2(_0731_),
-    .Y(_0080_)
+    .A1(\u_uart_master_core.u_host_bridge.rdata_q[10] ),
+    .A2(_0677_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[18] ),
+    .B2(_0674_),
+    .Y(_0705_)
   );
-  sg13g2_inv_1 _3524_ (
-    .A(\u_uart_master_reg.tl_o[32] ),
-    .Y(_0732_)
+  sg13g2_nand2_1 _3524_ (
+    .A(_0541_),
+    .B(\u_uart_master_core.u_host_bridge.rdata_q[2] ),
+    .Y(_0706_)
   );
   sg13g2_a22oi_1 _3525_ (
-    .A1(_0656_),
-    .A2(_0586_),
-    .B1(_0714_),
-    .B2(_0707_),
-    .Y(_0733_)
+    .A1(_0670_),
+    .A2(\u_uart_master_core.u_host_bridge.op_q[2] ),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[26] ),
+    .B2(_0667_),
+    .Y(_0707_)
   );
-  sg13g2_a22oi_1 _3526_ (
-    .A1(_0732_),
-    .A2(_0652_),
-    .B1(_0663_),
-    .B2(_0733_),
-    .Y(_0081_)
+  sg13g2_nand3_1 _3526_ (
+    .A(_0705_),
+    .B(_0706_),
+    .C(_0707_),
+    .Y(_0708_)
   );
-  sg13g2_inv_1 _3527_ (
-    .A(\u_uart_master_reg.tl_o[24] ),
-    .Y(_0734_)
+  sg13g2_a21oi_1 _3527_ (
+    .A1(_0665_),
+    .A2(_0708_),
+    .B1(\reg2hw[7] ),
+    .Y(_0709_)
   );
-  sg13g2_a21oi_1 _3528_ (
-    .A1(_0734_),
-    .A2(_0652_),
-    .B1(_0663_),
-    .Y(_0082_)
+  sg13g2_buf_1 _3528_ (
+    .A(_0709_),
+    .X(_0710_)
   );
-  sg13g2_inv_1 _3529_ (
-    .A(\u_uart_master_reg.tl_o[23] ),
-    .Y(_0735_)
+  sg13g2_nor2_1 _3529_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[50] ),
+    .B(_0663_),
+    .Y(_0711_)
   );
   sg13g2_a21oi_1 _3530_ (
-    .A1(\reg2hw[40] ),
-    .A2(_0656_),
-    .B1(_0683_),
+    .A1(_0663_),
+    .A2(_0710_),
+    .B1(_0711_),
+    .Y(_0063_)
+  );
+  sg13g2_a22oi_1 _3531_ (
+    .A1(\u_uart_master_core.u_host_bridge.rdata_q[9] ),
+    .A2(_0677_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[1] ),
+    .B2(_0541_),
+    .Y(_0712_)
+  );
+  sg13g2_a22oi_1 _3532_ (
+    .A1(_0670_),
+    .A2(\u_uart_master_core.u_host_bridge.op_q[1] ),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[25] ),
+    .B2(_0667_),
+    .Y(_0713_)
+  );
+  sg13g2_a21oi_1 _3533_ (
+    .A1(_0674_),
+    .A2(\u_uart_master_core.u_host_bridge.rdata_q[17] ),
+    .B1(_0678_),
+    .Y(_0714_)
+  );
+  sg13g2_nand3_1 _3534_ (
+    .A(_0712_),
+    .B(_0713_),
+    .C(_0714_),
+    .Y(_0715_)
+  );
+  sg13g2_a21oi_1 _3535_ (
+    .A1(_0665_),
+    .A2(_0715_),
+    .B1(\reg2hw[6] ),
+    .Y(_0716_)
+  );
+  sg13g2_buf_1 _3536_ (
+    .A(_0716_),
+    .X(_0717_)
+  );
+  sg13g2_nor2_1 _3537_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[49] ),
+    .B(_0663_),
+    .Y(_0718_)
+  );
+  sg13g2_a21oi_1 _3538_ (
+    .A1(_0663_),
+    .A2(_0717_),
+    .B1(_0718_),
+    .Y(_0064_)
+  );
+  sg13g2_a22oi_1 _3539_ (
+    .A1(\u_uart_master_core.u_host_bridge.rdata_q[8] ),
+    .A2(_0677_),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[0] ),
+    .B2(_0541_),
+    .Y(_0719_)
+  );
+  sg13g2_inv_1 _3540_ (
+    .A(\u_uart_master_core.u_host_bridge.rdata_q[16] ),
+    .Y(_0720_)
+  );
+  sg13g2_a21oi_1 _3541_ (
+    .A1(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
+    .A2(_0720_),
+    .B1(_0672_),
+    .Y(_0721_)
+  );
+  sg13g2_a21oi_1 _3542_ (
+    .A1(_0538_),
+    .A2(\u_uart_master_core.u_host_bridge.any_err_q ),
+    .B1(_0721_),
+    .Y(_0722_)
+  );
+  sg13g2_a22oi_1 _3543_ (
+    .A1(_0670_),
+    .A2(\u_uart_master_core.u_host_bridge.op_q[0] ),
+    .B1(\u_uart_master_core.u_host_bridge.rdata_q[24] ),
+    .B2(_0667_),
+    .Y(_0723_)
+  );
+  sg13g2_nand3_1 _3544_ (
+    .A(_0719_),
+    .B(_0722_),
+    .C(_0723_),
+    .Y(_0724_)
+  );
+  sg13g2_a21oi_1 _3545_ (
+    .A1(_0665_),
+    .A2(_0724_),
+    .B1(\reg2hw[5] ),
+    .Y(_0725_)
+  );
+  sg13g2_buf_1 _3546_ (
+    .A(_0725_),
+    .X(_0726_)
+  );
+  sg13g2_nor2_1 _3547_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[48] ),
+    .B(_0663_),
+    .Y(_0727_)
+  );
+  sg13g2_a21oi_1 _3548_ (
+    .A1(_0663_),
+    .A2(_0726_),
+    .B1(_0727_),
+    .Y(_0065_)
+  );
+  sg13g2_nand2_1 _3549_ (
+    .A(_0659_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[0] ),
+    .Y(_0728_)
+  );
+  sg13g2_nor2_1 _3550_ (
+    .A(_0657_),
+    .B(_0728_),
+    .Y(_0729_)
+  );
+  sg13g2_inv_1 _3551_ (
+    .A(_0729_),
+    .Y(_0730_)
+  );
+  sg13g2_nor2_1 _3552_ (
+    .A(_0547_),
+    .B(_0730_),
+    .Y(_0731_)
+  );
+  sg13g2_buf_1 _3553_ (
+    .A(_0731_),
+    .X(_0732_)
+  );
+  sg13g2_nor2_1 _3554_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[62] ),
+    .B(_0732_),
+    .Y(_0733_)
+  );
+  sg13g2_a21oi_1 _3555_ (
+    .A1(_0682_),
+    .A2(_0732_),
+    .B1(_0733_),
+    .Y(_0066_)
+  );
+  sg13g2_nor2_1 _3556_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[61] ),
+    .B(_0732_),
+    .Y(_0734_)
+  );
+  sg13g2_a21oi_1 _3557_ (
+    .A1(_0689_),
+    .A2(_0732_),
+    .B1(_0734_),
+    .Y(_0067_)
+  );
+  sg13g2_nor2_1 _3558_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[60] ),
+    .B(_0732_),
+    .Y(_0735_)
+  );
+  sg13g2_a21oi_1 _3559_ (
+    .A1(_0696_),
+    .A2(_0732_),
+    .B1(_0735_),
+    .Y(_0068_)
+  );
+  sg13g2_nor2_1 _3560_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[59] ),
+    .B(_0732_),
     .Y(_0736_)
   );
-  sg13g2_nand2_2 _3531_ (
-    .A(_0710_),
-    .B(_0704_),
+  sg13g2_a21oi_1 _3561_ (
+    .A1(_0703_),
+    .A2(_0732_),
+    .B1(_0736_),
+    .Y(_0069_)
+  );
+  sg13g2_nor2_1 _3562_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[58] ),
+    .B(_0732_),
     .Y(_0737_)
   );
-  sg13g2_inv_1 _3532_ (
-    .A(_0737_),
+  sg13g2_a21oi_1 _3563_ (
+    .A1(_0710_),
+    .A2(_0732_),
+    .B1(_0737_),
+    .Y(_0070_)
+  );
+  sg13g2_nor2_1 _3564_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[57] ),
+    .B(_0732_),
     .Y(_0738_)
   );
-  sg13g2_nor2_1 _3533_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B(_0688_),
+  sg13g2_a21oi_1 _3565_ (
+    .A1(_0717_),
+    .A2(_0732_),
+    .B1(_0738_),
+    .Y(_0071_)
+  );
+  sg13g2_nor2_1 _3566_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[56] ),
+    .B(_0732_),
     .Y(_0739_)
   );
-  sg13g2_buf_4 _3534_ (
-    .A(_0739_),
-    .X(_0740_)
+  sg13g2_a21oi_1 _3567_ (
+    .A1(_0726_),
+    .A2(_0732_),
+    .B1(_0739_),
+    .Y(_0072_)
   );
-  sg13g2_buf_4 _3535_ (
+  sg13g2_nor3_1 _3568_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .B(_0547_),
+    .C(_0728_),
+    .Y(_0740_)
+  );
+  sg13g2_buf_1 _3569_ (
     .A(_0740_),
     .X(_0741_)
   );
-  sg13g2_inv_4 _3536_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nor2_1 _3570_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[46] ),
+    .B(_0741_),
     .Y(_0742_)
   );
-  sg13g2_buf_8 _3537_ (
-    .A(_0742_),
-    .X(_0743_)
+  sg13g2_a21oi_1 _3571_ (
+    .A1(_0682_),
+    .A2(_0741_),
+    .B1(_0742_),
+    .Y(_0073_)
   );
-  sg13g2_nor2_1 _3538_ (
-    .A(_0688_),
-    .B(_0743_),
+  sg13g2_nor2_1 _3572_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[45] ),
+    .B(_0741_),
+    .Y(_0743_)
+  );
+  sg13g2_a21oi_1 _3573_ (
+    .A1(_0689_),
+    .A2(_0741_),
+    .B1(_0743_),
+    .Y(_0074_)
+  );
+  sg13g2_nor2_1 _3574_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[44] ),
+    .B(_0741_),
     .Y(_0744_)
   );
-  sg13g2_buf_4 _3539_ (
-    .A(_0744_),
-    .X(_0745_)
+  sg13g2_a21oi_1 _3575_ (
+    .A1(_0696_),
+    .A2(_0741_),
+    .B1(_0744_),
+    .Y(_0075_)
   );
-  sg13g2_buf_16 _3540_ (
-    .A(_0745_),
-    .X(_0746_)
+  sg13g2_nor2_1 _3576_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[43] ),
+    .B(_0741_),
+    .Y(_0745_)
   );
-  sg13g2_a22oi_1 _3541_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[119] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[127] ),
-    .B2(_0746_),
+  sg13g2_a21oi_1 _3577_ (
+    .A1(_0703_),
+    .A2(_0741_),
+    .B1(_0745_),
+    .Y(_0076_)
+  );
+  sg13g2_nor2_1 _3578_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[42] ),
+    .B(_0741_),
+    .Y(_0746_)
+  );
+  sg13g2_a21oi_1 _3579_ (
+    .A1(_0710_),
+    .A2(_0741_),
+    .B1(_0746_),
+    .Y(_0077_)
+  );
+  sg13g2_nor2_1 _3580_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[41] ),
+    .B(_0741_),
     .Y(_0747_)
   );
-  sg13g2_inv_1 _3542_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[111] ),
+  sg13g2_a21oi_1 _3581_ (
+    .A1(_0717_),
+    .A2(_0741_),
+    .B1(_0747_),
+    .Y(_0078_)
+  );
+  sg13g2_nor2_1 _3582_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[40] ),
+    .B(_0741_),
     .Y(_0748_)
   );
-  sg13g2_a21oi_1 _3543_ (
-    .A1(_0748_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
+  sg13g2_a21oi_1 _3583_ (
+    .A1(_0726_),
+    .A2(_0741_),
+    .B1(_0748_),
+    .Y(_0079_)
+  );
+  sg13g2_inv_1 _3584_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[30] ),
     .Y(_0749_)
   );
-  sg13g2_o21ai_1 _3544_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[103] ),
-    .B1(_0749_),
+  sg13g2_inv_1 _3585_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
     .Y(_0750_)
   );
-  sg13g2_a21oi_1 _3545_ (
-    .A1(_0747_),
-    .A2(_0750_),
-    .B1(_0685_),
+  sg13g2_nand2_1 _3586_ (
+    .A(_0750_),
+    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
     .Y(_0751_)
   );
-  sg13g2_a22oi_1 _3546_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[87] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[95] ),
-    .B2(_0746_),
+  sg13g2_inv_1 _3587_ (
+    .A(_0043_),
     .Y(_0752_)
   );
-  sg13g2_inv_1 _3547_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[79] ),
+  sg13g2_xnor2_1 _3588_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_0753_)
   );
-  sg13g2_a21oi_1 _3548_ (
-    .A1(_0753_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
+  sg13g2_inv_1 _3589_ (
+    .A(_0753_),
     .Y(_0754_)
   );
-  sg13g2_o21ai_1 _3549_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[71] ),
-    .B1(_0754_),
-    .Y(_0755_)
+  sg13g2_xor2_1 _3590_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .X(_0755_)
   );
-  sg13g2_a21oi_1 _3550_ (
-    .A1(_0752_),
-    .A2(_0755_),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_xnor2_1 _3591_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_0756_)
   );
-  sg13g2_nor3_1 _3551_ (
-    .A(_0698_),
-    .B(_0751_),
-    .C(_0756_),
+  sg13g2_inv_1 _3592_ (
+    .A(_0756_),
     .Y(_0757_)
   );
-  sg13g2_inv_1 _3552_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[47] ),
+  sg13g2_inv_1 _3593_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
     .Y(_0758_)
   );
-  sg13g2_o21ai_1 _3553_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[39] ),
-    .B1(_0689_),
+  sg13g2_nor2_1 _3594_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+    .B(_0758_),
     .Y(_0759_)
   );
-  sg13g2_a21oi_1 _3554_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_0758_),
-    .B1(_0759_),
+  sg13g2_inv_1 _3595_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
     .Y(_0760_)
   );
-  sg13g2_inv_1 _3555_ (
-    .A(_0740_),
+  sg13g2_nor2_1 _3596_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .B(_0760_),
     .Y(_0761_)
   );
-  sg13g2_nor2b_1 _3556_ (
-    .A(_0761_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[55] ),
+  sg13g2_nor2_1 _3597_ (
+    .A(_0759_),
+    .B(_0761_),
     .Y(_0762_)
   );
-  sg13g2_inv_1 _3557_ (
-    .A(_0745_),
+  sg13g2_inv_1 _3598_ (
+    .A(_0762_),
     .Y(_0763_)
   );
-  sg13g2_nor2b_1 _3558_ (
-    .A(_0763_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[63] ),
+  sg13g2_nor4_1 _3599_ (
+    .A(_0754_),
+    .B(_0755_),
+    .C(_0757_),
+    .D(_0763_),
     .Y(_0764_)
   );
-  sg13g2_nor4_1 _3559_ (
-    .A(_0685_),
-    .B(_0760_),
-    .C(_0762_),
-    .D(_0764_),
+  sg13g2_xnor2_1 _3600_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[4] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[4] ),
     .Y(_0765_)
   );
-  sg13g2_inv_1 _3560_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[15] ),
+  sg13g2_nand2_1 _3601_ (
+    .A(_0764_),
+    .B(_0765_),
     .Y(_0766_)
   );
-  sg13g2_o21ai_1 _3561_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[7] ),
-    .B1(_0689_),
-    .Y(_0767_)
+  sg13g2_buf_1 _3602_ (
+    .A(_0766_),
+    .X(_0767_)
   );
-  sg13g2_a21oi_1 _3562_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_0766_),
-    .B1(_0767_),
+  sg13g2_inv_2 _3603_ (
+    .A(_0767_),
     .Y(_0768_)
   );
-  sg13g2_nor2b_1 _3563_ (
-    .A(_0761_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[23] ),
+  sg13g2_nor2_1 _3604_ (
+    .A(_0752_),
+    .B(_0768_),
     .Y(_0769_)
   );
-  sg13g2_nor2b_1 _3564_ (
-    .A(_0763_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[31] ),
+  sg13g2_nor2_1 _3605_ (
+    .A(_0751_),
+    .B(_0769_),
     .Y(_0770_)
   );
-  sg13g2_nor4_1 _3565_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .B(_0768_),
-    .C(_0769_),
-    .D(_0770_),
+  sg13g2_nor2_1 _3606_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
+    .B(_0770_),
     .Y(_0771_)
   );
-  sg13g2_o21ai_1 _3566_ (
-    .A1(_0765_),
-    .A2(_0771_),
-    .B1(_0698_),
+  sg13g2_inv_1 _3607_ (
+    .A(_0771_),
     .Y(_0772_)
   );
-  sg13g2_nand2b_1 _3567_ (
-    .A_N(_0757_),
-    .B(_0772_),
+  sg13g2_a21oi_1 _3608_ (
+    .A1(_0523_),
+    .A2(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
+    .B1(_0772_),
     .Y(_0773_)
   );
-  sg13g2_nor2_1 _3568_ (
-    .A(_0738_),
-    .B(_0773_),
-    .Y(_0774_)
+  sg13g2_buf_1 _3609_ (
+    .A(_0773_),
+    .X(_0774_)
   );
-  sg13g2_and3_1 _3569_ (
-    .A(_0712_),
-    .B(_0713_),
-    .C(tl_i[63]),
+  sg13g2_buf_2 _3610_ (
+    .A(_0774_),
     .X(_0775_)
   );
-  sg13g2_buf_1 _3570_ (
-    .A(_0775_),
-    .X(_0776_)
+  sg13g2_nor2_1 _3611_ (
+    .A(_0523_),
+    .B(_0772_),
+    .Y(_0776_)
   );
-  sg13g2_nand2_1 _3571_ (
-    .A(_0774_),
-    .B(_0776_),
-    .Y(_0777_)
+  sg13g2_buf_1 _3612_ (
+    .A(_0776_),
+    .X(_0777_)
   );
-  sg13g2_a22oi_1 _3572_ (
-    .A1(_0735_),
-    .A2(_0652_),
-    .B1(_0736_),
-    .B2(_0777_),
-    .Y(_0083_)
-  );
-  sg13g2_inv_1 _3573_ (
-    .A(\u_uart_master_reg.tl_o[22] ),
+  sg13g2_inv_1 _3613_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_0778_)
   );
-  sg13g2_a21oi_1 _3574_ (
-    .A1(\reg2hw[39] ),
-    .A2(_0656_),
-    .B1(_0683_),
+  sg13g2_nor2_1 _3614_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B(_0778_),
     .Y(_0779_)
   );
-  sg13g2_a22oi_1 _3575_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[54] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[62] ),
-    .B2(_0746_),
-    .Y(_0780_)
+  sg13g2_buf_1 _3615_ (
+    .A(_0779_),
+    .X(_0780_)
   );
-  sg13g2_nand2b_1 _3576_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[38] ),
-    .B(_0743_),
+  sg13g2_inv_1 _3616_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_0781_)
   );
-  sg13g2_nand2b_1 _3577_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[46] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nor2_1 _3617_ (
+    .A(_0778_),
+    .B(_0781_),
     .Y(_0782_)
   );
-  sg13g2_nand3_1 _3578_ (
-    .A(_0781_),
-    .B(_0782_),
-    .C(_0689_),
-    .Y(_0783_)
+  sg13g2_buf_1 _3618_ (
+    .A(_0782_),
+    .X(_0783_)
   );
-  sg13g2_nand3_1 _3579_ (
-    .A(_0780_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .C(_0783_),
+  sg13g2_inv_1 _3619_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_0784_)
   );
-  sg13g2_a21oi_1 _3580_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[22] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .Y(_0785_)
+  sg13g2_buf_1 _3620_ (
+    .A(_0784_),
+    .X(_0785_)
   );
-  sg13g2_nand2b_1 _3581_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[6] ),
-    .B(_0743_),
+  sg13g2_a221oi_1 _3621_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[118] ),
+    .B1(_0783_),
+    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[126] ),
+    .C1(_0785_),
     .Y(_0786_)
   );
-  sg13g2_nand2b_1 _3582_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[14] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_inv_1 _3622_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[110] ),
     .Y(_0787_)
   );
-  sg13g2_nand3_1 _3583_ (
-    .A(_0786_),
-    .B(_0787_),
-    .C(_0689_),
+  sg13g2_a21oi_1 _3623_ (
+    .A1(_0787_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_0788_)
   );
-  sg13g2_nand2_1 _3584_ (
-    .A(_0746_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[30] ),
+  sg13g2_o21ai_1 _3624_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[102] ),
+    .B1(_0788_),
     .Y(_0789_)
   );
-  sg13g2_nand3_1 _3585_ (
-    .A(_0785_),
-    .B(_0788_),
-    .C(_0789_),
+  sg13g2_inv_1 _3625_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[78] ),
     .Y(_0790_)
   );
-  sg13g2_nand3_1 _3586_ (
-    .A(_0784_),
-    .B(_0790_),
-    .C(_0698_),
+  sg13g2_a21oi_1 _3626_ (
+    .A1(_0790_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_0791_)
   );
-  sg13g2_a21oi_1 _3587_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[118] ),
-    .B1(_0685_),
+  sg13g2_o21ai_1 _3627_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[70] ),
+    .B1(_0791_),
     .Y(_0792_)
   );
-  sg13g2_nand2b_1 _3588_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[102] ),
-    .B(_0743_),
-    .Y(_0793_)
+  sg13g2_buf_2 _3628_ (
+    .A(_0780_),
+    .X(_0793_)
   );
-  sg13g2_nand2b_1 _3589_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[110] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_0794_)
+  sg13g2_buf_2 _3629_ (
+    .A(_0783_),
+    .X(_0794_)
   );
-  sg13g2_nand3_1 _3590_ (
-    .A(_0793_),
-    .B(_0794_),
-    .C(_0689_),
+  sg13g2_a221oi_1 _3630_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[86] ),
+    .B1(_0794_),
+    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[94] ),
+    .C1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_0795_)
   );
-  sg13g2_nand2_1 _3591_ (
-    .A(_0746_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[126] ),
+  sg13g2_a221oi_1 _3631_ (
+    .A1(_0786_),
+    .A2(_0789_),
+    .B1(_0792_),
+    .B2(_0795_),
+    .C1(_0760_),
     .Y(_0796_)
   );
-  sg13g2_nand3_1 _3592_ (
-    .A(_0792_),
-    .B(_0795_),
-    .C(_0796_),
+  sg13g2_a221oi_1 _3632_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[54] ),
+    .B1(_0783_),
+    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[62] ),
+    .C1(_0785_),
     .Y(_0797_)
   );
-  sg13g2_a21oi_1 _3593_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[86] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_inv_1 _3633_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[46] ),
     .Y(_0798_)
   );
-  sg13g2_nand2b_1 _3594_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[70] ),
-    .B(_0743_),
+  sg13g2_a21oi_1 _3634_ (
+    .A1(_0798_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_0799_)
   );
-  sg13g2_nand2b_1 _3595_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[78] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_o21ai_1 _3635_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[38] ),
+    .B1(_0799_),
     .Y(_0800_)
   );
-  sg13g2_nand3_1 _3596_ (
-    .A(_0799_),
-    .B(_0800_),
-    .C(_0689_),
+  sg13g2_inv_1 _3636_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[14] ),
     .Y(_0801_)
   );
-  sg13g2_nand2_1 _3597_ (
-    .A(_0746_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[94] ),
+  sg13g2_a21oi_1 _3637_ (
+    .A1(_0801_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
     .Y(_0802_)
   );
-  sg13g2_nand3_1 _3598_ (
-    .A(_0798_),
-    .B(_0801_),
-    .C(_0802_),
+  sg13g2_o21ai_1 _3638_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[6] ),
+    .B1(_0802_),
     .Y(_0803_)
   );
-  sg13g2_nand3_1 _3599_ (
-    .A(_0797_),
-    .B(_0803_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+  sg13g2_a221oi_1 _3639_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[22] ),
+    .B1(_0794_),
+    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[30] ),
+    .C1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_0804_)
   );
-  sg13g2_nand2_1 _3600_ (
-    .A(_0791_),
-    .B(_0804_),
+  sg13g2_a221oi_1 _3640_ (
+    .A1(_0797_),
+    .A2(_0800_),
+    .B1(_0803_),
+    .B2(_0804_),
+    .C1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
     .Y(_0805_)
   );
-  sg13g2_inv_1 _3601_ (
-    .A(_0805_),
+  sg13g2_nor2_1 _3641_ (
+    .A(_0796_),
+    .B(_0805_),
     .Y(_0806_)
   );
-  sg13g2_nor2_1 _3602_ (
-    .A(_0738_),
+  sg13g2_nor2_1 _3642_ (
+    .A(_0768_),
     .B(_0806_),
     .Y(_0807_)
   );
-  sg13g2_nand2_1 _3603_ (
-    .A(_0807_),
-    .B(_0776_),
+  sg13g2_nand2_1 _3643_ (
+    .A(_0777_),
+    .B(_0807_),
     .Y(_0808_)
   );
-  sg13g2_a22oi_1 _3604_ (
-    .A1(_0778_),
-    .A2(_0652_),
-    .B1(_0779_),
-    .B2(_0808_),
-    .Y(_0084_)
+  sg13g2_o21ai_1 _3644_ (
+    .A1(_0749_),
+    .A2(_0775_),
+    .B1(_0808_),
+    .Y(_0080_)
   );
-  sg13g2_inv_1 _3605_ (
-    .A(\u_uart_master_reg.tl_o[21] ),
+  sg13g2_inv_1 _3645_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[29] ),
     .Y(_0809_)
   );
-  sg13g2_a22oi_1 _3606_ (
-    .A1(_0740_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[53] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[61] ),
-    .B2(_0745_),
+  sg13g2_nor2_1 _3646_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[69] ),
     .Y(_0810_)
   );
-  sg13g2_nand2b_1 _3607_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[37] ),
-    .B(_0743_),
-    .Y(_0811_)
+  sg13g2_buf_1 _3647_ (
+    .A(_0781_),
+    .X(_0811_)
   );
-  sg13g2_nand2b_1 _3608_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[45] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_o21ai_1 _3648_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[77] ),
+    .A2(_0811_),
+    .B1(_0778_),
     .Y(_0812_)
   );
-  sg13g2_nand3_1 _3609_ (
-    .A(_0811_),
-    .B(_0812_),
-    .C(_0688_),
+  sg13g2_a22oi_1 _3649_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[85] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[93] ),
+    .B2(_0783_),
     .Y(_0813_)
   );
-  sg13g2_nand3_1 _3610_ (
-    .A(_0810_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .C(_0813_),
+  sg13g2_o21ai_1 _3650_ (
+    .A1(_0810_),
+    .A2(_0812_),
+    .B1(_0813_),
     .Y(_0814_)
   );
-  sg13g2_a21oi_1 _3611_ (
-    .A1(_0740_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[21] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_nand2_1 _3651_ (
+    .A(_0814_),
+    .B(_0785_),
     .Y(_0815_)
   );
-  sg13g2_nand2b_1 _3612_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[5] ),
-    .B(_0743_),
+  sg13g2_a22oi_1 _3652_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[117] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[125] ),
+    .B2(_0783_),
     .Y(_0816_)
   );
-  sg13g2_nand2b_1 _3613_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[13] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand2b_1 _3653_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[101] ),
+    .B(_0811_),
     .Y(_0817_)
   );
-  sg13g2_nand3_1 _3614_ (
-    .A(_0816_),
-    .B(_0817_),
-    .C(_0688_),
+  sg13g2_nand2b_1 _3654_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[109] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_0818_)
   );
-  sg13g2_nand2_1 _3615_ (
-    .A(_0745_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[29] ),
-    .Y(_0819_)
+  sg13g2_buf_1 _3655_ (
+    .A(_0778_),
+    .X(_0819_)
   );
-  sg13g2_nand3_1 _3616_ (
-    .A(_0815_),
+  sg13g2_nand3_1 _3656_ (
+    .A(_0817_),
     .B(_0818_),
     .C(_0819_),
     .Y(_0820_)
   );
-  sg13g2_a21o_1 _3617_ (
-    .A1(_0814_),
+  sg13g2_a21o_1 _3657_ (
+    .A1(_0816_),
     .A2(_0820_),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+    .B1(_0785_),
     .X(_0821_)
   );
-  sg13g2_a21oi_1 _3618_ (
-    .A1(_0745_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[125] ),
-    .B1(_0685_),
+  sg13g2_nand3_1 _3658_ (
+    .A(_0815_),
+    .B(_0821_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
     .Y(_0822_)
   );
-  sg13g2_nand2b_1 _3619_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[101] ),
-    .B(_0743_),
+  sg13g2_a21oi_1 _3659_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[21] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_0823_)
   );
-  sg13g2_nand2b_1 _3620_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[109] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand2b_1 _3660_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[5] ),
+    .B(_0781_),
     .Y(_0824_)
   );
-  sg13g2_nand3_1 _3621_ (
-    .A(_0823_),
-    .B(_0824_),
-    .C(_0688_),
+  sg13g2_nand2b_1 _3661_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[13] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_0825_)
   );
-  sg13g2_nand2_1 _3622_ (
-    .A(_0740_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[117] ),
+  sg13g2_nand3_1 _3662_ (
+    .A(_0824_),
+    .B(_0825_),
+    .C(_0778_),
     .Y(_0826_)
   );
-  sg13g2_nand3_1 _3623_ (
-    .A(_0822_),
-    .B(_0825_),
-    .C(_0826_),
+  sg13g2_nand2_1 _3663_ (
+    .A(_0783_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[29] ),
     .Y(_0827_)
   );
-  sg13g2_a21oi_1 _3624_ (
-    .A1(_0740_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[85] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_nand3_1 _3664_ (
+    .A(_0823_),
+    .B(_0826_),
+    .C(_0827_),
     .Y(_0828_)
   );
-  sg13g2_nand2b_1 _3625_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[69] ),
-    .B(_0743_),
+  sg13g2_a21oi_1 _3665_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[53] ),
+    .B1(_0785_),
     .Y(_0829_)
   );
-  sg13g2_nand2b_1 _3626_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[77] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand2b_1 _3666_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[37] ),
+    .B(_0781_),
     .Y(_0830_)
   );
-  sg13g2_nand3_1 _3627_ (
-    .A(_0829_),
-    .B(_0830_),
-    .C(_0688_),
+  sg13g2_nand2b_1 _3667_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[45] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_0831_)
   );
-  sg13g2_nand2_1 _3628_ (
-    .A(_0745_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[93] ),
+  sg13g2_nand3_1 _3668_ (
+    .A(_0830_),
+    .B(_0831_),
+    .C(_0778_),
     .Y(_0832_)
   );
-  sg13g2_nand3_1 _3629_ (
-    .A(_0828_),
-    .B(_0831_),
-    .C(_0832_),
+  sg13g2_nand2_1 _3669_ (
+    .A(_0783_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[61] ),
     .Y(_0833_)
   );
-  sg13g2_a21o_1 _3630_ (
-    .A1(_0827_),
-    .A2(_0833_),
-    .B1(_0698_),
-    .X(_0834_)
+  sg13g2_nand3_1 _3670_ (
+    .A(_0829_),
+    .B(_0832_),
+    .C(_0833_),
+    .Y(_0834_)
   );
-  sg13g2_nand3_1 _3631_ (
-    .A(_0821_),
-    .B(_0834_),
-    .C(_0737_),
-    .Y(_0835_)
+  sg13g2_a21o_1 _3671_ (
+    .A1(_0828_),
+    .A2(_0834_),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+    .X(_0835_)
   );
-  sg13g2_buf_1 _3632_ (
-    .A(_0835_),
-    .X(_0836_)
+  sg13g2_nand3_1 _3672_ (
+    .A(_0822_),
+    .B(_0767_),
+    .C(_0835_),
+    .Y(_0836_)
   );
-  sg13g2_inv_1 _3633_ (
+  sg13g2_buf_1 _3673_ (
     .A(_0836_),
-    .Y(_0837_)
+    .X(_0837_)
   );
-  sg13g2_nand2_1 _3634_ (
+  sg13g2_inv_1 _3674_ (
     .A(_0837_),
-    .B(_0776_),
     .Y(_0838_)
   );
-  sg13g2_nor2_1 _3635_ (
-    .A(_0540_),
-    .B(_0738_),
+  sg13g2_nand2_1 _3675_ (
+    .A(_0777_),
+    .B(_0838_),
     .Y(_0839_)
   );
-  sg13g2_inv_1 _3636_ (
-    .A(_0839_),
-    .Y(_0840_)
-  );
-  sg13g2_nor3_1 _3637_ (
-    .A(tl_i[63]),
-    .B(tl_i[64]),
-    .C(_0712_),
-    .Y(_0841_)
-  );
-  sg13g2_a221oi_1 _3638_ (
-    .A1(\reg2hw[38] ),
-    .A2(_0656_),
-    .B1(_0840_),
-    .B2(_0841_),
-    .C1(_0683_),
-    .Y(_0842_)
-  );
-  sg13g2_a22oi_1 _3639_ (
+  sg13g2_o21ai_1 _3676_ (
     .A1(_0809_),
-    .A2(_0652_),
-    .B1(_0838_),
-    .B2(_0842_),
-    .Y(_0085_)
-  );
-  sg13g2_inv_1 _3640_ (
-    .A(\u_uart_master_reg.tl_o[20] ),
-    .Y(_0843_)
-  );
-  sg13g2_inv_1 _3641_ (
-    .A(_0044_),
-    .Y(_0844_)
-  );
-  sg13g2_a221oi_1 _3642_ (
-    .A1(_0844_),
-    .A2(_0841_),
-    .B1(\reg2hw[37] ),
-    .B2(_0656_),
-    .C1(_0683_),
-    .Y(_0845_)
-  );
-  sg13g2_a22oi_1 _3643_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[20] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[28] ),
-    .B2(_0746_),
-    .Y(_0846_)
-  );
-  sg13g2_inv_1 _3644_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[12] ),
-    .Y(_0847_)
-  );
-  sg13g2_a21oi_1 _3645_ (
-    .A1(_0847_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_0848_)
-  );
-  sg13g2_o21ai_1 _3646_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[4] ),
-    .B1(_0848_),
-    .Y(_0849_)
-  );
-  sg13g2_a21oi_1 _3647_ (
-    .A1(_0846_),
-    .A2(_0849_),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .Y(_0850_)
-  );
-  sg13g2_a22oi_1 _3648_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[52] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[60] ),
-    .B2(_0746_),
-    .Y(_0851_)
-  );
-  sg13g2_inv_1 _3649_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[44] ),
-    .Y(_0852_)
-  );
-  sg13g2_a21oi_1 _3650_ (
-    .A1(_0852_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_0853_)
-  );
-  sg13g2_o21ai_1 _3651_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[36] ),
-    .B1(_0853_),
-    .Y(_0854_)
-  );
-  sg13g2_a21oi_1 _3652_ (
-    .A1(_0851_),
-    .A2(_0854_),
-    .B1(_0685_),
-    .Y(_0855_)
-  );
-  sg13g2_or3_1 _3653_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .B(_0850_),
-    .C(_0855_),
-    .X(_0856_)
-  );
-  sg13g2_a22oi_1 _3654_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[116] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[124] ),
-    .B2(_0746_),
-    .Y(_0857_)
-  );
-  sg13g2_inv_1 _3655_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[108] ),
-    .Y(_0858_)
-  );
-  sg13g2_a21oi_1 _3656_ (
-    .A1(_0858_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_0859_)
-  );
-  sg13g2_o21ai_1 _3657_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[100] ),
-    .B1(_0859_),
-    .Y(_0860_)
-  );
-  sg13g2_a21oi_1 _3658_ (
-    .A1(_0857_),
-    .A2(_0860_),
-    .B1(_0685_),
-    .Y(_0861_)
-  );
-  sg13g2_a22oi_1 _3659_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[84] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[92] ),
-    .B2(_0746_),
-    .Y(_0862_)
-  );
-  sg13g2_inv_1 _3660_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[76] ),
-    .Y(_0863_)
-  );
-  sg13g2_a21oi_1 _3661_ (
-    .A1(_0863_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_0864_)
-  );
-  sg13g2_o21ai_1 _3662_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[68] ),
-    .B1(_0864_),
-    .Y(_0865_)
-  );
-  sg13g2_a21oi_1 _3663_ (
-    .A1(_0862_),
-    .A2(_0865_),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .Y(_0866_)
-  );
-  sg13g2_or3_1 _3664_ (
-    .A(_0698_),
-    .B(_0861_),
-    .C(_0866_),
-    .X(_0867_)
-  );
-  sg13g2_nand3_1 _3665_ (
-    .A(_0856_),
-    .B(_0867_),
-    .C(_0737_),
-    .Y(_0868_)
-  );
-  sg13g2_buf_2 _3666_ (
-    .A(_0868_),
-    .X(_0869_)
-  );
-  sg13g2_inv_1 _3667_ (
-    .A(_0869_),
-    .Y(_0870_)
-  );
-  sg13g2_nand2_1 _3668_ (
-    .A(_0870_),
-    .B(_0776_),
-    .Y(_0871_)
-  );
-  sg13g2_a22oi_1 _3669_ (
-    .A1(_0843_),
-    .A2(_0652_),
-    .B1(_0845_),
-    .B2(_0871_),
-    .Y(_0086_)
-  );
-  sg13g2_inv_1 _3670_ (
-    .A(\u_uart_master_reg.tl_o[19] ),
-    .Y(_0872_)
-  );
-  sg13g2_inv_1 _3671_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[43] ),
-    .Y(_0873_)
-  );
-  sg13g2_o21ai_1 _3672_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[35] ),
-    .B1(_0688_),
-    .Y(_0874_)
-  );
-  sg13g2_a21oi_1 _3673_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_0873_),
-    .B1(_0874_),
-    .Y(_0875_)
-  );
-  sg13g2_nor2b_1 _3674_ (
-    .A(_0761_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[51] ),
-    .Y(_0876_)
-  );
-  sg13g2_nor2b_1 _3675_ (
-    .A(_0763_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[59] ),
-    .Y(_0877_)
-  );
-  sg13g2_nor4_1 _3676_ (
-    .A(_0685_),
-    .B(_0875_),
-    .C(_0876_),
-    .D(_0877_),
-    .Y(_0878_)
+    .A2(_0775_),
+    .B1(_0839_),
+    .Y(_0081_)
   );
   sg13g2_inv_1 _3677_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[11] ),
-    .Y(_0879_)
+    .A(\u_uart_master_core.u_host_bridge.sh_q[28] ),
+    .Y(_0840_)
   );
-  sg13g2_o21ai_1 _3678_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[3] ),
-    .B1(_0688_),
-    .Y(_0880_)
+  sg13g2_a22oi_1 _3678_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[84] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[92] ),
+    .B2(_0794_),
+    .Y(_0841_)
   );
-  sg13g2_a21oi_1 _3679_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_0879_),
-    .B1(_0880_),
-    .Y(_0881_)
+  sg13g2_nand2b_1 _3679_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[68] ),
+    .B(_0811_),
+    .Y(_0842_)
   );
-  sg13g2_nor2b_1 _3680_ (
-    .A(_0761_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[19] ),
-    .Y(_0882_)
+  sg13g2_nand2b_1 _3680_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[76] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0843_)
   );
-  sg13g2_nor2b_1 _3681_ (
-    .A(_0763_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[27] ),
-    .Y(_0883_)
+  sg13g2_nand3_1 _3681_ (
+    .A(_0842_),
+    .B(_0843_),
+    .C(_0819_),
+    .Y(_0844_)
   );
-  sg13g2_nor4_1 _3682_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .B(_0881_),
-    .C(_0882_),
-    .D(_0883_),
-    .Y(_0884_)
+  sg13g2_nand3_1 _3682_ (
+    .A(_0841_),
+    .B(_0785_),
+    .C(_0844_),
+    .Y(_0845_)
   );
-  sg13g2_o21ai_1 _3683_ (
-    .A1(_0878_),
-    .A2(_0884_),
-    .B1(_0698_),
-    .Y(_0885_)
+  sg13g2_a21oi_1 _3683_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[116] ),
+    .B1(_0785_),
+    .Y(_0846_)
   );
-  sg13g2_a22oi_1 _3684_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[115] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[123] ),
-    .B2(_0746_),
-    .Y(_0886_)
+  sg13g2_nand2b_1 _3684_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[100] ),
+    .B(_0811_),
+    .Y(_0847_)
   );
   sg13g2_nand2b_1 _3685_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[99] ),
-    .B(_0743_),
-    .Y(_0887_)
-  );
-  sg13g2_nand2b_1 _3686_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[107] ),
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[108] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_0888_)
+    .Y(_0848_)
   );
-  sg13g2_nand3_1 _3687_ (
-    .A(_0887_),
-    .B(_0888_),
-    .C(_0689_),
-    .Y(_0889_)
+  sg13g2_nand3_1 _3686_ (
+    .A(_0847_),
+    .B(_0848_),
+    .C(_0819_),
+    .Y(_0849_)
   );
-  sg13g2_a21oi_1 _3688_ (
-    .A1(_0886_),
-    .A2(_0889_),
-    .B1(_0685_),
-    .Y(_0890_)
+  sg13g2_nand2_1 _3687_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[124] ),
+    .Y(_0850_)
   );
-  sg13g2_a22oi_1 _3689_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[83] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[91] ),
-    .B2(_0746_),
-    .Y(_0891_)
+  sg13g2_nand3_1 _3688_ (
+    .A(_0846_),
+    .B(_0849_),
+    .C(_0850_),
+    .Y(_0851_)
   );
-  sg13g2_nand2b_1 _3690_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[67] ),
-    .B(_0743_),
-    .Y(_0892_)
+  sg13g2_nand3_1 _3689_ (
+    .A(_0845_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+    .C(_0851_),
+    .Y(_0852_)
+  );
+  sg13g2_a21oi_1 _3690_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[20] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .Y(_0853_)
   );
   sg13g2_nand2b_1 _3691_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[75] ),
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[4] ),
+    .B(_0811_),
+    .Y(_0854_)
+  );
+  sg13g2_nand2b_1 _3692_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[12] ),
     .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_0893_)
+    .Y(_0855_)
   );
-  sg13g2_nand3_1 _3692_ (
-    .A(_0892_),
-    .B(_0893_),
-    .C(_0689_),
-    .Y(_0894_)
+  sg13g2_nand3_1 _3693_ (
+    .A(_0854_),
+    .B(_0855_),
+    .C(_0819_),
+    .Y(_0856_)
   );
-  sg13g2_a21oi_1 _3693_ (
-    .A1(_0891_),
-    .A2(_0894_),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .Y(_0895_)
-  );
-  sg13g2_or3_1 _3694_ (
-    .A(_0698_),
-    .B(_0890_),
-    .C(_0895_),
-    .X(_0896_)
+  sg13g2_nand2_1 _3694_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[28] ),
+    .Y(_0857_)
   );
   sg13g2_nand3_1 _3695_ (
-    .A(_0885_),
-    .B(_0737_),
-    .C(_0896_),
-    .Y(_0897_)
+    .A(_0853_),
+    .B(_0856_),
+    .C(_0857_),
+    .Y(_0858_)
   );
-  sg13g2_buf_2 _3696_ (
-    .A(_0897_),
-    .X(_0898_)
+  sg13g2_a21oi_1 _3696_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[52] ),
+    .B1(_0785_),
+    .Y(_0859_)
   );
-  sg13g2_inv_1 _3697_ (
-    .A(_0898_),
-    .Y(_0899_)
+  sg13g2_nand2b_1 _3697_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[36] ),
+    .B(_0811_),
+    .Y(_0860_)
   );
-  sg13g2_nand2_1 _3698_ (
-    .A(_0899_),
-    .B(_0776_),
-    .Y(_0900_)
+  sg13g2_nand2b_1 _3698_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[44] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0861_)
   );
-  sg13g2_nor2_1 _3699_ (
-    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
-    .B(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[1] ),
-    .Y(_0901_)
+  sg13g2_nand3_1 _3699_ (
+    .A(_0860_),
+    .B(_0861_),
+    .C(_0819_),
+    .Y(_0862_)
   );
-  sg13g2_inv_1 _3700_ (
-    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[2] ),
-    .Y(_0902_)
+  sg13g2_nand2_1 _3700_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[60] ),
+    .Y(_0863_)
   );
-  sg13g2_inv_1 _3701_ (
-    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[3] ),
-    .Y(_0903_)
+  sg13g2_nand3_1 _3701_ (
+    .A(_0859_),
+    .B(_0862_),
+    .C(_0863_),
+    .Y(_0864_)
   );
   sg13g2_nand3_1 _3702_ (
-    .A(_0901_),
-    .B(_0902_),
-    .C(_0903_),
-    .Y(_0904_)
+    .A(_0858_),
+    .B(_0864_),
+    .C(_0760_),
+    .Y(_0865_)
   );
   sg13g2_nand2_1 _3703_ (
-    .A(_0904_),
-    .B(\reg2hw[34] ),
-    .Y(_0905_)
+    .A(_0852_),
+    .B(_0865_),
+    .Y(_0866_)
   );
   sg13g2_nand2_1 _3704_ (
-    .A(_0552_),
-    .B(_0541_),
-    .Y(_0906_)
+    .A(_0866_),
+    .B(_0767_),
+    .Y(_0867_)
   );
   sg13g2_inv_1 _3705_ (
-    .A(_0841_),
-    .Y(_0907_)
+    .A(_0867_),
+    .Y(_0868_)
   );
-  sg13g2_a21oi_1 _3706_ (
-    .A1(_0906_),
-    .A2(_0043_),
-    .B1(_0907_),
-    .Y(_0908_)
+  sg13g2_nand2_1 _3706_ (
+    .A(_0777_),
+    .B(_0868_),
+    .Y(_0869_)
   );
-  sg13g2_inv_1 _3707_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .Y(_0909_)
+  sg13g2_o21ai_1 _3707_ (
+    .A1(_0840_),
+    .A2(_0775_),
+    .B1(_0869_),
+    .Y(_0082_)
   );
-  sg13g2_buf_1 _3708_ (
-    .A(_0909_),
-    .X(_0910_)
+  sg13g2_inv_1 _3708_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[27] ),
+    .Y(_0870_)
   );
-  sg13g2_inv_1 _3709_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[0] ),
-    .Y(_0911_)
+  sg13g2_a22oi_1 _3709_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[51] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[59] ),
+    .B2(_0794_),
+    .Y(_0871_)
   );
-  sg13g2_a21oi_1 _3710_ (
-    .A1(_0911_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B1(_0545_),
-    .Y(_0912_)
+  sg13g2_nand2b_1 _3710_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[35] ),
+    .B(_0811_),
+    .Y(_0872_)
   );
-  sg13g2_a21oi_1 _3711_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .A2(_0910_),
-    .B1(_0912_),
-    .Y(_0913_)
+  sg13g2_nand2b_1 _3711_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[43] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0873_)
   );
-  sg13g2_inv_1 _3712_ (
-    .A(_0549_),
-    .Y(_0914_)
+  sg13g2_nand3_1 _3712_ (
+    .A(_0872_),
+    .B(_0873_),
+    .C(_0819_),
+    .Y(_0874_)
   );
-  sg13g2_a21oi_1 _3713_ (
-    .A1(_0913_),
-    .A2(_0914_),
-    .B1(_0547_),
-    .Y(_0915_)
+  sg13g2_nand3_1 _3713_ (
+    .A(_0871_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .C(_0874_),
+    .Y(_0875_)
   );
-  sg13g2_inv_1 _3714_ (
-    .A(_0915_),
-    .Y(_0916_)
+  sg13g2_a21oi_1 _3714_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[19] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .Y(_0876_)
   );
-  sg13g2_o21ai_1 _3715_ (
-    .A1(_0552_),
-    .A2(_0541_),
-    .B1(_0916_),
-    .Y(_0917_)
+  sg13g2_nand2b_1 _3715_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[3] ),
+    .B(_0811_),
+    .Y(_0877_)
   );
-  sg13g2_o21ai_1 _3716_ (
-    .A1(_0541_),
-    .A2(_0916_),
-    .B1(_0917_),
-    .Y(_0918_)
+  sg13g2_nand2b_1 _3716_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[11] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0878_)
   );
-  sg13g2_a221oi_1 _3717_ (
-    .A1(_0905_),
-    .A2(_0908_),
-    .B1(_0918_),
-    .B2(_0714_),
-    .C1(_0683_),
-    .Y(_0919_)
+  sg13g2_nand3_1 _3717_ (
+    .A(_0877_),
+    .B(_0878_),
+    .C(_0819_),
+    .Y(_0879_)
   );
-  sg13g2_a22oi_1 _3718_ (
-    .A1(_0872_),
-    .A2(_0652_),
-    .B1(_0900_),
-    .B2(_0919_),
-    .Y(_0087_)
+  sg13g2_nand2_1 _3718_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[27] ),
+    .Y(_0880_)
   );
-  sg13g2_inv_1 _3719_ (
-    .A(\u_uart_master_reg.tl_o[18] ),
-    .Y(_0920_)
+  sg13g2_nand3_1 _3719_ (
+    .A(_0876_),
+    .B(_0879_),
+    .C(_0880_),
+    .Y(_0881_)
   );
-  sg13g2_inv_1 _3720_ (
+  sg13g2_nand3_1 _3720_ (
+    .A(_0875_),
+    .B(_0881_),
+    .C(_0760_),
+    .Y(_0882_)
+  );
+  sg13g2_a21oi_1 _3721_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[83] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .Y(_0883_)
+  );
+  sg13g2_nand2b_1 _3722_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[67] ),
+    .B(_0811_),
+    .Y(_0884_)
+  );
+  sg13g2_nand2b_1 _3723_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[75] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0885_)
+  );
+  sg13g2_nand3_1 _3724_ (
+    .A(_0884_),
+    .B(_0885_),
+    .C(_0819_),
+    .Y(_0886_)
+  );
+  sg13g2_nand2_1 _3725_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[91] ),
+    .Y(_0887_)
+  );
+  sg13g2_nand3_1 _3726_ (
+    .A(_0883_),
+    .B(_0886_),
+    .C(_0887_),
+    .Y(_0888_)
+  );
+  sg13g2_a21oi_1 _3727_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[115] ),
+    .B1(_0785_),
+    .Y(_0889_)
+  );
+  sg13g2_nand2b_1 _3728_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[99] ),
+    .B(_0811_),
+    .Y(_0890_)
+  );
+  sg13g2_nand2b_1 _3729_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[107] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0891_)
+  );
+  sg13g2_nand3_1 _3730_ (
+    .A(_0890_),
+    .B(_0891_),
+    .C(_0819_),
+    .Y(_0892_)
+  );
+  sg13g2_nand2_1 _3731_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[123] ),
+    .Y(_0893_)
+  );
+  sg13g2_nand3_1 _3732_ (
+    .A(_0889_),
+    .B(_0892_),
+    .C(_0893_),
+    .Y(_0894_)
+  );
+  sg13g2_nand3_1 _3733_ (
+    .A(_0888_),
+    .B(_0894_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+    .Y(_0895_)
+  );
+  sg13g2_nand2_1 _3734_ (
+    .A(_0882_),
+    .B(_0895_),
+    .Y(_0896_)
+  );
+  sg13g2_nand2_1 _3735_ (
+    .A(_0896_),
+    .B(_0767_),
+    .Y(_0897_)
+  );
+  sg13g2_inv_1 _3736_ (
+    .A(_0897_),
+    .Y(_0898_)
+  );
+  sg13g2_nand2_1 _3737_ (
+    .A(_0777_),
+    .B(_0898_),
+    .Y(_0899_)
+  );
+  sg13g2_o21ai_1 _3738_ (
+    .A1(_0870_),
+    .A2(_0775_),
+    .B1(_0899_),
+    .Y(_0083_)
+  );
+  sg13g2_inv_1 _3739_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[26] ),
+    .Y(_0900_)
+  );
+  sg13g2_a21oi_1 _3740_ (
+    .A1(_0783_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[90] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .Y(_0901_)
+  );
+  sg13g2_inv_1 _3741_ (
     .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[74] ),
-    .Y(_0921_)
+    .Y(_0902_)
   );
-  sg13g2_o21ai_1 _3721_ (
+  sg13g2_a21oi_1 _3742_ (
+    .A1(_0902_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_0903_)
+  );
+  sg13g2_o21ai_1 _3743_ (
     .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[66] ),
-    .B1(_0689_),
-    .Y(_0922_)
+    .B1(_0903_),
+    .Y(_0904_)
   );
-  sg13g2_a21oi_1 _3722_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_0921_),
-    .B1(_0922_),
-    .Y(_0923_)
-  );
-  sg13g2_nor2b_1 _3723_ (
-    .A(_0761_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[82] ),
-    .Y(_0924_)
-  );
-  sg13g2_nor2b_1 _3724_ (
-    .A(_0763_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[90] ),
-    .Y(_0925_)
-  );
-  sg13g2_nor4_1 _3725_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .B(_0923_),
-    .C(_0924_),
-    .D(_0925_),
-    .Y(_0926_)
-  );
-  sg13g2_inv_1 _3726_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[106] ),
-    .Y(_0927_)
-  );
-  sg13g2_o21ai_1 _3727_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[98] ),
-    .B1(_0689_),
-    .Y(_0928_)
-  );
-  sg13g2_a21oi_1 _3728_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_0927_),
-    .B1(_0928_),
-    .Y(_0929_)
-  );
-  sg13g2_nor2b_1 _3729_ (
-    .A(_0761_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[114] ),
-    .Y(_0930_)
-  );
-  sg13g2_nor2b_1 _3730_ (
-    .A(_0763_),
-    .B_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[122] ),
-    .Y(_0931_)
-  );
-  sg13g2_nor4_1 _3731_ (
-    .A(_0685_),
-    .B(_0929_),
-    .C(_0930_),
-    .D(_0931_),
-    .Y(_0932_)
-  );
-  sg13g2_o21ai_1 _3732_ (
-    .A1(_0926_),
-    .A2(_0932_),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .Y(_0933_)
-  );
-  sg13g2_a22oi_1 _3733_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[18] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[26] ),
-    .B2(_0746_),
-    .Y(_0934_)
-  );
-  sg13g2_nand2b_1 _3734_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[2] ),
-    .B(_0743_),
-    .Y(_0935_)
-  );
-  sg13g2_nand2b_1 _3735_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[10] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_0936_)
-  );
-  sg13g2_nand3_1 _3736_ (
-    .A(_0935_),
-    .B(_0936_),
-    .C(_0689_),
-    .Y(_0937_)
-  );
-  sg13g2_nand3_1 _3737_ (
-    .A(_0934_),
-    .B(_0685_),
-    .C(_0937_),
-    .Y(_0938_)
-  );
-  sg13g2_a21oi_1 _3738_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[50] ),
-    .B1(_0685_),
-    .Y(_0939_)
-  );
-  sg13g2_nand2b_1 _3739_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[34] ),
-    .B(_0743_),
-    .Y(_0940_)
-  );
-  sg13g2_nand2b_1 _3740_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[42] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .Y(_0941_)
-  );
-  sg13g2_nand3_1 _3741_ (
-    .A(_0940_),
-    .B(_0941_),
-    .C(_0689_),
-    .Y(_0942_)
-  );
-  sg13g2_nand2_1 _3742_ (
-    .A(_0746_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[58] ),
-    .Y(_0943_)
-  );
-  sg13g2_nand3_1 _3743_ (
-    .A(_0939_),
-    .B(_0942_),
-    .C(_0943_),
-    .Y(_0944_)
-  );
-  sg13g2_a21o_1 _3744_ (
-    .A1(_0938_),
-    .A2(_0944_),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .X(_0945_)
+  sg13g2_nand2_1 _3744_ (
+    .A(_0793_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[82] ),
+    .Y(_0905_)
   );
   sg13g2_nand3_1 _3745_ (
+    .A(_0901_),
+    .B(_0904_),
+    .C(_0905_),
+    .Y(_0906_)
+  );
+  sg13g2_a21oi_1 _3746_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[114] ),
+    .B1(_0785_),
+    .Y(_0907_)
+  );
+  sg13g2_nand2b_1 _3747_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[98] ),
+    .B(_0811_),
+    .Y(_0908_)
+  );
+  sg13g2_nand2b_1 _3748_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[106] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0909_)
+  );
+  sg13g2_nand3_1 _3749_ (
+    .A(_0908_),
+    .B(_0909_),
+    .C(_0819_),
+    .Y(_0910_)
+  );
+  sg13g2_nand2_1 _3750_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[122] ),
+    .Y(_0911_)
+  );
+  sg13g2_nand3_1 _3751_ (
+    .A(_0907_),
+    .B(_0910_),
+    .C(_0911_),
+    .Y(_0912_)
+  );
+  sg13g2_nand3_1 _3752_ (
+    .A(_0906_),
+    .B(_0912_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+    .Y(_0913_)
+  );
+  sg13g2_inv_1 _3753_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[42] ),
+    .Y(_0914_)
+  );
+  sg13g2_a21oi_1 _3754_ (
+    .A1(_0914_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .Y(_0915_)
+  );
+  sg13g2_o21ai_1 _3755_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[34] ),
+    .B1(_0915_),
+    .Y(_0916_)
+  );
+  sg13g2_a21oi_1 _3756_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[50] ),
+    .B1(_0785_),
+    .Y(_0917_)
+  );
+  sg13g2_nand2_1 _3757_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[58] ),
+    .Y(_0918_)
+  );
+  sg13g2_nand3_1 _3758_ (
+    .A(_0916_),
+    .B(_0917_),
+    .C(_0918_),
+    .Y(_0919_)
+  );
+  sg13g2_a21oi_1 _3759_ (
+    .A1(_0780_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[18] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .Y(_0920_)
+  );
+  sg13g2_nand2b_1 _3760_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[2] ),
+    .B(_0811_),
+    .Y(_0921_)
+  );
+  sg13g2_nand2b_1 _3761_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[10] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0922_)
+  );
+  sg13g2_nand3_1 _3762_ (
+    .A(_0921_),
+    .B(_0922_),
+    .C(_0819_),
+    .Y(_0923_)
+  );
+  sg13g2_nand2_1 _3763_ (
+    .A(_0783_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[26] ),
+    .Y(_0924_)
+  );
+  sg13g2_nand3_1 _3764_ (
+    .A(_0920_),
+    .B(_0923_),
+    .C(_0924_),
+    .Y(_0925_)
+  );
+  sg13g2_nand3_1 _3765_ (
+    .A(_0919_),
+    .B(_0925_),
+    .C(_0760_),
+    .Y(_0926_)
+  );
+  sg13g2_nand2_1 _3766_ (
+    .A(_0913_),
+    .B(_0926_),
+    .Y(_0927_)
+  );
+  sg13g2_nand2_1 _3767_ (
+    .A(_0927_),
+    .B(_0767_),
+    .Y(_0928_)
+  );
+  sg13g2_inv_1 _3768_ (
+    .A(_0928_),
+    .Y(_0929_)
+  );
+  sg13g2_nand2_1 _3769_ (
+    .A(_0777_),
+    .B(_0929_),
+    .Y(_0930_)
+  );
+  sg13g2_o21ai_1 _3770_ (
+    .A1(_0900_),
+    .A2(_0775_),
+    .B1(_0930_),
+    .Y(_0084_)
+  );
+  sg13g2_inv_1 _3771_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[25] ),
+    .Y(_0931_)
+  );
+  sg13g2_a22oi_1 _3772_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[17] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[25] ),
+    .B2(_0794_),
+    .Y(_0932_)
+  );
+  sg13g2_nand2b_1 _3773_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[1] ),
+    .B(_0811_),
+    .Y(_0933_)
+  );
+  sg13g2_nand2b_1 _3774_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[9] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0934_)
+  );
+  sg13g2_nand3_1 _3775_ (
     .A(_0933_),
-    .B(_0945_),
-    .C(_0737_),
+    .B(_0934_),
+    .C(_0819_),
+    .Y(_0935_)
+  );
+  sg13g2_nand3_1 _3776_ (
+    .A(_0932_),
+    .B(_0785_),
+    .C(_0935_),
+    .Y(_0936_)
+  );
+  sg13g2_a21oi_1 _3777_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[49] ),
+    .B1(_0785_),
+    .Y(_0937_)
+  );
+  sg13g2_nand2b_1 _3778_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[33] ),
+    .B(_0811_),
+    .Y(_0938_)
+  );
+  sg13g2_nand2b_1 _3779_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[41] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .Y(_0939_)
+  );
+  sg13g2_nand3_1 _3780_ (
+    .A(_0938_),
+    .B(_0939_),
+    .C(_0819_),
+    .Y(_0940_)
+  );
+  sg13g2_nand2_1 _3781_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[57] ),
+    .Y(_0941_)
+  );
+  sg13g2_nand3_1 _3782_ (
+    .A(_0937_),
+    .B(_0940_),
+    .C(_0941_),
+    .Y(_0942_)
+  );
+  sg13g2_nand3_1 _3783_ (
+    .A(_0936_),
+    .B(_0942_),
+    .C(_0760_),
+    .Y(_0943_)
+  );
+  sg13g2_a21oi_1 _3784_ (
+    .A1(_0794_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[89] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .Y(_0944_)
+  );
+  sg13g2_nand2b_1 _3785_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[65] ),
+    .B(_0811_),
+    .Y(_0945_)
+  );
+  sg13g2_nand2b_1 _3786_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[73] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_0946_)
   );
-  sg13g2_buf_1 _3746_ (
-    .A(_0946_),
-    .X(_0947_)
+  sg13g2_nand3_1 _3787_ (
+    .A(_0945_),
+    .B(_0946_),
+    .C(_0819_),
+    .Y(_0947_)
   );
-  sg13g2_inv_1 _3747_ (
-    .A(_0947_),
+  sg13g2_nand2_1 _3788_ (
+    .A(_0793_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[81] ),
     .Y(_0948_)
   );
-  sg13g2_nand2_1 _3748_ (
-    .A(_0948_),
-    .B(_0776_),
+  sg13g2_nand3_1 _3789_ (
+    .A(_0944_),
+    .B(_0947_),
+    .C(_0948_),
     .Y(_0949_)
   );
-  sg13g2_inv_1 _3749_ (
-    .A(\reg2hw[36] ),
+  sg13g2_a21oi_1 _3790_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[113] ),
+    .B1(_0785_),
     .Y(_0950_)
   );
-  sg13g2_inv_1 _3750_ (
-    .A(_0656_),
+  sg13g2_nand2b_1 _3791_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[97] ),
+    .B(_0811_),
     .Y(_0951_)
   );
-  sg13g2_o21ai_1 _3751_ (
-    .A1(_0950_),
-    .A2(_0951_),
-    .B1(_0663_),
+  sg13g2_nand2b_1 _3792_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[105] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_0952_)
   );
-  sg13g2_xnor2_1 _3752_ (
-    .A(_0551_),
-    .B(_0913_),
+  sg13g2_nand3_1 _3793_ (
+    .A(_0951_),
+    .B(_0952_),
+    .C(_0819_),
     .Y(_0953_)
   );
-  sg13g2_nor3_1 _3753_ (
-    .A(_0553_),
-    .B(_0715_),
-    .C(_0953_),
+  sg13g2_nand2_1 _3794_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[121] ),
     .Y(_0954_)
   );
-  sg13g2_nor3_1 _3754_ (
-    .A(_0908_),
-    .B(_0952_),
+  sg13g2_nand3_1 _3795_ (
+    .A(_0950_),
+    .B(_0953_),
     .C(_0954_),
     .Y(_0955_)
   );
-  sg13g2_a22oi_1 _3755_ (
-    .A1(_0920_),
-    .A2(_0650_),
-    .B1(_0949_),
-    .B2(_0955_),
-    .Y(_0088_)
-  );
-  sg13g2_inv_1 _3756_ (
-    .A(\u_uart_master_reg.tl_o[17] ),
+  sg13g2_nand3_1 _3796_ (
+    .A(_0949_),
+    .B(_0955_),
+    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
     .Y(_0956_)
   );
-  sg13g2_nand3_1 _3757_ (
-    .A(_0545_),
-    .B(_0911_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand2_1 _3797_ (
+    .A(_0943_),
+    .B(_0956_),
     .Y(_0957_)
   );
-  sg13g2_nor2_1 _3758_ (
-    .A(_0715_),
-    .B(_0912_),
+  sg13g2_nand2_1 _3798_ (
+    .A(_0957_),
+    .B(_0767_),
     .Y(_0958_)
   );
-  sg13g2_a21o_1 _3759_ (
-    .A1(_0710_),
-    .A2(_0705_),
-    .B1(_0540_),
-    .X(_0959_)
+  sg13g2_inv_1 _3799_ (
+    .A(_0958_),
+    .Y(_0959_)
   );
-  sg13g2_inv_1 _3760_ (
-    .A(\reg2hw[35] ),
+  sg13g2_nand2_1 _3800_ (
+    .A(_0777_),
+    .B(_0959_),
     .Y(_0960_)
   );
-  sg13g2_o21ai_1 _3761_ (
-    .A1(_0960_),
-    .A2(_0951_),
-    .B1(_0663_),
+  sg13g2_o21ai_1 _3801_ (
+    .A1(_0931_),
+    .A2(_0775_),
+    .B1(_0960_),
+    .Y(_0085_)
+  );
+  sg13g2_inv_1 _3802_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[24] ),
     .Y(_0961_)
   );
-  sg13g2_a221oi_1 _3762_ (
-    .A1(_0957_),
-    .A2(_0958_),
-    .B1(_0959_),
-    .B2(_0841_),
-    .C1(_0961_),
+  sg13g2_nor2_1 _3803_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[96] ),
     .Y(_0962_)
   );
-  sg13g2_nor2_1 _3763_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[65] ),
+  sg13g2_o21ai_1 _3804_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[104] ),
+    .A2(_0811_),
+    .B1(_0819_),
     .Y(_0963_)
   );
-  sg13g2_o21ai_1 _3764_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[73] ),
-    .A2(_0743_),
-    .B1(_0689_),
+  sg13g2_a221oi_1 _3805_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[112] ),
+    .B1(_0794_),
+    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[120] ),
+    .C1(_0785_),
     .Y(_0964_)
   );
-  sg13g2_a221oi_1 _3765_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[81] ),
-    .B1(_0746_),
-    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[89] ),
-    .C1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_o21ai_1 _3806_ (
+    .A1(_0962_),
+    .A2(_0963_),
+    .B1(_0964_),
     .Y(_0965_)
   );
-  sg13g2_o21ai_1 _3766_ (
-    .A1(_0963_),
-    .A2(_0964_),
-    .B1(_0965_),
+  sg13g2_a22oi_1 _3807_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[80] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[88] ),
+    .B2(_0794_),
     .Y(_0966_)
   );
-  sg13g2_a22oi_1 _3767_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[113] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[121] ),
-    .B2(_0746_),
+  sg13g2_nand2b_1 _3808_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[64] ),
+    .B(_0811_),
     .Y(_0967_)
   );
-  sg13g2_nand2b_1 _3768_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[97] ),
-    .B(_0743_),
+  sg13g2_nand2b_1 _3809_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[72] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_0968_)
   );
-  sg13g2_nand2b_1 _3769_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[105] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand3_1 _3810_ (
+    .A(_0967_),
+    .B(_0968_),
+    .C(_0819_),
     .Y(_0969_)
   );
-  sg13g2_nand3_1 _3770_ (
-    .A(_0968_),
-    .B(_0969_),
-    .C(_0689_),
+  sg13g2_nand3_1 _3811_ (
+    .A(_0966_),
+    .B(_0785_),
+    .C(_0969_),
     .Y(_0970_)
   );
-  sg13g2_nand3_1 _3771_ (
-    .A(_0967_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_nand3_1 _3812_ (
+    .A(_0965_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
     .C(_0970_),
     .Y(_0971_)
   );
-  sg13g2_nand3_1 _3772_ (
-    .A(_0966_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .C(_0971_),
+  sg13g2_nor2_1 _3813_ (
+    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[32] ),
     .Y(_0972_)
   );
-  sg13g2_nor2_1 _3773_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[33] ),
+  sg13g2_o21ai_1 _3814_ (
+    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[40] ),
+    .A2(_0811_),
+    .B1(_0819_),
     .Y(_0973_)
   );
-  sg13g2_o21ai_1 _3774_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[41] ),
-    .A2(_0743_),
-    .B1(_0689_),
+  sg13g2_a221oi_1 _3815_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[48] ),
+    .B1(_0794_),
+    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[56] ),
+    .C1(_0785_),
     .Y(_0974_)
   );
-  sg13g2_a221oi_1 _3775_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[49] ),
-    .B1(_0746_),
-    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[57] ),
-    .C1(_0685_),
+  sg13g2_o21ai_1 _3816_ (
+    .A1(_0972_),
+    .A2(_0973_),
+    .B1(_0974_),
     .Y(_0975_)
   );
-  sg13g2_o21ai_1 _3776_ (
-    .A1(_0973_),
-    .A2(_0974_),
-    .B1(_0975_),
+  sg13g2_a21oi_1 _3817_ (
+    .A1(_0793_),
+    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[16] ),
+    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
     .Y(_0976_)
   );
-  sg13g2_a21oi_1 _3777_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[17] ),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+  sg13g2_nand2b_1 _3818_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[0] ),
+    .B(_0811_),
     .Y(_0977_)
   );
-  sg13g2_nand2b_1 _3778_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[1] ),
-    .B(_0743_),
+  sg13g2_nand2b_1 _3819_ (
+    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[8] ),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
     .Y(_0978_)
   );
-  sg13g2_nand2b_1 _3779_ (
-    .A_N(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[9] ),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+  sg13g2_nand3_1 _3820_ (
+    .A(_0977_),
+    .B(_0978_),
+    .C(_0819_),
     .Y(_0979_)
   );
-  sg13g2_nand3_1 _3780_ (
-    .A(_0978_),
-    .B(_0979_),
-    .C(_0689_),
+  sg13g2_nand2_1 _3821_ (
+    .A(_0794_),
+    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[24] ),
     .Y(_0980_)
   );
-  sg13g2_nand2_1 _3781_ (
-    .A(_0746_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[25] ),
+  sg13g2_nand3_1 _3822_ (
+    .A(_0976_),
+    .B(_0979_),
+    .C(_0980_),
     .Y(_0981_)
   );
-  sg13g2_nand3_1 _3782_ (
-    .A(_0977_),
-    .B(_0980_),
+  sg13g2_nand3_1 _3823_ (
+    .A(_0975_),
+    .B(_0760_),
     .C(_0981_),
     .Y(_0982_)
   );
-  sg13g2_nand3_1 _3783_ (
-    .A(_0976_),
-    .B(_0698_),
-    .C(_0982_),
+  sg13g2_nand2_1 _3824_ (
+    .A(_0971_),
+    .B(_0982_),
     .Y(_0983_)
   );
-  sg13g2_nand2_1 _3784_ (
-    .A(_0972_),
-    .B(_0983_),
+  sg13g2_inv_1 _3825_ (
+    .A(_0983_),
     .Y(_0984_)
   );
-  sg13g2_nand2_1 _3785_ (
-    .A(_0984_),
-    .B(_0737_),
+  sg13g2_nor2_1 _3826_ (
+    .A(_0768_),
+    .B(_0984_),
     .Y(_0985_)
   );
-  sg13g2_inv_1 _3786_ (
-    .A(_0985_),
+  sg13g2_nand2_1 _3827_ (
+    .A(_0777_),
+    .B(_0985_),
     .Y(_0986_)
   );
-  sg13g2_nand2_1 _3787_ (
-    .A(_0986_),
-    .B(_0776_),
+  sg13g2_o21ai_1 _3828_ (
+    .A1(_0961_),
+    .A2(_0775_),
+    .B1(_0986_),
+    .Y(_0086_)
+  );
+  sg13g2_inv_1 _3829_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[23] ),
     .Y(_0987_)
   );
-  sg13g2_a22oi_1 _3788_ (
-    .A1(_0956_),
-    .A2(_0650_),
-    .B1(_0962_),
-    .B2(_0987_),
-    .Y(_0089_)
-  );
-  sg13g2_inv_1 _3789_ (
-    .A(\u_uart_master_reg.tl_o[16] ),
+  sg13g2_nand2_1 _3830_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[31] ),
     .Y(_0988_)
   );
-  sg13g2_a221oi_1 _3790_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[48] ),
-    .B1(_0746_),
-    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[56] ),
-    .C1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+  sg13g2_o21ai_1 _3831_ (
+    .A1(_0987_),
+    .A2(_0775_),
+    .B1(_0988_),
+    .Y(_0087_)
+  );
+  sg13g2_inv_1 _3832_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[22] ),
     .Y(_0989_)
   );
-  sg13g2_inv_1 _3791_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[40] ),
+  sg13g2_nand2_1 _3833_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[30] ),
     .Y(_0990_)
   );
-  sg13g2_o21ai_1 _3792_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[32] ),
-    .B1(_0689_),
+  sg13g2_o21ai_1 _3834_ (
+    .A1(_0989_),
+    .A2(_0775_),
+    .B1(_0990_),
+    .Y(_0088_)
+  );
+  sg13g2_inv_1 _3835_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[21] ),
     .Y(_0991_)
   );
-  sg13g2_a21oi_1 _3793_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_0990_),
-    .B1(_0991_),
+  sg13g2_nand2_1 _3836_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[29] ),
     .Y(_0992_)
   );
-  sg13g2_inv_1 _3794_ (
-    .A(_0992_),
+  sg13g2_o21ai_1 _3837_ (
+    .A1(_0991_),
+    .A2(_0775_),
+    .B1(_0992_),
+    .Y(_0089_)
+  );
+  sg13g2_inv_1 _3838_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[20] ),
     .Y(_0993_)
   );
-  sg13g2_a21oi_1 _3795_ (
-    .A1(_0989_),
-    .A2(_0993_),
-    .B1(_0685_),
+  sg13g2_nand2_1 _3839_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[28] ),
     .Y(_0994_)
   );
-  sg13g2_inv_1 _3796_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[104] ),
-    .Y(_0995_)
-  );
-  sg13g2_o21ai_1 _3797_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[96] ),
-    .B1(_0689_),
-    .Y(_0996_)
-  );
-  sg13g2_a21oi_1 _3798_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_0995_),
-    .B1(_0996_),
-    .Y(_0997_)
-  );
-  sg13g2_inv_1 _3799_ (
-    .A(_0997_),
-    .Y(_0998_)
-  );
-  sg13g2_nand2_1 _3800_ (
-    .A(_0746_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[120] ),
-    .Y(_0999_)
-  );
-  sg13g2_nand2_1 _3801_ (
-    .A(_0741_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[112] ),
-    .Y(_1000_)
-  );
-  sg13g2_nand4_1 _3802_ (
-    .A(_0998_),
-    .B(_0999_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .D(_1000_),
-    .Y(_1001_)
-  );
-  sg13g2_inv_1 _3803_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[72] ),
-    .Y(_1002_)
-  );
-  sg13g2_o21ai_1 _3804_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[64] ),
-    .B1(_0689_),
-    .Y(_1003_)
-  );
-  sg13g2_a21oi_1 _3805_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_1002_),
-    .B1(_1003_),
-    .Y(_1004_)
-  );
-  sg13g2_inv_1 _3806_ (
-    .A(_1004_),
-    .Y(_1005_)
-  );
-  sg13g2_nand2_1 _3807_ (
-    .A(_0746_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[88] ),
-    .Y(_1006_)
-  );
-  sg13g2_nand2_1 _3808_ (
-    .A(_0741_),
-    .B(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[80] ),
-    .Y(_1007_)
-  );
-  sg13g2_nand4_1 _3809_ (
-    .A(_1005_),
-    .B(_1006_),
-    .C(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .D(_1007_),
-    .Y(_1008_)
-  );
-  sg13g2_a221oi_1 _3810_ (
-    .A1(_0741_),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[16] ),
-    .B1(_0746_),
-    .B2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[24] ),
-    .C1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .Y(_1009_)
-  );
-  sg13g2_inv_1 _3811_ (
-    .A(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[8] ),
-    .Y(_1010_)
-  );
-  sg13g2_o21ai_1 _3812_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[0] ),
-    .B1(_0689_),
-    .Y(_1011_)
-  );
-  sg13g2_a21oi_1 _3813_ (
-    .A1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .A2(_1010_),
-    .B1(_1011_),
-    .Y(_1012_)
-  );
-  sg13g2_inv_1 _3814_ (
-    .A(_1012_),
-    .Y(_1013_)
-  );
-  sg13g2_a21oi_1 _3815_ (
-    .A1(_1009_),
-    .A2(_1013_),
-    .B1(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .Y(_1014_)
-  );
-  sg13g2_a22oi_1 _3816_ (
-    .A1(_0994_),
-    .A2(_1001_),
-    .B1(_1008_),
-    .B2(_1014_),
-    .Y(_1015_)
-  );
-  sg13g2_nor2_1 _3817_ (
-    .A(_1015_),
-    .B(_0738_),
-    .Y(_1016_)
-  );
-  sg13g2_nand2_1 _3818_ (
-    .A(_1016_),
-    .B(_0776_),
-    .Y(_1017_)
-  );
-  sg13g2_o21ai_1 _3819_ (
-    .A1(_0907_),
-    .A2(_0554_),
-    .B1(_0663_),
-    .Y(_1018_)
-  );
-  sg13g2_a221oi_1 _3820_ (
-    .A1(\reg2hw[34] ),
-    .A2(_0656_),
-    .B1(_0543_),
-    .B2(_0714_),
-    .C1(_1018_),
-    .Y(_1019_)
-  );
-  sg13g2_a22oi_1 _3821_ (
-    .A1(_0988_),
-    .A2(_0650_),
-    .B1(_1017_),
-    .B2(_1019_),
+  sg13g2_o21ai_1 _3840_ (
+    .A1(_0993_),
+    .A2(_0775_),
+    .B1(_0994_),
     .Y(_0090_)
   );
-  sg13g2_inv_1 _3822_ (
-    .A(\reg2hw[34] ),
+  sg13g2_inv_1 _3841_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[19] ),
+    .Y(_0995_)
+  );
+  sg13g2_nand2_1 _3842_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[27] ),
+    .Y(_0996_)
+  );
+  sg13g2_o21ai_1 _3843_ (
+    .A1(_0995_),
+    .A2(_0775_),
+    .B1(_0996_),
+    .Y(_0091_)
+  );
+  sg13g2_inv_1 _3844_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[18] ),
+    .Y(_0997_)
+  );
+  sg13g2_nand2_1 _3845_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[26] ),
+    .Y(_0998_)
+  );
+  sg13g2_o21ai_1 _3846_ (
+    .A1(_0997_),
+    .A2(_0775_),
+    .B1(_0998_),
+    .Y(_0092_)
+  );
+  sg13g2_inv_1 _3847_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[17] ),
+    .Y(_0999_)
+  );
+  sg13g2_nand2_1 _3848_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[25] ),
+    .Y(_1000_)
+  );
+  sg13g2_o21ai_1 _3849_ (
+    .A1(_0999_),
+    .A2(_0775_),
+    .B1(_1000_),
+    .Y(_0093_)
+  );
+  sg13g2_inv_1 _3850_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[16] ),
+    .Y(_1001_)
+  );
+  sg13g2_nand2_1 _3851_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[24] ),
+    .Y(_1002_)
+  );
+  sg13g2_o21ai_1 _3852_ (
+    .A1(_1001_),
+    .A2(_0775_),
+    .B1(_1002_),
+    .Y(_0094_)
+  );
+  sg13g2_inv_1 _3853_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[15] ),
+    .Y(_1003_)
+  );
+  sg13g2_nand2_1 _3854_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[23] ),
+    .Y(_1004_)
+  );
+  sg13g2_o21ai_1 _3855_ (
+    .A1(_1003_),
+    .A2(_0775_),
+    .B1(_1004_),
+    .Y(_0095_)
+  );
+  sg13g2_inv_1 _3856_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[14] ),
+    .Y(_1005_)
+  );
+  sg13g2_nand2_1 _3857_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[22] ),
+    .Y(_1006_)
+  );
+  sg13g2_o21ai_1 _3858_ (
+    .A1(_1005_),
+    .A2(_0775_),
+    .B1(_1006_),
+    .Y(_0096_)
+  );
+  sg13g2_inv_1 _3859_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[13] ),
+    .Y(_1007_)
+  );
+  sg13g2_nand2_1 _3860_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[21] ),
+    .Y(_1008_)
+  );
+  sg13g2_o21ai_1 _3861_ (
+    .A1(_1007_),
+    .A2(_0775_),
+    .B1(_1008_),
+    .Y(_0097_)
+  );
+  sg13g2_inv_1 _3862_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[12] ),
+    .Y(_1009_)
+  );
+  sg13g2_nand2_1 _3863_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[20] ),
+    .Y(_1010_)
+  );
+  sg13g2_o21ai_1 _3864_ (
+    .A1(_1009_),
+    .A2(_0775_),
+    .B1(_1010_),
+    .Y(_0098_)
+  );
+  sg13g2_inv_1 _3865_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[11] ),
+    .Y(_1011_)
+  );
+  sg13g2_nand2_1 _3866_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[19] ),
+    .Y(_1012_)
+  );
+  sg13g2_o21ai_1 _3867_ (
+    .A1(_1011_),
+    .A2(_0775_),
+    .B1(_1012_),
+    .Y(_0099_)
+  );
+  sg13g2_inv_1 _3868_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[10] ),
+    .Y(_1013_)
+  );
+  sg13g2_nand2_1 _3869_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[18] ),
+    .Y(_1014_)
+  );
+  sg13g2_o21ai_1 _3870_ (
+    .A1(_1013_),
+    .A2(_0775_),
+    .B1(_1014_),
+    .Y(_0100_)
+  );
+  sg13g2_inv_1 _3871_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[9] ),
+    .Y(_1015_)
+  );
+  sg13g2_nand2_1 _3872_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[17] ),
+    .Y(_1016_)
+  );
+  sg13g2_o21ai_1 _3873_ (
+    .A1(_1015_),
+    .A2(_0774_),
+    .B1(_1016_),
+    .Y(_0101_)
+  );
+  sg13g2_inv_1 _3874_ (
+    .A(\u_uart_master_core.u_host_bridge.sh_q[8] ),
+    .Y(_1017_)
+  );
+  sg13g2_nand2_1 _3875_ (
+    .A(_0777_),
+    .B(\u_uart_master_core.u_host_bridge.sh_q[16] ),
+    .Y(_1018_)
+  );
+  sg13g2_o21ai_1 _3876_ (
+    .A1(_1017_),
+    .A2(_0774_),
+    .B1(_1018_),
+    .Y(_0102_)
+  );
+  sg13g2_inv_1 _3877_ (
+    .A(\u_uart_master_core.u_host_bridge.idx_q[0] ),
+    .Y(_1019_)
+  );
+  sg13g2_inv_1 _3878_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
     .Y(_1020_)
   );
-  sg13g2_nand2_1 _3823_ (
-    .A(_0904_),
-    .B(\u_uart_master_core.u_uart_core.uart_tx.tick_baud_q ),
+  sg13g2_nor3_1 _3879_ (
+    .A(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
+    .B(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
+    .C(_1020_),
     .Y(_1021_)
   );
-  sg13g2_inv_1 _3824_ (
+  sg13g2_inv_1 _3880_ (
     .A(_1021_),
     .Y(_1022_)
   );
-  sg13g2_nor2_1 _3825_ (
-    .A(_1020_),
-    .B(_1022_),
+  sg13g2_inv_1 _3881_ (
+    .A(_0769_),
     .Y(_1023_)
   );
-  sg13g2_inv_1 _3826_ (
-    .A(_1023_),
+  sg13g2_nor4_1 _3882_ (
+    .A(\u_uart_master_core.u_host_bridge.idx_q[1] ),
+    .B(_1019_),
+    .C(_1022_),
+    .D(_1023_),
     .Y(_1024_)
   );
-  sg13g2_nand3_1 _3827_ (
-    .A(_0906_),
-    .B(_0043_),
-    .C(_0905_),
-    .Y(_1025_)
-  );
-  sg13g2_buf_2 _3828_ (
-    .A(_1025_),
-    .X(_1026_)
-  );
-  sg13g2_inv_2 _3829_ (
-    .A(_1026_),
-    .Y(_1027_)
-  );
-  sg13g2_nor2_1 _3830_ (
+  sg13g2_buf_1 _3883_ (
     .A(_1024_),
-    .B(_1027_),
-    .Y(_1028_)
+    .X(_1025_)
   );
-  sg13g2_buf_1 _3831_ (
-    .A(_1028_),
-    .X(_1029_)
+  sg13g2_mux2_1 _3884_ (
+    .A0(\u_uart_master_core.u_host_bridge.op_q[6] ),
+    .A1(_0807_),
+    .S(_1025_),
+    .X(_0103_)
   );
-  sg13g2_inv_1 _3832_ (
-    .A(_1029_),
-    .Y(_1030_)
+  sg13g2_nor2_1 _3885_ (
+    .A(\u_uart_master_core.u_host_bridge.op_q[5] ),
+    .B(_1025_),
+    .Y(_1026_)
   );
-  sg13g2_nor2_1 _3833_ (
-    .A(_1020_),
-    .B(_1029_),
-    .Y(_1031_)
-  );
-  sg13g2_buf_2 _3834_ (
-    .A(_1031_),
-    .X(_1032_)
-  );
-  sg13g2_xnor2_1 _3835_ (
-    .A(_0902_),
-    .B(_0901_),
-    .Y(_1033_)
-  );
-  sg13g2_nand3_1 _3836_ (
-    .A(_1032_),
-    .B(_1026_),
-    .C(_1033_),
-    .Y(_1034_)
-  );
-  sg13g2_o21ai_1 _3837_ (
-    .A1(_0902_),
-    .A2(_1030_),
-    .B1(_1034_),
-    .Y(_0091_)
-  );
-  sg13g2_inv_1 _3838_ (
-    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[1] ),
-    .Y(_1035_)
-  );
-  sg13g2_a21oi_1 _3839_ (
-    .A1(\reg2hw[34] ),
-    .A2(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
-    .B1(_1029_),
-    .Y(_1036_)
-  );
-  sg13g2_nand2_1 _3840_ (
-    .A(_1032_),
-    .B(_0901_),
-    .Y(_1037_)
-  );
-  sg13g2_o21ai_1 _3841_ (
-    .A1(_1035_),
-    .A2(_1036_),
-    .B1(_1037_),
-    .Y(_0092_)
-  );
-  sg13g2_inv_1 _3842_ (
-    .A(_1032_),
-    .Y(_1038_)
-  );
-  sg13g2_inv_1 _3843_ (
-    .A(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
-    .Y(_1039_)
-  );
-  sg13g2_nor2_1 _3844_ (
-    .A(_1020_),
-    .B(_1026_),
-    .Y(_1040_)
-  );
-  sg13g2_inv_1 _3845_ (
-    .A(_1040_),
-    .Y(_1041_)
-  );
-  sg13g2_inv_1 _3846_ (
-    .A(\reg2hw[39] ),
-    .Y(_1042_)
+  sg13g2_a21oi_1 _3886_ (
+    .A1(_0837_),
+    .A2(_1025_),
+    .B1(_1026_),
+    .Y(_0104_)
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3847_ (
+  sg13g2_dfrbpq_1 _3887_ (
     .CLK(clk_i),
     .D(_0454_),
     .Q(_0041_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3848_ (
+  sg13g2_dfrbpq_1 _3888_ (
     .CLK(clk_i),
     .D(_0453_),
     .Q(_0040_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3849_ (
+  sg13g2_dfrbpq_1 _3889_ (
     .CLK(clk_i),
     .D(_0452_),
     .Q(_0039_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3850_ (
+  sg13g2_dfrbpq_1 _3890_ (
     .CLK(clk_i),
     .D(_0451_),
     .Q(_0038_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3851_ (
+  sg13g2_dfrbpq_1 _3891_ (
     .CLK(clk_i),
     .D(_0450_),
     .Q(_0037_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3852_ (
+  sg13g2_dfrbpq_1 _3892_ (
     .CLK(clk_i),
     .D(_0449_),
     .Q(_0036_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3853_ (
+  sg13g2_dfrbpq_1 _3893_ (
     .CLK(clk_i),
     .D(_0448_),
     .Q(_0035_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3854_ (
+  sg13g2_dfrbpq_1 _3894_ (
     .CLK(clk_i),
     .D(_0447_),
     .Q(_0034_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3855_ (
+  sg13g2_dfrbpq_1 _3895_ (
     .CLK(clk_i),
     .D(_0446_),
     .Q(_0033_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
   (* src = "../../rtl/uart_tx.sv:45.3" *)
-  sg13g2_dfrbpq_1 _3856_ (
+  sg13g2_dfrbpq_1 _3896_ (
     .CLK(clk_i),
     .D(_0455_),
     .Q(_0042_),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _3857_ (
-    .CLK(clk_i),
-    .D(_0477_),
-    .Q(\u_uart_master_reg.tl_o[62] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3858_ (
-    .CLK(clk_i),
-    .D(_0519_),
-    .Q(\u_uart_master_core.u_host_bridge.any_err_q ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3859_ (
-    .CLK(clk_i),
-    .D(_0445_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[0] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3860_ (
-    .CLK(clk_i),
-    .D(_0444_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3861_ (
-    .CLK(clk_i),
-    .D(_0443_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[2] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3862_ (
-    .CLK(clk_i),
-    .D(_0442_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[3] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3863_ (
-    .CLK(clk_i),
-    .D(_0441_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[4] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3864_ (
-    .CLK(clk_i),
-    .D(_0440_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[5] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3865_ (
-    .CLK(clk_i),
-    .D(_0439_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[6] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3866_ (
-    .CLK(clk_i),
-    .D(_0438_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[7] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3867_ (
-    .CLK(clk_i),
-    .D(_0437_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[8] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3868_ (
-    .CLK(clk_i),
-    .D(_0436_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[9] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3869_ (
-    .CLK(clk_i),
-    .D(_0435_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[10] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3870_ (
-    .CLK(clk_i),
-    .D(_0434_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[11] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3871_ (
-    .CLK(clk_i),
-    .D(_0433_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[12] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3872_ (
-    .CLK(clk_i),
-    .D(_0432_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[13] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3873_ (
-    .CLK(clk_i),
-    .D(_0431_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[14] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3874_ (
-    .CLK(clk_i),
-    .D(_0430_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[15] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3875_ (
-    .CLK(clk_i),
-    .D(_0429_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[16] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3876_ (
-    .CLK(clk_i),
-    .D(_0428_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[17] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3877_ (
-    .CLK(clk_i),
-    .D(_0427_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[18] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3878_ (
-    .CLK(clk_i),
-    .D(_0426_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[19] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3879_ (
-    .CLK(clk_i),
-    .D(_0425_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[20] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3880_ (
-    .CLK(clk_i),
-    .D(_0424_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[21] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3881_ (
-    .CLK(clk_i),
-    .D(_0423_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[22] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3882_ (
-    .CLK(clk_i),
-    .D(_0422_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[23] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3883_ (
-    .CLK(clk_i),
-    .D(_0421_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[24] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3884_ (
-    .CLK(clk_i),
-    .D(_0420_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[25] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3885_ (
-    .CLK(clk_i),
-    .D(_0419_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[26] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3886_ (
-    .CLK(clk_i),
-    .D(_0418_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[27] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3887_ (
-    .CLK(clk_i),
-    .D(_0417_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[28] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3888_ (
-    .CLK(clk_i),
-    .D(_0416_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[29] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3889_ (
-    .CLK(clk_i),
-    .D(_0415_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[30] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3890_ (
-    .CLK(clk_i),
-    .D(_0486_),
-    .Q(\u_uart_master_core.u_host_bridge.rdata_q[31] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3891_ (
-    .CLK(clk_i),
-    .D(_0498_),
-    .Q(req_o),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3892_ (
-    .CLK(clk_i),
-    .D(_0499_),
-    .Q(we_o),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3893_ (
-    .CLK(clk_i),
-    .D(_0414_),
-    .Q(_0032_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3894_ (
-    .CLK(clk_i),
-    .D(_0413_),
-    .Q(_0031_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3895_ (
-    .CLK(clk_i),
-    .D(_0412_),
-    .Q(_0030_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3896_ (
-    .CLK(clk_i),
-    .D(_0514_),
-    .Q(_0051_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
   sg13g2_dfrbpq_1 _3897_ (
     .CLK(clk_i),
-    .D(_0411_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[0] ),
-    .RESET_B(rst_ni)
+    .D(_0467_),
+    .Q(\u_uart_master_reg.tl_o[62] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3898_ (
     .CLK(clk_i),
-    .D(_0410_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[1] ),
-    .RESET_B(rst_ni)
+    .D(_0445_),
+    .Q(_0032_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3899_ (
     .CLK(clk_i),
-    .D(_0409_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[2] ),
-    .RESET_B(rst_ni)
+    .D(_0444_),
+    .Q(_0031_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3900_ (
     .CLK(clk_i),
-    .D(_0408_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[3] ),
-    .RESET_B(rst_ni)
+    .D(_0443_),
+    .Q(_0030_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3901_ (
     .CLK(clk_i),
-    .D(_0407_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[4] ),
-    .RESET_B(rst_ni)
+    .D(_0442_),
+    .Q(_0029_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3902_ (
     .CLK(clk_i),
-    .D(_0406_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[5] ),
-    .RESET_B(rst_ni)
+    .D(_0441_),
+    .Q(_0028_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3903_ (
     .CLK(clk_i),
-    .D(_0405_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[6] ),
-    .RESET_B(rst_ni)
+    .D(_0440_),
+    .Q(_0027_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3904_ (
     .CLK(clk_i),
-    .D(_0404_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[7] ),
-    .RESET_B(rst_ni)
+    .D(_0439_),
+    .Q(_0026_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3905_ (
     .CLK(clk_i),
-    .D(_0403_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[8] ),
-    .RESET_B(rst_ni)
+    .D(_0438_),
+    .Q(\reg2hw[48] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3906_ (
     .CLK(clk_i),
-    .D(_0402_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[9] ),
-    .RESET_B(rst_ni)
+    .D(_0437_),
+    .Q(_0025_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3907_ (
     .CLK(clk_i),
-    .D(_0401_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[10] ),
-    .RESET_B(rst_ni)
+    .D(_0436_),
+    .Q(_0024_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3908_ (
     .CLK(clk_i),
-    .D(_0400_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[11] ),
-    .RESET_B(rst_ni)
+    .D(_0435_),
+    .Q(\reg2hw[51] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3909_ (
     .CLK(clk_i),
-    .D(_0399_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[12] ),
-    .RESET_B(rst_ni)
+    .D(_0434_),
+    .Q(_0023_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3910_ (
     .CLK(clk_i),
-    .D(_0398_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[13] ),
-    .RESET_B(rst_ni)
+    .D(_0433_),
+    .Q(\reg2hw[53] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3911_ (
     .CLK(clk_i),
-    .D(_0397_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[14] ),
-    .RESET_B(rst_ni)
+    .D(_0432_),
+    .Q(\reg2hw[54] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3912_ (
     .CLK(clk_i),
-    .D(_0396_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[15] ),
-    .RESET_B(rst_ni)
+    .D(_0431_),
+    .Q(_0022_),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3913_ (
     .CLK(clk_i),
-    .D(_0395_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[16] ),
-    .RESET_B(rst_ni)
+    .D(_0509_),
+    .Q(\reg2hw[56] ),
+    .RESET_B(reg_rst_sync_ni)
   );
   (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _3914_ (
     .CLK(clk_i),
-    .D(_0394_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[17] ),
-    .RESET_B(rst_ni)
+    .D(_0318_),
+    .Q(\u_uart_master_core.u_host_bridge.idx_q[0] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
   (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _3915_ (
     .CLK(clk_i),
-    .D(_0393_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[18] ),
-    .RESET_B(rst_ni)
+    .D(_0465_),
+    .Q(\u_uart_master_core.u_host_bridge.idx_q[1] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3916_ (
     .CLK(clk_i),
-    .D(_0392_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[19] ),
-    .RESET_B(rst_ni)
+    .D(_0466_),
+    .Q(\reg2hw[40] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
   sg13g2_dfrbpq_1 _3917_ (
     .CLK(clk_i),
-    .D(_0391_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[20] ),
-    .RESET_B(rst_ni)
+    .D(_0317_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
   sg13g2_dfrbpq_1 _3918_ (
     .CLK(clk_i),
-    .D(_0390_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[21] ),
-    .RESET_B(rst_ni)
+    .D(_0316_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
   sg13g2_dfrbpq_1 _3919_ (
     .CLK(clk_i),
-    .D(_0389_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[22] ),
-    .RESET_B(rst_ni)
+    .D(_0315_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
   sg13g2_dfrbpq_1 _3920_ (
     .CLK(clk_i),
-    .D(_0388_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[23] ),
-    .RESET_B(rst_ni)
+    .D(_0314_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
   sg13g2_dfrbpq_1 _3921_ (
     .CLK(clk_i),
-    .D(_0387_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[24] ),
-    .RESET_B(rst_ni)
+    .D(_0468_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[4] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3922_ (
     .CLK(clk_i),
-    .D(_0386_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[25] ),
-    .RESET_B(rst_ni)
+    .D(_0469_),
+    .Q(\reg2hw[39] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
   sg13g2_dfrbpq_1 _3923_ (
     .CLK(clk_i),
-    .D(_0385_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[26] ),
-    .RESET_B(rst_ni)
+    .D(_0313_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
   sg13g2_dfrbpq_1 _3924_ (
     .CLK(clk_i),
-    .D(_0384_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[27] ),
-    .RESET_B(rst_ni)
+    .D(_0312_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
   sg13g2_dfrbpq_1 _3925_ (
     .CLK(clk_i),
-    .D(_0383_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[28] ),
-    .RESET_B(rst_ni)
+    .D(_0311_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
   sg13g2_dfrbpq_1 _3926_ (
     .CLK(clk_i),
-    .D(_0382_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[29] ),
-    .RESET_B(rst_ni)
+    .D(_0310_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
   sg13g2_dfrbpq_1 _3927_ (
     .CLK(clk_i),
-    .D(_0381_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[30] ),
-    .RESET_B(rst_ni)
+    .D(_0470_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[4] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3928_ (
     .CLK(clk_i),
-    .D(_0478_),
-    .Q(\u_uart_master_core.u_host_bridge.wdata_o[31] ),
-    .RESET_B(rst_ni)
+    .D(_0309_),
+    .Q(\reg2hw[5] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3929_ (
     .CLK(clk_i),
-    .D(_0380_),
-    .Q(\u_uart_master_core.addr_o[2] ),
-    .RESET_B(rst_ni)
+    .D(_0308_),
+    .Q(\reg2hw[6] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3930_ (
     .CLK(clk_i),
-    .D(_0379_),
-    .Q(\u_uart_master_core.addr_o[3] ),
-    .RESET_B(rst_ni)
+    .D(_0307_),
+    .Q(\reg2hw[7] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3931_ (
     .CLK(clk_i),
-    .D(_0378_),
-    .Q(\u_uart_master_core.addr_o[4] ),
-    .RESET_B(rst_ni)
+    .D(_0306_),
+    .Q(\reg2hw[8] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3932_ (
     .CLK(clk_i),
-    .D(_0377_),
-    .Q(\u_uart_master_core.addr_o[5] ),
-    .RESET_B(rst_ni)
+    .D(_0305_),
+    .Q(\reg2hw[9] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3933_ (
     .CLK(clk_i),
-    .D(_0376_),
-    .Q(\u_uart_master_core.addr_o[6] ),
-    .RESET_B(rst_ni)
+    .D(_0304_),
+    .Q(\reg2hw[10] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3934_ (
     .CLK(clk_i),
-    .D(_0375_),
-    .Q(\u_uart_master_core.addr_o[7] ),
-    .RESET_B(rst_ni)
+    .D(_0303_),
+    .Q(\reg2hw[11] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3935_ (
     .CLK(clk_i),
-    .D(_0374_),
-    .Q(\u_uart_master_core.addr_o[8] ),
-    .RESET_B(rst_ni)
+    .D(_0471_),
+    .Q(\reg2hw[12] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3936_ (
     .CLK(clk_i),
-    .D(_0373_),
-    .Q(\u_uart_master_core.addr_o[9] ),
-    .RESET_B(rst_ni)
+    .D(_0473_),
+    .Q(\reg2hw[38] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3937_ (
     .CLK(clk_i),
-    .D(_0372_),
-    .Q(\u_uart_master_core.addr_o[10] ),
-    .RESET_B(rst_ni)
+    .D(_0474_),
+    .Q(\reg2hw[37] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3938_ (
     .CLK(clk_i),
-    .D(_0371_),
-    .Q(\u_uart_master_core.addr_o[11] ),
-    .RESET_B(rst_ni)
+    .D(_0475_),
+    .Q(\reg2hw[36] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3939_ (
     .CLK(clk_i),
-    .D(_0370_),
-    .Q(\u_uart_master_core.addr_o[12] ),
-    .RESET_B(rst_ni)
+    .D(_0476_),
+    .Q(\reg2hw[1] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3940_ (
     .CLK(clk_i),
-    .D(_0369_),
-    .Q(\u_uart_master_core.addr_o[13] ),
-    .RESET_B(rst_ni)
+    .D(_0477_),
+    .Q(\reg2hw[35] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3941_ (
     .CLK(clk_i),
-    .D(_0368_),
-    .Q(\u_uart_master_core.addr_o[14] ),
-    .RESET_B(rst_ni)
+    .D(_0478_),
+    .Q(_0044_),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3942_ (
     .CLK(clk_i),
-    .D(_0367_),
-    .Q(\u_uart_master_core.addr_o[15] ),
-    .RESET_B(rst_ni)
+    .D(_0302_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[0] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3943_ (
     .CLK(clk_i),
-    .D(_0366_),
-    .Q(\u_uart_master_core.addr_o[16] ),
-    .RESET_B(rst_ni)
+    .D(_0301_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3944_ (
     .CLK(clk_i),
-    .D(_0365_),
-    .Q(\u_uart_master_core.addr_o[17] ),
-    .RESET_B(rst_ni)
+    .D(_0300_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[2] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3945_ (
     .CLK(clk_i),
-    .D(_0364_),
-    .Q(\u_uart_master_core.addr_o[18] ),
-    .RESET_B(rst_ni)
+    .D(_0479_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[3] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3946_ (
     .CLK(clk_i),
-    .D(_0363_),
-    .Q(\u_uart_master_core.addr_o[19] ),
-    .RESET_B(rst_ni)
+    .D(_0299_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[0] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3947_ (
     .CLK(clk_i),
-    .D(_0362_),
-    .Q(\u_uart_master_core.addr_o[20] ),
-    .RESET_B(rst_ni)
+    .D(_0298_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3948_ (
     .CLK(clk_i),
-    .D(_0361_),
-    .Q(\u_uart_master_core.addr_o[21] ),
-    .RESET_B(rst_ni)
+    .D(_0297_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3949_ (
     .CLK(clk_i),
-    .D(_0360_),
-    .Q(\u_uart_master_core.addr_o[22] ),
-    .RESET_B(rst_ni)
+    .D(_0480_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[3] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3950_ (
     .CLK(clk_i),
-    .D(_0359_),
-    .Q(\u_uart_master_core.addr_o[23] ),
-    .RESET_B(rst_ni)
+    .D(_0296_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3951_ (
     .CLK(clk_i),
-    .D(_0358_),
-    .Q(\u_uart_master_core.addr_o[24] ),
-    .RESET_B(rst_ni)
+    .D(_0295_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3952_ (
     .CLK(clk_i),
-    .D(_0357_),
-    .Q(\u_uart_master_core.addr_o[25] ),
-    .RESET_B(rst_ni)
+    .D(_0294_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3953_ (
     .CLK(clk_i),
-    .D(_0356_),
-    .Q(\u_uart_master_core.addr_o[26] ),
-    .RESET_B(rst_ni)
+    .D(_0293_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3954_ (
     .CLK(clk_i),
-    .D(_0355_),
-    .Q(\u_uart_master_core.addr_o[27] ),
-    .RESET_B(rst_ni)
+    .D(_0292_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3955_ (
     .CLK(clk_i),
-    .D(_0354_),
-    .Q(\u_uart_master_core.addr_o[28] ),
-    .RESET_B(rst_ni)
+    .D(_0291_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3956_ (
     .CLK(clk_i),
-    .D(_0353_),
-    .Q(\u_uart_master_core.addr_o[29] ),
-    .RESET_B(rst_ni)
+    .D(_0290_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3957_ (
     .CLK(clk_i),
-    .D(_0352_),
-    .Q(\u_uart_master_core.addr_o[30] ),
-    .RESET_B(rst_ni)
+    .D(_0289_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3958_ (
     .CLK(clk_i),
-    .D(_0500_),
-    .Q(\u_uart_master_core.addr_o[31] ),
-    .RESET_B(rst_ni)
+    .D(_0288_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _3959_ (
     .CLK(clk_i),
-    .D(_0351_),
-    .Q(_1933_),
-    .RESET_B(rst_ni)
+    .D(_0481_),
+    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[10] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
   sg13g2_dfrbpq_1 _3960_ (
     .CLK(clk_i),
-    .D(_0350_),
-    .Q(_1932_),
-    .RESET_B(rst_ni)
+    .D(_0482_),
+    .Q(\reg2hw[34] ),
+    .RESET_B(reg_rst_sync_ni)
   );
   (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _3961_ (
     .CLK(clk_i),
-    .D(_0349_),
-    .Q(_1931_),
-    .RESET_B(rst_ni)
+    .D(_0287_),
+    .Q(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
   (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _3962_ (
     .CLK(clk_i),
-    .D(_0475_),
-    .Q(_1934_),
-    .RESET_B(rst_ni)
+    .D(_0286_),
+    .Q(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
   (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _3963_ (
     .CLK(clk_i),
-    .D(_0348_),
-    .Q(\u_uart_master_core.u_host_bridge.op_q[0] ),
-    .RESET_B(rst_ni)
+    .D(_0483_),
+    .Q(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
   sg13g2_dfrbpq_1 _3964_ (
     .CLK(clk_i),
-    .D(_0347_),
-    .Q(\u_uart_master_core.u_host_bridge.op_q[1] ),
-    .RESET_B(rst_ni)
+    .D(_0285_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[0] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
   sg13g2_dfrbpq_1 _3965_ (
     .CLK(clk_i),
-    .D(_0346_),
-    .Q(\u_uart_master_core.u_host_bridge.op_q[2] ),
-    .RESET_B(rst_ni)
+    .D(_0284_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
   sg13g2_dfrbpq_1 _3966_ (
     .CLK(clk_i),
-    .D(_0345_),
-    .Q(\u_uart_master_core.u_host_bridge.op_q[3] ),
-    .RESET_B(rst_ni)
+    .D(_0283_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
   sg13g2_dfrbpq_1 _3967_ (
     .CLK(clk_i),
-    .D(_0344_),
-    .Q(\u_uart_master_core.u_host_bridge.op_q[4] ),
-    .RESET_B(rst_ni)
+    .D(_0484_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[3] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
   sg13g2_dfrbpq_1 _3968_ (
     .CLK(clk_i),
-    .D(_0343_),
-    .Q(\u_uart_master_core.u_host_bridge.op_q[5] ),
-    .RESET_B(rst_ni)
+    .D(_0282_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
   sg13g2_dfrbpq_1 _3969_ (
     .CLK(clk_i),
-    .D(_0342_),
-    .Q(\u_uart_master_core.u_host_bridge.op_q[6] ),
-    .RESET_B(rst_ni)
+    .D(_0281_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
   sg13g2_dfrbpq_1 _3970_ (
     .CLK(clk_i),
-    .D(_0496_),
-    .Q(\u_uart_master_core.u_host_bridge.op_q[7] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3971_ (
-    .CLK(clk_i),
-    .D(_0341_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[8] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3972_ (
-    .CLK(clk_i),
-    .D(_0340_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[9] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3973_ (
-    .CLK(clk_i),
-    .D(_0339_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[10] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3974_ (
-    .CLK(clk_i),
-    .D(_0338_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[11] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3975_ (
-    .CLK(clk_i),
-    .D(_0337_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[12] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3976_ (
-    .CLK(clk_i),
-    .D(_0336_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[13] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3977_ (
-    .CLK(clk_i),
-    .D(_0335_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[14] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3978_ (
-    .CLK(clk_i),
-    .D(_0334_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[15] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3979_ (
-    .CLK(clk_i),
-    .D(_0333_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[16] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3980_ (
-    .CLK(clk_i),
-    .D(_0332_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[17] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3981_ (
-    .CLK(clk_i),
-    .D(_0331_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[18] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3982_ (
-    .CLK(clk_i),
-    .D(_0330_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[19] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3983_ (
-    .CLK(clk_i),
-    .D(_0329_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[20] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3984_ (
-    .CLK(clk_i),
-    .D(_0328_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[21] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3985_ (
-    .CLK(clk_i),
-    .D(_0327_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[22] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3986_ (
-    .CLK(clk_i),
-    .D(_0326_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[23] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3987_ (
-    .CLK(clk_i),
-    .D(_0325_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[24] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3988_ (
-    .CLK(clk_i),
-    .D(_0324_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[25] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3989_ (
-    .CLK(clk_i),
-    .D(_0323_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[26] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3990_ (
-    .CLK(clk_i),
-    .D(_0322_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[27] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3991_ (
-    .CLK(clk_i),
-    .D(_0321_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[28] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3992_ (
-    .CLK(clk_i),
-    .D(_0320_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[29] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3993_ (
-    .CLK(clk_i),
-    .D(_0319_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[30] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3994_ (
-    .CLK(clk_i),
-    .D(_0491_),
-    .Q(\u_uart_master_core.u_host_bridge.sh_q[31] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3995_ (
-    .CLK(clk_i),
-    .D(_0318_),
-    .Q(\u_uart_master_core.u_host_bridge.idx_q[0] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3996_ (
-    .CLK(clk_i),
-    .D(_0518_),
-    .Q(\u_uart_master_core.u_host_bridge.idx_q[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3997_ (
-    .CLK(clk_i),
-    .D(_0317_),
-    .Q(\u_uart_master_core.u_host_bridge.rxf_st_q[0] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3998_ (
-    .CLK(clk_i),
-    .D(_0316_),
-    .Q(\u_uart_master_core.u_host_bridge.rxf_st_q[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
-  sg13g2_dfrbpq_1 _3999_ (
-    .CLK(clk_i),
-    .D(_0497_),
-    .Q(\u_uart_master_core.u_host_bridge.rxf_st_q[2] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4000_ (
-    .CLK(clk_i),
-    .D(_0481_),
-    .Q(\reg2hw[3] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4001_ (
-    .CLK(clk_i),
-    .D(_0315_),
-    .Q(_0029_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4002_ (
-    .CLK(clk_i),
-    .D(_0314_),
-    .Q(_0028_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4003_ (
-    .CLK(clk_i),
-    .D(_0313_),
-    .Q(_0027_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4004_ (
-    .CLK(clk_i),
-    .D(_0312_),
-    .Q(_0026_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4005_ (
-    .CLK(clk_i),
-    .D(_0311_),
-    .Q(_0025_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4006_ (
-    .CLK(clk_i),
-    .D(_0310_),
-    .Q(_0024_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4007_ (
-    .CLK(clk_i),
-    .D(_0309_),
-    .Q(_0023_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4008_ (
-    .CLK(clk_i),
-    .D(_0308_),
-    .Q(\reg2hw[48] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4009_ (
-    .CLK(clk_i),
-    .D(_0307_),
-    .Q(_0022_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4010_ (
-    .CLK(clk_i),
-    .D(_0306_),
-    .Q(_0021_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4011_ (
-    .CLK(clk_i),
-    .D(_0305_),
-    .Q(\reg2hw[51] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4012_ (
-    .CLK(clk_i),
-    .D(_0304_),
-    .Q(_0020_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4013_ (
-    .CLK(clk_i),
-    .D(_0303_),
-    .Q(\reg2hw[53] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4014_ (
-    .CLK(clk_i),
-    .D(_0302_),
-    .Q(\reg2hw[54] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4015_ (
-    .CLK(clk_i),
-    .D(_0301_),
-    .Q(_0019_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4016_ (
-    .CLK(clk_i),
-    .D(_0456_),
-    .Q(\reg2hw[56] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4017_ (
-    .CLK(clk_i),
-    .D(_0457_),
-    .Q(\reg2hw[40] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4018_ (
-    .CLK(clk_i),
-    .D(_0473_),
-    .Q(\reg2hw[39] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4019_ (
-    .CLK(clk_i),
-    .D(_0476_),
-    .Q(\reg2hw[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
-  sg13g2_dfrbpq_1 _4020_ (
-    .CLK(clk_i),
-    .D(_0188_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[0] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
-  sg13g2_dfrbpq_1 _4021_ (
-    .CLK(clk_i),
-    .D(_0187_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
-  sg13g2_dfrbpq_1 _4022_ (
-    .CLK(clk_i),
-    .D(_0186_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
-  sg13g2_dfrbpq_1 _4023_ (
-    .CLK(clk_i),
-    .D(_0479_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[3] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
-  sg13g2_dfrbpq_1 _4024_ (
-    .CLK(clk_i),
-    .D(_0185_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
-  sg13g2_dfrbpq_1 _4025_ (
-    .CLK(clk_i),
-    .D(_0184_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
-  sg13g2_dfrbpq_1 _4026_ (
-    .CLK(clk_i),
-    .D(_0183_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
-  sg13g2_dfrbpq_1 _4027_ (
-    .CLK(clk_i),
-    .D(_0182_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_rptr[3] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
-  sg13g2_dfrbpq_1 _4028_ (
-    .CLK(clk_i),
-    .D(_0480_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[4] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
-  sg13g2_dfrbpq_1 _4029_ (
-    .CLK(clk_i),
-    .D(_0181_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[0] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
-  sg13g2_dfrbpq_1 _4030_ (
-    .CLK(clk_i),
-    .D(_0180_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
-  sg13g2_dfrbpq_1 _4031_ (
-    .CLK(clk_i),
-    .D(_0179_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[2] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
-  sg13g2_dfrbpq_1 _4032_ (
-    .CLK(clk_i),
-    .D(_0178_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.fifo_wptr[3] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:112.5" *)
-  sg13g2_dfrbpq_1 _4033_ (
-    .CLK(clk_i),
-    .D(_0482_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.u_fifo_cnt.wptr_wrap_cnt_q[4] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4034_ (
-    .CLK(clk_i),
-    .D(_0483_),
-    .Q(\reg2hw[38] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4035_ (
-    .CLK(clk_i),
-    .D(_0484_),
-    .Q(\reg2hw[37] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
-  sg13g2_dfrbpq_1 _4036_ (
-    .CLK(clk_i),
-    .D(_0177_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[0] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
-  sg13g2_dfrbpq_1 _4037_ (
-    .CLK(clk_i),
-    .D(_0176_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
-  sg13g2_dfrbpq_1 _4038_ (
-    .CLK(clk_i),
-    .D(_0175_),
+    .D(_0280_),
     .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.fifo_rptr[2] ),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
-  sg13g2_dfrbpq_1 _4039_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync_cnt.sv:124.5" *)
+  sg13g2_dfrbpq_1 _3971_ (
     .CLK(clk_i),
     .D(_0485_),
     .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.u_fifo_cnt.rptr_wrap_cnt_q[3] ),
-    .RESET_B(rst_ni)
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4040_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _3972_ (
     .CLK(clk_i),
-    .D(_0174_),
-    .Q(\reg2hw[5] ),
-    .RESET_B(rst_ni)
+    .D(_0486_),
+    .Q(\reg2hw[3] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4041_ (
-    .CLK(clk_i),
-    .D(_0173_),
-    .Q(\reg2hw[6] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4042_ (
-    .CLK(clk_i),
-    .D(_0172_),
-    .Q(\reg2hw[7] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4043_ (
-    .CLK(clk_i),
-    .D(_0171_),
-    .Q(\reg2hw[8] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4044_ (
-    .CLK(clk_i),
-    .D(_0170_),
-    .Q(\reg2hw[9] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4045_ (
-    .CLK(clk_i),
-    .D(_0169_),
-    .Q(\reg2hw[10] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4046_ (
-    .CLK(clk_i),
-    .D(_0168_),
-    .Q(\reg2hw[11] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4047_ (
-    .CLK(clk_i),
-    .D(_0487_),
-    .Q(\reg2hw[12] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4048_ (
-    .CLK(clk_i),
-    .D(_0488_),
-    .Q(\reg2hw[36] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4049_ (
-    .CLK(clk_i),
-    .D(_0489_),
-    .Q(\reg2hw[35] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4050_ (
-    .CLK(clk_i),
-    .D(_0490_),
-    .Q(_0044_),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _4051_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3973_ (
     .CLK(clk_i),
     .D(_0492_),
-    .Q(\reg2hw[34] ),
-    .RESET_B(rst_ni)
+    .Q(\u_uart_master_reg.tl_o[1] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4052_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3974_ (
     .CLK(clk_i),
-    .D(_0167_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[0] ),
-    .RESET_B(rst_ni)
+    .D(_0279_),
+    .Q(\u_uart_master_reg.tl_o[16] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4053_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3975_ (
     .CLK(clk_i),
-    .D(_0166_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[1] ),
-    .RESET_B(rst_ni)
+    .D(_0278_),
+    .Q(\u_uart_master_reg.tl_o[17] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4054_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3976_ (
     .CLK(clk_i),
-    .D(_0165_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[2] ),
-    .RESET_B(rst_ni)
+    .D(_0277_),
+    .Q(\u_uart_master_reg.tl_o[18] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4055_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3977_ (
+    .CLK(clk_i),
+    .D(_0276_),
+    .Q(\u_uart_master_reg.tl_o[19] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3978_ (
+    .CLK(clk_i),
+    .D(_0275_),
+    .Q(\u_uart_master_reg.tl_o[20] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3979_ (
+    .CLK(clk_i),
+    .D(_0274_),
+    .Q(\u_uart_master_reg.tl_o[21] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3980_ (
+    .CLK(clk_i),
+    .D(_0273_),
+    .Q(\u_uart_master_reg.tl_o[22] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3981_ (
+    .CLK(clk_i),
+    .D(_0272_),
+    .Q(\u_uart_master_reg.tl_o[23] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3982_ (
+    .CLK(clk_i),
+    .D(_0271_),
+    .Q(\u_uart_master_reg.tl_o[24] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3983_ (
+    .CLK(clk_i),
+    .D(_0270_),
+    .Q(\u_uart_master_reg.tl_o[32] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3984_ (
+    .CLK(clk_i),
+    .D(_0269_),
+    .Q(\u_uart_master_reg.tl_o[33] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3985_ (
+    .CLK(clk_i),
+    .D(_0268_),
+    .Q(\u_uart_master_reg.tl_o[34] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3986_ (
+    .CLK(clk_i),
+    .D(_0267_),
+    .Q(\u_uart_master_reg.tl_o[35] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3987_ (
+    .CLK(clk_i),
+    .D(_0266_),
+    .Q(\u_uart_master_reg.tl_o[36] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3988_ (
+    .CLK(clk_i),
+    .D(_0265_),
+    .Q(\u_uart_master_reg.tl_o[37] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3989_ (
+    .CLK(clk_i),
+    .D(_0264_),
+    .Q(\u_uart_master_reg.tl_o[38] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3990_ (
+    .CLK(clk_i),
+    .D(_0263_),
+    .Q(\u_uart_master_reg.tl_o[39] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3991_ (
+    .CLK(clk_i),
+    .D(_0262_),
+    .Q(\u_uart_master_reg.tl_o[40] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3992_ (
+    .CLK(clk_i),
+    .D(_0261_),
+    .Q(\u_uart_master_reg.tl_o[41] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3993_ (
+    .CLK(clk_i),
+    .D(_0260_),
+    .Q(\u_uart_master_reg.tl_o[42] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3994_ (
+    .CLK(clk_i),
+    .D(_0259_),
+    .Q(\u_uart_master_reg.tl_o[43] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3995_ (
+    .CLK(clk_i),
+    .D(_0258_),
+    .Q(\u_uart_master_reg.tl_o[44] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3996_ (
+    .CLK(clk_i),
+    .D(_0257_),
+    .Q(\u_uart_master_reg.tl_o[45] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3997_ (
+    .CLK(clk_i),
+    .D(_0256_),
+    .Q(\u_uart_master_reg.tl_o[46] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _3998_ (
     .CLK(clk_i),
     .D(_0493_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.baud_div_q[3] ),
-    .RESET_B(rst_ni)
+    .Q(\u_uart_master_reg.tl_o[47] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4056_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _3999_ (
     .CLK(clk_i),
-    .D(_0164_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[0] ),
-    .RESET_B(rst_ni)
+    .D(_0248_),
+    .Q(\u_uart_master_reg.tl_o[57] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4057_ (
-    .CLK(clk_i),
-    .D(_0163_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4058_ (
-    .CLK(clk_i),
-    .D(_0162_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[2] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4059_ (
-    .CLK(clk_i),
-    .D(_0494_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.bit_cnt_q[3] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4060_ (
-    .CLK(clk_i),
-    .D(_0161_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4061_ (
-    .CLK(clk_i),
-    .D(_0160_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[2] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4062_ (
-    .CLK(clk_i),
-    .D(_0159_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[3] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4063_ (
-    .CLK(clk_i),
-    .D(_0158_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[4] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4064_ (
-    .CLK(clk_i),
-    .D(_0157_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[5] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4065_ (
-    .CLK(clk_i),
-    .D(_0156_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[6] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4066_ (
-    .CLK(clk_i),
-    .D(_0155_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[7] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4067_ (
-    .CLK(clk_i),
-    .D(_0154_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[8] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4068_ (
-    .CLK(clk_i),
-    .D(_0153_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[9] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
-  sg13g2_dfrbpq_1 _4069_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _4000_ (
     .CLK(clk_i),
     .D(_0495_),
-    .Q(\u_uart_master_core.u_uart_core.uart_rx.sreg_q[10] ),
-    .RESET_B(rst_ni)
+    .Q(\u_uart_master_reg.tl_o[58] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _4001_ (
+    .CLK(clk_i),
+    .D(_0247_),
+    .Q(\u_uart_master_reg.tl_o[49] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _4002_ (
+    .CLK(clk_i),
+    .D(_0246_),
+    .Q(\u_uart_master_reg.tl_o[50] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _4003_ (
+    .CLK(clk_i),
+    .D(_0245_),
+    .Q(\u_uart_master_reg.tl_o[51] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _4004_ (
+    .CLK(clk_i),
+    .D(_0244_),
+    .Q(\u_uart_master_reg.tl_o[52] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _4005_ (
+    .CLK(clk_i),
+    .D(_0243_),
+    .Q(\u_uart_master_reg.tl_o[53] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _4006_ (
+    .CLK(clk_i),
+    .D(_0242_),
+    .Q(\u_uart_master_reg.tl_o[54] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _4007_ (
+    .CLK(clk_i),
+    .D(_0241_),
+    .Q(\u_uart_master_reg.tl_o[55] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _4008_ (
+    .CLK(clk_i),
+    .D(_0496_),
+    .Q(\u_uart_master_reg.tl_o[56] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:94.3" *)
+  sg13g2_dfrbpq_1 _4009_ (
+    .CLK(clk_i),
+    .D(_0497_),
+    .Q(\u_uart_master_reg.tl_o[65] ),
+    .RESET_B(reg_rst_sync_ni)
+  );
+  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  sg13g2_dfrbpq_1 _4010_ (
+    .CLK(clk_i),
+    .D(_0499_),
+    .Q(_0050_),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
+  );
+  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  sg13g2_dfrbpq_1 _4011_ (
+    .CLK(clk_i),
+    .D(_0226_),
+    .Q(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
+  );
+  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  sg13g2_dfrbpq_1 _4012_ (
+    .CLK(clk_i),
+    .D(_0225_),
+    .Q(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
+  );
+  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  sg13g2_dfrbpq_1 _4013_ (
+    .CLK(clk_i),
+    .D(_0224_),
+    .Q(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[2] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
+  );
+  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  sg13g2_dfrbpq_1 _4014_ (
+    .CLK(clk_i),
+    .D(_0501_),
+    .Q(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[3] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4015_ (
+    .CLK(clk_i),
+    .D(_0502_),
+    .Q(\u_uart_master_core.u_host_bridge.any_err_q ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
   (* src = "../../rtl/uart_tx.sv:34.3" *)
+  sg13g2_dfrbpq_1 _4016_ (
+    .CLK(clk_i),
+    .D(_0223_),
+    .Q(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[0] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
+  );
+  (* src = "../../rtl/uart_tx.sv:34.3" *)
+  sg13g2_dfrbpq_1 _4017_ (
+    .CLK(clk_i),
+    .D(_0222_),
+    .Q(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
+  );
+  (* src = "../../rtl/uart_tx.sv:34.3" *)
+  sg13g2_dfrbpq_1 _4018_ (
+    .CLK(clk_i),
+    .D(_0221_),
+    .Q(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[2] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
+  );
+  (* src = "../../rtl/uart_tx.sv:34.3" *)
+  sg13g2_dfrbpq_1 _4019_ (
+    .CLK(clk_i),
+    .D(_0503_),
+    .Q(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[3] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4020_ (
+    .CLK(clk_i),
+    .D(_0220_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[0] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4021_ (
+    .CLK(clk_i),
+    .D(_0219_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[1] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4022_ (
+    .CLK(clk_i),
+    .D(_0218_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[2] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4023_ (
+    .CLK(clk_i),
+    .D(_0217_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[3] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4024_ (
+    .CLK(clk_i),
+    .D(_0216_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[4] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4025_ (
+    .CLK(clk_i),
+    .D(_0215_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[5] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4026_ (
+    .CLK(clk_i),
+    .D(_0214_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[6] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4027_ (
+    .CLK(clk_i),
+    .D(_0213_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[7] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4028_ (
+    .CLK(clk_i),
+    .D(_0212_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[8] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4029_ (
+    .CLK(clk_i),
+    .D(_0211_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[9] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4030_ (
+    .CLK(clk_i),
+    .D(_0210_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[10] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4031_ (
+    .CLK(clk_i),
+    .D(_0209_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[11] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4032_ (
+    .CLK(clk_i),
+    .D(_0208_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[12] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4033_ (
+    .CLK(clk_i),
+    .D(_0207_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[13] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4034_ (
+    .CLK(clk_i),
+    .D(_0206_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[14] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4035_ (
+    .CLK(clk_i),
+    .D(_0205_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[15] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4036_ (
+    .CLK(clk_i),
+    .D(_0204_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[16] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4037_ (
+    .CLK(clk_i),
+    .D(_0203_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[17] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4038_ (
+    .CLK(clk_i),
+    .D(_0202_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[18] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4039_ (
+    .CLK(clk_i),
+    .D(_0201_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[19] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4040_ (
+    .CLK(clk_i),
+    .D(_0200_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[20] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4041_ (
+    .CLK(clk_i),
+    .D(_0199_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[21] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4042_ (
+    .CLK(clk_i),
+    .D(_0198_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[22] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4043_ (
+    .CLK(clk_i),
+    .D(_0197_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[23] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4044_ (
+    .CLK(clk_i),
+    .D(_0196_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[24] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4045_ (
+    .CLK(clk_i),
+    .D(_0195_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[25] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4046_ (
+    .CLK(clk_i),
+    .D(_0194_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[26] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4047_ (
+    .CLK(clk_i),
+    .D(_0193_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[27] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4048_ (
+    .CLK(clk_i),
+    .D(_0192_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[28] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4049_ (
+    .CLK(clk_i),
+    .D(_0191_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[29] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4050_ (
+    .CLK(clk_i),
+    .D(_0190_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[30] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4051_ (
+    .CLK(clk_i),
+    .D(_0504_),
+    .Q(\u_uart_master_core.u_host_bridge.rdata_q[31] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4052_ (
+    .CLK(clk_i),
+    .D(_0506_),
+    .Q(req_o),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4053_ (
+    .CLK(clk_i),
+    .D(_0507_),
+    .Q(we_o),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4054_ (
+    .CLK(clk_i),
+    .D(_0182_),
+    .Q(_0021_),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4055_ (
+    .CLK(clk_i),
+    .D(_0181_),
+    .Q(_0020_),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4056_ (
+    .CLK(clk_i),
+    .D(_0180_),
+    .Q(_0019_),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4057_ (
+    .CLK(clk_i),
+    .D(_0508_),
+    .Q(_0051_),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4058_ (
+    .CLK(clk_i),
+    .D(_0172_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[0] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4059_ (
+    .CLK(clk_i),
+    .D(_0171_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[1] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4060_ (
+    .CLK(clk_i),
+    .D(_0170_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[2] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4061_ (
+    .CLK(clk_i),
+    .D(_0169_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[3] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4062_ (
+    .CLK(clk_i),
+    .D(_0168_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[4] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4063_ (
+    .CLK(clk_i),
+    .D(_0167_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[5] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4064_ (
+    .CLK(clk_i),
+    .D(_0166_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[6] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4065_ (
+    .CLK(clk_i),
+    .D(_0165_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[7] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4066_ (
+    .CLK(clk_i),
+    .D(_0164_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[8] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4067_ (
+    .CLK(clk_i),
+    .D(_0163_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[9] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4068_ (
+    .CLK(clk_i),
+    .D(_0162_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[10] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
+  sg13g2_dfrbpq_1 _4069_ (
+    .CLK(clk_i),
+    .D(_0161_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[11] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
+  );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4070_ (
     .CLK(clk_i),
-    .D(_0096_),
-    .Q(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[0] ),
-    .RESET_B(rst_ni)
+    .D(_0160_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[12] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_tx.sv:34.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4071_ (
     .CLK(clk_i),
-    .D(_0095_),
-    .Q(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[1] ),
-    .RESET_B(rst_ni)
+    .D(_0159_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[13] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_tx.sv:34.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4072_ (
     .CLK(clk_i),
-    .D(_0094_),
-    .Q(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[2] ),
-    .RESET_B(rst_ni)
+    .D(_0158_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[14] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_tx.sv:34.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4073_ (
     .CLK(clk_i),
-    .D(_0509_),
-    .Q(\u_uart_master_core.u_uart_core.uart_tx.baud_div_q[3] ),
-    .RESET_B(rst_ni)
+    .D(_0157_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[15] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4074_ (
     .CLK(clk_i),
-    .D(_0093_),
-    .Q(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[0] ),
-    .RESET_B(rst_ni)
+    .D(_0156_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[16] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4075_ (
     .CLK(clk_i),
-    .D(_0092_),
-    .Q(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[1] ),
-    .RESET_B(rst_ni)
+    .D(_0155_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[17] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4076_ (
     .CLK(clk_i),
-    .D(_0091_),
-    .Q(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[2] ),
-    .RESET_B(rst_ni)
+    .D(_0154_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[18] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4077_ (
     .CLK(clk_i),
-    .D(_0510_),
-    .Q(\u_uart_master_core.u_uart_core.uart_tx.bit_cnt_q[3] ),
-    .RESET_B(rst_ni)
+    .D(_0153_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[19] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4078_ (
     .CLK(clk_i),
-    .D(_0511_),
-    .Q(\u_uart_master_reg.tl_o[1] ),
-    .RESET_B(rst_ni)
+    .D(_0152_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[20] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4079_ (
     .CLK(clk_i),
-    .D(_0090_),
-    .Q(\u_uart_master_reg.tl_o[16] ),
-    .RESET_B(rst_ni)
+    .D(_0151_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[21] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4080_ (
     .CLK(clk_i),
-    .D(_0089_),
-    .Q(\u_uart_master_reg.tl_o[17] ),
-    .RESET_B(rst_ni)
+    .D(_0150_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[22] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4081_ (
     .CLK(clk_i),
-    .D(_0088_),
-    .Q(\u_uart_master_reg.tl_o[18] ),
-    .RESET_B(rst_ni)
+    .D(_0149_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[23] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4082_ (
     .CLK(clk_i),
-    .D(_0087_),
-    .Q(\u_uart_master_reg.tl_o[19] ),
-    .RESET_B(rst_ni)
+    .D(_0148_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[24] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4083_ (
     .CLK(clk_i),
-    .D(_0086_),
-    .Q(\u_uart_master_reg.tl_o[20] ),
-    .RESET_B(rst_ni)
+    .D(_0147_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[25] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4084_ (
     .CLK(clk_i),
-    .D(_0085_),
-    .Q(\u_uart_master_reg.tl_o[21] ),
-    .RESET_B(rst_ni)
+    .D(_0146_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[26] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4085_ (
     .CLK(clk_i),
-    .D(_0084_),
-    .Q(\u_uart_master_reg.tl_o[22] ),
-    .RESET_B(rst_ni)
+    .D(_0145_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[27] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4086_ (
     .CLK(clk_i),
-    .D(_0083_),
-    .Q(\u_uart_master_reg.tl_o[23] ),
-    .RESET_B(rst_ni)
+    .D(_0144_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[28] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4087_ (
     .CLK(clk_i),
-    .D(_0082_),
-    .Q(\u_uart_master_reg.tl_o[24] ),
-    .RESET_B(rst_ni)
+    .D(_0143_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[29] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4088_ (
     .CLK(clk_i),
-    .D(_0081_),
-    .Q(\u_uart_master_reg.tl_o[32] ),
-    .RESET_B(rst_ni)
+    .D(_0142_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[30] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4089_ (
     .CLK(clk_i),
-    .D(_0080_),
-    .Q(\u_uart_master_reg.tl_o[33] ),
-    .RESET_B(rst_ni)
+    .D(_0511_),
+    .Q(\u_uart_master_core.u_host_bridge.wdata_o[31] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4090_ (
     .CLK(clk_i),
-    .D(_0079_),
-    .Q(\u_uart_master_reg.tl_o[34] ),
-    .RESET_B(rst_ni)
+    .D(_0141_),
+    .Q(\u_uart_master_core.addr_o[2] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4091_ (
     .CLK(clk_i),
-    .D(_0078_),
-    .Q(\u_uart_master_reg.tl_o[35] ),
-    .RESET_B(rst_ni)
+    .D(_0140_),
+    .Q(\u_uart_master_core.addr_o[3] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4092_ (
     .CLK(clk_i),
-    .D(_0077_),
-    .Q(\u_uart_master_reg.tl_o[36] ),
-    .RESET_B(rst_ni)
+    .D(_0139_),
+    .Q(\u_uart_master_core.addr_o[4] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4093_ (
     .CLK(clk_i),
-    .D(_0076_),
-    .Q(\u_uart_master_reg.tl_o[37] ),
-    .RESET_B(rst_ni)
+    .D(_0138_),
+    .Q(\u_uart_master_core.addr_o[5] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4094_ (
     .CLK(clk_i),
-    .D(_0075_),
-    .Q(\u_uart_master_reg.tl_o[38] ),
-    .RESET_B(rst_ni)
+    .D(_0137_),
+    .Q(\u_uart_master_core.addr_o[6] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4095_ (
     .CLK(clk_i),
-    .D(_0074_),
-    .Q(\u_uart_master_reg.tl_o[39] ),
-    .RESET_B(rst_ni)
+    .D(_0136_),
+    .Q(\u_uart_master_core.addr_o[7] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4096_ (
     .CLK(clk_i),
-    .D(_0073_),
-    .Q(\u_uart_master_reg.tl_o[40] ),
-    .RESET_B(rst_ni)
+    .D(_0135_),
+    .Q(\u_uart_master_core.addr_o[8] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4097_ (
     .CLK(clk_i),
-    .D(_0072_),
-    .Q(\u_uart_master_reg.tl_o[41] ),
-    .RESET_B(rst_ni)
+    .D(_0134_),
+    .Q(\u_uart_master_core.addr_o[9] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4098_ (
     .CLK(clk_i),
-    .D(_0071_),
-    .Q(\u_uart_master_reg.tl_o[42] ),
-    .RESET_B(rst_ni)
+    .D(_0133_),
+    .Q(\u_uart_master_core.addr_o[10] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4099_ (
     .CLK(clk_i),
-    .D(_0070_),
-    .Q(\u_uart_master_reg.tl_o[43] ),
-    .RESET_B(rst_ni)
+    .D(_0132_),
+    .Q(\u_uart_master_core.addr_o[11] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4100_ (
     .CLK(clk_i),
-    .D(_0069_),
-    .Q(\u_uart_master_reg.tl_o[44] ),
-    .RESET_B(rst_ni)
+    .D(_0131_),
+    .Q(\u_uart_master_core.addr_o[12] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4101_ (
     .CLK(clk_i),
-    .D(_0068_),
-    .Q(\u_uart_master_reg.tl_o[45] ),
-    .RESET_B(rst_ni)
+    .D(_0130_),
+    .Q(\u_uart_master_core.addr_o[13] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4102_ (
     .CLK(clk_i),
-    .D(_0067_),
-    .Q(\u_uart_master_reg.tl_o[46] ),
-    .RESET_B(rst_ni)
+    .D(_0129_),
+    .Q(\u_uart_master_core.addr_o[14] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4103_ (
     .CLK(clk_i),
-    .D(_0512_),
-    .Q(\u_uart_master_reg.tl_o[47] ),
-    .RESET_B(rst_ni)
+    .D(_0128_),
+    .Q(\u_uart_master_core.addr_o[15] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_tx.sv:45.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4104_ (
     .CLK(clk_i),
-    .D(_0513_),
-    .Q(_0050_),
-    .RESET_B(rst_ni)
+    .D(_0127_),
+    .Q(\u_uart_master_core.addr_o[16] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4105_ (
     .CLK(clk_i),
-    .D(_0066_),
-    .Q(\u_uart_master_reg.tl_o[57] ),
-    .RESET_B(rst_ni)
+    .D(_0126_),
+    .Q(\u_uart_master_core.addr_o[17] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4106_ (
     .CLK(clk_i),
-    .D(_0515_),
-    .Q(\u_uart_master_reg.tl_o[58] ),
-    .RESET_B(rst_ni)
+    .D(_0125_),
+    .Q(\u_uart_master_core.addr_o[18] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4107_ (
     .CLK(clk_i),
-    .D(_0065_),
-    .Q(\u_uart_master_reg.tl_o[49] ),
-    .RESET_B(rst_ni)
+    .D(_0124_),
+    .Q(\u_uart_master_core.addr_o[19] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4108_ (
     .CLK(clk_i),
-    .D(_0064_),
-    .Q(\u_uart_master_reg.tl_o[50] ),
-    .RESET_B(rst_ni)
+    .D(_0123_),
+    .Q(\u_uart_master_core.addr_o[20] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4109_ (
     .CLK(clk_i),
-    .D(_0063_),
-    .Q(\u_uart_master_reg.tl_o[51] ),
-    .RESET_B(rst_ni)
+    .D(_0122_),
+    .Q(\u_uart_master_core.addr_o[21] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4110_ (
     .CLK(clk_i),
-    .D(_0062_),
-    .Q(\u_uart_master_reg.tl_o[52] ),
-    .RESET_B(rst_ni)
+    .D(_0121_),
+    .Q(\u_uart_master_core.addr_o[22] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4111_ (
     .CLK(clk_i),
-    .D(_0061_),
-    .Q(\u_uart_master_reg.tl_o[53] ),
-    .RESET_B(rst_ni)
+    .D(_0120_),
+    .Q(\u_uart_master_core.addr_o[23] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4112_ (
     .CLK(clk_i),
-    .D(_0060_),
-    .Q(\u_uart_master_reg.tl_o[54] ),
-    .RESET_B(rst_ni)
+    .D(_0119_),
+    .Q(\u_uart_master_core.addr_o[24] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4113_ (
     .CLK(clk_i),
-    .D(_0059_),
-    .Q(\u_uart_master_reg.tl_o[55] ),
-    .RESET_B(rst_ni)
+    .D(_0118_),
+    .Q(\u_uart_master_core.addr_o[25] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4114_ (
     .CLK(clk_i),
-    .D(_0516_),
-    .Q(\u_uart_master_reg.tl_o[56] ),
-    .RESET_B(rst_ni)
+    .D(_0117_),
+    .Q(\u_uart_master_core.addr_o[26] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:94.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4115_ (
     .CLK(clk_i),
-    .D(_0517_),
-    .Q(\u_uart_master_reg.tl_o[65] ),
-    .RESET_B(rst_ni)
+    .D(_0116_),
+    .Q(\u_uart_master_core.addr_o[27] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4116_ (
     .CLK(clk_i),
-    .D(_0053_),
-    .Q(_0018_),
-    .RESET_B(rst_ni)
+    .D(_0115_),
+    .Q(\u_uart_master_core.addr_o[28] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4117_ (
     .CLK(clk_i),
-    .D(_0052_),
-    .Q(\u_uart_master_core.u_host_bridge.tx_st_q[1] ),
-    .RESET_B(rst_ni)
+    .D(_0114_),
+    .Q(\u_uart_master_core.addr_o[29] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4118_ (
     .CLK(clk_i),
-    .D(\u_uart_master_reg.u_wdata.qe ),
-    .Q(\reg2hw[4] ),
-    .RESET_B(rst_ni)
+    .D(_0113_),
+    .Q(\u_uart_master_core.addr_o[30] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4119_ (
     .CLK(clk_i),
-    .D(\u_uart_master_reg.fifo_ctrl_flds_we[0] ),
-    .Q(\reg2hw[0] ),
-    .RESET_B(rst_ni)
+    .D(_0512_),
+    .Q(\u_uart_master_core.addr_o[31] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4120_ (
     .CLK(clk_i),
-    .D(_0002_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[0] ),
-    .RESET_B(rst_ni)
+    .D(_0112_),
+    .Q(_1953_),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4121_ (
     .CLK(clk_i),
-    .D(_0009_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[1] ),
-    .RESET_B(rst_ni)
+    .D(_0111_),
+    .Q(_1952_),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4122_ (
     .CLK(clk_i),
-    .D(_0010_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[2] ),
-    .RESET_B(rst_ni)
+    .D(_0110_),
+    .Q(_1951_),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4123_ (
     .CLK(clk_i),
-    .D(_0011_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[3] ),
-    .RESET_B(rst_ni)
+    .D(_0513_),
+    .Q(_1954_),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4124_ (
     .CLK(clk_i),
-    .D(_0012_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[4] ),
-    .RESET_B(rst_ni)
+    .D(_0109_),
+    .Q(\u_uart_master_core.u_host_bridge.op_q[0] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4125_ (
     .CLK(clk_i),
-    .D(_0013_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[5] ),
-    .RESET_B(rst_ni)
+    .D(_0108_),
+    .Q(\u_uart_master_core.u_host_bridge.op_q[1] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4126_ (
     .CLK(clk_i),
-    .D(_0014_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[6] ),
-    .RESET_B(rst_ni)
+    .D(_0107_),
+    .Q(\u_uart_master_core.u_host_bridge.op_q[2] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4127_ (
     .CLK(clk_i),
-    .D(_0015_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[7] ),
-    .RESET_B(rst_ni)
+    .D(_0106_),
+    .Q(\u_uart_master_core.u_host_bridge.op_q[3] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4128_ (
     .CLK(clk_i),
-    .D(_0016_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[8] ),
-    .RESET_B(rst_ni)
+    .D(_0105_),
+    .Q(\u_uart_master_core.u_host_bridge.op_q[4] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4129_ (
     .CLK(clk_i),
-    .D(_0017_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[9] ),
-    .RESET_B(rst_ni)
+    .D(_0104_),
+    .Q(\u_uart_master_core.u_host_bridge.op_q[5] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4130_ (
     .CLK(clk_i),
-    .D(_0003_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[10] ),
-    .RESET_B(rst_ni)
+    .D(_0103_),
+    .Q(\u_uart_master_core.u_host_bridge.op_q[6] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4131_ (
     .CLK(clk_i),
-    .D(_0004_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[11] ),
-    .RESET_B(rst_ni)
+    .D(_0514_),
+    .Q(\u_uart_master_core.u_host_bridge.op_q[7] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4132_ (
     .CLK(clk_i),
-    .D(_0005_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[12] ),
-    .RESET_B(rst_ni)
+    .D(_0102_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[8] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4133_ (
     .CLK(clk_i),
-    .D(_0006_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[13] ),
-    .RESET_B(rst_ni)
+    .D(_0101_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[9] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4134_ (
     .CLK(clk_i),
-    .D(_0007_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[14] ),
-    .RESET_B(rst_ni)
+    .D(_0100_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[10] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4135_ (
     .CLK(clk_i),
-    .D(_0008_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[15] ),
-    .RESET_B(rst_ni)
+    .D(_0099_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[11] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:99.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4136_ (
     .CLK(clk_i),
-    .D(_0001_),
-    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
-    .RESET_B(rst_ni)
+    .D(_0098_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[12] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:68.5" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4137_ (
     .CLK(clk_i),
-    .D(_1935_),
-    .Q(_0043_),
-    .RESET_B(rst_ni)
+    .D(_0097_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[13] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_tx.sv:34.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4138_ (
     .CLK(clk_i),
-    .D(_1930_),
-    .Q(\u_uart_master_core.u_uart_core.uart_tx.tick_baud_q ),
-    .RESET_B(rst_ni)
+    .D(_0096_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[14] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:152.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4139_ (
     .CLK(clk_i),
-    .D(_0058_),
-    .Q(_0049_),
-    .RESET_B(rst_ni)
+    .D(_0095_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[15] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4140_ (
     .CLK(clk_i),
-    .D(_0057_),
-    .Q(_0048_),
-    .RESET_B(rst_ni)
+    .D(_0094_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[16] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4141_ (
     .CLK(clk_i),
-    .D(_0056_),
-    .Q(_0047_),
-    .RESET_B(rst_ni)
+    .D(_0093_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[17] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:180.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4142_ (
     .CLK(clk_i),
-    .D(_0055_),
-    .Q(_0046_),
-    .RESET_B(rst_ni)
+    .D(_0092_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[18] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_core.sv:180.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4143_ (
     .CLK(clk_i),
-    .D(_0054_),
-    .Q(_0045_),
-    .RESET_B(rst_ni)
+    .D(_0091_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[19] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_rx.sv:37.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4144_ (
     .CLK(clk_i),
-    .D(\u_uart_master_core.u_uart_core.uart_rx.tick_baud_d ),
-    .Q(\u_uart_master_core.u_uart_core.rx_tick_baud ),
-    .RESET_B(rst_ni)
+    .D(_0090_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[20] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../rtl/uart_rx.sv:92.3" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4145_ (
     .CLK(clk_i),
-    .D(_0000_),
-    .Q(\u_uart_master_core.u_uart_core.rx_valid ),
-    .RESET_B(rst_ni)
+    .D(_0089_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[21] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
   (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4146_ (
     .CLK(clk_i),
-    .D(\u_uart_master_core.u_host_bridge.tx_idx_d[0] ),
-    .Q(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
-    .RESET_B(rst_ni)
+    .D(_0088_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[22] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
   (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4147_ (
     .CLK(clk_i),
-    .D(\u_uart_master_core.u_host_bridge.tx_idx_d[1] ),
-    .Q(\u_uart_master_core.u_host_bridge.tx_idx_q[1] ),
-    .RESET_B(rst_ni)
+    .D(_0087_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[23] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
   (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4148_ (
     .CLK(clk_i),
-    .D(\u_uart_master_core.u_host_bridge.tx_idx_d[2] ),
-    .Q(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
-    .RESET_B(rst_ni)
+    .D(_0086_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[24] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
   (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4149_ (
     .CLK(clk_i),
-    .D(\u_uart_master_core.u_host_bridge.tx_idx_d[3] ),
-    .Q(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
-    .RESET_B(rst_ni)
+    .D(_0085_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[25] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4150_ (
     .CLK(clk_i),
-    .D(_0508_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[63] ),
-    .RESET_B(_1935_)
+    .D(_0084_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[26] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4151_ (
     .CLK(clk_i),
-    .D(_0507_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[55] ),
-    .RESET_B(_1935_)
+    .D(_0083_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[27] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4152_ (
     .CLK(clk_i),
-    .D(_0506_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[47] ),
-    .RESET_B(_1935_)
+    .D(_0082_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[28] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4153_ (
     .CLK(clk_i),
-    .D(_0505_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[39] ),
-    .RESET_B(_1935_)
+    .D(_0081_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[29] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4154_ (
     .CLK(clk_i),
-    .D(_0504_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[31] ),
-    .RESET_B(_1935_)
+    .D(_0080_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[30] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4155_ (
     .CLK(clk_i),
-    .D(_0503_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[23] ),
-    .RESET_B(_1935_)
+    .D(_0516_),
+    .Q(\u_uart_master_core.u_host_bridge.sh_q[31] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4156_ (
     .CLK(clk_i),
-    .D(_0502_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[15] ),
-    .RESET_B(_1935_)
+    .D(_0053_),
+    .Q(_0018_),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4157_ (
     .CLK(clk_i),
-    .D(_0501_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[7] ),
-    .RESET_B(_1935_)
+    .D(_0052_),
+    .Q(\u_uart_master_core.u_host_bridge.tx_st_q[1] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
   sg13g2_dfrbpq_1 _4158_ (
     .CLK(clk_i),
-    .D(_0474_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[7] ),
-    .RESET_B(_1935_)
+    .D(_1955_),
+    .Q(\u_reset_sync.intq ),
+    .RESET_B(rst_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
   sg13g2_dfrbpq_1 _4159_ (
     .CLK(clk_i),
-    .D(_0472_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[15] ),
-    .RESET_B(_1935_)
+    .D(\u_reset_sync.intq ),
+    .Q(reg_rst_sync_ni),
+    .RESET_B(rst_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
   sg13g2_dfrbpq_1 _4160_ (
     .CLK(clk_i),
-    .D(_0471_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[23] ),
-    .RESET_B(_1935_)
+    .D(reg_rst_sync_ni),
+    .Q(core_rst_sync_ni),
+    .RESET_B(rst_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
   sg13g2_dfrbpq_1 _4161_ (
     .CLK(clk_i),
-    .D(_0470_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[31] ),
-    .RESET_B(_1935_)
+    .D(\u_uart_master_reg.u_wdata.qe ),
+    .Q(\reg2hw[4] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
   sg13g2_dfrbpq_1 _4162_ (
     .CLK(clk_i),
-    .D(_0469_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[39] ),
-    .RESET_B(_1935_)
+    .D(\u_uart_master_reg.fifo_ctrl_flds_we[0] ),
+    .Q(\reg2hw[0] ),
+    .RESET_B(reg_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
   sg13g2_dfrbpq_1 _4163_ (
     .CLK(clk_i),
-    .D(_0468_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[47] ),
-    .RESET_B(_1935_)
+    .D(_1955_),
+    .Q(\u_uart_master_core.u_host_reset_stage.d_i ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
   sg13g2_dfrbpq_1 _4164_ (
     .CLK(clk_i),
-    .D(_0467_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[55] ),
-    .RESET_B(_1935_)
+    .D(\u_uart_master_core.u_host_reset_stage.d_i ),
+    .Q(\u_uart_master_core.host_rst_ni ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4165_ (
     .CLK(clk_i),
-    .D(_0466_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[63] ),
-    .RESET_B(_1935_)
+    .D(_0002_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[0] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4166_ (
     .CLK(clk_i),
-    .D(_0465_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[71] ),
-    .RESET_B(_1935_)
+    .D(_0009_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[1] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4167_ (
     .CLK(clk_i),
-    .D(_0464_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[79] ),
-    .RESET_B(_1935_)
+    .D(_0010_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[2] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4168_ (
     .CLK(clk_i),
-    .D(_0463_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[87] ),
-    .RESET_B(_1935_)
+    .D(_0011_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[3] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4169_ (
     .CLK(clk_i),
-    .D(_0462_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[95] ),
-    .RESET_B(_1935_)
+    .D(_0012_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[4] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4170_ (
     .CLK(clk_i),
-    .D(_0461_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[103] ),
-    .RESET_B(_1935_)
+    .D(_0013_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[5] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4171_ (
     .CLK(clk_i),
-    .D(_0460_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[111] ),
-    .RESET_B(_1935_)
+    .D(_0014_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[6] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4172_ (
     .CLK(clk_i),
-    .D(_0459_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[119] ),
-    .RESET_B(_1935_)
+    .D(_0015_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[7] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4173_ (
     .CLK(clk_i),
-    .D(_0458_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[127] ),
-    .RESET_B(_1935_)
+    .D(_0016_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[8] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4174_ (
     .CLK(clk_i),
-    .D(_0300_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[120] ),
-    .RESET_B(_1935_)
+    .D(_0017_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[9] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4175_ (
     .CLK(clk_i),
-    .D(_0299_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[121] ),
-    .RESET_B(_1935_)
+    .D(_0003_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[10] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4176_ (
     .CLK(clk_i),
-    .D(_0298_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[122] ),
-    .RESET_B(_1935_)
+    .D(_0004_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[11] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4177_ (
     .CLK(clk_i),
-    .D(_0297_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[123] ),
-    .RESET_B(_1935_)
+    .D(_0005_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[12] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4178_ (
     .CLK(clk_i),
-    .D(_0296_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[124] ),
-    .RESET_B(_1935_)
+    .D(_0006_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[13] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4179_ (
     .CLK(clk_i),
-    .D(_0295_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[125] ),
-    .RESET_B(_1935_)
+    .D(_0007_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[14] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4180_ (
     .CLK(clk_i),
-    .D(_0294_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[126] ),
-    .RESET_B(_1935_)
+    .D(_0008_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[15] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:99.3" *)
   sg13g2_dfrbpq_1 _4181_ (
     .CLK(clk_i),
-    .D(_0293_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[112] ),
-    .RESET_B(_1935_)
+    .D(_0001_),
+    .Q(\u_uart_master_core.u_uart_core.nco_sum_q[16] ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_tx.sv:34.3" *)
   sg13g2_dfrbpq_1 _4182_ (
     .CLK(clk_i),
-    .D(_0292_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[113] ),
-    .RESET_B(_1935_)
+    .D(_1950_),
+    .Q(\u_uart_master_core.u_uart_core.uart_tx.tick_baud_q ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:152.3" *)
   sg13g2_dfrbpq_1 _4183_ (
     .CLK(clk_i),
-    .D(_0291_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[114] ),
-    .RESET_B(_1935_)
+    .D(_0058_),
+    .Q(_0049_),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
   sg13g2_dfrbpq_1 _4184_ (
     .CLK(clk_i),
-    .D(_0290_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[115] ),
-    .RESET_B(_1935_)
+    .D(_0057_),
+    .Q(_0048_),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
   sg13g2_dfrbpq_1 _4185_ (
     .CLK(clk_i),
-    .D(_0289_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[116] ),
-    .RESET_B(_1935_)
+    .D(_0056_),
+    .Q(_0047_),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:180.3" *)
   sg13g2_dfrbpq_1 _4186_ (
     .CLK(clk_i),
-    .D(_0288_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[117] ),
-    .RESET_B(_1935_)
+    .D(_0055_),
+    .Q(_0046_),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_core.sv:180.3" *)
   sg13g2_dfrbpq_1 _4187_ (
     .CLK(clk_i),
-    .D(_0287_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[118] ),
-    .RESET_B(_1935_)
+    .D(_0054_),
+    .Q(_0045_),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_rx.sv:37.3" *)
   sg13g2_dfrbpq_1 _4188_ (
     .CLK(clk_i),
-    .D(_0286_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[104] ),
-    .RESET_B(_1935_)
+    .D(\u_uart_master_core.u_uart_core.uart_rx.tick_baud_d ),
+    .Q(\u_uart_master_core.u_uart_core.rx_tick_baud ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_rx.sv:92.3" *)
   sg13g2_dfrbpq_1 _4189_ (
     .CLK(clk_i),
-    .D(_0285_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[105] ),
-    .RESET_B(_1935_)
+    .D(_0000_),
+    .Q(\u_uart_master_core.u_uart_core.rx_valid ),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:68.5" *)
   sg13g2_dfrbpq_1 _4190_ (
     .CLK(clk_i),
-    .D(_0284_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[106] ),
-    .RESET_B(_1935_)
+    .D(_1955_),
+    .Q(_0043_),
+    .RESET_B(\u_uart_master_core.u_host_reset_stage.d_i )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4191_ (
     .CLK(clk_i),
-    .D(_0283_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[107] ),
-    .RESET_B(_1935_)
+    .D(\u_uart_master_core.u_host_bridge.tx_idx_d[0] ),
+    .Q(\u_uart_master_core.u_host_bridge.tx_idx_q[0] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4192_ (
     .CLK(clk_i),
-    .D(_0282_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[108] ),
-    .RESET_B(_1935_)
+    .D(\u_uart_master_core.u_host_bridge.tx_idx_d[1] ),
+    .Q(\u_uart_master_core.u_host_bridge.tx_idx_q[1] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4193_ (
     .CLK(clk_i),
-    .D(_0281_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[109] ),
-    .RESET_B(_1935_)
+    .D(\u_uart_master_core.u_host_bridge.tx_idx_d[2] ),
+    .Q(\u_uart_master_core.u_host_bridge.tx_idx_q[2] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../rtl/uart_host_bridge.sv:74.3" *)
   sg13g2_dfrbpq_1 _4194_ (
     .CLK(clk_i),
-    .D(_0280_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[110] ),
-    .RESET_B(_1935_)
+    .D(\u_uart_master_core.u_host_bridge.tx_idx_d[3] ),
+    .Q(\u_uart_master_core.u_host_bridge.tx_idx_q[3] ),
+    .RESET_B(\u_uart_master_core.host_rst_ni )
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4195_ (
     .CLK(clk_i),
-    .D(_0279_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[96] ),
-    .RESET_B(_1935_)
+    .D(_0519_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[55] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4196_ (
     .CLK(clk_i),
-    .D(_0278_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[97] ),
-    .RESET_B(_1935_)
+    .D(_0518_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[63] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4197_ (
     .CLK(clk_i),
-    .D(_0277_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[98] ),
-    .RESET_B(_1935_)
+    .D(_0517_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[47] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4198_ (
     .CLK(clk_i),
-    .D(_0276_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[99] ),
-    .RESET_B(_1935_)
+    .D(_0515_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[79] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4199_ (
     .CLK(clk_i),
-    .D(_0275_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[100] ),
-    .RESET_B(_1935_)
+    .D(_0510_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[39] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4200_ (
     .CLK(clk_i),
-    .D(_0274_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[101] ),
-    .RESET_B(_1935_)
+    .D(_0505_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[31] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4201_ (
     .CLK(clk_i),
-    .D(_0273_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[102] ),
-    .RESET_B(_1935_)
+    .D(_0500_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[23] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4202_ (
     .CLK(clk_i),
-    .D(_0272_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[88] ),
-    .RESET_B(_1935_)
+    .D(_0498_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[15] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4203_ (
     .CLK(clk_i),
-    .D(_0271_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[89] ),
-    .RESET_B(_1935_)
+    .D(_0494_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[7] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4204_ (
     .CLK(clk_i),
-    .D(_0270_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[90] ),
-    .RESET_B(_1935_)
+    .D(_0491_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[87] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4205_ (
     .CLK(clk_i),
-    .D(_0269_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[91] ),
-    .RESET_B(_1935_)
+    .D(_0490_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[95] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4206_ (
     .CLK(clk_i),
-    .D(_0268_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[92] ),
-    .RESET_B(_1935_)
+    .D(_0489_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[103] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4207_ (
     .CLK(clk_i),
-    .D(_0267_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[93] ),
-    .RESET_B(_1935_)
+    .D(_0488_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[111] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4208_ (
     .CLK(clk_i),
-    .D(_0266_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[94] ),
-    .RESET_B(_1935_)
+    .D(_0487_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[119] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4209_ (
     .CLK(clk_i),
-    .D(_0265_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[80] ),
-    .RESET_B(_1935_)
+    .D(_0472_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[127] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4210_ (
     .CLK(clk_i),
-    .D(_0264_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[81] ),
-    .RESET_B(_1935_)
+    .D(_0464_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[7] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4211_ (
     .CLK(clk_i),
-    .D(_0263_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[82] ),
-    .RESET_B(_1935_)
+    .D(_0463_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[15] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4212_ (
     .CLK(clk_i),
-    .D(_0262_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[83] ),
-    .RESET_B(_1935_)
+    .D(_0462_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[23] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4213_ (
     .CLK(clk_i),
-    .D(_0261_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[84] ),
-    .RESET_B(_1935_)
+    .D(_0461_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[31] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4214_ (
     .CLK(clk_i),
-    .D(_0260_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[85] ),
-    .RESET_B(_1935_)
+    .D(_0460_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[39] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4215_ (
     .CLK(clk_i),
-    .D(_0259_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[86] ),
-    .RESET_B(_1935_)
+    .D(_0459_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[47] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4216_ (
     .CLK(clk_i),
-    .D(_0258_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[72] ),
-    .RESET_B(_1935_)
+    .D(_0458_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[55] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4217_ (
     .CLK(clk_i),
-    .D(_0257_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[73] ),
-    .RESET_B(_1935_)
+    .D(_0457_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[63] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4218_ (
     .CLK(clk_i),
-    .D(_0256_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[74] ),
-    .RESET_B(_1935_)
+    .D(_0456_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[71] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4219_ (
     .CLK(clk_i),
-    .D(_0255_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[75] ),
-    .RESET_B(_1935_)
+    .D(_0430_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[120] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4220_ (
     .CLK(clk_i),
-    .D(_0254_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[76] ),
-    .RESET_B(_1935_)
+    .D(_0429_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[121] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4221_ (
     .CLK(clk_i),
-    .D(_0253_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[77] ),
-    .RESET_B(_1935_)
+    .D(_0428_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[122] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4222_ (
     .CLK(clk_i),
-    .D(_0252_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[78] ),
-    .RESET_B(_1935_)
+    .D(_0427_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[123] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4223_ (
     .CLK(clk_i),
-    .D(_0251_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[64] ),
-    .RESET_B(_1935_)
+    .D(_0426_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[124] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4224_ (
     .CLK(clk_i),
-    .D(_0250_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[65] ),
-    .RESET_B(_1935_)
+    .D(_0425_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[125] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4225_ (
     .CLK(clk_i),
-    .D(_0249_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[66] ),
-    .RESET_B(_1935_)
+    .D(_0424_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[126] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4226_ (
     .CLK(clk_i),
-    .D(_0248_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[67] ),
-    .RESET_B(_1935_)
+    .D(_0423_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[112] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4227_ (
     .CLK(clk_i),
-    .D(_0247_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[68] ),
-    .RESET_B(_1935_)
+    .D(_0422_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[113] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4228_ (
     .CLK(clk_i),
-    .D(_0246_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[69] ),
-    .RESET_B(_1935_)
+    .D(_0421_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[114] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4229_ (
     .CLK(clk_i),
-    .D(_0245_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[70] ),
-    .RESET_B(_1935_)
+    .D(_0420_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[115] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4230_ (
     .CLK(clk_i),
-    .D(_0244_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[56] ),
-    .RESET_B(_1935_)
+    .D(_0419_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[116] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4231_ (
     .CLK(clk_i),
-    .D(_0243_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[57] ),
-    .RESET_B(_1935_)
+    .D(_0418_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[117] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4232_ (
     .CLK(clk_i),
-    .D(_0242_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[58] ),
-    .RESET_B(_1935_)
+    .D(_0417_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[118] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4233_ (
     .CLK(clk_i),
-    .D(_0241_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[59] ),
-    .RESET_B(_1935_)
+    .D(_0416_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[104] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4234_ (
     .CLK(clk_i),
-    .D(_0240_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[60] ),
-    .RESET_B(_1935_)
+    .D(_0415_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[105] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4235_ (
     .CLK(clk_i),
-    .D(_0239_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[61] ),
-    .RESET_B(_1935_)
+    .D(_0414_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[106] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4236_ (
     .CLK(clk_i),
-    .D(_0238_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[62] ),
-    .RESET_B(_1935_)
+    .D(_0413_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[107] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4237_ (
     .CLK(clk_i),
-    .D(_0237_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[48] ),
-    .RESET_B(_1935_)
+    .D(_0412_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[108] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4238_ (
     .CLK(clk_i),
-    .D(_0236_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[49] ),
-    .RESET_B(_1935_)
+    .D(_0411_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[109] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4239_ (
     .CLK(clk_i),
-    .D(_0235_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[50] ),
-    .RESET_B(_1935_)
+    .D(_0410_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[110] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4240_ (
     .CLK(clk_i),
-    .D(_0234_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[51] ),
-    .RESET_B(_1935_)
+    .D(_0409_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[96] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4241_ (
     .CLK(clk_i),
-    .D(_0233_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[52] ),
-    .RESET_B(_1935_)
+    .D(_0408_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[97] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4242_ (
     .CLK(clk_i),
-    .D(_0232_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[53] ),
-    .RESET_B(_1935_)
+    .D(_0407_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[98] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4243_ (
     .CLK(clk_i),
-    .D(_0231_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[54] ),
-    .RESET_B(_1935_)
+    .D(_0406_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[99] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4244_ (
     .CLK(clk_i),
-    .D(_0230_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[40] ),
-    .RESET_B(_1935_)
+    .D(_0405_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[100] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4245_ (
     .CLK(clk_i),
-    .D(_0229_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[41] ),
-    .RESET_B(_1935_)
+    .D(_0404_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[101] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4246_ (
     .CLK(clk_i),
-    .D(_0228_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[42] ),
-    .RESET_B(_1935_)
+    .D(_0403_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[102] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4247_ (
     .CLK(clk_i),
-    .D(_0227_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[43] ),
-    .RESET_B(_1935_)
+    .D(_0402_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[88] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4248_ (
     .CLK(clk_i),
-    .D(_0226_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[44] ),
-    .RESET_B(_1935_)
+    .D(_0401_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[89] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4249_ (
     .CLK(clk_i),
-    .D(_0225_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[45] ),
-    .RESET_B(_1935_)
+    .D(_0400_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[90] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4250_ (
     .CLK(clk_i),
-    .D(_0224_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[46] ),
-    .RESET_B(_1935_)
+    .D(_0399_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[91] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4251_ (
     .CLK(clk_i),
-    .D(_0223_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[32] ),
-    .RESET_B(_1935_)
+    .D(_0398_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[92] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4252_ (
     .CLK(clk_i),
-    .D(_0222_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[33] ),
-    .RESET_B(_1935_)
+    .D(_0397_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[93] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4253_ (
     .CLK(clk_i),
-    .D(_0221_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[34] ),
-    .RESET_B(_1935_)
+    .D(_0396_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[94] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4254_ (
     .CLK(clk_i),
-    .D(_0220_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[35] ),
-    .RESET_B(_1935_)
+    .D(_0395_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[80] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4255_ (
     .CLK(clk_i),
-    .D(_0219_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[36] ),
-    .RESET_B(_1935_)
+    .D(_0394_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[81] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4256_ (
     .CLK(clk_i),
-    .D(_0218_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[37] ),
-    .RESET_B(_1935_)
+    .D(_0393_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[82] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4257_ (
     .CLK(clk_i),
-    .D(_0217_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[38] ),
-    .RESET_B(_1935_)
+    .D(_0392_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[83] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4258_ (
     .CLK(clk_i),
-    .D(_0216_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[24] ),
-    .RESET_B(_1935_)
+    .D(_0391_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[84] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4259_ (
     .CLK(clk_i),
-    .D(_0215_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[25] ),
-    .RESET_B(_1935_)
+    .D(_0390_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[85] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4260_ (
     .CLK(clk_i),
-    .D(_0214_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[26] ),
-    .RESET_B(_1935_)
+    .D(_0389_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[86] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4261_ (
     .CLK(clk_i),
-    .D(_0213_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[27] ),
-    .RESET_B(_1935_)
+    .D(_0388_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[72] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4262_ (
     .CLK(clk_i),
-    .D(_0212_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[28] ),
-    .RESET_B(_1935_)
+    .D(_0387_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[73] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4263_ (
     .CLK(clk_i),
-    .D(_0211_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[29] ),
-    .RESET_B(_1935_)
+    .D(_0386_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[74] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4264_ (
     .CLK(clk_i),
-    .D(_0210_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[30] ),
-    .RESET_B(_1935_)
+    .D(_0385_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[75] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4265_ (
     .CLK(clk_i),
-    .D(_0209_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[16] ),
-    .RESET_B(_1935_)
+    .D(_0384_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[76] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4266_ (
     .CLK(clk_i),
-    .D(_0208_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[17] ),
-    .RESET_B(_1935_)
+    .D(_0383_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[77] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4267_ (
     .CLK(clk_i),
-    .D(_0207_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[18] ),
-    .RESET_B(_1935_)
+    .D(_0382_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[78] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4268_ (
     .CLK(clk_i),
-    .D(_0206_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[19] ),
-    .RESET_B(_1935_)
+    .D(_0381_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[64] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4269_ (
     .CLK(clk_i),
-    .D(_0205_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[20] ),
-    .RESET_B(_1935_)
+    .D(_0380_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[65] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4270_ (
     .CLK(clk_i),
-    .D(_0204_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[21] ),
-    .RESET_B(_1935_)
+    .D(_0379_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[66] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4271_ (
     .CLK(clk_i),
-    .D(_0203_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[22] ),
-    .RESET_B(_1935_)
+    .D(_0378_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[67] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4272_ (
     .CLK(clk_i),
-    .D(_0202_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[8] ),
-    .RESET_B(_1935_)
+    .D(_0377_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[68] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4273_ (
     .CLK(clk_i),
-    .D(_0201_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[9] ),
-    .RESET_B(_1935_)
+    .D(_0376_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[69] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4274_ (
     .CLK(clk_i),
-    .D(_0200_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[10] ),
-    .RESET_B(_1935_)
+    .D(_0375_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[70] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4275_ (
     .CLK(clk_i),
-    .D(_0199_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[11] ),
-    .RESET_B(_1935_)
+    .D(_0374_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[56] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4276_ (
     .CLK(clk_i),
-    .D(_0198_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[12] ),
-    .RESET_B(_1935_)
+    .D(_0373_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[57] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4277_ (
     .CLK(clk_i),
-    .D(_0197_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[13] ),
-    .RESET_B(_1935_)
+    .D(_0372_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[58] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4278_ (
     .CLK(clk_i),
-    .D(_0196_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[14] ),
-    .RESET_B(_1935_)
+    .D(_0371_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[59] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4279_ (
     .CLK(clk_i),
-    .D(_0195_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[0] ),
-    .RESET_B(_1935_)
+    .D(_0370_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[60] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4280_ (
     .CLK(clk_i),
-    .D(_0194_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[1] ),
-    .RESET_B(_1935_)
+    .D(_0369_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[61] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4281_ (
     .CLK(clk_i),
-    .D(_0193_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[2] ),
-    .RESET_B(_1935_)
+    .D(_0368_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[62] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4282_ (
     .CLK(clk_i),
-    .D(_0192_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[3] ),
-    .RESET_B(_1935_)
+    .D(_0367_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[48] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4283_ (
     .CLK(clk_i),
-    .D(_0191_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[4] ),
-    .RESET_B(_1935_)
+    .D(_0366_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[49] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4284_ (
     .CLK(clk_i),
-    .D(_0190_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[5] ),
-    .RESET_B(_1935_)
+    .D(_0365_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[50] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4285_ (
     .CLK(clk_i),
-    .D(_0189_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[6] ),
-    .RESET_B(_1935_)
+    .D(_0364_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[51] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4286_ (
     .CLK(clk_i),
-    .D(_0152_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[0] ),
-    .RESET_B(_1935_)
+    .D(_0363_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[52] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4287_ (
     .CLK(clk_i),
-    .D(_0151_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[1] ),
-    .RESET_B(_1935_)
+    .D(_0362_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[53] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4288_ (
     .CLK(clk_i),
-    .D(_0150_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[2] ),
-    .RESET_B(_1935_)
+    .D(_0361_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[54] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4289_ (
     .CLK(clk_i),
-    .D(_0149_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[3] ),
-    .RESET_B(_1935_)
+    .D(_0360_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[40] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4290_ (
     .CLK(clk_i),
-    .D(_0148_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[4] ),
-    .RESET_B(_1935_)
+    .D(_0359_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[41] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4291_ (
     .CLK(clk_i),
-    .D(_0147_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[5] ),
-    .RESET_B(_1935_)
+    .D(_0358_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[42] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4292_ (
     .CLK(clk_i),
-    .D(_0146_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[6] ),
-    .RESET_B(_1935_)
+    .D(_0357_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[43] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4293_ (
     .CLK(clk_i),
-    .D(_0145_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[8] ),
-    .RESET_B(_1935_)
+    .D(_0356_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[44] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4294_ (
     .CLK(clk_i),
-    .D(_0144_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[9] ),
-    .RESET_B(_1935_)
+    .D(_0355_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[45] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4295_ (
     .CLK(clk_i),
-    .D(_0143_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[10] ),
-    .RESET_B(_1935_)
+    .D(_0354_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[46] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4296_ (
     .CLK(clk_i),
-    .D(_0142_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[11] ),
-    .RESET_B(_1935_)
+    .D(_0353_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[32] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4297_ (
     .CLK(clk_i),
-    .D(_0141_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[12] ),
-    .RESET_B(_1935_)
+    .D(_0352_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[33] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4298_ (
     .CLK(clk_i),
-    .D(_0140_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[13] ),
-    .RESET_B(_1935_)
+    .D(_0351_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[34] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4299_ (
     .CLK(clk_i),
-    .D(_0139_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[14] ),
-    .RESET_B(_1935_)
+    .D(_0350_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[35] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4300_ (
     .CLK(clk_i),
-    .D(_0138_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[16] ),
-    .RESET_B(_1935_)
+    .D(_0349_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[36] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4301_ (
     .CLK(clk_i),
-    .D(_0137_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[17] ),
-    .RESET_B(_1935_)
+    .D(_0348_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[37] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4302_ (
     .CLK(clk_i),
-    .D(_0136_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[18] ),
-    .RESET_B(_1935_)
+    .D(_0347_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[38] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4303_ (
     .CLK(clk_i),
-    .D(_0135_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[19] ),
-    .RESET_B(_1935_)
+    .D(_0346_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[24] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4304_ (
     .CLK(clk_i),
-    .D(_0134_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[20] ),
-    .RESET_B(_1935_)
+    .D(_0345_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[25] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4305_ (
     .CLK(clk_i),
-    .D(_0133_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[21] ),
-    .RESET_B(_1935_)
+    .D(_0344_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[26] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4306_ (
     .CLK(clk_i),
-    .D(_0132_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[22] ),
-    .RESET_B(_1935_)
+    .D(_0343_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[27] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4307_ (
     .CLK(clk_i),
-    .D(_0131_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[24] ),
-    .RESET_B(_1935_)
+    .D(_0342_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[28] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4308_ (
     .CLK(clk_i),
-    .D(_0130_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[25] ),
-    .RESET_B(_1935_)
+    .D(_0341_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[29] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4309_ (
     .CLK(clk_i),
-    .D(_0129_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[26] ),
-    .RESET_B(_1935_)
+    .D(_0340_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[30] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4310_ (
     .CLK(clk_i),
-    .D(_0128_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[27] ),
-    .RESET_B(_1935_)
+    .D(_0339_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[16] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4311_ (
     .CLK(clk_i),
-    .D(_0127_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[28] ),
-    .RESET_B(_1935_)
+    .D(_0338_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[17] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4312_ (
     .CLK(clk_i),
-    .D(_0126_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[29] ),
-    .RESET_B(_1935_)
+    .D(_0337_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[18] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4313_ (
     .CLK(clk_i),
-    .D(_0125_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[30] ),
-    .RESET_B(_1935_)
+    .D(_0336_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[19] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4314_ (
     .CLK(clk_i),
-    .D(_0124_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[32] ),
-    .RESET_B(_1935_)
+    .D(_0335_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[20] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4315_ (
     .CLK(clk_i),
-    .D(_0123_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[33] ),
-    .RESET_B(_1935_)
+    .D(_0334_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[21] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4316_ (
     .CLK(clk_i),
-    .D(_0122_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[34] ),
-    .RESET_B(_1935_)
+    .D(_0333_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[22] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4317_ (
     .CLK(clk_i),
-    .D(_0121_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[35] ),
-    .RESET_B(_1935_)
+    .D(_0332_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[8] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4318_ (
     .CLK(clk_i),
-    .D(_0120_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[36] ),
-    .RESET_B(_1935_)
+    .D(_0331_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[9] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4319_ (
     .CLK(clk_i),
-    .D(_0119_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[37] ),
-    .RESET_B(_1935_)
+    .D(_0330_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[10] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4320_ (
     .CLK(clk_i),
-    .D(_0118_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[38] ),
-    .RESET_B(_1935_)
+    .D(_0329_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[11] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4321_ (
     .CLK(clk_i),
-    .D(_0117_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[40] ),
-    .RESET_B(_1935_)
+    .D(_0328_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[12] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4322_ (
     .CLK(clk_i),
-    .D(_0116_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[41] ),
-    .RESET_B(_1935_)
+    .D(_0327_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[13] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4323_ (
     .CLK(clk_i),
-    .D(_0115_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[42] ),
-    .RESET_B(_1935_)
+    .D(_0326_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[14] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4324_ (
     .CLK(clk_i),
-    .D(_0114_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[43] ),
-    .RESET_B(_1935_)
+    .D(_0325_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[0] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4325_ (
     .CLK(clk_i),
-    .D(_0113_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[44] ),
-    .RESET_B(_1935_)
+    .D(_0324_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[1] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4326_ (
     .CLK(clk_i),
-    .D(_0112_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[45] ),
-    .RESET_B(_1935_)
+    .D(_0323_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[2] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4327_ (
     .CLK(clk_i),
-    .D(_0111_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[46] ),
-    .RESET_B(_1935_)
+    .D(_0322_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[3] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4328_ (
     .CLK(clk_i),
-    .D(_0110_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[48] ),
-    .RESET_B(_1935_)
+    .D(_0321_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[4] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4329_ (
     .CLK(clk_i),
-    .D(_0109_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[49] ),
-    .RESET_B(_1935_)
+    .D(_0320_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[5] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4330_ (
     .CLK(clk_i),
-    .D(_0108_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[50] ),
-    .RESET_B(_1935_)
+    .D(_0319_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_rxfifo.gen_normal_fifo.storage[6] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4331_ (
     .CLK(clk_i),
-    .D(_0107_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[51] ),
-    .RESET_B(_1935_)
+    .D(_0255_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[0] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4332_ (
     .CLK(clk_i),
-    .D(_0106_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[52] ),
-    .RESET_B(_1935_)
+    .D(_0254_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[1] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4333_ (
     .CLK(clk_i),
-    .D(_0105_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[53] ),
-    .RESET_B(_1935_)
+    .D(_0253_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[2] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4334_ (
     .CLK(clk_i),
-    .D(_0104_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[54] ),
-    .RESET_B(_1935_)
+    .D(_0252_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[3] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4335_ (
     .CLK(clk_i),
-    .D(_0103_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[56] ),
-    .RESET_B(_1935_)
+    .D(_0251_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[4] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4336_ (
     .CLK(clk_i),
-    .D(_0102_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[57] ),
-    .RESET_B(_1935_)
+    .D(_0250_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[5] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4337_ (
     .CLK(clk_i),
-    .D(_0101_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[58] ),
-    .RESET_B(_1935_)
+    .D(_0249_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[6] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4338_ (
     .CLK(clk_i),
-    .D(_0100_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[59] ),
-    .RESET_B(_1935_)
+    .D(_0240_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[8] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4339_ (
     .CLK(clk_i),
-    .D(_0099_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[60] ),
-    .RESET_B(_1935_)
+    .D(_0239_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[9] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4340_ (
     .CLK(clk_i),
-    .D(_0098_),
-    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[61] ),
-    .RESET_B(_1935_)
+    .D(_0238_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[10] ),
+    .RESET_B(_1955_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
   sg13g2_dfrbpq_1 _4341_ (
     .CLK(clk_i),
-    .D(_0097_),
+    .D(_0237_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[11] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4342_ (
+    .CLK(clk_i),
+    .D(_0236_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[12] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4343_ (
+    .CLK(clk_i),
+    .D(_0235_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[13] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4344_ (
+    .CLK(clk_i),
+    .D(_0234_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[14] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4345_ (
+    .CLK(clk_i),
+    .D(_0233_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[16] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4346_ (
+    .CLK(clk_i),
+    .D(_0232_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[17] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4347_ (
+    .CLK(clk_i),
+    .D(_0231_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[18] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4348_ (
+    .CLK(clk_i),
+    .D(_0230_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[19] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4349_ (
+    .CLK(clk_i),
+    .D(_0229_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[20] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4350_ (
+    .CLK(clk_i),
+    .D(_0228_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[21] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4351_ (
+    .CLK(clk_i),
+    .D(_0227_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[22] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4352_ (
+    .CLK(clk_i),
+    .D(_0189_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[24] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4353_ (
+    .CLK(clk_i),
+    .D(_0188_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[25] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4354_ (
+    .CLK(clk_i),
+    .D(_0187_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[26] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4355_ (
+    .CLK(clk_i),
+    .D(_0186_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[27] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4356_ (
+    .CLK(clk_i),
+    .D(_0185_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[28] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4357_ (
+    .CLK(clk_i),
+    .D(_0184_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[29] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4358_ (
+    .CLK(clk_i),
+    .D(_0183_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[30] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4359_ (
+    .CLK(clk_i),
+    .D(_0179_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[32] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4360_ (
+    .CLK(clk_i),
+    .D(_0178_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[33] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4361_ (
+    .CLK(clk_i),
+    .D(_0177_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[34] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4362_ (
+    .CLK(clk_i),
+    .D(_0176_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[35] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4363_ (
+    .CLK(clk_i),
+    .D(_0175_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[36] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4364_ (
+    .CLK(clk_i),
+    .D(_0174_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[37] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4365_ (
+    .CLK(clk_i),
+    .D(_0173_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[38] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4366_ (
+    .CLK(clk_i),
+    .D(_0079_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[40] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4367_ (
+    .CLK(clk_i),
+    .D(_0078_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[41] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4368_ (
+    .CLK(clk_i),
+    .D(_0077_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[42] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4369_ (
+    .CLK(clk_i),
+    .D(_0076_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[43] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4370_ (
+    .CLK(clk_i),
+    .D(_0075_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[44] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4371_ (
+    .CLK(clk_i),
+    .D(_0074_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[45] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4372_ (
+    .CLK(clk_i),
+    .D(_0073_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[46] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4373_ (
+    .CLK(clk_i),
+    .D(_0072_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[56] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4374_ (
+    .CLK(clk_i),
+    .D(_0071_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[57] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4375_ (
+    .CLK(clk_i),
+    .D(_0070_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[58] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4376_ (
+    .CLK(clk_i),
+    .D(_0069_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[59] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4377_ (
+    .CLK(clk_i),
+    .D(_0068_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[60] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4378_ (
+    .CLK(clk_i),
+    .D(_0067_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[61] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4379_ (
+    .CLK(clk_i),
+    .D(_0066_),
     .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[62] ),
-    .RESET_B(_1935_)
+    .RESET_B(_1955_)
   );
-  sg13g2_tiehi _4342_ (
-    .L_HI(_1935_)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4380_ (
+    .CLK(clk_i),
+    .D(_0065_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[48] ),
+    .RESET_B(_1955_)
   );
-  sg13g2_tielo _4343_ (
-    .L_LO(_1936_)
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4381_ (
+    .CLK(clk_i),
+    .D(_0064_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[49] ),
+    .RESET_B(_1955_)
   );
-  sg13g2_buf_1 _4344_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4382_ (
+    .CLK(clk_i),
+    .D(_0063_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[50] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4383_ (
+    .CLK(clk_i),
+    .D(_0062_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[51] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4384_ (
+    .CLK(clk_i),
+    .D(_0061_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[52] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4385_ (
+    .CLK(clk_i),
+    .D(_0060_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[53] ),
+    .RESET_B(_1955_)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_fifo_sync.sv:122.7" *)
+  sg13g2_dfrbpq_1 _4386_ (
+    .CLK(clk_i),
+    .D(_0059_),
+    .Q(\u_uart_master_core.u_uart_core.u_uart_txfifo.gen_normal_fifo.storage[54] ),
+    .RESET_B(_1955_)
+  );
+  sg13g2_tiehi _4387_ (
+    .L_HI(_1955_)
+  );
+  sg13g2_tielo _4388_ (
+    .L_LO(_1956_)
+  );
+  sg13g2_buf_1 _4389_ (
     .A(\u_uart_master_reg.tl_o[0] ),
     .X(tl_o[0])
   );
-  sg13g2_buf_1 _4345_ (
+  sg13g2_buf_1 _4390_ (
     .A(\u_uart_master_reg.tl_o[1] ),
     .X(tl_o[1])
   );
-  sg13g2_buf_1 _4346_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4391_ (
+    .A(_1956_),
     .X(tl_o[2])
   );
-  sg13g2_buf_1 _4347_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4392_ (
+    .A(_1956_),
     .X(tl_o[3])
   );
-  sg13g2_buf_1 _4348_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4393_ (
+    .A(_1956_),
     .X(tl_o[4])
   );
-  sg13g2_buf_1 _4349_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4394_ (
+    .A(_1956_),
     .X(tl_o[5])
   );
-  sg13g2_buf_1 _4350_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4395_ (
+    .A(_1956_),
     .X(tl_o[6])
   );
-  sg13g2_buf_1 _4351_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4396_ (
+    .A(_1956_),
     .X(tl_o[7])
   );
-  sg13g2_buf_1 _4352_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4397_ (
+    .A(_1956_),
     .X(tl_o[8])
   );
-  sg13g2_buf_1 _4353_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4398_ (
+    .A(_1956_),
     .X(tl_o[9])
   );
-  sg13g2_buf_1 _4354_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4399_ (
+    .A(_1956_),
     .X(tl_o[10])
   );
-  sg13g2_buf_1 _4355_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4400_ (
+    .A(_1956_),
     .X(tl_o[11])
   );
-  sg13g2_buf_1 _4356_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4401_ (
+    .A(_1956_),
     .X(tl_o[12])
   );
-  sg13g2_buf_1 _4357_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4402_ (
+    .A(_1956_),
     .X(tl_o[13])
   );
-  sg13g2_buf_1 _4358_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4403_ (
+    .A(_1956_),
     .X(tl_o[14])
   );
-  sg13g2_buf_1 _4359_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4404_ (
+    .A(_1956_),
     .X(tl_o[15])
   );
-  sg13g2_buf_1 _4360_ (
+  sg13g2_buf_1 _4405_ (
     .A(\u_uart_master_reg.tl_o[16] ),
     .X(tl_o[16])
   );
-  sg13g2_buf_1 _4361_ (
+  sg13g2_buf_1 _4406_ (
     .A(\u_uart_master_reg.tl_o[17] ),
     .X(tl_o[17])
   );
-  sg13g2_buf_1 _4362_ (
+  sg13g2_buf_1 _4407_ (
     .A(\u_uart_master_reg.tl_o[18] ),
     .X(tl_o[18])
   );
-  sg13g2_buf_1 _4363_ (
+  sg13g2_buf_1 _4408_ (
     .A(\u_uart_master_reg.tl_o[19] ),
     .X(tl_o[19])
   );
-  sg13g2_buf_1 _4364_ (
+  sg13g2_buf_1 _4409_ (
     .A(\u_uart_master_reg.tl_o[20] ),
     .X(tl_o[20])
   );
-  sg13g2_buf_1 _4365_ (
+  sg13g2_buf_1 _4410_ (
     .A(\u_uart_master_reg.tl_o[21] ),
     .X(tl_o[21])
   );
-  sg13g2_buf_1 _4366_ (
+  sg13g2_buf_1 _4411_ (
     .A(\u_uart_master_reg.tl_o[22] ),
     .X(tl_o[22])
   );
-  sg13g2_buf_1 _4367_ (
+  sg13g2_buf_1 _4412_ (
     .A(\u_uart_master_reg.tl_o[23] ),
     .X(tl_o[23])
   );
-  sg13g2_buf_1 _4368_ (
+  sg13g2_buf_1 _4413_ (
     .A(\u_uart_master_reg.tl_o[24] ),
     .X(tl_o[24])
   );
-  sg13g2_buf_1 _4369_ (
+  sg13g2_buf_1 _4414_ (
     .A(\u_uart_master_reg.tl_o[24] ),
     .X(tl_o[25])
   );
-  sg13g2_buf_1 _4370_ (
+  sg13g2_buf_1 _4415_ (
     .A(\u_uart_master_reg.tl_o[24] ),
     .X(tl_o[26])
   );
-  sg13g2_buf_1 _4371_ (
+  sg13g2_buf_1 _4416_ (
     .A(\u_uart_master_reg.tl_o[24] ),
     .X(tl_o[27])
   );
-  sg13g2_buf_1 _4372_ (
+  sg13g2_buf_1 _4417_ (
     .A(\u_uart_master_reg.tl_o[24] ),
     .X(tl_o[28])
   );
-  sg13g2_buf_1 _4373_ (
+  sg13g2_buf_1 _4418_ (
     .A(\u_uart_master_reg.tl_o[24] ),
     .X(tl_o[29])
   );
-  sg13g2_buf_1 _4374_ (
+  sg13g2_buf_1 _4419_ (
     .A(\u_uart_master_reg.tl_o[24] ),
     .X(tl_o[30])
   );
-  sg13g2_buf_1 _4375_ (
+  sg13g2_buf_1 _4420_ (
     .A(\u_uart_master_reg.tl_o[24] ),
     .X(tl_o[31])
   );
-  sg13g2_buf_1 _4376_ (
+  sg13g2_buf_1 _4421_ (
     .A(\u_uart_master_reg.tl_o[32] ),
     .X(tl_o[32])
   );
-  sg13g2_buf_1 _4377_ (
+  sg13g2_buf_1 _4422_ (
     .A(\u_uart_master_reg.tl_o[33] ),
     .X(tl_o[33])
   );
-  sg13g2_buf_1 _4378_ (
+  sg13g2_buf_1 _4423_ (
     .A(\u_uart_master_reg.tl_o[34] ),
     .X(tl_o[34])
   );
-  sg13g2_buf_1 _4379_ (
+  sg13g2_buf_1 _4424_ (
     .A(\u_uart_master_reg.tl_o[35] ),
     .X(tl_o[35])
   );
-  sg13g2_buf_1 _4380_ (
+  sg13g2_buf_1 _4425_ (
     .A(\u_uart_master_reg.tl_o[36] ),
     .X(tl_o[36])
   );
-  sg13g2_buf_1 _4381_ (
+  sg13g2_buf_1 _4426_ (
     .A(\u_uart_master_reg.tl_o[37] ),
     .X(tl_o[37])
   );
-  sg13g2_buf_1 _4382_ (
+  sg13g2_buf_1 _4427_ (
     .A(\u_uart_master_reg.tl_o[38] ),
     .X(tl_o[38])
   );
-  sg13g2_buf_1 _4383_ (
+  sg13g2_buf_1 _4428_ (
     .A(\u_uart_master_reg.tl_o[39] ),
     .X(tl_o[39])
   );
-  sg13g2_buf_1 _4384_ (
+  sg13g2_buf_1 _4429_ (
     .A(\u_uart_master_reg.tl_o[40] ),
     .X(tl_o[40])
   );
-  sg13g2_buf_1 _4385_ (
+  sg13g2_buf_1 _4430_ (
     .A(\u_uart_master_reg.tl_o[41] ),
     .X(tl_o[41])
   );
-  sg13g2_buf_1 _4386_ (
+  sg13g2_buf_1 _4431_ (
     .A(\u_uart_master_reg.tl_o[42] ),
     .X(tl_o[42])
   );
-  sg13g2_buf_1 _4387_ (
+  sg13g2_buf_1 _4432_ (
     .A(\u_uart_master_reg.tl_o[43] ),
     .X(tl_o[43])
   );
-  sg13g2_buf_1 _4388_ (
+  sg13g2_buf_1 _4433_ (
     .A(\u_uart_master_reg.tl_o[44] ),
     .X(tl_o[44])
   );
-  sg13g2_buf_1 _4389_ (
+  sg13g2_buf_1 _4434_ (
     .A(\u_uart_master_reg.tl_o[45] ),
     .X(tl_o[45])
   );
-  sg13g2_buf_1 _4390_ (
+  sg13g2_buf_1 _4435_ (
     .A(\u_uart_master_reg.tl_o[46] ),
     .X(tl_o[46])
   );
-  sg13g2_buf_1 _4391_ (
+  sg13g2_buf_1 _4436_ (
     .A(\u_uart_master_reg.tl_o[47] ),
     .X(tl_o[47])
   );
-  sg13g2_buf_1 _4392_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4437_ (
+    .A(_1956_),
     .X(tl_o[48])
   );
-  sg13g2_buf_1 _4393_ (
+  sg13g2_buf_1 _4438_ (
     .A(\u_uart_master_reg.tl_o[49] ),
     .X(tl_o[49])
   );
-  sg13g2_buf_1 _4394_ (
+  sg13g2_buf_1 _4439_ (
     .A(\u_uart_master_reg.tl_o[50] ),
     .X(tl_o[50])
   );
-  sg13g2_buf_1 _4395_ (
+  sg13g2_buf_1 _4440_ (
     .A(\u_uart_master_reg.tl_o[51] ),
     .X(tl_o[51])
   );
-  sg13g2_buf_1 _4396_ (
+  sg13g2_buf_1 _4441_ (
     .A(\u_uart_master_reg.tl_o[52] ),
     .X(tl_o[52])
   );
-  sg13g2_buf_1 _4397_ (
+  sg13g2_buf_1 _4442_ (
     .A(\u_uart_master_reg.tl_o[53] ),
     .X(tl_o[53])
   );
-  sg13g2_buf_1 _4398_ (
+  sg13g2_buf_1 _4443_ (
     .A(\u_uart_master_reg.tl_o[54] ),
     .X(tl_o[54])
   );
-  sg13g2_buf_1 _4399_ (
+  sg13g2_buf_1 _4444_ (
     .A(\u_uart_master_reg.tl_o[55] ),
     .X(tl_o[55])
   );
-  sg13g2_buf_1 _4400_ (
+  sg13g2_buf_1 _4445_ (
     .A(\u_uart_master_reg.tl_o[56] ),
     .X(tl_o[56])
   );
-  sg13g2_buf_1 _4401_ (
+  sg13g2_buf_1 _4446_ (
     .A(\u_uart_master_reg.tl_o[57] ),
     .X(tl_o[57])
   );
-  sg13g2_buf_1 _4402_ (
+  sg13g2_buf_1 _4447_ (
     .A(\u_uart_master_reg.tl_o[58] ),
     .X(tl_o[58])
   );
-  sg13g2_buf_1 _4403_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4448_ (
+    .A(_1956_),
     .X(tl_o[59])
   );
-  sg13g2_buf_1 _4404_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4449_ (
+    .A(_1956_),
     .X(tl_o[60])
   );
-  sg13g2_buf_1 _4405_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4450_ (
+    .A(_1956_),
     .X(tl_o[61])
   );
-  sg13g2_buf_1 _4406_ (
+  sg13g2_buf_1 _4451_ (
     .A(\u_uart_master_reg.tl_o[62] ),
     .X(tl_o[62])
   );
-  sg13g2_buf_1 _4407_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4452_ (
+    .A(_1956_),
     .X(tl_o[63])
   );
-  sg13g2_buf_1 _4408_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4453_ (
+    .A(_1956_),
     .X(tl_o[64])
   );
-  sg13g2_buf_1 _4409_ (
+  sg13g2_buf_1 _4454_ (
     .A(\u_uart_master_reg.tl_o[65] ),
     .X(tl_o[65])
   );
-  sg13g2_buf_1 _4410_ (
-    .A(_1935_),
+  sg13g2_buf_1 _4455_ (
+    .A(_1955_),
     .X(cio_tx_en_o)
   );
-  sg13g2_buf_1 _4411_ (
+  sg13g2_buf_1 _4456_ (
     .A(\u_uart_master_core.be_o[0] ),
     .X(be_o[0])
   );
-  sg13g2_buf_1 _4412_ (
+  sg13g2_buf_1 _4457_ (
     .A(\u_uart_master_core.be_o[1] ),
     .X(be_o[1])
   );
-  sg13g2_buf_1 _4413_ (
+  sg13g2_buf_1 _4458_ (
     .A(\u_uart_master_core.be_o[2] ),
     .X(be_o[2])
   );
-  sg13g2_buf_1 _4414_ (
+  sg13g2_buf_1 _4459_ (
     .A(\u_uart_master_core.be_o[3] ),
     .X(be_o[3])
   );
-  sg13g2_buf_1 _4415_ (
+  sg13g2_buf_1 _4460_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[0] ),
     .X(wdata_o[0])
   );
-  sg13g2_buf_1 _4416_ (
+  sg13g2_buf_1 _4461_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[1] ),
     .X(wdata_o[1])
   );
-  sg13g2_buf_1 _4417_ (
+  sg13g2_buf_1 _4462_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[2] ),
     .X(wdata_o[2])
   );
-  sg13g2_buf_1 _4418_ (
+  sg13g2_buf_1 _4463_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[3] ),
     .X(wdata_o[3])
   );
-  sg13g2_buf_1 _4419_ (
+  sg13g2_buf_1 _4464_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[4] ),
     .X(wdata_o[4])
   );
-  sg13g2_buf_1 _4420_ (
+  sg13g2_buf_1 _4465_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[5] ),
     .X(wdata_o[5])
   );
-  sg13g2_buf_1 _4421_ (
+  sg13g2_buf_1 _4466_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[6] ),
     .X(wdata_o[6])
   );
-  sg13g2_buf_1 _4422_ (
+  sg13g2_buf_1 _4467_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[7] ),
     .X(wdata_o[7])
   );
-  sg13g2_buf_1 _4423_ (
+  sg13g2_buf_1 _4468_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[8] ),
     .X(wdata_o[8])
   );
-  sg13g2_buf_1 _4424_ (
+  sg13g2_buf_1 _4469_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[9] ),
     .X(wdata_o[9])
   );
-  sg13g2_buf_1 _4425_ (
+  sg13g2_buf_1 _4470_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[10] ),
     .X(wdata_o[10])
   );
-  sg13g2_buf_1 _4426_ (
+  sg13g2_buf_1 _4471_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[11] ),
     .X(wdata_o[11])
   );
-  sg13g2_buf_1 _4427_ (
+  sg13g2_buf_1 _4472_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[12] ),
     .X(wdata_o[12])
   );
-  sg13g2_buf_1 _4428_ (
+  sg13g2_buf_1 _4473_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[13] ),
     .X(wdata_o[13])
   );
-  sg13g2_buf_1 _4429_ (
+  sg13g2_buf_1 _4474_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[14] ),
     .X(wdata_o[14])
   );
-  sg13g2_buf_1 _4430_ (
+  sg13g2_buf_1 _4475_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[15] ),
     .X(wdata_o[15])
   );
-  sg13g2_buf_1 _4431_ (
+  sg13g2_buf_1 _4476_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[16] ),
     .X(wdata_o[16])
   );
-  sg13g2_buf_1 _4432_ (
+  sg13g2_buf_1 _4477_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[17] ),
     .X(wdata_o[17])
   );
-  sg13g2_buf_1 _4433_ (
+  sg13g2_buf_1 _4478_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[18] ),
     .X(wdata_o[18])
   );
-  sg13g2_buf_1 _4434_ (
+  sg13g2_buf_1 _4479_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[19] ),
     .X(wdata_o[19])
   );
-  sg13g2_buf_1 _4435_ (
+  sg13g2_buf_1 _4480_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[20] ),
     .X(wdata_o[20])
   );
-  sg13g2_buf_1 _4436_ (
+  sg13g2_buf_1 _4481_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[21] ),
     .X(wdata_o[21])
   );
-  sg13g2_buf_1 _4437_ (
+  sg13g2_buf_1 _4482_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[22] ),
     .X(wdata_o[22])
   );
-  sg13g2_buf_1 _4438_ (
+  sg13g2_buf_1 _4483_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[23] ),
     .X(wdata_o[23])
   );
-  sg13g2_buf_1 _4439_ (
+  sg13g2_buf_1 _4484_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[24] ),
     .X(wdata_o[24])
   );
-  sg13g2_buf_1 _4440_ (
+  sg13g2_buf_1 _4485_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[25] ),
     .X(wdata_o[25])
   );
-  sg13g2_buf_1 _4441_ (
+  sg13g2_buf_1 _4486_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[26] ),
     .X(wdata_o[26])
   );
-  sg13g2_buf_1 _4442_ (
+  sg13g2_buf_1 _4487_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[27] ),
     .X(wdata_o[27])
   );
-  sg13g2_buf_1 _4443_ (
+  sg13g2_buf_1 _4488_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[28] ),
     .X(wdata_o[28])
   );
-  sg13g2_buf_1 _4444_ (
+  sg13g2_buf_1 _4489_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[29] ),
     .X(wdata_o[29])
   );
-  sg13g2_buf_1 _4445_ (
+  sg13g2_buf_1 _4490_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[30] ),
     .X(wdata_o[30])
   );
-  sg13g2_buf_1 _4446_ (
+  sg13g2_buf_1 _4491_ (
     .A(\u_uart_master_core.u_host_bridge.wdata_o[31] ),
     .X(wdata_o[31])
   );
-  sg13g2_buf_1 _4447_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4492_ (
+    .A(_1956_),
     .X(addr_o[0])
   );
-  sg13g2_buf_1 _4448_ (
-    .A(_1936_),
+  sg13g2_buf_1 _4493_ (
+    .A(_1956_),
     .X(addr_o[1])
   );
-  sg13g2_buf_1 _4449_ (
+  sg13g2_buf_1 _4494_ (
     .A(\u_uart_master_core.addr_o[2] ),
     .X(addr_o[2])
   );
-  sg13g2_buf_1 _4450_ (
+  sg13g2_buf_1 _4495_ (
     .A(\u_uart_master_core.addr_o[3] ),
     .X(addr_o[3])
   );
-  sg13g2_buf_1 _4451_ (
+  sg13g2_buf_1 _4496_ (
     .A(\u_uart_master_core.addr_o[4] ),
     .X(addr_o[4])
   );
-  sg13g2_buf_1 _4452_ (
+  sg13g2_buf_1 _4497_ (
     .A(\u_uart_master_core.addr_o[5] ),
     .X(addr_o[5])
   );
-  sg13g2_buf_1 _4453_ (
+  sg13g2_buf_1 _4498_ (
     .A(\u_uart_master_core.addr_o[6] ),
     .X(addr_o[6])
   );
-  sg13g2_buf_1 _4454_ (
+  sg13g2_buf_1 _4499_ (
     .A(\u_uart_master_core.addr_o[7] ),
     .X(addr_o[7])
   );
-  sg13g2_buf_1 _4455_ (
+  sg13g2_buf_1 _4500_ (
     .A(\u_uart_master_core.addr_o[8] ),
     .X(addr_o[8])
   );
-  sg13g2_buf_1 _4456_ (
+  sg13g2_buf_1 _4501_ (
     .A(\u_uart_master_core.addr_o[9] ),
     .X(addr_o[9])
   );
-  sg13g2_buf_1 _4457_ (
+  sg13g2_buf_1 _4502_ (
     .A(\u_uart_master_core.addr_o[10] ),
     .X(addr_o[10])
   );
-  sg13g2_buf_1 _4458_ (
+  sg13g2_buf_1 _4503_ (
     .A(\u_uart_master_core.addr_o[11] ),
     .X(addr_o[11])
   );
-  sg13g2_buf_1 _4459_ (
+  sg13g2_buf_1 _4504_ (
     .A(\u_uart_master_core.addr_o[12] ),
     .X(addr_o[12])
   );
-  sg13g2_buf_1 _4460_ (
+  sg13g2_buf_1 _4505_ (
     .A(\u_uart_master_core.addr_o[13] ),
     .X(addr_o[13])
   );
-  sg13g2_buf_1 _4461_ (
+  sg13g2_buf_1 _4506_ (
     .A(\u_uart_master_core.addr_o[14] ),
     .X(addr_o[14])
   );
-  sg13g2_buf_1 _4462_ (
+  sg13g2_buf_1 _4507_ (
     .A(\u_uart_master_core.addr_o[15] ),
     .X(addr_o[15])
   );
-  sg13g2_buf_1 _4463_ (
+  sg13g2_buf_1 _4508_ (
     .A(\u_uart_master_core.addr_o[16] ),
     .X(addr_o[16])
   );
-  sg13g2_buf_1 _4464_ (
+  sg13g2_buf_1 _4509_ (
     .A(\u_uart_master_core.addr_o[17] ),
     .X(addr_o[17])
   );
-  sg13g2_buf_1 _4465_ (
+  sg13g2_buf_1 _4510_ (
     .A(\u_uart_master_core.addr_o[18] ),
     .X(addr_o[18])
   );
-  sg13g2_buf_1 _4466_ (
+  sg13g2_buf_1 _4511_ (
     .A(\u_uart_master_core.addr_o[19] ),
     .X(addr_o[19])
   );
-  sg13g2_buf_1 _4467_ (
+  sg13g2_buf_1 _4512_ (
     .A(\u_uart_master_core.addr_o[20] ),
     .X(addr_o[20])
   );
-  sg13g2_buf_1 _4468_ (
+  sg13g2_buf_1 _4513_ (
     .A(\u_uart_master_core.addr_o[21] ),
     .X(addr_o[21])
   );
-  sg13g2_buf_1 _4469_ (
+  sg13g2_buf_1 _4514_ (
     .A(\u_uart_master_core.addr_o[22] ),
     .X(addr_o[22])
   );
-  sg13g2_buf_1 _4470_ (
+  sg13g2_buf_1 _4515_ (
     .A(\u_uart_master_core.addr_o[23] ),
     .X(addr_o[23])
   );
-  sg13g2_buf_1 _4471_ (
+  sg13g2_buf_1 _4516_ (
     .A(\u_uart_master_core.addr_o[24] ),
     .X(addr_o[24])
   );
-  sg13g2_buf_1 _4472_ (
+  sg13g2_buf_1 _4517_ (
     .A(\u_uart_master_core.addr_o[25] ),
     .X(addr_o[25])
   );
-  sg13g2_buf_1 _4473_ (
+  sg13g2_buf_1 _4518_ (
     .A(\u_uart_master_core.addr_o[26] ),
     .X(addr_o[26])
   );
-  sg13g2_buf_1 _4474_ (
+  sg13g2_buf_1 _4519_ (
     .A(\u_uart_master_core.addr_o[27] ),
     .X(addr_o[27])
   );
-  sg13g2_buf_1 _4475_ (
+  sg13g2_buf_1 _4520_ (
     .A(\u_uart_master_core.addr_o[28] ),
     .X(addr_o[28])
   );
-  sg13g2_buf_1 _4476_ (
+  sg13g2_buf_1 _4521_ (
     .A(\u_uart_master_core.addr_o[29] ),
     .X(addr_o[29])
   );
-  sg13g2_buf_1 _4477_ (
+  sg13g2_buf_1 _4522_ (
     .A(\u_uart_master_core.addr_o[30] ),
     .X(addr_o[30])
   );
-  sg13g2_buf_1 _4478_ (
+  sg13g2_buf_1 _4523_ (
     .A(\u_uart_master_core.addr_o[31] ),
     .X(addr_o[31])
   );

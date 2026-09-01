@@ -7,24 +7,24 @@ read_slang -I /home/eneadim/github/flexsoc/hw/ips/pkgs \
            -I /home/eneadim/github/flexsoc/hw/ips/tlul \
            -D SYNTHESIS \
            --ignore-assertions \
-           -f /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/rtl/rtl_common.f \
-           -f /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/rtl/rtl_ip.f \
+           -f /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/rtl/rtl_common.f \
+           -f /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/rtl/rtl_ip.f \
            --top uart_master
 
 # basic synth
 synth -top uart_master -noabc
 
 # technology-boundary checkpoints used by equivalence diagnostics
-write_rtlil /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_generic.il
+write_rtlil /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_generic.il
 
 # prepare FF types while keeping Yosys FF boundaries visible to ABC
 dfflibmap -prepare -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
-write_rtlil /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_dffmap.il
+write_rtlil /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_dffmap.il
 
 # map combinational logic and preserve FF output wires used by EQY
-abc -keepff -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib -script /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/delay1.abc \
-    -constr /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/abc.constr
-write_rtlil /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_abc.il
+abc -keepff -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib -script /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/delay1.abc \
+    -constr /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/abc.constr
+write_rtlil /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_abc.il
 
 # bind the prepared FF types to final technology cells after ABC
 dfflibmap -map-only -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
@@ -38,11 +38,11 @@ opt_clean -purge
 hilomap -singleton -hicell sky130_fd_sc_hd__conb_1 HI -locell sky130_fd_sc_hd__conb_1 LO
 insbuf -buf sky130_fd_sc_hd__buf_4 A X
 check -assert -mapped
-write_rtlil /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_clean.il
+write_rtlil /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_clean.il
 
 # Basic stats of std cells and area
 stat -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 
 # Final netlist consumed directly by physical implementation
-write_verilog -nohex -nodec /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_synth.v
-write_json /tmp/flexsoc-migrate-uart-master/runs/uart_master/migrate/syn/sky130/uart_master_synth.json
+write_verilog -nohex -nodec /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_synth.v
+write_json /tmp/flexsoc-repack/uart_master/runs/uart_master/dev/syn/sky130/uart_master_synth.json
