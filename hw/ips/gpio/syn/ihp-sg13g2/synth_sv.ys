@@ -7,24 +7,24 @@ read_slang -I /home/eneadim/github/flexsoc/hw/ips/pkgs \
            -I /home/eneadim/github/flexsoc/hw/ips/tlul \
            -D SYNTHESIS \
            --ignore-assertions \
-           -f /tmp/flexsoc-develop-gpio/runs/gpio/develop/rtl/rtl_common.f \
-           -f /tmp/flexsoc-develop-gpio/runs/gpio/develop/rtl/rtl_ip.f \
+           -f /tmp/flexsoc-repack/gpio/runs/gpio/dev/rtl/rtl_common.f \
+           -f /tmp/flexsoc-repack/gpio/runs/gpio/dev/rtl/rtl_ip.f \
            --top gpio
 
 # basic synth
 synth -top gpio -noabc
 
 # technology-boundary checkpoints used by equivalence diagnostics
-write_rtlil /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_generic.il
+write_rtlil /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/gpio_generic.il
 
 # prepare FF types while keeping Yosys FF boundaries visible to ABC
 dfflibmap -prepare -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
-write_rtlil /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_dffmap.il
+write_rtlil /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/gpio_dffmap.il
 
 # map combinational logic and preserve FF output wires used by EQY
-abc -keepff -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib -script /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/delay1.abc \
-    -constr /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/abc.constr
-write_rtlil /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_abc.il
+abc -keepff -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib -script /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/delay1.abc \
+    -constr /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/abc.constr
+write_rtlil /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/gpio_abc.il
 
 # bind the prepared FF types to final technology cells after ABC
 dfflibmap -map-only -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
@@ -38,11 +38,11 @@ opt_clean -purge
 hilomap -singleton -hicell sg13g2_tiehi L_HI -locell sg13g2_tielo L_LO
 insbuf -buf sg13g2_buf_1 A X
 check -assert -mapped
-write_rtlil /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_clean.il
+write_rtlil /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/gpio_clean.il
 
 # Basic stats of std cells and area
 stat -liberty /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 
 # Final netlist consumed directly by physical implementation
-write_verilog -nohex -nodec /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_synth.v
-write_json /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_synth.json
+write_verilog -nohex -nodec /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/gpio_synth.v
+write_json /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/gpio_synth.json

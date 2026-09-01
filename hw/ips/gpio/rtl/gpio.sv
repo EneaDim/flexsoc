@@ -15,9 +15,20 @@ module gpio
   gpio_reg2hw_t reg2hw;
   gpio_hw2reg_t hw2reg;
 
+  logic core_rst_sync_ni;
+  prim_ff_2sync #(
+    .Width      (1),
+    .ResetValue (1'b0)
+  ) u_core_reset_sync (
+    .clk_i (clk_i),
+    .rst_ni(rst_ni),
+    .d_i   (1'b1),
+    .q_o   (core_rst_sync_ni)
+  );
+
   gpio_reg_top u_gpio_reg (
     .clk_i(clk_i),
-    .rst_ni(rst_ni),
+    .rst_ni(core_rst_sync_ni),
     .tl_i(tl_i),
     .tl_o(tl_o),
     .reg2hw(reg2hw),
@@ -27,7 +38,7 @@ module gpio
 
   gpio_core u_gpio_core (
     .clk_i(clk_i),
-    .rst_ni(rst_ni),
+    .rst_ni(core_rst_sync_ni),
     .reg2hw(reg2hw),
     .hw2reg(hw2reg),
     .cio_gpio_i(cio_gpio_i),

@@ -3,7 +3,7 @@
 #
 # Analysis : sdf
 # Design   : gpio
-# Variant  : develop
+# Variant  : dev
 # PDK      : sky130
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/sky130/gpio_synth.v
-#   SDC           : /tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/sky130/gpio.sdc
+#   Netlist       : /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/sky130/gpio_synth.v
+#   SDC           : /tmp/flexsoc-repack/gpio/runs/gpio/dev/constraints/gpio.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/sky130/sdf/template_reports
+#   Report dir    : /tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/sky130/sdf/template_reports
 #
 # Limitations:
 #   - SDF reflects the linked netlist and timing model for the selected corner.
@@ -42,12 +42,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/sky130/sdf/template_reports}
+set report_dir {/tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/sky130/sdf/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ciel/sky130/versions/f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_100C_1v80.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/sky130/gpio_synth.v}
-set sdc {/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/sky130/gpio.sdc}
+set netlist {/tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/sky130/gpio_synth.v}
+set sdc {/tmp/flexsoc-repack/gpio/runs/gpio/dev/constraints/gpio.sdc}
 set spef {}
 set top {gpio}
 set stage {post_syn}
@@ -139,7 +139,7 @@ check_setup -verbose
 puts "=== Step 7/7: Analysis-specific reporting ==="
 
 # write_sdf serializes the linked timing model for gate-level simulation.
-set sdf_file {/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/sky130/sdf/template_reports/gpio_tt.sdf}
+set sdf_file {/tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/sky130/sdf/template_reports/gpio_tt.sdf}
 puts "sdf=$sdf_file"
 write_sdf -divider . -include_typ -no_timestamp -no_version $sdf_file
 proc flexsoc_complete_sdf_typ_header {path} {

@@ -30,39 +30,39 @@ setup_tb                CLEAN  -
 RTL lint  Slang → Verilator
 Tool       Status  Errors  Warnings  Latch  Width  Unused
 slang      PASS         0         0      0      0       0
-verilator  PASS         0        82      0      0       0
+verilator  PASS         0        83      0      0       0
 
 CDC / RDC  post-lint structural analysis
 Status       REVIEW                                      
-Domains      clocks=1 · resets=1 · sequential=34         
+Domains      clocks=1 · resets=2 · sequential=36         
 CDC          raw=0 · safe=0 · review=0 · warn=0 · error=0
-RDC          raw=0 · safe=0 · review=1 · warn=0 · error=0
-Obligations  1                                           
-Log          logs/analysis/cdc_rdc/cdc_rdc.log           
+RDC          raw=0 · safe=1 · review=0 · warn=0 · error=0
+Obligations  0                                           
+Report       analysis/cdc_rdc/cdc_rdc.rpt                
 
 Functional verification
 Status           PASS              
 Generated tests  8                 
 sv logs          8                 
 cocotb logs      8                 
-Coverage all     3522/11009  31.99%
-Coverage design  444/682  65.10%   
+Coverage all     3535/11026  32.06%
+Coverage design  446/684  65.20%   
 
 Formal verification
 Suite       Stage  Status  Time  Traces
 csr         bmc    PASS      1s       0
 csr         prove  PASS      0s       0
 csr         cover  PASS      0s       2
-properties  bmc    PASS      0s       0
+properties  bmc    PASS      1s       0
 properties  prove  PASS      0s       0
 properties  cover  PASS      0s       8
 
 Synthesis
 Strategy         delay1                 
 Netlist          syn/sky130/gpio_synth.v
-Cells            473                    
-Area             4664.4736              
-Sequential area  2452.352               
+Cells            474                    
+Area             4656.9664              
+Sequential area  2502.4                 
 Errors           0                      
 Warnings         0                      
 
@@ -84,5 +84,80 @@ Gate-level simulation  40/40  PASS · interconnect none
 Power estimate         PASS                           
 Activity power         24/24  PASS                    
 Timing / power fusion  24/24  PASS                    
+STA QoR
+Corner  Mode   Status   WNS (ns)   TNS (ns)  Viol  Unconstr
+ss      setup  PASS    +0.000000  +0.000000     0         0
+ss      hold   WARN    -0.480000  -0.960000     2         0
+tt      setup  PASS    +0.000000  +0.000000     0         0
+tt      hold   WARN    -0.290000  -0.590000     2         0
+ff      setup  PASS    +0.000000  +0.000000     0         0
+ff      hold   WARN    -0.180000  -0.370000     2         0
+GLS matrix
+Test               zero     unit      min      typ      max  
+auto_toggle       PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+corners           PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+input_filter      PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+interrupt_levels  PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+random_seed_1     PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+random_seed_2     PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+reconfig          PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+smoke             PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+Power estimate
+Corner  Internal (mW)  Switching (mW)  Leakage (µW)  Total (mW)
+ss             +0.530          +0.099        +0.001      +0.629
+tt             +0.572          +0.108        +0.721      +0.680
+ff             +0.643          +0.126        +0.004      +0.769
+Activity power workloads
+Workload                Test              Backend  Timing  Status
+auto_toggle_sv_ff       auto_toggle         sv      min    PASS  
+corners_sv_ff           corners             sv      min    PASS  
+input_filter_sv_ff      input_filter        sv      min    PASS  
+interrupt_levels_sv_ff  interrupt_levels    sv      min    PASS  
+random_seed_1_sv_ff     random_seed_1       sv      min    PASS  
+random_seed_2_sv_ff     random_seed_2       sv      min    PASS  
+reconfig_sv_ff          reconfig            sv      min    PASS  
+smoke_sv_ff             smoke               sv      min    PASS  
+auto_toggle_sv_tt       auto_toggle         sv      typ    PASS  
+corners_sv_tt           corners             sv      typ    PASS  
+input_filter_sv_tt      input_filter        sv      typ    PASS  
+interrupt_levels_sv_tt  interrupt_levels    sv      typ    PASS  
+random_seed_1_sv_tt     random_seed_1       sv      typ    PASS  
+random_seed_2_sv_tt     random_seed_2       sv      typ    PASS  
+reconfig_sv_tt          reconfig            sv      typ    PASS  
+smoke_sv_tt             smoke               sv      typ    PASS  
+auto_toggle_sv_ss       auto_toggle         sv      max    PASS  
+corners_sv_ss           corners             sv      max    PASS  
+input_filter_sv_ss      input_filter        sv      max    PASS  
+interrupt_levels_sv_ss  interrupt_levels    sv      max    PASS  
+random_seed_1_sv_ss     random_seed_1       sv      max    PASS  
+random_seed_2_sv_ss     random_seed_2       sv      max    PASS  
+reconfig_sv_ss          reconfig            sv      max    PASS  
+smoke_sv_ss             smoke               sv      max    PASS  
+Timing / power fusion workloads
+Workload                Test              Backend  Timing  Status
+auto_toggle_sv_ff       auto_toggle         sv      min    PASS  
+corners_sv_ff           corners             sv      min    PASS  
+input_filter_sv_ff      input_filter        sv      min    PASS  
+interrupt_levels_sv_ff  interrupt_levels    sv      min    PASS  
+random_seed_1_sv_ff     random_seed_1       sv      min    PASS  
+random_seed_2_sv_ff     random_seed_2       sv      min    PASS  
+reconfig_sv_ff          reconfig            sv      min    PASS  
+smoke_sv_ff             smoke               sv      min    PASS  
+auto_toggle_sv_tt       auto_toggle         sv      typ    PASS  
+corners_sv_tt           corners             sv      typ    PASS  
+input_filter_sv_tt      input_filter        sv      typ    PASS  
+interrupt_levels_sv_tt  interrupt_levels    sv      typ    PASS  
+random_seed_1_sv_tt     random_seed_1       sv      typ    PASS  
+random_seed_2_sv_tt     random_seed_2       sv      typ    PASS  
+reconfig_sv_tt          reconfig            sv      typ    PASS  
+smoke_sv_tt             smoke               sv      typ    PASS  
+auto_toggle_sv_ss       auto_toggle         sv      max    PASS  
+corners_sv_ss           corners             sv      max    PASS  
+input_filter_sv_ss      input_filter        sv      max    PASS  
+interrupt_levels_sv_ss  interrupt_levels    sv      max    PASS  
+random_seed_1_sv_ss     random_seed_1       sv      max    PASS  
+random_seed_2_sv_ss     random_seed_2       sv      max    PASS  
+reconfig_sv_ss          reconfig            sv      max    PASS  
+smoke_sv_ss             smoke               sv      max    PASS  
 
-Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/.ip-save.gpio.o2mcqc5v/gpio/meta/sky130/metrics.json
+Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/.ip-save.gpio.38esirqx/gpio/meta/sky130/metrics.json

@@ -276,16 +276,8 @@ module gpio(clk_i, rst_ni, cio_gpio_i, cio_gpio_o, cio_gpio_en_o, intr_gpio_o, t
   wire _246_;
   wire _247_;
   wire _248_;
-  wire _249_;
-  wire _250_;
-  wire _251_;
-  wire _252_;
-  wire _253_;
-  wire _254_;
-  wire _255_;
-  wire _256_;
-  wire _257_;
-  wire _258_;
+  (* hdlname = "core_rst_sync_ni" *)
+  wire core_rst_sync_ni;
   (* hdlname = "hw2reg" *)
   wire \hw2reg[0] ;
   (* hdlname = "hw2reg" *)
@@ -350,6 +342,8 @@ module gpio(clk_i, rst_ni, cio_gpio_i, cio_gpio_o, cio_gpio_en_o, intr_gpio_o, t
   wire \reg2hw[8] ;
   (* hdlname = "reg2hw" *)
   wire \reg2hw[9] ;
+  (* hdlname = "u_core_reset_sync intq" *)
+  wire \u_core_reset_sync.intq ;
   (* hdlname = "u_gpio_core data_in_q" *)
   wire \u_gpio_core.data_in_q[0] ;
   (* hdlname = "u_gpio_core data_in_q" *)
@@ -532,2498 +526,2465 @@ module gpio(clk_i, rst_ni, cio_gpio_i, cio_gpio_o, cio_gpio_en_o, intr_gpio_o, t
   wire \u_gpio_reg.tl_o[62] ;
   (* hdlname = "u_gpio_reg tl_o" *)
   wire \u_gpio_reg.tl_o[65] ;
-  sg13g2_mux2_1 _259_ (
+  sg13g2_mux2_1 _249_ (
     .A0(\u_gpio_core.gen_input_filter[2].u_filter.filter_synced ),
     .A1(\u_gpio_core.gen_input_filter[2].u_filter.stored_value_q ),
     .S(\reg2hw[18] ),
     .X(\hw2reg[11] )
   );
-  sg13g2_inv_1 _260_ (
+  sg13g2_inv_1 _250_ (
     .A(\u_gpio_core.data_in_q[2] ),
     .Y(_066_)
   );
-  sg13g2_a21oi_1 _261_ (
+  sg13g2_a21oi_1 _251_ (
     .A1(_066_),
     .A2(\reg2hw[2] ),
     .B1(\reg2hw[10] ),
     .Y(_067_)
   );
-  sg13g2_inv_1 _262_ (
+  sg13g2_inv_1 _252_ (
     .A(\reg2hw[6] ),
     .Y(_068_)
   );
-  sg13g2_nor2_1 _263_ (
+  sg13g2_nor2_1 _253_ (
     .A(_066_),
     .B(_068_),
     .Y(_069_)
   );
-  sg13g2_nor3_1 _264_ (
+  sg13g2_nor3_1 _254_ (
     .A(\reg2hw[14] ),
     .B(_069_),
     .C(\hw2reg[11] ),
     .Y(_070_)
   );
-  sg13g2_a21oi_1 _265_ (
+  sg13g2_a21oi_1 _255_ (
     .A1(\hw2reg[11] ),
     .A2(_067_),
     .B1(_070_),
     .Y(\u_gpio_core.intr_gpio_o[2] )
   );
-  sg13g2_mux2_1 _266_ (
+  sg13g2_mux2_1 _256_ (
     .A0(\u_gpio_core.gen_input_filter[1].u_filter.filter_synced ),
     .A1(\u_gpio_core.gen_input_filter[1].u_filter.stored_value_q ),
     .S(\reg2hw[17] ),
     .X(\hw2reg[10] )
   );
-  sg13g2_inv_1 _267_ (
+  sg13g2_inv_1 _257_ (
     .A(\u_gpio_core.data_in_q[1] ),
     .Y(_071_)
   );
-  sg13g2_a21oi_1 _268_ (
+  sg13g2_a21oi_1 _258_ (
     .A1(_071_),
     .A2(\reg2hw[1] ),
     .B1(\reg2hw[9] ),
     .Y(_072_)
   );
-  sg13g2_inv_1 _269_ (
+  sg13g2_inv_1 _259_ (
     .A(\reg2hw[5] ),
     .Y(_073_)
   );
-  sg13g2_nor2_1 _270_ (
+  sg13g2_nor2_1 _260_ (
     .A(_073_),
     .B(_071_),
     .Y(_074_)
   );
-  sg13g2_nor3_1 _271_ (
+  sg13g2_nor3_1 _261_ (
     .A(\reg2hw[13] ),
     .B(_074_),
     .C(\hw2reg[10] ),
     .Y(_075_)
   );
-  sg13g2_a21oi_1 _272_ (
+  sg13g2_a21oi_1 _262_ (
     .A1(\hw2reg[10] ),
     .A2(_072_),
     .B1(_075_),
     .Y(\u_gpio_core.intr_gpio_o[1] )
   );
-  sg13g2_mux2_1 _273_ (
+  sg13g2_mux2_1 _263_ (
     .A0(\u_gpio_core.gen_input_filter[0].u_filter.filter_synced ),
     .A1(\u_gpio_core.gen_input_filter[0].u_filter.stored_value_q ),
     .S(\reg2hw[16] ),
     .X(\hw2reg[9] )
   );
-  sg13g2_inv_1 _274_ (
+  sg13g2_inv_1 _264_ (
     .A(\u_gpio_core.data_in_q[0] ),
     .Y(_076_)
   );
-  sg13g2_a21oi_1 _275_ (
+  sg13g2_a21oi_1 _265_ (
     .A1(_076_),
     .A2(\reg2hw[0] ),
     .B1(\reg2hw[8] ),
     .Y(_077_)
   );
-  sg13g2_inv_1 _276_ (
+  sg13g2_inv_1 _266_ (
     .A(\reg2hw[4] ),
     .Y(_078_)
   );
-  sg13g2_nor2_1 _277_ (
+  sg13g2_nor2_1 _267_ (
     .A(_078_),
     .B(_076_),
     .Y(_079_)
   );
-  sg13g2_nor3_1 _278_ (
+  sg13g2_nor3_1 _268_ (
     .A(\reg2hw[12] ),
     .B(_079_),
     .C(\hw2reg[9] ),
     .Y(_080_)
   );
-  sg13g2_a21oi_1 _279_ (
+  sg13g2_a21oi_1 _269_ (
     .A1(\hw2reg[9] ),
     .A2(_077_),
     .B1(_080_),
     .Y(\u_gpio_core.intr_gpio_o[0] )
   );
-  sg13g2_inv_1 _280_ (
+  sg13g2_inv_1 _270_ (
     .A(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[2] ),
     .Y(_081_)
   );
-  sg13g2_inv_1 _281_ (
+  sg13g2_inv_1 _271_ (
     .A(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[1] ),
     .Y(_082_)
   );
-  sg13g2_inv_1 _282_ (
+  sg13g2_inv_1 _272_ (
     .A(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[0] ),
     .Y(_083_)
   );
-  sg13g2_nor2_1 _283_ (
+  sg13g2_nor2_1 _273_ (
     .A(_082_),
     .B(_083_),
     .Y(_084_)
   );
-  sg13g2_inv_1 _284_ (
+  sg13g2_inv_1 _274_ (
     .A(_084_),
     .Y(_085_)
   );
-  sg13g2_nor2_1 _285_ (
+  sg13g2_nor2_1 _275_ (
     .A(_081_),
     .B(_085_),
     .Y(_086_)
   );
-  sg13g2_inv_1 _286_ (
+  sg13g2_inv_1 _276_ (
     .A(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[3] ),
     .Y(_087_)
   );
-  sg13g2_xnor2_1 _287_ (
+  sg13g2_xnor2_1 _277_ (
     .A(\u_gpio_core.gen_input_filter[3].u_filter.filter_synced ),
     .B(\u_gpio_core.gen_input_filter[3].u_filter.filter_q ),
     .Y(_088_)
   );
-  sg13g2_o21ai_1 _288_ (
+  sg13g2_o21ai_1 _278_ (
     .A1(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[2] ),
     .A2(_084_),
     .B1(_088_),
     .Y(_089_)
   );
-  sg13g2_a21oi_1 _289_ (
+  sg13g2_a21oi_1 _279_ (
     .A1(_086_),
     .A2(_087_),
     .B1(_089_),
     .Y(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[2] )
   );
-  sg13g2_nand2_1 _290_ (
+  sg13g2_nand2_1 _280_ (
     .A(_086_),
     .B(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[3] ),
     .Y(_090_)
   );
-  sg13g2_xnor2_1 _291_ (
+  sg13g2_xnor2_1 _281_ (
     .A(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[1] ),
     .B(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[0] ),
     .Y(_091_)
   );
-  sg13g2_inv_1 _292_ (
+  sg13g2_inv_1 _282_ (
     .A(_088_),
     .Y(_092_)
   );
-  sg13g2_a21oi_1 _293_ (
+  sg13g2_a21oi_1 _283_ (
     .A1(_090_),
     .A2(_091_),
     .B1(_092_),
     .Y(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[1] )
   );
-  sg13g2_a21oi_1 _294_ (
+  sg13g2_a21oi_1 _284_ (
     .A1(_090_),
     .A2(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[0] ),
     .B1(_092_),
     .Y(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[0] )
   );
-  sg13g2_inv_1 _295_ (
+  sg13g2_inv_1 _285_ (
     .A(_086_),
     .Y(_093_)
   );
-  sg13g2_a21oi_1 _296_ (
+  sg13g2_a21oi_1 _286_ (
     .A1(_093_),
     .A2(_087_),
     .B1(_092_),
     .Y(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[3] )
   );
-  sg13g2_inv_1 _297_ (
+  sg13g2_inv_1 _287_ (
     .A(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[3] ),
     .Y(_094_)
   );
-  sg13g2_inv_1 _298_ (
+  sg13g2_inv_1 _288_ (
     .A(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[2] ),
     .Y(_095_)
   );
-  sg13g2_inv_1 _299_ (
+  sg13g2_inv_1 _289_ (
     .A(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[0] ),
     .Y(_096_)
   );
-  sg13g2_inv_1 _300_ (
+  sg13g2_inv_1 _290_ (
     .A(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[1] ),
     .Y(_097_)
   );
-  sg13g2_nor2_1 _301_ (
+  sg13g2_nor2_1 _291_ (
     .A(_096_),
     .B(_097_),
     .Y(_098_)
   );
-  sg13g2_inv_1 _302_ (
+  sg13g2_inv_1 _292_ (
     .A(_098_),
     .Y(_099_)
   );
-  sg13g2_nor2_1 _303_ (
+  sg13g2_nor2_1 _293_ (
     .A(_095_),
     .B(_099_),
     .Y(_100_)
   );
-  sg13g2_xnor2_1 _304_ (
+  sg13g2_xnor2_1 _294_ (
     .A(\u_gpio_core.gen_input_filter[2].u_filter.filter_synced ),
     .B(\u_gpio_core.gen_input_filter[2].u_filter.filter_q ),
     .Y(_101_)
   );
-  sg13g2_inv_1 _305_ (
+  sg13g2_inv_1 _295_ (
     .A(_101_),
     .Y(_102_)
   );
-  sg13g2_a21oi_1 _306_ (
+  sg13g2_a21oi_1 _296_ (
     .A1(_095_),
     .A2(_099_),
     .B1(_102_),
     .Y(_103_)
   );
-  sg13g2_inv_1 _307_ (
+  sg13g2_inv_1 _297_ (
     .A(_103_),
     .Y(_104_)
   );
-  sg13g2_a21oi_1 _308_ (
+  sg13g2_a21oi_1 _298_ (
     .A1(_094_),
     .A2(_100_),
     .B1(_104_),
     .Y(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[2] )
   );
-  sg13g2_nand2_1 _309_ (
+  sg13g2_nand2_1 _299_ (
     .A(_100_),
     .B(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[3] ),
     .Y(_105_)
   );
-  sg13g2_xnor2_1 _310_ (
+  sg13g2_xnor2_1 _300_ (
     .A(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[0] ),
     .B(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[1] ),
     .Y(_106_)
   );
-  sg13g2_a21oi_1 _311_ (
+  sg13g2_a21oi_1 _301_ (
     .A1(_105_),
     .A2(_106_),
     .B1(_102_),
     .Y(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[1] )
   );
-  sg13g2_a21oi_1 _312_ (
+  sg13g2_a21oi_1 _302_ (
     .A1(_105_),
     .A2(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[0] ),
     .B1(_102_),
     .Y(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[0] )
   );
-  sg13g2_inv_1 _313_ (
+  sg13g2_inv_1 _303_ (
     .A(_100_),
     .Y(_107_)
   );
-  sg13g2_a21oi_1 _314_ (
+  sg13g2_a21oi_1 _304_ (
     .A1(_107_),
     .A2(_094_),
     .B1(_102_),
     .Y(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[3] )
   );
-  sg13g2_inv_1 _315_ (
-    .A(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[2] ),
+  sg13g2_inv_1 _305_ (
+    .A(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[0] ),
     .Y(_108_)
   );
-  sg13g2_inv_1 _316_ (
+  sg13g2_inv_1 _306_ (
     .A(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[1] ),
     .Y(_109_)
   );
-  sg13g2_inv_1 _317_ (
-    .A(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[0] ),
+  sg13g2_nor2_1 _307_ (
+    .A(_108_),
+    .B(_109_),
     .Y(_110_)
   );
-  sg13g2_nor2_1 _318_ (
-    .A(_109_),
-    .B(_110_),
+  sg13g2_nand2_1 _308_ (
+    .A(_110_),
+    .B(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[2] ),
     .Y(_111_)
   );
-  sg13g2_inv_1 _319_ (
+  sg13g2_inv_1 _309_ (
     .A(_111_),
     .Y(_112_)
   );
-  sg13g2_nor2_1 _320_ (
-    .A(_108_),
-    .B(_112_),
+  sg13g2_inv_1 _310_ (
+    .A(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[3] ),
     .Y(_113_)
   );
-  sg13g2_inv_1 _321_ (
-    .A(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[3] ),
-    .Y(_114_)
-  );
-  sg13g2_xnor2_1 _322_ (
+  sg13g2_xnor2_1 _311_ (
     .A(\u_gpio_core.gen_input_filter[1].u_filter.filter_synced ),
     .B(\u_gpio_core.gen_input_filter[1].u_filter.filter_q ),
+    .Y(_114_)
+  );
+  sg13g2_o21ai_1 _312_ (
+    .A1(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[2] ),
+    .A2(_110_),
+    .B1(_114_),
     .Y(_115_)
   );
-  sg13g2_o21ai_1 _323_ (
-    .A1(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[2] ),
-    .A2(_111_),
+  sg13g2_a21oi_1 _313_ (
+    .A1(_112_),
+    .A2(_113_),
     .B1(_115_),
-    .Y(_116_)
-  );
-  sg13g2_a21oi_1 _324_ (
-    .A1(_113_),
-    .A2(_114_),
-    .B1(_116_),
     .Y(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[2] )
   );
-  sg13g2_nand2_1 _325_ (
-    .A(_113_),
+  sg13g2_nand2_1 _314_ (
+    .A(_112_),
     .B(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[3] ),
+    .Y(_116_)
+  );
+  sg13g2_xnor2_1 _315_ (
+    .A(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[0] ),
+    .B(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[1] ),
     .Y(_117_)
   );
-  sg13g2_xnor2_1 _326_ (
-    .A(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[1] ),
-    .B(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[0] ),
+  sg13g2_inv_1 _316_ (
+    .A(_114_),
     .Y(_118_)
   );
-  sg13g2_inv_1 _327_ (
-    .A(_115_),
-    .Y(_119_)
-  );
-  sg13g2_a21oi_1 _328_ (
-    .A1(_117_),
-    .A2(_118_),
-    .B1(_119_),
+  sg13g2_a21oi_1 _317_ (
+    .A1(_116_),
+    .A2(_117_),
+    .B1(_118_),
     .Y(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[1] )
   );
-  sg13g2_a21oi_1 _329_ (
-    .A1(_117_),
+  sg13g2_a21oi_1 _318_ (
+    .A1(_116_),
     .A2(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[0] ),
-    .B1(_119_),
+    .B1(_118_),
     .Y(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[0] )
   );
-  sg13g2_inv_1 _330_ (
-    .A(_113_),
-    .Y(_120_)
-  );
-  sg13g2_a21oi_1 _331_ (
-    .A1(_120_),
-    .A2(_114_),
-    .B1(_119_),
+  sg13g2_a21oi_1 _319_ (
+    .A1(_111_),
+    .A2(_113_),
+    .B1(_118_),
     .Y(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[3] )
   );
-  sg13g2_inv_1 _332_ (
+  sg13g2_inv_1 _320_ (
+    .A(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[2] ),
+    .Y(_119_)
+  );
+  sg13g2_inv_1 _321_ (
     .A(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[0] ),
+    .Y(_120_)
+  );
+  sg13g2_inv_1 _322_ (
+    .A(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[1] ),
     .Y(_121_)
   );
-  sg13g2_inv_1 _333_ (
-    .A(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[1] ),
+  sg13g2_nor2_1 _323_ (
+    .A(_120_),
+    .B(_121_),
     .Y(_122_)
   );
-  sg13g2_nor2_1 _334_ (
-    .A(_121_),
-    .B(_122_),
+  sg13g2_inv_1 _324_ (
+    .A(_122_),
     .Y(_123_)
   );
-  sg13g2_nand2_1 _335_ (
-    .A(_123_),
-    .B(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[2] ),
+  sg13g2_nor2_1 _325_ (
+    .A(_119_),
+    .B(_123_),
     .Y(_124_)
   );
-  sg13g2_inv_1 _336_ (
-    .A(_124_),
+  sg13g2_inv_1 _326_ (
+    .A(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[3] ),
     .Y(_125_)
   );
-  sg13g2_inv_1 _337_ (
-    .A(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[3] ),
-    .Y(_126_)
-  );
-  sg13g2_xnor2_1 _338_ (
+  sg13g2_xnor2_1 _327_ (
     .A(\u_gpio_core.gen_input_filter[0].u_filter.filter_synced ),
     .B(\u_gpio_core.gen_input_filter[0].u_filter.filter_q ),
+    .Y(_126_)
+  );
+  sg13g2_o21ai_1 _328_ (
+    .A1(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[2] ),
+    .A2(_122_),
+    .B1(_126_),
     .Y(_127_)
   );
-  sg13g2_o21ai_1 _339_ (
-    .A1(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[2] ),
-    .A2(_123_),
+  sg13g2_a21oi_1 _329_ (
+    .A1(_124_),
+    .A2(_125_),
     .B1(_127_),
-    .Y(_128_)
-  );
-  sg13g2_a21oi_1 _340_ (
-    .A1(_125_),
-    .A2(_126_),
-    .B1(_128_),
     .Y(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[2] )
   );
-  sg13g2_nand2_1 _341_ (
-    .A(_125_),
+  sg13g2_nand2_1 _330_ (
+    .A(_124_),
     .B(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[3] ),
-    .Y(_129_)
+    .Y(_128_)
   );
-  sg13g2_xnor2_1 _342_ (
+  sg13g2_xnor2_1 _331_ (
     .A(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[0] ),
     .B(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[1] ),
+    .Y(_129_)
+  );
+  sg13g2_inv_1 _332_ (
+    .A(_126_),
     .Y(_130_)
   );
-  sg13g2_inv_1 _343_ (
-    .A(_127_),
-    .Y(_131_)
-  );
-  sg13g2_a21oi_1 _344_ (
-    .A1(_129_),
-    .A2(_130_),
-    .B1(_131_),
+  sg13g2_a21oi_1 _333_ (
+    .A1(_128_),
+    .A2(_129_),
+    .B1(_130_),
     .Y(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[1] )
   );
-  sg13g2_a21oi_1 _345_ (
-    .A1(_129_),
+  sg13g2_a21oi_1 _334_ (
+    .A1(_128_),
     .A2(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[0] ),
-    .B1(_131_),
+    .B1(_130_),
     .Y(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[0] )
   );
-  sg13g2_a21oi_1 _346_ (
-    .A1(_124_),
-    .A2(_126_),
-    .B1(_131_),
+  sg13g2_inv_1 _335_ (
+    .A(_124_),
+    .Y(_131_)
+  );
+  sg13g2_a21oi_1 _336_ (
+    .A1(_131_),
+    .A2(_125_),
+    .B1(_130_),
     .Y(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[3] )
   );
-  sg13g2_inv_2 _347_ (
+  sg13g2_inv_4 _337_ (
     .A(\u_gpio_reg.tl_o[65] ),
     .Y(\u_gpio_reg.tl_o[0] )
   );
-  sg13g2_nand2_2 _348_ (
+  sg13g2_nand2_2 _338_ (
     .A(\u_gpio_reg.tl_o[0] ),
     .B(tl_i[108]),
     .Y(_132_)
   );
-  sg13g2_inv_1 _349_ (
+  sg13g2_inv_1 _339_ (
     .A(tl_i[107]),
     .Y(_133_)
   );
-  sg13g2_nand2b_1 _350_ (
+  sg13g2_nand2b_2 _340_ (
     .A_N(tl_i[106]),
     .B(_133_),
     .Y(_134_)
   );
-  sg13g2_nor2_2 _351_ (
+  sg13g2_nor2_2 _341_ (
     .A(_132_),
     .B(_134_),
     .Y(_135_)
   );
-  sg13g2_nor2_1 _352_ (
+  sg13g2_nor2_1 _342_ (
     .A(tl_i[60]),
     .B(tl_i[61]),
     .Y(_136_)
   );
-  sg13g2_nand2_2 _353_ (
+  sg13g2_nand2_1 _343_ (
     .A(_135_),
     .B(_136_),
     .Y(_137_)
   );
-  sg13g2_inv_2 _354_ (
+  sg13g2_inv_8 _344_ (
     .A(tl_i[63]),
     .Y(_138_)
   );
-  sg13g2_nor2_2 _355_ (
+  sg13g2_nor2_2 _345_ (
     .A(tl_i[62]),
     .B(_138_),
     .Y(_139_)
   );
-  sg13g2_buf_8 _356_ (
+  sg13g2_buf_4 _346_ (
     .A(_139_),
     .X(_140_)
   );
-  sg13g2_nand2_1 _357_ (
+  sg13g2_nand2_1 _347_ (
     .A(tl_i[57]),
     .B(tl_i[58]),
     .Y(_141_)
   );
-  sg13g2_inv_1 _358_ (
+  sg13g2_inv_1 _348_ (
     .A(tl_i[56]),
     .Y(_142_)
   );
-  sg13g2_a21oi_1 _359_ (
+  sg13g2_a21oi_1 _349_ (
     .A1(_140_),
     .A2(_141_),
     .B1(_142_),
     .Y(_143_)
   );
-  sg13g2_nand2_1 _360_ (
+  sg13g2_nand2_1 _350_ (
     .A(tl_i[62]),
     .B(tl_i[63]),
     .Y(_144_)
   );
-  sg13g2_o21ai_1 _361_ (
+  sg13g2_o21ai_1 _351_ (
     .A1(_143_),
     .A2(_137_),
     .B1(_144_),
     .Y(_145_)
   );
-  sg13g2_nor2_1 _362_ (
+  sg13g2_nor2_1 _352_ (
     .A(_137_),
     .B(_145_),
     .Y(_146_)
   );
-  sg13g2_nand2_1 _363_ (
+  sg13g2_nand2_1 _353_ (
     .A(_146_),
     .B(_140_),
     .Y(_147_)
   );
-  sg13g2_buf_8 _364_ (
+  sg13g2_buf_8 _354_ (
     .A(_147_),
     .X(_148_)
   );
-  sg13g2_mux2_1 _365_ (
+  sg13g2_mux2_1 _355_ (
     .A0(tl_i[34]),
     .A1(\reg2hw[10] ),
     .S(_148_),
     .X(_000_)
   );
-  sg13g2_mux2_1 _366_ (
+  sg13g2_mux2_1 _356_ (
     .A0(tl_i[33]),
     .A1(\reg2hw[9] ),
     .S(_148_),
     .X(_001_)
   );
-  sg13g2_mux2_1 _367_ (
+  sg13g2_mux2_1 _357_ (
     .A0(tl_i[32]),
     .A1(\reg2hw[8] ),
     .S(_148_),
     .X(_002_)
   );
-  sg13g2_buf_2 _368_ (
+  sg13g2_mux2_1 _358_ (
+    .A0(tl_i[42]),
+    .A1(\reg2hw[18] ),
+    .S(_148_),
+    .X(_003_)
+  );
+  sg13g2_mux2_1 _359_ (
+    .A0(tl_i[41]),
+    .A1(\reg2hw[17] ),
+    .S(_148_),
+    .X(_004_)
+  );
+  sg13g2_mux2_1 _360_ (
+    .A0(tl_i[40]),
+    .A1(\reg2hw[16] ),
+    .S(_148_),
+    .X(_005_)
+  );
+  sg13g2_buf_2 _361_ (
     .A(_132_),
     .X(_149_)
   );
-  sg13g2_mux2_1 _369_ (
+  sg13g2_mux2_1 _362_ (
     .A0(tl_i[98]),
     .A1(\u_gpio_reg.tl_o[55] ),
     .S(_149_),
-    .X(_003_)
+    .X(_006_)
   );
-  sg13g2_mux2_1 _370_ (
+  sg13g2_mux2_1 _363_ (
     .A0(tl_i[97]),
     .A1(\u_gpio_reg.tl_o[54] ),
     .S(_149_),
-    .X(_004_)
+    .X(_007_)
   );
-  sg13g2_mux2_1 _371_ (
+  sg13g2_mux2_1 _364_ (
     .A0(tl_i[96]),
     .A1(\u_gpio_reg.tl_o[53] ),
     .S(_149_),
-    .X(_005_)
+    .X(_008_)
   );
-  sg13g2_mux2_1 _372_ (
+  sg13g2_mux2_1 _365_ (
     .A0(tl_i[95]),
     .A1(\u_gpio_reg.tl_o[52] ),
     .S(_149_),
-    .X(_006_)
+    .X(_009_)
   );
-  sg13g2_mux2_1 _373_ (
+  sg13g2_mux2_1 _366_ (
     .A0(tl_i[94]),
     .A1(\u_gpio_reg.tl_o[51] ),
     .S(_149_),
-    .X(_007_)
+    .X(_010_)
   );
-  sg13g2_mux2_1 _374_ (
+  sg13g2_mux2_1 _367_ (
     .A0(tl_i[93]),
     .A1(\u_gpio_reg.tl_o[50] ),
     .S(_149_),
-    .X(_008_)
+    .X(_011_)
   );
-  sg13g2_mux2_1 _375_ (
+  sg13g2_mux2_1 _368_ (
     .A0(tl_i[92]),
     .A1(\u_gpio_reg.tl_o[49] ),
     .S(_149_),
-    .X(_009_)
+    .X(_012_)
   );
-  sg13g2_mux2_1 _376_ (
+  sg13g2_mux2_1 _369_ (
     .A0(tl_i[100]),
     .A1(\u_gpio_reg.tl_o[57] ),
     .S(_149_),
-    .X(_010_)
+    .X(_013_)
   );
-  sg13g2_inv_1 _377_ (
+  sg13g2_inv_1 _370_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .Y(_150_)
   );
-  sg13g2_inv_1 _378_ (
+  sg13g2_inv_1 _371_ (
     .A(_132_),
     .Y(_151_)
   );
-  sg13g2_nor3_1 _379_ (
+  sg13g2_nor3_1 _372_ (
     .A(tl_i[105]),
     .B(tl_i[106]),
     .C(_133_),
     .Y(_152_)
   );
-  sg13g2_nand2_1 _380_ (
+  sg13g2_nand2_1 _373_ (
     .A(_151_),
     .B(_152_),
     .Y(_153_)
   );
-  sg13g2_nand2_1 _381_ (
+  sg13g2_nand2_1 _374_ (
     .A(_137_),
     .B(_153_),
     .Y(_154_)
   );
-  sg13g2_and2_1 _382_ (
+  sg13g2_and2_1 _375_ (
     .A(_145_),
     .B(_154_),
     .X(_155_)
   );
-  sg13g2_nor2_1 _383_ (
+  sg13g2_nor2_1 _376_ (
     .A(_132_),
     .B(_155_),
     .Y(_156_)
   );
-  sg13g2_and3_1 _384_ (
+  sg13g2_and3_1 _377_ (
     .A(_156_),
     .B(_134_),
     .C(_144_),
     .X(_157_)
   );
-  sg13g2_buf_4 _385_ (
+  sg13g2_buf_4 _378_ (
     .A(_157_),
     .X(_158_)
   );
-  sg13g2_a21oi_1 _386_ (
+  sg13g2_a21oi_2 _379_ (
     .A1(_150_),
     .A2(_149_),
     .B1(_158_),
-    .Y(_011_)
+    .Y(_014_)
   );
-  sg13g2_inv_1 _387_ (
+  sg13g2_inv_1 _380_ (
     .A(\u_gpio_reg.tl_o[35] ),
     .Y(_159_)
   );
-  sg13g2_nand2_1 _388_ (
+  sg13g2_nand2_1 _381_ (
     .A(_140_),
     .B(\reg2hw[19] ),
     .Y(_160_)
   );
-  sg13g2_a22oi_1 _389_ (
+  sg13g2_a22oi_1 _382_ (
     .A1(_159_),
     .A2(_149_),
     .B1(_160_),
     .B2(_158_),
-    .Y(_012_)
+    .Y(_015_)
   );
-  sg13g2_inv_1 _390_ (
+  sg13g2_inv_1 _383_ (
     .A(\u_gpio_reg.tl_o[34] ),
     .Y(_161_)
   );
-  sg13g2_nand2_1 _391_ (
+  sg13g2_nand2_1 _384_ (
     .A(_140_),
     .B(\reg2hw[18] ),
     .Y(_162_)
   );
-  sg13g2_a22oi_1 _392_ (
+  sg13g2_a22oi_1 _385_ (
     .A1(_161_),
     .A2(_149_),
     .B1(_162_),
     .B2(_158_),
-    .Y(_013_)
+    .Y(_016_)
   );
-  sg13g2_inv_1 _393_ (
+  sg13g2_inv_1 _386_ (
     .A(\u_gpio_reg.tl_o[33] ),
     .Y(_163_)
   );
-  sg13g2_nand2_1 _394_ (
+  sg13g2_nand2_1 _387_ (
     .A(_140_),
     .B(\reg2hw[17] ),
     .Y(_164_)
   );
-  sg13g2_a22oi_1 _395_ (
+  sg13g2_a22oi_1 _388_ (
     .A1(_163_),
     .A2(_149_),
     .B1(_164_),
     .B2(_158_),
-    .Y(_014_)
+    .Y(_017_)
   );
-  sg13g2_inv_1 _396_ (
+  sg13g2_inv_1 _389_ (
     .A(\u_gpio_reg.tl_o[32] ),
     .Y(_165_)
   );
-  sg13g2_nand2_1 _397_ (
+  sg13g2_nand2_1 _390_ (
     .A(_140_),
     .B(\reg2hw[16] ),
     .Y(_166_)
   );
-  sg13g2_a22oi_1 _398_ (
+  sg13g2_a22oi_1 _391_ (
     .A1(_165_),
     .A2(_149_),
     .B1(_166_),
     .B2(_158_),
-    .Y(_015_)
+    .Y(_018_)
   );
-  sg13g2_inv_1 _399_ (
+  sg13g2_inv_1 _392_ (
     .A(\u_gpio_reg.tl_o[31] ),
     .Y(_167_)
   );
-  sg13g2_nand2_1 _400_ (
+  sg13g2_nand2_1 _393_ (
     .A(_140_),
     .B(\reg2hw[15] ),
     .Y(_168_)
   );
-  sg13g2_a22oi_1 _401_ (
+  sg13g2_a22oi_1 _394_ (
     .A1(_167_),
     .A2(_149_),
     .B1(_168_),
     .B2(_158_),
-    .Y(_016_)
+    .Y(_019_)
   );
-  sg13g2_inv_1 _402_ (
+  sg13g2_inv_1 _395_ (
     .A(\u_gpio_reg.tl_o[30] ),
     .Y(_169_)
   );
-  sg13g2_nand2_1 _403_ (
+  sg13g2_nand2_1 _396_ (
     .A(_140_),
     .B(\reg2hw[14] ),
     .Y(_170_)
   );
-  sg13g2_a22oi_1 _404_ (
+  sg13g2_a22oi_1 _397_ (
     .A1(_169_),
     .A2(_149_),
     .B1(_170_),
     .B2(_158_),
-    .Y(_017_)
+    .Y(_020_)
   );
-  sg13g2_inv_1 _405_ (
+  sg13g2_inv_1 _398_ (
     .A(\u_gpio_reg.tl_o[29] ),
     .Y(_171_)
   );
-  sg13g2_nand2_1 _406_ (
+  sg13g2_nand2_1 _399_ (
     .A(_140_),
     .B(\reg2hw[13] ),
     .Y(_172_)
   );
-  sg13g2_a22oi_1 _407_ (
+  sg13g2_a22oi_1 _400_ (
     .A1(_171_),
     .A2(_149_),
     .B1(_172_),
     .B2(_158_),
-    .Y(_018_)
+    .Y(_021_)
   );
-  sg13g2_inv_1 _408_ (
+  sg13g2_inv_1 _401_ (
     .A(\u_gpio_reg.tl_o[28] ),
     .Y(_173_)
   );
-  sg13g2_nand2_1 _409_ (
+  sg13g2_nand2_1 _402_ (
     .A(_140_),
     .B(\reg2hw[12] ),
     .Y(_174_)
   );
-  sg13g2_a22oi_1 _410_ (
+  sg13g2_a22oi_1 _403_ (
     .A1(_173_),
     .A2(_149_),
     .B1(_174_),
     .B2(_158_),
-    .Y(_019_)
+    .Y(_022_)
   );
-  sg13g2_inv_1 _411_ (
+  sg13g2_inv_1 _404_ (
     .A(\u_gpio_reg.tl_o[27] ),
     .Y(_175_)
   );
-  sg13g2_nand2_1 _412_ (
+  sg13g2_nand2_1 _405_ (
     .A(_140_),
     .B(\reg2hw[11] ),
     .Y(_176_)
   );
-  sg13g2_a22oi_1 _413_ (
+  sg13g2_a22oi_1 _406_ (
     .A1(_175_),
     .A2(_149_),
     .B1(_176_),
     .B2(_158_),
-    .Y(_020_)
+    .Y(_023_)
   );
-  sg13g2_inv_1 _414_ (
+  sg13g2_inv_1 _407_ (
     .A(\u_gpio_reg.tl_o[26] ),
     .Y(_177_)
   );
-  sg13g2_nand2_1 _415_ (
+  sg13g2_nand2_1 _408_ (
     .A(_140_),
     .B(\reg2hw[10] ),
     .Y(_178_)
   );
-  sg13g2_a22oi_1 _416_ (
+  sg13g2_a22oi_1 _409_ (
     .A1(_177_),
     .A2(_149_),
     .B1(_178_),
     .B2(_158_),
-    .Y(_021_)
+    .Y(_024_)
   );
-  sg13g2_inv_1 _417_ (
+  sg13g2_inv_1 _410_ (
     .A(\u_gpio_reg.tl_o[25] ),
     .Y(_179_)
   );
-  sg13g2_nand2_1 _418_ (
+  sg13g2_nand2_1 _411_ (
     .A(_140_),
     .B(\reg2hw[9] ),
     .Y(_180_)
   );
-  sg13g2_a22oi_1 _419_ (
+  sg13g2_a22oi_1 _412_ (
     .A1(_179_),
     .A2(_149_),
     .B1(_180_),
     .B2(_158_),
-    .Y(_022_)
+    .Y(_025_)
   );
-  sg13g2_inv_1 _420_ (
+  sg13g2_inv_1 _413_ (
     .A(\u_gpio_reg.tl_o[24] ),
     .Y(_181_)
   );
-  sg13g2_nand2_1 _421_ (
+  sg13g2_nand2_1 _414_ (
     .A(_140_),
     .B(\reg2hw[8] ),
     .Y(_182_)
   );
-  sg13g2_a22oi_1 _422_ (
+  sg13g2_a22oi_1 _415_ (
     .A1(_181_),
     .A2(_149_),
     .B1(_182_),
     .B2(_158_),
-    .Y(_023_)
+    .Y(_026_)
   );
-  sg13g2_inv_1 _423_ (
+  sg13g2_inv_1 _416_ (
     .A(\u_gpio_reg.tl_o[23] ),
     .Y(_183_)
   );
-  sg13g2_inv_1 _424_ (
-    .A(tl_i[62]),
+  sg13g2_inv_1 _417_ (
+    .A(\reg2hw[7] ),
     .Y(_184_)
   );
-  sg13g2_inv_1 _425_ (
-    .A(\reg2hw[7] ),
+  sg13g2_inv_1 _418_ (
+    .A(tl_i[62]),
     .Y(_185_)
   );
-  sg13g2_nand2_1 _426_ (
-    .A(_184_),
-    .B(_185_),
+  sg13g2_o21ai_1 _419_ (
+    .A1(_138_),
+    .A2(_184_),
+    .B1(_185_),
     .Y(_186_)
   );
-  sg13g2_a22oi_1 _427_ (
-    .A1(tl_i[62]),
+  sg13g2_o21ai_1 _420_ (
+    .A1(tl_i[63]),
     .A2(\hw2reg[3] ),
-    .B1(tl_i[63]),
-    .B2(_186_),
+    .B1(_186_),
     .Y(_187_)
   );
-  sg13g2_and2_1 _428_ (
+  sg13g2_and2_1 _421_ (
     .A(_156_),
     .B(_134_),
     .X(_188_)
   );
-  sg13g2_buf_2 _429_ (
+  sg13g2_buf_2 _422_ (
     .A(_188_),
     .X(_189_)
   );
-  sg13g2_a22oi_1 _430_ (
+  sg13g2_a22oi_1 _423_ (
     .A1(_183_),
     .A2(_149_),
     .B1(_187_),
     .B2(_189_),
-    .Y(_024_)
+    .Y(_027_)
   );
-  sg13g2_inv_1 _431_ (
+  sg13g2_inv_1 _424_ (
     .A(\u_gpio_reg.tl_o[22] ),
     .Y(_190_)
   );
-  sg13g2_nand2_1 _432_ (
-    .A(_068_),
-    .B(_184_),
+  sg13g2_o21ai_1 _425_ (
+    .A1(_068_),
+    .A2(_138_),
+    .B1(_185_),
     .Y(_191_)
   );
-  sg13g2_a22oi_1 _433_ (
-    .A1(tl_i[62]),
+  sg13g2_o21ai_1 _426_ (
+    .A1(tl_i[63]),
     .A2(\hw2reg[2] ),
-    .B1(tl_i[63]),
-    .B2(_191_),
+    .B1(_191_),
     .Y(_192_)
   );
-  sg13g2_a22oi_1 _434_ (
+  sg13g2_a22oi_1 _427_ (
     .A1(_190_),
     .A2(_149_),
     .B1(_192_),
     .B2(_189_),
-    .Y(_025_)
+    .Y(_028_)
   );
-  sg13g2_inv_1 _435_ (
+  sg13g2_inv_1 _428_ (
     .A(\u_gpio_reg.tl_o[21] ),
     .Y(_193_)
   );
-  sg13g2_nand2_1 _436_ (
-    .A(_073_),
-    .B(_184_),
+  sg13g2_o21ai_1 _429_ (
+    .A1(_073_),
+    .A2(_138_),
+    .B1(_185_),
     .Y(_194_)
   );
-  sg13g2_a22oi_1 _437_ (
-    .A1(tl_i[62]),
+  sg13g2_o21ai_1 _430_ (
+    .A1(tl_i[63]),
     .A2(\hw2reg[1] ),
-    .B1(tl_i[63]),
-    .B2(_194_),
+    .B1(_194_),
     .Y(_195_)
   );
-  sg13g2_a22oi_1 _438_ (
+  sg13g2_a22oi_1 _431_ (
     .A1(_193_),
     .A2(_149_),
     .B1(_195_),
     .B2(_189_),
-    .Y(_026_)
+    .Y(_029_)
   );
-  sg13g2_inv_1 _439_ (
+  sg13g2_inv_1 _432_ (
     .A(\u_gpio_reg.tl_o[20] ),
     .Y(_196_)
   );
-  sg13g2_nand2_1 _440_ (
-    .A(_078_),
-    .B(_184_),
+  sg13g2_o21ai_1 _433_ (
+    .A1(_078_),
+    .A2(_138_),
+    .B1(_185_),
     .Y(_197_)
   );
-  sg13g2_a22oi_1 _441_ (
+  sg13g2_o21ai_1 _434_ (
     .A1(\hw2reg[0] ),
-    .A2(tl_i[62]),
-    .B1(tl_i[63]),
-    .B2(_197_),
+    .A2(tl_i[63]),
+    .B1(_197_),
     .Y(_198_)
   );
-  sg13g2_a22oi_1 _442_ (
+  sg13g2_a22oi_1 _435_ (
     .A1(_196_),
     .A2(_149_),
     .B1(_198_),
     .B2(_189_),
-    .Y(_027_)
+    .Y(_030_)
   );
-  sg13g2_inv_1 _443_ (
+  sg13g2_inv_1 _436_ (
     .A(\u_gpio_reg.tl_o[19] ),
     .Y(_199_)
   );
-  sg13g2_inv_1 _444_ (
-    .A(\u_gpio_core.data_in_q[3] ),
+  sg13g2_nor2_1 _437_ (
+    .A(tl_i[63]),
+    .B(_185_),
     .Y(_200_)
   );
-  sg13g2_o21ai_1 _445_ (
-    .A1(tl_i[63]),
-    .A2(_200_),
-    .B1(_184_),
+  sg13g2_inv_1 _438_ (
+    .A(\u_gpio_core.data_in_q[3] ),
     .Y(_201_)
   );
-  sg13g2_nor2_1 _446_ (
-    .A(tl_i[63]),
-    .B(_184_),
+  sg13g2_o21ai_1 _439_ (
+    .A1(tl_i[62]),
+    .A2(_201_),
+    .B1(_138_),
     .Y(_202_)
   );
-  sg13g2_inv_1 _447_ (
-    .A(\hw2reg[7] ),
+  sg13g2_nand2b_1 _440_ (
+    .A_N(\reg2hw[3] ),
+    .B(_140_),
     .Y(_203_)
   );
-  sg13g2_nand2_1 _448_ (
-    .A(_202_),
-    .B(_203_),
+  sg13g2_a22oi_1 _441_ (
+    .A1(\hw2reg[7] ),
+    .A2(_200_),
+    .B1(_202_),
+    .B2(_203_),
     .Y(_204_)
   );
-  sg13g2_a22oi_1 _449_ (
-    .A1(\reg2hw[3] ),
-    .A2(_140_),
-    .B1(_201_),
-    .B2(_204_),
-    .Y(_205_)
-  );
-  sg13g2_a22oi_1 _450_ (
+  sg13g2_a22oi_1 _442_ (
     .A1(_199_),
     .A2(_149_),
-    .B1(_205_),
-    .B2(_189_),
-    .Y(_028_)
-  );
-  sg13g2_inv_1 _451_ (
-    .A(\u_gpio_reg.tl_o[18] ),
-    .Y(_206_)
-  );
-  sg13g2_o21ai_1 _452_ (
-    .A1(tl_i[62]),
-    .A2(_066_),
-    .B1(_138_),
-    .Y(_207_)
-  );
-  sg13g2_nand2b_1 _453_ (
-    .A_N(\reg2hw[2] ),
-    .B(_140_),
-    .Y(_208_)
-  );
-  sg13g2_a22oi_1 _454_ (
-    .A1(\hw2reg[6] ),
-    .A2(_202_),
-    .B1(_207_),
-    .B2(_208_),
-    .Y(_209_)
-  );
-  sg13g2_a22oi_1 _455_ (
-    .A1(_206_),
-    .A2(_149_),
-    .B1(_209_),
-    .B2(_189_),
-    .Y(_029_)
-  );
-  sg13g2_inv_1 _456_ (
-    .A(\u_gpio_reg.tl_o[17] ),
-    .Y(_210_)
-  );
-  sg13g2_inv_1 _457_ (
-    .A(_140_),
-    .Y(_211_)
-  );
-  sg13g2_a21oi_1 _458_ (
-    .A1(\hw2reg[5] ),
-    .A2(tl_i[62]),
-    .B1(tl_i[63]),
-    .Y(_212_)
-  );
-  sg13g2_o21ai_1 _459_ (
-    .A1(_071_),
-    .A2(tl_i[62]),
-    .B1(_212_),
-    .Y(_213_)
-  );
-  sg13g2_o21ai_1 _460_ (
-    .A1(\reg2hw[1] ),
-    .A2(_211_),
-    .B1(_213_),
-    .Y(_214_)
-  );
-  sg13g2_a22oi_1 _461_ (
-    .A1(_210_),
-    .A2(_149_),
-    .B1(_214_),
-    .B2(_189_),
-    .Y(_030_)
-  );
-  sg13g2_inv_1 _462_ (
-    .A(\u_gpio_reg.tl_o[16] ),
-    .Y(_215_)
-  );
-  sg13g2_o21ai_1 _463_ (
-    .A1(tl_i[62]),
-    .A2(_076_),
-    .B1(_138_),
-    .Y(_216_)
-  );
-  sg13g2_nand2b_1 _464_ (
-    .A_N(\reg2hw[0] ),
-    .B(_140_),
-    .Y(_217_)
-  );
-  sg13g2_a22oi_1 _465_ (
-    .A1(\hw2reg[4] ),
-    .A2(_202_),
-    .B1(_216_),
-    .B2(_217_),
-    .Y(_218_)
-  );
-  sg13g2_a22oi_1 _466_ (
-    .A1(_215_),
-    .A2(_149_),
-    .B1(_218_),
+    .B1(_204_),
     .B2(_189_),
     .Y(_031_)
   );
-  sg13g2_inv_1 _467_ (
-    .A(tl_i[26]),
-    .Y(_219_)
+  sg13g2_inv_1 _443_ (
+    .A(\u_gpio_reg.tl_o[18] ),
+    .Y(_205_)
   );
-  sg13g2_nor4_1 _468_ (
-    .A(_184_),
+  sg13g2_nor2_1 _444_ (
+    .A(tl_i[62]),
     .B(tl_i[63]),
-    .C(_137_),
-    .D(_145_),
-    .Y(_220_)
+    .Y(_206_)
   );
-  sg13g2_buf_2 _469_ (
-    .A(_220_),
-    .X(_221_)
+  sg13g2_nand2b_1 _445_ (
+    .A_N(\reg2hw[2] ),
+    .B(_185_),
+    .Y(_207_)
   );
-  sg13g2_nor2_1 _470_ (
+  sg13g2_inv_1 _446_ (
     .A(\hw2reg[6] ),
-    .B(_221_),
-    .Y(_222_)
+    .Y(_208_)
   );
-  sg13g2_a21oi_1 _471_ (
-    .A1(_219_),
-    .A2(_221_),
-    .B1(_222_),
+  sg13g2_o21ai_1 _447_ (
+    .A1(_208_),
+    .A2(_185_),
+    .B1(_138_),
+    .Y(_209_)
+  );
+  sg13g2_a22oi_1 _448_ (
+    .A1(\u_gpio_core.data_in_q[2] ),
+    .A2(_206_),
+    .B1(_207_),
+    .B2(_209_),
+    .Y(_210_)
+  );
+  sg13g2_a22oi_1 _449_ (
+    .A1(_205_),
+    .A2(_149_),
+    .B1(_210_),
+    .B2(_189_),
     .Y(_032_)
   );
-  sg13g2_inv_1 _472_ (
-    .A(tl_i[25]),
-    .Y(_223_)
+  sg13g2_inv_1 _450_ (
+    .A(\u_gpio_reg.tl_o[17] ),
+    .Y(_211_)
   );
-  sg13g2_nor2_1 _473_ (
+  sg13g2_nand2b_1 _451_ (
+    .A_N(\reg2hw[1] ),
+    .B(_185_),
+    .Y(_212_)
+  );
+  sg13g2_inv_1 _452_ (
     .A(\hw2reg[5] ),
-    .B(_221_),
-    .Y(_224_)
+    .Y(_213_)
   );
-  sg13g2_a21oi_1 _474_ (
-    .A1(_223_),
-    .A2(_221_),
-    .B1(_224_),
+  sg13g2_o21ai_1 _453_ (
+    .A1(_213_),
+    .A2(_185_),
+    .B1(_138_),
+    .Y(_214_)
+  );
+  sg13g2_a22oi_1 _454_ (
+    .A1(\u_gpio_core.data_in_q[1] ),
+    .A2(_206_),
+    .B1(_212_),
+    .B2(_214_),
+    .Y(_215_)
+  );
+  sg13g2_a22oi_1 _455_ (
+    .A1(_211_),
+    .A2(_149_),
+    .B1(_215_),
+    .B2(_189_),
     .Y(_033_)
   );
-  sg13g2_inv_1 _475_ (
-    .A(tl_i[24]),
-    .Y(_225_)
+  sg13g2_inv_1 _456_ (
+    .A(\u_gpio_reg.tl_o[16] ),
+    .Y(_216_)
   );
-  sg13g2_nor2_1 _476_ (
+  sg13g2_nand2b_1 _457_ (
+    .A_N(\reg2hw[0] ),
+    .B(_185_),
+    .Y(_217_)
+  );
+  sg13g2_inv_1 _458_ (
     .A(\hw2reg[4] ),
-    .B(_221_),
-    .Y(_226_)
+    .Y(_218_)
   );
-  sg13g2_a21oi_1 _477_ (
-    .A1(_225_),
-    .A2(_221_),
-    .B1(_226_),
+  sg13g2_o21ai_1 _459_ (
+    .A1(_185_),
+    .A2(_218_),
+    .B1(_138_),
+    .Y(_219_)
+  );
+  sg13g2_a22oi_1 _460_ (
+    .A1(\u_gpio_core.data_in_q[0] ),
+    .A2(_206_),
+    .B1(_217_),
+    .B2(_219_),
+    .Y(_220_)
+  );
+  sg13g2_a22oi_1 _461_ (
+    .A1(_216_),
+    .A2(_149_),
+    .B1(_220_),
+    .B2(_189_),
     .Y(_034_)
   );
-  sg13g2_inv_1 _478_ (
+  sg13g2_nor2_1 _462_ (
     .A(tl_i[30]),
-    .Y(_227_)
+    .B(_148_),
+    .Y(_221_)
   );
-  sg13g2_nor2_1 _479_ (
-    .A(\hw2reg[2] ),
-    .B(_221_),
-    .Y(_228_)
-  );
-  sg13g2_a21oi_1 _480_ (
-    .A1(_227_),
-    .A2(_221_),
-    .B1(_228_),
+  sg13g2_a21oi_1 _463_ (
+    .A1(_068_),
+    .A2(_148_),
+    .B1(_221_),
     .Y(_035_)
   );
-  sg13g2_inv_1 _481_ (
+  sg13g2_nor2_1 _464_ (
     .A(tl_i[29]),
-    .Y(_229_)
+    .B(_148_),
+    .Y(_222_)
   );
-  sg13g2_nor2_1 _482_ (
-    .A(\hw2reg[1] ),
-    .B(_221_),
-    .Y(_230_)
-  );
-  sg13g2_a21oi_1 _483_ (
-    .A1(_229_),
-    .A2(_221_),
-    .B1(_230_),
+  sg13g2_a21oi_1 _465_ (
+    .A1(_073_),
+    .A2(_148_),
+    .B1(_222_),
     .Y(_036_)
   );
-  sg13g2_inv_1 _484_ (
+  sg13g2_nor2_1 _466_ (
     .A(tl_i[28]),
-    .Y(_231_)
+    .B(_148_),
+    .Y(_223_)
   );
-  sg13g2_nor2_1 _485_ (
-    .A(\hw2reg[0] ),
-    .B(_221_),
-    .Y(_232_)
-  );
-  sg13g2_a21oi_1 _486_ (
-    .A1(_231_),
-    .A2(_221_),
-    .B1(_232_),
+  sg13g2_a21oi_1 _467_ (
+    .A1(_078_),
+    .A2(_148_),
+    .B1(_223_),
     .Y(_037_)
   );
-  sg13g2_mux2_1 _487_ (
+  sg13g2_mux2_1 _468_ (
     .A0(tl_i[38]),
     .A1(\reg2hw[14] ),
     .S(_148_),
     .X(_038_)
   );
-  sg13g2_mux2_1 _488_ (
+  sg13g2_mux2_1 _469_ (
     .A0(tl_i[37]),
     .A1(\reg2hw[13] ),
     .S(_148_),
     .X(_039_)
   );
-  sg13g2_mux2_1 _489_ (
+  sg13g2_mux2_1 _470_ (
     .A0(tl_i[36]),
     .A1(\reg2hw[12] ),
     .S(_148_),
     .X(_040_)
   );
-  sg13g2_nand2_1 _490_ (
-    .A(_148_),
-    .B(\reg2hw[6] ),
-    .Y(_233_)
-  );
-  sg13g2_o21ai_1 _491_ (
-    .A1(_227_),
-    .A2(_148_),
-    .B1(_233_),
-    .Y(_041_)
-  );
-  sg13g2_nand2_1 _492_ (
-    .A(_148_),
-    .B(\reg2hw[5] ),
-    .Y(_234_)
-  );
-  sg13g2_o21ai_1 _493_ (
-    .A1(_229_),
-    .A2(_148_),
-    .B1(_234_),
-    .Y(_042_)
-  );
-  sg13g2_nand2_1 _494_ (
-    .A(_148_),
-    .B(\reg2hw[4] ),
-    .Y(_235_)
-  );
-  sg13g2_o21ai_1 _495_ (
-    .A1(_231_),
-    .A2(_148_),
-    .B1(_235_),
-    .Y(_043_)
-  );
-  sg13g2_mux2_1 _496_ (
-    .A0(tl_i[42]),
-    .A1(\reg2hw[18] ),
+  sg13g2_mux2_1 _471_ (
+    .A0(tl_i[26]),
+    .A1(\reg2hw[2] ),
     .S(_148_),
+    .X(_041_)
+  );
+  sg13g2_mux2_1 _472_ (
+    .A0(tl_i[25]),
+    .A1(\reg2hw[1] ),
+    .S(_148_),
+    .X(_042_)
+  );
+  sg13g2_mux2_1 _473_ (
+    .A0(tl_i[24]),
+    .A1(\reg2hw[0] ),
+    .S(_148_),
+    .X(_043_)
+  );
+  sg13g2_nor4_1 _474_ (
+    .A(_185_),
+    .B(tl_i[63]),
+    .C(_137_),
+    .D(_145_),
+    .Y(_224_)
+  );
+  sg13g2_buf_2 _475_ (
+    .A(_224_),
+    .X(_225_)
+  );
+  sg13g2_mux2_1 _476_ (
+    .A0(\hw2reg[2] ),
+    .A1(tl_i[30]),
+    .S(_225_),
     .X(_044_)
   );
-  sg13g2_mux2_1 _497_ (
-    .A0(tl_i[41]),
-    .A1(\reg2hw[17] ),
-    .S(_148_),
+  sg13g2_mux2_1 _477_ (
+    .A0(\hw2reg[1] ),
+    .A1(tl_i[29]),
+    .S(_225_),
     .X(_045_)
   );
-  sg13g2_mux2_1 _498_ (
-    .A0(tl_i[40]),
-    .A1(\reg2hw[16] ),
-    .S(_148_),
+  sg13g2_mux2_1 _478_ (
+    .A0(\hw2reg[0] ),
+    .A1(tl_i[28]),
+    .S(_225_),
     .X(_046_)
   );
-  sg13g2_nand2_1 _499_ (
-    .A(_148_),
-    .B(\reg2hw[2] ),
-    .Y(_236_)
+  sg13g2_nand2_1 _479_ (
+    .A(_225_),
+    .B(tl_i[26]),
+    .Y(_226_)
   );
-  sg13g2_o21ai_1 _500_ (
-    .A1(_219_),
-    .A2(_148_),
-    .B1(_236_),
+  sg13g2_o21ai_1 _480_ (
+    .A1(_208_),
+    .A2(_225_),
+    .B1(_226_),
     .Y(_047_)
   );
-  sg13g2_nand2_1 _501_ (
-    .A(_148_),
-    .B(\reg2hw[1] ),
-    .Y(_237_)
+  sg13g2_nand2_1 _481_ (
+    .A(_225_),
+    .B(tl_i[25]),
+    .Y(_227_)
   );
-  sg13g2_o21ai_1 _502_ (
-    .A1(_223_),
-    .A2(_148_),
-    .B1(_237_),
+  sg13g2_o21ai_1 _482_ (
+    .A1(_213_),
+    .A2(_225_),
+    .B1(_227_),
     .Y(_048_)
   );
-  sg13g2_nand2_1 _503_ (
-    .A(_148_),
-    .B(\reg2hw[0] ),
-    .Y(_238_)
+  sg13g2_nand2_1 _483_ (
+    .A(_225_),
+    .B(tl_i[24]),
+    .Y(_228_)
   );
-  sg13g2_o21ai_1 _504_ (
-    .A1(_225_),
-    .A2(_148_),
-    .B1(_238_),
+  sg13g2_o21ai_1 _484_ (
+    .A1(_218_),
+    .A2(_225_),
+    .B1(_228_),
     .Y(_049_)
   );
-  sg13g2_inv_1 _505_ (
-    .A(\u_gpio_core.gen_input_filter[3].u_filter.stored_value_q ),
-    .Y(_239_)
+  sg13g2_mux2_1 _485_ (
+    .A0(\u_gpio_core.gen_input_filter[3].u_filter.filter_synced ),
+    .A1(\u_gpio_core.gen_input_filter[3].u_filter.stored_value_q ),
+    .S(\reg2hw[19] ),
+    .X(\hw2reg[12] )
   );
-  sg13g2_o21ai_1 _506_ (
+  sg13g2_o21ai_1 _486_ (
+    .A1(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[0] ),
+    .A2(_109_),
+    .B1(_116_),
+    .Y(_229_)
+  );
+  sg13g2_nand3b_1 _487_ (
+    .A_N(_115_),
+    .B(_229_),
+    .C(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[3] ),
+    .Y(_230_)
+  );
+  sg13g2_mux2_1 _488_ (
+    .A0(\u_gpio_core.gen_input_filter[1].u_filter.filter_synced ),
+    .A1(\u_gpio_core.gen_input_filter[1].u_filter.stored_value_q ),
+    .S(_230_),
+    .X(_050_)
+  );
+  sg13g2_mux2_1 _489_ (
+    .A0(tl_i[39]),
+    .A1(\reg2hw[15] ),
+    .S(_148_),
+    .X(_051_)
+  );
+  sg13g2_inv_1 _490_ (
+    .A(tl_i[27]),
+    .Y(_231_)
+  );
+  sg13g2_nor2_1 _491_ (
+    .A(\hw2reg[7] ),
+    .B(_225_),
+    .Y(_232_)
+  );
+  sg13g2_a21oi_1 _492_ (
+    .A1(_231_),
+    .A2(_225_),
+    .B1(_232_),
+    .Y(_052_)
+  );
+  sg13g2_o21ai_1 _493_ (
     .A1(_082_),
     .A2(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[0] ),
     .B1(_090_),
+    .Y(_233_)
+  );
+  sg13g2_nand3_1 _494_ (
+    .A(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[3] ),
+    .B(_233_),
+    .C(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[2] ),
+    .Y(_234_)
+  );
+  sg13g2_mux2_1 _495_ (
+    .A0(\u_gpio_core.gen_input_filter[3].u_filter.filter_synced ),
+    .A1(\u_gpio_core.gen_input_filter[3].u_filter.stored_value_q ),
+    .S(_234_),
+    .X(_053_)
+  );
+  sg13g2_a21oi_1 _496_ (
+    .A1(_201_),
+    .A2(\reg2hw[3] ),
+    .B1(\reg2hw[11] ),
+    .Y(_235_)
+  );
+  sg13g2_nor2_1 _497_ (
+    .A(_201_),
+    .B(_184_),
+    .Y(_236_)
+  );
+  sg13g2_nor3_1 _498_ (
+    .A(\reg2hw[15] ),
+    .B(_236_),
+    .C(\hw2reg[12] ),
+    .Y(_237_)
+  );
+  sg13g2_a21oi_1 _499_ (
+    .A1(\hw2reg[12] ),
+    .A2(_235_),
+    .B1(_237_),
+    .Y(\u_gpio_core.intr_gpio_o[3] )
+  );
+  sg13g2_nand2_1 _500_ (
+    .A(_148_),
+    .B(\reg2hw[3] ),
+    .Y(_238_)
+  );
+  sg13g2_o21ai_1 _501_ (
+    .A1(_231_),
+    .A2(_148_),
+    .B1(_238_),
+    .Y(_054_)
+  );
+  sg13g2_nor2_1 _502_ (
+    .A(tl_i[31]),
+    .B(_148_),
+    .Y(_239_)
+  );
+  sg13g2_a21oi_1 _503_ (
+    .A1(_184_),
+    .A2(_148_),
+    .B1(_239_),
+    .Y(_055_)
+  );
+  sg13g2_mux2_1 _504_ (
+    .A0(\hw2reg[3] ),
+    .A1(tl_i[31]),
+    .S(_225_),
+    .X(_056_)
+  );
+  sg13g2_nor2_1 _505_ (
+    .A(\u_gpio_reg.tl_o[1] ),
+    .B(_151_),
     .Y(_240_)
   );
-  sg13g2_nand3_1 _507_ (
-    .A(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[3] ),
-    .B(_240_),
-    .C(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[2] ),
+  sg13g2_nand2b_1 _506_ (
+    .A_N(_136_),
+    .B(_135_),
     .Y(_241_)
   );
-  sg13g2_nor2_1 _508_ (
-    .A(\u_gpio_core.gen_input_filter[3].u_filter.filter_synced ),
-    .B(_241_),
-    .Y(_242_)
+  sg13g2_o21ai_1 _507_ (
+    .A1(_240_),
+    .A2(_156_),
+    .B1(_241_),
+    .Y(_057_)
   );
-  sg13g2_a21oi_1 _509_ (
-    .A1(_239_),
-    .A2(_241_),
-    .B1(_242_),
-    .Y(_050_)
+  sg13g2_mux2_1 _508_ (
+    .A0(tl_i[101]),
+    .A1(\u_gpio_reg.tl_o[58] ),
+    .S(_149_),
+    .X(_058_)
+  );
+  sg13g2_mux2_1 _509_ (
+    .A0(tl_i[99]),
+    .A1(\u_gpio_reg.tl_o[56] ),
+    .S(_149_),
+    .X(_059_)
   );
   sg13g2_o21ai_1 _510_ (
-    .A1(_109_),
-    .A2(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[0] ),
-    .B1(_117_),
-    .Y(_243_)
+    .A1(\u_gpio_reg.tl_o[0] ),
+    .A2(tl_i[0]),
+    .B1(_149_),
+    .Y(_060_)
   );
-  sg13g2_nand3_1 _511_ (
-    .A(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[3] ),
-    .B(_243_),
-    .C(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[2] ),
-    .Y(_244_)
+  sg13g2_inv_1 _511_ (
+    .A(\u_gpio_reg.tl_o[62] ),
+    .Y(_242_)
   );
-  sg13g2_mux2_1 _512_ (
-    .A0(\u_gpio_core.gen_input_filter[1].u_filter.filter_synced ),
-    .A1(\u_gpio_core.gen_input_filter[1].u_filter.stored_value_q ),
-    .S(_244_),
-    .X(_051_)
+  sg13g2_o21ai_1 _512_ (
+    .A1(_242_),
+    .A2(_151_),
+    .B1(_153_),
+    .Y(_061_)
   );
   sg13g2_mux2_1 _513_ (
     .A0(tl_i[43]),
     .A1(\reg2hw[19] ),
     .S(_148_),
-    .X(_052_)
+    .X(_062_)
   );
-  sg13g2_nor2_1 _514_ (
-    .A(\reg2hw[19] ),
-    .B(\u_gpio_core.gen_input_filter[3].u_filter.filter_synced ),
-    .Y(_245_)
-  );
-  sg13g2_a21oi_1 _515_ (
-    .A1(\reg2hw[19] ),
-    .A2(_239_),
-    .B1(_245_),
-    .Y(\hw2reg[12] )
-  );
-  sg13g2_a21oi_1 _516_ (
-    .A1(_200_),
-    .A2(\reg2hw[3] ),
-    .B1(\reg2hw[11] ),
-    .Y(_246_)
-  );
-  sg13g2_nor2_1 _517_ (
-    .A(_200_),
-    .B(_185_),
-    .Y(_247_)
-  );
-  sg13g2_nor3_1 _518_ (
-    .A(\reg2hw[15] ),
-    .B(_247_),
-    .C(\hw2reg[12] ),
-    .Y(_248_)
-  );
-  sg13g2_a21oi_1 _519_ (
-    .A1(\hw2reg[12] ),
-    .A2(_246_),
-    .B1(_248_),
-    .Y(\u_gpio_core.intr_gpio_o[3] )
-  );
-  sg13g2_nor2_1 _520_ (
-    .A(tl_i[31]),
-    .B(_148_),
-    .Y(_249_)
-  );
-  sg13g2_a21oi_1 _521_ (
-    .A1(_185_),
-    .A2(_148_),
-    .B1(_249_),
-    .Y(_053_)
-  );
-  sg13g2_mux2_1 _522_ (
-    .A0(tl_i[27]),
-    .A1(\reg2hw[3] ),
+  sg13g2_mux2_1 _514_ (
+    .A0(tl_i[35]),
+    .A1(\reg2hw[11] ),
     .S(_148_),
-    .X(_054_)
+    .X(_063_)
   );
-  sg13g2_a22oi_1 _523_ (
+  sg13g2_a22oi_1 _515_ (
     .A1(_096_),
     .A2(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[1] ),
     .B1(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[3] ),
     .B2(_100_),
-    .Y(_250_)
+    .Y(_243_)
   );
-  sg13g2_nor3_1 _524_ (
+  sg13g2_nor3_1 _516_ (
     .A(_094_),
     .B(_104_),
-    .C(_250_),
-    .Y(_251_)
+    .C(_243_),
+    .Y(_244_)
   );
-  sg13g2_mux2_1 _525_ (
+  sg13g2_mux2_1 _517_ (
     .A0(\u_gpio_core.gen_input_filter[2].u_filter.stored_value_q ),
     .A1(\u_gpio_core.gen_input_filter[2].u_filter.filter_synced ),
-    .S(_251_),
-    .X(_055_)
+    .S(_244_),
+    .X(_064_)
   );
-  sg13g2_mux2_1 _526_ (
-    .A0(tl_i[39]),
-    .A1(\reg2hw[15] ),
-    .S(_148_),
-    .X(_056_)
-  );
-  sg13g2_mux2_1 _527_ (
-    .A0(\hw2reg[3] ),
-    .A1(tl_i[31]),
-    .S(_221_),
-    .X(_057_)
-  );
-  sg13g2_o21ai_1 _528_ (
+  sg13g2_o21ai_1 _518_ (
     .A1(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[0] ),
-    .A2(_122_),
-    .B1(_129_),
-    .Y(_252_)
+    .A2(_121_),
+    .B1(_128_),
+    .Y(_245_)
   );
-  sg13g2_nand3b_1 _529_ (
-    .A_N(_128_),
-    .B(_252_),
-    .C(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[3] ),
-    .Y(_253_)
+  sg13g2_nand3_1 _519_ (
+    .A(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[3] ),
+    .B(_245_),
+    .C(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[2] ),
+    .Y(_246_)
   );
-  sg13g2_mux2_1 _530_ (
+  sg13g2_mux2_1 _520_ (
     .A0(\u_gpio_core.gen_input_filter[0].u_filter.filter_synced ),
     .A1(\u_gpio_core.gen_input_filter[0].u_filter.stored_value_q ),
-    .S(_253_),
-    .X(_058_)
-  );
-  sg13g2_nand2_1 _531_ (
-    .A(_221_),
-    .B(tl_i[27]),
-    .Y(_254_)
-  );
-  sg13g2_o21ai_1 _532_ (
-    .A1(_203_),
-    .A2(_221_),
-    .B1(_254_),
-    .Y(_059_)
-  );
-  sg13g2_nor2_1 _533_ (
-    .A(\u_gpio_reg.tl_o[1] ),
-    .B(_151_),
-    .Y(_255_)
-  );
-  sg13g2_nand2b_1 _534_ (
-    .A_N(_136_),
-    .B(_135_),
-    .Y(_256_)
-  );
-  sg13g2_o21ai_1 _535_ (
-    .A1(_255_),
-    .A2(_156_),
-    .B1(_256_),
-    .Y(_060_)
-  );
-  sg13g2_mux2_1 _536_ (
-    .A0(tl_i[101]),
-    .A1(\u_gpio_reg.tl_o[58] ),
-    .S(_149_),
-    .X(_061_)
-  );
-  sg13g2_mux2_1 _537_ (
-    .A0(tl_i[99]),
-    .A1(\u_gpio_reg.tl_o[56] ),
-    .S(_149_),
-    .X(_062_)
-  );
-  sg13g2_inv_1 _538_ (
-    .A(\u_gpio_reg.tl_o[62] ),
-    .Y(_257_)
-  );
-  sg13g2_o21ai_1 _539_ (
-    .A1(_257_),
-    .A2(_151_),
-    .B1(_153_),
-    .Y(_063_)
-  );
-  sg13g2_o21ai_1 _540_ (
-    .A1(\u_gpio_reg.tl_o[0] ),
-    .A2(tl_i[0]),
-    .B1(_149_),
-    .Y(_064_)
-  );
-  sg13g2_mux2_1 _541_ (
-    .A0(tl_i[35]),
-    .A1(\reg2hw[11] ),
-    .S(_148_),
+    .S(_246_),
     .X(_065_)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _542_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _521_ (
     .CLK(clk_i),
-    .D(_063_),
+    .D(_061_),
     .Q(\u_gpio_reg.tl_o[62] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _543_ (
+  (* src = "../../rtl/gpio_core.sv:55.3" *)
+  sg13g2_dfrbpq_1 _522_ (
     .CLK(clk_i),
     .D(_049_),
-    .Q(\reg2hw[0] ),
-    .RESET_B(rst_ni)
+    .Q(\hw2reg[4] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _544_ (
+  (* src = "../../rtl/gpio_core.sv:55.3" *)
+  sg13g2_dfrbpq_1 _523_ (
     .CLK(clk_i),
     .D(_048_),
-    .Q(\reg2hw[1] ),
-    .RESET_B(rst_ni)
+    .Q(\hw2reg[5] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _545_ (
+  (* src = "../../rtl/gpio_core.sv:55.3" *)
+  sg13g2_dfrbpq_1 _524_ (
     .CLK(clk_i),
     .D(_047_),
-    .Q(\reg2hw[2] ),
-    .RESET_B(rst_ni)
+    .Q(\hw2reg[6] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _546_ (
+  (* src = "../../rtl/gpio_core.sv:55.3" *)
+  sg13g2_dfrbpq_1 _525_ (
+    .CLK(clk_i),
+    .D(_052_),
+    .Q(\hw2reg[7] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../rtl/gpio_core.sv:63.3" *)
+  sg13g2_dfrbpq_1 _526_ (
+    .CLK(clk_i),
+    .D(_046_),
+    .Q(\hw2reg[0] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../rtl/gpio_core.sv:63.3" *)
+  sg13g2_dfrbpq_1 _527_ (
+    .CLK(clk_i),
+    .D(_045_),
+    .Q(\hw2reg[1] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../rtl/gpio_core.sv:63.3" *)
+  sg13g2_dfrbpq_1 _528_ (
+    .CLK(clk_i),
+    .D(_044_),
+    .Q(\hw2reg[2] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../rtl/gpio_core.sv:63.3" *)
+  sg13g2_dfrbpq_1 _529_ (
+    .CLK(clk_i),
+    .D(_056_),
+    .Q(\hw2reg[3] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _530_ (
+    .CLK(clk_i),
+    .D(_043_),
+    .Q(\reg2hw[0] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _531_ (
+    .CLK(clk_i),
+    .D(_042_),
+    .Q(\reg2hw[1] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _532_ (
+    .CLK(clk_i),
+    .D(_041_),
+    .Q(\reg2hw[2] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _533_ (
     .CLK(clk_i),
     .D(_054_),
     .Q(\reg2hw[3] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:57.3" *)
-  sg13g2_dfrbpq_1 _547_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:57.3" *)
+  sg13g2_dfrbpq_1 _534_ (
     .CLK(clk_i),
     .D(_050_),
-    .Q(\u_gpio_core.gen_input_filter[3].u_filter.stored_value_q ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:57.3" *)
-  sg13g2_dfrbpq_1 _548_ (
-    .CLK(clk_i),
-    .D(_051_),
     .Q(\u_gpio_core.gen_input_filter[1].u_filter.stored_value_q ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _549_ (
-    .CLK(clk_i),
-    .D(_046_),
-    .Q(\reg2hw[16] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _550_ (
-    .CLK(clk_i),
-    .D(_045_),
-    .Q(\reg2hw[17] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _551_ (
-    .CLK(clk_i),
-    .D(_044_),
-    .Q(\reg2hw[18] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _552_ (
-    .CLK(clk_i),
-    .D(_052_),
-    .Q(\reg2hw[19] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _553_ (
-    .CLK(clk_i),
-    .D(_043_),
-    .Q(\reg2hw[4] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _554_ (
-    .CLK(clk_i),
-    .D(_042_),
-    .Q(\reg2hw[5] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _555_ (
-    .CLK(clk_i),
-    .D(_041_),
-    .Q(\reg2hw[6] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _556_ (
-    .CLK(clk_i),
-    .D(_053_),
-    .Q(\reg2hw[7] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:57.3" *)
-  sg13g2_dfrbpq_1 _557_ (
-    .CLK(clk_i),
-    .D(_055_),
-    .Q(\u_gpio_core.gen_input_filter[2].u_filter.stored_value_q ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _558_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _535_ (
     .CLK(clk_i),
     .D(_040_),
     .Q(\reg2hw[12] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _559_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _536_ (
     .CLK(clk_i),
     .D(_039_),
     .Q(\reg2hw[13] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _560_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _537_ (
     .CLK(clk_i),
     .D(_038_),
     .Q(\reg2hw[14] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _561_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _538_ (
     .CLK(clk_i),
-    .D(_056_),
+    .D(_051_),
     .Q(\reg2hw[15] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../rtl/gpio_core.sv:63.3" *)
-  sg13g2_dfrbpq_1 _562_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:57.3" *)
+  sg13g2_dfrbpq_1 _539_ (
+    .CLK(clk_i),
+    .D(_053_),
+    .Q(\u_gpio_core.gen_input_filter[3].u_filter.stored_value_q ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _540_ (
     .CLK(clk_i),
     .D(_037_),
-    .Q(\hw2reg[0] ),
-    .RESET_B(rst_ni)
+    .Q(\reg2hw[4] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../rtl/gpio_core.sv:63.3" *)
-  sg13g2_dfrbpq_1 _563_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _541_ (
     .CLK(clk_i),
     .D(_036_),
-    .Q(\hw2reg[1] ),
-    .RESET_B(rst_ni)
+    .Q(\reg2hw[5] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../rtl/gpio_core.sv:63.3" *)
-  sg13g2_dfrbpq_1 _564_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _542_ (
     .CLK(clk_i),
     .D(_035_),
-    .Q(\hw2reg[2] ),
-    .RESET_B(rst_ni)
+    .Q(\reg2hw[6] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../rtl/gpio_core.sv:63.3" *)
-  sg13g2_dfrbpq_1 _565_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _543_ (
+    .CLK(clk_i),
+    .D(_055_),
+    .Q(\reg2hw[7] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _544_ (
     .CLK(clk_i),
     .D(_057_),
-    .Q(\hw2reg[3] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[1] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:57.3" *)
-  sg13g2_dfrbpq_1 _566_ (
-    .CLK(clk_i),
-    .D(_058_),
-    .Q(\u_gpio_core.gen_input_filter[0].u_filter.stored_value_q ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../rtl/gpio_core.sv:55.3" *)
-  sg13g2_dfrbpq_1 _567_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _545_ (
     .CLK(clk_i),
     .D(_034_),
-    .Q(\hw2reg[4] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[16] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../rtl/gpio_core.sv:55.3" *)
-  sg13g2_dfrbpq_1 _568_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _546_ (
     .CLK(clk_i),
     .D(_033_),
-    .Q(\hw2reg[5] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[17] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../rtl/gpio_core.sv:55.3" *)
-  sg13g2_dfrbpq_1 _569_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _547_ (
     .CLK(clk_i),
     .D(_032_),
-    .Q(\hw2reg[6] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[18] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../rtl/gpio_core.sv:55.3" *)
-  sg13g2_dfrbpq_1 _570_ (
-    .CLK(clk_i),
-    .D(_059_),
-    .Q(\hw2reg[7] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _571_ (
-    .CLK(clk_i),
-    .D(_060_),
-    .Q(\u_gpio_reg.tl_o[1] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _572_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _548_ (
     .CLK(clk_i),
     .D(_031_),
-    .Q(\u_gpio_reg.tl_o[16] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[19] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _573_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _549_ (
     .CLK(clk_i),
     .D(_030_),
-    .Q(\u_gpio_reg.tl_o[17] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[20] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _574_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _550_ (
     .CLK(clk_i),
     .D(_029_),
-    .Q(\u_gpio_reg.tl_o[18] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[21] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _575_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _551_ (
     .CLK(clk_i),
     .D(_028_),
-    .Q(\u_gpio_reg.tl_o[19] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[22] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _576_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _552_ (
     .CLK(clk_i),
     .D(_027_),
-    .Q(\u_gpio_reg.tl_o[20] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[23] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _577_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _553_ (
     .CLK(clk_i),
     .D(_026_),
-    .Q(\u_gpio_reg.tl_o[21] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[24] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _578_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _554_ (
     .CLK(clk_i),
     .D(_025_),
-    .Q(\u_gpio_reg.tl_o[22] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[25] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _579_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _555_ (
     .CLK(clk_i),
     .D(_024_),
-    .Q(\u_gpio_reg.tl_o[23] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[26] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _580_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _556_ (
     .CLK(clk_i),
     .D(_023_),
-    .Q(\u_gpio_reg.tl_o[24] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[27] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _581_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _557_ (
     .CLK(clk_i),
     .D(_022_),
-    .Q(\u_gpio_reg.tl_o[25] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[28] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _582_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _558_ (
     .CLK(clk_i),
     .D(_021_),
-    .Q(\u_gpio_reg.tl_o[26] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[29] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _583_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _559_ (
     .CLK(clk_i),
     .D(_020_),
-    .Q(\u_gpio_reg.tl_o[27] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[30] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _584_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _560_ (
     .CLK(clk_i),
     .D(_019_),
-    .Q(\u_gpio_reg.tl_o[28] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[31] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _585_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _561_ (
     .CLK(clk_i),
     .D(_018_),
-    .Q(\u_gpio_reg.tl_o[29] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[32] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _586_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _562_ (
     .CLK(clk_i),
     .D(_017_),
-    .Q(\u_gpio_reg.tl_o[30] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[33] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _587_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _563_ (
     .CLK(clk_i),
     .D(_016_),
-    .Q(\u_gpio_reg.tl_o[31] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[34] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _588_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _564_ (
     .CLK(clk_i),
     .D(_015_),
-    .Q(\u_gpio_reg.tl_o[32] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[35] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _589_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
+  sg13g2_dfrbpq_1 _565_ (
     .CLK(clk_i),
     .D(_014_),
-    .Q(\u_gpio_reg.tl_o[33] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[36] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _590_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _566_ (
     .CLK(clk_i),
     .D(_013_),
-    .Q(\u_gpio_reg.tl_o[34] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[57] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _591_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _567_ (
+    .CLK(clk_i),
+    .D(_058_),
+    .Q(\u_gpio_reg.tl_o[58] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _568_ (
     .CLK(clk_i),
     .D(_012_),
-    .Q(\u_gpio_reg.tl_o[35] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[49] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:140.5" *)
-  sg13g2_dfrbpq_1 _592_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _569_ (
     .CLK(clk_i),
     .D(_011_),
-    .Q(\u_gpio_reg.tl_o[36] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[50] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _593_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _570_ (
     .CLK(clk_i),
     .D(_010_),
-    .Q(\u_gpio_reg.tl_o[57] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[51] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _594_ (
-    .CLK(clk_i),
-    .D(_061_),
-    .Q(\u_gpio_reg.tl_o[58] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _595_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _571_ (
     .CLK(clk_i),
     .D(_009_),
-    .Q(\u_gpio_reg.tl_o[49] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[52] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _596_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _572_ (
     .CLK(clk_i),
     .D(_008_),
-    .Q(\u_gpio_reg.tl_o[50] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[53] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _597_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _573_ (
     .CLK(clk_i),
     .D(_007_),
-    .Q(\u_gpio_reg.tl_o[51] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[54] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _598_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _574_ (
     .CLK(clk_i),
     .D(_006_),
-    .Q(\u_gpio_reg.tl_o[52] ),
-    .RESET_B(rst_ni)
+    .Q(\u_gpio_reg.tl_o[55] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _599_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
+  sg13g2_dfrbpq_1 _575_ (
+    .CLK(clk_i),
+    .D(_059_),
+    .Q(\u_gpio_reg.tl_o[56] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:94.3" *)
+  sg13g2_dfrbpq_1 _576_ (
+    .CLK(clk_i),
+    .D(_060_),
+    .Q(\u_gpio_reg.tl_o[65] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _577_ (
     .CLK(clk_i),
     .D(_005_),
-    .Q(\u_gpio_reg.tl_o[53] ),
-    .RESET_B(rst_ni)
+    .Q(\reg2hw[16] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _600_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _578_ (
     .CLK(clk_i),
     .D(_004_),
-    .Q(\u_gpio_reg.tl_o[54] ),
-    .RESET_B(rst_ni)
+    .Q(\reg2hw[17] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _601_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _579_ (
     .CLK(clk_i),
     .D(_003_),
-    .Q(\u_gpio_reg.tl_o[55] ),
-    .RESET_B(rst_ni)
+    .Q(\reg2hw[18] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:100.3" *)
-  sg13g2_dfrbpq_1 _602_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _580_ (
     .CLK(clk_i),
     .D(_062_),
-    .Q(\u_gpio_reg.tl_o[56] ),
-    .RESET_B(rst_ni)
+    .Q(\reg2hw[19] ),
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/tlul/tlul_adapter_reg.sv:94.3" *)
-  sg13g2_dfrbpq_1 _603_ (
-    .CLK(clk_i),
-    .D(_064_),
-    .Q(\u_gpio_reg.tl_o[65] ),
-    .RESET_B(rst_ni)
-  );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _604_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _581_ (
     .CLK(clk_i),
     .D(_002_),
     .Q(\reg2hw[8] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _605_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _582_ (
     .CLK(clk_i),
     .D(_001_),
     .Q(\reg2hw[9] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _606_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _583_ (
     .CLK(clk_i),
     .D(_000_),
     .Q(\reg2hw[10] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _607_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _584_ (
+    .CLK(clk_i),
+    .D(_063_),
+    .Q(\reg2hw[11] ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:57.3" *)
+  sg13g2_dfrbpq_1 _585_ (
+    .CLK(clk_i),
+    .D(_064_),
+    .Q(\u_gpio_core.gen_input_filter[2].u_filter.stored_value_q ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:57.3" *)
+  sg13g2_dfrbpq_1 _586_ (
     .CLK(clk_i),
     .D(_065_),
-    .Q(\reg2hw[11] ),
+    .Q(\u_gpio_core.gen_input_filter[0].u_filter.stored_value_q ),
+    .RESET_B(core_rst_sync_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _587_ (
+    .CLK(clk_i),
+    .D(_247_),
+    .Q(\u_core_reset_sync.intq ),
     .RESET_B(rst_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _608_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _588_ (
+    .CLK(clk_i),
+    .D(\u_core_reset_sync.intq ),
+    .Q(core_rst_sync_ni),
+    .RESET_B(rst_ni)
+  );
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _589_ (
     .CLK(clk_i),
     .D(\hw2reg[9] ),
     .Q(\u_gpio_core.data_in_q[0] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _609_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _590_ (
     .CLK(clk_i),
     .D(\hw2reg[10] ),
     .Q(\u_gpio_core.data_in_q[1] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _610_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _591_ (
     .CLK(clk_i),
     .D(\hw2reg[11] ),
     .Q(\u_gpio_core.data_in_q[2] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
-  sg13g2_dfrbpq_1 _611_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_subreg.sv:55.3" *)
+  sg13g2_dfrbpq_1 _592_ (
     .CLK(clk_i),
     .D(\hw2reg[12] ),
     .Q(\u_gpio_core.data_in_q[3] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
-  sg13g2_dfrbpq_1 _612_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _593_ (
     .CLK(clk_i),
     .D(cio_gpio_i[0]),
     .Q(\u_gpio_core.gen_input_filter[0].u_filter.gen_async.prim_flop_2sync.intq ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
-  sg13g2_dfrbpq_1 _613_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _594_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[0].u_filter.gen_async.prim_flop_2sync.intq ),
     .Q(\u_gpio_core.gen_input_filter[0].u_filter.filter_synced ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:49.3" *)
-  sg13g2_dfrbpq_1 _614_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:49.3" *)
+  sg13g2_dfrbpq_1 _595_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[0].u_filter.filter_synced ),
     .Q(\u_gpio_core.gen_input_filter[0].u_filter.filter_q ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _615_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _596_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[0] ),
     .Q(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[0] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _616_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _597_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[1] ),
     .Q(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[1] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _617_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _598_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[2] ),
     .Q(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[2] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _618_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _599_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_d[3] ),
     .Q(\u_gpio_core.gen_input_filter[0].u_filter.diff_ctr_q[3] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
-  sg13g2_dfrbpq_1 _619_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _600_ (
     .CLK(clk_i),
     .D(cio_gpio_i[1]),
     .Q(\u_gpio_core.gen_input_filter[1].u_filter.gen_async.prim_flop_2sync.intq ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
-  sg13g2_dfrbpq_1 _620_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _601_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[1].u_filter.gen_async.prim_flop_2sync.intq ),
     .Q(\u_gpio_core.gen_input_filter[1].u_filter.filter_synced ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:49.3" *)
-  sg13g2_dfrbpq_1 _621_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:49.3" *)
+  sg13g2_dfrbpq_1 _602_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[1].u_filter.filter_synced ),
     .Q(\u_gpio_core.gen_input_filter[1].u_filter.filter_q ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _622_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _603_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[0] ),
     .Q(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[0] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _623_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _604_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[1] ),
     .Q(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[1] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _624_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _605_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[2] ),
     .Q(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[2] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _625_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _606_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_d[3] ),
     .Q(\u_gpio_core.gen_input_filter[1].u_filter.diff_ctr_q[3] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
-  sg13g2_dfrbpq_1 _626_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _607_ (
     .CLK(clk_i),
     .D(cio_gpio_i[2]),
     .Q(\u_gpio_core.gen_input_filter[2].u_filter.gen_async.prim_flop_2sync.intq ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
-  sg13g2_dfrbpq_1 _627_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _608_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[2].u_filter.gen_async.prim_flop_2sync.intq ),
     .Q(\u_gpio_core.gen_input_filter[2].u_filter.filter_synced ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:49.3" *)
-  sg13g2_dfrbpq_1 _628_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:49.3" *)
+  sg13g2_dfrbpq_1 _609_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[2].u_filter.filter_synced ),
     .Q(\u_gpio_core.gen_input_filter[2].u_filter.filter_q ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _629_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _610_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[0] ),
     .Q(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[0] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _630_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _611_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[1] ),
     .Q(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[1] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _631_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _612_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[2] ),
     .Q(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[2] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _632_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _613_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_d[3] ),
     .Q(\u_gpio_core.gen_input_filter[2].u_filter.diff_ctr_q[3] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
-  sg13g2_dfrbpq_1 _633_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _614_ (
     .CLK(clk_i),
     .D(cio_gpio_i[3]),
     .Q(\u_gpio_core.gen_input_filter[3].u_filter.gen_async.prim_flop_2sync.intq ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
-  sg13g2_dfrbpq_1 _634_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_flop.sv:17.3" *)
+  sg13g2_dfrbpq_1 _615_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[3].u_filter.gen_async.prim_flop_2sync.intq ),
     .Q(\u_gpio_core.gen_input_filter[3].u_filter.filter_synced ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:49.3" *)
-  sg13g2_dfrbpq_1 _635_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:49.3" *)
+  sg13g2_dfrbpq_1 _616_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[3].u_filter.filter_synced ),
     .Q(\u_gpio_core.gen_input_filter[3].u_filter.filter_q ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _636_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _617_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[0] ),
     .Q(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[0] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _637_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _618_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[1] ),
     .Q(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[1] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _638_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _619_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[2] ),
     .Q(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[2] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  (* src = "../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
-  sg13g2_dfrbpq_1 _639_ (
+  (* src = "../../../../../../../../home/eneadim/github/flexsoc/hw/ips/prim_opentitan/prim_filter_ctr.sv:65.3" *)
+  sg13g2_dfrbpq_1 _620_ (
     .CLK(clk_i),
     .D(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_d[3] ),
     .Q(\u_gpio_core.gen_input_filter[3].u_filter.diff_ctr_q[3] ),
-    .RESET_B(rst_ni)
+    .RESET_B(core_rst_sync_ni)
   );
-  sg13g2_tielo _640_ (
-    .L_LO(_258_)
+  sg13g2_tiehi _621_ (
+    .L_HI(_247_)
   );
-  sg13g2_buf_1 _641_ (
+  sg13g2_tielo _622_ (
+    .L_LO(_248_)
+  );
+  sg13g2_buf_1 _623_ (
     .A(\u_gpio_reg.tl_o[0] ),
     .X(tl_o[0])
   );
-  sg13g2_buf_1 _642_ (
+  sg13g2_buf_1 _624_ (
     .A(\u_gpio_reg.tl_o[1] ),
     .X(tl_o[1])
   );
-  sg13g2_buf_1 _643_ (
-    .A(_258_),
+  sg13g2_buf_1 _625_ (
+    .A(_248_),
     .X(tl_o[2])
   );
-  sg13g2_buf_1 _644_ (
-    .A(_258_),
+  sg13g2_buf_1 _626_ (
+    .A(_248_),
     .X(tl_o[3])
   );
-  sg13g2_buf_1 _645_ (
-    .A(_258_),
+  sg13g2_buf_1 _627_ (
+    .A(_248_),
     .X(tl_o[4])
   );
-  sg13g2_buf_1 _646_ (
-    .A(_258_),
+  sg13g2_buf_1 _628_ (
+    .A(_248_),
     .X(tl_o[5])
   );
-  sg13g2_buf_1 _647_ (
-    .A(_258_),
+  sg13g2_buf_1 _629_ (
+    .A(_248_),
     .X(tl_o[6])
   );
-  sg13g2_buf_1 _648_ (
-    .A(_258_),
+  sg13g2_buf_1 _630_ (
+    .A(_248_),
     .X(tl_o[7])
   );
-  sg13g2_buf_1 _649_ (
-    .A(_258_),
+  sg13g2_buf_1 _631_ (
+    .A(_248_),
     .X(tl_o[8])
   );
-  sg13g2_buf_1 _650_ (
-    .A(_258_),
+  sg13g2_buf_1 _632_ (
+    .A(_248_),
     .X(tl_o[9])
   );
-  sg13g2_buf_1 _651_ (
-    .A(_258_),
+  sg13g2_buf_1 _633_ (
+    .A(_248_),
     .X(tl_o[10])
   );
-  sg13g2_buf_1 _652_ (
-    .A(_258_),
+  sg13g2_buf_1 _634_ (
+    .A(_248_),
     .X(tl_o[11])
   );
-  sg13g2_buf_1 _653_ (
-    .A(_258_),
+  sg13g2_buf_1 _635_ (
+    .A(_248_),
     .X(tl_o[12])
   );
-  sg13g2_buf_1 _654_ (
-    .A(_258_),
+  sg13g2_buf_1 _636_ (
+    .A(_248_),
     .X(tl_o[13])
   );
-  sg13g2_buf_1 _655_ (
-    .A(_258_),
+  sg13g2_buf_1 _637_ (
+    .A(_248_),
     .X(tl_o[14])
   );
-  sg13g2_buf_1 _656_ (
-    .A(_258_),
+  sg13g2_buf_1 _638_ (
+    .A(_248_),
     .X(tl_o[15])
   );
-  sg13g2_buf_1 _657_ (
+  sg13g2_buf_1 _639_ (
     .A(\u_gpio_reg.tl_o[16] ),
     .X(tl_o[16])
   );
-  sg13g2_buf_1 _658_ (
+  sg13g2_buf_1 _640_ (
     .A(\u_gpio_reg.tl_o[17] ),
     .X(tl_o[17])
   );
-  sg13g2_buf_1 _659_ (
+  sg13g2_buf_1 _641_ (
     .A(\u_gpio_reg.tl_o[18] ),
     .X(tl_o[18])
   );
-  sg13g2_buf_1 _660_ (
+  sg13g2_buf_1 _642_ (
     .A(\u_gpio_reg.tl_o[19] ),
     .X(tl_o[19])
   );
-  sg13g2_buf_1 _661_ (
+  sg13g2_buf_1 _643_ (
     .A(\u_gpio_reg.tl_o[20] ),
     .X(tl_o[20])
   );
-  sg13g2_buf_1 _662_ (
+  sg13g2_buf_1 _644_ (
     .A(\u_gpio_reg.tl_o[21] ),
     .X(tl_o[21])
   );
-  sg13g2_buf_1 _663_ (
+  sg13g2_buf_1 _645_ (
     .A(\u_gpio_reg.tl_o[22] ),
     .X(tl_o[22])
   );
-  sg13g2_buf_1 _664_ (
+  sg13g2_buf_1 _646_ (
     .A(\u_gpio_reg.tl_o[23] ),
     .X(tl_o[23])
   );
-  sg13g2_buf_1 _665_ (
+  sg13g2_buf_1 _647_ (
     .A(\u_gpio_reg.tl_o[24] ),
     .X(tl_o[24])
   );
-  sg13g2_buf_1 _666_ (
+  sg13g2_buf_1 _648_ (
     .A(\u_gpio_reg.tl_o[25] ),
     .X(tl_o[25])
   );
-  sg13g2_buf_1 _667_ (
+  sg13g2_buf_1 _649_ (
     .A(\u_gpio_reg.tl_o[26] ),
     .X(tl_o[26])
   );
-  sg13g2_buf_1 _668_ (
+  sg13g2_buf_1 _650_ (
     .A(\u_gpio_reg.tl_o[27] ),
     .X(tl_o[27])
   );
-  sg13g2_buf_1 _669_ (
+  sg13g2_buf_1 _651_ (
     .A(\u_gpio_reg.tl_o[28] ),
     .X(tl_o[28])
   );
-  sg13g2_buf_1 _670_ (
+  sg13g2_buf_1 _652_ (
     .A(\u_gpio_reg.tl_o[29] ),
     .X(tl_o[29])
   );
-  sg13g2_buf_1 _671_ (
+  sg13g2_buf_1 _653_ (
     .A(\u_gpio_reg.tl_o[30] ),
     .X(tl_o[30])
   );
-  sg13g2_buf_1 _672_ (
+  sg13g2_buf_1 _654_ (
     .A(\u_gpio_reg.tl_o[31] ),
     .X(tl_o[31])
   );
-  sg13g2_buf_1 _673_ (
+  sg13g2_buf_1 _655_ (
     .A(\u_gpio_reg.tl_o[32] ),
     .X(tl_o[32])
   );
-  sg13g2_buf_1 _674_ (
+  sg13g2_buf_1 _656_ (
     .A(\u_gpio_reg.tl_o[33] ),
     .X(tl_o[33])
   );
-  sg13g2_buf_1 _675_ (
+  sg13g2_buf_1 _657_ (
     .A(\u_gpio_reg.tl_o[34] ),
     .X(tl_o[34])
   );
-  sg13g2_buf_1 _676_ (
+  sg13g2_buf_1 _658_ (
     .A(\u_gpio_reg.tl_o[35] ),
     .X(tl_o[35])
   );
-  sg13g2_buf_1 _677_ (
+  sg13g2_buf_1 _659_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[36])
   );
-  sg13g2_buf_1 _678_ (
+  sg13g2_buf_1 _660_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[37])
   );
-  sg13g2_buf_1 _679_ (
+  sg13g2_buf_1 _661_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[38])
   );
-  sg13g2_buf_1 _680_ (
+  sg13g2_buf_1 _662_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[39])
   );
-  sg13g2_buf_1 _681_ (
+  sg13g2_buf_1 _663_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[40])
   );
-  sg13g2_buf_1 _682_ (
+  sg13g2_buf_1 _664_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[41])
   );
-  sg13g2_buf_1 _683_ (
+  sg13g2_buf_1 _665_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[42])
   );
-  sg13g2_buf_1 _684_ (
+  sg13g2_buf_1 _666_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[43])
   );
-  sg13g2_buf_1 _685_ (
+  sg13g2_buf_1 _667_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[44])
   );
-  sg13g2_buf_1 _686_ (
+  sg13g2_buf_1 _668_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[45])
   );
-  sg13g2_buf_1 _687_ (
+  sg13g2_buf_1 _669_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[46])
   );
-  sg13g2_buf_1 _688_ (
+  sg13g2_buf_1 _670_ (
     .A(\u_gpio_reg.tl_o[36] ),
     .X(tl_o[47])
   );
-  sg13g2_buf_1 _689_ (
-    .A(_258_),
+  sg13g2_buf_1 _671_ (
+    .A(_248_),
     .X(tl_o[48])
   );
-  sg13g2_buf_1 _690_ (
+  sg13g2_buf_1 _672_ (
     .A(\u_gpio_reg.tl_o[49] ),
     .X(tl_o[49])
   );
-  sg13g2_buf_1 _691_ (
+  sg13g2_buf_1 _673_ (
     .A(\u_gpio_reg.tl_o[50] ),
     .X(tl_o[50])
   );
-  sg13g2_buf_1 _692_ (
+  sg13g2_buf_1 _674_ (
     .A(\u_gpio_reg.tl_o[51] ),
     .X(tl_o[51])
   );
-  sg13g2_buf_1 _693_ (
+  sg13g2_buf_1 _675_ (
     .A(\u_gpio_reg.tl_o[52] ),
     .X(tl_o[52])
   );
-  sg13g2_buf_1 _694_ (
+  sg13g2_buf_1 _676_ (
     .A(\u_gpio_reg.tl_o[53] ),
     .X(tl_o[53])
   );
-  sg13g2_buf_1 _695_ (
+  sg13g2_buf_1 _677_ (
     .A(\u_gpio_reg.tl_o[54] ),
     .X(tl_o[54])
   );
-  sg13g2_buf_1 _696_ (
+  sg13g2_buf_1 _678_ (
     .A(\u_gpio_reg.tl_o[55] ),
     .X(tl_o[55])
   );
-  sg13g2_buf_1 _697_ (
+  sg13g2_buf_1 _679_ (
     .A(\u_gpio_reg.tl_o[56] ),
     .X(tl_o[56])
   );
-  sg13g2_buf_1 _698_ (
+  sg13g2_buf_1 _680_ (
     .A(\u_gpio_reg.tl_o[57] ),
     .X(tl_o[57])
   );
-  sg13g2_buf_1 _699_ (
+  sg13g2_buf_1 _681_ (
     .A(\u_gpio_reg.tl_o[58] ),
     .X(tl_o[58])
   );
-  sg13g2_buf_1 _700_ (
-    .A(_258_),
+  sg13g2_buf_1 _682_ (
+    .A(_248_),
     .X(tl_o[59])
   );
-  sg13g2_buf_1 _701_ (
-    .A(_258_),
+  sg13g2_buf_1 _683_ (
+    .A(_248_),
     .X(tl_o[60])
   );
-  sg13g2_buf_1 _702_ (
-    .A(_258_),
+  sg13g2_buf_1 _684_ (
+    .A(_248_),
     .X(tl_o[61])
   );
-  sg13g2_buf_1 _703_ (
+  sg13g2_buf_1 _685_ (
     .A(\u_gpio_reg.tl_o[62] ),
     .X(tl_o[62])
   );
-  sg13g2_buf_1 _704_ (
-    .A(_258_),
+  sg13g2_buf_1 _686_ (
+    .A(_248_),
     .X(tl_o[63])
   );
-  sg13g2_buf_1 _705_ (
-    .A(_258_),
+  sg13g2_buf_1 _687_ (
+    .A(_248_),
     .X(tl_o[64])
   );
-  sg13g2_buf_1 _706_ (
+  sg13g2_buf_1 _688_ (
     .A(\u_gpio_reg.tl_o[65] ),
     .X(tl_o[65])
   );
-  sg13g2_buf_1 _707_ (
+  sg13g2_buf_1 _689_ (
     .A(\u_gpio_core.intr_gpio_o[0] ),
     .X(intr_gpio_o[0])
   );
-  sg13g2_buf_1 _708_ (
+  sg13g2_buf_1 _690_ (
     .A(\u_gpio_core.intr_gpio_o[1] ),
     .X(intr_gpio_o[1])
   );
-  sg13g2_buf_1 _709_ (
+  sg13g2_buf_1 _691_ (
     .A(\u_gpio_core.intr_gpio_o[2] ),
     .X(intr_gpio_o[2])
   );
-  sg13g2_buf_1 _710_ (
+  sg13g2_buf_1 _692_ (
     .A(\u_gpio_core.intr_gpio_o[3] ),
     .X(intr_gpio_o[3])
   );
-  sg13g2_buf_1 _711_ (
+  sg13g2_buf_1 _693_ (
     .A(\hw2reg[0] ),
     .X(cio_gpio_en_o[0])
   );
-  sg13g2_buf_1 _712_ (
+  sg13g2_buf_1 _694_ (
     .A(\hw2reg[1] ),
     .X(cio_gpio_en_o[1])
   );
-  sg13g2_buf_1 _713_ (
+  sg13g2_buf_1 _695_ (
     .A(\hw2reg[2] ),
     .X(cio_gpio_en_o[2])
   );
-  sg13g2_buf_1 _714_ (
+  sg13g2_buf_1 _696_ (
     .A(\hw2reg[3] ),
     .X(cio_gpio_en_o[3])
   );
-  sg13g2_buf_1 _715_ (
+  sg13g2_buf_1 _697_ (
     .A(\hw2reg[4] ),
     .X(cio_gpio_o[0])
   );
-  sg13g2_buf_1 _716_ (
+  sg13g2_buf_1 _698_ (
     .A(\hw2reg[5] ),
     .X(cio_gpio_o[1])
   );
-  sg13g2_buf_1 _717_ (
+  sg13g2_buf_1 _699_ (
     .A(\hw2reg[6] ),
     .X(cio_gpio_o[2])
   );
-  sg13g2_buf_1 _718_ (
+  sg13g2_buf_1 _700_ (
     .A(\hw2reg[7] ),
     .X(cio_gpio_o[3])
   );

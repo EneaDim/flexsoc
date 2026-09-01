@@ -3,7 +3,7 @@
 #
 # Analysis : power_analysis
 # Design   : gpio
-# Variant  : develop
+# Variant  : dev
 # PDK      : ihp-sg13g2
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_synth.v
-#   SDC           : /tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/gpio.sdc
+#   Netlist       : /tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/gpio_synth.v
+#   SDC           : /tmp/flexsoc-repack/gpio/runs/gpio/dev/constraints/gpio.sdc
 #   SPEF          : not used
-#   VCD or SAIF   : /tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd
+#   VCD or SAIF   : /tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd
 #   Activity scope: DUT_SCOPE_REQUIRED
-#   GLS report    : /tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/power/activity/GLS_REPORT_REQUIRED.json
-#   Report dir    : /tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/power/analysis/template_reports
+#   GLS report    : /tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/ihp-sg13g2/power/activity/GLS_REPORT_REQUIRED.json
+#   Report dir    : /tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/ihp-sg13g2/power/analysis/template_reports
 #
 # Limitations:
 #   - Power is average cell power derived from the selected Liberty models and annotated activity.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/power/analysis/template_reports}
+set report_dir {/tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/ihp-sg13g2/power/analysis/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-develop-gpio/runs/gpio/develop/syn/ihp-sg13g2/gpio_synth.v}
-set sdc {/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/gpio.sdc}
+set netlist {/tmp/flexsoc-repack/gpio/runs/gpio/dev/syn/ihp-sg13g2/gpio_synth.v}
+set sdc {/tmp/flexsoc-repack/gpio/runs/gpio/dev/constraints/gpio.sdc}
 set spef {}
 set top {gpio}
 set stage {post_syn}
@@ -200,7 +200,7 @@ proc flexsoc_append_activity_coverage {path} {
 }
 
 puts "=== Step 7/7: Read activity ==="
-set activity_file {/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd}
+set activity_file {/tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd}
 set activity_scope {DUT_SCOPE_REQUIRED}
 flexsoc_require_readable "activity VCD/SAIF" $activity_file
 puts "activity_file=$activity_file"
@@ -223,8 +223,8 @@ set report [file join $report_dir power.rpt]
 set fp [open $report w]
 puts $fp "analysis=power_analysis corner=tt stage=post_syn"
 puts $fp "workload=GLS_WORKLOAD_REQUIRED"
-puts $fp "gls_report=/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/power/activity/GLS_REPORT_REQUIRED.json"
-puts $fp "activity_file=/tmp/flexsoc-develop-gpio/runs/gpio/develop/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd"
+puts $fp "gls_report=/tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/ihp-sg13g2/power/activity/GLS_REPORT_REQUIRED.json"
+puts $fp "activity_file=/tmp/flexsoc-repack/gpio/runs/gpio/dev/signoff/ihp-sg13g2/power/activity/ACTIVITY_REQUIRED.vcd"
 puts $fp "activity_scope=DUT_SCOPE_REQUIRED"
 puts $fp "liberty=$liberty"
 puts $fp "netlist=$netlist"
