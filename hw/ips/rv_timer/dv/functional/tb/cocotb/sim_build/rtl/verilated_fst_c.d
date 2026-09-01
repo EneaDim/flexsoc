@@ -1,0 +1,20 @@
+verilated_fst_c.o: \
+ /home/eneadim/.local/share/verilator/include/verilated_fst_c.cpp \
+ /home/eneadim/.local/share/verilator/include/verilated.h \
+ /home/eneadim/.local/share/verilator/include/verilated_config.h \
+ /home/eneadim/.local/share/verilator/include/verilatedos.h \
+ /home/eneadim/.local/share/verilator/include/verilated_types.h \
+ /home/eneadim/.local/share/verilator/include/verilated_funcs.h \
+ /home/eneadim/.local/share/verilator/include/verilated_fst_c.h \
+ /home/eneadim/.local/share/verilator/include/verilated_trace.h \
+ /home/eneadim/.local/share/verilator/include/fstcpp/fstcpp_variable_info.cpp \
+ /home/eneadim/.local/share/verilator/include/fstcpp/fstcpp_variable_info.h \
+ /home/eneadim/.local/share/verilator/include/fstcpp/fstcpp.h \
+ /home/eneadim/.local/share/verilator/include/fstcpp/fstcpp_assertion.h \
+ /home/eneadim/.local/share/verilator/include/fstcpp/fstcpp_stream_write_helper.h \
+ /home/eneadim/.local/share/verilator/include/fstcpp/fstcpp_file.h \
+ /home/eneadim/.local/share/verilator/include/fstcpp/fstcpp_writer.cpp \
+ /home/eneadim/.local/share/verilator/include/fstcpp/fstcpp_writer.h \
+ /home/eneadim/.local/share/verilator/include/verilated_trace_imp.h \
+ /home/eneadim/.local/share/verilator/include/verilated_intrinsics.h \
+ /home/eneadim/.local/share/verilator/include/verilated_threads.h

@@ -91,7 +91,7 @@ module rv_timer import rv_timer_reg_pkg::*;
       .intr_o                 (intr_out[h*N_TIMERS+:N_TIMERS])
     );
 
-    timer_core #(
+    rv_timer_core #(
       .N (N_TIMERS)
     ) u_core (
       .clk_i,
