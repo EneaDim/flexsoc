@@ -3376,7 +3376,7 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
     )
     primary = clocks.domains[0].signal
     tlul_helpers = render_packed_tlul_helpers("  ")
-    return dedent(f"""\
+    template = dedent(f"""\
     `timescale 1ns/1ps
     `include "include_{top}_tb.sv"
     `ifdef SYN
@@ -3384,8 +3384,7 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
     `endif
 
     module {testbench};
-
-      {clock_decls}
+    __CLOCK_DECLS__
       logic test_en_i;
 
       logic [108:0] cfg_tl_i;
@@ -3410,19 +3409,17 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
       string sdf_path;
       integer errors;
       localparam integer INITIAL_RESET_CYCLES = 5;
-
-{tlul_helpers}
+    __TLUL_HELPERS__
 
       logic [31:0] exp_result [0:1023];
       logic        exp_above_threshold [0:1023];
       logic        exp_overflow [0:1023];
       integer exp_count;
       integer got_count;
-
-      {clock_drivers}
+    __CLOCK_DRIVERS__
 
       {top} u_dut (
-        {clock_pins},
+    __CLOCK_PINS__,
         .test_en_i             (test_en_i),
         .cfg_tl_i              (cfg_tl_i),
         .cfg_tl_o              (cfg_tl_o),
@@ -3446,7 +3443,7 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
 
       initial begin
         errors = 0;
-        {clock_init}
+    __CLOCK_INIT__
         apply_defaults();
 
         if (!$value$plusargs("CFG=%s", cfg_path)) cfg_path = "dv/functional/tests/smoke/config.regs";
@@ -3479,11 +3476,11 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
 
         repeat (2) @(posedge {primary});
         @(negedge {primary}); #1;
-        {reset_assert}
+    __RESET_ASSERT__
         $display("[TB] initial reset pulse cycles=%0d", INITIAL_RESET_CYCLES);
         repeat (INITIAL_RESET_CYCLES) @(posedge {primary});
         @(negedge {primary}); #1;
-        {reset_release}
+    __RESET_RELEASE__
         repeat (8) @(posedge {primary});
 
         load_config(cfg_path);
@@ -3507,6 +3504,15 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
 
     endmodule
     """)
+    return (
+        template.replace("__CLOCK_DECLS__", clock_decls)
+        .replace("__TLUL_HELPERS__", tlul_helpers)
+        .replace("__CLOCK_DRIVERS__", clock_drivers)
+        .replace("__CLOCK_PINS__", clock_pins)
+        .replace("__CLOCK_INIT__", clock_init)
+        .replace("__RESET_ASSERT__", reset_assert)
+        .replace("__RESET_RELEASE__", reset_release)
+    )
 
 # ---------------------------------------------------------------------------
 # cocotb scaffold
@@ -3646,7 +3652,7 @@ def render_extra_port_declarations(info: dict[str, list]) -> str:
 def _serial_idle_high(name: str) -> bool:
     """Return true for asynchronous serial receive pins that idle high."""
 
-    return name.lower() in {"cio_rx_i", "uart_rx_i", "serial_rx_i"}
+    return name.lower() in {"rx_i", "cio_rx_i", "uart_rx_i", "serial_rx_i"}
 
 
 def render_extra_input_initializers(info: dict[str, list]) -> str:
@@ -3721,46 +3727,46 @@ def render_source_block(paths: Sequence[Path], var_name: str = "VERILOG_SOURCES"
     return "\n".join(lines)
 
 def render_gls_make_block(default_netlist: str) -> str:
-    """Render one gate-level cocotb configuration shared by 1/N-clock TBs."""
+    """Render the gate-level branch nested under ``ifeq ($(GATES),yes)``."""
 
-    return dedent(f"""\
-        SIM := icarus
-        SIM_BUILD ?= sim_build/gls
-        TIMING_MODE ?= zero
-        GLS_UNIT_DELAY_DEFINE ?= 1
-        GLS_INTERCONNECT ?= 0
-        SDF_FILE ?=
-        GLS_MODELS ?=
-        GLS_NETLIST ?= {default_netlist}
-
-        VERILOG_SOURCES += $(GLS_MODELS)
-        VERILOG_SOURCES += $(GLS_NETLIST)
-        COMPILE_ARGS += -g2012 -DSIM -DSYN -DFLEXSOC_GLS_EXTERNAL_MODELS -DFLEXSOC_COCOTB_WAVE_OWNER
-
-        ifeq ($(TIMING_MODE),zero)
-        COMPILE_ARGS += -DFUNCTIONAL -DUNIT_DELAY=\\#0 -gno-specify
-        else ifeq ($(TIMING_MODE),unit)
-        COMPILE_ARGS += -DFUNCTIONAL -gno-specify -DUNIT_DELAY=\\#$(GLS_UNIT_DELAY_DEFINE)
-        else ifneq ($(filter $(TIMING_MODE),min typ max),)
-        ifeq ($(strip $(SDF_FILE)),)
-        $(error SDF_FILE is required when TIMING_MODE=$(TIMING_MODE))
-        endif
-        COMPILE_ARGS += -gspecify -T$(TIMING_MODE) -DFLEXSOC_ENABLE_SDF
-        ifeq ($(GLS_INTERCONNECT),1)
-        COMPILE_ARGS += -ginterconnect
-        endif
-        ifeq ($(TIMING_MODE),min)
-        COMPILE_ARGS += -DFLEXSOC_SDF_MIN
-        else ifeq ($(TIMING_MODE),typ)
-        COMPILE_ARGS += -DFLEXSOC_SDF_TYP
-        else
-        COMPILE_ARGS += -DFLEXSOC_SDF_MAX
-        endif
-        COCOTB_PLUSARGS += +SDF=$(abspath $(SDF_FILE))
-        else
-        $(error TIMING_MODE must be zero, unit, min, typ, or max)
-        endif
-        """)
+    return "\n".join((
+        "  SIM := icarus",
+        "  SIM_BUILD ?= sim_build/gls",
+        "  TIMING_MODE ?= zero",
+        "  GLS_UNIT_DELAY_DEFINE ?= 1",
+        "  GLS_INTERCONNECT ?= 0",
+        "  SDF_FILE ?=",
+        "  GLS_MODELS ?=",
+        f"  GLS_NETLIST ?= {default_netlist}",
+        "",
+        "  VERILOG_SOURCES += $(GLS_MODELS)",
+        "  VERILOG_SOURCES += $(GLS_NETLIST)",
+        "  COMPILE_ARGS += -g2012 -DSIM -DSYN -DFLEXSOC_GLS_EXTERNAL_MODELS -DFLEXSOC_COCOTB_WAVE_OWNER",
+        "",
+        "  ifeq ($(TIMING_MODE),zero)",
+        "    COMPILE_ARGS += -DFUNCTIONAL -DUNIT_DELAY=\\#0 -gno-specify",
+        "  else ifeq ($(TIMING_MODE),unit)",
+        "    COMPILE_ARGS += -DFUNCTIONAL -gno-specify -DUNIT_DELAY=\\#$(GLS_UNIT_DELAY_DEFINE)",
+        "  else ifneq ($(filter $(TIMING_MODE),min typ max),)",
+        "    ifeq ($(strip $(SDF_FILE)),)",
+        "      $(error SDF_FILE is required when TIMING_MODE=$(TIMING_MODE))",
+        "    endif",
+        "    COMPILE_ARGS += -gspecify -T$(TIMING_MODE) -DFLEXSOC_ENABLE_SDF",
+        "    ifeq ($(GLS_INTERCONNECT),1)",
+        "      COMPILE_ARGS += -ginterconnect",
+        "    endif",
+        "    ifeq ($(TIMING_MODE),min)",
+        "      COMPILE_ARGS += -DFLEXSOC_SDF_MIN",
+        "    else ifeq ($(TIMING_MODE),typ)",
+        "      COMPILE_ARGS += -DFLEXSOC_SDF_TYP",
+        "    else",
+        "      COMPILE_ARGS += -DFLEXSOC_SDF_MAX",
+        "    endif",
+        "    COCOTB_PLUSARGS += +SDF=$(abspath $(SDF_FILE))",
+        "  else",
+        "    $(error TIMING_MODE must be zero, unit, min, typ, or max)",
+        "  endif",
+    ))
 
 
 def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
@@ -3778,7 +3784,11 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
     ]
     includes = " ".join(f"-I{path}" for path in [rtl_dir, *include_dirs])
     gate = render_gls_make_block(f"../../../../syn/$(PDK)/{cfg.top}_synth.v")
-    return dedent(
+    source_block = "\n".join(
+        f"  {line}" if line else ""
+        for line in render_source_block(sources).splitlines()
+    )
+    template = dedent(
         f"""\
         # Auto-generated Makefile
         SIM               ?= {cfg.simulator}
@@ -3793,24 +3803,24 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         endif
 
         ifeq ($(GATES),yes)
-        {gate}
+        __GLS_BLOCK__
         else
-        SIM_BUILD ?= sim_build/rtl
+          SIM_BUILD ?= sim_build/rtl
 
-        {render_source_block(sources)}
+        __RTL_SOURCES__
 
-        COMPILE_ARGS += --sv --timing
-        WAVE_FORMAT ?= fst
-        ifeq ($(WAVE_FORMAT),vcd)
-        COMPILE_ARGS += --trace-vcd --trace-structs
-        else
-        COMPILE_ARGS += --trace-fst --trace-structs
-        export IVERILOG_DUMPER := fst
-        endif
-        export WAVES ?= 1
-        COMPILE_ARGS += -Wno-WIDTHEXPAND
-        COMPILE_ARGS += -Wno-WIDTHTRUNC
-        COMPILE_ARGS += -Wno-UNOPTFLAT
+          COMPILE_ARGS += --sv --timing
+          WAVE_FORMAT ?= fst
+          ifeq ($(WAVE_FORMAT),vcd)
+            COMPILE_ARGS += --trace-vcd --trace-structs
+          else
+            COMPILE_ARGS += --trace-fst --trace-structs
+            export IVERILOG_DUMPER := fst
+          endif
+          export WAVES ?= 1
+          COMPILE_ARGS += -Wno-WIDTHEXPAND
+          COMPILE_ARGS += -Wno-WIDTHTRUNC
+          COMPILE_ARGS += -Wno-UNOPTFLAT
         endif
 
         COMPILE_ARGS += {includes}
@@ -3824,18 +3834,18 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         WAVE_FILE ?= $(abspath ../../sim/rtl/{cfg.top}_tb_cocotb_$(TEST_NAME).$(WAVE_EXT))
         COCOTB_PLUSARGS += +WAVE=$(WAVE_FILE)
         ifeq ($(GATES),yes)
-        COCOTB_PLUSARGS += +dumpfile_path=$(WAVE_FILE)
+          COCOTB_PLUSARGS += +dumpfile_path=$(WAVE_FILE)
         endif
 
         override COVERAGE :=
         unexport COVERAGE
 
         ifeq ($(SIM),verilator)
-        COCOTB_PLUSARGS += +verilator+seed+$(SEED)
-        ifeq ($(HDL_COVERAGE),1)
-        COMPILE_ARGS += --coverage-line --coverage-toggle --coverage-expr --coverage-fsm --coverage-user
-        COCOTB_PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
-        endif
+          COCOTB_PLUSARGS += +verilator+seed+$(SEED)
+          ifeq ($(HDL_COVERAGE),1)
+            COMPILE_ARGS += --coverage-line --coverage-toggle --coverage-expr --coverage-fsm --coverage-user
+            COCOTB_PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
+          endif
         endif
 
         export TEST_NAME
@@ -3851,10 +3861,14 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
 
         COCOTB_MAKEFILES := $(shell cocotb-config --makefiles 2>/dev/null)
         ifeq ($(strip $(COCOTB_MAKEFILES)),)
-        $(error cocotb is not installed in this environment; run: uv sync)
+          $(error cocotb is not installed in this environment; run: uv sync)
         endif
         include $(COCOTB_MAKEFILES)/Makefile.sim
         """
+    )
+    return (
+        template.replace("__GLS_BLOCK__", gate.rstrip())
+        .replace("__RTL_SOURCES__", source_block)
     )
 
 
@@ -4826,13 +4840,13 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
     extra_decls = render_extra_port_declarations(port_info)
     extra_init = render_extra_input_initializers(port_info)
     helpers = render_packed_tlul_helpers("  ")
-    return dedent(
+    template = dedent(
         f"""\
         `timescale 1ns/1ps
         module {cfg.top}_tb;
           logic {cfg.clk};
           logic {cfg.rst};
-        {extra_decls}
+        __EXTRA_DECLS__
           logic         tl_i_a_valid;
           logic [2:0]   tl_i_a_opcode;
           logic [2:0]   tl_i_a_param;
@@ -4850,10 +4864,10 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
           logic [108:0] tl_i;
           logic [65:0]  tl_o;
 
-        {helpers}
+        __TLUL_HELPERS__
 
           initial begin
-        {extra_init}
+        __EXTRA_INIT__
           end
 
           assign tl_i = flexsoc_tlul_h2d(
@@ -4907,6 +4921,11 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
           );
         endmodule
         """
+    )
+    return (
+        template.replace("__EXTRA_DECLS__", extra_decls)
+        .replace("__TLUL_HELPERS__", helpers)
+        .replace("__EXTRA_INIT__", extra_init)
     )
 
 def _write_cocotb_scaffold_impl(
@@ -5002,11 +5021,11 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
         for signal in (domain.signal, domain.reset)
     )
     helpers = render_packed_tlul_helpers("  ")
-    return dedent(f"""\
+    template = dedent(f"""\
     `timescale 1ns/1ps
 
     module {top}_tb;
-      {clock_decls}
+    __CLOCK_DECLS__
       logic test_en_i;
 
       logic [108:0] cfg_tl_i;
@@ -5051,8 +5070,7 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
       logic signed [31:0] dsp_result_o;
       logic dsp_above_threshold_o;
       logic dsp_overflow_o;
-
-{helpers}
+    __TLUL_HELPERS__
 
       assign cfg_tl_i = flexsoc_tlul_h2d(
         cfg_a_valid, cfg_a_opcode, cfg_a_param, cfg_a_size, cfg_a_source,
@@ -5092,7 +5110,7 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
       `endif
 
       {top} u_dut (
-{clock_pins},
+    __CLOCK_PINS__,
         .test_en_i             (test_en_i),
         .cfg_tl_i              (cfg_tl_i),
         .cfg_tl_o              (cfg_tl_o),
@@ -5110,6 +5128,11 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
       );
     endmodule
     """)
+    return (
+        template.replace("__CLOCK_DECLS__", clock_decls)
+        .replace("__TLUL_HELPERS__", helpers)
+        .replace("__CLOCK_PINS__", clock_pins)
+    )
 
 def cocotb_makefile_text(
     top: str,
@@ -5135,20 +5158,20 @@ def cocotb_makefile_text(
     common_filelist = rtl_dir / "rtl_common.f"
     ip_filelist = rtl_dir / "rtl_ip.f"
     gate = render_gls_make_block(f"../../../../syn/$(PDK)/{top}_synth.v")
-    return dedent(f"""\
+    template = dedent(f"""\
     SIM ?= {simulator}
     TOPLEVEL_LANG ?= verilog
     COCOTB_TOPLEVEL = {top}_tb
     COCOTB_TEST_MODULES = {top}_tb
 
     ifeq ($(GATES),yes)
-    {gate}
+    __GLS_BLOCK__
     else
-    SIM_BUILD ?= sim_build/rtl
-    EXTRA_ARGS += -f {common_filelist}
-    EXTRA_ARGS += -f {ip_filelist}
-    EXTRA_ARGS += {include_args}
-    EXTRA_ARGS += -Wno-fatal
+      SIM_BUILD ?= sim_build/rtl
+      EXTRA_ARGS += -f {common_filelist}
+      EXTRA_ARGS += -f {ip_filelist}
+      EXTRA_ARGS += {include_args}
+      EXTRA_ARGS += -Wno-fatal
     endif
 
     VERILOG_SOURCES += $(PWD)/{top}_tb.sv
@@ -5180,7 +5203,7 @@ def cocotb_makefile_text(
     export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
     include $(shell cocotb-config --makefiles)/Makefile.sim
     """)
-
+    return template.replace("__GLS_BLOCK__", gate.rstrip())
 
 def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
     """Render TL-UL helpers bound to the canonical clock/reset domains."""

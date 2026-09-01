@@ -1390,18 +1390,19 @@ class FlexSoCTarget:
             return b.design.rtl.setup_top(top, p.rtl, interface, force=force, clocks=self.context.clocks)
         if target in {"flist", "slang_flist"}:
             ips_root = self.client.project_root / "hw" / "ips"
-            shared_ip_roots = tuple(
-                path for path in sorted(ips_root.iterdir())
-                if path.is_dir() and path.name != top
-            ) if ips_root.is_dir() else ()
+            common_ip_roots = tuple(
+                ips_root / name
+                for name in ("pkgs", "prim", "prim_opentitan", "tlul")
+                if (ips_root / name).is_dir()
+            )
             vendor_root = self.client.project_root / "vendor"
             return b.design.rtl.setup_filelists(
                 root=self.client.project_root,
                 top_file=p.rtl / f"{top}.sv",
                 common_out=p.rtl_common,
                 ip_out=p.rtl_ip,
-                search_roots=(p.rtl, *shared_ip_roots, vendor_root),
-                common_roots=(*shared_ip_roots, vendor_root),
+                search_roots=(p.rtl, *common_ip_roots, vendor_root),
+                common_roots=(*common_ip_roots, vendor_root),
                 top=top, slang=v.get("SLANG", "slang"), on=self.on,
             )
         if target == "fetch":

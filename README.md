@@ -5,7 +5,7 @@
 # ⚡ FlexSoC
 
 FlexSoC is an open-source orchestration framework for developing digital ASIC IP
-and small SoCs through one command-line interface: `fx`.
+and SoCs through one command-line interface: `fx`.
 
 Its purpose is not to hide the EDA tools. Its purpose is to keep design intent,
 generated collateral, verification environments, constraints, implementation
@@ -36,9 +36,9 @@ qualified reusable IP or SoC release
 ## Why FlexSoC
 
 A hardware change rarely affects only one file. Adding a status register can
-change HJSON, generated register RTL, the Python CSR API, model behavior, tests,
-formal properties, synthesis, and software-visible documentation. Adding a
-clock domain changes constraints, testbench timing, formal assumptions, CDC/RDC
+change CSR configuration file (HJSON), generated register RTL, the Python CSR API,
+model behavior, tests,formal properties, synthesis, and software-visible documentation.
+Adding a clock domain changes constraints, testbench timing, formal assumptions, CDC/RDC
 requirements, reset integration, and implementation closure.
 
 FlexSoC makes those dependencies explicit:
@@ -132,24 +132,11 @@ fx doctor
 fx --help
 ```
 
-For a non-interactive repository qualification using the same locked image:
-
-```bash
-docker/scripts/run-ci.sh
-```
-
-Run the full E2E qualification inside it with:
-
-```bash
-FULL_E2E=1 docker/scripts/run-ci.sh
-```
-
 A host installation is still useful for Python/API/documentation development:
 
 ```bash
 uv sync
 source .venv/bin/activate
-make check
 ```
 
 but a host can run the complete ASIC flow only when the matching EDA toolchain is

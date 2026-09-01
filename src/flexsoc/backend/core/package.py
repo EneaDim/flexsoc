@@ -249,11 +249,14 @@ class PackageFlow:
                 self._replace_tree(source, staged / relative)
 
     def _stage_analysis_evidence(self, staged: Path, run: Path) -> None:
-        """Retain normalized lint and CDC/RDC evidence at run-relative paths."""
+        """Retain compact lint and CDC/RDC evidence under analysis/."""
+
+        shutil.rmtree(staged / "logs", ignore_errors=True)
 
         lint = run / "logs" / "lint"
+        destination = staged / "analysis" / "lint"
+        shutil.rmtree(destination, ignore_errors=True)
         if lint.is_dir():
-            destination = staged / "logs" / "lint"
             destination.mkdir(parents=True, exist_ok=True)
             for source in sorted(lint.glob("*.log")):
                 if source.is_file() and not source.name.startswith("."):

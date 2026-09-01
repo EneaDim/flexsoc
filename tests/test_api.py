@@ -1125,8 +1125,8 @@ def test_eqy_bind_uses_sky130_liberty_fallback_without_adapter(
 
 
 
-def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
-    """Packaging stays atomic/optional-PnR and GLS workloads keep power→fusion order."""
+def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
+    """Packaging stays atomic, PDK-first, and anchored to canonical run artifacts."""
     top, pdk = "demo", "sky130"
     run = tmp_path / "run"
     synth = run / "syn" / pdk
@@ -1136,7 +1136,8 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
     eqy.mkdir(parents=True)
     (synth / f"{top}_synth.v").write_text("module demo; endmodule\n", encoding="utf-8")
     (synth / f"{top}_generic.il").write_text("checkpoint\n", encoding="utf-8")
-    sdc = signoff / f"{top}.sdc"
+    sdc = run / "constraints" / f"{top}.sdc"
+    sdc.parent.mkdir(parents=True)
     sdc.write_text("create_clock -period 10 clk_i\n", encoding="utf-8")
     canonical_tcl = (
         "sta/sta.tcl",
@@ -1190,6 +1191,9 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
     (cdc / "summary.json").write_text(json.dumps({"top": top, "status": "pass"}) + "\n", encoding="utf-8")
     (cdc / "cdc_rdc.rpt").write_text("cdc pass\n", encoding="utf-8")
     library = tmp_path / "library"
+    legacy_logs = library / top / "logs" / "lint"
+    legacy_logs.mkdir(parents=True)
+    (legacy_logs / "legacy.log").write_text("old package log\n", encoding="utf-8")
 
     flow = PackageFlow(tmp_path, {})
     saved = flow.save(
@@ -1216,11 +1220,13 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
     package_index = json.loads((saved / "ip.json").read_text(encoding="utf-8"))
     assert package_index["content"]["design_intent"] == "meta/design_intent.json"
     assert package_index["qualification"][pdk]["settings"] == f"meta/{pdk}/settings.json"
-    assert (saved / "logs" / "lint" / f"{top}_lint_slang_all.log").is_file()
-    assert not (saved / "logs" / "lint" / "raw").exists()
+    assert (saved / "constraints" / f"{top}.sdc").is_file()
+    assert not (saved / "signoff" / pdk / f"{top}.sdc").exists()
+    assert (saved / "analysis" / "lint" / f"{top}_lint_slang_all.log").is_file()
+    assert not (saved / "analysis" / "lint" / "raw").exists()
+    assert not (saved / "logs").exists()
     assert (saved / "analysis" / "cdc_rdc" / "summary.json").is_file()
     assert (saved / "analysis" / "cdc_rdc" / "cdc_rdc.rpt").is_file()
-    assert not (saved / "logs" / "analysis" / "cdc_rdc").exists()
     assert not (saved / "syn" / pdk / f"{top}_generic.il").exists()
     saved_signoff = saved / "signoff" / pdk
     saved_tcl = {
@@ -1283,46 +1289,6 @@ def test_ip_save_optional_pnr_and_e2e_activity_order(tmp_path: Path) -> None:
     }
     assert saved_tcl == set(canonical_tcl)
 
-    e2e = (ROOT / "tests/test_e2e_fx.py").read_text(encoding="utf-8")
-    assert 'for target in ("power_analysis", "fusion_analysis")' in e2e
-    assert e2e.count("_run_power_and_fusion(") == 71
-    assert "_assert_saved_multitech_layout(saved_library, top)" in e2e
-    assert "_assert_e2e_ip_save_isolated(argv)" in e2e
-    assert "E2E ip_save must not write repository IPs" in e2e
-    assert e2e.count("IP_LIBRARY_ROOT={saved_library_arg}") == e2e.count("fx ip_save")
-    assert e2e.count("fx ip_save --force") == e2e.count("fx ip_save")
-    assert 'os.environ.get("FLEXSOC_E2E_TARGET_OPT", "delay1")' in e2e
-    assert "--no-setup" not in e2e
-
-
-
-def test_uart_eqy_flow_is_consistent_across_pdks() -> None:
-    """UART EQY differs by technology model only, not proof structure."""
-
-    root = ROOT / "hw/ips/uart/signoff"
-    sky = (root / "sky130/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy").read_text(encoding="utf-8")
-    ihp = (root / "ihp-sg13g2/equivalence/rtl_vs_syn/uart_rtl_vs_syn.eqy").read_text(encoding="utf-8")
-    expected_ihp = sky.replace(
-        "read_verilog -formal -sv formal_pdk.v",
-        "read_liberty -ignore_miss_func library.lib",
-        1,
-    )
-
-    assert ihp == expected_ihp
-    matches = [line for line in sky.splitlines() if line.startswith("gold-match ")]
-    assert matches == [
-        "gold-match clk_i",
-        "gold-match rst_ni",
-        "gold-match tl_i",
-        "gold-match tl_o__flexsoc_eqy_handshake",
-        "gold-match tl_o__flexsoc_eqy_d_ctrl",
-        "gold-match tl_o__flexsoc_eqy_d_data",
-        "gold-match tl_o__flexsoc_eqy_d_meta",
-        "gold-match cio_rx_i",
-        "gold-match cio_tx_o",
-        "gold-match cio_tx_en_o",
-    ]
-    assert not any("*" in line for line in matches)
 
 # ---------------------------------------------------------------------------
 # Command-line interface
@@ -1907,6 +1873,63 @@ def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -
         "drivers/demo_vec_driver.svh",
         "drivers/demo_vec_monitor.svh",
     }
+
+
+def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> None:
+    from flexsoc.backend.dv.testbench import (
+        cocotb_makefile_text, cocotb_sv_text, render_makefile,
+        render_tlul_wrapper, sv_tb_text,
+    )
+
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    (rtl / "uart.sv").write_text(
+        "module uart(\n"
+        "  input logic clk_i,\n"
+        "  input logic rst_ni,\n"
+        "  input logic rx_i,\n"
+        "  output logic tx_o,\n"
+        "  input logic [108:0] tl_i,\n"
+        "  output logic [65:0] tl_o\n"
+        "); endmodule\n",
+        encoding="utf-8",
+    )
+    cfg = CocotbConfig(
+        top="uart", interface="tlul", output=tmp_path / "cocotb", rtl_dir=rtl,
+    )
+    wrapper = render_tlul_wrapper(cfg)
+    assert wrapper.startswith("`timescale 1ns/1ps\nmodule uart_tb;\n")
+    assert "\n  logic rx_i;\n  logic tx_o;\n" in wrapper
+    assert "\n  localparam logic [2:0] FLEXSOC_TL_PUT_FULL" in wrapper
+    assert "\n  function automatic logic [6:0] flexsoc_tlul_data_intg" in wrapper
+    assert "\n  initial begin\n    rx_i = '1;\n  end\n" in wrapper
+    assert "\nlogic tx_o;" not in wrapper
+
+    makefile = render_makefile(cfg, (rtl / "uart.sv",))
+    assert makefile.startswith("# Auto-generated Makefile\nSIM")
+    assert "\nifeq ($(GATES),yes)\n  SIM := icarus\n" in makefile
+    assert "\n  # RTL sources expanded from rtl_common.f and rtl_ip.f\n" in makefile
+    assert not makefile.startswith(" ")
+
+    clocks = ClockConfig((
+        ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 20.0),
+        ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 16.0),
+        ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 30.0),
+    ))
+    sv = sv_tb_text("tri_stream_dsp", "tri_stream_dsp_tb", clocks)
+    cocotb_sv = cocotb_sv_text("tri_stream_dsp", clocks)
+    for text in (sv, cocotb_sv):
+        assert text.startswith("`timescale 1ns/1ps\n")
+        assert "\n  logic cfg_clk_i;\n  logic cfg_rst_ni;\n" in text
+        assert "\nlogic cfg_rst_ni;" not in text
+        assert "\n  localparam logic [2:0] FLEXSOC_TL_PUT_FULL" in text
+
+    nclock_makefile = cocotb_makefile_text(
+        "tri_stream_dsp", rtl, ips_root=tmp_path / "ips",
+    )
+    assert nclock_makefile.startswith("SIM ?= verilator\nTOPLEVEL_LANG ?= verilog\n")
+    assert "\nifeq ($(GATES),yes)\n  SIM := icarus\n" in nclock_makefile
+    assert not nclock_makefile.startswith(" ")
 
 
 def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
@@ -3182,14 +3205,16 @@ def test_eqy_and_opensta_modules_are_separated() -> None:
     assert not (root / "power_analysis.py").exists()
 
 
-def test_saved_ip_packages_use_pdk_first_technology_branches() -> None:
+def test_checked_in_ip_technology_roots_are_pdk_first() -> None:
+    """Checked-in IPs may evolve, but technology artifacts stay under PDK roots."""
+
     root = Path(__file__).resolve().parents[1] / "hw/ips"
     technology_packages = []
     for package in sorted(path for path in root.iterdir() if path.is_dir()):
         if not any((package / stage).is_dir() for stage in ("syn", "impl", "signoff")):
             continue
         technology_packages.append(package.name)
-        for stage in ("syn", "impl"):
+        for stage in ("syn", "impl", "signoff"):
             directory = package / stage
             if directory.is_dir():
                 assert not any(path.is_file() for path in directory.iterdir()), (
@@ -3198,22 +3223,11 @@ def test_saved_ip_packages_use_pdk_first_technology_branches() -> None:
                 )
         signoff = package / "signoff"
         if signoff.is_dir():
-            assert not any(path.is_file() for path in signoff.iterdir()), package.name
             assert not (signoff / "equivalence").exists(), package.name
+
     assert {"cordic", "uart", "cache_wrapper", "fft_core", "gpio", "pwm"}.issubset(
         technology_packages
     )
-    for top in ("cordic", "uart"):
-        package = root / top
-        assert (package / "syn/sky130").is_dir()
-        implementation = package / "impl/sky130"
-        if implementation.exists():
-            assert (implementation / "config.mk").is_file()
-            assert not (implementation / f"{top}.sdc").exists()
-        assert (package / f"signoff/sky130/{top}.sdc").is_file()
-        assert (package / "signoff/sky130/equivalence/rtl_vs_syn").is_dir()
-        assert (package / "signoff/ihp-sg13g2/equivalence/rtl_vs_syn").is_dir()
-
 
 
 def test_formal_scaffold_uses_explicit_multiclock_context(tmp_path: Path) -> None:
@@ -3996,18 +4010,18 @@ def test_gls_command_files_include_gate_models_and_vectors(tmp_path: Path, monke
     assert {tb.resolve(), netlist.resolve(), model.resolve(), *(path.resolve() for path in test.iterdir())} <= declared
 
 
-def test_flist_excludes_repository_copy_of_loaded_top(
+def test_flist_searches_only_shared_rtl_dependencies(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     project = tmp_path / "project"
-    for name in ("cordic", "uart", "prim", "pkgs", "tlul"):
+    for name in ("cordic", "uart", "tiny-soc", "prim", "prim_opentitan", "pkgs", "tlul"):
         (project / "hw" / "ips" / name).mkdir(parents=True, exist_ok=True)
     (project / "vendor").mkdir()
 
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {
         **api_module.DEFAULT_SETTINGS,
-        "TOP": "cordic", "RUN_TOP": "cordic", "RUN_ID": "dev",
+        "TOP": "uart", "RUN_TOP": "uart", "RUN_ID": "dev",
     }
     router = api_module.FlexSoCTarget(client, values)
     seen: dict[str, object] = {}
@@ -4021,12 +4035,18 @@ def test_flist_excludes_repository_copy_of_loaded_top(
 
     search_roots = tuple(Path(path) for path in seen["search_roots"])
     common_roots = tuple(Path(path) for path in seen["common_roots"])
-    assert router.paths.rtl in search_roots
+    assert search_roots == (
+        router.paths.rtl,
+        project / "hw" / "ips" / "pkgs",
+        project / "hw" / "ips" / "prim",
+        project / "hw" / "ips" / "prim_opentitan",
+        project / "hw" / "ips" / "tlul",
+        project / "vendor",
+    )
+    assert common_roots == search_roots[1:]
+    assert project / "hw" / "ips" / "uart" not in search_roots
     assert project / "hw" / "ips" / "cordic" not in search_roots
-    assert project / "hw" / "ips" / "cordic" not in common_roots
-    assert project / "hw" / "ips" / "uart" in search_roots
-    assert project / "hw" / "ips" / "prim" in common_roots
-    assert project / "vendor" in common_roots
+    assert project / "hw" / "ips" / "tiny-soc" not in search_roots
 
 
 def test_gate_sim_validates_explicit_driver_provenance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

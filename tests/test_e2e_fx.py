@@ -547,22 +547,32 @@ def _exercise_stage_override(
     *, workspace: Path, top: str, run_id: str, run: Path, workdir: str,
     stage: str, artifact: Path, command: str, required: bool = True,
 ) -> None:
-    """Exercise edit -> block -> validate -> run -> restore for one setup stage."""
+    """Exercise modify -> block -> validate -> consume -> restore for one setup stage."""
 
     assert artifact.is_file(), f"missing generated override artifact: {artifact}"
     canonical = artifact.read_bytes()
     comment = b"//" if artifact.suffix.lower() in {".v", ".vh", ".sv", ".svh"} else b"#"
+
+    print(f"\n[provenance] {stage}: MODIFY generated artifact", flush=True)
     artifact.write_bytes(canonical + b"\n" + comment + b" FlexSoC E2E validated override\n")
+
+    print(f"[provenance] {stage}: BLOCK unvalidated consumer", flush=True)
     _assert_provenance_blocked(command, workspace=workspace, stage=stage)
+
+    print(f"[provenance] {stage}: VALIDATE designer override", flush=True)
     _run(
         f"uv run --no-sync fx validate_override --set STAGE={stage} --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
     )
+
+    print(f"[provenance] {stage}: CONSUME validated override", flush=True)
     _run(command, workspace=workspace, top=top, run_id=run_id, required=required)
     _assert_provenance_state(
         workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
         stage=stage, expected="VALIDATED_OVERRIDE",
     )
+
+    print(f"[provenance] {stage}: RESTORE generated artifact", flush=True)
     artifact.write_bytes(canonical)
     _assert_provenance_state(
         workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
@@ -1025,6 +1035,7 @@ def _assert_saved_multitech_layout(library_root: Path, top: str) -> None:
 @pytest.mark.e2e
 def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
     """Run one shared logical flow, then SKY130 and IHP sign-off branches."""
+    print("\n=== E2E 1/5 · single-clock scaffold ===", flush=True)
 
     config = _e2e_config(request)
     top = os.environ.get("FLEXSOC_SINGLE_TOP", "test")
@@ -1515,6 +1526,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
 @pytest.mark.e2e
 def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
     """Run one N-clock logical flow, then SKY130 and IHP sign-off branches."""
+    print("\n=== E2E 2/5 · multi-clock scaffold ===", flush=True)
 
     config = _e2e_config(request)
     top = os.environ.get("FLEXSOC_MULTI_TOP", "tri_stream_dsp")
@@ -2081,164 +2093,9 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             assert (test_root / test_name).is_dir()
 
 @pytest.mark.e2e
-def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
-    """Qualify the designer override lifecycle once across every setup family."""
-
-    config = _e2e_config(request)
-    top = "test"
-    run_id = DEFAULT_RUN_ID
-    with _preserve_project_settings(), _temporary_workspace(
-        "flexsoc-provenance-e2e-", _e2e_root(request)
-    ) as workspace:
-        workdir = shlex.quote(str(workspace))
-        run = workspace / "runs" / top / run_id
-        for command in (
-            f"uv run --no-sync fx settings --reset TOP={top} RUN_TOP={top} RUN_ID={run_id} "
-            f"HOST={DEFAULT_HOST} N_CLOCKS=1 CLOCK_DOMAINS={SINGLE_CLOCK_DOMAINS} "
-            f"CLOCK_RELATIONSHIPS= --workdir {workdir}",
-            f"uv run --no-sync fx setup --force --workdir {workdir}",
-            f"uv run --no-sync fx sdc --force --workdir {workdir}",
-            f"uv run --no-sync fx hjson --force --workdir {workdir}",
-            f"uv run --no-sync fx reg --force --workdir {workdir}",
-            f"uv run --no-sync fx rtl_stub --force --workdir {workdir}",
-            f"uv run --no-sync fx top_from_core --force --workdir {workdir}",
-            f"uv run --no-sync fx flist --force --workdir {workdir}",
-            f"uv run --no-sync fx setup_model --force --workdir {workdir}",
-            f"uv run --no-sync fx tests_gen --workdir {workdir}",
-            f"uv run --no-sync fx pdk use sky130 --workdir {workdir}",
-        ):
-            _run(command, workspace=workspace, top=top, run_id=run_id)
-
-        cases = (
-            (
-                "setup_tb",
-                run / "dv/functional/tb/sv" / f"{top}_tb.sv",
-                f"uv run --no-sync fx compile --set TEST_NAME=smoke --workdir {workdir}",
-                True,
-            ),
-            (
-                "setup_cocotb",
-                run / "dv/functional/tb/cocotb" / f"{top}_tb.py",
-                f"uv run --no-sync fx cocotb --set TEST_NAME=smoke --workdir {workdir}",
-                True,
-            ),
-            (
-                "setup_cdc_rdc",
-                run / "analysis/cdc_rdc/extract.ys",
-                f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
-                True,
-            ),
-        )
-        for setup, _, _, _ in cases:
-            _run(
-                f"uv run --no-sync fx {setup} --force --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-        for stage, artifact, command, required in cases:
-            _exercise_stage_override(
-                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-                stage=stage, artifact=artifact, command=command, required=required,
-            )
-
-        if not config.run_signoff:
-            return
-
-        _run(
-            f"uv run --no-sync fx setup_formal --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        formal_cases = (
-            (
-                "setup_formal_csr_prove",
-                run / "dv/formal/runs/csr/prove" / f"{top}_csr_prove.sby",
-                f"uv run --no-sync fx formal_csr_bmc --workdir {workdir}",
-            ),
-            (
-                "setup_formal_prove",
-                run / "dv/formal/runs/properties/prove" / f"{top}_prove.sby",
-                f"uv run --no-sync fx formal_bmc --workdir {workdir}",
-            ),
-            (
-                "setup_formal_csr_cover",
-                run / "dv/formal/runs/csr/cover" / f"{top}_csr_cover.sby",
-                f"uv run --no-sync fx formal_csr_cover --workdir {workdir}",
-            ),
-            (
-                "setup_formal_cover",
-                run / "dv/formal/runs/properties/cover" / f"{top}_cover.sby",
-                f"uv run --no-sync fx formal_cover --workdir {workdir}",
-            ),
-        )
-        for stage, artifact, command in formal_cases:
-            _run(
-                f"uv run --no-sync fx {stage} --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _exercise_stage_override(
-                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-                stage=stage, artifact=artifact, command=command,
-            )
-
-        _run(
-            f"uv run --no-sync fx setup_syn --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _exercise_stage_override(
-            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_syn", artifact=run / "syn/sky130/synth_sv.ys",
-            command=f"uv run --no-sync fx syn --workdir {workdir}",
-        )
-
-        _run(
-            f"uv run --no-sync fx setup_eqy --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _exercise_stage_override(
-            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_eqy",
-            artifact=run / "signoff/sky130/equivalence/rtl_vs_syn" / f"{top}_rtl_vs_syn.eqy",
-            command=f"uv run --no-sync fx eqy --workdir {workdir}",
-            required=False,
-        )
-
-        _run(
-            f"uv run --no-sync fx setup_signoff --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _exercise_stage_override(
-            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_signoff", artifact=run / "signoff/sky130/sta/sta.tcl",
-            command=f"uv run --no-sync fx sdf --workdir {workdir}",
-        )
-
-        if not config.run_pnr:
-            return
-        assert config.ors is not None
-        ors = shlex.quote(f"ORS={config.ors}")
-        _run(
-            f"uv run --no-sync fx setup_pnr --set {ors} --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _exercise_stage_override(
-            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_pnr", artifact=run / "impl/sky130/config.mk",
-            command=f"uv run --no-sync fx pnr --set {ors} --workdir {workdir}",
-        )
-        _run(
-            f"uv run --no-sync fx setup_signoff_post_pnr --workdir {workdir}",
-            workspace=workspace, top=top, run_id=run_id,
-        )
-        _exercise_stage_override(
-            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_signoff_post_pnr",
-            artifact=run / "signoff/sky130/post_pnr/sdf/write_sdf.tcl",
-            command=f"uv run --no-sync fx sdf_post_pnr --workdir {workdir}",
-        )
-
-
-@pytest.mark.e2e
 def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
     """Load CORDIC once and qualify the unchanged IP on SKY130 and IHP."""
+    print("\n=== E2E 3/5 · CORDIC payload ===", flush=True)
 
     config = _e2e_config(request)
     top = os.environ.get("FLEXSOC_CORDIC_TOP", "cordic")
@@ -2306,7 +2163,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
             )
             _run(
                 f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id, required=False,
+                workspace=workspace, top=top, run_id=run_id,
             )
             _assert_cdc_rdc_outputs(top, run)
 
@@ -2434,6 +2291,14 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"uv run --no-sync fx syn --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx eqy --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2637,6 +2502,14 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
+                    f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx eqy --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
                     f"uv run --no-sync fx setup_signoff --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
@@ -2812,6 +2685,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
 @pytest.mark.e2e
 def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
     """Load UART once and qualify the unchanged IP on SKY130 and IHP."""
+    print("\n=== E2E 4/5 · UART payload ===", flush=True)
 
     config = _e2e_config(request)
     top = os.environ.get("FLEXSOC_UART_TOP", "uart")
@@ -2881,7 +2755,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
             )
             _run(
                 f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id, required=False,
+                workspace=workspace, top=top, run_id=run_id,
             )
             _assert_cdc_rdc_outputs(top, run)
 
@@ -3009,6 +2883,14 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"uv run --no-sync fx syn --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx eqy --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -3212,6 +3094,14 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
+                    f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
+                    f"uv run --no-sync fx eqy --workdir {workdir}",
+                    workspace=workspace, top=top, run_id=run_id,
+                )
+                _run(
                     f"uv run --no-sync fx setup_signoff --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
@@ -3383,3 +3273,161 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _assert_saved_multitech_layout(saved_library, top)
             _assert_loaded_sources_match(top, run_id, workspace, source_snapshot)
+
+
+@pytest.mark.e2e
+def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
+    """Qualify modify/block/validate/consume/restore across setup provenance."""
+
+    print("\n=== E2E 5/5 · setup provenance lifecycle ===", flush=True)
+
+    config = _e2e_config(request)
+    top = "test"
+    run_id = DEFAULT_RUN_ID
+    with _preserve_project_settings(), _temporary_workspace(
+        "flexsoc-provenance-e2e-", _e2e_root(request)
+    ) as workspace:
+        workdir = shlex.quote(str(workspace))
+        run = workspace / "runs" / top / run_id
+        for command in (
+            f"uv run --no-sync fx settings --reset TOP={top} RUN_TOP={top} RUN_ID={run_id} "
+            f"HOST={DEFAULT_HOST} N_CLOCKS=1 CLOCK_DOMAINS={SINGLE_CLOCK_DOMAINS} "
+            f"CLOCK_RELATIONSHIPS= --workdir {workdir}",
+            f"uv run --no-sync fx setup --force --workdir {workdir}",
+            f"uv run --no-sync fx hjson --force --workdir {workdir}",
+            f"uv run --no-sync fx reg --force --workdir {workdir}",
+            f"uv run --no-sync fx rtl_stub --force --workdir {workdir}",
+            f"uv run --no-sync fx top_from_core --force --workdir {workdir}",
+            f"uv run --no-sync fx flist --force --workdir {workdir}",
+            f"uv run --no-sync fx sdc --force --workdir {workdir}",
+            f"uv run --no-sync fx setup_model --force --workdir {workdir}",
+            f"uv run --no-sync fx tests_gen --workdir {workdir}",
+            f"uv run --no-sync fx pdk use sky130 --workdir {workdir}",
+        ):
+            _run(command, workspace=workspace, top=top, run_id=run_id)
+
+        cases = (
+            (
+                "setup_tb",
+                run / "dv/functional/tb/sv" / f"{top}_tb.sv",
+                f"uv run --no-sync fx compile --set TEST_NAME=smoke --workdir {workdir}",
+                True,
+            ),
+            (
+                "setup_cocotb",
+                run / "dv/functional/tb/cocotb" / f"{top}_tb.py",
+                f"uv run --no-sync fx cocotb --set TEST_NAME=smoke --workdir {workdir}",
+                True,
+            ),
+            (
+                "setup_cdc_rdc",
+                run / "analysis/cdc_rdc/extract.ys",
+                f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
+                True,
+            ),
+        )
+        for setup, _, _, _ in cases:
+            _run(
+                f"uv run --no-sync fx {setup} --force --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+        for stage, artifact, command, required in cases:
+            _exercise_stage_override(
+                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+                stage=stage, artifact=artifact, command=command, required=required,
+            )
+
+        if not config.run_signoff:
+            return
+
+        _run(
+            f"uv run --no-sync fx setup_formal --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        formal_cases = (
+            (
+                "setup_formal_csr_prove",
+                run / "dv/formal/runs/csr/prove" / f"{top}_csr_prove.sby",
+                f"uv run --no-sync fx formal_csr_bmc --workdir {workdir}",
+            ),
+            (
+                "setup_formal_prove",
+                run / "dv/formal/runs/properties/prove" / f"{top}_prove.sby",
+                f"uv run --no-sync fx formal_bmc --workdir {workdir}",
+            ),
+            (
+                "setup_formal_csr_cover",
+                run / "dv/formal/runs/csr/cover" / f"{top}_csr_cover.sby",
+                f"uv run --no-sync fx formal_csr_cover --workdir {workdir}",
+            ),
+            (
+                "setup_formal_cover",
+                run / "dv/formal/runs/properties/cover" / f"{top}_cover.sby",
+                f"uv run --no-sync fx formal_cover --workdir {workdir}",
+            ),
+        )
+        for stage, artifact, command in formal_cases:
+            _run(
+                f"uv run --no-sync fx {stage} --workdir {workdir}",
+                workspace=workspace, top=top, run_id=run_id,
+            )
+            _exercise_stage_override(
+                workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+                stage=stage, artifact=artifact, command=command,
+            )
+
+        _run(
+            f"uv run --no-sync fx setup_syn --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _exercise_stage_override(
+            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+            stage="setup_syn", artifact=run / "syn/sky130/synth_sv.ys",
+            command=f"uv run --no-sync fx syn --workdir {workdir}",
+        )
+
+        _run(
+            f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _exercise_stage_override(
+            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+            stage="setup_eqy",
+            artifact=run / "signoff/sky130/equivalence/rtl_vs_syn" / f"{top}_rtl_vs_syn.eqy",
+            command=f"uv run --no-sync fx eqy --workdir {workdir}",
+            required=False,
+        )
+
+        _run(
+            f"uv run --no-sync fx setup_signoff --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _exercise_stage_override(
+            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+            stage="setup_signoff", artifact=run / "signoff/sky130/sta/sta.tcl",
+            command=f"uv run --no-sync fx sdf --workdir {workdir}",
+        )
+
+        if not config.run_pnr:
+            return
+        assert config.ors is not None
+        ors = shlex.quote(f"ORS={config.ors}")
+        _run(
+            f"uv run --no-sync fx setup_pnr --force --set {ors} --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _exercise_stage_override(
+            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+            stage="setup_pnr", artifact=run / "impl/sky130/config.mk",
+            command=f"uv run --no-sync fx pnr --set {ors} --workdir {workdir}",
+        )
+        _run(
+            f"uv run --no-sync fx setup_signoff_post_pnr --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _exercise_stage_override(
+            workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
+            stage="setup_signoff_post_pnr",
+            artifact=run / "signoff/sky130/post_pnr/sdf/write_sdf.tcl",
+            command=f"uv run --no-sync fx sdf_post_pnr --workdir {workdir}",
+        )
