@@ -1,11 +1,8 @@
 # UART checks: direct pins and CSR reads.
 # <cycle> <signal> <expected> or <cycle> @read <reg> <expected> [mask]
-16 cio_tx_o 0x00000001
-16 cio_tx_en_o 0x00000001
-512 cio_tx_o 0x00000001
-512 cio_tx_en_o 0x00000001
-1024 cio_tx_o 0x00000001
-1024 cio_tx_en_o 0x00000001
+16 tx_o 0x00000001
+512 tx_o 0x00000001
+1024 tx_o 0x00000001
 1472 @read clk_i.CTRL 0x80000003 0xffff00f7
 1472 @read clk_i.STATUS 0x0000001c 0x0000003f
 1472 @read clk_i.FIFO_STATUS 0x00040000 0x00ff00ff

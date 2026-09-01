@@ -15,8 +15,8 @@ module uart_core (
   output uart_reg_pkg::uart_hw2reg_t hw2reg,
 
   // pin fisici
-  input  logic           rx,
-  output logic           tx
+  input  logic           rx_i,
+  output logic           tx_o
 );
 
   import uart_reg_pkg::*;
@@ -139,7 +139,7 @@ module uart_core (
     .tx             (tx_out)
   );
 
-  assign tx = line_loopback ? rx : tx_out_q ;
+  assign tx_o = line_loopback ? rx_i : tx_out_q ;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       tx_out_q <= 1'b1;
@@ -161,7 +161,7 @@ module uart_core (
   ) sync_rx (
     .clk_i,
     .rst_ni,
-    .d_i(rx),
+    .d_i(rx_i),
     .q_o(rx_sync)
   );
 

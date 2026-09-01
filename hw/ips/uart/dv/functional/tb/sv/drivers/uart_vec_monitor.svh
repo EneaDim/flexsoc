@@ -159,12 +159,8 @@ function automatic logic [32:0] tb_read_output(input string name);
   if (1'b0) begin
     known = 1'b0;
   end
-  else if (name == "cio_tx_o") begin
-    actual = cio_tx_o;
-    known = 1'b1;
-  end
-  else if (name == "cio_tx_en_o") begin
-    actual = cio_tx_en_o;
+  else if (name == "tx_o") begin
+    actual = tx_o;
     known = 1'b1;
   end
   else begin
@@ -417,12 +413,8 @@ function automatic logic [32:0] tb_read_output(input tb_token_t name);
   if (1'b0) begin
     known = 1'b0;
   end
-  else if (name == "cio_tx_o") begin
-    actual = cio_tx_o;
-    known = 1'b1;
-  end
-  else if (name == "cio_tx_en_o") begin
-    actual = cio_tx_en_o;
+  else if (name == "tx_o") begin
+    actual = tx_o;
     known = 1'b1;
   end
   else begin

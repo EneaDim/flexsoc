@@ -2,10 +2,9 @@
 module uart (
   input wire clk_i,
   input wire rst_ni,
+  input wire rx_i,
+  output wire tx_o,
   input wire [108:0] tl_i,
-  input wire cio_rx_i,
-  output wire cio_tx_o,
-  output wire cio_tx_en_o,
   output wire [1:0] tl_o__flexsoc_eqy_handshake,
   output wire [16:0] tl_o__flexsoc_eqy_d_ctrl,
   output wire [31:0] tl_o__flexsoc_eqy_d_data,
@@ -17,11 +16,10 @@ module uart (
   uart__eqy_impl u_impl (
     .clk_i (clk_i),
     .rst_ni (rst_ni),
+    .rx_i (rx_i),
+    .tx_o (tx_o),
     .tl_i (tl_i),
-    .tl_o (tl_o__raw),
-    .cio_rx_i (cio_rx_i),
-    .cio_tx_o (cio_tx_o),
-    .cio_tx_en_o (cio_tx_en_o)
+    .tl_o (tl_o__raw)
   );
 
   assign tl_o__flexsoc_eqy_handshake = {tl_o__raw[65], tl_o__raw[0]};

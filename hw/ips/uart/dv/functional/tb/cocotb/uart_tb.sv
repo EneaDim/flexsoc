@@ -2,9 +2,8 @@
       module uart_tb;
         logic clk_i;
         logic rst_ni;
-        logic cio_rx_i;
-logic cio_tx_o;
-logic cio_tx_en_o;
+        logic rx_i;
+logic tx_o;
         logic         tl_i_a_valid;
         logic [2:0]   tl_i_a_opcode;
         logic [2:0]   tl_i_a_param;
@@ -96,7 +95,7 @@ function automatic logic [108:0] flexsoc_tlul_h2d(
 endfunction
 
         initial begin
-          cio_rx_i = '1;
+          rx_i = '0;
         end
 
         assign tl_i = flexsoc_tlul_h2d(

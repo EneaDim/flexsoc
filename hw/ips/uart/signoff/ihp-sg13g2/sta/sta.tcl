@@ -3,7 +3,7 @@
 #
 # Analysis : sta
 # Design   : uart
-# Variant  : reference
+# Variant  : dev
 # PDK      : ihp-sg13g2
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-reference-uart/runs/uart/reference/syn/ihp-sg13g2/uart_synth.v
-#   SDC           : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/uart.sdc
+#   Netlist       : /tmp/flexsoc-repack/uart/runs/uart/dev/syn/ihp-sg13g2/uart_synth.v
+#   SDC           : /tmp/flexsoc-repack/uart/runs/uart/dev/constraints/uart.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/sta/template_reports
+#   Report dir    : /tmp/flexsoc-repack/uart/runs/uart/dev/signoff/ihp-sg13g2/sta/template_reports
 #
 # Limitations:
 #   - Violating, near-critical and unconstrained paths are separate sections of one report.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/sta/template_reports}
+set report_dir {/tmp/flexsoc-repack/uart/runs/uart/dev/signoff/ihp-sg13g2/sta/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-reference-uart/runs/uart/reference/syn/ihp-sg13g2/uart_synth.v}
-set sdc {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/uart.sdc}
+set netlist {/tmp/flexsoc-repack/uart/runs/uart/dev/syn/ihp-sg13g2/uart_synth.v}
+set sdc {/tmp/flexsoc-repack/uart/runs/uart/dev/constraints/uart.sdc}
 set spef {}
 set top {uart}
 set stage {post_syn}
@@ -161,12 +161,14 @@ puts $fp "clock_network=ideal"
 puts $fp "interconnect=none"
 close $fp
 flexsoc_section $report {Timing summary}
-flexsoc_label $report "wns $delay_type"
+# OpenSTA report_wns/report_tns already emit canonical 'wns <min|max>' and 'tns <min|max>' labels.
 # Report worst negative slack for the selected max/setup or min/hold analysis.
 flexsoc_append_opensta $report report_wns -$delay_type
-flexsoc_label $report "tns $delay_type"
 # Report total negative slack across all violating endpoints for this analysis type.
 flexsoc_append_opensta $report report_tns -$delay_type
+flexsoc_section $report {Clock QoR}
+# OpenSTA reports minimum legal period and Fmax for every constrained clock.
+flexsoc_append_opensta $report report_clock_min_period
 flexsoc_section $report {Constraint validation}
 # Append setup diagnostics so missing clocks, unconstrained endpoints, or invalid constraints stay visible.
 flexsoc_append_opensta $report check_setup -verbose
@@ -178,8 +180,5 @@ flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path
 flexsoc_section $report {Near-critical paths}
 # Report met paths close to zero slack so timing margin is visible before it becomes a violation.
 flexsoc_append_opensta $report report_checks -path_delay $delay_type -group_path_count 3000 -endpoint_path_count 3 -unique_paths_to_endpoint -sort_by_slack -slack_min 0.0 -slack_max $near_critical_limit -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6
-flexsoc_section $report {Unconstrained paths}
-# Report paths with no valid timing requirement; review these instead of treating them as passing timing.
-flexsoc_append_opensta $report report_checks -unconstrained -path_delay $delay_type -group_path_count $endpoint_group_limit -endpoint_path_count 1 -sort_by_slack -format full_clock_expanded -fields {slew capacitance input_pin net fanout} -digits 6
 puts "report=$report"
 puts {FLEXSOC_SIGNOFF_COMPLETE analysis=sta corner=tt mode=setup workload=n/a}

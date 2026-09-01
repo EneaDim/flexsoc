@@ -3,7 +3,7 @@
 #
 # Analysis : power_estimate
 # Design   : uart
-# Variant  : reference
+# Variant  : dev
 # PDK      : ihp-sg13g2
 # Stage    : post_syn
 # Corner   : tt
@@ -14,13 +14,13 @@
 # Inputs:
 #   Liberty       : /home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib
 #   Macro Liberty : not used
-#   Netlist       : /tmp/flexsoc-reference-uart/runs/uart/reference/syn/ihp-sg13g2/uart_synth.v
-#   SDC           : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/uart.sdc
+#   Netlist       : /tmp/flexsoc-repack/uart/runs/uart/dev/syn/ihp-sg13g2/uart_synth.v
+#   SDC           : /tmp/flexsoc-repack/uart/runs/uart/dev/constraints/uart.sdc
 #   SPEF          : not used
 #   VCD or SAIF   : not used
 #   Activity scope: not used
 #   GLS report    : not used
-#   Report dir    : /tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/power/estimate/template_reports
+#   Report dir    : /tmp/flexsoc-repack/uart/runs/uart/dev/signoff/ihp-sg13g2/power/estimate/template_reports
 #
 # Limitations:
 #   - This is a vectorless estimate; it does not represent a simulated workload.
@@ -43,12 +43,12 @@ proc flexsoc_require_readable {label path} {
     exit 2
   }
 }
-set report_dir {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/power/estimate/template_reports}
+set report_dir {/tmp/flexsoc-repack/uart/runs/uart/dev/signoff/ihp-sg13g2/power/estimate/template_reports}
 file mkdir $report_dir
 set liberty {/home/eneadim/github/flexsoc/.flexsoc/pdks/ihp-sg13g2/ihp-sg13g2/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p50V_25C.lib}
 set macro_liberties {}
-set netlist {/tmp/flexsoc-reference-uart/runs/uart/reference/syn/ihp-sg13g2/uart_synth.v}
-set sdc {/tmp/flexsoc-reference-uart/runs/uart/reference/signoff/ihp-sg13g2/uart.sdc}
+set netlist {/tmp/flexsoc-repack/uart/runs/uart/dev/syn/ihp-sg13g2/uart_synth.v}
+set sdc {/tmp/flexsoc-repack/uart/runs/uart/dev/constraints/uart.sdc}
 set spef {}
 set top {uart}
 set stage {post_syn}

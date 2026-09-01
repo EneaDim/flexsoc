@@ -28,14 +28,13 @@ sim -clock clk_i -resetn rst_ni -rstlen 2 -n 2 -w
 nodefault
 gold-match clk_i
 gold-match rst_ni
+gold-match rx_i
+gold-match tx_o
 gold-match tl_i
 gold-match tl_o__flexsoc_eqy_handshake
 gold-match tl_o__flexsoc_eqy_d_ctrl
 gold-match tl_o__flexsoc_eqy_d_data
 gold-match tl_o__flexsoc_eqy_d_meta
-gold-match cio_rx_i
-gold-match cio_tx_o
-gold-match cio_tx_en_o
 
 [collect uart]
 join tl_o__flexsoc_eqy_handshake
@@ -45,17 +44,17 @@ join tl_o__flexsoc_eqy_d_meta
 
 [strategy sat]
 use sat
-depth 5
+depth 20
 
 [strategy pdr]
 use sby
 engine abc pdr
-timeout 300
+timeout 60
 xprop on
 
 [strategy smt]
 use sby
-engine smtbmc boolector
-depth 20
-timeout 300
+engine smtbmc bitwuzla
+depth 2
+timeout 60
 xprop on

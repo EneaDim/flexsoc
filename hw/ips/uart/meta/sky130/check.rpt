@@ -6,7 +6,7 @@ Main step                    Status
 RTL lint                     PASS      
 CDC / RDC                    REVIEW    
 Functional verification      PASS      
-Formal verification          PASS      
+Formal verification          PARTIAL   
 Synthesis                    PASS      
 RTL ↔ synthesis equivalence  PARTIAL   
 Pre-implementation sign-off  PASS      
@@ -18,6 +18,7 @@ Provenance
 Setup                   State  Action
 setup_cdc_rdc           CLEAN  -     
 setup_cocotb            CLEAN  -     
+setup_eqy               CLEAN  -     
 setup_formal_cover      CLEAN  -     
 setup_formal_csr_cover  CLEAN  -     
 setup_formal_csr_prove  CLEAN  -     
@@ -28,50 +29,50 @@ setup_tb                CLEAN  -
 
 RTL lint  Slang → Verilator
 Tool       Status  Errors  Warnings  Latch  Width  Unused
-slang      PASS         0         1      0      0       0
-verilator  PASS         0       202      0      0       0
+slang      PASS         0         0      0      0       0
+verilator  PASS         0       144      0      0       0
 
 CDC / RDC  post-lint structural analysis
 Status       REVIEW                                      
-Domains      clocks=1 · resets=1 · sequential=66         
+Domains      clocks=1 · resets=2 · sequential=68         
 CDC          raw=0 · safe=0 · review=0 · warn=0 · error=0
-RDC          raw=0 · safe=0 · review=1 · warn=0 · error=0
-Obligations  1                                           
-Log          logs/analysis/cdc_rdc/cdc_rdc.log           
+RDC          raw=0 · safe=1 · review=0 · warn=0 · error=0
+Obligations  0                                           
+Report       analysis/cdc_rdc/cdc_rdc.rpt                
 
 Functional verification
 Status           PASS              
 Generated tests  10                
 sv logs          10                
 cocotb logs      10                
-Coverage all     5011/13437  37.29%
-Coverage design  977/1574  62.07%  
+Coverage all     5023/13447  37.35%
+Coverage design  982/1574  62.39%  
 
 Formal verification
 Suite       Stage  Status  Time  Traces
 csr         bmc    PASS      3s       0
 csr         prove  PASS      0s       0
 csr         cover  PASS      0s       6
-properties  bmc    PASS      3s       0
-properties  prove  PASS      0s       0
+properties  bmc    FAIL      1s       4
+properties  prove  FAIL      0s       1
 properties  cover  PASS      0s       8
 
 Synthesis
-Strategy         area0                  
+Strategy         delay1                 
 Netlist          syn/sky130/uart_synth.v
-Cells            1380                   
-Area             14859.2512             
-Sequential area  9680.5344              
+Cells            1382                   
+Area             15050.6848             
+Sequential area  9730.5824              
 Errors           0                      
 Warnings         0                      
 
 RTL ↔ synthesis equivalence
 Status             PARTIAL   
-Partitions proven  0/8  0.00%
+Partitions proven  0/2  0.00%
 Partitions failed  0         
 Engine errors      0         
 Timeouts           0         
-Unknown            8         
+Unknown            2         
 Log                None      
 
 Pre-implementation sign-off
@@ -81,5 +82,94 @@ Gate-level simulation  50/50  PASS · interconnect none
 Power estimate         PASS                           
 Activity power         30/30  PASS                    
 Timing / power fusion  30/30  PASS                    
+STA QoR
+Corner  Mode   Status   WNS (ns)   TNS (ns)  Viol  Unconstr
+ss      setup  PASS    +0.000000  +0.000000     0         0
+ss      hold   WARN    -0.480000  -0.960000     2         0
+tt      setup  PASS    +0.000000  +0.000000     0         0
+tt      hold   WARN    -0.290000  -0.590000     2         0
+ff      setup  PASS    +0.000000  +0.000000     0         0
+ff      hold   WARN    -0.180000  -0.370000     2         0
+GLS matrix
+Test              zero     unit      min      typ      max  
+auto_toggle      PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+corners          PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+line_loopback    PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+noise_filter     PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+parity_reconfig  PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+random_seed_1    PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+random_seed_2    PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+reconfig         PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+rx_fifo          PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+smoke            PASS sv  PASS sv  PASS sv  PASS sv  PASS sv
+Power estimate
+Corner  Internal (mW)  Switching (mW)  Leakage (µW)  Total (mW)
+ss             +2.050          +0.454        +0.003      +2.500
+tt             +2.250          +0.506        +1.890      +2.760
+ff             +2.500          +0.589        +0.011      +3.080
+Activity power workloads
+Workload               Test             Backend  Timing  Status
+auto_toggle_sv_ff      auto_toggle        sv      min    PASS  
+corners_sv_ff          corners            sv      min    PASS  
+line_loopback_sv_ff    line_loopback      sv      min    PASS  
+noise_filter_sv_ff     noise_filter       sv      min    PASS  
+parity_reconfig_sv_ff  parity_reconfig    sv      min    PASS  
+random_seed_1_sv_ff    random_seed_1      sv      min    PASS  
+random_seed_2_sv_ff    random_seed_2      sv      min    PASS  
+reconfig_sv_ff         reconfig           sv      min    PASS  
+rx_fifo_sv_ff          rx_fifo            sv      min    PASS  
+smoke_sv_ff            smoke              sv      min    PASS  
+auto_toggle_sv_tt      auto_toggle        sv      typ    PASS  
+corners_sv_tt          corners            sv      typ    PASS  
+line_loopback_sv_tt    line_loopback      sv      typ    PASS  
+noise_filter_sv_tt     noise_filter       sv      typ    PASS  
+parity_reconfig_sv_tt  parity_reconfig    sv      typ    PASS  
+random_seed_1_sv_tt    random_seed_1      sv      typ    PASS  
+random_seed_2_sv_tt    random_seed_2      sv      typ    PASS  
+reconfig_sv_tt         reconfig           sv      typ    PASS  
+rx_fifo_sv_tt          rx_fifo            sv      typ    PASS  
+smoke_sv_tt            smoke              sv      typ    PASS  
+auto_toggle_sv_ss      auto_toggle        sv      max    PASS  
+corners_sv_ss          corners            sv      max    PASS  
+line_loopback_sv_ss    line_loopback      sv      max    PASS  
+noise_filter_sv_ss     noise_filter       sv      max    PASS  
+parity_reconfig_sv_ss  parity_reconfig    sv      max    PASS  
+random_seed_1_sv_ss    random_seed_1      sv      max    PASS  
+random_seed_2_sv_ss    random_seed_2      sv      max    PASS  
+reconfig_sv_ss         reconfig           sv      max    PASS  
+rx_fifo_sv_ss          rx_fifo            sv      max    PASS  
+smoke_sv_ss            smoke              sv      max    PASS  
+Timing / power fusion workloads
+Workload               Test             Backend  Timing  Status
+auto_toggle_sv_ff      auto_toggle        sv      min    PASS  
+corners_sv_ff          corners            sv      min    PASS  
+line_loopback_sv_ff    line_loopback      sv      min    PASS  
+noise_filter_sv_ff     noise_filter       sv      min    PASS  
+parity_reconfig_sv_ff  parity_reconfig    sv      min    PASS  
+random_seed_1_sv_ff    random_seed_1      sv      min    PASS  
+random_seed_2_sv_ff    random_seed_2      sv      min    PASS  
+reconfig_sv_ff         reconfig           sv      min    PASS  
+rx_fifo_sv_ff          rx_fifo            sv      min    PASS  
+smoke_sv_ff            smoke              sv      min    PASS  
+auto_toggle_sv_tt      auto_toggle        sv      typ    PASS  
+corners_sv_tt          corners            sv      typ    PASS  
+line_loopback_sv_tt    line_loopback      sv      typ    PASS  
+noise_filter_sv_tt     noise_filter       sv      typ    PASS  
+parity_reconfig_sv_tt  parity_reconfig    sv      typ    PASS  
+random_seed_1_sv_tt    random_seed_1      sv      typ    PASS  
+random_seed_2_sv_tt    random_seed_2      sv      typ    PASS  
+reconfig_sv_tt         reconfig           sv      typ    PASS  
+rx_fifo_sv_tt          rx_fifo            sv      typ    PASS  
+smoke_sv_tt            smoke              sv      typ    PASS  
+auto_toggle_sv_ss      auto_toggle        sv      max    PASS  
+corners_sv_ss          corners            sv      max    PASS  
+line_loopback_sv_ss    line_loopback      sv      max    PASS  
+noise_filter_sv_ss     noise_filter       sv      max    PASS  
+parity_reconfig_sv_ss  parity_reconfig    sv      max    PASS  
+random_seed_1_sv_ss    random_seed_1      sv      max    PASS  
+random_seed_2_sv_ss    random_seed_2      sv      max    PASS  
+reconfig_sv_ss         reconfig           sv      max    PASS  
+rx_fifo_sv_ss          rx_fifo            sv      max    PASS  
+smoke_sv_ss            smoke              sv      max    PASS  
 
-Detailed metrics: /tmp/flexsoc-reference-ips/.ip-save.uart.qrdm_vkn/uart/meta/sky130/metrics.json
+Detailed metrics: /home/eneadim/github/flexsoc/hw/ips/.ip-save.uart.q2ht8jed/uart/meta/sky130/metrics.json

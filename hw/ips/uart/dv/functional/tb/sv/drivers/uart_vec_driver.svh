@@ -30,10 +30,10 @@ task automatic tb_drive_input(input string name, input logic [31:0] value);
   if (1'b0) begin
     tb_vector_apply_count = tb_vector_apply_count;
   end
-  else if (name == "cio_rx_i") begin
-    cio_rx_i = value;
+  else if (name == "rx_i") begin
+    rx_i = value;
     tb_vector_apply_count++;
-    $display("[TB][DRV] cio_rx_i <= 0x%08h", value);
+    $display("[TB][DRV] rx_i <= 0x%08h", value);
   end
   else begin
     error_count++;
@@ -91,7 +91,7 @@ task automatic tb_apply_reset(
 );
   int i;
   bit selected;
-  cio_rx_i = '1;
+  rx_i = '0;
   selected = (selector == "" || selector == "all" || selector == "*" ||
               selector == "core" || selector == "rst_ni");
   if (!selected) begin
@@ -317,10 +317,10 @@ task automatic tb_drive_input(input tb_token_t name, input logic [31:0] value);
   if (1'b0) begin
     tb_vector_apply_count = tb_vector_apply_count;
   end
-  else if (name == "cio_rx_i") begin
-    cio_rx_i = value;
+  else if (name == "rx_i") begin
+    rx_i = value;
     tb_vector_apply_count++;
-    $display("[TB][DRV] cio_rx_i <= 0x%08h", value);
+    $display("[TB][DRV] rx_i <= 0x%08h", value);
   end
   else begin
     error_count++;
@@ -378,7 +378,7 @@ task automatic tb_apply_reset(
 );
   int i;
   bit selected;
-  cio_rx_i = '1;
+  rx_i = '0;
   selected = (selector == "" || selector == "all" || selector == "*" ||
               selector == "core" || selector == "rst_ni");
   if (!selected) begin

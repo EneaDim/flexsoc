@@ -1,0 +1,91 @@
+{
+  "cdc": {
+    "classifications": {},
+    "crossings": [],
+    "errors": 0,
+    "findings": [],
+    "info": 0,
+    "pairs": [],
+    "raw_crossings": 0,
+    "review": 0,
+    "safe": 0,
+    "warnings": 0
+  },
+  "clock_domains": 1,
+  "dependencies": 31017,
+  "glitch": {
+    "classifications": {},
+    "errors": 0,
+    "findings": [],
+    "info": 0,
+    "review": 0,
+    "safe": 0,
+    "warnings": 0
+  },
+  "obligations": [],
+  "rdc": {
+    "classifications": {
+      "reset_synchronizer": 1
+    },
+    "crossings": [],
+    "errors": 0,
+    "findings": [
+      {
+        "classification": "reset_synchronizer",
+        "crossings": [],
+        "evidence": [
+          "clock_domain=core",
+          "reset=rst_ni",
+          "stages=2",
+          "consumers=42"
+        ],
+        "id": "RDC-0001",
+        "issues": [],
+        "obligations": [],
+        "primary": false,
+        "scope": "rdc",
+        "status": "SAFE"
+      }
+    ],
+    "info": 0,
+    "pairs": [],
+    "raw_crossings": 0,
+    "review": 0,
+    "safe": 1,
+    "warnings": 0
+  },
+  "reset_domains": 2,
+  "schema": "flexsoc.cdc_rdc.v3",
+  "sequential_elements": 68,
+  "setup": {
+    "classifications": {
+      "multiple_reset_domains_on_clock": 1
+    },
+    "errors": 0,
+    "findings": [
+      {
+        "classification": "multiple_reset_domains_on_clock",
+        "crossings": [],
+        "evidence": [
+          "core_rst_sync_ni",
+          "rst_ni"
+        ],
+        "id": "SETUP-0001",
+        "issues": [
+          "clock_domain=core"
+        ],
+        "obligations": [],
+        "primary": true,
+        "scope": "setup",
+        "status": "REVIEW"
+      }
+    ],
+    "info": 0,
+    "review": 1,
+    "safe": 0,
+    "warnings": 0
+  },
+  "status": "review",
+  "top": "uart",
+  "verification_obligations": 0
+}

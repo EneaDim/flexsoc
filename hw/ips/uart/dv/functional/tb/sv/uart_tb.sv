@@ -5,19 +5,18 @@
 
 module uart_tb;
   // Parameters
-  parameter int CLK_PERIOD = 10; // ns
+  parameter real CLK_PERIOD = 10; // ns
   parameter int INITIAL_RESET_CYCLES = 5;
 
   // Inputs
   logic clk_i;
   logic rst_ni;
+  logic rx_i;
   logic [108:0] tl_i;
-  logic cio_rx_i;
 
   // Outputs
+  logic tx_o;
   logic [65:0] tl_o;
-  logic cio_tx_o;
-  logic cio_tx_en_o;
 
   integer error_count;
   logic [31:0] rdata;
@@ -32,16 +31,21 @@ module uart_tb;
   uart u_uart (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
+    .rx_i(rx_i),
     .tl_i(tl_if.h2d),
-    .cio_rx_i(cio_rx_i),
-    .tl_o(tl_if.d2h),
-    .cio_tx_o(cio_tx_o),
-    .cio_tx_en_o(cio_tx_en_o)
+    .tx_o(tx_o),
+    .tl_o(tl_if.d2h)
   );
 
   initial begin
-    clk_i = 0;
-    forever #(CLK_PERIOD / 2) clk_i = ~clk_i;
+    clk_i = 1'b0;
+    #0;
+    forever begin
+      clk_i = 1'b1;
+      #5;
+      clk_i = 1'b0;
+      #5;
+    end
   end
 
   string wave_path;
@@ -112,8 +116,8 @@ module uart_tb;
     error_count = 0;
     tb_select_test(cfg_path, data_in_path, data_out_path);
     rst_ni = '0;
+    rx_i = '0;
     tl_i = '0;
-    cio_rx_i = '1;
     tl_if.init();
     rst_ni = 1'b1;
     repeat (2) @(posedge clk_i);

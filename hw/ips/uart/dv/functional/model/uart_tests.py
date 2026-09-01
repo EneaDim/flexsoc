@@ -93,11 +93,11 @@ def uart_rx_rows(
 
     frame = uart_frame(byte, parity=parity, odd=odd, bad_parity=bad_parity)
     rows = [
-        drive(start_cycle + index * BIT_CYCLES, "cio_rx_i", bit)
+        drive(start_cycle + index * BIT_CYCLES, "rx_i", bit)
         for index, bit in enumerate(frame)
     ]
     end_cycle = start_cycle + len(frame) * BIT_CYCLES
-    rows.append(drive(end_cycle, "cio_rx_i", 1))
+    rows.append(drive(end_cycle, "rx_i", 1))
     return rows, end_cycle + BIT_CYCLES
 
 
@@ -107,9 +107,8 @@ def smoke_vectors() -> tuple[list[str], list[str]]:
     data_in: list[str] = []
     data_out: list[str] = []
     for cycle, value in ((0, 1), (8, 0), (16, 1), (24, 0), (32, 1)):
-        data_in.append(drive(cycle, "cio_rx_i", value))
-        data_out.append(check(cycle, "cio_tx_o", value))
-        data_out.append(check(cycle, "cio_tx_en_o", 1))
+        data_in.append(drive(cycle, "rx_i", value))
+        data_out.append(check(cycle, "tx_o", value))
 
     # The 8-cycle line-loopback pulses above are intentionally shorter than
     # one UART bit cell. Reset the receiver state and restore configuration
@@ -155,7 +154,7 @@ def corners_vectors() -> tuple[list[str], list[str]]:
     """Receive corner-case bytes from the physical RX pin and read them back."""
 
     data_in = [
-        drive(0, "cio_rx_i", 1),
+        drive(0, "rx_i", 1),
         CSR.CTRL.vector_write(4, TX=1, RX=1, NCO=NCO),
     ]
     data_out: list[str] = []
@@ -167,8 +166,7 @@ def corners_vectors() -> tuple[list[str], list[str]]:
         data_in.extend(rows)
 
     for sample_cycle in (16, 512, 1024):
-        data_out.append(check(sample_cycle, "cio_tx_o", 1))
-        data_out.append(check(sample_cycle, "cio_tx_en_o", 1))
+        data_out.append(check(sample_cycle, "tx_o", 1))
 
     check_cycle = cycle + 32
     data_out.extend(
@@ -216,7 +214,7 @@ def random_vectors(seed: int) -> tuple[list[str], list[str]]:
     """Receive deterministic pseudo-random bytes with the RTL noise filter on."""
 
     data_in = [
-        drive(0, "cio_rx_i", 1),
+        drive(0, "rx_i", 1),
         CSR.CTRL.vector_write(4, TX=1, RX=1, NF=1, NCO=NCO),
     ]
 
@@ -230,8 +228,7 @@ def random_vectors(seed: int) -> tuple[list[str], list[str]]:
 
     check_cycle = cycle + 32
     data_out = [
-        check(16, "cio_tx_o", 1),
-        check(16, "cio_tx_en_o", 1),
+        check(16, "tx_o", 1),
         CSR.CTRL.vector_read(
             check_cycle,
             TX=1,
@@ -265,7 +262,7 @@ def reconfig_vectors() -> tuple[list[str], list[str]]:
     """Transmit through system loopback, then reconfigure parity and repeat."""
 
     data_in = [
-        drive(0, "cio_rx_i", 1),
+        drive(0, "rx_i", 1),
         CSR.WDATA.vector_write(8, WDATA=0x5A),
         CSR.CTRL.vector_write(
             480,
@@ -279,8 +276,7 @@ def reconfig_vectors() -> tuple[list[str], list[str]]:
         CSR.WDATA.vector_write(496, WDATA=0xC3),
     ]
     data_out = [
-        check(16, "cio_tx_o", 1),
-        check(16, "cio_tx_en_o", 1),
+        check(16, "tx_o", 1),
         CSR.FIFO_STATUS.vector_read(400, TXLVL=0, RXLVL=1),
         CSR.RDATA.vector_read(400, RDATA=0x5A),
         CSR.FIFO_STATUS.vector_read(400, TXLVL=0, RXLVL=0),
@@ -295,8 +291,7 @@ def reconfig_vectors() -> tuple[list[str], list[str]]:
             PARITY_ODD=1,
             NCO=NCO,
         ),
-        check(520, "cio_tx_o", 1),
-        check(520, "cio_tx_en_o", 1),
+        check(520, "tx_o", 1),
         CSR.FIFO_STATUS.vector_read(920, TXLVL=0, RXLVL=1),
         CSR.RDATA.vector_read(920, RDATA=0xC3),
         CSR.STATUS.vector_read(

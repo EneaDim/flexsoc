@@ -9,8 +9,8 @@ from __future__ import annotations
 
 
 TOP = "uart"
-INPUTS = ("cio_rx_i",)
-OUTPUTS = ("cio_tx_o", "cio_tx_en_o")
+INPUTS = ("rx_i",)
+OUTPUTS = ("tx_o",)
 
 
 # uart_core accumulates CTRL.NCO every clk_i cycle and uart_tx/uart_rx divide
