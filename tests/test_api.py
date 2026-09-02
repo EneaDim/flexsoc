@@ -38,7 +38,6 @@ from flexsoc.api import (
     NATIVE_TARGETS,
     STREAM_BY_DEFAULT_TARGETS,
     TARGETS,
-    TECHNOLOGY_TARGETS,
 )
 from flexsoc.backend.core.package import PackageFlow
 from flexsoc.backend.core.reporting import collect_manifest
