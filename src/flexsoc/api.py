@@ -186,9 +186,11 @@ TARGETS: dict[str, TargetSpec] = {
     "soc_start": ("Setup", "Initialize a SoC run from loaded IPs", SOC),
     "sta_corners": ("Signoff", "Run STA setup/hold for each configured corner", SIGNOFF),
     "power_estimate_corners": ("Signoff", "Estimate power for each corner using global activity", SIGNOFF),
-    "signoff_corners": ("Signoff", "Run SDF, multi-corner STA and estimated power", SIGNOFF),
+    "signoff": ("Signoff", "Run SDF, multi-corner STA and estimated power", SIGNOFF),
     "hjson": ("IP flow", "Generate an HJSON register template", IP_DEV),
     "sdc": ("IP flow", "Initialize the canonical authored <TOP>.sdc timing intent", SDC_INTENT),
+    "model": ("DV functional", "Generate Python model, CSR regmap, and test scaffolds", SIM),
+    "tb": ("DV functional", "Generate a SystemVerilog testbench scaffold", SIM),
     "hjson_gen": ("IP flow", "Compatibility alias for HJSON generation", IP_DEV),
     "reg": ("IP flow", "Generate register RTL from HJSON", IP_DEV),
     "doc": ("IP flow", "Generate register documentation", IP_DEV),
@@ -207,7 +209,6 @@ TARGETS: dict[str, TargetSpec] = {
     "lint_slang_suite": ("Linting", "Run the full Slang lint suite", LINT),
     "lint_verilator_suite": ("Linting", "Run the full Verilator lint suite", LINT),
     "lint_suite": ("Linting", "Run full Slang suite, then full Verilator suite", LINT),
-    "setup_cdc_rdc": ("Domain analysis", "Generate pre-technology CDC/RDC structural extraction", CDC_RDC),
     "cdc_rdc": ("Domain analysis", "Run structural CDC/RDC, protocol, reset, setup, and glitch checks", CDC_RDC),
     "lint_v": ("Linting", "Run Verilog lint checks", LINT),
     "lint_sv": ("Linting", "Run SystemVerilog lint checks", LINT),
@@ -220,9 +221,6 @@ TARGETS: dict[str, TargetSpec] = {
     "slang_hier": ("Linting", "Generate hierarchy text with slang-hier", SLANG),
     "slang_ast": ("Linting", "Generate Slang AST JSON", SLANG),
     "slang_flist": ("Linting", "Generate a trimmed topological RTL filelist with Slang", SLANG),
-    "setup_tb": ("DV functional", "Generate a SystemVerilog testbench scaffold", SIM),
-    "setup_cocotb": ("DV functional", "Generate a cocotb scaffold", SIM),
-    "setup_model": ("DV functional", "Generate Python model, CSR regmap, and test scaffolds", SIM),
     "regmap_py": ("DV functional", "Regenerate only <top>_regmap.py from HJSON", SIM),
     "tests_gen": ("DV functional", "Generate all vector tests from <top>_tests.py", SIM),
     "test_gen": ("DV functional", "Generate one vector test selected by TEST_NAME", SIM),
@@ -248,35 +246,26 @@ TARGETS: dict[str, TargetSpec] = {
     "view_presyn_sv": ("Viewing", "Open pre-synthesis graph from SV", VIEW),
     "tb_save": ("Viewing", "Save testbench regression artifacts", VIEW),
     "tb_view": ("Viewing", "Open saved testbench waveform", VIEW),
-    "setup_syn": ("Synthesis", "Generate Yosys synthesis scripts", SYN),
     "syn": ("Synthesis", "Run synthesis", SYN),
     "syn_v": ("Synthesis", "Run Verilog synthesis", SYN),
     "syn_sv": ("Synthesis", "Run SystemVerilog synthesis", SYN),
     "yosys-vgen": ("Synthesis", "Convert SV to Verilog with Yosys", SYN),
     "sv2v": ("Synthesis", "Convert SV to Verilog with sv2v", SYN),
-    "setup_formal": ("DV formal", "Create or preserve starter design assertions and covers", FORMAL),
-    "setup_formal_csr_prove": ("DV formal", "Generate shared CSR BMC/prove configuration", FORMAL),
-    "setup_formal_csr_cover": ("DV formal", "Generate automatic CSR cover configuration", FORMAL),
     "formal_csr_bmc": ("DV formal", "Bounded-check automatic CSR assertions", FORMAL),
     "formal_csr_prove": ("DV formal", "Prove automatic CSR semantics with SymbiYosys", FORMAL),
     "formal_csr_cover": ("DV formal", "Reach automatic CSR cover points with SymbiYosys", FORMAL),
     "formal_csr": ("DV formal", "Run CSR BMC, prove, then cover", FORMAL),
     "formal": ("DV formal", "Run all formal stages BMC, prove, then cover", FORMAL),
-    "setup_formal_prove": ("DV formal", "Generate shared design BMC/prove configuration", FORMAL),
-    "setup_formal_cover": ("DV formal", "Generate authored-property cover configuration", FORMAL),
     "formal_bmc": ("DV formal", "Bounded-check authored design assertions", FORMAL),
     "formal_prove": ("DV formal", "Prove authored properties with SymbiYosys", FORMAL),
     "formal_cover": ("DV formal", "Reach authored cover properties with SymbiYosys", FORMAL),
-    "setup_eqy": ("Signoff", "Generate RTL-vs-post-synthesis EQY configuration", EQUIV),
     "eqy": ("Signoff", "Prove RTL equivalent to the post-synthesis netlist with EQY", EQUIV),
-    "setup_signoff": ("Signoff", "Generate signoff scripts that consume authored <TOP>.sdc", SIGNOFF),
     "compile_syn": ("Signoff", "Compile post-synthesis simulation", SIGNOFF),
     "sim_syn": ("Signoff", "Run post-synthesis simulation", SIGNOFF),
     "compile_post_syn": ("Gate simulation", "Compile post-synthesis gate-level simulation with Icarus", GATE_SIM),
     "sim_post_syn": ("Gate simulation", "Run post-synthesis gate-level simulation with optional SDF", GATE_SIM),
     "sim_post_syn_all": ("Gate simulation", "Run every selected post-synthesis GLS test/timing combination with one backend", GATE_SIM_ALL),
     "compile_post_pnr": ("Gate simulation", "Compile post-PnR gate-level simulation with Icarus", GATE_SIM),
-    "setup_signoff_post_pnr": ("Post-PnR signoff", "Generate post-PnR OpenSTA scripts from final ORFS artifacts", SIGNOFF),
     "signoff_post_pnr": ("Post-PnR signoff", "Run post-PnR SDF, STA and vectorless power", SIGNOFF),
     "sdf_post_pnr": ("Post-PnR signoff", "Write post-PnR SDF from final netlist, SDC and SPEF", SIGNOFF),
     "sta_post_pnr": ("Post-PnR signoff", "Run SPEF-aware STA with propagated clock reporting", SIGNOFF),
@@ -303,7 +292,6 @@ TARGETS: dict[str, TargetSpec] = {
     "validate_override": (
         "Run metadata", "Accept modified generated collateral for the current lineage", PROVENANCE
     ),
-    "setup_pnr": ("Implementation", "Generate OpenROAD implementation config", PNR),
     "pnr": ("Implementation", "Run OpenROAD implementation", PNR),
     "pnr_gui": ("Implementation", "Open OpenROAD GUI", PNR),
     "physical_signoff": ("Post Sign-Off", "Run ORFS physical closure checks within post-implementation sign-off", PNR),
@@ -570,73 +558,80 @@ DEBUG_TARGETS = {
 
 
 TECHNOLOGY_TARGETS = {
-    "setup_syn", "syn", "syn_v", "syn_sv",
-    "setup_eqy", "eqy",
+    "syn.setup", "eqy.setup", "signoff.setup", "signoff_post_pnr.setup", "pnr.setup",
+    "syn", "syn_v", "syn_sv", "eqy",
     "compile_syn", "sim_syn", "compile_post_syn", "sim_post_syn", "sim_post_syn_all",
     "compile_post_pnr", "sim_post_pnr", "sim_post_pnr_all",
-    "setup_signoff_post_pnr", "signoff_post_pnr", "sdf_post_pnr", "sta_post_pnr", "power_estimate_post_pnr",
+    "signoff_post_pnr", "sdf_post_pnr", "sta_post_pnr", "power_estimate_post_pnr",
     "power_analysis_post_pnr", "power_analysis_post_pnr_all", "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all",
-    "setup_signoff", "sta", "sdf", "power_estimate", "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all", "sta_violators",
-    "path_view", "sta_corners", "power_estimate_corners", "signoff_corners",
-    "setup_pnr", "pnr", "pnr_gui", "physical_signoff",
-    "ip_save",
+    "sta", "sdf", "power_estimate", "power_analysis", "power_analysis_all", "fusion_analysis", "fusion_analysis_all", "sta_violators",
+    "path_view", "sta_corners", "power_estimate_corners", "signoff",
+    "pnr", "pnr_gui", "physical_signoff", "ip_save",
     "metrics", "manifest", "manifest_show", "check",
     "clean_syn", "clean_signoff", "clean_pnr", "clean_meta",
 }
 
+SETUP_TARGETS: dict[str, tuple[str, ...]] = {
+    "sdc": ("sdc.setup",),
+    "model": ("model.setup",),
+    "tb": ("tb.setup",),
+    "cocotb": ("cocotb.setup",),
+    "compile": ("tb.setup",),
+    "compile_v": ("tb.setup",),
+    "compile_sv": ("tb.setup",),
+    "sim": ("tb.setup",),
+    "sim_v": ("tb.setup",),
+    "sim_sv": ("tb.setup",),
+    "sim_tests": ("tb.setup",),
+    "cocotb_tests": ("cocotb.setup",),
+    "regression": ("tb.setup", "cocotb.setup"),
+    "cdc_rdc": ("cdc_rdc.setup",),
+    "formal_csr_bmc": ("formal.csr_prove.setup",),
+    "formal_csr_prove": ("formal.csr_prove.setup",),
+    "formal_csr_cover": ("formal.csr_cover.setup",),
+    "formal_bmc": ("formal.prove.setup",),
+    "formal_prove": ("formal.prove.setup",),
+    "formal_cover": ("formal.cover.setup",),
+    "formal_csr": ("formal.csr_prove.setup", "formal.csr_cover.setup"),
+    "formal": (
+        "formal.prove.setup", "formal.cover.setup",
+        "formal.csr_prove.setup", "formal.csr_cover.setup",
+    ),
+    "syn": ("syn.setup",),
+    "syn_v": ("syn.setup",),
+    "syn_sv": ("syn.setup",),
+    "eqy": ("eqy.setup",),
+    "sta": ("signoff.setup",),
+    "sta_corners": ("signoff.setup",),
+    "sdf": ("signoff.setup",),
+    "power_estimate": ("signoff.setup",),
+    "power_estimate_corners": ("signoff.setup",),
+    "sta_violators": ("signoff.setup",),
+    "power_analysis": ("signoff.setup",),
+    "power_analysis_all": ("signoff.setup",),
+    "fusion_analysis": ("signoff.setup",),
+    "fusion_analysis_all": ("signoff.setup",),
+    "signoff": ("signoff.setup",),
+    "sdf_post_pnr": ("signoff_post_pnr.setup",),
+    "sta_post_pnr": ("signoff_post_pnr.setup",),
+    "power_estimate_post_pnr": ("signoff_post_pnr.setup",),
+    "power_analysis_post_pnr": ("signoff_post_pnr.setup",),
+    "power_analysis_post_pnr_all": ("signoff_post_pnr.setup",),
+    "fusion_analysis_post_pnr": ("signoff_post_pnr.setup",),
+    "fusion_analysis_post_pnr_all": ("signoff_post_pnr.setup",),
+    "signoff_post_pnr": ("signoff_post_pnr.setup",),
+    "pnr": ("pnr.setup",),
+    "pnr_gui": ("pnr.setup",),
+}
 
-AUTO_SETUP_TARGETS: dict[str, tuple[str, ...]] = {
-    # Setup targets encode their own setup-only dependencies once.
-    # Functional consumers refresh only the scaffold(s) they actually use.
-    "compile": ("setup_tb",),
-    "compile_v": ("setup_tb",),
-    "compile_sv": ("setup_tb",),
-    "sim": ("setup_tb",),
-    "sim_v": ("setup_tb",),
-    "sim_sv": ("setup_tb",),
-    "sim_tests": ("setup_tb",),
-    "cocotb": ("setup_cocotb",),
-    "cocotb_tests": ("setup_cocotb",),
-    "regression": ("setup_tb", "setup_cocotb"),
-    "syn": ("setup_syn",),
-    "syn_v": ("setup_syn",),
-    "syn_sv": ("setup_syn",),
-    "formal_csr_bmc": ("setup_formal_csr_prove",),
-    "formal_csr_prove": ("setup_formal_csr_prove",),
-    "formal_csr_cover": ("setup_formal_csr_cover",),
-    "setup_formal_prove": ("setup_formal",),
-    "setup_formal_cover": ("setup_formal",),
-    "formal_bmc": ("setup_formal_prove",),
-    "formal_prove": ("setup_formal_prove",),
-    "formal_cover": ("setup_formal_cover",),
-    "formal_csr": ("setup_formal_csr_prove", "setup_formal_csr_cover"),
-    "formal": ("setup_formal_prove", "setup_formal_cover", "setup_formal_csr_prove", "setup_formal_csr_cover"),
-    "eqy": ("setup_eqy",),
-    "cdc_rdc": ("setup_cdc_rdc",),
+SETUP_STAGES = frozenset(stage for stages in SETUP_TARGETS.values() for stage in stages)
+SETUP_ONLY_TARGETS = frozenset({"sdc", "model", "tb"})
+
+RUN_DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    **SETUP_TARGETS,
     "sim_post_syn_all": ("sdf",),
-    "sdf_post_pnr": ("setup_signoff_post_pnr",),
-    "sta_post_pnr": ("setup_signoff_post_pnr",),
-    "power_estimate_post_pnr": ("setup_signoff_post_pnr",),
     "sim_post_pnr_all": ("sdf_post_pnr",),
-    "power_analysis_post_pnr": ("setup_signoff_post_pnr",),
-    "power_analysis_post_pnr_all": ("setup_signoff_post_pnr",),
-    "fusion_analysis_post_pnr": ("setup_signoff_post_pnr",),
-    "fusion_analysis_post_pnr_all": ("setup_signoff_post_pnr",),
-    "signoff_post_pnr": ("setup_signoff_post_pnr",),
-    "sta": ("setup_signoff",),
-    "sta_corners": ("setup_signoff",),
-    "sdf": ("setup_signoff",),
-    "power_estimate": ("setup_signoff",),
-    "power_estimate_corners": ("setup_signoff",),
-    "sta_violators": ("setup_signoff",),
-    "power_analysis": ("setup_signoff",),
-    "power_analysis_all": ("setup_signoff",),
-    "fusion_analysis": ("setup_signoff",),
-    "fusion_analysis_all": ("setup_signoff",),
-    "signoff_corners": ("setup_signoff",),
-    "setup_pnr": ("syn", "setup_signoff"),
-    "pnr": ("setup_pnr",),
-    "pnr_gui": ("setup_pnr",),
+    "pnr.setup": ("syn", "signoff.setup"),
 }
 
 
@@ -646,47 +641,48 @@ GLS_PROVENANCE_TARGETS = {
 }
 
 PROVENANCE_SETUPS = {
-    "setup_tb", "setup_cocotb", "setup_cdc_rdc",
-    "setup_formal_prove", "setup_formal_cover",
-    "setup_formal_csr_prove", "setup_formal_csr_cover",
-    "setup_syn", "setup_eqy", "setup_signoff",
-    "setup_signoff_post_pnr", "setup_pnr",
+    "tb.setup", "cocotb.setup", "cdc_rdc.setup",
+    "formal.prove.setup", "formal.cover.setup",
+    "formal.csr_prove.setup", "formal.csr_cover.setup",
+    "syn.setup", "eqy.setup", "signoff.setup",
+    "signoff_post_pnr.setup", "pnr.setup",
 }
 PROVENANCE_PARENTS = {
-    "setup_eqy": ("setup_syn",),
-    "setup_pnr": ("setup_syn", "setup_signoff"),
-    "setup_signoff_post_pnr": ("setup_pnr",),
+    "eqy.setup": ("syn.setup",),
+    "pnr.setup": ("syn.setup", "signoff.setup"),
+    "signoff_post_pnr.setup": ("pnr.setup",),
 }
 PROVENANCE_CONFIG_KEYS = {
-    "setup_tb": (*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV"),
-    "setup_cocotb": (*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV"),
-    "setup_cdc_rdc": (*CLOCKS, "TOP", "CLK_PERIOD"),
-    "setup_formal_prove": (
+    "tb.setup": (*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV"),
+    "cocotb.setup": (*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV"),
+    "cdc_rdc.setup": (*CLOCKS, "TOP", "CLK_PERIOD"),
+    "formal.prove.setup": (
         *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
         "FORMAL_BMC_ENGINE", "FORMAL_PROVE_ENGINE",
     ),
-    "setup_formal_cover": (*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE"),
-    "setup_formal_csr_prove": (
+    "formal.cover.setup": (*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE"),
+    "formal.csr_prove.setup": (
         *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
         "FORMAL_BMC_ENGINE", "FORMAL_PROVE_ENGINE",
     ),
-    "setup_formal_csr_cover": (*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE"),
-    "setup_syn": (
+    "formal.csr_cover.setup": (*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE"),
+    "syn.setup": (
         *CLOCKS, "TOP", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT",
         "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS",
     ),
-    "setup_eqy": (
+    "eqy.setup": (
         *CLOCKS, "TOP", "EQY_DEPTH", "EQY_SAT_DEPTH", "EQY_ENGINE", "EQY_USE_SAT",
         "EQY_SPLITNETS", "EQY_USE_PDR", "EQY_PDR_ENGINE", "EQY_SMT_ENGINE",
         "EQY_SMT_DEPTH", "EQY_XPROP", "EQY_JOIN_OUTPUTS", "EQY_STRATEGY_ORDER",
         "EQY_RESET_NORMALIZE", "EQY_RESET_CYCLES",
     ),
-    "setup_signoff": (
+    "signoff.setup": (
         *CLOCKS, "TOP", "PDK", "CLK_PERIOD", "SDC_IO_DELAY_PCT", "SDC_CLOCK_PERIOD_NS",
     ),
-    "setup_signoff_post_pnr": (*CLOCKS, "TOP", "PDK", "CLK_PERIOD", "ORS_TECH", "SDC_IO_DELAY_PCT"),
-    "setup_pnr": (*CLOCKS, "TOP", "PDK", "ORS_TECH"),
+    "signoff_post_pnr.setup": (*CLOCKS, "TOP", "PDK", "CLK_PERIOD", "ORS_TECH", "SDC_IO_DELAY_PCT"),
+    "pnr.setup": (*CLOCKS, "TOP", "PDK", "ORS_TECH"),
 }
+
 
 DESIGN_INTENT_KEYS = (
     "TOP", "RUN_TOP", "RUN_ID",
@@ -729,10 +725,10 @@ NATIVE_TARGETS: dict[str, tuple[str, str]] = {
     "sim_post_pnr_all": ("sim_all", "post_pnr"),
 }
 
-def _auto_setup_dependencies(target: str, timing_mode: str) -> tuple[str, ...]:
-    """Return setup-only prerequisites for one target."""
+def _dependencies(target: str, timing_mode: str) -> tuple[str, ...]:
+    """Return declared prerequisites for one run or setup stage."""
 
-    deps = AUTO_SETUP_TARGETS.get(target, ())
+    deps = RUN_DEPENDENCIES.get(target, ())
     if timing_mode in SDF_MODE_TO_CORNER:
         if target in {"compile_post_syn", "sim_post_syn"}:
             return (*deps, "sdf")
@@ -741,9 +737,27 @@ def _auto_setup_dependencies(target: str, timing_mode: str) -> tuple[str, ...]:
     return deps
 
 
+
+def _setup_public(stage: str) -> str:
+    """Return the public keyword owning one internal setup stage."""
+
+    return {
+        "formal.prove.setup": "formal_prove",
+        "formal.cover.setup": "formal_cover",
+        "formal.csr_prove.setup": "formal_csr_prove",
+        "formal.csr_cover.setup": "formal_csr_cover",
+        "signoff.setup": "signoff",
+        "signoff_post_pnr.setup": "signoff_post_pnr",
+    }.get(stage, stage.removesuffix(".setup"))
+
+
+def _setup_command(stage: str, *, force: bool = False) -> str:
+    """Render the public command for one internal setup stage."""
+
+    return f"fx {_setup_public(stage)} --setup" + (" --force" if force else "")
+
 TARGET_ALIASES = {
-    "setup_signoff_post_pnr": "setup_signoff",
-    "signoff_post_pnr": "signoff_corners",
+    "signoff_post_pnr": "signoff",
     "sdf_post_pnr": "sdf",
     "sta_post_pnr": "sta",
     "power_estimate_post_pnr": "power_estimate",
@@ -800,7 +814,6 @@ class FlexSoCTarget:
 
     def __init__(
         self, client: "FlexSoC", values: Mapping[str, str], *, on: str = "local",
-        auto_setup: bool = False,
     ):
         from .backend import Backend, BackendContext
         from .backend.core import ToolRunner
@@ -808,7 +821,6 @@ class FlexSoCTarget:
         self.client = client
         self.values = dict(values)
         self.on = on
-        self.auto_setup = auto_setup
         self.context = BackendContext(client.project_root, client.workdir, self.values)
         self.runner = ToolRunner(client.execution_targets, project_root=client.project_root)
         self.backend = Backend(self.context, self.runner)
@@ -984,30 +996,30 @@ class FlexSoCTarget:
 
         p = self.paths
         rtl = (p.rtl_common, p.rtl_ip, *self._rtl_sources())
-        if stage in {"setup_tb", "setup_cocotb"}:
+        if stage in {"tb.setup", "cocotb.setup"}:
             inputs = (p.data / f"{p.top}.hjson", p.sdc)
-        elif stage == "setup_cdc_rdc":
+        elif stage == "cdc_rdc.setup":
             inputs = (*rtl, p.sdc)
-        elif stage in {"setup_formal_prove", "setup_formal_cover"}:
-            mode = "cover" if stage.endswith("cover") else "prove"
+        elif stage in {"formal.prove.setup", "formal.cover.setup"}:
+            mode = "cover" if ".cover." in stage else "prove"
             inputs = (*rtl, p.formal / "properties" / mode)
-        elif stage.startswith("setup_formal_csr_"):
+        elif stage.startswith("formal.csr_"):
             inputs = rtl
-        elif stage == "setup_syn":
+        elif stage == "syn.setup":
             inputs = (*rtl, p.sdc, *self._configured_paths("LIB_SYN"))
-        elif stage == "setup_eqy":
+        elif stage == "eqy.setup":
             inputs = (
                 *rtl, p.syn / f"{p.top}_synth.v",
                 *self._configured_paths("LIB_SYN", "PRIM", "FORMAL_PDK_PROC"),
             )
-        elif stage == "setup_signoff":
+        elif stage == "signoff.setup":
             inputs = (
                 p.sdc, p.syn / f"{p.top}_synth.v",
                 *self._configured_paths("LIBS", "LIB_SYN", "PRIM", "MACRO_LIBS"),
             )
-        elif stage == "setup_pnr":
+        elif stage == "pnr.setup":
             inputs = (p.syn / f"{p.top}_synth.v", p.sdc)
-        elif stage == "setup_signoff_post_pnr":
+        elif stage == "signoff_post_pnr.setup":
             from .backend.signoff.sta import _stage_inputs, _stage_sdc
 
             values = {**self.values, "SIGNOFF_STAGE": "post_route"}
@@ -1031,9 +1043,9 @@ class FlexSoCTarget:
 
     def _generated_paths(self, stage: str, result: object) -> tuple[Path, ...]:
         paths = self._result_paths(result)
-        if stage == "setup_cdc_rdc":
+        if stage == "cdc_rdc.setup":
             paths = (self.paths.run / "analysis" / "cdc_rdc" / "extract.ys",)
-        elif stage == "setup_eqy":
+        elif stage == "eqy.setup":
             out = self.context.layout.equivalence_dir
             bindings = [
                 *(out / path.name for path in (self.paths.rtl_common, self.paths.rtl_ip)),
@@ -1043,8 +1055,8 @@ class FlexSoCTarget:
                 out / "sky130_clock_gates_formal.v", out / "formal_pdk.v",
             ]
             paths += tuple(path for path in bindings if path.exists() or path.is_symlink())
-        elif stage.startswith("setup_formal_csr_"):
-            mode = "cover" if stage.endswith("cover") else "prove"
+        elif stage.startswith("formal.csr_"):
+            mode = "cover" if ".cover." in stage else "prove"
             paths += (self.paths.formal / "csr" / mode / f"{self.paths.top}_csr_auto_{mode}.sv",)
         return tuple(dict.fromkeys(path.expanduser().absolute() for path in paths))
 
@@ -1055,7 +1067,7 @@ class FlexSoCTarget:
         found: list[str] = []
 
         def visit(name: str) -> None:
-            for dependency in _auto_setup_dependencies(name, timing):
+            for dependency in _dependencies(name, timing):
                 if dependency in PROVENANCE_SETUPS:
                     if dependency not in found:
                         found.append(dependency)
@@ -1065,9 +1077,9 @@ class FlexSoCTarget:
         visit(target)
         if target in GLS_PROVENANCE_TARGETS:
             driver_setup = (
-                "setup_cocotb"
+                "cocotb.setup"
                 if self.values.get("GLS_BACKEND", "sv").strip().lower() == "cocotb"
-                else "setup_tb"
+                else "tb.setup"
             )
             if driver_setup not in found:
                 found.append(driver_setup)
@@ -1128,13 +1140,13 @@ class FlexSoCTarget:
             if state in {"CLEAN", "VALIDATED_OVERRIDE"}:
                 continue
             if state == "MODIFIED":
-                action = f"run `fx validate_override --set STAGE={stage}` or regenerate with `fx {stage} --force`"
+                action = f"run `fx validate_override --set STAGE={_setup_public(stage)}` or regenerate with `{_setup_command(stage, force=True)}`"
             elif state == "STALE":
-                action = f"regenerate the setup with `fx {stage} --force`"
+                action = f"regenerate the setup with `{_setup_command(stage, force=True)}`"
             elif stage not in recorded:
-                action = f"generate the setup first with `fx {stage}`"
+                action = f"generate the setup first with `{_setup_command(stage)}`"
             else:
-                action = f"repair missing/inconsistent inputs, then regenerate with `fx {stage} --force`"
+                action = f"repair missing/inconsistent inputs, then regenerate with `{_setup_command(stage, force=True)}`"
             raise RuntimeError(f"{target}: {stage} provenance is {state}; {action}")
 
     def _reuse_setup(self, stage: str) -> tuple[Path, ...] | None:
@@ -1153,15 +1165,15 @@ class FlexSoCTarget:
         if state == "MODIFIED":
             raise RuntimeError(
                 f"{stage}: generated setup is MODIFIED; run `fx validate_override --set STAGE={stage}` "
-                f"to keep the edit, or `fx {stage} --force` to regenerate it"
+                f"to keep the edit, or `{_setup_command(stage, force=True)}` to regenerate it"
             )
         if state == "STALE":
             raise RuntimeError(
-                f"{stage}: generated setup is STALE; regenerate explicitly with `fx {stage} --force`"
+                f"{stage}: generated setup is STALE; regenerate explicitly with `{_setup_command(stage, force=True)}`"
             )
         raise RuntimeError(
             f"{stage}: generated setup provenance is {state}; repair the inputs/artifacts and "
-            f"regenerate explicitly with `fx {stage} --force`"
+            f"regenerate explicitly with `{_setup_command(stage, force=True)}`"
         )
 
     def _validate_override(self) -> str:
@@ -1241,7 +1253,7 @@ class FlexSoCTarget:
             log=layout.equivalence_log,
             jobs=int(self.values.get("EQY_JOBS", "1")),
             eqy=self.values.get("EQY", "eqy"),
-            inputs=self._execution_inputs("setup_eqy"),
+            inputs=self._execution_inputs("eqy.setup"),
             on=self.on,
         )
 
@@ -1280,7 +1292,7 @@ class FlexSoCTarget:
             mode = target.rsplit("_", 1)[-1]
             config = self._formal_config(csr=True, mode="cover" if mode == "cover" else "prove")
             log = logs / "csr" / f"{top}_{mode}.log"
-            setup = "setup_formal_csr_cover" if mode == "cover" else "setup_formal_csr_prove"
+            setup = "formal.csr_cover.setup" if mode == "cover" else "formal.csr_prove.setup"
             return getattr(flow, f"run_csr_{mode}")(
                 config, **({} if mode == "cover" else {"top": top}), log=log, sby=sby,
                 inputs=self._execution_inputs(setup), on=self.on,
@@ -1288,7 +1300,7 @@ class FlexSoCTarget:
         mode = target.rsplit("_", 1)[-1]
         config = self._formal_config(csr=False, mode="cover" if mode == "cover" else "prove")
         log = logs / "properties" / f"{top}_{mode}.log"
-        setup = "setup_formal_cover" if mode == "cover" else "setup_formal_prove"
+        setup = "formal.cover.setup" if mode == "cover" else "formal.prove.setup"
         return getattr(flow, f"run_{mode}")(
             config, **({} if mode == "cover" else {"top": top}), log=log, sby=sby,
             inputs=self._execution_inputs(setup), on=self.on,
@@ -1355,7 +1367,7 @@ class FlexSoCTarget:
             result = self._execute_target(target)
             self._record_provenance(target, result)
             return result
-        if not target.startswith("setup_"):
+        if target not in SETUP_STAGES:
             self._require_provenance(target)
         return self._execute_target(target)
 
@@ -1371,7 +1383,7 @@ class FlexSoCTarget:
             return 0
         if target == "setup":
             return p.ensure()
-        if target == "sdc":
+        if target == "sdc.setup":
             return b.signoff.pre.setup_sdc()
         if target in {"hjson", "hjson_gen"}:
             return b.design.regs.init_hjson(top, interface, p.data, force=force, clocks=self.context.clocks)
@@ -1416,13 +1428,13 @@ class FlexSoCTarget:
             if target == "slang_hier":
                 return b.design.rtl.show_hierarchy(root=root, top_file=top_file, output=output, search_roots=search_roots, top=v.get("SLANG_TOP", top), extra_args=extra_args, slang_hier=v.get("SLANG_HIER", "slang-hier"), on=self.on)
             return b.design.rtl.show_ast(root=root, top_file=top_file, output=output, search_roots=search_roots, top=v.get("SLANG_TOP", top), extra_args=extra_args, slang=v.get("SLANG", "slang"), scope=v.get("SLANG_AST_SCOPE"), on=self.on)
-        if target == "setup_model":
+        if target == "model.setup":
             return b.design.model.flow(top, p.data, p.model, p.rtl, force=force, clocks=self.context.clocks)
-        if target in {"setup_tb", "setup_cocotb"}:
+        if target in {"tb.setup", "cocotb.setup"}:
             from .backend.signoff.sdc import read_clock_config
             sv, cocotb = self._tb_configs()
             clocks = read_clock_config(p.sdc, self.context.clocks)
-            return b.dv.testbench.setup_systemverilog(sv, clocks=clocks) if target == "setup_tb" else b.dv.testbench.setup_cocotb(cocotb, clocks=clocks)
+            return b.dv.testbench.setup_systemverilog(sv, clocks=clocks) if target == "tb.setup" else b.dv.testbench.setup_cocotb(cocotb, clocks=clocks)
         if target in {"tests_gen", "test_gen", "tests"}:
             if target == "tests":
                 tests = b.dv.functional.tests(p.tests)
@@ -1450,13 +1462,13 @@ class FlexSoCTarget:
                 return b.dv.lint_verilator(kind="all", on=self.on)
             return b.dv.lint_suite(tools=(v.get("LINT_TOOL", "slang"),), part=v.get("LINT_PART", "ip"), on=self.on) if kind not in {"latch","undriven","width","unconnected","unused"} else (b.dv.lint_slang(kind=kind, part=v.get("LINT_PART","ip"), on=self.on), b.dv.lint_verilator(kind=kind, part=v.get("LINT_PART","ip"), on=self.on))
 
-        if target in {"setup_cdc_rdc", "cdc_rdc"}:
+        if target in {"cdc_rdc.setup", "cdc_rdc"}:
             analysis = p.run / "analysis" / "cdc_rdc"
             script, design_json = analysis / "extract.ys", analysis / "design.json"
-            if target == "setup_cdc_rdc":
+            if target == "cdc_rdc.setup":
                 return b.dv.cdc.setup(top=top, script=script, design_json=design_json, repo_root=self.client.project_root, filelists=(p.rtl_common, p.rtl_ip))
             return b.dv.cdc.run_from_context(
-                self.context, inputs=self._execution_inputs("setup_cdc_rdc"), on=self.on
+                self.context, inputs=self._execution_inputs("cdc_rdc.setup"), on=self.on
             )
 
         if target in {"compile", "compile_v", "compile_sv"}:
@@ -1475,41 +1487,35 @@ class FlexSoCTarget:
             return b.dv.coverage.flow_from_context(self.context, detail=target == "coverage_detail", on=self.on)
 
         # Formal verification, synthesis and logical equivalence.
-        if target in {"setup_formal", "setup_formal_prove", "setup_formal_cover", "setup_formal_csr_prove", "setup_formal_csr_cover"}:
+        if target in {"formal.prove.setup", "formal.cover.setup", "formal.csr_prove.setup", "formal.csr_cover.setup"}:
             b.dv.formal.init_properties(top, p.formal, multiclock=self.context.clocks.multiclock)
-            if target == "setup_formal":
-                return 0
-            csr = "csr" in target
-            mode = "cover" if target.endswith("cover") else "prove"
-            return self._formal_setup(csr=csr, mode=mode)
+            return self._formal_setup(csr=".csr_" in target, mode="cover" if ".cover." in target else "prove")
         if target in {"formal_bmc", "formal_prove", "formal_cover", "formal_csr_bmc", "formal_csr_prove", "formal_csr_cover"}:
             return self._run_formal(target)
         if target == "formal_csr":
             return self._execute_sequence(
                 ("formal_csr_bmc", "formal_csr_prove", "formal_csr_cover"),
-                auto_setup=False,
             )
         if target == "formal":
             return self._execute_sequence(
                 ("formal_csr_bmc", "formal_bmc", "formal_csr_prove", "formal_prove",
                  "formal_csr_cover", "formal_cover"),
-                auto_setup=False,
             )
 
-        if target == "setup_syn":
+        if target == "syn.setup":
             return self._setup_synthesis()
         if target in {"syn", "syn_v", "syn_sv"}:
             return b.syn.synthesis.run_asic(
                 output=p.syn, top=top, log_dir=p.logs / "synthesis" / p.pdk,
                 opt=v.get("TARGET_OPT", "delay1"), yosys=v.get("YOSYS", "yosys"),
                 systemverilog=(target != "syn_v" and v.get("VSV", "sv") != "v"),
-                inputs=self._execution_inputs("setup_syn"), on=self.on,
+                inputs=self._execution_inputs("syn.setup"), on=self.on,
             )
         if target == "yosys-vgen":
             return b.syn.synthesis.run_yosys_vgen(top=top, cwd=p.run, output=p.rtl / f"{top}.v", yosys=v.get("YOSYS","yosys"), on=self.on)
         if target == "sv2v":
             return 0
-        if target == "setup_eqy":
+        if target == "eqy.setup":
             return self._setup_eqy()
         if target == "eqy":
             return self._run_eqy()
@@ -1529,9 +1535,9 @@ class FlexSoCTarget:
                 return flow.debug_gls(output=output)
             raise ValueError(f"--debug is not supported for target {target!r}")
         # Pre/post-layout sign-off, SDF, GLS, timing and power.
-        if target == "setup_signoff":
+        if target == "signoff.setup":
             return (pre.setup_sta(), pre.setup_sdf(), pre.setup_power(), pre.setup_fusion())
-        if target == "setup_signoff_post_pnr":
+        if target == "signoff_post_pnr.setup":
             return (post.setup_sta(), post.setup_sdf(), post.setup_power(), post.setup_fusion())
         if target in {"sta", "sta_corners"}:
             return pre.run_sta(on=self.on)
@@ -1547,7 +1553,7 @@ class FlexSoCTarget:
             return pre.run_fusion(all_workloads=False, on=self.on)
         if target == "fusion_analysis_all":
             return pre.run_fusion(all_workloads=True, on=self.on)
-        if target == "signoff_corners":
+        if target == "signoff":
             return (pre.run_sdf(on=self.on), pre.run_sta(on=self.on), pre.run_power_estimate(on=self.on))
         if target in {"compile_syn", "compile_post_syn", "sim_syn", "sim_post_syn", "sim_post_syn_all"}:
             timing = v.get("TIMING_MODE", "zero")
@@ -1580,7 +1586,6 @@ class FlexSoCTarget:
                 ("sdf_post_pnr", "sta_post_pnr", "sim_post_pnr_all",
                  "power_estimate_post_pnr", "power_analysis_post_pnr_all",
                  "fusion_analysis_post_pnr_all"),
-                auto_setup=False,
             )
         if target == "sta_violators":
             return pre.run_sta(on=self.on)
@@ -1589,7 +1594,7 @@ class FlexSoCTarget:
             return self._run_cmd((sys.executable, str(self.client.project_root / "src" / "util" / "plot_path.py"), str(path)), log=p.logs / "signoff" / p.pdk / "path_view.log", inputs=(path,))
 
         # Physical implementation and routed sign-off evidence.
-        if target == "setup_pnr":
+        if target == "pnr.setup":
             return self._setup_pnr()
         if target == "pnr":
             return self._run_pnr()
@@ -1896,28 +1901,10 @@ class FlexSoCTarget:
 
     # Composite workflows ------------------------------------------------------
 
-    def _execute_sequence(
-        self, sequence: Sequence[str], *, auto_setup: bool | None = None
-    ) -> tuple[object, ...]:
-        """Execute a composite flow through the shared setup dependency graph."""
+    def _execute_sequence(self, sequence: Sequence[str]) -> tuple[object, ...]:
+        """Execute one explicit composite flow in order without hidden setup."""
 
-        timing_mode = self.values.get("TIMING_MODE", "zero").strip().lower()
-        expand_setup = self.auto_setup if auto_setup is None else auto_setup
-        expanded: list[str] = []
-        seen: set[str] = set()
-
-        def append(name: str) -> None:
-            if name in seen:
-                return
-            if expand_setup:
-                for dependency in _auto_setup_dependencies(name, timing_mode):
-                    append(dependency)
-            expanded.append(name)
-            seen.add(name)
-
-        for name in sequence:
-            append(name)
-        return tuple(self.execute(name) for name in expanded)
+        return tuple(self.execute(name) for name in dict.fromkeys(sequence))
 
     def _tutorial(self, target: str) -> object:
         """Compose tutorials from the same flow operations used by normal targets."""
@@ -1943,39 +1930,39 @@ class FlexSoCTarget:
         if target == "ip_start":
             sequence = (
                 "setup", "hjson", "reg", "doc", "rtl_stub", "top_from_core",
-                "flist", "driver", "setup_model", "setup_tb", "setup_cocotb",
+                "flist", "driver", "model.setup", "tb.setup", "cocotb.setup",
                 "tests_gen",
             )
         elif target == "ip_flow_noreg":
             sequence = (
-                "flist", "lint_suite", "setup_cdc_rdc", "cdc_rdc",
-                "setup_tb", "setup_cocotb", "regression", "coverage_detail",
-                "setup_formal_prove", "setup_formal_cover",
-                "setup_formal_csr_prove", "setup_formal_csr_cover", "formal",
-                "setup_syn", "syn", "setup_eqy", "eqy",
-                "setup_signoff", "signoff_corners",
+                "flist", "lint_suite", "cdc_rdc.setup", "cdc_rdc",
+                "tb.setup", "cocotb.setup", "regression", "coverage_detail",
+                "formal.prove.setup", "formal.cover.setup",
+                "formal.csr_prove.setup", "formal.csr_cover.setup", "formal",
+                "syn.setup", "syn", "eqy.setup", "eqy",
+                "signoff.setup", "signoff",
                 "manifest", "manifest_show", "metrics", "check",
             )
         elif target == "ip_flow":
             sequence = (
-                "reg", "doc", "flist", "lint_suite", "sdc", "setup_cdc_rdc", "cdc_rdc",
-                "setup_tb", "setup_cocotb", "regression", "coverage_detail",
-                "setup_formal_prove", "setup_formal_cover",
-                "setup_formal_csr_prove", "setup_formal_csr_cover", "formal",
-                "setup_syn", "syn", "setup_eqy", "eqy",
-                "setup_signoff", "signoff_corners",
+                "reg", "doc", "flist", "lint_suite", "sdc.setup", "cdc_rdc.setup", "cdc_rdc",
+                "tb.setup", "cocotb.setup", "regression", "coverage_detail",
+                "formal.prove.setup", "formal.cover.setup",
+                "formal.csr_prove.setup", "formal.csr_cover.setup", "formal",
+                "syn.setup", "syn", "eqy.setup", "eqy",
+                "signoff.setup", "signoff",
                 "manifest", "manifest_show", "metrics", "check",
             )
         else:
             sequence = (
-                "reg", "doc", "flist", "lint_suite", "sdc", "setup_cdc_rdc", "cdc_rdc",
-                "setup_tb", "setup_cocotb", "regression", "coverage_detail",
-                "setup_formal_prove", "setup_formal_cover",
-                "setup_formal_csr_prove", "setup_formal_csr_cover", "formal",
-                "setup_syn", "syn", "setup_eqy", "eqy",
-                "setup_signoff", "signoff_corners",
+                "reg", "doc", "flist", "lint_suite", "sdc.setup", "cdc_rdc.setup", "cdc_rdc",
+                "tb.setup", "cocotb.setup", "regression", "coverage_detail",
+                "formal.prove.setup", "formal.cover.setup",
+                "formal.csr_prove.setup", "formal.csr_cover.setup", "formal",
+                "syn.setup", "syn", "eqy.setup", "eqy",
+                "signoff.setup", "signoff",
                 "manifest", "manifest_show", "metrics", "check",
-                "setup_pnr", "pnr", "pnr_gui",
+                "pnr.setup", "pnr", "pnr_gui",
             )
         return self._execute_sequence(sequence)
 
@@ -2016,9 +2003,10 @@ class FlexSoC:
 
     @property
     def workdir(self) -> Path:
-        """Return the canonical FlexSoC workspace directory."""
+        """Return the explicit or persistently configured FlexSoC workspace."""
 
-        return _path(self.config.workdir, self.project_root / "workspace")
+        selected = self.config.workdir or self.settings.get("WORKSPACE")
+        return _path(selected, self.project_root / "workspace")
 
     def flows(self, **overrides: Any):
         """Return the reusable object-oriented backend for this configuration."""
@@ -2128,50 +2116,40 @@ class FlexSoC:
         return values
 
     def command(self, target: str, **overrides: Any) -> FlexSoCCommand:
-        """Build one direct fx command preview without executing it."""
-        name = _target(target)
-        if name in POST_PNR_SIGNOFF_TARGETS:
+        """Build one direct run or internal setup command preview."""
+        setup = target in SETUP_STAGES
+        name = target if setup else _target(target)
+        public = _setup_public(name) if setup else name
+        if public in POST_PNR_SIGNOFF_TARGETS:
             overrides = {**overrides, "SIGNOFF_STAGE": "post_route"}
         values = self.values(overrides)
-        params = set(TARGETS[name][2])
+        params = set(TARGETS.get(public, ("", "", ()))[2])
         call_values = _upper(overrides)
         shown = {key: value for key, value in {**self.settings, **call_values}.items() if key in params}
-        argv = ("fx", name, *(item for key, value in sorted(shown.items()) for item in ("--set", f"{key}={value}")))
+        argv = ("fx", public, *(("--setup",) if setup else ()), *(item for key, value in sorted(shown.items()) for item in ("--set", f"{key}={value}")))
         return FlexSoCCommand(name, argv, self.project_root, self._env(values), values)
 
     def commands(
         self,
         *targets: str,
-        auto_setup: bool = False,
+        setup: bool = False,
         **overrides: Any,
     ) -> tuple[FlexSoCCommand, ...]:
-        """Build commands in user order; setup expansion is compatibility opt-in."""
+        """Build run commands or the explicit setup phase for public targets."""
 
         requested = tuple(_target(target) for target in targets)
-        expanded: list[str] = []
-        seen: set[str] = set()
-
-        timing_mode = str(
-            _upper({**self.settings, **overrides}).get(
-                "TIMING_MODE", DEFAULT_SETTINGS["TIMING_MODE"]
-            )
-        ).strip().lower()
-
-        def dependencies(target: str) -> tuple[str, ...]:
-            return _auto_setup_dependencies(target, timing_mode)
-
-        def append(target: str) -> None:
-            if target in seen:
-                return
-            if auto_setup:
-                for setup in dependencies(target):
-                    append(setup)
-            expanded.append(target)
-            seen.add(target)
-
-        for target in requested:
-            append(target)
-        return tuple(self.command(target, **overrides) for target in expanded)
+        if not setup:
+            blocked = [target for target in requested if target in SETUP_ONLY_TARGETS]
+            if blocked:
+                raise ValueError(f"{blocked[0]} is setup-only; use `fx {blocked[0]} --setup`")
+            return tuple(self.command(target, **overrides) for target in requested)
+        stages = tuple(dict.fromkeys(
+            stage for target in requested for stage in SETUP_TARGETS.get(target, ())
+        ))
+        missing = [target for target in requested if target not in SETUP_TARGETS]
+        if missing:
+            raise ValueError(f"{missing[0]} has no setup phase")
+        return tuple(self.command(stage, **overrides) for stage in stages)
 
     def run(
         self,
@@ -2180,12 +2158,12 @@ class FlexSoC:
         dry_run: bool = False,
         capture: bool = False,
         live: bool = False,
-        auto_setup: bool = False,
+        setup: bool = False,
         on: str = "local",
         **overrides: Any,
     ) -> tuple[FlexSoCCommand | FlexSoCResult, ...]:
         """Execute targets directly through backend flow objects."""
-        commands = self.commands(*targets, auto_setup=auto_setup, **overrides)
+        commands = self.commands(*targets, setup=setup, **overrides)
         if dry_run:
             return commands
 
@@ -2252,7 +2230,8 @@ class FlexSoC:
 
         results: list[FlexSoCResult] = []
         for command in commands:
-            _, description, _ = TARGETS.get(command.target, ("Target", "Run target", ()))
+            public = _setup_public(command.target) if command.target in SETUP_STAGES else command.target
+            _, description, _ = TARGETS.get(public, ("Target", "Run target", ()))
             stream = command.target in STREAM_BY_DEFAULT_TARGETS and not capture and not live
             quiet = command.target in QUIET_BY_DEFAULT_TARGETS and not capture and not live
             log_path = self._command_log_path(command)
@@ -2269,8 +2248,7 @@ class FlexSoC:
                         "technology",
                         f"pdk={command.values.get('PDK')} syn={command.values.get('SYNDIR')}",
                     )
-                if live or stream or quiet:
-                    print_log(log_path)
+                print_log(log_path)
 
             try:
                 with log_path.open("w", encoding="utf-8") as log, contextlib.ExitStack() as stack:
@@ -2291,7 +2269,7 @@ class FlexSoC:
                     os.environ["PYTHONUNBUFFERED"] = "1"
                     try:
                         value = FlexSoCTarget(
-                            self, command.values, on=on, auto_setup=auto_setup
+                            self, command.values, on=on
                         ).execute(command.target)
                         rc = self._returncode(value)
                     finally:
@@ -2362,6 +2340,11 @@ class FlexSoC:
             f"target {command.target!r} requires an activated digital PDK; {pdk!r} is not ready. "
             f"Run `fx pdk fetch {pdk}` then `fx pdk use {pdk}`."
         )
+
+    def log_path(self, target: str, **overrides: Any) -> Path:
+        """Return the canonical command log path without executing the target."""
+
+        return self._command_log_path(self.command(target, **overrides))
 
     def _command_log_path(self, command: FlexSoCCommand) -> Path:
         """Return the per-target command log path."""

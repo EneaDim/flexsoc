@@ -74,7 +74,7 @@ metrics and manifest snapshots
 A run target does not regenerate its setup implicitly. The normal pattern is:
 
 ```bash
-fx setup_syn
+fx syn --setup
 fx syn
 ```
 
@@ -181,7 +181,7 @@ If lint fails, inspect the lint logs and fix the owning RTL/HJSON/generator inpu
 Only after the RTL hierarchy is structurally clean, initialize the SDC:
 
 ```bash
-fx sdc --force
+fx sdc --setup --force
 ```
 
 The canonical file is:
@@ -208,7 +208,7 @@ False paths and multicycle paths are never inferred automatically.
 
 ### 5.1 Synthesis uses the authored SDC
 
-`setup_syn` reads the I/O environment from this SDC. In particular, output load is converted from the selected Liberty capacitance unit into the femtofarad value required by Yosys/ABC. Editing `set_load` and regenerating synthesis setup must therefore change `abc.constr`; there is no synthesis-side hardcoded load fallback.
+`syn --setup` reads the I/O environment from this SDC. In particular, output load is converted from the selected Liberty capacitance unit into the femtofarad value required by Yosys/ABC. Editing `set_load` and regenerating synthesis setup must therefore change `abc.constr`; there is no synthesis-side hardcoded load fallback.
 
 `set_driving_cell` can be propagated to ABC when authored. A numeric SDC `set_drive` remains useful to STA but is not fabricated into an arbitrary standard-cell choice.
 
@@ -231,7 +231,7 @@ The SDC is therefore shared intent, not a sign-off-only file.
 Generate the extraction setup first:
 
 ```bash
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 ```
 
@@ -241,11 +241,11 @@ The order matters:
 RTL/top/filelist
 → lint
 → constraints/<TOP>.sdc
-→ setup_cdc_rdc
+→ cdc_rdc --setup
 → cdc_rdc
 ```
 
-`cdc_rdc` is run-only and refuses to execute when `setup_cdc_rdc` provenance is missing, stale, modified, or invalid.
+`cdc_rdc` is run-only and refuses to execute when `cdc_rdc --setup` provenance is missing, stale, modified, or invalid.
 
 ### 6.1 Canonical CDC/RDC artifacts
 
@@ -293,7 +293,7 @@ A direct asynchronous reset release into many functional registers is a design p
 Create the model workspace once:
 
 ```bash
-fx setup_model --force
+fx model --setup --force
 ```
 
 Then author:
@@ -307,7 +307,7 @@ Generate scenario vectors and simulator setup:
 
 ```bash
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 ```
 
 Run the regression and coverage:
@@ -335,9 +335,9 @@ When CSR HJSON changes but the model workspace is already authored, prefer regen
 Generate the formal setup explicitly:
 
 ```bash
-fx setup_formal --force
-fx setup_formal_csr_prove setup_formal_csr_cover --force
-fx setup_formal_prove setup_formal_cover --force
+fx formal --setup --force
+fx formal_csr --setup --force
+fx formal_prove formal_cover --setup --force
 ```
 
 Run:
@@ -374,7 +374,7 @@ fx pdk use ihp-sg13g2
 Then:
 
 ```bash
-fx setup_syn --force
+fx syn --setup --force
 fx syn
 ```
 
@@ -391,7 +391,7 @@ Changing PDK does not regenerate HJSON, RTL, model, tests, formal properties, or
 ## 10. Prove RTL-to-netlist equivalence
 
 ```bash
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
 ```
 
@@ -413,7 +413,7 @@ Equivalence is the behavioral gate between synthesis and downstream sign-off.
 Generate common sign-off setup:
 
 ```bash
-fx setup_signoff --force
+fx signoff --setup --force
 ```
 
 Then run the core analyses:
@@ -503,7 +503,7 @@ Keep vectorless power estimate and workload/activity power separate in metrics; 
 Configure ORFS/OpenROAD:
 
 ```bash
-fx setup_pnr --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
+fx pnr --setup --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
 fx pnr --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
 ```
 
@@ -522,7 +522,7 @@ FlexSoC selects final ORFS artifacts from the canonical implementation branch in
 Prepare the routed sign-off setup:
 
 ```bash
-fx setup_signoff_post_pnr --force
+fx signoff_post_pnr --setup --force
 ```
 
 Then:
@@ -647,19 +647,19 @@ The package-owned:
 constraints/<TOP>.sdc
 ```
 
-is restored as authored timing intent. Do **not** call `fx sdc --force` merely because the IP was loaded; that would overwrite/reinitialize the package timing contract.
+is restored as authored timing intent. Do **not** call `fx sdc --setup --force` merely because the IP was loaded; that would overwrite/reinitialize the package timing contract.
 
 Then qualify the loaded IP in the normal order:
 
 ```bash
 fx lint_suite
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
 fx coverage_detail
-fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
+fx formal --setup --force
 fx formal
 ```
 
@@ -720,26 +720,25 @@ For a newly authored IP:
 fx setup --force
 fx hjson reg doc rtl_stub top_from_core flist --force
 fx lint_suite
-fx sdc --force
+fx sdc --setup --force
 # review constraints/<TOP>.sdc
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
-fx setup_model --force
+fx model --setup --force
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
 fx coverage_detail
-fx setup_formal --force
-fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
+fx formal --setup --force
 fx formal
 
 # One technology branch
 fx pdk use sky130
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
-fx setup_signoff --force
+fx signoff --setup --force
 fx sdf
 fx sta
 fx power_estimate
@@ -749,9 +748,9 @@ fx power_analysis_all
 fx fusion_analysis_all
 
 # Physical branch
-fx setup_pnr --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
+fx pnr --setup --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
 fx pnr --force --set ORS=/path/to/OpenROAD-flow-scripts/flow
-fx setup_signoff_post_pnr --force
+fx signoff_post_pnr --setup --force
 fx sdf_post_pnr
 fx sta_post_pnr
 fx compile_post_pnr --force
@@ -780,12 +779,12 @@ Repeat the technology branch with `fx pdk use ihp-sg13g2` when both PDKs must be
 fx reg doc regmap_py --force
 fx top_from_core flist --force
 fx lint_suite
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_formal_csr_prove setup_formal_csr_cover --force
+fx formal_csr --setup --force
 fx formal
 ```
 
@@ -797,12 +796,12 @@ Then regenerate/rerun technology-dependent setup from synthesis onward.
 # edit RTL/model/tests/properties as required by intended behavior
 fx flist --force
 fx lint_suite
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_formal_prove setup_formal_cover --force
+fx formal_prove formal_cover --setup --force
 fx formal
 ```
 
@@ -814,7 +813,7 @@ Then rerun synthesis, equivalence, and downstream sign-off.
 fx top_from_core flist --force
 fx lint_suite
 # review constraints/<TOP>.sdc
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 ```
 
@@ -826,9 +825,9 @@ Regenerate TB/formal/synthesis setup that consumes the changed interface.
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
 fx top_from_core flist --force
 fx lint_suite
-fx sdc --force
+fx sdc --setup --force
 # reapply/review authored constraints/<TOP>.sdc intent
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 ```
 
@@ -845,10 +844,10 @@ constraints/<TOP>.sdc
 Then regenerate the setup stages that consume the changed facts. Typical examples:
 
 ```bash
-fx setup_cdc_rdc --force        # when clock relationships changed
-fx setup_tb setup_cocotb --force
-fx setup_syn --force
-fx setup_signoff --force
+fx cdc_rdc --setup --force        # when clock relationships changed
+fx tb cocotb --setup --force
+fx syn --setup --force
+fx signoff --setup --force
 ```
 
 Do not regenerate the SDC from bootstrap settings for a timing-only edit.
@@ -857,11 +856,11 @@ Do not regenerate the SDC from bootstrap settings for a timing-only edit.
 
 ```bash
 fx pdk use <pdk>
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
-fx setup_signoff --force
+fx signoff --setup --force
 ...
 ```
 
@@ -934,9 +933,9 @@ INVALID
 For an intentional experiment:
 
 ```bash
-fx setup_syn
+fx syn --setup
 # manually edit generated setup
-fx validate_override --set STAGE=setup_syn
+fx validate_override --set STAGE=syn --setup
 fx syn
 ```
 

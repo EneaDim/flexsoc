@@ -479,7 +479,7 @@ class FunctionalFlow:
         makefile = cocotb_dir / "Makefile"
         wrapper = cocotb_dir / f"{top}_tb.sv"
         if not makefile.is_file() or not wrapper.is_file():
-            raise FileNotFoundError("cocotb scaffold missing; run setup_cocotb first")
+            raise FileNotFoundError("cocotb scaffold missing; run `fx cocotb --setup` first")
         test_dir = test_root / test_name
         required = tuple(test_dir / name for name in ("config.regs", "data_in.vec", "data_out.vec"))
         if any(not path.is_file() for path in required):

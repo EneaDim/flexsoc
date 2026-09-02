@@ -541,7 +541,7 @@ def compile_command(project_root: Path, values: Mapping[str, str], stage: str, p
         )
     timing = timing_config(values)
     if not paths.tb.is_file():
-        raise ValueError(f"testbench not found: {paths.tb}; run setup_tb first")
+        raise ValueError(f"testbench not found: {paths.tb}; run `fx tb --setup` first")
     if not paths.netlist.is_file():
         raise ValueError(f"gate-level netlist not found: {paths.netlist}")
     if timing.uses_sdf and (not paths.sdf or not paths.sdf.is_file()):
@@ -669,7 +669,7 @@ def cocotb_command(
         raise ValueError("cocotb GLS currently requires GLS_SIMULATOR=iverilog")
     timing = timing_config(values)
     if not paths.tb.is_file():
-        raise ValueError(f"cocotb wrapper not found: {paths.tb}; run setup_cocotb first")
+        raise ValueError(f"cocotb wrapper not found: {paths.tb}; run `fx cocotb --setup` first")
     if not paths.netlist.is_file():
         raise ValueError(f"gate-level netlist not found: {paths.netlist}")
     if timing.uses_sdf and (not paths.sdf or not paths.sdf.is_file()):
@@ -678,7 +678,7 @@ def cocotb_command(
         )
     tb_dir = paths.tb.parent
     if not (tb_dir / "Makefile").is_file():
-        raise ValueError(f"cocotb Makefile not found: {tb_dir / 'Makefile'}; run setup_cocotb first")
+        raise ValueError(f"cocotb Makefile not found: {tb_dir / 'Makefile'}; run `fx cocotb --setup` first")
 
     inputs = resolve_test_inputs(values, paths)
     model_paths = _simulation_models(values, paths, timing)

@@ -57,12 +57,12 @@ This checks semantics derived from HJSON, such as generated register behavior.
 Typical targets are:
 
 ```bash
-fx setup_formal_csr_prove --workdir "$WORKSPACE"
-fx formal_csr_bmc --no-setup --workdir "$WORKSPACE"
-fx formal_csr_prove --no-setup --workdir "$WORKSPACE"
+fx formal_csr_prove --setup --workdir "$WORKSPACE"
+fx formal_csr_bmc --workdir "$WORKSPACE"
+fx formal_csr_prove --workdir "$WORKSPACE"
 
-fx setup_formal_csr_cover --workdir "$WORKSPACE"
-fx formal_csr_cover --no-setup --workdir "$WORKSPACE"
+fx formal_csr_cover --setup --workdir "$WORKSPACE"
+fx formal_csr_cover --workdir "$WORKSPACE"
 ```
 
 ### Authored design formal
@@ -72,12 +72,12 @@ This checks behavior that cannot be inferred from the register description.
 Typical targets are:
 
 ```bash
-fx setup_formal_prove --no-setup --workdir "$WORKSPACE"
-fx formal_bmc --no-setup --workdir "$WORKSPACE"
-fx formal_prove --no-setup --workdir "$WORKSPACE"
+fx formal_prove --setup --workdir "$WORKSPACE"
+fx formal_bmc --workdir "$WORKSPACE"
+fx formal_prove --workdir "$WORKSPACE"
 
-fx setup_formal_cover --no-setup --workdir "$WORKSPACE"
-fx formal_cover --no-setup --workdir "$WORKSPACE"
+fx formal_cover --setup --workdir "$WORKSPACE"
+fx formal_cover --workdir "$WORKSPACE"
 ```
 
 A CSR proof does not prove a protocol bridge, datapath, handshake, arbitration
@@ -483,14 +483,12 @@ deep design cover
 The preferred order for authored design formal is:
 
 ```bash
-fx setup_formal_prove --no-setup --workdir "$WORKSPACE"
+fx formal_prove --setup --workdir "$WORKSPACE"
 
 fx formal_bmc \
-  --no-setup \
   --workdir "$WORKSPACE"
 
 fx formal_prove \
-  --no-setup \
   --workdir "$WORKSPACE"
 ```
 
@@ -514,12 +512,10 @@ proof.
 After BMC and prove:
 
 ```bash
-fx setup_formal_cover \
-  --no-setup \
+fx formal_cover --setup \
   --workdir "$WORKSPACE"
 
 fx formal_cover \
-  --no-setup \
   --workdir "$WORKSPACE"
 ```
 

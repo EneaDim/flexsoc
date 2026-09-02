@@ -2230,14 +2230,14 @@ class Provenance:
             if state == "STALE":
                 raise ValueError(
                     f"{stage}: provenance is STALE; source, configuration, or parent lineage changed. "
-                    f"Rerun `fx {stage}` with the intended effective settings; for a multi-command "
+                    f"Rerun the corresponding `fx <keyword> --setup` phase with the intended effective settings; for a multi-command "
                     "flow persist them with `fx settings ...`. validate_override is only for manually "
                     "MODIFIED generated collateral."
                 )
             if state == "INVALID":
                 raise ValueError(
                     f"{stage}: provenance is INVALID; required inputs, generated files, or provenance "
-                    f"metadata are missing/inconsistent. Rerun `fx {stage}` after repairing the inputs."
+                    f"metadata are missing/inconsistent. Rerun the corresponding `fx <keyword> --setup` phase after repairing the inputs."
                 )
             raise ValueError(
                 f"{stage}: override cannot be validated from state {state}; "

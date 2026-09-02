@@ -1546,7 +1546,7 @@ def run_analysis(
     log_dir = Path(args.log_dir).resolve()
     extract_log = log_dir / "extract.log"
     if not script.is_file():
-        raise FileNotFoundError(f"missing CDC/RDC extraction script: {script}; run setup_cdc_rdc")
+        raise FileNotFoundError(f"missing CDC/RDC extraction script: {script}; run `fx cdc_rdc --setup`")
     log_dir.mkdir(parents=True, exist_ok=True)
     analysis_dir.mkdir(parents=True, exist_ok=True)
 

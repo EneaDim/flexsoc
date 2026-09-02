@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Annotated, Any, Iterable, Mapping
 
-from .api import AUTO_SETUP_TARGETS, DEBUG_TARGETS, DEFAULT_SETTINGS, TARGETS, FlexSoC, FlexSoCConfig
+from .api import DEBUG_TARGETS, DEFAULT_SETTINGS, SETUP_ONLY_TARGETS, SETUP_TARGETS, TARGETS, FlexSoC, FlexSoCConfig
 
 try:  # Keep the entry point understandable if the new CLI deps are not installed yet.
     import click
@@ -55,7 +55,7 @@ else:
         "--reset",
         "--force",
         "--overwrite",
-        "--no-setup",
+        "--setup",
         "--dry-run",
         "--script",
         "--capture",
@@ -91,7 +91,7 @@ Use `fx commands` to list every backend target.
     def _completion_words() -> tuple[str, ...]:
         """Return words offered by shell and REPL completion."""
 
-        return tuple(dict.fromkeys((*PSEUDO_COMMANDS, *TARGETS, *OPTION_WORDS)))
+        return tuple(dict.fromkeys((*PSEUDO_COMMANDS, *TARGETS, *PUBLIC_KEYWORDS, *OPTION_WORDS)))
 
     def _complete_items(incomplete: str) -> list[str]:
         """Complete pseudo-commands and backend targets."""
@@ -99,6 +99,8 @@ Use `fx commands` to list every backend target.
         return [word for word in _completion_words() if word.startswith(incomplete)]
 
     HELP_WORDS = {"help", "info", "-h", "--help"}
+    SETUP_ONLY = SETUP_ONLY_TARGETS
+    PUBLIC_KEYWORDS = tuple(SETUP_TARGETS)
 
     FLOW_GUIDE = (
         (
@@ -123,10 +125,10 @@ Use `fx commands` to list every backend target.
         (
             "3. Build functional DV",
             (
-                ("fx setup_model --force", "Create the model, RegMap API, and scenario source."),
+                ("fx model --setup --force", "Create the model, RegMap API, and scenario source."),
                 ("fx tests_gen | fx test_gen --set TEST_NAME=smoke", "Generate all tests or one named test."),
                 ("fx tests", "List the generated test catalogue."),
-                ("fx setup_tb setup_cocotb", "Generate SV and cocotb drivers from the current interfaces."),
+                ("fx regression --setup", "Generate SV and cocotb drivers from the current interfaces."),
                 ("fx sim --set TEST_NAME=smoke", "Run one SystemVerilog vector test."),
                 ("fx cocotb --set TEST_NAME=smoke", "Run the same vectors through cocotb."),
                 ("fx regression | fx coverage | fx coverage_detail", "Run the catalogue and inspect coverage."),
@@ -137,22 +139,22 @@ Use `fx commands` to list every backend target.
             (
                 ("fx lint_suite", "Run the complete Slang and Verilator lint suites."),
                 ("fx slang_hier | fx slang_ast", "Inspect elaborated hierarchy and AST."),
-                ("fx setup_formal | fx formal", "Generate and run BMC, prove, and cover stages."),
+                ("fx formal --setup | fx formal", "Generate and run BMC, prove, and cover stages."),
             ),
         ),
         (
             "5. Synthesize and prove equivalence",
             (
-                ("fx syn", "Prepare Yosys/ABC scripts and produce the mapped netlist."),
-                ("fx eqy", "Prepare and prove RTL versus mapped-netlist equivalence."),
+                ("fx syn --setup | fx syn", "Generate synthesis scripts, then produce the mapped netlist."),
+                ("fx eqy --setup | fx eqy", "Generate EQY configuration, then prove RTL versus mapped-netlist equivalence."),
                 ("fx eqy_debug [partition]", "Diagnose unresolved equivalence partitions."),
             ),
         ),
         (
             "6. Run post-synthesis sign-off",
             (
-                ("fx sdc", "Initialize the single authored constraints/<TOP>.sdc timing contract."),
-                ("fx setup_signoff", "Generate OpenSTA Tcl families that consume constraints/<TOP>.sdc."),
+                ("fx sdc --setup", "Initialize the single authored constraints/<TOP>.sdc timing contract."),
+                ("fx signoff --setup", "Generate OpenSTA Tcl families that consume constraints/<TOP>.sdc."),
                 ("fx sdf | fx sta | fx power_estimate", "Produce corner SDF, timing, and vectorless power."),
                 ("fx compile_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Compile one named GLS workload."),
                 ("fx sim_post_syn --set TEST_NAME=smoke --set TIMING_MODE=typ", "Run one post-synthesis GLS workload."),
@@ -167,7 +169,7 @@ Use `fx commands` to list every backend target.
             (
                 ("fx pnr", "Run OpenROAD and produce the final netlist, SDC, SPEF, ODB, and GDS."),
                 ("fx physical_signoff", "Run ORFS physical closure first: route DRC, antenna evidence, GDS DRC, LVS, and IR/PDN evidence."),
-                ("fx setup_signoff_post_pnr | fx sdf_post_pnr | fx sta_post_pnr", "Write routed SDF, then consume <TOP>.sdc plus routed SPEF for propagated-clock/interconnect timing."),
+                ("fx signoff_post_pnr --setup | fx sdf_post_pnr | fx sta_post_pnr", "Write routed SDF, then consume <TOP>.sdc plus routed SPEF for propagated-clock/interconnect timing."),
                 ("fx sim_post_pnr_all", "Run timing-aware post-PnR GLS across selected tests and scenarios."),
                 ("fx power_estimate_post_pnr", "Run vectorless routed power estimation."),
                 ("fx power_analysis_post_pnr_all | fx fusion_analysis_post_pnr_all", "Use routed GLS activity for activity power and timing/power correlation."),
@@ -179,7 +181,7 @@ Use `fx commands` to list every backend target.
             "8. Reuse an existing IP",
             (
                 ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic", "Load authored and generated IP collateral."),
-                ("fx regmap_py tests_gen setup_tb setup_cocotb", "Refresh generator-owned DV collateral."),
+                ("fx regmap_py tests_gen regression --setup", "Refresh generator-owned DV collateral."),
                 ("fx lint_suite regression formal syn eqy", "Run the same qualification gates as a scaffolded IP."),
                 ("fx soc_start | fx soc_flow", "Use loaded IPs as building blocks for a later SoC flow."),
             ),
@@ -190,7 +192,7 @@ Use `fx commands` to list every backend target.
         "TOP": "Logical IP top module.",
         "RUN_TOP": "Run-directory owner; normally the same as TOP.",
         "RUN_ID": "Named run instance below runs/<RUN_TOP>/.",
-        "WORKSPACE": "External workspace root; prefer the --workdir option.",
+        "WORKSPACE": "Persistent workspace root; explicit --workdir overrides it.",
         "FORCE": "Allow regeneration of generator-owned outputs; prefer --force.",
         "N_CLOCKS": "Number of declared clock domains.",
         "CLOCK_DOMAINS": "Comma-separated name:clock:reset:period:polarity domain declarations.",
@@ -286,7 +288,7 @@ Use `fx commands` to list every backend target.
         "hjson": ("fx hjson --force",),
         "reg": ("fx reg --force",),
         "rtl_stub": ("fx rtl_stub --force", "fx top_from_core --force"),
-        "setup_model": ("fx setup_model --force",),
+        "model": ("fx model --setup --force",),
         "test_gen": ("fx test_gen --set TEST_NAME=smoke",),
         "tests": ("fx tests",),
         "sim": ("fx sim --set TEST_NAME=smoke --set COMPILER=verilator",),
@@ -298,17 +300,14 @@ Use `fx commands` to list every backend target.
             "fx view --set PDK=ihp-sg13g2 --set SIGNOFF_STAGE=post_pnr "
             "--set SIM_NAME=smoke_sv_tt --set WAVE_VIEWER=surfer",
         ),
-        "setup_syn": (
-            "fx setup_syn",
-            "fx setup_syn --set TARGET_OPT=delay1",
-        ),
         "syn": (
             "fx syn",
+            "fx syn --setup --force",
             "fx syn --set TARGET_OPT=delay1",
-            "fx settings TARGET_OPT=delay1 && fx setup_syn && fx syn",
         ),
-        "eqy": ("fx eqy", "fx setup_eqy && fx eqy"),
-        "cdc_rdc": ("fx cdc_rdc", "fx cdc_rdc --live", "fx cdc_rdc --set CDC_RDC_STRICT=1"),
+        "eqy": ("fx eqy --setup --force", "fx eqy"),
+        "signoff": ("fx signoff --setup --force", "fx signoff"),
+        "cdc_rdc": ("fx cdc_rdc --setup --force", "fx cdc_rdc", "fx cdc_rdc --live"),
         "compile_post_syn": (
             "fx compile_post_syn --set TEST_NAME=smoke "
             "--set GLS_BACKEND=sv --set TIMING_MODE=typ",
@@ -341,7 +340,7 @@ Use `fx commands` to list every backend target.
             "--set POWER_GLS_BACKENDS=all --set POWER_TIMING_MODES=all",
         ),
         "validate_override": (
-            "fx validate_override --set STAGE=setup_syn",
+            "fx validate_override --set STAGE=syn.setup",
             "fx check",
         ),
         "ip_load": ("fx ip_load --set TOP=cordic --set RUN_TOP=cordic",),
@@ -425,9 +424,7 @@ Use `fx commands` to list every backend target.
                 "[bold bright_cyan]fx commands[/bold bright_cyan]  "
                 "[white]complete target catalogue[/white]\n"
                 "[bold bright_cyan]--set KEY=VALUE[/bold bright_cyan]  "
-                "[white]one-shot selector or backend override[/white]\n"
-                "[bold bright_cyan]--no-setup[/bold bright_cyan]  "
-                "[grey70]deprecated compatibility no-op; run-only is now the default[/grey70]",
+                "[white]one-shot selector or backend override[/white]",
                 title="[bold orange1]Help and execution controls[/bold orange1]",
                 border_style="orange1",
                 padding=(1, 2),
@@ -441,7 +438,28 @@ Use `fx commands` to list every backend target.
         for candidate in (value, value.replace("-", "_"), value.replace("_", "-")):
             if candidate in TARGETS:
                 return candidate
-        raise ValueError(f"unknown command {value!r}; run `fx commands`")
+        raise ValueError(f"unknown target {value!r}; run `fx commands`")
+
+    def _run_target(value: str, *, allow_setup_only: bool = False) -> str:
+        """Resolve one public lifecycle keyword to its backend run target."""
+
+        name = value.replace("-", "_")
+        target = name
+        if name in SETUP_ONLY and not allow_setup_only:
+            raise ValueError(f"{name} is setup-only; use `fx {name} --setup`")
+        return _target_name(target)
+
+    def _mode_targets(values: tuple[str, ...], *, setup: bool, debug: bool) -> tuple[str, ...]:
+        """Resolve public lifecycle keywords; setup remains an execution mode."""
+
+        if setup and debug:
+            raise typer.BadParameter("--setup and --debug are mutually exclusive")
+        targets = tuple(_run_target(value, allow_setup_only=setup or debug) for value in values)
+        if setup:
+            missing = [target for target in targets if target not in SETUP_TARGETS]
+            if missing:
+                raise ValueError(f"{missing[0]} has no setup phase")
+        return targets
 
     def _parameter_description(name: str) -> str:
         """Return concise help for one accepted target variable."""
@@ -472,23 +490,12 @@ Use `fx commands` to list every backend target.
         return (command,)
 
     TARGET_HELP_SECTIONS = {
-        "setup_syn": (
-            (
-                "TARGET_OPT and provenance",
-                (
-                    ("setup", "Run `fx setup_syn` once for the intended effective settings; rerun with `--force` only when regeneration is intentional."),
-                    ("run", "`fx syn` consumes the existing validated setup and never regenerates it."),
-                    ("STALE", "The effective configuration/source/parent lineage differs from the recorded setup; regenerate setup, do not validate it."),
-                    ("MODIFIED", "A generated setup file was edited manually; only this state is eligible for validate_override."),
-                ),
-            ),
-        ),
         "syn": (
             (
                 "Synthesis profile workflow",
                 (
                     ("run-only", "`fx syn` uses the existing setup; a one-shot configuration change makes that setup STALE until regenerated explicitly."),
-                    ("persistent", "Use `fx settings TARGET_OPT=delay1`, then `fx setup_syn --force` when the setup must be regenerated, followed by `fx syn`."),
+                    ("persistent", "Use `fx settings TARGET_OPT=delay1`, then `fx syn --setup --force`, followed by `fx syn`."),
                     ("provenance", "The existing setup must match the exact effective settings of this invocation; STALE or MODIFIED collateral is rejected."),
                 ),
             ),
@@ -498,7 +505,7 @@ Use `fx commands` to list every backend target.
                 "When to use it",
                 (
                     ("MODIFIED", "Use validate_override only after intentionally editing a generated setup artifact by hand."),
-                    ("STALE", "Configuration, source, or parent lineage changed. Rerun the setup target with the intended settings; do not validate."),
+                    ("STALE", "Configuration, source, or parent lineage changed. Rerun the setup phase with the intended settings; do not validate."),
                     ("INVALID", "Required files/provenance are missing or inconsistent. Repair inputs and rerun setup."),
                     ("CLEAN", "Nothing to validate; the generated collateral already matches its canonical setup."),
                     ("VALIDATED_OVERRIDE", "The exact manual edit is already accepted for the current lineage."),
@@ -507,8 +514,8 @@ Use `fx commands` to list every backend target.
             (
                 "Typical flows",
                 (
-                    ("change TARGET_OPT", "`fx settings TARGET_OPT=delay1` → `fx setup_syn --force` → `fx syn`."),
-                    ("manual .abc edit", "Run setup_syn, edit the generated .abc, then validate_override STAGE=setup_syn before `fx syn`."),
+                    ("change TARGET_OPT", "`fx settings TARGET_OPT=delay1` → `fx syn --setup --force` → `fx syn`."),
+                    ("manual .abc edit", "Run `fx syn --setup`, edit the generated .abc, then validate_override STAGE=syn.setup before `fx syn`."),
                 ),
             ),
         ),
@@ -561,35 +568,33 @@ Use `fx commands` to list every backend target.
             console.print(table)
 
     def _print_target_help(name: str) -> None:
-        """Render dedicated help for one backend target."""
+        """Render dedicated help for one public lifecycle keyword."""
 
-        target = _target_name(name)
+        public = name.replace("-", "_")
+        target = _run_target(public, allow_setup_only=True)
         group, description, params = TARGETS[target]
         console.print()
         console.print(
             Panel(
                 f"[white]{description}[/white]",
-                title=f"[bold orange1]fx {target}[/bold orange1]",
+                title=f"[bold orange1]fx {public}[/bold orange1]",
                 subtitle=f"[bold bright_cyan]{group}[/bold bright_cyan]",
                 border_style="orange1",
                 padding=(1, 2),
             )
         )
         console.print("[bold orange1]Usage[/bold orange1]")
-        for example in _target_examples(target, params):
+        examples = (f"fx {public} --setup",) if public in SETUP_ONLY else _target_examples(target, params)
+        for example in examples:
             console.print(f"  [bold bright_cyan]{example}[/bold bright_cyan]")
-        setup = AUTO_SETUP_TARGETS.get(target)
-        if setup:
+        if target in SETUP_TARGETS:
             console.print(
-                "[bold orange1]Required setup[/bold orange1]  "
-                f"[white]{', '.join(setup)}[/white] "
-                "[grey70](generate explicitly before run; --force regenerates)[/grey70]"
+                "[bold orange1]Setup phase[/bold orange1]  "
+                f"[white]fx {public} --setup[/white] "
+                "[grey70](--force regenerates)[/grey70]"
             )
         else:
-            console.print(
-                "[bold orange1]Required setup[/bold orange1]  "
-                "[grey70]none[/grey70]"
-            )
+            console.print("[bold orange1]Setup phase[/bold orange1]  [grey70]none[/grey70]")
         console.print("[bold orange1]Accepted target variables[/bold orange1]")
         if params:
             table = Table(box=box.SIMPLE_HEAVY, expand=True, header_style="bold white")
@@ -612,8 +617,10 @@ Use `fx commands` to list every backend target.
         console.print(
             "[bold orange1]Common controls[/bold orange1]  "
             "[bright_cyan]--workdir PATH[/bright_cyan], "
+            "[bright_cyan]--setup[/bright_cyan] [grey70](when available)[/grey70], "
             "[bright_cyan]--dry-run[/bright_cyan], "
             "[bright_cyan]--live[/bright_cyan], "
+            "[bright_cyan]--debug[/bright_cyan], "
             "[bright_cyan]--info[/bright_cyan]"
         )
         _print_target_sections(target)
@@ -911,7 +918,7 @@ Use `fx commands` to list every backend target.
             console.print(f"[white]OpenROAD[/white]: {derived.get('ORS_TECH', '-')}")
             console.print(
                 "[grey70]Shared RTL, DV, formal, and SDC artifacts remain valid. "
-                "Rerun setup_syn/syn, setup_eqy/eqy, setup_signoff, SDF/STA/power, "
+                "Rerun syn --setup/syn, eqy --setup/eqy, signoff --setup, SDF/STA/power, "
                 "GLS activity power, manifest, metrics, and check.[/grey70]"
             )
         return 0
@@ -1221,6 +1228,24 @@ Use `fx commands` to list every backend target.
             values["FORCE"] = "1"
         return values
 
+    def _debug_log(
+        client: FlexSoC, target: str, values: Mapping[str, str], *, as_json: bool
+    ) -> int:
+        """Show the existing canonical command log for targets without richer diagnostics."""
+
+        path = client.log_path(target, **values)
+        if not path.is_file():
+            raise FileNotFoundError(f"log not found: {path}; run `fx {target}` first")
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if as_json:
+            print(json.dumps({"target": target, "log": str(path), "text": text}, indent=2))
+        else:
+            from .backend.core.execution import print_log
+
+            print_log(path)
+            print(text, end="" if text.endswith("\n") else "\n")
+        return 0
+
     def _run(
         client: FlexSoC,
         targets: tuple[str, ...],
@@ -1233,10 +1258,10 @@ Use `fx commands` to list every backend target.
         capture: bool,
         live: bool,
         debug: bool,
+        setup: bool,
         save_output: Path | None,
         as_json: bool,
         info: bool,
-        no_setup: bool,
         on: str,
     ) -> int:
         """Run, preview, or describe requested targets."""
@@ -1250,8 +1275,12 @@ Use `fx commands` to list every backend target.
             if live:
                 values["LIVE"] = "1"
             if debug:
-                if len(targets) != 1 or targets[0] not in DEBUG_TARGETS:
-                    raise typer.BadParameter("--debug requires exactly one STA, power, fusion, or GLS target")
+                if len(targets) != 1:
+                    raise typer.BadParameter("--debug requires exactly one target")
+                if targets[0] not in DEBUG_TARGETS:
+                    if save_output is not None:
+                        raise typer.BadParameter("--save-output/-o requires a target with structured debug support")
+                    return _debug_log(client, targets[0], values, as_json=as_json)
                 values["DEBUG"] = "1"
                 if save_output is not None:
                     values["DEBUG_OUTPUT"] = str(save_output)
@@ -1264,7 +1293,7 @@ Use `fx commands` to list every backend target.
                 dry_run=dry_run,
                 capture=capture,
                 live=live,
-                auto_setup=False,
+                setup=setup,
                 on=on,
                 **values,
             )
@@ -1384,11 +1413,14 @@ Use `fx commands` to list every backend target.
             bool,
             typer.Option("--force", "--overwrite", help="Shortcut for FORCE=1.", rich_help_panel="Target options"),
         ] = False,
+        setup: Annotated[
+            bool,
+            typer.Option("--setup", help="Run the setup phase for the selected lifecycle keyword.", rich_help_panel="Target options"),
+        ] = False,
         no_setup: Annotated[
             bool,
             typer.Option(
-                "--no-setup",
-                help="Deprecated compatibility no-op; requested targets are run-only by default.",
+                        help="Deprecated compatibility no-op; requested targets are run-only by default.",
                 rich_help_panel="Target options",
             ),
         ] = False,
@@ -1473,10 +1505,15 @@ Use `fx commands` to list every backend target.
             raise typer.Exit(_eqy_debug(root, workdir, args[1:], set_args, as_json=as_json))
         if args[0] == "shell":
             raise typer.Exit(_shell(root, workdir))
+        try:
+            targets = _mode_targets(args, setup=setup, debug=debug)
+        except (ValueError, typer.BadParameter) as exc:
+            error_console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(2)
         raise typer.Exit(
             _run(
                 client,
-                args,
+                targets,
                 sets=set_args,
                 tool=tool,
                 force=force,
@@ -1485,10 +1522,10 @@ Use `fx commands` to list every backend target.
                 capture=capture,
                 live=live,
                 debug=debug,
+                setup=setup,
                 save_output=save_output,
                 as_json=as_json,
                 info=info,
-                no_setup=no_setup,
                 on=on,
             )
         )

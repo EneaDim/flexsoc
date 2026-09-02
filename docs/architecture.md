@@ -10,7 +10,7 @@ The backend follows a few constraints that are more important than class count o
 
 1. **One source of truth per design fact.** Clock/reset intent, authored RTL, generated collateral and technology artifacts must have explicit owners.
 2. **Setup and execution are different operations.** Setup creates canonical machine-owned collateral; execution consumes it.
-3. **Run is run-only.** Execution never regenerates or normalizes setup files; regeneration is an explicit `setup_* --force` action.
+3. **Run is run-only.** Execution never regenerates or normalizes setup files; regeneration is an explicit `fx <keyword> --setup --force` action.
 4. **Generated files are controlled, not opaque.** Manual edits are detected, can be explicitly validated, and are tied to current input/parent lineage.
 5. **EDA tool and execution machine are independent concerns.** `CommandRequest` describes what to run; an executor decides where/how to run it.
 6. **Artifacts are explicit and deterministic.** Do not select a result because it is the first/latest glob match.
@@ -97,7 +97,7 @@ Design   DvFlow    Syn    Signoff   ImplementationFlow
 
 ### 4.1 Normal setup
 
-A setup target:
+A setup phase:
 
 1. resolves its canonical inputs and parent stages;
 2. generates machine-owned collateral deterministically;
@@ -122,14 +122,14 @@ INVALID               required artifact/provenance missing or inconsistent
 Only `CLEAN` and `VALIDATED_OVERRIDE` are runnable. Recovery is explicit:
 
 ```text
-MODIFIED  → validate_override for that exact edit, or setup_* --force
-STALE     → setup_* --force
-INVALID   → initial setup if never recorded; otherwise repair + setup_* --force
+MODIFIED  → validate_override for that exact edit, or `<keyword> --setup --force`
+STALE     → `<keyword> --setup --force`
+INVALID   → initial setup if never recorded; otherwise repair + `<keyword> --setup --force`
 ```
 
-Calling a setup target without `--force` reuses existing `CLEAN` or `VALIDATED_OVERRIDE` collateral. It does not erase a validated experiment. Calling a run target never executes setup implicitly.
+Calling a setup phase without `--force` reuses existing `CLEAN` or `VALIDATED_OVERRIDE` collateral. It does not erase a validated experiment. Calling a run target never executes setup implicitly.
 
-A configuration change is therefore not an override workflow. Persist the choice (`fx settings TARGET_OPT=delay1`), regenerate the affected setup explicitly (`fx setup_syn --force`), then run `fx syn`.
+A configuration change is therefore not an override workflow. Persist the choice (`fx settings TARGET_OPT=delay1`), regenerate the affected setup explicitly (`fx syn --setup --force`), then run `fx syn`.
 
 `VALIDATED_OVERRIDE` is not a permanent waiver. It is bound to the exact effective file hashes and lineage that were accepted.
 
@@ -142,7 +142,7 @@ If a modified generated file is restored byte-for-byte to its canonical generate
 Execution must not mutate setup-owned collateral. For example, sign-off setup creates canonical Tcl templates, while each STA/SDF/power scenario executes a scenario-local copy below its report directory.
 
 ```text
-setup_signoff generated template
+signoff --setup generated template
 signoff/<pdk>/sdf/write_sdf.tcl
              │
              └─ immutable setup artifact
@@ -204,7 +204,7 @@ fx settings
         │
         │ bootstrap topology + reset ownership/polarity
         ▼
-fx sdc
+fx sdc --setup
         ▼
 constraints/<TOP>.sdc
         │
@@ -250,7 +250,7 @@ These values are authoritative while the run is being bootstrapped. They initial
 After RTL elaboration/lint are clean, initialize the timing contract once:
 
 ```bash
-fx sdc --force
+fx sdc --setup --force
 ```
 
 The resulting `constraints/<TOP>.sdc` is designer-owned timing intent. Its scaffold is deliberately complete and readable: primary/generated clocks, latency/uncertainty/transition, clock relationships, input/output delay, input drive, output load, and commented timing-exception/design-rule sections. False paths and multicycle paths are never inferred.
@@ -367,7 +367,7 @@ CLI target name
 TARGETS / aliases
    ↓
 FlexSoCTarget
-   ├─ setup target: generate → provenance record
+   ├─ `--setup` phase: generate → provenance record
    ├─ execution target: validate provenance → backend run
    └─ composite target: ordered lifecycle operations
 ```
@@ -383,7 +383,7 @@ Large Python modules use visible section headers (`# ---`) to keep responsibilit
 Backend flow methods use one small operation vocabulary:
 
 - `init_*`: create designer-owned starting content or authored scaffolds;
-- `setup_*`: generate machine-owned execution collateral;
+- backend `setup_*` methods: generate machine-owned execution collateral;
 - `run_*`: execute a tool, simulation, proof, or qualification check;
 - `collect_*`: normalize existing evidence without rerunning the producing tool;
 - `show_*`: render existing structure/evidence for the user;
@@ -850,24 +850,24 @@ spec / HJSON / RTL core / model / properties
  reg → top_from_core → flist
                     ↓
                verification
- lint → authored SDC → setup_cdc_rdc → CDC/RDC
+ lint → authored SDC → cdc_rdc --setup → CDC/RDC
                     ↓
        functional SV+cocotb + formal
                     ↓
                  synthesis
-             setup_syn → syn
+             syn --setup → syn
                     ↓
                equivalence
-             setup_eqy → eqy
+             eqy --setup → eqy
                     ↓
           pre-PnR qualification
- setup_signoff → SDF / STA / GLS / power / fusion
+ signoff --setup → SDF / STA / GLS / power / fusion
                     ↓
           physical implementation
-             setup_pnr → pnr
+             pnr --setup → pnr
                     ↓
           routed qualification
- setup_signoff_post_pnr
+ signoff_post_pnr --setup
      → STA / SDF / GLS / power / fusion
      → physical_signoff
                     ↓

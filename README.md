@@ -157,28 +157,27 @@ fx hjson reg doc rtl_stub top_from_core flist --force
 fx lint_suite
 
 # Initialize once, then review/edit as authored timing intent.
-fx sdc --force
+fx sdc --setup --force
 # edit constraints/my_ip.sdc
 
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 
-fx setup_model --force
+fx model --setup --force
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
 fx coverage_detail
 
-fx setup_formal --force
-fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
+fx formal --setup --force
 fx formal
 
 fx pdk use sky130
-fx setup_syn
+fx syn --setup
 fx syn
-fx setup_eqy
+fx eqy --setup
 fx eqy
-fx setup_signoff
+fx signoff --setup
 fx sdf
 fx sta
 fx power_estimate
@@ -188,7 +187,7 @@ fx metrics
 fx check
 ```
 
-`fx sdc` is the handoff from bootstrap settings to authored timing intent.
+`fx sdc --setup` is the handoff from bootstrap settings to authored timing intent.
 Functional SV/cocotb clocks, CDC/RDC clock relationships, synthesis drive/load
 setup, implementation, and STA all consume the same `constraints/<TOP>.sdc`.
 Functional clocks honor SDC waveform and source latency and model clock

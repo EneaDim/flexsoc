@@ -102,7 +102,7 @@ fx lint_suite
 Initialize the SDC once after RTL/lint are structurally clean:
 
 ```bash
-fx sdc --force
+fx sdc --setup --force
 ```
 
 Review and edit `constraints/<TOP>.sdc`. It is the timing source of truth for
@@ -113,7 +113,7 @@ timing, drive/load, and commented sections for false paths and multicycle paths.
 ### 4.3 CDC/RDC
 
 ```bash
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 ```
 
@@ -125,8 +125,7 @@ come from `<TOP>.sdc`; reset ownership and polarity remain bootstrap metadata.
 ### 4.4 Property formal
 
 ```bash
-fx setup_formal --force
-fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
+fx formal --setup --force
 fx formal
 ```
 
@@ -138,7 +137,7 @@ setup collateral.
 Generate the model/test workspace once:
 
 ```bash
-fx setup_model --force
+fx model --setup --force
 ```
 
 After it contains authored work, use `fx regmap_py --force` for routine CSR-only
@@ -146,7 +145,7 @@ updates instead of recreating the complete model workspace.
 
 ```bash
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
 fx coverage_detail
 ```
@@ -170,17 +169,17 @@ The authored SDC is technology independent and is not regenerated on a PDK switc
 
 ```bash
 fx pdk use sky130
-fx setup_syn
+fx syn --setup
 fx syn
 ```
 
-`setup_syn` consumes `constraints/<TOP>.sdc` and derives the small Yosys/ABC
+`syn --setup` consumes `constraints/<TOP>.sdc` and derives the small Yosys/ABC
 `abc.constr` drive/load boundary required by synthesis.
 
 ## 6. RTL-to-netlist equivalence
 
 ```bash
-fx setup_eqy
+fx eqy --setup
 fx eqy
 ```
 
@@ -210,7 +209,7 @@ fx eqy_debug --files <partition>
 ## 7. Post-synthesis analysis
 
 ```bash
-fx setup_signoff
+fx signoff --setup
 fx sdf
 fx sta
 fx power_estimate
@@ -232,7 +231,7 @@ fx sim_post_syn --force
 ## 8. OpenROAD implementation
 
 ```bash
-fx setup_pnr --force
+fx pnr --setup --force
 fx pnr --force
 fx pnr_gui
 ```
@@ -241,7 +240,7 @@ Post-PnR sign-off resolves the final netlist and SPEF from the canonical
 implementation branch:
 
 ```bash
-fx setup_signoff_post_pnr --force
+fx signoff_post_pnr --setup --force
 fx sdf_post_pnr
 fx sta_post_pnr
 fx compile_post_pnr --force
@@ -277,15 +276,15 @@ regenerate setup implicitly.
 fx reg doc regmap_py tests_gen --force
 fx flist --force
 fx lint_suite
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_formal_csr_prove setup_formal_csr_cover --force
+fx formal_csr --setup --force
 fx formal
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
 ```
 
@@ -295,16 +294,16 @@ fx eqy
 # edit RTL, model, tests, and properties together
 fx flist --force
 fx lint_suite
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_formal_prove setup_formal_cover --force
+fx formal_prove formal_cover --setup --force
 fx formal
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
 ```
 
@@ -315,15 +314,15 @@ fx eqy
 fx top_from_core flist --force
 fx lint_suite
 # review/update constraints/<TOP>.sdc if interface timing changed
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_formal_prove setup_formal_cover --force
+fx formal_prove formal_cover --setup --force
 fx formal
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
 ```
 
@@ -337,19 +336,19 @@ and regenerate every clock-derived setup.
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
 fx top_from_core flist --force
 fx lint_suite
-fx sdc --force
+fx sdc --setup --force
 # edit/review constraints/<TOP>.sdc before continuing
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_formal_prove setup_formal_cover setup_formal_csr_prove setup_formal_csr_cover --force
+fx formal --setup --force
 fx formal
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
-fx setup_signoff --force
+fx signoff --setup --force
 fx sdf
 fx sta
 fx power_estimate
@@ -368,16 +367,16 @@ fx ip_load --force
 fx flist --force
 fx lint_suite
 # the package-owned constraints/<TOP>.sdc remains authored timing intent
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_formal_prove setup_formal_cover setup_formal_csr_prove setup_formal_csr_cover --force
+fx formal --setup --force
 fx formal
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
 ```
 

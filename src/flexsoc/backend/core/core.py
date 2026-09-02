@@ -87,6 +87,13 @@ def _items(value: str | None) -> tuple[str, ...]:
     return tuple(item.strip() for item in (value or "").replace(";", ",").split(",") if item.strip())
 
 
+def _bootstrap_domain(name: str, signal: str, reset: str, period_ns: float, polarity: str = "low") -> ClockDomain:
+    return ClockDomain(
+        name, signal, reset, period_ns, polarity, rise_ns=0.05, source_latency_ns=0.05,
+        setup_uncertainty_ns=0.025, hold_uncertainty_ns=0.01,
+    )
+
+
 def _domains(value: str) -> tuple[ClockDomain, ...]:
     domains: list[ClockDomain] = []
     for item in _items(value):
@@ -103,7 +110,7 @@ def _domains(value: str) -> tuple[ClockDomain, ...]:
             raise ValueError(f"invalid clock period {period!r} for domain {name!r}") from exc
         if not name or not signal or not reset or period_ns <= 0:
             raise ValueError(f"invalid clock domain {item!r}")
-        domains.append(ClockDomain(name, signal, reset, period_ns, polarity))
+        domains.append(_bootstrap_domain(name, signal, reset, period_ns, polarity))
     names = [domain.name for domain in domains]
     signals = [domain.signal for domain in domains]
     if len(set(names)) != len(names) or len(set(signals)) != len(signals):
@@ -151,7 +158,7 @@ def clock_config(values: Mapping[str, object] | None = None) -> ClockConfig:
         domains = _domains(domains_text)
     elif requested == 1:
         period = float(raw.get("CLK_PERIOD", "10") or "10")
-        domains = (ClockDomain("core", "clk_i", "rst_ni", period),)
+        domains = (_bootstrap_domain("core", "clk_i", "rst_ni", period),)
     else:
         raise ValueError("CLOCK_DOMAINS is required when N_CLOCKS > 1")
 

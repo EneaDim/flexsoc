@@ -4,7 +4,7 @@ This is the complete user-facing reference for the `fx` command line and every b
 
 The reference explains what each command owns. The detailed step-by-step procedure is in [IP development guide](ip_development_guide.md), while repository/backend structure is in [Architecture](architecture.md). This reference does not replace tool logs or the underlying EDA manuals. Use `fx <command> --help` (also `-h`, `help`, or `info`) for dedicated command help, and `fx commands --json` when a script needs live metadata from the installed checkout.
 
-> **Execution model:** `fx target_a target_b` launches exactly the requested backend targets in order. Execution targets are **run-only by default**: `fx syn` consumes an existing `setup_syn`, `fx eqy` consumes an existing `setup_eqy`, and sign-off/formal consumers behave the same way. Setup is generated explicitly once and then reused. Re-run a setup target with `--force` only when regeneration is intentional. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
+> **Execution model:** `fx target_a target_b` launches exactly the requested backend targets in order. Execution targets are **run-only by default**: `fx syn` consumes an existing `syn --setup`, `fx eqy` consumes an existing `eqy --setup`, and sign-off/formal consumers behave the same way. Setup is generated explicitly once and then reused. Re-run the setup phase with `--force` only when regeneration is intentional. A failure in one explicitly listed top-level target does not suppress later targets; use a composite target or shell `&&` when the sequence itself must stop immediately.
 
 ---
 
@@ -20,13 +20,13 @@ Examples:
 fx settings TOP=my_ip RUN_ID=dev
 fx hjson reg doc --force
 fx lint_suite
-fx sdc --force
-fx setup_cdc_rdc --force
+fx sdc --setup --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
 fx formal
 fx regression
 fx syn eqy --set EQY_JOBS=8 --live
-fx setup_signoff --dry-run --script
+fx signoff --setup --dry-run --script
 ```
 
 Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=VALUE` overrides affect only the current invocation. `--workdir` selects the workspace while `--project-root` selects the FlexSoC project checkout.
@@ -61,7 +61,6 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 | `--profile base|impl|riscv` | Dependency targets only | Select the pinned dependency profile. |
 | `--jobs N` | Dependency targets only | Set dependency build jobs. EQY parallelism uses `--set EQY_JOBS=N`. |
 | `--force`, `--overwrite` | Generated targets | Set `FORCE=1`; authored files should still be reviewed before regeneration. |
-| `--no-setup` | Compatibility only | Deprecated no-op retained for old scripts. Requested targets are run-only by default. |
 | `--dry-run` | Backend targets | Print the exact command without executing it. |
 | `--script` | With `--dry-run` | Render the preview as a strict Bash script. |
 | `--capture` | Backend targets | Capture stdout/stderr and save a per-command log. |
@@ -73,7 +72,7 @@ Persistent settings are stored in `.flexsoc/settings.json`. One-shot `--set KEY=
 
 ### 1.2.1 Backend operation vocabulary
 
-The backend uses `init_*` for designer-owned starter content, `setup_*` for machine-owned generated collateral, `run_*` for execution, `collect_*` for evidence collection, and `show_*`/`debug_*` for inspection and diagnostics. Existing CLI target names remain compatible; this vocabulary primarily makes backend flow APIs consistent while target aliases are migrated deliberately.
+Backend Python APIs use `init_*` for designer-owned starter content, `setup_*` for machine-owned generated collateral, `run_*` for execution, `collect_*` for evidence collection, and `show_*`/`debug_*` for inspection. These are implementation method names, not CLI targets: the CLI exposes one canonical keyword with `--setup`, implicit run, and `--debug` where supported.
 
 ### 1.3 Explicit setup and run-only consumers
 
@@ -81,37 +80,36 @@ FlexSoC separates generated setup collateral from execution. Setup targets creat
 
 | Execution family | Required setup |
 | --- | --- |
-| `syn`, `syn_v`, `syn_sv` | `setup_syn` |
-| CSR formal execution targets | matching `setup_formal_csr_*` target |
-| Design formal execution targets | matching `setup_formal_*` target |
-| `eqy` | `setup_eqy` |
-| `sdf`, `sta*`, `power_estimate*` | `setup_signoff` |
-| `pnr`, `pnr_gui` | `setup_pnr` plus its upstream synthesis/sign-off results |
-| `cdc_rdc` | `setup_cdc_rdc` |
-| SV/cocotb execution | `setup_tb` / `setup_cocotb` as appropriate |
+| `syn`, `syn_v`, `syn_sv` | `syn --setup` |
+| CSR formal execution targets | `formal_csr --setup` or the matching formal keyword with `--setup` |
+| Design formal execution targets | `formal_prove formal_cover --setup`, or `formal --setup` for the complete formal setup |
+| `eqy` | `eqy --setup` |
+| `sdf`, `sta*`, `power_estimate*` | `signoff --setup` |
+| `pnr`, `pnr_gui` | `pnr --setup` plus its upstream synthesis/sign-off results |
+| `cdc_rdc` | `cdc_rdc --setup` |
+| SV/cocotb execution | `tb --setup` / `cocotb --setup` as appropriate |
 
 The normal pattern is therefore explicit and stable:
 
 ```bash
-fx setup_syn
+fx syn --setup
 fx syn
 
-fx setup_eqy
+fx eqy --setup
 fx eqy
 
-fx setup_signoff
+fx signoff --setup
 fx sdf
 fx sta
 ```
 
-Calling `fx syn` does not rewrite `setup_syn`. Calling `fx setup_syn` again also preserves an existing valid setup. To regenerate it intentionally, use:
+Calling `fx syn` does not rewrite `syn --setup`. Calling `fx syn --setup` again also preserves an existing valid setup. To regenerate it intentionally, use:
 
 ```bash
-fx setup_syn --force
+fx syn --setup --force
 ```
 
-The same contract applies to every provenance-bearing `setup_*` target. `--no-setup` remains accepted only as a compatibility no-op for older scripts; new documentation and E2E flows do not use it.
-
+The same contract applies to every provenance-bearing setup phase.
 #### Provenance and controlled setup regeneration
 
 Generated setup collateral is tracked in `meta/<pdk>/provenance.json` using content hashes of effective inputs, semantic configuration, parent lineage, and generated files.
@@ -121,10 +119,10 @@ Before a run target executes, FlexSoC verifies the required setup lineage:
 - `CLEAN`: generated files match the last canonical setup; execution is allowed.
 - `MODIFIED`: a generated file changed after setup; execution is blocked until the exact edit is validated or the setup is force-regenerated.
 - `VALIDATED_OVERRIDE`: the current manual edit was explicitly accepted for the current lineage; execution is allowed.
-- `STALE`: source, configuration, or upstream lineage changed; regenerate with `fx <setup_target> --force`.
+- `STALE`: source, configuration, or upstream lineage changed; regenerate with `fx <keyword> --setup --force`.
 - `INVALID`: required provenance or generated/input artifacts are missing or inconsistent. If the setup has never been generated, run it once; otherwise repair the inputs and force-regenerate.
 
-A setup target itself follows the same policy:
+A setup phase itself follows the same policy:
 
 ```text
 not recorded       → generate + record CLEAN
@@ -141,16 +139,16 @@ For a persistent synthesis-profile change:
 
 ```bash
 fx settings TARGET_OPT=delay1
-fx setup_syn --force
+fx syn --setup --force
 fx syn
 ```
 
 For a manual experiment on generated setup:
 
 ```bash
-fx setup_syn
+fx syn --setup
 # edit the generated setup collateral
-fx validate_override --set STAGE=setup_syn
+fx validate_override --set STAGE=syn --setup
 fx syn
 ```
 
@@ -158,7 +156,7 @@ Execution targets must not rewrite setup collateral. Scenario-specific runtime f
 
 Composite lifecycle targets may list setup operations explicitly as part of their orchestration. Those setup operations still obey the reuse/`--force` policy; a composite flow therefore cannot silently erase a validated manual override.
 
-After `ip_load`, and again after each `pdk use` before GLS, generate or refresh `setup_tb` and `setup_cocotb` explicitly when required by the current RTL/register/clock interface. Their generated trees are machine-owned and are reused while provenance remains valid.
+After `ip_load`, and again after each `pdk use` before GLS, generate or refresh `tb --setup` and `cocotb --setup` explicitly when required by the current RTL/register/clock interface. Their generated trees are machine-owned and are reused while provenance remains valid.
 
 ### 1.4 Run identity, clock/reset bootstrap, and authored SDC
 
@@ -199,26 +197,26 @@ fx settings --json
 After structural RTL/lint are clean, initialize the canonical SDC once:
 
 ```bash
-fx sdc --force
+fx sdc --setup --force
 ```
 
 `constraints/<TOP>.sdc` is then designer-owned timing intent. Edit clock period/waveform, generated clocks, source latency, setup/hold uncertainty, clock transition, clock groups, I/O delay, drive/load, and reviewed exceptions there. Do not maintain the same timing fact in a parallel settings override after the SDC exists. `SDC_IO_DELAY_PCT` is a bootstrap/default phasing value used by the initial scaffold and generated vector drivers, not a replacement for authored SDC timing.
 
 The shared `sdc.py` adapter parses only the subset required by non-STA consumers. Functional SV/cocotb use SDC period/waveform/source latency and model `set_clock_uncertainty` as bounded uniform jitter of `±max(setup_uncertainty, hold_uncertainty)`, quantized at 1 ps. The existing run `SEED` drives the same xorshift32 sequence in both backends, so clock phase, duty cycle, relative skew, and jitter are reproducible. `set_clock_transition` remains an STA/electrical constraint rather than an analog slew model. CDC/RDC reads clock relationships from the SDC and combines them with reset ownership/polarity from bootstrap metadata. Synthesis derives `abc.constr` drive/load collateral from the same file. OpenSTA sources it directly.
 
-If the **domain/reset topology** changes, update bootstrap settings and intentionally regenerate/review `fx sdc --force`. If only timing values or exceptions change, edit `<TOP>.sdc` directly and regenerate only the affected setup stages.
+If the **domain/reset topology** changes, update bootstrap settings and intentionally regenerate/review `fx sdc --setup --force`. If only timing values or exceptions change, edit `<TOP>.sdc` directly and regenerate only the affected setup stages.
 
 ### 1.5 Changing technology inside one logical run
 
-The run root, RTL, functional DV, property formal, and `constraints/<TOP>.sdc` are technology independent. `fx sdc` initializes that authored timing contract once from the bootstrap clock/reset settings. After that, functional TB, CDC/RDC, synthesis and STA consume the same file; `setup_syn` derives `syn/<pdk>/abc.constr` drive/load collateral from it and `setup_signoff` only generates tool scripts. After `fx pdk use <name>`, do **not** regenerate HJSON, registers, RTL, models, model-derived tests, or `<TOP>.sdc`. Regenerate only technology-dependent synthesis/sign-off collateral. Run only:
+The run root, RTL, functional DV, property formal, and `constraints/<TOP>.sdc` are technology independent. `fx sdc --setup` initializes that authored timing contract once from the bootstrap clock/reset settings. After that, functional TB, CDC/RDC, synthesis and STA consume the same file; `syn --setup` derives `syn/<pdk>/abc.constr` drive/load collateral from it and `signoff --setup` only generates tool scripts. After `fx pdk use <name>`, do **not** regenerate HJSON, registers, RTL, models, model-derived tests, or `<TOP>.sdc`. Regenerate only technology-dependent synthesis/sign-off collateral. Run only:
 
 ```bash
 # Generated collateral is explicit and persistent. Runs never regenerate it.
-fx setup_syn
+fx syn --setup
 fx syn
-fx setup_eqy
+fx eqy --setup
 fx eqy
-fx setup_signoff
+fx signoff --setup
 fx sdf
 fx sta
 fx power_estimate
@@ -239,16 +237,16 @@ Those outputs are isolated below `syn/<pdk>`, `impl/<pdk>`, `signoff/<pdk>`, `dv
 | Environment and technology | `fx doctor`, `fx deps-doctor`, `fx pdk info`, `fx pdk use` | Tool/PDK readiness |
 | Requirements to CSR/RTL entry | `fx setup`, `fx hjson`, `fx reg`, `fx doc`, `fx rtl_stub`, `fx top_from_core` | Register collateral and authored RTL boundary |
 | RTL elaboration and lint | `fx flist`, `fx lint_suite`, `fx slang_hier`, `fx slang_ast` | Reachable hierarchy and clean structural RTL |
-| Timing intent | `fx sdc` | single authored `constraints/<TOP>.sdc` |
-| CDC/RDC | `fx setup_cdc_rdc`, `fx cdc_rdc` | `design.json`, `summary.json`, `cdc_rdc.rpt`, extraction setup/log |
-| Property formal | `fx setup_formal`, formal setup targets, `fx formal` | BMC/prove/cover closure |
-| Functional DV | `fx setup_model`, `fx tests_gen`, `fx setup_tb`, `fx setup_cocotb`, `fx regression`, `fx coverage_detail` | Passing scenarios, waves, coverage |
-| Sign-off setup | `fx setup_signoff` | OpenSTA Tcl families consuming `constraints/<TOP>.sdc` |
-| Synthesis | `fx setup_syn`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
-| Logical sign-off | `fx setup_eqy`, `fx eqy`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
-| Post-synthesis sign-off | `fx setup_signoff`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
-| Physical implementation | `fx setup_pnr`, `fx pnr`, `fx pnr_gui` | Placed/routed implementation |
-| Post-layout sign-off | `fx setup_signoff_post_pnr`, `fx sdf_post_pnr`, `fx sta_post_pnr`, routed GLS, `fx power_estimate_post_pnr`, activity/fusion post-PnR targets, `fx physical_signoff` | SPEF-aware timing, routed GLS/power/fusion, and physical evidence |
+| Timing intent | `fx sdc --setup` | single authored `constraints/<TOP>.sdc` |
+| CDC/RDC | `fx cdc_rdc --setup`, `fx cdc_rdc` | `design.json`, `summary.json`, `cdc_rdc.rpt`, extraction setup/log |
+| Property formal | `fx formal --setup`, `fx formal` | BMC/prove/cover closure |
+| Functional DV | `fx model --setup`, `fx tests_gen`, `fx tb --setup`, `fx cocotb --setup`, `fx regression`, `fx coverage_detail` | Passing scenarios, waves, coverage |
+| Sign-off setup | `fx signoff --setup` | OpenSTA Tcl families consuming `constraints/<TOP>.sdc` |
+| Synthesis | `fx syn --setup`, `fx syn` | `syn/<pdk>/abc.constr`, Yosys scripts, mapped netlist, synthesis reports |
+| Logical sign-off | `fx eqy --setup`, `fx eqy`, `fx eqy_debug` | RTL ↔ mapped-netlist equivalence |
+| Post-synthesis sign-off | `fx signoff --setup`, `fx sdf`, `fx sta`, `fx power_estimate`, gate simulation targets | Timing, SDF/GLS, and power evidence |
+| Physical implementation | `fx pnr --setup`, `fx pnr`, `fx pnr_gui` | Placed/routed implementation |
+| Post-layout sign-off | `fx signoff_post_pnr --setup`, `fx sdf_post_pnr`, `fx sta_post_pnr`, routed GLS, `fx power_estimate_post_pnr`, activity/fusion post-PnR targets, `fx physical_signoff` | SPEF-aware timing, routed GLS/power/fusion, and physical evidence |
 | Release | `fx manifest`, `fx metrics`, `fx check`, `fx ip_save` | Immutable identity + normalized metrics snapshot + human closure dashboard + reusable package |
 
 The SV and cocotb vector drivers accept the same reset commands:
@@ -415,8 +413,8 @@ than skipping the stage.
 
 | Target | Action | Main overrides | Notes |
 | --- | --- | --- | --- |
-| `fx setup_cdc_rdc` | Generate the pre-technology Yosys extraction script. | clock settings | Must exist and have valid provenance before `fx cdc_rdc` runs. |
-| `fx cdc_rdc` | Extract, classify, report, and optionally gate CDC/RDC findings. | `CDC_RDC_HEARTBEAT`, `CDC_RDC_STRICT` | Run-only consumer of valid `setup_cdc_rdc` provenance. Normal order is `lint_suite` → authored `<TOP>.sdc` → `setup_cdc_rdc` → `cdc_rdc`. |
+| `fx cdc_rdc --setup` | Generate the pre-technology Yosys extraction script. | clock settings | Must exist and have valid provenance before `fx cdc_rdc` runs. |
+| `fx cdc_rdc` | Extract, classify, report, and optionally gate CDC/RDC findings. | `CDC_RDC_HEARTBEAT`, `CDC_RDC_STRICT` | Run-only consumer of valid `cdc_rdc --setup` provenance. Normal order is `lint_suite` → authored `<TOP>.sdc` → `cdc_rdc --setup` → `cdc_rdc`. |
 
 The checker executes the structural families in a fixed, readable order: (1) scalar and multi-bit CDC crossings, (2) async-FIFO candidates, (3) closed-loop handshakes, (4) synchronized reconvergence, (5) setup/domain and glitch checks, then (6) reset-domain crossings, (7) reset synchronizers, (8) asynchronous reset release, and (9) reset sequencing. This order is reflected directly in `cdc.py`; later checks reuse facts from earlier checks instead of re-discovering the design independently.
 
@@ -441,20 +439,20 @@ logs/analysis/cdc_rdc/
 
 Generate and execute automatic CSR checks and authored property BMC/prove/cover stages.
 
-**Main result:** `dv/formal/` designer-owned prove/cover sources, generated configurations, proof logs, traces, and status files. `setup_formal` creates the initial design-property scaffold only when it is absent; loaded IP properties are preserved.
+**Main result:** `dv/formal/` designer-owned prove/cover sources, generated configurations, proof logs, traces, and status files. `formal --setup` creates the initial design-property scaffold only when it is absent; loaded IP properties are preserved.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx setup_formal` | Create or preserve starter design assertions and covers. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx setup_formal_csr_prove` | Generate shared CSR BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx setup_formal_csr_cover` | Generate automatic CSR cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal --setup` | Create or preserve starter design assertions and covers. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal_csr_prove --setup` | Generate shared CSR BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal_csr_cover --setup` | Generate automatic CSR cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx formal_csr_bmc` | Bounded-check automatic CSR assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
 | `fx formal_csr_prove` | Prove automatic CSR semantics with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
 | `fx formal_csr_cover` | Reach automatic CSR cover points with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
 | `fx formal_csr` | Run CSR BMC, prove, then cover. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Composite target; use it for the standard ordered flow. |
 | `fx formal` | Run all formal stages BMC, prove, then cover. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Composite target; use it for the standard ordered flow. |
-| `fx setup_formal_prove` | Generate shared design BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx setup_formal_cover` | Generate authored-property cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal_prove --setup` | Generate shared design BMC/prove configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx formal_cover --setup` | Generate authored-property cover configuration. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx formal_bmc` | Bounded-check authored design assertions. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
 | `fx formal_prove` | Prove authored properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
 | `fx formal_cover` | Reach authored cover properties with SymbiYosys. | `SBY`, `FORMAL_DEPTH`, `FORMAL_BMC_DEPTH`, `FORMAL_BMC_APPEND`, `FORMAL_BMC_ENGINE`, `FORMAL_PROVE_ENGINE`, `FORMAL_COVER_ENGINE` | Use `--info` for accepted overrides. |
@@ -467,9 +465,9 @@ Generate the reference-model environment, vectors, testbenches, simulations, reg
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx setup_tb` | Generate a SystemVerilog testbench scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx setup_cocotb` | Generate a cocotb scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
-| `fx setup_model` | Generate Python model, CSR regmap, and test scaffolds. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx tb --setup` | Generate a SystemVerilog testbench scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx cocotb --setup` | Generate a cocotb scaffold. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx model --setup` | Generate Python model, CSR regmap, and test scaffolds. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx regmap_py` | Regenerate only `<top>_regmap.py` from HJSON. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx tests_gen` | Generate all vector tests from `<top>_tests.py`. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
 | `fx test_gen` | Generate one vector test selected by TEST_NAME. | `TESTBENCH`, `TEST_NAMES`, `TEST_NAME`, `REGCFG`, `DATA_IN`, `DATA_OUT`, `VSV`, `COMPILER`, `COCOTB_WAVES`, `SEED`, `REGRESSION_BACKENDS`, `COVERAGE`, `COVERAGE_DETAIL_LIMIT`, `WAVE_FORMAT`, `WAVE_FILE` | Use `--info` for accepted overrides. |
@@ -493,7 +491,8 @@ Generate the reference-model environment, vectors, testbenches, simulations, reg
 Generate both environments before running a named test:
 
 ```bash
-fx tests_gen setup_tb setup_cocotb
+fx tests_gen
+fx tb cocotb --setup
 fx tests
 ```
 
@@ -606,11 +605,11 @@ The default is `area0`. There is intentionally no claim that a higher index is u
 
 Generated `.abc` files are intentionally self-documenting: every executable ABC command is immediately preceded by a plain-language comment. Delay profiles write the active clock target directly in picoseconds (for a 10 ns clock, for example `map -D 10000`). Yosys documents `{D}` substitution for its built-in ABC scripts; FlexSoC custom `-script <file>` recipes are ordinary ABC files, so they contain the numeric target instead.
 
-**Main result:** `syn/<PDK>/` contains the selected `<TARGET_OPT>.abc` recipe, `abc.constr`, mapped netlists, logs, statistics, and checkpoints. The SDC is owned separately by `setup_signoff`.
+**Main result:** `syn/<PDK>/` contains the selected `<TARGET_OPT>.abc` recipe, `abc.constr`, mapped netlists, logs, statistics, and checkpoints. The SDC is owned separately by `signoff --setup`.
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx setup_syn` | Generate Yosys/ABC synthesis scripts and `abc.constr`; no SDC is consumed by synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx syn --setup` | Generate Yosys/ABC synthesis scripts and `abc.constr`; no SDC is consumed by synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx syn` | Run synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
 | `fx syn_v` | Run Verilog synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
 | `fx syn_sv` | Run SystemVerilog synthesis. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN` | Use `--info` for accepted overrides. |
@@ -628,9 +627,9 @@ Prove RTL/netlist equivalence and generate or execute pre-layout timing, SDF, an
 | `fx sta_corners` | Run STA setup/hold for each configured corner. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Writes every report and returns non-zero if any corner/mode violates timing. |
 | `fx power_estimate_corners` | Estimate power for each corner using primary-input activity assumptions. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all configured technology corners. |
 | `fx signoff_corners` | Run SDF, multi-corner STA and estimated power. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Stops at STA when any configured corner/mode violates timing. |
-| `fx setup_eqy` | Generate RTL-vs-post-synthesis EQY configuration. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx eqy --setup` | Generate RTL-vs-post-synthesis EQY configuration. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx eqy` | Prove RTL equivalent to the post-synthesis netlist with EQY. | `PDK`, `PDK_ROOT`, `CLK_PERIOD`, `TARGET_SYN`, `TARGET_OPT`, `VSV`, `LIB_SYN`, `SBY`, `EQY`, `EQY_SAT_DEPTH`, `EQY_DEPTH`, `EQY_ENGINE`, `EQY_TIMEOUT`, `EQY_QUICK_TIMEOUT`, `EQY_JOBS`, `EQY_USE_SAT`, `EQY_SPLITNETS`, `EQY_USE_PDR`, `EQY_PDR_ENGINE`, `EQY_SMT_ENGINE`, `EQY_SMT_DEPTH`, `EQY_XPROP`, `EQY_JOIN_OUTPUTS`, `EQY_STRATEGY_ORDER`, `PRIM`, `FORMAL_PDK_PROC` | Use `--info` for accepted overrides. |
-| `fx setup_signoff` | Generate sign-off Tcl families that consume the authored `constraints/<TOP>.sdc`. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx signoff --setup` | Generate sign-off Tcl families that consume the authored `constraints/<TOP>.sdc`. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx compile_syn` | Compile post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sim_syn` | Run post-synthesis simulation. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Use `--info` for accepted overrides. |
 | `fx sta` | Run static timing analysis. | `PDK`, `PDK_ROOT`, `LIBS`, `LIB_SYN`, `PRIM`, `WAVE_FORMAT`, `WAVE_FILE`, `GLS_SIMULATOR`, `GLS_BACKEND`, `TIMING_MODE`, `SDF_STRICT`, `SDF_FILE`, `SDF_CORNER`, `NETLIST`, `SPEF_FILE`, `PNR_SDC_FILE`, `POWER_ACTIVITY`, `POWER_DUTY`, `PATH_VIEW_FILE`, `NPATHS` | Runs all resolved setup/hold scenarios and consolidates qualification into `signoff/<pdk>/sta/sta.rpt` plus `sta.json`; negative timing or unconstrained paths fail qualification. |
@@ -743,7 +742,7 @@ Generate OpenROAD configuration, implement the design, and inspect the physical 
 
 | Target | Action | Target-specific overrides | Notes |
 | --- | --- | --- | --- |
-| `fx setup_pnr` | Generate OpenROAD config. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
+| `fx pnr --setup` | Generate OpenROAD config. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Generates configuration/scaffolding; it does not execute the final analysis unless a dependency does so. |
 | `fx pnr` | Run OpenROAD physical implementation. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Use `--info` for accepted overrides. |
 | `fx pnr_gui` | Open OpenROAD GUI. | `PDK`, `PDK_ROOT`, `ORS`, `ORS_TECH` | Use `--info` for accepted overrides. |
 
@@ -758,7 +757,7 @@ Separate evidence collection from human rendering. Technology-scoped metadata li
 | `fx metrics` | Collect lint, CDC/RDC, formal, functional, synthesis, implementation, and sign-off evidence into one normalized snapshot. | Common run/clock settings only | Writes `meta/<pdk>/metrics.json`; it does not render the closure dashboard. |
 | `fx manifest` | Collect run/tool/PDK identity and lightweight qualification evidence. | Common run/clock settings only | Writes `meta/<pdk>/manifest.json`. |
 | `fx manifest_show` | Show the current run manifest in color. | Common run/clock settings only | Read-only inspection of the saved manifest. |
-| `fx validate_override` | Accept an intentional manual edit to generated setup collateral for the current lineage. | `STAGE=<setup_target>` | Only `MODIFIED` can be accepted. `STALE` means rerun the setup target with the intended effective settings; `INVALID` means repair missing/inconsistent inputs and rerun setup. |
+| `fx validate_override` | Accept an intentional manual edit to generated setup collateral for the current lineage. | `STAGE=<keyword|stage-id>` | Only `MODIFIED` can be accepted. `STALE` means rerun `fx <keyword> --setup --force` with the intended effective settings; `INVALID` means repair missing/inconsistent inputs and rerun setup. |
 | `fx check` | Render the saved metrics snapshot as the lifecycle-ordered colored dashboard. | `PDK` plus common run/clock settings | Read-only with respect to `metrics.json`; run `fx metrics` first whenever you want a new snapshot. |
 
 ### 3.14 IP load/save
@@ -1093,15 +1092,15 @@ their direct command boundary.
 fx reg doc regmap_py tests_gen --force
 fx flist --force
 fx lint_suite
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_formal_csr_prove setup_formal_csr_cover --force
+fx formal_csr --setup --force
 fx formal
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
 ```
 
@@ -1110,18 +1109,18 @@ fx eqy
 ```bash
 fx flist --force
 fx lint_suite
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
-fx setup_formal_prove setup_formal_cover --force
+fx formal_prove formal_cover --setup --force
 fx formal
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
-fx setup_signoff --force
+fx signoff --setup --force
 fx sdf
 fx sta
 fx power_estimate
@@ -1135,14 +1134,14 @@ fx sim_post_syn --set GLS_BACKEND=cocotb --set TIMING_MODE=typ --set TEST_NAME=s
 fx top_from_core flist --force
 fx lint_suite
 # review constraints/<TOP>.sdc if interface timing changed
-fx setup_cdc_rdc setup_tb setup_cocotb --force
+fx cdc_rdc tb cocotb --setup --force
 fx cdc_rdc
-fx setup_formal_prove setup_formal_cover --force
+fx formal_prove formal_cover --setup --force
 fx formal
 fx regression
-fx setup_syn --force
+fx syn --setup --force
 fx syn
-fx setup_eqy --force
+fx eqy --setup --force
 fx eqy
 fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smoke
 ```
@@ -1153,13 +1152,13 @@ fx sim_post_syn --set GLS_BACKEND=sv --set TIMING_MODE=zero --set TEST_NAME=smok
 fx settings N_CLOCKS=<n> CLOCK_DOMAINS=<domains> CLOCK_RELATIONSHIPS=<relations>
 fx top_from_core flist --force
 fx lint_suite
-fx sdc --force
+fx sdc --setup --force
 # review/reapply authored constraints/<TOP>.sdc
-fx setup_tb setup_cocotb setup_cdc_rdc setup_formal_prove setup_formal_cover setup_formal_csr_prove setup_formal_csr_cover --force
+fx tb cocotb cdc_rdc formal_prove formal_cover formal_csr_prove formal_csr_cover --setup --force
 fx cdc_rdc
 fx formal
 fx regression
-fx setup_syn setup_eqy setup_signoff --force
+fx syn eqy signoff --setup --force
 fx syn
 fx eqy
 fx sdf
@@ -1351,7 +1350,7 @@ fx formal_csr
 
 Use `hjson` only to bootstrap or intentionally replace the source specification.
 After normal HJSON edits, regenerate `reg`, `doc`, and `regmap_py`; do not rerun
-`setup_model --force` merely to refresh register metadata.
+`model --setup --force` merely to refresh register metadata.
 
 | Failure | Inspect | Repair command |
 | --- | --- | --- |
@@ -1385,7 +1384,7 @@ wrapper from the core rather than regenerating the core.
 ```bash
 fx tests
 fx test_gen --force --set TEST_NAME=<test>
-fx setup_tb setup_cocotb
+fx tb cocotb --setup
 fx sim --live --set TEST_NAME=<test>
 fx cocotb --live --set TEST_NAME=<test>
 ```
@@ -1408,7 +1407,7 @@ fx coverage_detail
 ### 8.6 Formal failures
 
 ```bash
-fx setup_formal --force
+fx formal --setup --force
 fx formal_bmc
 fx formal_prove
 fx formal_cover
@@ -1425,9 +1424,9 @@ fx formal_cover
 
 ```bash
 # edit/review constraints/<TOP>.sdc first
-fx setup_syn --force
+fx syn --setup --force
 fx syn --live
-fx setup_signoff --force
+fx signoff --setup --force
 fx sta --live
 ```
 
@@ -1538,14 +1537,14 @@ pulls the recorded digest and intentionally does not rebuild the EDA toolchain.
 | `rtl_stub` | starter core and top | core becomes authored | bootstrap only |
 | `top_from_core` | generated top wrapper | no | core ports/register windows/clocks change |
 | `flist` | ordered `rtl_common.f`, `rtl_ip.f` | no | hierarchy/include/package/source changes |
-| `setup_model` | model, regmap, tests, auto-toggle scaffold | model/tests yes; generated files no | bootstrap or deliberate reset of functional workspace |
+| `model --setup` | model, regmap, tests, auto-toggle scaffold | model/tests yes; generated files no | bootstrap or deliberate reset of functional workspace |
 | `tests_gen` | `config.regs`, `data_in.vec`, `data_out.vec` | no | model/scenario/regmap changes |
-| `setup_tb` | SV harness | no | ports, clocks, protocol, vector grammar change |
-| `setup_cocotb` | cocotb harness/drivers | no | same owning changes as SV harness |
-| `setup_formal` | formal configs/wrappers | generated config no; authored properties yes | hierarchy, clock/reset, CSR, property integration changes |
-| `setup_syn` | synthesis scripts | no | hierarchy, PDK, SDC, strategy changes |
-| `setup_eqy` | EQY configuration/adapters | no | RTL/netlist/reset/PDK/strategy changes |
-| `setup_signoff` | SDF/STA/power/GLS scripts | no | PDK, netlist, authored SDC, corners, sign-off policy changes |
+| `tb --setup` | SV harness | no | ports, clocks, protocol, vector grammar change |
+| `cocotb --setup` | cocotb harness/drivers | no | same owning changes as SV harness |
+| `formal --setup` | formal configs/wrappers | generated config no; authored properties yes | hierarchy, clock/reset, CSR, property integration changes |
+| `syn --setup` | synthesis scripts | no | hierarchy, PDK, SDC, strategy changes |
+| `eqy --setup` | EQY configuration/adapters | no | RTL/netlist/reset/PDK/strategy changes |
+| `signoff --setup` | SDF/STA/power/GLS scripts | no | PDK, netlist, authored SDC, corners, sign-off policy changes |
 | `design intent` | `meta/design_intent.json` | evidence snapshot | refreshed from effective run intent |
 | `technology settings` | `meta/<pdk>/settings.json` | evidence snapshot | refreshed by technology-bound targets |
 | `manifest` | `meta/<pdk>/manifest.json` | no | refresh at release/evidence collection |
@@ -1569,21 +1568,22 @@ fx settings \
 
 fx setup hjson reg doc rtl_stub top_from_core flist --force
 fx lint_suite
-fx sdc --force
+fx sdc --setup --force
 # review/edit constraints/<TOP>.sdc
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
-fx setup_model tests_gen setup_tb setup_cocotb --force
+fx model --setup --force
+fx tests_gen --force
+fx tb cocotb --setup --force
 fx regression
-fx setup_formal --force
-fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
+fx formal --setup --force
 fx formal
 fx pdk use sky130
-fx setup_syn
+fx syn --setup
 fx syn
-fx setup_eqy
+fx eqy --setup
 fx eqy
-fx setup_signoff
+fx signoff --setup
 fx sdf
 fx sta
 fx power_estimate

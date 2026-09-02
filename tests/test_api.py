@@ -14,12 +14,12 @@ from pathlib import Path
 import pytest
 
 import flexsoc.api as api_module
-import flexsoc.backend.syn.eqy as setup_eqy_module
+import flexsoc.backend.syn.eqy as eqy_module
 import flexsoc.backend.signoff.sta as signoff_sta_module
 import flexsoc.backend.signoff.power as signoff_power_module
 import flexsoc.backend.signoff.fusion as signoff_fusion_module
-import flexsoc.backend.syn.syn as setup_syn_module
-import flexsoc.backend.impl.impl as setup_pnr_module
+import flexsoc.backend.syn.syn as syn_module
+import flexsoc.backend.impl.impl as pnr_module
 import flexsoc.backend.signoff.gls as post_sim_module
 import flexsoc.cli as cli_module
 import flexsoc.backend.core.toolchain as doctor_module
@@ -33,7 +33,7 @@ from flexsoc import (
 )
 from flexsoc.api import (
     ACTIVITY_ANALYSIS_TARGETS,
-    AUTO_SETUP_TARGETS,
+    SETUP_TARGETS,
     DEFAULT_SETTINGS,
     NATIVE_TARGETS,
     STREAM_BY_DEFAULT_TARGETS,
@@ -217,6 +217,7 @@ def test_values_normalize_clock_wave_and_pdk_settings(tmp_path: Path) -> None:
 
     values = fx.values()
     assert values["WORKSPACE"] == str((tmp_path / "work").resolve())
+    assert FlexSoC(project_root=tmp_path, WORKSPACE=tmp_path / "saved").workdir == (tmp_path / "saved").resolve()
     assert values["PDK"] == "sky130"
     assert values["LIB_SYN"].endswith("sky130_fd_sc_hd__tt_025C_1v80.lib")
     assert values["N_CLOCKS"] == "2"
@@ -337,78 +338,69 @@ def test_view_selects_named_gls_waveform_and_avoids_wayland_on_wsl(
     assert {"PDK", "SIGNOFF_STAGE", "SIM_NAME", "WAVE_VIEWER", "SURFER_BACKEND"} <= set(TARGETS["view"][2])
 
 
-def test_run_targets_do_not_regenerate_setup_and_legacy_expansion_is_opt_in(
-    tmp_path: Path,
-) -> None:
+def test_run_and_setup_are_explicit_lifecycle_modes(tmp_path: Path) -> None:
     fx = FlexSoC(project_root=tmp_path, workdir=tmp_path / "work")
 
-    assert AUTO_SETUP_TARGETS["syn"] == ("setup_syn",)
-    assert AUTO_SETUP_TARGETS["regression"] == ("setup_tb", "setup_cocotb")
-    assert AUTO_SETUP_TARGETS["formal"] == (
-        "setup_formal_prove", "setup_formal_cover",
-        "setup_formal_csr_prove", "setup_formal_csr_cover",
+    assert SETUP_TARGETS["syn"] == ("syn.setup",)
+    assert SETUP_TARGETS["regression"] == ("tb.setup", "cocotb.setup")
+    assert SETUP_TARGETS["formal"] == (
+        "formal.prove.setup", "formal.cover.setup",
+        "formal.csr_prove.setup", "formal.csr_cover.setup",
     )
-
-    # Public API and CLI are run-only by default.
+    assert not any(target.startswith("setup_") for target in TARGETS)
     assert [command.target for command in fx.commands("syn")] == ["syn"]
-    assert [command.target for command in fx.commands("regression")] == ["regression"]
-    assert [command.target for command in fx.commands("formal")] == ["formal"]
-    assert [command.target for command in fx.commands("sdf", "sta")] == ["sdf", "sta"]
-
-    # The old dependency expansion remains available only as an explicit API
-    # compatibility mode; user-facing flows do not depend on it.
-    assert [command.target for command in fx.commands("syn", auto_setup=True)] == [
-        "setup_syn", "syn"
+    assert [command.target for command in fx.commands("syn", setup=True)] == ["syn.setup"]
+    assert [command.target for command in fx.commands("regression", setup=True)] == [
+        "tb.setup", "cocotb.setup",
     ]
-    assert [command.target for command in fx.commands("regression", auto_setup=True)] == [
-        "setup_tb", "setup_cocotb", "regression"
-    ]
+    with pytest.raises(ValueError, match="sdc is setup-only"):
+        fx.commands("sdc")
 
-    router = api_module.FlexSoCTarget(fx, fx.values(), auto_setup=False)
+    router = api_module.FlexSoCTarget(fx, fx.values())
     calls: list[str] = []
     router.execute = lambda name: calls.append(name) or 0
-    router._execute_sequence(("setup_syn", "syn", "setup_eqy", "eqy"))
-    assert calls == ["setup_syn", "syn", "setup_eqy", "eqy"]
+    router._execute_sequence(("syn.setup", "syn", "eqy.setup", "eqy"))
+    assert calls == ["syn.setup", "syn", "eqy.setup", "eqy"]
 
 def test_synthesis_profiles_cover_area_delay_tradeoffs() -> None:
-    assert setup_syn_module.SYNTHESIS_PROFILES == (
+    assert syn_module.SYNTHESIS_PROFILES == (
         "area0", "area1", "area2", "area3",
         "delay0", "delay1", "delay2", "delay3", "delay4",
     )
-    assert "map -a" in setup_syn_module.abc_script("area0", 10.0)
-    assert "buffer -c -N 24" in setup_syn_module.abc_script("area3", 10.0)
-    assert "buffer -c -N 32" in setup_syn_module.abc_script("delay2", 10.0)
-    delay4 = setup_syn_module.abc_script("delay4", 10.0)
+    assert "map -a" in syn_module.abc_script("area0", 10.0)
+    assert "buffer -c -N 24" in syn_module.abc_script("area3", 10.0)
+    assert "buffer -c -N 32" in syn_module.abc_script("delay2", 10.0)
+    delay4 = syn_module.abc_script("delay4", 10.0)
     assert "buffer -c -N 16" in delay4
     assert "map -D 10000" in delay4
     assert "upsize 10000" in delay4
     assert "{D}" not in delay4
     assert "dnsize -c" not in delay4
-    for profile in setup_syn_module.SYNTHESIS_PROFILES:
+    for profile in syn_module.SYNTHESIS_PROFILES:
         lines = [
-            line for line in setup_syn_module.abc_script(profile, 10.0).splitlines()
+            line for line in syn_module.abc_script(profile, 10.0).splitlines()
             if line
         ]
         assert "{D}" not in "\n".join(lines)
         for index, line in enumerate(lines):
             if not line.startswith("#"):
                 assert index > 0 and lines[index - 1].startswith("#")
-    cfg = setup_syn_module.SynthesisConfig(
+    cfg = syn_module.SynthesisConfig(
         top="demo", topdir=Path("rtl"), target="asic", clk_period_ns=10.0,
         liberty=Path("cells.lib"), opt="delay4",
     )
-    command = setup_syn_module.render_abc_command(cfg, "delay4.abc")
+    command = syn_module.render_abc_command(cfg, "delay4.abc")
     assert "abc -keepff -liberty cells.lib" in command
     assert "abc -keepff -D" not in command
     assert "-script syn/delay4.abc" in command
     with pytest.raises(ValueError, match="TARGET_OPT must be one of"):
-        setup_syn_module.abc_script("delay", 10.0)
+        syn_module.abc_script("delay", 10.0)
 
 
 def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(tmp_path: Path) -> None:
     liberty = tmp_path / "cells.lib"
     liberty.write_text("library(test) {}\n", encoding="utf-8")
-    cfg = setup_syn_module.SynthesisConfig(
+    cfg = syn_module.SynthesisConfig(
         top="demo",
         topdir=tmp_path,
         target="asic",
@@ -421,7 +413,7 @@ def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(t
     )
     assert DEFAULT_SETTINGS["TARGET_OPT"] == "delay1"
     assert cfg.opt == "delay1"
-    script = setup_syn_module.yosys_synth_asic_verilog(
+    script = syn_module.yosys_synth_asic_verilog(
         cfg.top, cfg.topdir, liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
         tie_hi=cfg.tie_hi, tie_lo=cfg.tie_lo, min_buffer=cfg.min_buffer,
     )
@@ -437,7 +429,7 @@ def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(t
     assert "check -assert -mapped" in script
     assert "write_verilog -nohex -nodec" in script
     assert "delay1.abc" in script
-    assert "delay1.abc" in setup_syn_module.yosys_synth_asic_slang(
+    assert "delay1.abc" in syn_module.yosys_synth_asic_slang(
         cfg.top, liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
     )
 
@@ -447,7 +439,7 @@ def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
     sdc = tmp_path / "demo.sdc"
     netlist.write_text("module demo; endmodule\n", encoding="utf-8")
     sdc.write_text("current_design demo\n", encoding="utf-8")
-    text = setup_pnr_module.render_config("demo", "sky130hd", netlist, sdc)
+    text = pnr_module.render_config("demo", "sky130hd", netlist, sdc)
     assert f"SYNTH_NETLIST_FILES := {netlist}" in text
     assert f"SDC_FILE             := {sdc}" in text
     assert "VERILOG_FILES" not in text
@@ -549,14 +541,12 @@ def test_all_target_log_names_omit_default_all_selectors(tmp_path: Path) -> None
         TEST_NAMES="all",
         GLS_BACKEND="sv",
         TIMING_MODES="all",
-        auto_setup=False,
     )
     selected = fx.command(
         "sim_post_syn_all",
         TEST_NAMES="smoke corners",
         GLS_BACKEND="cocotb",
         TIMING_MODES="typ max",
-        auto_setup=False,
     )
 
     assert fx._command_log_path(default).name == "sim_post_syn_all.log"
@@ -597,15 +587,15 @@ def test_check_status_contract_keeps_technical_and_provenance_independent() -> N
     assert technical_status({"flow": {"status": "unsupported"}}) == "UNSUPPORTED"
 
     summary = provenance_summary({
-        "setup_syn": "CLEAN",
-        "setup_eqy": "VALIDATED_OVERRIDE",
+        "syn.setup": "CLEAN",
+        "eqy.setup": "VALIDATED_OVERRIDE",
     })
     assert summary == {
         "status": "VALIDATED_OVERRIDE",
-        "stages": {"setup_eqy": "VALIDATED_OVERRIDE", "setup_syn": "CLEAN"},
+        "stages": {"eqy.setup": "VALIDATED_OVERRIDE", "syn.setup": "CLEAN"},
     }
-    assert provenance_summary({"setup_syn": "MODIFIED"})["status"] == "MODIFIED"
-    assert provenance_summary({"setup_syn": "STALE"})["status"] == "STALE"
+    assert provenance_summary({"syn.setup": "MODIFIED"})["status"] == "MODIFIED"
+    assert provenance_summary({"syn.setup": "STALE"})["status"] == "STALE"
     assert provenance_summary({})["status"] == "INVALID"
 
 
@@ -938,13 +928,15 @@ def test_sim_post_syn_all_continues_after_one_failed_case(
 
 
 def test_run_check_and_nonchecking_failure_modes(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(api_module.FlexSoCTarget, "execute", lambda self, target: 7)
     fx = FlexSoC(project_root=tmp_path)
 
     with pytest.raises(RuntimeError, match="exit code 7"):
         fx.run("hjson")
+    output = capsys.readouterr().out
+    assert output.index("[log] ") < output.index("✗ hjson:")
     result, = fx.run("hjson", check=False)
     assert isinstance(result, FlexSoCResult)
     assert result.returncode == 7 and not result.ok
@@ -1001,7 +993,6 @@ def test_sim_post_syn_all_prints_uniform_header_artifacts_and_done(
         TOP="demo",
     ).run(
         "sim_post_syn_all",
-        auto_setup=False,
         TEST_NAMES="all",
         GLS_BACKEND="sv",
         TIMING_MODES="all",
@@ -1048,7 +1039,6 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
         TOP="demo",
     ).run(
         "fusion_analysis",
-        auto_setup=False,
         POWER_TEST_NAME="smoke",
         POWER_GLS_BACKEND="sv",
         POWER_TIMING_MODE="typ",
@@ -1082,7 +1072,7 @@ def test_fusion_streams_only_artifact_paths_by_default_and_keeps_full_log(
 def test_technology_execution_requires_an_activated_pdk(tmp_path: Path) -> None:
     fx = FlexSoC(project_root=tmp_path, PDK="sky130", PDK_ROOT=tmp_path / "missing")
     with pytest.raises(RuntimeError, match="fx pdk fetch"):
-        fx.run(next(iter(TECHNOLOGY_TARGETS)))
+        fx.run("syn")
 
 
 def test_eqy_bind_uses_sky130_liberty_fallback_without_adapter(
@@ -1104,8 +1094,8 @@ def test_eqy_bind_uses_sky130_liberty_fallback_without_adapter(
     )
 
     monkeypatch.setenv("FLEXSOC_PDK", "sky130")
-    monkeypatch.setattr(setup_eqy_module, "_formal_pdk_processor", lambda _cfg: None)
-    setup_eqy_module.bind_equivalence_profile(
+    monkeypatch.setattr(eqy_module, "_formal_pdk_processor", lambda _cfg: None)
+    eqy_module.bind_equivalence_profile(
         top="cordic",
         output_dir=output,
         filelists=(filelist,),
@@ -1353,7 +1343,7 @@ def test_cli_dedicated_help_aliases_and_signoff_selectors(
         assert "POWER_TEST_NAME" in output
         assert "POWER_GLS_BACKEND" in output
         assert "POWER_TIMING_MODE" in output
-        assert "Required setup" in output and "setup_signoff" in output
+        assert "Setup phase" in output and "fx fusion_analysis --setup" in output
 
     assert app(["pdk", "--help"]) == 0
     pdk_help = capsys.readouterr().out
@@ -1362,13 +1352,20 @@ def test_cli_dedicated_help_aliases_and_signoff_selectors(
     assert app(["validate_override", "--help"]) == 0
     provenance_help = capsys.readouterr().out
     assert "MODIFIED" in provenance_help
-    assert "STALE" in provenance_help and "Rerun the setup target" in provenance_help
+    assert "STALE" in provenance_help and "Rerun the setup phase" in provenance_help
     assert "change TARGET_OPT" in provenance_help
 
     assert app(["syn", "--help"]) == 0
     syn_help = capsys.readouterr().out
+    assert "fx syn --setup --force" in syn_help
     assert "fx syn --set TARGET_OPT=delay1" in syn_help
-    assert "Required setup" in syn_help and "STALE" in syn_help
+    assert "Setup phase" in syn_help and "STALE" in syn_help
+
+    assert app(["signoff", "--help"]) == 0
+    signoff_help = capsys.readouterr().out
+    assert "fx signoff --setup" in signoff_help and "fx signoff" in signoff_help
+    assert app(["model", "--help"]) == 0
+    assert "fx model --setup" in capsys.readouterr().out
 
 
 def test_cli_settings_persist_reset_unset_and_derive_paths(
@@ -1407,6 +1404,15 @@ def test_cli_settings_persist_reset_unset_and_derive_paths(
     updated = json.loads(capsys.readouterr().out)
     assert "TOP" not in updated
     assert updated["CLOCK_RELATIONSHIPS"] == ""
+
+    selected = tmp_path / "selected"
+    assert app([
+        "settings", "--reset", f"WORKSPACE={selected}", "TOP=demo",
+        "--project-root", str(tmp_path), "--json",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out)["WORKSPACE"] == str(selected.resolve())
+    assert app(["hjson", "--dry-run", "--project-root", str(tmp_path)]) == 0
+    assert f"WORKSPACE={selected.resolve()}" in capsys.readouterr().out
 
 
 def test_cli_workdir_settings_isolate_concurrent_flows(
@@ -1453,29 +1459,45 @@ def test_cli_target_info_dry_run_and_script_output(
     assert " hjson " in lines[0] and " reg " in lines[1]
     assert all("TOP=demo" in line and "FORCE=1" in line for line in lines)
 
-    assert app(["setup_signoff", "--dry-run", "--script", *root_args]) == 0
+    assert app(["signoff", "--setup", "--dry-run", "--script", *root_args]) == 0
     script = capsys.readouterr().out
     assert script.startswith("#!/usr/bin/env bash\nset -euo pipefail\n")
-    assert " setup_signoff " in script
+    assert " signoff --setup" in script
 
 
 
-def test_cli_is_run_only_and_no_setup_is_compatibility_noop(
+def test_cli_run_and_setup_modes_are_canonical(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     root_args = ["--project-root", str(tmp_path), "--workdir", str(tmp_path / "work")]
 
     assert app(["syn", "--dry-run", *root_args]) == 0
-    lines = capsys.readouterr().out.strip().splitlines()
-    assert len(lines) == 1 and lines[0].split()[1] == "syn"
+    line = capsys.readouterr().out.strip()
+    assert line.split()[1] == "syn" and "--setup" not in line
 
-    assert app(["syn", "--no-setup", "--dry-run", *root_args]) == 0
-    lines = capsys.readouterr().out.strip().splitlines()
-    assert len(lines) == 1 and lines[0].split()[1] == "syn"
+    assert app(["syn", "--setup", "--dry-run", *root_args]) == 0
+    line = capsys.readouterr().out.strip()
+    assert line.split()[1] == "syn" and "--setup" in line
 
-    assert app(["regression", "--dry-run", *root_args]) == 0
+    assert app(["formal", "--setup", "--dry-run", *root_args]) == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert len(lines) == 1 and lines[0].split()[1] == "regression"
+    assert [(line.split()[1], "--setup" in line) for line in lines] == [
+        ("formal_prove", True), ("formal_cover", True),
+        ("formal_csr_prove", True), ("formal_csr_cover", True),
+    ]
+
+    assert app(["sdc", "--dry-run", *root_args]) == 2
+    assert "setup-only" in capsys.readouterr().err
+    assert app(["sdc", "--setup", "--dry-run", *root_args]) == 0
+    assert "sdc --setup" in capsys.readouterr().out
+
+    assert app(["signoff", "--setup", "--dry-run", *root_args]) == 0
+    assert "signoff --setup" in capsys.readouterr().out
+    assert app(["signoff", "--dry-run", *root_args]) == 0
+    assert capsys.readouterr().out.split()[1] == "signoff"
+
+    assert app(["setup_syn", "--dry-run", *root_args]) == 2
+    assert "unknown target 'setup_syn'" in capsys.readouterr().err
 
 def test_cli_tool_and_dependency_options_are_forwarded(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
@@ -1543,7 +1565,7 @@ def test_cli_pdk_list_info_and_use(capsys: pytest.CaptureFixture[str], tmp_path:
     ]) == 0
     output = capsys.readouterr().out
     assert "Shared RTL, DV, formal, and SDC artifacts remain valid" in output
-    assert "setup_syn/syn" in output and "setup_eqy/eqy" in output
+    assert "syn --setup/syn" in output and "eqy --setup/eqy" in output
 
 
 def test_doctor_opensta_31_and_versionless_btorsim(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1628,8 +1650,13 @@ def test_cli_execution_output_modes(
     assert app(["sta", "--debug", "-o", str(out), "--project-root", str(tmp_path)]) == 0
     assert capsys.readouterr().out == ""
     assert seen[-1]["DEBUG"] == "1" and seen[-1]["DEBUG_OUTPUT"] == str(out)
-    assert app(["hjson", "--debug", "--project-root", str(tmp_path)]) == 2
-    capsys.readouterr()
+
+    log = tmp_path / "workspace/runs/test/default/logs/commands/hjson.log"
+    log.parent.mkdir(parents=True)
+    log.write_text("generated hjson\n", encoding="utf-8")
+    assert app(["hjson", "--debug", "--project-root", str(tmp_path)]) == 0
+    debug_output = capsys.readouterr().out
+    assert "[log]" in debug_output and str(log) in debug_output and "generated hjson" in debug_output
 
 
 def test_signoff_debug_reads_filtered_artifacts_without_tools(
@@ -3175,7 +3202,7 @@ def test_synthesis_derives_abc_constraints_from_sdc(tmp_path: Path) -> None:
     sdc = tmp_path / "demo.sdc"
     output = tmp_path / "syn"
     liberty.write_text('capacitive_load_unit (1.0000000000, "pf");\n', encoding="utf-8")
-    cfg = setup_syn_module.SynthesisConfig(
+    cfg = syn_module.SynthesisConfig(
         "demo", tmp_path, "asic", 10.0, output, liberty, sdc=sdc,
     )
 
@@ -3185,11 +3212,11 @@ def test_synthesis_derives_abc_constraints_from_sdc(tmp_path: Path) -> None:
     assert "-constr" in synthesis
     for load, expected in ((0.023, "23"), (0.007, "7")):
         sdc.write_text(f"set_load {load} [all_outputs]\n", encoding="utf-8")
-        setup_syn_module.generate_synthesis_scripts(cfg)
+        syn_module.generate_synthesis_scripts(cfg)
         assert (output / "abc.constr").read_text(encoding="utf-8") == f"set_load {expected}\n"
     sdc.write_text("set_drive 0.1 [all_inputs -no_clocks]\n", encoding="utf-8")
     with pytest.raises(ValueError, match="must define set_load"):
-        setup_syn_module.generate_synthesis_scripts(cfg)
+        syn_module.generate_synthesis_scripts(cfg)
 
 
 
@@ -3298,7 +3325,7 @@ def test_canonical_sdc_scaffold_and_parser_share_clock_intent(tmp_path: Path) ->
     path = tmp_path / "run/constraints/demo.sdc"
     init_sdc(path, top="demo", clocks=bootstrap, io_delay_pct=0.2)
     text = path.read_text(encoding="utf-8")
-    assert "create_clock -name core -period 10 -waveform {0 5} [get_ports clk_i]" in text
+    assert "create_clock -name core -period 10 -waveform {0.05 5} [get_ports clk_i]" in text
     assert "set_input_delay -max 2 -clock core" in text
     assert "set_output_delay -max 2 -clock core" in text
     assert "set_drive 0.1" in text
@@ -3306,17 +3333,17 @@ def test_canonical_sdc_scaffold_and_parser_share_clock_intent(tmp_path: Path) ->
     assert "# set_false_path" in text
     assert "# set_multicycle_path" in text
 
-    text = text.replace("-waveform {0 5}", "-waveform {0.3 4.7}")
-    text = text.replace("set_clock_latency -source 0", "set_clock_latency -source 0.15")
-    text = text.replace("set_clock_uncertainty -setup 0", "set_clock_uncertainty -setup 0.1")
-    path.write_text(text, encoding="utf-8")
+    assert "set_clock_latency -source 0.05 [get_clocks core]" in text
+    assert "set_clock_uncertainty -setup 0.025 [get_clocks core]" in text
+    assert "set_clock_uncertainty -hold 0.01 [get_clocks core]" in text
     parsed = read_clock_config(path, bootstrap)
     clock = parsed.domains[0]
     assert clock.period_ns == 10
-    assert clock.rise_ns == 0.3
-    assert clock.fall_ns == 4.7
-    assert clock.source_latency_ns == 0.15
-    assert clock.setup_uncertainty_ns == 0.1
+    assert clock.rise_ns == 0.05
+    assert clock.fall_ns == 5
+    assert clock.source_latency_ns == 0.05
+    assert clock.setup_uncertainty_ns == 0.025
+    assert clock.hold_uncertainty_ns == 0.01
     io = read_io_environment(path)
     assert io.drive == 0.1
     assert io.load == 0.01
@@ -3414,7 +3441,7 @@ def test_setup_signoff_generates_five_families_without_activity_scripts(
     }
     sdc = run / "constraints/demo.sdc"
     assert sdc.is_file()
-    assert "create_clock -name core -period 10 -waveform {0 5} [get_ports clk_i]" in sdc.read_text(encoding="utf-8")
+    assert "create_clock -name core -period 10 -waveform {0.05 5} [get_ports clk_i]" in sdc.read_text(encoding="utf-8")
     sta_template = run / "signoff/sky130/sta/sta.tcl"
     assert str(run / "syn/sky130/demo_synth.v") in sta_template.read_text(encoding="utf-8")
     assert not (run / "syn/sky130/demo_synth.v").exists()
@@ -3577,16 +3604,16 @@ def test_ip_flow_orders_sdc_before_cdc_setup() -> None:
     target._execute_sequence = lambda sequence: tuple(sequence)
 
     generated = target._ip_flow("ip_flow")
-    assert generated.index("lint_suite") < generated.index("sdc")
-    assert generated.index("sdc") < generated.index("setup_cdc_rdc")
-    assert generated.index("setup_cdc_rdc") < generated.index("cdc_rdc")
+    assert generated.index("lint_suite") < generated.index("sdc.setup")
+    assert generated.index("sdc.setup") < generated.index("cdc_rdc.setup")
+    assert generated.index("cdc_rdc.setup") < generated.index("cdc_rdc")
 
     generated_all = target._ip_flow("ip_flow_all")
-    assert generated_all.index("sdc") < generated_all.index("setup_cdc_rdc")
+    assert generated_all.index("sdc.setup") < generated_all.index("cdc_rdc.setup")
 
     loaded = target._ip_flow("ip_flow_noreg")
-    assert "sdc" not in loaded
-    assert loaded.index("lint_suite") < loaded.index("setup_cdc_rdc")
+    assert "sdc.setup" not in loaded
+    assert loaded.index("lint_suite") < loaded.index("cdc_rdc.setup")
 
 
 def test_metrics_read_unified_timing_and_power_reports(tmp_path: Path) -> None:
@@ -4062,9 +4089,9 @@ def test_gate_sim_validates_explicit_driver_provenance(tmp_path: Path, monkeypat
     monkeypatch.setattr(router, "_execute_target", lambda target: 0)
     assert router.execute("sim_post_syn") == 0
     assert seen == ["sim_post_syn"]
-    assert router._setup_stages("sim_post_syn") == ("setup_tb",)
+    assert router._setup_stages("sim_post_syn") == ("tb.setup",)
     router.values["GLS_BACKEND"] = "cocotb"
-    assert router._setup_stages("sim_post_syn") == ("setup_cocotb",)
+    assert router._setup_stages("sim_post_syn") == ("cocotb.setup",)
 
 
 def test_tool_runner_rejects_unknown_execution_target(tmp_path: Path) -> None:
@@ -4388,39 +4415,39 @@ def test_provenance_derives_override_and_parent_lineage_states(tmp_path: Path) -
 
     store = Provenance(run / "meta" / "provenance.json", run)
     store.record(
-        "setup_signoff", inputs=(source,), generated=(parent_generated,), config={"clock": "10"}
+        "signoff.setup", inputs=(source,), generated=(parent_generated,), config={"clock": "10"}
     )
     parent = {
-        "setup_signoff": store.current_fingerprint(
-            "setup_signoff", inputs=(source,), config={"clock": "10"}
+        "signoff.setup": store.current_fingerprint(
+            "signoff.setup", inputs=(source,), config={"clock": "10"}
         )
     }
     store.record(
-        "setup_syn", inputs=(source,), generated=(generated,),
+        "syn.setup", inputs=(source,), generated=(generated,),
         config={"opt": "area"}, parents=parent,
     )
     args = dict(inputs=(source,), config={"opt": "area"}, parents=parent)
-    assert store.generated("setup_syn") == (generated,)
-    assert store.state("setup_syn", **args) == "CLEAN"
+    assert store.generated("syn.setup") == (generated,)
+    assert store.state("syn.setup", **args) == "CLEAN"
 
     generated.write_text("read_verilog demo.sv\nopt_clean\n", encoding="utf-8")
-    assert store.state("setup_syn", **args) == "MODIFIED"
-    assert store.validate("setup_syn", **args) == "VALIDATED_OVERRIDE"
-    assert store.state("setup_syn", **args) == "VALIDATED_OVERRIDE"
+    assert store.state("syn.setup", **args) == "MODIFIED"
+    assert store.validate("syn.setup", **args) == "VALIDATED_OVERRIDE"
+    assert store.state("syn.setup", **args) == "VALIDATED_OVERRIDE"
 
     parent_generated.write_text("create_clock -period 8 clk\n", encoding="utf-8")
     store.record(
-        "setup_signoff", inputs=(source,), generated=(parent_generated,), config={"clock": "8"}
+        "signoff.setup", inputs=(source,), generated=(parent_generated,), config={"clock": "8"}
     )
     current_parent = {
-        "setup_signoff": store.current_fingerprint(
-            "setup_signoff", inputs=(source,), config={"clock": "8"}
+        "signoff.setup": store.current_fingerprint(
+            "signoff.setup", inputs=(source,), config={"clock": "8"}
         )
     }
     stale_args = dict(inputs=(source,), config={"opt": "area"}, parents=current_parent)
-    assert store.state("setup_syn", **stale_args) == "STALE"
-    with pytest.raises(ValueError, match=r"provenance is STALE.*Rerun `fx setup_syn`"):
-        store.validate("setup_syn", **stale_args)
+    assert store.state("syn.setup", **stale_args) == "STALE"
+    with pytest.raises(ValueError, match=r"provenance is STALE.*fx <keyword> --setup"):
+        store.validate("syn.setup", **stale_args)
 
 
 def test_provenance_tracks_generated_symlink_binding_not_its_target(tmp_path: Path) -> None:
@@ -4436,12 +4463,12 @@ def test_provenance_tracks_generated_symlink_binding_not_its_target(tmp_path: Pa
     store = Provenance(run / "meta" / "provenance.json", run)
     args = dict(inputs=(), config={})
 
-    store.record("setup_eqy", generated=(binding,), **args)
-    assert store.generated("setup_eqy") == (binding,)
-    assert store.state("setup_eqy", **args) == "CLEAN"
+    store.record("eqy.setup", generated=(binding,), **args)
+    assert store.generated("eqy.setup") == (binding,)
+    assert store.state("eqy.setup", **args) == "CLEAN"
     binding.unlink()
     assert target.is_file()
-    assert store.state("setup_eqy", **args) == "INVALID"
+    assert store.state("eqy.setup", **args) == "INVALID"
 
 
 def test_router_run_requires_existing_setup_and_setup_force_regenerates(tmp_path: Path) -> None:
@@ -4466,42 +4493,42 @@ def test_router_run_requires_existing_setup_and_setup_force_regenerates(tmp_path
     init_sdc(router.paths.sdc, top="demo", clocks=router.context.clocks)
 
     # Run-only consumer refuses a missing setup.
-    with pytest.raises(RuntimeError, match=r"setup_cdc_rdc provenance is INVALID.*generate the setup first"):
+    with pytest.raises(RuntimeError, match=r"cdc_rdc.setup provenance is INVALID.*generate the setup first"):
         router._require_provenance("cdc_rdc")
 
-    router.execute("setup_cdc_rdc")
-    assert router._provenance_state("setup_cdc_rdc") == "CLEAN"
+    router.execute("cdc_rdc.setup")
+    assert router._provenance_state("cdc_rdc.setup") == "CLEAN"
     script = router.paths.run / "analysis" / "cdc_rdc" / "extract.ys"
     canonical = script.read_text(encoding="utf-8")
 
     # A clean setup is reused, not regenerated.
-    assert router.execute("setup_cdc_rdc")
+    assert router.execute("cdc_rdc.setup")
     assert script.read_text(encoding="utf-8") == canonical
 
     script.write_text(canonical + "# local override\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="generated setup is MODIFIED"):
-        router.execute("setup_cdc_rdc")
-    with pytest.raises(RuntimeError, match="setup_cdc_rdc provenance is MODIFIED"):
+        router.execute("cdc_rdc.setup")
+    with pytest.raises(RuntimeError, match="cdc_rdc.setup provenance is MODIFIED"):
         router._require_provenance("cdc_rdc")
 
-    router.values["STAGE"] = "setup_cdc_rdc"
+    router.values["STAGE"] = "cdc_rdc"
     assert router._validate_override() == "VALIDATED_OVERRIDE"
     router._require_provenance("cdc_rdc")
-    router.execute("setup_cdc_rdc")
+    router.execute("cdc_rdc.setup")
     assert "local override" in script.read_text(encoding="utf-8")
 
     # Explicit --force is the only setup regeneration path.
     router.values["FORCE"] = "1"
-    router.execute("setup_cdc_rdc")
-    assert router._provenance_state("setup_cdc_rdc") == "CLEAN"
+    router.execute("cdc_rdc.setup")
+    assert router._provenance_state("cdc_rdc.setup") == "CLEAN"
     assert "local override" not in script.read_text(encoding="utf-8")
 
     router.values["FORCE"] = "0"
     source.write_text("module demo(input clk, input rst_n); endmodule\n", encoding="utf-8")
-    with pytest.raises(RuntimeError, match=r"setup_cdc_rdc provenance is STALE.*--force"):
+    with pytest.raises(RuntimeError, match=r"cdc_rdc.setup provenance is STALE.*--force"):
         router._require_provenance("cdc_rdc")
     with pytest.raises(RuntimeError, match=r"generated setup is STALE.*--force"):
-        router.execute("setup_cdc_rdc")
+        router.execute("cdc_rdc.setup")
 
 def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tmp_path: Path) -> None:
     project = tmp_path / "project"
@@ -4524,7 +4551,7 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
         "PDK_ROOT": "/pdk/sky130",
     }
     sky = api_module.FlexSoCTarget(client, sky_values)
-    sky._write_settings_evidence("setup_syn")
+    sky._write_settings_evidence("syn.setup")
 
     ihp_values = {
         **sky_values,
@@ -4532,7 +4559,7 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
         "PDK_ROOT": "/pdk/ihp-sg13g2",
     }
     ihp = api_module.FlexSoCTarget(client, ihp_values)
-    ihp._write_settings_evidence("setup_syn")
+    ihp._write_settings_evidence("syn.setup")
 
     run = work / "runs" / "demo" / "dev"
     intent = json.loads((run / "meta" / "design_intent.json").read_text(encoding="utf-8"))
@@ -4565,7 +4592,7 @@ def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path)
     router.paths.rtl_common.write_text("", encoding="utf-8")
     router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
 
-    router.execute("setup_cdc_rdc")
+    router.execute("cdc_rdc.setup")
     router._report("metrics")
     snapshot = router.paths.metrics.read_bytes()
     metrics = json.loads(snapshot)
@@ -4580,7 +4607,7 @@ def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path)
     router._report("metrics")
     metrics = json.loads(router.paths.metrics.read_text(encoding="utf-8"))
     assert metrics["provenance"]["status"] == "MODIFIED"
-    assert metrics["provenance"]["stages"]["setup_cdc_rdc"] == "MODIFIED"
+    assert metrics["provenance"]["stages"]["cdc_rdc.setup"] == "MODIFIED"
 
 
 def test_formal_run_uses_existing_config_without_regeneration(
@@ -4592,7 +4619,7 @@ def test_formal_run_uses_existing_config_without_regeneration(
     project.mkdir()
     client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
     values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
-    router = api_module.FlexSoCTarget(client, values, auto_setup=False)
+    router = api_module.FlexSoCTarget(client, values)
     config = router._formal_config(csr=False, mode="prove")
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("[options]\nmode prove\n", encoding="utf-8")

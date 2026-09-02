@@ -491,13 +491,13 @@ Sono gate separati per scelta architetturale.
 
 ## 7. CDC/RDC: analisi strutturale clock/reset-domain
 
-Nel lifecycle eseguibile questo stage gira **dopo il lint e dopo la creazione dell'SDC authored `constraints/<TOP>.sdc`**: `lint_suite → sdc → setup_cdc_rdc → cdc_rdc`. La sezione 10 descrive il contratto timing più avanti per raggruppamento concettuale.
+Nel lifecycle eseguibile questo stage gira **dopo il lint e dopo la creazione dell'SDC authored `constraints/<TOP>.sdc`**: `lint_suite → sdc --setup → cdc_rdc --setup → cdc_rdc`. La sezione 10 descrive il contratto timing più avanti per raggruppamento concettuale.
 
 FlexSoC implementa un pass CDC/RDC strutturale e technology-neutral, invece di affidarsi a semplici pattern testuali.
 
 ### 7.1 Stage di estrazione
 
-`setup_cdc_rdc` crea una vista JSON Yosys flattened usando il frontend Slang/Yosys:
+`cdc_rdc --setup` crea una vista JSON Yosys flattened usando il frontend Slang/Yosys:
 
 ```text
 leggi RTL ordinato
@@ -893,7 +893,7 @@ FlexSoC mantiene l'intento timing in un solo file di proprietà del designer: `c
 ```text
 settings bootstrap clock/reset
         ↓
-fx sdc
+fx sdc --setup
         ↓
 constraints/<TOP>.sdc
         │
@@ -913,7 +913,7 @@ Un nuovo progetto parte da `N_CLOCKS`, `CLOCK_DOMAINS` e `CLOCK_RELATIONSHIPS`, 
 Dopo che RTL e lint sono strutturalmente puliti:
 
 ```bash
-fx sdc --force
+fx sdc --setup --force
 ```
 
 Da quel momento periodo/waveform, generated clock, latency, uncertainty, transition, clock groups, I/O timing, drive/load ed eccezioni timing sono authored in `constraints/<TOP>.sdc`. Ownership e polarità dei reset restano fuori dall'SDC perché il normale SDC non le descrive.
@@ -2660,28 +2660,27 @@ fx flist --force
 
 # Chiusura strutturale e intento timing authored
 fx lint_suite
-fx sdc --force
+fx sdc --setup --force
 # review/edit constraints/<TOP>.sdc
 
 # Verifica pre-synthesis
-fx setup_cdc_rdc --force
+fx cdc_rdc --setup --force
 fx cdc_rdc
-fx setup_formal --force
-fx setup_formal_csr_prove setup_formal_csr_cover setup_formal_prove setup_formal_cover --force
+fx formal --setup --force
 fx formal
 fx tests_gen --force
-fx setup_tb setup_cocotb --force
+fx tb cocotb --setup --force
 fx regression
 fx coverage_detail
 
 # Technology mapping e proof logica
-fx setup_syn
+fx syn --setup
 fx syn
-fx setup_eqy
+fx eqy --setup
 fx eqy
 
 # Sign-off pre-implementation / gate verification
-fx setup_signoff
+fx signoff --setup
 fx sta
 fx sdf
 fx power_estimate
@@ -2693,7 +2692,7 @@ fx fusion_analysis_all
 fx pnr --set ORS=/path/to/OpenROAD-flow-scripts/flow
 
 # Routed sign-off
-fx setup_signoff_post_pnr --force
+fx signoff_post_pnr --setup --force
 fx sta_post_pnr
 fx sdf_post_pnr
 fx power_estimate_post_pnr

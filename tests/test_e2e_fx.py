@@ -440,41 +440,18 @@ def _assert_tb_scaffolds_recreated(
     assert not missing, f"incomplete regenerated {top} testbench scaffold: {missing}"
 
 
-def _configure_nonideal_single_clock_sdc(path: Path) -> None:
-    """Give the single-clock E2E deterministic phase, duty and uncertainty."""
-
-    text = path.read_text(encoding="utf-8")
-    text = text.replace("-waveform {0 5}", "-waveform {0.3 4.7}", 1)
-    text = text.replace(
-        "set_clock_latency -source 0 [get_clocks core]",
-        "set_clock_latency -source 0.15 [get_clocks core]",
-        1,
-    )
-    text = text.replace(
-        "set_clock_uncertainty -setup 0 [get_clocks core]",
-        "set_clock_uncertainty -setup 0.10 [get_clocks core]",
-        1,
-    )
-    text = text.replace(
-        "set_clock_uncertainty -hold 0 [get_clocks core]",
-        "set_clock_uncertainty -hold 0.05 [get_clocks core]",
-        1,
-    )
-    path.write_text(text, encoding="utf-8")
-
-
 def _assert_functional_clock_driver(run: Path, top: str) -> None:
     """Require SV/cocotb parity for SDC phase, duty and seeded jitter."""
 
     sv = (run / "dv" / "functional" / "tb" / "sv" / f"{top}_tb.sv").read_text(encoding="utf-8")
     py = (run / "dv" / "functional" / "tb" / "cocotb" / f"{top}_tb.py").read_text(encoding="utf-8")
-    for delay in ("0.45", "4.4"):
+    for delay in ("0.1", "4.95"):
         assert f"#{delay};" in sv
         assert f'Timer({delay}, unit="ns")' in py
-    assert "jitter_next_ps = (jitter_state % 201) - 100;" in sv
-    assert "low_delay_ns = (5600 + jitter_next_ps - jitter_prev_ps) / 1000.0;" in sv
-    assert "jitter_next_ps = int(jitter_state % 201) - 100" in py
-    assert "low_delay_ps = 5600 + jitter_next_ps - jitter_prev_ps" in py
+    assert "jitter_next_ps = (jitter_state % 51) - 25;" in sv
+    assert "low_delay_ns = (5050 + jitter_next_ps - jitter_prev_ps) / 1000.0;" in sv
+    assert "jitter_next_ps = int(jitter_state % 51) - 25" in py
+    assert "low_delay_ps = 5050 + jitter_next_ps - jitter_prev_ps" in py
     assert "FLEXSOC_SEED" in sv
     assert "FLEXSOC_SEED" in py
     assert "cocotb.start_soon(_flexsoc_clock(dut.clk_i))" in py
@@ -700,7 +677,11 @@ def _run_post_pnr_signoff(
 ) -> None:
     """Run routed STA/SDF/power and optional timing-aware GLS."""
 
-    for target in ("setup_signoff_post_pnr", "sdf_post_pnr", "sta_post_pnr"):
+    _run(
+        f"uv run --no-sync fx signoff_post_pnr --setup --workdir {workdir}",
+        workspace=workspace, top=top, run_id=run_id,
+    )
+    for target in ("sdf_post_pnr", "sta_post_pnr"):
         _run(
             f"uv run --no-sync fx {target} --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
@@ -764,7 +745,7 @@ def _run_implementation(
         )
     ors = shlex.quote(f"ORS={config.ors}")
     _run(
-        f"uv run --no-sync fx setup_pnr --set {ors} --workdir {workdir}",
+        f"uv run --no-sync fx pnr --setup --set {ors} --workdir {workdir}",
         workspace=workspace, top=top, run_id=run_id,
     )
     impl = run / "impl" / pdk
@@ -1101,12 +1082,11 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"uv run --no-sync fx sdc --force --workdir {workdir}",
+            f"uv run --no-sync fx sdc --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
-        _configure_nonideal_single_clock_sdc(run / "constraints" / f"{top}.sdc")
         _run(
-            f"uv run --no-sync fx setup_cdc_rdc --force --workdir {workdir}",
+            f"uv run --no-sync fx cdc_rdc --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
@@ -1115,7 +1095,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
         )
         _assert_cdc_rdc_outputs(top, run)
         _run(
-            f"uv run --no-sync fx setup_model --force --workdir {workdir}",
+            f"uv run --no-sync fx model --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
@@ -1127,11 +1107,11 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+            f"uv run --no-sync fx tb --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+            f"uv run --no-sync fx cocotb --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _assert_reset_driver_parity(run, top, multiclock=False)
@@ -1167,18 +1147,10 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
 
         if config.run_signoff:
             _run(
-                f"uv run --no-sync fx setup_formal --workdir {workdir}",
+                f"uv run --no-sync fx formal --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_design_formal_sources(top, run)
-            _run(
-                f"uv run --no-sync fx setup_formal_csr_prove --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"uv run --no-sync fx setup_formal_prove --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
             _run(
                 f"uv run --no-sync fx formal_csr_bmc --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
@@ -1193,14 +1165,6 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             )
             _run(
                 f"uv run --no-sync fx formal_prove --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"uv run --no-sync fx setup_formal_csr_cover --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"uv run --no-sync fx setup_formal_cover --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1226,15 +1190,15 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                f"uv run --no-sync fx tb --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                f"uv run --no-sync fx cocotb --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_syn --workdir {workdir}",
+                f"uv run --no-sync fx syn --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1242,7 +1206,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                f"uv run --no-sync fx eqy --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1250,7 +1214,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id, required=False,
             )
             _run(
-                f"uv run --no-sync fx setup_signoff --workdir {workdir}",
+                f"uv run --no-sync fx signoff --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1380,15 +1344,15 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                f"uv run --no-sync fx tb --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                f"uv run --no-sync fx cocotb --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_syn --workdir {workdir}",
+                f"uv run --no-sync fx syn --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1396,7 +1360,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                f"uv run --no-sync fx eqy --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1404,7 +1368,7 @@ def test_fx_single_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id, required=False,
             )
             _run(
-                f"uv run --no-sync fx setup_signoff --workdir {workdir}",
+                f"uv run --no-sync fx signoff --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1592,11 +1556,11 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"uv run --no-sync fx sdc --force --workdir {workdir}",
+            f"uv run --no-sync fx sdc --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"uv run --no-sync fx setup_cdc_rdc --force --workdir {workdir}",
+            f"uv run --no-sync fx cdc_rdc --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
@@ -1605,7 +1569,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
         )
         _assert_cdc_rdc_outputs(top, run)
         _run(
-            f"uv run --no-sync fx setup_model --force --workdir {workdir}",
+            f"uv run --no-sync fx model --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
@@ -1617,11 +1581,11 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+            f"uv run --no-sync fx tb --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
-            f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+            f"uv run --no-sync fx cocotb --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _assert_reset_driver_parity(run, top, multiclock=True)
@@ -1664,18 +1628,10 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
 
         if config.run_signoff:
             _run(
-                f"uv run --no-sync fx setup_formal --workdir {workdir}",
+                f"uv run --no-sync fx formal --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_design_formal_sources(top, run)
-            _run(
-                f"uv run --no-sync fx setup_formal_csr_prove --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"uv run --no-sync fx setup_formal_prove --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
             _run(
                 f"uv run --no-sync fx formal_csr_bmc --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
@@ -1690,14 +1646,6 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
             )
             _run(
                 f"uv run --no-sync fx formal_prove --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"uv run --no-sync fx setup_formal_csr_cover --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
-            _run(
-                f"uv run --no-sync fx setup_formal_cover --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1723,15 +1671,15 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                f"uv run --no-sync fx tb --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                f"uv run --no-sync fx cocotb --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_syn --workdir {workdir}",
+                f"uv run --no-sync fx syn --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1739,7 +1687,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                f"uv run --no-sync fx eqy --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1747,7 +1695,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id, required=False,
             )
             _run(
-                f"uv run --no-sync fx setup_signoff --workdir {workdir}",
+                f"uv run --no-sync fx signoff --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1913,15 +1861,15 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_tb --workdir {workdir}",
+                f"uv run --no-sync fx tb --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_cocotb --workdir {workdir}",
+                f"uv run --no-sync fx cocotb --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_syn --workdir {workdir}",
+                f"uv run --no-sync fx syn --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1929,7 +1877,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_eqy --workdir {workdir}",
+                f"uv run --no-sync fx eqy --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -1937,7 +1885,7 @@ def test_fx_multi_clock_flow_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id, required=False,
             )
             _run(
-                f"uv run --no-sync fx setup_signoff --workdir {workdir}",
+                f"uv run --no-sync fx signoff --setup --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -2154,11 +2102,11 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx sdc --force --workdir {workdir}",
+                f"uv run --no-sync fx sdc --setup --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_cdc_rdc --force --workdir {workdir}",
+                f"uv run --no-sync fx cdc_rdc --setup --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -2177,11 +2125,11 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
             )
             stale_tb_markers = _seed_stale_tb_scaffold(run)
             _run(
-                f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+                f"uv run --no-sync fx tb --setup --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+                f"uv run --no-sync fx cocotb --setup --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_tb_scaffolds_recreated(stale_tb_markers, run, top)
@@ -2224,11 +2172,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
             if config.run_signoff:
                 _assert_design_formal_sources(top, run)
                 _run(
-                    f"uv run --no-sync fx setup_formal_csr_prove --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx setup_formal_prove --force --workdir {workdir}",
+                    f"uv run --no-sync fx formal --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2245,14 +2189,6 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"uv run --no-sync fx formal_prove --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx setup_formal_csr_cover --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx setup_formal_cover --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2278,15 +2214,15 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+                    f"uv run --no-sync fx tb --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+                    f"uv run --no-sync fx cocotb --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_syn --force --workdir {workdir}",
+                    f"uv run --no-sync fx syn --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2294,7 +2230,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+                    f"uv run --no-sync fx eqy --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2302,7 +2238,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_signoff --force --workdir {workdir}",
+                    f"uv run --no-sync fx signoff --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2486,15 +2422,15 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+                    f"uv run --no-sync fx tb --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+                    f"uv run --no-sync fx cocotb --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_syn --force --workdir {workdir}",
+                    f"uv run --no-sync fx syn --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2502,7 +2438,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+                    f"uv run --no-sync fx eqy --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2510,7 +2446,7 @@ def test_fx_cordic_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_signoff --force --workdir {workdir}",
+                    f"uv run --no-sync fx signoff --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2746,11 +2682,11 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx sdc --force --workdir {workdir}",
+                f"uv run --no-sync fx sdc --setup --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_cdc_rdc --force --workdir {workdir}",
+                f"uv run --no-sync fx cdc_rdc --setup --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
@@ -2769,11 +2705,11 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
             )
             stale_tb_markers = _seed_stale_tb_scaffold(run)
             _run(
-                f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+                f"uv run --no-sync fx tb --setup --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _run(
-                f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+                f"uv run --no-sync fx cocotb --setup --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
             _assert_tb_scaffolds_recreated(stale_tb_markers, run, top)
@@ -2816,11 +2752,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
             if config.run_signoff:
                 _assert_design_formal_sources(top, run)
                 _run(
-                    f"uv run --no-sync fx setup_formal_csr_prove --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx setup_formal_prove --force --workdir {workdir}",
+                    f"uv run --no-sync fx formal --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2837,14 +2769,6 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                 )
                 _run(
                     f"uv run --no-sync fx formal_prove --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx setup_formal_csr_cover --force --workdir {workdir}",
-                    workspace=workspace, top=top, run_id=run_id,
-                )
-                _run(
-                    f"uv run --no-sync fx setup_formal_cover --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2870,15 +2794,15 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+                    f"uv run --no-sync fx tb --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+                    f"uv run --no-sync fx cocotb --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_syn --force --workdir {workdir}",
+                    f"uv run --no-sync fx syn --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2886,7 +2810,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+                    f"uv run --no-sync fx eqy --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -2894,7 +2818,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_signoff --force --workdir {workdir}",
+                    f"uv run --no-sync fx signoff --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -3078,15 +3002,15 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_tb --force --workdir {workdir}",
+                    f"uv run --no-sync fx tb --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_cocotb --force --workdir {workdir}",
+                    f"uv run --no-sync fx cocotb --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_syn --force --workdir {workdir}",
+                    f"uv run --no-sync fx syn --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -3094,7 +3018,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+                    f"uv run --no-sync fx eqy --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -3102,7 +3026,7 @@ def test_fx_uart_ip_load_debug(request: pytest.FixtureRequest) -> None:
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
-                    f"uv run --no-sync fx setup_signoff --force --workdir {workdir}",
+                    f"uv run --no-sync fx signoff --setup --force --workdir {workdir}",
                     workspace=workspace, top=top, run_id=run_id,
                 )
                 _run(
@@ -3299,8 +3223,8 @@ def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
             f"uv run --no-sync fx rtl_stub --force --workdir {workdir}",
             f"uv run --no-sync fx top_from_core --force --workdir {workdir}",
             f"uv run --no-sync fx flist --force --workdir {workdir}",
-            f"uv run --no-sync fx sdc --force --workdir {workdir}",
-            f"uv run --no-sync fx setup_model --force --workdir {workdir}",
+            f"uv run --no-sync fx sdc --setup --force --workdir {workdir}",
+            f"uv run --no-sync fx model --setup --force --workdir {workdir}",
             f"uv run --no-sync fx tests_gen --workdir {workdir}",
             f"uv run --no-sync fx pdk use sky130 --workdir {workdir}",
         ):
@@ -3308,30 +3232,30 @@ def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
 
         cases = (
             (
-                "setup_tb",
+                "tb.setup", "tb",
                 run / "dv/functional/tb/sv" / f"{top}_tb.sv",
                 f"uv run --no-sync fx compile --set TEST_NAME=smoke --workdir {workdir}",
                 True,
             ),
             (
-                "setup_cocotb",
+                "cocotb.setup", "cocotb",
                 run / "dv/functional/tb/cocotb" / f"{top}_tb.py",
                 f"uv run --no-sync fx cocotb --set TEST_NAME=smoke --workdir {workdir}",
                 True,
             ),
             (
-                "setup_cdc_rdc",
+                "cdc_rdc.setup", "cdc_rdc",
                 run / "analysis/cdc_rdc/extract.ys",
                 f"uv run --no-sync fx cdc_rdc --workdir {workdir}",
                 True,
             ),
         )
-        for setup, _, _, _ in cases:
+        for _, keyword, _, _, _ in cases:
             _run(
-                f"uv run --no-sync fx {setup} --force --workdir {workdir}",
+                f"uv run --no-sync fx {keyword} --setup --force --workdir {workdir}",
                 workspace=workspace, top=top, run_id=run_id,
             )
-        for stage, artifact, command, required in cases:
+        for stage, _, artifact, command, required in cases:
             _exercise_stage_override(
                 workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
                 stage=stage, artifact=artifact, command=command, required=required,
@@ -3341,70 +3265,66 @@ def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
             return
 
         _run(
-            f"uv run --no-sync fx setup_formal --force --workdir {workdir}",
+            f"uv run --no-sync fx formal --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         formal_cases = (
             (
-                "setup_formal_csr_prove",
+                "formal.csr_prove.setup",
                 run / "dv/formal/runs/csr/prove" / f"{top}_csr_prove.sby",
                 f"uv run --no-sync fx formal_csr_bmc --workdir {workdir}",
             ),
             (
-                "setup_formal_prove",
+                "formal.prove.setup",
                 run / "dv/formal/runs/properties/prove" / f"{top}_prove.sby",
                 f"uv run --no-sync fx formal_bmc --workdir {workdir}",
             ),
             (
-                "setup_formal_csr_cover",
+                "formal.csr_cover.setup",
                 run / "dv/formal/runs/csr/cover" / f"{top}_csr_cover.sby",
                 f"uv run --no-sync fx formal_csr_cover --workdir {workdir}",
             ),
             (
-                "setup_formal_cover",
+                "formal.cover.setup",
                 run / "dv/formal/runs/properties/cover" / f"{top}_cover.sby",
                 f"uv run --no-sync fx formal_cover --workdir {workdir}",
             ),
         )
         for stage, artifact, command in formal_cases:
-            _run(
-                f"uv run --no-sync fx {stage} --workdir {workdir}",
-                workspace=workspace, top=top, run_id=run_id,
-            )
             _exercise_stage_override(
                 workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
                 stage=stage, artifact=artifact, command=command,
             )
 
         _run(
-            f"uv run --no-sync fx setup_syn --force --workdir {workdir}",
+            f"uv run --no-sync fx syn --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _exercise_stage_override(
             workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_syn", artifact=run / "syn/sky130/synth_sv.ys",
+            stage="syn.setup", artifact=run / "syn/sky130/synth_sv.ys",
             command=f"uv run --no-sync fx syn --workdir {workdir}",
         )
 
         _run(
-            f"uv run --no-sync fx setup_eqy --force --workdir {workdir}",
+            f"uv run --no-sync fx eqy --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _exercise_stage_override(
             workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_eqy",
+            stage="eqy.setup",
             artifact=run / "signoff/sky130/equivalence/rtl_vs_syn" / f"{top}_rtl_vs_syn.eqy",
             command=f"uv run --no-sync fx eqy --workdir {workdir}",
             required=False,
         )
 
         _run(
-            f"uv run --no-sync fx setup_signoff --force --workdir {workdir}",
+            f"uv run --no-sync fx signoff --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _exercise_stage_override(
             workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_signoff", artifact=run / "signoff/sky130/sta/sta.tcl",
+            stage="signoff.setup", artifact=run / "signoff/sky130/sta/sta.tcl",
             command=f"uv run --no-sync fx sdf --workdir {workdir}",
         )
 
@@ -3413,21 +3333,21 @@ def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
         assert config.ors is not None
         ors = shlex.quote(f"ORS={config.ors}")
         _run(
-            f"uv run --no-sync fx setup_pnr --force --set {ors} --workdir {workdir}",
+            f"uv run --no-sync fx pnr --setup --force --set {ors} --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _exercise_stage_override(
             workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_pnr", artifact=run / "impl/sky130/config.mk",
+            stage="pnr.setup", artifact=run / "impl/sky130/config.mk",
             command=f"uv run --no-sync fx pnr --set {ors} --workdir {workdir}",
         )
         _run(
-            f"uv run --no-sync fx setup_signoff_post_pnr --force --workdir {workdir}",
+            f"uv run --no-sync fx signoff_post_pnr --setup --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _exercise_stage_override(
             workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
-            stage="setup_signoff_post_pnr",
+            stage="signoff_post_pnr.setup",
             artifact=run / "signoff/sky130/post_pnr/sdf/write_sdf.tcl",
             command=f"uv run --no-sync fx sdf_post_pnr --workdir {workdir}",
         )

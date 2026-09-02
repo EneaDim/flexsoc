@@ -2490,7 +2490,7 @@ def _generate_testbench_files(
     simple_mode = uses_simple_testbench(config)
     written: list[Path] = []
     hjson_path = _candidate_hjson_path(config.rtldir, config.top)
-    # setup_model owns config.regs/data_in.vec/data_out.vec generation.
+    # Model setup owns config.regs/data_in.vec/data_out.vec generation.
     primary_reset = (sig.get("rsts") or ["rst_ni"])[0]
     reset_domain = next(
         (domain for domain in clocks.domains if domain.reset == primary_reset),
