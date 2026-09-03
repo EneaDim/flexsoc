@@ -4,8 +4,9 @@
 
 # ⚡ FlexSoC
 
-FlexSoC is an open-source orchestration framework for developing digital ASIC IP
-and SoCs through one command-line interface: `fx`.
+FlexSoC is an open-source orchestration framework for **digital IP contracts**:
+the synchronized design intent, generated views, qualification evidence, and provenance
+required to release digital ASIC IP and SoCs through one Python API and CLI (`fx`).
 
 Its purpose is not to hide the EDA tools. Its purpose is to keep design intent,
 generated collateral, verification environments, constraints, implementation

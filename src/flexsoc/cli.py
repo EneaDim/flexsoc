@@ -1417,13 +1417,6 @@ Use `fx commands` to list every backend target.
             bool,
             typer.Option("--setup", help="Run the setup phase for the selected lifecycle keyword.", rich_help_panel="Target options"),
         ] = False,
-        no_setup: Annotated[
-            bool,
-            typer.Option(
-                        help="Deprecated compatibility no-op; requested targets are run-only by default.",
-                rich_help_panel="Target options",
-            ),
-        ] = False,
         on: Annotated[
             str,
             typer.Option("--on", help="Execution target name (local or configured server).", rich_help_panel="Target options"),

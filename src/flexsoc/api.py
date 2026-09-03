@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -286,6 +287,7 @@ TARGETS: dict[str, TargetSpec] = {
     "manifest": ("Run metadata", "Collect automatic run identity into meta/manifest.json", COMMON),
     "manifest_show": ("Run metadata", "Show the current run manifest in color", COMMON),
     "check": ("Run metadata", "Show saved metrics as the complete technical closure dashboard", COMMON),
+    "status": ("Run metadata", "Show live Digital IP Contract and release qualification status", COMMON),
     "validate_override": (
         "Run metadata", "Accept modified generated collateral for the current lineage", PROVENANCE
     ),
@@ -639,13 +641,15 @@ GLS_PROVENANCE_TARGETS = {
 
 @dataclass(frozen=True, slots=True)
 class StageContract:
-    """Semantic inputs that define one provenance-bearing lifecycle stage."""
+    """Semantic configuration, lineage, and evidence for one lifecycle stage."""
 
-    config: tuple[str, ...]
+    config: tuple[str, ...] = ()
     parents: tuple[str, ...] = ()
+    evidence: tuple[str, ...] = ()
 
 
 STAGE_CONTRACTS = {
+    # Generated setup collateral.
     "tb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
     "cocotb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
     "cdc_rdc.setup": StageContract((*CLOCKS, "TOP", "CLK_PERIOD")),
@@ -677,14 +681,64 @@ STAGE_CONTRACTS = {
         ("pnr.setup",),
     ),
     "pnr.setup": StageContract((*CLOCKS, "TOP", "PDK", "ORS_TECH"), ("syn.setup", "signoff.setup")),
+
+    # Runtime qualification evidence. Paths are run-relative and may use {pdk}/{top}.
+    "lint_slang_suite": StageContract(("TOP",), evidence=("logs/lint/{top}_lint_slang_all.log",)),
+    "lint_verilator_suite": StageContract(("TOP",), evidence=("logs/lint/{top}_lint_verilator_all.log",)),
+    "cdc_rdc": StageContract((*CLOCKS, "TOP", "CDC_RDC_STRICT"), ("cdc_rdc.setup",), ("analysis/cdc_rdc/summary.json", "analysis/cdc_rdc/cdc_rdc.rpt")),
+    "regression": StageContract(
+        (*CLOCKS, "TOP", "COMPILER", "REGRESSION_BACKENDS", "SEED"),
+        ("tb.setup", "cocotb.setup"),
+        ("logs/dv/functional/regression", "dv/functional/coverage"),
+    ),
+    "formal_csr_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.csr_prove.setup",), ("logs/dv/formal/csr/{top}_bmc.log",)),
+    "formal_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.prove.setup",), ("logs/dv/formal/properties/{top}_bmc.log",)),
+    "formal_csr_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.csr_prove.setup", "formal_csr_bmc"), ("logs/dv/formal/csr/{top}_prove.log",)),
+    "formal_prove": StageContract(("TOP", "FORMAL_PROVE_ENGINE"), ("formal.prove.setup", "formal_bmc"), ("logs/dv/formal/properties/{top}_prove.log",)),
+    "formal_csr_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.csr_cover.setup",), ("logs/dv/formal/csr/{top}_cover.log",)),
+    "formal_cover": StageContract(("TOP", "FORMAL_COVER_ENGINE"), ("formal.cover.setup",), ("logs/dv/formal/properties/{top}_cover.log",)),
+    "syn": StageContract(("TOP", "PDK", "TARGET_SYN", "TARGET_OPT"), ("syn.setup",), ("syn/{pdk}/{top}_synth.v", "syn/{pdk}/{top}_synth.json")),
+    "eqy": StageContract(("TOP", "PDK", "EQY_STRATEGY_ORDER"), ("eqy.setup", "syn"), ("signoff/{pdk}/equivalence",)),
+    "sdf": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sdf",)),
+    "sta": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/sta/sta.json",)),
+    "power_estimate": StageContract(("TOP", "PDK"), ("signoff.setup", "syn"), ("signoff/{pdk}/power/estimate",)),
+    "sim_post_syn_all": StageContract(
+        ("TOP", "PDK", "GLS_BACKEND", "TIMING_MODES", "TEST_NAMES", "SDF_STRICT"),
+        ("tb.setup", "syn", "sdf"),
+        ("dv/functional/sim/post_syn/{pdk}/summary_sv.json",),
+    ),
+    "pnr": StageContract(("TOP", "PDK", "ORS", "ORS_TECH"), ("pnr.setup", "syn"), ("impl/{pdk}",)),
+    "physical_signoff": StageContract(("TOP", "PDK", "ORS", "ORS_TECH"), ("pnr",), ("signoff/{pdk}/post_pnr/physical/summary.json",)),
+    "sdf_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/sdf",)),
+    "sta_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/sta/sta.json",)),
+    "power_estimate_post_pnr": StageContract(("TOP", "PDK"), ("signoff_post_pnr.setup", "pnr"), ("signoff/{pdk}/post_pnr/power/estimate",)),
+    "sim_post_pnr_all": StageContract(
+        ("TOP", "PDK", "GLS_BACKEND", "TIMING_MODES", "TEST_NAMES", "SDF_STRICT"),
+        ("tb.setup", "pnr", "sdf_post_pnr"),
+        ("dv/functional/sim/post_pnr/{pdk}/summary_sv.json",),
+    ),
 }
-PROVENANCE_SETUPS = frozenset(STAGE_CONTRACTS)
+PROVENANCE_SETUPS = frozenset(stage for stage in STAGE_CONTRACTS if stage.endswith(".setup"))
+RUNTIME_STAGES = frozenset(STAGE_CONTRACTS) - PROVENANCE_SETUPS
+
+RELEASE_LEVELS = (
+    ("Contract Valid", ()),
+    ("RTL Qualified", (
+        "lint_slang_suite", "lint_verilator_suite", "cdc_rdc", "regression",
+        "formal_csr_bmc", "formal_bmc", "formal_csr_prove", "formal_prove",
+        "formal_csr_cover", "formal_cover",
+    )),
+    ("Netlist Qualified", ("syn", "eqy", "sim_post_syn_all")),
+    ("Technology Qualified", ("sdf", "sta", "power_estimate", "sim_post_syn_all")),
+    ("Physical Qualified", (
+        "pnr", "physical_signoff", "sdf_post_pnr", "sta_post_pnr",
+        "power_estimate_post_pnr", "sim_post_pnr_all",
+    )),
+)
 
 
 DESIGN_INTENT_KEYS = (
-    "TOP", "RUN_TOP", "RUN_ID",
-    "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS",
-    "REG_ITF", "TARGET_SYN", "TARGET_OPT",
+    "TOP", "N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS", "REG_ITF",
 )
 
 SETTINGS_EVIDENCE_KEYS = tuple(sorted({
@@ -922,22 +976,52 @@ class FlexSoCTarget:
         temp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         temp.replace(path)
 
-    def _write_settings_evidence(self, target: str) -> None:
-        """Snapshot common design intent and PDK-scoped effective settings."""
+    def _design_intent_sources(self) -> tuple[Path, ...]:
+        """Return canonical authored sources; generated views are excluded."""
 
-        intent = {
-            key: self.values.get(key, "")
-            for key in DESIGN_INTENT_KEYS
-            if key in self.values
-        }
+        p, top = self.paths, self.paths.top
+        generated_model = {f"{top}_regmap.py", f"{top}_regmap_tests.py"}
+        sources = [p.data / f"{top}.hjson", p.sdc]
+        for path in sorted(p.rtl.glob("*.sv")):
+            header = path.read_text(encoding="utf-8", errors="replace")[:512].lower()
+            if "auto-generated by flexsoc.backend.design.rtl" not in header and "auto-generated by `reggen`" not in header:
+                sources.append(path)
+        sources += sorted(path for path in p.model.glob("*.py") if path.name not in generated_model)
+        sources += sorted((p.formal / "properties").rglob("*.sv"))
+        return tuple(dict.fromkeys(sources))
+
+    def _design_intent_snapshot(self) -> tuple[dict[str, str | None], ...]:
+        snapshot = []
+        for path in self._design_intent_sources():
+            digest = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+            snapshot.append({"path": path.relative_to(self.paths.run).as_posix(), "sha256": digest})
+        return tuple(snapshot)
+
+    def _design_intent(self) -> tuple[dict[str, str], tuple[dict[str, str | None], ...], str]:
+        """Return canonical authored intent, source snapshot, and aggregate hash."""
+
+        intent = {key: self.values.get(key, "") for key in DESIGN_INTENT_KEYS if key in self.values}
+        sources = self._design_intent_snapshot()
+        digest = hashlib.sha256(json.dumps(
+            {"design_intent": intent, "sources": sources},
+            sort_keys=True, separators=(",", ":"),
+        ).encode()).hexdigest()
+        return intent, sources, digest
+
+    def _write_settings_evidence(self, target: str) -> None:
+        """Snapshot authored IP intent separately from run/PDK execution state."""
+
+        intent, sources, intent_sha256 = self._design_intent()
         self._write_json_atomic(
             self.paths.run / "meta" / "design_intent.json",
             {
-                "schema": 1,
+                "schema": 2,
                 "top": self.paths.top,
                 "run_top": self.paths.run_top,
                 "run_id": self.paths.run_id,
+                "ip_intent_sha256": intent_sha256,
                 "design_intent": intent,
+                "sources": sources,
             },
         )
         if target not in TECHNOLOGY_TARGETS:
@@ -956,6 +1040,7 @@ class FlexSoCTarget:
                 "run_top": self.paths.run_top,
                 "run_id": self.paths.run_id,
                 "persistent": dict(sorted(self.client.settings.items())),
+                "ip_intent_sha256": intent_sha256,
                 "design_intent": intent,
                 "effective": effective,
             },
@@ -969,7 +1054,7 @@ class FlexSoCTarget:
         return Provenance(self.paths.meta / "provenance.json", self.paths.run)
 
     def _provenance_config(self, stage: str) -> dict[str, str]:
-        """Select only semantic setup values; artifact paths are hashed as inputs."""
+        """Select only semantic values for one contract stage."""
 
         return {key: self.values.get(key, "") for key in STAGE_CONTRACTS[stage].config}
 
@@ -987,6 +1072,42 @@ class FlexSoCTarget:
 
         p = self.paths
         rtl = (p.rtl_common, p.rtl_ip, *self._rtl_sources())
+        if stage in RUNTIME_STAGES:
+            if stage.startswith("lint_"):
+                inputs = rtl
+            elif stage == "cdc_rdc":
+                inputs = self._execution_inputs("cdc_rdc.setup")
+            elif stage == "regression":
+                inputs = (*rtl, p.sdc, p.tests, p.model, *self._execution_inputs("tb.setup"), *self._execution_inputs("cocotb.setup"))
+            elif stage.startswith("formal_"):
+                setup = {
+                    "formal_csr_bmc": "formal.csr_prove.setup",
+                    "formal_csr_prove": "formal.csr_prove.setup",
+                    "formal_csr_cover": "formal.csr_cover.setup",
+                    "formal_bmc": "formal.prove.setup",
+                    "formal_prove": "formal.prove.setup",
+                    "formal_cover": "formal.cover.setup",
+                }[stage]
+                inputs = self._execution_inputs(setup)
+            elif stage == "syn":
+                inputs = self._execution_inputs("syn.setup")
+            elif stage == "eqy":
+                inputs = self._execution_inputs("eqy.setup")
+            elif stage in {"sdf", "sta", "power_estimate"}:
+                inputs = self._execution_inputs("signoff.setup")
+            elif stage == "sim_post_syn_all":
+                inputs = (*rtl, p.tests, *self._execution_inputs("tb.setup"), p.syn / f"{p.top}_synth.v", p.signoff / "sdf")
+            elif stage == "pnr":
+                inputs = self._execution_inputs("pnr.setup")
+            elif stage == "physical_signoff":
+                inputs = (p.impl,)
+            elif stage in {"sdf_post_pnr", "sta_post_pnr", "power_estimate_post_pnr"}:
+                inputs = self._execution_inputs("signoff_post_pnr.setup")
+            elif stage == "sim_post_pnr_all":
+                inputs = (*rtl, p.tests, *self._execution_inputs("tb.setup"), p.signoff / "post_pnr" / "sdf", p.impl)
+            else:
+                raise ValueError(f"provenance inputs are not defined for {stage}")
+            return tuple(dict.fromkeys(Path(path).expanduser().resolve() for path in inputs))
         if stage in {"tb.setup", "cocotb.setup"}:
             inputs = (p.data / f"{p.top}.hjson", p.sdc)
         elif stage == "cdc_rdc.setup":
@@ -1032,7 +1153,15 @@ class FlexSoCTarget:
             return tuple(path for item in value for path in FlexSoCTarget._result_paths(item))
         return ()
 
+    def _evidence_paths(self, stage: str) -> tuple[Path, ...]:
+        """Resolve canonical runtime evidence declared by the stage contract."""
+
+        values = {"pdk": self.paths.pdk, "top": self.paths.top}
+        return tuple(self.paths.run / pattern.format(**values) for pattern in STAGE_CONTRACTS[stage].evidence)
+
     def _generated_paths(self, stage: str, result: object) -> tuple[Path, ...]:
+        if stage in RUNTIME_STAGES:
+            return self._evidence_paths(stage)
         paths = self._result_paths(result)
         if stage == "cdc_rdc.setup":
             paths = (self.paths.run / "analysis" / "cdc_rdc" / "extract.ys",)
@@ -1101,7 +1230,7 @@ class FlexSoCTarget:
         )
 
     def _provenance_summary(self) -> dict[str, object]:
-        """Return current states only for setup stages recorded in this run."""
+        """Return current states for recorded contract stages in this run."""
 
         from .backend.core.reporting import provenance_summary
 
@@ -1109,14 +1238,48 @@ class FlexSoCTarget:
         states = {
             stage: self._provenance_state(stage)
             for stage in store.stages()
-            if stage in PROVENANCE_SETUPS
+            if stage in STAGE_CONTRACTS
         }
         return provenance_summary(states)
+
+    def _contract_state(self, stage: str) -> str:
+        """Return CLEAN/STALE/... or MISSING for one contract stage."""
+
+        return "MISSING" if stage not in self._provenance().stages() else self._provenance_state(stage)
+
+    def _contract_status(self) -> dict[str, object]:
+        """Derive live contract state and the highest fully qualified release level."""
+
+        _, _, intent = self._design_intent()
+        contract_valid = self.paths.sdc.is_file() and bool(self._rtl_sources())
+        states = {stage: self._contract_state(stage) for stage in RUNTIME_STAGES}
+        clean = {stage for stage, state in states.items() if state in {"CLEAN", "VALIDATED_OVERRIDE"}}
+        level = 0 if contract_valid else -1
+        for index, (_, required) in enumerate(RELEASE_LEVELS[1:], 1):
+            if level == index - 1 and set(required) <= clean:
+                level = index
+            else:
+                break
+        result = {
+            "schema": 1,
+            "ip_intent_sha256": intent,
+            "contract": "VALID" if contract_valid else "INVALID",
+            "release_level": level,
+            "release": RELEASE_LEVELS[level][0] if level >= 0 else "Not Qualified",
+            "stages": dict(sorted(states.items())),
+        }
+        print(f"[contract] {result['contract']} ip_intent_sha256={intent}")
+        print(f"[release] level={level} {result['release']}")
+        required_stages = set().union(*(set(required) for _, required in RELEASE_LEVELS[1:]))
+        for stage, state in result["stages"].items():
+            if state != "MISSING" or stage in required_stages:
+                print(f"[stage] {stage:<24} {state}")
+        return result
 
     def _record_provenance(self, stage: str, result: object) -> None:
         generated = self._generated_paths(stage, result)
         if not generated:
-            raise ValueError(f"{stage}: setup returned no generated artifacts")
+            raise ValueError(f"{stage}: no contract evidence was produced")
         self._provenance().record(
             stage, inputs=self._provenance_inputs(stage), generated=generated,
             config=self._provenance_config(stage),
@@ -1337,6 +1500,8 @@ class FlexSoCTarget:
             )
         if target == "manifest_show":
             return report.show_manifest(self.paths.manifest)
+        if target == "status":
+            return self._contract_status()
         raise ValueError(f"unsupported report target: {target}")
 
     def execute(self, target: str) -> object:
@@ -1358,7 +1523,10 @@ class FlexSoCTarget:
             return result
         if target not in SETUP_STAGES:
             self._require_provenance(target)
-        return self._execute_target(target)
+        result = self._execute_target(target)
+        if target in RUNTIME_STAGES and self.client._returncode(result) == 0:
+            self._record_provenance(target, result)
+        return result
 
     def _execute_target(self, target: str) -> object:
         """Execute one public target through the owning backend domain."""
@@ -1446,7 +1614,7 @@ class FlexSoCTarget:
             if target == "lint_verilator_suite":
                 return b.dv.lint_suite(tools=("verilator",), on=self.on)
             if target in {"lint", "lint_suite"}:
-                return b.dv.lint_suite(on=self.on)
+                return self._execute_sequence(("lint_slang_suite", "lint_verilator_suite"))
             if target in {"lint_v", "lint_sv"}:
                 return b.dv.lint_verilator(kind="all", on=self.on)
             return b.dv.lint_suite(tools=(v.get("LINT_TOOL", "slang"),), part=v.get("LINT_PART", "ip"), on=self.on) if kind not in {"latch","undriven","width","unconnected","unused"} else (b.dv.lint_slang(kind=kind, part=v.get("LINT_PART","ip"), on=self.on), b.dv.lint_verilator(kind=kind, part=v.get("LINT_PART","ip"), on=self.on))
@@ -1543,7 +1711,7 @@ class FlexSoCTarget:
         if target == "fusion_analysis_all":
             return pre.run_fusion(all_workloads=True, on=self.on)
         if target == "signoff":
-            return (pre.run_sdf(on=self.on), pre.run_sta(on=self.on), pre.run_power_estimate(on=self.on))
+            return self._execute_sequence(("sdf", "sta", "power_estimate"))
         if target in {"compile_syn", "compile_post_syn", "sim_syn", "sim_post_syn", "sim_post_syn_all"}:
             timing = v.get("TIMING_MODE", "zero")
             test = v.get("TEST_NAME", "smoke")
@@ -1602,7 +1770,7 @@ class FlexSoCTarget:
             )
 
         # Reporting, packaging and higher-level workflow helpers.
-        if target in {"metrics", "manifest", "manifest_show", "check"}:
+        if target in {"metrics", "manifest", "manifest_show", "check", "status"}:
             return self._report(target)
         if target == "ip_load":
             return b.package.load(

@@ -161,7 +161,7 @@ def collect_cdc_rdc(top: str, run_dir: Path) -> dict[str, Any] | None:
 
 
 def parse_coverage_summary(path: Path) -> dict[str, Any]:
-    """Parse legacy/plain FlexSoC coverage scope totals."""
+    """Parse plain FlexSoC coverage scope totals."""
 
     scopes: dict[str, Any] = {}
     if not path.is_file():
@@ -302,9 +302,9 @@ def yosys_statistics(top: str, text: str) -> dict[str, Any]:
     if cells:
         stats["cells"] = int(cells.group(1))
     else:
-        legacy_cells = last_number(r"^\s*Number of cells:\s*(\d+)\s*$", text, int)
-        if legacy_cells is not None:
-            stats["cells"] = legacy_cells
+        fallback_cells = last_number(r"^\s*Number of cells:\s*(\d+)\s*$", text, int)
+        if fallback_cells is not None:
+            stats["cells"] = fallback_cells
 
     area_source = source or text
     area = last_number(
@@ -1008,9 +1008,7 @@ def collect_implementation(top: str, run_dir: Path, pdk: str) -> dict[str, Any] 
 def collect_physical_signoff(run_dir: Path, pdk: str) -> dict[str, Any] | None:
     """Collect ORFS physical checks as part of post-implementation sign-off."""
 
-    canonical = run_dir / "signoff" / pdk / "post_pnr" / "physical" / "summary.json"
-    legacy = run_dir / "signoff" / pdk / "physical" / "summary.json"
-    path = canonical if canonical.is_file() else legacy
+    path = run_dir / "signoff" / pdk / "post_pnr" / "physical" / "summary.json"
     if not path.is_file():
         return None
     try:

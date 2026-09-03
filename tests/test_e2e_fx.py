@@ -349,8 +349,7 @@ def _validate_ip_layout(top: str) -> None:
 def _protect_ip_sources(top: str) -> Iterator[dict[Path, str]]:
     """Fail if ip_load/ip_save changes the repository-owned IP package."""
 
-    # Temporary repack bridge: bundled CORDIC/UART still use the legacy package
-    # layout. Restore _validate_ip_layout(top) after both IPs are repackaged.
+    _validate_ip_layout(top)
     root = REPO_ROOT / "hw" / "ips" / top
     snapshot = {path: _sha256(path) for path in _ip_protected_sources(top)}
     package_snapshot = {
@@ -3260,6 +3259,11 @@ def test_fx_provenance_lifecycle_debug(request: pytest.FixtureRequest) -> None:
                 workspace=workspace, top=top, run_id=run_id, run=run, workdir=workdir,
                 stage=stage, artifact=artifact, command=command, required=required,
             )
+
+        _run(
+            f"uv run --no-sync fx status --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
 
         if not config.run_signoff:
             return

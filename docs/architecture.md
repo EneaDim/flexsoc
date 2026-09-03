@@ -389,7 +389,7 @@ Backend flow methods use one small operation vocabulary:
 - `show_*`: render existing structure/evidence for the user;
 - `debug_*`: explicit diagnostic execution.
 
-Legacy backend method names remain aliases while callers migrate. Public CLI target names are kept compatible in this step; the router calls the canonical backend methods internally. This is a vocabulary normalization, not a new abstraction layer.
+The public and backend vocabularies intentionally expose only the canonical lifecycle names. Migration-only aliases are not retained: stale callers should fail clearly rather than silently extending the API surface.
 
 ## 9.3 `src/flexsoc/backend/` — lifecycle implementation
 

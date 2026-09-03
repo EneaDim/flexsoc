@@ -4407,8 +4407,10 @@ def test_post_impl_signoff_maps_lifecycle_stage_to_post_pnr_gls(tmp_path: Path) 
 
 def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
     contracts = api_module.STAGE_CONTRACTS
-    assert frozenset(contracts) == api_module.PROVENANCE_SETUPS
+    assert api_module.PROVENANCE_SETUPS == frozenset(stage for stage in contracts if stage.endswith(".setup"))
+    assert api_module.RUNTIME_STAGES == frozenset(contracts) - api_module.PROVENANCE_SETUPS
     assert all(parent in contracts for spec in contracts.values() for parent in spec.parents)
+    assert all(contracts[stage].evidence for stage in api_module.RUNTIME_STAGES)
 
     def visit(stage: str, path: tuple[str, ...] = ()) -> None:
         assert stage not in path, f"stage dependency cycle: {' -> '.join((*path, stage))}"
@@ -4417,6 +4419,76 @@ def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
 
     for stage in contracts:
         visit(stage)
+
+
+def test_runtime_contract_evidence_invalidates_downstream_selectively(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+    source = router.paths.rtl / "demo.sv"
+    source.write_text("module demo(input clk_i); endmodule\n", encoding="utf-8")
+    router.paths.rtl_common.write_text("", encoding="utf-8")
+    router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
+    router.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
+
+    setup = router.paths.syn / "synth.ys"
+    setup.write_text("read_verilog demo.sv\n", encoding="utf-8")
+    router._provenance().record(
+        "syn.setup", inputs=router._provenance_inputs("syn.setup"), generated=(setup,),
+        config=router._provenance_config("syn.setup"), parents=router._provenance_parents("syn.setup"),
+    )
+    netlist, netjson = router._evidence_paths("syn")
+    netlist.write_text("module demo; endmodule\n", encoding="utf-8")
+    netjson.write_text("{}\n", encoding="utf-8")
+    router._record_provenance("syn", 0)
+
+    signoff_setup = router.paths.signoff / "sta" / "sta.tcl"
+    signoff_setup.parent.mkdir(parents=True, exist_ok=True)
+    signoff_setup.write_text("read_verilog demo_synth.v\n", encoding="utf-8")
+    router._provenance().record(
+        "signoff.setup", inputs=router._provenance_inputs("signoff.setup"), generated=(signoff_setup,),
+        config=router._provenance_config("signoff.setup"), parents=router._provenance_parents("signoff.setup"),
+    )
+    sta_json = router._evidence_paths("sta")[0]
+    sta_json.parent.mkdir(parents=True, exist_ok=True)
+    sta_json.write_text('{"status":"pass"}\n', encoding="utf-8")
+    router._record_provenance("sta", 0)
+    assert router._provenance_state("syn") == "CLEAN"
+    assert router._provenance_state("sta") == "CLEAN"
+
+    netlist.write_text("module demo; wire changed; endmodule\n", encoding="utf-8")
+    assert router._provenance_state("syn") == "MODIFIED"
+    assert router._provenance_state("sta") == "STALE"
+
+
+def test_contract_status_derives_release_level_without_running_eda(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+    source = router.paths.rtl / "demo.sv"
+    source.write_text("module demo(input clk_i); endmodule\n", encoding="utf-8")
+    router.paths.rtl_common.write_text("", encoding="utf-8")
+    router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
+    router.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
+
+    rtl_required = set(api_module.RELEASE_LEVELS[1][1])
+    monkeypatch.setattr(router, "_contract_state", lambda stage: "CLEAN" if stage in rtl_required else "MISSING")
+    status = router._contract_status()
+    assert status["contract"] == "VALID"
+    assert status["release_level"] == 1
+    assert status["release"] == "RTL Qualified"
+
+    netlist_required = rtl_required | set(api_module.RELEASE_LEVELS[2][1])
+    monkeypatch.setattr(router, "_contract_state", lambda stage: "CLEAN" if stage in netlist_required else "MISSING")
+    status = router._contract_status()
+    assert status["release_level"] == 2
+    assert status["release"] == "Netlist Qualified"
 
 
 def test_provenance_derives_override_and_parent_lineage_states(tmp_path: Path) -> None:
@@ -4572,6 +4644,13 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
         "PDK_ROOT": "/pdk/sky130",
     }
     sky = api_module.FlexSoCTarget(client, sky_values)
+    sky.paths.ensure()
+    (sky.paths.data / "demo.hjson").write_text("{ name: demo }\n", encoding="utf-8")
+    sky.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
+    (sky.paths.rtl / "demo_core.sv").write_text("module demo_core; endmodule\n", encoding="utf-8")
+    (sky.paths.rtl / "demo.sv").write_text("// Auto-generated by flexsoc.backend.design.rtl.\n", encoding="utf-8")
+    (sky.paths.model / "demo_model.py").write_text("TOP = 'demo'\n", encoding="utf-8")
+    (sky.paths.model / "demo_regmap.py").write_text("# generated\n", encoding="utf-8")
     sky._write_settings_evidence("syn.setup")
 
     ihp_values = {
@@ -4587,13 +4666,32 @@ def test_settings_evidence_preserves_common_intent_and_pdk_effective_settings(tm
     sky_json = json.loads((run / "meta" / "sky130" / "settings.json").read_text(encoding="utf-8"))
     ihp_json = json.loads((run / "meta" / "ihp-sg13g2" / "settings.json").read_text(encoding="utf-8"))
 
+    assert intent["schema"] == 2
     assert intent["design_intent"]["TOP"] == "demo"
-    assert intent["design_intent"]["TARGET_OPT"] == "delay1"
+    assert "RUN_ID" not in intent["design_intent"]
+    assert "RUN_TOP" not in intent["design_intent"]
+    assert "TARGET_OPT" not in intent["design_intent"]
+    assert {item["path"] for item in intent["sources"]} == {
+        "constraints/demo.sdc", "data/demo.hjson", "dv/functional/model/demo_model.py",
+        "rtl/demo_core.sv",
+    }
     assert sky_json["pdk"] == "sky130"
     assert ihp_json["pdk"] == "ihp-sg13g2"
     assert sky_json["design_intent"] == ihp_json["design_intent"]
+    assert sky_json["ip_intent_sha256"] == ihp_json["ip_intent_sha256"] == intent["ip_intent_sha256"]
     assert sky_json["effective"]["PDK"] == "sky130"
     assert ihp_json["effective"]["PDK"] == "ihp-sg13g2"
+
+    before = intent["ip_intent_sha256"]
+    (sky.paths.rtl / "demo.sv").write_text("// Auto-generated by flexsoc.backend.design.rtl.\n// regenerated\n", encoding="utf-8")
+    sky._write_settings_evidence("syn.setup")
+    unchanged = json.loads((run / "meta" / "design_intent.json").read_text(encoding="utf-8"))
+    assert unchanged["ip_intent_sha256"] == before
+
+    (sky.paths.rtl / "demo_core.sv").write_text("module demo_core; wire changed; endmodule\n", encoding="utf-8")
+    sky._write_settings_evidence("syn.setup")
+    changed = json.loads((run / "meta" / "design_intent.json").read_text(encoding="utf-8"))
+    assert changed["ip_intent_sha256"] != before
 
 
 def test_metrics_snapshots_provenance_and_check_does_not_refresh(tmp_path: Path) -> None:
