@@ -12,6 +12,7 @@ from textwrap import dedent
 from typing import Any, Sequence
 
 from flexsoc.backend.core import ClockConfig, ClockDomain, clock_config, ensure_dir, safe_write_file
+from .regs import normalize_register_interface
 
 try:
     import hjson  # type: ignore
@@ -19,6 +20,21 @@ except ImportError:  # pragma: no cover - import fallback for tiny tests.
     hjson = None
 
 Hjson = dict[str, Any]
+
+REGISTER_BUS_PORTS = frozenset({
+    "tl_i", "tl_o", "reg_req_i", "reg_rsp_o",
+    "axi_aw_addr_i", "axi_aw_prot_i", "axi_aw_valid_i", "axi_aw_ready_o",
+    "axi_w_data_i", "axi_w_strb_i", "axi_w_valid_i", "axi_w_ready_o",
+    "axi_b_resp_o", "axi_b_valid_o", "axi_b_ready_i",
+    "axi_ar_addr_i", "axi_ar_prot_i", "axi_ar_valid_i", "axi_ar_ready_o",
+    "axi_r_data_o", "axi_r_resp_o", "axi_r_valid_o", "axi_r_ready_i",
+})
+
+
+def is_register_bus_port(name: str) -> bool:
+    """Return true for wrapper ports owned by the selected CSR transport."""
+
+    return name in REGISTER_BUS_PORTS
 
 
 def _load_hjson(path: Path) -> Hjson:
@@ -492,13 +508,9 @@ def generate_rtl_stubs(
         raise ValueError("missing or empty 'name' in HJSON")
     ensure_dir(outdir)
     rtl = Path(outdir)
-    core_path, top_path = rtl / f"{top}_core.sv", rtl / f"{top}.sv"
+    core_path = rtl / f"{top}_core.sv"
     safe_write_file(core_path, render_core(hj), overwrite=force)
-    safe_write_file(
-        top_path,
-        render_top_from_core(top, core_path, itf, clocks=clocks),
-        overwrite=force,
-    )
+    top_path = write_top_from_core(top, rtl, itf, force=force, clocks=clocks)
     return core_path, top_path
 
 
@@ -542,17 +554,205 @@ def parse_ports(core_path: str | Path) -> list[Port]:
 
 
 def _bus_ports(itf: str) -> list[Port]:
-    """Return register-bus wrapper ports for the selected interface."""
+    """Return direct register-bus wrapper ports for the selected interface."""
 
     if itf == "tlul":
         return [Port("input", "tlul_pkg::tl_h2d_t", "tl_i"), Port("output", "tlul_pkg::tl_d2h_t", "tl_o")]
-    return [Port("input", "reg_req_t", "reg_req_i"), Port("output", "reg_rsp_t", "reg_rsp_o")]
+    if itf == "reg_iface":
+        return [Port("input", "reg_req_t", "reg_req_i"), Port("output", "reg_rsp_t", "reg_rsp_o")]
+    raise ValueError(f"{itf} is not a direct register-bus interface")
 
 
-def _bus_pins(itf: str) -> list[str]:
-    """Return register-top bus pin connections."""
+def _tlul_adapter(pkg: str, prefix: str, clock: str, reset: str, stem: str) -> list[str]:
+    """Adapt one TL-UL device interface to the canonical reg_req/reg_rsp transport."""
 
-    return [".tl_i(tl_i)", ".tl_o(tl_o)"] if itf == "tlul" else [".reg_req_i(reg_req_i)", ".reg_rsp_o(reg_rsp_o)"]
+    return [
+        f"  logic {stem}_re;",
+        f"  logic {stem}_we;",
+        f"  logic [{pkg}::AW-1:0] {stem}_addr;",
+        f"  logic [{pkg}::DW-1:0] {stem}_wdata;",
+        f"  logic [{pkg}::DBW-1:0] {stem}_be;",
+        f"  {pkg}::reg_req_t {stem}_reg_req;",
+        f"  {pkg}::reg_rsp_t {stem}_reg_rsp;",
+        "",
+        f"  assign {stem}_reg_req = '{{",
+        f"    valid: {stem}_re | {stem}_we,",
+        f"    write: {stem}_we,",
+        f"    addr:  {stem}_addr,",
+        f"    wdata: {stem}_wdata,",
+        f"    wstrb: {stem}_be",
+        "  };",
+        "",
+        "  tlul_adapter_reg #( ",
+        f"    .RegAw         ({pkg}::AW),",
+        f"    .RegDw         ({pkg}::DW),",
+        "    .AccessLatency (0)",
+        f"  ) u_{stem}_to_reg (",
+        f"    .clk_i        ({clock}),",
+        f"    .rst_ni       ({reset}),",
+        f"    .tl_i         ({prefix}_i),",
+        f"    .tl_o         ({prefix}_o),",
+        "    .en_ifetch_i  (prim_mubi_pkg::MuBi4False),",
+        "    .intg_error_o (),",
+        f"    .re_o         ({stem}_re),",
+        f"    .we_o         ({stem}_we),",
+        f"    .addr_o       ({stem}_addr),",
+        f"    .wdata_o      ({stem}_wdata),",
+        f"    .be_o         ({stem}_be),",
+        f"    .busy_i       (~{stem}_reg_rsp.ready),",
+        f"    .rdata_i      ({stem}_reg_rsp.rdata),",
+        f"    .error_i      ({stem}_reg_rsp.error)",
+        "  );",
+    ]
+
+
+def _axi_lite_ports(pkg: str, prefix: str = "axi") -> list[Port]:
+    """Return a flat AXI4-Lite subordinate port set backed by *pkg* widths."""
+
+    return [
+        Port("input", f"logic [{pkg}::AW-1:0]", f"{prefix}_aw_addr_i"),
+        Port("input", "logic [2:0]", f"{prefix}_aw_prot_i"),
+        Port("input", "logic", f"{prefix}_aw_valid_i"),
+        Port("output", "logic", f"{prefix}_aw_ready_o"),
+        Port("input", f"logic [{pkg}::DW-1:0]", f"{prefix}_w_data_i"),
+        Port("input", f"logic [{pkg}::DBW-1:0]", f"{prefix}_w_strb_i"),
+        Port("input", "logic", f"{prefix}_w_valid_i"),
+        Port("output", "logic", f"{prefix}_w_ready_o"),
+        Port("output", "logic [1:0]", f"{prefix}_b_resp_o"),
+        Port("output", "logic", f"{prefix}_b_valid_o"),
+        Port("input", "logic", f"{prefix}_b_ready_i"),
+        Port("input", f"logic [{pkg}::AW-1:0]", f"{prefix}_ar_addr_i"),
+        Port("input", "logic [2:0]", f"{prefix}_ar_prot_i"),
+        Port("input", "logic", f"{prefix}_ar_valid_i"),
+        Port("output", "logic", f"{prefix}_ar_ready_o"),
+        Port("output", f"logic [{pkg}::DW-1:0]", f"{prefix}_r_data_o"),
+        Port("output", "logic [1:0]", f"{prefix}_r_resp_o"),
+        Port("output", "logic", f"{prefix}_r_valid_o"),
+        Port("input", "logic", f"{prefix}_r_ready_i"),
+    ]
+
+
+def _axi_lite_adapter(pkg: str, prefix: str, clock: str, reset: str, stem: str) -> list[str]:
+    """Adapt one flat AXI4-Lite interface to the canonical reg_req/reg_rsp transport."""
+
+    return [
+        f"  typedef struct packed {{ logic [{pkg}::AW-1:0] addr; logic [2:0] prot; }} {stem}_aw_t;",
+        f"  typedef struct packed {{ logic [{pkg}::DW-1:0] data; logic [{pkg}::DBW-1:0] strb; }} {stem}_w_t;",
+        f"  typedef struct packed {{ logic [1:0] resp; }} {stem}_b_t;",
+        f"  typedef struct packed {{ logic [{pkg}::AW-1:0] addr; logic [2:0] prot; }} {stem}_ar_t;",
+        f"  typedef struct packed {{ logic [{pkg}::DW-1:0] data; logic [1:0] resp; }} {stem}_r_t;",
+        f"  typedef struct packed {{ {stem}_aw_t aw; logic aw_valid; {stem}_w_t w; logic w_valid; logic b_ready; {stem}_ar_t ar; logic ar_valid; logic r_ready; }} {stem}_req_t;",
+        f"  typedef struct packed {{ logic aw_ready; logic w_ready; {stem}_b_t b; logic b_valid; logic ar_ready; {stem}_r_t r; logic r_valid; }} {stem}_rsp_t;",
+        f"  {stem}_req_t {stem}_req;",
+        f"  {stem}_rsp_t {stem}_rsp;",
+        f"  {pkg}::reg_req_t {stem}_reg_req;",
+        f"  {pkg}::reg_rsp_t {stem}_reg_rsp;",
+        "",
+        f"  assign {stem}_req.aw.addr = {prefix}_aw_addr_i;",
+        f"  assign {stem}_req.aw.prot = {prefix}_aw_prot_i;",
+        f"  assign {stem}_req.aw_valid = {prefix}_aw_valid_i;",
+        f"  assign {prefix}_aw_ready_o = {stem}_rsp.aw_ready;",
+        f"  assign {stem}_req.w.data = {prefix}_w_data_i;",
+        f"  assign {stem}_req.w.strb = {prefix}_w_strb_i;",
+        f"  assign {stem}_req.w_valid = {prefix}_w_valid_i;",
+        f"  assign {prefix}_w_ready_o = {stem}_rsp.w_ready;",
+        f"  assign {prefix}_b_resp_o = {stem}_rsp.b.resp;",
+        f"  assign {prefix}_b_valid_o = {stem}_rsp.b_valid;",
+        f"  assign {stem}_req.b_ready = {prefix}_b_ready_i;",
+        f"  assign {stem}_req.ar.addr = {prefix}_ar_addr_i;",
+        f"  assign {stem}_req.ar.prot = {prefix}_ar_prot_i;",
+        f"  assign {stem}_req.ar_valid = {prefix}_ar_valid_i;",
+        f"  assign {prefix}_ar_ready_o = {stem}_rsp.ar_ready;",
+        f"  assign {prefix}_r_data_o = {stem}_rsp.r.data;",
+        f"  assign {prefix}_r_resp_o = {stem}_rsp.r.resp;",
+        f"  assign {prefix}_r_valid_o = {stem}_rsp.r_valid;",
+        f"  assign {stem}_req.r_ready = {prefix}_r_ready_i;",
+        "",
+        "  axi_lite_to_reg #( ",
+        f"    .ADDR_WIDTH      ({pkg}::AW),",
+        f"    .DATA_WIDTH      ({pkg}::DW),",
+        f"    .axi_lite_req_t  ({stem}_req_t),",
+        f"    .axi_lite_rsp_t  ({stem}_rsp_t),",
+        f"    .reg_req_t       ({pkg}::reg_req_t),",
+        f"    .reg_rsp_t       ({pkg}::reg_rsp_t)",
+        f"  ) u_{stem}_to_reg (",
+        f"    .clk_i          ({clock}),",
+        f"    .rst_ni         ({reset}),",
+        f"    .axi_lite_req_i ({stem}_req),",
+        f"    .axi_lite_rsp_o ({stem}_rsp),",
+        f"    .reg_req_o      ({stem}_reg_req),",
+        f"    .reg_rsp_i      ({stem}_reg_rsp)",
+        "  );",
+    ]
+
+
+def _register_top_bus_pins(itf: str, prefix: str = "") -> list[str]:
+    """Connect one integration top to its protocol-facing register wrapper."""
+
+    stem = f"{prefix}_" if prefix else ""
+    if itf == "tlul":
+        return [f".tl_i({stem}tl_i)", f".tl_o({stem}tl_o)"]
+    if itf == "reg_iface":
+        return [f".reg_req_i({stem}reg_req_i)", f".reg_rsp_o({stem}reg_rsp_o)"]
+    if itf == "axi_lite":
+        return [
+            f".{name}({stem}{name})"
+            for name in (
+                "axi_aw_addr_i", "axi_aw_prot_i", "axi_aw_valid_i", "axi_aw_ready_o",
+                "axi_w_data_i", "axi_w_strb_i", "axi_w_valid_i", "axi_w_ready_o",
+                "axi_b_resp_o", "axi_b_valid_o", "axi_b_ready_i",
+                "axi_ar_addr_i", "axi_ar_prot_i", "axi_ar_valid_i", "axi_ar_ready_o",
+                "axi_r_data_o", "axi_r_resp_o", "axi_r_valid_o", "axi_r_ready_i",
+            )
+        ]
+    raise ValueError(f"unsupported register interface: {itf}")
+
+
+def render_register_top(block: str, itf: str) -> str:
+    """Render the protocol-facing wrapper around one canonical reg core."""
+
+    itf = normalize_register_interface(itf)
+    pkg = f"{block}_reg_pkg"
+    bus_ports = _axi_lite_ports(pkg) if itf == "axi_lite" else _bus_ports(itf)
+    ports = [
+        Port("input", "logic", "clk_i"),
+        Port("input", "logic", "rst_ni"),
+        *bus_ports,
+        Port("output", f"{block}_reg2hw_t", "reg2hw"),
+        Port("input", f"{block}_hw2reg_t", "hw2reg"),
+        Port("input", "logic", "devmode_i"),
+    ]
+    core_bus = (
+        [".reg_req_i(reg_req_i)", ".reg_rsp_o(reg_rsp_o)"]
+        if itf == "reg_iface"
+        else ([".reg_req_i(flexsoc_tlul_reg_req)", ".reg_rsp_o(flexsoc_tlul_reg_rsp)"] if itf == "tlul"
+              else [".reg_req_i(flexsoc_axi_reg_req)", ".reg_rsp_o(flexsoc_axi_reg_rsp)"])
+    )
+    lines = [
+        "// Auto-generated by flexsoc.backend.design.rtl.",
+        f"module {block}_reg_top",
+        f"  import {pkg}::*;",
+        "(",
+        *[line + ("," if i + 1 < len(ports) else "") for i, line in enumerate(_format_port(p) for p in ports)],
+        ");",
+        "",
+        *(
+            [*_axi_lite_adapter(pkg, "axi", "clk_i", "rst_ni", "flexsoc_axi"), ""]
+            if itf == "axi_lite"
+            else ([*_tlul_adapter(pkg, "tl", "clk_i", "rst_ni", "flexsoc_tlul"), ""] if itf == "tlul" else [])
+        ),
+        *_instance("reg_core", f"{block}_reg_core", [
+            ".clk_i(clk_i)",
+            ".rst_ni(rst_ni)",
+            *core_bus,
+            ".reg2hw(reg2hw)",
+            ".hw2reg(hw2reg)",
+            ".devmode_i(devmode_i)",
+        ]),
+        "",
+        "endmodule",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def _external_core_ports(ports: list[Port]) -> list[Port]:
@@ -603,11 +803,9 @@ def render_top_from_core(
     *,
     clocks: ClockConfig | None = None,
 ) -> str:
-    """Render the single-clock top and synchronize external reset release."""
+    """Render the single-clock integration top and synchronize reset release."""
 
-    itf = "reg_iface" if itf == "reg" else itf.strip().lower()
-    if itf not in {"tlul", "reg_iface"}:
-        raise ValueError("--interface must be tlul, reg_iface, or reg")
+    itf = normalize_register_interface(itf)
     cfg = clocks or ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),))
     if cfg.multiclock:
         raise ValueError("render_top_from_core requires exactly one clock domain")
@@ -617,11 +815,12 @@ def render_top_from_core(
     absent = [signal for signal in (domain.signal, domain.reset) if signal not in port_names]
     if absent:
         raise ValueError(f"single-clock wrapper clock/reset port(s) missing from core: {', '.join(absent)}")
-    top_ports = _external_core_ports(ports) + _bus_ports(itf)
+    pkg = f"{top}_reg_pkg"
+    top_ports = _external_core_ports(ports) + (_axi_lite_ports(pkg) if itf == "axi_lite" else _bus_ports(itf))
     reg_pins = [
         f".clk_i({domain.signal})",
         f".rst_ni({_reset_sync_name(domain)})",
-        *_bus_pins(itf),
+        *_register_top_bus_pins(itf),
         ".reg2hw(reg2hw)",
         ".hw2reg(hw2reg)",
         ".devmode_i(1'b1)",
@@ -700,9 +899,10 @@ def _register_windows(ports: list[Port], clocks: ClockConfig) -> tuple[RegisterW
     return tuple(windows)
 
 
-def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig) -> str:
-    """Render a clock-count-neutral wrapper around one editable core."""
+def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig, itf: str = "tlul") -> str:
+    """Render a clock-count-neutral integration top around one editable core."""
 
+    itf = normalize_register_interface(itf)
     core = Path(core_path)
     core = core / f"{top}_core.sv" if core.is_dir() else core
     ports = parse_ports(core)
@@ -719,10 +919,22 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig) -> s
     hidden = {f"{window.name}_{kind}" for window in windows for kind in ("reg2hw_i", "hw2reg_o")}
     exposed = [port for port in ports if port.name not in hidden]
     declarations = [_format_port(port) for port in exposed]
-    declarations += [item for window in windows for item in (
-        f"  input  tlul_pkg::tl_h2d_t        {window.name}_tl_i",
-        f"  output tlul_pkg::tl_d2h_t        {window.name}_tl_o",
-    )]
+    if itf == "tlul":
+        declarations += [item for window in windows for item in (
+            f"  input  tlul_pkg::tl_h2d_t        {window.name}_tl_i",
+            f"  output tlul_pkg::tl_d2h_t        {window.name}_tl_o",
+        )]
+    elif itf == "reg_iface":
+        declarations += [item for window in windows for item in (
+            f"  input  {top}_{window.name}_reg_pkg::reg_req_t {window.name}_reg_req_i",
+            f"  output {top}_{window.name}_reg_pkg::reg_rsp_t {window.name}_reg_rsp_o",
+        )]
+    else:
+        declarations += [
+            _format_port(port)
+            for window in windows
+            for port in _axi_lite_ports(f"{top}_{window.name}_reg_pkg", f"{window.name}_axi")
+        ]
     devmode = "devmode_i" if any(port.name == "devmode_i" for port in exposed) else "1'b1"
     lines = [
         "// Auto-generated N-clock wrapper. Edit the core, then rerun fx top_from_core.",
@@ -748,14 +960,14 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig) -> s
         ]
     for window in windows:
         name, domain = window.name, window.domain
+        prefix = name
         lines += [
             f"  {top}_{name}_reg2hw_t {name}_reg2hw;",
             f"  {top}_{name}_hw2reg_t {name}_hw2reg;", "",
             f"  {top}_{name}_reg_top u_{name}_reg_top (",
             f"    .clk_i     ({domain.signal}),",
             f"    .rst_ni    ({window.reset_ni}),",
-            f"    .tl_i      ({name}_tl_i),",
-            f"    .tl_o      ({name}_tl_o),",
+            *(f"    {pin}," for pin in _register_top_bus_pins(itf, prefix)),
             f"    .reg2hw    ({name}_reg2hw),",
             f"    .hw2reg    ({name}_hw2reg),",
             f"    .devmode_i ({devmode})",
@@ -777,7 +989,7 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig) -> s
 
 
 def write_top_from_core(top: str, rtl_dir: str | Path, itf: str, *, force: bool = False, clocks: ClockConfig | None = None) -> Path:
-    """Write <top>.sv next to <top>_core.sv."""
+    """Write the integration top and protocol-facing register wrapper(s)."""
 
     rtl = Path(rtl_dir)
     core = rtl / f"{top}_core.sv"
@@ -785,7 +997,15 @@ def write_top_from_core(top: str, rtl_dir: str | Path, itf: str, *, force: bool 
     if not core.exists():
         raise FileNotFoundError(core)
     cfg = clocks or clock_config()
-    text = render_nclock_top(top, core, cfg) if cfg.multiclock else render_top_from_core(top, core, itf, clocks=cfg)
+    if cfg.multiclock:
+        windows = _register_windows(parse_ports(core), cfg)
+        for window in windows:
+            block = f"{top}_{window.name}"
+            safe_write_file(rtl / f"{block}_reg_top.sv", render_register_top(block, itf), overwrite=force)
+        text = render_nclock_top(top, core, cfg, itf)
+    else:
+        safe_write_file(rtl / f"{top}_reg_top.sv", render_register_top(top, itf), overwrite=force)
+        text = render_top_from_core(top, core, itf, clocks=cfg)
     safe_write_file(out, text, overwrite=force)
     return out
 

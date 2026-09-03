@@ -200,7 +200,7 @@ Use `fx commands` to list every backend target.
         "PDK": "Active technology profile name.",
         "PDK_ROOT": "Root of an already installed PDK.",
         "CLK_PERIOD": "Primary clock period override in nanoseconds.",
-        "REG_ITF": "Generated register bus/interface type.",
+        "REG_ITF": "External register interface intent: tlul, reg_iface, or axi_lite.",
         "TESTBENCH": "Testbench module/base name.",
         "TEST_NAME": "Select one functional or GLS test by name.",
         "SIM_NAME": "Select one generated waveform by simulation suffix, for example smoke_sv_tt.",

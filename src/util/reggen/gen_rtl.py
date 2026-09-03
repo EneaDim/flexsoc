@@ -103,8 +103,8 @@ def gen_rtl(block: IpBlock, outdir: str) -> int:
 
     # Generate <block>_reg_pkg.sv
     #
-    # This defines the various types used to interface between the *_reg_top
-    # module(s) and the block itself.
+    # This defines the types used by the canonical *_reg_core implementation
+    # and its protocol-facing FlexSoC *_reg_top wrapper.
     reg_pkg_path = os.path.join(
         outdir,
         block.name.lower() + alias_impl + "_reg_pkg.sv")
@@ -115,10 +115,9 @@ def gen_rtl(block: IpBlock, outdir: str) -> int:
             log.error(exceptions.text_error_template().render())
             return 1
 
-    # Generate the register block implementation(s). For a device interface
-    # with no name we generate the register module "<block>_reg_top"
-    # (writing to <block>_reg_top.sv). In any other case, we also need the
-    # interface name, giving <block>_<ifname>_reg_top.
+    # Generate the canonical register block implementation(s). The external
+    # protocol wrapper is owned by FlexSoC and generated separately as
+    # <block>_reg_top.sv.
     lblock = block.name.lower()
     for if_name, rb in block.reg_blocks.items():
         if if_name is None:
@@ -126,9 +125,9 @@ def gen_rtl(block: IpBlock, outdir: str) -> int:
         else:
             mod_base = lblock + '_' + if_name.lower()
 
-        mod_name = mod_base + alias_impl + '_reg_top'
-        reg_top_path = os.path.join(outdir, mod_name + '.sv')
-        with open(reg_top_path, 'w', encoding='UTF-8') as fout:
+        mod_name = mod_base + alias_impl + '_reg_core'
+        reg_core_path = os.path.join(outdir, mod_name + '.sv')
+        with open(reg_core_path, 'w', encoding='UTF-8') as fout:
             try:
                 fout.write(
                     reg_top_tpl.render(block=block,

@@ -1199,7 +1199,6 @@ def always_include_packages(ips_root: Path) -> list[Path]:
         ips_root / "pkgs" / "prim_secded_pkg.sv",
         ips_root / "pkgs" / "prim_subreg_pkg.sv",
         ips_root / "pkgs" / "prim_util_pkg.sv",
-        ips_root / "pkgs" / "tlul_pkg.sv",
         ips_root / "pkgs" / "prim_assert.sv",
         ips_root / "pkgs" / "prim_count_pkg.sv",
         ips_root / "pkgs" / "prim_flop_macros.sv",
@@ -1483,6 +1482,7 @@ def build_ordered_sources(
 
     tail_candidates = [
         rtl_root / f"{top}_reg_pkg.sv",
+        rtl_root / f"{top}_reg_core.sv",
         rtl_root / f"{top}_reg_top.sv",
         rtl_root / f"{top}_core.sv",
         rtl_root / f"{top}.sv",

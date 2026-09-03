@@ -1161,13 +1161,15 @@ def rtl_sort_key(filename: str, top: str) -> tuple[int, str]:
         return (0, filename)
     if filename == f"{top}_reg_pkg.sv":
         return (1, filename)
-    if filename == f"{top}_reg_top.sv":
+    if filename == f"{top}_reg_core.sv":
         return (2, filename)
-    if filename.endswith("_core.sv") or filename == "timer_core.sv":
+    if filename == f"{top}_reg_top.sv":
         return (3, filename)
-    if filename == f"{top}.sv":
+    if filename.endswith("_core.sv") or filename == "timer_core.sv":
         return (4, filename)
-    return (5, filename)
+    if filename == f"{top}.sv":
+        return (5, filename)
+    return (6, filename)
 
 
 def list_rtl_sources(rtl_dir: Path, top: str) -> list[str]:

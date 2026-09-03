@@ -29,6 +29,7 @@ The main ownership model is:
 | --- | --- |
 | CSR addresses, fields, access policy | HJSON |
 | Core behavior and interfaces | authored RTL core |
+| Control-register transport | `REG_ITF` (`tlul`, `reg_iface`, `axi_lite`) |
 | Functional expectations | model + authored scenarios |
 | Formal intent | authored/generated properties |
 | Clock/reset topology | bootstrap domain/reset metadata |
@@ -37,6 +38,19 @@ The main ownership model is:
 | Physical implementation | selected implementation branch |
 
 One design fact should not be maintained in two independent places.
+
+`REG_ITF` is the external control-interface intent. The register semantics remain independent of that transport. `tlul` generates a TL-UL register device, while `reg_iface` exposes the canonical register request/response transport directly. `axi_lite` exposes a flat AXI4-Lite subordinate interface while keeping the generated CSR transport as `reg_iface`; the protocol boundary is therefore `AXI4-Lite → reg_iface → generated register file`, never `AXI4-Lite → TL-UL`. FlexSoC uses PULP `axi_lite_to_reg` for that boundary rather than maintaining a custom protocol converter.
+
+The AXI4-Lite path vendors only the required upstream subsets and pins their release revisions in the FlexSoC vendor manifests. Fetch them before filelist/lint/simulation generation:
+
+```bash
+fx fetch --set VENDOR=pulp_common_cells --force
+fx fetch --set VENDOR=pulp_axi --force
+fx fetch --set VENDOR=pulp_register_interface --force
+```
+
+The vendor utility writes lock files containing the resolved upstream commit. The same HJSON CSR source, generated register package/top, Python regmap, CSR formal collateral, `config.regs`, and functional scenarios are reused across `tlul`, `reg_iface`, and `axi_lite`; changing the external transport must not create a second register-map source of truth.
+
 
 ---
 

@@ -11,6 +11,26 @@ from typing import Any
 from flexsoc.backend.core import ensure_dir, safe_write_file
 
 
+REGISTER_INTERFACES = ("tlul", "reg_iface", "axi_lite")
+
+
+def normalize_register_interface(value: str) -> str:
+    """Return one canonical external register-interface intent."""
+
+    interface = value.strip().lower()
+    if interface not in REGISTER_INTERFACES:
+        choices = ", ".join(REGISTER_INTERFACES)
+        raise ValueError(f"REG_ITF must be one of: {choices}")
+    return interface
+
+
+def reggen_interface(value: str) -> str:
+    """Return the canonical internal register-file transport."""
+
+    normalize_register_interface(value)
+    return "reg_iface"
+
+
 HJSON_TEMPLATE = r"""{{ 
   name:               "{top}",
   human_name:         "{top}",
@@ -116,7 +136,7 @@ HJSON_TEMPLATE = r"""{{
 def render_hjson(top: str, itf: str) -> str:
     """Render a compact default IP HJSON document."""
 
-    return HJSON_TEMPLATE.format(top=top, itf=itf)
+    return HJSON_TEMPLATE.format(top=top, itf=reggen_interface(itf))
 
 
 def write_hjson(top: str, itf: str, output: str | Path = ".", *, force: bool = False) -> Path:
@@ -128,7 +148,7 @@ def write_hjson(top: str, itf: str, output: str | Path = ".", *, force: bool = F
     safe_write_file(path, render_hjson(top, itf), overwrite=force)
     return path
 
-def cfg_hjson(top: str) -> str:
+def cfg_hjson(top: str, itf: str = "tlul") -> str:
     """Render the cfg-domain HJSON regmap."""
 
     name = f"{top}_cfg"
@@ -152,7 +172,7 @@ def cfg_hjson(top: str) -> str:
         notes:              "Generated N-clock cfg regmap."
       }}],
       clocking: [{{ clock: "clk_i", reset: "rst_ni" }}],
-      bus_interfaces: [{{ protocol: "tlul", direction: "device" }}],
+      bus_interfaces: [{{ protocol: "{reggen_interface(itf)}", direction: "device" }}],
       regwidth: "32",
       registers: [
         {{
@@ -189,7 +209,7 @@ def cfg_hjson(top: str) -> str:
     """)
 
 
-def dsp_hjson(top: str) -> str:
+def dsp_hjson(top: str, itf: str = "tlul") -> str:
     """Render the dsp-domain HJSON regmap."""
 
     name = f"{top}_dsp"
@@ -213,7 +233,7 @@ def dsp_hjson(top: str) -> str:
         notes:              "Generated N-clock dsp regmap."
       }}],
       clocking: [{{ clock: "clk_i", reset: "rst_ni" }}],
-      bus_interfaces: [{{ protocol: "tlul", direction: "device" }}],
+      bus_interfaces: [{{ protocol: "{reggen_interface(itf)}", direction: "device" }}],
       regwidth: "32",
       registers: [
         {{
@@ -259,7 +279,7 @@ def dsp_hjson(top: str) -> str:
     """)
 
 
-def generic_hjson(top: str, regmap: str) -> str:
+def generic_hjson(top: str, regmap: str, itf: str = "tlul") -> str:
     """Render a small generic HJSON for an extra domain regmap."""
 
     name = f"{top}_{regmap}"
@@ -283,7 +303,7 @@ def generic_hjson(top: str, regmap: str) -> str:
         notes:              "Generated N-clock domain regmap."
       }}],
       clocking: [{{ clock: "clk_i", reset: "rst_ni" }}],
-      bus_interfaces: [{{ protocol: "tlul", direction: "device" }}],
+      bus_interfaces: [{{ protocol: "{reggen_interface(itf)}", direction: "device" }}],
       regwidth: "32",
       registers: [
         {{
@@ -306,14 +326,14 @@ def generic_hjson(top: str, regmap: str) -> str:
     """)
 
 
-def render_nclock_hjson(top: str, regmap: str) -> str:
+def render_nclock_hjson(top: str, regmap: str, itf: str = "tlul") -> str:
     """Render one N-clock regmap by short name."""
 
     if regmap == "cfg":
-        return cfg_hjson(top)
+        return cfg_hjson(top, itf)
     if regmap == "dsp":
-        return dsp_hjson(top)
-    return generic_hjson(top, regmap)
+        return dsp_hjson(top, itf)
+    return generic_hjson(top, regmap, itf)
 
 
 # RTL generation
@@ -990,7 +1010,7 @@ class RegsFlow:
             ensure_dir(output_dir)
             paths = tuple(Path(output_dir) / f"{top}_{name}.hjson" for name in ("cfg", "dsp"))
             for path, name in zip(paths, ("cfg", "dsp"), strict=True):
-                safe_write_file(path, render_nclock_hjson(top, name), overwrite=force)
+                safe_write_file(path, render_nclock_hjson(top, name, interface), overwrite=force)
             return paths
         return write_hjson(top, interface, output_dir, force=force)
 

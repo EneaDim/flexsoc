@@ -943,7 +943,7 @@ Variables can be persisted with `fx settings`, supplied for one invocation with 
 | `POWER_DUTY` | Global duty-cycle assumption. |
 | `PATH_VIEW_FILE` | Timing path data used by the interactive viewer. |
 | `NPATHS` | Number of timing paths to report or visualize. |
-| `REG_ITF` | Register interface style passed to register-generation targets. |
+| `REG_ITF` | External control-register interface: `tlul`, `reg_iface`, or `axi_lite`. AXI4-Lite reuses the `reg_iface` CSR semantics through the pinned PULP adapter. |
 | `VENDOR` | Vendor/dependency identifier. |
 | `TARGET` | Fetch/build target used by dependency or vendor commands. |
 | `LINT_TOOL` | Selected lint backend or suite control. |

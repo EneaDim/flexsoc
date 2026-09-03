@@ -120,11 +120,7 @@
 
 %>
 
-% if use_reg_iface:
-`include "assertions.svh"
-% else:
 `include "prim_assert.sv"
-% endif
 
 module ${mod_name}
   import ${lblock}_reg_pkg::* ;
@@ -427,7 +423,7 @@ module ${mod_name}
 % if use_reg_iface:
   assign reg_we = reg_intf_req.valid & reg_intf_req.write;
   assign reg_re = reg_intf_req.valid & ~reg_intf_req.write;
-  assign reg_addr = reg_intf_req.addr[BlockAw-1:0];
+  assign reg_addr = reg_intf_req.addr[AW-1:0];
   assign reg_wdata = reg_intf_req.wdata;
   assign reg_be = reg_intf_req.wstrb;
   assign reg_intf_rsp.rdata = reg_rdata;
@@ -1130,7 +1126,7 @@ ${bits.msb}\
   logic async_${finst_name}_err_update;
   logic async_${finst_name}_err_storage;
 <%
-        excl_deglitcher = mod_name == "clkmgr_reg_top" and finst_name in [
+        excl_deglitcher = mod_base == "clkmgr" and finst_name in [
           "io_div2_meas_ctrl_shadowed_hi",
           "io_div2_meas_ctrl_shadowed_lo",
           "io_div4_meas_ctrl_shadowed_hi",

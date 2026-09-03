@@ -9,9 +9,8 @@ from textwrap import dedent
 from flexsoc.backend.core import clock_config
 
 from .regs import generate as generate_regmap
+from .rtl import is_register_bus_port
 
-
-_IGNORED_PORTS = {"tl_i", "tl_o", "reg_req_i", "reg_rsp_o"}
 SHARED_SCENARIO_TESTS = (
     "smoke",
     "corners",
@@ -51,7 +50,7 @@ def _ports(rtl_dir: Path | None, top: str) -> tuple[list[str], list[str]]:
             if not tokens:
                 continue
             name = re.sub(r"\[[^\]]+\]$", "", tokens[-1])
-            if name in _IGNORED_PORTS or "clk" in name.lower() or "rst" in name.lower():
+            if is_register_bus_port(name) or "clk" in name.lower() or "rst" in name.lower():
                 continue
             (inputs if direction == "input" else outputs).append(name)
 

@@ -689,7 +689,11 @@ STAGE_CONTRACTS = {
     "regression": StageContract(
         (*CLOCKS, "TOP", "COMPILER", "REGRESSION_BACKENDS", "SEED"),
         ("tb.setup", "cocotb.setup"),
-        ("logs/dv/functional/regression", "dv/functional/coverage"),
+        (
+            "logs/dv/functional/regression",
+            "dv/functional/coverage/sv",
+            "dv/functional/coverage/cocotb",
+        ),
     ),
     "formal_csr_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.csr_prove.setup",), ("logs/dv/formal/csr/{top}_bmc.log",)),
     "formal_bmc": StageContract(("TOP", "FORMAL_BMC_DEPTH", "FORMAL_BMC_ENGINE"), ("formal.prove.setup",), ("logs/dv/formal/properties/{top}_bmc.log",)),
@@ -1252,7 +1256,11 @@ class FlexSoCTarget:
 
         _, _, intent = self._design_intent()
         contract_valid = self.paths.sdc.is_file() and bool(self._rtl_sources())
-        states = {stage: self._contract_state(stage) for stage in RUNTIME_STAGES}
+        states = {
+            stage: self._contract_state(stage)
+            for stage in STAGE_CONTRACTS
+            if stage in RUNTIME_STAGES
+        }
         clean = {stage for stage, state in states.items() if state in {"CLEAN", "VALIDATED_OVERRIDE"}}
         level = 0 if contract_valid else -1
         for index, (_, required) in enumerate(RELEASE_LEVELS[1:], 1):
@@ -1266,7 +1274,7 @@ class FlexSoCTarget:
             "contract": "VALID" if contract_valid else "INVALID",
             "release_level": level,
             "release": RELEASE_LEVELS[level][0] if level >= 0 else "Not Qualified",
-            "stages": dict(sorted(states.items())),
+            "stages": states,
         }
         print(f"[contract] {result['contract']} ip_intent_sha256={intent}")
         print(f"[release] level={level} {result['release']}")
@@ -1561,18 +1569,34 @@ class FlexSoCTarget:
             ips_root = self.client.project_root / "hw" / "ips"
             common_ip_roots = tuple(
                 ips_root / name
-                for name in ("pkgs", "prim", "prim_opentitan", "tlul")
+                for name in ("pkgs", "prim", "prim_opentitan")
                 if (ips_root / name).is_dir()
             )
             vendor_root = self.client.project_root / "vendor"
+            vendor_rtl_roots: tuple[Path, ...] = ()
+            extra_args = ""
+            if interface == "tlul":
+                vendor_rtl_roots = (vendor_root / "lowrisc_ip" / "ip" / "tlul" / "rtl",)
+            elif interface == "axi_lite":
+                pulp_root = vendor_root / "pulp"
+                vendor_rtl_roots = (
+                    pulp_root / "common_cells" / "src",
+                    pulp_root / "axi" / "src",
+                    pulp_root / "register_interface" / "src",
+                )
+                extra_args = shlex.join((
+                    "-I", str(pulp_root / "axi" / "include"),
+                    "-I", str(pulp_root / "register_interface" / "include"),
+                ))
             return b.design.rtl.setup_filelists(
                 root=self.client.project_root,
                 top_file=p.rtl / f"{top}.sv",
                 common_out=p.rtl_common,
                 ip_out=p.rtl_ip,
-                search_roots=(p.rtl, *common_ip_roots, vendor_root),
-                common_roots=(*common_ip_roots, vendor_root),
-                top=top, slang=v.get("SLANG", "slang"), on=self.on,
+                search_roots=(p.rtl, *common_ip_roots, *vendor_rtl_roots),
+                common_roots=(*common_ip_roots, *vendor_rtl_roots),
+                top=top, extra_args=extra_args,
+                slang=v.get("SLANG", "slang"), on=self.on,
             )
         if target == "fetch":
             vendor = v.get("VENDOR") or v.get("TARGET")
@@ -1646,7 +1670,8 @@ class FlexSoCTarget:
         # Formal verification, synthesis and logical equivalence.
         if target in {"formal.prove.setup", "formal.cover.setup", "formal.csr_prove.setup", "formal.csr_cover.setup"}:
             b.dv.formal.init_properties(top, p.formal, multiclock=self.context.clocks.multiclock)
-            return self._formal_setup(csr=".csr_" in target, mode="cover" if ".cover." in target else "prove")
+            cover_setup = target in {"formal.cover.setup", "formal.csr_cover.setup"}
+            return self._formal_setup(csr=".csr_" in target, mode="cover" if cover_setup else "prove")
         if target in {"formal_bmc", "formal_prove", "formal_cover", "formal_csr_bmc", "formal_csr_prove", "formal_csr_cover"}:
             return self._run_formal(target)
         if target == "formal_csr":

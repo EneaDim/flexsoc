@@ -63,6 +63,7 @@ from flexsoc.backend.dv.testbench import (
     render_gls_make_block,
     render_reg_driver_py,
     render_tlul_interface,
+    render_verilator_include,
     sv_driver_text,
     write_cocotb_scaffold,
 )
@@ -428,9 +429,11 @@ def test_synthesis_defaults_to_delay1_and_finishes_for_physical_implementation(t
     assert "check -assert -mapped" in script
     assert "write_verilog -nohex -nodec" in script
     assert "delay1.abc" in script
-    assert "delay1.abc" in syn_module.yosys_synth_asic_slang(
+    slang_script = syn_module.yosys_synth_asic_slang(
         cfg.top, liberty, cfg.clk_period_ns, cfg.opt, cfg.sdcdir, cfg.output,
     )
+    assert "delay1.abc" in slang_script
+    assert "hw/ips/tlul" not in slang_script
 
 
 def test_setup_pnr_consumes_only_mapped_netlist_and_sdc(tmp_path: Path) -> None:
@@ -1762,9 +1765,42 @@ def test_generated_testbenches_share_sdc_io_timing_phases() -> None:
         render_tlul_interface(period_ns=10.0, io_delay_pct=0.5)
 
 
+def test_register_interface_intent_uses_one_canonical_regfile_transport() -> None:
+    from flexsoc.backend.design.regs import normalize_register_interface, render_hjson, render_nclock_hjson
+
+    assert normalize_register_interface("tlul") == "tlul"
+    assert normalize_register_interface("reg_iface") == "reg_iface"
+    assert normalize_register_interface("axi_lite") == "axi_lite"
+    with pytest.raises(ValueError, match="REG_ITF must be one of"):
+        normalize_register_interface("reg")
+
+    single = {interface: render_hjson("demo", interface) for interface in ("tlul", "reg_iface", "axi_lite")}
+    assert len(set(single.values())) == 1
+    assert 'protocol: "reg_iface"' in single["tlul"]
+
+    multi = {
+        interface: render_nclock_hjson("demo", "cfg", interface)
+        for interface in ("tlul", "reg_iface", "axi_lite")
+    }
+    assert len(set(multi.values())) == 1
+    assert 'protocol: "reg_iface"' in multi["axi_lite"]
+
+
+def test_reggen_reg_iface_uses_tool_aware_prim_assert_macros() -> None:
+    template = (Path(__file__).parents[1] / "src" / "util" / "reggen" / "reg_top.sv.tpl").read_text(encoding="utf-8")
+
+    assert '`include "prim_assert.sv"' in template
+    assert '`include "assertions.svh"' not in template
+    assert "reg_req_i.addr[AW-1:0]" in template
+    assert "reg_req_i.addr[BlockAw-1:0]" not in template
+
+    generator = (Path(__file__).parents[1] / "src" / "util" / "reggen" / "gen_rtl.py").read_text(encoding="utf-8")
+    assert "mod_name = mod_base + alias_impl + '_reg_core'" in generator
+
+
 def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp_path: Path) -> None:
     from flexsoc.backend.core.core import candidate_ips_in_order, resolve_ip_dependencies, select_used_ips_in_order
-    from flexsoc.backend.design.rtl import render_nclock_top, render_top_from_core
+    from flexsoc.backend.design.rtl import render_nclock_top, render_register_top, render_top_from_core
 
     single_core = tmp_path / "demo_core.sv"
     single_core.write_text(
@@ -1791,6 +1827,52 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     assert ".rst_ni(core_rst_sync_ni)" in single
     assert ".rst_ni(core_rst_sync_ni)" in single.split("demo_core u_demo_core", 1)[1]
 
+    tlul = render_top_from_core(
+        "demo",
+        single_core,
+        "tlul",
+        clocks=ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),)),
+    )
+    assert "tlul_adapter_reg #( " not in tlul
+    assert "demo_reg_top u_demo_reg" in tlul
+    assert ".tl_i(tl_i)" in tlul
+    tlul_reg_top = render_register_top("demo", "tlul")
+    assert "tlul_adapter_reg #( " in tlul_reg_top
+    assert "demo_reg_core u_reg_core" in tlul_reg_top
+    assert ".reg_req_i(flexsoc_tlul_reg_req)" in tlul_reg_top
+    assert ".reg_rsp_o(flexsoc_tlul_reg_rsp)" in tlul_reg_top
+
+    axi_lite = render_top_from_core(
+        "demo",
+        single_core,
+        "axi_lite",
+        clocks=ClockConfig((ClockDomain("core", "clk_i", "rst_ni", 10.0),)),
+    )
+    assert "axi_lite_to_reg #( " not in axi_lite
+    assert "demo_reg_top u_demo_reg" in axi_lite
+    axi_reg_top = render_register_top("demo", "axi_lite")
+    assert "axi_lite_to_reg #( " in axi_reg_top
+    assert "demo_reg_core u_reg_core" in axi_reg_top
+    assert ".reg_req_i(flexsoc_axi_reg_req)" in axi_reg_top
+    assert ".reg_rsp_o(flexsoc_axi_reg_rsp)" in axi_reg_top
+
+    direct_reg_top = render_register_top("demo", "reg_iface")
+    assert "tlul_adapter_reg" not in direct_reg_top
+    assert "axi_lite_to_reg" not in direct_reg_top
+    assert "demo_reg_core u_reg_core" in direct_reg_top
+    assert ".reg_req_i(reg_req_i)" in direct_reg_top
+    assert ".reg_rsp_o(reg_rsp_o)" in direct_reg_top
+
+    from flexsoc.backend.design.rtl import write_top_from_core
+    outdir = tmp_path / "generated"
+    outdir.mkdir()
+    generated_core = outdir / "demo_core.sv"
+    generated_core.write_text(single_core.read_text(encoding="utf-8"), encoding="utf-8")
+    write_top_from_core("demo", outdir, "axi_lite", force=True)
+    assert (outdir / "demo_reg_top.sv").is_file()
+    assert "axi_lite_to_reg #( " in (outdir / "demo_reg_top.sv").read_text(encoding="utf-8")
+    assert "axi_lite_to_reg #( " not in (outdir / "demo.sv").read_text(encoding="utf-8")
+
     multi_core = tmp_path / "multi_core.sv"
     multi_core.write_text(
         "module multi_core(\n"
@@ -1812,6 +1894,23 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     multi = render_nclock_top("multi", multi_core, clocks)
     assert "prim_reset_sync" not in multi
     assert multi.count("prim_ff_2sync #(") == 2
+
+    multi_reg = render_nclock_top("multi", multi_core, clocks, "reg_iface")
+    assert "multi_cfg_reg_pkg::reg_req_t cfg_reg_req_i" in multi_reg
+    assert "multi_cfg_reg_pkg::reg_rsp_t cfg_reg_rsp_o" in multi_reg
+    assert ".reg_req_i(cfg_reg_req_i)" in multi_reg
+    assert ".reg_rsp_o(cfg_reg_rsp_o)" in multi_reg
+    assert "cfg_tl_i" not in multi_reg
+
+    multi_axi = render_nclock_top("multi", multi_core, clocks, "axi_lite")
+    assert "cfg_axi_aw_addr_i" in multi_axi
+    assert "dsp_axi_aw_addr_i" in multi_axi
+    assert "axi_lite_to_reg #( " not in multi_axi
+    assert "multi_cfg_reg_top u_cfg_reg_top" in multi_axi
+    assert "multi_dsp_reg_top u_dsp_reg_top" in multi_axi
+    multi_axi_reg_top = render_register_top("multi_cfg", "axi_lite")
+    assert "axi_lite_to_reg #( " in multi_axi_reg_top
+    assert "multi_cfg_reg_core u_reg_core" in multi_axi_reg_top
     core_instance = "".join(multi.split("multi_core u_core", 1)[1].split())
     assert ".cfg_rst_ni(cfg_rst_sync_ni)" in core_instance
     assert ".dsp_rst_ni(dsp_rst_sync_ni)" in core_instance
@@ -1828,6 +1927,221 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     assert {"prim_ff_2sync", "prim_flop"} <= stems
     assert "prim_reset_sync" not in stems
     assert not (ROOT / "hw/ips/prim/prim_reset_sync.sv").exists()
+
+
+
+def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> None:
+    from flexsoc.backend.design.rtl import render_register_top, render_top_from_core
+    from flexsoc.backend.dv.testbench import (
+        render_axi_lite_utils,
+        render_axi_lite_wrapper,
+        render_makefile,
+        render_reg_driver_py,
+    )
+
+    core = tmp_path / "demo_core.sv"
+    core.write_text(
+        "module demo_core(\n"
+        "  input logic clk_i,\n"
+        "  input logic rst_ni,\n"
+        "  input logic [31:0] reg2hw,\n"
+        "  output logic [31:0] hw2reg\n"
+        "); endmodule\n",
+        encoding="utf-8",
+    )
+    wrapper = render_top_from_core("demo", core, "axi_lite")
+    assert "input logic [demo_reg_pkg::AW-1:0] axi_aw_addr_i" in wrapper
+    assert "output logic [demo_reg_pkg::DW-1:0] axi_r_data_o" in wrapper
+    assert "axi_lite_to_reg #( " not in wrapper
+    assert "demo_reg_top u_demo_reg" in wrapper
+    assert "tl_i" not in wrapper
+
+    reg_top = render_register_top("demo", "axi_lite")
+    assert "axi_lite_to_reg #( " in reg_top
+    assert "demo_reg_core u_reg_core" in reg_top
+    assert ".reg_req_i(flexsoc_axi_reg_req)" in reg_top
+    assert ".reg_rsp_o(flexsoc_axi_reg_rsp)" in reg_top
+
+    helper = render_axi_lite_utils("demo")
+    assert "task automatic axi_lite_write" in helper
+    assert "task automatic axi_lite_read" in helper
+    assert "axi_b_ready_i  = 1'b0;" in helper
+    assert "axi_r_ready_i  = 1'b0;" in helper
+    assert "axi_b_ready_i = 1'b1;" in helper
+    assert "axi_r_ready_i = 1'b1;" in helper
+
+    driver = render_reg_driver_py()
+    assert "def has_axi_lite_proxy" in driver
+    assert '"axi_aw_addr_i"' in driver
+    assert "AXI4-Lite write error" in driver
+    assert "AXI4-Lite read error" in driver
+    assert '_get(dut, "axi_b_ready_i").value = 0' in driver
+    assert '_get(dut, "axi_r_ready_i").value = 0' in driver
+    assert '_get(dut, "axi_b_ready_i").value = 1' in driver
+    assert '_get(dut, "axi_r_ready_i").value = 1' in driver
+
+    rtl = tmp_path / "rtl"
+    rtl.mkdir()
+    (rtl / "demo.sv").write_text(wrapper, encoding="utf-8")
+    cfg = CocotbConfig(top="demo", interface="axi_lite", output=tmp_path / "tb", rtl_dir=rtl)
+    cocotb_wrapper = render_axi_lite_wrapper(cfg)
+    assert "logic [demo_reg_pkg::AW-1:0] axi_aw_addr_i;" in cocotb_wrapper
+    assert "demo u_demo (.*);" in cocotb_wrapper
+    makefile = render_makefile(cfg, (rtl / "demo.sv",))
+    assert "vendor/pulp/axi/include" in makefile
+    assert "vendor/pulp/register_interface/include" in makefile
+    assert "COMPILE_ARGS += -Wno-fatal" in makefile
+
+    from flexsoc.backend.dv.testbench import render_reg_iface_wrapper
+
+    reg_core_wrapper = render_top_from_core("demo", core, "reg_iface")
+    (rtl / "demo.sv").write_text(reg_core_wrapper, encoding="utf-8")
+    reg_cfg = CocotbConfig(top="demo", interface="reg_iface", output=tmp_path / "tb_reg", rtl_dir=rtl)
+    reg_wrapper = render_reg_iface_wrapper(reg_cfg)
+    assert "reg_req_t reg_req_i;" in reg_wrapper
+    assert "logic reg_req_valid;" in reg_wrapper
+    assert "assign reg_rsp_ready = reg_rsp_o.ready;" in reg_wrapper
+    assert "tl_i_a_valid" not in reg_wrapper
+
+    driver = render_reg_driver_py()
+    assert "def has_reg_iface_proxy" in driver
+    assert '"reg_req_valid"' in driver
+    assert "timeout waiting reg_iface write ready" in driver
+    assert "reg_iface read error" in driver
+    assert 'getattr(clk, "_name", str(clk))' not in driver
+
+    manifests = {
+        "pulp_register_interface.vendor.hjson": ("d6e1d4c", "src/axi_lite_to_reg.sv"),
+        "pulp_axi.vendor.hjson": ("fccffb5", "src/axi_pkg.sv"),
+        "pulp_common_cells.vendor.hjson": ("6aeee85", "src/fifo_v3.sv", "src/cf_math_pkg.sv"),
+    }
+    targets = {
+        "pulp_register_interface.vendor.hjson": 'target_dir: "pulp/register_interface"',
+        "pulp_axi.vendor.hjson": 'target_dir: "pulp/axi"',
+        "pulp_common_cells.vendor.hjson": 'target_dir: "pulp/common_cells"',
+    }
+    for name, expected in manifests.items():
+        text = (ROOT / "vendor" / name).read_text(encoding="utf-8")
+        assert all(item in text for item in expected)
+        assert targets[name] in text
+
+
+
+def test_lowrisc_vendor_pins_register_tooling() -> None:
+    manifest = (ROOT / "vendor" / "lowrisc_ip.vendor.hjson").read_text(encoding="utf-8")
+    assert 'rev: "ddc6f6144995624f2c7f181cfb4a3ce7e675b373"' in manifest
+    assert '{from: "hw/ip/tlul",         to: "ip/tlul", patch_dir: "tlul"}' in manifest
+    assert '"hw/ip/tlul/rtl/tlul_lc_gate.sv"' in manifest
+    assert '{from: "util/reggen",        to: "util/reggen", patch_dir: "reggen"}' in manifest
+    assert '{from: "util/regtool.py",    to: "util/regtool.py"}' in manifest
+
+
+def test_lowrisc_tlul_patchset_owns_flexsoc_compatibility() -> None:
+    patch_dir = ROOT / "vendor" / "patches" / "lowrisc_ip" / "tlul"
+    remove_integrity = (patch_dir / "0003-Remove-Integrity.patch").read_text(encoding="utf-8")
+    adapter_compat = (
+        patch_dir / "0004-FlexSoC-TLUL-Adapter-Compatibility.patch"
+    ).read_text(encoding="utf-8")
+    assert_compat = (
+        patch_dir / "0005-Disable-Unsupported-TLUL-Assertions.patch"
+    ).read_text(encoding="utf-8")
+
+    assert "EnableCmdIntgGen = 0" in remove_integrity
+    assert "EnableRspIntgCheck = 0" in remove_integrity
+    assert "assign err_internal = addr_align_err ;" in adapter_compat
+    assert "ReqNumOne = 'd1;" in adapter_compat
+    assert "ASSERT_FINAL(noOutstandingReqsAtEndOfSim_A" in assert_compat
+    assert "+    //`TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(address)" in assert_compat
+
+
+def test_tlul_package_is_owned_by_lowrisc_vendor() -> None:
+    assert not (ROOT / "hw" / "ips" / "tlul").exists()
+    assert not (ROOT / "hw" / "ips" / "pkgs" / "tlul_pkg.sv").exists()
+    core = (ROOT / "src" / "flexsoc" / "backend" / "core" / "core.py").read_text(encoding="utf-8")
+    assert 'ips_root / "pkgs" / "tlul_pkg.sv"' not in core
+    attrs = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+    assert "vendor/patches/**/*.patch -whitespace" in attrs
+
+
+def test_tlul_verilator_include_uses_compiled_vendor_package() -> None:
+    text = render_verilator_include(
+        "demo", Path("rtl"), Path("syn"), (), True, "tlul", "sv"
+    )
+    assert '`include "tlul_pkg.sv"' not in text
+    assert '`include "tlul_if.sv"' in text
+
+
+def test_e2e_register_transport_matrix_and_vendor_bootstrap_contract() -> None:
+    text = (ROOT / "tests" / "test_e2e_fx.py").read_text(encoding="utf-8")
+    assert 'REG_ITFS = ("tlul", "reg_iface", "axi_lite")' in text
+    assert text.count('@pytest.mark.parametrize("reg_itf", REG_ITFS, ids=REG_ITFS)') == 2
+    assert 'fx fetch --set VENDOR=lowrisc_ip' in text
+    assert 'fx fetch --set VENDOR=pulp_common_cells' in text
+    assert 'fx fetch --set VENDOR=pulp_axi' in text
+    assert 'fx fetch --set VENDOR=pulp_register_interface' in text
+    assert 'if config.run_signoff and reg_itf == "tlul":' in text
+    assert 'run_technology = False  # Keep multi-clock E2E technology-independent for now.' in text
+    assert text.count('REG_ITF={reg_itf}') >= 4
+    assert "uv run --no-sync fx" not in text
+
+
+def test_formal_csr_cover_setup_dispatches_cover_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev",
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    seen: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        type(router.backend.dv.formal),
+        "init_properties",
+        lambda self, *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        type(router),
+        "_formal_setup",
+        lambda self, **kwargs: seen.update(kwargs) or Path("done.sby"),
+    )
+
+    router._execute_target("formal.csr_cover.setup")
+    assert seen == {"csr": True, "mode": "cover"}
+
+
+def test_register_transport_ports_are_not_functional_vectors(tmp_path: Path) -> None:
+    from flexsoc.backend.design.model import _ports
+    from flexsoc.backend.dv.functional import _vector_inputs, _vector_outputs
+
+    rtl = tmp_path / "demo.sv"
+    rtl.write_text(
+        "module demo(\n"
+        "  input logic clk_i,\n"
+        "  input logic rst_ni,\n"
+        "  input logic [31:0] data_i,\n"
+        "  output logic [31:0] data_o,\n"
+        "  input logic [11:0] axi_aw_addr_i,\n"
+        "  input logic axi_aw_valid_i,\n"
+        "  output logic axi_aw_ready_o,\n"
+        "  input logic axi_b_ready_i,\n"
+        "  output logic axi_b_valid_o\n"
+        "); endmodule\n",
+        encoding="utf-8",
+    )
+    inputs, outputs = _ports(tmp_path, "demo")
+    assert inputs == ["data_i"]
+    assert outputs == ["data_o"]
+
+    sig = {
+        "ports_in": [("data_i", 32), ("axi_aw_addr_i", 12), ("axi_aw_valid_i", 1), ("axi_b_ready_i", 1)],
+        "ports_out": [("data_o", 32), ("axi_aw_ready_o", 1), ("axi_b_valid_o", 1)],
+    }
+    assert _vector_inputs(sig) == ["data_i"]
+    assert _vector_outputs(sig) == ["data_o"]
 
 
 def test_saved_cordic_registers_atan_before_z_arithmetic() -> None:
@@ -4077,13 +4391,85 @@ def test_flist_searches_only_shared_rtl_dependencies(
         project / "hw" / "ips" / "pkgs",
         project / "hw" / "ips" / "prim",
         project / "hw" / "ips" / "prim_opentitan",
-        project / "hw" / "ips" / "tlul",
-        project / "vendor",
+        project / "vendor" / "lowrisc_ip" / "ip" / "tlul" / "rtl",
     )
     assert common_roots == search_roots[1:]
+    assert project / "vendor" not in search_roots
+    assert project / "hw" / "ips" / "tlul" not in search_roots
     assert project / "hw" / "ips" / "uart" not in search_roots
     assert project / "hw" / "ips" / "cordic" not in search_roots
     assert project / "hw" / "ips" / "tiny-soc" not in search_roots
+    assert seen["extra_args"] == ""
+
+
+def test_axi_lite_flist_carries_pulp_include_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    for name in ("pkgs", "prim", "prim_opentitan", "tlul"):
+        (project / "hw" / "ips" / name).mkdir(parents=True, exist_ok=True)
+    (project / "vendor").mkdir()
+
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "test", "RUN_TOP": "test", "RUN_ID": "dev", "REG_ITF": "axi_lite",
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    seen: dict[str, object] = {}
+
+    def capture(**kwargs):
+        seen.update(kwargs)
+        return None
+
+    monkeypatch.setattr(router.backend.design.rtl, "setup_filelists", capture)
+    router._execute_target("flist")
+
+    assert seen["extra_args"] == (
+        f"-I {project / 'vendor' / 'pulp' / 'axi' / 'include'} "
+        f"-I {project / 'vendor' / 'pulp' / 'register_interface' / 'include'}"
+    )
+    search_roots = tuple(Path(path) for path in seen["search_roots"])
+    common_roots = tuple(Path(path) for path in seen["common_roots"])
+    assert search_roots[-3:] == (
+        project / "vendor" / "pulp" / "common_cells" / "src",
+        project / "vendor" / "pulp" / "axi" / "src",
+        project / "vendor" / "pulp" / "register_interface" / "src",
+    )
+    assert common_roots[-3:] == search_roots[-3:]
+    assert project / "vendor" not in search_roots
+    assert project / "vendor" / "lowrisc_ip" not in search_roots
+    assert project / "hw" / "ips" / "tlul" not in search_roots
+
+
+def test_reg_iface_flist_has_no_transport_vendor_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    for name in ("pkgs", "prim", "prim_opentitan", "tlul"):
+        (project / "hw" / "ips" / name).mkdir(parents=True, exist_ok=True)
+    (project / "vendor" / "lowrisc_ip" / "ip" / "tlul" / "rtl").mkdir(parents=True)
+
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {
+        **api_module.DEFAULT_SETTINGS,
+        "TOP": "test", "RUN_TOP": "test", "RUN_ID": "dev", "REG_ITF": "reg_iface",
+    }
+    router = api_module.FlexSoCTarget(client, values)
+    seen: dict[str, object] = {}
+
+    monkeypatch.setattr(router.backend.design.rtl, "setup_filelists", lambda **kwargs: seen.update(kwargs))
+    router._execute_target("flist")
+
+    search_roots = tuple(Path(path) for path in seen["search_roots"])
+    assert search_roots == (
+        router.paths.rtl,
+        project / "hw" / "ips" / "pkgs",
+        project / "hw" / "ips" / "prim",
+        project / "hw" / "ips" / "prim_opentitan",
+    )
+    assert project / "hw" / "ips" / "tlul" not in search_roots
+    assert project / "vendor" / "lowrisc_ip" / "ip" / "tlul" / "rtl" not in search_roots
 
 
 def test_gate_sim_validates_explicit_driver_provenance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4464,6 +4850,52 @@ def test_runtime_contract_evidence_invalidates_downstream_selectively(tmp_path: 
     assert router._provenance_state("sta") == "STALE"
 
 
+def test_regression_provenance_ignores_derived_coverage_reports(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    client = api_module.FlexSoC(project_root=project, workdir=tmp_path / "work")
+    values = {**api_module.DEFAULT_SETTINGS, "TOP": "demo", "RUN_TOP": "demo", "RUN_ID": "dev"}
+    router = api_module.FlexSoCTarget(client, values)
+    router.paths.ensure()
+
+    source = router.paths.rtl / "demo.sv"
+    source.write_text("module demo(input clk_i); endmodule\n", encoding="utf-8")
+    router.paths.rtl_common.write_text("", encoding="utf-8")
+    router.paths.rtl_ip.write_text(f"{source.resolve()}\n", encoding="utf-8")
+    router.paths.sdc.write_text("create_clock -period 10 [get_ports clk_i]\n", encoding="utf-8")
+    router.paths.model.mkdir(parents=True, exist_ok=True)
+    router.paths.tests.mkdir(parents=True, exist_ok=True)
+
+    for setup_stage in ("tb.setup", "cocotb.setup"):
+        generated = router.paths.run / "generated" / setup_stage.replace(".", "_")
+        generated.parent.mkdir(parents=True, exist_ok=True)
+        generated.write_text(setup_stage + "\n", encoding="utf-8")
+        router._provenance().record(
+            setup_stage,
+            inputs=router._provenance_inputs(setup_stage),
+            generated=(generated,),
+            config=router._provenance_config(setup_stage),
+            parents=router._provenance_parents(setup_stage),
+        )
+
+    log_dir, sv_cov, cocotb_cov = router._evidence_paths("regression")
+    for path in (log_dir / "sv" / "demo.log", sv_cov / "smoke.dat", cocotb_cov / "smoke.dat"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("raw regression evidence\n", encoding="utf-8")
+    router._record_provenance("regression", 0)
+    assert router._provenance_state("regression") == "CLEAN"
+
+    coverage = router.paths.coverage
+    (coverage / "merged.dat").write_text("merged\n", encoding="utf-8")
+    (coverage / "summary.txt").write_text("summary\n", encoding="utf-8")
+    (coverage / "summary.json").write_text("{}\n", encoding="utf-8")
+    annotated = coverage / "annotated" / "demo.sv"
+    annotated.parent.mkdir(parents=True, exist_ok=True)
+    annotated.write_text("annotated\n", encoding="utf-8")
+
+    assert router._provenance_state("regression") == "CLEAN"
+
+
 def test_contract_status_derives_release_level_without_running_eda(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project = tmp_path / "project"
     project.mkdir()
@@ -4483,6 +4915,14 @@ def test_contract_status_derives_release_level_without_running_eda(tmp_path: Pat
     assert status["contract"] == "VALID"
     assert status["release_level"] == 1
     assert status["release"] == "RTL Qualified"
+    stage_order = tuple(status["stages"])
+    assert stage_order == tuple(
+        stage for stage in api_module.STAGE_CONTRACTS if stage in api_module.RUNTIME_STAGES
+    )
+    assert stage_order.index("regression") < stage_order.index("formal_bmc")
+    assert stage_order.index("formal_cover") < stage_order.index("syn")
+    assert stage_order.index("sim_post_syn_all") < stage_order.index("pnr")
+    assert stage_order.index("physical_signoff") < stage_order.index("sta_post_pnr")
 
     netlist_required = rtl_required | set(api_module.RELEASE_LEVELS[2][1])
     monkeypatch.setattr(router, "_contract_state", lambda stage: "CLEAN" if stage in netlist_required else "MISSING")

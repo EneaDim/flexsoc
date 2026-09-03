@@ -1,0 +1,110 @@
+diff --git a/rtl/tlul_assert.sv b/rtl/tlul_assert.sv
+--- a/rtl/tlul_assert.sv
++++ b/rtl/tlul_assert.sv
+@@ -277,14 +277,14 @@
+     `ASSERT(dDataKnown_A,        d2h_pre_S and dDataKnown_pre_S |-> dDataKnown_S,
+           !clk_i, !rst_ni || disable_sva)
+     // d2h error cases
+-    `ASSERT(legalAOpcodeErr_A, d_error_pre_S and legalAOpcodeErr_S |=>
+-            s_eventually (d2h.d_valid && d2h.d_error), , !rst_ni || disable_d_error_sva)
+-    `ASSERT(sizeGTEMaskErr_A, d_error_pre_S and sizeGTEMaskErr_S |=>
+-            s_eventually (d2h.d_valid && d2h.d_error), , !rst_ni || disable_d_error_sva)
+-    `ASSERT(sizeMatchesMaskErr_A, d_error_pre_S and sizeMatchesMaskErr_S |=>
+-            s_eventually (d2h.d_valid && d2h.d_error), , !rst_ni || disable_d_error_sva)
+-    `ASSERT(addrSizeAlignedErr_A, d_error_pre_S and addrSizeAlignedErr_S |=>
+-            s_eventually (d2h.d_valid && d2h.d_error), , !rst_ni || disable_d_error_sva)
++    //`ASSERT(legalAOpcodeErr_A, d_error_pre_S and legalAOpcodeErr_S |=>
++    //        s_eventually (d2h.d_valid && d2h.d_error), , !rst_ni || disable_d_error_sva)
++    //`ASSERT(sizeGTEMaskErr_A, d_error_pre_S and sizeGTEMaskErr_S |=>
++    //        s_eventually (d2h.d_valid && d2h.d_error), , !rst_ni || disable_d_error_sva)
++    //`ASSERT(sizeMatchesMaskErr_A, d_error_pre_S and sizeMatchesMaskErr_S |=>
++    //        s_eventually (d2h.d_valid && d2h.d_error), , !rst_ni || disable_d_error_sva)
++    //`ASSERT(addrSizeAlignedErr_A, d_error_pre_S and addrSizeAlignedErr_S |=>
++    //        s_eventually (d2h.d_valid && d2h.d_error), , !rst_ni || disable_d_error_sva)
+   end else begin : gen_unknown
+     initial begin : p_unknonw
+       `ASSERT_I(unknownConfig_A, 0 == 1)
+@@ -297,9 +297,10 @@
+   end
+ 
+   // make sure all "pending" bits are 0 at the end of the sim
+-  for (genvar ii = 0; ii < 2**TL_AIW; ii++) begin : gen_assert_final
+-    `ASSERT_FINAL(noOutstandingReqsAtEndOfSim_A, (pend_req[ii].pend == 0))
+-  end
++  // Problems with sv2v verilog file for synthesis
++  //for (genvar ii = 0; ii < 2**TL_AIW; ii++) begin : gen_assert_final
++  //  `ASSERT_FINAL(noOutstandingReqsAtEndOfSim_A, (pend_req[ii].pend == 0))
++  //end
+ 
+   ////////////////////////////////////
+   // additional checks for X values //
+@@ -335,11 +336,11 @@
+ 
+   // host sends back2back requests with same address
+   // UVM RAL can't issue this scenario, add this cover to make sure it's tested in some other seq
+-  sequence b2bReqWithSameAddr_S;
+-    bit [top_pkg::TL_AW-1:0] pre_addr;
+-    (h2d.a_valid && d2h.a_ready, pre_addr = h2d.a_address)
+-        ##1 h2d.a_valid && pre_addr == h2d.a_address;
+-  endsequence
++  //sequence b2bReqWithSameAddr_S;
++  //  bit [top_pkg::TL_AW-1:0] pre_addr;
++  //  (h2d.a_valid && d2h.a_ready, pre_addr = h2d.a_address)
++  //      ##1 h2d.a_valid && pre_addr == h2d.a_address;
++  //endsequence
+ 
+   // a_valid is dropped without a_ready
+   sequence aValidNotAccepted_S;
+@@ -352,11 +353,11 @@
+   endsequence
+ 
+   // host uses same source for back2back items
+-  sequence b2bSameSource_S;
+-    bit [top_pkg::TL_AIW-1:0] pre_source;
+-    (h2d.a_valid && d2h.a_ready, pre_source = h2d.a_source) ##1 h2d.a_valid[->1]
+-        ##0 pre_source == h2d.a_source;
+-  endsequence
++  //sequence b2bSameSource_S;
++  //  bit [top_pkg::TL_AIW-1:0] pre_source;
++  //  (h2d.a_valid && d2h.a_ready, pre_source = h2d.a_source) ##1 h2d.a_valid[->1]
++  //      ##0 pre_source == h2d.a_source;
++  //endsequence
+ 
+   // a channal content is changed without being accepted
+   `define TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(NAME) \
+@@ -379,23 +380,23 @@
+   if (EndpointType == "Host") begin : gen_host_cov // DUT is host
+     `TLUL_COVER(b2bRsp)
+     `TLUL_COVER(dValidNotAccepted)
+-    `TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(data)
+-    `TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(opcode)
+-    `TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(size)
+-    `TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(source)
+-    `TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(sink)
+-    `TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(error)
++    //`TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(data)
++    //`TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(opcode)
++    //`TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(size)
++    //`TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(source)
++    //`TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(sink)
++    //`TLUL_D_CHAN_CONTENT_CHANGED_WO_ACCEPTED(error)
+   end else if (EndpointType == "Device") begin : gen_device_cov // DUT is device
+     `TLUL_COVER(b2bReq)
+     `TLUL_COVER(b2bReqWithSameAddr)
+     `TLUL_COVER(aValidNotAccepted)
+     `TLUL_COVER(b2bSameSource)
+-    `TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(address)
+-    `TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(data)
+-    `TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(opcode)
+-    `TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(size)
+-    `TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(source)
+-    `TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(mask)
++    //`TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(address)
++    //`TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(data)
++    //`TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(opcode)
++    //`TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(size)
++    //`TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(source)
++    //`TLUL_A_CHAN_CONTENT_CHANGED_WO_ACCEPTED(mask)
+   end else begin : gen_unknown_cov
+     initial begin : p_unknonw_cov
+       `ASSERT_I(unknownConfig_A, 0 == 1)

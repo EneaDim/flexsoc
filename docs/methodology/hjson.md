@@ -22,7 +22,8 @@ that file like RTL source. Do not regenerate over it during normal development.
 Create the workspace and initial register description with the normal setup:
 
 ```bash
-fx setup hjson --force --workdir "$WORKSPACE"
+fx setup --force
+fx hjson --force
 ```
 
 Then edit:
@@ -69,7 +70,7 @@ metadata:
   }]
 
   clocking: [{ clock: "clk_i", reset: "rst_ni" }]
-  bus_interfaces: [{ protocol: "tlul", direction: "device" }]
+  bus_interfaces: [{ protocol: "reg_iface", direction: "device" }]
   regwidth: "32"
 
   registers: [
@@ -87,6 +88,13 @@ than inventing metadata casually.
 
 The documentation/checklist paths may remain empty while an IP is being
 developed.
+
+For FlexSoC-generated IP, the HJSON register source always uses the canonical
+internal `reg_iface` transport. The external control interface is separate IP
+intent selected with `REG_ITF`: `reg_iface` connects directly, `tlul` is adapted
+through `tlul_adapter_reg`, and `axi_lite` is adapted through the PULP
+`axi_lite_to_reg` bridge. This keeps one register description and one generated
+register file independent of the SoC-facing protocol.
 
 ---
 
@@ -404,8 +412,11 @@ Expected outputs include:
 
 ```text
 rtl/<top>_reg_pkg.sv
+rtl/<top>_reg_core.sv
 rtl/<top>_reg_top.sv
 ```
+
+`<top>_reg_core.sv` is the protocol-independent register implementation on the canonical `reg_req/reg_rsp` transport. `<top>_reg_top.sv` is always present and owns only the selected external transport: direct `reg_iface`, TL-UL adaptation, or AXI4-Lite adaptation. The integration `<top>.sv` therefore instantiates the register top and the functional `<top>_core.sv` without embedding protocol adapters.
 
 ### `doc`
 

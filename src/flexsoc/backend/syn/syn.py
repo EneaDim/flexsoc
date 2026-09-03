@@ -26,7 +26,7 @@ def _rewrite_hw_ip_include_paths(script: str) -> str:
     """Resolve hw/ips include paths from the current repository root."""
 
     ip_root = (_repo_root() / "hw" / "ips").as_posix()
-    for ip_name in ("pkgs", "prim_opentitan", "prim", "tlul"):
+    for ip_name in ("pkgs", "prim_opentitan", "prim"):
         script = script.replace(f"../hw/ips/{ip_name}", f"{ip_root}/{ip_name}")
     return script
 
@@ -351,7 +351,6 @@ def yosys_synth_asic_slang(
         f"read_slang -I {(_repo_root() / 'hw' / 'ips' / 'pkgs').as_posix()} \\",
         "           -I ../hw/ips/prim \\",
         "           -I ../hw/ips/prim_opentitan \\",
-        "           -I ../hw/ips/tlul \\",
         "           -D SYNTHESIS \\",
         "           --ignore-assertions \\",
         *(f"           -f {Path(filelist).resolve().as_posix()} \\" for filelist in filelists),

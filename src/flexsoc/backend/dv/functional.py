@@ -14,6 +14,7 @@ from typing import Any, Sequence
 
 from flexsoc.backend.core import ensure_dir, safe_write_file
 from flexsoc.backend.core.execution import print_label, print_path_label, print_status_label
+from flexsoc.backend.design.rtl import is_register_bus_port
 
 TEST_NAMES = ("smoke", "corners", "random")
 WRITABLE_SWACCESS = {"rw", "wo", "w1c", "w1s", "rw1c", "rw1s", "rw0c", "rw0w1c"}
@@ -177,7 +178,7 @@ def render_reg_config(top: str, test: str, registers: Sequence[dict[str, Any]]) 
 def _is_control_port(name: str) -> bool:
     """Return true for clocks, resets, and generated bus records."""
 
-    return name in {"tl_i", "tl_o", "reg_req_i", "reg_rsp_o"} or "clk" in name or "rst" in name
+    return is_register_bus_port(name) or "clk" in name or "rst" in name
 
 def _vector_inputs(sig: dict[str, Any] | None) -> list[str]:
     """Return top inputs that can be driven from data_in.vec."""

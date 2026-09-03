@@ -75,16 +75,15 @@ task automatic run_reg_config(input string cfg_path);
 endtask
 """
 
-    write_addr_call = (
-        "tl_if.tlul_write(addr[31:0], data, 8'h00, mask[3:0]);"
-        if interface == "tlul"
-        else f"reg_utils_inst.write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
-    )
-    read_addr_call = (
-        "tl_if.tlul_read(addr[31:0], data, 8'h00);"
-        if interface == "tlul"
-        else f"reg_utils_inst.read(addr[{top}_reg_pkg::AW-1:0], data);"
-    )
+    if interface == "tlul":
+        write_addr_call = "tl_if.tlul_write(addr[31:0], data, 8'h00, mask[3:0]);"
+        read_addr_call = "tl_if.tlul_read(addr[31:0], data, 8'h00);"
+    elif interface == "axi_lite":
+        write_addr_call = f"axi_lite_write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
+        read_addr_call = f"axi_lite_read(addr[{top}_reg_pkg::AW-1:0], data);"
+    else:
+        write_addr_call = f"reg_utils_inst.write(addr[{top}_reg_pkg::AW-1:0], data, mask[{top}_reg_pkg::DBW-1:0]);"
+        read_addr_call = f"reg_utils_inst.read(addr[{top}_reg_pkg::AW-1:0], data);"
 
     cases: list[str] = []
     seen: set[str] = set()
@@ -1594,9 +1593,10 @@ def render_verilator_include(top: str, rtldir: str | Path, syndir: str | Path,
     if flag_reg_pkg:
         inc.append(f'  `include "{top}_reg_pkg.sv"')
 
-    # TLUL: assume +incdir+<ips_root>/pkgs e +incdir+<ips_root>/tlul
+    # TLUL package is compiled through rtl_common.f. Only include the local
+    # testbench interface shim here; including tlul_pkg.sv again couples the
+    # testbench to a source-tree include path and duplicates package ownership.
     if flag_reg_pkg and interface == "tlul":
-        inc.append('  `include "tlul_pkg.sv"')
         inc.append('  `include "tlul_if.sv"')
 
     if flag_reg_pkg and interface == "reg_iface":
@@ -1937,6 +1937,104 @@ endclass
 """
 
 
+def render_axi_lite_utils(top: str, period_ns: float = 10.0, io_delay_pct: float = 0.2) -> str:
+    """Render minimal AXI4-Lite read/write tasks for the generated SV testbench."""
+
+    drive_ns, sample_ns = _tb_phases(period_ns, io_delay_pct)
+    return f"""// Auto-generated AXI4-Lite testbench helper.
+
+task automatic axi_lite_drive_cycle();
+  @(posedge clk_i);
+  #{drive_ns:g};
+endtask
+
+task automatic axi_lite_sample_cycle();
+  @(posedge clk_i);
+  #{sample_ns:g};
+endtask
+
+task automatic axi_lite_init();
+  axi_aw_addr_i  = '0;
+  axi_aw_prot_i  = '0;
+  axi_aw_valid_i = 1'b0;
+  axi_w_data_i   = '0;
+  axi_w_strb_i   = '0;
+  axi_w_valid_i  = 1'b0;
+  axi_b_ready_i  = 1'b0;
+  axi_ar_addr_i  = '0;
+  axi_ar_prot_i  = '0;
+  axi_ar_valid_i = 1'b0;
+  axi_r_ready_i  = 1'b0;
+endtask
+
+task automatic axi_lite_write(
+    input logic [{top}_reg_pkg::AW-1:0] addr,
+    input logic [{top}_reg_pkg::DW-1:0] data,
+    input logic [{top}_reg_pkg::DBW-1:0] strb);
+  int guard;
+  axi_lite_drive_cycle();
+  axi_aw_addr_i = addr;
+  axi_aw_prot_i = '0;
+  axi_aw_valid_i = 1'b1;
+  axi_w_data_i = data;
+  axi_w_strb_i = strb;
+  axi_w_valid_i = 1'b1;
+  guard = 0;
+  do begin
+    axi_lite_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite write request timeout addr=0x%0h", addr);
+  end while (!(axi_aw_ready_o && axi_w_ready_o));
+  axi_lite_drive_cycle();
+  axi_aw_valid_i = 1'b0;
+  axi_w_valid_i = 1'b0;
+  guard = 0;
+  do begin
+    axi_lite_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite write response timeout addr=0x%0h", addr);
+  end while (!axi_b_valid_o);
+  if (axi_b_resp_o != 2'b00) $fatal(1, "AXI4-Lite write error addr=0x%0h resp=%0h", addr, axi_b_resp_o);
+  axi_lite_drive_cycle();
+  axi_b_ready_i = 1'b1;
+  axi_lite_sample_cycle();
+  axi_lite_drive_cycle();
+  axi_b_ready_i = 1'b0;
+endtask
+
+task automatic axi_lite_read(
+    input logic [{top}_reg_pkg::AW-1:0] addr,
+    output logic [{top}_reg_pkg::DW-1:0] data);
+  int guard;
+  axi_lite_drive_cycle();
+  axi_ar_addr_i = addr;
+  axi_ar_prot_i = '0;
+  axi_ar_valid_i = 1'b1;
+  guard = 0;
+  do begin
+    axi_lite_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite read request timeout addr=0x%0h", addr);
+  end while (!axi_ar_ready_o);
+  axi_lite_drive_cycle();
+  axi_ar_valid_i = 1'b0;
+  guard = 0;
+  do begin
+    axi_lite_sample_cycle();
+    guard++;
+    if (guard > 1000) $fatal(1, "AXI4-Lite read response timeout addr=0x%0h", addr);
+  end while (!axi_r_valid_o);
+  if (axi_r_resp_o != 2'b00) $fatal(1, "AXI4-Lite read error addr=0x%0h resp=%0h", addr, axi_r_resp_o);
+  data = axi_r_data_o;
+  axi_lite_drive_cycle();
+  axi_r_ready_i = 1'b1;
+  axi_lite_sample_cycle();
+  axi_lite_drive_cycle();
+  axi_r_ready_i = 1'b0;
+endtask
+"""
+
+
 def render_sv_test_selector(tests: Sequence[str] = TEST_NAMES) -> str:
     """Render plusarg-based test selection by name or explicit files."""
 
@@ -2125,6 +2223,8 @@ def render_testbench(top: str,
         lines.append("  reg_if regif(.clk_i(clk_i), .rst_ni(rst_ni));")
 
     lines.append("\n  // Verification helpers")
+    if interface == "axi_lite":
+        lines.append('  `include "axi_lite_utils.svh"')
     lines.append(f'  `include "{top}_reg_sequence.svh"')
     if _has_simple_datapath(sig):
         lines.append(f'  `include "drivers/{top}_vec_monitor.svh"')
@@ -2213,7 +2313,7 @@ def render_testbench(top: str,
 
     lines.append('    $display("\\nRunning...\\n");')
 
-    if interface == "tlul" or compiler == "verilator":
+    if interface in {"tlul", "axi_lite"} or compiler == "verilator":
         lines.append("    #(CLK_PERIOD*10);")
         lines.append("    run_reg_config(cfg_path);")
         lines.append("    run_vectors(data_in_path, data_out_path);")
@@ -2444,6 +2544,9 @@ def write_bus_helpers(config: TestbenchConfig, *, reg_pkg: bool, simple_mode: bo
             (("reg_if.sv", render_reg_interface(config.top)), ("reg_utils.sv", render_reg_utils(config.top)))
             if config.compiler == "verilator" else ()
         ),
+        "axi_lite": (("axi_lite_utils.svh", render_axi_lite_utils(
+            config.top, config.clk_period_ns, config.io_delay_pct
+        )),),
     }.get(config.interface, ())
 
     written: list[Path] = []
@@ -2507,7 +2610,7 @@ def _generate_testbench_files(
             config.interface,
             sig,
             hjson_path=hjson_path,
-            bus_active=(not simple_mode and (config.interface == "tlul" or config.compiler == "verilator")),
+            bus_active=(not simple_mode and (config.interface in {"tlul", "axi_lite"} or config.compiler == "verilator")),
             force=True,
             reset_polarity=reset_domain.reset_polarity,
             reset_domain=reset_domain.name,
@@ -3768,6 +3871,12 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         ips_root / "prim_opentitan",
         ips_root / "tlul",
     ]
+    if cfg.interface == "axi_lite":
+        pulp_root = repo / "vendor" / "pulp"
+        include_dirs += [
+            pulp_root / "axi" / "include",
+            pulp_root / "register_interface" / "include",
+        ]
     includes = " ".join(f"-I{path}" for path in [rtl_dir, *include_dirs])
     gate = render_gls_make_block(f"../../../../syn/$(PDK)/{cfg.top}_synth.v")
     source_block = "\n".join(
@@ -3827,6 +3936,7 @@ def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
         unexport COVERAGE
 
         ifeq ($(SIM),verilator)
+          COMPILE_ARGS += -Wno-fatal
           COCOTB_PLUSARGS += +verilator+seed+$(SEED)
           ifeq ($(HDL_COVERAGE),1)
             COMPILE_ARGS += --coverage-line --coverage-toggle --coverage-expr --coverage-fsm --coverage-user
@@ -4039,6 +4149,25 @@ def has_tlul_proxy(dut):
     return all(hasattr(dut, name) for name in required)
 
 
+def has_axi_lite_proxy(dut):
+    required = [
+        "axi_aw_addr_i", "axi_aw_prot_i", "axi_aw_valid_i", "axi_aw_ready_o",
+        "axi_w_data_i", "axi_w_strb_i", "axi_w_valid_i", "axi_w_ready_o",
+        "axi_b_resp_o", "axi_b_valid_o", "axi_b_ready_i",
+        "axi_ar_addr_i", "axi_ar_prot_i", "axi_ar_valid_i", "axi_ar_ready_o",
+        "axi_r_data_o", "axi_r_resp_o", "axi_r_valid_o", "axi_r_ready_i",
+    ]
+    return all(hasattr(dut, name) for name in required)
+
+
+def has_reg_iface_proxy(dut):
+    required = [
+        "reg_req_valid", "reg_req_write", "reg_req_addr", "reg_req_wdata", "reg_req_wstrb",
+        "reg_rsp_ready", "reg_rsp_error", "reg_rsp_rdata",
+    ]
+    return all(hasattr(dut, name) for name in required)
+
+
 def _clock(dut, clk=None):
     if clk is not None:
         return clk
@@ -4048,7 +4177,11 @@ def _clock(dut, clk=None):
 
 
 def _clock_key(clk):
-    return getattr(clk, "_name", str(clk))
+    name = getattr(clk, "_name", None)
+    if name is not None:
+        return str(name)
+    path = getattr(clk, "_path", None)
+    return str(path) if path is not None else repr(clk)
 
 
 async def _wait_phase(clk, offset_ps):
@@ -4094,6 +4227,18 @@ def _known_int(dut, name, context):
 
 
 def _drive_idle(dut):
+    if has_reg_iface_proxy(dut):
+        for name in ("reg_req_valid", "reg_req_write", "reg_req_addr", "reg_req_wdata", "reg_req_wstrb"):
+            _get(dut, name).value = 0
+        return
+    if has_axi_lite_proxy(dut):
+        for name in ("axi_aw_addr_i", "axi_aw_prot_i", "axi_aw_valid_i", "axi_w_data_i",
+                     "axi_w_strb_i", "axi_w_valid_i", "axi_ar_addr_i", "axi_ar_prot_i",
+                     "axi_ar_valid_i"):
+            _get(dut, name).value = 0
+        _get(dut, "axi_b_ready_i").value = 0
+        _get(dut, "axi_r_ready_i").value = 0
+        return
     _get(dut, "tl_i_a_valid").value = 0
     _get(dut, "tl_i_a_opcode").value = 4
     _get(dut, "tl_i_a_param").value = 0
@@ -4106,7 +4251,7 @@ def _drive_idle(dut):
 
 
 async def init_register_bus(dut, clk=None):
-    if not has_tlul_proxy(dut):
+    if not (has_tlul_proxy(dut) or has_axi_lite_proxy(dut) or has_reg_iface_proxy(dut)):
         return
 
     clk = _clock(dut, clk)
@@ -4115,17 +4260,77 @@ async def init_register_bus(dut, clk=None):
 
 
 async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None, clk=None):
-    if not has_tlul_proxy(dut):
-        raise RuntimeError("register write requested, but this cocotb wrapper has no TL-UL proxy signals")
+    if not (has_tlul_proxy(dut) or has_axi_lite_proxy(dut) or has_reg_iface_proxy(dut)):
+        raise RuntimeError("register write requested, but this cocotb wrapper has no supported register-bus proxy")
 
     clk = _clock(dut, clk)
     addr = resolve_register(reg_or_addr, regmap)
     data = parse_u32(data)
     mask = parse_u32(mask) & 0xF
     if not mask:
-        raise ValueError(f"TL-UL write mask is zero at addr=0x{addr:08x}")
+        raise ValueError(f"register write mask is zero at addr=0x{addr:08x}")
 
     dut._log.info("reg write addr=0x%08x data=0x%08x mask=0x%x", addr, data, mask)
+
+    if has_reg_iface_proxy(dut):
+        await _drive_cycle(clk)
+        _get(dut, "reg_req_valid").value = 1
+        _get(dut, "reg_req_write").value = 1
+        _get(dut, "reg_req_addr").value = addr
+        _get(dut, "reg_req_wdata").value = data
+        _get(dut, "reg_req_wstrb").value = mask
+        guard = 0
+        while True:
+            await _sample_cycle(clk)
+            if _known_int(dut, "reg_rsp_ready", f"waiting reg_iface write ready addr=0x{addr:08x}"):
+                break
+            guard += 1
+            if guard > 1000:
+                raise TimeoutError(f"timeout waiting reg_iface write ready addr=0x{addr:08x}")
+        if _known_int(dut, "reg_rsp_error", f"checking reg_iface write response addr=0x{addr:08x}"):
+            raise AssertionError(f"reg_iface write error at addr=0x{addr:08x}")
+        await _drive_cycle(clk)
+        _drive_idle(dut)
+        await _sample_cycle(clk)
+        return
+
+    if has_axi_lite_proxy(dut):
+        await _drive_cycle(clk)
+        _get(dut, "axi_aw_addr_i").value = addr
+        _get(dut, "axi_aw_prot_i").value = 0
+        _get(dut, "axi_aw_valid_i").value = 1
+        _get(dut, "axi_w_data_i").value = data
+        _get(dut, "axi_w_strb_i").value = mask
+        _get(dut, "axi_w_valid_i").value = 1
+        guard = 0
+        while True:
+            await _sample_cycle(clk)
+            if (_known_int(dut, "axi_aw_ready_o", "waiting AXI write AWREADY") and
+                    _known_int(dut, "axi_w_ready_o", "waiting AXI write WREADY")):
+                break
+            guard += 1
+            if guard > 1000:
+                raise TimeoutError(f"timeout waiting AXI4-Lite write request addr=0x{addr:08x}")
+        await _drive_cycle(clk)
+        _get(dut, "axi_aw_valid_i").value = 0
+        _get(dut, "axi_w_valid_i").value = 0
+        guard = 0
+        while True:
+            await _sample_cycle(clk)
+            if _known_int(dut, "axi_b_valid_o", "waiting AXI write response"):
+                break
+            guard += 1
+            if guard > 1000:
+                raise TimeoutError(f"timeout waiting AXI4-Lite write response addr=0x{addr:08x}")
+        if _known_int(dut, "axi_b_resp_o", "checking AXI write response") != 0:
+            raise AssertionError(f"AXI4-Lite write error at addr=0x{addr:08x}")
+        await _drive_cycle(clk)
+        _get(dut, "axi_b_ready_i").value = 1
+        await _sample_cycle(clk)
+        await _drive_cycle(clk)
+        _drive_idle(dut)
+        await _sample_cycle(clk)
+        return
 
     await _drive_cycle(clk)
     _get(dut, "tl_i_d_ready").value = 1
@@ -4168,13 +4373,70 @@ async def write_register(dut, reg_or_addr, data, mask=0xFFFFFFFF, *, regmap=None
 
 
 async def read_register(dut, reg_or_addr, *, regmap=None, clk=None):
-    if not has_tlul_proxy(dut):
-        raise RuntimeError("register read requested, but this cocotb wrapper has no TL-UL proxy signals")
+    if not (has_tlul_proxy(dut) or has_axi_lite_proxy(dut) or has_reg_iface_proxy(dut)):
+        raise RuntimeError("register read requested, but this cocotb wrapper has no supported register-bus proxy")
 
     clk = _clock(dut, clk)
     addr = resolve_register(reg_or_addr, regmap)
 
     dut._log.info("reg read addr=0x%08x", addr)
+
+    if has_reg_iface_proxy(dut):
+        await _drive_cycle(clk)
+        _get(dut, "reg_req_valid").value = 1
+        _get(dut, "reg_req_write").value = 0
+        _get(dut, "reg_req_addr").value = addr
+        _get(dut, "reg_req_wdata").value = 0
+        _get(dut, "reg_req_wstrb").value = 0
+        guard = 0
+        while True:
+            await _sample_cycle(clk)
+            if _known_int(dut, "reg_rsp_ready", f"waiting reg_iface read ready addr=0x{addr:08x}"):
+                break
+            guard += 1
+            if guard > 1000:
+                raise TimeoutError(f"timeout waiting reg_iface read ready addr=0x{addr:08x}")
+        if _known_int(dut, "reg_rsp_error", f"checking reg_iface read response addr=0x{addr:08x}"):
+            raise AssertionError(f"reg_iface read error at addr=0x{addr:08x}")
+        data = _known_int(dut, "reg_rsp_rdata", f"reading reg_iface response addr=0x{addr:08x}") & 0xFFFFFFFF
+        await _drive_cycle(clk)
+        _drive_idle(dut)
+        await _sample_cycle(clk)
+        return data
+
+    if has_axi_lite_proxy(dut):
+        await _drive_cycle(clk)
+        _get(dut, "axi_ar_addr_i").value = addr
+        _get(dut, "axi_ar_prot_i").value = 0
+        _get(dut, "axi_ar_valid_i").value = 1
+        guard = 0
+        while True:
+            await _sample_cycle(clk)
+            if _known_int(dut, "axi_ar_ready_o", "waiting AXI read ARREADY"):
+                break
+            guard += 1
+            if guard > 1000:
+                raise TimeoutError(f"timeout waiting AXI4-Lite read request addr=0x{addr:08x}")
+        await _drive_cycle(clk)
+        _get(dut, "axi_ar_valid_i").value = 0
+        guard = 0
+        while True:
+            await _sample_cycle(clk)
+            if _known_int(dut, "axi_r_valid_o", "waiting AXI read response"):
+                break
+            guard += 1
+            if guard > 1000:
+                raise TimeoutError(f"timeout waiting AXI4-Lite read response addr=0x{addr:08x}")
+        if _known_int(dut, "axi_r_resp_o", "checking AXI read response") != 0:
+            raise AssertionError(f"AXI4-Lite read error at addr=0x{addr:08x}")
+        data = _known_int(dut, "axi_r_data_o", "reading AXI response data") & 0xFFFFFFFF
+        await _drive_cycle(clk)
+        _get(dut, "axi_r_ready_i").value = 1
+        await _sample_cycle(clk)
+        await _drive_cycle(clk)
+        _drive_idle(dut)
+        await _sample_cycle(clk)
+        return data
 
     await _drive_cycle(clk)
     _get(dut, "tl_i_d_ready").value = 1
@@ -4819,6 +5081,95 @@ async def {top}_generated_test(dut):
     )
 """
 
+def render_reg_iface_wrapper(cfg: CocotbConfig) -> str:
+    """Render a flat cocotb proxy for the canonical reg_req/reg_rsp transport."""
+
+    port_info = parse_top_ports(find_top_file(cfg.rtl_dir, cfg.top))
+    bus_tokens = {"reg_req_t", "reg_req_i", "reg_rsp_t", "reg_rsp_o"}
+    clean_info = {
+        key: ([entry for entry in value if entry.get("name") not in bus_tokens]
+              if key in {"inputs", "outputs"} else value)
+        for key, value in port_info.items()
+    }
+    extra_decls = render_extra_port_declarations(clean_info)
+    extra_init = render_extra_input_initializers(clean_info)
+    template = dedent(
+        f"""\
+        `timescale 1ns/1ps
+        module {cfg.top}_tb;
+          import {cfg.top}_reg_pkg::*;
+          logic {cfg.clk};
+          logic {cfg.rst};
+        __EXTRA_DECLS__
+          reg_req_t reg_req_i;
+          reg_rsp_t reg_rsp_o;
+          logic reg_req_valid;
+          logic reg_req_write;
+          logic [{cfg.top}_reg_pkg::AW-1:0] reg_req_addr;
+          logic [{cfg.top}_reg_pkg::DW-1:0] reg_req_wdata;
+          logic [{cfg.top}_reg_pkg::DBW-1:0] reg_req_wstrb;
+          logic reg_rsp_ready;
+          logic reg_rsp_error;
+          logic [{cfg.top}_reg_pkg::DW-1:0] reg_rsp_rdata;
+
+          assign reg_req_i = '{{
+            valid: reg_req_valid,
+            write: reg_req_write,
+            addr:  reg_req_addr,
+            wdata: reg_req_wdata,
+            wstrb: reg_req_wstrb
+          }};
+          assign reg_rsp_ready = reg_rsp_o.ready;
+          assign reg_rsp_error = reg_rsp_o.error;
+          assign reg_rsp_rdata = reg_rsp_o.rdata;
+
+          initial begin
+        __EXTRA_INIT__
+            reg_req_valid = 1'b0;
+            reg_req_write = 1'b0;
+            reg_req_addr = '0;
+            reg_req_wdata = '0;
+            reg_req_wstrb = '0;
+          end
+
+          string wave_path;
+          initial begin
+            if (!$value$plusargs("WAVE=%s", wave_path)) begin
+              if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
+            end
+            if (wave_path != "") begin
+              `ifdef FLEXSOC_COCOTB_WAVE_OWNER
+                $display("[TB] dumpfile = %s owner=cocotb", wave_path);
+              `else
+                $display("[TB] dumpfile = %s owner=wrapper", wave_path);
+                $dumpfile(wave_path);
+                $dumpvars(0, {cfg.top}_tb);
+              `endif
+            end
+            #1;
+          end
+          `ifdef FLEXSOC_ENABLE_SDF
+            string sdf_path;
+            initial begin
+              if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+              if (sdf_path != "") begin
+                `ifdef FLEXSOC_SDF_MIN
+                  $sdf_annotate(sdf_path, u_{cfg.top});
+                `elsif FLEXSOC_SDF_TYP
+                  $sdf_annotate(sdf_path, u_{cfg.top});
+                `else
+                  $sdf_annotate(sdf_path, u_{cfg.top});
+                `endif
+              end
+            end
+          `endif
+          {cfg.top} u_{cfg.top} (.*);
+        endmodule
+        """
+    )
+    return template.replace("__EXTRA_DECLS__", extra_decls).replace("__EXTRA_INIT__", extra_init)
+
+
 def render_tlul_wrapper(cfg: CocotbConfig) -> str:
     """Render a package-free TL-UL wrapper used by RTL and gate cocotb runs."""
 
@@ -4914,6 +5265,53 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
         .replace("__EXTRA_INIT__", extra_init)
     )
 
+def render_axi_lite_wrapper(cfg: CocotbConfig) -> str:
+    """Render a flat-port AXI4-Lite wrapper for RTL and gate cocotb runs."""
+
+    port_info = parse_top_ports(find_top_file(cfg.rtl_dir, cfg.top))
+    extra_decls = render_extra_port_declarations(port_info)
+    extra_init = render_extra_input_initializers(port_info)
+    template = dedent(
+        f"""\
+        `timescale 1ns/1ps
+        module {cfg.top}_tb;
+          logic {cfg.clk};
+          logic {cfg.rst};
+        __EXTRA_DECLS__
+
+          initial begin
+        __EXTRA_INIT__
+          end
+
+          string wave_path;
+          initial begin
+            if (!$value$plusargs("WAVE=%s", wave_path)) begin
+              if (!$value$plusargs("VCD=%s", wave_path)) wave_path = "";
+            end
+            if (wave_path != "") begin
+              `ifdef FLEXSOC_COCOTB_WAVE_OWNER
+                $display("[TB] dumpfile = %s owner=cocotb", wave_path);
+              `else
+                $dumpfile(wave_path);
+                $dumpvars(0, {cfg.top}_tb);
+              `endif
+            end
+            #1;
+          end
+          `ifdef FLEXSOC_ENABLE_SDF
+            string sdf_path;
+            initial begin
+              if (!$value$plusargs("SDF=%s", sdf_path)) sdf_path = "";
+              if (sdf_path != "") $sdf_annotate(sdf_path, u_{cfg.top});
+            end
+          `endif
+          {cfg.top} u_{cfg.top} (.*);
+        endmodule
+        """
+    )
+    return template.replace("__EXTRA_DECLS__", extra_decls).replace("__EXTRA_INIT__", extra_init)
+
+
 def _write_cocotb_scaffold_impl(
     cfg: CocotbConfig, clocks: ClockConfig | None = None
 ) -> list[Path]:
@@ -4942,7 +5340,10 @@ def _write_cocotb_scaffold_impl(
             setup_uncertainty_ns=clock_domain.setup_uncertainty_ns,
             hold_uncertainty_ns=clock_domain.hold_uncertainty_ns,
         ),
-        out_dir / f"{cfg.top}_tb.sv": render_tlul_wrapper(cfg),
+        out_dir / f"{cfg.top}_tb.sv": (
+            render_axi_lite_wrapper(cfg) if cfg.interface == "axi_lite"
+            else (render_reg_iface_wrapper(cfg) if cfg.interface == "reg_iface" else render_tlul_wrapper(cfg))
+        ),
     }
     for stale in (
         out_dir / "utils.py",
