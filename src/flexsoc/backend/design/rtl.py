@@ -1284,11 +1284,6 @@ class RtlFlow:
             synthesis=synthesis,
         ), runner=self.runner, on=on)
 
-    # Compatibility aliases for the pre-vocabulary backend API.
-    setup_scaffold = init_scaffold
-    generate_top = setup_top
-    generate_filelists = setup_filelists
-
     def show_hierarchy(
         self,
         *,

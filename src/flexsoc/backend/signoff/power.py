@@ -40,12 +40,6 @@ class ActivitySpec:
 
         return f"{self.test}_{self.backend}_{scenario_corner(self.mode)}"
 
-    @property
-    def legacy_workload(self) -> str:
-        """Return the pre-scenario workload name used before corner naming."""
-
-        return f"{self.test}_{self.backend}_{self.mode}"
-
 def _post_syn_report(
     project_root: Path,
     values: Mapping[str, str],
@@ -60,11 +54,7 @@ def _post_syn_report(
     report_stage = "post_pnr" if signoff_stage == "post_route" else "post_syn"
     stage_dir = layout.post_pnr_sim_dir if report_stage == "post_pnr" else layout.post_syn_sim_dir
     scenario = scenario_corner(mode)
-    canonical = stage_dir / f"{top}_{report_stage}_{test}_{backend}_{scenario}.json"
-    if canonical.is_file():
-        return canonical
-    legacy = stage_dir / f"{top}_{report_stage}_{test}_{backend}_{mode}.json"
-    return legacy if legacy.is_file() else canonical
+    return stage_dir / f"{top}_{report_stage}_{test}_{backend}_{scenario}.json"
 
 def _qualified_spec(
     project_root: Path,
@@ -886,20 +876,15 @@ def analyze_activity_spec(
     )
     if analysis == "power_analysis":
         workload_root = root / "power" / "analysis" / spec.workload
-        legacy_root = root / "power" / "analysis" / spec.legacy_workload
         script = root / "power" / "analysis" / "power_analysis.tcl"
         primary_name = "power.rpt"
     else:
         workload_root = root / "fusion" / spec.workload
-        legacy_root = root / "fusion" / spec.legacy_workload
         script = root / "fusion" / "fusion_analysis.tcl"
         primary_name = "fusion.rpt"
     # One workload directory represents one aligned PVT scenario.
-    # Rebuild it so reruns cannot retain mixed legacy corner naming.
     if workload_root.is_dir():
         shutil.rmtree(workload_root)
-    if legacy_root != workload_root and legacy_root.is_dir():
-        shutil.rmtree(legacy_root)
     total_runs = len(selected_corners) * len(modes)
     run_index = 0
     if progress_label:
@@ -1090,9 +1075,6 @@ def execute_activity(
     layout = layout_from_values(project_root, values)
     root = layout.signoff_stage_root(values.get("SIGNOFF_STAGE", "post_syn"))
     summary_root = root / "power" / "analysis" if analysis == "power_analysis" else root / "fusion"
-    legacy = summary_root / "reports"
-    if legacy.is_dir():
-        shutil.rmtree(legacy)
     summary = {
         "schema_version": 4,
         "analysis": analysis,

@@ -339,10 +339,6 @@ class FunctionalFlow:
         root = Path(base_dir) / name
         return sorted(path for path in root.iterdir() if path.is_file())
 
-    # Compatibility aliases for the pre-vocabulary backend API.
-    generate_tests = setup_tests
-    generate_test = setup_test
-
     def tests(self, base_dir: Path) -> tuple[str, ...]:
         """Return generated tests in deterministic order."""
 
@@ -410,8 +406,6 @@ class FunctionalFlow:
         )
         _print_command(argv)
         return runner.run(CommandRequest(tuple(argv), sv_dir, {}, log, inputs=inputs), on=on)
-
-    compile_systemverilog = run_compile_systemverilog
 
     def run_systemverilog(
         self,

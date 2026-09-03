@@ -62,7 +62,7 @@ class DvFlow:
         )
 
     def _lint(self, tool: str, *, kind: str, part: str, on: str):
-        """Run one exact legacy-equivalent lint class through the shared runner."""
+        """Run one exact lint class through the shared runner."""
         import re
         from ..core import CommandRequest
         from ..core.execution import print_label, print_path_label, print_status_label

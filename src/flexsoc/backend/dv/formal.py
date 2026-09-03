@@ -518,9 +518,6 @@ class FormalFlow:
 
         return generate_scaffold(top, formal_dir, multiclock=multiclock)
 
-    # Compatibility alias: property sources are authored initial content.
-    setup_scaffold = init_properties
-
     def setup_design(
         self,
         *,

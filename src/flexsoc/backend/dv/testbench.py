@@ -1272,7 +1272,7 @@ def _packed_reg_sequence(text: str) -> str:
         "function automatic logic [32:0] tb_parse_cfg_u32(input string raw);",
         "function automatic logic [32:0] tb_parse_cfg_u32(input tb_token_t raw);",
     )
-    # The active implementation was removed with the legacy string parser.
+    # The active implementation no longer uses the removed string parser.
     if "function automatic logic [32:0] tb_parse_cfg_u32" not in text:
         anchor = "function automatic logic [32:0] tb_lookup_reg_addr"
         text = text.replace(
@@ -2654,16 +2654,6 @@ endtask
 """
 
 
-def _cordic_vec_monitor(top: str) -> str:
-    """Compatibility wrapper: use the generic signal/register vector monitor."""
-
-    return render_sv_vec_monitor(top, [])
-
-def _cordic_vec_driver(top: str) -> str:
-    """Compatibility wrapper: use the generic signal/register vector driver."""
-
-    return render_sv_vec_driver(top, "clk_i", "rst_ni", [], [])
-
 def _noop_vec_monitor(top: str) -> str:
     """Render a no-op monitor that satisfies the generic driver contract."""
 
@@ -2810,10 +2800,6 @@ def _validate_sv_driver_layout(config: TestbenchConfig) -> None:
     vec_driver = out / "drivers" / f"{top}_vec_driver.svh"
     if "task automatic run_vectors" not in _read_text(vec_driver):
         raise RuntimeError(f"{vec_driver} must define task automatic run_vectors(...)")
-
-    legacy = out / f"{top}_vec_driver.svh"
-    if legacy.exists():
-        raise RuntimeError(f"legacy duplicate should not exist: {legacy}")
 
 
 def _normalize_generated_sv_layout(config: TestbenchConfig) -> None:
@@ -3964,7 +3950,7 @@ def parse_u32(text):
       - bare hex is accepted only when A-F/a-f is present.
 
     This avoids silently parsing vector cycles such as 40 as hex while still
-    allowing values like ffffcdbc in legacy generated files.
+    while still allowing bare generated hex values such as ffffcdbc.
     """
 
     raw = str(text).strip().replace("_", "")

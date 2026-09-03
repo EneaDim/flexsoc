@@ -236,7 +236,7 @@ def _returncode_text(returncode: int) -> str:
     return f"signal {number} ({name})"
 
 def _report_section(text: str, start: str, end: str) -> str:
-    """Return one generated report section, or the full report for legacy output."""
+    """Return one generated report section, or the full unsectioned report."""
 
     if start not in text:
         return text

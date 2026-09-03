@@ -1042,9 +1042,6 @@ def write_regmap_tests(
     output.mkdir(parents=True, exist_ok=True)
     path = output / f"{top}_regmap_tests.py"
     path.write_text(_regmap_tests_text(top, safe_controls=safe_controls), encoding="utf-8")
-    legacy = output / f"{top}_auto_tests.py"
-    if legacy.exists():
-        legacy.unlink()
     return path
 
 
@@ -1130,10 +1127,6 @@ class ModelFlow:
             path.chmod(0o755)
             return path
         return write_tests(top, output, force=force)
-
-    # Compatibility aliases for authored scaffold creation.
-    setup_reference = init_reference
-    setup_model_tests = init_model_tests
 
     def setup_regmap_tests(
         self,

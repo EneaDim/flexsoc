@@ -23,16 +23,6 @@ DRIVER_ORDER = ("sv", "cocotb")
 DRIVERS = set(DRIVER_ORDER)
 TIMING_MODE_ORDER = ("zero", "unit", "min", "typ", "max")
 WAVE_FORMATS = {"fst", "vcd"}
-TIMING_ALIASES = {
-    "zero": "zero",
-    "unit": "unit",
-    "min": "min",
-    "typ": "typ",
-    "max": "max",
-    "sdf_min": "min",
-    "sdf_typ": "typ",
-    "sdf_max": "max",
-}
 SDF_MODES = {"min", "typ", "max"}
 
 
@@ -262,12 +252,10 @@ def _driver(values: Mapping[str, str]) -> str:
 def timing_config(values: Mapping[str, str]) -> TimingConfig:
     """Resolve explicit zero/unit/SDF timing semantics."""
 
-    raw = values.get("TIMING_MODE", "zero").strip().lower().replace("-", "_")
-    try:
-        return TimingConfig(TIMING_ALIASES[raw])
-    except KeyError as exc:
-        choices = "zero, unit, min, typ, max"
-        raise ValueError(f"TIMING_MODE must be one of: {choices}") from exc
+    raw = values.get("TIMING_MODE", "zero").strip().lower()
+    if raw in TIMING_MODE_ORDER:
+        return TimingConfig(raw)
+    raise ValueError("TIMING_MODE must be one of: zero, unit, min, typ, max")
 
 
 def _discover_pnr_netlist(pnr_dir: Path, top: str, platform: str) -> Path | None:
@@ -367,40 +355,6 @@ def resolve_paths(project_root: Path, values: Mapping[str, str], stage: str) -> 
         report.resolve(),
     )
 
-
-def _cleanup_legacy_sdf_artifacts(
-    project_root: Path, values: Mapping[str, str], stage: str, paths: GateSimPaths
-) -> None:
-    """Remove pre-scenario ``min/typ/max`` artifact names after a successful GLS run."""
-
-    timing = timing_config(values)
-    if not timing.uses_sdf:
-        return
-    layout = layout_from_values(project_root, values)
-    top = values.get("TOP", "test")
-    backend = _driver(values)
-    test = values.get("TEST_NAME", "smoke").strip() or "smoke"
-    testbench = values.get("TESTBENCH", f"{top}_tb")
-    stage_dir = layout.post_syn_sim_dir if stage == "post_syn" else layout.post_pnr_sim_dir
-    log_dir = layout.post_syn_log_dir if stage == "post_syn" else layout.post_pnr_log_dir
-    fmt = values.get("WAVE_FORMAT", "fst").strip().lower()
-    legacy_tag = f"{test}_{backend}_{timing.mode}"
-    legacy_log = log_dir / f"{top}_{stage}_{legacy_tag}.log"
-    candidates = (
-        stage_dir / f"{testbench}_{legacy_tag}.{fmt}",
-        stage_dir / f"{testbench}_{legacy_tag}.vvp",
-        stage_dir / f"{top}_{stage}_{legacy_tag}.json",
-        legacy_log,
-        legacy_log.with_name(legacy_log.stem + "_compile.log"),
-    )
-    keep = {paths.wave.resolve(), paths.executable.resolve(), paths.log.resolve(), paths.report.resolve()}
-    for candidate in candidates:
-        if candidate.resolve() in keep:
-            continue
-        try:
-            candidate.unlink()
-        except FileNotFoundError:
-            pass
 
 
 _DELAY_LITERAL = re.compile(r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:fs|ps|ns|us|ms|s)$", re.I)
@@ -1139,8 +1093,6 @@ def execute(action: str, stage: str, project_root: Path, values: Mapping[str, st
             _normalize_cocotb_wave(paths, values)
 
     rc, report = _write_report(paths, values, stage, rc)
-    if rc == 0:
-        _cleanup_legacy_sdf_artifacts(project_root, values, stage, paths)
     print(
         f"[gate-sim] stage={stage} backend={report['backend']} scenario={report['scenario']} "
         + (f"sdf_mode={report['timing_mode']} " if report['timing_mode'] in SDF_MODES else "")

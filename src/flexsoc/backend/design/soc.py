@@ -253,21 +253,18 @@ def stage_ip_verification_assets(config: SoCStartConfig, ips: tuple[Path, ...]) 
     return manifest
 
 def read_filelists(ip_dir: Path) -> tuple[str, ...]:
-    """Read staged IP common/IP filelists, with legacy fallback."""
+    """Read the canonical staged IP common/IP filelists."""
 
-    rtl = ip_dir / "rtl"
-    files = [rtl / "rtl_common.f", rtl / "rtl_ip.f"]
-    if not any(path.exists() for path in files):
-        files = [rtl / "rtl_list.f"]
-    lines: list[str] = []
-    for flist in files:
-        if flist.exists():
-            lines.extend(
-                line
-                for raw in flist.read_text(encoding="utf-8").splitlines()
-                if (line := raw.strip()) and not line.startswith("#")
-            )
-    return tuple(lines)
+    files = (ip_dir / "rtl/rtl_common.f", ip_dir / "rtl/rtl_ip.f")
+    missing = [path for path in files if not path.is_file()]
+    if missing:
+        raise FileNotFoundError("missing canonical IP filelist(s): " + ", ".join(map(str, missing)))
+    return tuple(
+        line
+        for flist in files
+        for raw in flist.read_text(encoding="utf-8").splitlines()
+        if (line := raw.strip()) and not line.startswith("#")
+    )
 
 
 def fallback_rtl_sources(ip_dir: Path) -> tuple[str, ...]:

@@ -389,34 +389,34 @@ def render_uart_source(module_name: str) -> str:
 
 int {module_name}_init({module_name}_t base) {{
   uint32_t nco = (uint32_t)(((uint64_t)BAUD_RATE << 20) / SYSCLK_FREQ);
-  DEV_WRITE(base + UART_CTRL_REG_OFFSET, (nco << 16) | 0x3U);
+  DEV_WRITE(base + {upper}_CTRL_REG_OFFSET, (nco << 16) | 0x3U);
   return 0;
 }}
 
 int {module_name}_in({module_name}_t base) {{
   int res = UART_EOF;
-#ifdef UART_STATUS_REG_OFFSET
-#ifdef UART_STATUS_RXEMPTY_BIT
-  if (!(DEV_READ(base + UART_STATUS_REG_OFFSET) & (1u << UART_STATUS_RXEMPTY_BIT))) {{
-    res = (int)DEV_READ(base + UART_RDATA_REG_OFFSET);
+#ifdef {upper}_STATUS_REG_OFFSET
+#ifdef {upper}_STATUS_RXEMPTY_BIT
+  if (!(DEV_READ(base + {upper}_STATUS_REG_OFFSET) & (1u << {upper}_STATUS_RXEMPTY_BIT))) {{
+    res = (int)DEV_READ(base + {upper}_RDATA_REG_OFFSET);
   }}
 #else
-  res = (int)DEV_READ(base + UART_RDATA_REG_OFFSET);
+  res = (int)DEV_READ(base + {upper}_RDATA_REG_OFFSET);
 #endif
 #else
-  res = (int)DEV_READ(base + UART_RDATA_REG_OFFSET);
+  res = (int)DEV_READ(base + {upper}_RDATA_REG_OFFSET);
 #endif
   return res;
 }}
 
 void {module_name}_out({module_name}_t base, char c) {{
-#ifdef UART_STATUS_REG_OFFSET
-#ifdef UART_STATUS_TXFULL_BIT
-  while (DEV_READ(base + UART_STATUS_REG_OFFSET) & (1u << UART_STATUS_TXFULL_BIT)) {{
+#ifdef {upper}_STATUS_REG_OFFSET
+#ifdef {upper}_STATUS_TXFULL_BIT
+  while (DEV_READ(base + {upper}_STATUS_REG_OFFSET) & (1u << {upper}_STATUS_TXFULL_BIT)) {{
   }}
 #endif
 #endif
-  DEV_WRITE(base + UART_WDATA_REG_OFFSET, (uint32_t)(uint8_t)c);
+  DEV_WRITE(base + {upper}_WDATA_REG_OFFSET, (uint32_t)(uint8_t)c);
 }}
 
 int {module_name}_putchar(int c) {{
@@ -488,7 +488,7 @@ def write_source(module_name: str, output_dir: str | Path) -> Path:
     """Write the selected C driver body and return the generated path."""
 
     path = Path(output_dir) / f"{module_name}.c"
-    renderer = render_uart_source if module_name == "uart" else render_generic_source
+    renderer = render_uart_source if module_name in {"uart", "uart_master"} else render_generic_source
     path.write_text(renderer(module_name), encoding="utf-8")
     return path
 
@@ -1109,13 +1109,6 @@ class RegsFlow:
             resolved = clocks or clock_config()
             write_regmap_tests(top, model_dir, safe_controls=resolved.multiclock)
         return path
-
-    # Compatibility aliases: backend callers should use init_/setup_ names.
-    setup_hjson = init_hjson
-    generate_rtl = setup_rtl
-    generate_docs = setup_docs
-    generate_driver = setup_driver
-    generate_regmap_py = setup_regmap_py
 
     def flow(
         self,

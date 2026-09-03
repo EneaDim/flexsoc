@@ -596,9 +596,6 @@ class SignoffFlow:
     def run_sdf(self, *, on: str = "local") -> int:
         return self.sta.write_sdf(on=on)
 
-    # Compatibility alias; SDF generation is an executed sign-off stage.
-    write_sdf = run_sdf
-
     def run_gls(self, *, test: str | None = None, timing: str = "zero", backend: str = "sv", on: str = "local") -> int:
         if test is None:
             return self.gls.flow(on=on)

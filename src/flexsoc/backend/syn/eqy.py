@@ -50,8 +50,6 @@ class EquivalenceConfig:
     liberty: Path
     cell_models: tuple[Path, ...]
     sky130_clock_gate_model: Path
-    engine: str
-    depth: int
     sat_depth: int
     output: Path
     formal_cell_model: Path | None = None
@@ -400,8 +398,6 @@ def _reset_normalization_lines(cfg: EquivalenceConfig) -> list[str]:
 def render_eqy(cfg: EquivalenceConfig) -> str:
     """Render RTL-vs-synthesis EQY with symmetric formal normalization."""
 
-    if cfg.depth <= 0:
-        raise ValueError("EQY SBY depth must be > 0")
     if cfg.sat_depth <= 0:
         raise ValueError("EQY SAT depth must be > 0")
     if cfg.smt_depth <= 0:
@@ -657,8 +653,6 @@ def bind_equivalence_profile(
             formal_pdk_proc=formal_pdk_proc,
             pdk=resolved_pdk,
             sky130_clock_gate_model=clock_gate,
-            engine="abc pdr",
-            depth=1,
             sat_depth=1,
             output=output_dir / "_bind.eqy",
         )
@@ -832,13 +826,10 @@ def discover_result_dir(
     """Find the EQY result directory for the selected run/technology."""
 
     shared = run_root(workspace, run_top=run_top, run_id=run_id)
-    if pdk:
-        layout = pdk_run_layout(shared, pdk=pdk, top=top)
-        expected = layout.equivalence_dir / f"{top}_rtl_vs_syn"
-    else:
-        # Explicit legacy mode only. The fx CLI always supplies PDK and never
-        # falls back to an artifact generated for another technology.
-        expected = shared / "dv" / "formal" / "equivalence" / "rtl_vs_syn" / f"{top}_rtl_vs_syn"
+    if not pdk:
+        raise ValueError("PDK is required to resolve EQY results")
+    layout = pdk_run_layout(shared, pdk=pdk, top=top)
+    expected = layout.equivalence_dir / f"{top}_rtl_vs_syn"
     if expected.is_dir():
         return expected
 
@@ -851,7 +842,7 @@ def discover_result_dir(
             f"ambiguous EQY result beside {expected}: " + ", ".join(str(path) for path in candidates)
         )
 
-    technology = f" PDK={pdk}" if pdk else " legacy-layout"
+    technology = f" PDK={pdk}"
     raise FileNotFoundError(
         f"EQY result directory not found for TOP={top} RUN_TOP={run_top} RUN_ID={run_id}{technology}: {expected}"
     )
@@ -1475,7 +1466,7 @@ def _inject_reset_initialization(
     reset_cycles: int,
     domains: Sequence[tuple[str, str, str]] | None = None,
 ) -> str:
-    """Inject reset initialization into the common or legacy EQY preprocessing."""
+    """Inject reset initialization into the common EQY preprocessing."""
 
     source = re.sub(
         r"(?ms)^# FlexSoC EQY reset normalization begin\n.*?"
@@ -1747,8 +1738,6 @@ class EquivalenceFlow:
         liberty: Path,
         cell_models: Sequence[Path],
         clock_gate_model: Path,
-        engine: str,
-        depth: int,
         sat_depth: int,
         output: Path,
         formal_pdk_proc: Path | None = None,
@@ -1780,8 +1769,6 @@ class EquivalenceFlow:
             formal_pdk_proc=formal_pdk_proc,
             pdk=(pdk or os.environ.get("FLEXSOC_PDK", "")).strip().lower(),
             sky130_clock_gate_model=clock_gate_model,
-            engine=engine,
-            depth=depth,
             sat_depth=sat_depth,
             output=output,
             timeout=int(os.environ.get("EQY_TIMEOUT", "30" if resolved_multiclock else str(timeout))),
@@ -1815,8 +1802,6 @@ class EquivalenceFlow:
         liberty: Path,
         cell_models: Sequence[Path],
         clock_gate_model: Path,
-        engine: str,
-        depth: int,
         sat_depth: int,
         config: Path,
         formal_pdk_proc: Path | None = None,

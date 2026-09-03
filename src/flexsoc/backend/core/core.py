@@ -330,12 +330,6 @@ def default_root(project_root: Path, name: str) -> Path:
     return project_root / ".flexsoc" / "pdks" / normalize_name(name)
 
 
-def legacy_root(project_root: Path, name: str) -> Path:
-    """Return the pre-abstraction bundled-PDK location for migration only."""
-
-    return project_root / "pdks" / normalize_name(name)
-
-
 def installed_root(project_root: Path, name: str, root: str | Path | None = None) -> Path:
     """Resolve only an explicit or FlexSoC-managed PDK installation."""
 
@@ -407,15 +401,6 @@ def _stdcell_verilog_models(root: Path, hint: str) -> tuple[Path, ...]:
                 for path in directory.iterdir()
                 if path.is_file() and path.suffix.lower() in {".v", ".sv"}
             )
-        )
-
-    # Legacy compact FlexSoC bundles used PDK_ROOT/verilog directly.
-    compact = root / "verilog"
-    if compact.is_dir():
-        candidates.extend(
-            path.resolve()
-            for path in sorted(compact.iterdir())
-            if path.is_file() and path.suffix.lower() in {".v", ".sv"}
         )
 
     unique = list(dict.fromkeys(candidates))
@@ -741,7 +726,6 @@ def describe(project_root: Path, name: str, root: str | Path | None = None) -> d
 
     item = spec(name)
     install = installed_root(project_root, item.name, root)
-    legacy = legacy_root(project_root, item.name).expanduser().resolve()
     adapter = formal_adapter_path(project_root, item.name)
     return {
         **asdict(item),
@@ -749,8 +733,6 @@ def describe(project_root: Path, name: str, root: str | Path | None = None) -> d
         "fetch": fetch_metadata(install),
         "formal_adapter": str(adapter) if adapter is not None and adapter.is_file() else None,
         "formal_adapter_required": bool(item.formal_adapter_url),
-        "legacy_root": str(legacy),
-        "legacy_present": legacy.is_dir(),
     }
 
 
