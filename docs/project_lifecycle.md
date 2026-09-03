@@ -5,6 +5,8 @@ This document describes **what happens during the life of a FlexSoC project** an
 For exact commands and step-by-step execution, use the [IP development guide](ip_development_guide.md). For syntax and target options, use the [command reference](command_reference.md). For implementation details of FlexSoC itself, use [Architecture](architecture.md).
 
 > **Lifecycle rule:** edit the owning source of truth, regenerate the smallest derived boundary that became stale, and rerun every downstream gate whose assumptions changed.
+>
+> FlexSoC treats a **digital IP contract** as the versioned combination of authored design intent, generated integration views, qualification evidence, and provenance needed to decide whether an IP is releasable. RTL alone is never the release artifact.
 
 ---
 
@@ -309,6 +311,8 @@ The important rule is to fix the source, not the report. Generated RTL, netlists
 ## 14. Changes propagate by dependency, not by habit
 
 Different edits invalidate different parts of the lifecycle.
+
+The first contract kernel is deliberately small: provenance-bearing stages are declared once in the Python `STAGE_CONTRACTS` registry with only their semantic configuration and parent lineage. Existing provenance hashes the effective input files, generated artifacts, configuration, and parent fingerprints; a changed source or parent therefore makes dependent setup collateral stale without introducing a second graph format or database. Runtime evidence stages will reuse the same model as the contract graph expands.
 
 ### CSR-only change
 

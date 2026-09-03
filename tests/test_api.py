@@ -97,11 +97,11 @@ def _fake_pdk(root: Path) -> Path:
     """Create the minimum digital views accepted by ``fx pdk use``."""
 
     (root / "lib").mkdir(parents=True)
-    (root / "verilog").mkdir(parents=True)
+    (root / "libs.ref/sky130_fd_sc_hd/verilog").mkdir(parents=True)
     (root / "lib" / "sky130_fd_sc_hd__tt_025C_1v80.lib").write_text(
         "library(sky130_fd_sc_hd) {}\n", encoding="utf-8"
     )
-    (root / "verilog" / "sky130_fd_sc_hd.v").write_text(
+    (root / "libs.ref/sky130_fd_sc_hd/verilog/sky130_fd_sc_hd.v").write_text(
         "module sky130_fd_sc_hd__buf_1; endmodule\n", encoding="utf-8"
     )
     return root
@@ -814,44 +814,7 @@ def test_post_syn_gls_metrics_require_no_interconnect_delays(tmp_path: Path) -> 
     assert summary["post_syn_gls"]["interconnect_delays"] == "none"
 
 
-def test_successful_sdf_gls_cleanup_removes_legacy_mode_artifacts(tmp_path: Path) -> None:
-    workspace = tmp_path / "workspace"
-    values = {
-        "WORKSPACE": str(workspace),
-        "RUN_TOP": "demo",
-        "RUN_ID": "dev",
-        "TOP": "demo",
-        "PDK": "sky130",
-        "TEST_NAME": "smoke",
-        "TESTBENCH": "demo_tb",
-        "GLS_BACKEND": "sv",
-        "TIMING_MODE": "typ",
-        "WAVE_FORMAT": "fst",
-    }
-    paths = post_sim_module.resolve_paths(tmp_path, values, "post_syn")
-    stage = workspace / "runs/demo/dev/dv/functional/sim/post_syn/sky130"
-    logs = workspace / "runs/demo/dev/logs/dv/functional/post_syn/sky130"
-    legacy = (
-        stage / "demo_tb_smoke_sv_typ.fst",
-        stage / "demo_tb_smoke_sv_typ.vvp",
-        stage / "demo_post_syn_smoke_sv_typ.json",
-        logs / "demo_post_syn_smoke_sv_typ.log",
-        logs / "demo_post_syn_smoke_sv_typ_compile.log",
-    )
-    for path in legacy:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("legacy\n", encoding="utf-8")
-    for path in (paths.wave, paths.executable, paths.log, paths.report):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("canonical\n", encoding="utf-8")
-
-    post_sim_module._cleanup_legacy_sdf_artifacts(tmp_path, values, "post_syn", paths)
-
-    assert not any(path.exists() for path in legacy)
-    assert all(path.exists() for path in (paths.wave, paths.executable, paths.log, paths.report))
-
-
-def test_sim_post_syn_all_rejects_legacy_multi_backend_selector(tmp_path: Path) -> None:
+def test_sim_post_syn_all_rejects_multi_backend_selector(tmp_path: Path) -> None:
     workspace = tmp_path / "workspace"
     test = workspace / "runs/demo/dev/dv/functional/tests/smoke"
     test.mkdir(parents=True)
@@ -869,6 +832,15 @@ def test_sim_post_syn_all_rejects_legacy_multi_backend_selector(tmp_path: Path) 
     with pytest.raises(ValueError, match="GLS_BACKENDS is not supported"):
         execute_all(tmp_path, values)
 
+
+
+def test_gls_timing_modes_are_canonical_only() -> None:
+    from flexsoc.backend.signoff.gls import timing_config
+
+    for mode in ("zero", "unit", "min", "typ", "max"):
+        assert timing_config({"TIMING_MODE": mode}).mode == mode
+    with pytest.raises(ValueError, match="TIMING_MODE must be one of"):
+        timing_config({"TIMING_MODE": "sdf_typ"})
 
 def test_sim_post_syn_all_continues_after_one_failed_case(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -1180,9 +1152,9 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     (cdc / "summary.json").write_text(json.dumps({"top": top, "status": "pass"}) + "\n", encoding="utf-8")
     (cdc / "cdc_rdc.rpt").write_text("cdc pass\n", encoding="utf-8")
     library = tmp_path / "library"
-    legacy_logs = library / top / "logs" / "lint"
-    legacy_logs.mkdir(parents=True)
-    (legacy_logs / "legacy.log").write_text("old package log\n", encoding="utf-8")
+    stale_logs = library / top / "logs" / "lint"
+    stale_logs.mkdir(parents=True)
+    (stale_logs / "stale.log").write_text("old package log\n", encoding="utf-8")
 
     flow = PackageFlow(tmp_path, {})
     saved = flow.save(
@@ -2722,7 +2694,6 @@ def test_activity_workload_uses_corner_name_and_flat_report_layout(
         report=tmp_path / "gls.json", wave=tmp_path / "wave.vcd",
     )
     assert spec.workload == "smoke_sv_ss"
-    assert spec.legacy_workload == "smoke_sv_max"
 
     liberties = {corner: tmp_path / f"{corner}.lib" for corner in ("ss", "tt", "ff")}
     for corner, liberty in liberties.items():
@@ -2743,10 +2714,6 @@ def test_activity_workload_uses_corner_name_and_flat_report_layout(
         def signoff_stage_log_root(self, stage: str) -> Path:
             assert stage == "post_syn"
             return tmp_path / "logs"
-
-    legacy = Layout.power_dir / "analysis/smoke_sv_max/ss"
-    legacy.mkdir(parents=True)
-    (legacy / "power.rpt").write_text("stale\n", encoding="utf-8")
 
     monkeypatch.setattr(signoff_power_module, "layout_from_values", lambda *args: Layout())
     monkeypatch.setattr(signoff_power_module, "_liberties", lambda values: liberties)
@@ -3763,7 +3730,7 @@ def test_post_impl_signoff_flow_declares_physical_first() -> None:
     assert source.index("run_power_activity") < source.index("run_fusion")
 
 
-def test_backend_flow_vocabulary_keeps_legacy_aliases() -> None:
+def test_backend_flow_vocabulary_has_no_legacy_aliases() -> None:
     from flexsoc.backend.design.model import ModelFlow
     from flexsoc.backend.design.regs import RegsFlow
     from flexsoc.backend.design.rtl import RtlFlow
@@ -3771,21 +3738,65 @@ def test_backend_flow_vocabulary_keeps_legacy_aliases() -> None:
     from flexsoc.backend.dv.functional import FunctionalFlow
     from flexsoc.backend.signoff import SignoffFlow
 
-    assert RegsFlow.setup_hjson is RegsFlow.init_hjson
-    assert RegsFlow.generate_rtl is RegsFlow.setup_rtl
-    assert RegsFlow.generate_docs is RegsFlow.setup_docs
-    assert RegsFlow.generate_driver is RegsFlow.setup_driver
-    assert RegsFlow.generate_regmap_py is RegsFlow.setup_regmap_py
-    assert RtlFlow.setup_scaffold is RtlFlow.init_scaffold
-    assert RtlFlow.generate_top is RtlFlow.setup_top
-    assert RtlFlow.generate_filelists is RtlFlow.setup_filelists
-    assert ModelFlow.setup_reference is ModelFlow.init_reference
-    assert ModelFlow.setup_model_tests is ModelFlow.init_model_tests
-    assert FormalFlow.setup_scaffold is FormalFlow.init_properties
-    assert FunctionalFlow.generate_tests is FunctionalFlow.setup_tests
-    assert FunctionalFlow.generate_test is FunctionalFlow.setup_test
-    assert FunctionalFlow.compile_systemverilog is FunctionalFlow.run_compile_systemverilog
-    assert SignoffFlow.write_sdf is SignoffFlow.run_sdf
+    aliases = {
+        RegsFlow: ("setup_hjson", "generate_rtl", "generate_docs", "generate_driver", "generate_regmap_py"),
+        RtlFlow: ("setup_scaffold", "generate_top", "generate_filelists"),
+        ModelFlow: ("setup_reference", "setup_model_tests"),
+        FormalFlow: ("setup_scaffold",),
+        FunctionalFlow: ("generate_tests", "generate_test", "compile_systemverilog"),
+        SignoffFlow: ("write_sdf",),
+    }
+    assert "hjson_gen" not in TARGETS
+    for flow, names in aliases.items():
+        assert not any(hasattr(flow, name) for name in names)
+
+
+
+def test_pdk_metadata_exposes_only_managed_layout(tmp_path: Path) -> None:
+    from flexsoc.backend.core.core import describe
+
+    info = describe(tmp_path, "sky130")
+    assert "legacy_root" not in info
+    assert "legacy_present" not in info
+
+def test_driver_materializes_header_and_uart_master_namespace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from flexsoc.backend.design.regs import RegsFlow
+
+    hjson = tmp_path / "uart_master.hjson"
+    hjson.write_text('{ name: "uart_master" }\n', encoding="utf-8")
+    output = tmp_path / "drivers"
+    flow = RegsFlow(project_root=ROOT)
+
+    def fake_regtool(argv, *, cwd, log, on="local"):
+        assert argv[:2] == ["--cdefines", "-o"]
+        Path(argv[2]).write_text(
+            "#ifndef _UART_MASTER_REG_DEFS_\n"
+            "#define _UART_MASTER_REG_DEFS_\n"
+            "#define UART_MASTER_CTRL_REG_OFFSET 0x0\n"
+            "#define UART_MASTER_STATUS_REG_OFFSET 0x4\n"
+            "#define UART_MASTER_STATUS_RXEMPTY_BIT 5\n"
+            "#define UART_MASTER_STATUS_TXFULL_BIT 0\n"
+            "#define UART_MASTER_RDATA_REG_OFFSET 0x8\n"
+            "#define UART_MASTER_WDATA_REG_OFFSET 0xc\n"
+            "#ifdef __cplusplus\n"
+            'extern "C" {\n'
+            "#endif\n",
+            encoding="utf-8",
+        )
+        return 0
+
+    monkeypatch.setattr(flow, "_run_regtool", fake_regtool)
+    header, source = flow.setup_driver(hjson, output, base_address="0x40000000")
+    header_text = header.read_text(encoding="utf-8")
+    source_text = source.read_text(encoding="utf-8")
+    assert "#define UART_MASTER_BASE 0x40000000" in header_text
+    assert "typedef uintptr_t uart_master_t;" in header_text
+    assert "UART_MASTER_CTRL_REG_OFFSET" in source_text
+    assert "UART_MASTER_STATUS_RXEMPTY_BIT" in source_text
+    assert "UART_MASTER_WDATA_REG_OFFSET" in source_text
+    assert "UART_CTRL_REG_OFFSET" not in source_text
 
 
 def test_tool_runner_executes_local_commands(tmp_path: Path) -> None:
@@ -4137,7 +4148,7 @@ def test_eqy_explicit_pdk_and_multiclock_contract(tmp_path: Path, monkeypatch: p
         liberty=tmp_path / "library.lib",
         cell_models=(),
         clock_gate_model=tmp_path / "cg.v",
-        engine="abc pdr", depth=20, sat_depth=20, output=tmp_path / "demo.eqy",
+        sat_depth=20, output=tmp_path / "demo.eqy",
         pdk="sky130", multiclock=True,
         reset_domains=(("cfg_clk_i", "cfg_rst_ni", "low"), ("dsp_clk_i", "dsp_rst_ni", "low")),
     )
@@ -4148,7 +4159,7 @@ def test_eqy_explicit_pdk_and_multiclock_contract(tmp_path: Path, monkeypatch: p
     assert all(reset != "rst_ni" for _, reset, _ in cfg.reset_domains)
 
 
-def test_eqy_pdr_engine_is_independent_from_legacy_engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_eqy_pdr_engine_is_explicit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from flexsoc.backend.syn.eqy import EquivalenceFlow
 
     monkeypatch.delenv("EQY_PDR_ENGINE", raising=False)
@@ -4156,16 +4167,15 @@ def test_eqy_pdr_engine_is_independent_from_legacy_engine(tmp_path: Path, monkey
     cfg = flow.config(
         top="demo", filelists=(), netlist=tmp_path / "netlist.v",
         liberty=tmp_path / "library.lib", cell_models=(),
-        clock_gate_model=tmp_path / "cg.v", engine="sat", depth=20, sat_depth=20,
+        clock_gate_model=tmp_path / "cg.v", sat_depth=20,
         output=tmp_path / "demo.eqy", pdk="sky130", multiclock=False,
     )
-    assert cfg.engine == "sat"
     assert cfg.pdr_engine == "abc pdr"
 
     overridden = flow.config(
         top="demo", filelists=(), netlist=tmp_path / "netlist.v",
         liberty=tmp_path / "library.lib", cell_models=(),
-        clock_gate_model=tmp_path / "cg.v", engine="sat", depth=20, sat_depth=20,
+        clock_gate_model=tmp_path / "cg.v", sat_depth=20,
         output=tmp_path / "demo.eqy", pdk="sky130", multiclock=True,
         pdr_engine="abc pdr",
     )
@@ -4361,8 +4371,6 @@ def test_eqy_explicit_sky130_never_reads_raw_primitive_models(tmp_path: Path) ->
         netlist=netlist,
         liberty=liberty,
         cell_models=(model,),
-        engine="sat",
-        depth=20,
         sat_depth=20,
         pdk="sky130",
         sky130_clock_gate_model=tmp_path / "sky130_clock_gates_formal.v",
@@ -4395,6 +4403,20 @@ def test_post_impl_signoff_maps_lifecycle_stage_to_post_pnr_gls(tmp_path: Path) 
     assert post.stage.value == "post_route"
     assert post.gls.stage == "post_pnr"
 
+
+
+def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
+    contracts = api_module.STAGE_CONTRACTS
+    assert frozenset(contracts) == api_module.PROVENANCE_SETUPS
+    assert all(parent in contracts for spec in contracts.values() for parent in spec.parents)
+
+    def visit(stage: str, path: tuple[str, ...] = ()) -> None:
+        assert stage not in path, f"stage dependency cycle: {' -> '.join((*path, stage))}"
+        for parent in contracts[stage].parents:
+            visit(parent, (*path, stage))
+
+    for stage in contracts:
+        visit(stage)
 
 
 def test_provenance_derives_override_and_parent_lineage_states(tmp_path: Path) -> None:

@@ -87,8 +87,6 @@ EQUIV = (
     "SBY",
     "EQY",
     "EQY_SAT_DEPTH",
-    "EQY_DEPTH",
-    "EQY_ENGINE",
     "EQY_TIMEOUT",
     "EQY_QUICK_TIMEOUT",
     "EQY_JOBS",
@@ -191,7 +189,6 @@ TARGETS: dict[str, TargetSpec] = {
     "sdc": ("IP flow", "Initialize the canonical authored <TOP>.sdc timing intent", SDC_INTENT),
     "model": ("DV functional", "Generate Python model, CSR regmap, and test scaffolds", SIM),
     "tb": ("DV functional", "Generate a SystemVerilog testbench scaffold", SIM),
-    "hjson_gen": ("IP flow", "Compatibility alias for HJSON generation", IP_DEV),
     "reg": ("IP flow", "Generate register RTL from HJSON", IP_DEV),
     "doc": ("IP flow", "Generate register documentation", IP_DEV),
     "rtl_stub": ("IP flow", "Generate RTL core and aligned top wrapper", IP_DEV),
@@ -640,48 +637,48 @@ GLS_PROVENANCE_TARGETS = {
     "compile_post_pnr", "sim_post_pnr", "sim_post_pnr_all",
 }
 
-PROVENANCE_SETUPS = {
-    "tb.setup", "cocotb.setup", "cdc_rdc.setup",
-    "formal.prove.setup", "formal.cover.setup",
-    "formal.csr_prove.setup", "formal.csr_cover.setup",
-    "syn.setup", "eqy.setup", "signoff.setup",
-    "signoff_post_pnr.setup", "pnr.setup",
-}
-PROVENANCE_PARENTS = {
-    "eqy.setup": ("syn.setup",),
-    "pnr.setup": ("syn.setup", "signoff.setup"),
-    "signoff_post_pnr.setup": ("pnr.setup",),
-}
-PROVENANCE_CONFIG_KEYS = {
-    "tb.setup": (*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV"),
-    "cocotb.setup": (*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV"),
-    "cdc_rdc.setup": (*CLOCKS, "TOP", "CLK_PERIOD"),
-    "formal.prove.setup": (
+@dataclass(frozen=True, slots=True)
+class StageContract:
+    """Semantic inputs that define one provenance-bearing lifecycle stage."""
+
+    config: tuple[str, ...]
+    parents: tuple[str, ...] = ()
+
+
+STAGE_CONTRACTS = {
+    "tb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
+    "cocotb.setup": StageContract((*CLOCKS, "TOP", "REG_ITF", "CLK_PERIOD", "COMPILER", "VSV")),
+    "cdc_rdc.setup": StageContract((*CLOCKS, "TOP", "CLK_PERIOD")),
+    "formal.prove.setup": StageContract((
         *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
         "FORMAL_BMC_ENGINE", "FORMAL_PROVE_ENGINE",
-    ),
-    "formal.cover.setup": (*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE"),
-    "formal.csr_prove.setup": (
+    )),
+    "formal.cover.setup": StageContract((*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE")),
+    "formal.csr_prove.setup": StageContract((
         *CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_BMC_DEPTH", "FORMAL_BMC_APPEND",
         "FORMAL_BMC_ENGINE", "FORMAL_PROVE_ENGINE",
-    ),
-    "formal.csr_cover.setup": (*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE"),
-    "syn.setup": (
+    )),
+    "formal.csr_cover.setup": StageContract((*CLOCKS, "TOP", "FORMAL_DEPTH", "FORMAL_COVER_ENGINE")),
+    "syn.setup": StageContract((
         *CLOCKS, "TOP", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT",
         "TIEHI_CELL_AND_PORT", "TIELO_CELL_AND_PORT", "MIN_BUF_CELL_AND_PORTS",
-    ),
-    "eqy.setup": (
-        *CLOCKS, "TOP", "EQY_DEPTH", "EQY_SAT_DEPTH", "EQY_ENGINE", "EQY_USE_SAT",
+    )),
+    "eqy.setup": StageContract((
+        *CLOCKS, "TOP", "EQY_SAT_DEPTH", "EQY_USE_SAT",
         "EQY_SPLITNETS", "EQY_USE_PDR", "EQY_PDR_ENGINE", "EQY_SMT_ENGINE",
         "EQY_SMT_DEPTH", "EQY_XPROP", "EQY_JOIN_OUTPUTS", "EQY_STRATEGY_ORDER",
         "EQY_RESET_NORMALIZE", "EQY_RESET_CYCLES",
-    ),
-    "signoff.setup": (
+    ), ("syn.setup",)),
+    "signoff.setup": StageContract((
         *CLOCKS, "TOP", "PDK", "CLK_PERIOD", "SDC_IO_DELAY_PCT", "SDC_CLOCK_PERIOD_NS",
+    )),
+    "signoff_post_pnr.setup": StageContract(
+        (*CLOCKS, "TOP", "PDK", "CLK_PERIOD", "ORS_TECH", "SDC_IO_DELAY_PCT"),
+        ("pnr.setup",),
     ),
-    "signoff_post_pnr.setup": (*CLOCKS, "TOP", "PDK", "CLK_PERIOD", "ORS_TECH", "SDC_IO_DELAY_PCT"),
-    "pnr.setup": (*CLOCKS, "TOP", "PDK", "ORS_TECH"),
+    "pnr.setup": StageContract((*CLOCKS, "TOP", "PDK", "ORS_TECH"), ("syn.setup", "signoff.setup")),
 }
+PROVENANCE_SETUPS = frozenset(STAGE_CONTRACTS)
 
 
 DESIGN_INTENT_KEYS = (
@@ -692,7 +689,7 @@ DESIGN_INTENT_KEYS = (
 
 SETTINGS_EVIDENCE_KEYS = tuple(sorted({
     *DEFAULT_SETTINGS, *DESIGN_INTENT_KEYS,
-    *(key for keys in PROVENANCE_CONFIG_KEYS.values() for key in keys),
+    *(key for stage in STAGE_CONTRACTS.values() for key in stage.config),
     "PDK", "PDK_ROOT", "CLK_PERIOD", "TARGET_SYN", "TARGET_OPT",
     "LIB_SYN", "LIBS", "PRIM", "MACRO_LIBS",
     "ORS", "ORS_TECH", "SDC_IO_DELAY_PCT", "SDC_CLOCK_PERIOD_NS",
@@ -756,17 +753,11 @@ def _setup_command(stage: str, *, force: bool = False) -> str:
 
     return f"fx {_setup_public(stage)} --setup" + (" --force" if force else "")
 
-TARGET_ALIASES = {
-    "signoff_post_pnr": "signoff",
-    "sdf_post_pnr": "sdf",
-    "sta_post_pnr": "sta",
-    "power_estimate_post_pnr": "power_estimate",
-    "power_analysis_post_pnr": "power_analysis",
-    "power_analysis_post_pnr_all": "power_analysis_all",
-    "fusion_analysis_post_pnr": "fusion_analysis",
-    "fusion_analysis_post_pnr_all": "fusion_analysis_all",
+POST_PNR_SIGNOFF_TARGETS = {
+    "signoff_post_pnr", "sdf_post_pnr", "sta_post_pnr", "power_estimate_post_pnr",
+    "power_analysis_post_pnr", "power_analysis_post_pnr_all",
+    "fusion_analysis_post_pnr", "fusion_analysis_post_pnr_all", "sim_post_pnr_all",
 }
-POST_PNR_SIGNOFF_TARGETS = set(TARGET_ALIASES) | {"sim_post_pnr_all"}
 
 
 ACTIVITY_ANALYSIS_TARGETS = {
@@ -980,7 +971,7 @@ class FlexSoCTarget:
     def _provenance_config(self, stage: str) -> dict[str, str]:
         """Select only semantic setup values; artifact paths are hashed as inputs."""
 
-        return {key: self.values.get(key, "") for key in PROVENANCE_CONFIG_KEYS[stage]}
+        return {key: self.values.get(key, "") for key in STAGE_CONTRACTS[stage].config}
 
     def _configured_paths(self, *keys: str) -> tuple[Path, ...]:
         paths: list[Path] = []
@@ -1093,7 +1084,7 @@ class FlexSoCTarget:
                 config=self._provenance_config(parent),
                 parents=self._provenance_parents(parent),
             )
-            for parent in PROVENANCE_PARENTS.get(stage, ())
+            for parent in STAGE_CONTRACTS[stage].parents
         }
 
     def _execution_inputs(self, stage: str) -> tuple[Path, ...]:
@@ -1230,8 +1221,6 @@ class FlexSoCTarget:
             liberty=Path(self.values["LIB_SYN"]),
             cell_models=models,
             clock_gate_model=out / "sky130_clock_gates_formal.v",
-            engine=self.values.get("EQY_ENGINE", "sat"),
-            depth=int(self.values.get("EQY_DEPTH", "20")),
             sat_depth=int(self.values.get("EQY_SAT_DEPTH", "20")),
             config=config,
             formal_pdk_proc=Path(formal_proc) if formal_proc else None,
@@ -1385,7 +1374,7 @@ class FlexSoCTarget:
             return p.ensure()
         if target == "sdc.setup":
             return b.signoff.pre.setup_sdc()
-        if target in {"hjson", "hjson_gen"}:
+        if target == "hjson":
             return b.design.regs.init_hjson(top, interface, p.data, force=force, clocks=self.context.clocks)
         if target == "reg":
             return b.design.regs.setup_rtl(top, p.data, p.rtl, regmap=v.get("REGMAP"), on=self.on)
