@@ -314,6 +314,8 @@ Different edits invalidate different parts of the lifecycle.
 
 The first contract kernel is deliberately small: provenance-bearing stages are declared once in the Python `STAGE_CONTRACTS` registry with only their semantic configuration and parent lineage. Existing provenance hashes the effective input files, generated artifacts, configuration, and parent fingerprints; a changed source or parent therefore makes dependent setup collateral stale without introducing a second graph format or database. Runtime evidence stages will reuse the same model as the contract graph expands.
 
+The run-level `meta/design_intent.json` is the technology-independent identity snapshot for authored IP intent. Its `ip_intent_sha256` hashes only semantic IP settings plus canonical authored sources (CSR HJSON, authored RTL, functional model/scenarios, formal properties, and the authored SDC). Run identity, PDK selection, synthesis optimization, generated wrappers/register views, and generated Python regmaps are intentionally excluded. This keeps one IP intent stable across workspaces and technology branches while still changing when an owning source of truth changes.
+
 ### CSR-only change
 
 Regenerate register collateral, test/regmap derivatives, and any wrapper/filelist boundary affected by new ports. Rerun structural, functional, formal, synthesis, equivalence, and downstream sign-off gates that consume the changed design.
@@ -424,3 +426,24 @@ requirements / HJSON / RTL / model / properties
 ```
 
 The detailed command sequence for each transition is maintained in the [IP development guide](ip_development_guide.md), not duplicated here.
+
+
+## Digital IP Contract status and release levels
+
+FlexSoC uses the same provenance manifest for generated setup collateral and successful runtime evidence. `STAGE_CONTRACTS` is the single dependency DAG: every tracked stage declares only semantic configuration, parent stages, and canonical evidence. No graph database or second lifecycle description is used.
+
+After a successful tracked command, FlexSoC records SHA256 snapshots of its effective inputs and evidence. If an input, configuration value, generated setup, or upstream stage changes, dependent evidence is reported as `STALE`; unrelated branches remain valid. Existing `MODIFIED`, `VALIDATED_OVERRIDE`, and `INVALID` semantics continue to apply.
+
+`fx status` evaluates this graph live without running EDA and reports the current authored `IP_INTENT_SHA256`, stage states, and the highest fully closed release level:
+
+```text
+0  Contract Valid
+1  RTL Qualified
+2  Netlist Qualified
+3  Technology Qualified
+4  Physical Qualified
+```
+
+The levels are intentionally hierarchical. A later technology or physical result does not hide a missing earlier qualification stage. EQY remains part of `Netlist Qualified`; while equivalence closure is intentionally deferred, `fx status` therefore stops at the highest earlier level that is fully evidenced.
+
+Runtime evidence currently covers the canonical lifecycle: Slang/Verilator lint suites, CDC/RDC, functional regression, individual formal BMC/prove/cover stages, synthesis, EQY, SDF/STA/vectorless power, post-synthesis SV GLS, PnR, physical sign-off, and routed SDF/STA/power/SV GLS. Composite commands such as `fx lint_suite`, `fx formal`, `fx signoff`, and `fx signoff_post_pnr` are compositions of those same canonical stages, so aggregate and manual execution produce the same contract evidence.
