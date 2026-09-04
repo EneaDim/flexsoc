@@ -2352,7 +2352,7 @@ def test_package_flow_exports_deterministic_ipxact(
     assert "ipxact" in TARGETS
 
 
-def test_vendor_fetch_imports_by_default_and_updates_when_forced(
+def test_vendor_fetch_reuses_intact_import_and_refreshes_changes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from flexsoc.backend.core import CommandResult
@@ -2360,19 +2360,33 @@ def test_vendor_fetch_imports_by_default_and_updates_when_forced(
 
     flow = RtlFlow(ROOT)
     requests = []
+    manifest = tmp_path / "demo.vendor.hjson"
+    vendor_dir = tmp_path / "demo_vendor"
+    manifest.write_text(
+        '{name: "demo", target_dir: "demo_vendor", upstream: {url: "x", rev: "1"}}\n',
+        encoding="utf-8",
+    )
 
     def capture(request, *, on: str = "local") -> CommandResult:
         requests.append(request)
+        vendor_dir.mkdir(exist_ok=True)
+        (vendor_dir / "payload.txt").write_text("clean\n", encoding="utf-8")
         return CommandResult(0, request.log, 0.0)
 
     monkeypatch.setattr(flow.runner, "run", capture)
-    manifest = ROOT / "vendor" / "lowrisc_ip.vendor.hjson"
-    flow.fetch_vendor(manifest, target_dir=tmp_path)
-    flow.fetch_vendor(manifest, target_dir=tmp_path, force=True)
+    assert flow.fetch_vendor(manifest, target_dir=tmp_path) == 0
+    assert flow.fetch_vendor(manifest, target_dir=tmp_path) == 0
+    (vendor_dir / "payload.txt").write_text("modified\n", encoding="utf-8")
+    assert flow.fetch_vendor(manifest, target_dir=tmp_path) == 0
+    assert flow.fetch_vendor(manifest, target_dir=tmp_path, force=True) == 0
 
     tool = ROOT / "src" / "util" / "vendor.py"
+    assert len(requests) == 3
     assert requests[0].argv == (sys.executable, str(tool), str(manifest))
-    assert requests[1].argv == (sys.executable, str(tool), "--update", str(manifest))
+    assert requests[1].argv == (sys.executable, str(tool), str(manifest))
+    assert requests[2].argv == (sys.executable, str(tool), "--update", str(manifest))
+    marker = vendor_dir / ".flexsoc_fetch.sha256"
+    assert marker.is_file() and "INPUT_SHA256=" in marker.read_text(encoding="utf-8")
 
 
 def test_lowrisc_tlul_patchset_owns_flexsoc_compatibility() -> None:
@@ -4028,7 +4042,7 @@ def test_multiclock_sdc_async_relationship_is_canonical(tmp_path: Path) -> None:
 
 def test_tri_stream_dsp_sdc_scaffold_is_explicit_and_complete(tmp_path: Path) -> None:
     from flexsoc.backend.core import clock_config
-    from flexsoc.backend.signoff.sdc import init_sdc
+    from flexsoc.backend.signoff.sdc import init_sdc, render_sdc_scaffold
 
     bootstrap = clock_config({
         "N_CLOCKS": "3",
@@ -4060,6 +4074,21 @@ def test_tri_stream_dsp_sdc_scaffold_is_explicit_and_complete(tmp_path: Path) ->
     assert "set_case_analysis 0 [get_ports test_en_i]" in text
     assert "set_drive 0.1 [all_inputs -no_clocks]" in text
     assert "set_load 0.01 [all_outputs]" in text
+
+    for interface, cfg_i, cfg_o, dsp_i, dsp_o in (
+        ("tlul", "cfg_tl_i", "cfg_tl_o", "dsp_tl_i", "dsp_tl_o"),
+        ("reg_iface", "cfg_reg_req_i", "cfg_reg_rsp_o", "dsp_reg_req_i", "dsp_reg_rsp_o"),
+        ("axi_lite", "cfg_axi_lite_i", "cfg_axi_lite_o", "dsp_axi_lite_i", "dsp_axi_lite_o"),
+    ):
+        rendered = render_sdc_scaffold(
+            "tri_stream_dsp", bootstrap, register_interface=interface
+        )
+        assert f"[get_ports {{{cfg_i}}}]" in rendered
+        assert f"[get_ports {{{cfg_o}}}]" in rendered
+        assert f"[get_ports {{dsp_ready_i {dsp_i}}}]" in rendered
+        assert f"dsp_overflow_o {dsp_o}}}]" in rendered
+        if interface != "tlul":
+            assert "cfg_tl_i" not in rendered and "dsp_tl_o" not in rendered
 
 def test_setup_signoff_generates_five_families_without_activity_scripts(
     tmp_path: Path,
@@ -5171,6 +5200,8 @@ def test_stage_contract_graph_is_single_source_and_acyclic() -> None:
     assert api_module.RUNTIME_STAGES == frozenset(contracts) - api_module.PROVENANCE_SETUPS
     assert all(parent in contracts for spec in contracts.values() for parent in spec.parents)
     assert all(contracts[stage].evidence for stage in api_module.RUNTIME_STAGES)
+    assert "REG_ITF" in contracts["signoff.setup"].config
+    assert "REG_ITF" in contracts["signoff_post_pnr.setup"].config
 
     def visit(stage: str, path: tuple[str, ...] = ()) -> None:
         assert stage not in path, f"stage dependency cycle: {' -> '.join((*path, stage))}"

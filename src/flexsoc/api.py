@@ -677,10 +677,10 @@ STAGE_CONTRACTS = {
         "EQY_RESET_NORMALIZE", "EQY_RESET_CYCLES",
     ), ("syn.setup",)),
     "signoff.setup": StageContract((
-        *CLOCKS, "TOP", "PDK", "CLK_PERIOD", "SDC_IO_DELAY_PCT", "SDC_CLOCK_PERIOD_NS",
+        *CLOCKS, "TOP", "REG_ITF", "PDK", "CLK_PERIOD", "SDC_IO_DELAY_PCT", "SDC_CLOCK_PERIOD_NS",
     )),
     "signoff_post_pnr.setup": StageContract(
-        (*CLOCKS, "TOP", "PDK", "CLK_PERIOD", "ORS_TECH", "SDC_IO_DELAY_PCT"),
+        (*CLOCKS, "TOP", "REG_ITF", "PDK", "CLK_PERIOD", "ORS_TECH", "SDC_IO_DELAY_PCT"),
         ("pnr.setup",),
     ),
     "pnr.setup": StageContract((*CLOCKS, "TOP", "PDK", "ORS_TECH"), ("syn.setup", "signoff.setup")),

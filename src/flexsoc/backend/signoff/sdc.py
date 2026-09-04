@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from flexsoc.backend.core import ClockConfig, ClockDomain, ClockRelationship
+from flexsoc.backend.design.regs import normalize_register_interface
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +59,7 @@ def render_sdc_scaffold(
     top: str,
     clocks: ClockConfig,
     *,
+    register_interface: str = "tlul",
     io_delay_pct: float = 0.2,
     output_load: float = 0.01,
 ) -> str:
@@ -67,6 +69,13 @@ def render_sdc_scaffold(
         raise ValueError("SDC_IO_DELAY_PCT must be between 0 and 1")
     if output_load < 0.0:
         raise ValueError("SDC output load must be non-negative")
+
+    interface = normalize_register_interface(register_interface)
+    bus_suffix = {
+        "tlul": ("tl_i", "tl_o"),
+        "reg_iface": ("reg_req_i", "reg_rsp_o"),
+        "axi_lite": ("axi_lite_i", "axi_lite_o"),
+    }[interface]
 
     by_name = {domain.name: domain for domain in clocks.domains}
     generated = {rel.target: rel for rel in clocks.relationships if rel.kind == "generated"}
@@ -152,13 +161,15 @@ def render_sdc_scaffold(
         cfg_delay = domains["cfg"].period_ns * io_delay_pct
         rx_delay = domains["rx"].period_ns * io_delay_pct
         dsp_delay = domains["dsp"].period_ns * io_delay_pct
+        cfg_bus_i = f"cfg_{bus_suffix[0]}"
+        dsp_bus_i = f"dsp_{bus_suffix[0]}"
         lines += [
-            f"set_input_delay -max {cfg_delay:g} -clock cfg [get_ports {{cfg_tl_i}}]",
-            "set_input_delay -min 0.0 -clock cfg [get_ports {cfg_tl_i}]",
+            f"set_input_delay -max {cfg_delay:g} -clock cfg [get_ports {{{cfg_bus_i}}}]",
+            f"set_input_delay -min 0.0 -clock cfg [get_ports {{{cfg_bus_i}}}]",
             f"set_input_delay -max {rx_delay:g} -clock rx [get_ports {{rx_valid_i rx_sample_i rx_coeff_i}}]",
             "set_input_delay -min 0.0 -clock rx [get_ports {rx_valid_i rx_sample_i rx_coeff_i}]",
-            f"set_input_delay -max {dsp_delay:g} -clock dsp [get_ports {{dsp_ready_i dsp_tl_i}}]",
-            "set_input_delay -min 0.0 -clock dsp [get_ports {dsp_ready_i dsp_tl_i}]",
+            f"set_input_delay -max {dsp_delay:g} -clock dsp [get_ports {{dsp_ready_i {dsp_bus_i}}}]",
+            f"set_input_delay -min 0.0 -clock dsp [get_ports {{dsp_ready_i {dsp_bus_i}}}]",
         ]
     else:
         lines += [
@@ -193,13 +204,15 @@ def render_sdc_scaffold(
         cfg_delay = domains["cfg"].period_ns * io_delay_pct
         rx_delay = domains["rx"].period_ns * io_delay_pct
         dsp_delay = domains["dsp"].period_ns * io_delay_pct
+        cfg_bus_o = f"cfg_{bus_suffix[1]}"
+        dsp_bus_o = f"dsp_{bus_suffix[1]}"
         lines += [
-            f"set_output_delay -max {cfg_delay:g} -clock cfg [get_ports {{cfg_tl_o}}]",
-            "set_output_delay -min 0.0 -clock cfg [get_ports {cfg_tl_o}]",
+            f"set_output_delay -max {cfg_delay:g} -clock cfg [get_ports {{{cfg_bus_o}}}]",
+            f"set_output_delay -min 0.0 -clock cfg [get_ports {{{cfg_bus_o}}}]",
             f"set_output_delay -max {rx_delay:g} -clock rx [get_ports {{rx_ready_o}}]",
             "set_output_delay -min 0.0 -clock rx [get_ports {rx_ready_o}]",
-            f"set_output_delay -max {dsp_delay:g} -clock dsp [get_ports {{dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o dsp_tl_o}}]",
-            "set_output_delay -min 0.0 -clock dsp [get_ports {dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o dsp_tl_o}]",
+            f"set_output_delay -max {dsp_delay:g} -clock dsp [get_ports {{dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o {dsp_bus_o}}}]",
+            f"set_output_delay -min 0.0 -clock dsp [get_ports {{dsp_valid_o dsp_result_o dsp_above_threshold_o dsp_overflow_o {dsp_bus_o}}}]",
             "",
             "# Functional timing mode: scan/test clock-gate override is inactive.",
             "set_case_analysis 0 [get_ports test_en_i]",
@@ -257,6 +270,7 @@ def init_sdc(
     *,
     top: str,
     clocks: ClockConfig,
+    register_interface: str = "tlul",
     io_delay_pct: float = 0.2,
     force: bool = False,
 ) -> Path:
@@ -264,7 +278,9 @@ def init_sdc(
 
     return write_sdc(
         path,
-        render_sdc_scaffold(top, clocks, io_delay_pct=io_delay_pct),
+        render_sdc_scaffold(
+            top, clocks, register_interface=register_interface, io_delay_pct=io_delay_pct
+        ),
         force=force,
     )
 

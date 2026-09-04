@@ -574,6 +574,7 @@ class SignoffFlow:
             layout.signoff_sdc,
             top=self.values.get("TOP", "test"),
             clocks=clock_config(self.values),
+            register_interface=self.values.get("REG_ITF", "tlul"),
             io_delay_pct=float(self.values.get("SDC_IO_DELAY_PCT", "0.2")),
             force=str(self.values.get("FORCE", "0")).lower() in {"1", "true", "yes", "on"},
         )
