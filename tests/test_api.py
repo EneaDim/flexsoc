@@ -1794,11 +1794,11 @@ def test_register_interface_intent_uses_one_canonical_regfile_transport() -> Non
     assert 'protocol: "reg_iface"' in multi["axi_lite"]
 
 
-def test_reggen_runtime_uses_pinned_pulp_vendor() -> None:
+def test_reggen_runtime_uses_pinned_opentitan_vendor() -> None:
     from flexsoc.backend.design import regs
 
     source = inspect.getsource(regs._reggen_ip_block)
-    assert 'vendor" / "pulp" / "register_interface" / "util"' in source
+    assert 'vendor" / "opentitan_reggen" / "util"' in source
     assert 'parents[3] / "util"' not in source
     assert "missing vendored reggen" in source
 
@@ -2063,7 +2063,7 @@ def test_modern_opentitan_reggen_is_staged_with_pulp_adapters() -> None:
     assert '{from: "util/regtool.py",      to: "util/regtool.py"}' in reggen
     assert '{from: "util/reggen",          to: "util/reggen", patch_dir: "reggen"}' in reggen
     assert '{from: "util/design/mubi",     to: "util/design/mubi"}' in reggen
-    assert '{from: "util/topgen",          to: "util/topgen"}' in reggen
+    assert '{from: "util/topgen"' not in reggen
     assert '{from: "util/basegen",         to: "util/basegen"}' in reggen
     assert '{from: "util/version_file.py", to: "util/version_file.py"}' in reggen
 
@@ -2074,11 +2074,15 @@ def test_modern_opentitan_reggen_is_staged_with_pulp_adapters() -> None:
     assert '{from: "hw/ip/tlul",         to: "ip/tlul", patch_dir: "tlul"}' in lowrisc
     assert '"hw/ip/tlul/rtl/tlul_lc_gate.sv"' in lowrisc
 
-    # PULP remains the owner of the register-interface and AXI-Lite adapters
-    # while its legacy reggen stays available only until the backend switchover.
+    # PULP remains the owner of the register-interface and AXI-Lite adapters.
     assert 'rev: "d6e1d4c"' in pulp
     assert '{from: "src/reg_intf.sv", to: "src/reg_intf.sv"}' in pulp
     assert '{from: "src/axi_lite_to_reg.sv", to: "src/axi_lite_to_reg.sv"}' in pulp
+
+    patch = (ROOT / "vendor/patches/opentitan_reggen/reggen/0001-FlexSoC-reg-interface.patch").read_text(encoding="utf-8")
+    for expected in ("from basegen.lib import Name", "protocol_for", "reg_req_i", "reg_rsp_o", "_reg_core"):
+        assert expected in patch
+    assert "from topgen import lib" in patch  # removed upstream line is pinned in patch context
 
 
 def test_vendor_mapping_patch_applies_inside_git_worktree(tmp_path: Path) -> None:
@@ -2249,7 +2253,7 @@ def test_regs_flow_uses_vendored_regtool_and_exports_systemrdl(
     from flexsoc.backend.design.regs import RegsFlow
 
     project = tmp_path / "project"
-    tool = project / "vendor" / "pulp" / "register_interface" / "util" / "regtool.py"
+    tool = project / "vendor" / "opentitan_reggen" / "util" / "regtool.py"
     tool.parent.mkdir(parents=True)
     tool.write_text("# vendored regtool\n", encoding="utf-8")
     data = tmp_path / "data"
@@ -2413,7 +2417,8 @@ def test_e2e_register_transport_matrix_and_vendor_bootstrap_contract() -> None:
     assert 'fx fetch --set VENDOR=lowrisc_ip' in text
     assert 'fx fetch --set VENDOR=pulp_common_cells' in text
     assert 'fx fetch --set VENDOR=pulp_axi' in text
-    assert text.count('fx fetch --set VENDOR=pulp_register_interface') >= 3
+    assert text.count('fx fetch --set VENDOR=opentitan_reggen') == 1
+    assert text.count('fx fetch --set VENDOR=pulp_register_interface') == 1
     assert text.count('fx systemrdl --force') == 2
     assert text.count('fx ipxact --force') == 2
     assert 'if config.run_signoff and reg_itf == "tlul":' not in text

@@ -49,11 +49,8 @@ def _fetch_register_vendors(
     """Fetch the external RTL dependencies required by one register transport."""
 
     commands = {
-        "tlul": (
-            "fx fetch --set VENDOR=pulp_register_interface",
-            "fx fetch --set VENDOR=lowrisc_ip",
-        ),
-        "reg_iface": ("fx fetch --set VENDOR=pulp_register_interface",),
+        "tlul": ("fx fetch --set VENDOR=lowrisc_ip",),
+        "reg_iface": (),
         "axi_lite": (
             "fx fetch --set VENDOR=pulp_register_interface",
             "fx fetch --set VENDOR=pulp_common_cells",
@@ -61,7 +58,7 @@ def _fetch_register_vendors(
         ),
     }
     try:
-        selected = commands[reg_itf]
+        selected = ("fx fetch --set VENDOR=opentitan_reggen", *commands[reg_itf])
     except KeyError as exc:
         raise AssertionError(f"unsupported E2E REG_ITF: {reg_itf}") from exc
     if not selected:

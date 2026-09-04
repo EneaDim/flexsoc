@@ -577,15 +577,12 @@ class RegisterSpec:
 
 
 def _reggen_ip_block() -> Any:
-    """Return ``IpBlock`` from the pinned PULP/OpenTitan reggen vendor."""
+    """Return ``IpBlock`` from the pinned OpenTitan reggen vendor."""
 
-    util_dir = (
-        Path(__file__).resolve().parents[4]
-        / "vendor" / "pulp" / "register_interface" / "util"
-    )
+    util_dir = Path(__file__).resolve().parents[4] / "vendor" / "opentitan_reggen" / "util"
     if not (util_dir / "reggen").is_dir():
         raise SystemExit(
-            "missing vendored reggen; run `fx fetch --set VENDOR=pulp_register_interface`"
+            "missing vendored reggen; run `fx fetch --set VENDOR=opentitan_reggen`"
         )
     if str(util_dir) not in sys.path:
         sys.path.insert(0, str(util_dir))
@@ -1094,12 +1091,12 @@ class RegsFlow:
         return selected
 
     def _regtool(self) -> Path:
-        """Return the pinned PULP/OpenTitan regtool used for generated collateral."""
+        """Return the pinned OpenTitan regtool used for generated collateral."""
 
-        tool = self.project_root / "vendor" / "pulp" / "register_interface" / "util" / "regtool.py"
+        tool = self.project_root / "vendor" / "opentitan_reggen" / "util" / "regtool.py"
         if not tool.is_file():
             raise FileNotFoundError(
-                "missing vendored regtool; run `fx fetch --set VENDOR=pulp_register_interface`"
+                "missing vendored regtool; run `fx fetch --set VENDOR=opentitan_reggen`"
             )
         return tool
 
