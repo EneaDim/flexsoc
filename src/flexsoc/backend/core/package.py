@@ -5,13 +5,85 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
+import re
 import shutil
 import tempfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
 from .reporting import Reporting
+
+
+IPXACT_NS = "http://www.accellera.org/XMLSchema/IPXACT/1685-2022"
+XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
+ET.register_namespace("ipxact", IPXACT_NS)
+ET.register_namespace("xsi", XSI_NS)
+
+
+def _xe(parent: ET.Element, name: str, text: str | None = None, **attrs: str) -> ET.Element:
+    element = ET.SubElement(parent, f"{{{IPXACT_NS}}}{name}", attrs)
+    element.text = text
+    return element
+
+
+def _ipxact_access(readable: bool, writable: bool) -> str:
+    if readable and writable:
+        return "read-write"
+    if readable:
+        return "read-only"
+    if writable:
+        return "write-only"
+    return "no-access"
+
+
+def _ipxact_rtl_files(rtl_dir: Path) -> list[Path]:
+    """Return deterministic run-local RTL sources from canonical filelists."""
+
+    root = rtl_dir.resolve()
+    files: set[Path] = set()
+    for filelist in (rtl_dir / "rtl_common.f", rtl_dir / "rtl_ip.f"):
+        if not filelist.is_file():
+            continue
+        for raw in filelist.read_text(encoding="utf-8").splitlines():
+            value = raw.strip()
+            if not value or value.startswith(("#", "+", "-")):
+                continue
+            source = Path(value)
+            if not source.is_absolute():
+                source = filelist.parent / source
+            source = source.resolve()
+            try:
+                source.relative_to(root)
+            except ValueError:
+                continue
+            if source.is_file():
+                files.add(source)
+    if not files:
+        files.update(path.resolve() for path in rtl_dir.glob("*.sv") if path.is_file())
+    return sorted(files, key=lambda path: path.relative_to(root).as_posix())
+
+
+def _ipxact_port(parent: ET.Element, port: object) -> None:
+    item = _xe(parent, "port")
+    _xe(item, "name", str(port.name))
+    wire = _xe(item, "wire")
+    _xe(wire, "direction", {"input": "in", "output": "out"}[str(port.direction)])
+    svtype = str(port.svtype).strip()
+    vector = re.search(r"\[\s*([^:\]]+)\s*:\s*([^\]]+)\s*\]", svtype)
+    if vector:
+        vectors = _xe(wire, "vectors")
+        entry = _xe(vectors, "vector")
+        _xe(entry, "left", vector.group(1).strip())
+        _xe(entry, "right", vector.group(2).strip())
+    base = re.sub(r"\[[^\]]+\]", "", svtype).strip()
+    if base and not base.startswith(("logic", "wire", "reg")):
+        defs = _xe(wire, "wireTypeDefs")
+        definition = _xe(defs, "wireTypeDef")
+        _xe(definition, "typeName", base)
+        _xe(definition, "viewRef", "rtl")
 
 
 def _copy_contents(source: Path, destination: Path) -> None:
@@ -143,6 +215,111 @@ class PackageFlow:
         _rebind_filelists(destination, self.project_root)
         return destination
 
+    def export_ipxact(
+        self,
+        *,
+        top: str,
+        data_dir: Path,
+        rtl_dir: Path,
+        output: Path,
+        vendor: str = "flexsoc",
+        library: str = "ip",
+        version: str = "1.0.0",
+    ) -> Path:
+        """Export deterministic IEEE 1685-2022 component metadata for one IP run."""
+
+        from flexsoc.backend.design.regs import _collect
+        from flexsoc.backend.design.rtl import parse_ports
+
+        top_file = Path(rtl_dir) / f"{top}.sv"
+        if not top_file.is_file():
+            raise FileNotFoundError(f"missing generated top RTL: {top_file}")
+        _, registers = _collect(top, Path(data_dir))
+        output = Path(output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        root = ET.Element(
+            f"{{{IPXACT_NS}}}component",
+            {f"{{{XSI_NS}}}schemaLocation": f"{IPXACT_NS} {IPXACT_NS}/index.xsd"},
+        )
+        for name, value in (("vendor", vendor), ("library", library), ("name", top), ("version", version)):
+            _xe(root, name, value)
+
+        by_domain: dict[str, list[object]] = {}
+        for register in registers:
+            by_domain.setdefault(register.domain, []).append(register)
+        memory_maps = _xe(root, "memoryMaps")
+        for domain in sorted(by_domain):
+            domain_regs = sorted(by_domain[domain], key=lambda reg: (reg.offset, reg.name))
+            memory_map = _xe(memory_maps, "memoryMap")
+            _xe(memory_map, "name", f"{domain}_register_map")
+            block = _xe(memory_map, "addressBlock")
+            _xe(block, "name", f"{domain}_registers")
+            _xe(block, "baseAddress", "0")
+            _xe(block, "range", str(max(4, max(reg.offset + 4 for reg in domain_regs))))
+            _xe(block, "width", "32")
+            policies = _xe(block, "accessPolicies")
+            _xe(_xe(policies, "accessPolicy"), "access", "read-write")
+            for register in domain_regs:
+                reg = _xe(block, "register")
+                _xe(reg, "name", register.name)
+                _xe(reg, "addressOffset", str(register.offset))
+                _xe(reg, "size", "32")
+                access = _xe(reg, "accessPolicies")
+                _xe(
+                    _xe(access, "accessPolicy"),
+                    "access",
+                    _ipxact_access(register.readable, register.writable),
+                )
+                for field in register.fields:
+                    field_xml = _xe(reg, "field")
+                    _xe(field_xml, "name", field.name)
+                    _xe(field_xml, "bitOffset", str(field.lsb))
+                    _xe(field_xml, "bitWidth", str(field.msb - field.lsb + 1))
+                    if field.reset is not None:
+                        resets = _xe(field_xml, "resets")
+                        reset = _xe(resets, "reset")
+                        _xe(reset, "value", str(field.reset))
+                        _xe(reset, "mask", str((1 << (field.msb - field.lsb + 1)) - 1))
+                    policies = _xe(field_xml, "fieldAccessPolicies")
+                    policy = _xe(policies, "fieldAccessPolicy")
+                    _xe(policy, "access", _ipxact_access(field.readable, field.writable))
+                    modified = {
+                        "rw1c": "oneToClear", "r0w1c": "oneToClear",
+                        "rw1s": "oneToSet", "rw0c": "zeroToClear",
+                    }.get(field.swaccess)
+                    if modified:
+                        _xe(policy, "modifiedWriteValue", modified)
+            _xe(memory_map, "addressUnitBits", "8")
+
+        model = _xe(root, "model")
+        views = _xe(model, "views")
+        view = _xe(views, "view")
+        _xe(view, "name", "rtl")
+        _xe(view, "componentInstantiationRef", "rtl")
+        instantiations = _xe(model, "instantiations")
+        instantiation = _xe(instantiations, "componentInstantiation")
+        _xe(instantiation, "name", "rtl")
+        _xe(instantiation, "language", "SystemVerilog")
+        _xe(instantiation, "moduleName", top)
+        file_ref = _xe(instantiation, "fileSetRef")
+        _xe(file_ref, "localName", "rtl")
+        ports = _xe(model, "ports")
+        for port in parse_ports(top_file):
+            _ipxact_port(ports, port)
+
+        file_sets = _xe(root, "fileSets")
+        file_set = _xe(file_sets, "fileSet")
+        _xe(file_set, "name", "rtl")
+        for source in _ipxact_rtl_files(Path(rtl_dir)):
+            file_xml = _xe(file_set, "file")
+            _xe(file_xml, "name", os.path.relpath(source, output.parent).replace(os.sep, "/"))
+            _xe(file_xml, "fileType", "systemVerilogSource")
+
+        ET.indent(root, space="  ")
+        ET.ElementTree(root).write(output, encoding="utf-8", xml_declaration=True)
+        return output
+
     def save(
         self,
         *,
@@ -240,13 +417,15 @@ class PackageFlow:
         """Copy reusable source and generated collateral from the current run."""
 
         for relative in (
-            "data", "rtl", "doc", "drivers",
+            "data", "rtl", "doc", "drivers", "interchange/systemrdl",
             "dv/formal/properties",
             "dv/functional/model", "dv/functional/tests", "dv/functional/tb",
         ):
             source = run / relative
             if source.is_dir():
                 self._replace_tree(source, staged / relative)
+        if (run / "component.xml").is_file():
+            shutil.copy2(run / "component.xml", staged / "component.xml")
 
     def _stage_analysis_evidence(self, staged: Path, run: Path) -> None:
         """Retain compact lint and CDC/RDC evidence under analysis/."""
@@ -292,6 +471,10 @@ class PackageFlow:
         design_intent = staged / "meta" / "design_intent.json"
         if design_intent.is_file():
             content["design_intent"] = "meta/design_intent.json"
+        if (staged / "component.xml").is_file():
+            content["ipxact"] = "component.xml"
+        if (staged / "interchange" / "systemrdl").is_dir():
+            content["systemrdl"] = "interchange/systemrdl"
 
         qualification = {}
         meta = staged / "meta"

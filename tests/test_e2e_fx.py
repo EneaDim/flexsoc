@@ -1120,6 +1120,10 @@ def test_fx_single_clock_flow_debug(
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(
+            f"fx ipxact --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
             f"fx lint_slang_suite --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
@@ -1601,6 +1605,10 @@ def test_fx_multi_clock_flow_debug(
         )
         _run(
             f"fx flist --force --workdir {workdir}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
+        _run(
+            f"fx ipxact --force --workdir {workdir}",
             workspace=workspace, top=top, run_id=run_id,
         )
         _run(

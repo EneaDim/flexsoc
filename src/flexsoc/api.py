@@ -47,6 +47,7 @@ CLOCKS = ("N_CLOCKS", "CLOCK_DOMAINS", "CLOCK_RELATIONSHIPS")
 BASE = ("TOP", "RUN_ID", "WORKSPACE", *CLOCKS)
 COMMON = (*BASE, "RUN_TOP", "FORCE")
 IP_DEV = (*BASE, "REG_ITF", "FORCE")
+IPXACT = (*IP_DEV, "IPXACT_VENDOR", "IPXACT_LIBRARY", "IPXACT_VERSION")
 SDC_INTENT = (*BASE, "FORCE", "SDC_IO_DELAY_PCT")
 FETCH = (*BASE, "VENDOR", "TARGET", "FORCE")
 IP_FULL = (*COMMON, "REG_ITF", "LINT_TOOL", "LINT_PART", "TARGET_SYN", "TARGET_OPT")
@@ -193,6 +194,7 @@ TARGETS: dict[str, TargetSpec] = {
     "reg": ("IP flow", "Generate register RTL from HJSON", IP_DEV),
     "doc": ("IP flow", "Generate register documentation", IP_DEV),
     "systemrdl": ("Interchange", "Export register maps as SystemRDL", IP_DEV),
+    "ipxact": ("Interchange", "Export IEEE 1685-2022 IP-XACT component metadata", IPXACT),
     "rtl_stub": ("IP flow", "Generate RTL core and aligned top wrapper", IP_DEV),
     "top_from_core": ("IP flow", "Regenerate top wrapper from edited core ports", IP_DEV),
     "flist": ("IP flow", "Generate Slang-ordered common/IP RTL filelists", IP_DEV),
@@ -1561,6 +1563,13 @@ class FlexSoCTarget:
             return b.design.regs.setup_systemrdl(
                 top, p.data, p.run / "interchange" / "systemrdl",
                 regmap=v.get("REGMAP"), on=self.on,
+            )
+        if target == "ipxact":
+            return b.package.export_ipxact(
+                top=top, data_dir=p.data, rtl_dir=p.rtl, output=p.run / "component.xml",
+                vendor=v.get("IPXACT_VENDOR", "flexsoc"),
+                library=v.get("IPXACT_LIBRARY", "ip"),
+                version=v.get("IPXACT_VERSION", "1.0.0"),
             )
         if target == "driver":
             return b.design.regs.setup_driver(p.data / f"{top}.hjson", p.drivers, base_address=v.get("BASE_ADDRESS", "0x0"))

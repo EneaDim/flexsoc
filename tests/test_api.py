@@ -1154,6 +1154,10 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     cdc.mkdir(parents=True)
     (cdc / "summary.json").write_text(json.dumps({"top": top, "status": "pass"}) + "\n", encoding="utf-8")
     (cdc / "cdc_rdc.rpt").write_text("cdc pass\n", encoding="utf-8")
+    (run / "component.xml").write_text("<component/>\n", encoding="utf-8")
+    rdl = run / "interchange" / "systemrdl"
+    rdl.mkdir(parents=True)
+    (rdl / f"{top}.rdl").write_text("addrmap demo {};\n", encoding="utf-8")
     library = tmp_path / "library"
     stale_logs = library / top / "logs" / "lint"
     stale_logs.mkdir(parents=True)
@@ -1183,6 +1187,10 @@ def test_ip_save_optional_pnr_and_canonical_outputs(tmp_path: Path) -> None:
     assert (saved / "meta" / pdk / "settings.json").is_file()
     package_index = json.loads((saved / "ip.json").read_text(encoding="utf-8"))
     assert package_index["content"]["design_intent"] == "meta/design_intent.json"
+    assert package_index["content"]["ipxact"] == "component.xml"
+    assert package_index["content"]["systemrdl"] == "interchange/systemrdl"
+    assert (saved / "component.xml").is_file()
+    assert (saved / "interchange" / "systemrdl" / f"{top}.rdl").is_file()
     assert package_index["qualification"][pdk]["settings"] == f"meta/{pdk}/settings.json"
     assert (saved / "constraints" / f"{top}.sdc").is_file()
     assert not (saved / "signoff" / pdk / f"{top}.sdc").exists()
@@ -2084,6 +2092,70 @@ def test_regs_flow_uses_vendored_regtool_and_exports_systemrdl(
     assert requests[0].argv[2:4] == ("--systemrdl", "-o")
 
 
+def test_package_flow_exports_deterministic_ipxact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import xml.etree.ElementTree as ET
+
+    from flexsoc.backend.design import regs as regs_module
+    from flexsoc.backend.design.regs import FieldSpec, RegisterSpec
+
+    run = tmp_path / "run"
+    rtl = run / "rtl"
+    data = run / "data"
+    rtl.mkdir(parents=True)
+    data.mkdir()
+    top_file = rtl / "demo.sv"
+    top_file.write_text(
+        "module demo(\n"
+        "  input logic clk_i,\n"
+        "  input logic [7:0] data_i,\n"
+        "  input demo_reg_pkg::axi_lite_req_t axi_lite_i,\n"
+        "  output demo_reg_pkg::axi_lite_rsp_t axi_lite_o\n"
+        "); endmodule\n",
+        encoding="utf-8",
+    )
+    (rtl / "demo_reg_pkg.sv").write_text("package demo_reg_pkg; endpackage\n", encoding="utf-8")
+    (rtl / "rtl_ip.f").write_text(
+        f"{rtl / 'demo_reg_pkg.sv'}\n{top_file}\n", encoding="utf-8"
+    )
+    registers = [
+        RegisterSpec(
+            "core", "CTRL", 0, 1, 0xFFFFFFFF,
+            (FieldSpec("EN", 0, 0, "rw", "hro", 1),),
+        )
+    ]
+    monkeypatch.setattr(regs_module, "_collect", lambda *_: ([data / "demo.hjson"], registers))
+
+    output = run / "component.xml"
+    flow = PackageFlow(tmp_path, {})
+    first = flow.export_ipxact(
+        top="demo", data_dir=data, rtl_dir=rtl, output=output,
+        vendor="example.org", library="demo", version="2.0.0",
+    ).read_bytes()
+    second = flow.export_ipxact(
+        top="demo", data_dir=data, rtl_dir=rtl, output=output,
+        vendor="example.org", library="demo", version="2.0.0",
+    ).read_bytes()
+    assert first == second
+
+    ns = {"x": "http://www.accellera.org/XMLSchema/IPXACT/1685-2022"}
+    root = ET.fromstring(first)
+    assert root.findtext("x:vendor", namespaces=ns) == "example.org"
+    assert root.findtext("x:name", namespaces=ns) == "demo"
+    assert root.findtext("x:model/x:instantiations/x:componentInstantiation/x:moduleName", namespaces=ns) == "demo"
+    assert root.findtext("x:memoryMaps/x:memoryMap/x:name", namespaces=ns) == "core_register_map"
+    assert root.findtext(".//x:register/x:name", namespaces=ns) == "CTRL"
+    assert root.findtext(".//x:field/x:name", namespaces=ns) == "EN"
+    assert root.findtext(".//x:fieldAccessPolicy/x:access", namespaces=ns) == "read-write"
+    assert root.findtext(".//x:port[x:name='data_i']/x:wire/x:vectors/x:vector/x:left", namespaces=ns) == "7"
+    assert root.findtext(".//x:port[x:name='axi_lite_i']/x:wire/x:wireTypeDefs/x:wireTypeDef/x:typeName", namespaces=ns) == "demo_reg_pkg::axi_lite_req_t"
+    assert [item.text for item in root.findall("x:fileSets/x:fileSet/x:file/x:name", ns)] == [
+        "rtl/demo.sv", "rtl/demo_reg_pkg.sv"
+    ]
+    assert "ipxact" in TARGETS
+
+
 def test_vendor_fetch_imports_by_default_and_updates_when_forced(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2151,6 +2223,7 @@ def test_e2e_register_transport_matrix_and_vendor_bootstrap_contract() -> None:
     assert 'fx fetch --set VENDOR=pulp_axi' in text
     assert text.count('fx fetch --set VENDOR=pulp_register_interface') >= 3
     assert text.count('fx systemrdl --force') == 2
+    assert text.count('fx ipxact --force') == 2
     assert 'if config.run_signoff and reg_itf == "tlul":' not in text
     assert 'run_technology = False' not in text
     assert 'Qualify each register transport through the full single-clock lifecycle.' in text
