@@ -64,7 +64,10 @@ def _fetch_register_vendors(
     if not selected:
         print(f"[vendor] REG_ITF={reg_itf}: no external transport vendor required", flush=True)
     for command in selected:
-        _run(command, workspace=workspace, top=top, run_id=run_id)
+        _run(
+            f"{command} --workdir {shlex.quote(str(workspace))}",
+            workspace=workspace, top=top, run_id=run_id,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +130,16 @@ def _e2e_root(request: pytest.FixtureRequest) -> Path:
     root = Path(configured or "/tmp").expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def _require_active_venv() -> None:
+    """Require E2E commands to use the explicitly activated project virtualenv."""
+
+    venv = os.environ.get("VIRTUAL_ENV")
+    fx = shutil.which("fx")
+    expected = Path(venv) / "bin" / "fx" if venv else None
+    if expected is None or fx is None or Path(fx).resolve() != expected.resolve():
+        pytest.fail("FlexSoC E2E requires an active venv; run: source .venv/bin/activate")
 
 
 def _fx_subprocess_env() -> dict[str, str]:
@@ -201,6 +214,8 @@ def _run(
 
     print(f"\n>>> {command}", flush=True)
     argv = shlex.split(command)
+    if argv and argv[0] == "fx":
+        _require_active_venv()
     _assert_e2e_ip_save_isolated(argv)
     completed = subprocess.run(
         argv,
@@ -825,20 +840,13 @@ def _run_implementation(
 
 
 def _slang_values(top: str, run: Path) -> tuple[str, str, str]:
-    """Return quoted Slang overrides; this helper does not execute commands."""
+    """Return quoted Slang overrides; dependency roots come from generated filelists."""
 
     rtl = run / "rtl"
-    roots = (
-        REPO_ROOT / "hw" / "ips" / "pkgs",
-        REPO_ROOT / "hw" / "ips" / "prim",
-        REPO_ROOT / "hw" / "ips" / "prim_opentitan",
-        REPO_ROOT / "hw" / "ips" / "tlul",
-    )
-    search = " ".join(f"--search-root {path}" for path in roots)
     return (
         shlex.quote(f"SLANG_ROOT={rtl}"),
         shlex.quote(f"SLANG_TOP_FILE={rtl / f'{top}.sv'}"),
-        shlex.quote(f"SLANG_SEARCH_ARGS={search}"),
+        shlex.quote("SLANG_SEARCH_ARGS="),
     )
 
 

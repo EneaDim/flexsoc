@@ -19,6 +19,8 @@ docker run --rm \
   -lc '
     set -euo pipefail
 
+    source "$VIRTUAL_ENV/bin/activate"
+
     echo "===== Toolchain ====="
 
     bash /opt/flexsoc-build/toolchain/deps.sh versions --system --profile base

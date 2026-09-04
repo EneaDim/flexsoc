@@ -21,14 +21,7 @@ except ImportError:  # pragma: no cover - import fallback for tiny tests.
 
 Hjson = dict[str, Any]
 
-REGISTER_BUS_PORTS = frozenset({
-    "tl_i", "tl_o", "reg_req_i", "reg_rsp_o",
-    "axi_aw_addr_i", "axi_aw_prot_i", "axi_aw_valid_i", "axi_aw_ready_o",
-    "axi_w_data_i", "axi_w_strb_i", "axi_w_valid_i", "axi_w_ready_o",
-    "axi_b_resp_o", "axi_b_valid_o", "axi_b_ready_i",
-    "axi_ar_addr_i", "axi_ar_prot_i", "axi_ar_valid_i", "axi_ar_ready_o",
-    "axi_r_data_o", "axi_r_resp_o", "axi_r_valid_o", "axi_r_ready_i",
-})
+REGISTER_BUS_PORTS = frozenset({"tl_i", "tl_o", "reg_req_i", "reg_rsp_o", "axi_lite_i", "axi_lite_o"})
 
 
 def is_register_bus_port(name: str) -> bool:
@@ -606,80 +599,34 @@ def _tlul_adapter(pkg: str, prefix: str, clock: str, reset: str, stem: str) -> l
     ]
 
 
-def _axi_lite_ports(pkg: str, prefix: str = "axi") -> list[Port]:
-    """Return a flat AXI4-Lite subordinate port set backed by *pkg* widths."""
+def _axi_lite_ports(pkg: str, prefix: str = "axi_lite") -> list[Port]:
+    """Return one packed AXI4-Lite request/response port pair."""
 
     return [
-        Port("input", f"logic [{pkg}::AW-1:0]", f"{prefix}_aw_addr_i"),
-        Port("input", "logic [2:0]", f"{prefix}_aw_prot_i"),
-        Port("input", "logic", f"{prefix}_aw_valid_i"),
-        Port("output", "logic", f"{prefix}_aw_ready_o"),
-        Port("input", f"logic [{pkg}::DW-1:0]", f"{prefix}_w_data_i"),
-        Port("input", f"logic [{pkg}::DBW-1:0]", f"{prefix}_w_strb_i"),
-        Port("input", "logic", f"{prefix}_w_valid_i"),
-        Port("output", "logic", f"{prefix}_w_ready_o"),
-        Port("output", "logic [1:0]", f"{prefix}_b_resp_o"),
-        Port("output", "logic", f"{prefix}_b_valid_o"),
-        Port("input", "logic", f"{prefix}_b_ready_i"),
-        Port("input", f"logic [{pkg}::AW-1:0]", f"{prefix}_ar_addr_i"),
-        Port("input", "logic [2:0]", f"{prefix}_ar_prot_i"),
-        Port("input", "logic", f"{prefix}_ar_valid_i"),
-        Port("output", "logic", f"{prefix}_ar_ready_o"),
-        Port("output", f"logic [{pkg}::DW-1:0]", f"{prefix}_r_data_o"),
-        Port("output", "logic [1:0]", f"{prefix}_r_resp_o"),
-        Port("output", "logic", f"{prefix}_r_valid_o"),
-        Port("input", "logic", f"{prefix}_r_ready_i"),
+        Port("input", f"{pkg}::axi_lite_req_t", f"{prefix}_i"),
+        Port("output", f"{pkg}::axi_lite_rsp_t", f"{prefix}_o"),
     ]
 
 
-def _axi_lite_adapter(pkg: str, prefix: str, clock: str, reset: str, stem: str) -> list[str]:
-    """Adapt one flat AXI4-Lite interface to the canonical reg_req/reg_rsp transport."""
+def _axi_lite_adapter(pkg: str, request: str, response: str, clock: str, reset: str, stem: str) -> list[str]:
+    """Adapt one packed AXI4-Lite interface to the canonical reg_req/reg_rsp transport."""
 
     return [
-        f"  typedef struct packed {{ logic [{pkg}::AW-1:0] addr; logic [2:0] prot; }} {stem}_aw_t;",
-        f"  typedef struct packed {{ logic [{pkg}::DW-1:0] data; logic [{pkg}::DBW-1:0] strb; }} {stem}_w_t;",
-        f"  typedef struct packed {{ logic [1:0] resp; }} {stem}_b_t;",
-        f"  typedef struct packed {{ logic [{pkg}::AW-1:0] addr; logic [2:0] prot; }} {stem}_ar_t;",
-        f"  typedef struct packed {{ logic [{pkg}::DW-1:0] data; logic [1:0] resp; }} {stem}_r_t;",
-        f"  typedef struct packed {{ {stem}_aw_t aw; logic aw_valid; {stem}_w_t w; logic w_valid; logic b_ready; {stem}_ar_t ar; logic ar_valid; logic r_ready; }} {stem}_req_t;",
-        f"  typedef struct packed {{ logic aw_ready; logic w_ready; {stem}_b_t b; logic b_valid; logic ar_ready; {stem}_r_t r; logic r_valid; }} {stem}_rsp_t;",
-        f"  {stem}_req_t {stem}_req;",
-        f"  {stem}_rsp_t {stem}_rsp;",
         f"  {pkg}::reg_req_t {stem}_reg_req;",
         f"  {pkg}::reg_rsp_t {stem}_reg_rsp;",
-        "",
-        f"  assign {stem}_req.aw.addr = {prefix}_aw_addr_i;",
-        f"  assign {stem}_req.aw.prot = {prefix}_aw_prot_i;",
-        f"  assign {stem}_req.aw_valid = {prefix}_aw_valid_i;",
-        f"  assign {prefix}_aw_ready_o = {stem}_rsp.aw_ready;",
-        f"  assign {stem}_req.w.data = {prefix}_w_data_i;",
-        f"  assign {stem}_req.w.strb = {prefix}_w_strb_i;",
-        f"  assign {stem}_req.w_valid = {prefix}_w_valid_i;",
-        f"  assign {prefix}_w_ready_o = {stem}_rsp.w_ready;",
-        f"  assign {prefix}_b_resp_o = {stem}_rsp.b.resp;",
-        f"  assign {prefix}_b_valid_o = {stem}_rsp.b_valid;",
-        f"  assign {stem}_req.b_ready = {prefix}_b_ready_i;",
-        f"  assign {stem}_req.ar.addr = {prefix}_ar_addr_i;",
-        f"  assign {stem}_req.ar.prot = {prefix}_ar_prot_i;",
-        f"  assign {stem}_req.ar_valid = {prefix}_ar_valid_i;",
-        f"  assign {prefix}_ar_ready_o = {stem}_rsp.ar_ready;",
-        f"  assign {prefix}_r_data_o = {stem}_rsp.r.data;",
-        f"  assign {prefix}_r_resp_o = {stem}_rsp.r.resp;",
-        f"  assign {prefix}_r_valid_o = {stem}_rsp.r_valid;",
-        f"  assign {stem}_req.r_ready = {prefix}_r_ready_i;",
         "",
         "  axi_lite_to_reg #( ",
         f"    .ADDR_WIDTH      ({pkg}::AW),",
         f"    .DATA_WIDTH      ({pkg}::DW),",
-        f"    .axi_lite_req_t  ({stem}_req_t),",
-        f"    .axi_lite_rsp_t  ({stem}_rsp_t),",
+        f"    .axi_lite_req_t  ({pkg}::axi_lite_req_t),",
+        f"    .axi_lite_rsp_t  ({pkg}::axi_lite_rsp_t),",
         f"    .reg_req_t       ({pkg}::reg_req_t),",
         f"    .reg_rsp_t       ({pkg}::reg_rsp_t)",
         f"  ) u_{stem}_to_reg (",
         f"    .clk_i          ({clock}),",
         f"    .rst_ni         ({reset}),",
-        f"    .axi_lite_req_i ({stem}_req),",
-        f"    .axi_lite_rsp_o ({stem}_rsp),",
+        f"    .axi_lite_req_i ({request}),",
+        f"    .axi_lite_rsp_o ({response}),",
         f"    .reg_req_o      ({stem}_reg_req),",
         f"    .reg_rsp_i      ({stem}_reg_rsp)",
         "  );",
@@ -695,16 +642,7 @@ def _register_top_bus_pins(itf: str, prefix: str = "") -> list[str]:
     if itf == "reg_iface":
         return [f".reg_req_i({stem}reg_req_i)", f".reg_rsp_o({stem}reg_rsp_o)"]
     if itf == "axi_lite":
-        return [
-            f".{name}({stem}{name})"
-            for name in (
-                "axi_aw_addr_i", "axi_aw_prot_i", "axi_aw_valid_i", "axi_aw_ready_o",
-                "axi_w_data_i", "axi_w_strb_i", "axi_w_valid_i", "axi_w_ready_o",
-                "axi_b_resp_o", "axi_b_valid_o", "axi_b_ready_i",
-                "axi_ar_addr_i", "axi_ar_prot_i", "axi_ar_valid_i", "axi_ar_ready_o",
-                "axi_r_data_o", "axi_r_resp_o", "axi_r_valid_o", "axi_r_ready_i",
-            )
-        ]
+        return [f".axi_lite_i({stem}axi_lite_i)", f".axi_lite_o({stem}axi_lite_o)"]
     raise ValueError(f"unsupported register interface: {itf}")
 
 
@@ -737,7 +675,7 @@ def render_register_top(block: str, itf: str) -> str:
         ");",
         "",
         *(
-            [*_axi_lite_adapter(pkg, "axi", "clk_i", "rst_ni", "flexsoc_axi"), ""]
+            [*_axi_lite_adapter(pkg, "axi_lite_i", "axi_lite_o", "clk_i", "rst_ni", "flexsoc_axi"), ""]
             if itf == "axi_lite"
             else ([*_tlul_adapter(pkg, "tl", "clk_i", "rst_ni", "flexsoc_tlul"), ""] if itf == "tlul" else [])
         ),
@@ -933,7 +871,7 @@ def render_nclock_top(top: str, core_path: str | Path, clocks: ClockConfig, itf:
         declarations += [
             _format_port(port)
             for window in windows
-            for port in _axi_lite_ports(f"{top}_{window.name}_reg_pkg", f"{window.name}_axi")
+            for port in _axi_lite_ports(f"{top}_{window.name}_reg_pkg", f"{window.name}_axi_lite")
         ]
     devmode = "devmode_i" if any(port.name == "devmode_i" for port in exposed) else "1'b1"
     lines = [
@@ -1572,7 +1510,8 @@ class RtlFlow:
         from flexsoc.backend.core import CommandRequest
 
         tool = self.project_root / "src" / "util" / "vendor.py"
-        argv = (sys.executable, str(tool), "--update" if force else "--refresh-patches", str(manifest))
+        update = ("--update",) if force else ()
+        argv = (sys.executable, str(tool), *update, str(manifest))
         log = target_dir / ".flexsoc_vendor.log"
         request = CommandRequest(argv, self.project_root, {}, log, inputs=(manifest, tool), outputs=(target_dir,))
         return self.runner.run(request, on=on).returncode

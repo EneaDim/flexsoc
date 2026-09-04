@@ -1903,8 +1903,12 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
     assert "cfg_tl_i" not in multi_reg
 
     multi_axi = render_nclock_top("multi", multi_core, clocks, "axi_lite")
-    assert "cfg_axi_aw_addr_i" in multi_axi
-    assert "dsp_axi_aw_addr_i" in multi_axi
+    assert "multi_cfg_reg_pkg::axi_lite_req_t cfg_axi_lite_i" in multi_axi
+    assert "multi_cfg_reg_pkg::axi_lite_rsp_t cfg_axi_lite_o" in multi_axi
+    assert "multi_dsp_reg_pkg::axi_lite_req_t dsp_axi_lite_i" in multi_axi
+    assert "multi_dsp_reg_pkg::axi_lite_rsp_t dsp_axi_lite_o" in multi_axi
+    assert ".axi_lite_i(cfg_axi_lite_i)" in multi_axi
+    assert ".axi_lite_o(cfg_axi_lite_o)" in multi_axi
     assert "axi_lite_to_reg #( " not in multi_axi
     assert "multi_cfg_reg_top u_cfg_reg_top" in multi_axi
     assert "multi_dsp_reg_top u_dsp_reg_top" in multi_axi
@@ -1931,6 +1935,7 @@ def test_top_from_core_uses_prim_ff_2sync_for_reset_release_per_clock_domain(tmp
 
 
 def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> None:
+    from flexsoc.backend.design.regs import add_axi_lite_types
     from flexsoc.backend.design.rtl import render_register_top, render_top_from_core
     from flexsoc.backend.dv.testbench import (
         render_axi_lite_utils,
@@ -1938,6 +1943,14 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
         render_makefile,
         render_reg_driver_py,
     )
+
+    pkg = tmp_path / "demo_reg_pkg.sv"
+    pkg.write_text("package demo_reg_pkg;\n  parameter int AW=12, DW=32, DBW=4;\nendpackage\n", encoding="utf-8")
+    add_axi_lite_types(pkg)
+    add_axi_lite_types(pkg)
+    pkg_text = pkg.read_text(encoding="utf-8")
+    assert pkg_text.count("} axi_lite_req_t;") == 1
+    assert pkg_text.count("} axi_lite_rsp_t;") == 1
 
     core = tmp_path / "demo_core.sv"
     core.write_text(
@@ -1950,8 +1963,9 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
         encoding="utf-8",
     )
     wrapper = render_top_from_core("demo", core, "axi_lite")
-    assert "input logic [demo_reg_pkg::AW-1:0] axi_aw_addr_i" in wrapper
-    assert "output logic [demo_reg_pkg::DW-1:0] axi_r_data_o" in wrapper
+    assert "input demo_reg_pkg::axi_lite_req_t axi_lite_i" in wrapper
+    assert "output demo_reg_pkg::axi_lite_rsp_t axi_lite_o" in wrapper
+    assert "axi_aw_addr_i" not in wrapper
     assert "axi_lite_to_reg #( " not in wrapper
     assert "demo_reg_top u_demo_reg" in wrapper
     assert "tl_i" not in wrapper
@@ -1965,10 +1979,11 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
     helper = render_axi_lite_utils("demo")
     assert "task automatic axi_lite_write" in helper
     assert "task automatic axi_lite_read" in helper
-    assert "axi_b_ready_i  = 1'b0;" in helper
-    assert "axi_r_ready_i  = 1'b0;" in helper
-    assert "axi_b_ready_i = 1'b1;" in helper
-    assert "axi_r_ready_i = 1'b1;" in helper
+    assert "axi_lite_i = '0;" in helper
+    assert "axi_lite_i.b_ready = 1'b1;" in helper
+    assert "axi_lite_i.r_ready = 1'b1;" in helper
+    assert "axi_lite_o.b.resp" in helper
+    assert "axi_lite_o.r.data" in helper
 
     driver = render_reg_driver_py()
     assert "def has_axi_lite_proxy" in driver
@@ -1985,7 +2000,10 @@ def test_axi_lite_wrapper_reuses_reg_iface_and_pulp_adapter(tmp_path: Path) -> N
     (rtl / "demo.sv").write_text(wrapper, encoding="utf-8")
     cfg = CocotbConfig(top="demo", interface="axi_lite", output=tmp_path / "tb", rtl_dir=rtl)
     cocotb_wrapper = render_axi_lite_wrapper(cfg)
+    assert "axi_lite_req_t axi_lite_i;" in cocotb_wrapper
+    assert "axi_lite_rsp_t axi_lite_o;" in cocotb_wrapper
     assert "logic [demo_reg_pkg::AW-1:0] axi_aw_addr_i;" in cocotb_wrapper
+    assert "assign axi_lite_i = '{" in cocotb_wrapper
     assert "demo u_demo (.*);" in cocotb_wrapper
     makefile = render_makefile(cfg, (rtl / "demo.sv",))
     assert "vendor/pulp/axi/include" in makefile
@@ -2036,6 +2054,29 @@ def test_lowrisc_vendor_pins_register_tooling() -> None:
     assert '{from: "util/regtool.py",    to: "util/regtool.py"}' in manifest
 
 
+def test_vendor_fetch_imports_by_default_and_updates_when_forced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flexsoc.backend.core import CommandResult
+    from flexsoc.backend.design.rtl import RtlFlow
+
+    flow = RtlFlow(ROOT)
+    requests = []
+
+    def capture(request, *, on: str = "local") -> CommandResult:
+        requests.append(request)
+        return CommandResult(0, request.log, 0.0)
+
+    monkeypatch.setattr(flow.runner, "run", capture)
+    manifest = ROOT / "vendor" / "lowrisc_ip.vendor.hjson"
+    flow.fetch_vendor(manifest, target_dir=tmp_path)
+    flow.fetch_vendor(manifest, target_dir=tmp_path, force=True)
+
+    tool = ROOT / "src" / "util" / "vendor.py"
+    assert requests[0].argv == (sys.executable, str(tool), str(manifest))
+    assert requests[1].argv == (sys.executable, str(tool), "--update", str(manifest))
+
+
 def test_lowrisc_tlul_patchset_owns_flexsoc_compatibility() -> None:
     patch_dir = ROOT / "vendor" / "patches" / "lowrisc_ip" / "tlul"
     remove_integrity = (patch_dir / "0003-Remove-Integrity.patch").read_text(encoding="utf-8")
@@ -2082,7 +2123,14 @@ def test_e2e_register_transport_matrix_and_vendor_bootstrap_contract() -> None:
     assert 'if config.run_signoff and reg_itf == "tlul":' in text
     assert 'run_technology = False  # Keep multi-clock E2E technology-independent for now.' in text
     assert text.count('REG_ITF={reg_itf}') >= 4
+    assert "_require_active_venv()" in text
     assert "uv run --no-sync fx" not in text
+    for script in ("run-ci.sh", "verify.sh"):
+        ci = (ROOT / "docker" / "scripts" / script).read_text(encoding="utf-8")
+        assert 'source "$VIRTUAL_ENV/bin/activate"' in ci
+    assert 'test "$(command -v fx)" = "$VIRTUAL_ENV/bin/fx"' in (
+        ROOT / "docker" / "scripts" / "run-ci.sh"
+    ).read_text(encoding="utf-8")
 
 
 def test_formal_csr_cover_setup_dispatches_cover_mode(
@@ -2124,11 +2172,8 @@ def test_register_transport_ports_are_not_functional_vectors(tmp_path: Path) -> 
         "  input logic rst_ni,\n"
         "  input logic [31:0] data_i,\n"
         "  output logic [31:0] data_o,\n"
-        "  input logic [11:0] axi_aw_addr_i,\n"
-        "  input logic axi_aw_valid_i,\n"
-        "  output logic axi_aw_ready_o,\n"
-        "  input logic axi_b_ready_i,\n"
-        "  output logic axi_b_valid_o\n"
+        "  input demo_reg_pkg::axi_lite_req_t axi_lite_i,\n"
+        "  output demo_reg_pkg::axi_lite_rsp_t axi_lite_o\n"
         "); endmodule\n",
         encoding="utf-8",
     )
@@ -2137,8 +2182,8 @@ def test_register_transport_ports_are_not_functional_vectors(tmp_path: Path) -> 
     assert outputs == ["data_o"]
 
     sig = {
-        "ports_in": [("data_i", 32), ("axi_aw_addr_i", 12), ("axi_aw_valid_i", 1), ("axi_b_ready_i", 1)],
-        "ports_out": [("data_o", 32), ("axi_aw_ready_o", 1), ("axi_b_valid_o", 1)],
+        "ports_in": [("data_i", 32), ("axi_lite_i", "demo_reg_pkg::axi_lite_req_t")],
+        "ports_out": [("data_o", 32), ("axi_lite_o", "demo_reg_pkg::axi_lite_rsp_t")],
     }
     assert _vector_inputs(sig) == ["data_i"]
     assert _vector_outputs(sig) == ["data_o"]
@@ -2189,8 +2234,7 @@ def test_systemverilog_setup_returns_canonical_generated_paths(tmp_path: Path) -
 
 def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> None:
     from flexsoc.backend.dv.testbench import (
-        cocotb_makefile_text, cocotb_sv_text, render_makefile,
-        render_tlul_wrapper, sv_tb_text,
+        cocotb_sv_text, render_makefile, render_tlul_wrapper, sv_tb_text,
     )
 
     rtl = tmp_path / "rtl"
@@ -2208,6 +2252,7 @@ def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> N
     )
     cfg = CocotbConfig(
         top="uart", interface="tlul", output=tmp_path / "cocotb", rtl_dir=rtl,
+        ips_root=tmp_path / "ips",
     )
     wrapper = render_tlul_wrapper(cfg)
     assert wrapper.startswith("`timescale 1ns/1ps\nmodule uart_tb;\n")
@@ -2217,41 +2262,56 @@ def test_generated_testbench_and_cocotb_makefile_formatting(tmp_path: Path) -> N
     assert "\n  initial begin\n    rx_i = '1;\n  end\n" in wrapper
     assert "\nlogic tx_o;" not in wrapper
 
-    makefile = render_makefile(cfg, (rtl / "uart.sv",))
-    assert makefile.startswith("# Auto-generated Makefile\nSIM")
-    assert "\nifeq ($(GATES),yes)\n  SIM := icarus\n" in makefile
-    assert "\n  # RTL sources expanded from rtl_common.f and rtl_ip.f\n" in makefile
-    assert not makefile.startswith(" ")
+    makefiles = {
+        interface: render_makefile(replace(cfg, interface=interface), (rtl / "uart.sv",))
+        for interface in ("tlul", "reg_iface", "axi_lite")
+    }
+    for makefile in makefiles.values():
+        assert makefile.startswith("# Auto-generated Makefile\nSIM")
+        assert "\nifeq ($(GATES),yes)\n  SIM := icarus\n" in makefile
+        assert "\n  # RTL sources expanded from rtl_common.f and rtl_ip.f\n" in makefile
+        assert not makefile.startswith(" ")
+    assert f"-I{tmp_path / 'ips' / 'tlul'}" in makefiles["tlul"]
+    assert f"-I{tmp_path / 'ips' / 'tlul'}" not in makefiles["reg_iface"]
+    assert f"-I{tmp_path / 'ips' / 'tlul'}" not in makefiles["axi_lite"]
+    assert "vendor/pulp/axi/include" in makefiles["axi_lite"]
+    assert "vendor/pulp/register_interface/include" in makefiles["axi_lite"]
 
     clocks = ClockConfig((
         ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 20.0),
         ClockDomain("rx", "rx_clk_i", "rx_rst_ni", 16.0),
         ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 30.0),
     ))
-    sv = sv_tb_text("tri_stream_dsp", "tri_stream_dsp_tb", clocks)
-    cocotb_sv = cocotb_sv_text("tri_stream_dsp", clocks)
-    for text in (sv, cocotb_sv):
-        assert text.startswith("`timescale 1ns/1ps\n")
-        assert "\n  logic cfg_clk_i;\n  logic cfg_rst_ni;\n" in text
-        assert "\nlogic cfg_rst_ni;" not in text
-        assert "\n  localparam logic [2:0] FLEXSOC_TL_PUT_FULL" in text
+    markers = {
+        "tlul": ("cfg_tl_i", "cfg_a_valid", "TL-UL write error"),
+        "reg_iface": ("cfg_reg_req_i", "cfg_reg_req_valid", "reg_iface write error"),
+        "axi_lite": ("cfg_axi_lite_i", "cfg_axi_aw_addr_i", "AXI4-Lite write error"),
+    }
+    for interface, (wrapper_marker, cocotb_marker, driver_marker) in markers.items():
+        sv = sv_tb_text("tri_stream_dsp", "tri_stream_dsp_tb", clocks, interface)
+        driver = sv_driver_text("tri_stream_dsp", clocks, interface=interface)
+        cocotb_sv = cocotb_sv_text("tri_stream_dsp", clocks, interface)
+        cocotb_driver = cocotb_reg_driver_py_text(
+            "tri_stream_dsp", clocks, interface=interface
+        )
+        compile(cocotb_driver, f"<{interface}-driver>", "exec")
+        assert wrapper_marker in sv and wrapper_marker in driver
+        assert cocotb_marker in cocotb_sv and driver_marker in cocotb_driver
+        for other, (other_wrapper, other_cocotb, other_driver) in markers.items():
+            if other != interface:
+                assert other_wrapper not in sv and other_wrapper not in driver
+                assert other_cocotb not in cocotb_sv and other_driver not in cocotb_driver
+        assert sv.startswith("`timescale 1ns/1ps\n")
+        assert cocotb_sv.startswith("`timescale 1ns/1ps\n")
+        assert "\n  logic cfg_clk_i;\n  logic cfg_rst_ni;\n" in sv
+        assert "\n  logic cfg_clk_i;\n  logic cfg_rst_ni;\n" in cocotb_sv
 
-    nclock_makefile = cocotb_makefile_text(
-        "tri_stream_dsp", rtl, ips_root=tmp_path / "ips",
-    )
-    assert nclock_makefile.startswith("SIM ?= verilator\nTOPLEVEL_LANG ?= verilog\n")
-    assert "\nifeq ($(GATES),yes)\n  SIM := icarus\n" in nclock_makefile
-    assert not nclock_makefile.startswith(" ")
+    with pytest.raises(ValueError, match="REG_ITF must be one of"):
+        sv_tb_text("tri_stream_dsp", "tri_stream_dsp_tb", clocks, "unknown")
 
 
 def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
     output = tmp_path / "run" / "dv" / "functional" / "tb" / "cocotb"
-    cfg = CocotbConfig(
-        top="tri_stream_dsp",
-        interface="tlul",
-        output=output,
-        rtl_dir=tmp_path / "rtl",
-    )
     clocks = ClockConfig(
         domains=(
             ClockDomain("cfg", "cfg_clk_i", "cfg_rst_ni", 10.0),
@@ -2259,18 +2319,29 @@ def test_multiclock_cocotb_uses_canonical_wrapper_name(tmp_path: Path) -> None:
             ClockDomain("dsp", "dsp_clk_i", "dsp_rst_ni", 5.0),
         )
     )
-
-    write_cocotb_scaffold(cfg, clocks)
-
-    wrapper = output / "tri_stream_dsp_tb.sv"
-    assert wrapper.is_file()
-    assert not (output / "tri_stream_dsp_cocotb_tb.sv").exists()
-    assert "module tri_stream_dsp_tb;" in wrapper.read_text(encoding="utf-8")
-
-    makefile = (output / "Makefile").read_text(encoding="utf-8")
-    assert "COCOTB_TOPLEVEL = tri_stream_dsp_tb" in makefile
-    assert "VERILOG_SOURCES += $(PWD)/tri_stream_dsp_tb.sv" in makefile
-    assert _cocotb_wrapper(tmp_path / "run", "tri_stream_dsp") == wrapper
+    markers = {
+        "tlul": ("cfg_a_valid", "TL-UL write error"),
+        "reg_iface": ("cfg_reg_req_valid", "reg_iface write error"),
+        "axi_lite": ("cfg_axi_aw_addr_i", "AXI4-Lite write error"),
+    }
+    for interface, (marker, driver_marker) in markers.items():
+        cfg = CocotbConfig(
+            top="tri_stream_dsp", interface=interface, output=output, rtl_dir=tmp_path / "rtl",
+            ips_root=tmp_path / "ips",
+        )
+        write_cocotb_scaffold(cfg, clocks)
+        wrapper = output / "tri_stream_dsp_tb.sv"
+        text = wrapper.read_text(encoding="utf-8")
+        assert wrapper.is_file()
+        assert not (output / "tri_stream_dsp_cocotb_tb.sv").exists()
+        assert "module tri_stream_dsp_tb;" in text
+        assert marker in text
+        assert driver_marker in (output / "drivers/reg_driver.py").read_text(encoding="utf-8")
+        makefile = (output / "Makefile").read_text(encoding="utf-8")
+        assert "COCOTB_TOPLEVEL   = tri_stream_dsp_tb" in makefile
+        assert "VERILOG_SOURCES += " in makefile and "tri_stream_dsp_tb.sv" in makefile
+        assert "EXTRA_ARGS += -f" not in makefile
+    assert _cocotb_wrapper(tmp_path / "run", "tri_stream_dsp") == output / "tri_stream_dsp_tb.sv"
 
 
 def test_manifest_lists_only_existing_artifact_directories(

@@ -31,11 +31,14 @@ docker run --rm \
   bash -lc '
     set -euo pipefail
 
+    source "$VIRTUAL_ENV/bin/activate"
+
     uv pip install \
       --python "$VIRTUAL_ENV/bin/python" \
       --no-deps \
       --editable .
 
+    test "$(command -v fx)" = "$VIRTUAL_ENV/bin/fx"
     DEPS_MODE=system fx deps-doctor
     fx doctor
 

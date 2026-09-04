@@ -21,6 +21,7 @@ from flexsoc.backend.core import (
     replace_generated_tree,
     safe_write_file,
 )
+from flexsoc.backend.design.regs import normalize_register_interface
 
 
 def _render_sv_reg_sequence_string(
@@ -75,6 +76,7 @@ task automatic run_reg_config(input string cfg_path);
 endtask
 """
 
+    interface = normalize_register_interface(interface)
     if interface == "tlul":
         write_addr_call = "tl_if.tlul_write(addr[31:0], data, 8'h00, mask[3:0]);"
         read_addr_call = "tl_if.tlul_read(addr[31:0], data, 8'h00);"
@@ -1551,6 +1553,8 @@ def _logic_decl(name: str, width: Any, *, default_type: str = "logic") -> str:
         return f"  logic {name};"
     if isinstance(width, str) and width.startswith("["):
         return f"  logic {width} {name};"
+    if isinstance(width, str) and "::" in width:
+        return f"  {width} {name};"
     return f"  {default_type} {name};"
 
 
@@ -1954,17 +1958,7 @@ task automatic axi_lite_sample_cycle();
 endtask
 
 task automatic axi_lite_init();
-  axi_aw_addr_i  = '0;
-  axi_aw_prot_i  = '0;
-  axi_aw_valid_i = 1'b0;
-  axi_w_data_i   = '0;
-  axi_w_strb_i   = '0;
-  axi_w_valid_i  = 1'b0;
-  axi_b_ready_i  = 1'b0;
-  axi_ar_addr_i  = '0;
-  axi_ar_prot_i  = '0;
-  axi_ar_valid_i = 1'b0;
-  axi_r_ready_i  = 1'b0;
+  axi_lite_i = '0;
 endtask
 
 task automatic axi_lite_write(
@@ -1973,33 +1967,33 @@ task automatic axi_lite_write(
     input logic [{top}_reg_pkg::DBW-1:0] strb);
   int guard;
   axi_lite_drive_cycle();
-  axi_aw_addr_i = addr;
-  axi_aw_prot_i = '0;
-  axi_aw_valid_i = 1'b1;
-  axi_w_data_i = data;
-  axi_w_strb_i = strb;
-  axi_w_valid_i = 1'b1;
+  axi_lite_i.aw.addr = addr;
+  axi_lite_i.aw.prot = '0;
+  axi_lite_i.aw_valid = 1'b1;
+  axi_lite_i.w.data = data;
+  axi_lite_i.w.strb = strb;
+  axi_lite_i.w_valid = 1'b1;
   guard = 0;
   do begin
     axi_lite_sample_cycle();
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite write request timeout addr=0x%0h", addr);
-  end while (!(axi_aw_ready_o && axi_w_ready_o));
+  end while (!(axi_lite_o.aw_ready && axi_lite_o.w_ready));
   axi_lite_drive_cycle();
-  axi_aw_valid_i = 1'b0;
-  axi_w_valid_i = 1'b0;
+  axi_lite_i.aw_valid = 1'b0;
+  axi_lite_i.w_valid = 1'b0;
   guard = 0;
   do begin
     axi_lite_sample_cycle();
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite write response timeout addr=0x%0h", addr);
-  end while (!axi_b_valid_o);
-  if (axi_b_resp_o != 2'b00) $fatal(1, "AXI4-Lite write error addr=0x%0h resp=%0h", addr, axi_b_resp_o);
+  end while (!axi_lite_o.b_valid);
+  if (axi_lite_o.b.resp != 2'b00) $fatal(1, "AXI4-Lite write error addr=0x%0h resp=%0h", addr, axi_lite_o.b.resp);
   axi_lite_drive_cycle();
-  axi_b_ready_i = 1'b1;
+  axi_lite_i.b_ready = 1'b1;
   axi_lite_sample_cycle();
   axi_lite_drive_cycle();
-  axi_b_ready_i = 1'b0;
+  axi_lite_i.b_ready = 1'b0;
 endtask
 
 task automatic axi_lite_read(
@@ -2007,30 +2001,30 @@ task automatic axi_lite_read(
     output logic [{top}_reg_pkg::DW-1:0] data);
   int guard;
   axi_lite_drive_cycle();
-  axi_ar_addr_i = addr;
-  axi_ar_prot_i = '0;
-  axi_ar_valid_i = 1'b1;
+  axi_lite_i.ar.addr = addr;
+  axi_lite_i.ar.prot = '0;
+  axi_lite_i.ar_valid = 1'b1;
   guard = 0;
   do begin
     axi_lite_sample_cycle();
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite read request timeout addr=0x%0h", addr);
-  end while (!axi_ar_ready_o);
+  end while (!axi_lite_o.ar_ready);
   axi_lite_drive_cycle();
-  axi_ar_valid_i = 1'b0;
+  axi_lite_i.ar_valid = 1'b0;
   guard = 0;
   do begin
     axi_lite_sample_cycle();
     guard++;
     if (guard > 1000) $fatal(1, "AXI4-Lite read response timeout addr=0x%0h", addr);
-  end while (!axi_r_valid_o);
-  if (axi_r_resp_o != 2'b00) $fatal(1, "AXI4-Lite read error addr=0x%0h resp=%0h", addr, axi_r_resp_o);
-  data = axi_r_data_o;
+  end while (!axi_lite_o.r_valid);
+  if (axi_lite_o.r.resp != 2'b00) $fatal(1, "AXI4-Lite read error addr=0x%0h resp=%0h", addr, axi_lite_o.r.resp);
+  data = axi_lite_o.r.data;
   axi_lite_drive_cycle();
-  axi_r_ready_i = 1'b1;
+  axi_lite_i.r_ready = 1'b1;
   axi_lite_sample_cycle();
   axi_lite_drive_cycle();
-  axi_r_ready_i = 1'b0;
+  axi_lite_i.r_ready = 1'b0;
 endtask
 """
 
@@ -2538,6 +2532,7 @@ def write_bus_helpers(config: TestbenchConfig, *, reg_pkg: bool, simple_mode: bo
         return []
 
     outdir = Path(config.output)
+    interface = normalize_register_interface(config.interface)
     helpers = {
         "tlul": (("tlul_if.sv", render_tlul_interface(config.clk_period_ns, config.io_delay_pct)),),
         "reg_iface": (
@@ -2547,7 +2542,7 @@ def write_bus_helpers(config: TestbenchConfig, *, reg_pkg: bool, simple_mode: bo
         "axi_lite": (("axi_lite_utils.svh", render_axi_lite_utils(
             config.top, config.clk_period_ns, config.io_delay_pct
         )),),
-    }.get(config.interface, ())
+    }[interface]
 
     written: list[Path] = []
     for name, body in helpers:
@@ -2591,6 +2586,8 @@ def _generate_testbench_files(
     sig = parse_sv_signature(config.rtldir, config.top)
     reg_pkg = has_reg_pkg(config.rtldir, config.top)
     simple_mode = uses_simple_testbench(config)
+    if not simple_mode:
+        config = replace(config, interface=normalize_register_interface(config.interface))
     written: list[Path] = []
     hjson_path = _candidate_hjson_path(config.rtldir, config.top)
     # Model setup owns config.regs/data_in.vec/data_out.vec generation.
@@ -3347,8 +3344,9 @@ _STRING_SV_VEC_DRIVER_TEXT = _sv_vec_driver_text_string
 _STRING_SV_MONITOR_TEXT = _sv_monitor_text_string
 
 
-def _packed_sv_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
-    text = _STRING_SV_DRIVER_TEXT(top, clocks, io_delay_pct)
+def _packed_sv_driver_variant(text: str) -> str:
+    """Convert the N-clock register driver parser to packed tokens for Icarus."""
+
     text = text.replace("input string reg_name", "input tb_token_t reg_name")
     text = text.replace("  string reg_name;", "  tb_token_t reg_name;")
     text = text.replace("  string line;\n", "")
@@ -3373,6 +3371,10 @@ def _packed_sv_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 
     # Add the packed parser after rewriting generated task bodies.
     # Earlier insertion lets broad replacements corrupt the parser argument.
     return _PACKED_TOKEN_SUPPORT + "\n" + text
+
+
+def _packed_sv_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
+    return _packed_sv_driver_variant(_STRING_SV_DRIVER_TEXT(top, clocks, io_delay_pct))
 
 
 def _packed_sv_vec_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
@@ -3410,13 +3412,137 @@ def _packed_sv_monitor_text(top: str) -> str:
     return text
 
 
-def sv_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
-    """Render an N-clock driver with simulator-specific file parsing."""
+def _sv_reg_iface_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float) -> str:
+    """Render direct reg_req/reg_rsp access while preserving the N-clock command stream."""
 
-    return _sv_parser_variants(
-        _STRING_SV_DRIVER_TEXT(top, clocks, io_delay_pct),
-        _packed_sv_driver_text(top, clocks, io_delay_pct),
+    base = _STRING_SV_DRIVER_TEXT(top, clocks, io_delay_pct)
+    protocol = base.index("      // Shared timing intent:")
+    reset = base.index("      task automatic reset_dut", protocol)
+    access = base.index("      task automatic cfg_write", reset)
+    apply = base.index("      task automatic apply_reg(", access)
+    defaults = dedent("""\
+      // Shared timing intent: every domain drives/samples from its clock period and IO delay.
+      task automatic apply_defaults();
+        cfg_reg_req_i = '0;
+        dsp_reg_req_i = '0;
+        rx_valid_i = 1'b0;
+        rx_sample_i = '0;
+        rx_coeff_i = '0;
+        dsp_ready_i = 1'b1;
+        test_en_i = 1'b1;
+      endtask
+
+    """)
+    tasks = []
+    for domain in ("cfg", "dsp"):
+        pkg = f"{top}_{domain}_reg_pkg"
+        tasks.append(dedent(f"""\
+          task automatic {domain}_write(input logic [31:0] addr, input logic [31:0] data);
+            {domain}_drive_cycle();
+            {domain}_reg_req_i = '{{valid: 1'b1, write: 1'b1,
+              addr: addr[{pkg}::AW-1:0], wdata: data, wstrb: '1}};
+            do {domain}_sample_cycle(); while (!{domain}_reg_rsp_o.ready);
+            if ({domain}_reg_rsp_o.error) errors++;
+            {domain}_drive_cycle();
+            {domain}_reg_req_i = '0;
+          endtask
+
+          task automatic {domain}_read(input logic [31:0] addr, output logic [31:0] data);
+            {domain}_drive_cycle();
+            {domain}_reg_req_i = '{{valid: 1'b1, write: 1'b0,
+              addr: addr[{pkg}::AW-1:0], wdata: '0, wstrb: '0}};
+            do {domain}_sample_cycle(); while (!{domain}_reg_rsp_o.ready);
+            data = {domain}_reg_rsp_o.rdata;
+            if ({domain}_reg_rsp_o.error) errors++;
+            {domain}_drive_cycle();
+            {domain}_reg_req_i = '0;
+          endtask
+
+        """))
+    return base[:protocol] + defaults + base[reset:access] + "".join(tasks) + base[apply:]
+
+
+def _sv_axi_lite_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float) -> str:
+    """Render packed AXI4-Lite access while preserving the common N-clock command stream."""
+
+    base = _STRING_SV_DRIVER_TEXT(top, clocks, io_delay_pct)
+    protocol = base.index("      // Shared timing intent:")
+    reset = base.index("      task automatic reset_dut", protocol)
+    access = base.index("      task automatic cfg_write", reset)
+    apply = base.index("      task automatic apply_reg(", access)
+    defaults = ["      // Shared timing intent: every domain drives/samples from its clock period and IO delay.",
+                "      task automatic apply_defaults();"]
+    defaults += [f"        {domain}_axi_lite_i = '0;" for domain in ("cfg", "dsp")]
+    defaults += ["        rx_valid_i = 1'b0;", "        rx_sample_i = '0;", "        rx_coeff_i = '0;",
+                 "        dsp_ready_i = 1'b1;", "        test_en_i = 1'b1;", "      endtask", ""]
+    tasks = []
+    for domain in ("cfg", "dsp"):
+        pkg = f"{top}_{domain}_reg_pkg"
+        tasks.append(dedent(f"""\
+          task automatic {domain}_write(input logic [31:0] addr, input logic [31:0] data);
+            bit aw_done;
+            bit w_done;
+            {domain}_drive_cycle();
+            {domain}_axi_lite_i.aw.addr = addr[{pkg}::AW-1:0];
+            {domain}_axi_lite_i.aw.prot = '0;
+            {domain}_axi_lite_i.aw_valid = 1'b1;
+            {domain}_axi_lite_i.w.data = data;
+            {domain}_axi_lite_i.w.strb = '1;
+            {domain}_axi_lite_i.w_valid = 1'b1;
+            aw_done = 1'b0;
+            w_done = 1'b0;
+            while (!(aw_done && w_done)) begin
+              {domain}_sample_cycle();
+              aw_done |= {domain}_axi_lite_o.aw_ready;
+              w_done |= {domain}_axi_lite_o.w_ready;
+              {domain}_drive_cycle();
+              if (aw_done) {domain}_axi_lite_i.aw_valid = 1'b0;
+              if (w_done) {domain}_axi_lite_i.w_valid = 1'b0;
+            end
+            {domain}_axi_lite_i.b_ready = 1'b1;
+            do {domain}_sample_cycle(); while (!{domain}_axi_lite_o.b_valid);
+            if ({domain}_axi_lite_o.b.resp != 2'b00) errors++;
+            {domain}_drive_cycle();
+            {domain}_axi_lite_i.b_ready = 1'b0;
+          endtask
+
+          task automatic {domain}_read(input logic [31:0] addr, output logic [31:0] data);
+            {domain}_drive_cycle();
+            {domain}_axi_lite_i.ar.addr = addr[{pkg}::AW-1:0];
+            {domain}_axi_lite_i.ar.prot = '0;
+            {domain}_axi_lite_i.ar_valid = 1'b1;
+            do {domain}_sample_cycle(); while (!{domain}_axi_lite_o.ar_ready);
+            {domain}_drive_cycle();
+            {domain}_axi_lite_i.ar_valid = 1'b0;
+            {domain}_axi_lite_i.r_ready = 1'b1;
+            do {domain}_sample_cycle(); while (!{domain}_axi_lite_o.r_valid);
+            data = {domain}_axi_lite_o.r.data;
+            if ({domain}_axi_lite_o.r.resp != 2'b00) errors++;
+            {domain}_drive_cycle();
+            {domain}_axi_lite_i.r_ready = 1'b0;
+          endtask
+
+        """))
+    return base[:protocol] + "\n".join(defaults) + base[reset:access] + "".join(tasks) + base[apply:]
+
+
+def sv_driver_text(
+    top: str, clocks: ClockConfig, io_delay_pct: float = 0.2, interface: str = "tlul"
+) -> str:
+    """Render an N-clock register driver with simulator-specific file parsing."""
+
+    interface = normalize_register_interface(interface)
+    if interface == "tlul":
+        return _sv_parser_variants(
+            _STRING_SV_DRIVER_TEXT(top, clocks, io_delay_pct),
+            _packed_sv_driver_text(top, clocks, io_delay_pct),
+        )
+    string = (
+        _sv_reg_iface_driver_text(top, clocks, io_delay_pct)
+        if interface == "reg_iface"
+        else _sv_axi_lite_driver_text(top, clocks, io_delay_pct)
     )
+    return _sv_parser_variants(string, _packed_sv_driver_variant(string))
 
 
 def sv_vec_driver_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
@@ -3437,19 +3563,161 @@ def sv_monitor_text(top: str) -> str:
     )
 
 
-def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
+def _axi_lite_cocotb_proxy(pkg: str, prefix: str = "") -> tuple[str, str, str]:
+    """Expose one packed AXI4-Lite port pair as scalar cocotb handles."""
+
+    stem = f"{prefix}_" if prefix else ""
+    fields = (
+        ("AW", "aw_addr_i"), ("logic [2:0]", "aw_prot_i"), ("logic", "aw_valid_i"),
+        ("logic", "aw_ready_o"), ("DW", "w_data_i"), ("DBW", "w_strb_i"),
+        ("logic", "w_valid_i"), ("logic", "w_ready_o"), ("logic [1:0]", "b_resp_o"),
+        ("logic", "b_valid_o"), ("logic", "b_ready_i"), ("AW", "ar_addr_i"),
+        ("logic [2:0]", "ar_prot_i"), ("logic", "ar_valid_i"), ("logic", "ar_ready_o"),
+        ("DW", "r_data_o"), ("logic [1:0]", "r_resp_o"), ("logic", "r_valid_o"),
+        ("logic", "r_ready_i"),
+    )
+    decls = []
+    for width, suffix in fields:
+        kind = f"logic [{pkg}::{width}-1:0]" if width in {"AW", "DW", "DBW"} else width
+        decls.append(f"  {kind} {stem}axi_{suffix};")
+    assigns = dedent(f"""\
+      assign {stem}axi_lite_i = '{{
+        aw: '{{addr: {stem}axi_aw_addr_i, prot: {stem}axi_aw_prot_i}},
+        aw_valid: {stem}axi_aw_valid_i,
+        w: '{{data: {stem}axi_w_data_i, strb: {stem}axi_w_strb_i}},
+        w_valid: {stem}axi_w_valid_i, b_ready: {stem}axi_b_ready_i,
+        ar: '{{addr: {stem}axi_ar_addr_i, prot: {stem}axi_ar_prot_i}},
+        ar_valid: {stem}axi_ar_valid_i, r_ready: {stem}axi_r_ready_i
+      }};
+      assign {stem}axi_aw_ready_o = {stem}axi_lite_o.aw_ready;
+      assign {stem}axi_w_ready_o = {stem}axi_lite_o.w_ready;
+      assign {stem}axi_b_resp_o = {stem}axi_lite_o.b.resp;
+      assign {stem}axi_b_valid_o = {stem}axi_lite_o.b_valid;
+      assign {stem}axi_ar_ready_o = {stem}axi_lite_o.ar_ready;
+      assign {stem}axi_r_data_o = {stem}axi_lite_o.r.data;
+      assign {stem}axi_r_resp_o = {stem}axi_lite_o.r.resp;
+      assign {stem}axi_r_valid_o = {stem}axi_lite_o.r_valid;""")
+    assigns = "\n".join(f"  {line}" if line else "" for line in assigns.splitlines())
+    init = "\n".join(
+        f"    {stem}axi_{suffix} = '0;"
+        for suffix in ("aw_addr_i", "aw_prot_i", "aw_valid_i", "w_data_i", "w_strb_i", "w_valid_i",
+                       "b_ready_i", "ar_addr_i", "ar_prot_i", "ar_valid_i", "r_ready_i")
+    )
+    return "\n".join(decls), assigns, init
+
+
+def _nclock_bus_sv(top: str, interface: str, *, cocotb: bool = False) -> tuple[str, str, tuple[str, ...]]:
+    """Render the selected N-clock CSR transport once for SV and cocotb wrappers."""
+
+    interface = normalize_register_interface(interface)
+    domains = ("cfg", "dsp")
+    if interface == "tlul":
+        declarations = [
+            f"  logic [108:0] {domain}_tl_i;\n  logic [65:0]  {domain}_tl_o;"
+            for domain in domains
+        ]
+        pins = tuple(f"{domain}_tl_{side}" for domain in domains for side in ("i", "o"))
+        if not cocotb:
+            return "\n".join(declarations), render_packed_tlul_helpers("  "), pins
+        proxies = []
+        assigns = [render_packed_tlul_helpers("  ")]
+        for domain in domains:
+            proxies.append(dedent(f"""\
+              logic        {domain}_a_valid;
+              logic [2:0]  {domain}_a_opcode;
+              logic [2:0]  {domain}_a_param;
+              logic [1:0]  {domain}_a_size;
+              logic [7:0]  {domain}_a_source;
+              logic [31:0] {domain}_a_address;
+              logic [3:0]  {domain}_a_mask;
+              logic [31:0] {domain}_a_data;
+              logic        {domain}_d_ready;
+              logic        {domain}_a_ready;
+              logic        {domain}_d_valid;
+              logic [31:0] {domain}_d_data;
+              logic        {domain}_d_error;"""))
+            assigns.append(dedent(f"""\
+              assign {domain}_tl_i = flexsoc_tlul_h2d(
+                {domain}_a_valid, {domain}_a_opcode, {domain}_a_param, {domain}_a_size,
+                {domain}_a_source, {domain}_a_address, {domain}_a_mask, {domain}_a_data,
+                {domain}_d_ready
+              );
+              assign {domain}_a_ready = {domain}_tl_o[0];
+              assign {domain}_d_valid = {domain}_tl_o[65];
+              assign {domain}_d_data  = {domain}_tl_o[47:16];
+              assign {domain}_d_error = {domain}_tl_o[1];"""))
+        return "\n".join([*declarations, *proxies]), "\n\n".join(assigns), pins
+
+    if interface == "reg_iface":
+        declarations = []
+        assigns = []
+        pins = []
+        for domain in domains:
+            pkg = f"{top}_{domain}_reg_pkg"
+            declarations += [
+                f"  {pkg}::reg_req_t {domain}_reg_req_i;",
+                f"  {pkg}::reg_rsp_t {domain}_reg_rsp_o;",
+            ]
+            pins += [f"{domain}_reg_req_i", f"{domain}_reg_rsp_o"]
+            if cocotb:
+                declarations += [
+                    f"  logic {domain}_reg_req_valid;",
+                    f"  logic {domain}_reg_req_write;",
+                    f"  logic [{pkg}::AW-1:0] {domain}_reg_req_addr;",
+                    f"  logic [{pkg}::DW-1:0] {domain}_reg_req_wdata;",
+                    f"  logic [{pkg}::DBW-1:0] {domain}_reg_req_wstrb;",
+                    f"  logic {domain}_reg_rsp_ready;",
+                    f"  logic {domain}_reg_rsp_error;",
+                    f"  logic [{pkg}::DW-1:0] {domain}_reg_rsp_rdata;",
+                ]
+                assigns.append(dedent(f"""\
+                  assign {domain}_reg_req_i = '{{
+                    valid: {domain}_reg_req_valid, write: {domain}_reg_req_write,
+                    addr: {domain}_reg_req_addr, wdata: {domain}_reg_req_wdata,
+                    wstrb: {domain}_reg_req_wstrb
+                  }};
+                  assign {domain}_reg_rsp_ready = {domain}_reg_rsp_o.ready;
+                  assign {domain}_reg_rsp_error = {domain}_reg_rsp_o.error;
+                  assign {domain}_reg_rsp_rdata = {domain}_reg_rsp_o.rdata;"""))
+        return "\n".join(declarations), "\n\n".join(assigns), tuple(pins)
+
+    declarations = []
+    assigns = []
+    pins = []
+    for domain in domains:
+        pkg = f"{top}_{domain}_reg_pkg"
+        declarations += [
+            f"  {pkg}::axi_lite_req_t {domain}_axi_lite_i;",
+            f"  {pkg}::axi_lite_rsp_t {domain}_axi_lite_o;",
+        ]
+        pins += [f"{domain}_axi_lite_i", f"{domain}_axi_lite_o"]
+        if cocotb:
+            proxy_decls, proxy_assigns, _ = _axi_lite_cocotb_proxy(pkg, domain)
+            declarations.extend(proxy_decls.splitlines())
+            assigns.append(proxy_assigns)
+    return "\n".join(declarations), "\n\n".join(assigns), tuple(pins)
+
+
+def _render_nclock_dut_pins(clocks: ClockConfig, bus_pins: Sequence[str]) -> str:
+    """Render deterministic DUT connections shared by both N-clock DV backends."""
+
+    pins = [signal for domain in clocks.domains for signal in (domain.signal, domain.reset)]
+    pins += ["test_en_i", *bus_pins, "rx_valid_i", "rx_ready_o", "rx_sample_i", "rx_coeff_i",
+             "dsp_valid_o", "dsp_ready_i", "dsp_result_o", "dsp_above_threshold_o", "dsp_overflow_o"]
+    return ",\n".join(f"    .{name:<25}({name})" for name in pins)
+
+
+def sv_tb_text(
+    top: str, testbench: str, clocks: ClockConfig, interface: str = "tlul"
+) -> str:
     """Render the starter N-clock SV testbench from ``ClockConfig``."""
 
+    interface = normalize_register_interface(interface)
     clock_decls = "\n".join(
         f"  logic {domain.signal};\n  logic {domain.reset};" for domain in clocks.domains
     )
     clock_drivers = "\n".join(
         "\n".join(_render_sv_clock_driver(domain)) for domain in clocks.domains
-    )
-    clock_pins = ",\n".join(
-        f"    .{signal:<25}({signal})"
-        for domain in clocks.domains
-        for signal in (domain.signal, domain.reset)
     )
     clock_init = "\n".join(
         [f"    {domain.signal} = 1'b0;" for domain in clocks.domains]
@@ -3463,8 +3731,9 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
         f"    {domain.reset} = 1'b{0 if domain.reset_polarity == 'high' else 1};"
         for domain in clocks.domains
     )
+    bus_decls, bus_helpers, bus_pins = _nclock_bus_sv(top, interface)
+    dut_pins = _render_nclock_dut_pins(clocks, bus_pins)
     primary = clocks.domains[0].signal
-    tlul_helpers = render_packed_tlul_helpers("  ")
     template = dedent(f"""\
     `timescale 1ns/1ps
     `include "include_{top}_tb.sv"
@@ -3475,11 +3744,7 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
     module {testbench};
     __CLOCK_DECLS__
       logic test_en_i;
-
-      logic [108:0] cfg_tl_i;
-      logic [65:0]  cfg_tl_o;
-      logic [108:0] dsp_tl_i;
-      logic [65:0]  dsp_tl_o;
+    __BUS_DECLS__
 
       logic rx_valid_i;
       logic rx_ready_o;
@@ -3498,7 +3763,7 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
       string sdf_path;
       integer errors;
       localparam integer INITIAL_RESET_CYCLES = 5;
-    __TLUL_HELPERS__
+    __BUS_HELPERS__
 
       logic [31:0] exp_result [0:1023];
       logic        exp_above_threshold [0:1023];
@@ -3508,25 +3773,11 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
     __CLOCK_DRIVERS__
 
       {top} u_dut (
-    __CLOCK_PINS__,
-        .test_en_i             (test_en_i),
-        .cfg_tl_i              (cfg_tl_i),
-        .cfg_tl_o              (cfg_tl_o),
-        .dsp_tl_i              (dsp_tl_i),
-        .dsp_tl_o              (dsp_tl_o),
-        .rx_valid_i            (rx_valid_i),
-        .rx_ready_o            (rx_ready_o),
-        .rx_sample_i           (rx_sample_i),
-        .rx_coeff_i            (rx_coeff_i),
-        .dsp_valid_o           (dsp_valid_o),
-        .dsp_ready_i           (dsp_ready_i),
-        .dsp_result_o          (dsp_result_o),
-        .dsp_above_threshold_o (dsp_above_threshold_o),
-        .dsp_overflow_o        (dsp_overflow_o)
+    __DUT_PINS__
       );
 
       // Verification helpers are split like the single-clock scaffold.
-      `include "drivers/{top}_tlul_driver.svh"
+      `include "drivers/{top}_reg_driver.svh"
       `include "drivers/{top}_vec_monitor.svh"
       `include "drivers/{top}_vec_driver.svh"
 
@@ -3574,7 +3825,6 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
 
         load_config(cfg_path);
         load_expected(data_out_path);
-        // Let cfg->rx/dsp synchronizers and gain sampling settle before traffic.
         repeat (8) @(posedge dsp_clk_i);
         fork
           run_inputs(data_in_path);
@@ -3593,15 +3843,14 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
 
     endmodule
     """)
-    return (
-        template.replace("__CLOCK_DECLS__", clock_decls)
-        .replace("__TLUL_HELPERS__", tlul_helpers)
-        .replace("__CLOCK_DRIVERS__", clock_drivers)
-        .replace("__CLOCK_PINS__", clock_pins)
-        .replace("__CLOCK_INIT__", clock_init)
-        .replace("__RESET_ASSERT__", reset_assert)
-        .replace("__RESET_RELEASE__", reset_release)
-    )
+    return (template.replace("__CLOCK_DECLS__", clock_decls)
+            .replace("__BUS_DECLS__", bus_decls)
+            .replace("__BUS_HELPERS__", bus_helpers)
+            .replace("__CLOCK_DRIVERS__", clock_drivers)
+            .replace("__DUT_PINS__", dut_pins)
+            .replace("__CLOCK_INIT__", clock_init)
+            .replace("__RESET_ASSERT__", reset_assert)
+            .replace("__RESET_RELEASE__", reset_release))
 
 # ---------------------------------------------------------------------------
 # cocotb scaffold
@@ -3609,7 +3858,10 @@ def sv_tb_text(top: str, testbench: str, clocks: ClockConfig) -> str:
 # cocotb scaffold
 
 
-def _generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, force: bool, io_delay_pct: float = 0.2) -> None:
+def _generate_nclock_testbench(
+    top: str, output: Path, clocks: ClockConfig, *, force: bool,
+    io_delay_pct: float = 0.2, interface: str = "tlul",
+) -> None:
     """Write the generated N-clock SV testbench and split drivers."""
 
     del force
@@ -3617,25 +3869,28 @@ def _generate_nclock_testbench(top: str, output: Path, clocks: ClockConfig, *, f
     drivers.mkdir(parents=True, exist_ok=True)
     files = {
         output / f"include_{top}_tb.sv": sv_include_text(top),
-        drivers / f"{top}_tlul_driver.svh": sv_driver_text(top, clocks, io_delay_pct),
+        drivers / f"{top}_reg_driver.svh": sv_driver_text(top, clocks, io_delay_pct, interface),
         drivers / f"{top}_vec_driver.svh": sv_vec_driver_text(top, clocks, io_delay_pct),
         drivers / f"{top}_vec_monitor.svh": sv_monitor_text(top),
-        output / f"{top}_tb.sv": sv_tb_text(top, f"{top}_tb", clocks),
+        output / f"{top}_tb.sv": sv_tb_text(top, f"{top}_tb", clocks, interface),
     }
     for path, text in files.items():
         safe_write_file(path, text, overwrite=True)
 
 
 def generate_nclock_testbench(
-    top: str, output: Path, clocks: ClockConfig, *, force: bool, io_delay_pct: float = 0.2
+    top: str, output: Path, clocks: ClockConfig, *, force: bool,
+    io_delay_pct: float = 0.2, interface: str = "tlul",
 ) -> tuple[Path, ...]:
     """Recreate the complete machine-owned N-clock SystemVerilog scaffold."""
 
     with replace_generated_tree(output):
-        _generate_nclock_testbench(top, output, clocks, force=force, io_delay_pct=io_delay_pct)
+        _generate_nclock_testbench(
+            top, output, clocks, force=force, io_delay_pct=io_delay_pct, interface=interface
+        )
     return (
         output / f"include_{top}_tb.sv",
-        output / "drivers" / f"{top}_tlul_driver.svh",
+        output / "drivers" / f"{top}_reg_driver.svh",
         output / "drivers" / f"{top}_vec_monitor.svh",
         output / "drivers" / f"{top}_vec_driver.svh",
         output / f"{top}_tb.sv",
@@ -3686,8 +3941,9 @@ def parse_decl(prefix: str, line: str) -> tuple[str | int, list[str]]:
         tokens = tokens[1:]
     width: str | int = 1
     if tokens and tokens[0].startswith("["):
-        width = tokens[0]
-        tokens = tokens[1:]
+        width = tokens.pop(0)
+    elif len(tokens) > 1 and ("::" in tokens[0] or tokens[0].endswith("_t")):
+        width = tokens.pop(0)
     return width, [token.rstrip(",") for token in tokens if token.rstrip(",")]
 
 
@@ -3861,22 +4117,17 @@ def render_gls_make_block(default_netlist: str) -> str:
 def render_makefile(cfg: CocotbConfig, sources: Sequence[Path]) -> str:
     """Render the cocotb Makefile for RTL or gate-level simulation."""
 
+    interface = normalize_register_interface(cfg.interface)
     repo = repo_root()
     out_dir = cfg.output.resolve()
     rtl_dir = cfg.rtl_dir.resolve()
     ips_root = (cfg.ips_root or repo / "hw" / "ips").resolve()
-    include_dirs = [
-        ips_root / "pkgs",
-        ips_root / "prim",
-        ips_root / "prim_opentitan",
-        ips_root / "tlul",
-    ]
-    if cfg.interface == "axi_lite":
+    include_dirs = [ips_root / "pkgs", ips_root / "prim", ips_root / "prim_opentitan"]
+    if interface == "tlul":
+        include_dirs.append(ips_root / "tlul")
+    elif interface == "axi_lite":
         pulp_root = repo / "vendor" / "pulp"
-        include_dirs += [
-            pulp_root / "axi" / "include",
-            pulp_root / "register_interface" / "include",
-        ]
+        include_dirs += [pulp_root / "axi" / "include", pulp_root / "register_interface" / "include"]
     includes = " ".join(f"-I{path}" for path in [rtl_dir, *include_dirs])
     gate = render_gls_make_block(f"../../../../syn/$(PDK)/{cfg.top}_synth.v")
     source_block = "\n".join(
@@ -5266,21 +5517,34 @@ def render_tlul_wrapper(cfg: CocotbConfig) -> str:
     )
 
 def render_axi_lite_wrapper(cfg: CocotbConfig) -> str:
-    """Render a flat-port AXI4-Lite wrapper for RTL and gate cocotb runs."""
+    """Render scalar cocotb proxies around the packed AXI4-Lite DUT boundary."""
 
     port_info = parse_top_ports(find_top_file(cfg.rtl_dir, cfg.top))
-    extra_decls = render_extra_port_declarations(port_info)
-    extra_init = render_extra_input_initializers(port_info)
+    clean_info = {
+        key: ([entry for entry in value if entry.get("name") not in {"axi_lite_i", "axi_lite_o"}]
+              if key in {"inputs", "outputs"} else value)
+        for key, value in port_info.items()
+    }
+    extra_decls = render_extra_port_declarations(clean_info)
+    extra_init = render_extra_input_initializers(clean_info)
+    proxy_decls, proxy_assigns, proxy_init = _axi_lite_cocotb_proxy(f"{cfg.top}_reg_pkg")
     template = dedent(
         f"""\
         `timescale 1ns/1ps
         module {cfg.top}_tb;
+          import {cfg.top}_reg_pkg::*;
           logic {cfg.clk};
           logic {cfg.rst};
         __EXTRA_DECLS__
+          axi_lite_req_t axi_lite_i;
+          axi_lite_rsp_t axi_lite_o;
+        __PROXY_DECLS__
+
+        __PROXY_ASSIGNS__
 
           initial begin
         __EXTRA_INIT__
+        __PROXY_INIT__
           end
 
           string wave_path;
@@ -5309,7 +5573,11 @@ def render_axi_lite_wrapper(cfg: CocotbConfig) -> str:
         endmodule
         """
     )
-    return template.replace("__EXTRA_DECLS__", extra_decls).replace("__EXTRA_INIT__", extra_init)
+    return (template.replace("__EXTRA_DECLS__", extra_decls)
+            .replace("__PROXY_DECLS__", proxy_decls)
+            .replace("__PROXY_ASSIGNS__", proxy_assigns)
+            .replace("__EXTRA_INIT__", extra_init)
+            .replace("__PROXY_INIT__", proxy_init))
 
 
 def _write_cocotb_scaffold_impl(
@@ -5318,6 +5586,7 @@ def _write_cocotb_scaffold_impl(
     """Write the cocotb scaffold and return generated paths."""
 
     clocks = clocks or clock_config()
+    cfg = replace(cfg, interface=normalize_register_interface(cfg.interface))
     out_dir = cfg.output.resolve()
     drivers = out_dir / "drivers"
     drivers.mkdir(parents=True, exist_ok=True)
@@ -5340,10 +5609,11 @@ def _write_cocotb_scaffold_impl(
             setup_uncertainty_ns=clock_domain.setup_uncertainty_ns,
             hold_uncertainty_ns=clock_domain.hold_uncertainty_ns,
         ),
-        out_dir / f"{cfg.top}_tb.sv": (
-            render_axi_lite_wrapper(cfg) if cfg.interface == "axi_lite"
-            else (render_reg_iface_wrapper(cfg) if cfg.interface == "reg_iface" else render_tlul_wrapper(cfg))
-        ),
+        out_dir / f"{cfg.top}_tb.sv": {
+            "tlul": render_tlul_wrapper,
+            "reg_iface": render_reg_iface_wrapper,
+            "axi_lite": render_axi_lite_wrapper,
+        }[cfg.interface](cfg),
     }
     for stale in (
         out_dir / "utils.py",
@@ -5387,6 +5657,7 @@ def write_cocotb_scaffold(
     """Recreate the complete machine-owned cocotb scaffold."""
 
     clocks = clocks or clock_config()
+    config = replace(config, interface=normalize_register_interface(config.interface))
     if clocks.multiclock:
         return write_nclock_cocotb(config, clocks)
     with replace_generated_tree(config.output):
@@ -5396,57 +5667,22 @@ def write_cocotb_scaffold(
         if written is None:
             return sorted(path for path in Path(config.output).iterdir() if path.is_file())
         return written
-def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
-    """Render the package-free N-clock cocotb wrapper with two TL-UL proxies."""
+def cocotb_sv_text(top: str, clocks: ClockConfig, interface: str = "tlul") -> str:
+    """Render the N-clock cocotb wrapper for the selected CSR transport."""
 
+    interface = normalize_register_interface(interface)
     clock_decls = "\n".join(
         f"  logic {domain.signal};\n  logic {domain.reset};" for domain in clocks.domains
     )
-    clock_pins = ",\n".join(
-        f"    .{signal:<25}({signal})"
-        for domain in clocks.domains
-        for signal in (domain.signal, domain.reset)
-    )
-    helpers = render_packed_tlul_helpers("  ")
+    bus_decls, bus_helpers, bus_pins = _nclock_bus_sv(top, interface, cocotb=True)
+    dut_pins = _render_nclock_dut_pins(clocks, bus_pins)
     template = dedent(f"""\
     `timescale 1ns/1ps
 
     module {top}_tb;
     __CLOCK_DECLS__
       logic test_en_i;
-
-      logic [108:0] cfg_tl_i;
-      logic [65:0]  cfg_tl_o;
-      logic [108:0] dsp_tl_i;
-      logic [65:0]  dsp_tl_o;
-
-      logic        cfg_a_valid;
-      logic [2:0]  cfg_a_opcode;
-      logic [2:0]  cfg_a_param;
-      logic [1:0]  cfg_a_size;
-      logic [7:0]  cfg_a_source;
-      logic [31:0] cfg_a_address;
-      logic [3:0]  cfg_a_mask;
-      logic [31:0] cfg_a_data;
-      logic        cfg_d_ready;
-      logic        cfg_a_ready;
-      logic        cfg_d_valid;
-      logic [31:0] cfg_d_data;
-      logic        cfg_d_error;
-
-      logic        dsp_a_valid;
-      logic [2:0]  dsp_a_opcode;
-      logic [2:0]  dsp_a_param;
-      logic [1:0]  dsp_a_size;
-      logic [7:0]  dsp_a_source;
-      logic [31:0] dsp_a_address;
-      logic [3:0]  dsp_a_mask;
-      logic [31:0] dsp_a_data;
-      logic        dsp_d_ready;
-      logic        dsp_a_ready;
-      logic        dsp_d_valid;
-      logic [31:0] dsp_d_data;
-      logic        dsp_d_error;
+    __BUS_DECLS__
 
       logic rx_valid_i;
       logic rx_ready_o;
@@ -5457,25 +5693,7 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
       logic signed [31:0] dsp_result_o;
       logic dsp_above_threshold_o;
       logic dsp_overflow_o;
-    __TLUL_HELPERS__
-
-      assign cfg_tl_i = flexsoc_tlul_h2d(
-        cfg_a_valid, cfg_a_opcode, cfg_a_param, cfg_a_size, cfg_a_source,
-        cfg_a_address, cfg_a_mask, cfg_a_data, cfg_d_ready
-      );
-      assign dsp_tl_i = flexsoc_tlul_h2d(
-        dsp_a_valid, dsp_a_opcode, dsp_a_param, dsp_a_size, dsp_a_source,
-        dsp_a_address, dsp_a_mask, dsp_a_data, dsp_d_ready
-      );
-
-      assign cfg_a_ready = cfg_tl_o[0];
-      assign cfg_d_valid = cfg_tl_o[65];
-      assign cfg_d_data  = cfg_tl_o[47:16];
-      assign cfg_d_error = cfg_tl_o[1];
-      assign dsp_a_ready = dsp_tl_o[0];
-      assign dsp_d_valid = dsp_tl_o[65];
-      assign dsp_d_data  = dsp_tl_o[47:16];
-      assign dsp_d_error = dsp_tl_o[1];
+    __BUS_HELPERS__
 
       `ifdef FLEXSOC_ENABLE_SDF
         string sdf_path;
@@ -5497,104 +5715,153 @@ def cocotb_sv_text(top: str, clocks: ClockConfig) -> str:
       `endif
 
       {top} u_dut (
-    __CLOCK_PINS__,
-        .test_en_i             (test_en_i),
-        .cfg_tl_i              (cfg_tl_i),
-        .cfg_tl_o              (cfg_tl_o),
-        .dsp_tl_i              (dsp_tl_i),
-        .dsp_tl_o              (dsp_tl_o),
-        .rx_valid_i            (rx_valid_i),
-        .rx_ready_o            (rx_ready_o),
-        .rx_sample_i           (rx_sample_i),
-        .rx_coeff_i            (rx_coeff_i),
-        .dsp_valid_o           (dsp_valid_o),
-        .dsp_ready_i           (dsp_ready_i),
-        .dsp_result_o          (dsp_result_o),
-        .dsp_above_threshold_o (dsp_above_threshold_o),
-        .dsp_overflow_o        (dsp_overflow_o)
+    __DUT_PINS__
       );
     endmodule
     """)
-    return (
-        template.replace("__CLOCK_DECLS__", clock_decls)
-        .replace("__TLUL_HELPERS__", helpers)
-        .replace("__CLOCK_PINS__", clock_pins)
-    )
+    return (template.replace("__CLOCK_DECLS__", clock_decls)
+            .replace("__BUS_DECLS__", bus_decls)
+            .replace("__BUS_HELPERS__", bus_helpers)
+            .replace("__DUT_PINS__", dut_pins))
 
-def cocotb_makefile_text(
-    top: str,
-    rtl_dir: Path,
-    *,
-    ips_root: Path | None = None,
-    simulator: str = "verilator",
+
+def _nclock_cocotb_bus_py(interface: str) -> tuple[str, str, str]:
+    """Return generated defaults/write/read bodies for one N-clock CSR transport."""
+
+    interface = normalize_register_interface(interface)
+    if interface == "tlul":
+        defaults = '''
+    for name in ("a_valid", "a_opcode", "a_param", "a_size", "a_source", "a_address", "a_mask", "a_data"):
+        getattr(dut, f"{domain}_{name}").value = 0
+    getattr(dut, f"{domain}_d_ready").value = 1
+'''
+        write = '''
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    for name, value in (("a_valid", 1), ("a_opcode", 0), ("a_param", 0), ("a_size", 2),
+                        ("a_source", 0), ("a_address", addr & 0xFFFFFFFF), ("a_mask", 0xF),
+                        ("a_data", data & 0xFFFFFFFF)):
+        getattr(dut, f"{domain}_{name}").value = value
+    await _wait_high(dut, f"{domain}_a_ready", clk)
+    await _drive_cycle(clk)
+    getattr(dut, f"{domain}_a_valid").value = 0
+    await _wait_high(dut, f"{domain}_d_valid", clk)
+    if int(getattr(dut, f"{domain}_d_error").value):
+        raise AssertionError(f"TL-UL write error on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+'''
+        read = '''
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    for name, value in (("a_valid", 1), ("a_opcode", 4), ("a_param", 0), ("a_size", 2),
+                        ("a_source", 0), ("a_address", addr & 0xFFFFFFFF), ("a_mask", 0xF)):
+        getattr(dut, f"{domain}_{name}").value = value
+    await _wait_high(dut, f"{domain}_a_ready", clk)
+    await _drive_cycle(clk)
+    getattr(dut, f"{domain}_a_valid").value = 0
+    await _wait_high(dut, f"{domain}_d_valid", clk)
+    data = int(getattr(dut, f"{domain}_d_data").value) & 0xFFFFFFFF
+    if int(getattr(dut, f"{domain}_d_error").value):
+        raise AssertionError(f"TL-UL read error on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    return data
+'''
+        return defaults, write, read
+
+    if interface == "reg_iface":
+        defaults = '''
+    for name in ("valid", "write", "addr", "wdata", "wstrb"):
+        getattr(dut, f"{domain}_reg_req_{name}").value = 0
+'''
+        write = '''
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    for name, value in (("valid", 1), ("write", 1), ("addr", addr), ("wdata", data), ("wstrb", 0xF)):
+        getattr(dut, f"{domain}_reg_req_{name}").value = value
+    await _wait_high(dut, f"{domain}_reg_rsp_ready", clk)
+    if int(getattr(dut, f"{domain}_reg_rsp_error").value):
+        raise AssertionError(f"reg_iface write error on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+'''
+        read = '''
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    for name, value in (("valid", 1), ("write", 0), ("addr", addr), ("wdata", 0), ("wstrb", 0)):
+        getattr(dut, f"{domain}_reg_req_{name}").value = value
+    await _wait_high(dut, f"{domain}_reg_rsp_ready", clk)
+    data = int(getattr(dut, f"{domain}_reg_rsp_rdata").value) & 0xFFFFFFFF
+    if int(getattr(dut, f"{domain}_reg_rsp_error").value):
+        raise AssertionError(f"reg_iface read error on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    return data
+'''
+        return defaults, write, read
+
+    defaults = '''
+    for name in ("aw_addr_i", "aw_prot_i", "aw_valid_i", "w_data_i", "w_strb_i", "w_valid_i",
+                 "b_ready_i", "ar_addr_i", "ar_prot_i", "ar_valid_i", "r_ready_i"):
+        getattr(dut, f"{domain}_axi_{name}").value = 0
+'''
+    write = '''
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    for name, value in (("aw_addr_i", addr), ("aw_prot_i", 0), ("aw_valid_i", 1),
+                        ("w_data_i", data), ("w_strb_i", 0xF), ("w_valid_i", 1)):
+        getattr(dut, f"{domain}_axi_{name}").value = value
+    aw_done = w_done = False
+    for _ in range(256):
+        await _sample_cycle(clk)
+        aw_done |= bool(getattr(dut, f"{domain}_axi_aw_ready_o").value)
+        w_done |= bool(getattr(dut, f"{domain}_axi_w_ready_o").value)
+        if aw_done and w_done:
+            break
+        await _drive_cycle(clk)
+        if aw_done:
+            getattr(dut, f"{domain}_axi_aw_valid_i").value = 0
+        if w_done:
+            getattr(dut, f"{domain}_axi_w_valid_i").value = 0
+    else:
+        raise TimeoutError(f"AXI4-Lite write request timeout on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    getattr(dut, f"{domain}_axi_aw_valid_i").value = 0
+    getattr(dut, f"{domain}_axi_w_valid_i").value = 0
+    getattr(dut, f"{domain}_axi_b_ready_i").value = 1
+    await _wait_high(dut, f"{domain}_axi_b_valid_o", clk)
+    if int(getattr(dut, f"{domain}_axi_b_resp_o").value):
+        raise AssertionError(f"AXI4-Lite write error on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+'''
+    read = '''
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    getattr(dut, f"{domain}_axi_ar_addr_i").value = addr
+    getattr(dut, f"{domain}_axi_ar_valid_i").value = 1
+    await _wait_high(dut, f"{domain}_axi_ar_ready_o", clk)
+    await _drive_cycle(clk)
+    getattr(dut, f"{domain}_axi_ar_valid_i").value = 0
+    getattr(dut, f"{domain}_axi_r_ready_i").value = 1
+    await _wait_high(dut, f"{domain}_axi_r_valid_o", clk)
+    data = int(getattr(dut, f"{domain}_axi_r_data_o").value) & 0xFFFFFFFF
+    if int(getattr(dut, f"{domain}_axi_r_resp_o").value):
+        raise AssertionError(f"AXI4-Lite read error on {domain} addr=0x{addr:08x}")
+    await _drive_cycle(clk)
+    _set_domain_defaults(dut, domain)
+    return data
+'''
+    return defaults, write, read
+
+
+def cocotb_reg_driver_py_text(
+    top: str, clocks: ClockConfig, io_delay_pct: float = 0.2, interface: str = "tlul"
 ) -> str:
-    """Render a cocotb Makefile bound to the current run and checkout paths."""
+    """Render N-clock register helpers over the selected external CSR transport."""
 
-    rtl_dir = rtl_dir.resolve()
-    ips_root = (ips_root or repo_root() / "hw" / "ips").resolve()
-    include_args = " ".join(
-        f"-I{path}"
-        for path in (
-            rtl_dir,
-            ips_root / "pkgs",
-            ips_root / "prim",
-            ips_root / "prim_opentitan",
-            ips_root / "tlul",
-        )
-    )
-    common_filelist = rtl_dir / "rtl_common.f"
-    ip_filelist = rtl_dir / "rtl_ip.f"
-    gate = render_gls_make_block(f"../../../../syn/$(PDK)/{top}_synth.v")
-    template = dedent(f"""\
-    SIM ?= {simulator}
-    TOPLEVEL_LANG ?= verilog
-    COCOTB_TOPLEVEL = {top}_tb
-    COCOTB_TEST_MODULES = {top}_tb
-
-    ifeq ($(GATES),yes)
-    __GLS_BLOCK__
-    else
-      SIM_BUILD ?= sim_build/rtl
-      EXTRA_ARGS += -f {common_filelist}
-      EXTRA_ARGS += -f {ip_filelist}
-      EXTRA_ARGS += {include_args}
-      EXTRA_ARGS += -Wno-fatal
-    endif
-
-    VERILOG_SOURCES += $(PWD)/{top}_tb.sv
-    export TEST_NAME ?= smoke
-    export TEST_ROOT ?= $(abspath ../../tests)
-    SEED ?= 1
-    HDL_COVERAGE ?= 0
-    COVERAGE_FILE ?= $(abspath ../../coverage/cocotb/$(TEST_NAME).dat)
-    WAVE_FORMAT ?= fst
-    WAVE_EXT ?= $(WAVE_FORMAT)
-    WAVE_FILE ?= $(abspath ../../sim/rtl/{top}_tb_cocotb_$(TEST_NAME).$(WAVE_EXT))
-    COCOTB_PLUSARGS += +WAVE=$(WAVE_FILE)
-
-    override COVERAGE :=
-    unexport COVERAGE
-
-    ifeq ($(SIM),verilator)
-      COCOTB_PLUSARGS += +verilator+seed+$(SEED)
-      ifeq ($(HDL_COVERAGE),1)
-        EXTRA_ARGS += --coverage-line --coverage-toggle --coverage-expr --coverage-fsm --coverage-user
-        COCOTB_PLUSARGS += +verilator+coverage+file+$(COVERAGE_FILE)
-      endif
-    endif
-    export FLEXSOC_SEED := $(SEED)
-    export COCOTB_RANDOM_SEED := $(SEED)
-    export CFG ?= $(TEST_ROOT)/$(TEST_NAME)/config.regs
-    export REG_CONFIG ?= $(CFG)
-    export DATA_IN ?= $(TEST_ROOT)/$(TEST_NAME)/data_in.vec
-    export DATA_OUT ?= $(TEST_ROOT)/$(TEST_NAME)/data_out.vec
-    include $(shell cocotb-config --makefiles)/Makefile.sim
-    """)
-    return template.replace("__GLS_BLOCK__", gate.rstrip())
-
-def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float = 0.2) -> str:
-    """Render TL-UL helpers bound to the canonical clock/reset domains."""
-
+    interface = normalize_register_interface(interface)
     clock_map = {domain.name: domain.signal for domain in clocks.domains}
     reset_map = {
         domain.name: (domain.signal, domain.reset, domain.reset_polarity)
@@ -5602,6 +5869,7 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
     }
     primary = clocks.domains[0].signal
     settle = clocks.domains[-1].signal
+    defaults, write, read = _nclock_cocotb_bus_py(interface)
     text = dedent("""\
     from __future__ import annotations
 
@@ -5621,19 +5889,8 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
     SETTLE_CLOCK = __SETTLE_CLOCK__
 
     ADDR = {
-        "cfg": {
-            "CTRL": 0x0,
-            "GAIN": 0x4,
-            "STATUS": 0x8,
-            "CFG_STATUS": 0x8,
-        },
-        "dsp": {
-            "DSP_CTRL": 0x0,
-            "THRESHOLD": 0x4,
-            "DSP_STATUS": 0x8,
-            "STATUS": 0x8,
-            "RESULT": 0xC,
-        },
+        "cfg": {"CTRL": 0x0, "GAIN": 0x4, "STATUS": 0x8, "CFG_STATUS": 0x8},
+        "dsp": {"DSP_CTRL": 0x0, "THRESHOLD": 0x4, "DSP_STATUS": 0x8, "STATUS": 0x8, "RESULT": 0xC},
     }
 
 
@@ -5645,10 +5902,10 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
         key = _clock_key(clk)
         if key not in CLOCK_PERIOD_PS:
             raise KeyError(f"unknown generated clock: {key}")
+        period = CLOCK_PERIOD_PS[key]
         if key not in _PHASE_ORIGINS:
             await RisingEdge(clk)
             _PHASE_ORIGINS[key] = int(get_sim_time(unit="ps"))
-        period = CLOCK_PERIOD_PS[key]
         now = int(get_sim_time(unit="ps"))
         phase = (now - _PHASE_ORIGINS[key]) % period
         delta = (offsets[key] - phase) % period
@@ -5658,39 +5915,30 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
 
 
     async def _sample_cycle(clk):
-        "Sample protocol outputs at the output-deadline phase."
         await _wait_phase(clk, CLOCK_SAMPLE_PS)
 
 
     async def _drive_cycle(clk):
-        "Drive protocol inputs at the input-delay phase."
         await _wait_phase(clk, CLOCK_DRIVE_PS)
 
 
     async def _wait_cycles(clk, count=1):
-        "Advance whole protocol cycles using the sampling edge only."
         for _ in range(max(0, int(count))):
             await _sample_cycle(clk)
 
 
     def rows(path: str):
-        "Read non-comment config/vector rows."
         for raw in Path(path).read_text(encoding="utf-8").splitlines():
             line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            yield line.split()
+            if line and not line.startswith("#"):
+                yield line.split()
 
 
     def _set_domain_defaults(dut, domain: str):
-        "Initialize scalar TL-UL proxy signals for one domain."
-        for name in ("a_valid", "a_opcode", "a_param", "a_size", "a_source", "a_address", "a_mask", "a_data"):
-            getattr(dut, f"{domain}_{name}").value = 0
-        getattr(dut, f"{domain}_d_ready").value = 1
+    __BUS_DEFAULTS__
 
 
     def set_defaults(dut):
-        "Initialize top-level scalar IO and TL-UL proxy signals."
         _set_domain_defaults(dut, "cfg")
         _set_domain_defaults(dut, "dsp")
         dut.rx_valid_i.value = 0
@@ -5701,7 +5949,6 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
 
 
     def _selected_resets(selector: str):
-        "Resolve all, a domain name, or a reset signal name."
         clean = str(selector or "all")
         if clean in {"all", "*"}:
             return tuple(RESET_DOMAINS.values())
@@ -5712,13 +5959,11 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
 
 
     async def _wait_reset_cycles(dut, selected, cycles: int):
-        "Wait the requested number of edges in every selected reset domain."
         for _ in range(max(1, int(cycles))):
             await Combine(*(RisingEdge(getattr(dut, clock)) for clock, _, _ in selected))
 
 
     async def reset(dut, selector: str = "all", cycles: int = 5):
-        "Apply the same named reset pulse semantics used by the SV backend."
         selected = _selected_resets(selector)
         set_defaults(dut)
         for _, signal, polarity in selected:
@@ -5732,7 +5977,6 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
 
 
     async def _wait_high(dut, signal: str, clk, limit: int = 256):
-        "Sample one TL-UL handshake only on rising edges."
         for _ in range(limit):
             await _sample_cycle(clk)
             if bool(getattr(dut, signal).value):
@@ -5740,85 +5984,41 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
         raise TimeoutError(f"timeout waiting for {signal}")
 
 
-    async def _tlul_write(dut, domain: str, clk, addr: int, data: int):
-        "Issue one PutFullData write using the common edge contract."
-        await _drive_cycle(clk)
-        _set_domain_defaults(dut, domain)
-        getattr(dut, f"{domain}_a_valid").value = 1
-        getattr(dut, f"{domain}_a_opcode").value = 0
-        getattr(dut, f"{domain}_a_param").value = 0
-        getattr(dut, f"{domain}_a_size").value = 2
-        getattr(dut, f"{domain}_a_source").value = 0
-        getattr(dut, f"{domain}_a_address").value = addr & 0xFFFFFFFF
-        getattr(dut, f"{domain}_a_mask").value = 0xF
-        getattr(dut, f"{domain}_a_data").value = data & 0xFFFFFFFF
-        await _wait_high(dut, f"{domain}_a_ready", clk)
-        await _drive_cycle(clk)
-        getattr(dut, f"{domain}_a_valid").value = 0
-        await _wait_high(dut, f"{domain}_d_valid", clk)
-        if int(getattr(dut, f"{domain}_d_error").value):
-            raise AssertionError(f"TL-UL write error on {domain} addr=0x{addr:08x}")
-        await _drive_cycle(clk)
-        _set_domain_defaults(dut, domain)
+    async def _bus_write(dut, domain: str, clk, addr: int, data: int):
+    __BUS_WRITE__
 
 
-    async def _tlul_read(dut, domain: str, clk, addr: int) -> int:
-        "Issue one Get read using the common edge contract."
-        await _drive_cycle(clk)
-        _set_domain_defaults(dut, domain)
-        getattr(dut, f"{domain}_a_valid").value = 1
-        getattr(dut, f"{domain}_a_opcode").value = 4
-        getattr(dut, f"{domain}_a_param").value = 0
-        getattr(dut, f"{domain}_a_size").value = 2
-        getattr(dut, f"{domain}_a_source").value = 0
-        getattr(dut, f"{domain}_a_address").value = addr & 0xFFFFFFFF
-        getattr(dut, f"{domain}_a_mask").value = 0xF
-        await _wait_high(dut, f"{domain}_a_ready", clk)
-        await _drive_cycle(clk)
-        getattr(dut, f"{domain}_a_valid").value = 0
-        await _wait_high(dut, f"{domain}_d_valid", clk)
-        data = int(getattr(dut, f"{domain}_d_data").value) & 0xFFFFFFFF
-        error = int(getattr(dut, f"{domain}_d_error").value)
-        if error:
-            raise AssertionError(f"TL-UL read error on {domain} addr=0x{addr:08x}")
-        await _drive_cycle(clk)
-        _set_domain_defaults(dut, domain)
-        return data
+    async def _bus_read(dut, domain: str, clk, addr: int) -> int:
+    __BUS_READ__
 
 
     def _decode_reg(name: str) -> tuple[str, int]:
-        "Resolve a generated config/check register name to domain and address."
         clean = name[6:] if name.startswith("clk_i.") else name
         if "." in clean:
             domain, reg = clean.split(".", 1)
         else:
             domain, reg = "cfg", clean
-        reg = reg.upper()
         try:
-            return domain, ADDR[domain][reg]
+            return domain, ADDR[domain][reg.upper()]
         except KeyError as exc:
             raise KeyError(f"unknown register {name!r}; update drivers/reg_driver.py") from exc
 
 
     async def apply_reg(dut, name: str, value: int, mask: int = 0xFFFFFFFF):
-        "Apply one config/vector register write, including a bit mask."
         domain, addr = _decode_reg(name)
         clk = getattr(dut, CLOCKS[domain])
         if mask != 0xFFFFFFFF:
-            current = await _tlul_read(dut, domain, clk, addr)
+            current = await _bus_read(dut, domain, clk, addr)
             value = (current & ~mask) | (value & mask)
-        await _tlul_write(dut, domain, clk, addr, value)
+        await _bus_write(dut, domain, clk, addr, value)
 
 
     async def read_reg(dut, name: str) -> int:
-        "Read one register by generated model name, for simple status checks."
         domain, addr = _decode_reg(name)
-        clk = getattr(dut, CLOCKS[domain])
-        return await _tlul_read(dut, domain, clk, addr)
+        return await _bus_read(dut, domain, getattr(dut, CLOCKS[domain]), addr)
 
 
     async def expect_reg(dut, name: str, expected: int, mask: int = 0xFFFFFFFF):
-        "Read one register and assert its masked value."
         got = await read_reg(dut, name)
         if (got & mask) != (expected & mask):
             raise AssertionError(
@@ -5827,12 +6027,10 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
 
 
     async def settle(dut, cycles: int = 8):
-        "Allow synchronized controls to propagate into the datapath."
         await _wait_cycles(getattr(dut, SETTLE_CLOCK), cycles)
 
 
     async def apply_config(dut, path: str):
-        "Apply generated config rows and allow CDC synchronizers to settle."
         for parts in rows(path):
             if len(parts) >= 2:
                 mask = int(parts[2], 0) if len(parts) >= 3 else 0xFFFFFFFF
@@ -5847,12 +6045,17 @@ def cocotb_reg_driver_py_text(top: str, clocks: ClockConfig, io_delay_pct: float
         drive_ps[domain.signal] = int(round(drive_ns * 1000))
         sample_ps[domain.signal] = int(round(sample_ns * 1000))
     return (text.replace("__CLOCK_MAP__", repr(clock_map))
-                .replace("__CLOCK_PERIOD_PS__", repr(period_ps))
-                .replace("__CLOCK_DRIVE_PS__", repr(drive_ps))
-                .replace("__CLOCK_SAMPLE_PS__", repr(sample_ps))
-                .replace("__RESET_MAP__", repr(reset_map))
-                .replace("__PRIMARY_CLOCK__", repr(primary))
-                .replace("__SETTLE_CLOCK__", repr(settle)))
+            .replace("__CLOCK_PERIOD_PS__", repr(period_ps))
+            .replace("__CLOCK_DRIVE_PS__", repr(drive_ps))
+            .replace("__CLOCK_SAMPLE_PS__", repr(sample_ps))
+            .replace("__RESET_MAP__", repr(reset_map))
+            .replace("__PRIMARY_CLOCK__", repr(primary))
+            .replace("__SETTLE_CLOCK__", repr(settle))
+            .replace("__BUS_DEFAULTS__", defaults.rstrip())
+            .replace("__BUS_WRITE__", write.rstrip())
+            .replace("__BUS_READ__", read.rstrip()))
+
+
 def cocotb_vec_driver_py_text(top: str) -> str:
     """Render N-clock vector commands, including CSR and reset actions."""
 
@@ -6058,16 +6261,14 @@ def _write_nclock_cocotb_tree(cfg: CocotbConfig, clocks: ClockConfig) -> list[Pa
     """Write the generated N-clock cocotb scaffold into an empty tree."""
 
     out, drivers = cfg.output, cfg.output / "drivers"
+    sources = collect_sources(cfg.top, cfg.rtl_dir.resolve(), cfg.ips_root)
     files = {
-        out / "Makefile": cocotb_makefile_text(
-            cfg.top,
-            cfg.rtl_dir,
-            ips_root=cfg.ips_root,
-            simulator=cfg.simulator,
-        ),
-        out / f"{cfg.top}_tb.sv": cocotb_sv_text(cfg.top, clocks),
+        out / "Makefile": render_makefile(cfg, sources),
+        out / f"{cfg.top}_tb.sv": cocotb_sv_text(cfg.top, clocks, cfg.interface),
         drivers / "__init__.py": "",
-        drivers / "reg_driver.py": cocotb_reg_driver_py_text(cfg.top, clocks, cfg.io_delay_pct),
+        drivers / "reg_driver.py": cocotb_reg_driver_py_text(
+            cfg.top, clocks, cfg.io_delay_pct, cfg.interface
+        ),
         drivers / "vec_driver.py": cocotb_vec_driver_py_text(cfg.top),
         drivers / "vec_monitor.py": cocotb_monitor_py_text(cfg.top),
         out / f"{cfg.top}_tb.py": cocotb_py_text(cfg.top, clocks),
@@ -6095,11 +6296,8 @@ class TestbenchFlow:
         if clocks.multiclock:
             canonical = _with_canonical_sv_output(config)
             return generate_nclock_testbench(
-                canonical.top,
-                Path(canonical.output),
-                clocks,
-                force=canonical.force,
-                io_delay_pct=canonical.io_delay_pct,
+                canonical.top, Path(canonical.output), clocks, force=canonical.force,
+                io_delay_pct=canonical.io_delay_pct, interface=canonical.interface,
             )
         return generate_testbench_files(config, clocks=clocks)
 

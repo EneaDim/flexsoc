@@ -986,6 +986,68 @@ def generate(
     out_path.write_text(_emit_python(top, sources, registers), encoding="utf-8")
     return out_path
 
+
+_AXI_LITE_TYPES = """
+  // FlexSoC external AXI4-Lite transport types.
+  typedef struct packed {
+    logic [AW-1:0] addr;
+    logic [2:0] prot;
+  } axi_lite_aw_t;
+
+  typedef struct packed {
+    logic [DW-1:0] data;
+    logic [DBW-1:0] strb;
+  } axi_lite_w_t;
+
+  typedef struct packed { logic [1:0] resp; } axi_lite_b_t;
+
+  typedef struct packed {
+    logic [AW-1:0] addr;
+    logic [2:0] prot;
+  } axi_lite_ar_t;
+
+  typedef struct packed {
+    logic [DW-1:0] data;
+    logic [1:0] resp;
+  } axi_lite_r_t;
+
+  typedef struct packed {
+    axi_lite_aw_t aw;
+    logic aw_valid;
+    axi_lite_w_t w;
+    logic w_valid;
+    logic b_ready;
+    axi_lite_ar_t ar;
+    logic ar_valid;
+    logic r_ready;
+  } axi_lite_req_t;
+
+  typedef struct packed {
+    logic aw_ready;
+    logic w_ready;
+    axi_lite_b_t b;
+    logic b_valid;
+    logic ar_ready;
+    axi_lite_r_t r;
+    logic r_valid;
+  } axi_lite_rsp_t;
+"""
+
+
+def add_axi_lite_types(path: str | Path) -> Path:
+    """Add the canonical packed AXI4-Lite view to one generated register package."""
+
+    pkg = Path(path)
+    text = pkg.read_text(encoding="utf-8")
+    if "} axi_lite_req_t;" in text and "} axi_lite_rsp_t;" in text:
+        return pkg
+    marker = "\nendpackage"
+    if marker not in text:
+        raise RuntimeError(f"generated register package has no endpackage: {pkg}")
+    pkg.write_text(text.replace(marker, f"\n{_AXI_LITE_TYPES}{marker}", 1), encoding="utf-8")
+    return pkg
+
+
 class RegsFlow:
     """Generate register source and each derived collateral independently."""
 
@@ -1061,6 +1123,7 @@ class RegsFlow:
             argv = ["-r", "-t", str(rtl_dir), str(source)]
             if self._run_regtool(argv, cwd=self.project_root, log=log, on=on):
                 raise RuntimeError(f"regtool RTL generation failed: {source}")
+            add_axi_lite_types(rtl_dir / f"{source.stem}_reg_pkg.sv")
             outputs.append(source)
         return tuple(outputs)
 
